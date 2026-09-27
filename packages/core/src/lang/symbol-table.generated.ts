@@ -14,6 +14,7 @@ export default {
   "profile": {},
   "sketchOnPlane": {},
   "sketchOnFace": {},
+  "punchHole": {},
   "wire": {},
   "helix": {},
   "sdf": {},

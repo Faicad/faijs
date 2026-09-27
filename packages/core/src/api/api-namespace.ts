@@ -30,6 +30,7 @@ import { screw } from './screw'
 import { profile } from './profile'
 import { sketchOnPlane } from './sketch-on-plane'
 import { sketchOnFace } from './sketch-on-face'
+import { punchHole } from './punch-hole'
 import { wire } from './wire'
 import { helix } from './helix'
 import { union, subtract, intersect, cut } from './boolean'
@@ -80,7 +81,7 @@ export function createApiNamespace(): StdlibNamespace {
   return {
     contractVersion: CONTRACT_VERSION,
     box, sphere, cylinder, cone, wedge,
-    screw, profile, sketchOnPlane, sketchOnFace, wire, helix, sdf,
+    screw, profile, sketchOnPlane, sketchOnFace, punchHole, wire, helix, sdf,
     // D1 选项 C：四个 transform op 全留核心（translate 小程序端在用，同族不拆散）。
     translate, rotate_euler, scale, scale3d,
     engrave, chamfer, fillet, knurl,

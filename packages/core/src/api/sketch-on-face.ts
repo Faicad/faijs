@@ -87,15 +87,54 @@ export function resolveFaceHandle(kernel: BrepEngineApi, on: Shape, selector: Fa
   return resolved.handle as BrepHandle
 }
 
+/**
+ * Make the placed face inherit the host face's outward orientation: surface
+ * normals must point the same way, otherwise the resulting face — and any prism
+ * extruded from it — carries a reversed shell whose OCCT volume collapses to ~0.
+ * @param kernel - the BREP engine surface.
+ * @param host - the host face handle (its normal is the reference).
+ * @param face - the face built on the host surface.
+ * @returns a handle to the (possibly re-oriented) face.
+ */
+function orientLikeHost(kernel: BrepEngineApi, host: BrepHandle, face: BrepHandle): BrepHandle {
+  const a = kernel.surfaceNormal(host, 0, 0)
+  const b = kernel.surfaceNormal(face, 0, 0)
+  const dot = a.x * b.x + a.y * b.y + a.z * b.z
+  return dot < 0 ? kernel.reverseShape(face) : face
+}
+
 /** Build one face (outer + optional holes) on the host face for an organised contour entry. */
 function buildOnFace(kernel: BrepEngineApi, host: BrepHandle, mode: FaceScaleMode, entry: Blueprint | CompoundBlueprint): BrepHandle {
   if (entry instanceof CompoundBlueprint) {
-    let face = kernel.makeFace(assembleWireOnFace(kernel, host, mode, entry.blueprints[0]!).wire)
+    let face = orientLikeHost(kernel, host, kernel.makeFace(assembleWireOnFace(kernel, host, mode, entry.blueprints[0]!).wire))
     const holes = entry.blueprints.slice(1).map((h) => assembleWireOnFace(kernel, host, mode, h).wire as never)
     if (holes.length > 0) face = kernel.addHolesInFace(face, holes)
     return face
   }
-  return kernel.makeFace(assembleWireOnFace(kernel, host, mode, entry).wire)
+  return orientLikeHost(kernel, host, kernel.makeFace(assembleWireOnFace(kernel, host, mode, entry).wire))
+}
+
+/**
+ * Place `contours` onto the UV space of the host face and return one BREP face
+ * per classified contour (each outer + holes folded into a single face). Shared
+ * by `cad.sketchOnFace` (wrap as a Shape) and `cad.punchHole` (extrude → cut).
+ * @param kernel - the BREP engine surface.
+ * @param host - the resolved live host face handle.
+ * @param mode - the face-scale (UV mapping) mode.
+ * @param contours - ordered 2D closed contour loops to place.
+ * @returns the BREP faces built on the host face (one per organised entry).
+ */
+export function placeContoursOnFace(
+  kernel: BrepEngineApi,
+  host: BrepHandle,
+  mode: FaceScaleMode,
+  contours: ProfileLoop[],
+): BrepHandle[] {
+  const blueprints = contours.map(
+    (loop) => new Blueprint(loop.segments.map((s) => profileSegToCurve(s as ProfileSegLike))),
+  )
+  const organised = organiseBlueprints(blueprints)
+  return organised.blueprints.map((entry) => buildOnFace(kernel, host, mode, entry))
 }
 
 /**
@@ -121,7 +160,7 @@ export function buildSketchOnFaceWith(kernel: BrepEngineApi, params: SketchOnFac
     return fromBrepCurve(solidToShape(kernel, wire), { solid: wire })
   }
 
-  const faces: BrepHandle[] = organised.blueprints.map((entry) => buildOnFace(kernel, host, mode, entry))
+  const faces = placeContoursOnFace(kernel, host, mode, params.contours)
   if (faces.length === 0) throw new Error('sketchOnFace: no contours to place')
   if (faces.length === 1) {
     const f = faces[0]!
