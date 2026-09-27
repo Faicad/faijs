@@ -34,12 +34,23 @@ export interface BSplineCurveData {
  */
 export function evalBSpline(d: BSplineCurveData, t: number): BSPole {
   const { poles, knots, degree: p } = d;
-  const n = knots.length - p - 1; // last span index
+  const n = knots.length - p - 1; // index of the `hi` knot (== poles.length when clamped)
   const lo = knots[p]!;
   const hi = knots[n]!;
   const u = Math.min(Math.max(t, lo), hi);
-  // find span k such that knots[k] <= u < knots[k+1] (clamped: hi lands in last span)
-  let k = p;
+  // find span k such that knots[k] <= u < knots[k+1].
+  //
+  // GOTCHA 2026-09-27 (Mannequin_mp bspline flattening): the half-open test
+  // never matches at the right boundary `u === hi` (the domain is
+  // [lo, hi]), so the loop fell through. The default was `k = p` — the FIRST
+  // span — which made `evalBSpline(hi)` return a point extrapolated from the
+  // leading control polygon instead of the final pole. `sampleBSpline` samples
+  // t = hi exactly as its last point, so every spline's proxy END jumped off
+  // the curve; `extractContours` then could not join the spline to the
+  // line/arc closing it, and line+spline sketches gapped as
+  // `sketch-solved-no-closed-loop`. The last span (n-1) is the correct
+  // boundary choice (knots[n] == hi belongs to span n-1).
+  let k = n > p ? n - 1 : p;
   for (let i = p; i < n; i++) {
     if (u >= knots[i]! && u < knots[i + 1]!) {
       k = i;

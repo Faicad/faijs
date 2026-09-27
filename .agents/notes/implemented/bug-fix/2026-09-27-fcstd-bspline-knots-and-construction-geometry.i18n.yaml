@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-27-fcstd-bspline-knots-and-construction-geometry.md
+2026-09-27-fcstd-bspline-knots-and-construction-geometry.md: 925eb489ebf9fa85ee491d274db7bd58376a49d4
+2026-09-27-fcstd-bspline-knots-and-construction-geometry.zh.md: a7038f473c1716fa5c6244d0fc4c651c95459b0b
