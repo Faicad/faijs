@@ -18,6 +18,7 @@ export { offsetOutline2d } from './ops/offset'
 export { pointInContour, segmentIntersection } from './ops/boolean'
 export { booleanUnion2d, booleanIntersect2d, booleanDifference2d } from './ops/boolean-union'
 export { contourToSvgPath, svgPathToContours } from './ops/svg'
+export { polygonSignedArea, isSimplePolygon, segmentsProperlyCross, decomposeSelfIntersections, pruneSelfIntersections } from './ops/polygon2d'
 
 // Re-export the core geometry base this package sits on, for convenience when
 // callers build on `draw` output without importing core directly.
