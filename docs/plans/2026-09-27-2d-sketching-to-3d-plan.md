@@ -1,6 +1,6 @@
 # 2D 绘图与草图 → 3D 建模能力建设方案
 
-状态：实施中（A 组/B 组/C1/C2/C3(底座)/E1(部分)/E2/F2/F6(部分) 已落地，C3(e 接线)/C4/D/G/F4/F5 待做）
+状态：实施中（A 组/B 组/C1/C2/C3(底座)/C4(纯投影)/E1(部分)/E2/F2/F6(部分) 已落地，C3(e 接线)/D/G/F4/F5 待做）
 
 本方案是 faijs 2D 能力建设的总纲，覆盖"完整 2D 绘图 + 完整 2D 草图 + 2D→3D 桥接"的最终目标与实施路径。`docs/plans/2026-09-26-profile-classify-holes-alignment.md`（profile 孔洞分类消 H15）的结论被本方案吸收为其子集——该方案的 profile 分类工作对应本方案工作项 F2，内核原语核对对应 E1；本方案在其上把范围从"孔洞分类"扩展到"完整 2D 能力 + 2D→3D 桥接"，并纠正了该方案中一处与用户需求相悖的判断（见 §1.4）。
 
@@ -202,6 +202,7 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 - **C2 移植 `BlueprintSketcher` 与预制图形**：`blueprint-sketcher.ts`、`canned-blueprints.ts`（`polysidesBlueprint`/`roundedRectangleBlueprint`）。依赖：C1。**已落地**：core `geometry2d/blueprint-sketcher.ts`（`BaseSketcher2d` 子类 + `done(): Blueprint`）与 `canned-blueprints.ts`（多边形 / 圆角矩形，圆形用 `tangentArc`、椭圆角用 `ellipse`），5 测试通过（六边形轮廓/射线弧、直角、圆角 4 弧+4 线、椭圆角皆闭合）。
 - **C3 移植 `Drawing`/`DrawingPen` 与绘制工厂（`cad.draw` 入口）**：`packages/draw/src/draw/drawing.ts`（不可变 2D 包装，含 2D 布尔/偏移/圆角委托）、`drawing-pen.ts`、`drawing-factories.ts`（矩形/圆/椭圆/多边形/文字/插值/参数曲线）、`draw-fns.ts`；`cad.draw()` / `cad.draw.roundedRectangle(...)` 等即在此接入脚本面。**已落地（底座）**：`@faicad/faijs-draw` 包已建（package.json/workspaces(顺序在 core 后)/tsconfig{,.build}/vitest alias/lockstep `^0.18.0`/ghost-deps 全绿，`npm run build -w` 出 dist）；`src/draw.ts` 提供链式 `draw(session): Blueprint` + 命名空间工厂 `draw.rectangle/roundedRectangle/polygon/circle`，`drawing-factories.ts` 复用 core `geometry2d`；6 包内测试通过。脚本侧 `cad.draw` 运行时注入（F1 registerDrawSymbols）待后续接线。
 - **C4 移植投影出图**：`projection.ts`（`drawProjection`/`drawFaceOutline`，3D 边 → 2D 曲线 → Blueprint）。依赖：B1、A1。
+    - **已落地（纯几何形式）**：vendored `projection.ts` 已删、无内核可投影，故定义纯投影：`projectPointToPlane`/`projectWire`（`(p−o)·xDir/(p−o)·yDir`，与 `liftPointToPlane` 严格互逆）/`drawFaceOutline`（单轮廓）/`drawProjection`（多轮廓）→ 经 `BlueprintSketcher` 折线闭合为 `Blueprint`，仅 import core `geometry2d/*`；含 roundtrip 逆幺元测试。
 
 ### D 组：2D 运算（draw 包）
 
