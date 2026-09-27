@@ -1,6 +1,6 @@
 # 2D 绘图与草图 → 3D 建模能力建设方案
 
-状态：实施中（A 组/B 组/C1/C2/C3(底座)/C4(纯投影)/D(基元:parameterOfPoint/trimCurve/splitCurveAt + 圆角/倒角:chamfer2d/fillet2d + 偏移:offsetOutline2d + 布尔分类:pointInContour/segmentIntersection)/E1(部分)/E2/F2/F6(部分) 已落地，C3(e 接线)/D1(布尔缝合)/D2(自交剪除)/D3(全量角)/D4(SVG)/G/F4/F5 待做）；draw 工厂已含 rectangle/roundedRectangle/polygon/circle/ellipse，附 chamfer2d/fillet2d/offsetOutline2d/pointInContour/segmentIntersection。
+状态：实施中（A 组/B 组/C1/C2/C3(底座)/C4(纯投影)/D(基元:parameterOfPoint/trimCurve/splitCurveAt + 圆角/倒角:chamfer2d/fillet2d + 偏移:offsetOutline2d + 布尔:pointInContour/segmentIntersection/booleanUnion2d/booleanIntersect2d)/E1(部分)/E2/F2/F6(部分) 已落地，C3(e 接线)/D1(collinear splice)/D2(自交剪除)/D3(全量角)/D4(SVG)/G/F4/F5 待做）；draw 工厂已含 rectangle/roundedRectangle/polygon/circle/ellipse，附 chamfer2d/fillet2d/offsetOutline2d/pointInContour/segmentIntersection。
 
 本方案是 faijs 2D 能力建设的总纲，覆盖"完整 2D 绘图 + 完整 2D 草图 + 2D→3D 桥接"的最终目标与实施路径。`docs/plans/2026-09-26-profile-classify-holes-alignment.md`（profile 孔洞分类消 H15）的结论被本方案吸收为其子集——该方案的 profile 分类工作对应本方案工作项 F2，内核原语核对对应 E1；本方案在其上把范围从"孔洞分类"扩展到"完整 2D 能力 + 2D→3D 桥接"，并纠正了该方案中一处与用户需求相悖的判断（见 §1.4）。
 
@@ -211,6 +211,7 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 - **D1 2D 布尔**：`packages/draw/src/ops/boolean2d.ts` 移植 `intersectionSegments.ts`/`booleanHelpers.ts`/`segmentAssembly.ts`/`booleanOperations.ts`/`boolean2D.ts`（fuse/cut/intersect 多态，含 Compound/Blueprints 递归分解）。适配：句柄操作换纯对象函数（`splitCurve2d`/`intersectCurves2dFn`/变换族）。依赖：B1、A1。
     - **基元已备**：纯基座已新增 `parameterOfPoint(c, px, py, maxRatio=0.1)`（coarse 采样 + Newton 收敛到垂直足）与 `trimCurve(c, tStart, tEnd)` / `splitCurveAt(c, t)`（basis 域切子曲线），供布尔/圆角取参数点与切曲线（依赖 `intersectCurves2dFn` 联合使用）。
     - **分类器已落地**：`packages/draw/src/ops/boolean.ts` 已含 `pointInContour(p, pts)`（even-odd 射线内/外分类）与 `segmentIntersection(a1,a2,b1,b2,eps)`（两线段交点/参数，平行与越界返 `null`，共线交叠留给拼接特判）。二者是 D1 布尔判定「保留哪一侧、边在何处相交」的基础。
+    - **缝合已落地**：`booleanUnion2d(polyA,polyB)` / `booleanIntersect2d(polyA,polyB)` 走「拆分−分类−装配」：用 `segmentIntersection` 把 A/B 每条边在交叉处分段，`pointInContour` 判定段中点归属（并集=不落入对方内部，交集=落入对方内部），再按端到端装配回闭环。多边形输入（含非凸）输出面积精确；共线交叠未做特殊剪除（完整布尔仍需补 collinear splice）。
 - **D2 2D 偏移**：移植 `offset.ts`（源自 `blueprintOffset.ts` + `lib/offset.ts`，round/bevel/miter，Cavalier Contours 思路，自交剪除 + stitch）。依赖：D1。
     - **基元已落地**：`packages/draw/src/ops/offset.ts` 的 `offsetOutline2d(verts, dist)` 对凸 CCW 轮廓做 miter 平行偏移（每顶点 = 两条邻边各沿外法向平移 `dist` 后的交点），正值外扩/负值内缩，O(n)。非凸/自交轮廓的 Cavalier 自交剪除仍待做。
 - **D3 2D 圆角/倒角**：移植 `custom-corners.ts`（源自 `blueprintCustomCorners.ts` + `lib/customCorners.ts`，`fillet2D`/`chamfer2D`）。依赖：B1。
