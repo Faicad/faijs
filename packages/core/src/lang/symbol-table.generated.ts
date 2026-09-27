@@ -13,6 +13,7 @@ export default {
   "screw": {},
   "profile": {},
   "sketchOnPlane": {},
+  "sketchOnFace": {},
   "wire": {},
   "helix": {},
   "sdf": {},
