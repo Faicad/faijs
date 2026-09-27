@@ -5,7 +5,8 @@
   "type": "module",
   "dependencies": {
     "@faicad/fai-cq-gears": "*",
-    "@faicad/faijs-fixtures": "*"
+    "@faicad/faijs-fixtures": "*",
+    "@faicad/faijs-sketch": "*"
   },
   "devDependencies": {
     "typescript": "*",

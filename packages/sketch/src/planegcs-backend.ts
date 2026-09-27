@@ -280,8 +280,16 @@ export class PlanegcsSolver implements SketchSolver {
       const problemConstraints = w.get_gcs_conflicting_constraints()
         .map((s) => Number(s.replace(/^c/, '')))
         .filter((n) => Number.isFinite(n));
+      // D3 (2026-09-27): a conflicting over-constraint is allowed, not an
+      // error — surface the best-effort geometry. planegcs refuses to move
+      // the parameters when it detects a conflict, so the pull-back returns
+      // the declared initial coordinates (which close the contour); the
+      // caller still sees `converged: false` + the conflicting-constraint
+      // list as diagnostics.
+      w.apply_solution();
+      const solved = this.pullBack(geoms, { lines, arcs, circles, ellipses, standalone });
       return ok({
-        geoms,
+        geoms: solved,
         converged: false,
         reason: 'conflicting',
         problemConstraints,

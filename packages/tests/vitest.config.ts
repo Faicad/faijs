@@ -8,6 +8,8 @@ export default defineConfig({
       // `@faicad/faijs-extra` 前缀不与 `@faicad/faijs` 冲突（Vite 只匹配
       // `find` 本身或 `find + '/'`），故两条互不吞并。
       { find: '@faicad/faijs-extra', replacement: resolve(__dirname, '../faijs-extra/src') },
+      { find: /^@faicad\/faijs-sketch\/node$/, replacement: resolve(__dirname, '../sketch/src/node.ts') },
+      { find: '@faicad/faijs-sketch', replacement: resolve(__dirname, '../sketch/src/index.ts') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
       { find: '@faicad/sheetmetal', replacement: resolve(__dirname, '../sheetmetal/src/index.ts') },

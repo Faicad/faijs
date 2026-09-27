@@ -86,8 +86,9 @@ async function resolveSolver(): Promise<SketchSolver> {
 /**
  * Sketch (geometry + constraints) → solve → face / outer wire.
  *
- * brep-only in the first release (D5): the mesh path reports
- * `E_MESH_UNSUPPORTED`, matching `cad.profile` / `cad.extrude`.
+ * Permanently brep-only (D5, 2026-09-27): the mesh path reports
+ * `E_MESH_UNSUPPORTED`. Sketch APIs never get a mesh path — industry
+ * precedent (CadQuery, FreeCAD) solves sketches onto exact BREP edges.
  *
  * @group 创建
  * @inputs 0

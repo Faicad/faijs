@@ -1,6 +1,21 @@
 # 方案：faijs 草图约束库（能力层）与脚本面 `cad.sketch`
 
-状态：方案（未实施）——决策已全部拍板（§10），等实施指令
+状态：已落地（2026-09-27 核对）——决策已全部拍板（§10），实施完成，见 Agent Note `.agents/notes/implemented/architecture/2026-09-26-sketch-constraint-lib-extraction.md`
+
+## 0. 实施进度核对（2026-09-27）
+
+| §9 步骤 | 状态 | 依据 |
+|---|---|---|
+| 1. 改名 `cad.sketch` → `cad.profile` | ✅ 完成 | `packages/core/src/api/profile.ts`（`@name profile`、`E_PROFILE_*`）；全仓 src 已无 `cad.sketch` 旧引用（仅本库新 op 自身使用该名） |
+| 2. 新建 `packages/sketch` | ✅ 完成 | 包存在，含 solver / planegcs-backend / contour / canonical / project / faces / op 等模块 |
+| 3. 规范模型 + 投影表 | ✅ 完成 | `src/canonical.ts`（Ref/At/约束集）、`src/project.ts`（双向投影） |
+| 4. `solveSketch` | ✅ 完成 | `src/solve.ts`；欠/冗余/冲突/失败诊断齐全（Agent Note：DoF 探针 + planegcs 冗余/冲突标志） |
+| 5. `sketchFaces` + `cad.sketch` op | ✅ 完成 | `src/faces.ts`、`src/op.ts`（`@name sketch`，brep-only，mesh 抛 `E_MESH_UNSUPPORTED`）、`src/namespace.ts`（mergeSketchNamespace / registerSketchSymbols） |
+| 6. mesh 链路（永久 brep-only） | ✅ 完成 | 2026-09-27 拍板：草图相关 API **不做 mesh 侧**（业界无先例），mesh 模式显式 `E_MESH_UNSUPPORTED`；不列后续 |
+| 7. fcstd 切换 | ✅ 完成 | `convert.ts` / `codegen.ts` / `sketch-parse.ts` 均改从 `@faicad/faijs-sketch` 导入；包内 solver/planegcs-backend/contour 实现已删除，公开面 re-export 保兼容 |
+| 8. 测试 | ✅ 完成 | `src/solve-sketch.test.ts` 五类场景 e2e（6 用例全过）+ `src/install-smoke.test.ts` npm 安装冒烟（`test:install`）；GOTCHA 随包迁移 |
+| 9. 收尾 | ✅ 基本完成 | workspaces 顺序（line 54）、`publish-all.ps1` `$Packages`（line 80）、`ci.ps1` 测试包列表 + test:install 门、四守卫全过；Agent Note 已落 |
+
 
 ## 1. 用户要求（原话）
 
@@ -97,7 +112,7 @@ cq-compat-sketch┘             └──▶ @salusoft89/planegcs（WASM 求解�
 | 整圆面积算成 0 | core 的 `loopSignedArea` 只用每段的起点 `(x1,y1)` 算 shoelace；整圆轮廓只有一段弧、起终点重合 → 面积 0。若草图是「整圆 + 方孔」，孔的面积反而更大，会被误判成外环 | 外环判定改为按段的扫角/面积积分，或对单段整圆特判，不再依赖段起点 shoelace |
 | 坐标系与定位 | `cad.profile` 的输入即 `(x, y, 0)`，法向 +Z；草图在体局部系内的定位不由构面承担 | 定位由调用方在轮廓坐标里预变换，或交给下游特征的 Placement |
 
-链路可达性：**brep 链路完整可达**（求解 → 轮廓 → `cad.profile` 构面 → `cad.extrude`，fcstd 已按此产出过真实面变量与 Pad）；**mesh 链路当前不可达**，因为 `cad.profile` 与 `cad.extrude` 都是 brep-only，mesh 模式抛 `E_MESH_UNSUPPORTED`。补齐 mesh 侧（§6.3）是草图能在 mesh 模式落地的前提。
+链路可达性：**brep 链路完整可达**（求解 → 轮廓 → `cad.profile` 构面 → `cad.extrude`，fcstd 已按此产出过真实面变量与 Pad）；**mesh 链路永久 brep-only，不补 mesh 侧**（§6.3，2026-09-27 拍板：业界无先例）。
 
 ## 4. 规范模型（通用）
 
@@ -267,7 +282,7 @@ let part0 = cad.extrude(sk0, [0, 0, 10])
 
 ### 6.3 双链路
 
-求解层本身是纯数值计算，不区分链路；构面层依赖 OCCT，与 `cad.profile` 同为 brep-only，mesh 侧显式抛 `E_MESH_UNSUPPORTED`。按「mesh 必经」原则，mesh 侧（2D 三角化 + 挤出，照 `svgExtrude` dual-op 范式）是必须补的，但**不阻塞首发**——见 D5。
+求解层本身是纯数值计算，不区分链路；构面层依赖 OCCT，与 `cad.profile` 同为 brep-only，mesh 侧显式抛 `E_MESH_UNSUPPORTED`。**草图相关 API 永久 brep-only，不做 mesh 侧**（2026-09-27 拍板）：业界无草图约束走 mesh 链路的先例——CadQuery `Sketch.solve()` 求解后用 OCCT `Edge.makeLine`/`makeThreePointArc` 重建精确边（纯 BREP），FreeCAD Sketcher 同样构建在 OCCT 之上；mesh 侧不是「待补」，是「不做」。
 
 ## 7. `cad.sketch` 改名影响面（实测）
 
@@ -359,7 +374,7 @@ packages/sketch/
 3. **规范模型**：实现 `Ref` / `At` 解析与 §4.3 约束集；写 §4.5 双向投影表与单点转换函数。
 4. **`solveSketch`**：接 planegcs，实现 §5 三种状态的诊断产出。
 5. **`sketchFaces` + `cad.sketch`**：本库导出草图 op（`@name sketch`）、合并函数与符号注册（照 extra 模式），宿主并入 `cad`；op 内部复用 `cad.profile` 的构面函数。
-6. **mesh 链路**：首版 brep-only（D5），mesh 侧显式抛 `E_MESH_UNSUPPORTED`；2D 三角化 + 挤出 dual-op 出口列后续。
+6. **mesh 链路**：草图相关 API **永久 brep-only**（2026-09-27 拍板，业界无先例），mesh 侧显式抛 `E_MESH_UNSUPPORTED`；不做 2D 三角化 + 挤出 dual-op。
 7. **fcstd 切换**：`convert.ts` 改从 `@faicad/faijs-sketch` 导入；删除包内 `sketch-solver.ts` / `planegcs-backend.ts` / `contour.ts`；公开读取面（`index.ts` 已导出的 `SketchCon` / `SketchGeom` / `ConstraintType` / `CONSTRAINT_NAMES` / `parseConstraintList`）改为 re-export 保兼容，不得静默 breaking。
 8. **测试**：planegcs GOTCHA 测试随包迁移；新增脚本面 e2e（水平/垂直、长度驱动、欠约束、冗余过约束、冲突过约束五类）；**新增 §8 的 npm 安装冒烟（装 tarball → 跑通 → 断言结果）**；stderr 零容忍照常。
 9. **收尾**：新包登记进 `publish-all.ps1` 的 `$Packages` 与根 workspaces 顺序；workspaces 顺序 / ghost-deps / dep-lockstep / madge 四守卫 + `npm run build`；版本号按 lockstep 递增；实施时补一份 Agent Note（记录 `cad.sketch` 改名取舍与"库无 core 深路径特权"这条边界）。
@@ -386,5 +401,5 @@ packages/sketch/
 | D2  | `cad.sketch` 归属 | **库提供 op + 宿主合并注册**（照 extra 模式）                              | 可选能力，宿主不合并则无此 op，core 保持零草图知识。代价：3d_editor / 小程序宿主要各接一次合并                                                     |
 | D3  | 冲突型过约束         | **放行 + best-effort 解 + 诊断**（残差 + 被剔除约束）                      | 冲突是过约束的一类；fcstd 读第三方 `.FCStd` 时常见，收紧成 err 会让整份文件转换直接失败                                                        |
 | D4  | 首版几何范围         | **line + circle + arc**；ellipse / bspline / point 预留 schema   | fcstd P0 的 15 类约束在这三种几何上已跑通真实文件；bspline 采样与求解器参数化未标定，命中即 `E_SKETCHC_UNSUPPORTED_GEOM`                         |
-| D5  | 首版 mesh 链路     | **brep-only**，mesh 侧显式抛 `E_MESH_UNSUPPORTED`                  | `cad.profile` / `cad.extrude` 现状本就 brep-only，首版对齐；mesh 侧（2D 三角化 + 挤出）列后续，不阻塞首发                                |
+| D5  | 首版 mesh 链路     | **brep-only**，mesh 侧显式抛 `E_MESH_UNSUPPORTED`                  | 2026-09-27 升级拍板：草图相关 API **永久 brep-only**，不做 2D 三角化 + 挤出 dual-op——业界无草图约束走 mesh 链路的先例（CadQuery / FreeCAD 草图求解均落 OCCT 精确边）                                |
 | D6  | 改名别名过渡         | **不做别名**                                                     | 语义冲突正是改名原因。代价：3d_editor 与存量 `.fai.js` 必须同步改（清单见 §7）                                                           |

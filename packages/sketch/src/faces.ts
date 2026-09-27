@@ -31,7 +31,11 @@ export interface SketchFacesOptions extends SolveSketchOptions {
  * @returns the face or outer wire.
  */
 export function shapeFromSolved(outcome: SolveOutcome, as?: 'face' | 'wire'): Shape {
-  if (!outcome.converged) {
+  // D3 (2026-09-27): a conflicting over-constraint is allowed through with a
+  // best-effort solve — the geometry carries the declared/last coordinates and
+  // the conflict list travels in the diagnostic, not as an error. Only a hard
+  // solver failure blocks face construction.
+  if (!outcome.converged && outcome.status !== 'conflicting') {
     throw new Error(`E_SKETCHC_SOLVE_FAILED: ${outcome.reason ?? outcome.status}`)
   }
   const contours = extractContours(toFreeCadGeoms(outcome.geoms))
