@@ -1,6 +1,6 @@
 # 2D 绘图与草图 → 3D 建模能力建设方案
 
-状态：实施中（A 组/B 组/C1/C2/C3(底座)/C4(纯投影)/E1(部分)/E2/F2/F6(部分) 已落地，C3(e 接线)/D/G/F4/F5 待做）
+状态：实施中（A 组/B 组/C1/C2/C3(底座)/C4(纯投影)/E1(部分)/E2/F2/F6(部分) 已落地，C3(e 接线)/D/G/F4/F5 待做）；draw 工厂已含 rectangle/roundedRectangle/polygon/circle/ellipse。
 
 本方案是 faijs 2D 能力建设的总纲，覆盖"完整 2D 绘图 + 完整 2D 草图 + 2D→3D 桥接"的最终目标与实施路径。`docs/plans/2026-09-26-profile-classify-holes-alignment.md`（profile 孔洞分类消 H15）的结论被本方案吸收为其子集——该方案的 profile 分类工作对应本方案工作项 F2，内核原语核对对应 E1；本方案在其上把范围从"孔洞分类"扩展到"完整 2D 能力 + 2D→3D 桥接"，并纠正了该方案中一处与用户需求相悖的判断（见 §1.4）。
 
