@@ -1,0 +1,45 @@
+{
+  "name": "@faicad/faijs-draw",
+  "version": "0.18.3",
+  "description": "faijs 2D drawing DSL — cad.draw fluent scripting over the core geometry2d pure base",
+  "keywords": [
+    "faijs",
+    "cad",
+    "draw",
+    "2d",
+    "geometry"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitcode.com/Faicad/faijs.git"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "NOTICE",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@faicad/faijs": "^0.18.0"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src"
+  }
+}
