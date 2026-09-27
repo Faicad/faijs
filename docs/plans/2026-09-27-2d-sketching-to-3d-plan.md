@@ -1,6 +1,6 @@
 # 2D 绘图与草图 → 3D 建模能力建设方案
 
-状态：实施中（A 组/B 组/C1/C2/C3(底座+接线)/C4(纯投影)/D(基元:parameterOfPoint/trimCurve/splitCurveAt + 圆角/倒角:chamfer2d/fillet2d + 偏移:offsetOutline2d/offsetPolygonLoops2d + 剪除:pruneSelfIntersections(横向) + 布尔:pointInContour/segmentIntersection/booleanUnion2d/booleanIntersect2d/booleanDifference2d + SVG:contourToSvgPath/svgPathToContours)/E1(部分)/E2/E3(基础:on-surface 桥+op+放置e2e)/E4(基础+拔模:clean-poly 棱柱/截锥打孔+volume e2e)/E5(基础:四 3D 出口声明式验证)/F2/F6(部分) 已落地，E3(fixWireOnFace 曲面贴合)/G/F4/F5 待做）；draw 工厂已含 rectangle/roundedRectangle/polygon/circle/ellipse，附 chamfer2d/fillet2d/offsetOutline2d/pointInContour/segmentIntersection。
+状态：实施中（A 组/B 组/C1/C2/C3(底座+接线)/C4(纯投影)/D(基元:parameterOfPoint/trimCurve/splitCurveAt + 圆角/倒角:chamfer2d/fillet2d + 偏移:offsetOutline2d/offsetPolygonLoops2d + 剪除:pruneSelfIntersections(横向) + 布尔:pointInContour/segmentIntersection/booleanUnion2d/booleanIntersect2d/booleanDifference2d + SVG:contourToSvgPath/svgPathToContours)/E1(部分)/E2/E3(基础:on-surface 桥+op+放置e2e)/E4(基础+拔模:clean-poly 棱柱/截锥打孔+volume e2e)/E5(基础:四 3D 出口声明式验证)/F2/F6(部分) 已落地，E3(fixWireOnFace 曲面贴合)/G2(曲面草图 e2e)/F4 待做）；draw 工厂已含 rectangle/roundedRectangle/polygon/circle/ellipse，附 chamfer2d/fillet2d/offsetOutline2d/pointInContour/segmentIntersection。
 
 本方案是 faijs 2D 能力建设的总纲，覆盖"完整 2D 绘图 + 完整 2D 草图 + 2D→3D 桥接"的最终目标与实施路径。`docs/plans/2026-09-26-profile-classify-holes-alignment.md`（profile 孔洞分类消 H15）的结论被本方案吸收为其子集——该方案的 profile 分类工作对应本方案工作项 F2，内核原语核对对应 E1；本方案在其上把范围从"孔洞分类"扩展到"完整 2D 能力 + 2D→3D 桥接"，并纠正了该方案中一处与用户需求相悖的判断（见 §1.4）。
 
@@ -234,7 +234,7 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 - **F2 profile 分类消 H15**：`api/profile.ts` 把 `ProfileSeg`（line/arc）适配为 `Curve2dObj`，分类段整体替换为 `organiseBlueprints`，删除自造 parent 链/`depthOf`/面积比较。防回归测试见 §7。依赖：B2。
 - **F3 SVG 统一（已定：统一，不保留采样版）**：`svg-to-solid.ts` 的 `classifyHoles`（`:757-818`）删除，统一走 `organiseBlueprints`。前置子任务：把 SVG parser 从「出离散采样点」升级为「出 `Curve2dObj`」（line/arc/bezier）。现有 `classifyHoles` 有 bug（质心探针跑丢 + ≥3 层嵌套静默丢岛，见 §7 防回归测试），删掉即消债，不留采样版 tech debt。依赖：B2。
 - **F4 约束草图接入统一管线**：`packages/sketch` 的求解产物 `SketchGeom` → 转 `Curve2dObj[]` → 走统一分类与放置管线（替代当前直接 `buildProfileShape`）；使约束草图也能放到任意平面/面。依赖：B2、E2。
-- **F5 命名空间/符号表/文档**：core 新能力在 `ops-api-inventory.md`、`api-namespace.ts`、`symbol-table.generated.ts` 的登记；draw 包新能力在 draw 包自身登记并新增包（package.json/workspaces 顺序/lockstep/ghost-deps）；必要时 `arg-spec.ts` 的 skip → faijs/selfhost。
+- **F5 命名空间/符号表/文档**：core 新能力在 `ops-api-inventory.md`、`api-namespace.ts`、`symbol-table.generated.ts` 的登记；draw 包新能力在 draw 包自身登记并新增包（package.json/workspaces 顺序/lockstep/ghost-deps）；必要时 `arg-spec.ts` 的 skip → faijs/selfhost。**已落地（文档部分）**：`sketchOnPlane`/`sketchOnFace`/`punchHole` 的 `@group`-JSDoc 已随各 op 落地，重新运行 `scripts/gen-ops-api-inventory.ts` 使 `ops-api-inventory.{md,zh.md}` 与 `i18n.yaml` 含三项、`--check` 在同步；api-namespace/symbol-table 已随各 op 接线（e2e 证明）。
 - **F6 三入口统一 3D 化（统一拉伸）**：让 `cad.profile`/`cad.sketch`/`cad.draw` 的产物都能经 `sketchOnPlane`/`sketchOnFace` 放置并 `extrude`；统一"轮廓 → 放置 → 3D 特征"接线，并验证三入口在 3D 能力上等价（差异仅在 2D 描述方式）。依赖：F1、F2、F4、E5。
     - **已落地（内核放置缝）**：放置核心抽为 `buildShapeFromBlueprints(kernel, plane, blueprints, as)`（core `api/sketch-on-plane.ts`），`buildSketchOnPlaneWith` 改为先转 `Blueprint[]` 再调用；e2e 已证 draw 形状轮廓（`roundedRectangleBlueprint`，即 draw 工厂产出的 `Blueprint`）经 `buildShapeFromBlueprints` → 放置 → `extrude` 得正体积实体。draw 入口已能流入同一条放置管线。
 

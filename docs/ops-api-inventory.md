@@ -187,7 +187,22 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 
 **同步**。Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
 
-### 3.8 `screw` ✅
+### 3.8 `punchHole` ✅
+
+`cad.punchHole`: cut a face-placed 2D profile out of a solid.
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `contours` | `any[]` | ✅ | — | ordered 2D closed contours (the hole profile). |
+| `on` | `Shape` | ✅ | — | the target solid to punch. |
+| `face` | `any` | ✅ | — | host face: 1-based ordinal or `cad.faceRef(on, n)`. |
+| `height` | `number|object` |  | — | blind depth along the face inward normal (null/absent = through). |
+| `draftAngle` | `number` |  | — | wall taper in degrees (default 0 = straight; built as an occt loft frustum). |
+| `scaleMode` | `string` |  | — | UV mapping: 'original' | 'bounds' | 'native'. |
+
+**同步**。Shape with the profile punched out of `on`.
+
+### 3.9 `screw` ✅
 
 生成螺丝零件（螺纹 + 头型）。
 
@@ -212,7 +227,7 @@ const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', leng
 >
 > pitchCustom 执行层已支持（makeScrew/threadBrep 均读取），codegen 曾不序列化（TODO）；当前已机械输出。
 
-### 3.9 `sdf` ⚠️
+### 3.10 `sdf` ⚠️
 
 用 SDF（符号距离场）函数生成网格体（mesh-only）。
 
@@ -231,7 +246,33 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 > SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。
 
-### 3.10 `sphere` ✅
+### 3.11 `sketchOnFace` ✅
+
+`cad.sketchOnFace`: place 2D contours on a face of a solid and construct a Shape.
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `contours` | `any[]` | ✅ | — | ordered 2D closed contours (same shape as `cad.profile`). |
+| `on` | `Shape` | ✅ | — | the target solid on which the face lives. |
+| `face` | `any` | ✅ | — | the host face: a 1-based ordinal or a `cad.faceRef(on, n)` result. |
+| `scaleMode` | `string` |  | — | UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit). |
+| `as` | `string` |  | — | `'face'` (default) or `'wire'` (outer loop only). |
+
+**同步**。Shape on the target face (face, or a wire curve when `as:'wire'`).
+
+### 3.12 `sketchOnPlane` ✅
+
+`cad.sketchOnPlane`: place 2D contours on a plane and construct a Shape.
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `contours` | `any[]` | ✅ | — | ordered 2D contours (same shape as `cad.profile`). |
+| `plane` | `any` | ✅ | — | named plane (`'XY'` / `'XZ'`…) or `{ origin, normal, xAxis }`. |
+| `as` | `string` |  | — | `'face'` (default) or `'wire'` (outer loop only). |
+
+**同步**。Shape on the target plane (face, or a wire curve when `as:'wire'`).
+
+### 3.13 `sphere` ✅
 
 创建球体。
 
@@ -250,7 +291,7 @@ const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
 
 **同步**。Shape 球体几何，可作为后续 op 的输入。
 
-### 3.11 `wedge` ✅
+### 3.14 `wedge` ✅
 
 创建楔形体。唯一契约是 width/height/angle/length（width/height/angle 为正数，length 沿切割方向）， 旧文档的 size 形态已废弃，传 { size } 会抛错。
 
@@ -269,7 +310,7 @@ const w = cad.wedge({ width: 30, height: 20, angle: 45, length: 10 })
 
 > 曾与 UI 面板的 `size` 形态并存并写入文档，但断言层确认唯一合法契约是 width/height/angle/length；传 `{ size }` 直接抛错。已按真源收敛。
 
-### 3.12 `wire` ✅
+### 3.15 `wire` ✅
 
 从点列构造 1D 曲线（折线 / 闭合轮廓 / 平滑样条）。
 
@@ -1107,7 +1148,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ## 10. 写给 AI 的速查（一句话总结每个可用 op）
 
 ```
-创建: helix / import_brep / import_step / box / sphere / cylinder / cone / wedge / profile / screw / sdf / wire
+创建: helix / import_brep / import_step / box / sphere / cylinder / cone / wedge / profile / punchHole / screw / sdf / sketchOnFace / sketchOnPlane / wire
 变换: place
 特征: union / cut / subtract / intersect / chamfer / draft / engrave / extrude / filletVariable / fillet / knurl / loft / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / revolve / sectionByPlane / shell / splitByPlane / split / sweep / thicken
 结构: compound
@@ -1162,6 +1203,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `place` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
 | `pocket` | 内核历史 | `gen:pocket:<i>` |  |
 | `profile` | 构造语义 | —（不造新面） |  |
+| `punchHole` | 构造语义 | —（不造新面） |  |
 | `rectangularPattern` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..-1） |
 | `removeHolesFromFace` | 内核历史 | `gen:removeHolesFromFace:<i>` |  |
 | `reverseShape` | 内核历史 | `gen:reverseShape:<i>` |  |
@@ -1178,6 +1220,8 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `sewAndSolidify` | 内核历史 | `gen:sewAndSolidify:<i>` |  |
 | `shell` | 内核历史 | `gen:shell:<i>` |  |
 | `simplify` | 内核历史 | `gen:simplify:<i>` |  |
+| `sketchOnFace` | 构造语义 | —（不造新面） |  |
+| `sketchOnPlane` | 构造语义 | —（不造新面） |  |
 | `sphere` | 未建模 | —（不造新面） | sphere face vocabulary pending Phase 3 |
 | `split` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
 | `splitByPlane` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
