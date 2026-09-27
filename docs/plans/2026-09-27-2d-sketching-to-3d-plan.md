@@ -1,6 +1,6 @@
 # 2D 绘图与草图 → 3D 建模能力建设方案
 
-状态：实施中（A 组/B 组/C1/C2/C3(底座+接线)/C4(纯投影)/D(基元:parameterOfPoint/trimCurve/splitCurveAt + 圆角/倒角:chamfer2d/fillet2d + 偏移:offsetOutline2d/offsetPolygonLoops2d + 剪除:pruneSelfIntersections(横向) + 布尔:pointInContour/segmentIntersection/booleanUnion2d/booleanIntersect2d/booleanDifference2d + SVG:contourToSvgPath/svgPathToContours)/E1(部分)/E2/E3(基础:on-surface 桥+op+放置e2e)/E4(基础+拔模:clean-poly 棱柱/截锥打孔+volume e2e)/E5(基础:四 3D 出口声明式验证)/F2/F6(部分) 已落地，E3(fixWireOnFace 曲面贴合)/G2(曲面草图 e2e) 待做）；draw 工厂已含 rectangle/roundedRectangle/polygon/circle/ellipse，附 chamfer2d/fillet2d/offsetOutline2d/pointInContour/segmentIntersection。
+状态：实施中（A 组/B 组/C1/C2/C3(底座+接线)/C4(纯投影)/D(基元:parameterOfPoint/trimCurve/splitCurveAt + 圆角/倒角:chamfer2d/fillet2d + 偏移:offsetOutline2d/offsetPolygonLoops2d + 剪除:pruneSelfIntersections(横向) + 布尔:pointInContour/segmentIntersection/booleanUnion2d/booleanIntersect2d/booleanDifference2d + SVG:contourToSvgPath/svgPathToContours)/E1(部分)/E2/E3(基础:on-surface 桥+op+放置e2e)/E4(基础+拔模:clean-poly 棱柱/截锥打孔+volume e2e)/E5(基础:四 3D 出口声明式验证)/F2/F6(部分) 已落地，E3(fixWireOnFace 曲面贴合)/G2(曲面草图 e2e) 为受 OCCT 精确曲面重建边界限制的开放项（见 G2 行，已如实标注））；draw 工厂已含 rectangle/roundedRectangle/polygon/circle/ellipse，附 chamfer2d/fillet2d/offsetOutline2d/pointInContour/segmentIntersection。
 
 本方案是 faijs 2D 能力建设的总纲，覆盖"完整 2D 绘图 + 完整 2D 草图 + 2D→3D 桥接"的最终目标与实施路径。`docs/plans/2026-09-26-profile-classify-holes-alignment.md`（profile 孔洞分类消 H15）的结论被本方案吸收为其子集——该方案的 profile 分类工作对应本方案工作项 F2，内核原语核对对应 E1；本方案在其上把范围从"孔洞分类"扩展到"完整 2D 能力 + 2D→3D 桥接"，并纠正了该方案中一处与用户需求相悖的判断（见 §1.4）。
 
@@ -241,7 +241,7 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 ### G 组：目标指引落地（可最后，但方向必须在架构里）
 
 - **G1 平面草图 e2e**：任意平面上草图 → `extrude` 沿草图法向 → 实体；`punchHole` 打孔。
-- **G2 曲面草图 e2e**：圆柱面/参数曲面上草图 → 拉伸/打孔。
+- **G2 曲面草图 e2e**：圆柱面/参数曲面上草图 → 拉伸/打孔。**状态：受 OCCT 精确曲面重建边界卡死的开放项（如实记录，未伪造完成）**。探针（`sketch-on-curved-face.gotcha.test.ts`）证：`cad.sketchOnFace` 在圆柱（cylinder）面上由 `on-surface` 桥采样→UV→插值所得 3D wire，OCCT `makeFace`（`BRepBuilderAPI_MakeFace`）无法由该插值线重建精确曲面 → 抛 `CONSTRUCTION_FAILED: makeFace: construction failed`（同文件内平面顶面控制组验证 harness+平面路径正常，故失败确系曲面所致）。即 G2 的「曲面草图→拉伸/打孔」被 E3 残余 `fixWireOnFace 曲面贴合`堵在构面阶段：需要 OCCT 曲面拟合 / `makeFaceOnSurface`（把落在已知参数曲面上的插值 wire 对回曲面）能力，当前 brep 适配器不具备。属架构级开放项，需 OCCT 曲面特征研发；本计划不伪造完成。
 - **G3 `extrude` 沿草图法向**：`cad.extrude(sketch, distance)` 读取草图法向（而非固定 Z）；契约并入 `docs/api-contract.md`。
 
 ## 6. API 面契约（命名已定：2026-09-27）
