@@ -26,7 +26,8 @@ import {
   tangentCurve2d,
   type Curve2dObj,
 } from './curve2d'
-import { distance2d, normalize2d, polarToCartesian, samePoint } from './point'
+import { makeEllipseArcFromSvgParams, normalizeEllipseRadii } from './svg-ellipse'
+import { distance2d, normalize2d, polarAngle2d, polarToCartesian, samePoint } from './point'
 
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI
@@ -392,58 +393,58 @@ export class BaseSketcher2d {
 
   /**
    * Draw an elliptical arc (SVG-style endpoint parameters).
-   * @param _end - the absolute end point.
-   * @param _horizontalRadius - the horizontal radius.
-   * @param _verticalRadius - the vertical radius.
-   * @param _rotation - rotation in degrees.
-   * @param _longAxis - SVG large-arc flag.
-   * @param _sweep - SVG sweep flag.
+   * @param end - the absolute end point.
+   * @param horizontalRadius - the horizontal radius.
+   * @param verticalRadius - the vertical radius.
+   * @param rotation - rotation in degrees.
+   * @param longAxis - SVG large-arc flag.
+   * @param sweep - SVG sweep flag.
    * @returns this pen, for chaining.
-   * @throws elliptical arcs are not yet ported.
    */
-  ellipseTo(_end: Point2, _horizontalRadius: number, _verticalRadius: number, _rotation = 0, _longAxis = false, _sweep = false): this {
-    bug('ellipseTo', 'SVG ellipse arc is not yet ported')
+  ellipseTo(end: Point2, horizontalRadius: number, verticalRadius: number, rotation = 0, longAxis = false, sweep = false): this {
+    const { majorRadius, minorRadius, rotationAngle } = normalizeEllipseRadii(horizontalRadius, verticalRadius, rotation)
+    const arc = makeEllipseArcFromSvgParams(this.pointer, end, majorRadius, minorRadius, rotationAngle, longAxis, sweep)
+    return this._saveCurveAndAdvance(arc, end)
   }
 
   /**
    * Draw an elliptical arc to a relative end point.
-   * @param _x - relative x end distance.
-   * @param _y - relative y end distance.
-   * @param _a - the horizontal radius.
-   * @param _b - the vertical radius.
-   * @param _rotation - rotation in degrees.
-   * @param _longAxis - SVG large-arc flag.
-   * @param _sweep - SVG sweep flag.
+   * @param x - relative x end distance.
+   * @param y - relative y end distance.
+   * @param horizontalRadius - the horizontal radius.
+   * @param verticalRadius - the vertical radius.
+   * @param rotation - rotation in degrees.
+   * @param longAxis - SVG large-arc flag.
+   * @param sweep - SVG sweep flag.
    * @returns this pen, for chaining.
-   * @throws not yet ported (depends on `ellipseTo`).
    */
-  ellipse(_x: number, _y: number, _a: number, _b: number, _rotation = 0, _longAxis = false, _sweep = false): this {
-    bug('ellipse', 'SVG ellipse arc is not yet ported')
+  ellipse(x: number, y: number, horizontalRadius: number, verticalRadius: number, rotation = 0, longAxis = false, sweep = false): this {
+    return this.ellipseTo(this._resolveRelative(x, y), horizontalRadius, verticalRadius, rotation, longAxis, sweep)
   }
 
   /**
-   * Draw a half ellipse to an absolute end point.
-   * @param _end - the absolute end point.
-   * @param _minorRadius - the minor radius.
-   * @param _sweep - SVG sweep flag.
+   * Draw a half-ellipse arc to an absolute end point with a given minor radius.
+   * @param end - the absolute end point.
+   * @param minorRadius - the minor radius.
+   * @param sweep - SVG sweep flag.
    * @returns this pen, for chaining.
-   * @throws not yet ported (depends on `ellipseTo`).
    */
-  halfEllipseTo(_end: Point2, _minorRadius: number, _sweep = false): this {
-    bug('halfEllipseTo', 'SVG ellipse arc is not yet ported')
+  halfEllipseTo(end: Point2, minorRadius: number, sweep = false): this {
+    const angle = polarAngle2d(end, this.pointer)
+    const dist = distance2d(end, this.pointer)
+    return this.ellipseTo(end, dist / 2, minorRadius, angle * RAD2DEG, true, sweep)
   }
 
   /**
-   * Draw a half ellipse to a relative end point.
-   * @param _x - relative x end distance.
-   * @param _y - relative y end distance.
-   * @param _minorRadius - the minor radius.
-   * @param _sweep - SVG sweep flag.
+   * Draw a half-ellipse arc to a relative end point with a given minor radius.
+   * @param x - relative x end distance.
+   * @param y - relative y end distance.
+   * @param minorRadius - the minor radius.
+   * @param sweep - SVG sweep flag.
    * @returns this pen, for chaining.
-   * @throws not yet ported (depends on `ellipseTo`).
    */
-  halfEllipse(_x: number, _y: number, _minorRadius: number, _sweep = false): this {
-    bug('halfEllipse', 'SVG ellipse arc is not yet ported')
+  halfEllipse(x: number, y: number, minorRadius: number, sweep = false): this {
+    return this.halfEllipseTo(this._resolveRelative(x, y), minorRadius, sweep)
   }
 
   /**

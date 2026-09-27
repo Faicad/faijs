@@ -82,4 +82,27 @@ describe('BaseSketcher2d pen (C1)', () => {
     const bp = new Blueprint(pen.close())
     expect(bp.curves).toHaveLength(4)
   })
+
+  it('ellipseTo emits a trimmed-ellipse arc (SVG endpoint form)', () => {
+    const pen = new BaseSketcher2d()
+    pen.movePointerTo([1, 0])
+    pen.ellipseTo([0, 1], 1, 1, 0, false, true)
+    const c = pen.curves()[0]!
+    expect(c.kind2d).toBe('trimmed')
+    expect((c as { basis: Curve2dObj }).basis.kind2d).toBe('ellipse')
+    const [ex, ey] = endOf(c)
+    expect(Math.abs(ex - 0)).toBeLessThan(1e-9)
+    expect(Math.abs(ey - 1)).toBeLessThan(1e-9)
+  })
+
+  it('halfEllipse composes into a closed Blueprint', () => {
+    const pen = new BaseSketcher2d()
+    pen.lineTo([4, 0])
+    pen.halfEllipse(-4, 0, 2, false)
+    const bp = new Blueprint(pen.close())
+    expect(bp.curves).toHaveLength(2)
+    const arc = bp.curves[1]!
+    expect(arc.kind2d).toBe('trimmed')
+    expect((arc as { basis: Curve2dObj }).basis.kind2d).toBe('ellipse')
+  })
 })
