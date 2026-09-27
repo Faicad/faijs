@@ -9,6 +9,7 @@
  */
 export * from './curve2d'
 export * from './bbox2d'
+export * from './point'
 export * from './blueprint'
 export * from './compound-blueprint'
 export * from './blueprints'
