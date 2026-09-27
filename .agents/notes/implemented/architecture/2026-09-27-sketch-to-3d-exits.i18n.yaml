@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-27-sketch-to-3d-exits.md
+2026-09-27-sketch-to-3d-exits.md: 026713ea85ea5ed27d31dc231916ff1cf1152b5d
+2026-09-27-sketch-to-3d-exits.zh.md: a359bbdcf245d544803b38d8fcc5c1caaf6831ec

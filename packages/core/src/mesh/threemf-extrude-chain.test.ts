@@ -27,6 +27,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { ExecutionResult } from '../cad-runtime/runtime'
 import type { EventSink, AssetResolver } from '../cad-runtime/ports'
+import { asPartName } from '../identity'
 import { fileBlobStore } from '../test/blob-store'
 import { createEditorRuntime } from '../test-support/editor-ops'
 
@@ -84,9 +85,8 @@ describe.skip('3mf load → fai_extrude chain (planeDistance)', () => {
 
     // cube334.3mf: two boxes (z∈[-15,5] and z∈[10,20]) + build translation
     // (128,128,15) → world bbox z∈[0,35], planeDistance 17.5 cuts the lower box.
-    const part0 = (result.outputs ?? []).find(([k]) => k === 'part0')?.[1] as
-      | { positions?: ArrayBuffer; indices?: ArrayBuffer }
-      | undefined
+    const part0 = (result.outputs.get(asPartName('part0')) ??
+      undefined) as { positions?: ArrayBuffer; indices?: ArrayBuffer } | undefined
     expect(part0).toBeTruthy()
     expect(part0?.positions?.byteLength ?? 0, '3mf load must produce geometry').toBeGreaterThan(0)
     expect(part0?.indices?.byteLength ?? 0).toBeGreaterThan(0)
