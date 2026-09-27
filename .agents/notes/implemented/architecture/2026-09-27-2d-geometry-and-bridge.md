@@ -1,0 +1,40 @@
+# Agent Note: pure-2D geometry port and unified placement pipeline
+
+Status: implemented
+
+English | [中文](2026-09-27-2d-geometry-and-bridge.zh.md)
+
+## Problem
+
+faijs had no pure, kernel-free 2D geometry layer. `cad.profile` built 3D edges directly from 2D segment data by bypassing geometry (`profile.ts` loop-to-wire), with its own ad-hoc hole classification (parent chain + `depthOf` + area comparison). The 2D→3D bridge primitives the plan needs (`sketchOnPlane`/`sketchOnFace`/`punchHole`) had zero implementation, and the kernel contract (`BrepEngineApi`) does not expose any curve-handle system. Growing the 3D moulding story on this base would mean duplicating 2D geometry logic in the api layer.
+
+## Decision
+
+core gains a kernel-independent pure-2D geometry base under `packages/core/src/geometry2d/`, ported from brepjs (Apache-2.0, attribution in file headers):
+
+- `curve2d.ts` — the `Curve2dObj` family (line / circle / ellipse / bezier / bspline / trimmed), evaluate / tangent / bounds, constructors, transforms, serialization, `intersectCurves2dFn`, `CurveBBox2d` / `createCurveBBox2d`; the brepjs `__bk2d` discriminant is renamed `kind2d` (and `__bk2d_bbox` → `kind2d_b`) to faijs-style names.
+- `bbox2d.ts` — pure-data `BBox2d` helpers.
+- `blueprint.ts` / `compound-blueprint.ts` / `blueprints.ts` — `Blueprint` / `CompoundBlueprint` / `Blueprints` as pure object containers (no kernel handles, no `dispose()`).
+- `organise.ts` — `organiseBlueprints` classification (`bbox`-overlap grouping + `isInside` nesting probe via `intersectCurves2dFn`).
+- `adapt.ts` — structural adapter from the legacy `cad.profile` segment shape (line / arc) to `Curve2dObj`, preserving `ccw` direction and full circles.
+
+`cad.profile` (F2) consumes this unified pipeline: `buildProfileShape` now converts each contour to a `Blueprint` and runs `organiseBlueprints`, then builds 3D line/arc/bezier edges from the classified curves. The old ad-hoc parent-chain / `depthOf` / area-comparison classification is deleted.
+
+2D→3D bridging (`geometry2d/bridge/`) is the same base's placement step later — per plan the bridge keeps alive the occt-only primitives (`liftCurve2dToPlane` / `draftPrism`) on the occt platform surface and combination at composition time.
+
+Nested-loop semantic is a decision, not an accident: nested loop = hole, disjoint loop = independent island, odd depth = hole, even depth = island again. `organiseBlueprints` reproduces this, also enforced as parity by the migrated profile regression tests. `ccw` is a geometric-direction field, not metadata: the adapter derives arc sweep per-direction (CW forward sweep = `startAngle − endAngle`) and keeps full circles as real `circle` curves (the 3-point construction degenerates through the singular start/end point).
+
+`organiseBlueprints` replaces brepjs's Flatbush spatial index with a pure union-find over `bbox`-overlap — no Flatbush dependency, pure TS, no kernel handle. The wire assembly for planar faces reuses `makeWire` and rebuilds real arc edges from three on-arc points (`makeArcEdge`), bezier via `makeBezierEdge`; sampled polylines are used only for non-analytic curves (ellipse / bspline).
+
+## Alternatives considered
+
+- **Port Flatbush in as a core dependency.** Rejected: heavier than needed; the same classification is reachable with a pure bbox-overlap union-find that the migrated tests already pin, and any future change is local to `organise.ts`.
+- **Keep `cad.profile`'s old parent-chain classification.** Rejected: it is ad-hoc and does not generalize to arbitrary `Curve2dObj`-based inputs (`cad.draw` / sketch) that must share the same pipe.
+- **Build the full bridge SKU in this round.** Rejected: the placement acceptance needs the pure-2D base to land and be regression-safe first; the bridge is a follow-on on the same base.
+
+## Consequences
+
+- core exposes `@faicad/faijs/geometry2d/*` subpath exports.
+- The profile classification lives once, in `organiseBlueprints`, shared by `cad.profile` and later `cad.draw` / sketch-family inputs.
+- Full circles, `ccw:false` arcs, and multi-island / hole-in-island contours all pass the migrated tests (33 geometry2d + 5 profile multi-island + the arc GOTCHA guards, plus multi-engine parity `mismatches=0`).
+- The pure-2D base is the prerequisite for `geometry2d/bridge/` placement (`sketchOnPlane`/`sketchOnFace`/`punchHole`) and the `@faicad/faijs-draw` package.
