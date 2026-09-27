@@ -32,6 +32,8 @@ import {
   tangentCurve2d,
   translateCurve2d,
   parameterOfPoint,
+  trimCurve,
+  splitCurveAt,
   type Curve2dObj,
 } from './curve2d'
 
@@ -269,6 +271,41 @@ describe('parameterOfPoint', () => {
     const t = parameterOfPoint(c, 3, 4)!
     const got = evaluateCurve2d(c, t)
     closePt(got, 3, 4, 1e-6) // the nearest point on the circle to (3,4) is its projection
+  })
+})
+
+describe('trimCurve / splitCurveAt', () => {
+  it('trimCurve maps t∈[0,1] into the native sub-range', () => {
+    const base = makeLine2d(0, 0, 4, 0) // segment (0,0)→(4,0), len 4
+    const sub = trimCurve(base, 1, 3)
+    expect(sub.kind2d).toBe('trimmed')
+    closePt(evaluateCurve2d(sub, 0), 1, 0, 1e-9)
+    closePt(evaluateCurve2d(sub, 0.5), 2, 0, 1e-9)
+    closePt(evaluateCurve2d(sub, 1), 3, 0, 1e-9)
+  })
+
+  it('splitCurveAt cuts a line into two matching halves', () => {
+    const base = makeLine2d(0, 0, 4, 0)
+    const [a, b] = splitCurveAt(base, 2)!
+    expect(a).toBeDefined()
+    closePt(evaluateCurve2d(a, 1), 2, 0, 1e-9)
+    closePt(evaluateCurve2d(b, 0), 2, 0, 1e-9)
+    closePt(evaluateCurve2d(b, 1), 4, 0, 1e-9)
+  })
+
+  it('splitCurveAt returns null for a non-interior parameter', () => {
+    const base = makeLine2d(0, 0, 4, 0)
+    expect(splitCurveAt(base, 0)).toBeNull()
+    expect(splitCurveAt(base, 9)).toBeNull()
+  })
+
+  it('splits a full circle into the two halves around the chosen angle', () => {
+    const c = makeCircle2d(0, 0, 5, true)
+    const [a, b] = splitCurveAt(c, Math.PI)!
+    closePt(evaluateCurve2d(a, 0), 5, 0, 1e-9)
+    closePt(evaluateCurve2d(a, 0.5), 0, 5, 1e-9) // CCW quarter → (0,5)=top? angle π/2 → (0,5)
+    closePt(evaluateCurve2d(a, 1), -5, 0, 1e-9)
+    closePt(evaluateCurve2d(b, 1), 5, 0, 1e-9)
   })
 })
 

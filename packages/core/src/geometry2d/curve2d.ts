@@ -866,6 +866,49 @@ function okConverge(c: Curve2dObj, px: number, py: number, t: number): boolean {
   return Math.hypot(ex - px, ey - py) < 1e-9
 }
 
+/** The unwrapped basis curve (strips any nesting of `trimmed` wrappers). */
+function basisOf(c: Curve2dObj): Curve2dObj {
+  let b = c
+  while (b.kind2d === 'trimmed') b = b.basis
+  return b
+}
+
+/**
+ * Trim a curve to a sub-parameter range given in the basis curve's native domain.
+ *
+ * The returned `trimmed` curve keeps the full basis; its `t∈[0,1]` domain maps
+ * into `[tStart, tEnd]` of the basis (so it is the inverse of `curveBounds` for
+ * trimmed curves). Parameters are in the basis's native domain (a line: distance
+ * along `[0,len]`; an arc/ellipse: angle `[.., ..]`).
+ *
+ * @param c - the curve to trim (may itself be already-trimmed; the basis is reused).
+ * @param tStart - the basis-domain parameter where the sub-curve starts.
+ * @param tEnd - the basis-domain parameter where the sub-curve ends.
+ * @returns the trimmed `Curve2dObj`.
+ */
+export function trimCurve(c: Curve2dObj, tStart: number, tEnd: number): Curve2dObj {
+  return { kind2d: 'trimmed', basis: basisOf(c), tStart, tEnd }
+}
+
+/**
+ * Split a curve at a native-domain parameter into two trimmed sub-curves.
+ *
+ * This is the splice primitive that D1 boolean-splitting and D3 corner
+ * (fillet/chamfer) use: it cuts a single curve at an interior parameter into
+ * two `TrimmedCurve2d` sharing the same basis, covering `[first, t]` and
+ * `[t, last]`. Returns `null` when `t` is not strictly interior.
+ *
+ * @param c - the curve to split.
+ * @param t - the native-domain split parameter (strictly inside the basis domain).
+ * @returns the two sub-curves, or `null` when `t` is outside the interior.
+ */
+export function splitCurveAt(c: Curve2dObj, t: number): [Curve2dObj, Curve2dObj] | null {
+  const basis = basisOf(c)
+  const { first, last } = curveBounds(basis)
+  if (t <= first || t >= last) return null
+  return [trimCurve(basis, first, t), trimCurve(basis, t, last)]
+}
+
 function intersectLineLine(
   c1: Curve2dObj,
   l1: Line2d,
