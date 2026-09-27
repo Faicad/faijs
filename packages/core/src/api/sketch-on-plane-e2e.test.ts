@@ -135,4 +135,24 @@ describe('cad.sketchOnPlane placement e2e (E2, occt)', () => {
     expect((s as { kind?: string }).kind).toBe('curve')
     expect(getBrepApi().getLength(handleOf(result, 'part0'))).toBeCloseTo(80, 3)
   })
+
+  // Placed-arc coverage: the bridge `liftCurve2dToPlane` splits a full circle into
+  // two swept arcs (and destructures ellipse/bspline into a sampled polyline). These
+  // assert those lifting paths survive a real kernel `makeFace` + `extrude` on a plane.
+  it('full-circle contour on XY plane → 2-arc wire faces + extrudes (π·r²·h)', async () => {
+    const r = 10
+    const circle: ProfileLoop = {
+      segments: [
+        { kind: 'arc', cx: 0, cy: 0, radius: r, startAngle: 0, endAngle: 2 * Math.PI, ccw: true, x1: r, y1: 0, x2: r, y2: 0 },
+      ],
+    }
+    const result = await exec(
+      `const part0 = cad.sketchOnPlane({ contours: ${JSON.stringify([circle])}, plane: { name: 'XY' } })\n` +
+        `const part1 = cad.extrude(part0, [0, 0, 5])`,
+    )
+    if (result.failedAt) throw new Error(`sketch failed: ${result.failedAt.message}`)
+    const solids = solidsOf(handleOf(result, 'part1'))
+    expect(solids).toHaveLength(1)
+    expect(getBrepApi().getVolume(solids[0]!)).toBeCloseTo(Math.PI * r * r * 5, 0)
+  })
 })
