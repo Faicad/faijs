@@ -20,8 +20,9 @@ import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
 import {
   createSketchCadNamespace, registerSketchSymbols, unregisterSketchSymbols,
-  installSketchSolver, uninstallSketchSolver,
+  installSketchSolver, uninstallSketchSolver, setSketchDiagnosticSink,
 } from '@faicad/faijs-sketch'
+import type { SolveOutcome } from '@faicad/faijs-sketch'
 import { createNodePlanegcsSolver } from '@faicad/faijs-sketch/node'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
@@ -225,9 +226,55 @@ let sk0 = cad.sketch({
 let part0 = cad.extrude(sk0, [0, 0, 5])
 `
     const { shape, failedAt } = await runScript(code)
-    expect(failedAt).toBeUndefined()
-    expect(shape).toBeDefined()
-    expect(shape!.positions.length).toBeGreaterThan(0)
+    // 2026-09-27裁定: conflicting over-constraint is a HARD error — the script
+    // must fail at the sketch statement, and the message must name the clash.
+    expect(failedAt).toBeDefined()
+    const msg = String((failedAt as { message?: string })?.message ?? failedAt)
+    expect(msg).toContain('E_SKETCHC_CONFLICTING')
+    expect(msg).toContain('bottom')
+    expect(msg).toContain('top')
+    // GOTCHA: this scenario flips the 2026-09-26 D3 "conflict passes" ruling.
+    expect(msg).toContain('80')
+    expect(msg).toContain('60')
+    expect(shape).toBeUndefined()
+  }, 120000)
+
+  it('4b. redundant over-constraint emits a diagnostic event to the host sink', async () => {
+    // 2026-09-27裁定: redundant must notify the host (never silent) even though
+    // it still solves and produces geometry.
+    const redundant = `
+let sk0 = cad.sketch({
+  geoms: [
+    { tag: 'bottom', kind: 'line', x1: 0, y1: 0, x2: 80, y2: 0 },
+    { tag: 'right',  kind: 'line', x1: 80, y1: 0, x2: 80, y2: 50 },
+    { tag: 'top',    kind: 'line', x1: 80, y1: 50, x2: 0, y2: 50 },
+    { tag: 'left',   kind: 'line', x1: 0, y1: 50, x2: 0, y2: 0 },
+  ],
+  constraints: [
+    { kind: 'horizontal', of: { tag: 'bottom' } },
+    { kind: 'horizontal', of: { tag: 'top' } },
+    { kind: 'vertical',   of: { tag: 'right' } },
+    { kind: 'vertical',   of: { tag: 'left' } },
+    { kind: 'coincident', a: { tag: 'bottom', at: 'end' }, b: { tag: 'right', at: 'start' } },
+    { kind: 'coincident', a: { tag: 'right', at: 'end' }, b: { tag: 'top', at: 'start' } },
+    { kind: 'coincident', a: { tag: 'top', at: 'end' }, b: { tag: 'left', at: 'start' } },
+    { kind: 'coincident', a: { tag: 'left', at: 'end' }, b: { tag: 'bottom', at: 'start' } },
+    { kind: 'length', of: { tag: 'bottom' }, value: 80 },
+    { kind: 'length', of: { tag: 'bottom' }, value: 80 },
+  ],
+})
+let part0 = cad.extrude(sk0, [0, 0, 5])
+`
+    const events: SolveOutcome[] = []
+    setSketchDiagnosticSink((o) => { events.push(o) })
+    try {
+      const { failedAt } = await runScript(redundant)
+      expect(failedAt).toBeUndefined()
+      expect(events.length).toBeGreaterThan(0)
+      expect(events.some((e) => e.status === 'redundant')).toBe(true)
+    } finally {
+      setSketchDiagnosticSink(null)
+    }
   }, 120000)
 
   it('GOTCHA: as:\'wire\' returns a wire (1D), not a faced shape', async () => {

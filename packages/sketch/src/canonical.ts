@@ -75,6 +75,20 @@ export type SketchConstraint =
 /** The `kind` string of a canonical constraint. */
 export type SketchConstraintKind = SketchConstraint['kind']
 
+/**
+ * A canonical constraint involved in a conflict or redundancy, resolved to
+ * human-readable element identifiers (tags) so a host / error message can point
+ * at *where* the problem is (§3.2 of the 2026-09-27 over-constraint plan).
+ */
+export interface ConflictDetail {
+  /** canonical constraint kind, e.g. `'length'` / `'coincident'`. */
+  kind: SketchConstraintKind
+  /** element identifiers the constraint references, as tags or `geom#<n>` fallbacks. */
+  refs: string[]
+  /** the constraint's value when it carries one (length / radius / angle / distance…). */
+  value?: number
+}
+
 /** A canonical sketch: geometry declarations plus constraints. */
 export interface SketchInput {
   geoms: SketchGeom[]
@@ -118,6 +132,8 @@ export interface SolveOutcome {
   droppedConstraints: number[]
   /** per-problem-constraint residual magnitude when available */
   residuals?: number[]
+  /** resolved conflict details (tags) when `status === 'conflicting'` (§3.2) */
+  conflictDetails?: ConflictDetail[]
   /** human-readable detail for a non-solved status */
   reason?: string
 }

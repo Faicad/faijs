@@ -10,10 +10,34 @@
  */
 import { buildProfileShape, type ProfileLoop } from '@faicad/faijs/api/profile'
 import type { Shape } from '@faicad/faijs/mesh/types'
-import type { SketchConstraint, SketchGeom, SolveOutcome } from './canonical.js'
+import type { SketchConstraint, SketchGeom, SolveOutcome, ConflictDetail } from './canonical.js'
 import { solveSketch, type SolveSketchOptions } from './solve.js'
 import { toFreeCadGeoms } from './project.js'
 import { extractContours } from './contour.js'
+
+/** One-line description of a conflicting constraint, e.g. `length(bottom) = 80`. */
+function describeConflict(d: ConflictDetail): string {
+  const refs = d.refs.join(', ')
+  const val = typeof d.value === 'number' ? ` = ${d.value}` : ''
+  return `${d.kind}(${refs})${val}`
+}
+
+/**
+ * Build the `E_SKETCHC_CONFLICTING` error message. Conflict details are
+ * resolved to tags (never bare solver indices); falls back to numeric indices
+ * when the solver reports none (§3.2, §5.1 probe caveat).
+ */
+function conflictingMessage(outcome: SolveOutcome): string {
+  const header = 'E_SKETCHC_CONFLICTING: conflicting constraints detected'
+  const details = outcome.conflictDetails
+  if (details && details.length > 0) {
+    return `${header}\n${details.map((d) => `  - ${describeConflict(d)}`).join('\n')}`
+  }
+  const idx = outcome.problemConstraints.length > 0
+    ? ` (indices: ${outcome.problemConstraints.join(', ')})`
+    : ''
+  return `${header}${idx}`
+}
 
 /** Options for {@link sketchFaces}. */
 export interface SketchFacesOptions extends SolveSketchOptions {
@@ -31,11 +55,14 @@ export interface SketchFacesOptions extends SolveSketchOptions {
  * @returns the face or outer wire.
  */
 export function shapeFromSolved(outcome: SolveOutcome, as?: 'face' | 'wire'): Shape {
-  // D3 (2026-09-27): a conflicting over-constraint is allowed through with a
-  // best-effort solve — the geometry carries the declared/last coordinates and
-  // the conflict list travels in the diagnostic, not as an error. Only a hard
-  // solver failure blocks face construction.
-  if (!outcome.converged && outcome.status !== 'conflicting') {
+  // 2026-09-27裁定: a conflicting over-constraint is a HARD error on the
+  // script face — the message must point at the clashing constraints (§3.2).
+  // Under- and redundant-constraint still solve normally; only a hard solver
+  // failure blocks face construction as before.
+  if (!outcome.converged && outcome.status === 'conflicting') {
+    throw new Error(conflictingMessage(outcome))
+  }
+  if (!outcome.converged) {
     throw new Error(`E_SKETCHC_SOLVE_FAILED: ${outcome.reason ?? outcome.status}`)
   }
   const contours = extractContours(toFreeCadGeoms(outcome.geoms))

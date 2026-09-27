@@ -203,9 +203,13 @@ type SketchConstraint =
 | 过约束（冗余） | 存在可被剔除的冗余约束 | 允许。求解器剔除冗余并求解                                                           | 正常输出几何，诊断列出被剔除的约束                  |
 | 过约束（冲突） | 约束互相矛盾      | 允许。求解器给出最小二乘意义下的 best-effort 解                                          | 输出几何，诊断携带 `problemConstraints` 与残差 |
 
+> **已推翻（2026-09-27）：** 上表「冲突型过约束放行」一行被 `2026-09-27-sketch-overconstraint-policy.md` 推翻——faijs 脚本面（`cad.sketch`）改为**必须报错**（`E_SKETCHC_CONFLICTING`，错误信息指出冲突约束与几何 tag）；fcstd 兼容层仍容错（冲突草图剔除冲突约束后 best-effort 解），不受此边界影响。
+
 **允许 ≠ 静默。** 诊断必须双路暴露：① `SolveOutcome` 结构返回给兼容层消费者；② 经 `HostPorts.events`（EventSink）发到宿主，供 UI / CLI 展示。
 
 **D3 已拍板：冲突型过约束放行。** 理由：fcstd 读第三方 `.FCStd` 时冲突约束很常见，一旦收紧为 err，整份文件的转换会直接失败——那不是"明确报错"，是把上游数据问题放大成整文件不可用。
+
+> **D3 已被推翻（2026-09-27）：** faijs *脚本面* 冲突型过约束改为必须报错（`E_SKETCHC_CONFLICTING`）；fcstd 兼容层仍按本 D3 容错（见 `2026-09-27-sketch-overconstraint-policy.md` §5.2）。本 D3 仅在「fcstd 读第三方文件」语境下继续有效。
 
 **仍然报错**的情形（不属于"允许"范畴，沿用"不静默回退"红线）：
 
@@ -213,6 +217,7 @@ type SketchConstraint =
 - 约束 kind 不在规范模型内 → `E_SKETCHC_UNSUPPORTED_CONSTRAINT`
 - 几何 kind 首版未支持（ellipse / bspline / point）→ `E_SKETCHC_UNSUPPORTED_GEOM`（**D4 已拍板**：首版只支持 line + circle + arc，其余预留 schema）
 - 求解器数值失败（非欠/过约束原因）→ `E_SKETCHC_SOLVE_FAILED`
+- 冲突型过约束（约束互相矛盾）→ `E_SKETCHC_CONFLICTING`（2026-09-27 裁定；仅 faijs 脚本面 `cad.sketch` 抛出，错误信息含冲突约束 kind + 几何 tag + 值；fcstd 兼容层不抛此码）
 
 ## 6. 脚本面：`cad.sketch`（草图）
 
@@ -399,7 +404,7 @@ packages/sketch/
 | --- | -------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | D1  | 改名后的新名         | **`cad.profile`**                                            | `profile` 是截面/轮廓通用词，与草图语义正交；弃 `cad.contour`（与 fcstd 内部 `Contour`/`ContourSeg` 同名易混）、`cad.face2d`（太窄，该 op 还要出 wire） |
 | D2  | `cad.sketch` 归属 | **库提供 op + 宿主合并注册**（照 extra 模式）                              | 可选能力，宿主不合并则无此 op，core 保持零草图知识。代价：3d_editor / 小程序宿主要各接一次合并                                                     |
-| D3  | 冲突型过约束         | **放行 + best-effort 解 + 诊断**（残差 + 被剔除约束）                      | 冲突是过约束的一类；fcstd 读第三方 `.FCStd` 时常见，收紧成 err 会让整份文件转换直接失败                                                        |
+| D3  | 冲突型过约束         | **放行 + best-effort 解 + 诊断**（残差 + 被剔除约束）                      | 冲突是过约束的一类；fcstd 读第三方 `.FCStd` 时常见，收紧成 err 会让整份文件转换直接失败。**（faijs 脚本面部分已被 2026-09-27 方案推翻：脚本面改为 `E_SKETCHC_CONFLICTING` 报错；fcstd 兼容层仍按本 D3 容错）**                                                        |
 | D4  | 首版几何范围         | **line + circle + arc**；ellipse / bspline / point 预留 schema   | fcstd P0 的 15 类约束在这三种几何上已跑通真实文件；bspline 采样与求解器参数化未标定，命中即 `E_SKETCHC_UNSUPPORTED_GEOM`                         |
 | D5  | 首版 mesh 链路     | **brep-only**，mesh 侧显式抛 `E_MESH_UNSUPPORTED`                  | 2026-09-27 升级拍板：草图相关 API **永久 brep-only**，不做 2D 三角化 + 挤出 dual-op——业界无草图约束走 mesh 链路的先例（CadQuery / FreeCAD 草图求解均落 OCCT 精确边）                                |
 | D6  | 改名别名过渡         | **不做别名**                                                     | 语义冲突正是改名原因。代价：3d_editor 与存量 `.fai.js` 必须同步改（清单见 §7）                                                           |

@@ -15,7 +15,7 @@
 // ── canonical model (§4) ──
 export type {
   At, Ref, SketchGeom, SketchConstraint, SketchConstraintKind, SketchInput,
-  SolveStatus, SolveOutcome,
+  SolveStatus, SolveOutcome, ConflictDetail,
 } from './canonical.js'
 
 // ── projection table (§4.5) ──

@@ -8,7 +8,7 @@
  * raised so the caller can surface them explicitly rather than silently.
  */
 import { isOk } from '@faicad/faijs/api/result'
-import type { SketchConstraint, SketchGeom, SolveOutcome, SolveStatus } from './canonical.js'
+import type { SketchConstraint, SketchGeom, SolveOutcome, SolveStatus, Ref, ConflictDetail } from './canonical.js'
 import { fromFreeCadGeoms, toFreeCadConstraints, toFreeCadGeoms } from './project.js'
 import { createPlanegcsSolver, type PlanegcsSolverOptions } from './planegcs-backend.js'
 import type { ExternalFixedSeg, SketchSolver } from './solver.js'
@@ -42,6 +42,49 @@ function readDof(solver: SketchSolver): number {
     }
   }
   return -1
+}
+
+/**
+ * Extract the `Ref` fields from a canonical constraint. Every union member
+ * carries its element references as `Ref`-typed properties; the `value` /
+ * `dir` / `at` companions are not refs and are skipped by the structural guard.
+ */
+function constraintRefs(c: SketchConstraint): Ref[] {
+  const refs: Ref[] = []
+  for (const v of Object.values(c)) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && ('tag' in v || 'index' in v)) {
+      refs.push(v as Ref)
+    }
+  }
+  return refs
+}
+
+/**
+ * Resolve the solver's numeric `problemConstraints` (canonical indices) into
+ * readable conflict details with element tags, so the script-face error can
+ * point at *which* constraints clash and *where* (§3.2 of the 2026-09-27 plan).
+ */
+function buildConflictDetails(
+  problemConstraints: number[],
+  constraints: SketchConstraint[],
+  geoms: SketchGeom[],
+): ConflictDetail[] {
+  const tagOf = (r: Ref): string => {
+    if ('tag' in r) return r.tag
+    const g = geoms[r.index]
+    return g?.tag ?? `geom#${r.index}`
+  }
+  const out: ConflictDetail[] = []
+  for (const idx of problemConstraints) {
+    const c = constraints[idx]
+    if (!c) continue
+    out.push({
+      kind: c.kind,
+      refs: constraintRefs(c).map(tagOf),
+      value: 'value' in c ? c.value : undefined,
+    })
+  }
+  return out
 }
 
 /**
@@ -112,5 +155,8 @@ export async function solveSketch(
     problemConstraints: raw.problemConstraints,
     droppedConstraints: raw.droppedConstraints,
     reason: raw.converged ? undefined : raw.reason,
+    conflictDetails: status === 'conflicting'
+      ? buildConflictDetails(raw.problemConstraints, constraints, geoms)
+      : undefined,
   }
 }

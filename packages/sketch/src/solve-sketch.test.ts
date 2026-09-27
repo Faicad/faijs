@@ -82,7 +82,7 @@ describe('solveSketch e2e — five constraint scenarios', () => {
     expect(out.droppedConstraints.length).toBeGreaterThan(0)
   })
 
-  it('conflicting: two different lengths on one line', async () => {
+  it('conflicting: two different lengths on one line → status + resolved details', async () => {
     const geoms = [{ tag: 'L', kind: 'line' as const, x1: 0, y1: 0, x2: 5, y2: 0 }]
     const constraints = [
       { kind: 'horizontal' as const, of: { tag: 'L' } },
@@ -90,8 +90,13 @@ describe('solveSketch e2e — five constraint scenarios', () => {
       { kind: 'length' as const, of: { tag: 'L' }, value: 20 },
     ]
     const out = await solveSketch(geoms, constraints, { solver })
-    expect(out.status === 'conflicting' || out.status === 'redundant').toBe(true)
-    expect(out.problemConstraints.length).toBeGreaterThan(0)
+    // 2026-09-27裁定: conflicting is a hard error on the script face, but the
+    // library-level outcome still reports it (the op boundary throws).
+    expect(out.status).toBe('conflicting')
+    expect(out.converged, `reason: ${out.reason}`).toBe(false)
+    expect(out.conflictDetails?.length ?? 0).toBeGreaterThan(0)
+    // readability: refs resolve to the tag, never a bare solver index
+    expect(out.conflictDetails!.some((d) => d.kind === 'length' && d.refs.includes('L'))).toBe(true)
   })
 
   it('ccw:false arc keeps its orientation across the solve (A3 regression class)', async () => {
