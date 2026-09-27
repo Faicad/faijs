@@ -1,6 +1,6 @@
 # 2D 绘图与草图 → 3D 建模能力建设方案
 
-状态：实施中（A 组/B 组/C1/C2/C3(底座)/E1(部分)/E2/F2 已落地，C3(e 接线)/C4/D/G/F4/F5/F6 待做）
+状态：实施中（A 组/B 组/C1/C2/C3(底座)/E1(部分)/E2/F2/F6(部分) 已落地，C3(e 接线)/C4/D/G/F4/F5 待做）
 
 本方案是 faijs 2D 能力建设的总纲，覆盖"完整 2D 绘图 + 完整 2D 草图 + 2D→3D 桥接"的最终目标与实施路径。`docs/plans/2026-09-26-profile-classify-holes-alignment.md`（profile 孔洞分类消 H15）的结论被本方案吸收为其子集——该方案的 profile 分类工作对应本方案工作项 F2，内核原语核对对应 E1；本方案在其上把范围从"孔洞分类"扩展到"完整 2D 能力 + 2D→3D 桥接"，并纠正了该方案中一处与用户需求相悖的判断（见 §1.4）。
 
@@ -228,6 +228,7 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 - **F4 约束草图接入统一管线**：`packages/sketch` 的求解产物 `SketchGeom` → 转 `Curve2dObj[]` → 走统一分类与放置管线（替代当前直接 `buildProfileShape`）；使约束草图也能放到任意平面/面。依赖：B2、E2。
 - **F5 命名空间/符号表/文档**：core 新能力在 `ops-api-inventory.md`、`api-namespace.ts`、`symbol-table.generated.ts` 的登记；draw 包新能力在 draw 包自身登记并新增包（package.json/workspaces 顺序/lockstep/ghost-deps）；必要时 `arg-spec.ts` 的 skip → faijs/selfhost。
 - **F6 三入口统一 3D 化（统一拉伸）**：让 `cad.profile`/`cad.sketch`/`cad.draw` 的产物都能经 `sketchOnPlane`/`sketchOnFace` 放置并 `extrude`；统一"轮廓 → 放置 → 3D 特征"接线，并验证三入口在 3D 能力上等价（差异仅在 2D 描述方式）。依赖：F1、F2、F4、E5。
+    - **已落地（内核放置缝）**：放置核心抽为 `buildShapeFromBlueprints(kernel, plane, blueprints, as)`（core `api/sketch-on-plane.ts`），`buildSketchOnPlaneWith` 改为先转 `Blueprint[]` 再调用；e2e 已证 draw 形状轮廓（`roundedRectangleBlueprint`，即 draw 工厂产出的 `Blueprint`）经 `buildShapeFromBlueprints` → 放置 → `extrude` 得正体积实体。draw 入口已能流入同一条放置管线。
 
 ### G 组：目标指引落地（可最后，但方向必须在架构里）
 
