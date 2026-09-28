@@ -321,6 +321,37 @@ export interface FromFreeCadConstraints {
 }
 
 /**
+ * Minimum number of refs each FCStd constraint type must carry before
+ * {@link fromFreeCadConstraints} can express it.
+ *
+ * GOTCHA (2026-09-28, `Bathroom_cabinet_sink.FCStd` Sketch259): FreeCAD stores
+ * an implicit axis/origin as GeoUndef, so a "vertical distance from the X axis"
+ * arrives as a **1-ref** `DistanceY`. `two()`/`ref()` then dereferenced the
+ * absent second ref and threw `Cannot read properties of undefined (reading
+ * 'pos')`, which the converter reports as `solver-throw` and which failed
+ * 436/900 corpus files. Only types the projection switch actually handles are
+ * listed here: anything absent (InternalAlignment, Block, Weight …) keeps
+ * flowing to the `default:` branch and is still reported as `unsupported-type`.
+ */
+const REFS_REQUIRED: Partial<Record<number, number>> = {
+  [ConstraintType.Horizontal]: 1,
+  [ConstraintType.Vertical]: 1,
+  [ConstraintType.Distance]: 1, // 1-ref Distance is a length (see the case below)
+  [ConstraintType.Angle]: 1, // the case below flags a 1-ref Angle as ambiguous
+  [ConstraintType.Radius]: 1,
+  [ConstraintType.Diameter]: 1,
+  [ConstraintType.Coincident]: 2,
+  [ConstraintType.Parallel]: 2,
+  [ConstraintType.Tangent]: 2,
+  [ConstraintType.DistanceX]: 2,
+  [ConstraintType.DistanceY]: 2,
+  [ConstraintType.Perpendicular]: 2,
+  [ConstraintType.Equal]: 2,
+  [ConstraintType.PointOnObject]: 2,
+  [ConstraintType.Symmetric]: 3,
+}
+
+/**
  * Project FCStd sketch constraints back to the canonical model — the reverse of
  * {@link toFreeCadConstraints} / `mapConstraint`. This is the bridge the fcstd
  * converter uses to emit `cad.sketch({ geoms, constraints })` from a parsed
@@ -344,6 +375,10 @@ export interface FromFreeCadConstraints {
  *   `external-or-axis-ref` instead of being silently dropped.
  * - `isDriving === false` (reference/driven) constraints carry no solve
  *   information — reported with reason `reference-driven`.
+ * - A constraint with fewer refs than its type requires (e.g. a 1-ref
+ *   `DistanceY`, which FreeCAD writes when the axis is implicit) is reported
+ *   with reason `ambiguous-refs`; see `REFS_REQUIRED`. This projection never
+ *   throws on such input.
  *
  * @param cons - FCStd constraints (e.g. from `parseSketchObject`).
  * @param geoms - canonical geometry the refs index into (bounds checking only).
@@ -369,6 +404,16 @@ export function fromFreeCadConstraints(cons: FcstdSketchCon[], geoms: SketchGeom
     // expressed as a canonical own-geometry Ref.
     if (c.refs.some((r) => r.geoId < 0)) {
       pushUnmapped(index, c.type, 'external-or-axis-ref')
+      return
+    }
+    // Ref-count guard (see REFS_REQUIRED) — runs BEFORE any ref dereference so
+    // an under-specified constraint is recorded rather than thrown out of the
+    // whole projection. Types the switch does not handle (InternalAlignment,
+    // Block, Weight …) are absent from the map and stay on the `default:` path,
+    // so they keep reporting `unsupported-type`.
+    const required = REFS_REQUIRED[c.type]
+    if (required !== undefined && c.refs.length < required) {
+      pushUnmapped(index, c.type, 'ambiguous-refs')
       return
     }
     const two = (): [Ref, Ref] => [ref(c.refs[0]!), ref(c.refs[1]!)]

@@ -154,6 +154,33 @@ describe('fromFreeCadConstraints — unmapped ledger', () => {
     const { unmapped } = fromFreeCadConstraints(cons, [])
     expect(unmapped).toEqual([expect.objectContaining({ index: 0, reason: 'ambiguous-refs' })])
   })
+
+  // GOTCHA (2026-09-28): FreeCAD writes an absolute-coordinate constraint as a
+  // 1-ref DistanceY when the axis is implicit (Bathroom_cabinet_sink Sketch259:
+  // `{geoId: 0, pos: 1}` = the start point's y = 70, matching the stored y1=70).
+  // Before the REFS_REQUIRED guard this dereferenced the absent second ref and
+  // threw `Cannot read properties of undefined (reading 'pos')` — reported by
+  // the converter as `solver-throw`, which failed 436/900 corpus files.
+  it('a 1-ref DistanceY (implicit axis) is ledgered, never thrown', () => {
+    const cons = [con(0, ConstraintType.DistanceY, [{ geoId: 0, pos: 1 }], 70)]
+    const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
+    expect(constraints).toEqual([])
+    expect(unmapped).toEqual([expect.objectContaining({ index: 0, reason: 'ambiguous-refs' })])
+  })
+
+  it('under-specified constraints of any type never throw out of the projection', () => {
+    const cons: FcstdSketchCon[] = [
+      con(0, ConstraintType.Coincident, []),
+      con(1, ConstraintType.PointOnObject, [{ geoId: 0, pos: 0 }]),
+      con(2, ConstraintType.Symmetric, [{ geoId: 0, pos: 1 }, { geoId: 0, pos: 2 }]),
+      con(3, ConstraintType.Horizontal, []),
+      con(4, ConstraintType.DistanceX, [{ geoId: 0, pos: 1 }]),
+    ]
+    const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
+    expect(constraints).toEqual([])
+    expect(unmapped.map((u) => u.index)).toEqual([0, 1, 2, 3, 4])
+    expect(unmapped.every((u) => u.reason === 'ambiguous-refs')).toBe(true)
+  })
 })
 
 describe('full roundtrip canonical → FCStd → canonical (mixed sketch)', () => {
