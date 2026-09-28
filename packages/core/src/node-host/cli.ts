@@ -38,6 +38,7 @@ import { brepOf } from '../shape'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asPartName } from '../identity'
+import { symbolTableNames } from '../lang/symbol-table'
 import { projectView, projectSheet } from '../api/view'
 import type { ViewSpec } from '../api/view/view-camera'
 
@@ -232,14 +233,33 @@ export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckRes
   }))
   const runtime = createRuntime(ports)
   const result = runtime.check(code)
+  const errors = result.errors.map((e) => ({
+    stage: e.stage,
+    message: e.message,
+    line: e.line,
+    stmtId: e.stmtId,
+  }))
+  // D11 (2026-09-28): unknown-op guard. check() is syntax+reference only — an
+  // op the cad namespace doesn't have used to pass `check` clean and die at
+  // runtime (e.g. `cad.sketch is not a function` when a host forgets to merge
+  // the sketch/draw libraries). Compare the script's callees against the
+  // symbol-table union view (platform + registered library entries) and fail
+  // the check on any unknown callee.
+  if (result.ok && result.script) {
+    const known = new Set(symbolTableNames())
+    const unknown = [...new Set(result.script.callees)].filter((n) => !known.has(n))
+    for (const name of unknown) {
+      errors.push({
+        stage: 'symbol',
+        message: `unknown op: cad.${name} is not in the cad namespace (host library not merged or op name misspelled)`,
+        line: undefined,
+        stmtId: undefined,
+      })
+    }
+  }
   return {
-    ok: result.ok,
-    errors: result.errors.map((e) => ({
-      stage: e.stage,
-      message: e.message,
-      line: e.line,
-      stmtId: e.stmtId,
-    })),
+    ok: result.ok && errors.length === 0,
+    errors,
     warnings: result.warnings,
     script: result.script,
   }

@@ -91,6 +91,40 @@ describe('cliCheck: dryRun validation', () => {
     expect(result.ok).toBe(true)
     runtime.dispose()
   })
+
+  // D11 (2026-09-28): cliCheck adds the static unknown-op guard on top of
+  // runtime.check — an op the cad namespace doesn't have must fail `check`
+  // instead of passing clean and dying at run time with
+  // "__ns.cad.x is not a function" (the fcstd-port A1 class of breakage:
+  // host forgot to merge a library namespace).
+  it('GOTCHA: cliCheck on unknown op → ok=false, stage symbol (runtime.check alone still passes)', () => {
+    const badCode = `export default async (cad) => {
+  const part0 = cad.bogusFn({ size: 20 })
+  return { shape: part0 }
+}`
+    const tmpFile = resolve(TMP_DIR, 'cli-unknown-op.fai.js')
+    writeFileSync(tmpFile, badCode)
+    const result = cliCheck(tmpFile)
+    expect(result.ok).toBe(false)
+    const sym = result.errors.find((e) => e.stage === 'symbol')
+    expect(sym).toBeDefined()
+    expect(sym!.message).toContain('cad.bogusFn')
+  })
+
+  it('cliCheck with a host-missing library op (cad.sketch, unmerged host) → ok=false', () => {
+    // The A1 regression shape: generated code calls cad.sketch but the host
+    // never merged @faicad/faijs-sketch, so `sketch` is not in the symbol
+    // table union. cliCheck must catch it statically.
+    const code = `export default async (cad) => {
+  const s0 = cad.sketch({ geoms: [] })
+  return { shape: s0 }
+}`
+    const tmpFile = resolve(TMP_DIR, 'cli-unmerged-sketch.fai.js')
+    writeFileSync(tmpFile, code)
+    const result = cliCheck(tmpFile)
+    expect(result.ok).toBe(false)
+    expect(result.errors.some((e) => e.stage === 'symbol' && e.message.includes('cad.sketch'))).toBe(true)
+  })
 })
 
 describe('cliRun: execute and export', () => {
