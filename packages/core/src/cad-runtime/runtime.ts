@@ -49,6 +49,7 @@ import { admitCompatLib } from './admit-compat-lib'
 import { hasDualOp, dualOpMetaOf } from '../define-op'
 import { computeLibId } from './lib-id'
 import { computeContentKey, stableFingerprint } from './content-key'
+import { SCRIPT_UNIT_CONSTANTS } from '../units'
 export { computeContentKey } from './content-key'
 export { stableFingerprint } from './content-key'
 import { isCompoundLike, getSlot, ensureSlot, type CompoundShape } from '../shape'
@@ -70,7 +71,7 @@ import { scanDeterminism, type DeterminismViolation, type DeterminismPolicy } fr
  */
 export interface CheckError {
   /** The stage that produced the error ('keep' = keep directive validation). */
-  stage: 'parse' | 'symbol' | 'reference' | 'keep' | 'security'
+  stage: 'parse' | 'symbol' | 'reference' | 'keep' | 'security' | 'dimension'
   message: string
   line?: number
   stmtId?: string
@@ -474,6 +475,7 @@ export class CadRuntime {
         out[`${binding}.${name}`] = {
           paramDims: meta.paramDims,
           retDim: meta.retDim,
+          ...(meta.slotMap ? { slotMap: meta.slotMap } : {}),
         }
       }
     }
@@ -492,6 +494,16 @@ export class CadRuntime {
     this.namespaces = { ...libs } as Namespaces
     this.securityPolicy = options.security ?? 'strict'
     this.determinismPolicy = options.determinism ?? 'error'
+
+    // P6/D7: register script-side unit constants (mm, inch, degree, …) on globalThis.
+    // Both the VM backend (new Function resolves free identifiers from the global scope)
+    // and the interpreter backend (env.ts reads globalThis[name] for S4_SAFE_GLOBALS)
+    // need these values. Idempotent — safe to call across multiple runtime instances.
+    const g = globalThis as Record<string, unknown>
+    for (const [name, value] of Object.entries(SCRIPT_UNIT_CONSTANTS)) {
+      if (!(name in g)) g[name] = value
+    }
+
     this.directExecutor = new DirectExecutor({
       namespaces: this.namespaces,
       setSolid: (partName, solid) => { this.solidCache.set(partName, solid) },
@@ -734,7 +746,7 @@ export class CadRuntime {
     // P2 修复：执行前重新认领全局 backends（本实例配置为准）。
     this.claimBackends()
     this.accumulatedCode = code
-    const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs), opDims: this.buildOpDims() })
+    const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
     const determinismFailure = await this.runDeterminismGate(code, meta)
     if (determinismFailure) return determinismFailure
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
@@ -827,7 +839,7 @@ export class CadRuntime {
     // 已执行产出/其它文件的变量作为外部 var 透传，由 missingPrefixVar 前置校验决定成败。
     // A1 安全扫描需把 ctx 已有键 + 已注册命名空间都作为 knownNames（避免 SEC_FREE_IDENT 误杀 append 场景）。
     const appendKnownNames = [...Object.keys(this.libs), ...de.listCtxKeys()]
-    const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true, security: this.securityPolicy, namespaces: appendKnownNames, nsNames: Object.keys(this.libs), opDims: this.buildOpDims() })
+    const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true, security: this.securityPolicy, namespaces: appendKnownNames, nsNames: Object.keys(this.libs) })
     const determinismFailure = await this.runDeterminismGate(fullCode, meta)
     if (determinismFailure) return determinismFailure
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
@@ -1410,7 +1422,9 @@ export class CadRuntime {
       }
     } catch (err) {
       if (err instanceof ParseError) {
-        const stage = err.code === 'E_SECURITY' ? 'security' : 'parse'
+        const stage = err.code === 'E_SECURITY' ? 'security'
+          : err.code === 'E_DIM_BARE_NUMBER' || err.code === 'E_DIM_MISMATCH' || err.code === 'E_DIM_UNKNOWN_UNIT' ? 'dimension'
+          : 'parse'
         return {
           ok: false,
           errors: [{ stage, message: err.message, line: err.line, ...(err.code ? { code: err.code } : {}), ...(err.ruleId ? { ruleId: err.ruleId } : {}) }],
@@ -1535,7 +1549,7 @@ export class CadRuntime {
     }
 
     // G4: 含相对 import 的多文件场景
-    const meta = extractMetadata(newCode, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs), opDims: this.buildOpDims() })
+    const meta = extractMetadata(newCode, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
     if ((meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) {
       return this.executeDirectText(newCode, opts)
     }

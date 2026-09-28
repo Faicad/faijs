@@ -128,7 +128,7 @@ describe('extractMetadata: argSources（P0-A）', () => {
 })
 
 describe('extractMetadata: names（P0-B）', () => {
-  it('参数 ∪ 变量 ∪ 命名空间 ∪ 本机函数，词法序去重', () => {
+  it('参数 ∪ 变量 ∪ 命名空间 ∪ 本机函数 ∪ 单位常量，词法序去重', () => {
     const code = [
       "import * as mat from 'mat'",
       'function helper(x) { return x }',
@@ -137,7 +137,12 @@ describe('extractMetadata: names（P0-B）', () => {
       'let part1 = mat.dup(w, 1, { a: h })',
     ].join('\n')
     const meta = extractMetadata(code)
-    expect(meta.names).toEqual(['h', 'helper', 'mat', 'part0', 'part1', 'w'])
+    // P6/D7: unit constants (mm, inch, degree, …) are now included in names.
+    expect(meta.names).toEqual([
+      'cm', 'degree', 'foot', 'gram', 'h', 'helper', 'inch', 'kilogram',
+      'mat', 'meter', 'micron', 'mm', 'part0', 'part1', 'radian', 'second',
+      'w', 'yard',
+    ])
   })
 
   it('names 可直接用作 validateExpression 的 knownNames', () => {

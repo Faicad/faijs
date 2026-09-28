@@ -50,10 +50,10 @@ afterAll(() => {
 
 // occt 版：含 fuse（vendored 投影，occt-only，Phase 5 补漏 engines）——证明脚本内
 // 数字变量与派生 Shape 共存（fuse 消费证明执行完整）。volume/centerOfMass 同为 L1 中立测量面。
-const SCRIPT_OCCT = `const b = cad.box(20, 10, 5)\nconst a = cad.area(b)\nconst l = cad.length(b)\nconst v = cad.volume(b)\nconst cm = cad.centerOfMass(b)\nconst c = cad.fuse(b, b)`
+const SCRIPT_OCCT = `const b = cad.box(20, 10, 5)\nconst a = cad.area(b)\nconst l = cad.length(b)\nconst v = cad.volume(b)\nconst com = cad.centerOfMass(b)\nconst c = cad.fuse(b, b)`
 // 中立版（平台无关契约，§1.5 推论 1）：只用 L1 面 op（box / area / length / volume / centerOfMass），
 // 同一份脚本在 occt 与 brepkit 都能跑。
-const SCRIPT_NEUTRAL = `const b = cad.box(20, 10, 5)\nconst a = cad.area(b)\nconst l = cad.length(b)\nconst v = cad.volume(b)\nconst cm = cad.centerOfMass(b)`
+const SCRIPT_NEUTRAL = `const b = cad.box(20, 10, 5)\nconst a = cad.area(b)\nconst l = cad.length(b)\nconst v = cad.volume(b)\nconst com = cad.centerOfMass(b)`
 
 describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
   it('occt：脚本可调用测量 op，数字变量与派生 Shape 共存（fuse 消费证明执行完整）', async () => {

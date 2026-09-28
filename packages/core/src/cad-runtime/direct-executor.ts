@@ -41,6 +41,7 @@ import { applyTransformBrep } from '../brep/brep-ops'
 import type { TransformedUnit, ExecBackend, ExecBackendChoice } from './exec-backend'
 import { VmBackend } from './exec-backends/vm-backend'
 import { InterpBackend } from './exec-backends/interp-backend'
+import { SCRIPT_UNIT_NAMES } from '../units'
 
 type ASTNode = any
 
@@ -1186,6 +1187,9 @@ export class DirectExecutor {
       case 'Literal':
         return JSON.stringify(node.value)
       case 'Identifier':
+        // P6/D7: unit constants (mm, inch, degree, …) are global read-only
+        // constants — emit as bare identifiers so they resolve from globalThis.
+        if (SCRIPT_UNIT_NAMES.has(node.name)) return node.name
         return `__ctx.${node.name}`
       case 'CallExpression':
         return this.emitCall(node, code, declared, lineNo)

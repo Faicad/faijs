@@ -289,6 +289,35 @@ export const UNIT_DIMS: Readonly<Record<UnitName, UnitSpec>> = Object.freeze(
   }, {} as Record<UnitName, UnitSpec>),
 )
 
+// ── Script-side unit constants (D7) ──────────────────────────────────────────
+// These are the bare-number constants available in .fai.js scripts.
+// `cm` and `meter` are script-friendly aliases for UNIT_SCALE keys `cm` and `m`.
+// The value is the base-unit scale factor (= UNIT_SCALE[name] for most, except
+// `meter` which maps to `m`).
+
+/**
+ * Script-side unit constant names → their numeric values (base-unit scale).
+ * These are registered as global read-only constants in the script runtime.
+ * `10 * inch` in a script evaluates to `10 * 25.4 === 254` (plain JS multiply).
+ */
+export const SCRIPT_UNIT_CONSTANTS: Readonly<Record<string, number>> = Object.freeze({
+  mm: 1,
+  cm: 10,
+  meter: 1000,
+  micron: 0.001,
+  inch: 25.4,
+  foot: 304.8,
+  yard: 914.4,
+  degree: 1,
+  radian: 180 / Math.PI,
+  gram: 1,
+  kilogram: 1000,
+  second: 1,
+})
+
+/** The set of script-side unit constant names (for fast membership tests). */
+export const SCRIPT_UNIT_NAMES: ReadonlySet<string> = new Set(Object.keys(SCRIPT_UNIT_CONSTANTS))
+
 // ── Typed constants (ValueWithUnits) ────────────────────────────────────────
 
 /** 1 mm — the base length unit. */

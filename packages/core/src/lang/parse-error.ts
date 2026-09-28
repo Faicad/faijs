@@ -24,6 +24,12 @@ export type ParseErrorCode =
   | 'E_ARG'
   /** 安全门禁违规（SecurityScanner 命中：危险标识符 / 危险语法 / 自由标识符等） */
   | 'E_SECURITY'
+  /** P6/D8: 有量纲位收到裸数字字面量（dimension pass） */
+  | 'E_DIM_BARE_NUMBER'
+  /** P6/D8: 可判定量纲的两侧量纲不一致（dimension pass） */
+  | 'E_DIM_MISMATCH'
+  /** P6/D8: 单位常量名不在表中（dimension pass 兖底） */
+  | 'E_DIM_UNKNOWN_UNIT'
 
 /**
  * An error raised while parsing faijs source, carrying the offending line

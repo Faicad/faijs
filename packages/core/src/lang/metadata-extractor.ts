@@ -24,7 +24,8 @@ import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef } from './ho
 import { ParseError } from './parse-error'
 import { fnv1a32 } from './fnv-hash'
 import { assertSecure, type SecurityPolicy } from './security-scanner'
-import type { DimName } from '../units'
+import type { DimName, UnitName } from '../units'
+import { SCRIPT_UNIT_NAMES, UNIT_DIM } from '../units'
 
 // ── UiMetadata 类型（§4.1） ──
 
@@ -376,6 +377,10 @@ export function collectExprIdentifiers(
         params.add(name)
       } else if (symbols.declared.has(name)) {
         refs.add(name)
+      } else if (SCRIPT_UNIT_NAMES.has(name)) {
+        // P6/D7: unit constants (mm, inch, degree, …) are global read-only constants.
+        // Treat as a known reference — do not throw E_REFERENCE.
+        refs.add(name)
       } else if (opts?.lenient === true) {
         // lenient：未知标识符跳过（ArgSource 记录路径，保证提取不抛新错）
       } else {
@@ -450,6 +455,10 @@ interface ValueParseCtx {
   codeOffset: number
   /** P0-B：参数槽源码记录累积（语句顺序追加） */
   argSources: ArgSource[]
+  /** P6/D8: callee → 量纲声明（dimension pass 用） */
+  opDims?: OpDimMap
+  /** P6/D8: dimension 校验错误累积 */
+  dimErrors: ParseError[]
 }
 
 /** 是否非平凡表达式：非 Literal（负字面量视为字面量）→ UI 显示 fx 徽标 */
@@ -457,6 +466,143 @@ function isExpressionNode(node: ASTNode): boolean {
   if (!node || node.type === 'Literal') return false
   if (node.type === 'UnaryExpression' && node.operator === '-' && node.argument?.type === 'Literal') return false
   return true
+}
+
+// ── P6/D8: 静态量纲校验（dimension pass） ──
+
+/**
+ * P6/D8 R4: Determine the dimension of an AST expression node.
+ *
+ * Returns the DimName if the expression can be statically determined to carry
+ * a dimension, `'bare'` for a bare number literal, or `null` if it cannot be
+ * determined (R5: pass through).
+ */
+function inferDim(node: ASTNode): DimName | 'bare' | null {
+  if (!node) return null
+
+  switch (node.type) {
+    case 'Literal':
+      if (typeof node.value === 'number') return 'bare'
+      return null
+
+    case 'UnaryExpression':
+      if (node.operator === '-' || node.operator === '+' || node.operator === '~') {
+        return inferDim(node.argument)
+      }
+      return null
+
+    case 'Identifier':
+      // Unit constant? → its dimension
+      if (SCRIPT_UNIT_NAMES.has(node.name)) {
+        return UNIT_DIM[node.name as UnitName] ?? null
+      }
+      // Declared variable or parameter → cannot determine (R5: pass through)
+      return null
+
+    case 'BinaryExpression': {
+      const left = inferDim(node.left)
+      const right = inferDim(node.right)
+
+      switch (node.operator) {
+        case '*': {
+          // number * unitConst → unit's dim; unitConst * number → same
+          if (left === 'bare' && right && right !== 'bare') return right
+          if (right === 'bare' && left && left !== 'bare') return left
+          // both bare → bare (dimensionless multiply)
+          if (left === 'bare' && right === 'bare') return 'bare'
+          // both have dims → compound (length * length → area); pass through
+          return null
+        }
+        case '/': {
+          // same dim / same dim → dimensionless (bare)
+          if (left && right && left === right && left !== 'bare') return 'bare'
+          // dim / bare → dim
+          if (left && left !== 'bare' && right === 'bare') return left
+          // bare / dim → 1/dim (not a simple dim); pass through
+          if (left === 'bare' && right && right !== 'bare') return null
+          if (left === 'bare' && right === 'bare') return 'bare'
+          return null
+        }
+        case '+':
+        case '-': {
+          // Both sides must have the same dimension (R3)
+          if (left === right) return left
+          // R3: if both sides are determinable but differ → mismatch.
+          // But inferDim can't report errors — it returns the dim or null.
+          // We return a special sentinel 'mismatch' to signal checkDim.
+          if (left && right && left !== 'bare' && right !== 'bare' && left !== right) {
+            return 'mismatch' as unknown as DimName
+          }
+          // If one is bare and the other has a dim → the result has that dim
+          if (left === 'bare' && right && right !== 'bare') return right
+          if (right === 'bare' && left && left !== 'bare') return left
+          // If either is null (unknown), pass through (R5)
+          return null
+        }
+        default:
+          return null
+      }
+    }
+
+    case 'ParenthesizedExpression':
+      return inferDim(node.expression)
+
+    case 'ArrayExpression':
+      // vec3 — check first element for dimensionality
+      if (node.elements && node.elements.length > 0 && node.elements[0]) {
+        return inferDim(node.elements[0])
+      }
+      return null
+
+    default:
+      return null
+  }
+}
+
+/**
+ * P6/D8: Check if an argument expression has the required dimension.
+ *
+ * - R2: bare number literal on a dimensioned slot → E_DIM_BARE_NUMBER
+ * - R3: mismatched dimensions → E_DIM_MISMATCH
+ * - R5: cannot determine → pass (no error)
+ *
+ * Appends errors to ctx.dimErrors (does not throw — extraction continues).
+ */
+function checkDim(node: ASTNode, expectedDim: DimName, ctx: ValueParseCtx): void {
+  const actualDim = inferDim(node)
+
+  // R5: cannot determine → pass through
+  if (actualDim === null) return
+
+  // R3: mismatched dimensions within the expression (e.g. mm + degree)
+  if (actualDim === 'mismatch' as unknown as string) {
+    ctx.dimErrors.push(new ParseError(
+      `dimension mismatch in expression: "${ctx.sourceText.slice(node.start, node.end)}"`,
+      lineOf(node),
+      'E_DIM_MISMATCH',
+    ))
+    return
+  }
+
+  // R2: bare number on dimensioned slot
+  if (actualDim === 'bare') {
+    ctx.dimErrors.push(new ParseError(
+      `bare number literal requires unit suffix (expected ${expectedDim}): "${ctx.sourceText.slice(node.start, node.end)}"`,
+      lineOf(node),
+      'E_DIM_BARE_NUMBER',
+    ))
+    return
+  }
+
+  // R3: dimension mismatch with expected
+  if (actualDim !== expectedDim) {
+    ctx.dimErrors.push(new ParseError(
+      `dimension mismatch: expected ${expectedDim}, got ${actualDim} in "${ctx.sourceText.slice(node.start, node.end)}"`,
+      lineOf(node),
+      'E_DIM_MISMATCH',
+    ))
+    return
+  }
 }
 
 /**
@@ -1013,6 +1159,8 @@ export interface OpDimDecl {
   paramDims?: Record<string, DimName>
   /** 函数调用结果的量纲。 */
   retDim?: DimName
+  /** D11 slot-map（positional→object 装箱表）；位置形态校验用。 */
+  slotMap?: { keys: string[]; vec3Keys?: string[]; shapeArity?: number }
 }
 
 /** P4/P6: callee 名 → 量纲声明（供 extractMetadata 的 dimension pass 消费）。 */
@@ -1183,6 +1331,8 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
   let terminalShapes: TerminalShape[] | undefined
   // P0-B：参数槽记录累积（跨语句共享，语句顺序追加）
   const argSources: ArgSource[] = []
+  // P6/D8: dimension 校验错误累积（跨语句共享）
+  const allDimErrors: ParseError[] = []
 
   // ── 逐顶层语句分类 ──
   for (const stmtNode of bodyNodes) {
@@ -1197,6 +1347,8 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
       stmtId: asStmtId(`s${line}`),
       codeOffset,
       argSources,
+      opDims: options?.opDims,
+      dimErrors: allDimErrors,
     }
 
     switch (stmtNode.type) {
@@ -1344,16 +1496,23 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
     }
   }
 
-  // P0-B：名称集合 = 参数 ∪ 已声明变量 ∪ 命名空间绑定 ∪ 本地函数名（字典序去重）。
+  // P0-B：名称集合 = 参数 ∪ 已声明变量 ∪ 命名空间绑定 ∪ 本地函数名 ∪ 单位常量（字典序去重）。
   // 宿主把「参数表达式」中的未知标识符当作参数名（期望名）处理时用它做联想。
+  // P6/D7：单位常量名（mm, inch, degree, …）加入 knownNames，使表达式实时校验通过。
   const names = [
     ...new Set([
       ...symbols.paramNames,
       ...symbols.declared,
       ...symbols.nsBindings.keys(),
       ...symbols.localFnParams.keys(),
+      ...SCRIPT_UNIT_NAMES,
     ]),
   ].sort()
+
+  // P6/D8: dimension 校验——如果有错误，抛出第一个（用 stage='dimension' 包装）
+  if (allDimErrors.length > 0) {
+    throw allDimErrors[0]
+  }
 
   return { lines, params, imports, functions, blocks, keep: symbols.keep, meta, terminalShapes, argSources, names }
 }
@@ -1467,6 +1626,16 @@ function classifyOpCall(
   }
 
   const positional = parsePositionalArgs(call.arguments ?? [], vctx, line)
+
+  // P6/D8: dimension pass — check each argument against declared paramDims
+  if (vctx.opDims && call.arguments) {
+    // Build the full callee key for opDims lookup: 'cad.box' for default ns,
+    // 'otherNs.box' for non-default ns, or just 'box' for local fn.
+    const dimKey = namespace !== undefined ? `${namespace}.${callee}` : `${vctx.symbols.defaultNsName}.${callee}`
+    const localKey = local ? callee : dimKey
+    checkOpCallDims(call, local ? localKey : dimKey, vctx)
+  }
+
   const summary = buildLineSummary({
     callee,
     line,
@@ -1481,6 +1650,102 @@ function classifyOpCall(
   extractKeepEntries(positional, line, vctx.symbols)
   attachAssemblySummary(summary)
   return summary
+}
+
+/**
+ * P6/D8: Check dimension constraints on op call arguments.
+ *
+ * Handles both object-form (`cad.box({ width: 10 * mm })`) and positional-form
+ * (`cad.box(10 * mm, 10 * mm, 10 * mm)`). For positional form, uses slotMap
+ * to map positional args to parameter names. For vec3 params, checks each element.
+ *
+ * Errors are accumulated in `ctx.dimErrors` (does not throw).
+ */
+function checkOpCallDims(call: ASTNode, calleeKey: string, ctx: ValueParseCtx): void {
+  const decl = ctx.opDims?.[calleeKey]
+  if (!decl || !decl.paramDims) return
+
+  const args = call.arguments ?? []
+  if (args.length === 0) return
+
+  const slotMap = decl.slotMap
+  const shapeArity = slotMap?.shapeArity ?? 0
+
+  // ── Object form ──
+  // Look for an ObjectExpression arg that contains keys matching paramDims.
+  // It could be at position `shapeArity` (with slotMap) or at any position
+  // (without slotMap — e.g. fai_extrude(shape, { length: 5 })).
+  if (slotMap) {
+    const firstNonShape = args[shapeArity]
+    if (firstNonShape?.type === 'ObjectExpression') {
+      const hasDimKeys = firstNonShape.properties.some(
+        (p: ASTNode) => p?.type === 'Property' && p.key?.type === 'Identifier' && p.key.name in decl.paramDims!,
+      )
+      if (hasDimKeys) {
+        for (const prop of firstNonShape.properties) {
+          if (prop?.type !== 'Property') continue
+          const keyNode = prop.key
+          if (keyNode?.type !== 'Identifier') continue
+          const paramName = keyNode.name
+          const dim = decl.paramDims[paramName]
+          if (!dim) continue
+
+          checkDim(prop.value, dim, ctx)
+
+          if (slotMap.vec3Keys?.includes(paramName) && prop.value?.type === 'ArrayExpression') {
+            for (const el of prop.value.elements ?? []) {
+              if (el) checkDim(el, dim, ctx)
+            }
+          }
+        }
+        return
+      }
+    }
+  } else {
+    // No slotMap — scan all args for ObjectExpression with dim keys
+    for (const arg of args) {
+      if (arg?.type !== 'ObjectExpression') continue
+      const hasDimKeys = arg.properties.some(
+        (p: ASTNode) => p?.type === 'Property' && p.key?.type === 'Identifier' && p.key.name in decl.paramDims!,
+      )
+      if (!hasDimKeys) continue
+      for (const prop of arg.properties) {
+        if (prop?.type !== 'Property') continue
+        const keyNode = prop.key
+        if (keyNode?.type !== 'Identifier') continue
+        const paramName = keyNode.name
+        const dim = decl.paramDims[paramName]
+        if (!dim) continue
+
+        checkDim(prop.value, dim, ctx)
+      }
+      return
+    }
+  }
+
+  // ── Positional form ──
+  if (!slotMap) return
+  const keys = slotMap.keys
+  const vec3Keys = new Set(slotMap.vec3Keys ?? [])
+  let keyIdx = 0
+  for (let i = shapeArity; i < args.length && keyIdx < keys.length; i++) {
+    const arg = args[i]
+    if (arg?.type === 'ObjectExpression') break // trailing options object
+
+    const paramName = keys[keyIdx]
+    const dim = decl.paramDims[paramName]
+    keyIdx++
+
+    if (!dim) continue
+
+    if (vec3Keys.has(paramName) && arg?.type === 'ArrayExpression') {
+      for (const el of arg.elements ?? []) {
+        if (el) checkDim(el, dim, ctx)
+      }
+    } else if (arg) {
+      checkDim(arg, dim, ctx)
+    }
+  }
 }
 
 /**

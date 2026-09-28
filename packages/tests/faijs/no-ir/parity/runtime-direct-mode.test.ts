@@ -225,7 +225,7 @@ describe('E6/E7：direct 面 failedAt.index 语句序数与 check() 语法门禁
   it('E7：direct check = 语法门禁（未知 callee 放行；语法错 ok=false 带行号）', async () => {
     const direct = directMk()
     // 语法门禁：未知 callee 不报错（执行期才 failedAt）
-    const loose = direct.check('let x = cad.no_such_op()\nlet ok = cad.box(1, 1, 1)')
+    const loose = direct.check('let x = cad.no_such_op()\nlet ok = cad.box(1 * mm, 1 * mm, 1 * mm)')
     expect(loose.ok).toBe(true)
     expect(loose.script?.statements).toBe(2)
     // 语法错误 → ok=false，stage=parse，带 E_SYNTAX 与行号

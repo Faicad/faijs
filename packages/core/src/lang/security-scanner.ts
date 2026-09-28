@@ -33,6 +33,7 @@ export type SecurityRuleId =
   | 'SEC_FREE_IDENT'
   | 'SEC_LIMIT'
   | 'SEC_NS_ASSIGN'
+  | 'SEC_RESERVED_ASSIGN'
 
 /** 违规条目。 */
 export interface SecurityViolation {
@@ -148,6 +149,25 @@ export const S4_SAFE_GLOBALS = new Set<string>([
   'Infinity', 'NaN', 'undefined',
   'parseInt', 'parseFloat', 'isNaN', 'isFinite',
   'console',
+  // P6/D7: script-side unit constants (mm, inch, degree, …) are read-only globals.
+  // Values registered on globalThis by the runtime; SEC_RESERVED_ASSIGN (P6) prevents
+  // shadowing. The name set lives in units.ts (SCRIPT_UNIT_NAMES) but the literal
+  // list is duplicated here because lang/ must not create a runtime dependency on
+  // units.ts (type-only import is fine, but S4_SAFE_GLOBALS is a runtime Set).
+  'mm', 'cm', 'meter', 'micron', 'inch', 'foot', 'yard',
+  'degree', 'radian', 'gram', 'kilogram', 'second',
+])
+
+/**
+ * P6/D7: Reserved unit constant names — cannot be used as declaration names
+ * (let/const/var/param/function) or assignment targets.
+ * This is a subset of S4_SAFE_GLOBALS (the unit constants only, not Math/Number/etc).
+ * SEC_RESERVED_ASSIGN prevents scripts from shadowing unit constants like
+ * `inch = 999` or `let mm = 3`, which would silently corrupt geometry.
+ */
+export const RESERVED_UNIT_NAMES = new Set<string>([
+  'mm', 'cm', 'meter', 'micron', 'inch', 'foot', 'yard',
+  'degree', 'radian', 'gram', 'kilogram', 'second',
 ])
 
 // S5 结构上限
@@ -340,11 +360,17 @@ export function scanAst(ast: Program, opts: SecurityScanOptions): SecurityScanRe
 
   /**
    * 从解构/标识符模式收集名字（用于作用域登记）。
+   * P6: If a pattern name is a reserved unit constant, emits SEC_RESERVED_ASSIGN.
    */
   function collectPatternNames(pattern: ASTNode, scope: Scope): void {
     if (!pattern) return
     switch (pattern.type) {
       case 'Identifier':
+        // P6/SEC_RESERVED_ASSIGN: reserved unit names cannot be declared
+        if (RESERVED_UNIT_NAMES.has(pattern.name)) {
+          addViolation('SEC_RESERVED_ASSIGN', lineOf(pattern), pattern.name,
+            `[security] SEC_RESERVED_ASSIGN line ${lineOf(pattern)}: cannot declare reserved unit name "${pattern.name}"`)
+        }
         scope.names.add(pattern.name)
         return
       case 'ObjectPattern':
@@ -384,7 +410,14 @@ export function scanAst(ast: Program, opts: SecurityScanOptions): SecurityScanRe
           break
         case 'FunctionDeclaration':
         case 'ClassDeclaration':
-          if (node.id?.type === 'Identifier') scope.names.add(node.id.name)
+          if (node.id?.type === 'Identifier') {
+            // P6/SEC_RESERVED_ASSIGN: reserved unit names cannot be function/class names
+            if (RESERVED_UNIT_NAMES.has(node.id.name)) {
+              addViolation('SEC_RESERVED_ASSIGN', lineOf(node), node.id.name,
+                `[security] SEC_RESERVED_ASSIGN line ${lineOf(node)}: cannot declare reserved unit name "${node.id.name}"`)
+            }
+            scope.names.add(node.id.name)
+          }
           break
         default:
           break
@@ -435,6 +468,11 @@ export function scanAst(ast: Program, opts: SecurityScanOptions): SecurityScanRe
       case 'ArrowFunctionExpression': {
         // 函数名在父作用域（FunctionDeclaration 提升到父层）
         if (node.type === 'FunctionDeclaration' && node.id?.name && scope) {
+          // P6/SEC_RESERVED_ASSIGN: reserved unit names cannot be function names
+          if (RESERVED_UNIT_NAMES.has(node.id.name)) {
+            addViolation('SEC_RESERVED_ASSIGN', lineOf(node), node.id.name,
+              `[security] SEC_RESERVED_ASSIGN line ${lineOf(node)}: cannot declare reserved unit name "${node.id.name}"`)
+          }
           scope.names.add(node.id.name)
         }
         const fnScope = createScope(scope)
@@ -647,6 +685,10 @@ export function scanAst(ast: Program, opts: SecurityScanOptions): SecurityScanRe
         const target = node.left
         if (target?.type === 'Identifier' && s7Names.has(target.name)) {
           addViolation('SEC_NS_ASSIGN', lineOf(node), target.name, `[security] SEC_NS_ASSIGN line ${lineOf(node)}: cannot assign to namespace "${target.name}"`)
+        }
+        // P6: SEC_RESERVED_ASSIGN — cannot assign to reserved unit constant names
+        if (target?.type === 'Identifier' && RESERVED_UNIT_NAMES.has(target.name)) {
+          addViolation('SEC_RESERVED_ASSIGN', lineOf(node), target.name, `[security] SEC_RESERVED_ASSIGN line ${lineOf(node)}: cannot assign to reserved unit name "${target.name}"`)
         }
         // MemberExpression 赋值：cad.box = ...
         if (target?.type === 'MemberExpression' && target.object?.type === 'Identifier' && s7Names.has(target.object.name)) {
