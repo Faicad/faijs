@@ -120,7 +120,7 @@ export function fillet2d(corner: Point2d, p: Point2d, q: Point2d, radius: number
   // tangent point off the segment; clamp the radius to the largest value whose
   // tangent points still fit both edges (CAD "fillet as large as the part allows").
   const reach = Math.min(norm(sub(p, corner)), norm(sub(q, corner)))
-  let r = radius
+  let r: number
   if (half > 1e-9) r = Math.max(0, Math.min(radius, reach * Math.tan(half)))
   else r = Math.max(0, radius) // θ≈0: straight-through; keep nominal radius (zero-angle fillet collapses)
   const tang = tangentDistance(r, theta)
