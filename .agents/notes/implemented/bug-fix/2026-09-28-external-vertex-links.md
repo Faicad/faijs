@@ -45,11 +45,22 @@ filtered position.
   target) and maps `geoId: -3 - l.linkIndex`.
 
 The backend needed one change: `pt()` resolved external refs only through its
-`externalLines` map (2-point edges). The primitive loop already pins every
-sampled point as `P(geoId, i + 1)` — which is exactly what a `{geoId, pos}` ref
-addresses — so the fix is to consult a per-geoId point count instead of the
-line map. That covers 2-point edges, `VertexN` points and multi-point samples
-with one rule.
+`externalLines` map (2-point edges), so a `VertexN` ref fell through to
+`undefined`. It now also answers for a **1-point** external at `pos 1` — the
+vertex itself.
+
+**Correction found while re-measuring (second pass, same day).** The first
+version of that change resolved *any* `{geoId, pos}` by treating `pos` as a
+sample index into the pinned polyline. That is wrong: `pos` is a PointPos on
+the ORIGINAL curve (0 = the edge, 1/2 = its start/end, 3 = its **centre**), so
+on a discretized arc (FAULHABER's externals carry 630 samples) sample #2 is not
+"the end" and sample #3 is not "the centre". Pinning those points turned
+satisfiable sketches into `failed` solves — FAULHABER Sketch026/043 reference an
+arc external with `pos 3`; measured 49 L0 + 13 L1 (6 `failed`) before the
+correction, 61 L0 + 1 L1 after, and the file went from `ok: false` to
+`ok: true`. So the resolver is deliberately limited to the two shapes whose
+`pos` is well defined by the polyline: a straight 2-point edge and a 1-point
+vertex. Multi-point samples stay unresolvable, exactly as before.
 
 The source `.brp` stores shape coordinates in the DOCUMENT frame, not the source
 object's local frame, so the sketch's own inverse Placement remains the whole

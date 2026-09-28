@@ -370,16 +370,30 @@ export class PlanegcsSolver implements SketchSolver {
       if (ref.geoId === -1) return P(-1, 1); // root point
       if (ref.geoId === -2) return P(-2, ref.pos === 0 ? 1 : ref.pos); // VAxis point
       if (ref.geoId <= -3 && ref.geoId > -2000) {
-        // M6.3 external geometry. The primitive loop pinned every sample as
-        // P(geoId, i+1), so a point ref is just that key — whether the link is
-        // an edge (pos 1/2 = endpoints) or a vertex (pos 1 = the point).
-        // GOTCHA (2026-09-28): resolving only through `externalLines` left
-        // every `VertexN` ref undefined, so Coincident/DistanceY constraints
-        // onto an external vertex were compiled away with no failure record
-        // (sketch silently solved to the wrong geometry, then flagged L1).
-        const n = ctx.externalPointCount.get(ref.geoId);
-        if (n !== undefined && ref.pos >= 1 && ref.pos <= n) return P(ref.geoId, ref.pos);
-        if (ref.pos === 0) return undefined; // edge itself: line-typed paths
+        // M6.3 external geometry. Only two shapes are addressable by a ref:
+        //   - a straight edge (2-point polyline) registered as a line, whose
+        //     pos 1 / pos 2 are its two endpoints;
+        //   - a `VertexN` link (1-point polyline), whose pos 1 is the vertex.
+        // GOTCHA (2026-09-28): resolving only through `externalLines` left every
+        // `VertexN` ref undefined, so Coincident/DistanceY constraints onto an
+        // external vertex were compiled away with no failure record (the sketch
+        // silently solved to the wrong geometry, then flagged L1 by delta).
+        //
+        // GOTCHA (2026-09-28, second pass): the fix must NOT be widened to
+        // "pos indexes the sampled polyline". `pos` is a PointPos on the
+        // ORIGINAL curve — 1/2 = its start/end, 3 = its CENTRE — so on a
+        // discretized ARC (630 samples) sample #2 is not "the end" and sample
+        // #3 is not "the centre". Pinning those turned satisfiable sketches
+        // into `failed` solves (FAULHABER Sketch026/043, arc externals
+        // referenced with pos 3). Multi-point samples stay unresolvable here;
+        // an arc centre would need the source curve, not the polyline.
+        const ext = ctx.externalLines.get(ref.geoId);
+        if (ext) {
+          if (ref.pos === 1) return ext.p1;
+          if (ref.pos === 2) return ext.p2;
+          return undefined; // pos 0 (edge itself) / 3 (centre): other paths
+        }
+        if (ctx.externalPointCount.get(ref.geoId) === 1 && ref.pos === 1) return P(ref.geoId, 1);
         return undefined;
       }
       if (ref.geoId >= 0) return P(ref.geoId, ref.pos);

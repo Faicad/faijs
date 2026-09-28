@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-28-external-vertex-links.md
-2026-09-28-external-vertex-links.md: 46dfb88babaa6c66be1e8481765dd4f0ecacfd00
-2026-09-28-external-vertex-links.zh.md: 8150c9988db7d74f6bebd531125a8cc071f23edb
+2026-09-28-external-vertex-links.md: ec525d47061167a115fcc553768604ada01c4740
+2026-09-28-external-vertex-links.zh.md: a86ad2a912ee60eda85d1d5f3c78d7eda37039c7
