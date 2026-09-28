@@ -11,7 +11,6 @@
  * silent downgrade.
  */
 import { PointPos, CONSTRAINT_NAMES, ConstraintType, type FcstdGeoRef, type FcstdSketchGeom, type FcstdSketchCon } from './fcstd-types.js'
-import { ConstraintType } from './fcstd-types.js'
 import type { At, Ref, SketchConstraint, SketchConstraintKind, SketchGeom } from './canonical.js'
 
 /** Projection error with a stable `E_SKETCHC_*` code. */

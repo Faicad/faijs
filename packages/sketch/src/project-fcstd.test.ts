@@ -189,9 +189,9 @@ describe('full roundtrip canonical → FCStd → canonical (mixed sketch)', () =
     const canonical: SketchConstraint[] = [
       { kind: 'radius', of: { index: 0 }, value: 5 },
       { kind: 'diameter', of: { index: 0 }, value: 10 },
-      { kind: 'arcAngle' as never }, // not forward-projectable; excluded below
     ]
-    // arcAngle has no FCStd counterpart — project only the supported subset
+    // (arcAngle has no FCStd counterpart — forward projection throws
+    // E_SKETCHC_UNMAPPED, so only the supported subset is roundtripped here.)
     const supported: SketchConstraint[] = [canonical[0]!, canonical[1]!]
     const fwd = toFreeCadConstraints(supported, toFreeCadGeoms(geoms).length ? geoms : geoms)
     const back = fromFreeCadConstraints(fwd.constraints, geoms)
