@@ -24,11 +24,11 @@ export {
   atToFreeCad, atFromFreeCad, atToCadQuery, atFromCadQuery,
   buildTagIndex, refToFreeCad,
   toFreeCadGeoms, fromFreeCadGeoms,
-  toFreeCadConstraints,
+  toFreeCadConstraints, fromFreeCadConstraints,
   CONSTRAINT_KIND_TO_CADQUERY, CADQUERY_TO_CONSTRAINT_KIND,
   constraintKindToCadQuery, constraintKindFromCadQuery,
 } from './project.js'
-export type { ProjectedConstraints } from './project.js'
+export type { ProjectedConstraints, UnmappedConstraint, FromFreeCadConstraints } from './project.js'
 
 // ── solve + faces ──
 export { solveSketch } from './solve.js'

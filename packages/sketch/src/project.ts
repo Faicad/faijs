@@ -10,7 +10,7 @@
  * counterpart in a target dialect raise an explicit `E_SKETCHC_*` — never a
  * silent downgrade.
  */
-import { PointPos, type FcstdGeoRef, type FcstdSketchGeom, type FcstdSketchCon } from './fcstd-types.js'
+import { PointPos, CONSTRAINT_NAMES, ConstraintType, type FcstdGeoRef, type FcstdSketchGeom, type FcstdSketchCon } from './fcstd-types.js'
 import { ConstraintType } from './fcstd-types.js'
 import type { At, Ref, SketchConstraint, SketchConstraintKind, SketchGeom } from './canonical.js'
 
@@ -297,6 +297,172 @@ export function toFreeCadConstraints(constraints: SketchConstraint[], geoms: Ske
     out.push({ index, type: mapped.type, refs: mapped.refs, value: mapped.value ?? 0, isDriving: true, name: '' })
   })
   return { constraints: out, noops }
+}
+
+// ── FCStd → canonical constraint projection (reverse) ──
+
+/** One FCStd constraint that has no canonical counterpart (kept for the fidelity ledger). */
+export interface UnmappedConstraint {
+  /** index in the input FCStd constraint array */
+  index: number
+  /** raw ConstraintType integer */
+  type: number
+  /** human-readable type name (debugging) */
+  typeName: string
+  /** why it could not be projected */
+  reason: 'unsupported-type' | 'external-or-axis-ref' | 'reference-driven' | 'ambiguous-refs'
+}
+
+/** Result of projecting FCStd constraints back to canonical form. */
+export interface FromFreeCadConstraints {
+  /** canonical constraints, in input order for all projected items */
+  constraints: SketchConstraint[]
+  /** input indices of constraints that could NOT be projected, with reasons */
+  unmapped: UnmappedConstraint[]
+}
+
+/**
+ * Project FCStd sketch constraints back to the canonical model — the reverse of
+ * {@link toFreeCadConstraints} / `mapConstraint`. This is the bridge the fcstd
+ * converter uses to emit `cad.sketch({ geoms, constraints })` from a parsed
+ * `Sketcher::SketchObject` (2026-09-28 plan A1).
+ *
+ * Mapping notes / GOTCHAs (validated against `mapConstraint` + the planegcs
+ * backend):
+ * - `length` is stored FCStd-side as a point-to-point Distance over the line's
+ *   own start/end — a 1-ref Distance projects back to `length` (GOTCHA: a
+ *   genuine 2-ref Distance between two distinct points is NOT a length).
+ * - `fixed` has no FCStd counterpart (the implicit frame absorbs it), so it can
+ *   never appear in FCStd input — nothing to project back.
+ * - Angle values pass through UNCHANGED in both directions: FreeCAD serializes
+ *   Angle constraint `Value` in radians in the XML, and the planegcs backend
+ *   forwards it verbatim. Consumers wanting canonical degrees must convert at
+ *   the boundary that knows the file unit (GOTCHA 2026-09-28: forward
+ *   projection also passes through, so roundtrips are unit-consistent).
+ * - Constraints referencing the axes (geoId -1/-2) or external geometry
+ *   (geoId <= -3) have no canonical Ref (canonical refs are own-geometry
+ *   indices only) — reported in `unmapped` with reason
+ *   `external-or-axis-ref` instead of being silently dropped.
+ * - `isDriving === false` (reference/driven) constraints carry no solve
+ *   information — reported with reason `reference-driven`.
+ *
+ * @param cons - FCStd constraints (e.g. from `parseSketchObject`).
+ * @param geoms - canonical geometry the refs index into (bounds checking only).
+ * @returns canonical constraints plus the unmapped ledger.
+ */
+export function fromFreeCadConstraints(cons: FcstdSketchCon[], geoms: SketchGeom[]): FromFreeCadConstraints {
+  const ref = (r: FcstdGeoRef): Ref => {
+    const at = atFromFreeCad(r.pos)
+    return (at === undefined ? { index: r.geoId } : { index: r.geoId, at }) as Ref
+  }
+  const constraints: SketchConstraint[] = []
+  const unmapped: UnmappedConstraint[] = []
+  const pushUnmapped = (index: number, type: number, reason: UnmappedConstraint['reason']): void => {
+    unmapped.push({ index, type, typeName: CONSTRAINT_NAMES[type] ?? `type#${type}`, reason })
+  }
+
+  cons.forEach((c, index) => {
+    if (!c.isDriving) {
+      pushUnmapped(index, c.type, 'reference-driven')
+      return
+    }
+    // Any ref to an axis (-1/-2) or external geometry (<= -3) cannot be
+    // expressed as a canonical own-geometry Ref.
+    if (c.refs.some((r) => r.geoId < 0)) {
+      pushUnmapped(index, c.type, 'external-or-axis-ref')
+      return
+    }
+    const two = (): [Ref, Ref] => [ref(c.refs[0]!), ref(c.refs[1]!)]
+    switch (c.type) {
+      case ConstraintType.Coincident: {
+        const [a, b] = two()
+        constraints.push({ kind: 'coincident', a, b })
+        break
+      }
+      case ConstraintType.Horizontal:
+        constraints.push({ kind: 'horizontal', of: ref(c.refs[0]!) })
+        break
+      case ConstraintType.Vertical:
+        constraints.push({ kind: 'vertical', of: ref(c.refs[0]!) })
+        break
+      case ConstraintType.Parallel: {
+        const [a, b] = two()
+        constraints.push({ kind: 'parallel', a, b })
+        break
+      }
+      case ConstraintType.Perpendicular: {
+        const [a, b] = two()
+        constraints.push({ kind: 'perpendicular', a, b })
+        break
+      }
+      case ConstraintType.Tangent: {
+        const [a, b] = two()
+        constraints.push({ kind: 'tangent', a, b })
+        break
+      }
+      case ConstraintType.Distance:
+        if (
+          c.refs.length >= 2 &&
+          // GOTCHA: mapConstraint encodes canonical `length` as a Distance over
+          // the SAME geometry's start/end points — a same-geoId start/end pair
+          // is a length, not a genuine point-to-point distance.
+          !(c.refs[0]!.geoId === c.refs[1]!.geoId && c.refs[0]!.pos === PointPos.start && c.refs[1]!.pos === PointPos.end)
+        ) {
+          const [a, b] = two()
+          constraints.push({ kind: 'distance', a, b, value: c.value })
+        } else {
+          // point-to-point Distance over one element's own ends = length
+          // (canonical `length` refs the whole element, no `at`)
+          constraints.push({ kind: 'length', of: { index: c.refs[0]!.geoId }, value: c.value })
+        }
+        break
+      case ConstraintType.DistanceX: {
+        const [a, b] = two()
+        constraints.push({ kind: 'distanceX', a, b, value: c.value })
+        break
+      }
+      case ConstraintType.DistanceY: {
+        const [a, b] = two()
+        constraints.push({ kind: 'distanceY', a, b, value: c.value })
+        break
+      }
+      case ConstraintType.Angle:
+        if (c.refs.length >= 2) {
+          const [a, b] = two()
+          constraints.push({ kind: 'angle', a, b, value: c.value })
+        } else {
+          // single-line orientation angle: canonical has no 1-ref `angle`
+          pushUnmapped(index, c.type, 'ambiguous-refs')
+        }
+        break
+      case ConstraintType.Radius:
+        constraints.push({ kind: 'radius', of: ref(c.refs[0]!), value: c.value })
+        break
+      case ConstraintType.Diameter:
+        constraints.push({ kind: 'diameter', of: ref(c.refs[0]!), value: c.value })
+        break
+      case ConstraintType.Equal: {
+        const [a, b] = two()
+        constraints.push({ kind: 'equal', a, b })
+        break
+      }
+      case ConstraintType.PointOnObject:
+        constraints.push({ kind: 'pointOnObject', p: ref(c.refs[0]!), on: ref(c.refs[1]!) })
+        break
+      case ConstraintType.Symmetric:
+        constraints.push({
+          kind: 'symmetric',
+          p1: ref(c.refs[0]!),
+          p2: ref(c.refs[1]!),
+          about: ref(c.refs[2]!),
+        })
+        break
+      default:
+        // InternalAlignment / SnellsLaw / Block / Weight / Group / Text / …
+        pushUnmapped(index, c.type, 'unsupported-type')
+    }
+  })
+  return { constraints, unmapped }
 }
 
 // ── CadQuery projection (constraint type names) ──
