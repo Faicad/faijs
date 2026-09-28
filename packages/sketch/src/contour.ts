@@ -166,6 +166,34 @@ export function extractContours(geoms: FcstdSketchGeom[]): Contour[] {
       });
     }
   }
+
+  // A6 (2026-09-28 plan): full ellipses were silently DROPPED before — the
+  // segEnds default branch returned undefined and nothing else picked them
+  // up (the "ellipse loses segments" hard bug). FCStd stores no partial
+  // ellipse arcs in Geometry (the canonical FcstdSketchGeom ellipse has no
+  // start/end angles), so every ellipse is a closed whole — sampled here as
+  // a closed polyline run (64 chords, endpoints exact). Construction
+  // ellipses are reference geometry, excluded like construction circles.
+  for (const g of geoms) {
+    if (g.kind !== 'ellipse' || g.minorRadius <= 0 || g.majorRadius <= 0 || g.construction) continue;
+    const segments: ContourSeg[] = [];
+    const N = 64;
+    const ca = Math.cos(g.angleXU);
+    const sa = Math.sin(g.angleXU);
+    const pt = (t: number): [number, number] => {
+      const px = g.majorRadius * Math.cos(t);
+      const py = g.minorRadius * Math.sin(t);
+      // rotate by the major-axis angle into sketch coordinates
+      return [g.cx + px * ca - py * sa, g.cy + px * sa + py * ca];
+    };
+    let prev = pt(0);
+    for (let i = 1; i <= N; i++) {
+      const cur = pt((i / N) * Math.PI * 2);
+      segments.push({ kind: 'line', x1: prev[0], y1: prev[1], x2: cur[0], y2: cur[1] });
+      prev = cur;
+    }
+    contours.push({ segments, closed: true });
+  }
   return contours;
 }
 
