@@ -2,6 +2,9 @@
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const SNAPSHOT_REF_PREFIX = 'refs/dsh/translation-pairing/snapshots'
 
@@ -31,16 +34,23 @@ export function gitBlobHash(content: Buffer): string {
 /**
  * Run one Git subprocess and return its exact stdout bytes.
  *
+ * GOTCHA: the child's stdin is deliberately `'ignore'`, never a pipe. A stdin
+ * pipe forces `CreateProcess` to hand the child an inheritable handle, which
+ * sandboxed Windows hosts reject with `ERROR_BUSY` (`spawnSync ... EBUSY`) —
+ * while the same command under `stdio: ['ignore', 'pipe', 'pipe']` succeeds.
+ * Every git call made here reads only arguments, so closing stdin changes
+ * nothing semantically. Callers that must hand Git bytes use a scratch file
+ * (see `storeGitBlob`) instead of `input`, which would re-introduce the pipe.
+ *
  * @param root - Repository root used as Git's working directory.
  * @param args - Arguments following the `git` executable.
  * @param operation - Human-readable operation for failure diagnostics.
- * @param input - Optional stdin bytes.
  * @returns Exact stdout bytes.
  * @throws Error when Git cannot start or exits unsuccessfully.
  */
-export function runGit(root: string, args: string[], operation: string, input?: Buffer): Buffer {
+export function runGit(root: string, args: string[], operation: string): Buffer {
   const result = spawnSync('git', ['-C', root, ...args], {
-    input,
+    stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: GIT_COMMAND_MAX_BUFFER,
   })
   if (result.error) {
@@ -128,14 +138,35 @@ export function readGitIndexBlob(root: string, path: string): GitIndexBlob | und
  * with `git cat-file`, even when they have never appeared in the index or a
  * commit. The returned object ID is checked against the pairing format's own
  * content hash before the caller writes a sidecar.
+ *
+ * `git hash-object` receives the bytes through a scratch file rather than
+ * `--stdin`, because `--stdin` implies a stdin pipe (see `runGit`). The
+ * `--no-filters` flag keeps the object byte-identical to `gitBlobHash`, which
+ * hashes the LF-normalized content directly.
+ *
+ * @param root - Repository root used as Git's working directory.
+ * @param content - Exact bytes to store as a Git blob.
+ * @returns The blob object ID reported and verified by Git.
  */
 export function storeGitBlob(root: string, content: Buffer): string {
   const expected = gitBlobHash(content)
-  const stored = runGit(root, ['hash-object', '-w', '--stdin'], 'git hash-object -w --stdin', content)
-    .toString('utf8')
-    .trim()
+  const scratchDir = mkdtempSync(join(tmpdir(), 'faijs-pairing-blob-'))
+  const scratchFile = join(scratchDir, 'blob')
+  let stored: string
+  try {
+    writeFileSync(scratchFile, content)
+    stored = runGit(
+      root,
+      ['hash-object', '-w', '--no-filters', '--', scratchFile],
+      'git hash-object -w',
+    )
+      .toString('utf8')
+      .trim()
+  } finally {
+    rmSync(scratchDir, { recursive: true, force: true })
+  }
   if (stored !== expected) {
-    throw new Error(`git hash-object -w --stdin returned unexpected object ID ${JSON.stringify(stored)}; expected ${expected}`)
+    throw new Error(`git hash-object -w returned unexpected object ID ${JSON.stringify(stored)}; expected ${expected}`)
   }
   runGit(
     root,
