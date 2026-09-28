@@ -18,3 +18,9 @@
 
 - 两类均已从可修复清单移除；报表 `singleFix` 中出现的 freed 数字（165 / 100）是历史累计交叉释放的体现，后续追踪以 `byReasonKey` 残余计数为准。
 - 若未来发现非 0 字节但解析失败的 .brp，属新缺陷类别，单独立项。
+
+## compound-missing-members 复核（同日追加）
+
+- 报表 28 个 gap 文件用当前引擎逐个重转：**25 个已翻 ok**（既有空 Links shape-asset 兜底 + P1 依赖链修复的连带释放）。
+- 残余 2 个真 gap（`Doors_windows.FCStd`、`MK8.FCStd`）的真卡点是并存原因：`shape-asset-broken`（0 字节 Prop 资产，见上）、`extrusion-zero-length`、`solver-throw: OOM`——均不属于本类，随对应类处理。
+- 结论：compound-missing-members 无需新代码修复，移出可修复清单。
