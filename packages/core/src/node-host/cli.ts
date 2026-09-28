@@ -29,6 +29,7 @@ import { createNodePorts } from './index'
 import { createFsProjectLoader, findProjectRoot, projectKeyOf } from './fs-project-loader'
 import { exportModelSync } from '../brep/export/export-model'
 import { exportStepFromSolids, type StepExportEntry } from '../brep/export/step'
+import { solidToShape } from '../brep/brep-ops'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import type { Shape } from '../mesh/types'
 import type { CompoundShape } from '../shape'
@@ -548,10 +549,21 @@ function writeOutput(
   if (fmt !== 'stl' && fmt !== 'step') {
     return { ok: false, error: `Unsupported output format: .${ext} (supported: .stl, .step)` }
   }
-  const buffer = exportModelSync(
-    [brepSolid ? { solid: brepSolid.solid } : { mesh: { positions: shape.positions, indices: shape.indices } }],
-    fmt,
-  )
+  // STL 只吃 mesh（export-model §10.6：solid 条目由调用方先三角化）。auto 模式下
+  // 形状可能是 BREP solid → 导出 STL 前必须先用内核三角化，否则「no mesh entries」。
+  // STEP 则直接走 solid 条目保留 ADVANCED_FACE 拓扑。
+  let entry: { solid?: BrepHandle; mesh?: { positions: Float32Array; indices: Uint32Array } }
+  if (brepSolid) {
+    if (fmt === 'stl') {
+      const tri = solidToShape(brepSolid.kernel, brepSolid.solid)
+      entry = { mesh: { positions: tri.positions, indices: tri.indices } }
+    } else {
+      entry = { solid: brepSolid.solid }
+    }
+  } else {
+    entry = { mesh: { positions: shape.positions, indices: shape.indices } }
+  }
+  const buffer = exportModelSync([entry], fmt)
   writeFileSync(outPath, Buffer.from(buffer))
   return { ok: true, outputFile: outPath, outputFormat: fmt }
 }

@@ -349,18 +349,18 @@ const p = cad.place(part0, { rotation: [0, 0, Math.sin(Math.PI/4), Math.cos(Math
 
 ### 4.2 `rotate_euler` ✅ 🚫
 
-绕轴旋转几何体。anglesDeg 为欧拉角（度，XYZ 顺序）。
+绕轴旋转几何体。angles 为欧拉角（度，XYZ 顺序）。
 
 > 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
-const p2 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45] })
-const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
+const p2 = cad.rotate_euler(part0, { angles: [0, 0, 45] })
+const p3 = cad.rotate_euler(part0, { angles: [0, 0, 45], pivot: [0,0,0] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `anglesDeg` | `[x,y,z]` | ✅ | — | 欧拉角（度，XYZ 顺序） |
+| `angles` | `[x,y,z]` | ✅ | — | 欧拉角（度，XYZ 顺序） |
 | `pivot` | `[x,y,z]` |  | 原点 | 旋转中心 |
 
 **同步**。Shape 旋转后的几何。

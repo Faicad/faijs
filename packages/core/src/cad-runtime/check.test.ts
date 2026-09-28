@@ -52,7 +52,7 @@ export default async (cad) => {
     const code = `// apiVersion: 1
 export default async (cad) => {
   const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
-  const part1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
+  const part1 = cad.sphere({ radius: 8 * MM, center: [5, 0, 0] })
   const part2 = cad.subtract(part0, part1)
   return { shape: part2 }
 }`
@@ -161,7 +161,7 @@ export default async (cad) => {
     const code = `// apiVersion: 1
 export default async (cad) => {
   const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
-  const part1 = cad.sphere({ radius: 10 })
+  const part1 = cad.sphere({ radius: 10 * MM })
   const part2 = cad.union(part0, part1)
   return { shape: part2 }
 }`
@@ -236,14 +236,24 @@ describe('CadRuntime.check() — dimension pass (P6/D8)', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('dimensionless params are not checked (sphere radius is not dimensioned)', () => {
-    // sphere does not declare paramDims for radius — bare number is fine
-    const code = `export default async (cad) => {
+  it('sphere radius is dimensioned: bare number → E_DIM_BARE_NUMBER; 10 * MM → ok', () => {
+    // sphere declares paramDims radius='length' (ops-dim-decl.test.ts G3). 通过量纲以
+    // bare number 触发 E_DIM_BARE_NUMBER；单位字面量 10 * MM 合法。
+    const bare = `export default async (cad) => {
   const part0 = cad.sphere({ radius: 10 })
   return { shape: part0 }
 }`
-    const result = makeRuntime().check(code)
-    expect(result.ok).toBe(true)
+    const bad = makeRuntime().check(bare)
+    expect(bad.ok).toBe(false)
+    expect(bad.errors[0].stage).toBe('dimension')
+    expect(bad.errors[0].code).toBe('E_DIM_BARE_NUMBER')
+
+    const lit = `export default async (cad) => {
+  const part0 = cad.sphere({ radius: 10 * MM })
+  return { shape: part0 }
+}`
+    const ok = makeRuntime().check(lit)
+    expect(ok.ok).toBe(true)
   })
 
   it('bare number on dimensioned slot in object form → also catches', () => {

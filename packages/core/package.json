@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -9,7 +9,7 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-    "exports": {
+  "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"

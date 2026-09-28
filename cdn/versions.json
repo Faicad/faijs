@@ -1,14 +1,14 @@
 {
-  "@faicad/faijs": "0.21.0",
-  "@faicad/cq-compat": "0.21.0",
-  "@faicad/cq-compat-assembly": "0.21.0",
-  "@faicad/cq-compat-compare": "0.21.0",
-  "@faicad/cq-compat-sketch": "0.21.0",
-  "@faicad/faijs-draw": "0.21.0",
-  "@faicad/faijs-extra": "0.21.0",
-  "@faicad/fai-cq-gears": "0.21.0",
-  "@faicad/fai-cq-warehouse": "0.21.0",
-  "@faicad/faijs-fcstd": "0.21.0",
-  "@faicad/sheetmetal": "0.21.0",
-  "@faicad/faijs-sketch": "0.21.0"
+  "@faicad/faijs": "0.22.0",
+  "@faicad/cq-compat": "0.22.0",
+  "@faicad/cq-compat-assembly": "0.22.0",
+  "@faicad/cq-compat-compare": "0.22.0",
+  "@faicad/cq-compat-sketch": "0.22.0",
+  "@faicad/faijs-draw": "0.22.0",
+  "@faicad/faijs-extra": "0.22.0",
+  "@faicad/fai-cq-gears": "0.22.0",
+  "@faicad/fai-cq-warehouse": "0.22.0",
+  "@faicad/faijs-fcstd": "0.22.0",
+  "@faicad/sheetmetal": "0.22.0",
+  "@faicad/faijs-sketch": "0.22.0"
 }

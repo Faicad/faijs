@@ -66,7 +66,7 @@ describe('syntax features', () => {
   it('chained operations preserve input references', () => {
     const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 part0 = cad.translate({ offset: [5, 0, 0] }, part0)
-part0 = cad.rotate_euler({ anglesDeg: [0, 0, 45] }, part0)`
+part0 = cad.rotate_euler({ angles: [0, 0, 45] }, part0)`
     const summaries = analyzeCode(code)
     expect(summaries).toHaveLength(3)
     // translate and rotate_euler both consume part0

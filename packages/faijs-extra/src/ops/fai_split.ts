@@ -282,4 +282,15 @@ export const fai_split = defineOp({
   },
   outputs: ['front', 'back'],
   naming: { kind: 'subdivide' } as Provenance,
+  // 脚本面参数量纲（单位系统 G3）：offset/木销/榫头/榫槽为 length，inPlaneAngle 为 angle。
+  paramDims: {
+    offset: 'length',
+    inPlaneAngle: 'angle',
+    grooveDepth: 'length',
+    grooveWidth: 'length',
+    dowelDiameter: 'length',
+    dowelHeight: 'length',
+    tenonSideLength: 'length',
+    tenonHeight: 'length',
+  },
 })

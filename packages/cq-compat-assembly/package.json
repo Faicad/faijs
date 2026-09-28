@@ -1,6 +1,6 @@
 {
   "name": "@faicad/cq-compat-assembly",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -38,8 +38,8 @@
     "@faicad/faijs-extra": "file:../faijs-extra"
   },
   "peerDependencies": {
-    "@faicad/faijs": "^0.21.0",
-    "@faicad/faijs-extra": "^0.21.0",
+    "@faicad/faijs": "^0.22.0",
+    "@faicad/faijs-extra": "^0.22.0",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {

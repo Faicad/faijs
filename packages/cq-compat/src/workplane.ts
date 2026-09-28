@@ -824,12 +824,12 @@ async function orientZTo(shape: Shape, d: [number, number, number]): Promise<Sha
   const dz = d[2] / len
   const thetaX = Math.atan2(-dy, dz)
   const thetaY = Math.asin(Math.max(-1, Math.min(1, dx)))
-  const anglesDeg: [number, number, number] = [
+  const angles: [number, number, number] = [
     (thetaX * 180) / Math.PI,
     (thetaY * 180) / Math.PI,
     0,
   ]
-  return cad.rotate_euler(shape, { anglesDeg }) as unknown as Shape
+  return cad.rotate_euler(shape, { angles }) as unknown as Shape
 }
 
 /**
@@ -3679,12 +3679,12 @@ export async function rotate(
   angle: number,
 ): Promise<Workplane> {
   if (!wp.shape) return wp
-  const anglesDeg: [number, number, number] = [
+  const angles: [number, number, number] = [
     axis[0] * angle,
     axis[1] * angle,
     axis[2] * angle,
   ]
-  const shape = await cad.rotate_euler(resolveInputShape(wp), { anglesDeg })
+  const shape = await cad.rotate_euler(resolveInputShape(wp), { angles })
   return clone(wp, { shape })
 }
 
@@ -4080,7 +4080,7 @@ async function applyLocation(shape: Shape, loc: CqLocation): Promise<Shape> {
   if (solids <= 1) {
     let s = shape
     if (rx !== 0 || ry !== 0 || rz !== 0) {
-      s = await cad.rotate_euler(s, { anglesDeg: [rx, ry, rz] })
+      s = await cad.rotate_euler(s, { angles: [rx, ry, rz] })
     }
     if (x !== 0 || y !== 0 || z !== 0) {
       s = await cad.translate(s, { offset: [x, y, z] })

@@ -31,7 +31,7 @@ const EXAMPLE_SNIPPETS: Record<string, string> = {
   'box-boolean': 'cad.box(20, 20, 20, { centered: true })',
   'drill-test': 'cad.cylinder(5, 20, { centered: true',
   'text-engrave': "cad.text(part0, { text: 'HELLO'",
-  'transform-chain': 'cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] }',
+  'transform-chain': 'cad.rotate_euler(part0, { angles: [0, 0, 30] }',
   'gear-demo': "gears.spurGear({ module: 2, teeth_number: 24",
 }
 

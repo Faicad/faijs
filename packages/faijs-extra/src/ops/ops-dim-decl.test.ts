@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import { dualOpMetaOf } from '@faicad/faijs/sdk'
 import { fai_extrude } from './fai_extrude'
 import { fai_drill } from './fai_drill'
+import { fai_split } from './fai_split'
 import { box, sphere, cylinder, cone, wedge } from '@faicad/faijs/api/primitives'
 import { translate, rotate_euler } from '@faicad/faijs/api/transform'
 import { knurl } from '@faicad/faijs/api/knurl'
@@ -19,6 +20,23 @@ describe('fai_extrude dimension declaration (unit-system D8/P4)', () => {
     const meta = dualOpMetaOf(fai_extrude)
     expect(meta).toBeDefined()
     expect(meta?.paramDims).toEqual({ length: 'length', planeDistance: 'length' })
+  })
+})
+
+describe('fai_split dimension declaration (unit-system G3; §9.2 补齐)', () => {
+  it('declares length dims for offset/joinery params and angle for inPlaneAngle', () => {
+    const meta = dualOpMetaOf(fai_split)
+    expect(meta).toBeDefined()
+    expect(meta?.paramDims).toEqual({
+      offset: 'length',
+      inPlaneAngle: 'angle',
+      grooveDepth: 'length',
+      grooveWidth: 'length',
+      dowelDiameter: 'length',
+      dowelHeight: 'length',
+      tenonSideLength: 'length',
+      tenonHeight: 'length',
+    })
   })
 })
 
