@@ -32,6 +32,8 @@ import type {
   WedgeParams,
 } from '../mesh/types'
 import { clampNRad } from '../mesh/types'
+import { DEFAULT_LINEAR_DEFLECTION } from '../tolerance'
+import { mm } from '../units'
 
 // ─── 内部工具 ───
 
@@ -71,7 +73,7 @@ async function brepToShape(
     // 三角化为显示 mesh
     const angularDeflection = segmentsToAngularDeflection(segments)
     const mesh = kernel.meshShape(solid, {
-      linearDeflection: 0.1,
+      linearDeflection: DEFAULT_LINEAR_DEFLECTION.as(mm),
       angularDeflection,
     })
 

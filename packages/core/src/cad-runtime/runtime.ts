@@ -39,14 +39,14 @@ import type { ExecBackendChoice } from './exec-backend'
 import { ModuleRegistry, ModuleRegistryError, isRelativeSpecifier } from './module-registry'
 import type { ModuleRunResult } from './module-registry'
 import { computeLiveShapes, lineConsumes, blockConsumes, type KeepView } from './live-shapes'
-import { extractMetadata, type UiMetadata } from '../lang/metadata-extractor'
+import { extractMetadata, type UiMetadata, type OpDimMap } from '../lang/metadata-extractor'
 import {
   configureBackends, CONTRACT_VERSION,
   assertContractVersion, type StdlibNamespace,
   type AssemblyKinematicsPose,
 } from '../runtime-state'
 import { admitCompatLib } from './admit-compat-lib'
-import { hasDualOp } from '../define-op'
+import { hasDualOp, dualOpMetaOf } from '../define-op'
 import { computeLibId } from './lib-id'
 import { computeContentKey, stableFingerprint } from './content-key'
 export { computeContentKey } from './content-key'
@@ -457,6 +457,29 @@ export class CadRuntime {
     return this.defaultNsName
   }
 
+  /**
+   * P4/P6 (unit-system D8): 汇总已注册 op 的量纲声明（callee → { paramDims, retDim }），
+   * 供 extractMetadata 的 dimension pass 消费。键 = 脚本面 callee 名（含命名空间内成员名，
+   * 如 `cad.box`）。未声明量纲的 op / 非 op 函数跳过。lang/ 不依赖 op 注册表——由本运行时
+   * 在此注入，符合 D8「校验器怎么拿到声明」分层。
+   */
+  private buildOpDims(): OpDimMap {
+    const out: OpDimMap = {}
+    for (const [binding, ns] of Object.entries(this.libs)) {
+      if (!ns || typeof ns !== 'object') continue
+      for (const [name, value] of Object.entries(ns)) {
+        if (typeof value !== 'function') continue
+        const meta = dualOpMetaOf(value)
+        if (!meta || (!meta.paramDims && !meta.retDim)) continue
+        out[`${binding}.${name}`] = {
+          paramDims: meta.paramDims,
+          retDim: meta.retDim,
+        }
+      }
+    }
+    return out
+  }
+
   constructor(
     ports: HostPorts,
     mode: ExecutionMode = 'auto',
@@ -711,7 +734,7 @@ export class CadRuntime {
     // P2 修复：执行前重新认领全局 backends（本实例配置为准）。
     this.claimBackends()
     this.accumulatedCode = code
-    const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
+    const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs), opDims: this.buildOpDims() })
     const determinismFailure = await this.runDeterminismGate(code, meta)
     if (determinismFailure) return determinismFailure
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
@@ -804,7 +827,7 @@ export class CadRuntime {
     // 已执行产出/其它文件的变量作为外部 var 透传，由 missingPrefixVar 前置校验决定成败。
     // A1 安全扫描需把 ctx 已有键 + 已注册命名空间都作为 knownNames（避免 SEC_FREE_IDENT 误杀 append 场景）。
     const appendKnownNames = [...Object.keys(this.libs), ...de.listCtxKeys()]
-    const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true, security: this.securityPolicy, namespaces: appendKnownNames, nsNames: Object.keys(this.libs) })
+    const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true, security: this.securityPolicy, namespaces: appendKnownNames, nsNames: Object.keys(this.libs), opDims: this.buildOpDims() })
     const determinismFailure = await this.runDeterminismGate(fullCode, meta)
     if (determinismFailure) return determinismFailure
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
@@ -1375,7 +1398,7 @@ export class CadRuntime {
    */
   check(code: string): CheckResult {
     try {
-      const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
+      const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs), opDims: this.buildOpDims() })
       return {
         ok: true,
         errors: [],
@@ -1512,7 +1535,7 @@ export class CadRuntime {
     }
 
     // G4: 含相对 import 的多文件场景
-    const meta = extractMetadata(newCode, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
+    const meta = extractMetadata(newCode, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs), opDims: this.buildOpDims() })
     if ((meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) {
       return this.executeDirectText(newCode, opts)
     }

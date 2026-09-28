@@ -20,7 +20,7 @@
  */
 
 import type { HostArg } from './host-arg'
-import { extractMetadata } from './metadata-extractor'
+import { extractMetadata, type OpDimMap } from './metadata-extractor'
 import { isHostRef } from './host-arg'
 
 /**
@@ -81,6 +81,17 @@ export interface CodeToArgsResult {
 }
 
 /**
+ * codeToArgs 选项。`opDims` 为 P4/P6 (unit-system D8) 透传：callee → 量纲声明，
+ * 供单行回填路径的 dimension pass 消费（P6 落地前声明面透传即可，不影响解析结果）。
+ */
+export interface CodeToArgsOptions {
+  /** 该脚本顶层 import 的绑定名（F2）。 */
+  namespaces?: string[]
+  /** callee → 量纲声明（unit-system D8，P6 消费）。 */
+  opDims?: OpDimMap
+}
+
+/**
  * 解析单条语句行，提取其位置实参槽与选项对象（序列化形态，无 IR 变体语义）。
  *
  * true-JS-subset §4.6.3 新契约：返回 `{ positional, args }`——
@@ -106,7 +117,7 @@ export interface CodeToArgsResult {
  *  serialized JSON form).
  * @throws ParseError — 行文本不是合法语句时抛出（含行号）
  */
-export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): CodeToArgsResult {
+export function codeToArgs(codeLine: string, opts?: CodeToArgsOptions): CodeToArgsResult {
   const namespaces = new Set(opts?.namespaces ?? [])
   const decls = extractIdentifiers(codeLine, namespaces)
     .map((id) => `let ${id} = 0`)
@@ -115,7 +126,12 @@ export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): 
   // 单行提取语义：前置哨兵参数（let id = 0）在 extractMetadata 中按参数行处理；
   // 末条 op 行摘要 = 目标行。裸本机函数 callee（makeArray 等）放行（looseLocalCalls，
   // 与现状 codeToArgs 的 MetadataExtractor looseLocalCalls 同语义；ABI 校验延后到完整脚本上下文）。
-  const meta = extractMetadata(code, { namespaces: opts?.namespaces ?? [], looseLocalCalls: true })
+  // opDims 透传给 dimension pass（P6 消费，P4 仅透传声明面）。
+  const meta = extractMetadata(code, {
+    namespaces: opts?.namespaces ?? [],
+    looseLocalCalls: true,
+    ...(opts?.opDims ? { opDims: opts.opDims } : {}),
+  })
   const last = meta.lines[meta.lines.length - 1]
   if (!last) return { positional: [], args: {} }
   // 尾随纯对象（选项槽）从 positional 切出到 args（与现状 splitTrailingOptions

@@ -20,6 +20,8 @@
  */
 
 import { initBrepkitWasm, type BrepKitKernel } from './brepkitWasm'
+import { DEFAULT_LINEAR_DEFLECTION } from '../tolerance'
+import { mm } from '../units'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type {
   BrepBoundingBox,
@@ -697,7 +699,7 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
 
     // ── 三角化（BREP→mesh 唯一出口） ──
     meshShape(shape: BrepHandle, options?: BrepTessellateOptions): BrepMeshResult {
-      const deflection = options?.linearDeflection ?? 0.1
+      const deflection = options?.linearDeflection ?? DEFAULT_LINEAR_DEFLECTION.as(mm)
       const angular = options?.angularDeflection ?? 0.5
       const s = asNum(shape)
       // 非实体句柄按已知集合静态分发（见文件头 GOTCHA：brepkit 无 shape-type 分类 API）。
@@ -711,7 +713,7 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return solidMesh(s, deflection, angular)
     },
     wireframe(shape: BrepHandle, deflection?: number): BrepEdgeData {
-      const d = deflection ?? 0.1
+      const d = deflection ?? DEFAULT_LINEAR_DEFLECTION.as(mm)
       const s = asNum(shape)
       // GOTCHA：meshEdgesAll 是 solid-only API——buildTopologyFromMesh 会对 face/wire/edge
       // 产物调 wireframe(...)，传入非实体句柄即抛 "invalid solid handle"。按已知集合分发：

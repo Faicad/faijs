@@ -8,6 +8,8 @@
 import type { OcctKernel, ShapeHandle, Mesh, EdgeData, SurfaceKind, CurveKind, BoundingBox, Vec3, XCAFDocument, LabelInfo, LabelTag } from 'occt-wasm'
 
 import { getSolidColorsOrdered } from './stepColorParser'
+import { DEFAULT_LINEAR_DEFLECTION, SEWING_TOLERANCE } from '../tolerance'
+import { mm } from '../units'
 
 /** A single tessellated mesh produced by the OCCT kernel. */
 export interface WasmTessellatedMesh {
@@ -216,7 +218,7 @@ export function computeEffectiveDeflection<S>(
   shape: S,
   options: MeshDeflectionOptions = {},
 ): { linearDeflection: number; angularDeflection: number } {
-  const ld = options.linearDeflection ?? 0.1
+  const ld = options.linearDeflection ?? DEFAULT_LINEAR_DEFLECTION.as(mm)
   const ad = options.angularDeflection ?? 0.5
   const relative = options.relative ?? false
   if (!relative) return { linearDeflection: ld, angularDeflection: ad }
@@ -529,7 +531,7 @@ export async function importBrepToMesh(
 export function meshesToStep(
   positions: Float32Array,
   indices: Uint32Array,
-  tolerance = 0.01,
+  tolerance = SEWING_TOLERANCE.as(mm),
 ): string {
   const kernel = getKernel()
   const faces: ShapeHandle[] = []

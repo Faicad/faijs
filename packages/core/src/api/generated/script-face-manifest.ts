@@ -12,6 +12,10 @@ export interface ScriptFaceOp {
   module: string
   /** Phase 5（D11）：平台 op 的平台身份（中立 op 缺省）。 */
   engines?: readonly string[]
+  /** P26 (unit-system D8)：参数量纲声明（参数名 → DimName）。 */
+  paramDims?: Record<string, string>
+  /** P26 (unit-system D8)：返回值量纲。 */
+  retDim?: string
 }
 
 /** Cad script-face op manifest (B1: single source for cad namespace, check() symbol table). */

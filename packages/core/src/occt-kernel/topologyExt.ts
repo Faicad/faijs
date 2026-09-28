@@ -1,6 +1,8 @@
 import type { BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3 } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asEdgeId, asFaceId, asOccurrenceId, asShapeId } from '../identity'
+import { OCTREE_BBOX_FALLBACK } from '../tolerance'
+import { mm } from '../units'
 
 /**
  * Safe getBoundingBox wrapper: tries useTriangulation=false first,
@@ -39,7 +41,8 @@ function tryGetBoundingBox(
     return { xmin, ymin, zmin, xmax, ymax, zmax }
   }
   // Last resort: return a default bbox
-  return { xmin: -100, ymin: -100, zmin: -100, xmax: 100, ymax: 100, zmax: 100 }
+  const h = OCTREE_BBOX_FALLBACK.as(mm)
+  return { xmin: -h, ymin: -h, zmin: -h, xmax: h, ymax: h, zmax: h }
 }
 
 // Topology data stays in mm — the viewer's buildSelectorRuntime is called

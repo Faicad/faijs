@@ -7,9 +7,11 @@
  * 求值器本身支持 `+ - * / ( )`；英制路径先把空格换成 `+` 再交给求值器，
  * 复刻上游 `eval(measure.strip().replace(" ", "+"))`。
  * 单位约定与上游一致：mm = 1，inch = 25.4 mm（imperial 求值结果 ×25.4）。
+ * 换算单源收敛（D5）：INCH 不再本地定义，统一 re-export @faicad/faijs/units。
  */
 
-export const INCH = 25.4
+import { INCH } from '@faicad/faijs/units'
+export { INCH } from '@faicad/faijs/units'
 
 /** Python thread.py:43 `is_safe` — characters allowed in an eval-able measure. */
 const SAFE_CHARS = new Set('0123456789./ '.split(''))

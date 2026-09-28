@@ -19,7 +19,7 @@ const SUBPATHS = [
   '.', './api', './api/brepjs-compat', './brepjs-compat',
   './sdk', './symbol-table', './csg', './sdf', './node', './browser',
   './weapp', './runtime-state', './identity', './shape', './module-resolver',
-  './mesh', './topology/naming', './env-agnostic',
+  './mesh', './topology/naming', './env-agnostic', './units',
 ]
 
 const snapshot = {}

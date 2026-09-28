@@ -82,4 +82,5 @@ export const fai_extrude = defineOp({
     return extrudeBrepPath(input, params)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } } as Provenance,
+  paramDims: { length: 'length', planeDistance: 'length' },
 })

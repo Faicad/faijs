@@ -22,6 +22,8 @@ import type { BrepEngineApi } from '../../brep/engine/primitives'
 import type { Vec3 } from '../../mesh/types'
 import { getSolidBoundingBox } from '../../brep/brep-utils'
 import { splitBrep, matrixToArray } from '../../brep/brep-ops'
+import { DEFAULT_LINEAR_DEFLECTION } from '../../tolerance'
+import { mm } from '../../units'
 
 // ─── 坐标框架 ───
 
@@ -227,7 +229,7 @@ function computeCrossSectionWidthFromMesh(
 /** 将 OCCT solid 三角化为 MeshData（用于截面分析） */
 function solidToMeshData(kernel: BrepEngineApi, solid: BrepHandle): MeshData {
   const mesh = kernel.meshShape(solid, {
-    linearDeflection: 0.1,
+    linearDeflection: DEFAULT_LINEAR_DEFLECTION.as(mm),
     angularDeflection: (2 * Math.PI) / 32,
   })
   return {

@@ -159,6 +159,7 @@ export const box = defineOp({
   // D11 位置→对象（§4.1/§6.2）：三个标量装箱成 { width, depth, height }，尾参
   // options 经 dual-form-args 的尾参合并（§6.2）并入。
   slotMap: { keys: ['width', 'depth', 'height'] },
+  paramDims: { width: 'length', depth: 'length', height: 'length' },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'semantic', name: 'front' }, { kind: 'semantic', name: 'back' }, { kind: 'semantic', name: 'left' }, { kind: 'semantic', name: 'right' }] } } as Provenance,
 })
 

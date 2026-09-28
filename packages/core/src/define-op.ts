@@ -43,6 +43,7 @@ import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
 import { toOpFailure, unwrapResult, OpError, type ResultLike } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engine/types'
+import type { DimName } from './units'
 import { type Provenance, runtimeLineage } from './topology/naming/lineage'
 
 /** 合法引擎 id 集合（assertLibConforms 的 engines 校验用，D11-1）。 */
@@ -140,6 +141,14 @@ export interface DualOpOptions {
    * missing naming = compile-time error (G4: no undeclared ops).
    */
   naming: Provenance
+  /**
+   * Script-side dimension declaration (unit-system D8): per-parameter dim for
+   * the static `dimension` check stage. Params absent here are treated as
+   * dimensionless and exempt from the check. `DimName` is a pure type import.
+   */
+  paramDims?: Record<string, DimName>
+  /** Return dimension declaration (D8): the value produced carries this dim. */
+  retDim?: DimName
 }
 
 /** Implementation set (at least one of mesh/brep is required, D1/D1b); options are siblings of the implementations. */
@@ -163,6 +172,10 @@ export interface DualOpMeta {
   slotMap?: SlotMap
   /** Topology identity provenance (Phase 2.3, mirrors DualOpOptions.naming). */
   naming: Provenance
+  /** Script-side dimension declaration (D8, mirrors DualOpOptions.paramDims). */
+  paramDims?: Record<string, DimName>
+  /** Return dimension declaration (D8). */
+  retDim?: DimName
 }
 
 /** Property key carrying DualOpMeta on wrapped functions. */
@@ -312,6 +325,8 @@ export function defineOp<A extends unknown[]>(
     schema: decl.schema,
     slotMap: decl.slotMap,
     naming: decl.naming,
+    paramDims: decl.paramDims,
+    retDim: decl.retDim,
   }
 
   // Async wrapper: implementations may be sync or async (stdlib mesh paths are
@@ -434,6 +449,19 @@ export function defineOp<A extends unknown[]>(
 export function hasDualOp(ns: Record<string, unknown>): boolean {
   const values = Object.values(ns)
   return values.some((v) => typeof v === 'function' && (v as MetaCarrier)[DUAL_OP_META])
+}
+
+/**
+ * Read the dual-op metadata of a wrapped function (unit-system D8 declaration
+ * surface). Returns `undefined` when the function carries no dual-op metadata,
+ * so callers never probe the private key directly.
+ *
+ * @param fn - a function that may have been produced by `defineOp`/`compatOp`.
+ * @returns the op's metadata, or `undefined`.
+ */
+export function dualOpMetaOf(fn: unknown): DualOpMeta | undefined {
+  if (typeof fn !== 'function') return undefined
+  return (fn as MetaCarrier)[DUAL_OP_META]
 }
 
 /**

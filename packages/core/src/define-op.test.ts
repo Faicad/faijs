@@ -15,7 +15,8 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { configureBackends, CONTRACT_VERSION, BrepUnsupportedError, MeshUnsupportedError, type Backends } from './runtime-state'
-import { defineOp, assertLibConforms, DUAL_OP_META } from './define-op'
+import { defineOp, assertLibConforms, dualOpMetaOf, DUAL_OP_META } from './define-op'
+import { box } from './api/primitives'
 import { solid, fromBrep, isShape, hasBrep, brepOf } from './shape'
 import { dispatchPath } from './cad-runtime/backend-dispatch'
 import { OpError } from './api/internal/result-unwrap'
@@ -337,5 +338,31 @@ describe('defineOp: OpError rethrow (runImpl)', () => {
     const op = defineOp({ brep: () => { throw new Error('boom') }, naming: TEST_NAMING })
     await expect(op()).rejects.toThrow('[faijs/op]')
     await expect(op()).rejects.toBeInstanceOf(OpError)
+  })
+})
+
+describe('defineOp: dimension declaration surface (P26/unit-system D8)', () => {
+  it('dualOpMetaOf reads paramDims/retDim off a declared op', () => {
+    const op = defineOp({
+      brep: () => 1 as unknown as BrepHandle,
+      naming: TEST_NAMING,
+      paramDims: { length: 'length', angle: 'angle' },
+      retDim: 'length',
+    })
+    const meta = dualOpMetaOf(op)
+    expect(meta).toBeDefined()
+    expect(meta?.paramDims).toEqual({ length: 'length', angle: 'angle' })
+    expect(meta?.retDim).toBe('length')
+  })
+
+  it('dualOpMetaOf returns undefined for a non-op function / non-function', () => {
+    expect(dualOpMetaOf(() => 1)).toBeUndefined()
+    expect(dualOpMetaOf(42)).toBeUndefined()
+    expect(dualOpMetaOf(undefined)).toBeUndefined()
+  })
+
+  it('box op declares length dims (representative handwritten declaration)', () => {
+    const meta = dualOpMetaOf(box)
+    expect(meta?.paramDims).toEqual({ width: 'length', depth: 'length', height: 'length' })
   })
 })

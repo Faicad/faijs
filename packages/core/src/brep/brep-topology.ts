@@ -21,6 +21,8 @@ import type { SelectorRuntime, SelectorBundle, SelectorManifest } from '../topol
 import { computeEffectiveDeflection } from '../occt-kernel/occtKernel'
 import { buildAssemblySelectorManifest } from '../occt-kernel/topologyExt'
 import { buildSelectorRuntime } from '../topology/build-selector-runtime'
+import { DEFAULT_LINEAR_DEFLECTION } from '../tolerance'
+import { mm } from '../units'
 
 /**
  * Result of building BREP topology from an OCCT solid: the SelectorRuntime
@@ -96,7 +98,7 @@ export function buildSolidTopologyRuntime(
   //    solidToShape 默认 angularDeflection = 2π/32 ≈ 0.196
   const DISPLAY_ANGULAR_DEFLECTION = (2 * Math.PI) / 32
   const eff = computeEffectiveDeflection(kernel, solid, {
-    linearDeflection: 0.1,
+    linearDeflection: DEFAULT_LINEAR_DEFLECTION.as(mm),
     angularDeflection: DISPLAY_ANGULAR_DEFLECTION,
     relative: false,
   })

@@ -32,8 +32,8 @@ export interface FaceCandidate {
 const TYPE_MISMATCH = -Infinity
 /** 法向点积下限（拒绝阈值）。 */
 const NORMAL_DOT_MIN = 0.707
-/** 质心距²上限（mm²；拒绝阈值）。 */
-const CENTROID_DIST_SQ_MAX = 100
+/** 质心距²上限（mm²；平方量级，保持裸数字，见 tolerance.ts）。 */
+const CENTROID_DIST_SQ_MAX_MM2 = 100
 /** 面积 |log 比| 超此值扣分。 */
 const AREA_LOG_RATIO_MAX = 1.0
 /** 几何兜底接受的最小分。 */
@@ -118,7 +118,7 @@ export function scoreCandidate(
     const dy = hint.center[1] - g.center[1]
     const dz = hint.center[2] - g.center[2]
     const distSq = dx * dx + dy * dy + dz * dz
-    if (distSq > CENTROID_DIST_SQ_MAX) return TYPE_MISMATCH
+    if (distSq > CENTROID_DIST_SQ_MAX_MM2) return TYPE_MISMATCH
     score -= distSq / 100
   }
 

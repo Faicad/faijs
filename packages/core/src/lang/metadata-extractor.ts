@@ -24,6 +24,7 @@ import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef } from './ho
 import { ParseError } from './parse-error'
 import { fnv1a32 } from './fnv-hash'
 import { assertSecure, type SecurityPolicy } from './security-scanner'
+import type { DimName } from '../units'
 
 // ── UiMetadata 类型（§4.1） ──
 
@@ -995,7 +996,27 @@ export interface ExtractMetadataOptions {
   security?: SecurityPolicy
   /** S7 命名空间保护名（缺省 = namespaces；append 场景可指定更小集合仅命名空间名） */
   nsNames?: string[]
+  /**
+   * P4/P6 (unit-system D8): callee → 量纲声明的映射，供 dimension pass 做静态
+   * 量纲校验。调用方从 op 注册表取出透传（lang 不碰 op 注册表铁律）。
+   */
+  opDims?: OpDimMap
 }
+
+/**
+ * P4/P6 (unit-system D8): 一个 op 的脚本面量纲声明，供静态 dimension 检查使用。
+ * 由调用方（CadRuntime/CLI/codeToArgs）从 op 注册表取出透传，`lang/` 本身不碰
+ * op 注册表（铁律：lang 不得依赖 op 注册表）。
+ */
+export interface OpDimDecl {
+  /** 参数名 → 量纲；缺省键视为无量纲。 */
+  paramDims?: Record<string, DimName>
+  /** 函数调用结果的量纲。 */
+  retDim?: DimName
+}
+
+/** P4/P6: callee 名 → 量纲声明（供 extractMetadata 的 dimension pass 消费）。 */
+export type OpDimMap = Record<string, OpDimDecl>
 
 /**
  * 从源码文本提取 UI 通道元数据（UiMetadata）。

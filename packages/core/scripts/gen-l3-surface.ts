@@ -131,6 +131,10 @@ function renderBrepOp(entry: ArgSpecEntry): string {
   const outputsLit = entry.outputs?.length ? `, outputs: ${JSON.stringify(entry.outputs)}` : ''
   const schemaLit = entry.schema ? `, schema: ${JSON.stringify(entry.schema)}` : ''
   const slotMapLit = entry.slotMap ? `, slotMap: ${JSON.stringify(entry.slotMap)}` : ''
+  // P26 (unit-system D8): dimension declarations thread into both the selfhost
+  // defineOp and the compatOp spec so the static dimension stage can read them.
+  const paramDimsLit = entry.paramDims ? `, paramDims: ${JSON.stringify(entry.paramDims)}` : ''
+  const retDimLit = entry.retDim ? `, retDim: ${JSON.stringify(entry.retDim)}` : ''
 
   if (entry.selfhost === true) {
     const ownName = `__own_${exportName}`
@@ -143,7 +147,7 @@ function renderBrepOp(entry: ArgSpecEntry): string {
       ` */`,
       `export const ${entry.name} = defineOp({`,
       `  brep: ${ownName},`,
-      `  name: '${entry.name}'${namingLit}${capsLit}${enginesLit}${outputsLit}${schemaLit}${slotMapLit},`,
+      `  name: '${entry.name}'${namingLit}${capsLit}${enginesLit}${outputsLit}${schemaLit}${slotMapLit}${paramDimsLit}${retDimLit},`,
       `})`,
     ].join('\n')
   }
@@ -157,7 +161,7 @@ function renderBrepOp(entry: ArgSpecEntry): string {
     ` */`,
     `export const ${entry.name} = compatOp(`,
     `  projectBrepOp('${entry.name}', ${JSON.stringify(entry.params ?? [])}, '${formClass}', ${vendoredName}),`,
-    `  { name: '${entry.name}'${namingLit}${capsLit}${enginesLit} },`,
+    `  { name: '${entry.name}'${namingLit}${capsLit}${enginesLit}${paramDimsLit}${retDimLit} },`,
     `)`,
   ].join('\n')
 }
@@ -453,6 +457,10 @@ export function generateScriptFaceManifest(): string {
     '  module: string',
     '  /** Phase 5（D11）：平台 op 的平台身份（中立 op 缺省）。 */',
     "  engines?: readonly string[]",
+    '  /** P26 (unit-system D8)：参数量纲声明（参数名 → DimName）。 */',
+    '  paramDims?: Record<string, string>',
+    '  /** P26 (unit-system D8)：返回值量纲。 */',
+    '  retDim?: string',
     '}',
     '',
     '/** Cad script-face op manifest (B1: single source for cad namespace, check() symbol table). */',
@@ -460,7 +468,9 @@ export function generateScriptFaceManifest(): string {
   ]
   for (const e of entries) {
     const enginesLit = e.engines?.length ? `, engines: ${JSON.stringify(e.engines)}` : ''
-    lines.push(`  { name: '${e.name}', module: '${moduleOf(e)}'${enginesLit} },`)
+    const paramDimsLit = e.paramDims ? `, paramDims: ${JSON.stringify(e.paramDims)}` : ''
+    const retDimLit = e.retDim ? `, retDim: ${JSON.stringify(e.retDim)}` : ''
+    lines.push(`  { name: '${e.name}', module: '${moduleOf(e)}'${enginesLit}${paramDimsLit}${retDimLit} },`)
   }
   lines.push(']')
   lines.push('')

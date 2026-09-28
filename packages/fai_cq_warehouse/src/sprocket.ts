@@ -53,6 +53,7 @@ import {
   wireFromEdges,
 } from './primitives'
 import { requireKernel, type WarehouseKernel } from './kernel'
+import { INCH } from '@faicad/faijs/units'
 
 /** 2D 轮廓点（齿局部坐标系，齿尖朝 +X）。 */
 interface P2 {
@@ -60,7 +61,6 @@ interface P2 {
   y: number
 }
 
-const INCH = 25.4
 const DEG = Math.PI / 180
 
 /** 绕 Z 轴旋转（度，右手）。 */
