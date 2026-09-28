@@ -69,10 +69,10 @@ describe('stdlib per-op assert: 变换类', () => {
     expect(() => assertTranslateParams({ offset: [1, 2, 3] })).not.toThrow()
   })
 
-  it('rotate_euler: anglesDeg 必填 vec3；pivot（如有）为 vec3', () => {
-    expect(() => assertRotateParams({})).toThrow(/rotate_euler\.anglesDeg/)
-    expect(() => assertRotateParams({ anglesDeg: [0, 0, 90], pivot: 'x' })).toThrow(/rotate_euler\.pivot/)
-    expect(() => assertRotateParams({ anglesDeg: [0, 0, 90] })).not.toThrow()
+  it('rotate_euler: angles 必填 vec3；pivot（如有）为 vec3', () => {
+    expect(() => assertRotateParams({})).toThrow(/rotate_euler\.angles/)
+    expect(() => assertRotateParams({ angles: [0, 0, 90], pivot: 'x' })).toThrow(/rotate_euler\.pivot/)
+    expect(() => assertRotateParams({ angles: [0, 0, 90] })).not.toThrow()
   })
 
   it('scale: factor 必填 number > 0；非数组 → E_ARGS_FORM 指向 scale3d（P6 §4.6）', () => {

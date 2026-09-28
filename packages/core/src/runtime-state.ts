@@ -502,3 +502,37 @@ function registerKeep(shapes: unknown[], hidden: boolean): void {
   if (names.length === 0) return
   keepSink(String(stmt.id), names, hidden)
 }
+
+// ── 文件单位登记（unit-system §10.6：load op 的 detectedUnit 回传）──
+// 与 pendingAssemblyTransforms 同模式：load op 把读出的文件声明单位写到这里，
+// 引擎在语句执行后取走并按 part 名放进 ExecutionResult.detectedUnits（宿主写进
+// LoadedFileModel.sourceUnit，不新增返回值消费语义）。
+
+/** Per-part declared file units (key = PartName; null-never — absent key = unknown). */
+export type DetectedUnits = Map<PartName, string>
+
+const pendingDetectedUnits = new Map<PartName, string>()
+
+/**
+ * Register a part's declared file unit (called from the load op body; the unit
+ * is metadata only — coordinates are already base-unit, never re-scaled).
+ *
+ * @param partName - the variable name the loaded shape will be bound to.
+ * @param unit - the file's own declared unit (faijs UnitName).
+ */
+export function setPendingDetectedUnit(partName: PartName, unit: string): void {
+  pendingDetectedUnits.set(partName, unit)
+}
+
+/**
+ * Take all pending detected units and clear them (engine, after each statement;
+ * consumed exactly once).
+ *
+ * @returns a fresh Map of part name → declared unit, copied from the pending
+ *   store and cleared so it is consumed exactly once.
+ */
+export function takePendingDetectedUnits(): DetectedUnits {
+  const out = new Map(pendingDetectedUnits)
+  pendingDetectedUnits.clear()
+  return out
+}

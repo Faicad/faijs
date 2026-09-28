@@ -62,5 +62,6 @@ export const knurl = defineOp({
       knurlMappingMode: (params.knurlMappingMode as number | undefined) ?? 5,
     })
   },
+  paramDims: { knurlTextureHeight: 'length', knurlRefineLength: 'length' },
   naming: { kind: 'unmodeled', reason: 'knurl is mesh-only, no BREP face identity' } as Provenance,
 })

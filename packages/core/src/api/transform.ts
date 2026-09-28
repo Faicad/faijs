@@ -49,12 +49,12 @@ export function assertTranslateParams(params: Record<string, unknown>): void {
 }
 
 /**
- * Validate rotate_euler parameters: `anglesDeg` must be a vec3, and `pivot`
+ * Validate rotate_euler parameters: `angles` must be a vec3, and `pivot`
  * (if provided) must also be a vec3.
  * @param params - the raw rotate_euler operation parameters.
  */
 export function assertRotateParams(params: Record<string, unknown>): void {
-  assertVec3(params.anglesDeg, 'rotate_euler.anglesDeg')
+  assertVec3(params.angles, 'rotate_euler.angles')
   if (params.pivot !== undefined && params.pivot !== null) {
     assertVec3(params.pivot, 'rotate_euler.pivot')
   }
@@ -159,7 +159,7 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
     // rotate_euler（任意欧拉角+pivot）/ scale3d（非等比）：内核无单次 WithHistory 可表达 →
     // L1 rotate/scale + identity 面演化（既有语义，face-evolution.ordering.test.ts 钉住）。
     if (op === 'rotate_euler') {
-      resultSolid = rotateBrep(kernel, inputSolid, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
+      resultSolid = rotateBrep(kernel, inputSolid, params.angles as Vec3, params.pivot as Vec3 | undefined)
     } else {
       resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3, params.center as Vec3 | undefined)
     }
@@ -210,11 +210,12 @@ export const translate = defineOp({
   // D11: `translate(p, 10, 0, 0)` == `translate(p, { offset: [10, 0, 0] })`;
   // `offset` is a vec3 slot sitting after the single leading Shape argument.
   slotMap: { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 },
+  paramDims: { offset: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
 /**
- * 绕轴旋转几何体。anglesDeg 为欧拉角（度，XYZ 顺序）。
+ * 绕轴旋转几何体。angles 为欧拉角（度，XYZ 顺序）。
  * @group 变换
  * @inputs 1
  * @async false
@@ -223,26 +224,27 @@ export const translate = defineOp({
  * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
  * @returns Shape 旋转后的几何。
  * @param input - 目标几何。type:Shape required:true
- * @param params.anglesDeg - 欧拉角（度，XYZ 顺序）。type:[x,y,z] required:true
+ * @param params.angles - 欧拉角（度，XYZ 顺序）。type:[x,y,z] required:true
  * @param params.pivot - 旋转中心。type:[x,y,z] 默认 原点
  * @example
- * const p2 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45] })
- * const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
+ * const p2 = cad.rotate_euler(part0, { angles: [0, 0, 45] })
+ * const p3 = cad.rotate_euler(part0, { angles: [0, 0, 45], pivot: [0,0,0] })
  */
 export const rotate_euler = defineOp({
   name: 'rotate_euler',
   mesh: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/rotate_euler] no input geometry')
     assertRotateParams(params)
-    return cad.rotate_euler(input, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
+    return cad.rotate_euler(input, params.angles as Vec3, params.pivot as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/rotate_euler] no input geometry')
     assertRotateParams(params)
     return transformBrep('rotate_euler', input, params)
   },
-  // D11: `rotate_euler(p, 0, 0, 45)` == `rotate_euler(p, { anglesDeg: [0, 0, 45] })`.
-  slotMap: { keys: ['anglesDeg'], vec3Keys: ['anglesDeg'], shapeArity: 1 },
+  // D11: `rotate_euler(p, 0, 0, 45)` == `rotate_euler(p, { angles: [0, 0, 45] })`.
+  slotMap: { keys: ['angles'], vec3Keys: ['angles'], shapeArity: 1 },
+  paramDims: { angles: 'angle', pivot: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 

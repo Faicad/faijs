@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -33,6 +33,10 @@
     "./sdk": {
       "types": "./dist/sdk.d.ts",
       "default": "./dist/sdk.js"
+    },
+    "./export": {
+      "types": "./dist/brep/export/export-model.d.ts",
+      "default": "./dist/brep/export/export-model.js"
     },
     "./symbol-table": {
       "types": "./dist/symbol-table.d.ts",

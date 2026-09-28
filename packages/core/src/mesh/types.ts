@@ -188,7 +188,7 @@ export interface TranslateParams {
 
 /** Parameters for rotating a shape. */
 export interface RotateParams {
-  anglesDeg: Vec3
+  angles: Vec3
   pivot?: Vec3
 }
 

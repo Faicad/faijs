@@ -275,5 +275,6 @@ export const fai_drill = defineOp({
     assertDrillParams(params)
     return drillBrepPath(input, params)
   },
+  paramDims: { diameter: 'length', depth: 'length', tolerance: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

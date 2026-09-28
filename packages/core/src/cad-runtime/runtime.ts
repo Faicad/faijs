@@ -171,6 +171,12 @@ export interface ExecutionResult {
    * 消费语义（asm.solve() 保持 R0 语句形态，与 do_assemble 现状一致）。
    */
   kinematics?: Map<PartName, AssemblyKinematicsPose>
+  /**
+   * 文件声明单位（unit-system §10.6）：load 语句读出的「文件自己声明的单位」，
+   * key 为 PartName。元数据（宿主写进 sourceUnit、导出目标判定），不参与几何
+   * 运算——坐标已是基准值，按它再缩放 = 双重换算。
+   */
+  detectedUnits?: Map<PartName, string>
 }
 
 /**
@@ -480,6 +486,18 @@ export class CadRuntime {
       }
     }
     return out
+  }
+
+  /**
+   * Public accessor for the op dimension declarations built by {@link buildOpDims}
+   * (unit-system G4): hosts need the same callee → { paramDims, retDim, slotMap }
+   * map the dimension pass consumes so they can serialize with correct unit
+   * literals without keeping a second copy of the table.
+   *
+   * @returns the op dimension map (paramDims / retDim / slotMap per op name).
+   */
+  getOpDims(): OpDimMap {
+    return this.buildOpDims()
   }
 
   constructor(
@@ -1048,6 +1066,7 @@ export class CadRuntime {
       naming: naming.size > 0 ? naming : undefined,
       compounds: compounds.size > 0 ? compounds : undefined,
       kinematics: de.kinematicsSnapshot.size > 0 ? de.kinematicsSnapshot : undefined,
+      detectedUnits: de.detectedUnitsSnapshot.size > 0 ? de.detectedUnitsSnapshot : undefined,
       changed: deChanged ? deChanged.map(asPartName) : undefined,
       activeValues: activeValues.size > 0 ? activeValues : undefined,
     }

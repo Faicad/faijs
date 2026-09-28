@@ -102,7 +102,7 @@ const CASES: Case[] = [
   // ── A. transform（中立：rotate_euler / scale3d；translate/scale 是 occt-only） ──
   {
     name: 'rotate_euler',
-    code: 'const b = cad.box(20, 10, 5, { centered: true })\nconst p = cad.rotate_euler(b, { anglesDeg: [0, 0, 45] })',
+    code: 'const b = cad.box(20, 10, 5, { centered: true })\nconst p = cad.rotate_euler(b, { angles: [0, 0, 45] })',
     category: 'parity',
   },
   {

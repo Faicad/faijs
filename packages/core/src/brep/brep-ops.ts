@@ -93,26 +93,26 @@ export function translateBrep(
 /**
  * BREP 旋转：使用 OCCT transform（3x4 仿射矩阵）。
  *
- * 与 mesh 路径 rotate_euler(shape, anglesDeg, pivot?) 一致：
- * - anglesDeg 为 XYZ 欧拉角（角度制）
+ * 与 mesh 路径 rotate_euler(shape, angles, pivot?) 一致：
+ * - angles 为 XYZ 欧拉角（角度制）
  * - pivot 为旋转中心（可选，默认原点）
  *
  * @param kernel    OCCT 内核
  * @param solid     输入实体
- * @param anglesDeg XYZ 欧拉角（角度制）
+ * @param angles XYZ 欧拉角（角度制）
  * @param pivot     旋转中心（可选）
  * @returns 新实体
  */
 export function rotateBrep(
   kernel: BrepEngineApi,
   solid: BrepHandle,
-  anglesDeg: Vec3,
+  angles: Vec3,
   pivot?: Vec3,
 ): BrepHandle {
   const euler = new THREE.Euler(
-    (anglesDeg[0] * Math.PI) / 180,
-    (anglesDeg[1] * Math.PI) / 180,
-    (anglesDeg[2] * Math.PI) / 180,
+    (angles[0] * Math.PI) / 180,
+    (angles[1] * Math.PI) / 180,
+    (angles[2] * Math.PI) / 180,
   )
   const matrix = new THREE.Matrix4().makeRotationFromEuler(euler)
   if (pivot) {

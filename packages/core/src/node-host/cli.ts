@@ -27,9 +27,8 @@ import type { StdlibNamespace } from '../runtime-state'
 import type { ExecutionMode, HostPorts, LibLoader } from '../cad-runtime/ports'
 import { createNodePorts } from './index'
 import { createFsProjectLoader, findProjectRoot, projectKeyOf } from './fs-project-loader'
-import { buildStlBufferFromMesh } from '../brep/export/stl'
-import { exportStepFromSolid, exportStepFromSolids, type StepExportEntry } from '../brep/export/step'
-import { exportStep } from '../occt-kernel/highLevelApi'
+import { exportModelSync } from '../brep/export/export-model'
+import { exportStepFromSolids, type StepExportEntry } from '../brep/export/step'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import type { Shape } from '../mesh/types'
 import type { CompoundShape } from '../shape'
@@ -543,26 +542,18 @@ function writeOutput(
       error: `Output "${outPath}" is a compound (group/assembly) with no exportable mesh; export a member shape instead`,
     }
   }
-  if (ext === 'stl') {
-    const buffer = buildStlBufferFromMesh(shape.positions, shape.indices)
-    writeFileSync(outPath, Buffer.from(buffer))
-    return { ok: true, outputFile: outPath, outputFormat: 'stl' }
+  // 统一导出入口（R11）：坐标换算与单位声明由 exportModel 同源产出。
+  // CLI 无单位选项 → 缺省 mm（与既有行为一致）。
+  const fmt = ext === 'stp' ? 'step' : ext
+  if (fmt !== 'stl' && fmt !== 'step') {
+    return { ok: false, error: `Unsupported output format: .${ext} (supported: .stl, .step)` }
   }
-
-  if (ext === 'step' || ext === 'stp') {
-    if (brepSolid) {
-      // 有 BREP solid → 精确 STEP
-      const buffer = exportStepFromSolid(brepSolid.solid, brepSolid.kernel)
-      writeFileSync(outPath, Buffer.from(buffer))
-      return { ok: true, outputFile: outPath, outputFormat: 'step' }
-    }
-    // 无 BREP solid → 三角化 STEP（mesh 也可以导出 STEP，只是三角化的）
-    const stepContent = exportStep(shape)
-    writeFileSync(outPath, Buffer.from(stepContent, 'utf-8'))
-    return { ok: true, outputFile: outPath, outputFormat: 'step' }
-  }
-
-  return { ok: false, error: `Unsupported output format: .${ext} (supported: .stl, .step)` }
+  const buffer = exportModelSync(
+    [brepSolid ? { solid: brepSolid.solid } : { mesh: { positions: shape.positions, indices: shape.indices } }],
+    fmt,
+  )
+  writeFileSync(outPath, Buffer.from(buffer))
+  return { ok: true, outputFile: outPath, outputFormat: fmt }
 }
 
 /**

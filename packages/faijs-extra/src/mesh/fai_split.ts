@@ -6,7 +6,7 @@
  *
  * splitWithParams 是 UI 与重放共用的唯一分割入口：
  * 参数编排（planeParams / planeBasis / 爆炸位移 / 世界坐标变换）
- * 全部在此函数内部完成，调用方只需传入 cutMode + normal/offset/inPlaneAngleDeg + bbCenter
+ * 全部在此函数内部完成，调用方只需传入 cutMode + normal/offset/inPlaneAngle + bbCenter
  * 以及各 cutMode 专属参数。
  */
 
@@ -96,7 +96,7 @@ export function computePlaneBasis(
 /**
  * Derive widthDir/depthDir from the cutting-plane normal and the in-plane
  * rotation angle. Matches computePlaneBasis(rx, ry, rz) with
- * normal = eulerXYZToNormal(rx, ry, 0) and inPlaneAngleDeg = rz: the rx/ry
+ * normal = eulerXYZToNormal(rx, ry, 0) and inPlaneAngle = rz: the rx/ry
  * Euler XYZ decomposition is recovered from the normal, then the rz rotation
  * is applied.
  *
@@ -104,12 +104,12 @@ export function computePlaneBasis(
  *   ry = asin(normal[0])
  *   rx = atan2(-normal[1], normal[2])  (when cos(ry) !== 0)
  * @param normal - cutting-plane unit normal.
- * @param inPlaneAngleDeg - in-plane rotation about the normal, in degrees.
+ * @param inPlaneAngle - in-plane rotation about the normal, in degrees.
  * @returns the in-plane width and depth directions.
  */
 export function computeBasisFromNormal(
   normal: Vec3,
-  inPlaneAngleDeg: number,
+  inPlaneAngle: number,
 ): { widthDir: Vec3; depthDir: Vec3 } {
   const sinRy = Math.max(-1, Math.min(1, normal[0]))
   const ry = Math.asin(sinRy)
@@ -123,7 +123,7 @@ export function computeBasisFromNormal(
     rx = Math.atan2(-normal[1], normal[2])
   }
 
-  const rz = (inPlaneAngleDeg * Math.PI) / 180
+  const rz = (inPlaneAngle * Math.PI) / 180
 
   // R = RX(rx) · RY(ry)（不含 rz 的部分）
   // widthDir = R · (cos(rz), sin(rz), 0)
@@ -162,7 +162,7 @@ export interface SplitWithParamsInput {
   /** 切割面沿法线方向相对 bbCenter 的偏移（标量） */
   offset: number
   /** 切割面绕法线的面内旋转（角度制，承载原 planeRotation 的 rz 分量） */
-  inPlaneAngleDeg: number
+  inPlaneAngle: number
   /** 源 mesh 的世界空间包围盒中心 */
   bbCenter: Vec3
   /** 源 mesh 的世界空间包围盒尺寸（用于计算 bboxWidthOnWidthDir 和爆炸位移） */
@@ -224,7 +224,7 @@ export interface SplitWithParamsResult {
  * @returns the split result with front/back halves and derived plane data.
  */
 export async function splitWithParams(input: SplitWithParamsInput): Promise<SplitWithParamsResult> {
-  const { shape, cutMode, normal, offset, inPlaneAngleDeg, bbCenter, bboxSize } = input
+  const { shape, cutMode, normal, offset, inPlaneAngle, bbCenter, bboxSize } = input
 
   // 1. 从 normal + offset + bbCenter 派生切割平面参数
   const planeCenter: Vec3 = [
@@ -234,8 +234,8 @@ export async function splitWithParams(input: SplitWithParamsInput): Promise<Spli
   ]
   const planeDistance = normal[0] * planeCenter[0] + normal[1] * planeCenter[1] + normal[2] * planeCenter[2]
 
-  // 2. 从 normal + inPlaneAngleDeg 派生基向量
-  const { widthDir } = computeBasisFromNormal(normal, inPlaneAngleDeg)
+  // 2. 从 normal + inPlaneAngle 派生基向量
+  const { widthDir } = computeBasisFromNormal(normal, inPlaneAngle)
 
   // 3. 按 cutMode 分发
   let front: Shape

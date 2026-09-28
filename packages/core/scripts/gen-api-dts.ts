@@ -118,7 +118,7 @@ const API_ENTRIES: Record<string, ApiEntry> = {
   },
   rotate_euler: {
     inputs: 1,
-    params: '{ anglesDeg: [number, number, number]; pivot?: [number, number, number] }',
+    params: '{ angles: [number, number, number]; pivot?: [number, number, number] }',
     returns: 'Shape',
     deprecated: EDITOR_OWNED_DEPRECATED,
   },

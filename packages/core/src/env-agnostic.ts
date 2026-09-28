@@ -30,11 +30,12 @@ export {
   configureBackends, getBackends, setCurrentStmt, getCurrentStmt,
   keep, keepHidden, getRuntimeState, nameOf, setName, setKeepSink,
   setPendingAssemblyTransforms, takePendingAssemblyTransforms, assertContractVersion,
+  setPendingDetectedUnit, takePendingDetectedUnits,
   CONTRACT_VERSION,
 } from './runtime-state'
 export type {
   Backends, FaijsRuntimeState, ShapeSlot, KeepSink, RuntimeExecutionMode,
-  AssemblyTransform, StdlibFn, StdlibNamespace, ExecutionAnchor,
+  AssemblyTransform, StdlibFn, StdlibNamespace, ExecutionAnchor, DetectedUnits,
 } from './runtime-state'
 
 // ── L0 lang/ 文本面（IR 是引擎内部实现细节，不导出；公开面只有代码文本工具与结果类型）──
@@ -58,7 +59,7 @@ export type { CodeToArgsResult, CodeToArgsOptions } from './lang/code-to-args'
 export { extractMetadata } from './lang/metadata-extractor'
 export type {
   UiMetadata, ArgSource, ParamEntry, ImportEntry, FunctionEntry, BlockEntry, KeepEntry,
-  ExtractMetadataOptions,
+  ExtractMetadataOptions, OpDimMap, OpDimDecl,
 } from './lang/metadata-extractor'
 // SecurityScanner — 静态安全门禁（纵深防御第一层）
 export { scanSource, scanAst, assertSecure } from './lang/security-scanner'

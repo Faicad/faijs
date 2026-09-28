@@ -7,12 +7,13 @@
  */
 
 import type { Shape } from '@faicad/faijs/mesh/types'
-import { importFile } from '@faicad/faijs/mesh/io'
+import { importFile, detectStepUnit } from '@faicad/faijs/mesh/io'
 import { isCadFormat } from '@faicad/faijs/brep/brep-chain'
 import { loadBrep } from '@faicad/faijs/brep/brep-ops'
 import { OpError } from '@faicad/faijs/api/internal/result-unwrap'
-import { getBackends, BrepUnsupportedError } from '@faicad/faijs/runtime-state'
+import { getBackends, BrepUnsupportedError, getCurrentStmt, setPendingDetectedUnit } from '@faicad/faijs/runtime-state'
 import { solid, fromBrep } from '@faicad/faijs/shape'
+import { mm, centimeter, meter, micron, inch, foot, yard, type UnitName, type ValueWithUnits } from '@faicad/faijs/units'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
 /**
@@ -78,18 +79,59 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
     throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: load op has no BREP implementation for this source')
   }
 
-  // mesh 路径
+  // mesh 路径：importFile 返回 { shape, unit } — unit 是文件自己声明的单位
+  // （元数据；坐标已是基准值）。STL 无声明 → unit=null，opts.unit 决定刻度。
   if (!useBrep) {
-    return solid(await importFile(buffer, params.format as string | undefined))
+    const fmt = params.format as string | undefined
+    const opts = buildImportOpts(params.unit)
+    const { shape, unit } = await importFile(buffer, fmt, opts)
+    registerDetectedUnit(unit)
+    return solid(shape)
   }
 
   // BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）
   // P2：brepChain（meshShapeCache）归引擎侧，loadBrep 不再传
   // partIndex：多 part 文件（如多 solid STEP）逐 part 加载——宿主为每个 part
   // 生成独立 load 语句并携带 partIndex，提取 Compound 中对应子 solid。
+  // 红线：不做任何缩放——OCCT 读入已折算到基准，按声明再 scale = 双重换算。
   const partIndex = typeof params.partIndex === 'number' ? params.partIndex : undefined
   const { solid: solidHandle, shape } = loadBrep(
     kernel!, buffer, undefined, undefined, partIndex,
   )
+  // BREP 路径的声明单位：走文本探测（元数据；不参与几何运算）。
+  const declared = detectStepUnit(new TextDecoder().decode(new Uint8Array(buffer)))
+  registerDetectedUnit(declared)
   return fromBrep(shape, { solid: solidHandle })
+}
+
+/**
+ * params.unit（UnitName 字符串，固化在脚本行里）→ importFile 的 ValueWithUnits。
+ * 只对无声明格式（STL）有意义；能声明的格式引擎自己读。
+ */
+function buildImportOpts(unitParam: unknown): { unit: ValueWithUnits } | undefined {
+  if (typeof unitParam !== 'string' || unitParam === '') return undefined
+  const spec = LENGTH_UNIT_VALUES[unitParam as UnitName]
+  if (!spec) {
+    throw new OpError('load', 'E_ARGS_FORM', `[stdlib/load] unknown unit: ${JSON.stringify(unitParam)}`)
+  }
+  return { unit: spec }
+}
+
+/** Register the file's declared unit for the current statement's output part. */
+function registerDetectedUnit(unit: UnitName | null): void {
+  if (!unit) return
+  const stmt = getCurrentStmt()
+  const part = stmt?.outputs[0]
+  if (part) setPendingDetectedUnit(part, unit)
+}
+
+/** UnitName → base-scaled ValueWithUnits (length dims only; load is a length-domain op). */
+const LENGTH_UNIT_VALUES: Partial<Record<UnitName, ValueWithUnits>> = {
+  mm,
+  cm: centimeter,
+  m: meter,
+  micron,
+  inch,
+  foot,
+  yard,
 }

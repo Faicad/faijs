@@ -121,8 +121,4 @@ Brep链可以切换，没有回退。在链上增加一个brep不支持的操作
 - `docs/plans/` 中的方案文档状态流转：方案（未实施）→实施中→已落地/已废弃。废弃的方案文档标注替代方案链接。每月 1 号归档上月文档到 `yyyy-mm/` 文件夹。
 
 
-## 严厉禁止的行为
-1. 通过rm -rf删除目录。删除目录必须是把文件夹移动到回收站。
-2. 严禁通过junction之类的方式建立目录链接。包括npm link之类的行为。
-
-本项目已进入正式发布准备阶段（禁令「不准发布到 npm」已撤销）。发布范围、拓扑序、门禁与 npm 自动加载方案见 `docs/plans/2026-09-19-npm-publish-plan.md`：faijs 及其可发布子包（`@faicad/faijs`(原 core) / `@faicad/faijs-extra` / cq-compat / fai_cq_gears / fai_cq_warehouse / sheetmetal）正式发布到公开 npm registry；demo 相关子包（demo / fixtures / tests / mini_lathe）除外。
+本项目虽已发布npm，但是仍然是内部测试阶段，不考虑任何api的向后兼容性。

@@ -61,7 +61,7 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
   const cutMode = (params.cutMode as string) ?? 'plane'
   const normal = (params.normal as Vec3) ?? [0, 0, 1]
   const offset = typeof params.offset === 'number' ? params.offset : 0
-  const inPlaneAngleDeg = typeof params.inPlaneAngleDeg === 'number' ? params.inPlaneAngleDeg : 0
+  const inPlaneAngle = typeof params.inPlaneAngle === 'number' ? params.inPlaneAngle : 0
   const bbCenter = (params.bbCenter as Vec3) ?? bboxCenter(input)
   const bboxSize = (params.bboxSize as Vec3) ?? boundingBox(input).max.map(
     (v, i) => v - boundingBox(input).min[i],
@@ -82,7 +82,7 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
   ]
   const planeDistance = normal[0] * planeCenter[0] + normal[1] * planeCenter[1] + normal[2] * planeCenter[2]
 
-  const { widthDir, depthDir } = computeBasisFromNormal(normal, inPlaneAngleDeg)
+  const { widthDir, depthDir } = computeBasisFromNormal(normal, inPlaneAngle)
   const basis: JoineryBasis = {
     normal: normal as Vec3,
     widthDir: widthDir as Vec3,
@@ -182,7 +182,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
   const cutMode = (params.cutMode as string) ?? 'plane'
   const normal = (params.normal as Vec3) ?? [0, 0, 1]
   const offset = typeof params.offset === 'number' ? params.offset : 0
-  const inPlaneAngleDeg = typeof params.inPlaneAngleDeg === 'number' ? params.inPlaneAngleDeg : 0
+  const inPlaneAngle = typeof params.inPlaneAngle === 'number' ? params.inPlaneAngle : 0
   const bbCenter = (params.bbCenter as Vec3) ?? bboxCenter(input)
   const bboxSize = (params.bboxSize as Vec3) ?? boundingBox(input).max.map(
     (v, i) => v - boundingBox(input).min[i],
@@ -201,7 +201,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
     cutMode: cutMode as 'plane' | 'dovetail' | 'dowel' | 'straight-tenon' | 'tenon' | 'straight',
     normal,
     offset,
-    inPlaneAngleDeg,
+    inPlaneAngle,
     bbCenter: localBbCenter,
     bboxSize: localBboxSize,
     groove: params.grooveDepth !== undefined ? {
@@ -243,7 +243,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.cutMode - 切割模式。type:'plane' | 'dovetail' | 'dowel' | 'tenon' | 'straight-tenon' | 'straight' 默认 'plane'
  * @param params.normal - 切割面法向。type:[x,y,z] 默认 [0,0,1]
  * @param params.offset - 切割面沿法向偏移（过 bbCenter）。type:number 默认 0
- * @param params.inPlaneAngleDeg - 切割面面内旋转角（度）。type:number 默认 0
+ * @param params.inPlaneAngle - 切割面面内旋转角（度）。type:number 默认 0
  * @param params.bbCenter - 包围盒中心（缺省自动推导）。type:[x,y,z] 默认 自动
  * @param params.bboxSize - 包围盒尺寸（缺省自动推导）。type:[x,y,z] 默认 自动
  * @param params.applyExplode - 是否将两侧沿法向分离位移（bbox 对角线 2% + 榫卯深度一半）。type:boolean 默认 true
@@ -261,7 +261,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.tenonHeight - 直榫高度。type:number
  * @param params.tenonHeightTolerance - 直榫高度公差。type:number
  * @param params.selectedSections - 参与榫卯的截面下标。type:number[]
- * @note 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
+ * @note 切割面统一用 `normal`/`offset`/`inPlaneAngle` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
  * @example
  * const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
   */

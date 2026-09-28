@@ -33,7 +33,7 @@ export interface CadAPI {
   /**
    * @deprecated **`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
-  rotate_euler(shape: Shape, params: { anglesDeg: [number, number, number]; pivot?: [number, number, number] }): Shape
+  rotate_euler(shape: Shape, params: { angles: [number, number, number]; pivot?: [number, number, number] }): Shape
   /**
    * @deprecated **`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */

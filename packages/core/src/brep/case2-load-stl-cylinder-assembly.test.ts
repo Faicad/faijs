@@ -8,7 +8,7 @@
  * - cylinder → BREP-native，cyl_v0 持有 solid
  * - drill(cyl) → 上游有 solid → 走 BREP 精确路径
  * - assembly statement → execution skips (zero geometry impact)
- * - rotate_euler(drilled, {anglesDeg, pivot}) → BREP 精确变换（需 pivot 正确传递）
+ * - rotate_euler(drilled, {angles, pivot}) → BREP 精确变换（需 pivot 正确传递）
  * - translate(rotated, {offset}) → BREP 精确变换
  *
  * 修复前（全局 brepActive）：STL 加载断全局链 → cylinder/drill/rotate/translate 全被连坐走 mesh
@@ -146,7 +146,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         }],
       }, [], { }),
       // S4: rotate_euler with pivot — BREP-native transform
-      makeStmt('rot_v0', 'rotate_euler', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
+      makeStmt('rot_v0', 'rotate_euler', { angles: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { }),
       // S5: translate — BREP-native transform
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
@@ -189,7 +189,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         members: ['cube_v0', 'drilled_v0'],
         constraints: [],
       }, [], { }),
-      makeStmt('rot_v0', 'rotate_euler', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
+      makeStmt('rot_v0', 'rotate_euler', { angles: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
         { }),
@@ -218,7 +218,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1],
       }, ['cyl_v0']),
-      makeStmt('rot_v0', 'rotate_euler', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
+      makeStmt('rot_v0', 'rotate_euler', { angles: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
         { }),
@@ -267,7 +267,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
           b: { part: 'drilled_v0', face: { faceIndex: 2 } },
         }],
       }, [], { }),
-      makeStmt('rot_v0', 'rotate_euler', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
+      makeStmt('rot_v0', 'rotate_euler', { angles: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
         { }),
@@ -294,13 +294,13 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
 
 // ─── Pivot parity test (§3.7): rotate_euler with pivot — BREP vs mesh bbox consistency ───
 
-describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path consistency', () => {
+describe('Pivot parity: rotate_euler(angles, pivot) — BREP vs mesh path consistency', () => {
   it('BREP rotate_euler with pivot produces correct result (not rotating around origin)', async () => {
     // Create a box offset from origin, then rotate with a pivot
     // If pivot is ignored, the result will be wrong (rotating around origin)
     const stmts: string[] = [
       makeStmt('s1', 'box', { width: 10, depth: 10, height: 10, centered: true, at: [20, 0, 0] }, []),
-      makeStmt('s2', 'rotate_euler', { anglesDeg: [0, 0, 90], pivot: [20, 0, 0] }, ['s1'],
+      makeStmt('s2', 'rotate_euler', { angles: [0, 0, 90], pivot: [20, 0, 0] }, ['s1'],
         { }),
     ]
 
@@ -361,7 +361,7 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
   it('BREP rotate_euler without pivot matches mesh rotate_euler without pivot', async () => {
     const stmts: string[] = [
       makeStmt('s1', 'box', { width: 10, depth: 10, height: 10, centered: true, at: [20, 0, 0] }, []),
-      makeStmt('s2', 'rotate_euler', { anglesDeg: [0, 0, 90] }, ['s1'],
+      makeStmt('s2', 'rotate_euler', { angles: [0, 0, 90] }, ['s1'],
         { }),
     ]
 

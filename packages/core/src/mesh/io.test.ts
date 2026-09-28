@@ -59,19 +59,19 @@ describe('importFile — STL unit scale (D5)', () => {
   it('default unit is mm (unchanged)', async () => {
     // A 10mm ASCII STL cube built inline.
     const stl = asciiStl(10)
-    const shape = await importFile(stl, 'stl')
+    const { shape } = await importFile(stl, 'stl')
     expect(maxX(shape.positions)).toBeCloseTo(10, 5)
   })
 
   it('opts.unit = inch scales coordinates ×25.4', async () => {
     const stl = asciiStl(10)
-    const shape = await importFile(stl, 'stl', { unit: inch })
+    const { shape } = await importFile(stl, 'stl', { unit: inch })
     expect(maxX(shape.positions)).toBeCloseTo(254, 5)
   })
 
   it('opts.unit = mm keeps coordinates unchanged', async () => {
     const stl = asciiStl(10)
-    const shape = await importFile(stl, 'stl', { unit: mm })
+    const { shape } = await importFile(stl, 'stl', { unit: mm })
     expect(maxX(shape.positions)).toBeCloseTo(10, 5)
   })
 })
@@ -86,7 +86,7 @@ describe('importFile 3MF unit conversion (D5)', () => {
     ['meter', 0.5, 500],
   ]
   it.each(cases)('3MF unit %s (size %s) → mm boundary', async (unit, size, expected) => {
-    const shape = await importFile(threemfBytes(unit, size), '3mf')
+    const { shape } = await importFile(threemfBytes(unit, size), '3mf')
     expect(shape.positions.length).toBeGreaterThan(0)
     expect(shape.indices.length).toBeGreaterThan(0)
     expect(maxX(shape.positions)).toBeCloseTo(expected, 3)
@@ -106,12 +106,12 @@ describe('importFile real fixture (cube334.3mf)', () => {
     buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
   })
   it('loads a non-empty mesh from a real 3mf file', async () => {
-    const shape = await importFile(buf, '3mf')
+    const { shape } = await importFile(buf, '3mf')
     expect(shape.positions.length).toBeGreaterThan(0)
     expect(shape.indices.length).toBeGreaterThan(0)
   })
   it('loads a non-empty mesh through format "threemf"', async () => {
-    const shape = await importFile(buf, 'threemf')
+    const { shape } = await importFile(buf, 'threemf')
     expect(shape.positions.length).toBeGreaterThan(0)
   })
 })

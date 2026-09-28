@@ -27,7 +27,7 @@ import type { StdlibNamespace } from '../runtime-state'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
-import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
+import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, takePendingDetectedUnits, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { runtimeLineage } from '../topology/naming/lineage'
 import { ExecutionLimitError } from './execution-limit-error'
@@ -197,12 +197,19 @@ export class DirectExecutor {
   private activeLine: number | undefined
   /** P3：装配运动副位姿（成员名 → pose），collectDirectResult 消费。 */
   private kinematicsOut = new Map<PartName, AssemblyKinematicsPose>()
+  /** 文件声明单位（load op 登记，PartName → UnitName），collectDirectResult 消费。 */
+  private detectedUnitsOut = new Map<PartName, string>()
   /** 执行后端（静态选定；缺省 vm） */
   private readonly execBackend: ExecBackend
 
   /** P3：读取装配运动副位姿快照（collectDirectResult 用；空 Map 表示无 joints）。 */
   get kinematicsSnapshot(): Map<PartName, AssemblyKinematicsPose> {
     return this.kinematicsOut
+  }
+
+  /** 文件声明单位快照（load op 语句执行后取走；空 Map 表示本批次无 load）。 */
+  get detectedUnitsSnapshot(): Map<PartName, string> {
+    return this.detectedUnitsOut
   }
 
   constructor(options: DirectExecutorOptions) {
@@ -678,6 +685,11 @@ export class DirectExecutor {
       })
     } finally {
       setCurrentStmt(undefined)
+      // 文件声明单位（load op 登记的 pending 元数据）按本语句收编。
+      const pendingUnits = takePendingDetectedUnits()
+      for (const [part, unit] of pendingUnits) {
+        this.detectedUnitsOut.set(part, unit)
+      }
     }
   }
 

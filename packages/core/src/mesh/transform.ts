@@ -35,15 +35,15 @@ export function translate(shape: Shape, offset: Vec3): Shape {
  * Rotate a mesh shape by baking the rotation into its vertices (angles in
  * degrees, optionally about a pivot).
  * @param shape - the mesh shape to rotate.
- * @param anglesDeg - XYZ Euler angles in degrees.
+ * @param angles - XYZ Euler angles in degrees.
  * @param pivot - optional rotation pivot point in mm.
  * @returns a new shape with rotated vertices.
  */
-export function rotate_euler(shape: Shape, anglesDeg: Vec3, pivot?: Vec3): Shape {
+export function rotate_euler(shape: Shape, angles: Vec3, pivot?: Vec3): Shape {
   const euler = new THREE.Euler(
-    (anglesDeg[0] * Math.PI) / 180,
-    (anglesDeg[1] * Math.PI) / 180,
-    (anglesDeg[2] * Math.PI) / 180,
+    (angles[0] * Math.PI) / 180,
+    (angles[1] * Math.PI) / 180,
+    (angles[2] * Math.PI) / 180,
   )
   const matrix = new THREE.Matrix4().makeRotationFromEuler(euler)
   if (pivot) {
