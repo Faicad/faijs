@@ -143,12 +143,12 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面 / P1 移植树 / 平台 import 隔离' -Block {
+Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / P1 移植树 / 平台 import 隔离' -Block {
     node scripts/check-ghost-deps.mjs
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
     if ($LASTEXITCODE -ne 0) { return }
-    node scripts/check-dep-lockstep.mjs
+    node scripts/check-lockstep.mjs
     if ($LASTEXITCODE -ne 0) { return }
     npx madge --circular packages/core/src packages/faijs-extra/src
     if ($LASTEXITCODE -ne 0) { return }

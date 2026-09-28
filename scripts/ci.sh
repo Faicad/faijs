@@ -50,9 +50,10 @@ if [ -n "$unexpected_stderr" ]; then
   exit 1
 fi
 
-echo "==> 5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面"
+echo "==> 5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面"
 node scripts/check-ghost-deps.mjs
 node scripts/check-workspaces-order.mjs
+node scripts/check-lockstep.mjs
 npx madge --circular packages/core/src
 node scripts/api-surface-snapshot.mjs
 # core-decouple wrapup §4.1：brepjs 归零守卫（包名/路径零依赖）

@@ -18,6 +18,10 @@ pre-commit:
       glob: '.agents/notes/archived/**'
       run: node_modules/.bin/tsx scripts/verify-archived-agent-notes.ts
 
+    - name: family version lockstep
+      glob: '{package.json,packages/*/package.json}'
+      run: node scripts/check-lockstep.mjs
+
     - name: export jsdoc (repo-wide API completeness)
       run: node_modules/.bin/tsx scripts/verify-export-jsdoc.ts
 

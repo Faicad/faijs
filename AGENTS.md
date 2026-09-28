@@ -20,7 +20,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 3. 全部通过后才准跑ci， `scripts/ci.ps1`。**严禁通过跑 CI 找 bug**。跑完一次 CI 后记住哪些测试失败了，之后只跑失败的测试，不要重复跑 CI。
 
-4. 打包发布前，必须更新版本号。
+4. 打包发布前，必须用 `node scripts/set-version.mjs <ver>` 统一更新包族版本（自己改某个包的 `version` 或 @faicad/* range 会被 `check-lockstep.mjs` 判失败：pre-commit、ci.ps1、ci.sh、publish-all 四处都跑）。
 
 ## ⚠️ 验证与踩坑留档铁律
 
@@ -41,7 +41,8 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 | `npm run lint` | `eslint packages/core/src packages/faijs-extra/src`（`scripts/`、`docs/`、`demo/`、`packages/demo/` 被 ignore） |
 | `node scripts/check-ghost-deps.mjs` | 幽灵依赖守卫（每包 import 必须声明在自身 package.json） |
 | `node scripts/check-workspaces-order.mjs` | workspaces 数组顺序 == 依赖拓扑断言 |
-| `node scripts/check-dep-lockstep.mjs` | @faicad/* 依赖 lockstep 守卫（可发布包的 registry 依赖 range 必须指向目标包当前版本线，防 CDN 解析旧版断图） |
+| `node scripts/set-version.mjs <ver>` | 包族版本对齐写入端：把 root `config.faijsVersion` + 全部可发布包 `version` + 全部 @faicad/* registry range 一次改成同一版本线（`--dry-run` 只打印、`--no-lock` 跳过 lock 刷新、`--include-private` 把 fixtures/tests/demo 一起对齐） |
+| `node scripts/check-lockstep.mjs` | 包族 lockstep 守卫：① 各可发布包 `version` == root `config.faijsVersion`；② @faicad/* registry 依赖 range 指向该版本线（防 CDN 解析旧版断图）。`--self-test` 用合成包集自测规则引擎，`--include-private` 让 private 包也纳入检查 |
 | `npx madge --circular packages/*/src` | 包图无环守卫 |
 | `pwsh -NoProfile scripts/ci.ps1` | Windows 全量 CI：lint → typecheck → build → workspace 测试 + stderr 检查 → 守卫 → demo e2e ×2 → pack |
 | `scripts/ci.sh` | Linux/macOS 版；Windows 下会报错提示改用 ps1 |

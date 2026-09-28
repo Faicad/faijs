@@ -3,7 +3,7 @@
   Publish all publishable faijs monorepo packages to npm (fixed lockstep version).
 
 .DESCRIPTION
-  Topological order, per package: version-consistency check -> (optional) full CI
+  Topological order, per package: family version lockstep check -> (optional) full CI
   -> (build) -> npm pack --dry-run white-list assertion (E2) -> npm publish
   -> npm view verification -> emit a publish record.
 
@@ -86,30 +86,17 @@ $Packages = @(
   @{ Name = '@faicad/sheetmetal';       Path = 'packages/sheetmetal' }
 )
 
-# Step 1: version consistency (lockstep hard constraint).
-$versions = @{}
-foreach ($p in $Packages) {
-  $pkgJson = Join-Path (Join-Path $RepoRoot $p.Path) 'package.json'
-  if (-not (Test-Path $pkgJson)) { throw "package.json not found: $pkgJson" }
-  $pj = Get-Content $pkgJson -Raw | ConvertFrom-Json
-  if (-not $pj.version) { throw "Cannot read version from $pkgJson" }
-  $versions[$p.Name] = $pj.version
-}
-$uniq = @($versions.Values | Sort-Object -Unique)
-if ($uniq.Count -ne 1) {
-  Write-Error "Version mismatch, abort publish: $(ConvertTo-Json $versions -Compress)"
-}
-$Version = $uniq[0]
-Write-Host "OK [1/5] version consistency: all packages = $Version" -ForegroundColor Green
-
-# Step 1b: @faicad/* dependency lockstep guard — a publishable package whose dep
-# range still points at an older line (e.g. "^0.14.0" while lockstep is 0.16.x)
-# makes the CDN build resolve a stale package and break the graph. Fail BEFORE
-# publishing anything.
-Write-Host "-> [1b/5] checking @faicad/* dep lockstep ..." -ForegroundColor Cyan
-node (Join-Path $PSScriptRoot 'check-dep-lockstep.mjs')
-if ($LASTEXITCODE -ne 0) { throw "dep lockstep check failed; aborting publish" }
-Write-Host "   OK [1b/5] dep lockstep passed" -ForegroundColor Green
+# Step 1: family lockstep (hard constraint) — one shared version + coherent
+# @faicad/* ranges. check-lockstep.mjs asserts both: every publishable package
+# equals the root config.faijsVersion, and every inter-package registry range
+# points at that version line (a stale range like "^0.14.0" would make the CDN
+# build resolve an old package and break the graph). Fail BEFORE publishing.
+Write-Host "-> [1/5] checking family version lockstep ..." -ForegroundColor Cyan
+node (Join-Path $PSScriptRoot 'check-lockstep.mjs')
+if ($LASTEXITCODE -ne 0) { throw "lockstep check failed; aborting publish" }
+$Version = (Get-Content (Join-Path $RepoRoot 'package.json') -Raw | ConvertFrom-Json).config.faijsVersion
+if (-not $Version) { throw 'root package.json config.faijsVersion is missing; run `node scripts/set-version.mjs <version>`' }
+Write-Host "   OK [1/5] version lockstep passed: all packages = $Version" -ForegroundColor Green
 
 # Step 2: full CI (optional).
 # The repo CI entry is scripts/ci.ps1 (documented in AGENTS.md); the root
