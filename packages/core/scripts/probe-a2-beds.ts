@@ -11,7 +11,7 @@
 // Usage: npx tsx packages/core/scripts/probe-a2-beds.ts
 import { readFileSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { unzipSync, strFromU8 } from 'fflate'
+import { openContainer } from '../../fcstd/src/container-read.js'
 import { createRuntime } from '../src/index.js'
 import { createNodePorts } from '../src/node.js'
 import { initOcctWasm } from '../src/occt-kernel/occtKernel.js'
@@ -23,8 +23,13 @@ import { HASH_UPPER_BOUND } from '../src/brep/face-evolution.js'
 const ZIP = 'D:/Faicad/fcstd-port/out/per-file/Beds/product.fai.zip'
 const BASE_VAR = process.argv[2] ?? 'part28'
 
-const members = unzipSync(new Uint8Array(readFileSync(ZIP)))
-const full = strFromU8(members['model/main.fai.js']!)
+const { manifest, activeModel, loader, assets } = openContainer(new Uint8Array(readFileSync(ZIP)))
+if (!activeModel) {
+  console.log('container has no active model (and no models[0])')
+  process.exit(1)
+}
+const entryKey = activeModel.entry.slice('model/'.length)
+const full = await loader.readSource(entryKey)
 // Cut everything from the fillet statement onwards (the fillet is the op that
 // fails); keep the base chain intact.
 const cut = full.split('\n').findIndex((l) => l.includes('cad.fillet('))
@@ -32,13 +37,13 @@ if (cut < 0) throw new Error('no cad.fillet statement found')
 const code = full.split('\n').slice(0, cut).join('\n')
 console.log(`running ${cut - 2} statements; base var = ${BASE_VAR}`)
 
-// Materialize `assets/` the same way tools/run-sweep-worker.ts does.
+// Materialize `assets/` from the container reader (same files run-sweep-worker
+// materializes, now through the unified API).
 const scratch = join('D:/Faicad/faijs/.tmp-a2-probe')
 rmSync(scratch, { recursive: true, force: true })
 mkdirSync(join(scratch, 'assets'), { recursive: true })
-for (const [name, bytes] of Object.entries(members)) {
-  if (!name.startsWith('assets/')) continue
-  writeFileSync(join(scratch, name), Buffer.from(bytes))
+for (const [name, bytes] of Object.entries(assets)) {
+  writeFileSync(join(scratch, 'assets', `${name}.brp`), Buffer.from(bytes))
 }
 
 await initOcctWasm()
