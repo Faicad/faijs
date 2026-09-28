@@ -18,6 +18,13 @@
 | Draft 画图对象（`Part::Part2DObject` 及子类：wire/circle/arc/polyline 等死坐标几何） | 非参数化（画图过程，无约束） | `cad.draw`（链式重建画图过程） |
 | 求解失败 / 求解器不支持的草图、无法参数化的死轮廓 | 已定形 | `cad.profile`（**最终兜底**，死的非参数化轮廓） |
 
+**参数变量层（横切维度，2026-09-28 追加拍板）**：除「对象类型 → 入口」外，还有一个横切维度——FreeCAD 里**可被驱动的标量参数**，统一升格为 faijs 顶层 `const` 参数（`syntax-design.md:81` 的 `param = const <name> = <literal>`），运行时可改、改后重算：
+
+- **参数来源**：`Spreadsheet::Sheet` 别名单元格、`VarSet` 变量、**具名 + 带数值的草图约束**（length/radius/diameter/distance/angle）——三类「叶子参数」。
+- **表达式依赖**：`ExpressionEngine` 的绑定（`Pad.Length = width * 2`）**内联**成 op 的参数表达式（`cad.pad(sk, { length: p_width * 2 })`），不抽独立 `const`、也不烘焙成常数（faijs §2.5 已原生支持参数参与的位置表达式）。
+- **求解时机**：convert 期按表格数据求解一次，得出各 `const` 参数的 default 值（几何真值也据此算，供 parity）；run 期改参数即重算。
+- **命名**：统一 `p_` 前缀（`p_width`、`p_Sketch_Length`）防冲突，撞名沿用 codegen 的 `emitVar` 去重后缀（§2.6 标识符在 JS/Python/C/Java 均合法）。
+
 ## 1. 前置条件现状（2026-09-28 实测确认）
 
 ### 1.1 faijs 三个 2D 入口的语义归宿（已具备，本方案直接映射）
@@ -66,7 +73,11 @@ parseSketchObject(线/圆/弧/点/椭圆/bspline + 约束)          sketch-parse
 
 `../fcstd-port` 已更新到消费 `@faicad/faijs-fcstd` 的 v3 读 API（`container-read.ts` 的 `readManifest`/`listModels`/`openContainer`，`packages/fcstd/src/index.ts:24-33`）。
 
-**老 `.fai.zip` 规模（待更新到 v3）**：`FreeCAD-library/` 下 **142** 个（已晋升入库），`FreeCAD-library-staging/` 下 **2182** 个。实测老文件 manifest 是 format 1（键 `['entry','format','requiresBrep','source','units']`，无 `models[]`）。
+**老 `.fai.zip` 规模（待更新到 v3）**：fcstd-port 下 `FreeCAD-library/`（已晋升入库，按分类子目录组织）**142** 个 + `FreeCAD-library-staging/`（平铺）**2182** 个 = **2324** 个，实测全为 format 1（键 `['entry','format','requiresBrep','source','units']`，无 `models[]`）。**源 `.FCStd` 在 `D:/Faicad/FreeCAD-library/`（3201 个）**，reconvert 以它为输入。
+
+### 1.5 参数化表格 + 表达式现状（convert 期求值烘焙，运行时不可改）
+
+`packages/fcstd/src/expressions.ts` 已实现：`spreadsheetAliasValue`（`<<Label>>.Alias` 三跳）、`sketchConstraintValue`（`Sketch.Constraints.<Name>` 具名约束）、`objectPropertyValue`/`docReferenceValue`（对象属性 + 引用算术 + 环保护）、`evalWithDoc`（引用替换 + 算术求值）。**但结果是 convert 期求值成死数值**（`ExpressionBinding.value?: number`），生成 `.fai.js` 时烘焙成常数——能算对，却不保留参数化。本方案 C 组把它升级为「识别叶子参数升格 `const` + 表达式内联折叠」。
 
 ## 2. 关键决策（概念 + 选项 + 推荐）
 
@@ -91,7 +102,14 @@ parseSketchObject(线/圆/弧/点/椭圆/bspline + 约束)          sketch-parse
 
 ### D4：老 `.fai.zip` 用 reconvert 全量重跑到 v3，不打 manifest 补丁
 
-- 理由同前：草图翻译本会改变产物（哪些草图转 `cad.sketch`、`cad.draw`，哪些曲线变精确），打补丁只改格式、不反映翻译升级，会留下两套不一致产物；reconvert 一步同时解决「v3 格式」与「草图参数化翻译」两件事。代价是全量重跑（约 3200 文件），按老规矩单文件循环、逐文件汇报。
+- 理由同前：草图翻译本会改变产物（哪些草图转 `cad.sketch`、`cad.draw`，哪些曲线变精确），打补丁只改格式、不反映翻译升级，会留下两套不一致产物；reconvert 一步同时解决「v3 格式」与「草图参数化翻译」两件事。
+- **reconvert 对象是源 `.FCStd`（`D:/Faicad/FreeCAD-library/`，3201 个），不是老 `.fai.zip`**；老产物（fcstd-port 下 142 promoted + 2182 staging）由重跑覆盖/补齐。按老规矩单文件循环、逐文件汇报。
+
+### D5：参数化变量映射 —— 叶子参数升格 `const`，表达式内联折叠，`p_` 前缀（2026-09-28 拍板）
+
+- **叶子参数 → `const`**：`Spreadsheet::Sheet` 别名单元格、`VarSet` 变量、**具名 + 带数值的草图约束**（length/radius/diameter/distance/angle）升格为 faijs 顶层 `const p_xxx = <值>`；纯几何约束（coincident/horizontal/parallel/tangent…）与非具名尺寸约束留在 `cad.sketch` 的 `constraints` 数组内。convert 期用 `evalWithDoc` 求解一次得出各参数的 default 值（写入 `const` 右值，同时用于几何真值/parity）。
+- **表达式 → 内联折叠**：`ExpressionEngine` 绑定（`Pad.Length = width * 2`）内联成 op 的参数表达式（`cad.pad(sk, { length: p_width * 2 })`），不抽独立 `const`、不烘焙成常数——选内联而非「抽 `const Pad_Length = width*2`」，因 faijs §2.5 已原生支持参数位置表达式，零新语法。
+- **命名**：统一 `p_` 前缀（`p_width`、`p_Sketch_Length`）防撞几何变量名；撞名走 `emitVar` 去重后缀；来源信息进 `mapping.json`。
 
 ## 3. 工作项（按「发现一个解决一个」组织，无强制顺序）
 
@@ -102,25 +120,34 @@ parseSketchObject(线/圆/弧/点/椭圆/bspline + 约束)          sketch-parse
 - **A1 补 `fromFreeCadConstraints`**：`packages/sketch/src/project.ts` 新增 FCStd 整数 `ConstraintType` + `(geoId,pos)` ref → canonical `SketchConstraint`（string kind）的反向投影，配合既有 `fromFreeCadGeoms`；把 `SketchCon` 的 `-1/-2/≤-3` 特殊 geoId（HAxis/VAxis/外部）投影为对应 canonical 引用或显式标为不可投。**单测**：约束全集（含内部对齐、外部参考）双向 roundtrip；GOTCHA 留档 geoId 负值语义。
 - **A2 sketch 分支改发 `cad.sketch`**：`codegen.ts` M6 草图分支从「`extractContours → cad.profile`」改为「`fromFreeCadGeoms + fromFreeCadConstraints → cad.sketch({geoms, constraints, plane})`」；convert 期 `classifySketch` 降格为**保真预检**——`solved`/`underconstrained`/`redundant`/`conflicting` 都发 `cad.sketch` 并把 verdict 写进 `mapping.json` 的 fidelity，只有 `failed` 或不支持几何才落 A5 兜底。**改动位置**：`codegen.ts`（`SketchObject` 分支）+ `convert.ts`（M3 求解段去 profile 化）+ `feature-translate.ts` 的 `SketchObject` 相关。**单测**：`codegen.test.ts` 现「sketch → cad.profile」断言改为「sketch → cad.sketch」，并断言约束原样出现在生成代码里。
 - **A3 放置衔接 —— `sketchOnPlane`（平面）/ `sketchOnFace`（模型给定面，限平面面）**：草图 `Placement` + `Support`（`attachment.ts` 的 `effectivePlacement`）归一为两路——附着在 datum/命名平面 → `sketchOnPlane(plane frame)`；附着在别的特征的面 → `sketchOnFace(on, face)`；附着在**曲面**面 → 降级 A5 兜底并显式 reason（`sketch-on-curved-face-unsupported`，因 G2 `fixWireOnFace` 未实现）。删除/旁路 M8.3 的 `cad.place` 重定向 hack。**改动位置**：`codegen.ts`（M8.3 放置段）+ 新增 Placement→frame 转换。**单测**：斜平面草图 e2e 精确 target 断言、平面面上草图 `sketchOnFace` 几何等价、曲面草图降级 reason 明确；GOTCHA 留档「两帧往返」。
-- **A4 Draft 画图 → `cad.draw`**：识别 Draft/`Part::Part2DObject` 画图对象，把死几何（wire 点列、circle、arc、polyline…）链式重建为 `cad.draw` 调用（moveTo/lineTo/arcTo/circle/close）。**前置**：先解析 Draft 对象几何（现被 `python-opaque` 吞掉，需从 `Python`/`Proxy` 属性或 Shape .brp 中取坐标）。**改动位置**：`feature-translate.ts` 新增 Draft 特征分支 + 必要的 `document.ts` 解析辅助。**取点**：从 ArchDetail 等含 Draft 语料取点，逐文件汇报。
+- **A4 Draft 画图 → `cad.draw`**：识别 Draft/`Part::Part2DObject` 画图对象，把死几何（wire 点列、circle、arc、polyline…）链式重建为 `cad.draw` 调用（moveTo/lineTo/arcTo/circle/close）。`cad.draw` 产出的 Drawing 与草图同一条下拉管线：在 XY/命名平面画出 → `sketchOnPlane` 放置 → `extrude`；附着在别的特征面上 → `sketchOnFace` 放置 → `extrude`。**前置**：先解析 Draft 对象几何（现被判 `python-opaque`，需从 `Python`/`Proxy` 属性或 Shape .brp 中取坐标）。**改动位置**：`feature-translate.ts` 新增 Draft 特征分支 + `document.ts` 解析辅助。**取点**：从 ArchDetail 等含 Draft 语料取点，逐文件汇报。
 - **A5 `cad.profile` 兜底收紧**：仅在「求解 failed / 求解器不支持几何（bspline/ellipse 超能力）/ 开放轮廓不可参数化 / **附着在曲面面（`sketch-on-curved-face-unsupported`，G2 `fixWireOnFace` 未实现）**」时落 `cad.profile`（烘焙求解结果/原始几何成死轮廓）或 baked，并把降级原因写成显式 reason（如 `sketch-unsupported-geom`），替代现在的「默认 profile 化」。**单测**：断言不可解/曲面附着草图的 mapping reason 明确、且 profile 只出现在兜底分支。
 - **A6 曲线精确化（parity 提升项，晚做）**：`ContourSeg`/`SketchGeom` 已含的 bspline/ellipse 逐步走精确边（`sketchOnPlane` 的 `liftCurve2dToPlane` 抬控制点），替代折线采样；**第一步先修「ellipse 丢段」这个硬 bug**（`contour.ts` 的 `segEnds` 补 ellipse 分支），再逐个精确化。
 
 ### B 组：`.fai.zip` v3 迁移与老文件更新（主题二）
 
 - **B1 fcstd-port 消费端对齐 v3 读 API**：确认 `../fcstd-port` 对拍/重跑管线已从「读 `manifest.entry`」切到 `readManifest`/`listModels`/`active`；仍读旧 `entry` 的先改读端。**改动位置**：`../fcstd-port` 对拍脚本。
-- **B2 老 `.fai.zip` reconvert 到 v3**：`FreeCAD-library/`（142）与 `FreeCAD-library-staging/`（2182）用升级后 `convert` 重跑，产出 format 3 + 新草图翻译；单文件循环、逐文件汇报、跳过可信产物、批跑前 smoke。
-- **B3 v3 产物的 parity/入库回核**：reconvert 后按固定口径核对（parity pass/fail/skip、promoted 数、`FreeCAD-library` 下 `.fai.zip` 数 == promoted、原 142 个回核），刷新 `reports/status.md` 并记「v1→v3 迁移 + 草图参数化翻译」事实。
+- **B2 reconvert 源 `.FCStd` → v3 新产物**：对 `D:/Faicad/FreeCAD-library/`（3201 个源 `.FCStd`）用升级后 `convert` 重跑，产出 format 3 + 新草图翻译，覆盖/补齐 fcstd-port 下 142 promoted + 2182 staging 老产物；单文件循环、逐文件汇报、跳过可信产物、批跑前 smoke。
+- **B3 v3 产物的 parity/入库回核**：reconvert 后按固定口径核对（parity pass/fail/skip、promoted 数、`FreeCAD-library/` 下 `.fai.zip` 数 == promoted、原 142 个回核），刷新 `reports/status.md` 并记「v1→v3 迁移 + 草图参数化翻译」事实。
+
+### C 组：参数化表格 + 表达式 → faijs 参数（主题三）
+
+- **C1 Spreadsheet 别名 / VarSet → `const p_xxx`**：识别 `Spreadsheet::Sheet` 别名单元格与 `VarSet` 变量为叶子参数，发射 `const p_<alias> = <值>`（值由 `spreadsheetAliasValue` 在 convert 期求出，作为 default 写入）。**改动位置**：`convert.ts` 新增「参数收集」阶段（遍历 Spreadsheet/VarSet 对象），`codegen.ts` 在脚本头部发射 `const` 参数块。
+- **C2 具名草图约束 → `const p_xxx`**：识别**带 Name 且带数值**的草图约束（length/radius/diameter/distance/angle）为叶子参数，发射 `const p_<SketchName>_<ConstraintName> = <值>`；`cad.sketch` 的 `constraints` 数组里该约束的 `value` 改为引用该参数（`{ kind:'length', value: p_Sketch_Length }`），非具名/几何约束仍内嵌字面量。**与 A2 衔接**：A2 发 `cad.sketch` 时，具名尺寸约束走本项，其余走 A2。`sketchConstraintValue` 已能按 Name 取到值，这里复用其识别。
+- **C3 表达式内联折叠**：`feature-translate.ts` 里 `ExpressionEngine` 绑定从「求值成数值烘焙进 params」改为「产出参数引用表达式」——`Pad.Length = width * 2` 生成 `cad.pad(sk, { length: p_width * 2 })`（`p_width` 是 C1/C2 升格的参数，表达式的标识符替换复用现有 `evalWithDoc` 的引用替换、但**替换成参数名而非数值**）。无法内联的（函数族 / 残留标识符）维持降级（`undefined` → 属性未知/property-downgrade），不猜。**改动位置**：`expressions.ts` 增「产出参数表达式文本」入口 + `feature-translate.ts` 参数发射。
+- **C4 命名与来源台账**：参数统一 `p_` 前缀 + `emitVar` 去重后缀；每个参数在 `mapping.json` 记来源（如 `{ name:'p_width', source:'Spreadsheet::Sheet.Alias:width' }`），供 UI 回显「可改参数」列表。**单测**：含别名/具名约束/表达式的合成 FCStd fixture，断言 `.fai.js` 里 `const p_*` 参数块、内联表达式、`mapping.params` 来源正确。
 
 ## 4. 验证与回归
 
 - 每项伴随合成 fixture 单测（`packages/sketch` / `packages/fcstd` / `packages/core`），GOTCHA 踩坑注释，探针脚本留在 `scripts/`。
 - 草图翻译升级绝不破坏非草图通路：`npm run test -w @faicad/faijs-fcstd`、`-w @faicad/faijs-sketch`、`-w @faicad/faijs` 取差；stderr 零容忍。
 - 新 `.fai.zip` 读端回归：`container-read.test.ts` 覆盖 v3 `models[]`/`active`。
-- fcstd-port 端：A 组每项用一个含对应草图特征的样本文件 `process-one --reconvert` 走通 convert→run→truth→inv→parity，逐文件汇报。
+- **C 组参数化验证**：含 Spreadsheet 别名/VarSet/具名约束/表达式的样本文件，断言 `.fai.js` 的 `const p_*` 参数块、内联表达式、`mapping.json` 来源台账正确；run 期改 `p_*` 参数值后几何重算、且用 default 值时与 convert 期求解值一致（参数可变但默认一致）。
+- fcstd-port 端：A/C 组每项用一个含对应特征的样本文件 `process-one --reconvert` 走通 convert→run→truth→inv→parity，逐文件汇报。
 
 ## 5. 验收
 
 - 主题一（草图参数化翻译）：`Sketcher::SketchObject` 一律翻译为 `cad.sketch`（保留几何 + 约束，产出的 `.fai.js` 可编辑）；Draft 画图对象翻译为 `cad.draw`；`cad.profile` 只出现在兜底分支且 reason 明确；659 草图族 translation-gaps 中「参数化不可译」一支归零或显式 reason。
 - 主题二（格式迁移）：`FreeCAD-library/` 与 `FreeCAD-library-staging/` 下 `.fai.zip` 全部 `format: 3`，读端与对拍走 v3 读 API，parity/promoted 核对与 reports 刷新通过。
+- 主题三（参数化变量）：`Spreadsheet::Sheet` 别名、`VarSet` 变量、具名尺寸草图约束翻译为 faijs `const p_*` 参数，表达式内联成 op 参数表达式；`mapping.json` 记录参数来源；run 期改参数可重算、default 值与 convert 期求解值一致。
 - 全程：单测随项落库、每项独立提交、逐文件汇报、stderr 零容忍。
