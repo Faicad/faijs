@@ -1,4 +1,7 @@
 /**
+ * @platform occt — 本文件 import occt-kernel（getOcctKernel：draft-angle punch
+ * 的 frustum loft 走原生 occt `loft`，适配器层无此能力）。
+ *
  * `cad.punchHole`: cut a face-placed 2D profile out of a solid (E4 pocket/through
  * hole with optional taper).
  *

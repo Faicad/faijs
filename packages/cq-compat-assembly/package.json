@@ -7,7 +7,7 @@
     "type": "git",
     "url": "git+https://gitcode.com/Faicad/faijs.git"
   },
-  "description": "CadQuery-compatible assembly layer for faijs (Assembly.constrain → solve()/toCompound()/save()) — split from @faicad/cq-compat",
+  "description": "CadQuery-compatible assembly layer for faijs (Assembly.constrain -> solve()/toCompound()/save()) - split from @faicad/cq-compat",
   "keywords": [
     "cad",
     "faijs",
@@ -38,7 +38,7 @@
     "@faicad/faijs-extra": "file:../faijs-extra"
   },
   "peerDependencies": {
-    "@faicad/faijs": "^0.19.0",
+    "@faicad/faijs": "^0.20.0",
     "@faicad/faijs-extra": "^0.19.0",
     "occt-wasm": "^3.8.0"
   },

@@ -7,7 +7,7 @@
     "type": "git",
     "url": "git+https://gitcode.com/Faicad/faijs.git"
   },
-  "description": "STEP / assembly geometry equivalence comparers (dev-only) — split from @faicad/cq-compat",
+  "description": "STEP / assembly geometry equivalence comparers (dev-only) - split from @faicad/cq-compat",
   "keywords": [
     "cad",
     "faijs",
@@ -32,7 +32,7 @@
   },
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.19.0",
+    "@faicad/faijs": "^0.20.0",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {

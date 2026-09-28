@@ -25,7 +25,7 @@ import { ParseError } from './parse-error'
 import { fnv1a32 } from './fnv-hash'
 import { assertSecure, type SecurityPolicy } from './security-scanner'
 import type { DimName } from '../units'
-import { SCRIPT_UNIT_NAMES, UNIT_DIM, SCRIPT_UNIT_TO_NAME } from '../units'
+import { SCRIPT_UNIT_NAMES, UNIT_DIM, UNIT_SCALE, SCRIPT_UNIT_TO_NAME } from '../units'
 
 // ── UiMetadata 类型（§4.1） ──
 
@@ -176,11 +176,11 @@ export interface SymbolTable {
 // ── 常量折叠（与现状 parser.tryFoldConstExpr 同构；仅字面量 + 参数） ──
 
 type FoldResult =
-  | { ok: true; value: unknown; usedParam: boolean }
-  | { ok: false }
+| { ok: true; value: unknown; usedParam: boolean; usedUnit: boolean }
+| { ok: false }
 
-function numFold(v: number, usedParam = false): FoldResult {
-  return Number.isFinite(v) ? { ok: true, value: v, usedParam } : { ok: false }
+function numFold(v: number, usedParam = false, usedUnit = false): FoldResult {
+return Number.isFinite(v) ? { ok: true, value: v, usedParam, usedUnit } : { ok: false }
 }
 
 function looseEq(a: unknown, b: unknown): boolean {
@@ -197,12 +197,23 @@ function looseEq(a: unknown, b: unknown): boolean {
 function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
   switch (node.type) {
     case 'Literal':
-      return { ok: true, value: node.value, usedParam: false }
+      return { ok: true, value: node.value, usedParam: false, usedUnit: false }
 
     case 'Identifier': {
+      // P7/D10.4: unit constants (MM, INCH, DEGREE, …) are recognized as
+      // foldable constants. Their values come from UNIT_SCALE (the single
+      // source of truth). The `usedUnit` flag is set so that `parseValueExpr`
+      // can mark the line as computed (host read-only downgrade), preventing
+      // the folded base value (e.g. 254) from being written back to source.
+      if (SCRIPT_UNIT_NAMES.has(node.name)) {
+        const unitName = SCRIPT_UNIT_TO_NAME[node.name]
+        if (unitName) {
+          return { ok: true, value: UNIT_SCALE[unitName], usedParam: false, usedUnit: true }
+        }
+      }
       if (!symbols.paramNames.has(node.name)) return { ok: false }
       const v = symbols.paramValues.get(node.name)
-      return v === undefined ? { ok: false } : { ok: true, value: v, usedParam: true }
+      return v === undefined ? { ok: false } : { ok: true, value: v, usedParam: true, usedUnit: false }
     }
 
     case 'UnaryExpression': {
@@ -210,11 +221,11 @@ function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
       if (!operand.ok) return { ok: false }
       const v = operand.value
       switch (node.operator) {
-        case '-': return typeof v === 'number' ? numFold(-v, operand.usedParam) : { ok: false }
-        case '+': return typeof v === 'number' ? numFold(+v, operand.usedParam) : { ok: false }
-        case '!': return { ok: true, value: !v, usedParam: operand.usedParam }
-        case '~': return typeof v === 'number' ? { ok: true, value: ~v, usedParam: operand.usedParam } : { ok: false }
-        case 'typeof': return { ok: true, value: typeof v, usedParam: operand.usedParam }
+        case '-': return typeof v === 'number' ? numFold(-v, operand.usedParam, operand.usedUnit) : { ok: false }
+        case '+': return typeof v === 'number' ? numFold(+v, operand.usedParam, operand.usedUnit) : { ok: false }
+        case '!': return { ok: true, value: !v, usedParam: operand.usedParam, usedUnit: operand.usedUnit }
+        case '~': return typeof v === 'number' ? { ok: true, value: ~v, usedParam: operand.usedParam, usedUnit: operand.usedUnit } : { ok: false }
+        case 'typeof': return { ok: true, value: typeof v, usedParam: operand.usedParam, usedUnit: operand.usedUnit }
         default: return { ok: false }
       }
     }
@@ -227,17 +238,18 @@ function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
       const a = left.value
       const b = right.value
       const usedParam = left.usedParam || right.usedParam
+      const usedUnit = left.usedUnit || right.usedUnit
       const numBin = (op: (x: number, y: number) => number): FoldResult =>
-        typeof a === 'number' && typeof b === 'number' ? numFold(op(a, b), usedParam) : { ok: false }
+        typeof a === 'number' && typeof b === 'number' ? numFold(op(a, b), usedParam, usedUnit) : { ok: false }
       const cmpBin = (op: (x: number | string, y: number | string) => boolean): FoldResult => {
-        if (typeof a === 'number' && typeof b === 'number') return { ok: true, value: op(a, b), usedParam }
-        if (typeof a === 'string' && typeof b === 'string') return { ok: true, value: op(a, b), usedParam }
+        if (typeof a === 'number' && typeof b === 'number') return { ok: true, value: op(a, b), usedParam, usedUnit }
+        if (typeof a === 'string' && typeof b === 'string') return { ok: true, value: op(a, b), usedParam, usedUnit }
         return { ok: false }
       }
       switch (node.operator) {
         case '+': {
-          if (typeof a === 'number' && typeof b === 'number') return numFold(a + b, usedParam)
-          if (typeof a === 'string' || typeof b === 'string') return { ok: true, value: String(a) + String(b), usedParam }
+          if (typeof a === 'number' && typeof b === 'number') return numFold(a + b, usedParam, usedUnit)
+          if (typeof a === 'string' || typeof b === 'string') return { ok: true, value: String(a) + String(b), usedParam, usedUnit }
           return { ok: false }
         }
         case '-': return numBin((x, y) => x - y)
@@ -249,10 +261,10 @@ function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
         case '<=': return cmpBin((x, y) => x <= y)
         case '>': return cmpBin((x, y) => x > y)
         case '>=': return cmpBin((x, y) => x >= y)
-        case '==': return { ok: true, value: looseEq(a, b), usedParam }
-        case '!=': return { ok: true, value: !looseEq(a, b), usedParam }
-        case '===': return { ok: true, value: a === b, usedParam }
-        case '!==': return { ok: true, value: a !== b, usedParam }
+        case '==': return { ok: true, value: looseEq(a, b), usedParam, usedUnit }
+        case '!=': return { ok: true, value: !looseEq(a, b), usedParam, usedUnit }
+        case '===': return { ok: true, value: a === b, usedParam, usedUnit }
+        case '!==': return { ok: true, value: a !== b, usedParam, usedUnit }
         default: return { ok: false }
       }
     }
@@ -264,10 +276,11 @@ function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
       if (!right.ok) return { ok: false }
       const a = left.value
       const usedParam = left.usedParam || right.usedParam
+      const usedUnit = left.usedUnit || right.usedUnit
       switch (node.operator) {
-        case '&&': return { ok: true, value: a ? right.value : left.value, usedParam }
-        case '||': return { ok: true, value: a ? left.value : right.value, usedParam }
-        case '??': return { ok: true, value: a === null ? right.value : left.value, usedParam }
+        case '&&': return { ok: true, value: a ? right.value : left.value, usedParam, usedUnit }
+        case '||': return { ok: true, value: a ? left.value : right.value, usedParam, usedUnit }
+        case '??': return { ok: true, value: a === null ? right.value : left.value, usedParam, usedUnit }
         default: return { ok: false }
       }
     }
@@ -277,6 +290,7 @@ function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
       const quasis = node.quasis as ASTNode[]
       const exprs = node.expressions as ASTNode[]
       let usedParam = false
+      let usedUnit = false
       for (let i = 0; i < quasis.length; i++) {
         const cooked = quasis[i].value?.cooked
         parts.push(cooked ?? '')
@@ -284,10 +298,11 @@ function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
           const r = tryFoldConstExpr(exprs[i], symbols)
           if (!r.ok) return { ok: false }
           usedParam = usedParam || r.usedParam
+          usedUnit = usedUnit || r.usedUnit
           parts.push(String(r.value))
         }
       }
-      return { ok: true, value: parts.join(''), usedParam }
+      return { ok: true, value: parts.join(''), usedParam, usedUnit }
     }
 
     case 'ConditionalExpression': {
@@ -295,7 +310,7 @@ function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
       if (!test.ok) return { ok: false }
       const chosen = tryFoldConstExpr(test.value ? node.consequent : node.alternate, symbols)
       if (!chosen.ok) return { ok: false }
-      return { ok: true, value: chosen.value, usedParam: test.usedParam || chosen.usedParam }
+      return { ok: true, value: chosen.value, usedParam: test.usedParam || chosen.usedParam, usedUnit: test.usedUnit || chosen.usedUnit }
     }
 
     default:
@@ -656,7 +671,10 @@ function parseValueExpr(node: ASTNode, ctx: ValueParseCtx, path: string | null):
     const r = tryFoldConstExpr(node, ctx.symbols)
     if (r.ok) {
       // F1-E1：仅折叠表达式引用参数才标 computed；纯字面量（负字面量）不标
-      if (r.usedParam) ctx.computed.value = true
+      // P7/D10.4: unit constants (usedUnit) also mark computed — the folded
+      // base value (e.g. 254 for `10 * INCH`) must NOT be written back to
+      // source code (would lose the unit and change geometry in non-base contexts).
+      if (r.usedParam || r.usedUnit) ctx.computed.value = true
       return r.value as unknown as HostArg
     }
     // 折叠失败且 ∈ 白名单 → expr-ref（运行时求值）

@@ -48,12 +48,12 @@ export {
   derivePartName, getMaxModelNum,
 } from './lang/allocate-id'
 export type { DerivePartNameInput, DerivePartNameResult } from './lang/allocate-id'
-export { fmtNum, formatCodeLine } from './lang/codegen'
-export type { FormatCodeLineInput } from './lang/codegen'
+export { fmtNum, formatCodeLine, fmtUnitNum, formatUnitLiteral } from './lang/codegen'
+export type { FormatCodeLineInput, UnitSerializeOptions } from './lang/codegen'
 export { analyzeCode } from './lang/statement-summary'
 export type { StatementSummary } from './lang/statement-summary'
-export { codeToArgs } from './lang/code-to-args'
-export type { CodeToArgsResult } from './lang/code-to-args'
+export { codeToArgs, parseUnitLiteral } from './lang/code-to-args'
+export type { CodeToArgsResult, CodeToArgsOptions } from './lang/code-to-args'
 // MetadataExtractor — 无 IR 元数据提取器（UI 通道语义源；UiMetadata 全量）
 export { extractMetadata } from './lang/metadata-extractor'
 export type {

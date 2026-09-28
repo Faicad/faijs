@@ -22,6 +22,8 @@
 import type { HostArg } from './host-arg'
 import { extractMetadata, type OpDimMap } from './metadata-extractor'
 import { isHostRef } from './host-arg'
+import { SCRIPT_UNIT_NAMES, UNIT_SCALE, UNIT_DIM, SCRIPT_UNIT_TO_NAME } from '../units'
+import type { DimName, UnitName } from '../units'
 
 /**
  * 单行提取的前置声明规则（确定性静态规则，非 try/catch 兜底）：
@@ -46,7 +48,10 @@ function extractIdentifiers(line: string, namespaces?: Set<string>): string[] {
   const ids = new Set<string>()
   for (const m of withoutStrings.matchAll(IDENT_RE)) {
     const id = m[0]
-    if (NON_DECL.has(id) || declared.has(id) || namespaces?.has(id)) continue
+    // P7/D10.4: unit constants (MM, INCH, DEGREE, …) must NOT be pre-declared
+    // as sentinel parameters (`let INCH = 0`), because that would shadow the
+    // real global value and cause `10 * INCH` to fold to 0.
+    if (NON_DECL.has(id) || declared.has(id) || namespaces?.has(id) || SCRIPT_UNIT_NAMES.has(id)) continue
     ids.add(id)
   }
   return [...ids]
@@ -148,4 +153,41 @@ export function codeToArgs(codeLine: string, opts?: CodeToArgsOptions): CodeToAr
     return { positional, args: { ...(lastArg as Record<string, HostArg>) } }
   }
   return { positional, args: { ...last.args } }
+}
+
+// ── P7/D10: unit literal parsing ────────────────────────────────────────────
+
+/**
+ * Reverse mapping: script-side constant name (UPPERCASE) → internal UnitName.
+ */
+const CONST_TO_UNIT: Readonly<Record<string, UnitName>> = Object.freeze(
+  Object.fromEntries(
+    (Object.keys(SCRIPT_UNIT_TO_NAME) as string[]).map(
+      (k) => [k, SCRIPT_UNIT_TO_NAME[k]] as [string, UnitName],
+    ),
+  ),
+)
+
+/**
+ * Parse a unit literal text expression (`n * UNIT`) into its base-unit value.
+ *
+ * P7/D10.3: This is the reverse of `formatUnitLiteral`. Given text like
+ * `10 * INCH`, returns `{ base: 254, dim: 'length', unitName: 'inch' }`.
+ * Non-unit-literal expressions return `null` (host decides whether to
+ * downgrade to read-only).
+ *
+ * @param text - the expression text (e.g. `10 * INCH` or `0.5 * DEGREE`).
+ * @returns the parsed unit literal info, or `null` if not a unit literal.
+ */
+export function parseUnitLiteral(text: string): { base: number; dim: DimName; unitName: UnitName } | null {
+  const match = /^\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*\*\s*([A-Z]+)\s*$/.exec(text)
+  if (!match) return null
+  const n = Number(match[1])
+  const constName = match[2]
+  const unitName = CONST_TO_UNIT[constName]
+  if (!unitName) return null
+  const dim = UNIT_DIM[unitName]
+  // toBase: n * UNIT_SCALE[unitName]
+  const base = n * UNIT_SCALE[unitName]
+  return { base, dim, unitName }
 }

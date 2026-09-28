@@ -74,6 +74,12 @@ export interface HostExprRef {
   text: string
   refs: string[]
   params: string[]
+  /**
+   * P7/D10: when `true`, `fmtValue` emits the text without surrounding
+   * parentheses. Used by machine-generated unit literals (`10 * INCH`)
+   * to avoid the visually noisy `(10 * INCH)` form.
+   */
+  bare?: boolean
 }
 
 /** Union of all host-visible reference shapes. */

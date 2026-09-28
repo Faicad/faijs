@@ -22,6 +22,8 @@
 
 import type { HostArg } from './host-arg'
 import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef, isHostRef } from './host-arg'
+import type { DimName, UnitName, UnitContext } from '../units'
+import { unitFor, fromBase } from '../units'
 
 // ── 数值格式化 ──
 
@@ -63,6 +65,61 @@ function escapeStr(s: string): string {
   return out
 }
 
+/**
+ * Format a unit literal number using JS shortest-round-trip representation.
+ *
+ * P7/D10.3 rule 5: unit literal numbers MUST use `String(n)` (e.g.
+ * `0.39370078740157477`), NEVER `fmtNum` (which truncates to 6 decimal
+ * places and would silently zero out `1e-7`).
+ * @param n - the number to format.
+ * @returns the shortest JS round-trip text representation.
+ */
+export function fmtUnitNum(n: number): string {
+  return String(n)
+}
+
+/**
+ * Reverse lookup: find the script-side unit constant name for a given
+ * `UnitName`. Returns the UPPERCASE constant name (e.g. `INCH` for `'inch'`).
+ */
+const NAME_TO_CONST: Readonly<Record<UnitName, string>> = {
+  mm: 'MM', cm: 'CM', m: 'METER', micron: 'MICRON',
+  inch: 'INCH', foot: 'FOOT', yard: 'YARD',
+  degree: 'DEGREE', radian: 'RADIAN',
+  gram: 'GRAM', kilogram: 'KILOGRAM',
+  second: 'SECOND',
+}
+
+/**
+ * Format a base-unit value as a unit literal expression (`n * UNIT`).
+ *
+ * P7/D10.3: `base` is the base-unit (mm/degree) value; `dim` determines which
+ * system display unit to use; `unitName` is the target display unit.
+ * The number is formatted with `fmtUnitNum` (not `fmtNum`).
+ * @param base - the base-unit numeric value.
+ * @param dim - the dimension of the value.
+ * @param unitName - the display unit to express the value in.
+ * @returns text like `10 * INCH` or `0.39370078740157477 * INCH`.
+ */
+export function formatUnitLiteral(base: number, dim: DimName, unitName: UnitName): string {
+  const displayValue = fromBase(base, unitName, dim)
+  const constName = NAME_TO_CONST[unitName]
+  return `${fmtUnitNum(displayValue)} * ${constName}`
+}
+
+/**
+ * P7/D10.3: Options for unit-aware serialization of `formatCodeLine`.
+ *
+ * When provided, dimensioned parameters are emitted as unit literals
+ * (`n * UNIT`). When absent, output is byte-identical to the pre-P7 behavior.
+ */
+export interface UnitSerializeOptions {
+  /** System display unit; defaults to base (mm / degree). */
+  units?: UnitContext
+  /** Parameter dimension declarations (host provides from op paramDims + slotMap). */
+  dims?: { positional?: (DimName | null)[]; byKey?: Record<string, DimName> }
+}
+
 /** 参数值 → 文本（递归，HostArg 面） */
 function fmtValue(value: HostArg): string {
   if (value === null) return 'null'
@@ -76,7 +133,7 @@ function fmtValue(value: HostArg): string {
     const inner = args.map(fmtValue).join(', ')
     return `${namespace ?? 'cad'}.${callee}(${inner})`
   }
-  if (isHostExprRef(value)) return `(${value.text})`
+  if (isHostExprRef(value)) return value.bare ? value.text : `(${value.text})`
   if (Array.isArray(value)) return `[${value.map(fmtValue).join(',')}]`
   if (typeof value === 'object') {
     const entries = Object.entries(value as Record<string, HostArg>)
@@ -128,13 +185,34 @@ function isPlainObjArg(arg: HostArg): boolean {
 }
 
 /**
- * 从纯数据（非 IR 类型）打印一行 faijs 源代码。
- *
- * 宿主 buildCode / 编辑重排行（editStatement → replaceCodeAt）统一走此入口。
- * @param input - the pure-data line description.
- * @returns the printed single-line code text.
+ * Recursively format a HostArg value, applying unit wrapping to numbers inside
+ * arrays (vec3) and plain objects when a dimension is declared.
  */
-export function formatCodeLine(input: FormatCodeLineInput): string {
+function fmtValueWithDim(value: HostArg, dim: DimName | null | undefined, opts: UnitSerializeOptions | undefined): string {
+  if (opts && dim) {
+    // Number → unit literal
+    if (typeof value === 'number') {
+      const unitName = unitFor(dim, opts.units)
+      return formatUnitLiteral(value, dim, unitName)
+    }
+    // Array (vec3) → element-wise
+    if (Array.isArray(value)) {
+      return `[${value.map((el) => fmtValueWithDim(el, dim, opts)).join(',')}]`
+    }
+    // Bare expr-ref already containing a unit literal → keep as-is
+    if (isHostExprRef(value) && value.bare) return value.text
+  }
+  return fmtValue(value)
+}
+
+/**
+ * Original `formatCodeLine` body without unit support (P7 fast path).
+ *
+ * This is the byte-identical pre-P7 implementation, called when `opts` is
+ * absent or has no `dims` field. Kept as a separate function so the
+ * unit-aware path can be tested independently.
+ */
+function formatCodeLineRaw(input: FormatCodeLineInput): string {
   const positional = input.positional
   const argsInput: Record<string, HostArg> = input.args ?? {}
 
@@ -149,6 +227,81 @@ export function formatCodeLine(input: FormatCodeLineInput): string {
 
   // args 槽（过渡兼容：positional 末位非纯对象时追加为独立选项槽）
   const argsParts = Object.entries(argsInput).map(([k, v]) => `${k}:${fmtValue(v)}`)
+  const lastIsPlainObject = positional.length > 0 && isPlainObjArg(positional[positional.length - 1])
+
+  let callArgs: string
+  if (positionalParts.length > 0) {
+    callArgs = positionalParts.join(', ')
+    if (!lastIsPlainObject && argsParts.length > 0) {
+      callArgs = [...positionalParts, `{ ${argsParts.join(', ')} }`].join(', ')
+    }
+  } else if (input.receiver) {
+    callArgs = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : ''
+  } else {
+    callArgs = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : '{}'
+  }
+
+  // F2：命名空间前缀（缺省 cad）；本机函数调用 callee 无命名空间前缀
+  const nsExpr = input.namespace === undefined ? `cad.${input.callee}` : `${input.namespace}.${input.callee}`
+
+  // 1) 解构：outputKeys + outputs 一一对应
+  if (input.outputKeys && input.outputKeys.length > 0) {
+    const destructure = input.outputKeys.map((k, i) => `${k}: ${input.outputs[i]}`).join(', ')
+    return `const { ${destructure} } = ${nsExpr}(${callArgs})`
+  }
+
+  // 2) 成员调用
+  if (input.receiver) {
+    return `${input.receiver}.${input.callee}(${callArgs})`
+  }
+
+  // 3) 无赋值调用
+  if (input.outputs.length === 0) {
+    return `${nsExpr}(${callArgs})`
+  }
+
+  // 4) 赋值：outputDeclared → 裸重赋值；否则 let 声明
+  const out = input.outputs[0]
+  if (input.outputDeclared) return `${out} = ${nsExpr}(${callArgs})`
+  return `let ${out} = ${nsExpr}(${callArgs})`
+}
+
+/**
+ * 从纯数据（非 IR 类型）打印一行 faijs 源代码。
+ *
+ * 宿主 buildCode / 编辑重排行（editStatement → replaceCodeAt）统一走此入口。
+ *
+ * P7/D10: when `opts` is provided, dimensioned parameters are serialized as
+ * unit literals (`n * UNIT`). When `opts` is absent, output is byte-identical
+ * to the pre-P7 behavior (zero-impact regression guarantee).
+ *
+ * @param input - the pure-data line description.
+ * @param opts - optional unit serialization options (P7/D10).
+ * @returns the printed single-line code text.
+ */
+export function formatCodeLine(input: FormatCodeLineInput, opts?: UnitSerializeOptions): string {
+  // Fast path: no unit options → original behavior (byte-identical)
+  if (!opts || !opts.dims) {
+    return formatCodeLineRaw(input)
+  }
+
+  const positional = input.positional
+  const argsInput: Record<string, HostArg> = input.args ?? {}
+  const posDims = opts.dims.positional ?? []
+  const keyDims = opts.dims.byKey ?? {}
+
+  // Positional args with per-index dimension
+  const positionalParts = positional.map((arg, i) => {
+    const dim = posDims[i] ?? null
+    if (isPlainObjArg(arg)) {
+      const entries = Object.entries(arg as Record<string, HostArg>)
+      return `{ ${entries.map(([k, v]) => `${k}:${fmtValueWithDim(v, keyDims[k] ?? null, opts)}`).join(', ')} }`
+    }
+    return fmtValueWithDim(arg, dim, opts)
+  })
+
+  // args slot (transitional compat: appended as trailing option when last positional is not a plain object)
+  const argsParts = Object.entries(argsInput).map(([k, v]) => `${k}:${fmtValueWithDim(v, keyDims[k] ?? null, opts)}`)
   const lastIsPlainObject = positional.length > 0 && isPlainObjArg(positional[positional.length - 1])
 
   let callArgs: string
