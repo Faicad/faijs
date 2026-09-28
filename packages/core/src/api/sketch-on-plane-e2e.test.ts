@@ -27,10 +27,13 @@ import { getBrepApi } from '../brep/handle-bridge'
 import { brepOf } from '../shape'
 import type { Shape } from '../mesh/types'
 import type { ProfileLoop } from './profile'
+import { assertProfileParams, toContourBlueprints } from './profile'
 import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 import { asPartName } from '../identity'
 import { roundedRectangleBlueprint } from '../geometry2d/canned-blueprints'
-import { buildShapeFromBlueprints, resolvePlane } from './sketch-on-plane'
+import { Blueprint } from '../geometry2d/blueprint'
+import { BaseSketcher2d } from '../geometry2d/pen-sketcher'
+import { buildShapeFromBlueprints, buildSketchOnPlaneWith, resolvePlane } from './sketch-on-plane'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -170,5 +173,72 @@ describe('cad.sketchOnPlane placement e2e (E2, occt)', () => {
     const face = brepOf(shape) as never
     const solid = getBrepApi().extrude(face, 0, 0, 5)
     expect(getBrepApi().getVolume(solid)).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * 2026-09-28 — `contours` accepts a DRAWN contour (`cad.draw`'s product), not
+ * only segment-loop data.
+ *
+ * Why this is not a nicety: the plan's Draft chain is "draw → `sketchOnPlane` →
+ * `extrude`", and `cad.draw` yields a pure-data `Blueprint` with NO OCCT handle.
+ * Without this acceptance there is no op in the whole repo that can turn a drawn
+ * contour into a Shape — measured: `cad.extrude(drawn, dir)` fails with
+ * `E_BREP_INPUT: argument carries no BREP handle`, `cad.sweep(drawn, …)` with
+ * `INVALID_SHAPE_ID`.
+ */
+describe('drawn-contour acceptance (a `cad.draw` product as `contours`)', () => {
+  /** One closed contour as the pen produces it (exactly what `cad.draw` returns). */
+  function drawnSquare(w = 20, h = 10): Blueprint {
+    const pen = new BaseSketcher2d()
+    pen.polyline([[0, 0], [w, 0], [w, h], [0, h], [0, 0]])
+    return new Blueprint(pen.curves())
+  }
+
+  it('GOTCHA: a drawn Blueprint carries no BREP handle — extruding it directly is the failure this bridge removes', () => {
+    expect(brepOf(drawnSquare() as unknown as Shape)).toBeUndefined()
+  })
+
+  it('places a drawn Blueprint handed in as `contours`, then extrudes to the expected solid', () => {
+    const shape = buildSketchOnPlaneWith(getBrepApi(), {
+      contours: drawnSquare(),
+      plane: { name: 'XY' },
+    })
+    const face = brepOf(shape) as never
+    const solid = getBrepApi().extrude(face, 0, 0, 5)
+    expect(getBrepApi().getVolume(solid)).toBeCloseTo(20 * 10 * 5, 3)
+  })
+
+  it('accepts an ARRAY of drawn contours — one per loop, kept as separate islands', () => {
+    const a = drawnSquare(20, 10)
+    const b = (() => {
+      const pen = new BaseSketcher2d()
+      pen.polyline([[100, 0], [110, 0], [110, 10], [100, 10], [100, 0]])
+      return new Blueprint(pen.curves())
+    })()
+    const shape = buildSketchOnPlaneWith(getBrepApi(), {
+      contours: [a, b],
+      plane: { name: 'XY' },
+    })
+    const solid = getBrepApi().extrude(brepOf(shape) as never, 0, 0, 5)
+    // two disjoint 20×10 and 10×10 islands ⇒ both must survive as one compound
+    expect(getBrepApi().getVolume(solid)).toBeCloseTo((200 + 100) * 5, 3)
+  })
+
+  it('GOTCHA: loops and drawn contours must not be mixed — rejected, not half-read', () => {
+    expect(() =>
+      assertProfileParams({ contours: [sq(0, 0, 10), drawnSquare()] }),
+    ).toThrow(/E_PROFILE_MIXED_CONTOURS/)
+  })
+
+  it('a segment-loop array still reaches the same Blueprint set (no regression)', () => {
+    const [bp] = toContourBlueprints([sq(0, 0, 10)])
+    expect(bp).toBeInstanceOf(Blueprint)
+    expect(bp!.curves).toHaveLength(4)
+  })
+
+  it('an empty contour set is still refused', () => {
+    expect(() => assertProfileParams({ contours: [] })).toThrow(/E_PROFILE_NO_CONTOURS/)
+    expect(() => toContourBlueprints([])).toThrow(/E_PROFILE_NO_CONTOURS/)
   })
 })

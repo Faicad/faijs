@@ -106,3 +106,67 @@ describe('BaseSketcher2d pen (C1)', () => {
     expect((arc as { basis: Curve2dObj }).basis.kind2d).toBe('ellipse')
   })
 })
+
+describe('BaseSketcher2d.polyline (batched emission)', () => {
+  it('draws one contour per call; a contour repeating its start needs no close flag', () => {
+    const pen = new BaseSketcher2d()
+    // square written as a closed point list (last === first), as the FCStd
+    // wireframe walk produces it
+    pen.polyline([[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]])
+    expect(pen.curves()).toHaveLength(4)
+    expect(pen.penPosition).toEqual([0, 0])
+    // close() then adds nothing — the loop is already shut
+    expect(pen.close()).toHaveLength(4)
+  })
+
+  it('close:true shuts an open point list, and is idempotent when already shut', () => {
+    const pen = new BaseSketcher2d()
+    pen.polyline([[0, 0], [10, 0], [10, 10], [0, 10]], true)
+    expect(pen.curves()).toHaveLength(4)
+    expect(pen.penPosition).toEqual([0, 0])
+
+    const again = new BaseSketcher2d()
+    // GOTCHA: a list that already ends where it started must NOT get a second
+    // (zero-length) closing segment — the FCStd walk returns closed point lists
+    // AND callers pass close:true, so this is the live path, not a corner case.
+    again.polyline([[0, 0], [10, 0], [10, 10], [0, 0]], true)
+    expect(again.curves()).toHaveLength(3)
+  })
+
+  it('seats firstPoint so a later close() has the same meaning as after lineTo', () => {
+    const pen = new BaseSketcher2d()
+    pen.polyline([[5, 5], [15, 5], [15, 15]])
+    expect(pen.firstPoint).toEqual([5, 5])
+    expect(pen.close()).toHaveLength(3) // auto-closes back to (5,5)
+    expect(pen.penPosition).toEqual([5, 5])
+  })
+
+  it('accepts a run continuing from the pen position', () => {
+    const pen = new BaseSketcher2d()
+    pen.lineTo([10, 0])
+    pen.polyline([[10, 0], [10, 10]])
+    expect(pen.curves()).toHaveLength(2)
+    expect(pen.penPosition).toEqual([10, 10])
+  })
+
+  it('GOTCHA: one pen carries exactly ONE contour — a disjoint second call throws', () => {
+    const pen = new BaseSketcher2d()
+    pen.polyline([[0, 0], [10, 0], [10, 10]])
+    // `movePointerTo` cannot lift the pen once a curve exists, so a pen with a
+    // run in flight cannot start a far-away contour. Draft drawings carry many
+    // disjoint loops (measured up to 61 in one object) ⇒ one `cad.draw` per loop.
+    expect(() => pen.polyline([[100, 100], [110, 100]])).toThrow(/one pen per contour/)
+  })
+
+  it('rejects a degenerate list instead of silently drawing nothing', () => {
+    const pen = new BaseSketcher2d()
+    expect(() => pen.polyline([[0, 0]])).toThrow(/at least two points/)
+  })
+
+  it('a 3000-point contour is ONE call (the reason the batch form exists)', () => {
+    const pts: Point2[] = Array.from({ length: 3000 }, (_, i) => [i, Math.sin(i / 50) * 10] as Point2)
+    const pen = new BaseSketcher2d()
+    pen.polyline(pts, true)
+    expect(pen.curves()).toHaveLength(3000)
+  })
+})

@@ -222,6 +222,50 @@ export class BaseSketcher2d {
   }
 
   /**
+   * Draw a whole contour from an explicit point list, in one call.
+   *
+   * The batched counterpart of a chained `lineTo` run, and the only form that
+   * survives the `.fai.js` dialect: the parser caps AST nesting at 100
+   * (`SEC_LIMIT`), and a chained call builds a nested
+   * `MemberExpression`/`CallExpression` tree whose depth equals the segment count
+   * — a contour of a few hundred tessellated points cannot be emitted as
+   * `pen.lineTo(a).lineTo(b)…` (measured: a 150-call chain already trips the
+   * limit). Handing the points over as ONE array literal keeps the emitted depth
+   * constant (array nesting = 2) at any point count.
+   *
+   * The first point also (re)seats an empty pen, so `firstPoint` keeps its
+   * meaning for {@link close} / `movePointerTo`. GOTCHA (2026-09-28):
+   * `movePointerTo` refuses to lift the pointer once a curve exists, so ONE pen
+   * carries exactly ONE contour — a shape holding many disjoint loops (a rebuilt
+   * Draft drawing was measured carrying 12 / 36 / 56 / 61 of them) needs one pen
+   * per loop, never one pen with several lifts.
+   *
+   * @param points - the contour's points in draw order (at least 2).
+   * @param close - append a final segment back to `points[0]` (skipped when the
+   *   run already ended there, mirroring {@link close}).
+   * @returns this pen, for chaining.
+   */
+  polyline(points: Point2[], close = false): this {
+    if (points.length < 2) bug('polyline', 'a polyline needs at least two points')
+    const start = points[0]!
+    if (this.pendingCurves.length === 0) {
+      this.pointer = [start[0], start[1]]
+      this.firstPoint = this.pointer
+    } else if (!samePoint(this.pointer, start)) {
+      bug(
+        'polyline',
+        'a run is already in flight — the pen must be sitting on the polyline start (use one pen per contour)',
+      )
+    }
+    for (let i = 1; i < points.length; i++) {
+      const p = points[i]!
+      this.lineTo([p[0], p[1]])
+    }
+    if (close && !samePoint(this.pointer, start)) this.lineTo([start[0], start[1]])
+    return this
+  }
+
+  /**
    * Draw a line to an absolute point in polar form.
    * @param polar - `[radius, angleDeg]`.
    * @returns this pen, for chaining.

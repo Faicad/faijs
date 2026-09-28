@@ -21,8 +21,7 @@ import { CompoundBlueprint } from '../geometry2d/compound-blueprint'
 import { organiseBlueprints } from '../geometry2d/organise'
 import { namedPlane, makePlane, toVec3, type Plane, type Vec3Input } from '../geometry2d/bridge/plane'
 import { assembleWire } from '../geometry2d/bridge/lift-on-plane'
-import { profileSegToCurve, type ProfileSegLike } from '../geometry2d/adapt'
-import { assertProfileParams, type ProfileLoop } from './profile'
+import { assertProfileParams, toContourBlueprints, type DrawnContours, type ProfileLoop } from './profile'
 
 /** A plane given by a named plane and/or an explicit frame (coords accept both array and `{x,y,z}`). */
 export interface PlaneSpec {
@@ -38,7 +37,12 @@ export interface PlaneSpec {
 
 /** Contour loops + a target plane (+ the result mode) for `cad.sketchOnPlane`. */
 export interface SketchOnPlaneParams {
-  contours: ProfileLoop[]
+  /**
+   * Contour source: segment loops (`{segments: […]}`) or already-drawn contours
+   * (a `cad.draw` product, or an array of them). The drawn form is what makes the
+   * "draw → place → extrude" pipeline real — see {@link DrawnContours}.
+   */
+  contours: ProfileLoop[] | DrawnContours
   /** Named plane or explicit `{ origin, normal, xAxis }` frame. */
   plane: PlaneSpec
   /** Result shape: 'face' (default) builds a planar face; 'wire' returns the outer-loop wire only. */
@@ -112,17 +116,20 @@ export function buildShapeFromBlueprints(
 }
 
 /**
- * Build the 2D→3D placement: convert contour loops to a classified Blueprint
- * set, assemble a wire on the plane, then wrap as a face (or the outer wire).
+ * Build the 2D→3D placement: normalize the contour source (segment loops or a
+ * drawn contour) to a classified Blueprint set, assemble a wire on the plane,
+ * then wrap as a face (or the outer wire).
  * @param kernel - the BREP engine surface.
- * @param params - contour loops + plane + mode.
+ * @param params - contour source + plane + mode.
  * @returns Shape on the target plane (face, or a wire curve when `as:'wire'`).
  */
 export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPlaneParams): Shape {
   const plane = resolvePlane(params.plane)
-  const blueprints = params.contours.map(
-    (loop) => new Blueprint(loop.segments.map((s) => profileSegToCurve(s as ProfileSegLike))),
-  )
+  // 2026-09-28：段环数据与「已绘制轮廓」（`cad.draw` 产物）在此归一。少了这一步，
+  // 计划 A4 的「draw → sketchOnPlane → extrude」就断了 —— `cad.draw` 的 Blueprint
+  // 没有 OCCT 句柄，实测喂 `cad.extrude` 报 `argument carries no BREP handle`、
+  // 喂 `cad.sweep` 报 `INVALID_SHAPE_ID`，全仓没有第二个能把它变成 Shape 的通道。
+  const blueprints = toContourBlueprints(params.contours)
   return buildShapeFromBlueprints(kernel, plane, blueprints, params.as ?? 'face')
 }
 
@@ -134,7 +141,7 @@ export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPl
  * @qual ok
  * @name sketchOnPlane
  * @returns Shape on the target plane (face, or a wire curve when `as:'wire'`).
- * @param params.contours - ordered 2D contours (same shape as `cad.profile`).type:any[] required:true
+ * @param params.contours - ordered 2D contours (same shape as `cad.profile`: segment loops, or a `cad.draw` product).type:any required:true
  * @param params.plane - named plane (`'XY'` / `'XZ'`…) or `{ origin, normal, xAxis }`.type:any required:true
  * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
  */

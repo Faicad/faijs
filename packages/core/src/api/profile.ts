@@ -64,9 +64,27 @@ export interface ProfileLoop {
   segments: ProfileSeg[]
 }
 
+/**
+ * A 2D contour that is already DRAWN — i.e. `cad.draw`'s product (a
+ * `Blueprint`), or an array of them (one per contour).
+ *
+ * Why the 2D entries accept this: `cad.draw` returns a pure-data contour with no
+ * OCCT handle, and without this path NO op can turn it into a Shape. Measured
+ * 2026-09-28 — feeding a `cad.draw` product straight to `cad.extrude` fails with
+ * `E_BREP_INPUT: argument carries no BREP handle`, and to `cad.sweep` with
+ * `INVALID_SHAPE_ID`. The plan's "draw → `sketchOnPlane` → `extrude`" pipeline
+ * therefore needs this bridge; `cad.profile` takes it too, because both entries
+ * share {@link toContourBlueprints} and a split acceptance rule would be a trap.
+ */
+export type DrawnContours = Blueprint | Blueprint[]
+
 /** `cad.profile` 参数：轮廓环集合。语义见 {@link buildProfileShape}（嵌套=孔，不相交=独立岛）。 */
 export interface ProfileParams {
-  contours: ProfileLoop[]
+  /**
+   * 轮廓来源，两种等价形态：段环数据（`{segments: […]}`）或已绘制轮廓
+   * （`cad.draw` 产物 / 其数组）。
+   */
+  contours: ProfileLoop[] | DrawnContours
   /**
    * 产物形态：'face'（默认）构面；'wire' 只交出不带面的最大岛外环 wire（1D 曲线），
    * 供扫掠族（sweep/loft/…）直接作 spine。'wire' 形态丢弃孔环（扫掠脊柱为单闭合轮廓）。
@@ -77,14 +95,73 @@ export interface ProfileParams {
 // ── 参数自校验 ──
 
 /**
- * Validate profile parameters: `contours` must be a non-empty array of loops,
- * each with at least one segment.
+ * True when a `contours` entry is an already-drawn contour rather than a
+ * `ProfileLoop` data record. Discriminated on `curves` vs `segments`, so a
+ * `ProfileLoop` can never be mistaken for one.
+ * @param v - the candidate value.
+ * @returns true when `v` is a `Blueprint`-shaped drawn contour.
+ */
+function isDrawnContour(v: unknown): v is Blueprint {
+  return !!v && typeof v === 'object' && !Array.isArray(v) && Array.isArray((v as Blueprint).curves)
+}
+
+/**
+ * Normalize a `contours` argument to `Blueprint[]`.
+ *
+ * Accepts the segment-loop data form, a single drawn contour, or an array of
+ * drawn contours. The two forms are never mixed — a mixed array is a caller bug
+ * and is rejected rather than half-interpreted.
+ *
+ * @param contours - the raw `contours` argument (`ProfileLoop[]` | `Blueprint` | `Blueprint[]`).
+ * @returns one `Blueprint` per contour, in input order.
+ */
+export function toContourBlueprints(contours: unknown): Blueprint[] {
+  if (isDrawnContour(contours)) return [contours]
+  if (!Array.isArray(contours)) {
+    throw new Error('E_PROFILE_NO_CONTOURS: profile requires at least one contour')
+  }
+  if (contours.length === 0) {
+    throw new Error('E_PROFILE_NO_CONTOURS: profile requires at least one contour')
+  }
+  if (isDrawnContour(contours[0])) {
+    for (const [i, c] of contours.entries()) {
+      if (!isDrawnContour(c)) {
+        throw new Error(`E_PROFILE_MIXED_CONTOURS: contour ${i} is a segment loop, not a drawn contour`)
+      }
+    }
+    return contours as Blueprint[]
+  }
+  return (contours as ProfileLoop[]).map(
+    (loop) =>
+      new Blueprint(
+        (loop?.segments ?? []).map((s) => profileSegToCurve(s as ProfileSegLike)),
+      ),
+  )
+}
+
+/**
+ * Validate profile parameters: `contours` must be a non-empty contour set —
+ * either segment loops (each with at least one segment) or drawn contours.
  * @param params the raw profile operation parameters.
  */
 export function assertProfileParams(params: Record<string, unknown>): void {
   const contours = params.contours
+  if (isDrawnContour(contours)) return
   if (!Array.isArray(contours) || contours.length === 0) {
     throw new Error('E_PROFILE_NO_CONTOURS: profile requires at least one contour')
+  }
+  // Discriminate the whole array at once so a mixed set names the real defect
+  // (E_PROFILE_MIXED_CONTOURS) instead of falling into the loop-shape branch and
+  // reporting a drawn contour as a malformed segment loop.
+  const drawn = contours.map((c) => isDrawnContour(c))
+  if (drawn.some(Boolean)) {
+    if (!drawn.every(Boolean)) {
+      const bad = drawn.indexOf(false)
+      throw new Error(
+        `E_PROFILE_MIXED_CONTOURS: contour ${bad} is a segment loop while contour ${drawn.indexOf(true)} is a drawn contour — the two forms cannot be mixed`,
+      )
+    }
+    return
   }
   for (const loop of contours) {
     if (!loop || typeof loop !== 'object' || !Array.isArray((loop as ProfileLoop).segments)) {
@@ -105,23 +182,21 @@ export function assertProfileParams(params: Record<string, unknown>): void {
  * （7 面、volume 0）。多岛产物 = compound（每岛一面、各带自己的孔），下游
  * `cad.extrude` 对 compound 输入逐面挤出（kernel MakePrism 收复合形状）。
  *
- * @param params - 轮廓环集合与产物形态。
+ * @param params - 轮廓来源（段环数据或 `cad.draw` 产物）与产物形态。
  * @returns Shape（单岛为 face；多岛为 face 的 compound；`as:'wire'` 为 1D 曲线）。
  */
 export function buildProfileShape(params: ProfileParams): Shape {
   const kernel = getBrepApi()
   const as = params.as ?? 'face'
 
-  const loops = params.contours.map((loop) => ({
-    loop,
-    curves: loop.segments.map((s) => profileSegToCurve(s as ProfileSegLike)),
-  }))
-
   // F2（2026-09-27）：环分类统一到纯 2D 管线 `organiseBlueprints`
   // （geometry2d/，brepjs 移植）。「嵌套=孔，不相交=独立岛」语义与既有
   // `profile-multi-island.test.ts` 断言一致；多岛 → 多个顶层，岛+孔 →
   // CompoundBlueprint（[0]=外环，[1..]=孔）。
-  const organised = organiseBlueprints(loops.map((l) => new Blueprint(l.curves)))
+  //
+  // 2026-09-28：段环数据与「已绘制轮廓」（`cad.draw` 产物）在此归一 —— 两条
+  // 来源只差一次 `toContourBlueprints`，下游分类/构面完全共享。
+  const organised = organiseBlueprints(toContourBlueprints(params.contours))
 
   // 'wire' 形态：只挑面积最大的岛的外环 wire（1D 曲线），供扫掠族作 spine。
   if (as === 'wire') {
@@ -246,7 +321,7 @@ function blueprintArea(entry: Blueprint | CompoundBlueprint): number {
  * @qual ok
  * @name profile
  * @returns Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
- * @param params.contours - 有序 2D 轮廓（线段/圆弧；外环 + 孔）。type:ProfileLoop[] required:true
+ * @param params.contours - 有序 2D 轮廓（线段/圆弧；外环 + 孔），或已绘制轮廓（`cad.draw` 产物：单个 Blueprint 或其数组）。type:ProfileLoop[]|Blueprint|Blueprint[] required:true
  * @param params.as - 产物形态：'face'（默认）构面；'wire' 只交外环 wire（1D 曲线）。type:'face'|'wire' required:false
  * @example
  * const f = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }] })
