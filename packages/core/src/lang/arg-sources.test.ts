@@ -137,11 +137,12 @@ describe('extractMetadata: names（P0-B）', () => {
       'let part1 = mat.dup(w, 1, { a: h })',
     ].join('\n')
     const meta = extractMetadata(code)
-    // P6/D7: unit constants (mm, inch, degree, …) are now included in names.
+    // P6/D7: unit constants (MM, INCH, DEGREE, …) are now included in names.
+    // All unit constants are UPPERCASE, so they sort before lowercase user vars.
     expect(meta.names).toEqual([
-      'cm', 'degree', 'foot', 'gram', 'h', 'helper', 'inch', 'kilogram',
-      'mat', 'meter', 'micron', 'mm', 'part0', 'part1', 'radian', 'second',
-      'w', 'yard',
+      'CM', 'DEGREE', 'FOOT', 'GRAM', 'INCH', 'KILOGRAM',
+      'METER', 'MICRON', 'MM', 'RADIAN', 'SECOND', 'YARD',
+      'h', 'helper', 'mat', 'part0', 'part1', 'w',
     ])
   })
 

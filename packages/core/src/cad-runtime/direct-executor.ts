@@ -1187,7 +1187,7 @@ export class DirectExecutor {
       case 'Literal':
         return JSON.stringify(node.value)
       case 'Identifier':
-        // P6/D7: unit constants (mm, inch, degree, …) are global read-only
+        // P6/D7: unit constants (MM, INCH, DEGREE, …) are global read-only
         // constants — emit as bare identifiers so they resolve from globalThis.
         if (SCRIPT_UNIT_NAMES.has(node.name)) return node.name
         return `__ctx.${node.name}`

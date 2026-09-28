@@ -38,7 +38,7 @@
 1. **内部基准单位 = 毫米（mm）**：occt/topology/阈值常量现有注释已按 mm，保留现状，把 mm 从"隐式注释"提升为"显式基准"。
 2. **完整量纲系统**：`UnitSpec` 通用量纲机制（任意 `dimension^exponent` 组合），而非只做 Length。
 3. **单位系统独立立项**（本文档），3MF/STL 导入作为本系统**第一个消费者**，在本文档内直接定义，不引用其它方案文档。
-4. **3d_editor 场景可设单位**（mm/inch/米），生成的 faijs 脚本带上单位字面量 `n * unit`。关键洞察：**TS 类型运行时擦除，脚本层面单位常量就是裸数字（相对基准 mm 的缩放系数），`10 * inch` 就是普通乘法 = 254，不需要运算符重载。** 量纲校验靠脚本解析后的简单 AST 检查，不需要类型系统。
+4. **3d_editor 场景可设单位**（mm/inch/米），生成的 faijs 脚本带上单位字面量 `n * UNIT`。关键洞察：**TS 类型运行时擦除，脚本层面单位常量就是裸数字（相对基准 mm 的缩放系数），`10 * INCH` 就是普通乘法 = 254，不需要运算符重载。** 量纲校验靠脚本解析后的简单 AST 检查，不需要类型系统。
 
 ---
 
@@ -66,7 +66,7 @@ faijs 无法照搬语言级运算符重载，但结构完全对应：
 | `stripUnits`（进 C++ builtin） | 进 manifold-3d / occt-wasm 前取基准裸 number；跨面边界一律裸 number（D4） |
 | builtin 裸 float 内核 | manifold / occt wasm（裸 float，隐含基准单位） |
 | `units.fs` 常量 + `valueBounds.fs` | `units.ts` 单位常量 + 容差常量（D6） |
-| FeatureScript 源码里 `3 * inch` | faijs 脚本里 `3 * inch`——但 faijs 的 `inch` 是**裸数字常量**，量纲只靠名字 + 静态校验（D7/D8） |
+| FeatureScript 源码里 `3 * inch` | faijs 脚本里 `3 * INCH`——但 faijs 的 `INCH` 是**裸数字常量**，量纲只靠名字 + 静态校验（D7/D8） |
 
 参考实现目录：`C:\git\new\onshape\onshape-std-library-mirror`。
 
@@ -138,12 +138,12 @@ faijs 无法照搬语言级运算符重载，但结构完全对应：
 
 | 表达式 | 实测结果 | 含义 |
 |---|---|---|
-| `extractMetadata('let p0 = cad.fai_extrude({ length: 10 * mm });')` | **抛 `SEC_FREE_IDENT`（E_SECURITY）** | 单位常量未登记前，脚本里根本写不出 `10 * mm`——"解释器零改动"不成立 |
-| 同上（`10 * inch`） | 同上抛错 | 同上 |
+| `extractMetadata('let p0 = cad.fai_extrude({ length: 10 * MM });')` | **抛 `SEC_FREE_IDENT`（E_SECURITY）** | 单位常量未登记前，脚本里根本写不出 `10 * MM`——"解释器零改动"不成立 |
+| 同上（`10 * INCH`） | 同上抛错 | 同上 |
 | `extractMetadata('…{ length: 10 + 5 }')` | `{length: 15}`，`hasComputedArgs: false` | 纯字面量表达式被静默折叠，且 computed 不置位 |
-| `codeToArgs('let p0 = cad.fai_extrude({ length: 10 * inch })')` | **`{ length: 0 }`** | 前置声明 `let inch = 0` 把 `inch` 变成哨兵参数 → 折叠成 **0**；把 `globalThis.inch = 25.4` 注册好也**仍然是 0**（哨兵遮蔽全局） |
-| `codeToArgs('…{ length: 10 * mm }')` / `10 * mm + 2 * mm` | 同样 `{ length: 0 }` | 基准单位形态同样归零 |
-| `formatCodeLine({ positional: [{length:{kind:'expr-ref',text:'10 * inch',refs:[],params:[]}}], … })` | `let part0 = cad.fai_extrude({ length:(10 * inch) })` | `fmtValue`（`codegen.ts:79`）对 expr-ref 无条件加括号——可用但形态含糊 |
+| `codeToArgs('let p0 = cad.fai_extrude({ length: 10 * INCH })')` | **`{ length: 0 }`** | 前置声明 `let INCH = 0` 把 `INCH` 变成哨兵参数 → 折叠成 **0**；把 `globalThis.INCH = 25.4` 注册好也**仍然是 0**（哨兵遮蔽全局） |
+| `codeToArgs('…{ length: 10 * MM }')` / `10 * MM + 2 * MM` | 同样 `{ length: 0 }` | 基准单位形态同样归零 |
+| `formatCodeLine({ positional: [{length:{kind:'expr-ref',text:'10 * INCH',refs:[],params:[]}}], … })` | `let part0 = cad.fai_extrude({ length:(10 * INCH) })` | `fmtValue`（`codegen.ts:79`）对 expr-ref 无条件加括号——可用但形态含糊 |
 | `fmtNum(1e-7)` | `'0'` | `fmtNum`（`codegen.ts:34-39`）6 位小数截断 → **静默归零**；`String(0.39370078740157477)` 则是精确往返表示 |
 
 结论（D10 的两条硬要求由此而来）：**单位字面量必须在解析侧被显式识别**（既不能被安全规则拒、也不能被哨兵折叠成 0、也不能在回填时丢形态），**单位化数字不得走 `fmtNum`**。
@@ -191,7 +191,7 @@ faijs 无法照搬语言级运算符重载，但结构完全对应：
 
 #### D1.1 角度基准 = 度（已裁定）
 
-**裁定**：角度基准 = **度**。常量定义 `degree = 1`、`radian = 180 / Math.PI ≈ 57.29577951308232`（基准是度，故 1 rad ≈ 57.29…°）。脚本面常量（D7）同值。
+**裁定**：角度基准 = **度**。常量定义 `DEGREE = 1`、`RADIAN = 180 / Math.PI ≈ 57.29577951308232`（基准是度，故 1 rad ≈ 57.29…°）。脚本面常量（D7）同值。
 
 **与现行契约一致**：`docs/api-contract.md:90` R-5（angles in degrees）、`mesh/types.ts:7`、`sketch/src/canonical.ts:9`；现有角度 op 入参也是度（`api/transform.ts:226-230` JSDoc「欧拉角（度，XYZ 顺序）」、`slotMap: { keys: ['anglesDeg'] }` 于 `:245`）。
 
@@ -201,7 +201,7 @@ faijs 无法照搬语言级运算符重载，但结构完全对应：
 2. **不得双重换算**（本项唯一实质风险）：任何"脚本值 → op 入参"的路径上不得再乘/除 180/π。实测 `3d_editor/packages/app/src/engine/features/fai_split.ts:45-52` 内部已有 `rx * Math.PI/180`，单位系统上线后其入参语义**仍是度**，该处不动；`codeToArgs` 读回时也不得再换算。
 3. **`angularDeflection` 默认 0.5 是弧度**（`brep/engine/types.ts:74-76` 注释），属内核三角化参数，不进脚本面单位体系（D6 硬约束 2）。
 
-**角度入参清单（P1 交付物，测试锁死）**：`anglesDeg`（`api/transform.ts:245`）、`pressureAngleDeg`、`inPlaneAngleDeg`、`capAngle`、以及各手写 op 中的角度字段——逐项确认"入参 = 度"，并用测试断言 `45 * degree` 到 op 的实际数值为 45。
+**角度入参清单（P1 交付物，测试锁死）**：`anglesDeg`（`api/transform.ts:245`）、`pressureAngleDeg`、`inPlaneAngleDeg`、`capAngle`、以及各手写 op 中的角度字段——逐项确认"入参 = 度"，并用测试断言 `45 * DEGREE` 到 op 的实际数值为 45。
 
 ### D2 — `UnitSpec`：通用量纲，非枚举
 
@@ -253,7 +253,8 @@ const degree = new ValueWithUnits(1, ANGLE)                      // 基准
 const radian = new ValueWithUnits(180 / Math.PI, ANGLE)
 
 // ② 纯数常量（number）：TS 库面写几何调用用（D4），等价于脚本面裸常量
-const MM = 1, CM = 10, M = 1000, MICRON = 0.001, INCH = 25.4, FOOT = 304.8, YARD = 914.4
+// 脚本面常量名一律大写（D7）：MM, CM, METER, INCH, DEGREE, …
+const MM = 1, CM = 10, METER = 1000, MICRON = 0.001, INCH = 25.4, FOOT = 304.8, YARD = 914.4
 const DEGREE = 1, RADIAN = 180 / Math.PI
 ```
 
@@ -331,37 +332,41 @@ export const OCTREE_BBOX_FALLBACK      = 100 * mm    // topologyExt.ts:42 兜底
 
 ### D7 — 脚本面单位常量
 
-**常量表**（脚本运行时的裸 number，值 = 相对基准的缩放系数）：
+> **用户裁定（2026-09-28）**：所有量纲常量名大写，避免与变量名冲突（如 `cm` 作为 center-of-mass 的缩写会与 `cm` 作为厘米冲突）。故 `mm`→`MM`、`cm`→`CM`、`degree`→`DEGREE`，以此类推。
+
+**常量表**（脚本运行时的裸 number，值 = 相对基准的缩放系数；常量名一律大写）：
 
 ```js
-mm = 1;  cm = 10;  meter = 1000;  micron = 0.001;  inch = 25.4;  foot = 304.8;  yard = 914.4
-degree = 1;  radian = 180 / Math.PI          // D1.1 角度基准 = 度
-gram = 1;  kilogram = 1000;  second = 1;  /* 保留位：kelvin / ampere */
+MM = 1;  CM = 10;  METER = 1000;  MICRON = 0.001;  INCH = 25.4;  FOOT = 304.8;  YARD = 914.4
+DEGREE = 1;  RADIAN = 180 / Math.PI          // D1.1 角度基准 = 度
+GRAM = 1;  KILOGRAM = 1000;  SECOND = 1;  /* 保留位：kelvin / ampere */
 ```
 
-**"登记"= 三件事，缺一不可**（"不需要运算符重载"成立，但并非"解释器零改动"——§2.6 实测 `10 * mm` 今天直接抛 `SEC_FREE_IDENT`）：
+**“登记”= 三件事，缺一不可**（“不需要运算符重载”成立，但并非“解释器零改动”——§2.6 实测 `10 * MM` 今天直接抛 `SEC_FREE_IDENT`）：
 
-1. `lang/security-scanner.ts:145` 的 `S4_SAFE_GLOBALS` 加入全部单位常量名——判定在 `:610`（`S4_SAFE_GLOBALS.has(name)`），否则脚本里的 `inch`/`mm` 被判 `SEC_FREE_IDENT` 拒绝（`:614`），interp 后端 `env.ts:92-93` 也解析不到。
+1. `lang/security-scanner.ts:145` 的 `S4_SAFE_GLOBALS` 加入全部单位常量名（大写）——判定在 `:610`（`S4_SAFE_GLOBALS.has(name)`），否则脚本里的 `INCH`/`MM` 被判 `SEC_FREE_IDENT` 拒绝（`:614`），interp 后端 `env.ts:92-93` 也解析不到。
 2. 在 `globalThis` 上注册这些常量（vm 后端与 interp 后端共用；interp 从 `globalThis[name]` 取值，`env.ts:93`）。
-3. 把单位常量名并进 `UiMetadata.names` / `knownNames`——否则 3d_editor 参数表达式实时校验（`lang/expr-validate.ts`，Identifier 必须命中 knownNames）会把 `10 * inch` 判成 `E_REFERENCE`；解析侧 `collectExprIdentifiers`（`metadata-extractor.ts:362-383`）也会对未知标识符抛 `E_REFERENCE`。
+3. 把单位常量名并进 `UiMetadata.names` / `knownNames`——否则 3d_editor 参数表达式实时校验（`lang/expr-validate.ts`，Identifier 必须命中 knownNames）会把 `10 * INCH` 判成 `E_REFERENCE`；解析侧 `collectExprIdentifiers`（`metadata-extractor.ts:362-383`）也会对未知标识符抛 `E_REFERENCE`。
 
-**只读保护（必须实现，否则是正确性漏洞）**：`InterpEnv.assign` 根作用域写 `ctx`（`env.ts:104-118`），而 `lookup` 顺序是 ctx → ns → globals——**脚本写 `inch = 999` 会污染 ctx 并永久遮蔽基准常量**。现无任何规则阻止（只有 `SEC_NS_ASSIGN` 管命名空间，`security-scanner.ts:649`）。对策：在 `security-scanner.ts` 新增规则 `SEC_RESERVED_ASSIGN`，拒绝把保留单位名作为**赋值目标**或**声明名**（`let/const/var/参数/函数名`）；规则位于 `assertSecure`（`:863`）内，故 metadata 通道（`metadata-extractor.ts:1021`）与执行通道（`direct-executor.ts:757`、`module-registry.ts:216`）**同时生效**，两个执行后端行为一致。
+**只读保护（必须实现，否则是正确性漏洞）**：`InterpEnv.assign` 根作用域写 `ctx`（`env.ts:104-118`），而 `lookup` 顺序是 ctx → ns → globals——**脚本写 `INCH = 999` 会污染 ctx 并永久遮蔽基准常量**。现无任何规则阻止（只有 `SEC_NS_ASSIGN` 管命名空间，`security-scanner.ts:649`）。对策：在 `security-scanner.ts` 新增规则 `SEC_RESERVED_ASSIGN`，拒绝把保留单位名作为**赋值目标**或**声明名**（`let/const/var/参数/函数名`）；规则位于 `assertSecure`（`:863`）内，故 metadata 通道（`metadata-extractor.ts:1021`）与执行通道（`direct-executor.ts:757`、`module-registry.ts:216`）**同时生效**，两个执行后端行为一致。
 
 **语法**：
 
 ```js
-cad.fai_extrude({ length: 10 * inch })
-cad.box({ size: [20 * mm, 30 * mm, 40 * mm] })
-cad.rotate_euler(part0, { angles: 45 * degree })     // 参数名见 D9
+cad.fai_extrude({ length: 10 * INCH })
+cad.box({ size: [20 * MM, 30 * MM, 40 * MM] })
+cad.rotate_euler(part0, { angles: 45 * DEGREE })     // 参数名见 D9
 ```
 
-**基准单位也写单位字面量**：`10 * mm` 是规范形态，裸 `10` 不合法（用户原话：「不许分析也知道裸数字3是不合法的。必须是数字带量纲。」）——这是 D8 R2 与 D10 序列化规则的共同来源，也是 P6 存量迁移的原因。
+**基准单位也写单位字面量**：`10 * MM` 是规范形态，裸 `10` 不合法（用户原话：「不许分析也知道裸数字3是不合法的。必须是数字带量纲。」）——这是 D8 R2 与 D10 序列化规则的共同来源，也是 P6 存量迁移的原因。
+
+**多余括号禁止**：简单表达式（字面量、标识符）不加括号——`10 * MM`，不是 `( 10 ) * MM`；`size * MM`，不是 `( size ) * MM`。只有内部含运算的复杂表达式才加括号：`( 10 + 5 ) * MM`。
 
 ### D8 — 静态量纲校验（新增 `dimension` 校验 stage）
 
 **插入点（实测）**：现有校验唯一入口是 `extractMetadata`，`CadRuntime.check()`（`runtime.ts:1376-1403`）与 `execute()`（`:714`）都经它。校验实现为 `extractMetadata` 内部的一个 pass，并**扩展 `runtime.ts:73` 的 stage 联合类型，新增 `'dimension'`**。这样 CLI `check`（`node-host/cli.ts:227`）与 UI 元数据通道同时生效。
 
-**判定输入必须是 AST 节点，必须在折叠之前**：`parseValueExpr`（`metadata-extractor.ts:492`）先折叠（`:508-513`）、折叠失败才走 expr-ref（`:515-526`）；而 §2.6 实测 `10 * mm` 在 `codeToArgs` 路径会被折叠成 `0`——折叠值里**不含任何量纲信息**。故 `checkDim(node, declaredDim, ctx)` 在 `parseValueExpr` 入口对每个 arg 节点先跑（与 `parseValueExpr` 共用同一份 dims 声明），结果不依赖折叠。
+**判定输入必须是 AST 节点，必须在折叠之前**：`parseValueExpr`（`metadata-extractor.ts:492`）先折叠（`:508-513`）、折叠失败才走 expr-ref（`:515-526`）；而 §2.6 实测 `10 * MM` 在 `codeToArgs` 路径会被折叠成 `0`——折叠值里**不含任何量纲信息**。故 `checkDim(node, declaredDim, ctx)` 在 `parseValueExpr` 入口对每个 arg 节点先跑（与 `parseValueExpr` 共用同一份 dims 声明），结果不依赖折叠。
 
 **声明来源（两条路都要）**：
 
@@ -389,8 +394,8 @@ cad.rotate_euler(part0, { angles: 45 * degree })     // 参数名见 D9
 | 编号 | 规则 |
 |---|---|
 | R1 | 有量纲位的实参，其表达式必须能静态判定为「带该量纲」 |
-| R2 | **裸数字字面量**直接传给有量纲位 → `E_DIM_BARE_NUMBER`。**基准单位形式也必须有单位**（`10 * mm` 合法、`10` 不合法） |
-| R3 | `+`/`-`/比较运算两侧可判定量纲时必须一致 → 否则 `E_DIM_MISMATCH`（如 `3 * meter + 1 * degree`） |
+| R2 | **裸数字字面量**直接传给有量纲位 → `E_DIM_BARE_NUMBER`。**基准单位形式也必须有单位**（`10 * MM` 合法、`10` 不合法） |
+| R3 | `+`/`-`/比较运算两侧可判定量纲时必须一致 → 否则 `E_DIM_MISMATCH`（如 `3 * METER + 1 * DEGREE`） |
 | R4 | 量纲传播：`number * unitConst` → 取该常量量纲；`lengthValue * number` / `lengthValue / number` → 保持；`len / len` → 无量纲；`len * len` → 指数相加 |
 | R5 | **无法静态判定**的表达式（变量引用、**未声明 `retDim` 的**函数调用结果、下标访问）→ **放行**（不阻塞）：其来源可能在 TS 面已有量纲。这是"宁可漏判不可误判"的取舍，与 D4「几何入参是裸 number」一致。**判定顺序：先查 `retDim`，命中即按 R4 传播并参与 R1/R3 判定；未命中才放行** |
 | R6 | 单位常量名不在 `UNIT_SCALE` 表中（拼错/未注册）→ `E_DIM_UNKNOWN_UNIT`（安全规则已先挡 `SEC_FREE_IDENT`，此处是兜底） |
@@ -449,23 +454,23 @@ export function formatCodeLine(input: FormatCodeLineInput, opts?: UnitSerializeO
 
 1. **`opts` 缺省时，输出与现状逐字节相同**（不追加任何单位字面量）——存量调用方与测试零影响。
 2. 传了 `dims`：命中量纲的参数值（含 vec3/数组**逐元素**）输出为 `n * <单位常量名>`；`n = fromBase(base, unitName, dim)`，`unitName = unitFor(dim, units)`。
-3. **基准单位同样写单位字面量**（`{ length: 10 * mm }`，不写裸 `10`）——D8 R2 的直接要求。故脚本里 mm 值与 inch 值可共存：**混合单位脚本合法**（单位随值携带）。
+3. **基准单位同样写单位字面量**（`{ length: 10 * MM }`，不写裸 `10`）——D8 R2 的直接要求。故脚本里 mm 值与 inch 值可共存：**混合单位脚本合法**（单位随值携带）。
 4. 未声明量纲的参数永远原样输出（无量纲）。
 5. **单位字面量的数字必须用 JS 最短往返表示**（`String(n)`，如 `0.39370078740157477`），**禁止用 `fmtNum`**（`codegen.ts:34-39`，实测 `fmtNum(1e-7) === '0'` 会静默归零）。无量纲数仍走 `fmtNum`（存量行为不变）。
-6. 字面量形态：`{ kind: 'expr-ref', text: '10 * inch', refs: [], params: [] }`——复用第 4 种 kind，**不扩 kind 集**（`HOST_REF_KINDS` 契约不变）。`HostExprRef` 增加可选 `bare?: boolean`（`true` → 不加括号）：`fmtValue`（`codegen.ts:79`）现对 expr-ref 无条件加括号（实测 `{ length:(10 * inch) }`），合法但含糊，机器生成的单位字面量应走 `bare`。
+6. 字面量形态：`{ kind: 'expr-ref', text: '10 * INCH', refs: [], params: [] }`——复用第 4 种 kind，**不扩 kind 集**（`HOST_REF_KINDS` 契约不变）。`HostExprRef` 增加可选 `bare?: boolean`（`true` → 不加括号）：`fmtValue`（`codegen.ts:79`）现对 expr-ref 无条件加括号（实测 `{ length:(10 * INCH) }`），合法但含糊，机器生成的单位字面量应走 `bare`。
 
 #### D10.4 `codeToArgs` 反解析（必须修真缺陷）
 
-现状（§2.6 实测）：`codeToArgs('…{ length: 10 * inch }')` → `{ length: 0 }`。三处必修：
+现状（§2.6 实测）：`codeToArgs('…{ length: 10 * INCH }')` → `{ length: 0 }`。三处必修：
 
 | 落点 | 修法 |
 |---|---|
 | `code-to-args.ts:43-53 extractIdentifiers` | 把单位常量名从**前置声明**（`let <id> = 0`）中排除——单位名不是待解变量 |
 | `metadata-extractor.ts:200-204`（`tryFoldConstExpr` 的 Identifier 分支） | 识别单位常量 → 返回 `UNIT_SCALE[name]`；同时置新标记 `usedUnit = true` |
-| `metadata-extractor.ts:511`（`computed` 判定） | 改为 `usedParam \|\| usedUnit` → 宿主对含单位字面量的行走**只读降级**，绝不允许把折叠值写回源码（否则 `10 * inch` 会被写成 `254`，在 inch 场景下变成 254 in） |
+| `metadata-extractor.ts:511`（`computed` 判定） | 改为 `usedParam \|\| usedUnit` → 宿主对含单位字面量的行走**只读降级**，绝不允许把折叠值写回源码（否则 `10 * INCH` 会被写成 `254`，在 inch 场景下变成 254 in） |
 | `metadata-extractor.ts:362-383 collectExprIdentifiers` | 单位常量登记进符号表的"已声明常量"集合，归入 `refs` 而非抛 `E_REFERENCE` |
 
-修好后：`codeToArgs('…{ length: 10 * inch }')` → `{ length: 254 }`（基准 mm）；宿主显示 `fromBase(254, 'inch', 'length') === 10`。**必须有 `!== 0` 的防回归断言**。
+修好后：`codeToArgs('…{ length: 10 * INCH }')` → `{ length: 254 }`（基准 mm）；宿主显示 `fromBase(254, 'inch', 'length') === 10`。**必须有 `!== 0` 的防回归断言**。
 
 #### D10.5 宿主（3d_editor）侧约定
 
@@ -557,7 +562,7 @@ export async function importFile(
 export function formatCodeLine(input: FormatCodeLineInput, opts?: UnitSerializeOptions): string
 /** 单位字面量的数字格式化：JS 最短往返表示（String(n)），禁止用 fmtNum */
 export function fmtUnitNum(n: number): string
-/** 基准值 → 单位字面量文本（`10 * inch`）；dim 用于校验单位名合法 */
+/** 基准值 → 单位字面量文本（`10 * INCH`）；dim 用于校验单位名合法 */
 export function formatUnitLiteral(base: number, dim: DimName, unitName: UnitName): string
 
 // lang/code-to-args.ts
@@ -568,10 +573,11 @@ export function parseUnitLiteral(text: string): { base: number; dim: DimName; un
 
 ### 5.4 脚本面契约
 
-- 单位常量是**全局只读裸标识符**（`mm`/`inch`/`degree`…），不得被声明或赋值遮蔽（`SEC_RESERVED_ASSIGN`）。
-- `10 * inch === 254`（普通 JS 乘法，vm 与 interp 后端行为一致）。
+- 单位常量是**全局只读裸标识符**（`MM`/`INCH`/`DEGREE`…，一律大写避免与变量名冲突），不得被声明或赋值遮蔽（`SEC_RESERVED_ASSIGN`）。
+- `10 * INCH === 254`（普通 JS 乘法，vm 与 interp 后端行为一致）。
 - 有量纲参数拒绝裸数字（**含基准单位裸数字**）；量纲不匹配的加减被拒；判罚与调用形态无关（对象/位置形态一致）。
-- 脚本里单位可混用（`10 * mm + 1 * inch` 合法，R3 只要求两侧量纲一致）。
+- 脚本里单位可混用（`10 * MM + 1 * INCH` 合法，R3 只要求两侧量纲一致）。
+- 简单表达式不加括号：`10 * MM`，不是 `( 10 ) * MM`。
 
 ---
 
@@ -602,8 +608,8 @@ faijs 版本 **`0.19.0` → `0.20.0`**（实测当前 `packages/core/package.jso
 **P5. 存量脚本迁移（新增，R2 的必然代价）**
 - 范围（实测）：仓库内 **393 个 `.fai.js`**（`find packages docs -name "*.fai.js" -not -path "*/node_modules/*"`）+ `docs/ops-api-inventory.md` 等文内示例（双语配对文档改示例须同步 `.zh.md` 与 `.i18n.yaml`，过 `doc-sync`）。
 - 取声明：经 `dualOpMetaOf(fn)` 遍历已注册 op（或直接读 `api/generated/script-face-manifest.ts`）得到 `callee → { paramDims, slotMap }`；解析用 `acorn.parse`（与 `metadata-extractor.ts:18` 同款）。
-- 做法：把有量纲实参包成 `( <原表达式> ) * mm`；**基于节点 `start`/`end` 做文本插入**，不整行重打印（避免 F1 折叠损失表达式）。
-- 语义安全性：裸值 ≡ 基准值（`10` ≡ `10 * mm`），插入不改几何；且**不依赖 `paramDims` 完整性**（漏声明的参数不被包裹，语义仍不变；只是不被校验）。
+- 做法：把有量纲实参包成 `expr * MM`（简单表达式不加括号：`10 * MM`；复杂表达式加括号：`( 10 + 5 ) * MM`）；**基于节点 `start`/`end` 做文本插入**，不整行重打印（避免 F1 折叠损失表达式）。
+- 语义安全性：裸值 ≡ 基准值（`10` ≡ `10 * MM`），插入不改几何；且**不依赖 `paramDims` 完整性**（漏声明的参数不被包裹，语义仍不变；只是不被校验）。
 - 验收（分两截，**顺序不可颠倒**）：① P5 当轮：`npm run test --workspaces` 全绿（语义不变）+ codemod 重跑无 diff（幂等）；② **P6 完成后**：对全部迁移文件跑 `check`，无 `E_DIM_BARE_NUMBER`（该校验 P6 才存在，不得提前作为 P5 的门槛）。codemod 脚本保留在 `scripts/`（可重跑、可审计）。
 
 **P6. 脚本单位常量 + 只读 + 静态量纲校验（D7/D8）**
@@ -636,10 +642,10 @@ faijs 版本 **`0.19.0` → `0.20.0`**（实测当前 `packages/core/package.jso
 | 文件 | 内容 |
 |---|---|
 | `packages/core/src/units.test.ts`（新） | 基准不变量、量纲抛错、复合量纲、`pow`/`divBy`/`eqZero`、`UNIT_SCALE`/`UNIT_DIM`/`UNIT_DIMS` 三表一致、`radian === 180/Math.PI`、`toBase`/`fromBase` 互逆 |
-| `packages/core/src/lang/dimension-check.test.ts`（新） | R1–R6 全部规则；**位置形态与对象形态判罚一致**；无量纲参数豁免；`10`（裸）被拒、`10 * mm` 通过 |
+| `packages/core/src/lang/dimension-check.test.ts`（新） | R1–R6 全部规则；**位置形态与对象形态判罚一致**；无量纲参数豁免；`10`（裸）被拒、`10 * MM` 通过 |
 | `packages/core/src/lang/security-scanner.test.ts`（追加） | `SEC_RESERVED_ASSIGN`：`inch = 999`、`let mm = 3` 均被拒 |
-| `packages/core/src/lang/codegen-units.test.ts`（新） | ① **缺省 opts → 与现状逐字节相同**（回归）② `units={length:'inch'}` → `10 * inch` ③ 基准单位 → `10 * mm` ④ vec3 逐元素 ⑤ 无量纲不追加 ⑥ `fmtUnitNum(1e-7) === '1e-7'`（**防静默归零**） |
-| `packages/core/src/lang/code-to-args-units.test.ts`（新） | ① `{length: 10 * inch}` → **254（`!== 0` 断言，`GOTCHA:` 标注旧投影为 0）** ② `10 * mm` → 10 ③ `10 * mm + 2 * mm` → 12 ④ 含单位字面量的行 `hasComputedArgs === true`（宿主只读降级） |
+| `packages/core/src/lang/codegen-units.test.ts`（新） | ① **缺省 opts → 与现状逐字节相同**（回归）② `units={length:'inch'}` → `10 * INCH` ③ 基准单位 → `10 * MM` ④ vec3 逐元素 ⑤ 无量纲不追加 ⑥ `fmtUnitNum(1e-7) === '1e-7'`（**防静默归零**） |
+| `packages/core/src/lang/code-to-args-units.test.ts`（新） | ① `{length: 10 * INCH}` → **254（`!== 0` 断言，`GOTCHA:` 标注旧投影为 0）** ② `10 * MM` → 10 ③ `10 * MM + 2 * MM` → 12 ④ 含单位字面量的行 `hasComputedArgs === true`（宿主只读降级） |
 | `packages/core/src/lang/unit-roundtrip.test.ts`（新） | `base → formatCodeLine(units=u) → codeToArgs → base'`，三档单位（mm/inch/meter）相对误差 ≤ 1e-12；**单位切换幂等**（mm→inch→mm 文本恒等） |
 | `packages/core/src/cad-runtime/check.test.ts`（追加） | ① `check()` 返回 `stage:'dimension'` ② **端到端接线断言**：`check('let p0 = cad.box({size:[10,20,30]})')` 必须报 `E_DIM_BARE_NUMBER`（证明 `opDims` 真的接到了 `extractMetadata`，不是只单测过 `checkDim`） |
 | `packages/core/src/mesh/io.test.ts`（追加） | `importFile(buf,'stl',{unit:inch})` 坐标 ×25.4；3MF 六个合法枚举各测一遍（**含 `micron`**）→ 坐标按对应系数换算；枚举外未知值 **抛错**（不静默回退 millimeter） |
@@ -651,7 +657,7 @@ faijs 版本 **`0.19.0` → `0.20.0`**（实测当前 `packages/core/package.jso
 - **基准不变量**：任何 `ValueWithUnits.value` 都是基准单位数值——用 `inch.mul(2).value === 25.4 * 2` 锁死。
 - **量纲不匹配抛错不变量**：`(1*meter).add(1*degree)` throw。
 - **单一换算真源不变量**：grep 确认 `fcstd`、`fai_cq_warehouse`（含 `sprocket.ts`）不再有本地 `UNIT_TO_MM`/`INCH` 换算表。
-- **脚本常量不可遮蔽不变量**：`inch = 999` 在扫描期即被拒；`10 * inch` 在脚本执行后仍 === 254。
+- **脚本常量不可遮蔽不变量**：`INCH = 999` 在扫描期即被拒；`10 * INCH` 在脚本执行后仍 === 254。
 - **静默失败禁止**：有量纲参数收到裸数字必须是**错误**（`E_DIM_BARE_NUMBER`），不得只 warn。
 - **序列化零行为变化不变量**：不传 `UnitSerializeOptions` 时 `formatCodeLine` 输出与改造前逐字节相同。
 - **往返零漂移不变量**：单位切换幂等 + 往返误差 ≤ 1e-12 相对量级。
@@ -663,11 +669,11 @@ faijs 版本 **`0.19.0` → `0.20.0`**（实测当前 `packages/core/package.jso
 
 | 风险 | 判据 | 应对 |
 |---|---|---|
-| **角度双重换算**（裁定为度后的主要残留风险） | 45° 变 0.785°（多除 57.3）或 45 变 2578°（多乘） | D1.1 三条纪律；P1 交付"角度入参清单"；测试断言 `45 * degree` 到 op 的实际数值 = 45；`fai_split.ts:45-52` 的二次换算点列入清单 |
-| **存量脚本迁移误包裹**（393 个文件） | 迁移后几何变化 / 测试红 | codemod 语义安全（`x` ≡ `x * mm`）；基于 AST source range 插入避免整行重打印；迁移后全量测试 + 全文件 `check` |
+| **角度双重换算**（裁定为度后的主要残留风险） | 45° 变 0.785°（多除 57.3）或 45 变 2578°（多乘） | D1.1 三条纪律；P1 交付"角度入参清单"；测试断言 `45 * DEGREE` 到 op 的实际数值 = 45；`fai_split.ts:45-52` 的二次换算点列入清单 |
+| **存量脚本迁移误包裹**（393 个文件） | 迁移后几何变化 / 测试红 | codemod 语义安全（`x` ≡ `x * MM`）；基于 AST source range 插入避免整行重打印；迁移后全量测试 + 全文件 `check` |
 | **静默归零**（`fmtNum(1e-7) === '0'`） | 极小值/切到米后长度变 0 | 单位字面量禁用 `fmtNum`，改用 `fmtUnitNum`（`String(n)`）；专用测试 |
 | **`codeToArgs` 把单位字面量折叠成 0** | 回填长度显示 0 / 写回 0 几何 | D10.4 三处修正 + `!== 0` 断言 |
-| **单位字面量被写回源码时丢单位** | `10 * inch` → `254`（在 inch 场景变 254 in） | `usedUnit` → `hasComputedArgs = true` → 宿主只读降级；测试断言 |
+| **单位字面量被写回源码时丢单位** | `10 * INCH` → `254`（在 inch 场景变 254 in） | `usedUnit` → `hasComputedArgs = true` → 宿主只读降级；测试断言 |
 | S4 白名单放开扩大安全面 | 新增全局名可被脚本覆盖 | 同批实现 `SEC_RESERVED_ASSIGN`；两后端行为一致（规则在 `assertSecure` 内，三处调用点同时生效） |
 | `paramDims` 漏声明 → 校验形同虚设 | 有量纲参数未标声明 → 永远放行 | P4 逐 op 清点；`gen-l3-surface.ts` 可加守卫（`scriptFace` op 的已知长度字段必须有声明） |
 | `paramDims` 误声明 → 误判 | 无量纲参数被要求带单位（knurl scaleU/V 类） | 默认豁免、只声明确需的；D8 R5 放行规则兜底 |
@@ -687,7 +693,7 @@ faijs 版本 **`0.19.0` → `0.20.0`**（实测当前 `packages/core/package.jso
 
 | feature 文件（实测路径） | 实测数值参数 | 改造 |
 |---|---|---|
-| `.../features/fai_extrude.ts:25-27` | `length: params.extrudeLength` | 序列化 `10 * inch` |
+| `.../features/fai_extrude.ts:25-27` | `length: params.extrudeLength` | 序列化 `10 * INCH` |
 | `.../features/primitive.ts:29-36` | `buildArgs` 是**通用循环**：所有 number/array 原样透传，op 名由调用方给（box/sphere/cylinder/cone/wedge） | 需按 op 分别给 `paramDims`；无量纲项（`segments`/`center` 等）不标 |
 | `.../features/engrave.ts:32` | `depth: params.depth_mm` | 序列化 `depth * unit`；字段名去 `_mm`（D9） |
 | `.../features/fillet.ts:32` | `radius`（`DEFAULT_FILLET_RADIUS`） | 同上 |
@@ -701,7 +707,7 @@ faijs 版本 **`0.19.0` → `0.20.0`**（实测当前 `packages/core/package.jso
 
 - **序列化原语在 faijs**：`formatCodeLine`（`packages/core/src/lang/codegen.ts:137`）+ `HostArg`（`lang/host-arg.ts`）。`n * unit` 的产出在 faijs 侧完成，`packages/scene-kernel/src/code/statement-builders.ts:16,168`（实测存在，导入自 `@faicad/faijs/env-agnostic`）作为调用方只需**多传 `{ units, dims }`**（D10.3）。
 - **反解析原语也在 faijs**：`codeToArgs`（`packages/core/src/lang/code-to-args.ts:109`）识别单位常量 → 返回基准值 + `hasComputedArgs = true`（D10.4）。
-- **label 显示**：`hostArgToDisplay`（`lang/host-arg.ts:264-274`）对 `expr-ref` 直接渲染 `text`，故 `10 * inch` 天然可显示；feature 内部硬编码单位后缀的文案改为按系统单位渲染。
+- **label 显示**：`hostArgToDisplay`（`lang/host-arg.ts:264-274`）对 `expr-ref` 直接渲染 `text`，故 `10 * INCH` 天然可显示；feature 内部硬编码单位后缀的文案改为按系统单位渲染。
 
 ### B. `unitScaleFactors` 桥接整体删除（最大简化收益）
 
@@ -735,7 +741,7 @@ faijs 版本 **`0.19.0` → `0.20.0`**（实测当前 `packages/core/package.jso
 
 - 场景设置/工程设置里加单位选择（mm/inch/米），存入**工程元数据**（不进 faijs，D10.1）。
 - 各 panel 长度/角度输入框旁显示当前系统单位；读取 = `fromBase`，写入 = `toBase`。
-- 生成脚本时把 `{ units, dims }` 传给 `formatCodeLine`（`dims` 来自 script-face-manifest / op 声明），基准单位也写单位字面量（`10 * mm`）。
+- 生成脚本时把 `{ units, dims }` 传给 `formatCodeLine`（`dims` 来自 script-face-manifest / op 声明），基准单位也写单位字面量（`10 * MM`）。
 - **切换单位 = 用宿主基准值重投影宿主生成的行**（幂等，D10.2）；手写行不改写；切换后重新 `check()`。
 - label 显示按系统单位渲染（`拉伸 10 in` 而非硬编码 `拉伸 10mm`）。
 
@@ -760,10 +766,10 @@ faijs 版本 **`0.19.0` → `0.20.0`**（实测当前 `packages/core/package.jso
 | 内部矛盾 | 原有"几何 API 参数 `ValueWithUnits` 化"（目标 3 / P2）与 D4「几何入参保持裸 number」冲突 → 用户已裁定由本方案判定，统一到 D4（不做 ValueWithUnits 化） |
 | 角度基准 | 原为"待裁定（度/弧度）"，用户裁定为**度** → D1.1 改写为已裁定 + 三条实施纪律（不做全量收敛、不得双重换算、角度入参清单） |
 | 序列化归属 | 原把序列化/反解析放在 3d_editor 侧且未提单位上下文；现明确在 faijs 侧实现，并新增 D10（`UnitContext` + 换算 + 幂等 + 精度规则） |
-| 机制断言 | "解释器零改动"不准确：需改 `S4_SAFE_GLOBALS`、`globalThis` 注册、`UiMetadata.names` 三处（不需要的是运算符重载）；§2.6 实测 `10 * mm` 今天直接抛 `SEC_FREE_IDENT` |
-| **新发现（缺陷级）** | `codeToArgs` 对 `10 * inch` / `10 * mm` **返回 0**（前置声明把单位名变成哨兵参数）；注册 `globalThis` 也不改变 → D10.4 三处修正 + `!== 0` 断言 |
+| 机制断言 | "解释器零改动"不准确：需改 `S4_SAFE_GLOBALS`、`globalThis` 注册、`UiMetadata.names` 三处（不需要的是运算符重载）；§2.6 实测 `10 * MM` 今天直接抛 `SEC_FREE_IDENT` |
+| **新发现（缺陷级）** | `codeToArgs` 对 `10 * INCH` / `10 * MM` **返回 0**（前置声明把单位名变成哨兵参数）；注册 `globalThis` 也不改变 → D10.4 三处修正 + `!== 0` 断言 |
 | **新发现（缺陷级）** | `fmtNum(1e-7) === '0'`（6 位小数截断静默归零）→ 单位字面量改用 `fmtUnitNum`（`String(n)` 最短往返） |
-| **新发现** | `fmtValue` 对 `expr-ref` 无条件加括号（实测 `{ length:(10 * inch) }`）→ `HostExprRef` 增可选 `bare` |
+| **新发现** | `fmtValue` 对 `expr-ref` 无条件加括号（实测 `{ length:(10 * INCH) }`）→ `HostExprRef` 增可选 `bare` |
 | **新发现** | `hasComputedArgs` 对纯字面量表达式（`10 + 5`）为 `false` → 单位字面量必须置 `usedUnit` 使宿主只读降级，否则折叠值会被写回源码 |
 | 声明三表 | 原只有 `UNIT_SCALE` + `UNIT_DIMS`，缺"单位名 → 量纲名"映射（校验器无法比较声明 dim 与字面量 dim）→ 补 `UNIT_DIM` 为单一真源，`UNIT_DIMS` 改为派生 |
 | 校验落点 | 未写实现位置；实测 `args-schema` 已删除，唯一入口是 `extractMetadata`，stage 联合在 `runtime.ts:73`；且**必须在 AST 折叠之前**（折叠值无量纲信息） |

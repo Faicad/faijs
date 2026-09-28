@@ -1,14 +1,16 @@
 /**
  * codemod-unit-literals.ts — P5: wrap dimensioned args in existing .fai.js files
- * with unit literals `( <expr> ) * mm`.
+ * with unit literals `expr * MM`.
  *
  * Design (docs/plans/2026-09-28-unit-system-design.md §6 P5):
  * - Parse each .fai.js with acorn (same parser as metadata-extractor).
  * - Find `cad.<opName>(...)` CallExpressions.
  * - For each argument that maps to a parameter with a declared `paramDims` entry,
- *   wrap the expression text as `( <original> ) * mm` via AST start/end offsets.
+ *   wrap the expression text as `expr * MM` via AST start/end offsets.
+ *   Simple expressions (literals, identifiers): `10 * MM`, `size * MM`.
+ *   Complex expressions (with internal operations): `( 10 + 5 ) * MM`.
  * - Idempotent: if the expression is already `X * <unitConst>`, skip.
- * - Semantic safety: `x ≡ x * mm` (mm = 1), so wrapping changes no geometry.
+ * - Semantic safety: `x ≡ x * MM` (MM = 1), so wrapping changes no geometry.
  *
  * Usage:
  *   npx tsx scripts/codemod-unit-literals.ts           # apply to all .fai.js
@@ -207,7 +209,7 @@ function makeUnitEdit(exprNode: AcornNode, source: string): TextEdit | null {
     if (isSimpleExpr(leftNode)) {
       const leftText = source.slice(leftNode.start, leftNode.end)
       const fullText = source.slice(exprNode.start, exprNode.end)
-      const canonical = `${leftText} * mm`
+      const canonical = `${leftText} * MM`
       // Check if the source uses a different unit or has parens
       const rightName = (exprNode as AcornBinaryExpression).right as AcornIdentifier
       const unitName = rightName.name
@@ -228,13 +230,13 @@ function makeUnitEdit(exprNode: AcornNode, source: string): TextEdit | null {
     return {
       start: exprNode.start,
       end: exprNode.end,
-      replacement: `${text} * mm`,
+      replacement: `${text} * MM`,
     }
   }
   return {
     start: exprNode.start,
     end: exprNode.end,
-    replacement: `( ${text} ) * mm`,
+    replacement: `( ${text} ) * MM`,
   }
 }
 

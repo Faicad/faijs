@@ -495,7 +495,7 @@ export class CadRuntime {
     this.securityPolicy = options.security ?? 'strict'
     this.determinismPolicy = options.determinism ?? 'error'
 
-    // P6/D7: register script-side unit constants (mm, inch, degree, …) on globalThis.
+    // P6/D7: register script-side unit constants (MM, INCH, DEGREE, …) on globalThis.
     // Both the VM backend (new Function resolves free identifiers from the global scope)
     // and the interpreter backend (env.ts reads globalThis[name] for S4_SAFE_GLOBALS)
     // need these values. Idempotent — safe to call across multiple runtime instances.

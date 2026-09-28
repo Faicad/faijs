@@ -54,57 +54,57 @@ describe('Dimension check R1–R6', () => {
     expect(r.error!.code).toBe('E_DIM_BARE_NUMBER')
   })
 
-  it('R2: 10 * mm is valid (not bare)', () => {
-    const r = checkCode('let p0 = cad.box(10 * mm, 10 * mm, 10 * mm)', opDims)
+  it('R2: 10 * MM is valid (not bare)', () => {
+    const r = checkCode('let p0 = cad.box(10 * MM, 10 * MM, 10 * MM)', opDims)
     expect(r.ok).toBe(true)
   })
 
-  it('R2: 10 * inch is valid (length unit)', () => {
-    const r = checkCode('let p0 = cad.box(10 * inch, 10 * inch, 10 * inch)', opDims)
+  it('R2: 10 * INCH is valid (length unit)', () => {
+    const r = checkCode('let p0 = cad.box(10 * INCH, 10 * INCH, 10 * INCH)', opDims)
     expect(r.ok).toBe(true)
   })
 
-  it('R2: base unit form 10 * mm is required (bare 10 is not ok even for base unit)', () => {
+  it('R2: base unit form 10 * MM is required (bare 10 is not ok even for base unit)', () => {
     const r = checkCode('let p0 = cad.box(10, 10, 10)', opDims)
     expect(r.ok).toBe(false)
     expect(r.error!.code).toBe('E_DIM_BARE_NUMBER')
   })
 
-  it('R3: dimension mismatch — degree on length slot → E_DIM_MISMATCH', () => {
-    const r = checkCode('let p0 = cad.box(45 * degree, 10 * mm, 10 * mm)', opDims)
+  it('R3: dimension mismatch — DEGREE on length slot → E_DIM_MISMATCH', () => {
+    const r = checkCode('let p0 = cad.box(45 * DEGREE, 10 * MM, 10 * MM)', opDims)
     expect(r.ok).toBe(false)
     expect(r.error!.code).toBe('E_DIM_MISMATCH')
   })
 
-  it('R3: same dim addition is valid (10 * mm + 5 * mm)', () => {
-    const r = checkCode('let p0 = cad.box(10 * mm + 5 * mm, 10 * mm, 10 * mm)', opDims)
+  it('R3: same dim addition is valid (10 * MM + 5 * MM)', () => {
+    const r = checkCode('let p0 = cad.box(10 * MM + 5 * MM, 10 * MM, 10 * MM)', opDims)
     expect(r.ok).toBe(true)
   })
 
-  it('R3: dim mismatch in addition → E_DIM_MISMATCH (10 * mm + 5 * degree)', () => {
-    const r = checkCode('let p0 = cad.box(10 * mm + 5 * degree, 10 * mm, 10 * mm)', opDims)
+  it('R3: dim mismatch in addition → E_DIM_MISMATCH (10 * MM + 5 * DEGREE)', () => {
+    const r = checkCode('let p0 = cad.box(10 * MM + 5 * DEGREE, 10 * MM, 10 * MM)', opDims)
     expect(r.ok).toBe(false)
     expect(r.error!.code).toBe('E_DIM_MISMATCH')
   })
 
   it('R4: length * number → length (dimension propagation)', () => {
-    const r = checkCode('let p0 = cad.box(10 * mm * 2, 10 * mm, 10 * mm)', opDims)
+    const r = checkCode('let p0 = cad.box(10 * MM * 2, 10 * MM, 10 * MM)', opDims)
     expect(r.ok).toBe(true)
   })
 
   it('R4: number * length → length (reversed multiply)', () => {
-    const r = checkCode('let p0 = cad.box(2 * 10 * mm, 10 * mm, 10 * mm)', opDims)
+    const r = checkCode('let p0 = cad.box(2 * 10 * MM, 10 * MM, 10 * MM)', opDims)
     expect(r.ok).toBe(true)
   })
 
   it('R4: length / number → length', () => {
-    const r = checkCode('let p0 = cad.box(10 * mm / 2, 10 * mm, 10 * mm)', opDims)
+    const r = checkCode('let p0 = cad.box(10 * MM / 2, 10 * MM, 10 * MM)', opDims)
     expect(r.ok).toBe(true)
   })
 
   it('R4: length / length → dimensionless (bare)', () => {
-    // 10 * mm / (5 * mm) = 2 (bare number) → E_DIM_BARE_NUMBER on length slot
-    const r = checkCode('let p0 = cad.box(10 * mm / (5 * mm), 10 * mm, 10 * mm)', opDims)
+    // 10 * MM / (5 * MM) = 2 (bare number) → E_DIM_BARE_NUMBER on length slot
+    const r = checkCode('let p0 = cad.box(10 * MM / (5 * MM), 10 * MM, 10 * MM)', opDims)
     expect(r.ok).toBe(false)
     expect(r.error!.code).toBe('E_DIM_BARE_NUMBER')
   })
@@ -128,9 +128,9 @@ describe('Dimension check R1–R6', () => {
     expect(r.error!.code).toBe('E_DIM_BARE_NUMBER')
   })
 
-  it('R5: negative unit literal → valid (-10 * mm)', () => {
-    // -10 * mm → UnaryExpression(-, BinaryExpression(10, *, mm)) → length
-    const r = checkCode('let p0 = cad.box(-10 * mm, -10 * mm, -10 * mm)', opDims)
+  it('R5: negative unit literal → valid (-10 * MM)', () => {
+    // -10 * MM → UnaryExpression(-, BinaryExpression(10, *, MM)) → length
+    const r = checkCode('let p0 = cad.box(-10 * MM, -10 * MM, -10 * MM)', opDims)
     expect(r.ok).toBe(true)
   })
 

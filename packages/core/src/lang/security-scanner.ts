@@ -149,13 +149,14 @@ export const S4_SAFE_GLOBALS = new Set<string>([
   'Infinity', 'NaN', 'undefined',
   'parseInt', 'parseFloat', 'isNaN', 'isFinite',
   'console',
-  // P6/D7: script-side unit constants (mm, inch, degree, …) are read-only globals.
+  // P6/D7: script-side unit constants (MM, INCH, DEGREE, …) are read-only globals.
   // Values registered on globalThis by the runtime; SEC_RESERVED_ASSIGN (P6) prevents
   // shadowing. The name set lives in units.ts (SCRIPT_UNIT_NAMES) but the literal
   // list is duplicated here because lang/ must not create a runtime dependency on
   // units.ts (type-only import is fine, but S4_SAFE_GLOBALS is a runtime Set).
-  'mm', 'cm', 'meter', 'micron', 'inch', 'foot', 'yard',
-  'degree', 'radian', 'gram', 'kilogram', 'second',
+  // Names are UPPERCASE to avoid collisions with user variable names.
+  'MM', 'CM', 'METER', 'MICRON', 'INCH', 'FOOT', 'YARD',
+  'DEGREE', 'RADIAN', 'GRAM', 'KILOGRAM', 'SECOND',
 ])
 
 /**
@@ -163,11 +164,11 @@ export const S4_SAFE_GLOBALS = new Set<string>([
  * (let/const/var/param/function) or assignment targets.
  * This is a subset of S4_SAFE_GLOBALS (the unit constants only, not Math/Number/etc).
  * SEC_RESERVED_ASSIGN prevents scripts from shadowing unit constants like
- * `inch = 999` or `let mm = 3`, which would silently corrupt geometry.
+ * `INCH = 999` or `let MM = 3`, which would silently corrupt geometry.
  */
 export const RESERVED_UNIT_NAMES = new Set<string>([
-  'mm', 'cm', 'meter', 'micron', 'inch', 'foot', 'yard',
-  'degree', 'radian', 'gram', 'kilogram', 'second',
+  'MM', 'CM', 'METER', 'MICRON', 'INCH', 'FOOT', 'YARD',
+  'DEGREE', 'RADIAN', 'GRAM', 'KILOGRAM', 'SECOND',
 ])
 
 // S5 结构上限

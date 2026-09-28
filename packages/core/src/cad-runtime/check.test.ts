@@ -37,7 +37,7 @@ describe('CadRuntime.check() — dryRun validation', () => {
   it('valid script: single box → ok', () => {
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box(20 * mm, 20 * mm, 20 * mm, { centered: true })
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
   return { shape: part0 }
 }`
     const result = makeRuntime().check(code)
@@ -51,7 +51,7 @@ export default async (cad) => {
   it('valid script: box + sphere boolean subtract → ok', () => {
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box(20 * mm, 20 * mm, 20 * mm, { centered: true })
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
   const part1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
   const part2 = cad.subtract(part0, part1)
   return { shape: part2 }
@@ -77,7 +77,7 @@ export default async (cad) => {
     // 文档标准形态：split 解构后引用 back 输出 part2
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box(20 * mm, 20 * mm, 20 * mm, { centered: true })
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
   const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
   const part3 = cad.translate({ offset: [5, 0, 0] }, part2)
   return { shape: part3 }
@@ -92,7 +92,7 @@ export default async (cad) => {
     // extractMetadata checks references: unknown identifiers throw E_REFERENCE.
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box(20 * mm, 20 * mm, 20 * mm, { centered: true })
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
   const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
   const part3 = cad.translate({ offset: [5, 0, 0] }, part999)
   return { shape: part3 }
@@ -135,7 +135,7 @@ export default async (cad) => {
   it('member method calls are valid syntax', () => {
     // 成员方法（asm.do_assemble）语法合法，check() 放行
     const code = `export default async (cad) => {
-  const part0 = cad.box(20 * mm, 20 * mm, 20 * mm, { centered: true })
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
   const asm0 = cad.assembly({ members: [part0] })
   asm0.do_assemble()
   return { shape: part0 }
@@ -147,7 +147,7 @@ export default async (cad) => {
 
   it('check is zero-geometry-side-effect: no OCCT init needed', () => {
     const code = `export default async (cad) => {
-  const part0 = cad.box(20 * mm, 20 * mm, 20 * mm, { centered: true })
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
   return { shape: part0 }
 }`
     const runtime = makeRuntime()
@@ -160,7 +160,7 @@ export default async (cad) => {
   it('check provides structured context for AI self-correction', () => {
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box(20 * mm, 20 * mm, 20 * mm, { centered: true })
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
   const part1 = cad.sphere({ radius: 10 })
   const part2 = cad.union(part0, part1)
   return { shape: part2 }
@@ -188,18 +188,18 @@ describe('CadRuntime.check() — dimension pass (P6/D8)', () => {
     expect(result.errors[0].code).toBe('E_DIM_BARE_NUMBER')
   })
 
-  it('10 * mm on dimensioned slot → ok=true (unit literal is valid)', () => {
+  it('10 * MM on dimensioned slot → ok=true (unit literal is valid)', () => {
     const code = `export default async (cad) => {
-  const part0 = cad.box(10 * mm, 10 * mm, 10 * mm, { centered: true })
+  const part0 = cad.box(10 * MM, 10 * MM, 10 * MM, { centered: true })
   return { shape: part0 }
 }`
     const result = makeRuntime().check(code)
     expect(result.ok).toBe(true)
   })
 
-  it('10 * inch on dimensioned slot → ok=true (inch is also length)', () => {
+  it('10 * INCH on dimensioned slot → ok=true (inch is also length)', () => {
     const code = `export default async (cad) => {
-  const part0 = cad.box(10 * inch, 10 * inch, 10 * inch, { centered: true })
+  const part0 = cad.box(10 * INCH, 10 * INCH, 10 * INCH, { centered: true })
   return { shape: part0 }
 }`
     const result = makeRuntime().check(code)
@@ -216,7 +216,7 @@ describe('CadRuntime.check() — dimension pass (P6/D8)', () => {
     // Note: _code above has part0 undefined — check() catches E_REFERENCE.
     // Use a valid shape reference:
     const code2 = `export default async (cad) => {
-  const p0 = cad.box(10 * mm, 10 * mm, 10 * mm)
+  const p0 = cad.box(10 * MM, 10 * MM, 10 * MM)
   const p1 = cad.fai_extrude(p0, { length: 5 })
   return { shape: p1 }
 }`
@@ -226,10 +226,10 @@ describe('CadRuntime.check() — dimension pass (P6/D8)', () => {
     expect(result.errors[0].code).toBe('E_DIM_BARE_NUMBER')
   })
 
-  it('fai_extrude with 5 * mm → ok=true', () => {
+  it('fai_extrude with 5 * MM → ok=true', () => {
     const code = `export default async (cad) => {
-  const p0 = cad.box(10 * mm, 10 * mm, 10 * mm)
-  const p1 = cad.fai_extrude(p0, { length: 5 * mm })
+  const p0 = cad.box(10 * MM, 10 * MM, 10 * MM)
+  const p1 = cad.fai_extrude(p0, { length: 5 * MM })
   return { shape: p1 }
 }`
     const result = makeRuntime().check(code)

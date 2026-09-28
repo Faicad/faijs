@@ -287,44 +287,44 @@ describe('SecurityScanner: existing fixture code passes', () => {
 // ── P6: SEC_RESERVED_ASSIGN — unit constant name protection ──
 
 describe('SecurityScanner: SEC_RESERVED_ASSIGN (P6/D7)', () => {
-  it('rejects assignment to unit constant: inch = 999', () => {
-    expectRejected('inch = 999', 'SEC_RESERVED_ASSIGN')
+  it('rejects assignment to unit constant: INCH = 999', () => {
+    expectRejected('INCH = 999', 'SEC_RESERVED_ASSIGN')
   })
 
-  it('rejects assignment to unit constant: mm = 3', () => {
-    expectRejected('mm = 3', 'SEC_RESERVED_ASSIGN')
+  it('rejects assignment to unit constant: MM = 3', () => {
+    expectRejected('MM = 3', 'SEC_RESERVED_ASSIGN')
   })
 
-  it('rejects declaration with unit constant name: let mm = 3', () => {
-    expectRejected('let mm = 3', 'SEC_RESERVED_ASSIGN')
+  it('rejects declaration with unit constant name: let MM = 3', () => {
+    expectRejected('let MM = 3', 'SEC_RESERVED_ASSIGN')
   })
 
-  it('rejects declaration with unit constant name: const inch = 25.4', () => {
-    expectRejected('const inch = 25.4', 'SEC_RESERVED_ASSIGN')
+  it('rejects declaration with unit constant name: const INCH = 25.4', () => {
+    expectRejected('const INCH = 25.4', 'SEC_RESERVED_ASSIGN')
   })
 
-  it('rejects declaration with unit constant name: var degree = 45', () => {
-    expectRejected('var degree = 45', 'SEC_RESERVED_ASSIGN')
+  it('rejects declaration with unit constant name: var DEGREE = 45', () => {
+    expectRejected('var DEGREE = 45', 'SEC_RESERVED_ASSIGN')
   })
 
-  it('rejects function name shadowing: function mm() { return 1 }', () => {
-    expectRejected('function mm() { return 1 }', 'SEC_RESERVED_ASSIGN')
+  it('rejects function name shadowing: function MM() { return 1 }', () => {
+    expectRejected('function MM() { return 1 }', 'SEC_RESERVED_ASSIGN')
   })
 
-  it('rejects function parameter shadowing: function f(mm) { return mm }', () => {
-    expectRejected('function f(mm) { return mm }', 'SEC_RESERVED_ASSIGN')
+  it('rejects function parameter shadowing: function f(MM) { return MM }', () => {
+    expectRejected('function f(MM) { return MM }', 'SEC_RESERVED_ASSIGN')
   })
 
-  it('rejects arrow function parameter shadowing: (inch) => inch', () => {
-    expectRejected('const f = (inch) => inch', 'SEC_RESERVED_ASSIGN')
+  it('rejects arrow function parameter shadowing: (INCH) => INCH', () => {
+    expectRejected('const f = (INCH) => INCH', 'SEC_RESERVED_ASSIGN')
   })
 
-  it('allows using unit constants in expressions: 10 * mm', () => {
-    expectPassed('const x = 10 * mm')
+  it('allows using unit constants in expressions: 10 * MM', () => {
+    expectPassed('const x = 10 * MM')
   })
 
-  it('allows using unit constants in cad calls: cad.box(20 * mm, 20 * mm, 20 * mm)', () => {
-    expectPassed('let p0 = cad.box(20 * mm, 20 * mm, 20 * mm)')
+  it('allows using unit constants in cad calls: cad.box(20 * MM, 20 * MM, 20 * MM)', () => {
+    expectPassed('let p0 = cad.box(20 * MM, 20 * MM, 20 * MM)')
   })
 
   it('allows non-unit S4 globals as declaration names (Math, console, etc)', () => {

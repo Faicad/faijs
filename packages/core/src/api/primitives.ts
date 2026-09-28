@@ -130,10 +130,11 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
  * @param params.centered - 无 at 时是否居中到原点（type:boolean 默认 false，角点在原点）。
  * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @example
- * const part0 = cad.box(10, 20, 30)
- * const part1 = cad.box(30, 20, 10, { centered: true, at: [1, 2, 3], segments: 64 })
+ * const part0 = cad.box(10 * MM, 20 * MM, 30 * MM)
+ * const part1 = cad.box(30 * MM, 20 * MM, 10 * MM, { centered: true, at: [1, 2, 3], segments: 64 })
  *
- * 位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10, 20, 30, {centered:true})`
+ * 位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10 * MM, 20 * MM, 30 * MM, {centered:true})`
+ * 有量纲位必须写单位字面量（基准单位亦然，`10` 裸数字被 D8 R2 拒）。
  * 归一到同一对象（D11 位置→对象 + 尾参 options 合并）。旧 `{ size }` 对象形态已废弃（裁决 3），
  * 传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.1）。
    */

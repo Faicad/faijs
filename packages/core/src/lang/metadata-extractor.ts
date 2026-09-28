@@ -24,8 +24,8 @@ import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef } from './ho
 import { ParseError } from './parse-error'
 import { fnv1a32 } from './fnv-hash'
 import { assertSecure, type SecurityPolicy } from './security-scanner'
-import type { DimName, UnitName } from '../units'
-import { SCRIPT_UNIT_NAMES, UNIT_DIM } from '../units'
+import type { DimName } from '../units'
+import { SCRIPT_UNIT_NAMES, UNIT_DIM, SCRIPT_UNIT_TO_NAME } from '../units'
 
 // ── UiMetadata 类型（§4.1） ──
 
@@ -378,7 +378,7 @@ export function collectExprIdentifiers(
       } else if (symbols.declared.has(name)) {
         refs.add(name)
       } else if (SCRIPT_UNIT_NAMES.has(name)) {
-        // P6/D7: unit constants (mm, inch, degree, …) are global read-only constants.
+        // P6/D7: unit constants (MM, INCH, DEGREE, …) are global read-only constants.
         // Treat as a known reference — do not throw E_REFERENCE.
         refs.add(name)
       } else if (opts?.lenient === true) {
@@ -494,7 +494,8 @@ function inferDim(node: ASTNode): DimName | 'bare' | null {
     case 'Identifier':
       // Unit constant? → its dimension
       if (SCRIPT_UNIT_NAMES.has(node.name)) {
-        return UNIT_DIM[node.name as UnitName] ?? null
+        const unitName = SCRIPT_UNIT_TO_NAME[node.name]
+        return unitName ? (UNIT_DIM[unitName] ?? null) : null
       }
       // Declared variable or parameter → cannot determine (R5: pass through)
       return null
@@ -1498,7 +1499,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
 
   // P0-B：名称集合 = 参数 ∪ 已声明变量 ∪ 命名空间绑定 ∪ 本地函数名 ∪ 单位常量（字典序去重）。
   // 宿主把「参数表达式」中的未知标识符当作参数名（期望名）处理时用它做联想。
-  // P6/D7：单位常量名（mm, inch, degree, …）加入 knownNames，使表达式实时校验通过。
+  // P6/D7：单位常量名（MM, INCH, DEGREE, …）加入 knownNames，使表达式实时校验通过。
   const names = [
     ...new Set([
       ...symbols.paramNames,
@@ -1655,8 +1656,8 @@ function classifyOpCall(
 /**
  * P6/D8: Check dimension constraints on op call arguments.
  *
- * Handles both object-form (`cad.box({ width: 10 * mm })`) and positional-form
- * (`cad.box(10 * mm, 10 * mm, 10 * mm)`). For positional form, uses slotMap
+ * Handles both object-form (`cad.box({ width: 10 * MM })`) and positional-form
+ * (`cad.box(10 * MM, 10 * MM, 10 * MM)`). For positional form, uses slotMap
  * to map positional args to parameter names. For vec3 params, checks each element.
  *
  * Errors are accumulated in `ctx.dimErrors` (does not throw).

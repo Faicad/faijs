@@ -52,9 +52,10 @@ faijs 对外 API 全面采用 `Result` / `BrepError` 体系（`ok` / `err` / `is
 创建长方体（brepjs 契约，§4.1 A 决策）。
 
 ```js
-const part0 = cad.box(( 10 ) * mm, ( 20 ) * mm, ( 30 ) * mm)
-const part1 = cad.box(( 30 ) * mm, ( 20 ) * mm, ( 10 ) * mm, { centered: true, at: [1, 2, 3], segments: 64 })
-位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10, 20, 30, {centered:true})`
+const part0 = cad.box(10 * MM, 20 * MM, 30 * MM)
+const part1 = cad.box(30 * MM, 20 * MM, 10 * MM, { centered: true, at: [1, 2, 3], segments: 64 })
+位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10 * MM, 20 * MM, 30 * MM, {centered:true})`
+有量纲位必须写单位字面量（基准单位亦然，`10` 裸数字被 D8 R2 拒）。
 归一到同一对象（D11 位置→对象 + 尾参 options 合并）。旧 `{ size }` 对象形态已废弃（裁决 3），
 传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.1）。
 ```

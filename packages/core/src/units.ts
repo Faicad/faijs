@@ -298,21 +298,36 @@ export const UNIT_DIMS: Readonly<Record<UnitName, UnitSpec>> = Object.freeze(
 /**
  * Script-side unit constant names → their numeric values (base-unit scale).
  * These are registered as global read-only constants in the script runtime.
- * `10 * inch` in a script evaluates to `10 * 25.4 === 254` (plain JS multiply).
+ * All names are UPPERCASE to avoid collisions with user variable names
+ * (e.g. `cm` as center-of-mass would clash with `cm` as centimeter).
+ * `10 * INCH` in a script evaluates to `10 * 25.4 === 254` (plain JS multiply).
  */
 export const SCRIPT_UNIT_CONSTANTS: Readonly<Record<string, number>> = Object.freeze({
-  mm: 1,
-  cm: 10,
-  meter: 1000,
-  micron: 0.001,
-  inch: 25.4,
-  foot: 304.8,
-  yard: 914.4,
-  degree: 1,
-  radian: 180 / Math.PI,
-  gram: 1,
-  kilogram: 1000,
-  second: 1,
+  MM: 1,
+  CM: 10,
+  METER: 1000,
+  MICRON: 0.001,
+  INCH: 25.4,
+  FOOT: 304.8,
+  YARD: 914.4,
+  DEGREE: 1,
+  RADIAN: 180 / Math.PI,
+  GRAM: 1,
+  KILOGRAM: 1000,
+  SECOND: 1,
+})
+
+/**
+ * Mapping from script-side unit constant names (UPPERCASE) to the internal
+ * `UnitName` (lowercase, used by UNIT_SCALE/UNIT_DIM for format-level units).
+ * Used by the dimension checker to resolve a script constant to its dimension.
+ */
+export const SCRIPT_UNIT_TO_NAME: Readonly<Record<string, UnitName>> = Object.freeze({
+  MM: 'mm', CM: 'cm', METER: 'm', MICRON: 'micron',
+  INCH: 'inch', FOOT: 'foot', YARD: 'yard',
+  DEGREE: 'degree', RADIAN: 'radian',
+  GRAM: 'gram', KILOGRAM: 'kilogram',
+  SECOND: 'second',
 })
 
 /** The set of script-side unit constant names (for fast membership tests). */
