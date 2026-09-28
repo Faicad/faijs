@@ -29,6 +29,8 @@
       "@faicad/faijs-extra/*": ["./packages/faijs-extra/src/*"],
       "@faicad/faijs-sketch": ["./packages/sketch/src/index.ts"],
       "@faicad/faijs-sketch/*": ["./packages/sketch/src/*"],
+      "@faicad/faijs-draw": ["./packages/draw/src/index.ts"],
+      "@faicad/faijs-draw/*": ["./packages/draw/src/*"],
       "@faicad/cq-compat": ["./packages/cq-compat/src/index.ts"],
       "@faicad/cq-compat/*": ["./packages/cq-compat/src/*"],
       "@faicad/cq-compat-sketch": ["./packages/cq-compat-sketch/src/index.ts"],
