@@ -13,9 +13,11 @@
  */
 import { buildSketchOnPlaneWith } from '@faicad/faijs/api'
 import type { ProfileLoop } from '@faicad/faijs/api/profile'
+import type { SketchOnPlaneParams } from '@faicad/faijs/api'
 import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { SketchConstraint, SketchGeom, SolveOutcome, ConflictDetail } from './canonical.js'
+import type { SketchParams } from './op.js'
 import { solveSketch, type SolveSketchOptions } from './solve.js'
 import { toFreeCadGeoms } from './project.js'
 import { extractContours } from './contour.js'
@@ -48,8 +50,12 @@ function conflictingMessage(outcome: SolveOutcome): string {
 export interface SketchFacesOptions extends SolveSketchOptions {
   /** Product form: `'face'` (default) builds a face; `'wire'` returns the outer wire only. */
   as?: 'face' | 'wire'
-  /** Named target plane to place the solved contours on (`'XY'` default; e.g. `'XZ'` / `'YZ'`). */
-  plane?: string
+  /**
+   * Named target plane (`'XY'` default; e.g. `'XZ'` / `'YZ'`) or an explicit
+   * plane frame (A3, 2026-09-28): `{ origin, normal, xAxis? }` for arbitrary
+   * sketch planes (the sketchOnPlane hand-off, D3 option (b)).
+   */
+  plane?: SketchParams['plane']
   /** Diagnostics observer (the script-face op forwards this to the host sink). */
   onDiagnostic?: (outcome: SolveOutcome) => void
 }
@@ -59,10 +65,10 @@ export interface SketchFacesOptions extends SolveSketchOptions {
  *
  * @param outcome - a converged solve outcome.
  * @param as - product form: `'face'` (default) or `'wire'`.
- * @param plane - named target plane for the placement (default `'XY'`).
+ * @param plane - named plane or explicit frame `{ origin, normal, xAxis? }` (default `'XY'`).
  * @returns the placement face or outer wire.
  */
-export function shapeFromSolved(outcome: SolveOutcome, as?: 'face' | 'wire', plane?: string): Shape {
+export function shapeFromSolved(outcome: SolveOutcome, as?: 'face' | 'wire', plane?: SketchParams['plane']): Shape {
   // 2026-09-27裁定: a conflicting over-constraint is a HARD error on the
   // script face — the message must point at the clashing constraints (§3.2).
   // Under- and redundant-constraint still solve normally; only a hard solver
@@ -78,9 +84,14 @@ export function shapeFromSolved(outcome: SolveOutcome, as?: 'face' | 'wire', pla
     throw new Error('E_SKETCHC_NO_CONTOUR: solved sketch produced no closed loop')
   }
   const loops: ProfileLoop[] = contours.map((c) => ({ segments: c.segments }))
+  // A3 (D3 (b)): the placement hand-off goes through the SAME shared
+  // placement core (`buildSketchOnPlaneWith`) for both named planes and
+  // explicit frames — the contours land on the target plane in one step.
+  const planeSpec: SketchOnPlaneParams['plane'] =
+    typeof plane === 'string' ? { name: plane } : (plane ?? { name: 'XY' })
   return buildSketchOnPlaneWith(getBrepApi(), {
     contours: loops,
-    plane: { name: plane ?? 'XY' },
+    plane: planeSpec,
     as,
   })
 }

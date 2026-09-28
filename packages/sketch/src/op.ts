@@ -58,8 +58,13 @@ export interface SketchParams {
   constraints?: SketchConstraint[]
   /** Product form: `'face'` (default) or `'wire'` (outer wire for sweep spines). */
   as?: 'face' | 'wire'
-  /** Named target plane to place the solved contours on (`'XY'` default; e.g. `'XZ'` / `'YZ'`). */
-  plane?: string
+  /**
+   * Named plane (`'XY'` default; e.g. `'XZ'` / `'YZ'`) or an explicit plane
+   * frame (A3, 2026-09-28): `{ origin, normal, xAxis? }` — places the solved
+   * contours on an arbitrary plane in one step (the sketchOnPlane hand-off;
+   * no post-hoc `cad.place` needed).
+   */
+  plane?: string | { origin: [number, number, number]; normal: [number, number, number]; xAxis?: [number, number, number] }
 }
 
 /**
@@ -76,8 +81,11 @@ export function assertSketchParams(params: Record<string, unknown>): void {
   if (params.constraints !== undefined && !Array.isArray(params.constraints)) {
     throw new Error('E_SKETCHC_BAD_CONSTRAINTS: constraints must be an array')
   }
-  if (params.plane !== undefined && typeof params.plane !== 'string') {
-    throw new Error('E_SKETCHC_BAD_PLANE: plane must be a named plane string such as "XY" or "XZ"')
+  if (params.plane !== undefined && typeof params.plane !== 'string' &&
+      (typeof params.plane !== 'object' || params.plane === null ||
+        !Array.isArray((params.plane as { origin?: unknown }).origin) ||
+        !Array.isArray((params.plane as { normal?: unknown }).normal))) {
+    throw new Error('E_SKETCHC_BAD_PLANE: plane must be a named plane string or an explicit frame { origin, normal, xAxis? }')
   }
 }
 
