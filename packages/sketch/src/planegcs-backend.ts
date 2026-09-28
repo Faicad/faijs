@@ -119,23 +119,26 @@ export class PlanegcsSolver implements SketchSolver {
     w.push_primitive({ type: 'line', id: 'L-2', p1_id: P(-2, 1), p2_id: P(-2, 2) });
 
     // --- M6.3: external fixed geometry (geoId -3, -4, ... in link order) ---
+    // Every sampled polyline point is pinned as a fixed primitive P(geoId, i+1),
+    // which is exactly how a constraint ref ({geoId, pos}) addresses it — for a
+    // 2-point edge (pos 1/2 = the endpoints) and for a `VertexN` link (a
+    // 1-point polyline: pos 1 = the vertex) alike. `externalLines` additionally
+    // registers the edge-level line X<geoId> for pos-0 (on-edge) refs.
     const externalLines = new Map<number, { p1: PtKey; p2: PtKey }>();
+    const externalPointCount = new Map<number, number>();
     for (const ext of external ?? []) {
-      if (ext.polyline.length === 2) {
-        // straight segment: two fixed endpoints + fixed line
+      const pts = ext.polyline;
+      pts.forEach((pt, i) => {
+        w.push_primitive({
+          type: 'point', id: P(ext.geoId, i + 1), x: pt[0], y: pt[1], fixed: true,
+        });
+      });
+      externalPointCount.set(ext.geoId, pts.length);
+      if (pts.length === 2) {
         const p1 = P(ext.geoId, 1);
         const p2 = P(ext.geoId, 2);
-        w.push_primitive({ type: 'point', id: p1, x: ext.polyline[0]![0], y: ext.polyline[0]![1], fixed: true });
-        w.push_primitive({ type: 'point', id: p2, x: ext.polyline[1]![0], y: ext.polyline[1]![1], fixed: true });
         w.push_primitive({ type: 'line', id: `X${ext.geoId}`, p1_id: p1, p2_id: p2 });
         externalLines.set(ext.geoId, { p1, p2 });
-      } else {
-        // multi-point polyline: pin sampled points as fixed point targets
-        ext.polyline.forEach((pt, i) => {
-          w.push_primitive({
-            type: 'point', id: P(ext.geoId, i + 1), x: pt[0], y: pt[1], fixed: true,
-          });
-        });
       }
     }
 
@@ -258,7 +261,7 @@ export class PlanegcsSolver implements SketchSolver {
       if (ignorableSet.has(c.index)) continue;
       let prims: Record<string, unknown>[];
       try {
-        prims = this.constraintToPrimitives(c, { lines, arcs, circles, ellipses, standalone, externalLines });
+        prims = this.constraintToPrimitives(c, { lines, arcs, circles, ellipses, standalone, externalLines, externalPointCount });
       } catch {
         droppedConstraints.push(c.index);
         continue;
@@ -354,6 +357,7 @@ export class PlanegcsSolver implements SketchSolver {
       ellipses: Map<number, { center: PtKey; focus1: PtKey }>;
       standalone: Map<number, PtKey>;
       externalLines: Map<number, { p1: PtKey; p2: PtKey }>;
+      externalPointCount: Map<number, number>;
     },
   ): Record<string, unknown>[] {
     const out: Record<string, unknown>[] = [];
@@ -366,12 +370,17 @@ export class PlanegcsSolver implements SketchSolver {
       if (ref.geoId === -1) return P(-1, 1); // root point
       if (ref.geoId === -2) return P(-2, ref.pos === 0 ? 1 : ref.pos); // VAxis point
       if (ref.geoId <= -3 && ref.geoId > -2000) {
-        // M6.3 external geometry: endpoint/point refs onto fixed segments
-        const ext = ctx.externalLines.get(ref.geoId);
-        if (!ext) return undefined;
-        if (ref.pos === 1) return ext.p1;
-        if (ref.pos === 2) return ext.p2;
-        return undefined; // pos=0 (edge itself) handled by line-typed paths
+        // M6.3 external geometry. The primitive loop pinned every sample as
+        // P(geoId, i+1), so a point ref is just that key — whether the link is
+        // an edge (pos 1/2 = endpoints) or a vertex (pos 1 = the point).
+        // GOTCHA (2026-09-28): resolving only through `externalLines` left
+        // every `VertexN` ref undefined, so Coincident/DistanceY constraints
+        // onto an external vertex were compiled away with no failure record
+        // (sketch silently solved to the wrong geometry, then flagged L1).
+        const n = ctx.externalPointCount.get(ref.geoId);
+        if (n !== undefined && ref.pos >= 1 && ref.pos <= n) return P(ref.geoId, ref.pos);
+        if (ref.pos === 0) return undefined; // edge itself: line-typed paths
+        return undefined;
       }
       if (ref.geoId >= 0) return P(ref.geoId, ref.pos);
       return undefined;
