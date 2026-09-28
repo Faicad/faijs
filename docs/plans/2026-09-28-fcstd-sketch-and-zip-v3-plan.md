@@ -1,6 +1,6 @@
 # FCStd 草图参数化翻译 + `.fai.zip` v3 格式迁移计划（2026-09-28）
 
-状态：**方案（未实施）**——等实施指令。本方案接续 `2026-09-27-fcstd-next-batch-plan.md`（该计划把草图相关缺口 B2′ 草图求解 / B3 外部几何 / C0 开放轮廓、约 659 个 translation-gaps「继续挂起，等草图库改版落地」）。现在 faijs 的 2D 草图能力已落地（`docs/plans/2026-09-27-2d-sketching-to-3d-plan.md`），`.fai.zip` 容器格式升到 v3，`../fcstd-port` 也已更新到消费 `@faicad/faijs-fcstd` 的新读 API——本方案把这些前置条件合起来，规划「用新草图能力兼容 FCStd 草图」与「老 `.fai.zip` 升级到 v3」两件事。
+状态：**部分实施（A4 已完成，其余待开发）**——A4 Draft 画图→`cad.draw` 已于 2026-09-28 落地（commit `f16f3dd`，全 lefthook 门禁通过、无 `--no-verify`）；A1/A2/A3/A5/A6、B 组、C 组仍待开发。本方案接续 `2026-09-27-fcstd-next-batch-plan.md`（该计划把草图相关缺口 B2′ 草图求解 / B3 外部几何 / C0 开放轮廓、约 659 个 translation-gaps「继续挂起，等草图库改版落地」）。现在 faijs 的 2D 草图能力已落地（`docs/plans/2026-09-27-2d-sketching-to-3d-plan.md`），`.fai.zip` 容器格式升到 v3，`../fcstd-port` 也已更新到消费 `@faicad/faijs-fcstd` 的新读 API——本方案把这些前置条件合起来，规划「用新草图能力兼容 FCStd 草图」与「老 `.fai.zip` 升级到 v3」两件事。
 
 ## 0. 用户要求（原话）
 
@@ -120,7 +120,7 @@ parseSketchObject(线/圆/弧/点/椭圆/bspline + 约束)          sketch-parse
 - **A1 补 `fromFreeCadConstraints`**：`packages/sketch/src/project.ts` 新增 FCStd 整数 `ConstraintType` + `(geoId,pos)` ref → canonical `SketchConstraint`（string kind）的反向投影，配合既有 `fromFreeCadGeoms`；把 `SketchCon` 的 `-1/-2/≤-3` 特殊 geoId（HAxis/VAxis/外部）投影为对应 canonical 引用或显式标为不可投。**单测**：约束全集（含内部对齐、外部参考）双向 roundtrip；GOTCHA 留档 geoId 负值语义。
 - **A2 sketch 分支改发 `cad.sketch`**：`codegen.ts` M6 草图分支从「`extractContours → cad.profile`」改为「`fromFreeCadGeoms + fromFreeCadConstraints → cad.sketch({geoms, constraints, plane})`」；convert 期 `classifySketch` 降格为**保真预检**——`solved`/`underconstrained`/`redundant`/`conflicting` 都发 `cad.sketch` 并把 verdict 写进 `mapping.json` 的 fidelity，只有 `failed` 或不支持几何才落 A5 兜底。**改动位置**：`codegen.ts`（`SketchObject` 分支）+ `convert.ts`（M3 求解段去 profile 化）+ `feature-translate.ts` 的 `SketchObject` 相关。**单测**：`codegen.test.ts` 现「sketch → cad.profile」断言改为「sketch → cad.sketch」，并断言约束原样出现在生成代码里。
 - **A3 放置衔接 —— `sketchOnPlane`（平面）/ `sketchOnFace`（模型给定面，限平面面）**：草图 `Placement` + `Support`（`attachment.ts` 的 `effectivePlacement`）归一为两路——附着在 datum/命名平面 → `sketchOnPlane(plane frame)`；附着在别的特征的面 → `sketchOnFace(on, face)`；附着在**曲面**面 → 降级 A5 兜底并显式 reason（`sketch-on-curved-face-unsupported`，因 G2 `fixWireOnFace` 未实现）。删除/旁路 M8.3 的 `cad.place` 重定向 hack。**改动位置**：`codegen.ts`（M8.3 放置段）+ 新增 Placement→frame 转换。**单测**：斜平面草图 e2e 精确 target 断言、平面面上草图 `sketchOnFace` 几何等价、曲面草图降级 reason 明确；GOTCHA 留档「两帧往返」。
-- **A4 Draft 画图 → `cad.draw`**：识别 Draft/`Part::Part2DObject` 画图对象，把死几何（wire 点列、circle、arc、polyline…）链式重建为 `cad.draw` 调用（moveTo/lineTo/arcTo/circle/close）。`cad.draw` 产出的 Drawing 与草图同一条下拉管线：在 XY/命名平面画出 → `sketchOnPlane` 放置 → `extrude`；附着在别的特征面上 → `sketchOnFace` 放置 → `extrude`。**前置**：先解析 Draft 对象几何（现被判 `python-opaque`，需从 `Python`/`Proxy` 属性或 Shape .brp 中取坐标）。**改动位置**：`feature-translate.ts` 新增 Draft 特征分支 + `document.ts` 解析辅助。**取点**：从 ArchDetail 等含 Draft 语料取点，逐文件汇报。
+- **A4 Draft 画图 → `cad.draw`（✅ 已完成 2026-09-28，见 §6，commit `f16f3dd`）**：识别 Draft/`Part::Part2DObject` 画图对象，把死几何（wire 点列、circle、arc、polyline…）链式重建为 `cad.draw` 调用。**实际落地点偏离原计划预设**（计划 §3 写「经 `feature-translate.ts` 新增分支 + `document.ts` 从 `Python`/`Proxy` 解析」），详见 §6.2：改为从 Shape 的 wireframe（`.brp` 拓扑）重串轮廓，并经 `codegen.ts` 发射「每条轮廓一次 `cad.draw` + 一次 `cad.sketchOnPlane` 放置」。`cad.draw` 产出的 Drawing 与草图同一条下拉管线：在 XY/命名平面画出 → `sketchOnPlane` 放置 → `extrude`；附着在别的特征面上 → `sketchOnFace` 放置 → `extrude`。**取点**：Chair / Kitchen_cabinet_base 语料已验证端到端。
 - **A5 `cad.profile` 兜底收紧**：仅在「求解 failed / 求解器不支持几何（bspline/ellipse 超能力）/ 开放轮廓不可参数化 / **附着在曲面面（`sketch-on-curved-face-unsupported`，G2 `fixWireOnFace` 未实现）**」时落 `cad.profile`（烘焙求解结果/原始几何成死轮廓）或 baked，并把降级原因写成显式 reason（如 `sketch-unsupported-geom`），替代现在的「默认 profile 化」。**单测**：断言不可解/曲面附着草图的 mapping reason 明确、且 profile 只出现在兜底分支。
 - **A6 曲线精确化（parity 提升项，晚做）**：`ContourSeg`/`SketchGeom` 已含的 bspline/ellipse 逐步走精确边（`sketchOnPlane` 的 `liftCurve2dToPlane` 抬控制点），替代折线采样；**第一步先修「ellipse 丢段」这个硬 bug**（`contour.ts` 的 `segEnds` 补 ellipse 分支），再逐个精确化。
 
@@ -151,3 +151,48 @@ parseSketchObject(线/圆/弧/点/椭圆/bspline + 约束)          sketch-parse
 - 主题二（格式迁移）：`FreeCAD-library/` 与 `FreeCAD-library-staging/` 下 `.fai.zip` 全部 `format: 3`，读端与对拍走 v3 读 API，parity/promoted 核对与 reports 刷新通过。
 - 主题三（参数化变量）：`Spreadsheet::Sheet` 别名、`VarSet` 变量、具名尺寸草图约束翻译为 faijs `const p_*` 参数，表达式内联成 op 参数表达式；`mapping.json` 记录参数来源；run 期改参数可重算、default 值与 convert 期求解值一致。
 - 全程：单测随项落库、每项独立提交、逐文件汇报、stderr 零容忍。
+
+## 6. 进展与下一步（2026-09-28 更新）
+
+### 6.1 进度总览
+
+- **A4（Draft 画图 → `cad.draw`）已落地**，commit `f16f3dd`（line-ending / 翻译配对 / export-jsdoc / eslint / whitespace 全部门禁通过，无 `--no-verify`）。
+- 其余 A1 / A2 / A3 / A5 / A6、B 组、C 组**待开发**。
+- **已知阻塞（与 Draft 无直接关系、预先存在）**：`cad.sweep` 拒绝 FreeCAD 的 Transition 枚举，仅支持 `'right'`（`SWEEP_TRANSITION_UNSUPPORTED`），导致 `Kitchen_cabinet_base` 暂不能 run。已用 `it.fails` 钉死，待 sweep 能力补齐后自动复绿。
+
+### 6.2 A4 实际落地内容（与计划的偏差须如实记录）
+
+计划 §3 A4 预设「Draft 经 `feature-translate.ts` 新增分支 + `document.ts` 从 `Python`/`Proxy` 解析坐标」。实际落地**偏离了该预设**——验证发现 Draft 投影对象在 FCStd 里的最佳可用几何是 Shape 的 wireframe（`.brp` 拓扑），而非 Proxy 属性，因此改为：
+
+1. **识别**：`codegen.ts` 直接识别 `Part::Part2DObjectPython` 类型（不再被判 `python-opaque` → `python-baked`/`shape-asset`），从 `getSubShapes(shape, 'wire')` 取每条 wire 的点列。
+2. **轮廓重建**（`packages/fcstd/src/draft-draw.ts`）：
+   - `edgePolylines(wf)` 把 wireframe 拆成边点列；`wireframe().edgeGroups` 是 `TopExp::MapShapes` 顺序、**不是遍历顺序**（实测 14 条连续边仅 3 对共享端点，最大间隙 3.43mm）→ 改用端点匹配（两端同时生长）重新串成闭合/开放轮廓，剩余未用边重启种子，保证不丢边。
+   - `draftTolerance`：容差取 `max(1e-9, 1e-5 * 坐标量级)`。原因：老代码用的 `1e-6` 落在 Float32 噪声地板**以下**（实测 |coord|≈300 时 1 ulp = 6.1e-5），导致真闭合环 95% 被判为开放。
+   - `DraftContour.points` 在闭合时**已剔除重复尾点**；`extractDraftDrawing` 对「只有边复合体、无 wire」的对象（Chair 的 `Shape2DView`）兜底走 `collect(shape)`，否则会静默落回 `shape-asset` 死导入。
+   - `renderDrawContour`：每条轮廓发 `pen.polyline([[x,y],…], true|false)`，坐标四舍五入到 1e-6。
+3. **core 能力补齐**（让「画出来的轮廓」能被放置成 Shape——这是计划 A4 假设的桥、原本不存在）：
+   - `packages/core/src/geometry2d/pen-sketcher.ts` 新增 `BaseSketcher2d.polyline(points, close?)`：批量发射一条折线，AST 深度恒定（绕开安全扫描 100 层嵌套上限），并强制「一笔一轮廓」（`pendingCurves>0` 且不在起点时抛错）。
+   - `packages/core/src/api/profile.ts`：新增 `DrawnContours = Blueprint | Blueprint[]`、`toContourBlueprints()`、`isDrawnContour()`，`contours` 字段放宽接受绘制轮廓；`assertProfileParams` 整数组一次性判别（混合 loop+drawn 报 `E_PROFILE_MIXED_CONTOURS`）。
+   - `packages/core/src/api/sketch-on-plane.ts`：`buildSketchOnPlaneWith` 经 `toContourBlueprints` 接受绘制轮廓。
+4. **发射**（`packages/fcstd/src/codegen.ts`）：Draft 分支每条轮廓发一个 `local:` 函数（`return cad.draw((pen) => pen.polyline([…]))`）+ 一次 `cad.sketchOnPlane({ contours: [轮廓变量…], plane })`；对象自身变量成为放置后的 Shape（下游 `cad.sweep`/`cad.extrude` 不变）。放置调用带 `inputs: contourVars` + `noPositionalArgs:true`，否则 `lower()` 的根聚合会把裸 Blueprint（无 BREP handle）扫进 `cad.compound` 致死。
+
+### 6.3 A4 验证证据（全为执行产物，非「无缺口转换」假象）
+
+- **单元**：`draft-draw.test.ts`（15）、`pen-sketcher.test.ts` 含 polyline（共 15）、`sketch-on-plane-e2e.test.ts` 绘制轮廓接纳（14）、`profile-multi-island.test.ts`（5）全绿。
+- **语料 e2e**（`draft-chain-e2e.test.ts`，转换 + 执行 `Chair.FCStd` 与 `Kitchen_cabinet_base.FCStd`，含把已放置的 Draft Shape `cad.extrude`，宿主命名空间真实 merge）：
+  - `Chair`：**端到端跑通**，runner ✓、STEP 写出；确认坏形态 `pen.moveTo`/`pen.lineTo` 已从发射中**消失**（非仅被取代）；`cad.draw((pen) => pen.polyline([` 与 `cad.sketchOnPlane({ contours: [` 均出现。
+  - `Kitchen_cabinet_base`：卡在 `Execution failed at statement (callee: sweep): SWEEP_TRANSITION_UNSUPPORTED`——与 Draft 无关，是 sweep 能力预先缺陷；用 `it.fails` 钉死。
+- **全量**：`packages/fcstd` 全测 **30 文件 / 344 用例全过**；`packages/core` 受影响测试 34 全过。无回归。
+
+### 6.4 待补 / 下一步（按优先级）
+
+1. **`cad.draw()` 取笔形态（拍板选项提及，A4 未做）**：选项原文写了「cad.draw 补 cad.draw() 取笔形态」（即 `cad.draw().hLineTo(...)` 返回 pen 的形态）。实际发射用的是 **callback 形态** `cad.draw((pen) => pen.polyline([…]))`，这是 `packages/draw/src/draw.ts` 既有、文档化的入口，已覆盖发射需求。**两种选择**：(a) 仍补 `cad.draw()` 返回 pen 的形态（纯 API 便利，与 A4 正确性无关）；(b) 明确记为本计划范围外，发射维持 callback 形态。**当前倾向 (b)**，除非后续 UI 需要。
+2. **A1** `fromFreeCadConstraints`：FCStd 整数 `ConstraintType` + `(geoId,pos)` → canonical `SketchConstraint` 反向投影；`-1/-2/≤-3` 特殊 geoId（HAxis/VAxis/外部）处理。
+3. **A2** 草图分支改发 `cad.sketch`：`codegen.ts` M6 从 `cad.profile` 改为 `cad.sketch({geoms, constraints, plane})`；`convert.ts` 的 `classifySketch` 降格为保真预检（仅 `failed`/不支持几何才降级）。**前置两个既存报错**：`E_SKETCHC_UNSUPPORTED_GEOM: geometry kind "point"`（`SketchGeom` 补 `construction`）与 `E_SKETCHC_NO_CONTOUR`（投影对称性：`toFreeCadGeoms` 与 `fromFreeCadGeoms` 对齐）。
+4. **A3** 放置衔接：`sketchOnPlane`（平面）/ `sketchOnFace`（平面面）；删除 M8.3 的 `cad.place` 重定向 hack；曲面附着降级并显式 reason（`sketch-on-curved-face-unsupported`）。
+5. **A5** `cad.profile` 兜底收紧：仅 `failed`/不支持几何/曲面附着时落 `cad.profile`，reason 明确。
+6. **A6** 曲线精确化：先修 `contour.ts` `segEnds` 的 ellipse 丢段硬 bug。
+7. **B1–B3** v3 迁移：确认 fcstd-port 读端切 v3；reconvert 源 `D:/Faicad/FreeCAD-library/`（3201 个）；parity/入库回核 + reports 刷新。
+8. **C1–C4** 参数化：叶子参数升格 `const p_*`、表达式内联折叠、`mapping.params` 来源台账。
+9. **打包 / 消费链**（Task #5）：pack tgz + fcstd-port 安装链 + smoke。
+10. **系统性**：各包 `build` 脚本仍不 clean `dist`，需补。
