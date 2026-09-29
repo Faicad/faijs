@@ -71,16 +71,19 @@ function Run-Npm {
   finally { Pop-Location }
 }
 
-# Publishable packages in topological order (matches section 2).
-# The editor extension library has core as a peer, so it follows core. The family
+# Publishable packages in topological order. @faicad/cq-compat-compare is a
+# dev-only internal test tool and stays out of the publish list;
+# @faicad/cq-compat-sketch is not yet validated and is deliberately withheld. The family
 # publishes under ONE lockstep version (step 1 below): a package that needs a
 # different version line cannot live in this list.
 $Packages = @(
   @{ Name = '@faicad/faijs';           Path = 'packages/core' },
   @{ Name = '@faicad/faijs-sketch';    Path = 'packages/sketch' },
   @{ Name = '@faicad/faijs-extra';     Path = 'packages/faijs-extra' },
+  @{ Name = '@faicad/faijs-draw';      Path = 'packages/draw' },
   @{ Name = '@faicad/faijs-fcstd';     Path = 'packages/fcstd' },
   @{ Name = '@faicad/cq-compat';        Path = 'packages/cq-compat' },
+  @{ Name = '@faicad/cq-compat-assembly'; Path = 'packages/cq-compat-assembly' },
   @{ Name = '@faicad/fai-cq-gears';     Path = 'packages/fai_cq_gears' },
   @{ Name = '@faicad/fai-cq-warehouse'; Path = 'packages/fai_cq_warehouse' },
   @{ Name = '@faicad/sheetmetal';       Path = 'packages/sheetmetal' }
