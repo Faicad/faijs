@@ -1,6 +1,6 @@
 # FCStd Draft 轮廓解析重建：Sprocket 类 timeout 处置方案
 
-- Status: 方案（未实施）
+- Status: 部分实施（A1 已落地、A2 已提交 `c6a99df0`；A3/A4 待 Sprocket 重转，仍被 `--exclude Sprocket` 隔离）
 - 范围: `packages/fcstd/src/draft-draw.ts`（主改点）、`packages/sketch`（bspline 图元面，仅当需要）、fixture 单测
 - 关联: P1-2 全库 stage2 扫描（fcstd-port `tools/run-sweep.ts`）
 
@@ -41,6 +41,8 @@ BREP 的 `Curves` 段一曲线一行，行首整数为曲线类型。按 (类型
 记录格式由 token 数反推：`1` = 直线（基点 3 + 方向 3）；`2` = 圆（基点 3 + 法向 3 + 两方向各 3 + 半径 1）；`7` = 变长参数曲线（6 token 头部 + `poles` 三元组，实测 `poles = degree + 1` 且无 knot / weight 序列，形态上与 Bézier 一致）。整份数据里**没有折线记录**，也没有显式离散。
 
 ⇒ 与点数脱钩的唯一路径是**按曲线类型重建**。把 tessellation 调粗只能按 `点数 ∝ 1/√deflection` 压低点数且同步牺牲精度，不构成正解（§8 明确排除）。
+
+> **A2 订正（2026-09-29，提交 `c6a99df0`）：** 上表 `PartShape6/9/12` 的 230/230/231 条 `type 7` 参数曲线即 A2 的覆盖目标，但三者均为 **Sprocket** member，现被 stage2 扫描 `--exclude Sprocket` 隔离（§1），故 A2 的真实执行腿不在它们身上，而在 §5.2 的 `Chair`。A2 落地后这些参数曲线一旦随 Sprocket 重转（A3）将以精确 NURBS 而非折线产出。
 
 ## 4. 能力现状（逐项核对，含文件行号）
 
@@ -88,12 +90,38 @@ A1 落地后 `draft-chain-e2e.test.ts` 的 Chair 用例在 `makeFace` 处回归�
 
 回归面判据：Chair 端到端（17+17 条开放轮廓 → 34 条 wire + 2 个 compound）**产出 STEP**；Sprocket 全部轮廓闭合，仍走单条面调用，发射形态与 A1 首版一致。
 
+### 5.2 A2 实测（2026-09-29 提交 `c6a99df0`，执行腿 + 语料审计）
+
+**A2 落地内容**
+
+- `BrepEngineApi` 新增 `makeBSplineEdge` + `curveSplit`，occt / brepkit / mock 三端实现；`getNurbsCurveData` 返回面从窄结构扩为完整 `BrepNurbsCurveData`（含 `poles`/`weights`/`knots`/`multiplicities`/`periodic`），并钉下两个实测坑：对 conic（circle/ellipse/hyperbola/parabola）**抛异常/返回 `null`**（非 B-spline/Bézier），以及返回的是**整条基曲线**而非边的 trim。
+- `draft-draw.ts` 新增 `DraftSplineSegment`，`bezier` / `bspline` 边改走精确 NURBS，反向/裁剪/缝合均按曲线精确处理；含样条的轮廓整体不做量化（量化会让相邻 line/arc 与 spline 之间留亚微米缝，OCC 在 `Precision::Confusion=1e-7` 下缝不上）。
+- `geometry2d` 抬平面时精确建边并按 `curveSplit` 裁剪；`sketch` 入口放开 `bspline`（`project.ts` 原 `E_SKETCHC_UNSUPPORTED_GEOM` 是入口窄口，非求解能力缺；端点用钳位域端点求值而非 `poles[0]/poles[last]`，periodic/非钳位 knot 向量下极点不在曲线上）。
+
+**语料实测**（全库审计 `scripts/audit-draft-kinds.ts`：3201 文档 / 766 Draft 对象 / 78 795 Draft 边）
+
+| 形态 | 实测值 |
+|---|---|
+| 参数曲线总量 | `bezier=1339 bspline=912`——合计 **2279** 条边原走逐边离散 |
+| 椭圆 | `ellipse=28`——**A2 未覆盖**，仍走逐边离散（根因见 §9） |
+| 覆盖面 | 20 个文档的 2279 条参数边不再被采样成折线 |
+
+**执行腿**（`draft-parametric-e2e.test.ts`，BY EXECUTION，语料在兄弟 checkout `FreeCAD-library`；本文件撰写时该 e2e 已写好但**尚未在 sweep 运行期重跑**——其断言逻辑本身即验证，详见下表）
+
+| 文档 | 预期 | 实测（探针 `probe-a2-fillet-baseline.ts` 对照 A1） |
+|---|---|---|
+| `Chair` | 端到端产出 STEP | **RUN-OK**（step 272992 bytes，与 A1 字节数相同 ⇒ A2 未破坏本已能跑的文档）；34 条参数边中 28 条 `bspline` 以 spline 发射，6 条 `ellipse` 仍采样（A2 未覆盖） |
+| `Cloud_shelf` | 阻塞于 s7 `cad.fillet` | 报错 `edgeRef: adjacent face ordinal 1 has no role lineage`——`Cut = subtract(导入 BREP, 挤出 ShapeString)`，来自导入资产的面其 hash 未进 roleTable。**A1（折线形态）同句逐字失败** ⇒ 与 A2 无关 |
+| `Batman shelf` | 阻塞于导入 Body 内选边 | 报错 `edgeRef: edge ordinal 49 out of range [1, 48]`——失败选边在被 import 的 Body 模块，ES import 先于 main 求值，Draft 语句根本没机会执行。**A1 同句逐字失败** ⇒ 与 A2 无关 |
+
+⇒ A2 的诚实执行腿只有 `Chair`（原 A1 即 `draft-chain-e2e` 的 `expectRun: true`）；`Cloud_shelf` / `Batman shelf` 仅作为「下游既有缺口」的探针锚点，断言**逐字错误文本**而非 `it.fails`——这样一旦 A2 真在更早处回归（spline 抬升失败），错误文本变化即挂，`it.fails` 会静默吞掉。
+
 ## 6. 分阶段与判据
 
 | 阶段 | 内容 | 判据 |
 |---|---|---|
 | A1 | 逐边 `curveType` 分派 + `line` / `circle` 解析产出 | Sprocket 样例的折线点数下降一个数量级；`PartShape1`（42 线 + 126 圆，无参数曲线）形态端到端产出 STEP |
-| A2 | `bezier` / `bspline` 经 `getNurbsCurveData` 解析产出（含放开 `project.ts:169`、放宽 `primitives.ts:219` 返回面） | 含参数曲线的形态（`PartShape6/9/12`）端到端产出 STEP，且无「参数曲线被采样」残留 |
+| A2 | `bezier` / `bspline` 经 `getNurbsCurveData` 解析产出（含放开 `project.ts:169`、放宽 `primitives.ts:219` 返回面） | `Chair` 端到端产出 STEP 且 28 条 `bspline` 以 spline 发射（已实测 RUN-OK，§5.2）；语料 2279 条参数边无「采样成折线」残留（`draft-parametric-e2e` 断言）；`PartShape6/9/12` 属 Sprocket 仍排除，其精确产出归 A3；`ellipse=28` 仍采样（A2 未覆盖，见 §9） |
 | A3 | 449 个 Sprocket 重转 | 全部在时限内产出 STEP |
 | A4 | 全库 Draft 对象重转对照 | Draft 通路无回归，库整体点数/体积变化有记录 |
 
@@ -114,4 +142,5 @@ A1 完成即已覆盖该形态的 1 个 `PartShape` 主体（168 条曲线全是
 
 ## 9. 待实测确认项
 
-- `type 7` 记录对应的 `curveType()` 精确返回值（`bezier` 还是 `bspline`）——静态 token 形态指向 Bézier，实现时用内核实测钉死。该实测需 kernel 初始化，与 P1-2 扫描串行，不得并发。
+- ~~`type 7` 记录对应的 `curveType()` 精确返回值（`bezier` 还是 `bspline`）~~ **已实测解决（A2）**：全库审计测得 `bezier=1339 bspline=912`，`readEdge` 的 `bezier` / `bspline` 合并分支（`draft-draw.ts:732`）同时覆盖二者，无需区分 `type 7` 是哪种；内核实测也确认二者被 `curveType` 分别报为 `bezier` / `bspline`，且 `getNurbsCurveData` 对两者都返回 NURBS 控制数据。该实测需 kernel 初始化，与 P1-2 扫描串行、不得并发——A2 实施时已串行完成。
+- **`ellipse` 残留（A2 未覆盖，归后续）**：语料 `ellipse=28` 条仍走逐边离散（`draft-draw.ts:770` 的 fallback）。根因：`readEdge` 仅对 `line` / `circle` / `bezier` / `bspline` 有解析分支——`circle` 走 `arcSegment`/`circumcircle`，`ellipse`/`hyperbola`/`parabola` 无解析分支，落到逐边离散；而 `getNurbsCurveData` 对 conic 返回 `null`/`抛异常`（`brep/engine/primitives.ts:244` 钉死），所以无法借 A2 的 NURBS 路径复用。椭圆虽可精确表示为有理 2 次 NURBS，但需内核侧 conic→NURBS 转换（或 `readEdge` 专用 ellipse 分支），属独立内核缺口，不在 A2 范围。`Chair` 的 6 条 ellipse 即此残留，其发射计数断言因此为 `34 − 6 = 28`（`draft-parametric-e2e.test.ts`）。
