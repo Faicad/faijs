@@ -351,7 +351,7 @@ keepHidden(...shapes): void  // keep but do not render on canvas
 
 ### 7.7 错误体系（Result 原生）
 
-faijs 全面对齐 vendored BREP 树的 `Result`／`BrepError` 体系，作为三个 API 面的**主**错误机制。
+faijs 全面对齐 `Result`／`BrepError` 体系（最早源自 brepjs vendor 树，现为 core 第一方实现），作为三个 API 面的**主**错误机制。
 
 | 面 | Result 处置 | 消费者写法 |
 |---|---|---|
@@ -359,7 +359,7 @@ faijs 全面对齐 vendored BREP 树的 `Result`／`BrepError` 体系，作为�
 | ② cad 脚本面 | 语句边界 unwrap：`err` → `ExecutionResult.failedAt`（带语句上下文） | `let p = cad.union(a, b)` — err → 语句失败 |
 | ③ 库边界面 | 库内原样；边界 unwrap | 库内用 `ok`／`err`／`andThen`；边界在语句边界 unwrap |
 
-**关键原语**（全部从 `vendored/brepjs/core/result.ts` 和 `core/errors.ts` 投影，经 `@faicad/faijs` 和 `@faicad/faijs/api/compat` 导出）：
+**关键原语**（第一方实现在 `packages/core/src/result/result.ts` 和 `result/errors.ts`——原 brepjs 模块的同源复制，经 `@faicad/faijs` 和 `@faicad/faijs/api/compat` 导出）：
 
 ```ts ignore-check
 ok<T>(value: T): Ok<T>
@@ -371,7 +371,7 @@ andThen<T, U>(r: Result<T>, f: (v: T) => Result<U>): Result<U>
 unwrap<T>(r: Result<T>): T   // throws if Err
 ```
 
-**`BrepError`** 携带 `kind`／`code`／`message`／`suggestion`／`metadata`；`BrepErrorCode` 常量表枚举全部错误类别。完整表见 `vendored/brepjs/core/errors.ts`。
+**`BrepError`** 携带 `kind`／`code`／`message`／`suggestion`／`metadata`；`BrepErrorCode` 常量表枚举全部错误类别。完整表见 `packages/core/src/result/errors.ts`。
 
 **语句边界 unwrap**：库边界包装器（和 `defineOp` 的 Result 感知边界）调用共享的 `unwrapResult(r, opName)` 叶子。当结果为 `err` 时，unwrap 抛出携带 op 名和 `BrepError` code 的执行错误——引擎已有的语句级 catch 将其转为 `ExecutionResult.failedAt`。这意味着**存量 `.fai.js` 脚本零修改**：错误面与之前的 throw 行为完全一致。
 
@@ -391,17 +391,17 @@ BREP 引擎在**装配期**切换（非运行时）：宿主经 `registerBrepEng
 
 每个库 op 声明自己需要的具体名（`capabilities: ['cut']`）；分派层在执行前与引擎的 `methods` / `evolution` 名单求交（§8.1 判定顺序）。缺失能力**静态降级**（auto 模式且有 mesh 实现）或**执行前报错**（brep 模式抛 `BrepUnsupportedError`；无 mesh 实现抛 `MeshUnsupportedError`）。能力**绝不伪造**：引擎只声明自己能实际执行的能力（brepkit 不声明 `chamfer`，因其 wasm 无 chamfer 内核；以 capability-map 派生的登记为准，见 §7.10）。
 
-### 7.10 compat op 内核获取（装配期适配器注入）
+### 7.10 compat op 内核获取
 
-compat op（vendored brepjs 函数）经**装配期适配器注入**取内核：`injectCurrentBrepEngineAsKernel()` 把当前引擎的 `BrepEngineApi` 包装为 vendored `KernelAdapter` 注册进 vendored 内核注册表——occt 走 `OcctWasmAdapter.fromKernel`（同一 occt-wasm 单例上的完整 211 方法适配器），其它引擎走 `wrapBrepEngineApi()`（在透传之上追加三层引擎中立的包装层）。这让 vendored 函数逻辑（replica 角色回投、Result 语义、keep 处理）零改动且引擎中立。旧的 occt-only `bindOcctKernel()` 固定绑定已废弃（调用即抛）；`isKernelInjected()` 取代 `isOcctKernelBound()`。
+compat op（原 brepjs 投影的第一方 `brep-mirror` 重实现）经共享的 `getBrepApi()` 桥（§8.2）取内核——原**装配期适配器注入**机制（`injectCurrentBrepEngineAsKernel()` / `wrapBrepEngineApi()` / vendored 内核注册表）已随 brepjs vendor 树一并删除（2026-09-25 core-decouple）；历史上的三层包装保留在下方供参考。
 
-`wrapBrepEngineApi()` 的三层包装（2026-09-23 收敛）：
+`wrapBrepEngineApi()` 的三层包装（2026-09-23 收敛，历史）：
 
 1. **胶水方法在包装层合成**——`createVector3d` / `createPoint3d` / `createDirection3d` / `createAxis1` / `createAxis2` / `createAxis3` 在 vendored 面是纯 JS 数据字面量构造器（零内核调用——属于*调用约定*而非内核能力），因此由 `wrapBrepEngineApi` 为任何引擎合成，而不加进 `BrepEngineApi`（否则每个适配器被迫实现无几何意义的样板）。字段形态逐字复制 vendored occt 适配器；`delete` 必备（vendored `withKernelPnt/Vec/Dir` 在 `finally` 中调用）。`assertGlueMethodsComplete` 保留为防线，防未来手工构造的适配器漏合成。
 2. **测量方法映射**——vendored 测量面调用 `kernel.volume / area / length / centerOfMass / linearCenterOfMass / boundingBox`（自有命名）；包装层映射 `volume→getVolume`、`centerOfMass→getCenterOfMass`（vec 对象 → `[x,y,z]` 元组）、`boundingBox→getBoundingBox(_, true)`（`{xmin..zmax}` → `{min:[..], max:[..]}`）；`shapeType` / `isNull` 同名同义透传。vendored `KernelShape`（句柄视图或裸 number）调用前先 unwrap。
 3. **显式契约缺口登记**——`UNMAPPED_VENDORED_MEASURE_METHODS = ['area', 'length', 'linearCenterOfMass']`：`BrepEngineApi` 无 `getSurfaceArea` / `getLength` / `getLinearCenterOfMass`，这三个 vendored 查询在任何非 occt 引擎下无源可映射。它们在适配器上保持 `undefined`（绝不补桩、绝不伪造 0）；`measureSurfaceProps` / `measureLinearProps` 在引擎契约扩展前维持 occt-only（独立议题）。注意：brepkit v1 适配器还缺 `shapeType` / `isNull` 实现（白名单抛错），因此经 vendored 面的 `measureVolumeProps` 在 brepkit 上也被阻断——这是适配器能力缺口，不是桥接 bug。
 
-注入跟随当前注册引擎：`injectCurrentBrepEngineAsKernel()` 的短路判据与 `isKernelInjected()` 一致（`_injected || getActiveKernelId() !== null`），且桥接侧注入缓存与 vendored 内核注册表都有 test-only 重置钩子（`__resetKernelInjectionForTests()` / `__resetKernelRegistryForTests()`），测试中的重装配会对新引擎重跑 `buildKernelAdapter` + 完整性检查。生产路径永不调用。注册 id（`VENDORED_OCCT_KERNEL_ID = 'occt-wasm'`）是注册表槽位名，非引擎身份标识——实际引擎由注入的 adapter 决定。
+注入跟随当前注册引擎（历史）：`injectCurrentBrepEngineAsKernel()` 的短路判据与 `isKernelInjected()` 一致（`_injected || getActiveKernelId() !== null`），且桥接侧注入缓存与 vendored 内核注册表都有 test-only 重置钩子（`__resetKernelInjectionForTests()` / `__resetKernelRegistryForTests()`）。生产路径永不调用。注册 id（`VENDORED_OCCT_KERNEL_ID = 'occt-wasm'`）是注册表槽位名，非引擎身份标识。以上均已随 vendor 树删除；当今引擎访问出口是 `getBrepApi()` / `getOcctKernel()`（§7.11）。
 ### 7.11 引擎分层（L1/L2/L3）与 `engines` 声明
 
 引擎面按三层拆分（narrowing plan §1，D11）：
@@ -636,7 +636,7 @@ export const myOp = defineOp({
 - `group` / `assembly` 的产物是 **compound Shape**（属于 shape、进 terminals、在 UI 显示）；自身无独立 mesh，几何由成员承载。
 - `ExecutionResult.compounds: Map<PartName, PartName[]>` 由引擎收尾时从 compound 的 children 反查 ctx 变量名生成；宿主据此建场景树层级，不对成员做二次活跃性判定。
 - **约束面**：`assembly({ constraints })` 接受遗留 `face_mate` 形态（归一化为 `mate`）以及 `mate` / `align` / `coincident` / `concentric` / `distance` / `angle` / `parallel` / `perpendicular` / `fixed`——全部 JSON 可序列化（C1）、`a` = 参考 / `b` = 依赖（C4）、变换永不存进约束（C6）。实体在执行时经 TopoRef 通道解析（`api/assembly/entities.ts`）；圆柱 / 圆边轴实体需要 `FaceHint.axis` / `EdgeHint.axis`（缺轴 → `E_TOPO_NOT_FOUND`，绝不静默）。`mate`（中心对齐、法向反向）与 `coincident`（仅共面）语义不同，永不互相映射。
-- **求解器**：vendored brepjs 的 `solverAdapter.solveConstraints` 是求解内核（拓扑轮次、链式组合、DOF / `converged` / `unsupported` 诊断——零 vendored 修改）。输出为**每成员终态位姿**（每个被定位成员一条 `AssemblyTransform`；恒等位姿不输出）。不收敛抛错并携带 `unsupported` 明细；成员名为空在求解前抛错。
+- **求解器**：`solveConstraints`（`api/assembly/solvers/chain-solver.ts`——原 brepjs `solverAdapter` 的同源移植）是求解内核（拓扑轮次、链式组合、DOF / `converged` / `unsupported` 诊断——vendor 树删除前已与原实现逐项 parity 对拍）。输出为**每成员终态位姿**（每个被定位成员一条 `AssemblyTransform`；恒等位姿不输出）。不收敛抛错并携带 `unsupported` 明细；成员名为空在求解前抛错。
 - **全局求解器**（`solver: 'global'`）：替代的纯 TS 内核（`api/assembly/solvers/global-solver.ts`，Levenberg-Marquardt + 中心差分 Jacobian），复刻 CadQuery `solver.py` 的成本语义（9 种成本形式、四元数模长参数化、`Plane = Axis(π)+Point(0)`、`Axis = Axis(0)+Point(0)`、包围盒对角线尺度）。经 `cad.assembly({ solver: 'global' })` 选择。
 - **求解 ≠ 传播**（职责分离）：约束求解在**库**（`solveAssembly` → `setPendingAssemblyTransforms` 登记结果）；变换的**应用与下游失效在引擎**（`takePendingAssemblyTransforms` → 成员 mesh 与 BREP solid 同步变换 → `computeDownstream` 重算下游 → 变量名进 `ExecutionResult.changed`；direct 执行器应用待定变换时无需 DAG 重算）。
 - **成员方法链**：`assem1.add_constraint({ … })` / `assem1.do_assemble()` / `assem1.solve()` 是 void op（`outputs: []`），不消费 receiver 变量；`solve()` 与 `do_assemble()` 完全同义。
