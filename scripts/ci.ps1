@@ -78,18 +78,22 @@ Step -Label '3/9  npm run build（core → 门面）' -Block {
     npm run build
 }
 
-Write-Host "==> 4/9  test workspaces（每包独立 5 分钟硬预算）"
+Write-Host "==> 4/9  test workspaces（每包独立硬预算；默认 5 分钟，cq-compat 15 分钟）"
 $start3 = Get-Date
 $tmpVitest = [System.IO.Path]::GetTempFileName()
 # 硬看门狗: vitest 的 per-test testTimeout 无法中断同步原生死锁(事件循环被阻塞时
 # 其计时器同样被冻结, 见 p23-cad-face)。每个测试工作区单跑, 外层套进程级看门狗:
 # 任一处完不成 5 分钟预算即杀进程树并判失败, CI 绝不被一个死循环测试永久挂起。
 $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS } else { 300000 } # 5 分钟
+# 单包预算覆盖：cq-compat 的 BREP/parity-smoke 套件单跑约 389s（+pretest build），
+# 5 分钟预算必然被看门狗误杀导致结果不可信（见 docs/plans/2026-09-28-cq-compat-remaining-cadquery-support-plan.md §1.2）。900s 留足 build + 抖动余量。
+$testBudgetOverrides = @{ '@faicad/cq-compat' = 900000 }
 $testPackages = @('@faicad/faijs','@faicad/faijs-sketch','@faicad/faijs-extra','@faicad/faijs-fcstd','@faicad/sheetmetal','@faicad/cq-compat','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
-    Write-Host "    -- $pkg（budget=${testBudgetMs}ms）"
-    node scripts/run-tests-with-watchdog.mjs --budget-ms $testBudgetMs -- npm run test -w $pkg 2>&1 | Tee-Object -FilePath $tmpVitest -Append
+    $pkgBudget = if ($env:FAIJS_TEST_BUDGET_MS) { $testBudgetMs } elseif ($testBudgetOverrides.ContainsKey($pkg)) { $testBudgetOverrides[$pkg] } else { $testBudgetMs }
+    Write-Host "    -- $pkg（budget=${pkgBudget}ms）"
+    node scripts/run-tests-with-watchdog.mjs --budget-ms $pkgBudget -- npm run test -w $pkg 2>&1 | Tee-Object -FilePath $tmpVitest -Append
     if ($LASTEXITCODE -ne 0) {
         $stepFail = $true
         if ($allMode) {
