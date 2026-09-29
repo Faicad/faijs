@@ -106,7 +106,7 @@ A1 落地后 `draft-chain-e2e.test.ts` 的 Chair 用例在 `makeFace` 处回归�
 | 椭圆 | `ellipse=28`——**A2 未覆盖**，仍走逐边离散（根因见 §9） |
 | 覆盖面 | 20 个文档的 2279 条参数边不再被采样成折线 |
 
-**执行腿**（`draft-parametric-e2e.test.ts`，BY EXECUTION，语料在兄弟 checkout `FreeCAD-library`；本文件撰写时该 e2e 已写好但**尚未在 sweep 运行期重跑**——其断言逻辑本身即验证，详见下表）
+**执行腿**（`draft-parametric-e2e.test.ts`，BY EXECUTION，语料在兄弟 checkout `FreeCAD-library`；**2026-09-29 本会话已实际执行**：3 文档 × 2 断言 = **6/6 全绿**，且同轮 `npm run test -w @faicad/faijs-fcstd` 全包 **385/386 通过**（唯一失败是 Batman 的断言正则过死，见下 GOTCHA，已修正）。stderr 零输出。详见下表）
 
 | 文档 | 预期 | 实测（探针 `probe-a2-fillet-baseline.ts` 对照 A1） |
 |---|---|---|
@@ -115,6 +115,8 @@ A1 落地后 `draft-chain-e2e.test.ts` 的 Chair 用例在 `makeFace` 处回归�
 | `Batman shelf` | 阻塞于导入 Body 内选边 | 报错 `edgeRef: edge ordinal 49 out of range [1, 48]`——失败选边在被 import 的 Body 模块，ES import 先于 main 求值，Draft 语句根本没机会执行。**A1 同句逐字失败** ⇒ 与 A2 无关 |
 
 ⇒ A2 的诚实执行腿只有 `Chair`（原 A1 即 `draft-chain-e2e` 的 `expectRun: true`）；`Cloud_shelf` / `Batman shelf` 仅作为「下游既有缺口」的探针锚点，断言**逐字错误文本**而非 `it.fails`——这样一旦 A2 真在更早处回归（spline 抬升失败），错误文本变化即挂，`it.fails` 会静默吞掉。
+
+> **GOTCHA（2026-09-29 执行时发现）**：`Batman shelf` 的 `expectRunError` 最初写成 `/callee: fillet\): edgeRef: edge ordinal 49 out of range \[1, 48]/`，但真实报错把 fillet callee（位于被 import 的 Body 模块内）包裹成 `(callee: fillet): dependency module failed at line 15: edgeRef: edge ordinal 49 ...`，正则因 `fillet):` 与 `edgeRef:` 之间多了一层 `dependency module failed at line N:` 而失配。修正为 `/callee: fillet\):(?: dependency module failed at line \d+:)? edgeRef: edge ordinal 49 out of range \[1, 48]/`——保留 `fillet` callee + `edgeRef: edge ordinal 49` 的探针核身、容忍依赖模块包裹。**这是测试断言订正，A2 代码无回归**：blocker 仍是探针证过的 A2 无关 `edgeRef: edge ordinal 49`。
 
 ## 6. 分阶段与判据
 
