@@ -163,9 +163,27 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
         }
       }
       case 'point':
-      case 'ellipse':
       case 'bspline':
         throw new SketchProjectionError('E_SKETCHC_UNSUPPORTED_GEOM', `geometry kind "${g.kind}" is not supported in the first release`)
+      case 'ellipse': {
+        // rx/ry ARE the major/minor radii (fromFreeCadGeoms maps them back
+        // positionally), `angle` is the major-axis rotation in radians — the
+        // same unit contour.ts and planegcs consume for angleXU.
+        const major = g.rx
+        const minor = g.ry
+        const angleXU = g.angle ?? 0
+        // first focus pair (computed, mirroring FreeCAD's stored foci)
+        const c = Math.sqrt(Math.max(major * major - minor * minor, 0))
+        const ca = Math.cos(angleXU)
+        const sa = Math.sin(angleXU)
+        return {
+          kind: 'ellipse', index,
+          cx: g.cx, cy: g.cy, cz: 0,
+          majorRadius: major, minorRadius: minor, angleXU,
+          fx1: g.cx - c * ca, fy1: g.cy - c * sa,
+          fx2: g.cx + c * ca, fy2: g.cy + c * sa,
+        }
+      }
     }
   })
 }

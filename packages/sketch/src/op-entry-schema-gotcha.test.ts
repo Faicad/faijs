@@ -24,18 +24,19 @@ describe('GOTCHA: cad.sketch op entry schema is narrower than the solver chain',
     expect(() => assertSketchParams({})).toThrow(/E_SKETCHC_NO_GEOMS/)
   })
 
-  it('E_SKETCHC_UNSUPPORTED_GEOM: ellipse rejected at toFreeCadGeoms although contour.ts can consume it', () => {
-    // canonical.ts marks ellipse as reserved schema; the FCStd projection layer
-    // is where the rejection happens. Downstream (contour.ts:178) already has
-    // an ellipse consumer — the gap is this entry, not the solver.
+  it('ellipse is now ACCEPTED at toFreeCadGeoms (reopened 2026-09-28; see ellipse-sketch-e2e.test.ts)', () => {
+    // GOTCHA history: ellipse used to be rejected here with
+    // E_SKETCHC_UNSUPPORTED_GEOM although contour.ts:178 and
+    // planegcs-backend.ts:218 already consumed it — the op-entry schema was
+    // narrower than the solver chain. The rejection is now lifted; the
+    // round-trip and contour behavior are pinned in ellipse-sketch-e2e.test.ts.
     const geoms = [{
       kind: 'ellipse',
       cx: 0, cy: 0,
-      majorRadius: 10, minorRadius: 5, angleXU: 0,
-      construction: false,
+      rx: 10, ry: 5, angle: 0,
     }] as unknown as SketchGeom[]
-    expect(() => toFreeCadGeoms(geoms)).toThrow(/E_SKETCHC_UNSUPPORTED_GEOM/)
-    expect(() => toFreeCadGeoms(geoms)).toThrow(/ellipse/)
+    const out = toFreeCadGeoms(geoms)
+    expect(out[0]!.kind).toBe('ellipse')
   })
 
   it('E_SKETCHC_UNSUPPORTED_GEOM: bspline rejected at toFreeCadGeoms although contour.ts samples it', () => {
