@@ -1,17 +1,19 @@
 /**
  * GOTCHA 留档（2026-09-28，fcstd-port P2-1 定性，见 docs/analysis/fcstd-sketch-unsupported-geom.md）：
  *
- * `cad.sketch` op 入口的 canonical schema 比求解链的真实消费能力**窄**：
+ * `cad.sketch` op 入口的 canonical schema 曾比求解链的真实消费能力**窄**：
  * - `assertSketchParams` 只要求 geoms 非空数组（op.ts:79）；
- * - `toFreeCadGeoms`（project.ts:168）对 kind `point` / `ellipse` / `bspline`
- *   直接抛 `E_SKETCHC_UNSUPPORTED_GEOM` —— 但下游 `contour.ts`（bspline 采样、
- *   ellipse 64 弦）与 `planegcs-backend.ts`（point standalone）其实都已有消费路径。
- * 即：ellipse/bspline 到达 op 入口即被拒，不是求解器能力不足，是入口 schema 窄。
+ * - `toFreeCadGeoms` 曾对 kind `point` / `ellipse` / `bspline` 直接抛
+ *   `E_SKETCHC_UNSUPPORTED_GEOM` —— 但下游 `contour.ts`（bspline 采样、
+ *   ellipse 64 弦）与 `planegcs-backend.ts`（point standalone、bspline 端点
+ *   线代理）其实都已有消费路径。
+ * 即：被拒不是求解器能力不足，是入口 schema 窄。三类已全部放开。
  *
  * 空 geoms 则由 `assertSketchParams` 抛 `E_SKETCHC_NO_GEOMS` —— fcstd 端
  * 全 construction / 全被裁剪的草图若不加绕行，运行时就是这个错。
  *
- * 本测试钉住这两个入口行为；若未来放开 ellipse/bspline，应改写断言而非删除。
+ * 本测试钉住这两个入口行为；`ellipse` / `point` / `bspline` 已先后放开
+ * （2026-09-28 ellipse/point、2026-09-29 bspline），逐个改写断言而非删除。
  */
 import { describe, it, expect } from 'vitest'
 import { assertSketchParams } from './op.js'
@@ -45,7 +47,11 @@ describe('GOTCHA: cad.sketch op entry schema is narrower than the solver chain',
     expect(out[0]!.kind).toBe('point')
   })
 
-  it('E_SKETCHC_UNSUPPORTED_GEOM: bspline rejected at toFreeCadGeoms although contour.ts samples it', () => {
+  it('bspline is now ACCEPTED at toFreeCadGeoms (reopened 2026-09-29, fcstd-port A2)', () => {
+    // GOTCHA history: bspline was rejected here with E_SKETCHC_UNSUPPORTED_GEOM
+    // although contour.ts:57 (de Boor sampling), planegcs-backend.ts:233/700
+    // (endpoint line proxy) and verify.ts:30 (endpoint anchors) all consumed it.
+    // The rejection was entry-schema narrowness, not solver capability.
     const geoms = [{
       kind: 'bspline',
       poles: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 0 }],
@@ -54,8 +60,14 @@ describe('GOTCHA: cad.sketch op entry schema is narrower than the solver chain',
       periodic: false,
       construction: false,
     }] as unknown as SketchGeom[]
-    expect(() => toFreeCadGeoms(geoms)).toThrow(/E_SKETCHC_UNSUPPORTED_GEOM/)
-    expect(() => toFreeCadGeoms(geoms)).toThrow(/bspline/)
+    const out = toFreeCadGeoms(geoms)
+    expect(out[0]!.kind).toBe('bspline')
+    // Clamped domain ends are the exact curve endpoints (control polygon ends).
+    const rec = out[0] as unknown as { x1: number; y1: number; x2: number; y2: number }
+    expect(rec.x1).toBeCloseTo(0, 12)
+    expect(rec.y1).toBeCloseTo(0, 12)
+    expect(rec.x2).toBeCloseTo(2, 12)
+    expect(rec.y2).toBeCloseTo(0, 12)
   })
 
   it('line/circle/arc pass the entry (first-release supported kinds)', () => {

@@ -276,6 +276,8 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     makeLineEdge: (start, end) => asHandle(k.makeLineEdge(start, end)),
     makeArcEdge: (start, mid, end) => asHandle(k.makeArcEdge(start, mid, end)),
     makeBezierEdge: (controlPoints) => asHandle(k.makeBezierEdge(controlPoints)),
+    makeBSplineEdge: (poles, weights, knots, multiplicities, degree, periodic) =>
+      asHandle(k.makeBSplineEdge(poles, weights, knots, multiplicities, degree, periodic ?? false)),
     makeCircleEdge: (center, normal, radius) =>
       asHandle(k.makeCircleEdge(center, normal, radius)),
 
@@ -342,7 +344,21 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     },
     getNurbsCurveData: (edge) => {
       const d = k.getNurbsCurveData(asShape(edge))
-      return d ? { degree: d.degree, periodic: d.periodic, rational: d.rational } : null
+      return d
+        ? {
+            degree: d.degree,
+            rational: d.rational,
+            periodic: d.periodic,
+            knots: Array.from(d.knots),
+            multiplicities: Array.from(d.multiplicities),
+            poles: Array.from(d.poles),
+            weights: Array.from(d.weights),
+          }
+        : null
+    },
+    curveSplit: (edge, param) => {
+      const parts = k.curveSplit(asShape(edge), param)
+      return [asHandle(parts[0]), asHandle(parts[1])]
     },
     interpolatePoints: (points, degree) => {
       // L1 contract takes an explicit degree; occt-wasm interpolates a cubic

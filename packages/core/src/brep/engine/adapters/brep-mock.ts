@@ -313,6 +313,33 @@ export function createBrepMockApi(): BrepEngineApi {
       }, tag: `arc` })
     },
     makeBezierEdge: () => alloc({ kind: 'edge', bbox: bboxOf('edge', [1, 1, 1]), tag: 'bezier' }),
+    makeBSplineEdge: (poles) => {
+      // Bbox from the control polygon (a superset of a Bézier's hull; exact for
+      // the shape's own bbox purposes and good enough for the mock's role as a
+      // call-sequence recorder).
+      const xs: number[] = []
+      const ys: number[] = []
+      const zs: number[] = []
+      for (let i = 0; i + 2 < poles.length; i += 3) {
+        xs.push(poles[i]!)
+        ys.push(poles[i + 1]!)
+        zs.push(poles[i + 2]!)
+      }
+      return alloc({
+        kind: 'edge',
+        bbox: xs.length > 0
+          ? { xmin: Math.min(...xs), ymin: Math.min(...ys), zmin: Math.min(...zs), xmax: Math.max(...xs), ymax: Math.max(...ys), zmax: Math.max(...zs) }
+          : bboxOf('edge', [1, 1, 1]),
+        tag: 'bspline',
+      })
+    },
+    curveSplit: (edge) => {
+      const e = need(edge, 'curveSplit')
+      return [
+        alloc({ kind: 'edge', bbox: { ...e.bbox }, tag: `splitA(#${edge})` }),
+        alloc({ kind: 'edge', bbox: { ...e.bbox }, tag: `splitB(#${edge})` }),
+      ]
+    },
     makeCircleEdge: (center, _normal, radius) => alloc({ kind: 'edge', bbox: bboxOf('edge', [radius * 2, radius * 2, 0]), tag: `circle(${center.x},${center.y},${center.z},r=${radius})` }),
 
     // ── 拓扑构造 ──

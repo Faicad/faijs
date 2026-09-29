@@ -117,6 +117,8 @@ const HAND_MAP: MapEntry[] = [
   { core: 'makeLineEdge', occt: 'makeLineEdge', brepkit: 'makeLineEdge', status: 'aligned' },
   { core: 'makeArcEdge', occt: 'makeArcEdge', brepkit: 'makeCircleArc3d', status: 'dialect', note: 'brepkit 是圆弧(start,end,center,axis)；适配器由 3 点算 center/axis' },
   { core: 'makeBezierEdge', occt: 'makeBezierEdge', brepkit: 'makeNurbsEdge', status: 'dialect', note: 'brepkit 适配器降为 degree=n-1 NURBS、uniform knots、weights=1' },
+  { core: 'makeBSplineEdge', occt: 'makeBSplineEdge', brepkit: 'makeNurbsEdge', status: 'dialect', note: 'occt 吃 (poles,weights,knots,multiplicities,degree,periodic)；brepkit 吃**展开后**的整条节点向量 + 首末极点 → 适配器展开多重度。两侧都建整条基曲线，裁剪段由 curveSplit 取' },
+  { core: 'curveSplit', occt: 'curveSplit', brepkit: 'curveSplit', status: 'dialect', note: 'occt 返回 [ShapeHandle, ShapeHandle]；brepkit 返回 Uint32Array 两元素 → 适配器统一为二元组。参数须**严格内点**，落在域端点即报参数越界' },
   { core: 'makeWire', occt: 'makeWire', brepkit: 'makeWire', status: 'dialect', note: 'brepkit 多 closed 参数' },
   { core: 'makeWireFromMixed', occt: null, brepkit: null, status: 'occt-only', platform: 'occt', note: 'occt 适配器组合实现' },
   { core: 'makeFace', occt: 'makeFace', brepkit: 'makeFaceFromWire', status: 'dialect' },

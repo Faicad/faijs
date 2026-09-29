@@ -11,20 +11,34 @@
  */
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import type { BrepHandle } from '../../brep/engine/types'
-import type { Curve2dObj } from '../curve2d'
+import type { Curve2dObj, BSpline2d } from '../curve2d'
 import { evaluateCurve2d } from '../curve2d'
 import type { Blueprint } from '../blueprint'
 import { namedPlane, liftPointToPlane, type Plane, type Vec3 } from './plane'
 
-/** Minimal kernel edge/wire surface needed for planar placement. */
-export type PlaneWireKernel = Pick<BrepEngineApi, 'makeLineEdge' | 'makeArcEdge' | 'makeBezierEdge' | 'makeWire'>
+/**
+ * Minimal kernel edge/wire surface needed for planar placement (plus the
+ * NURBS/curve primitives the spline segments need: an exact parametric edge
+ * cannot be built or trimmed without them).
+ */
+export type PlaneWireKernel = Pick<
+  BrepEngineApi,
+  | 'makeLineEdge'
+  | 'makeArcEdge'
+  | 'makeBezierEdge'
+  | 'makeBSplineEdge'
+  | 'curveSplit'
+  | 'curveParameters'
+  | 'makeWire'
+>
 
 /**
- * Build the 3D edge(s) for a single 2D curve lifted onto a plane. Line and
- * bezier build exact analytic edges; circle / trimmed-circle build a true arc
- * edge from three on-plane lift points (a full circle is split into two arcs to
- * keep `makeArcEdge` well-formed); ellipse / bspline fall back to a dense
- * sampled polyline.
+ * Build the 3D edge(s) for a single 2D curve lifted onto a plane. Line, bezier
+ * and bspline build exact analytic edges; circle / trimmed-circle build a true
+ * arc edge from three on-plane lift points (a full circle is split into two arcs
+ * to keep `makeArcEdge` well-formed); ellipse falls back to a dense sampled
+ * polyline (no exact ellipse-edge primitive on the contract yet).
+ *
  * @param kernel - the kernel edge primitives.
  * @param plane - the target plane frame.
  * @param c - the ordered 2D curve to lift.
@@ -47,17 +61,63 @@ export function liftCurve2dToPlane(kernel: PlaneWireKernel, plane: Plane, c: Cur
       ]
     case 'bezier':
       return [kernel.makeBezierEdge(c.poles.map(([x, y]) => liftPointToPlane(plane, x, y)))]
+    case 'bspline':
+      return [buildBSplineEdge(kernel, plane, c)]
     case 'circle':
       return [
         kernel.makeArcEdge(on(c, 0), on(c, Math.PI / 2), on(c, Math.PI)),
         kernel.makeArcEdge(on(c, Math.PI), on(c, (3 * Math.PI) / 2), on(c, 2 * Math.PI)),
       ]
-    case 'trimmed':
+    case 'trimmed': {
       if (c.basis.kind2d === 'circle') return [kernel.makeArcEdge(on(c, 0), on(c, 0.5), on(c, 1))]
+      // A trimmed spline is built WHOLE and then cut by the kernel, so the
+      // sub-curve is the kernel's own exact subdivision rather than a
+      // re-derived control polygon here.
+      const full =
+        c.basis.kind2d === 'bspline'
+          ? buildBSplineEdge(kernel, plane, c.basis)
+          : c.basis.kind2d === 'bezier'
+            ? kernel.makeBezierEdge(c.basis.poles.map(([x, y]) => liftPointToPlane(plane, x, y)))
+            : undefined
+      if (full !== undefined) return [trimEdge(kernel, full, c.tStart, c.tEnd)]
       return sampledEdges(kernel, plane, c)
+    }
     default:
       return sampledEdges(kernel, plane, c)
   }
+}
+
+/** Lift a 2D B-spline onto the plane as one exact NURBS edge (rational included). */
+function buildBSplineEdge(kernel: PlaneWireKernel, plane: Plane, c: BSpline2d): BrepHandle {
+  const poles: number[] = []
+  for (const [x, y] of c.poles) {
+    const v = liftPointToPlane(plane, x, y)
+    poles.push(v.x, v.y, v.z)
+  }
+  return kernel.makeBSplineEdge(poles, c.weights ? [...c.weights] : [], c.knots, c.multiplicities, c.degree, c.isPeriodic)
+}
+
+/**
+ * Cut an edge down to `[first, last]` on its own parameter axis.
+ *
+ * `curveSplit` requires a STRICTLY interior parameter and rejects a domain end
+ * (`curveSplit: parameter out of range`), so each side is only cut when it is
+ * actually trimmed — an edge trimmed on one side alone would otherwise throw.
+ *
+ * @param kernel - the kernel edge primitives.
+ * @param edge - the whole basis edge.
+ * @param first - trim start on the edge's parameter axis.
+ * @param last - trim end on the edge's parameter axis.
+ * @returns the sub-edge (the same handle when no trim applies).
+ */
+function trimEdge(kernel: PlaneWireKernel, edge: BrepHandle, first: number, last: number): BrepHandle {
+  const b = kernel.curveParameters(edge)
+  const eps = 1e-9 * Math.max(1, Math.abs(b.last - b.first))
+  let cur = edge
+  if (last < b.last - eps) cur = kernel.curveSplit(cur, last)[0]
+  const b2 = kernel.curveParameters(cur)
+  if (first > b2.first + eps) cur = kernel.curveSplit(cur, first)[1]
+  return cur
 }
 
 /** Sample a non-analytic curve into a polyline of `makeLineEdge`s on the plane. */

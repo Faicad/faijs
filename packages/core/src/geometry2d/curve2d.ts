@@ -60,6 +60,13 @@ export interface BSpline2d {
   readonly multiplicities: number[]
   readonly degree: number
   readonly isPeriodic: boolean
+  /**
+   * One weight per pole. Absent (or all 1) for a non-rational curve. Rational
+   * B-splines are exactly what a kernel hands back for a conic-approximating or
+   * spline edge (`BrepNurbsCurveData.rational`), and dropping the weights turns
+   * the curve into a different one — so they travel with the poles.
+   */
+  readonly weights?: number[]
 }
 /** Trimmed wrapper over another curve. */
 export interface TrimmedCurve2d {
@@ -399,6 +406,42 @@ export function makeEllipse2d(
  */
 export function makeBezier2d(poles: [number, number][]): Bezier2d {
   return { kind2d: 'bezier', poles: [...poles] }
+}
+
+/**
+ * B-spline from raw NURBS data (the write-side counterpart of a kernel's
+ * `getNurbsCurveData`, so an exact edge survives as data instead of a
+ * tessellation).
+ *
+ * The knot vector is NOT expanded here: `knots`/`multiplicities` stay the two
+ * parallel arrays the kernel reports, and every evaluator expands them the same
+ * way (`evaluateBSpline2d`).
+ *
+ * @param poles - control points `[x, y]`, one per weight in `weights`.
+ * @param knots - distinct knot values.
+ * @param multiplicities - multiplicity of each entry in `knots`.
+ * @param degree - polynomial degree.
+ * @param isPeriodic - true for a periodic (wrap-around) curve.
+ * @param weights - optional per-pole weights; omit for a non-rational curve.
+ * @returns a BSpline2d holding copies of the control data.
+ */
+export function makeBSpline2d(
+  poles: [number, number][],
+  knots: number[],
+  multiplicities: number[],
+  degree: number,
+  isPeriodic: boolean,
+  weights?: number[],
+): BSpline2d {
+  return {
+    kind2d: 'bspline',
+    poles: poles.map(([x, y]): [number, number] => [x, y]),
+    knots: [...knots],
+    multiplicities: [...multiplicities],
+    degree,
+    isPeriodic,
+    ...(weights ? { weights: [...weights] } : {}),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1208,12 +1251,17 @@ function evaluateBSpline2d(c: BSpline2d, t: number): [number, number] {
     }
   }
   if (tClamped >= fullKnots[k - p - 1]!) span = k - p - 2
-  // Extract relevant control points
-  const d: [number, number][] = []
+  // Relevant control points in HOMOGENEOUS form [w·x, w·y, w]. De Boor is linear,
+  // so running it on the homogeneous values and dividing at the end is exactly
+  // the rational (NURBS) evaluation; with every weight 1 the third component
+  // stays 1 and this reduces to the non-rational case bit for bit.
+  const weights = c.weights
+  const d: [number, number, number][] = []
   for (let j = 0; j <= p; j++) {
-    const idx = Math.min(span - p + j, n - 1)
-    const pole = c.poles[Math.max(0, idx)]!
-    d.push([pole[0], pole[1]])
+    const idx = Math.max(0, Math.min(span - p + j, n - 1))
+    const pole = c.poles[idx]!
+    const wi = weights ? (weights[idx] ?? 1) : 1
+    d.push([pole[0] * wi, pole[1] * wi, wi])
   }
   // De Boor recursion
   for (let r = 1; r <= p; r++) {
@@ -1227,7 +1275,10 @@ function evaluateBSpline2d(c: BSpline2d, t: number): [number, number] {
       const djPrev = d[j - 1]!
       dj[0] = (1 - alpha) * djPrev[0] + alpha * dj[0]
       dj[1] = (1 - alpha) * djPrev[1] + alpha * dj[1]
+      dj[2] = (1 - alpha) * djPrev[2] + alpha * dj[2]
     }
   }
-  return d[p]!
+  const res = d[p]!
+  const w = res[2]
+  return w !== 0 ? [res[0] / w, res[1] / w] : [res[0], res[1]]
 }

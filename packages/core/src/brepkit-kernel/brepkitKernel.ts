@@ -30,6 +30,7 @@ import type {
   BrepEvolutionData,
   BrepHandle,
   BrepMeshResult,
+  BrepNurbsCurveData,
   BrepSubShapeType,
   BrepTessellateOptions,
   BrepUvBounds,
@@ -648,6 +649,43 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       knownEdges.add(e)
       return asHandle(e)
     },
+    makeBSplineEdge(
+      poles: number[],
+      weights: number[],
+      knots: number[],
+      multiplicities: number[],
+      degree: number,
+      periodic = false,
+    ): BrepHandle {
+      // 方言消化：L1 吃 occt 形态 (poles, weights, knots, multiplicities, degree),
+      // brepkit makeNurbsEdge 吃 (start,end,degree, **展开后** knots, control_points, weights)。
+      // 两侧 knots 的表示不同：occt 给「去重值 + 多重度」两个平行数组，brepkit 要
+      // 逐项重复后的整条节点向量（与 makeBezierEdge 里手工铺 [0]×n+[1]×n 同一口径）。
+      const controlPoints: BrepVec3[] = []
+      for (let i = 0; i + 2 < poles.length; i += 3) {
+        controlPoints.push({ x: poles[i]!, y: poles[i + 1]!, z: poles[i + 2]! })
+      }
+      const n = controlPoints.length
+      if (n < 2) fail('makeBSplineEdge: need at least 2 poles')
+      const expanded: number[] = []
+      for (let i = 0; i < knots.length; i++) {
+        const rep = multiplicities[i] ?? 1
+        for (let j = 0; j < rep; j++) expanded.push(knots[i]!)
+      }
+      const first = controlPoints[0]!
+      const last = controlPoints[n - 1]!
+      const e = kernel.makeNurbsEdge(
+        first.x, first.y, first.z,
+        last.x, last.y, last.z,
+        degree,
+        Float64Array.from(expanded),
+        flattenPoints(controlPoints),
+        weights.length === n ? Float64Array.from(weights) : new Float64Array(n).fill(1),
+      )
+      void periodic
+      knownEdges.add(e)
+      return asHandle(e)
+    },
     makeCircleEdge(center: BrepVec3, normal: BrepVec3, radius: number): BrepHandle {
       const e = kernel.makeCircleEdge(
         center.x, center.y, center.z, normal.x, normal.y, normal.z, radius,
@@ -941,12 +979,41 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       } catch { /* 非解析面 */ }
       return null
     },
-    getNurbsCurveData(edge: BrepHandle): { degree: number; periodic: boolean; rational: boolean } | null {
+    getNurbsCurveData(edge: BrepHandle): BrepNurbsCurveData | null {
       try {
-        const p = JSON.parse(kernel.getNurbsCurveData(asNum(edge))) as { degree?: number; periodic?: boolean; rational?: boolean }
-        if (p && typeof p.degree === 'number') return { degree: p.degree, periodic: !!p.periodic, rational: !!p.rational }
+        const p = JSON.parse(kernel.getNurbsCurveData(asNum(edge))) as {
+          degree?: number
+          periodic?: boolean
+          rational?: boolean
+          knots?: number[]
+          multiplicities?: number[]
+          poles?: number[]
+          weights?: number[]
+        }
+        if (p && typeof p.degree === 'number') {
+          return {
+            degree: p.degree,
+            periodic: !!p.periodic,
+            rational: !!p.rational,
+            knots: (p.knots ?? []).map(Number),
+            multiplicities: (p.multiplicities ?? []).map(Number),
+            poles: (p.poles ?? []).map(Number),
+            weights: (p.weights ?? []).map(Number),
+          }
+        }
       } catch { /* 非 Nurbs 边 */ }
       return null
+    },
+    curveSplit(edge: BrepHandle, param: number): [BrepHandle, BrepHandle] {
+      // brepkit 原生返回 Uint32Array 两元素（occt 返回 [ShapeHandle, ShapeHandle]）——
+      // 适配器统一为二元组。两个碎片都必须登记进 knownEdges，否则下游 meshShape 分发不到。
+      const parts = kernel.curveSplit(asNum(edge), param)
+      if (parts.length !== 2) fail(`curveSplit: expected 2 edges, got ${parts.length}`)
+      const a = parts[0]!
+      const b = parts[1]!
+      knownEdges.add(a)
+      knownEdges.add(b)
+      return [asHandle(a), asHandle(b)]
     },
     interpolatePoints(points: BrepVec3[], degree: number): BrepHandle {
       // GOTCHA：interpolatePoints 返回 **edge** 句柄（不是 wire）——wire.ts smooth 路径把它

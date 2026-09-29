@@ -10,7 +10,7 @@
  * @module
  */
 import type { Curve2dObj } from './curve2d'
-import { makeLine2d, makeArc2dThreePoints, makeCircle2d } from './curve2d'
+import { makeLine2d, makeArc2dThreePoints, makeCircle2d, makeBSpline2d, trimCurve } from './curve2d'
 
 /** Line segment in profile form (2D, z=0). */
 export interface ProfileLineSegLike {
@@ -39,16 +39,61 @@ export interface ProfileArcSegLike {
   y2?: number
 }
 
-/** A profile segment: either a profile line or a profile arc. */
-export type ProfileSegLike = ProfileLineSegLike | ProfileArcSegLike
+/**
+ * Spline segment in profile form — the NURBS control data of one curve, as the
+ * kernel reports it (`BrepNurbsCurveData`).
+ *
+ * This is the segment kind that lets a source whose geometry is genuinely a
+ * parametric curve (a Bézier text outline, a projected B-spline) stay a curve
+ * all the way into the wire instead of being sampled into a polyline. Both a
+ * Bézier and a B-spline travel here: a Bézier IS a clamped B-spline, and the
+ * kernel builds both from this one record.
+ *
+ * ⚠️ `first`/`last` are the TRIM of the edge on its basis-curve parameter axis.
+ * Omitting them means "the whole curve" — which is only right when the source
+ * edge really does span its basis curve (measured: ~20 % of parametric edges do
+ * not, so a rebuild without the trim runs past a neighbour's start).
+ */
+export interface ProfileSplineSegLike {
+  kind: 'spline'
+  /** Polynomial degree. */
+  degree: number
+  /** Flat control points `[x, y, x, y, …]`. */
+  poles: number[]
+  /** Distinct knot values, parallel to `multiplicities`. */
+  knots: number[]
+  /** Multiplicity of each entry in `knots`. */
+  multiplicities: number[]
+  /** True for a periodic (wrap-around) curve. */
+  periodic?: boolean
+  /** Per-pole weights; omit for a non-rational curve. */
+  weights?: number[]
+  /** Trim start on the basis-curve parameter axis (defaults to the curve start). */
+  first?: number
+  /** Trim end on the basis-curve parameter axis (defaults to the curve end). */
+  last?: number
+}
+
+/** A profile segment: a line, an arc, or a parametric spline. */
+export type ProfileSegLike = ProfileLineSegLike | ProfileArcSegLike | ProfileSplineSegLike
 
 /**
  * Convert a single profile segment to the equivalent 2D curve.
- * @param seg - the profile line or arc segment.
- * @returns the equivalent `Curve2dObj` (line, trimmed arc, or full circle).
+ * @param seg - the profile line, arc or spline segment.
+ * @returns the equivalent `Curve2dObj` (line, trimmed arc, full circle, or a
+ *   spline — trimmed when the segment carries a `first`/`last` range).
  */
 export function profileSegToCurve(seg: ProfileSegLike): Curve2dObj {
   if (seg.kind === 'line') return makeLine2d(seg.x1, seg.y1, seg.x2, seg.y2)
+  if (seg.kind === 'spline') {
+    const poles: [number, number][] = []
+    for (let i = 0; i + 1 < seg.poles.length; i += 2) poles.push([seg.poles[i]!, seg.poles[i + 1]!])
+    const curve = makeBSpline2d(poles, seg.knots, seg.multiplicities, seg.degree, !!seg.periodic, seg.weights)
+    // The trim is expressed on the basis curve's own parameter axis, which is
+    // exactly `TrimmedCurve2d`'s contract — so it survives to the lift, where
+    // the kernel splits the rebuilt edge instead of us re-deriving the poles.
+    return seg.first !== undefined && seg.last !== undefined ? trimCurve(curve, seg.first, seg.last) : curve
+  }
   // GOTCHA（2026-09-25, A3 FCBL_tree_entourage）：`ccw` 决定几何方向，非元数据。
   // CW 弧的正向扫角是 startAngle→endAngle **递减**：不能沿用 `endAngle−startAngle`
   // 再归一化到 (0,2π]，那样会把短 CW 弧（如 65°）算成 CCW 的补角长弧

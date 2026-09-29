@@ -12,6 +12,7 @@
  */
 import { PointPos, CONSTRAINT_NAMES, ConstraintType, type FcstdGeoRef, type FcstdSketchGeom, type FcstdSketchCon } from './fcstd-types.js'
 import type { At, Ref, SketchConstraint, SketchConstraintKind, SketchGeom } from './canonical.js'
+import { evalBSpline } from './bspline.js'
 
 /** Projection error with a stable `E_SKETCHC_*` code. */
 export class SketchProjectionError extends Error {
@@ -166,8 +167,31 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
         // Reopened 2026-09-28: planegcs-backend pushes standalone points and
         // pulls them back; contour extraction skips them (no profile use).
         return { kind: 'point', index, x: g.x, y: g.y, z: 0 }
-      case 'bspline':
-        throw new SketchProjectionError('E_SKETCHC_UNSUPPORTED_GEOM', `geometry kind "${g.kind}" is not supported in the first release`)
+      case 'bspline': {
+        // Reopened 2026-09-29 (fcstd-port A2): the entry used to reject this
+        // with E_SKETCHC_UNSUPPORTED_GEOM even though the whole downstream
+        // chain already consumed it — planegcs-backend.ts:233 pushes the exact
+        // endpoints as a line proxy (so coincident/dimension constraints on the
+        // curve ends still solve), planegcs-backend.ts:700 pulls them back,
+        // contour.ts:57 de Boor-samples the interior, and verify.ts:30 anchors
+        // on the endpoints. Rejecting here was entry-schema narrowness, not a
+        // solver capability gap.
+        //
+        // Endpoints are evaluated at the clamped domain ends rather than read
+        // off poles[0]/poles[last]: a periodic or non-clamped knot vector has
+        // poles that are NOT on the curve, and evalBSpline already clamps its
+        // argument into [knots[degree], knots[n]] (bspline.ts:39-40).
+        const d = { poles: g.poles, knots: g.knots, degree: g.degree, periodic: g.periodic ?? false }
+        const lo = d.knots[d.degree] ?? 0
+        const hi = d.knots[d.knots.length - d.degree - 1] ?? lo
+        const s = d.poles.length > 0 ? evalBSpline(d, lo) : { x: 0, y: 0 }
+        const e = d.poles.length > 0 ? evalBSpline(d, hi) : { x: 0, y: 0 }
+        return {
+          kind: 'bspline', index,
+          poles: g.poles, knots: g.knots, degree: g.degree, periodic: d.periodic,
+          x1: s.x, y1: s.y, z1: 0, x2: e.x, y2: e.y, z2: 0,
+        }
+      }
       case 'ellipse': {
         // rx/ry ARE the major/minor radii (fromFreeCadGeoms maps them back
         // positionally), `angle` is the major-axis rotation in radians — the

@@ -56,8 +56,36 @@ export interface ProfileArcSeg {
   y2: number
 }
 
-/** 一条有序 2D 轮廓段（直线或圆弧）。 */
-export type ProfileSeg = ProfileLineSeg | ProfileArcSeg
+/**
+ * 参数曲线段（NURBS 控制数据；`kind:'spline'` 同时承载 Bézier 与 B 样条 ——
+ * Bézier 就是一条两端重节点钳制的 B 样条，两者同一份数据形态）。
+ *
+ * 存在的意义：源几何真是一条参数曲线时（Draft 文字轮廓的 Bézier、投影出的
+ * B 样条），本段让它以曲线身份进到 wire，而不是先被采样成折线。
+ * `first`/`last` 是该边在**基曲线参数轴**上的裁剪区间；省略即整条曲线。
+ */
+export interface ProfileSplineSeg {
+  kind: 'spline'
+  /** 多项式次数 */
+  degree: number
+  /** 扁平控制点 `[x, y, x, y, …]` */
+  poles: number[]
+  /** 去重后的节点值（与 `multiplicities` 平行） */
+  knots: number[]
+  /** 各节点的重数 */
+  multiplicities: number[]
+  /** 周期（闭合回绕）曲线 */
+  periodic?: boolean
+  /** 每个控制点的权；非有理曲线省略 */
+  weights?: number[]
+  /** 裁剪起点（基曲线参数轴） */
+  first?: number
+  /** 裁剪终点（基曲线参数轴） */
+  last?: number
+}
+
+/** 一条有序 2D 轮廓段（直线、圆弧或参数曲线）。 */
+export type ProfileSeg = ProfileLineSeg | ProfileArcSeg | ProfileSplineSeg
 
 /** 单个轮廓环：有序段序列（首尾相接）。 */
 export interface ProfileLoop {

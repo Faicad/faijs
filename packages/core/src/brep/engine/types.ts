@@ -130,6 +130,38 @@ export interface BrepCurveParameters {
   last: number
 }
 
+/**
+ * NURBS control data of one edge's BASIS curve.
+ *
+ * ⚠️ This is the WHOLE basis curve, not the edge: an OCCT edge is often only a
+ * sub-range of its curve, so `curveParameters(edge)` is the trim to apply on top
+ * of this (`BRep_Tool::Curve` hands back both halves). Rebuilding an edge from
+ * this data without honouring that trim produces a curve running past its
+ * neighbour's start (measured 2026-09-29).
+ *
+ * `poles` is flat `[x,y,z, x,y,z, …]`; `weights` has one entry per pole (all 1
+ * for a non-rational curve, and `rational` then says whether they mean anything);
+ * `knots`/`multiplicities` are parallel arrays (expanded, the knot vector is
+ * `knots[i]` repeated `multiplicities[i]` times and has `poles + degree + 1`
+ * entries).
+ */
+export interface BrepNurbsCurveData {
+  /** Polynomial degree. */
+  degree: number
+  /** True when `weights` are meaningful (a rational curve). */
+  rational: boolean
+  /** True for a periodic (closed, wrap-around) curve. */
+  periodic: boolean
+  /** Distinct knot values, parallel to `multiplicities`. */
+  knots: number[]
+  /** Multiplicity of each entry in `knots`. */
+  multiplicities: number[]
+  /** Flat control points: `[x, y, z, x, y, z, …]`. */
+  poles: number[]
+  /** One weight per control point. */
+  weights: number[]
+}
+
 /** 曲面 UV 边界。 */
 export interface BrepUvBounds {
   uMin: number

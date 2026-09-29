@@ -149,6 +149,8 @@ function planeKernel(): BrepEngineApi {
     makeLineEdge: () => 1 as BrepHandle,
     makeArcEdge: () => 1 as BrepHandle,
     makeBezierEdge: () => 1 as BrepHandle,
+    makeBSplineEdge: () => 1 as BrepHandle,
+    curveSplit: () => [1 as BrepHandle, 2 as BrepHandle],
     makeWire: () => 1 as BrepHandle,
     makeFace: () => 1 as BrepHandle,
     makeCompound: () => 1 as BrepHandle,

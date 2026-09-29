@@ -19,6 +19,7 @@ import type {
   BrepEvolutionData,
   BrepHandle,
   BrepMeshResult,
+  BrepNurbsCurveData,
   BrepSubShapeType,
   BrepTessellateOptions,
   BrepUvBounds,
@@ -166,7 +167,31 @@ export interface BrepEngineApi {
   makeLineEdge(start: BrepVec3, end: BrepVec3): BrepHandle
   makeArcEdge(start: BrepVec3, mid: BrepVec3, end: BrepVec3): BrepHandle
   makeBezierEdge(controlPoints: BrepVec3[]): BrepHandle
+  /**
+   * Exact NURBS edge from raw control data — the write-side counterpart of
+   * `getNurbsCurveData`, so a rational / multi-span curve survives a round trip
+   * instead of being tessellated.
+   *
+   * `poles` is flat `[x,y,z, …]`; `knots`/`multiplicities` are parallel (the
+   * expanded knot vector is `knots[i]` repeated `multiplicities[i]` times). The
+   * built edge spans the WHOLE curve — to reproduce an edge that is a sub-range
+   * of its basis curve, trim it with `curveSplit`.
+   */
+  makeBSplineEdge(
+    poles: number[],
+    weights: number[],
+    knots: number[],
+    multiplicities: number[],
+    degree: number,
+    periodic?: boolean,
+  ): BrepHandle
   makeCircleEdge(center: BrepVec3, normal: BrepVec3, radius: number): BrepHandle
+  /**
+   * Split an edge at an interior parameter into its two sub-edges, in order.
+   * The parameter must be STRICTLY inside the edge's domain — splitting at an
+   * end is rejected by the kernel rather than returning a degenerate pair.
+   */
+  curveSplit(edge: BrepHandle, param: number): [BrepHandle, BrepHandle]
 
   // ── 拓扑构造 ──
   makeWire(edges: BrepHandle[]): BrepHandle
@@ -215,8 +240,17 @@ export interface BrepEngineApi {
   surfaceCenterOfMass(face: BrepHandle): BrepVec3
   /** Phase 1 钉死返回形态（topologyExt 仅读 radius）。 */
   getFaceCylinderData(face: BrepHandle): { radius: number } | null
-  /** Phase 1 钉死返回形态（topologyExt 读 degree/periodic/rational）。 */
-  getNurbsCurveData(edge: BrepHandle): { degree: number; periodic: boolean; rational: boolean } | null
+  /**
+   * NURBS control data of the edge's basis curve, or `null` for the analytic
+   * kinds (line / circle / ellipse / hyperbola / parabola).
+   *
+   * ⚠️ Two measured behaviours (2026-09-29) that the name does not imply:
+   *  · it THROWS — it is not a nullable getter — when the edge is not a B-spline
+   *    or Bézier, so callers must guard, not just null-check;
+   *  · it returns the WHOLE basis curve, while `curveParameters` returns the
+   *    EDGE's trim range on it; rebuilding without the trim is not faithful.
+   */
+  getNurbsCurveData(edge: BrepHandle): BrepNurbsCurveData | null
   interpolatePoints(points: BrepVec3[], degree: number): BrepHandle
 
   /** 去特征（移除面集合）。 */

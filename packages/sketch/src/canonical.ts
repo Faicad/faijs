@@ -21,9 +21,9 @@ export type Ref = { tag: string; at?: At } | { index: number; at?: At }
 
 /**
  * Canonical sketch geometry. Supports `line` + `circle` + `arc` + `ellipse` +
- * `point` (ellipse/point entries reopened 2026-09-28 — the solver chain
- * already consumed them); `bspline` is reserved schema (a hit reports
- * `E_SKETCHC_UNSUPPORTED_GEOM`).
+ * `point` + `bspline` (ellipse/point reopened 2026-09-28, bspline 2026-09-29 —
+ * the solver chain already consumed all three; only the op-entry schema was
+ * narrower than the chain).
  */
 export type SketchGeom =
   | { tag?: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number }
