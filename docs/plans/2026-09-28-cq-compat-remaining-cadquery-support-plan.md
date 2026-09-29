@@ -1,7 +1,7 @@
 # cq-compat 剩余 CadQuery 特性支持 —— 现状盘点与开发计划（2026-09-28）
 
 日期：2026-09-28
-状态：**方案（未实施）**
+状态：**实施中**（2026-09-29 优先级重排：执行顺序改为 P0-1 Assembly → P0-2 Sketch → P0-3 Shape → P1 Workplane → P2 内核 → P3 随需）
 基线 HEAD：`208d2402`
 范围：`packages/cq-compat`、`cq-compat-assembly`、`cq-compat-sketch`、`cq-compat-compare` + `packages/core`（引擎侧支撑）
 上游基准：CadQuery **2.8.0**（`tests/baseline.json`：cadquery-ocp 7.9.3.1.1 / occt-wasm ^3.8.0）
@@ -144,10 +144,13 @@ Duration    351.93s
 
 ### 2.3 `Assembly` 缺失 7 项
 
-`add`、`addSubshape`、`remove`、`traverse`、`load`、`importStep`、`export`（`solve`/`toCompound`/`save`/`constrain` 已有）
+`add`、`addSubshape`、`remove`、`traverse`、`load`、`importStep`、`export`（`solve`/`toCompound`/`save`/`constrain`/`constraintEx` 已有）
 
-现状：`buildAssembly` 返回 `CqAssembly` 接口对象（`packages/cq-compat-assembly/src/assembly.ts:378+`），已带 `solve()`/`toCompound()`；mini_lathe 已用 `asm.solve()` 验证过**对象方法调用在脚本面可用**。
-⇒ 9-22 判定的"类式 API 无法在 `.fai.js` 表达"**需要修正**：真正的限制不是语法，而是"不可变语义 + 递归遍历"的实现成本。**Assembly 是单块最大缺口（52 条 blockedBy）**。
+**现状（澄清"有包≠已补齐"）**：装配层在独立包 **`@faicad/cq-compat-assembly`**（`packages/cq-compat-assembly/src/assembly.ts:379` 的 `CqAssembly`），它实现的是**「一次性构造 + 求解」**——`buildAssembly(name, members[], constraints[])` → `solve()` → `toCompound()`/`save()`；`CqAssembly` 接口**只有 `solve()`/`toCompound()` 两个方法**，没有 CQ 的**迭代式类面**（`add`/`remove`/`traverse`/`load`/`importStep`/`export`）。主包 `@faicad/cq-compat` 不 re-export 装配层（`packages/cq-compat/src/index.ts:134` 注释）。
+
+⇒ 9-22 判定的"类式 API 无法在 `.fai.js` 表达"**需要修正**：真正的限制不是语法，而是"不可变语义 + 递归遍历"的实现成本；mini_lathe 已用 `cq.buildAssembly(...)` + `asm.solve()` 验证过对象方法调用在脚本面可用。**Assembly 是单块最大缺口**。manifest 实测 blockedBy 分三摊：**44 条**（理由写「Assembly 类式 API（obj/children/add/remove/constrain 对象方法）**无法在 .fai.js 受限子集表达**」——**该理由已过期，必须重判**）+ **8 条**（类式 STEP 导入/导出 `importStep`/`save`）+ **8 条**（`op:assembly-solve` 依赖 `constraintEx` 缺 FixedPoint/FixedAxis/PointInPlane 或 `Face.makePlane` 无限面，后两项与 §2.4 交叉）。
+
+**消费方（必须同步，地位等同 3d_editor）**：`../cadquery-port/mini_lathe` —— cadquery-port 是"CadQuery 项目移植集中地"（`cadquery-port/README.md`），mini_lathe 是其首个移植项；`src/assembly.fai.js` 用 `cq.buildAssembly(...)`/`cq.constraint(...)`，`tests/assembly-e2e.test.ts` 是**现成的装配端到端验收样本**（对照 CQ 2.8.0 参考位姿 `out/ref/mini_lathe_poses.json`，单次快跑）。P0-1 改 API 形态须同步它。
 
 ### 2.4 `Shape` 类模型（81 方法）≈ 0 覆盖
 
@@ -170,25 +173,42 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 
 ---
 
-## 4. 分期开发计划
+## 4. 分期开发计划（2026-09-29 优先级重排）
 
-> 排序原则：**先解除阻断（回归 + 基线失真）→ 再做"低成本高条数"回收 → 再补 op → 再建类模型 → 最后收口内核与永久 block**。每个 Stage 独立可验收、可中断。
+> **重排原则（用户 2026-09-29 拍板）**：**快速补齐 CadQuery API 缺口是头等大事，不应被测试阻塞。** faijs/cq-compat 仍在早期、代码高频变更，据此：
+> 1. 排序按 **API 面缺口大小 × 内核就绪度**，不按"先修回归 / 先建全量基线"。原 Stage 0（回归 + 全量 parity 基线）与 Stage 1（stale 重扫 + ref 扩展）属**盘点/维护**，降级为 **P3 随需执行，不再作为动手前置**；原 Stage 2（零散 op 补齐）降为 **P1**。
+> 2. 原 Stage 3（Assembly）/ 4（Sketch）/ 5（Shape）是三大 API 面缺口，上调为 **P0**，最先做。
+> 3. **禁止**把全量 `run-cand` / `compare.ts` / 全套 vitest 当作工作项的前置或收尾阻塞。每个工作项只跑**波及文件**的同目录单测（秒级～十几秒）；全量套件仅在 CI / 发版前跑一次。
+> 4. 每个工作项 = 落 API 方法 + 同目录单测 + 更新 `tests/manifest.json` 该条状态；**不做跨仓全量 parity 扫描**。
 
-### Stage 0｜解除阻断：回归修复 + 真实 parity 基线（前置，必做）
+**执行顺序（按此自上而下推进）**：**P0-1 Assembly → P0-2 Sketch → P0-3 Shape/选择器 → P1 Workplane 剩余 → P2 内核缺口 → P3 随需维护**。各节标题前缀即优先级；正文保留原 Stage 编号以便对照历史记录。
 
+| 优先级 | 内容 | 原 Stage |
+|---|---|---|
+| **P0-1** | Assembly 类式 API（52 条 blocked，单块最大） | Stage 3 |
+| **P0-2** | Sketch 完整化（19→40/51，含约束段） | Stage 4 |
+| **P0-3** | Shape 类模型与选择器体系（81 方法，高价值子集先行） | Stage 5 |
+| **P1** | Workplane 剩余 36 方法与 op 补齐（text/split/section/offset2D…） | Stage 2 |
+| **P2** | 内核缺口攻坚与永久 block 收口 | Stage 6 |
+| **P3（随需）** | 回归维护、stale 重扫、ref 扩展、全量 parity、门禁收尾 | Stage 0 / 1 / 7 |
+
+### Stage 0｜【P3·随需】回归维护与 parity 基线（不再是前置）
+
+- **状态（2026-09-29）**：动作 1/2/3/5 已完成（详见 §8）；动作 4（全量 parity 重跑）降级为**随需观测**，不再阻塞后续任何开发。**本节其余内容仅作历史记录，动手前不需要先跑它。**
 - **目标**：把 cq-compat 从"21 红、parity 数字失真"恢复到可信基线，并让 CI 能真正拦住回归。
 - **动作**：
   1. 修 `rotate_euler` 参数名：`src/workplane.ts:832`、`:3687`、`:4083` 的 `{ anglesDeg }` → `{ angles }`（core 现签名 `packages/core/src/api/transform.ts:227`）。**先确认是 cq-compat 侧未跟进改名，而非 core 侧 breaking**——查 `git log -p -- packages/core/src/api/transform.ts` 定位改名提交；若 core 侧改名未同步兼容层，则兼容层改；若 core 曾兼容 `anglesDeg` 后移除，需在 core 侧补断言测试防止再次静默移除。
   2. 补防回归单测（GOTCHA 标记）：断言 `rotate_euler` 只接受 `angles` 键，且 `orientZTo` 在任意法向上产出与 CQ 一致的孔位（覆盖 hole/cboreHole/cskHole/cutThruAll/cylinder 五条路径）。
   3. 重跑 `npm run test -w @faicad/cq-compat` → 154 全绿（含 stderr 零容忍）。
-  4. 重跑 `npx tsx packages/cq-compat/tests/compare.ts`（先 `run-cand.ts` 全量再 compare），产出新的 `out/report.json` + `report.md`，**记录真实 PASS/FAIL/parity 水位**作为后续 Stage 的起点。
+  4. **（P3·随需，不再执行）** ~~重跑 `npx tsx packages/cq-compat/tests/compare.ts`（先 `run-cand.ts` 全量再 compare），记录真实 PASS/FAIL/parity 水位~~——用户判定为无意义的数小时批跑：faijs 早期阶段代码高频变更，**不做**；需要观测时手动跑一次，不作为任何工作项的前置/收尾。
   5. **CI 预算修正**：`scripts/ci.ps1:87` 的 5 分钟预算 < 实测 351.9s（且 `npm run test` 含 build）。二选一：把 `@faicad/cq-compat` 单列更长预算（建议 900s），或把 cq-compat 测试分片（慢的 brep/parity smoke 单独一份）。否则 Stage 1+ 的回归仍会被看门狗吃掉。
-- **验收**：单测 154 全绿；`out/report.md` 有新时间戳且 PASS 数 ≥ 修复前理论水位；CI 能在 5 分钟内跑完或已提预算；3 处 `anglesDeg` 归零。
-- **风险**：若 core 侧近期还有其它参数改名（units 重构引入），可能不只 `rotate_euler` 一处——修复后必须**全量重跑**而非只跑失败用例。
+- **验收**：单测 154 全绿（**已达成**）；3 处 `anglesDeg` 归零（**已达成**）；CI 预算已提（**已达成**）。~~`out/report.md` 新时间戳 + PASS 水位~~ → 随需。
+- **风险**：若 core 侧近期还有其它参数改名（units 重构引入），可能不只 `rotate_euler` 一处——**波及范围单测**跑一遍即可（`rotate-euler-contract.test.ts` 已覆盖 `orientZTo` 全孔系路径），无需全量。
 
-### Stage 1｜低成本回收：stale 重扫 + ref 覆盖扩展
+### Stage 1｜【P3·随需】stale 重扫 + ref 覆盖扩展（盘点性质，非前置）
 
-- **目标**：不写新 op，先回收"历史标记过期"的条目，并把 parity 分母补完整。
+- **定位（2026-09-29）**：本阶段不产出 API 能力、只修正登记与分母，**排在 API 缺口补齐之后**；不需要在动手前先做。
+- **目标**：不写新 op，回收"历史标记过期"的条目，并把 parity 分母补完整。
 - **动作**：
   1. **stale 重扫**：对 `face`(13)、`workplaneFromTagged`(4)、`save`(4)、`twistExtrude`(3)、`wedge`(3) 五组逐条读上游用例 + 现导出面，判定：能镜像 → 写镜像；不能 → 用 `mark-blocked.ts` 改写**准确** blockedBy（不得沿用过期根因）。
   2. **ref 覆盖扩展**：上游 `out/cache/v2.8.0/tests/` 已缓存 `test_sketch.py`(36 用例)/`test_nurbs.py`(19)/`test_hull.py`(2)，`run-ref.py` 支持 `--modules`，python = `C:\Users\ylt\cadquery-env\Scripts\python.exe`（baseline 指定，本机存在）。跑 `python tests/ref-harness/run-ref.py --modules test_sketch,test_nurbs,test_hull`，产出新 ref STEP + 合并进 `out/ref/manifest.json`，再跑 `gen-manifest.ts` 重生成三态表（分母 697 → 预计 750+）。
@@ -196,7 +216,7 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 - **验收**：stale 组 27 条全部有明确结论（镜像 or 准确 blockedBy）；`out/ref` 出现 `test_sketch*`/`test_nurbs*`/`test_hull*` STEP；manifest 重生成且条数与 ref 一致。
 - **风险**：sketch/nurbs 用例大量依赖类模型与回调 → ref 能出但镜像率可能极低，**这是可接受结果**（先把分母做实，避免"分母缺口掩盖真实完成度"）。
 
-### Stage 2｜高价值 op 补齐（内核已具备，缺封装）
+### Stage 2｜【P1】Workplane 剩余 op 补齐（内核已具备，缺封装）
 
 - **目标**：吃掉 §2.1 的 A 档，预计解锁 ~36–45 条。
 - **动作**（每项独立小步：op → 单测 → 镜像 → 重跑 manifest）：
@@ -208,24 +228,27 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
   6. 选择器族与工具：`wires`/`compounds`/`shells`（12 条）、`size`/`sort`/`consolidateWires`、`mirrorX`/`mirrorY`(2)、`polarArray`/`polarLine`/`polarLineTo`/`rotateAboutCenter`/`slot2D`/`bezier`/`clean`。
   7. `imprint`(4)：text + 布尔压印组合。
   8. 每个新 op 必须补 `paramDims` 量纲声明（units 系统，见 §6）。
-- **验收**：上述每组至少一个镜像 PASS；manifest ported 342 → **≥ 385**；单测不回归；`compare` PASS 数提升。
+- **验收**：上述每组至少一个镜像 PASS；manifest ported 342 → **≥ 385**；波及单测不回归。`compare` PASS 数为观测项，**不作验收阻塞**。
 - **风险**：`text` 的字体资源在浏览器/Node 宿主下可用性需实测（字体 loader 通道）；`shells` 依赖 shell 构造入口，内核未必有 → 需先探针。
 
-### Stage 3｜Assembly 类式 API（单块最大缺口，52 条）
+### Stage 3｜【P0-1·最先做】Assembly 类式 API（单块最大缺口）
 
-- **目标**：把 `CqAssembly` 从"构造即求解"扩成 CQ 的迭代式类式面，解锁 Assembly blocked 的大头。
-- **动作**：
-  1. `add(shape, name?, color?)` / `addSubshape(subshape, name?)` / `remove(name)`：不可变语义（返回新的 `CqAssembly`，不原地改），与 `.fai.js` 的 `let asm2 = asm.add(...)` 语句模型兼容；
-  2. `traverse()`：递归遍历成员 + 子形状（产出 name/shape/parent 列表），用于镜像上游 `test_assembly` 的遍历类断言；
-  3. `load(path)` / `importStep(path)`：封装 `cad.import_step`（平台 op 已落地），产出成员；
-  4. `export(path, mode?)`：STEP/STL 写出（走 CLI 既有导出通道，浏览器面不含 `save`/`export` 的文件写入）；
-  5. 保持 `solve()`/`toCompound()`/`save()` 语义不变（幂等求解、封装 core 求解器、**禁止消费方直调 core 求解器**——9-22 修订要求 3）；
-  6. 镜像：从 107 条 blocked 中挑可表达用例（优先 `traverse`/`add`/`addSubshape`/`remove`/`importStep`），不可表达（pytest fixture、类继承形态）的用 `mark-blocked` 登记准确根因。
-- **验收**：Assembly blocked 107 → **≤ 60**；新增镜像 PASS ≥ 20；assembly 包单测（现 21）≥ 30 且全绿；3d_editor 装配消费面不破坏（H3 纪律：改 API 须同步 `../3d_editor`）。
-- **风险**：不可变语义 + 递归遍历在 `.fai.js` 语句模型下需验证（对象方法调用已验证可用，但"返回新对象再赋给新变量"的语句级确定性扫描是否放行需实测）。
+- **定位（2026-09-29）**：三大 API 面缺口之首，**第一个动手的就是它**。实现落 `packages/cq-compat-assembly/src/`（`assembly.ts` 的 `CqAssembly` + `buildAssembly`）。
+- **目标**：把 `CqAssembly` 从"构造即求解"扩成 CQ 的迭代式类式面（7 方法），并重判 44 条过期 blockedBy。
+- **工作项（各自可独立开工、无强制顺序；编号供交接引用）**：
+  - **A｜增删**：`add(obj, name?, color?)` / `addSubshape(shape, name?)` / `remove(name)`——**不可变语义**（返回新 `CqAssembly`，不原地改），与 `.fai.js` 的 `let asm2 = asm.add(...)` 语句模型兼容；改 `CqAssembly` 接口 + `buildAssembly` 返回对象。
+  - **B｜遍历**：`traverse()`——递归产出 `{ name, shape, parent }` 列表，对齐上游 `test_assembly` 遍历类断言。
+  - **C｜导入**：`load(path)` / `importStep(path)`——封装平台 op `cad.import_step`（`packages/core/src/api/import-step.ts` 已落地）产出成员。
+  - **D｜导出**：`export(path, mode?)`——STEP/STL 写出（走 CLI 既有导出通道；浏览器面不含文件写入）。
+  - **E｜重判 blockedBy**：manifest 中 44 条理由「类式 API 无法在 .fai.js 表达」**已过期**，逐条重扫——能镜像的镜像，不能的用 `mark-blocked.ts` 改写**准确**根因（不得沿用过期理由）；重跑 `gen-manifest.ts` 落库（关联 §2.3）。
+  - **F｜消费方同步 + 验收**：改 API 形态同步 `../3d_editor` 与 **`../cadquery-port/mini_lathe`**；以 `mini_lathe/tests/assembly-e2e.test.ts`（对照 CQ 2.8.0 参考位姿）为**首选端到端验收样本**（单次快跑，非全量批跑）。
+- **保持**：`solve()`/`toCompound()`/`save()` 语义不变（幂等求解、封装 core 求解器、**禁止消费方直调 core 求解器**——9-22 修订要求 3）。
+- **验收**：`CqAssembly` 具备 7 方法；Assembly blocked 107 → **≤ 60**；新增镜像 PASS ≥ 20；assembly 包单测（现 21）全绿且 ≥ 30；`../3d_editor` 与 `../cadquery-port` 装配消费面不破坏（H3）。
+- **风险**：不可变语义 + 递归遍历在 `.fai.js` 语句模型下需验证（对象方法调用已验证可用，"返回新对象再赋给新变量"的语句级确定性扫描需实测；工作项 A 先做 1 个探针用例验证再铺开，对应 Q4）。
 
-### Stage 4｜Sketch 完整化（几何 + 模式 + 变换 + 约束）
+### Stage 4｜【P0-2】Sketch 完整化（几何 + 模式 + 变换 + 约束）
 
+- **定位（2026-09-29）**：三大 API 面缺口之二，Assembly 之后做。
 - **目标**：`cq-compat-sketch` 从 19/51 提到 ≥ 40/51，并让约束段可用。
 - **动作**：
   1. 几何声明补齐：`arc`/`segment`/`spline`/`bezier`/`edge`/`face`/`push`；
@@ -237,18 +260,19 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 - **验收**：`test_sketch` 镜像 ≥ 15 条且 PASS ≥ 10；`constrain/solve` 端到端用例 1 个以上（草图 → 求解 → extrude 出体）；sketch 包单测 ≥ 10 全绿。
 - **风险**：planegcs 是 LGPL-2.0-or-later，cq-compat-sketch 若直接 `dependencies` 会污染运行时依赖链 —— 必须走 peer/optional + 独立包隔离（与 `@faicad/faijs-sketch` 现状一致）。
 
-### Stage 5｜Shape 类模型与选择器体系（评估后再全量立项）
+### Stage 5｜【P0-3】Shape 类模型与选择器体系（高价值子集先行）
 
-- **目标**：评估并落地 CQ `Shape` 类模型的高价值子集，解锁 `face` 13 / `shells` 12 / `makeCompound` 8 / `remove` 5 / `replace` 4 / `addCavity` 3。
+- **定位（2026-09-29）**：三大 API 面缺口之三。**直接进高价值子集落地，不先写"可行性评估文档"**（高价值子集清单已足够明确，评估并入实现过程）。
+- **目标**：落地 CQ `Shape` 类模型的高价值子集，解锁 `face` 13 / `shells` 12 / `makeCompound` 8 / `remove` 5 / `replace` 4 / `addCavity` 3。
 - **动作**：
-  1. 先做**可行性评估文档**（1 份 analysis）：类模型在 `.fai.js` 的表达方式（工厂函数 + 对象方法链 vs 真正的类）、句柄生命周期、与 Workplane 层的互操作；
+  1. 可行性问题就地收敛（不再单独立文档）：类模型用**工厂函数 + 对象方法链**表达（对象方法调用在脚本面已验证可用），句柄生命周期与 Workplane 层互操作在第一条实现里直接定型；
   2. 高价值子集：`Face.makePlane`（无限面，Assembly 约束缺它导致 8 条 `op:assembly-solve`）、`Face.makeSplineApprox`（已有 `splineFace` 可复用）、`Shape.shells/solids/compounds` 选择器、`Compound.makeCompound`(8)；
   3. `remove`/`replace` 需 `BRepTools_ReShape`，内核未暴露 → 归 D 层；内核 `defeature` 语义与 CQ `remove` 不同（9-23 已实测：返回 6 面实体 vs CQ 的 5 面开放壳），**不得拿 defeature 冒充 remove**；
   4. 选择器类体系（`Selector`/`TypeSelector`/`DirectionSelector`/`NearestToPointSelector`/`StringSyntaxSelector`）按镜像需求逐条加，不一次性全做。
 - **验收**：`makeCompound` 8 条清零；`face`/`shells` 合计解锁 ≥ 10；评估文档给出 Shape 类模型全量化的工作量估算。
 - **风险**：工作量最大（81 方法），务必先评估再立项，避免摊子铺开后无法收口。
 
-### Stage 6｜内核缺口攻坚与永久 block 收口
+### Stage 6｜【P2】内核缺口攻坚与永久 block 收口
 
 | 项 | 条数 | 处置 |
 |---|---|---|
@@ -265,7 +289,7 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 
 - **纪律**：攻坚前必须写**探针实测**（`packages/cq-compat/out/probe*.ts` 风格），结论留档为测试；攻不动 → 维持 blocked + 根因，**禁止静默降级或放宽容差**。
 
-### Stage 7｜收尾：门禁、文档、消费方同步
+### Stage 7｜【P3·随需】收尾：门禁、文档、消费方同步
 
 - 全量重跑 `gen-manifest.ts`；block 用例同步删除对应 `out/cand/*.step`（最高频坑）；
 - `docs/ops-api-inventory.md` 重生成（新增 op 后 stale）+ doc-sync 12 项门禁；
@@ -275,37 +299,42 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 
 ---
 
-## 5. 验收指标（当前 → 目标）
+## 5. 验收指标（2026-09-29 重排后，以 API 面覆盖为纲）
 
-| 指标 | 当前（2026-09-28 实测） | Stage 0 | +1 | +2 | +3 | +4 | +5 |
-|---|---|---|---|---|---|---|---|
-| cq-compat 单测 | **21 红 / 133 绿** | 154 绿 | 不回归 | 不回归 | ≥170 | ≥180 | 不回归 |
-| manifest ported | 342 | 342 | ≥360 | ≥385 | ≥415 | ≥430 | ≥445 |
-| manifest blocked | 308 | 308 | ≤290 | ≤265 | ≤235 | ≤220 | ≤205 |
-| Assembly blocked | 107 | 107 | 107 | 107 | **≤60** | — | — |
-| Workplane 覆盖率 | 56/92 (60.9%) | — | — | ≥70/92 | — | — | — |
-| Sketch 覆盖率 | 19/51 (37.3%) | — | — | — | — | ≥40/51 | — |
-| parity（重跑后基线） | 未知（9-23 记 45.08%） | 取得真值 | 记得分母扩展 | ≥基线+5pct | — | — | — |
-| CI 能拦住 cq-compat 回归 | **否（预算不足）** | 是 | 是 | 是 | 是 | 是 | 是 |
-
+> 门禁从"manifest ported / parity 数"改为 **API 方法覆盖率 + 波及单测绿**——补齐缺口是目的，用例数与 parity 只是观测。
 > parity 不作发版门禁（9-22 Q3 拍板），仅作观测指标。
 
-**每个 Stage 收尾 DoD**：
-- [ ] 新增/改判后重跑 `gen-manifest.ts`；block 用例同步删对应 `out/cand/*.step`；
-- [ ] `npm run test -w @faicad/cq-compat`（+ 涉改的 assembly/sketch 包）全绿、stderr 零容忍；
-- [ ] `npm run typecheck` / `lint` 全绿（core 侧对 HEAD 基线取差，不新引入）；
+| 指标 | 当前（2026-09-29） | 目标 | 归属 |
+|---|---|---|---|
+| cq-compat 单测 | **154 绿（20 files）** | 持续不回归 | 全程 |
+| Assembly 覆盖率 | 4/11 | 11/11 | P0-1 |
+| Assembly blocked | 107 | ≤60 | P0-1 |
+| Sketch 覆盖率 | 19/51 (37.3%) | ≥40/51 | P0-2 |
+| Shape 类模型 / 选择器 | ≈0 | 高价值子集落地（face/shells/makeCompound…） | P0-3 |
+| Workplane 覆盖率 | 56/92 (60.9%) | ≥70/92 | P1 |
+| manifest ported | 342 | 随 API 补齐同步增长（观测） | 全程 |
+| manifest blocked | 308 | 随 API 补齐同步下降（观测） | 全程 |
+| parity | 未重跑（旧值 45.08%） | 仅观测，非门禁 | — |
+| CI 能拦住 cq-compat 回归 | **是（预算已修 900s）** | 保持 | — |
+
+**每个工作项 DoD（不做全量批跑）**：
+- [ ] API 方法落地 + **波及文件的同目录单测**绿（秒级；不跑全套 vitest，不跑 compare）；
+- [ ] 更新 `tests/manifest.json` 该条状态（ported / blockedBy）；仅在需要时重跑 `gen-manifest.ts`；
+- [ ] `npm run typecheck -w <包>` / `npm run lint -w <包>` 干净（core 侧对 HEAD 基线取差，不新引入）；
 - [ ] 新增 op 已补 `paramDims` 量纲 + 防回归单测；
-- [ ] 结论写回本文件 §8 实施记录。
+- [ ] 结论写回本文件 §8 实施记录（不必每次跑 compare）。
 
 ---
 
 ## 6. 纪律与红线（沿用 + 新增）
 
+> **🔴 最高纪律（2026-09-29 新增）—— 不阻塞**：补 API 缺口**不得**以"跑全量测试 / 建 parity 基线 / 等流水线"为前置或收尾。测试只跑**波及范围**（同目录 `.test.ts`，秒级）；全量 `run-cand` / `compare` / 全套 vitest 属**观测**，绝不在日常开发循环里跑。**发现问题就解决、发现一个解决一个，立刻写代码。**
+
 1. **fail-loud**：内核缺口 → 显式抛错 + `blocked` 登记，**禁止**启发式逼近或放宽容差（handover 红线 4）；
 2. **量纲声明（新增，2026-09-28 units 系统引入）**：新增 op 必须在 arg-spec/`paramDims` 声明参数量纲（angle/length/…），否则 units 校验与 codegen 通道会红；
 3. **镜像 = 唯一 ported 判据**：`gen-manifest` 只按镜像文件存在判定 ported，禁止手改 status 造假；
 4. **防回归**：与预期不符的 API 用法必须落成 `GOTCHA:` 标注的测试（本次 `rotate_euler` 参数名即典型，Stage 0 动作 2）；
-5. **消费方同步（H3）**：改 API 必须同步 `../3d_editor`；装配消费面禁止直调 core 求解器（9-22 修订要求 3）；
+5. **消费方同步（H3）**：改 API 必须同步 **`../3d_editor` 与 `../cadquery-port`**（mini_lathe 等 CQ 项目移植消费 `@faicad/cq-compat` / `@faicad/cq-compat-assembly`）；装配消费面禁止直调 core 求解器（9-22 修订要求 3）；
 6. **依赖最小化**：`fai_cq_gears` 运行时零改动；LGPL 依赖（planegcs）只走独立包 + peer/optional，不进运行时依赖链；
 7. **后台任务纪律**：长任务串行，跑 cq-compat 全量测试/compare 期间不叠加其它长任务。
 
@@ -315,11 +344,11 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 
 | 编号 | 问题 | 建议 |
 |---|---|---|
-| Q1 | `rotate_euler` 改名是 core 侧 breaking 未同步，还是 cq-compat 漏改？是否需在 core 侧保留旧键兼容？ | Stage 0 动作 1 用 `git log -p` 定性后再定；倾向**兼容层改 + core 加断言测试** |
-| Q2 | CI 里 `@faicad/cq-compat` 预算 5 分钟不够（实测 351.9s + build） | 提预算到 900s，或拆分测试文件；需拍板 |
+| Q1 | ~~`rotate_euler` 改名是 core 侧 breaking 未同步，还是 cq-compat 漏改？~~ | **已解决（2026-09-29）**：定为 cq-compat 侧未跟进改名（core 无 breaking），3 处调用点已在 `7da2e650` 修正；并按"core 加断言测试"补 GOTCHA 防回归测试 `packages/cq-compat/src/rotate-euler-contract.test.ts`。 |
+| Q2 | ~~CI 里 `@faicad/cq-compat` 预算 5 分钟不够（实测 351.9s + build）~~ | **已解决（2026-09-29）**：`scripts/ci.ps1` 为 `@faicad/cq-compat` 单列 **900s** 预算（其余包保持 300s，`FAIJS_TEST_BUDGET_MS` 仍可整体覆盖）。 |
 | Q3 | `cq-compat-sketch` 引入 `@faicad/faijs-sketch`（planegcs，LGPL）的形态 | peerDependencies + optional import；需法务口径确认 |
 | Q4 | Assembly 类式 API 的不可变语义在 `.fai.js` 语句模型下是否放行 | Stage 3 先做 1 个探针用例验证，再铺开 |
-| Q5 | Shape 类模型（81 方法）是否全量立项 | 先 Stage 5 评估文档，再决定；不建议一次性全做 |
+| Q5 | Shape 类模型（81 方法）是否全量立项 | **不全量**；高价值子集直接落地（P0-3），可行性评估并入实现过程，不再单独立文档 |
 | Q6 | `text` 的字体资源在 Node/浏览器宿主下的一致性 | Stage 2 实测后决定镜像范围，2D 定位测量类可判 skipped |
 
 ---
@@ -329,3 +358,13 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 （每个 Stage 收尾追加；本文件创建时为空。）
 
 - 2026-09-28：完成现状盘点（§1–§3 数据均为当日实测）与计划编制（§4–§7）。**未实施任何代码改动**。
+- 2026-09-29（**优先级重排**）：按用户要求把"快速补齐 API 缺口"升为头等大事——原 Stage 3/4/5（Assembly/Sketch/Shape）上调为 **P0**，原 Stage 0/1（回归 + 全量 parity + stale 重扫 + ref 扩展）降为 **P3 随需**，原 Stage 2 降为 **P1**；明确禁止把全量 `run-cand`/`compare` 当作前置或收尾（§4 重排原则、§6 最高纪律、§5 门禁改为 API 覆盖率）。
+- 2026-09-29（**P0-1 立项细化**）：按用户要求把 `../cadquery-port` 纳入消费方同步（§6-5、Stage 3-F），把 `mini_lathe/tests/assembly-e2e.test.ts` 定为 P0-1 首选验收样本；Stage 3 展开为工作项 A–F（含重判 44 条过期 blockedBy）；§2.3 澄清「cq-compat-assembly 已有包 ≠ 缺口已补」。
+- 2026-09-29（**Stage 0 收口**）：动作 1（`anglesDeg`→`angles`）已由前一提交 `7da2e650` 完成；本日补齐动作 2 的 GOTCHA 防回归测试 `packages/cq-compat/src/rotate-euler-contract.test.ts`（7 tests，覆盖 `anglesDeg` 拒收 + `orientZTo` 在 >X 非轴对齐法向的 hole / cutThruAll / cskHole / cboreHole / cylinder 五路径）；动作 3 实测 `cq-compat` 单测 **154 passed / 20 files**；动作 5 修正 `scripts/ci.ps1` 为 cq-compat 单列 900s 预算。动作 4（全量 parity 重跑）按重排**不做**（随需）。
+- 2026-09-29（**P0-1 Assembly 类式 API 全部完成**）：工作项 A–F 全绿，`cq-compat-assembly` 全包 **36 passed / 5 files**，typecheck + lint 干净。
+  - **A**：`CqAssembly` 接口加 `add`/`addSubshape`/`remove`（不可变语义，返回新对象）；`buildAssembly` 注入实现；`remove` 过滤 dangling 约束（偏离 CQ：faijs 构造时验证引用必须存在）；新增 `CqSubshape`/`AssemblyAddArg` 类型导出。
+  - **B**：`traverse()` — generator 方法，扁平结构产出 `[[name, this]]`（嵌套装配待后续）。
+  - **C/D**：`importStep(path)`/`load(path)` — Node 侧 STEP 导入为单成员装配（`save.ts`，复用 `loadBrep`+`fromBrep`）；`export` 复用已有 `save`。
+  - **E**：manifest 52 条过期 blockedBy 理由更新为「API 已实现，待写 parity 镜像」（44 条类式 API + 8 条 STEP 导入导出）；8 条 `op:assembly-solve` 真实缺口（constraintEx 缺 FixedPoint/FixedAxis/PointInPlane）保持原样，与 P0-3 交叉。
+  - **F**：`mini_lathe` e2e 因既有 `fillet: KERNEL_ERROR`（非本次引入）失败；消费方不受新增 API 影响（未改现有签名）。
+  - 测试：`packages/cq-compat-assembly/src/assembly-class-api.test.ts`（15 tests：A 8 + B 2 + C 3 + Q4 探针 1 + 端到端 1）。

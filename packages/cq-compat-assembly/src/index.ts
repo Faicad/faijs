@@ -24,6 +24,6 @@ export {
   buildAssembly,
   Color,
 } from './assembly'
-export type { CqAssembly, CqAssemblyMember } from './assembly'
+export type { CqAssembly, CqAssemblyMember, CqSubshape, AssemblyAddArg } from './assembly'
 
-export { save } from './save'
+export { save, importStep, load } from './save'

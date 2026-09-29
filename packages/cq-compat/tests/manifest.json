@@ -2899,73 +2899,73 @@
   "tests.test_assembly:::test_step_export__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export",
-    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_export__w": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export",
-    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_export__o": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export",
-    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__subsubassy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__cone_1": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__cone_2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__subassy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__cylinder_1": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__cylinder_2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__cube_1": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__cube_2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_meta_step_export_edge_cases__assy": {
@@ -2982,73 +2982,73 @@
   "tests.test_assembly:::test_step_roundtrip_with_materials__materials_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_roundtrip_with_materials",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_roundtrip_with_materials__test_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_roundtrip_with_materials",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_export_assembly_unit_default__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export_assembly_unit_default",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_export_assembly_unit_meters__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export_assembly_unit_meters",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_export_meta_unit_meters__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export_meta_unit_meters",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_export_assembly_output_unit__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export_assembly_output_unit",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_roundtrip_unit__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_roundtrip_unit",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_roundtrip_unit__assy3": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_roundtrip_unit",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_roundtrip_unit__assy4": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_roundtrip_unit",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_step_import__subshape_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_step_import",
-    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_step_import__imported_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_step_import",
-    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_step_import__res": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_step_import",
-    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_subshape_import__subshape_assy": {
@@ -3074,67 +3074,67 @@
   "tests.test_assembly:::test_plain_assembly_import__cube_1": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_plain_assembly_import__cube_2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_plain_assembly_import__cube_3": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_plain_assembly_import__cube_4": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_plain_assembly_import__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_plain_assembly_import__imported_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_copied_assembly_import__assy_copy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_copied_assembly_import",
-    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_copied_assembly_import__assy_normal": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_copied_assembly_import",
-    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_nested_subassembly_step_import__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_nested_subassembly_step_import",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_nested_subassembly_step_import__subassy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_nested_subassembly_step_import",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_nested_subassembly_step_import__imported_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_nested_subassembly_step_import",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_step_import_roundtrip__assy_orig": {
@@ -3150,13 +3150,13 @@
   "tests.test_assembly:::test_assembly_import_step_unit__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_import_step_unit",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_import_step_unit__imported": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_import_step_unit",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_export_loc__assy": {
@@ -3272,25 +3272,25 @@
   "tests.test_assembly:::test_materials__wp_1": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_materials",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_materials__wp_2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_materials",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_materials__wp_3": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_materials",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_materials__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_materials",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_colors_fused_assy__assy": {
@@ -3441,7 +3441,7 @@
   "tests.test_assembly:::test_infinite_face_constraint_Plane__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_infinite_face_constraint_Plane",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_unary_constraints__simple_assy2": {
@@ -3578,55 +3578,55 @@
   "tests.test_assembly:::test_step_export_filesize__part": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export_filesize",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_export_filesize__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export_filesize",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_remove_no_name_match__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_remove_no_name_match",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_remove_part__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_remove_part",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_remove_subassy__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_remove_subassy",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_assembly_remove_subassy__subassy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_remove_subassy",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_remove_without_parent__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_remove_without_parent",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_remove_without_parent__part": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_remove_without_parent",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_step_color__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_color",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   },
   "tests.test_assembly:::test_special_methods__subshape_assy": {
@@ -3642,7 +3642,7 @@
   "tests.test_assembly:::test_name_geometries__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_name_geometries",
-    "blockedBy": "Assembly 类式 API（obj/children/add/remove/constrain 对象方法）无法在 .fai.js 受限子集表达；STEP 导入导出归 Phase 5（importStep/save）；可复刻面已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
     "manual": true
   }
 }

@@ -369,6 +369,33 @@ export interface CqAssemblyMember {
   color?: RGB
 }
 
+/** 子形状引用（CQ Assembly._subshape 语义）：约束参考用，不进 compound 几何。 */
+export interface CqSubshape {
+  name: string
+  shape: Shape
+  color?: RGB
+}
+
+/** `add` 的 obj 形态：直接给 Shape，或 `{ shape, name?, color? }`（对齐 CQ add 的多形态）。 */
+export type AssemblyAddArg = Shape | { shape: Shape; name?: string; color?: RGB }
+
+/** 默认成员名：`part_<n>`，跳过已占用名（CQ 用 uuid；此处用可读序号便于脚本面调试）。 */
+function defaultMemberName(used: Array<{ name: string }>): string {
+  const taken = new Set(used.map((m) => m.name))
+  let i = used.length + 1
+  let n = `part_${i}`
+  while (taken.has(n)) n = `part_${++i}`
+  return n
+}
+
+/** 默认子形状名：`sub_<n>`，跳过已占用名。 */
+function defaultSubshapeName(used: Record<string, unknown>): string {
+  let i = Object.keys(used).length + 1
+  let n = `sub_${i}`
+  while (n in used) n = `sub_${++i}`
+  return n
+}
+
 /**
  * CQ 风格装配对象（CQ Assembly 兼容面）。
  *
@@ -397,6 +424,10 @@ export interface CqAssembly {
   compound: CompoundShape
   /** 是否已调用 solve()。 */
   solved: boolean
+  /** 约束表（CQ Assembly.constraints 属性对齐；add/remove 保留约束，CQ 语义不删关联约束）。 */
+  constraints: AssemblyConstraint[]
+  /** 子形状引用表（CQ Assembly._subshape；约束参考用，不进 compound）。 */
+  subshapes: Record<string, CqSubshape>
   /**
    * 求解装配（CQ Assembly.solve()）。封装底层求解器：
    * 求解 → 位姿烘焙进成员（mesh 顶点原地变换 + BREP slot.solid 刚体变换）→
@@ -406,6 +437,28 @@ export interface CqAssembly {
   solve(): CqAssembly
   /** 取已求解装配体（CQ Assembly.toCompound()）。 */
   toCompound(): CompoundShape
+  /**
+   * 添加成员（CQ Assembly.add）。**不可变语义**：返回新的 CqAssembly，不原地改
+   * （有意偏离 CQ 的可变 self-return，适配 `.fai.js` 的 `let asm2 = asm.add(...)` 显式赋值模型）。
+   * obj 可为 Shape 或 `{ shape, name?, color? }`；重名抛错（CQ 唯一性要求）。
+   */
+  add(obj: AssemblyAddArg, name?: string, color?: RGB): CqAssembly
+  /**
+   * 添加子形状引用（CQ Assembly.addSubshape）：用于约束参考，不进 compound 几何。不可变。
+   */
+  addSubshape(shape: Shape, name?: string, color?: RGB): CqAssembly
+  /**
+   * 移除成员（CQ Assembly.remove）。不可变：返回新的 CqAssembly。
+   * **偏离 CQ**：过滤引用被删成员的约束（faijs 构造时验证约束引用必须存在）。
+   */
+  remove(name: string): CqAssembly
+  /**
+   * 遍历装配树（CQ Assembly.traverse）。自底向上产出 `[name, assembly]` 对。
+   *
+   * 当前 faijs 装配是**扁平结构**（members 为 Shape 叶子，无嵌套子装配），
+   * 故只产出根装配自身 `[[name, this]]`。嵌套装配（member 为子 CqAssembly）待后续。
+   */
+  traverse(): IterableIterator<[string, CqAssembly]>
 }
 
 /** solveDetailed 返回面（core AssemblySolveResult 的运行时形态；residuals 仅 global 路径填）。 */
@@ -429,7 +482,7 @@ export function buildAssembly(
   name: string,
   members: Array<{ name: string; shape: Shape; color?: RGB }>,
   constraints: AssemblyConstraint[],
-  opts?: { solver?: 'chain' | 'global' },
+  opts?: { solver?: 'chain' | 'global'; subshapes?: Record<string, CqSubshape> },
 ): CqAssembly {
   // 提升边界归一：经 runtime.execute 时 members[].shape 是借用 brepjs 视图
   // （borrowDeep 产物），不是 faijs Shape。compound 的 children 必须持有 mesh
@@ -455,10 +508,13 @@ export function buildAssembly(
     solver,
   }) as unknown as CompoundShape
 
+  const subshapesInit = opts?.subshapes ?? {}
   const asm: CqAssembly = {
     name,
     members: members.map((m, i) => ({ name: m.name, shape: shapes[i], color: m.color })),
     solver,
+    constraints,
+    subshapes: subshapesInit,
     residuals: undefined,
     dof: 0,
     converged: true,
@@ -535,6 +591,58 @@ export function buildAssembly(
     },
     toCompound() {
       return this.compound
+    },
+    add(obj: AssemblyAddArg, p_name?: string, p_color?: RGB): CqAssembly {
+      let member: { name: string; shape: Shape; color?: RGB }
+      if (obj !== null && typeof obj === 'object' && 'shape' in obj) {
+        const o = obj as { shape: Shape; name?: string; color?: RGB }
+        member = {
+          name: p_name ?? o.name ?? defaultMemberName(this.members),
+          shape: o.shape,
+          color: p_color ?? o.color,
+        }
+      } else {
+        member = { name: p_name ?? defaultMemberName(this.members), shape: obj as Shape, color: p_color }
+      }
+      if (this.members.some((m) => m.name === member.name)) {
+        throw new Error(`[cq-compat-assembly] add: duplicate member name "${member.name}"`)
+      }
+      return buildAssembly(this.name, [...this.members, member], this.constraints, {
+        solver: this.solver,
+        subshapes: this.subshapes,
+      })
+    },
+    addSubshape(shape: Shape, p_name?: string, p_color?: RGB): CqAssembly {
+      const n = p_name ?? defaultSubshapeName(this.subshapes)
+      if (n in this.subshapes) {
+        throw new Error(`[cq-compat-assembly] addSubshape: duplicate subshape name "${n}"`)
+      }
+      const subshapes = { ...this.subshapes, [n]: { name: n, shape, color: p_color } }
+      return buildAssembly(this.name, this.members, this.constraints, {
+        solver: this.solver,
+        subshapes,
+      })
+    },
+    remove(name: string): CqAssembly {
+      if (!this.members.some((m) => m.name === name)) {
+        throw new Error(`[cq-compat-assembly] remove: no member named "${name}"`)
+      }
+      const members = this.members.filter((m) => m.name !== name)
+      const remaining = new Set(members.map((m) => m.name))
+      const constraints = this.constraints.filter((c) => {
+        if ('a' in c && 'b' in c) {
+          const refs = [c.a, c.b] as Array<{ part?: string }>
+          return refs.every((r) => !r || typeof r.part !== 'string' || remaining.has(r.part))
+        }
+        return true
+      })
+      return buildAssembly(this.name, members, constraints, {
+        solver: this.solver,
+        subshapes: this.subshapes,
+      })
+    },
+    *traverse(): IterableIterator<[string, CqAssembly]> {
+      yield [this.name, this]
     },
   }
   return asm
