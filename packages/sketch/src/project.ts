@@ -163,6 +163,9 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
         }
       }
       case 'point':
+        // Reopened 2026-09-28: planegcs-backend pushes standalone points and
+        // pulls them back; contour extraction skips them (no profile use).
+        return { kind: 'point', index, x: g.x, y: g.y, z: 0 }
       case 'bspline':
         throw new SketchProjectionError('E_SKETCHC_UNSUPPORTED_GEOM', `geometry kind "${g.kind}" is not supported in the first release`)
       case 'ellipse': {

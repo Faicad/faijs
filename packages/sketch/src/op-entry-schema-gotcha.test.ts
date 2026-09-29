@@ -39,6 +39,12 @@ describe('GOTCHA: cad.sketch op entry schema is narrower than the solver chain',
     expect(out[0]!.kind).toBe('ellipse')
   })
 
+  it('point is now ACCEPTED at toFreeCadGeoms (reopened 2026-09-28)', () => {
+    // planegcs-backend pushes/pulls standalone points; contours skip them.
+    const out = toFreeCadGeoms([{ kind: 'point', x: 1, y: 2 } as unknown as SketchGeom])
+    expect(out[0]!.kind).toBe('point')
+  })
+
   it('E_SKETCHC_UNSUPPORTED_GEOM: bspline rejected at toFreeCadGeoms although contour.ts samples it', () => {
     const geoms = [{
       kind: 'bspline',

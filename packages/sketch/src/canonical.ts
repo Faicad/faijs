@@ -20,9 +20,9 @@ export type At = number | 'start' | 'end' | 'mid' | 'center'
 export type Ref = { tag: string; at?: At } | { index: number; at?: At }
 
 /**
- * Canonical sketch geometry. Supports `line` + `circle` + `arc` + `ellipse`
- * (ellipse entry reopened 2026-09-28 — the solver chain already consumed it);
- * `point` / `bspline` are reserved schema (a hit reports
+ * Canonical sketch geometry. Supports `line` + `circle` + `arc` + `ellipse` +
+ * `point` (ellipse/point entries reopened 2026-09-28 — the solver chain
+ * already consumed them); `bspline` is reserved schema (a hit reports
  * `E_SKETCHC_UNSUPPORTED_GEOM`).
  */
 export type SketchGeom =

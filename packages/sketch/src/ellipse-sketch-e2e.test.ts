@@ -66,3 +66,21 @@ describe('ellipse sketch geometry (entry reopened)', () => {
     expect(s0.y1).toBeCloseTo(5 + 20 * Math.sin(Math.PI / 4), 6)
   })
 })
+
+describe('point sketch geometry (entry reopened 2026-09-28)', () => {
+  const PT: SketchGeom = { kind: 'point', x: 3, y: 7 }
+
+  it('toFreeCadGeoms projects point with z=0 (planar sketch plane)', () => {
+    const [g] = toFreeCadGeoms([PT])
+    expect(g).toMatchObject({ kind: 'point', index: 0, x: 3, y: 7, z: 0 })
+  })
+
+  it('to/from FreeCAD round-trip preserves the canonical point', () => {
+    const [back] = fromFreeCadGeoms(toFreeCadGeoms([PT]))
+    expect(back).toEqual({ kind: 'point', x: 3, y: 7 })
+  })
+
+  it('standalone points produce NO contours (no profile use)', () => {
+    expect(extractContours(toFreeCadGeoms([PT]))).toEqual([])
+  })
+})
