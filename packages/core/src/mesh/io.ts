@@ -137,7 +137,7 @@ export async function importFile(
   const fmt = (format ?? 'stl').toLowerCase()
 
   if (fmt === '3mf' || fmt === 'threemf') {
-    const mesh = parseThreemf(buffer)
+    const mesh = await parseThreemf(buffer)
     const shape: Shape = { positions: mesh.positions, indices: mesh.indices }
     // parseThreemf already folded the declared unit into coordinates; surface
     // the raw declaration mapped to a faijs UnitName for metadata.

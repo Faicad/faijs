@@ -21,7 +21,7 @@
  * is world-space; `planeDistance` must line up with baked positions).
  */
 import { unzipSync, strFromU8 } from 'fflate'
-import { DOMParser } from '@xmldom/xmldom'
+import { parseXmlDocument } from '../api/xml-dom'
 import { UNIT_SCALE, type UnitName } from '../units'
 
 /** Map a 3MF unit string to a faijs length unit name. */
@@ -56,8 +56,8 @@ function modelUnit(doc: Document): string {
 }
 
 /** Parse the `3D/3dmodel.model` XML and produce an index+position mesh. */
-function parseModelXml(xml: string): { positions: Float32Array; indices: Uint32Array; unit: string } {
-  const doc = new DOMParser().parseFromString(xml, 'application/xml') as unknown as Document
+async function parseModelXml(xml: string): Promise<{ positions: Float32Array; indices: Uint32Array; unit: string }> {
+  const doc = await parseXmlDocument(xml)
   const unit = modelUnit(doc)
   const faijsUnit = threemfUnitToFaijs(unit)
   if (faijsUnit === null) {
@@ -159,7 +159,7 @@ function parseModelXml(xml: string): { positions: Float32Array; indices: Uint32A
  * @returns the parsed mesh plus the declared source unit.
  * @throws when the buffer is not a 3MF/ZIP archive or the unit is invalid.
  */
-export function parseThreemf(buffer: ArrayBuffer): ThreemfMesh {
+export async function parseThreemf(buffer: ArrayBuffer): Promise<ThreemfMesh> {
   let entries: Record<string, Uint8Array>
   try {
     entries = unzipSync(new Uint8Array(buffer))
@@ -172,7 +172,7 @@ export function parseThreemf(buffer: ArrayBuffer): ThreemfMesh {
   }
   const raw = entries[modelKey]!
   const xml = strFromU8(raw)
-  const parsed = parseModelXml(xml)
+  const parsed = await parseModelXml(xml)
   return {
     positions: parsed.positions,
     indices: parsed.indices,
