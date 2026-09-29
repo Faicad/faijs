@@ -37,7 +37,8 @@
   "dependencies": {},
   "peerDependencies": {
     "@faicad/faijs": "^0.22.0",
-    "occt-wasm": "^3.8.0"
+    "occt-wasm": "^3.8.0",
+    "@faicad/faijs-sketch": "*"
   },
   "devDependencies": {
     "@faicad/cq-compat-compare": "file:../cq-compat-compare",
