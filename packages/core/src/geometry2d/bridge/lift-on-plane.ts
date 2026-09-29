@@ -34,6 +34,11 @@ export function liftCurve2dToPlane(kernel: PlaneWireKernel, plane: Plane, c: Cur
   const on = (c2: Curve2dObj, t: number): Vec3 => liftPointToPlane(plane, ...evaluateCurve2d(c2, t))
   switch (c.kind2d) {
     case 'line':
+      // P2 (2026-09-28, ArchDetail class): a fully-trimmed sketch can carry a
+      // ZERO-LENGTH line; makeLineEdge(start, start) is rejected by the OCCT
+      // kernel and killed the whole sketchOnPlane call. A zero-length segment
+      // contributes nothing to the wire — skip it.
+      if (c.len === 0) return []
       return [
         kernel.makeLineEdge(
           liftPointToPlane(plane, c.ox, c.oy),

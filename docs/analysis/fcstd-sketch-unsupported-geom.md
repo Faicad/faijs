@@ -1,6 +1,8 @@
 # `cad.sketch` 求解期失败定性：E_SKETCHC_UNSUPPORTED_GEOM / E_SKETCHC_NO_GEOMS
 
-状态：定性完成；**ellipse 已放开（2026-09-28，同日实施 §3.1 首选修复）**，`point`/`bspline` 与空 geoms 仍待处理。
+状态：定性完成；**ellipse 已放开（2026-09-28，同日实施 §3.1 首选修复）**；空 geoms 已由 fcstd
+codegen 侧显式 gap（`sketch-empty-geoms`）兜住；`sketchOnPlane` 零长度线段已在 lift 层跳过；
+`point`/`bspline` 仍保留拒绝。
 关联：`docs/plans/2026-09-28-fcstd-port-progress-review-and-next-plan.md` §P2-1。
 
 ## 1. 产生点（faijs 侧，单点）

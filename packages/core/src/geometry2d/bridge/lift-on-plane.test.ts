@@ -100,4 +100,16 @@ describe('curves as edges on plane (E2)', () => {
     expect(r.arcs).toHaveLength(3)
     expect(r.arcs.map((v) => v.z)).toEqual([0, 0, 0])
   })
+
+  // P2 (2026-09-28, ArchDetail class): a fully-trimmed sketch can carry a
+  // ZERO-LENGTH line. makeLineEdge(start, start) is rejected by the OCCT
+  // kernel and killed the whole sketchOnPlane call — the lift now skips it.
+  it('GOTCHA: zero-length line lifts to NO edge (makeLineEdge(p,p) would abort the kernel)', () => {
+    const r = recordingKernel()
+    const plane = makePlane({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, { x: 1, y: 0, z: 0 })
+    const line = makeLine2d(5, 5, 5, 5) // degenerate: start == end
+    const edges = liftCurve2dToPlane(r.k, plane, line)
+    expect(edges).toEqual([])
+    expect(r.lines).toHaveLength(0)
+  })
 })
