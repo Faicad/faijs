@@ -2,7 +2,7 @@
 
 状态：定性完成；**ellipse 已放开（2026-09-28，同日实施 §3.1 首选修复）**；空 geoms 已由 fcstd
 codegen 侧显式 gap（`sketch-empty-geoms`）兜住；`sketchOnPlane` 零长度线段已在 lift 层跳过；
-`point`/`bspline` 仍保留拒绝。
+`point`/`bspline` 仍保留拒绝。`revolve` CONSTRUCTION_FAILED 定性见 §5。
 关联：`docs/plans/2026-09-28-fcstd-port-progress-review-and-next-plan.md` §P2-1。
 
 ## 1. 产生点（faijs 侧，单点）
@@ -32,3 +32,17 @@ codegen 侧显式 gap（`sketch-empty-geoms`）兜住；`sketchOnPlane` 零长�
 ## 4. 未完成部分（如实）
 
 计划 P2-1 点名的 6 个语料样本（Drilling_1、test_profile、dovetail、TestTangentMode3-0.21、ModelFromV021、TestSketchCarbonCopyReverseMapping）未能在 `D:/Faicad/FreeCAD-library` 与 fcstd-port `state/manifest.jsonl` 中按名定位，复测未做。上述结论全部来自 faijs 源码路径证据；哪个样本命中哪条（ellipse vs 空 geoms）需在 fcstd-port 侧用其产物实测确认。
+
+## 5. 附：`revolve` CONSTRUCTION_FAILED（drill / v-bit，2 例）定性（2026-09-28）
+
+链路：`cad.revolve` → `revolveBrep`（`api/brep-mirror/sweepFns.ts:83`）→ `kernel.revolveVec`（OCCT 原生）。
+探针实测（`packages/core/src/api/revolve-construction-probe.test.ts`，保留为可重复测试）：
+
+| 轴-轮廓关系 | 结果 |
+|---|---|
+| 轮廓严格在轴一侧（x>0） | ok |
+| 轮廓**横穿**轴线（x 跨正负） | CONSTRUCTION_FAILED / REVOLVE_FAILED —— OCCT 硬边界，**known-limitation，不可修** |
+| 轮廓紧贴轴（x0=0） | OCCT 接受 |
+
+结论：drill / v-bit 语料的失败属源几何关系（轮廓跨越旋转轴）或其上游轮廓提取缺陷，
+非 faijs 代码缺陷；修复杠杆在 fcstd-port 翻译端（轮廓相对轴的定位/裁剪），不在 core。
