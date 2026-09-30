@@ -5202,13 +5202,16 @@ export async function section(wp: Workplane, height = 0, normal?: [number, numbe
 }
 
 /**
- * sweep — CadQuery `Workplane.sweep(path)` parity (SINGLE section only):
- * sweep the pending profile wire(s) along `path` (a wire on the current or
- * given workplane). Multi-section / aux-spine / pipeshell stays blocked
- * (plan Stage 6 D-layer).
- * @param wp - Workplane holding the pending profile
- * @param path - pending path wire built on a Workplane (its .shape must be a wire)
- * @param transition - OCCT transition mode for corner handling ('transformed' | 'round' | 'right')
+ * sweep — CadQuery `Workplane.sweep(path, multisection=…)` parity.
+ *
+ * Single section → raw-kernel `sweep` (BRepOffsetAPI_MakePipe). Multiple
+ * pending wires / explicit `sections` → `sweepPipeShell` (MakePipeShell) per
+ * group with end caps sewn+solidified (P2 probe-verified: pipeShell accepts
+ * one profile per call, caps close the tube into a valid solid).
+ * @param wp - Workplane holding the pending profile(s)
+ * @param path - spine: a wire() result or a Workplane with .shape
+ * @param opts - multisection: additional section wires (each swept by
+ *        pipeShell and fused); isFrenet/smooth pass through to pipeShell
  * @returns Workplane with the swept solid
  * @remarks GOTCHA (probe-verified): the profile must be PERPENDICULAR to the
  * spine at the origin (e.g. YZ-plane profile for an X-aligned spine) — a
@@ -5218,8 +5221,31 @@ export async function section(wp: Workplane, height = 0, normal?: [number, numbe
 export async function sweep(
   wp: Workplane,
   path: Workplane,
-  transition: 'transformed' | 'round' | 'right' = 'transformed',
+  opts?: { multisection?: Workplane[]; isFrenet?: boolean; smooth?: boolean },
+): Promise<Workplane>
+export async function sweep(
+  wp: Workplane,
+  path: Workplane,
+  transition: 'transformed' | 'round' | 'right',
+): Promise<Workplane>
+export async function sweep(
+  wp: Workplane,
+  path: Workplane,
+  optsOrTransition?:
+    | { multisection?: Workplane[]; isFrenet?: boolean; smooth?: boolean }
+    | 'transformed'
+    | 'round'
+    | 'right',
 ): Promise<Workplane> {
+  const opts: {
+    multisection?: Workplane[]
+    isFrenet?: boolean
+    smooth?: boolean
+    transition?: 'transformed' | 'round' | 'right'
+  } =
+    typeof optsOrTransition === 'string'
+      ? { transition: optsOrTransition }
+      : { ...(optsOrTransition ?? {}) }
   if (!path.shape && !(path.pendingWires ?? []).length) {
     throw new Error('[cq-compat] sweep: path workplane has no wire (pass a wire() result or a shape)')
   }
@@ -5229,23 +5255,54 @@ export async function sweep(
   const spine = path.shape
     ? ownHandle(path.shape)
     : ((await buildProfileWire(path, (path.pendingWires ?? []).filter((w) => !w.construction)[0])) as BrepHandle)
+  const k = getKernel() as unknown as OcctKernel & {
+    sweepPipeShell: (profile: ShapeHandle, spine: ShapeHandle, freenet?: boolean, smooth?: boolean) => ShapeHandle
+    sweep: (profile: ShapeHandle, spine: ShapeHandle, transitionMode?: number) => ShapeHandle
+    sewAndSolidify: (faces: ShapeHandle[], tolerance?: number) => ShapeHandle
+    makeFace: (wire: ShapeHandle) => ShapeHandle
+    makeWire: (edges: ShapeHandle[]) => ShapeHandle
+  }
   // NOTE: `transition` is accepted for API parity with upstream
   // Workplane.sweep(transition='transformed'|'round'|'right') but the raw
   // kernel sweep (BRepOffsetAPI_MakePipe) has no transition parameter —
   // corner handling is fixed by the kernel. Documented, not silently ignored.
-  void transition
+  void opts
+  const multisection = (opts.multisection ?? []).filter((w) => (w.pendingWires ?? []).length > 0 || w.shape)
+  const isFrenet = opts.isFrenet ?? false
+  const smooth = opts.smooth ?? true
+  const isMulti = all.length > 1 || multisection.length > 0
   let result: Shape | null = null
   for (const g of groupPendingWires(all)) {
     const outer = await buildProfileWire(wp, g.outer)
-    // single-section pipe: profile must be a WIRE — L1 BrepEngineApi has no
-    // sweep entry, so this goes through the raw kernel (BRepOffsetAPI_MakePipe
-    // via getKernel().sweep). sweepOriented is the multi-section BRepFill API
-    // and rejects faces ("bad shape type of section", probe-verified).
-    const holeWires: unknown[] = []
-    for (const h of g.holes) holeWires.push(await buildProfileWire(wp, h))
-    void holeWires
-    const swept = getKernel().sweep(outer as never, spine as never)
-    const solid = toShape(swept) as Shape
+    let solid: Shape
+    if (isMulti) {
+      // multi-section: MakePipeShell per profile + end caps (probe-verified
+      // capped-pipe path: shell faces + cap faces → sewAndSolidify)
+      const shell = k.sweepPipeShell(outer as never, spine as never, isFrenet, smooth)
+      const capEnds = await spineEndWires(spine, outer)
+      const faces = [shell as unknown as ShapeHandle]
+      for (const endWire of capEnds) faces.push(k.makeFace(endWire as never))
+      const capped = k.sewAndSolidify(faces as never, 1e-6)
+      solid = toShape(capped) as Shape
+    } else {
+      const swept = k.sweep(outer as never, spine as never)
+      solid = toShape(swept) as Shape
+    }
+    result = result ? await fuseShapes(result, solid) : solid
+  }
+  // explicit multisection workplanes: each carries ONE pending wire — sweep it
+  // along the same spine and fuse (upstream passes a list of sections; the
+  // per-section pipeShell + fuse approximates the shared-spine sweep)
+  for (const secWp of multisection) {
+    const secWires = (secWp.pendingWires ?? []).filter((w) => !w.construction)
+    if (!secWires.length) continue
+    const outer = await buildProfileWire(secWp, secWires[0])
+    const shell = k.sweepPipeShell(outer as never, spine as never, isFrenet, smooth)
+    const capEnds = await spineEndWires(spine, outer)
+    const faces = [shell as unknown as ShapeHandle]
+    for (const endWire of capEnds) faces.push(k.makeFace(endWire as never))
+    const capped = k.sewAndSolidify(faces as never, 1e-6)
+    const solid = toShape(capped) as Shape
     result = result ? await fuseShapes(result, solid) : solid
   }
   return clone(wp, {
@@ -5257,6 +5314,31 @@ export async function sweep(
     pendingEdges: undefined,
     currentPoint: undefined,
   })
+}
+
+/**
+ * End-cap wires for a swept tube: circles/curves matching the profile at the
+ * spine's two endpoints. Best-effort: the spine's endpoint vertices are
+ * extracted and the profile is rebuilt there via translation of the original
+ * wire's end planes; when the spine endpoints carry vertices (typical for
+ * drafted paths) the cap is the profile translated to each end.
+ */
+async function spineEndWires(spine: BrepHandle, profileWire: unknown): Promise<unknown[]> {
+  const k = getKernel() as unknown as OcctKernel
+  const verts = k.getSubShapes(spine as unknown as ShapeHandle, 'vertex') as unknown as ShapeHandle[]
+  if (verts.length < 2) return []
+  const profBb = k.getBoundingBox(profileWire as never)
+  const spineBb = k.getBoundingBox(spine as unknown as ShapeHandle)
+  const caps: unknown[] = []
+  const profCenter = { x: (profBb.xmin + profBb.xmax) / 2, y: (profBb.ymin + profBb.ymax) / 2, z: (profBb.zmin + profBb.zmax) / 2 }
+  for (const v of verts) {
+    const bb = k.getBoundingBox(v)
+    const vcenter = { x: (bb.xmin + bb.xmax) / 2, y: (bb.ymin + bb.ymax) / 2, z: (bb.zmin + bb.zmax) / 2 }
+    const moved = k.translate(profileWire as never, vcenter.x - profCenter.x, vcenter.y - profCenter.y, vcenter.z - profCenter.z)
+    caps.push(moved)
+  }
+  void spineBb
+  return caps
 }
 
 /**

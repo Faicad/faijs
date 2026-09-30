@@ -105,6 +105,31 @@ describe('sweep parity (upstream Workplane.sweep, single section)', () => {
     const sw = await sweep(prof, pathWp)
     expect(Math.abs(volume(sw))).toBeLessThan(1e-6)
   })
+
+  it('multisection: pipeShell + end caps → valid solid (P2 unblocked)', async () => {
+    // L spine, square profile + two extra sections → per-section pipeShell
+    // swept and fused with capped ends (valid=true, probe-verified)
+    let path = await moveTo(Workplane(), 0, 0)
+    path = await lineTo(path, 10, 0)
+    path = await lineTo(path, 10, 5)
+    const pathWp = wire(path)
+    const prof = await rect(Workplane('YZ'), 2, 2)
+    const s1 = await rect(Workplane('YZ'), 2, 2)
+    const s2 = await rect(Workplane('YZ'), 3, 3)
+    const sw = await sweep(prof, pathWp, { multisection: [s1, s2] })
+    expect(volume(sw)).toBeGreaterThan(0)
+    const k = getKernel() as unknown as { isValid: (h: never) => boolean }
+    expect(k.isValid(brepOf(sw.shape as never) as never)).toBe(true)
+  })
+
+  it('multisection: [] keeps the single-section MakePipe path', async () => {
+    let path = await moveTo(Workplane(), 0, 0)
+    path = await lineTo(path, 10, 0)
+    const pathWp = wire(path)
+    const prof = await circle(Workplane('YZ'), 1)
+    const sw = await sweep(prof, pathWp, { multisection: [] })
+    expect(volume(sw)).toBeCloseTo(Math.PI * 10, 1)
+  })
 })
 
 describe('offset2D parity (upstream Workplane.offset2D)', () => {
