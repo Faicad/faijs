@@ -104,19 +104,6 @@ export function detectStepUnit(stepText: string): UnitName | null {
   return null
 }
 
-/** Map a raw 3MF `<model unit>` attribute to a faijs UnitName (null when absent/unknown). */
-function threemfRawUnitToFaijs(raw: string): UnitName | null {
-  switch (raw) {
-    case 'micron': return 'micron'
-    case 'millimeter': return 'mm'
-    case 'centimeter': return 'cm'
-    case 'inch': return 'inch'
-    case 'foot': return 'foot'
-    case 'meter': return 'm'
-    default: return null
-  }
-}
-
 /**
  * Load geometry from raw file bytes (headless variant).
  *
@@ -137,11 +124,29 @@ export async function importFile(
   const fmt = (format ?? 'stl').toLowerCase()
 
   if (fmt === '3mf' || fmt === 'threemf') {
-    const mesh = await parseThreemf(buffer)
-    const shape: Shape = { positions: mesh.positions, indices: mesh.indices }
-    // parseThreemf already folded the declared unit into coordinates; surface
-    // the raw declaration mapped to a faijs UnitName for metadata.
-    return { shape, unit: threemfRawUnitToFaijs(mesh.sourceUnit) }
+    const archive = await parseThreemf(buffer)
+    // Merge every object instance into a single Shape (D1: multi-object stays
+    // one editable part; see plan §8 decision 6). Coordinates are already in
+    // faijs base units from parseThreemf.
+    let totalPos = 0
+    let totalIdx = 0
+    for (const o of archive.objects) {
+      totalPos += o.positions.length
+      totalIdx += o.indices.length
+    }
+    const positions = new Float32Array(totalPos)
+    const indices = new Uint32Array(totalIdx)
+    let posAt = 0
+    let idxAt = 0
+    let baseV = 0
+    for (const o of archive.objects) {
+      positions.set(o.positions, posAt)
+      posAt += o.positions.length
+      for (let i = 0; i < o.indices.length; i++) indices[idxAt++] = o.indices[i] + baseV
+      baseV += o.positions.length / 3
+    }
+    const shape: Shape = { positions, indices }
+    return { shape, unit: archive.unit }
   }
 
   if (fmt === 'stl') {

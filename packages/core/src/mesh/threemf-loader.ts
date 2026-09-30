@@ -2,7 +2,7 @@
  * threemf-loader — headless 3MF (ZIP/OPC) geometry loader.
  *
  * 3MF is a ZIP container whose geometry lives in `3D/3dmodel.model`, an XML
- * document. Design requirement (unit-system §2.4/§5): the unit MUST be read
+ * document. Design requirements (unit-system §2.4/§5): the unit MUST be read
  * from the real (inflated) XML, NOT from the raw bytes — `3D/3dmodel.model` is
  * deflate-compressed inside the ZIP, so scanning the raw buffer cannot find
  * `<model unit="…">` (the 3d_editor precedent returned 'millimeter' for real
@@ -17,10 +17,16 @@
  *   x' = a*x + d*y + g*z + p
  *   y' = b*x + e*y + h*z + q
  *   z' = c*x + f*y + i*z + r
- * so object-local mesh coords bake into world-space positions (the op contract
- * is world-space; `planeDistance` must line up with baked positions).
+ * so object-local mesh coords bake into world-space positions.
+ *
+ * Return: an `ThreemfArchive` — per-instance objects (one per `<build><item>`,
+ * transform baked, or per-`<resources>` object when `<build>` has no items at
+ * all), plus every non-model archive entry surfaced as `extraEntries` so the
+ * host can reach Bambu's private `model_settings.config` / thumbnails through
+ * the *same unzipped map* (single unzip, two consumer chains).
  */
-import { unzipSync, strFromU8 } from 'fflate'
+import { readZipEntries } from '../io/zip'
+import { strFromU8 } from 'fflate'
 import { parseXmlDocument } from '../api/xml-dom'
 import { UNIT_SCALE, type UnitName } from '../units'
 
@@ -37,12 +43,24 @@ function threemfUnitToFaijs(unit: string): UnitName | null {
   }
 }
 
-/** A parsed 3MF solid: triangle soup in mm base (already unit-scaled). */
-export interface ThreemfMesh {
+/** One parsed 3MF object instance: triangle soup in mm base (unit-scaled). */
+export interface ThreemfObject {
+  /** The `<object id>` this instance instantiates. */
+  id: number
+  /** The object's `<object name>` (Bambu exports a human label here). */
+  name?: string
   positions: Float32Array
   indices: Uint32Array
-  /** The declared `<model unit>` (raw, e.g. "millimeter"). */
-  sourceUnit: string
+}
+
+/** Structured 3MF parse result. */
+export interface ThreemfArchive {
+  /** The declared `<model unit>` mapped to a faijs UnitName. */
+  unit: UnitName
+  /** One object per build `<item>` (transform baked), or per `<resources>` object. */
+  objects: ThreemfObject[]
+  /** Every non-model archive entry (key → raw bytes) for downstream consumers. */
+  extraEntries: Map<string, Uint8Array>
 }
 
 /** Extract the declared unit from an already-parsed `<model>` document. */
@@ -55,20 +73,26 @@ function modelUnit(doc: Document): string {
   return 'millimeter'
 }
 
-/** Parse the `3D/3dmodel.model` XML and produce an index+position mesh. */
-async function parseModelXml(xml: string): Promise<{ positions: Float32Array; indices: Uint32Array; unit: string }> {
+/** Parse the `3D/3dmodel.model` XML, backward-compatible helper. */
+async function parseModelXml(xml: string): Promise<{
+  unitName: UnitName
+  objects: ThreemfObject[]
+}> {
   const doc = await parseXmlDocument(xml)
   const unit = modelUnit(doc)
-  const faijsUnit = threemfUnitToFaijs(unit)
-  if (faijsUnit === null) {
+  const unitName = threemfUnitToFaijs(unit)
+  if (unitName === null) {
     throw new Error(`[mesh/threemf] unsupported <model unit>: ${JSON.stringify(unit)}`)
   }
-  const scale = UNIT_SCALE[faijsUnit]
+  const scale = UNIT_SCALE[unitName]
 
   // resources → object → mesh → vertices / triangles
   const resources = doc.documentElement.getElementsByTagName('resources')[0]
   const objects = resources ? resources.getElementsByTagName('object') : []
-  const byObjectId = new Map<number, { positions: Float32Array; indices: Uint32Array }>()
+  const byObjectId = new Map<
+    number,
+    { id: number; name?: string; positions: Float32Array; indices: Uint32Array }
+  >()
 
   for (let i = 0; i < objects.length; i++) {
     const obj = objects[i]
@@ -80,10 +104,10 @@ async function parseModelXml(xml: string): Promise<{ positions: Float32Array; in
     const trianglesEl = meshEl.getElementsByTagName('triangles')[0]
     if (!verticesEl || !trianglesEl) continue
 
-    const vertexEls = verticesEl.getElementsByTagName('vertex')
-    const pos = new Float32Array(vertexEls.length * 3)
-    for (let v = 0; v < vertexEls.length; v++) {
-      const el = vertexEls[v]
+    const vertexElCh = verticesEl.getElementsByTagName('vertex')
+    const pos = new Float32Array(vertexElCh.length * 3)
+    for (let v = 0; v < vertexElCh.length; v++) {
+      const el = vertexElCh[v]
       pos[v * 3] = Number(el.getAttribute('x')) * scale
       pos[v * 3 + 1] = Number(el.getAttribute('y')) * scale
       pos[v * 3 + 2] = Number(el.getAttribute('z')) * scale
@@ -97,85 +121,80 @@ async function parseModelXml(xml: string): Promise<{ positions: Float32Array; in
       idx[t * 3 + 1] = Number(el && el.getAttribute('v2'))
       idx[t * 3 + 2] = Number(el && el.getAttribute('v3'))
     }
-    byObjectId.set(id, { positions: pos, indices: idx })
+    byObjectId.set(id, { id, name: obj.getAttribute('name') ?? undefined, positions: pos, indices: idx })
   }
 
-  // build → item → per-instance transforms (ST_3D, column-major, translation last 3).
+  // build → item → per-instance transforms baked to world space.
   const build = doc.documentElement.getElementsByTagName('build')[0]
   const itemEls = build ? build.getElementsByTagName('item') : []
-  const allPos: number[] = []
-  const allIdx: number[] = []
+  const out: ThreemfObject[] = []
 
-  for (let i = 0; i < itemEls.length; i++) {
-    const item = itemEls[i]
-    const objId = Number(item.getAttribute('objectid'))
-    const src = byObjectId.get(objId)
-    if (!src) continue
-    const mat = item.getAttribute('transform')
-    const [a, b, c, d, e, f, g, h, iz, p, q, r] = mat
-      ? mat.trim().split(/\s+/).map(Number)
-      : [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
-
-    const base = allPos.length / 3
-    for (let v = 0; v < src.positions.length; v += 3) {
-      const x = src.positions[v]
-      const y = src.positions[v + 1]
-      const z = src.positions[v + 2]
-      allPos.push(
-        a * x + d * y + g * z + p,
-        b * x + e * y + h * z + q,
-        c * x + f * y + iz * z + r,
-      )
+  if (itemEls.length > 0) {
+    for (let i = 0; i < itemEls.length; i++) {
+      const item = itemEls[i]
+      const objId = Number(item.getAttribute('objectid'))
+      const src = byObjectId.get(objId)
+      if (!src) continue
+      const mat = item.getAttribute('transform')
+      const [a, b, c, d, e, f, g, h, iz, p, q, r] = mat
+        ? mat.trim().split(/\s+/).map(Number)
+        : [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+      const outPos = new Float32Array(src.positions.length)
+      for (let v = 0; v < src.positions.length; v += 3) {
+        const x = src.positions[v]
+        const y = src.positions[v + 1]
+        const z = src.positions[v + 2]
+        outPos[v] = a * x + d * y + g * z + p
+        outPos[v + 1] = b * x + e * y + h * z + q
+        outPos[v + 2] = c * x + f * y + iz * z + r
+      }
+      out.push({ id: src.id, name: src.name, positions: outPos, indices: src.indices })
     }
-    for (let t = 0; t < src.indices.length; t++) {
-      allIdx.push(src.indices[t] + base)
-    }
-  }
-
-  // Fallback: if the build list is empty (some exporters omit <build>), emit
-  // every object's mesh directly.
-  if (itemEls.length === 0) {
-    for (const [, src] of byObjectId) {
-      const base = allPos.length / 3
-      for (let v = 0; v < src.positions.length; v++) allPos.push(src.positions[v])
-      for (let t = 0; t < src.indices.length; t++) allIdx.push(src.indices[t] + base)
+  } else {
+    // No build items: emit every `<resources>` object directly (¶ the empty
+    // `<build>` contract — NOT a fallback; see plan §8 decision 8).
+    for (const src of byObjectId.values()) {
+      out.push({ id: src.id, name: src.name, positions: src.positions, indices: src.indices })
     }
   }
 
-  if (allPos.length === 0) {
+  if (out.length === 0) {
     throw new Error('[mesh/threemf] no buildable geometry found in 3dmodel.model')
   }
-
-  return {
-    positions: new Float32Array(allPos),
-    indices: new Uint32Array(allIdx),
-    unit,
-  }
+  return { unitName, objects: out }
 }
 
 /**
- * Parse 3MF bytes into a mm-base mesh.
+ * Parse 3MF bytes into a structured archive.
+ *
  * @param buffer - the raw .3mf (ZIP) bytes.
- * @returns the parsed mesh plus the declared source unit.
+ * @returns an `ThreemfArchive` with mm-base per-instance objects, the declared
+ *   source unit, and every non-model archive entry.
  * @throws when the buffer is not a 3MF/ZIP archive or the unit is invalid.
  */
-export async function parseThreemf(buffer: ArrayBuffer): Promise<ThreemfMesh> {
-  let entries: Record<string, Uint8Array>
+export async function parseThreemf(buffer: ArrayBuffer): Promise<ThreemfArchive> {
+  let entries: Map<string, Uint8Array>
   try {
-    entries = unzipSync(new Uint8Array(buffer))
+    entries = readZipEntries(new Uint8Array(buffer))
   } catch {
     throw new Error('[mesh/threemf] not a valid 3MF ZIP archive')
   }
-  const modelKey = Object.keys(entries).find((k) => k.toLowerCase() === '3d/3dmodel.model')
+  const modelKey = [...entries.keys()].find((k) => k.toLowerCase() === '3d/3dmodel.model')
   if (!modelKey) {
     throw new Error('[mesh/threemf] missing 3D/3dmodel.model entry')
   }
-  const raw = entries[modelKey]!
+  const raw = entries.get(modelKey)!
   const xml = strFromU8(raw)
   const parsed = await parseModelXml(xml)
-  return {
-    positions: parsed.positions,
-    indices: parsed.indices,
-    sourceUnit: parsed.unit,
+
+  // `extraEntries` = everything that is NOT the model — Bambu's
+  // `Metadata/model_settings.config`, `Metadata/project_settings.config`,
+  // `Metadata/thumbnail.png`, etc.
+  const extraEntries = new Map<string, Uint8Array>()
+  for (const [k, v] of entries) {
+    if (k.toLowerCase() === '3d/3dmodel.model') continue
+    extraEntries.set(k, v)
   }
+
+  return { unit: parsed.unitName, objects: parsed.objects, extraEntries }
 }

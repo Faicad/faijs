@@ -95,6 +95,7 @@ export const cad = {
 // ── 类型导出 ──
 
 export type { Shape, Vec3, BoundingBox, FaceDescriptor } from './types'
+export { guessStlUnit } from './stl-unit'
 export type {
   BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
   TextParams, SvgExtrudeParams, SdfParams,
