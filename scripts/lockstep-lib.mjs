@@ -117,7 +117,8 @@ export function readFamily({ includePrivate = false } = {}) {
  * @param {Map<string, {name: string, version: string, pj: object}>} family
  * @param {string|null} declared - the root `config.faijsVersion`
  * @param {Record<string, string>|null} [cdnVersions] - parsed `cdn/versions.json`
- *   (the release-path version mirror); rule 3 is skipped when null/undefined.
+ *   (the release-path version mirror); rule 3 is skipped when null/undefined and
+ *   never applies to `private` members (they are not published, so they have no pin).
  * @returns {string[]} human-readable violations, empty when the family is aligned
  */
 export function collectViolations(family, declared, cdnVersions = null) {
@@ -167,6 +168,11 @@ export function collectViolations(family, declared, cdnVersions = null) {
   // Rule 3: the CDN release pin mirror tracks the family version.
   if (cdnVersions) {
     for (const [name, info] of family) {
+      // Private packages are never published, so `gen-importmap.mjs` emits no pin
+      // for them (it skips `private: true`) — and a pin would name a URL that does
+      // not exist on the CDN. `--include-private` widens rules 1 and 2 (keep the
+      // whole workspace on one version line) but must not widen rule 3.
+      if (info.private) continue
       const pinned = cdnVersions[name]
       if (pinned === undefined) {
         violations.push(
