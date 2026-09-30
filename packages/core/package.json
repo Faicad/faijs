@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.22.2",
+  "version": "0.22.3",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -89,6 +89,14 @@
     "./mesh/*": {
       "types": "./dist/mesh/*.d.ts",
       "default": "./dist/mesh/*.js"
+    },
+    "./io": {
+      "types": "./dist/io/index.d.ts",
+      "default": "./dist/io/index.js"
+    },
+    "./io/*": {
+      "types": "./dist/io/*.d.ts",
+      "default": "./dist/io/*.js"
     },
     "./brep/*": {
       "types": "./dist/brep/*.d.ts",
