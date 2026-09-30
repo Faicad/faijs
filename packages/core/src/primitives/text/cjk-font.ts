@@ -11,7 +11,22 @@
  * Uses the Local Font Access API (window.queryLocalFonts) to load system CJK
  * fonts; glyph path parsing lives in the consumer.
  */
-import * as opentype from 'opentype.js'
+import * as opentypeModule from 'opentype.js'
+import type { Font } from 'opentype.js'
+
+/**
+ * `opentype.js` publishes no `exports` map: it ships a UMD bundle (`main`) plus
+ * an ESM build (`module`). Node ESM resolves the UMD `main`, whose CommonJS
+ * interop exposes a namespace import as `{ default }` only — so
+ * `opentypeModule.parse` is undefined there — whereas bundlers (vite/vitest)
+ * resolve the ESM build and expose the named exports directly. Resolve once,
+ * here, so glyph parsing works in every host (CLI/tsx = Node ESM,
+ * vitest/browser = bundler).
+ */
+const opentype: typeof opentypeModule =
+  typeof (opentypeModule as { parse?: unknown }).parse === 'function'
+    ? opentypeModule
+    : (opentypeModule as unknown as { default: typeof opentypeModule }).default
 
 /**
  * Check if a character is CJK (CJK Unified Ideographs + extensions).
@@ -45,7 +60,7 @@ export function containsCjk(text: string): boolean {
 
 /** Result of loading a system CJK font. */
 export interface CjkFontResult {
-  font: opentype.Font
+  font: Font
   family: string
 }
 
