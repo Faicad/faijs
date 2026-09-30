@@ -40,17 +40,31 @@ function v3(x: number, y: number, z: number): Vec3 {
   return { x, y, z }
 }
 
-/** Wrap a handle as an owned class-model shape of the given kind. */
+/**
+ * Wrap a handle as an owned class-model shape of the given kind.
+ * @param kind - the shape kind the handle holds.
+ * @param handle - the raw kernel handle to own.
+ * @returns the owned wrapper (`dispose` releases the handle).
+ */
 export function wrapShape(kind: CqShape['kind'], handle: ShapeHandle): CqShape {
   return { kind, handle, owned: true }
 }
 
-/** Wrap a borrowed handle (selector results, Workplane interop) — dispose is a no-op. */
+/**
+ * Wrap a borrowed handle (selector results, Workplane interop) — dispose is a no-op.
+ * @param kind - the shape kind the handle holds.
+ * @param handle - the raw kernel handle owned by someone else.
+ * @returns the borrowed wrapper (`dispose` leaves the handle alone).
+ */
 export function borrowShape(kind: CqShape['kind'], handle: ShapeHandle): CqShape {
   return { kind, handle, owned: false }
 }
 
-/** Extract the raw kernel handle from a class-model shape or a bare handle. */
+/**
+ * Extract the raw kernel handle from a class-model shape or a bare handle.
+ * @param s - a class-model wrapper or a bare kernel handle.
+ * @returns the raw kernel handle.
+ */
 export function unwrapShape(s: CqShape | ShapeHandle): ShapeHandle {
   return s && typeof s === 'object' && 'handle' in s ? (s as CqShape).handle : (s as ShapeHandle)
 }
@@ -58,6 +72,7 @@ export function unwrapShape(s: CqShape | ShapeHandle): ShapeHandle {
 /**
  * Release a class-model shape. Owned wrappers release their handle; borrowed
  * views are left untouched (the owner releases them).
+ * @param s - the wrapper to release (its `owned` flag is cleared either way).
  */
 export function disposeShape(s: CqShape): void {
   if (s.owned) kernel().release(s.handle)

@@ -5223,6 +5223,14 @@ export async function sweep(
   path: Workplane,
   opts?: { multisection?: Workplane[]; isFrenet?: boolean; smooth?: boolean },
 ): Promise<Workplane>
+/**
+ * sweep — CadQuery `Workplane.sweep(path, transition)` parity: the string-form
+ * overload of the same operation.
+ * @param wp - Workplane holding the pending profile(s)
+ * @param path - spine: a wire() result or a Workplane with .shape
+ * @param transition - pipeShell transition mode (upstream positional arg)
+ * @returns Workplane with the swept solid
+ */
 export async function sweep(
   wp: Workplane,
   path: Workplane,

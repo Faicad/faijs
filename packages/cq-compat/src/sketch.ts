@@ -553,18 +553,48 @@ function selectCore(sk: Sketch, kind: 'face' | 'wire' | 'edge' | 'vertex', sel?:
   return out
 }
 
+/**
+ * faces — CadQuery `Sketch.faces(selector)` parity: keep only faces.
+ * @param sk - Sketch
+ * @param sel - string-selector expression applied to the raw face selection
+ * @param tag - select from a named tag's payload instead
+ * @returns Sketch with the surviving faces selected
+ */
 export function faces(sk: Sketch, sel?: string, tag?: string): Sketch {
   return { ...sk, selected: filterSel(selectCore(sk, 'face', sel, tag), sel) }
 }
 
+/**
+ * wires — CadQuery `Sketch.wires(selector)` parity: keep only wires.
+ * @param sk - Sketch
+ * @param sel - string-selector expression applied to the raw wire selection
+ * @param tag - select from a named tag's payload instead
+ * @returns Sketch with the surviving wires selected
+ * @remarks Wire selection flattens face handles to ALL their wires (outer +
+ * hole wires), matching upstream `Wires()`.
+ */
 export function wires(sk: Sketch, sel?: string, tag?: string): Sketch {
   return { ...sk, selected: filterSel(selectCore(sk, 'wire', sel, tag), sel) }
 }
 
+/**
+ * edges — CadQuery `Sketch.edges(selector)` parity: keep only edges.
+ * @param sk - Sketch
+ * @param sel - string-selector expression applied to the raw edge selection
+ * @param tag - select from a named tag's payload instead
+ * @returns Sketch with the surviving edges selected
+ */
 export function edges(sk: Sketch, sel?: string, tag?: string): Sketch {
   return { ...sk, selected: filterSel(selectCore(sk, 'edge', sel, tag), sel) }
 }
 
+/**
+ * vertices — CadQuery `Sketch.vertices(selector)` parity: keep only vertices.
+ * @param sk - Sketch
+ * @param sel - string-selector expression applied to the raw vertex selection
+ * @param tag - select from a named tag's payload instead
+ * @returns Sketch with the surviving vertices selected
+ */
 export function vertices(sk: Sketch, sel?: string, tag?: string): Sketch {
   return { ...sk, selected: filterSel(selectCore(sk, 'vertex', sel, tag), sel) }
 }
@@ -575,9 +605,14 @@ function filterSel(els: ShapeHandle[], sel?: string): ShapeHandle[] {
   return applyStringSelector(kernel(), els, sel)
 }
 
+/**
+ * reset — CadQuery `Sketch.reset()` parity: clear the selection.
+ * @param sk - Sketch
+ * @returns Sketch with no selection and no placement loci
+ * @remarks Upstream loci mirror the selection-locations, so clearing the
+ * selection therefore also clears them.
+ */
 export function reset(sk: Sketch): Sketch {
-  // loci mirror the selection-locations in upstream (push sets _selection);
-  // clearing the selection therefore also clears the placement loci.
   return { ...sk, selected: [], locs: [] }
 }
 
