@@ -34,6 +34,14 @@ export interface CreateNodePortsOptions {
   fontsDir?: string
   /** Default font path (falls back to the project single source of truth when omitted). */
   defaultFontPath?: string
+  /**
+   * Look up font *family names* in the OS font directories (default `true`).
+   *
+   * This is what makes `text(font: 'Arial')` behave like CadQuery, whose
+   * `Font_FontMgr` resolves names against the installed fonts. Set `false` for a
+   * hermetic host: name lookups then miss and fall back to the default font.
+   */
+  systemFonts?: boolean
 }
 
 /**
@@ -56,6 +64,7 @@ export function createNodePorts(opts?: CreateNodePortsOptions): HostPorts {
   const fontProvider = new NodeFontProvider({
     defaultFontPath: opts?.defaultFontPath,
     fontsDir: opts?.fontsDir,
+    systemFonts: opts?.systemFonts,
   })
 
   // 连接 NodeFontProvider 到 fontRegistry

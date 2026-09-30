@@ -34,11 +34,24 @@ const FONT_REGISTER: Record<string, Font> = {}
  * 字体二进制加载器接口。
  *
  * 生产代码（text.ts / engrave.ts）不自己决定字体来源，
- * 而是通过 ensureDefaultFont() 使用注入的 FontLoader。
+ * 而是通过 ensureDefaultFont() / ensureFont() 使用注入的 FontLoader。
  */
 export interface FontLoader {
   /** 返回默认字体的二进制数据 */
   loadDefaultFont(): Promise<ArrayBuffer>
+  /**
+   * 可选：按**字体族名**或**文件路径**取字体二进制。
+   *
+   * 宿主实现（Node 读磁盘/系统字体目录、浏览器按 URL 映射）决定来源；引擎核心
+   * 不碰 fs/fetch。返回 `null` 表示宿主无法解析该名字——调用方回退到默认字体
+   * （与 CadQuery/OCC `Font_FontMgr::FindFont` 找不到名字时回退默认字体的语义一致）。
+   *
+   * 未实现该方法的宿主（如浏览器）会让 `ensureFont(name)` 直接回退默认字体。
+   *
+   * @param nameOrPath - 字体族名（如 `"Arial"`）或字体文件路径
+   * @returns 字体字节，或 null（无法解析）
+   */
+  resolveFont?(nameOrPath: string): Promise<ArrayBuffer | null>
 }
 
 let activeFontLoader: FontLoader | null = null
@@ -131,6 +144,47 @@ export async function ensureDefaultFont(): Promise<void> {
  */
 export function getFont(fontFamily = 'default'): Font | undefined {
   return FONT_REGISTER[fontFamily]
+}
+
+/**
+ * 确保某个**具名字体**可用，并返回它。
+ *
+ * 语义对齐 CadQuery 的 `font=`/`fontPath=`：
+ *
+ * - 名字已注册过（含 `loadFont(data, name)` 直接注册）⇒ 直接返回；
+ * - `fontPath`（已存在的文件路径）或字体族名 ⇒ 交给 `FontLoader.resolveFont` 解析，
+ *   解析成功后**以该名字注册**，后续同名调用命中缓存；
+ * - 宿主没有 `resolveFont`、或解析失败（名字不是本机已安装字体）⇒ **回退到默认字体**
+ *   （OCC `Font_FontMgr::FindFont` 找不到字体时同样回退默认字体，不会抛错）。
+ *
+ * `null`/`undefined`/空串等价于「不指定」⇒ 默认字体。
+ *
+ * @param nameOrPath - 字体族名、字体文件路径，或 null/undefined 表示默认字体
+ * @returns 解析到的字体（解析不到时是默认字体）
+ * @throws 没有安装 FontLoader 且默认字体也未加载时
+ */
+export async function ensureFont(nameOrPath?: string | null): Promise<Font> {
+  if (!nameOrPath) {
+    await ensureDefaultFont()
+    return getFont()!
+  }
+
+  const already = getFont(nameOrPath)
+  if (already) return already
+
+  if (nameOrPath === 'default') {
+    await ensureDefaultFont()
+    return getFont()!
+  }
+
+  const resolver = activeFontLoader?.resolveFont
+  if (resolver) {
+    const data = await activeFontLoader!.resolveFont!(nameOrPath)
+    if (data) return loadFont(data, nameOrPath, true)
+  }
+
+  await ensureDefaultFont()
+  return getFont()!
 }
 
 /**

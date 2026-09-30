@@ -45,7 +45,7 @@ export { setManifoldWasmUrl, getManifoldWasmUrl } from './mesh/manifold-loader'
 export { setOcctWasmInitFn } from './occt-kernel/occtKernel'
 // brepkit（weapp 专用 BREP 引擎）不在此导出——见 weapp.ts 与
 // docs/plans/2026-09-20-weapp-host-entry-design.md。
-export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, clearFonts } from './brep/text/fontRegistry'
+export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, ensureFont, getFont, clearFonts } from './brep/text/fontRegistry'
 export type { FontLoader } from './brep/text/fontRegistry'
 export { setKnurlTextureLoader } from './mesh/knurl/textureLoader'
 

@@ -72,6 +72,30 @@ export class BrowserFontProvider implements FontProvider, FontLoader {
     return Array.from(this.fontUrls.keys())
   }
 
+  /**
+   * FontLoader.resolveFont: resolve a font key or URL that the consumer injected.
+   *
+   * A browser cannot enumerate the machine's installed fonts, so there is no
+   * system-family fallback here: an unknown *family name* returns `null` and the
+   * engine falls back to the bundled default font. Consumers that need a
+   * name-addressed font must inject it through {@link BrowserFontProviderOptions.fontUrls}.
+   *
+   * @param nameOrPath - a key from `fontUrls`, or a fetchable URL
+   * @returns the font bytes, or null when this host cannot resolve it
+   */
+  async resolveFont(nameOrPath: string): Promise<ArrayBuffer | null> {
+    const mapped = this.fontUrls.get(nameOrPath)
+    if (mapped) return this.fetchUrl(mapped)
+    if (/^(https?:|\/|\.\/|\.\.\/|data:)/.test(nameOrPath)) {
+      try {
+        return await this.fetchUrl(nameOrPath)
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+
   /** fetch 并缓存 */
   private async fetchUrl(url: string): Promise<ArrayBuffer> {
     const cached = this.cache.get(url)

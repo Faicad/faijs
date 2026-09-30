@@ -42,7 +42,12 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
  * @example
  * const a = await cad.import_brep({ asset: 'Array001.Shape' })
  */
-/** 裸实现：契约层测试直调（不经 defineOp 的 dispatch 拦截）。 */
+/**
+ * 裸实现：契约层测试直调（不经 defineOp 的 dispatch 拦截）。
+ *
+ * @param params - op 参数对象；`asset` 为容器资产名（去扩展名）。
+ * @returns 持 OCCT 句柄的几何（非实体亦可）。
+ */
 export async function importBrepImpl(params: Record<string, unknown>): Promise<Shape> {
   const assets = getBackends().assets as {
     resolveByKey?(key: string): Promise<{ bytes: ArrayBuffer }>

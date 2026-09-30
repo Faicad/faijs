@@ -1055,9 +1055,14 @@ function normalizeCombine(m: CombineMode): false | 'cut' | 'a' {
  * When there is no context solid the text is returned as-is.
  *
  * `clean` (default true) runs the CadQuery `clean()` pass (same-face merge) on
- * the combined result. `font`/`fontPath`/`kind` are accepted for signature
- * compatibility but resolve to the engine's single default face (OpenSans —
- * exactly upstream's `testFont`).
+ * the combined result.
+ *
+ * `font` / `fontPath` follow upstream's precedence: `fontPath` (a font file)
+ * wins, otherwise `font` is a family name handed to the host's font resolver
+ * (`brep/text/fontRegistry.ensureFont`). A name the host cannot resolve falls
+ * back to the engine's default face, matching OCC's
+ * `Font_FontMgr::FindFont` fallback. `kind` is accepted for signature
+ * compatibility only (the engine has no bold/italic face selection yet).
  *
  * @param wp - Workplane (placement plane + origin + optional context solid)
  * @param txt - the string to render
@@ -1087,6 +1092,8 @@ export async function text(
     distance,
     halign: opts?.halign,
     valign: opts?.valign,
+    font: opts?.font,
+    fontPath: opts?.fontPath,
   })
   const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
   const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])

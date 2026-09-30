@@ -34,7 +34,12 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
  * const a = await cad.import_step({ path: 'D:/models/box.step' })
  */
 
-/** 裸实现：契约层测试直调（不经 defineOp 的 dispatch 拦截）。 */
+/**
+ * 裸实现：契约层测试直调（不经 defineOp 的 dispatch 拦截）。
+ *
+ * @param params - op 参数对象；`path` 为 STEP 文件路径。
+ * @returns 持 OCCT 句柄的几何（非实体亦可）。
+ */
 export async function importStepImpl(params: Record<string, unknown>): Promise<Shape> {
   const path = params.path
   if (typeof path !== 'string' || path.length === 0) {

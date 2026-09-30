@@ -10,6 +10,8 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
+import { fileURLToPath } from 'node:url'
+import type { Font } from 'opentype.js'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { hasBrep, brepOf } from '@faicad/faijs/shape'
@@ -18,6 +20,7 @@ import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
+import { verticalMetrics } from './text-solid'
 import * as cq from './index'
 
 let runtime: ReturnType<typeof createRuntime>
@@ -168,5 +171,69 @@ describe('cq-compat Workplane.text (self-contained)', () => {
     // Upstream reference volume for the identical glyphs
     // (tests.test_cadquery__TestCadQuery__testText__obj4 @ fontPath=OpenSans).
     expect(volumeOf(wp)).toBeCloseTo(0.006893209, 4)
+  }, 120000)
+
+  it('GOTCHA: the valign descent includes hhea.lineGap', () => {
+    // Measured against cadquery 2.8.0: OCC's vertical box bottom is
+    // (|hhea.descender| + hhea.lineGap) below the baseline, NOT just the
+    // descender. OpenSans has lineGap=0 so both readings agree — which is
+    // exactly why the missing term survives every OpenSans-based test. Arial
+    // (lineGap=67/2048) exposes it: at size 10 the descent is 2.44629, and
+    // using 2.11914 instead puts the text 0.164 units too low.
+    const arialLike = {
+      unitsPerEm: 2048,
+      ascender: 1854,
+      descender: -434,
+      tables: { hhea: { lineGap: 67 } },
+    } as unknown as Font
+    const arial = verticalMetrics(arialLike, 10)
+    expect(arial.ascent).toBeCloseTo(9.05273, 4)
+    expect(arial.descent).toBeCloseTo(2.44629, 4)
+
+    const openSansLike = {
+      unitsPerEm: 2048,
+      ascender: 2189,
+      descender: -600,
+      tables: { hhea: { lineGap: 0 } },
+    } as unknown as Font
+    const openSans = verticalMetrics(openSansLike, 10)
+    expect(openSans.ascent).toBeCloseTo(10.68848, 4)
+    expect(openSans.descent).toBeCloseTo(2.92969, 4)
+
+    // A font whose hhea table is absent must not explode — lineGap reads as 0.
+    const noHhea = { unitsPerEm: 1000, ascender: 800, descender: -200 } as unknown as Font
+    expect(verticalMetrics(noHhea, 10).descent).toBeCloseTo(2, 4)
+  })
+
+  it('an unresolvable font name falls back to the default face instead of throwing', async () => {
+    const withDefault = bboxOf(await cq.text(cq.Workplane('XY'), 'I', 10, 0, 'cut', {}))
+    const withBogus = bboxOf(
+      await cq.text(cq.Workplane('XY'), 'I', 10, 0, 'cut', { font: 'Definitely Not Installed 9f3a' }),
+    )
+    // OCC's FindFont falls back the same way; the geometry must be identical.
+    expect(withBogus.xmin).toBeCloseTo(withDefault.xmin, 6)
+    expect(withBogus.ymin).toBeCloseTo(withDefault.ymin, 6)
+  }, 120000)
+
+  it('fontPath selects a font file and matches the default when it IS the default file', async () => {
+    const defaultFont = fileURLToPath(
+      new URL('../../core/src/assets/fonts/OpenSans-Regular.ttf', import.meta.url),
+    )
+    const viaPath = bboxOf(
+      await cq.text(cq.Workplane('XY'), 'CQ', 10, 0, 'cut', { fontPath: defaultFont }),
+    )
+    const viaDefault = bboxOf(await cq.text(cq.Workplane('XY'), 'CQ', 10, 0, 'cut', {}))
+    expect(viaPath.xmin).toBeCloseTo(viaDefault.xmin, 6)
+    expect(viaPath.ymax).toBeCloseTo(viaDefault.ymax, 6)
+    // `fontPath` wins over `font` (upstream precedence) — a bogus family name
+    // alongside a valid path must not change the outcome.
+    const both = bboxOf(
+      await cq.text(cq.Workplane('XY'), 'CQ', 10, 0, 'cut', {
+        font: 'Definitely Not Installed 9f3a',
+        fontPath: defaultFont,
+      }),
+    )
+    expect(both.xmin).toBeCloseTo(viaPath.xmin, 6)
+    expect(both.ymax).toBeCloseTo(viaPath.ymax, 6)
   }, 120000)
 })

@@ -192,7 +192,7 @@ export { buildSolidTopologyRuntime } from './brep/brep-topology'
 export type { SolidTopologyResult } from './brep/brep-topology'
 
 // ── Font Registry (for browser host injection) ──
-export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, clearFonts } from './brep/text/fontRegistry'
+export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, ensureFont, getFont, clearFonts } from './brep/text/fontRegistry'
 export type { FontLoader } from './brep/text/fontRegistry'
 
 // ── L3 Node Host ──

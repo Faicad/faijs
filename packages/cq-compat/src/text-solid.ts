@@ -15,8 +15,10 @@
  *   `W` is the string's total ADVANCE width (sum of glyph advances — a trailing
  *   space still counts: W("I ")=W("I")+advance(" "));
  *   `valign`: bottom ⇒ baseline y=0, center ⇒ baseline y=-(A-D)/2, top ⇒
- *   baseline y=-A, where `A`/`D` are the font's hhea ascender/descender scaled
- *   by `fontSize/unitsPerEm` (OpenSans: A=1.0688em, D=0.2930em). Because the
+ *   baseline y=-A, where `A` = hhea ascender × size/unitsPerEm and
+ *   `D` = (|hhea descender| + hhea lineGap) × size/unitsPerEm (OpenSans:
+ *   A=1.0688em, D=0.2930em, lineGap=0; Arial: A=0.9053em, D=0.2446em,
+ *   lineGap=67/2048 — see {@link verticalMetrics}). Because the
  *   reference is the pen/baseline (not the ink box), the ink bbox lands where
  *   its side bearings / descenders put it — e.g. halign="left" on "I" yields
  *   ink xmin≈0.98 (the glyph's left side bearing), not 0;
@@ -27,15 +29,19 @@
  *   compound with the context solid (`combine`: "cut" | "a" | false).
  * - each glyph face keeps its enclosed COUNTER (the hole in "0"/"Q"/"A"), i.e.
  *   the outline is a face-with-holes, not a filled disc.
+ * - the face is chosen exactly as upstream does: `fontPath` (a font file) wins
+ *   over `font` (a family name), and the name is resolved by the HOST the way
+ *   OCC's font manager resolves it — see `options.font`/`options.fontPath`.
  *
- * This module reproduces the geometry half (aligned, per-glyph parts); the
- * combine/placement half lives in `workplane.text`.
+ * This module reproduces the geometry half (font choice, aligned, per-glyph
+ * parts); the combine/placement half lives in `workplane.text`.
  */
 
 import type { BrepBoundingBox, BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import type { Font } from 'opentype.js'
 import { textBlueprints } from '@faicad/faijs/brep/text/text-to-solid'
-import { ensureDefaultFont, getFont } from '@faicad/faijs/brep/text/fontRegistry'
+import { ensureFont } from '@faicad/faijs/brep/text/fontRegistry'
 import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
 import { solidToShape } from '@faicad/faijs/brep/brep-ops'
 import { fromBrep } from '@faicad/faijs/shape'
@@ -56,6 +62,48 @@ export interface TextSolidOptions {
   halign?: HAlign
   /** Vertical alignment of the glyph box (default `'center'`). */
   valign?: VAlign
+  /**
+   * Font family name, resolved by the host the way CadQuery resolves `font=`
+   * (OCC `Font_FontMgr`). Node hosts look the name up among installed fonts;
+   * browsers only know consumer-injected fonts. Unresolvable names fall back to
+   * the engine's default face, as OCC does — it never throws.
+   */
+  font?: string
+  /** Path to a font file; takes precedence over {@link font} (CadQuery's `fontPath`). */
+  fontPath?: string
+}
+
+/**
+ * CadQuery's vertical metric pair for a font, in model units.
+ *
+ * Measured against cadquery 2.8.0 (`text(...)` with halign/valign probes):
+ *
+ * - `ascent` = hhea ascender × size / unitsPerEm  (valign="top" ⇒ dy = -ascent);
+ * - `descent` = (|hhea descender| + **hhea lineGap**) × size / unitsPerEm.
+ *
+ * The lineGap term is easy to miss because it is 0 in many fonts (OpenSans),
+ * in which case the naive `-descender` formula happens to agree. It is not 0 in
+ * Arial (67/2048 em), and leaving it out puts the text 0.164 units low at size
+ * 10 (measured: our centre-aligned "CQ" spanned y[-4.0234, 3.8184] where
+ * cadquery gives y[-3.8599, 3.9819], while X matched to 1e-9).
+ *
+ * @param font - the loaded font (opentype.js)
+ * @param fontSize - font size in model units
+ * @returns the ascent/descent pair in model units
+ */
+export function verticalMetrics(font: Font, fontSize: number): {
+  ascent: number
+  descent: number
+} {
+  const scale = fontSize / font.unitsPerEm
+  // `font.tables` is present on every opentype.js Font, but the metric helper is
+  // exported and synthesised test fonts omit it; read defensively so a font with
+  // no hhea table degrades to lineGap 0 instead of throwing.
+  const lineGap = (font.tables?.hhea as { lineGap?: number } | undefined)?.lineGap ?? 0
+  return {
+    ascent: font.ascender * scale,
+    descent: (-font.descender + lineGap) * scale,
+  }
 }
 
 /** True when `inner`'s bbox lies inside `outer`'s (a glyph counter nests in its body). */
@@ -86,10 +134,12 @@ export async function buildTextSolid(txt: string, options: TextSolidOptions): Pr
   const { fontSize, distance, halign = 'center', valign = 'center' } = options
 
   // core's fontRegistry needs an injected loader (node-host / browser-host do
-  // this on host creation); ensure throws a clear error when it is missing.
-  await ensureDefaultFont()
+  // this on host creation); ensureFont throws a clear error when it is missing,
+  // and falls back to the default font for a name this host cannot resolve.
+  const fontKey = options.fontPath ?? options.font
+  const font = await ensureFont(fontKey)
 
-  const wires = textBlueprints(kernel, txt, { fontSize })
+  const wires = textBlueprints(kernel, txt, { fontSize, fontFamily: fontKey })
   if (wires.length === 0) {
     throw new Error('[cq-compat] text: no glyph outlines generated')
   }
@@ -147,13 +197,8 @@ export async function buildTextSolid(txt: string, options: TextSolidOptions): Pr
 
   // CadQuery aligns the LAYOUT ORIGIN (pen/baseline) in the local frame, not the
   // ink bbox — see the module header for the measured formula.
-  const font = getFont()
-  if (!font) {
-    throw new Error('[cq-compat] text: no font loaded')
-  }
   const advance = font.getAdvanceWidth(txt, fontSize)
-  const ascent = (font.ascender * fontSize) / font.unitsPerEm
-  const descent = (-font.descender * fontSize) / font.unitsPerEm
+  const { ascent, descent } = verticalMetrics(font, fontSize)
   const dx = halign === 'left' ? 0 : halign === 'right' ? -advance : -advance / 2
   const dy = valign === 'bottom' ? 0 : valign === 'top' ? -ascent : -(ascent - descent) / 2
 
