@@ -106,5 +106,8 @@ export const import_brep = defineOp({
   name: 'import_brep',
   brep: importBrepImpl,
   engines: ['occt'],
-  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'imported' }] } } as Provenance,
+  // `imported:0` 是 <i> 采样值（同 extrude 的 `wall:0`）：实际产出 imported:0..n-1，
+  // 与上面 roleTable 的 `imported:${i}` 逐字对齐。不能写成 semantic 'imported'——
+  // 它是结构 kind，出现在串首会被 parseRoleName 读成结构而非语义名（见 role-name.ts RESERVED_KEYWORDS）。
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'imported', index: 0 }] } } as Provenance,
 })

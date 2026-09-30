@@ -132,6 +132,8 @@ export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'heal', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:heal:<i>'] },
   { op: 'healSolid', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:healSolid:<i>'] },
   { op: 'helix', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
+  { op: 'import_brep', kind: 'construct' as CadRoleVocab['kind'], vocab: ['imported:0'] },
+  { op: 'import_step', kind: 'construct' as CadRoleVocab['kind'], vocab: ['imported:0'] },
   { op: 'intersect', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:intersect:<i>'] },
   { op: 'knurl', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "knurl is mesh-only, no BREP face identity", vocab: [] },
   { op: 'linearPattern', kind: 'replicate' as CadRoleVocab['kind'], vocab: [], note: "replica[k]/<原 role> 由框架生成（k=0..-1）" },
