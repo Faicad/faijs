@@ -116,4 +116,17 @@ describe('cq-compat Workplane.text (self-contained)', () => {
     // The context box is NOT part of the result — only the (tiny) text remains.
     expect(volumeOf(res)).toBeLessThan(boxVol * 0.1)
   }, 120000)
+
+  it('keeps glyph counters as holes — "CQ 2.0" is 5 parts (upstream parity)', async () => {
+    const wp = await cq.text(cq.Workplane('XY'), 'CQ 2.0', 0.5, 0.05, false)
+    const kernel = getBrepApi() as unknown as BrepEngineApi
+    // Upstream `Compound.makeText` yields 5 solids for "CQ 2.0" (C, Q, 2, ., 0 —
+    // the space emits nothing) with the Q/0 counters kept as holes; a per-wire
+    // makeFace would instead yield 7 filled faces.
+    const solids = kernel.getSubShapes(brepOf(wp.shape!) as BrepHandle, 'solid')
+    expect(solids.length).toBe(5)
+    // Upstream reference volume for the identical glyphs
+    // (tests.test_cadquery__TestCadQuery__testText__obj4 @ fontPath=OpenSans).
+    expect(volumeOf(wp)).toBeCloseTo(0.006893209, 4)
+  }, 120000)
 })

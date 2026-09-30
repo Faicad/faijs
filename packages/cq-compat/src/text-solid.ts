@@ -17,12 +17,14 @@
  * - `Compound.makeText` returns ONE compound holding every glyph — the glyphs
  *   are NOT fused into a single solid. `Workplane.text` then combines that
  *   compound with the context solid (`combine`: "cut" | "a" | false).
+ * - each glyph face keeps its enclosed COUNTER (the hole in "0"/"Q"/"A"), i.e.
+ *   the outline is a face-with-holes, not a filled disc.
  *
  * This module reproduces the geometry half (aligned, per-glyph parts); the
  * combine/placement half lives in `workplane.text`.
  */
 
-import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import type { BrepBoundingBox, BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import { textBlueprints } from '@faicad/faijs/brep/text/text-to-solid'
 import { ensureDefaultFont } from '@faicad/faijs/brep/text/fontRegistry'
@@ -72,6 +74,16 @@ function unionBox(kernel: BrepEngineApi, handles: BrepHandle[]): GlyphBox {
   return { xmin, ymin, xmax, ymax }
 }
 
+/** True when `inner`'s bbox lies inside `outer`'s (a glyph counter nests in its body). */
+function containsBox(outer: BrepBoundingBox, inner: BrepBoundingBox, eps = 1e-6): boolean {
+  return (
+    outer.xmin <= inner.xmin + eps &&
+    outer.ymin <= inner.ymin + eps &&
+    outer.xmax >= inner.xmax - eps &&
+    outer.ymax >= inner.ymax - eps
+  )
+}
+
 /**
  * Build the text geometry in its own local frame — the XY plane, extruded along
  * local +Z — with CadQuery's `halign`/`valign` applied to the glyph box.
@@ -98,10 +110,40 @@ export async function buildTextSolid(txt: string, options: TextSolidOptions): Pr
     throw new Error('[cq-compat] text: no glyph outlines generated')
   }
 
+  // `textBlueprints` returns every closed contour as its OWN wire — glyph bodies
+  // and their counters alike. Upstream `Compound.makeText` keeps the counter as
+  // a hole, so re-group the contours by bounding-box nesting: a contour whose
+  // box nests inside an odd number of larger boxes is a hole; an even depth is a
+  // glyph body (island). Each body becomes a face with its immediate holes.
+  const boxes = wires.map((w) => kernel.getBoundingBox(w))
+  const areas = boxes.map((b) => (b.xmax - b.xmin) * (b.ymax - b.ymin))
+  const parentOf: number[] = wires.map(() => -1)
+  for (let i = 0; i < wires.length; i++) {
+    let best = -1
+    for (let j = 0; j < wires.length; j++) {
+      if (i === j || areas[j]! <= areas[i]!) continue
+      if (!containsBox(boxes[j]!, boxes[i]!)) continue
+      if (best === -1 || areas[j]! < areas[best]!) best = j
+    }
+    parentOf[i] = best
+  }
+  const depthOf = (i: number): number => {
+    let d = 0
+    for (let p = parentOf[i]!; p !== -1; p = parentOf[p]!) d++
+    return d
+  }
+
   const parts: BrepHandle[] = []
-  for (const wire of wires) {
+  for (let i = 0; i < wires.length; i++) {
+    if (depthOf(i) % 2 !== 0) continue // a counter — consumed by its parent body
+    const holes = wires.map((_, j) => j).filter((j) => parentOf[j] === i)
     try {
-      const face = kernel.makeFace(wire)
+      let face = kernel.makeFace(wires[i]!)
+      if (holes.length > 0) {
+        const holed = kernel.addHolesInFace(face, holes.map((j) => wires[j]!))
+        kernel.release(face)
+        face = holed
+      }
       if (distance === 0) {
         parts.push(face)
       } else {
@@ -113,8 +155,8 @@ export async function buildTextSolid(txt: string, options: TextSolidOptions): Pr
       // A degenerate / open contour cannot form a face — skip it, mirroring
       // core `textToSolid`'s tolerance for unbuildable wires.
     }
-    kernel.release(wire)
   }
+  for (const w of wires) kernel.release(w)
   if (parts.length === 0) {
     throw new Error('[cq-compat] text: no renderable glyph outlines')
   }
