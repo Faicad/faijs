@@ -98,6 +98,7 @@ export {
   size,
   sort,
   workplaneFromTagged,
+  text,
 } from './workplane'
 export type { Workplane as WorkplaneType, RGB, CqLocation, TaggedWorkplane } from './workplane'
 

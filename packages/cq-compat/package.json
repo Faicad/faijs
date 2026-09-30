@@ -43,6 +43,7 @@
   "devDependencies": {
     "@faicad/cq-compat-compare": "file:../cq-compat-compare",
     "@faicad/faijs": "file:../core",
+    "@faicad/faijs-extra": "file:../faijs-extra",
     "typescript": "*",
     "vitest": "*"
   },

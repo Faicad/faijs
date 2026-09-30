@@ -20,9 +20,17 @@ import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import type { OcctKernel, ShapeHandle, Vec3 } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs/mesh/types'
+// three-free BREP text path from faijs-extra (the `text` op is editor-owned,
+// not part of core's platform namespace). Importing only the `/text` entry keeps
+// cq-compat's node build free of the mesh/three chain.
+import { textBrep } from '@faicad/faijs-extra/text'
 
 // ── cad namespace singleton (created once at module load) ──────────────────
-const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promise<Shape>>
+// Core's platform surface plus the editor `text` op (BREP-only, three-free).
+const cad = {
+  ...createApiNamespace(),
+  text: textBrep,
+} as unknown as Record<string, (...args: unknown[]) => Promise<Shape>>
 
 // ── compatOp 提升边界归一（GOTCHA：borrowDeep 把实参 Shape 换成借用视图）──
 //
@@ -1001,6 +1009,43 @@ export async function box(
     shapes.push(await cad.translate(boxShape, { offset: center }))
   }
   return combineEachpoint(wp, shapes, opts?.combine ?? true)
+}
+
+/**
+ * text — extruded 3D text placed on the workplane.
+ *
+ * @param wp - Workplane (defines placement plane + origin)
+ * @param txt - the string to render
+ * @param size - font size in mm (glyph cap height ≈ size)
+ * @param depth - extrusion depth in mm (along the workplane normal)
+ * @param opts - `{ combine? }` (CadQuery default `combine=True` fuses with the
+ *   existing solid; `combine=False` keeps it as a separate body)
+ * @returns Promise<Workplane> carrying the text solid as `val`/`shape`
+ *
+ * Wiring note: the actual glyph→solid work is delegated to faijs-extra's
+ * `textBrep` (registered onto the `cad` singleton at module load). It produces a
+ * solid centered on X/Z with its bottom on Y=0, lying in the XY plane; we then
+ * orient its +Z (extrude direction) onto `wp.normal` and translate it to
+ * `wp.origin`. This is the faijs-idiomatic 3D-text create op — it is NOT
+ * CadQuery's 2D sketch op (`wp.text()` adds outline edges to the pending wire
+ * for a later `.wire().extrude()`). Full CQ `testText`/`testTextAlignment`
+ * parity (which chains that way) remains a follow-up.
+ */
+export async function text(
+  wp: Workplane,
+  txt: string,
+  size: number,
+  depth: number,
+  opts?: { combine?: boolean },
+): Promise<Workplane> {
+  const solid = (await cad.text({ text: txt, size, depth })) as Shape
+  const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
+  // Orient the text's extrude axis (+Z) onto the workplane normal, then drop it
+  // at the workplane origin.
+  const oriented = await orientZTo(solid, n)
+  const placed = await cad.translate(oriented, { offset: o })
+  return combineEachpoint(wp, [placed], opts?.combine ?? true)
 }
 
 /**

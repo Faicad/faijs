@@ -31,6 +31,10 @@
     "./editor-ops": {
       "types": "./dist/editor-ops.d.ts",
       "default": "./dist/editor-ops.js"
+    },
+    "./text": {
+      "types": "./dist/text.d.ts",
+      "default": "./dist/text.js"
     }
   },
   "files": [
