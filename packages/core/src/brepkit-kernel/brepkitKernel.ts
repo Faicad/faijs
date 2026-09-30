@@ -162,7 +162,18 @@ const hashRegistry = new WeakMap<BrepKitKernel, Map<number, number>>()
 /** brepkit 适配器返回类型：BrepEngineApi + brepkit 专属诊断。 */
 type BrepkitEngineExtras = BrepEngineApi & { getMeshFallbackCount(): number }
 
-/** 三点外接圆（makeArcEdge 方言消化：occt 吃 3 点，brepkit 吃圆心+轴）。 */
+/**
+ * 三点外接圆（makeArcEdge 方言消化：occt 吃 3 点，brepkit 吃圆心+轴）。
+ *
+ * 圆心偏移取标准式 `d = ( |ab|²·(ac×n) + |ac|²·(n×ab) ) / (2·|n|²)`，`n = ab×ac`。
+ * GOTCHA（弧缺陷，2026-09-30 实证）：旧式 `( |ac|²·(ab×n) + |ab|²·(n×ac) ) / (2·|n|²)`
+ * 把两项的系数对调，等于整体取反——圆心落到弦的另一侧（实测 quarter arc 圆心 (20,0,0)
+ * 而非 (0,0,0)，三点不等距），brepkit 据此生成 333° 的补弧（弧长 58.195 而非 πr/2）。
+ * 判据是等距不变量 `|center−a| = |center−b| = |center−c|`。
+ *
+ * axis = n/|n| 即三点逆时针扫掠方向的右手法向；brepkit `makeCircleArc3d` 语义为
+ * "沿法向看从 start 逆时针到 end"，故该轴向同时正确表达 ccw 与 cw 弧。
+ */
 function circumcircle(a: BrepVec3, b: BrepVec3, c: BrepVec3): { center: BrepVec3; axis: BrepVec3 } {
   const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z
   const acx = c.x - a.x, acy = c.y - a.y, acz = c.z - a.z
@@ -173,16 +184,16 @@ function circumcircle(a: BrepVec3, b: BrepVec3, c: BrepVec3): { center: BrepVec3
   if (n2 < 1e-18) fail('makeArcEdge: 3 points are collinear (no circumscribed circle)')
   const ab2 = abx * abx + aby * aby + abz * abz
   const ac2 = acx * acx + acy * acy + acz * acz
-  // center = a + ( ac2·(ab×n) + ab2·(n×ac) ) / (2·n²)
-  const abxnx = aby * nz - abz * ny, abxny = abz * nx - abx * nz, abxnz = abx * ny - aby * nx
-  const nxacx = ny * acz - nz * acy, nxacy = nz * acx - nx * acz, nxacz = nx * acy - ny * acx
+  // center = a + ( ab2·(ac×n) + ac2·(n×ab) ) / (2·n²)
+  const acxnx = acy * nz - acz * ny, acxny = acz * nx - acx * nz, acxnz = acx * ny - acy * nx
+  const nxabx = ny * abz - nz * aby, nxaby = nz * abx - nx * abz, nxabz = nx * aby - ny * abx
   const denom = 2 * n2
   const len = Math.sqrt(n2)
   return {
     center: {
-      x: a.x + (ac2 * abxnx + ab2 * nxacx) / denom,
-      y: a.y + (ac2 * abxny + ab2 * nxacy) / denom,
-      z: a.z + (ac2 * abxnz + ab2 * nxacz) / denom,
+      x: a.x + (ab2 * acxnx + ac2 * nxabx) / denom,
+      y: a.y + (ab2 * acxny + ac2 * nxaby) / denom,
+      z: a.z + (ab2 * acxnz + ac2 * nxabz) / denom,
     },
     axis: { x: nx / len, y: ny / len, z: nz / len },
   }

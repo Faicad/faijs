@@ -11,6 +11,7 @@ import {
   fromFreeCadConstraints,
   toFreeCadConstraints,
   toFreeCadGeoms,
+  fromFreeCadGeoms,
   SketchProjectionError,
 } from './project.js'
 import { ConstraintType, type FcstdSketchCon, type FcstdGeoRef } from './fcstd-types.js'
@@ -231,5 +232,51 @@ describe('full roundtrip canonical → FCStd → canonical (mixed sketch)', () =
     expect(() => {
       throw new SketchProjectionError('E_SKETCHC_BAD_REF', 'x')
     }).toThrow(SketchProjectionError)
+  })
+})
+describe('construction flag roundtrip (canonical ⇄ FCStd)', () => {
+  // F1 (2026-09-30): reference geometry (symmetry axes, centrelines, construction
+  // circles) must survive the canonical → FCStd → canonical roundtrip so that
+  // contour extraction can skip it (contour.ts filters on `construction`) while
+  // the solver still sees it (planegcs pullBack spreads `{...g}`, preserving the
+  // field). A lost flag would either drop reference geometry from the solve or,
+  // worse, let it sneak into the profile wire.
+  it('preserves construction:true on every supported geometry kind', () => {
+    const geoms: SketchGeom[] = [
+      { kind: 'line', construction: true, x1: 0, y1: 0, x2: 40, y2: 0 },
+      { kind: 'circle', construction: true, cx: 10, cy: 10, r: 5 },
+      { kind: 'arc', construction: true, cx: 30, cy: 0, r: 10, a0: 0, a1: Math.PI },
+      { kind: 'point', construction: true, x: 5, y: 5 },
+      { kind: 'ellipse', construction: true, cx: 0, cy: 0, rx: 10, ry: 6, angle: 0 },
+    ]
+    const fwd = toFreeCadGeoms(geoms)
+    expect(fwd.every((g) => g.construction === true)).toBe(true)
+    const back = fromFreeCadGeoms(fwd)
+    expect(back.every((g) => g.construction === true)).toBe(true)
+  })
+
+  it('omits the flag entirely for ordinary geometry (no spurious construction key)', () => {
+    const geoms: SketchGeom[] = [
+      { kind: 'line', x1: 0, y1: 0, x2: 40, y2: 0 },
+      { kind: 'circle', cx: 10, cy: 10, r: 5 },
+      { kind: 'arc', cx: 30, cy: 0, r: 10, a0: 0, a1: Math.PI },
+      { kind: 'point', x: 5, y: 5 },
+    ]
+    const fwd = toFreeCadGeoms(geoms)
+    expect(fwd.every((g) => g.construction === undefined)).toBe(true)
+    const back = fromFreeCadGeoms(fwd)
+    expect(back.every((g) => g.construction === undefined)).toBe(true)
+  })
+
+  it('mixed sketch: construction geometry roundtrips alongside real geometry', () => {
+    const geoms: SketchGeom[] = [
+      { kind: 'line', x1: 0, y1: 0, x2: 40, y2: 0 },
+      { kind: 'line', construction: true, x1: 20, y1: -10, x2: 20, y2: 40 }, // centreline
+      { kind: 'circle', cx: 20, cy: 15, r: 8 },
+      { kind: 'circle', construction: true, cx: 20, cy: 15, r: 20 }, // construction ref circle
+    ]
+    const fwd = toFreeCadGeoms(geoms)
+    const back = fromFreeCadGeoms(fwd)
+    expect(back.map((g) => g.construction === true)).toEqual([false, true, false, true])
   })
 })

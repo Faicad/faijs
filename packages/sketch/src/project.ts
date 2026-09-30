@@ -134,6 +134,15 @@ export function refToFreeCad(ref: Ref, tagIndex: Map<string, number>, geoms: Ske
 // ── geometry projection ──
 
 /**
+ * Spread the `construction` flag when present so reference geometry round-trips
+ * through the FCStd projection (canonical ⇄ FCStd). Returns an empty object when
+ * the flag is absent, so spreading is a no-op for ordinary geometry.
+ */
+function con<T extends { construction?: boolean }>(g: T): { construction?: boolean } {
+  return g.construction ? { construction: true } : {}
+}
+
+/**
  * Project canonical geometry to the FCStd shape consumed by the solver.
  *
  * @param geoms - canonical geometry.
@@ -144,9 +153,9 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
   return geoms.map((g, index): FcstdSketchGeom => {
     switch (g.kind) {
       case 'line':
-        return { kind: 'line', index, x1: g.x1, y1: g.y1, z1: 0, x2: g.x2, y2: g.y2, z2: 0 }
+        return { kind: 'line', index, x1: g.x1, y1: g.y1, z1: 0, x2: g.x2, y2: g.y2, z2: 0, ...con(g) }
       case 'circle':
-        return { kind: 'circle', index, cx: g.cx, cy: g.cy, cz: 0, radius: g.r }
+        return { kind: 'circle', index, cx: g.cx, cy: g.cy, cz: 0, radius: g.r, ...con(g) }
       case 'arc': {
         // Pass the canonical signed span (a0, a1) through unchanged. planegcs builds
         // the arc from the pinned start/end endpoints *and* the signed start/end
@@ -161,12 +170,13 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
           startAngle: a0, endAngle: a1,
           x1: g.cx + g.r * Math.cos(a0), y1: g.cy + g.r * Math.sin(a0), z1: 0,
           x2: g.cx + g.r * Math.cos(a1), y2: g.cy + g.r * Math.sin(a1), z2: 0,
+          ...con(g),
         }
       }
       case 'point':
         // Reopened 2026-09-28: planegcs-backend pushes standalone points and
         // pulls them back; contour extraction skips them (no profile use).
-        return { kind: 'point', index, x: g.x, y: g.y, z: 0 }
+        return { kind: 'point', index, x: g.x, y: g.y, z: 0, ...con(g) }
       case 'bspline': {
         // Reopened 2026-09-29 (fcstd-port A2): the entry used to reject this
         // with E_SKETCHC_UNSUPPORTED_GEOM even though the whole downstream
@@ -190,6 +200,7 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
           kind: 'bspline', index,
           poles: g.poles, knots: g.knots, degree: g.degree, periodic: d.periodic,
           x1: s.x, y1: s.y, z1: 0, x2: e.x, y2: e.y, z2: 0,
+          ...con(g),
         }
       }
       case 'ellipse': {
@@ -209,6 +220,7 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
           majorRadius: major, minorRadius: minor, angleXU,
           fx1: g.cx - c * ca, fy1: g.cy - c * sa,
           fx2: g.cx + c * ca, fy2: g.cy + c * sa,
+          ...con(g),
         }
       }
     }
@@ -225,19 +237,19 @@ export function fromFreeCadGeoms(geoms: FcstdSketchGeom[]): SketchGeom[] {
   return geoms.map((g): SketchGeom => {
     switch (g.kind) {
       case 'line':
-        return { kind: 'line', x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2 }
+        return { kind: 'line', x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2, ...con(g) }
       case 'circle':
-        return { kind: 'circle', cx: g.cx, cy: g.cy, r: g.radius }
+        return { kind: 'circle', cx: g.cx, cy: g.cy, r: g.radius, ...con(g) }
       case 'arc': {
         const ccw = normalizeArcCcw(g.startAngle, g.endAngle)
-        return { kind: 'arc', cx: g.cx, cy: g.cy, r: g.radius, a0: g.startAngle, a1: g.endAngle, ccw }
+        return { kind: 'arc', cx: g.cx, cy: g.cy, r: g.radius, a0: g.startAngle, a1: g.endAngle, ccw, ...con(g) }
       }
       case 'point':
-        return { kind: 'point', x: g.x, y: g.y }
+        return { kind: 'point', x: g.x, y: g.y, ...con(g) }
       case 'ellipse':
-        return { kind: 'ellipse', cx: g.cx, cy: g.cy, rx: g.majorRadius, ry: g.minorRadius, angle: g.angleXU }
+        return { kind: 'ellipse', cx: g.cx, cy: g.cy, rx: g.majorRadius, ry: g.minorRadius, angle: g.angleXU, ...con(g) }
       case 'bspline':
-        return { kind: 'bspline', poles: g.poles, knots: g.knots, degree: g.degree, periodic: g.periodic }
+        return { kind: 'bspline', poles: g.poles, knots: g.knots, degree: g.degree, periodic: g.periodic, ...con(g) }
     }
   })
 }

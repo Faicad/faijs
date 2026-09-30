@@ -27,6 +27,7 @@ export type PlaneWireKernel = Pick<
   | 'makeArcEdge'
   | 'makeBezierEdge'
   | 'makeBSplineEdge'
+  | 'makeCircleEdge'
   | 'curveSplit'
   | 'curveParameters'
   | 'makeWire'
@@ -34,11 +35,16 @@ export type PlaneWireKernel = Pick<
 
 /**
  * Build the 3D edge(s) for a single 2D curve lifted onto a plane. Line, bezier
- * and bspline build exact analytic edges; circle / trimmed-circle build a true
- * arc edge from three on-plane lift points (a full circle is split into two arcs
- * to keep `makeArcEdge` well-formed); ellipse falls back to a dense sampled
- * polyline (no exact ellipse-edge primitive on the contract yet).
+ * and bspline build exact analytic edges; a full circle becomes one closed
+ * kernel circle edge and a trimmed circle a true arc edge from three on-plane
+ * lift points; ellipse falls back to a dense sampled polyline (no exact
+ * ellipse-edge primitive on the contract yet).
  *
+ * GOTCHA (brepkit, 2026-09-30 实证): a closed wire built from exactly TWO
+ * half-arcs (`makeArcEdge`) makes brepkit's `makeFaceFromWire` produce a face
+ * covering only 1/3 of the disc (measured extrude volume 523.6 vs πr²·5 = 1570.8),
+ * while 3- or 4-arc wires and a single closed `makeCircleEdge` are exact. The
+ * full-circle case therefore emits one `makeCircleEdge` rather than two arcs.
  * @param kernel - the kernel edge primitives.
  * @param plane - the target plane frame.
  * @param c - the ordered 2D curve to lift.
@@ -63,11 +69,12 @@ export function liftCurve2dToPlane(kernel: PlaneWireKernel, plane: Plane, c: Cur
       return [kernel.makeBezierEdge(c.poles.map(([x, y]) => liftPointToPlane(plane, x, y)))]
     case 'bspline':
       return [buildBSplineEdge(kernel, plane, c)]
-    case 'circle':
-      return [
-        kernel.makeArcEdge(on(c, 0), on(c, Math.PI / 2), on(c, Math.PI)),
-        kernel.makeArcEdge(on(c, Math.PI), on(c, (3 * Math.PI) / 2), on(c, 2 * Math.PI)),
-      ]
+    case 'circle': {
+      // Whole circle → one closed kernel circle edge. The winding sense picks
+      // the axis sign so the seam/parametrisation follows the 2D curve.
+      const normal = c.sense ? plane.zDir : { x: -plane.zDir.x, y: -plane.zDir.y, z: -plane.zDir.z }
+      return [kernel.makeCircleEdge(liftPointToPlane(plane, c.cx, c.cy), normal, c.radius)]
+    }
     case 'trimmed': {
       if (c.basis.kind2d === 'circle') return [kernel.makeArcEdge(on(c, 0), on(c, 0.5), on(c, 1))]
       // A trimmed spline is built WHOLE and then cut by the kernel, so the
@@ -157,5 +164,5 @@ export function assembleWire(kernel: PlaneWireKernel, planeOrName: Plane | strin
   return kernel.makeWire(curvesAsEdgesOnPlane(kernel, plane, bp.curves))
 }
 
-export { liftPointToPlane, namedPlane, makePlane, toVec3 } from './plane'
+export { liftPointToPlane, worldToPlane, namedPlane, makePlane, toVec3 } from './plane'
 export type { Plane, Vec3, Vec3Input } from './plane'

@@ -21,7 +21,7 @@ flowchart LR
 | Layer | Role | Writes / does | Produces | Key interface |
 |---|---|---|---|---|
 | ① Library author | TS/JS library developer | Exported functions, `Result` returns, `defineOp` / `fn.outputs` / `solidOf` annotations, `contractVersion` | A plain module namespace | `@faicad/faijs/sdk` |
-| ② Host | Engine assembly (app / worker) | Creates the runtime, registers libraries, provides kernel & backends | Callable namespaces (`ns.*`, `cad.*`) | `runtime.registerLib(binding, ns, { compat: true })` |
+| ② Host | Engine assembly (app / worker) | Creates the runtime, registers libraries, provides kernel & backends | Callable namespaces (`ns.*`, `cad.*`) | `runtime.registerLib(binding, ns, { autoLift: true })` |
 | ③ `.fai.js` script | User / UI / AI generated code | Imports libraries and calls their functions | Geometry products & data in the value store | `ns.fn(...)` / `cad.*` |
 
 The data flow is one direction at authoring time and another at run time: the author writes a namespace, the Host registers and admits it, and scripts call the admitted functions — the engine handles dispatch, bridging, and the statement Result boundary between them.
@@ -59,6 +59,17 @@ The engine distinguishes geometry from plain data by one discriminant — the `_
 | plain object, no marker | data record (e.g. sheetmetal `part`) | stored as-is — **never** tessellated as a handle |
 
 A data record where a handle is expected fails at the SDK boundary with `E_BAD_HANDLE`, not at kernel depth. Do not invent other handle shapes.
+
+Two return shapes sit outside the three and are worth naming, because a lifted bare function reaches them with no author intent:
+
+| Return value | Where it lands | Consequence |
+|---|---|---|
+| `undefined` (a `void` function) | misses the object test, falls into `fromHandle(undefined)` | hard failure: `E_BAD_HANDLE: expected an OCCT handle (numeric id or __occtWasm-tagged object); got undefined` |
+| an unresolved `Promise` | the plain-object branch — `typeof` is `'object'`, no marker | **no error**: admitted as a data record, never awaited, never rejected — the value is silently lost |
+
+The `Promise` row is the dangerous one: nothing in the pipeline reports it. §4.5 covers how a call ends up unawaited.
+
+`unwrapResult` recognises a `Result` by one structural test — `typeof v.ok === 'boolean'` (`api/internal/result-unwrap.ts`). A data record carrying a boolean field named `ok` is therefore unwrapped as a Result: `ok: true` yields `v.value`, `ok: false` throws `OpError`. Never name a field `ok` in a returned data record.
 
 ### 2.4 Dual-path ops: `defineOp`
 
@@ -100,7 +111,7 @@ Which input shapes stay visible in the UI layer. Function-body declarations (wri
 
 ### 2.6 Bare functions and `fn.outputs`
 
-A plain exported function (no `defineOp`) is lifted into a brep-only op when registered with `{ compat: true }`. Declare multi-output fields with the one recognized annotation:
+A plain exported function (no `defineOp`) is lifted into a brep-only op when registered with `{ autoLift: true }`. Declare multi-output fields with the one recognized annotation:
 
 ```ts ignore-check
 interface PlanetaryOutput {
@@ -131,7 +142,11 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 2. **No engine internals**: no access to engine-internal mutable state (`currentStmt` / `script` / `outputCache` / `brepChain`), no DAG queries or mutation of published `Shape`s.
 3. **Handle ownership**: once a returned handle is adopted by the engine, do not `delete()` it afterward (return = transfer).
 
-### 2.9 What the author produces
+### 2.9 Every export is script-face API
+
+Admission walks `Object.entries(ns)` — there is no notion of an internal or host-only export (§3.3). Constants, `contractVersion`, re-exported helpers and host-side lifecycle functions are all reachable from `.fai.js`, and every export that is a function is subject to lifting, with the return-value contract of §2.3. Keep host-only helpers (reset / flush / collect callbacks, caches) in a separate module that the library imports, and export from the library only what a script is meant to call.
+
+### 2.10 What the author produces
 
 A plain module namespace: exported functions, optional annotations (`fn.outputs` on bare functions), optional `defineOp` declarations, and `contractVersion`. The Host receives this namespace as-is — it never rewrites the author's code.
 
@@ -144,7 +159,7 @@ A plain module namespace: exported functions, optional annotations (`fn.outputs`
 The Host (a Node host or browser worker) assembles the engine and makes libraries callable:
 
 1. Provides the engine: kernel (`brep` / `csg` / `sdf`), backends, fonts/assets — via `createRuntime(ports, mode)`.
-2. Registers libraries with `runtime.registerLib(binding, ns, { compat: true })`.
+2. Registers libraries with `runtime.registerLib(binding, ns, { autoLift: true })`.
 3. Provides the `cad` namespace (built-in ops) and hosts the value store.
 
 ### 3.2 Registering a library
@@ -154,14 +169,16 @@ import { createRuntime, createNodePorts } from '@faicad/faijs'
 import * as gear from 'my-gear-lib'
 
 const runtime = createRuntime(createNodePorts(), 'auto')
-runtime.registerLib('gear', gear, { compat: true })
+runtime.registerLib('gear', gear, { autoLift: true })
 ```
 
 The `binding` (`'gear'`) is the name scripts import and call: `gear.external({ ... })` in `.fai.js`.
 
+A library that consumes faijs core `Shape`s and calls core ops internally (faijs-native, like `sheetmetal`) must add `borrow: false`: the default borrow step rewrites nested `Shape` arguments into brepjs handle views, and core ops then reject them with "input is not on the BREP chain". Real brepjs-shaped libraries keep the default.
+
 ### 3.3 Admission — what happens to each export
 
-With `{ compat: true }`, the Host's admission step processes every export of the namespace:
+With `{ autoLift: true }`, the Host's admission step processes every export of the namespace:
 
 | Export kind | What happens |
 |---|---|
@@ -169,6 +186,8 @@ With `{ compat: true }`, the Host's admission step processes every export of the
 | Bare function | Lifted into a brep-only op; `fn.outputs` (if present) becomes its `outputs` spec |
 | `contractVersion` | Validated against the runtime's (`assertLibConforms`) — mismatch rejects the library |
 | Other values (constants, data) | Registered as-is for script access |
+
+Lifting is decided once for the whole namespace, not per export: `autoLift ?? !hasDualOp(ns)`. A namespace containing at least one `defineOp` function is inferred `false` — so in a **mixed** library (one dual-op plus plain helpers) the helpers are *not* lifted, while in an all-bare-function library they are. Pass `autoLift` explicitly when a namespace mixes the two kinds, rather than relying on the inference.
 
 ### 3.4 Engine boundary behavior (Host has no knowledge of it)
 
@@ -182,6 +201,20 @@ When a script calls an admitted function, the engine itself handles the boundary
 ### 3.5 What the Host produces
 
 Callable namespaces: `gear.*` (third-party) and `cad.*` (built-in), both usable from `.fai.js` with the same statement-level semantics.
+
+### 3.6 Opting out of lifting — data and declaration libraries
+
+A library whose functions return data or only register declarations (kinematics, annotations, metadata, colours) must not be lifted. Every lifted function is wrapped into a brep-only op, so its product crosses `wrapBrepOne`, where a `void` or primitive return becomes `E_BAD_HANDLE` (§2.3). Three ways to keep a library unlifted:
+
+| Mechanism | Written by | Keyed on | Applies to |
+|---|---|---|---|
+| `registerLib(binding, ns, { autoLift: false })` | Host | the binding name | host-registered libraries |
+| `libLoader.options.autoLiftFor = (name) => (name === 'my-lib' ? false : undefined)` | Host | the import specifier as written in the script (`packageName ?? specifier`) | libraries auto-loaded from `import` statements |
+| `"faijs": { "autoLift": false }` in the library's `package.json` | Library author | the package name | browser hosts — `createBrowserLibLoader` picks it up from build-time `lib-meta.json` or via `prefetchMeta()` |
+
+Return `undefined` — not `false` — from `autoLiftFor` for every library you do not mean to affect: `undefined` falls back to `options.autoLift` and then to the inference.
+
+With lifting off, the namespace is injected as-is. Functions stay synchronous, may return `void` or any value, and behave as ordinary JS to the script. The library gives up the boundary services that lifting provides: no `Result` unwrapping (the script receives the `Result` record itself), no multi-output adoption through `fn.outputs`, and no capability or platform gating (§4.4).
 
 ---
 
@@ -211,7 +244,7 @@ Every statement that calls a library op is a boundary: the `Result` is unwrapped
 2. **Record *fields* are readable in the script** (`hem(u1.solid, …)` — member access is a runtime-evaluated expression). Whole-record passing still works.
 3. **Library `err` results are statement failures, not crashes** — `OpError` → `ExecutionResult.failedAt`; earlier statements keep their outputs.
 
-Verified against `@faicad/sheetmetal` (whole-package registration, `{ compat: true }`) — every signature shape is callable now:
+Verified against `@faicad/sheetmetal` (whole-package registration, `{ autoLift: true, borrow: false }`) — every signature shape is callable now:
 
 | Callable | Example |
 |---|---|
@@ -247,6 +280,16 @@ Rules (D11, checked by `assertLibConforms` + the `check-platform-imports.mjs` CI
 
 A neutral op (implementation uses only `getBrepApi()` L1 methods) must *not* write `engines` — the L1 contract face is engine-agnostic by construction.
 
+### 4.5 Library calls outside a statement position
+
+Three places where a library call behaves differently than §4.1 suggests. The local function ABI itself (injected namespace bindings, verbatim body) is specified in `docs/syntax-design.md` §6.2.
+
+1. **A user function body cannot read top-level script variables.** Only parameters, namespace bindings and S4 safe globals resolve there; a top-level `const SUN_TEETH = 20` is invisible inside the body and fails with `SUN_TEETH is not defined`. Pass every value the body needs as an argument.
+2. **Op calls inside a body are not awaited.** `ns.fn(…)` there yields a `Promise`, and the engine inserts `await` at statement boundaries only (§4.2). A body that collects op results into an array hands on an array of pending promises, which the return classification admits as data records (§2.3) — the data is lost with no error. The VM backend (the default, `exec-backend.ts`) leaves them unawaited; the interpreter backend awaits each call during expression evaluation. Rely on neither: design data APIs so their results are consumed at statement level, or turn lifting off (§3.6) so the calls are synchronous.
+3. **A namespace binding is not a top-level identifier.** It is bound where the statement transform rewrites a call into `await __ns.<binding>.<fn>(…)`. In any other top-level value position — `let ms = [anim.driver('a', 1)]` — the name stays unbound and fails with `anim is not defined`. Write such an array literal inline as the call argument instead.
+
+A script cannot repair (2) by awaiting by hand: `await` in an argument position is rejected at parse time with `E_VALUE: unsupported value expression: AwaitExpression`.
+
 
 ---
 
@@ -255,7 +298,7 @@ A neutral op (implementation uses only `getBrepApi()` L1 methods) must *not* wri
 One function crossing all three layers, step by step:
 
 1. **Author writes** (`Layer 1`): `planetary` returns `Result<{ sun, planets, ring }>` and carries `fn.outputs = ['sun', 'planets', 'ring']` (§2.6).
-2. **Host registers** (`Layer 2`): `registerLib('gear', gear, { compat: true })` — `planetary` is lifted into a brep-only op with `outputs: ['sun', 'planets', 'ring']`; `contractVersion` is validated (§3.3).
+2. **Host registers** (`Layer 2`): `registerLib('gear', gear, { autoLift: true })` — `planetary` is lifted into a brep-only op with `outputs: ['sun', 'planets', 'ring']`; `contractVersion` is validated (§3.3).
 3. **Script calls** (`Layer 3`): `let p0 = gear.planetary({ ratio: 4 })` — the statement records `keep` from the call site, the engine dispatches, borrows shape inputs, calls `planetary`, unwraps the `Result`.
 4. **Products return**: `p0.sun` / `p0.planets` / `p0.ring` are adopted as faijs `Shape`s (or data records), stored in the value store — usable by later statements (`cad.union(p0.sun, b0)`).
 
@@ -270,7 +313,7 @@ Already wrote a brepjs library? Porting is mostly mechanical — faijs shares th
 1. **Change imports**: `from 'brepjs'` → `from '@faicad/faijs'` (including `package.json`).
 2. **Remove `registerKernel` calls** — faijs manages the kernel (single-instance); the host provides it.
 3. **Remove `pinned` arrays / finalizer workarounds** — adoption lifecycle (borrow → call → unwrap → adopt) is handled by the engine; the library no longer manages disposal.
-4. **Register the namespace**: `runtime.registerLib('mylib', myNamespace, { compat: true })`.
+4. **Register the namespace**: `runtime.registerLib('mylib', myNamespace, { autoLift: true })`.
 5. **Add `fn.outputs` / `solidOf` where needed** (§2.6 / §2.7).
 
 The brepjs-side concepts (borrowed views scoped to the current call, returned-handle ownership transfer) are satisfied by brepjs conventions themselves. For engine-boundary questions, Layer 1 (§2.3 return classification, §2.6 `outputs`, §2.7 `solidOf`, §2.8 hard constraints) is authoritative.

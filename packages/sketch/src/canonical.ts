@@ -24,14 +24,22 @@ export type Ref = { tag: string; at?: At } | { index: number; at?: At }
  * `point` + `bspline` (ellipse/point reopened 2026-09-28, bspline 2026-09-29 —
  * the solver chain already consumed all three; only the op-entry schema was
  * narrower than the chain).
+ *
+ * `construction` (2026-09-30): reference geometry — symmetry axes, centrelines,
+ * helper lines the constraints may be tied to but that must NOT become part of
+ * the profile loop. It participates in the solve exactly like any other geom
+ * (its whole point is to anchor constraints) and is filtered out of contour
+ * extraction (`contour.ts`), which is what keeps a reference line's (often
+ * arbitrary) coordinates from invading the profile chain.
  */
 export type SketchGeom =
-  | { tag?: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number }
-  | { tag?: string; kind: 'circle'; cx: number; cy: number; r: number }
-  | { tag?: string; kind: 'arc'; cx: number; cy: number; r: number; a0: number; a1: number; ccw?: boolean }
-  | { tag?: string; kind: 'point'; x: number; y: number }
+  | { tag?: string; construction?: boolean; kind: 'line'; x1: number; y1: number; x2: number; y2: number }
+  | { tag?: string; construction?: boolean; kind: 'circle'; cx: number; cy: number; r: number }
+  | { tag?: string; construction?: boolean; kind: 'arc'; cx: number; cy: number; r: number; a0: number; a1: number; ccw?: boolean }
+  | { tag?: string; construction?: boolean; kind: 'point'; x: number; y: number }
   | {
       tag?: string
+      construction?: boolean
       kind: 'ellipse'
       cx: number
       cy: number
@@ -44,6 +52,7 @@ export type SketchGeom =
     }
   | {
       tag?: string
+      construction?: boolean
       kind: 'bspline'
       poles: { x: number; y: number }[]
       knots: number[]

@@ -52,6 +52,10 @@ function cross(a: Vec3, b: Vec3): Vec3 {
   return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }
 }
 
+function dot(a: Vec3, b: Vec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z
+}
+
 function norm(v: Vec3): number {
   return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
 }
@@ -123,4 +127,23 @@ export function namedPlane(name: string, origin: Vec3Input = { x: 0, y: 0, z: 0 
 export function liftPointToPlane(plane: Plane, x: number, y: number): Vec3 {
   const { origin: o, xDir: u, yDir: v } = plane
   return { x: o.x + x * u.x + y * v.x, y: o.y + x * u.y + y * v.y, z: o.z + x * u.z + y * v.z }
+}
+/**
+ * Project a 3D point onto a plane's 2D coordinates — the inverse of
+ * {@link liftPointToPlane}. Computes `d = p − origin` and returns
+ * `(u, v) = (d·xDir, d·yDir)`. Because `xDir`/`yDir` are orthonormal this is the
+ * orthogonal projection: the component of `d` along `zDir` (the plane normal) is
+ * dropped. A point already on the plane round-trips losslessly
+ * (`worldToPlane(plane, liftPointToPlane(plane, u, v)) === {u, v}`); a point off
+ * the plane projects to the foot of the perpendicular — the same behaviour as
+ * dropping a sketch point onto its supporting face.
+ * @param plane - the supporting plane frame.
+ * @param p - the 3D point to project.
+ * @returns the 2D `{ u, v }` coordinates on the plane.
+ */
+export function worldToPlane(plane: Plane, p: Vec3Input): { u: number; v: number } {
+  const { origin: o, xDir: u, yDir: v } = plane
+  const q = toVec3(p)
+  const d: Vec3 = { x: q.x - o.x, y: q.y - o.y, z: q.z - o.z }
+  return { u: dot(d, u), v: dot(d, v) }
 }

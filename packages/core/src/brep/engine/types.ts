@@ -276,6 +276,7 @@ export type BrepMethodKind =
   | 'fuseAll'
   // 构造方法族
   | 'makeArcEdge'
+  | 'makeCircleEdge'
   | 'makeBezierEdge'
   | 'makeCylinder'
   | 'makeEllipsoid'
@@ -284,6 +285,7 @@ export type BrepMethodKind =
   | 'makeLineEdge'
   | 'makeTorus'
   | 'makeVertex'
+  | 'makeWire'
   | 'makeWireFromMixed'
   | 'buildEdgeOnSurface'
   | 'addHolesInFace'

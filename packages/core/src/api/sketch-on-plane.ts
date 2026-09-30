@@ -5,8 +5,10 @@
  * profile source (profile / draw / sketch) that describes contours as
  * `ProfileLoop`s can be placed here, then extruded along the plane normal. The
  * plane is a named plane (`'XY'` / `'XZ'` / `'top'` …) or an explicit frame
- * `{ origin, normal, xAxis }`. The plane lift runs on the occt platform surface
- * via the geometry2d bridge; the op declares `engines: ['occt']`.
+ * `{ origin, normal, xAxis }`. The plane lift runs on the geometry2d bridge,
+ * which builds exact analytic edges on BOTH engines: full circles via
+ * `makeCircleEdge`, arcs via `makeArcEdge` (brepkit's circumcircle defect fixed
+ * 2026-09-30). The op therefore carries no engine gate.
  * @module
  */
 import type { Shape } from '../mesh/types'
@@ -147,7 +149,7 @@ export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPl
  */
 export const sketchOnPlane = defineOp({
   capabilities: ['directEdit'],
-  engines: ['occt'],
+
   brep(params: Record<string, unknown>) {
     assertProfileParams(params)
     return buildSketchOnPlaneWith(getBrepApi(), params as unknown as SketchOnPlaneParams)

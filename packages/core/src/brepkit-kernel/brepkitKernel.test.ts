@@ -549,9 +549,21 @@ suite('brepkit 适配器覆盖：曲线构造与求值', () => {
     expect(api.curveIsClosed(e)).toBe(true)
   })
 
-  it('makeArcEdge：三点外接圆 → CIRCLE 型曲线', () => {
+  it('makeArcEdge：三点外接圆 → CIRCLE 型曲线，弧长由圆心唯一确定', () => {
+    // (2,0)→(0,2)→(−2,0) is the r=2 half circle about the origin: length πr.
+    // GOTCHA（2026-09-30）：旧 circumcircle 圆心公式项序错，圆心落到弦另一侧，
+    // 半弧这个特例的长度断言曾被漏掉（只断 curveType），故这里钉住长度。
     const e = api.makeArcEdge({ x: 2, y: 0, z: 0 }, { x: 0, y: 2, z: 0 }, { x: -2, y: 0, z: 0 })
     expect(api.curveType(e)).toMatch(/circle/i)
+    expect(api.curveLength(e)).toBeCloseTo(2 * Math.PI, 6)
+
+    // Quarter arc of the r=10 circle about the origin → πr/2 (was 58.195).
+    const q = api.makeArcEdge(
+      { x: 10, y: 0, z: 0 },
+      { x: 10 * Math.SQRT1_2, y: 10 * Math.SQRT1_2, z: 0 },
+      { x: 0, y: 10, z: 0 },
+    )
+    expect(api.curveLength(q)).toBeCloseTo((Math.PI / 2) * 10, 6)
   })
 
   it('makeBezierEdge：BSPLINE 型且 NURBS 元数据 degree = 控制点数 − 1', () => {

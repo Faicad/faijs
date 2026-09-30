@@ -77,6 +77,13 @@ export async function registerBrepkitBrepEngine(): Promise<void> {
         'hullFromPoints',
         'makeFace',
         'makeLineEdge',
+        // 2026-09-30 草图弧线修复（circumcircle 项序纠正）后，brepkit 的曲线构边族
+        // 几何实测正确：quarter/half/cw 弧长 = πr/2·span、makeCircleEdge 整圆 face 挤出
+        // πr²·L。逐名如实声明（声明 ⊆ 实例，engine-switch-p3 守卫）。
+        'makeArcEdge',
+        'makeBezierEdge',
+        'makeCircleEdge',
+        'makeWire',
         // Phase 2：brepkit wasm 已导出 pattern 三方法并已接线（brepkitKernel.ts 阵列族）。
         'linearPattern',
         'circularPattern',
