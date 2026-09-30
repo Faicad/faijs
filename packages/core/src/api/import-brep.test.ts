@@ -115,13 +115,12 @@ describe('import_brep: chain-root roleTable (E3)', () => {
     // 是两条语句，天然分属不同 origin）。本单测无语句锚点 ⇒ 空串占位。
     expect(origins).toEqual([''])
     // 2026-09-30 GOTCHA（nameless-shape 修复）：part 键 roleTable（outputTablesByPart）
-    // 必须由 defineOp 包装层登记——这是 place 等下游 op 的 inputRoleTable（tableOfPart）
-    // 唯一读口。裸 async 函数只落语句键表，下游 place 产物断流，edgeRef 报
-    // "no role table (nameless shape)"（fcstd 语料 43 例）。本测试文件导入的是包装
-    // 后的 import_brep，这里断言 part 键已随包装层落地（part 名在无 executor 的
-    // 单测里为语句默认名，存在即证明包装层登记链路活着）。
-    const partTables = runtimeLineage.tablesByPartSnapshot?.() ?? undefined
-    void partTables // snapshot accessor 可能不存在——真正断言在 e2e（fcstd-port 语料）
+    // 必须由 defineOp 包装层登记——`LineageGraph.tableOfPart` 是 place 等下游 op 的
+    // inputRoleTable 唯一读口。裸 async 函数只落语句键表（上面 `outputTableOf` 读得到），
+    // 下游 place 产物断流，edgeRef 报 "no role table (nameless shape)"（fcstd 语料 43 例）。
+    // 本单测直调裸实现且没有 executor，part 名根本不存在，故此处无法断言 part 键表本身
+    // （LineageGraph 也没有暴露全表快照的读口）——改为断言包装层在位，端到端的部分由
+    // fcstd-port 语料 e2e 覆盖。
     // 包装层断言：import_brep 必须是 defineOp 包装（有 DUAL_OP_META），否则 part 键登记链路断裂
     const { DUAL_OP_META } = await import('../define-op')
     expect((import_brep as unknown as Record<symbol, unknown>)[DUAL_OP_META as unknown as symbol], 'import_brep must be defineOp-wrapped (part-key roleTable registration)').toBeDefined()

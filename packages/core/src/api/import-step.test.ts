@@ -118,6 +118,17 @@ describe('import_step: chain-root roleTable (E3)', () => {
     expect(roles?.size).toBe(2)
     expect(roles?.get('imported:0')).toEqual([201])
     expect(roles?.get('imported:1')).toEqual([202])
+    // 2026-09-30 GOTCHA（nameless-shape 修复，与 import-brep.test.ts 同源）：part 键
+    // roleTable（outputTablesByPart）只在 defineOp 包装层的 brep 分支登记，`tableOfPart`
+    // 是 place 等下游 op 的 inputRoleTable 唯一读口；裸 async 函数只落语句键表 ⇒ 下游
+    // place 产物 roleTable 断流 ⇒ edgeRef 报 "no role table (nameless shape)"
+    // （fcstd 语料 43 例）。本单测无 executor、part 名不存在，断言不了 part 键表本身，
+    // 端到端由 fcstd-port 语料 e2e 覆盖；此处断言包装层在位。
+    const { DUAL_OP_META } = await import('../define-op')
+    expect(
+      (import_step as unknown as Record<symbol, unknown>)[DUAL_OP_META as unknown as symbol],
+      'import_step must be defineOp-wrapped (part-key roleTable registration)',
+    ).toBeDefined()
   })
 })
 
