@@ -1,0 +1,257 @@
+# CadQuery 兼容性任务 — 进度与待办（2026-09-30）
+
+> 本文档独立记录 `packages/cq-compat` 的 CadQuery 2.8.0 兼容性工作：**当前进度**与**后续待完成内容**。配套计划见 `docs/plans/2026-09-28-cq-compat-remaining-cadquery-support-plan.md`。
+>
+> **结论先行：本任务尚未完成。** 字体/文本这一子线（本轮授权范围）已全绿落地；但整体 CadQuery 兼容仍是长线 parity 工程，仍有 293 条用例 `blocked`、47 条 `skipped`，需要镜像补全 + 真实能力实现 + 内核缺口三路并进。
+
+---
+
+## 1. 任务概述
+
+`cq-compat` 是 `@faicad/faijs` monorepo 下的一个 **workspace 包**（不是兄弟仓库），提供与 CadQuery 2.8.0 兼容的建模 API。目标是**逐用例与上游 CadQuery 在 BREP 几何上 parity**。
+
+**关键约束（来自用户裁定）**
+
+- `cq-compat` **不得依赖** `@faicad/faijs-extra`（小众需求合集）。它自持 CadQuery 兼容 API，直接消费 core 子路径（如 `brep/text/text-to-solid`、`brep/text/fontRegistry`）。
+- 三库（`fai_cq_gears` / `warehouse` / `sheetmetal`）是同一 monorepo 的 workspace 包，同样零 `defineOp`/`compatOp`，导出裸 `Result` 函数走 `registerLib` 的 `autoLift`。
+
+**parity 度量方式**
+
+- `run-cand.ts` 把每个 `.fai.js` 镜像跑成候选 STEP（`out/cand/<case>.step`）；
+- `compare.ts` 与上游 ref STEP（`out/ref/<case>.step`）比对，容差：`linearTolerance 1e-3`、`volumeRelativeTolerance 1e-3`；
+- 数值判定：`volDiffPct ≤ 0.1 && centroid ≤ 1e-3 && bbox ≤ 1e-3` ⇒ 数值 OK；拓扑匹配 ⇒ **PASS**，否则 **PASS-NT**（数值一致但拓扑边拆分不同，face/vertex 计数可能不同）。
+
+**manifest 翻转规则**
+
+- 某用例 `ported` ⟺ 存在对应镜像文件 `*.fai.js`；
+- `gen-manifest.ts` 从 `coverage.json` 重算机器值（ported/blocked 状态），`mark-blocked.ts` 的手写 `manual:true` blocked 标注予以保留；
+- `gen-manifest.ts` 不接收文件参数，扫全仓镜像目录，因此任何镜像增删都会反映到 manifest。
+
+---
+
+## 2. 当前进度
+
+### 2.1 总体计数（已实测）
+
+| 维度 | 口径 | 数值 |
+|------|------|------|
+| manifest | 导出变量级（每个 `test_x__r1` 变体） | **697** = 363 ported + 287 blocked + 47 skipped（2026-09-30 第二轮后；首轮 357/293/47） |
+| coverage | 上游测试函数级（`test_free_functions.py` 等） | **305** = 185 PORTABLE + 37 PORTABLE-WITH-STUB + 83 BLOCKED |
+
+> 两个计数粒度不同、互补：manifest 细到变量变体（697），coverage 粗到上游测试函数（305）。例如 `test_text` 一个函数展开成 `r1..r9/c/__f2` 等多个 manifest 条目。
+
+### 2.2 本轮（2026-09-30）落地的改动
+
+下列提交已在工作区（HEAD `a43f7626`，工作树干净）：
+
+```
+ddae3d18 feat(core,cq-compat): resolve fonts by family name/path and fix valign descent
+861794b1 fix(cq-compat): correct coverage analyzer op universe and regenerate
+cbbd1c09 chore: align the family version line at 0.22.5 and add cq-compat's opentype.js devDep
+47de790b test(core): fix import_brep/import_step test breakage from the defineOp wrap
+a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lockstep
+```
+
+**① core 字体按名 / 按路径解析（授权范围内的核心修复）**
+
+- `FontLoader` 接口新增可选 `resolveFont?(nameOrPath): Promise<ArrayBuffer|null>`；
+- `fontRegistry.ensureFont(nameOrPath?)`：解析 family 名 / 路径 → 缓存（以该名为键）→ 未知名**回退默认字体，永不抛错**；
+- 新增 `node-host/font-family-index.ts`：两阶段只读各字体 `name` 表（先 4KiB 头找 `name` 表偏移，再读该表），建 `family→path` 索引。修复了 64KiB 头天花板够不到 `glyf`/`loca` 之后的 `name` 表（Arial 的位于 ~0x0F0000）的问题；199 字体族 68ms 建完；
+- `NodeFontProvider.resolveFont`：路径 → 注册键（精确/归一化，含文件 stem）→ 系统族索引 → `null`；
+- `BrowserFontProvider.resolveFont`：`fontUrls` 键或 fetchable URL → bytes → `null`（浏览器不枚举系统字体，优雅回退）；
+- 测试：`font-family-index.test.ts` 7/7、`fontRegistry.ensure-font.test.ts` 6/6、`node-font-provider.test.ts` 7/7。
+
+**② core valign descent 修复（隐藏根因）**
+
+- OCC 的 valign "descent" = `|hhea.descender| + hhea.lineGap`，**非仅 descender**；
+- 旧 `text-solid.ts` 漏算 `lineGap` ⇒ Arial（`lineGap = 67/2048`）文字整体下移，与 ref 不符；
+- `text-solid.ts` 新增 `verticalMetrics(font, fontSize)` 把 `lineGap` 计入 descent；生产代码对**无 `tables` 的字体容错**（缺 `hhea` ⇒ lineGap 0）；
+- `text.test.ts` 13/13 通过，含 GOTCHA：`valign descent includes hhea.lineGap` + `未知名回退默认面而非抛错` + `fontPath 优先于 font`。
+
+**③ free-function `text` 镜像（6 个）parity 已确认**
+
+- 镜像：`test_text__r1..r5`（halign/valign 组合）+ `test_text__c`（text 立在 cylinder 上）；
+- 全部用 `font='Arial'`（OCC 系统字体），与 ref 逐位对齐；
+- parity 结果（2026-09-30 复跑，用已提交代码重新导出 cand + 比对）：
+
+  | case | status | vol d% | com d | bbox d | topology |
+  |------|--------|--------|-------|--------|----------|
+  | test_text__r1 | PASS-NT | 0.00000 | 0.00e+00 | 0.00e+00 | ref f2/e12/v24 vs cand f2/e49/v98 |
+  | test_text__r2 | PASS-NT | 0.00000 | 0.00e+00 | 0.00e+00 | 同上 |
+  | test_text__r3 | PASS-NT | 0.00000 | 0.00e+00 | 0.00e+00 | 同上 |
+  | test_text__r4 | PASS-NT | 0.00000 | 0.00e+00 | 0.00e+00 | 同上 |
+  | test_text__r5 | PASS-NT | 0.00000 | 0.00e+00 | 0.00e+00 | 同上 |
+  | test_text__c | **PASS** | 0.00000 | 0.00e+00 | 0.00e+00 | ref f3/e6/v12 vs cand f3/e6/v12（完全一致） |
+
+- manifest 中这 6 条由 `blocked` → `ported`（ported 357 之源）。
+
+**④ coverage 分析器 op universe 修正（根因修复，非只改产物）**
+
+- 旧 `CQ_COMPAT_OPS` 是手抄字面量，漏 `close/lineTo/spline/polyline/wire/face/loft/twistExtrude/workplaneFromTagged/clean` 等；且未纳 `cadquery.func` 的 free-function-only 名（`faceOn/hollow/prism/plane/draft/project/imprint`）；
+- 改为从 `src/index.ts` **实际导出**推导 cq-compat 包集合 + 纳入 `cadquery.func` 面（排掉数据类型构造器）；
+- 重算后 `104/35/158 → 180/37/80`（PORTABLE/STUB/BLOCKED）；
+- 纳入 `func` 面使 15 个用例从 PORTABLE 翻为 BLOCKED（逐条核对均确属 func-only 能力）；`gen-manifest` 连带把 110 条 stale `blockedBy` 精炼为 `pending:mirror`。
+
+**⑤ 门禁修复**
+
+- `import-brep.ts` / `import-step.ts` 的 `defineOp` 包装（属 edgeRef 工作流，今日日志）使裸实现导出函数缺 JSDoc ⇒ `verify-export-jsdoc` 全仓红；补 4 行 JSDoc（纯注释、零逻辑）后全仓归零；
+- `cq-compat/package.json` 补 `opentype.js` devDep（对齐 core `^1.3.4`），修 `check-ghost-deps`。
+
+### 2.3 门禁与测试状态（全绿，已实测）
+
+| 门禁 | 结果 |
+|------|------|
+| `verify-export-jsdoc` | `every exported name documented`（exit 0） |
+| `tsc --noEmit`（core 包） | 0 errors |
+| `tsc --noEmit`（root） | 0 errors |
+| `eslint`（core + cq-compat 改动文件） | 0 error |
+| `check-ghost-deps` | clean |
+| `cq-compat` vitest | **265 passed / 26 files** |
+| 新增单测 | font-family-index 7/7、ensure-font 6/6、node-font-provider 7/7、text 13/13 |
+
+---
+
+## 3. 后续待完成
+
+按 blockedBy 分布（来自 manifest `blocked` 293 条），分四类。
+
+### 3.1 镜像补全（不需要新能力，只写 `.fai.js`）
+
+| 来源 | 条数 | 说明 |
+|------|------|------|
+| `pending:mirror` | 50 → **40**（2026-09-30 第二轮核减；见 §7.2，原 50 中大量为 coverage 误判的 false-positive） | coverage 标 PORTABLE 但缺镜像；实际可机械翻译的子集更小 |
+| Assembly 类式 API 已实现、待镜像 | 52 | 2026-09-29 已实现 `add/addSubshape/remove/traverse/importStep/load/export`，待写 parity 镜像 |
+
+合计约 **102 条**是最便宜的 `ported` 增量，建议优先吃。
+
+### 3.2 能力缺口（需真实实现）
+
+| blockedBy | 条数 | 备注 |
+|-----------|------|------|
+| `prism` | 13 | 棱柱 |
+| `solid` | 12 | 实体构造 |
+| `imprint` | 12 | 压印 |
+| `split` | 10 | 分割 |
+| `section` | 7 | 截面 |
+| `eachpoint` | 4 | 逐点 |
+| `sweep` 系列（`pipeshell` 4 / `multisection` 3 / `aux-spine` 3 / `sweep` 2） | ~12 | 扫掠变体 |
+| `offset`（`shape.offset` 4 + `offset2D` 1） | 5 | 偏移 |
+| `placeSketch` | 6 | 放置草图 |
+| `plane` | 5、`project` 2、`remove` 5 | func-only 几何 |
+| `op:text-spine` | 3 | text 在圆柱 spine 上（`r7/r8/r9`），cq-compat `text()` 自由函数尚无 spine 重载 |
+| `op:faceOn` | 1 | `cadquery.func.faceOn` 未实现 |
+| 零散 | ~20 | `slot2D` 2、`mirrorX` 2、`copyWorkplane` 1、`polarArray` 1、`rotateAboutCenter` 1、`parametricCurve` 2、`cast` 1、`filter` 3、`traverse` 2、`end` 1、`CombinedCenter` 1、`importBrep` 4、`importBin` 2、`export` 3、`op:CQ`/`Workplane.plugin`/`findSolid`/`pendingWires`/`Solid.makeCone`/`threePointArc`/`polyline`/`extrude.*` 等 |
+
+### 3.3 内核缺口（occt-wasm 侧）
+
+| blockedBy | 条数 | 备注 |
+|-----------|------|------|
+| `kernel:shell-outward-opening` | 2 | 壳体外开口 |
+| `kernel:draft-existing-solid` | 2 | 既有实体拔模 |
+| `kernel:shell-intersection-join` | 1 | 壳交并 |
+| `kernel:loft-coplanar-sections` | 1 | 共面截面放样 |
+| `kernel:boolean-near-coincident-bspline` | 1 | 近重合 B 样条布尔 |
+| `kernel:ellipse-tall-axis` | 1 | 椭圆长轴 |
+| `kernel:crash-polygon-cutThruAll` | 1 | 多边形穿透切割崩溃 |
+
+**已知精度问题（非失败，差在数值）**：`hollow(t>0)` 上游用 `MakeThickSolidByJoin` 的 Intersection join（锐外角），occt-wasm offset 仅 arc-join（圆角）⇒ unit box `0.698/0.565` vs 上游 `0.728/0.584`（2 条）。需 wasm surface 暴露 intersection-join offset，单独立项。
+
+### 3.4 测试基础设施缺口
+
+| blockedBy | 条数 | 备注 |
+|-----------|------|------|
+| `getfixturevalue` | 11 | pytest fixture 反射 |
+| `parametrize` | 3 | 参数化用例 |
+| `__dir__` | 2 | 反射式用例 |
+| `fixture` 1 / `toJSON` 1 / `exportGLTF` 1 / `exportVTKJS` 1 | — | harness 尚未支持 |
+
+需增强镜像框架（fixture / parametrize / 反射）才能解锁这 ~19 条。
+
+### 3.5 已识别但需注意的隐藏根因
+
+- **core 字体在 Node ESM 下曾坏**：`fontRegistry.ts` 用 `import * as opentype` + `opentype.parse`，Node ESM 下 `import *` 只得 `{default}`，`parse` 为 undefined。已在 `964d750e`、`a4d31821` 修（一行 `(ns as {default?}).default ?? ns` + y 轴翻转），本论 valign/解析修复建立在之上。
+- **ref 陷阱**：`out/ref/...testText__obj1.step` 与上游同表达式重跑不符（ref 侧异常，非我们错）；`font="Sans"`（无 `fontPath`）走 OCC 系统 sans ≠ 引擎 OpenSans（体积差 15%）⇒ 依赖 `font="Sans"` 的用例无法逐位对齐。
+
+---
+
+## 4. 风险与已知问题
+
+1. **pre-commit `verify-export-jsdoc` 扫全仓**（lefthook.yml:26，无文件参数）：任一未提交改动缺 JSDoc 会阻塞**所有**提交。本次 `import-brep`/`import-step` 即此（属 edgeRef 工作流）。建议：跨工作流改动各自独立提交 + 各自补 JSDoc，避免一个工作流拖红全仓门禁。
+2. **长任务串行铁律**：同一时刻只一个后台任务；`run-sweep` 类 node worker 用 `ps`/`tasklist` 确认无残留再续批。
+3. **ref 体积差**：Arial 实验已锁定；`Sans` 用例的 parity 受 OCC 系统字体差异影响，属已知限制。
+
+---
+
+## 5. 建议的下一步序列
+
+1. **吃免费增量**：批量补 `pending:mirror`（50）+ Assembly 镜像（52）→ 预计 ported 357 → ~459。
+2. **小粒度能力缺口**：`split`/`section`/`eachpoint`/`placeSketch`/`mirrorX`/`copyWorkplane`（单测友好、影响面小）。
+3. **中粒度能力缺口**：`prism`/`imprint`/`plane`/`project`/`solid`/`offset`（需新几何原语）。
+4. **内核缺口**排期到 occt-wasm 迭代；`hollow` 精度问题单独立项。
+5. **测试基础设施**：`getfixturevalue`/`parametrize` harness 增强，解锁 ~19 条。
+
+---
+
+## 6. 复算 / 复验命令（备查）
+
+```bash
+# coverage 重算（需 cadquery venv，见 tests/baseline.json）
+python packages/cq-compat/tests/ref-harness/analyze-coverage.py --json packages/cq-compat/tests/coverage.json
+
+# manifest 重算（先 mark-blocked，再 gen-manifest）
+node_modules/tsx/dist/cli.mjs packages/cq-compat/tests/mark-blocked.ts
+node_modules/tsx/dist/cli.mjs packages/cq-compat/tests/gen-manifest.ts
+
+# 单镜像 parity（cand 导出 + 比对）
+node_modules/tsx/dist/cli.mjs packages/core/scripts/faijs-cli.ts run <mirror>.fai.js --out out/cand/<case>.step --mode brep
+python <probe_cmp>.py
+
+# 门禁
+node_modules/tsx/dist/cli.mjs scripts/verify-export-jsdoc.ts
+node_modules/typescript/bin/tsc --noEmit -p packages/core/tsconfig.json
+node_modules/eslint/bin/eslint.js packages/core/src packages/cq-compat/src
+node_modules/vitest/vitest.mjs run   # 在 packages/cq-compat 下
+```
+
+---
+
+## 7. 续作记录（2026-09-30 第二轮 — 镜像补全）
+
+> 本轮从 §3.1 的"镜像补全"切入，按"上游源 → 翻译 → `gen-manifest` → `run-cand` → 针对性 parity"流程推进，并逐条核对上游 `test_*.py` 源（本地缓存于 `packages/cq-compat/out/cache/v2.8.0/tests/`）。
+
+### 7.1 已验证 ported 的 6 条（parity 全绿）
+
+| case | var | 上游表达式 | parity |
+|------|-----|-----------|--------|
+| `testLocatedMoved` | `box` / `box1` / `box2` | `Solid.makeBox(1,1,1).located/moved(Location(1,1,1))` | 3× PASS（逐位一致） |
+| `testExplicitClean` | `s` | `moveTo/line×4/close/extrude(10)/clean` | PASS-NT（体积/质心/包围盒逐位，仅面拆分 6→7） |
+| `test_history_extrude` | `res` | `extrude(plane(1,1),(0,0,1))` = 1×1×1 box | PASS |
+| `testTwistExtrudeCombineCut` | `box` | `Workplane().box(10,10,10)` | PASS |
+
+镜像文件落点：`tests/test_cadquery/TestCadQuery__testLocatedMoved__box{1,2}.fai.js`、`TestCadQuery__testExplicitClean__s.fai.js`、`TestCadQuery__testTwistExtrudeCombineCut__box.fai.js`、`tests/test_free_functions/test_history_extrude__res.fai.js`。
+
+### 7.2 发现 `pending:mirror` 存在大量误判（重要更正 §3.1 的乐观估计）
+
+§3.1 把 `pending:mirror` 50 条称为"coverage 已判可移植、缺镜像、批量补齐即翻 ported"。逐条核对上游源后发现其中**相当一部分依赖 cq-compat 并不具备的能力**，属 coverage AST 分析的 false-positive：
+
+| 用例 | 实际缺口 | 备注 |
+|------|----------|------|
+| `test_history_extrude` / `test_history_loft` 的 `sides` / `side` | `History` 子形状反查（`op.generated` / `first` / `last`） | 仅 `res`（实体）可镜像；`sides` 是从 History 反查的面集合，非纯几何 |
+| `test_cad_objects::TestCadObjects` 的 `local_box` / `mirror_box` | `Plane.toLocalCoords` / `mirrorInPlane`（任意平面变换） | cq-compat 仅有 `mirrorX`/`mirrorY`，无任意平面变换 |
+| `test_cad_objects::TestCadObjects` 的 `s` | `eachpoint` + 圆柱体阵列 union | 需 cq-compat 的 `eachpoint` 投影 |
+| `test_shapes::test_addCavity` 的 `br` | `Solid.addCavity`（空腔 = 带 void 的实体） | cq-compat 无 `addCavity` |
+| `test_cadquery::testWedge*` 的 3 条 | `wedge` 退化顶面（顶面缩成点时 `makeLineEdge` 零长边失败） | 上游 OCCT 能建四棱锥；cq-compat `wedge` 不能 → `op:wedge-degenerate-top` |
+| `testTwistExtrudeCombine` 的 `r` | 扭曲 B-spline 实体布尔探针 | 同 E4 `kernel:boolean-near-coincident-bspline`（几何本身正确，仅 comparator 布尔探针失败） |
+
+⇒ 真实可"纯写镜像"的 `pending:mirror` 子集远小于 50；重算后 `pending:mirror` 由 50 → **40**，且其中仍可能继续暴露能力缺口。
+
+### 7.3 本轮新标记的具体 blockedBy（已写入 `mark-blocked.ts`）
+
+- `op:wedge-degenerate-top` ×3（`testWedgeDefaults/Combined/PointList` 的 `s`）
+- `kernel:boolean-near-coincident-bspline` ×1（`testTwistExtrudeCombine__r`）
+
+### 7.4 下一步建议
+
+1. **Assembly 52 才是文档 §3.1 真正的"免费增量"**：它们由 `Assembly 类式 API 已实现（P0-1）` 标注，能力已具备，仅缺镜像。需深入 `@faicad/cq-compat-assembly` 的 `buildAssembly(name, members, constraints)` + `toCompound()` + `save/importStep/load`，逐条翻译 `test_assembly.py` 的 STEP 导出/导入往返用例。
+2. **若要吃满 `pending:mirror` 残量**：需先补能力——`wedge` 退化顶面、任意平面 `mirrorInPlane`/`toLocalCoords`、`eachpoint` 阵列、`addCavity`。这些是能力缺口而非镜像任务，单独立项。
+3. 新增了 `tests/compare-targeted.ts`：只对显式列出的 (refBase, candBase) 对跑 `compareStepFiles`，避免为几个新镜像重跑全量 700+ 比对。

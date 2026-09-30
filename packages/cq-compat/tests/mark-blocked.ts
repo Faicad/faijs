@@ -146,6 +146,19 @@ const BY_KEY: Record<string, string> = {
   // pending:mirror cleanup batch (2026-09-11) — verified unreproducible
   // ---------------------------------------------------------------------------
   // ---------------------------------------------------------------------------
+  // wedge() with a degenerate (point) top — upstream CadQuery 2.8.0 builds a
+  // 5-face pyramid/wedge when xmin==xmax && ymin==ymax, but cq-compat's wedge
+  // lofts two rectangles via makeLineEdge, which throws on the zero-area top
+  // wire. Genuine wedge capability gap, not a mirror-translation issue.
+  'tests.test_cadquery::TestCadQuery::testWedgeDefaults__s': 'op:wedge-degenerate-top',
+  'tests.test_cadquery::TestCadQuery::testWedgeCombined__s': 'op:wedge-degenerate-top',
+  'tests.test_cadquery::TestCadQuery::testWedgePointList__s': 'op:wedge-degenerate-top',
+  // twistExtrude of a rect by 45deg over height 10 produces a twisted B-spline
+  // solid; the comparator's symmetric boolean probe fails asymmetrically on the
+  // near-coincident surfaces (same root cause as E4 testTwistExtrude,
+  // kernel:boolean-near-coincident-bspline). Geometry itself matches to machine
+  // precision (volΔ% 2.6e-5) — keep blocked until the kernel boolean is robust.
+  'tests.test_cadquery::TestCadQuery::testTwistExtrudeCombine__r': 'kernel:boolean-near-coincident-bspline',
   // Free-function text() (2026-09-30): the FLAT overload
   // `text(txt, size, font, path, kind, halign, valign)` is mirrored and passing
   // (test_text__r1..r5, __c). The two remaining corners are still out of reach:
