@@ -399,3 +399,12 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
   - **❌ 需内核增强（写明修改方案）**：shell 外扩/intersection join（`BRepOffsetAPI_MakeThickSolidByJoin` 完整参数面，§3，1–2 人日解锁 8 条）、`remove`/`replace`（`BRepTools_ReShape` 绑定，§4，1 人日解锁 9 条）、`interpPlate`（`GeomPlate_BuildPlateSurface`，§5，2–3 人日解锁 5 条）、球角/高椭圆/双距离倒角（§6，2 人日解锁 5 条）、3D `shape.offset`（与 §3 同源复用，§7）。
   - **❌ 非内核问题（永久 block 维持）**：`parametricCurve/Surface`、`eachpoint/map/filter`（解析器 C 层）；`getfixturevalue`/`images`/`raises`/`finalize`（pytest/helper 语义）。
   - 优先级建议（方案文档 §9）：reshape(1d) → 球角(0.5d) → ThickSolidByJoin(1–2d) → 椭圆/倒角(1d) → aux-spine 验证(0.5d) → GeomPlate(2–3d)。
+- 2026-09-30（**P1 工具组收口 — size/clean/bezier/consolidateWires/sort**）：§2.1 A-straight 中遗留的 5 个 Workplane 方法落地，`packages/cq-compat/src/workplane.ts` 新增 `size`/`clean`/`bezier`/`consolidateWires`/`sort` + 同目录单测 `src/tool-group-ops.test.ts`（9 tests 全 PASS）；`packages/cq-compat` typecheck + lint 干净；波及回归（`cq-compat.test`/`arcs2d`/`p1-workplane-ops` + 本文件）**49 passed / 4 files / 0 stderr**。
+  - **size**：`kern().getBoundingBox` → `[dx,dy,dz]`（无 solid 抛错）。
+  - **clean**：`fixShape` → `removeDegenerateEdges` → `healSolid` 序列（上游 `Solid.fix` 对齐），无 solid 抛错。
+  - **bezier**：`getKernel().makeBezierEdge`（控制点 → 世界坐标）一次性建边、`builtEdge` 强引用挂进 `PendingEdge`（新增 `kind:'bezier'`，复用 `buildProfileWire` 的 `else if (e.builtEdge)` 分支），`lastEdgeEndTangent` 同步认 `bezier`（复用 `splineEndTangent`）；`wire()`+`extrude()` 验证出体。
+  - **consolidateWires**：`buildProfileWire` 物化全部 pending wires → `kern().makeCompound` → 写回 `wp.shape` 并清空 `pendingWires`；无 pending 抛错。
+  - **sort**：cq-compat 无对象栈，排序目标即 `pendingWires`，默认按 bbox 面积降序（`area`/`length`/`x`/`y` 四档）。
+  - **Workplane 覆盖率**：56/92 → **61/92（66.3%）**（§2.1 的 `bezier`/`clean`/`size`/`sort`/`consolidateWires` 5 项关闭；`text`/`imprint` 仍缺失）。manifest ported 计数**未变**——gen-manifest 重跑是 P3 观测项（见 §4 P3），遵循「不阻塞」纪律。
+  - **仍为下一批头号缺口（P1 收尾）**：`text`（19 条，动作 1）与 `imprint`（4 条，动作 7）。`cad.text` 现已迁出 core 到 `@faicad/faijs-extra`（`packages/faijs-extra/src/ops/text.ts`），而 cq-compat 运行时不依赖 faijs-extra（test 用 `createRuntime(createNodePorts(),'brep')` 只注册 core op），故 `Workplane.text` 受「extra 依赖接线 + 字体 loader 通道」阻塞（即原 Q6，未解决）→ 列为 `text` 的前置，不硬凑。
+  - **P1 之后即 P2 内核缺口**（方案文档 `docs/analysis/2026-09-29-occt-wasm-gap-plan.md`）：reshape(1d)/球角(0.5d)/ThickSolidByJoin(1–2d)/椭圆·倒角(1d)/aux-spine 验证(0.5d)/GeomPlate(2–3d)，均需在 core 内核层加绑定或新 op，工作量最大、风险最高，按方案 §9 优先级推进。

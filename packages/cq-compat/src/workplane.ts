@@ -150,6 +150,7 @@ export type PendingEdge =
   | { kind: 'arc3'; from: [number, number]; mid: [number, number]; to: [number, number] }
   | { kind: 'tangentArc'; from: [number, number]; tgt: [number, number]; to: [number, number] }
   | { kind: 'spline'; from: [number, number]; pts: [number, number][]; to: [number, number]; endTgt?: [number, number]; builtEdge?: unknown }
+  | { kind: 'bezier'; from: [number, number]; pts: [number, number][]; to: [number, number]; endTgt?: [number, number]; builtEdge?: unknown }
 
 /**
  * Workplane carrier — object with a custom prototype so compatOp's
@@ -1626,7 +1627,7 @@ function lastEdgeEndTangent(wp: Workplane): [number, number] {
     if (len < 1e-12) throw new Error('[cq-compat] tangentArcPoint: degenerate previous line')
     return [dx / len, dy / len]
   }
-  if (e.kind === 'spline') {
+  if (e.kind === 'spline' || e.kind === 'bezier') {
     if (e.endTgt) return e.endTgt
     throw new Error('[cq-compat] tangentArcPoint: spline edge has no stored end tangent')
   }
@@ -2086,6 +2087,132 @@ export function close(wp: Workplane): Workplane {
   }
   cur = clone(cur, { firstPoint: undefined })
   return wire(cur)
+}
+
+// ── P1 tool-group ops (CadQuery pendingWires / solid housekeeping) ──────────
+
+/**
+ * bezier — draft a Bézier curve through the given control points onto the
+ * pending edges (CadQuery `Workplane.bezier`). Like `spline`, the curve starts
+ * at `points[0]` (unless `includeCurrent` semantics are requested upstream) and
+ * ends at `points[points.length-1]`; the current point becomes the Bézier end.
+ * The edge is built once via `makeBezierEdge` and strongly held in the
+ * descriptor so the later wire assembly reuses it (same strategy as `spline`).
+ *
+ * @param wp - Workplane
+ * @param points - control points in local 2D (z=0)
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
+export function bezier(
+  wp: Workplane,
+  points: [number, number][],
+  forConstruction: boolean = false,
+): Workplane {
+  if (!Array.isArray(points) || points.length < 2) {
+    throw new Error('[cq-compat] bezier: at least 2 control points are required')
+  }
+  const from = points[0]!
+  const to = points[points.length - 1]!
+  if (forConstruction) {
+    return clone(wp, { currentPoint: to })
+  }
+  const world = points.map(([x, y]) => localToWorld(wp, x, y))
+  const builtEdge = toShape(getKernel().makeBezierEdge(world.map((p) => vec3(p)) as never))
+  const endTgt = splineEndTangent(builtEdge, wp)
+  const edges: PendingEdge[] = [
+    ...(wp.pendingEdges ?? []),
+    { kind: 'bezier', from, pts: points, to, endTgt, builtEdge },
+  ]
+  return clone(wp, {
+    pendingEdges: edges,
+    currentPoint: to,
+    firstPoint: wp.firstPoint ?? from,
+  })
+}
+
+/**
+ * size — bounding-box dimensions of the current solid
+ * (CadQuery `Workplane.size` returns `(dx, dy, dz)`).
+ * @param wp - Workplane
+ * @returns [dx, dy, dz] in mm
+ */
+export function size(wp: Workplane): [number, number, number] {
+  if (!wp.shape) throw new Error('[cq-compat] size: no solid on the workplane')
+  const bb = kern().getBoundingBox(ownHandle(wp.shape)) as unknown as Record<string, number>
+  return [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin]
+}
+
+/**
+ * clean — attempt to fix the current solid by merging coplanar faces and
+ * removing redundant / degenerate edges (CadQuery `Workplane.clean`). The
+ * sequence mirrors upstream `Solid.fix`: `fixShape` → `removeDegenerateEdges`
+ * → `healSolid`. Fail-loud: any kernel step that errors surfaces immediately.
+ * @param wp - Workplane
+ * @param tolerance - optional healing tolerance (mm)
+ * @returns Workplane with the healed solid
+ */
+export function clean(wp: Workplane, tolerance?: number): Workplane {
+  if (!wp.shape) throw new Error('[cq-compat] clean: no solid on the workplane')
+  let h = ownHandle(wp.shape)
+  h = kern().fixShape(h)
+  h = kern().removeDegenerateEdges(h, tolerance)
+  h = kern().healSolid(h, tolerance)
+  return clone(wp, { shape: toShape(h) })
+}
+
+/**
+ * consolidateWires — combine every pending wire into a single compound wire on
+ * the workplane (CadQuery `Workplane.consolidateWires`). cq-compat carries its
+ * draft stack as `pendingWires`, so the consolidation target is exactly that
+ * list: each wire is materialized and merged into one `makeCompound` shape, and
+ * the pending list is consumed.
+ * @param wp - Workplane
+ * @returns Workplane whose shape is the consolidated wire compound
+ */
+export async function consolidateWires(wp: Workplane): Promise<Workplane> {
+  const wires = wp.pendingWires ?? []
+  if (wires.length === 0) {
+    throw new Error('[cq-compat] consolidateWires: no pending wires to combine')
+  }
+  const built = (await Promise.all(wires.map((w) => buildProfileWire(wp, w)))) as BrepHandle[]
+  const compound = kern().makeCompound(built)
+  return clone(wp, { shape: toShape(compound), pendingWires: [] })
+}
+
+/**
+ * sort — reorder the pending wires by a geometric criterion
+ * (CadQuery `Workplane.sort`). cq-compat has no object stack; its draft stack
+ * is `pendingWires`, so the sort operates on that list. Default order is by
+ * bounding-box area, descending (the most common upstream `sort()` use).
+ * @param wp - Workplane
+ * @param opt - 'area' (default) | 'length' | 'x' | 'y'
+ * @returns Workplane with reordered pending wires
+ */
+export function sort(
+  wp: Workplane,
+  opt: 'area' | 'length' | 'x' | 'y' = 'area',
+): Workplane {
+  const wires = wp.pendingWires ?? []
+  if (wires.length === 0) return wp
+  const measure = (w: PendingWire): number => {
+    const b = wireBBox(w)
+    const dx = b.maxX - b.minX
+    const dy = b.maxY - b.minY
+    switch (opt) {
+      case 'length':
+        return Math.hypot(dx, dy)
+      case 'x':
+        return dx
+      case 'y':
+        return dy
+      case 'area':
+      default:
+        return dx * dy
+    }
+  }
+  const sorted = [...wires].sort((a, b) => measure(b) - measure(a))
+  return clone(wp, { pendingWires: sorted })
 }
 
 /**
