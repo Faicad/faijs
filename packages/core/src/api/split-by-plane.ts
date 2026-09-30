@@ -68,6 +68,7 @@ function splitByPlaneBrep(input: Shape, params: SplitByPlaneParams): Record<stri
 export const splitByPlane = defineOp({
   capabilities: ['directEdit'],
   outputs: ['positive', 'negative'],
+  paramDims: { 'params.point': 'length', 'params.normal': 'length' },
   brep(input: Shape, params: SplitByPlaneParams) {
     return splitByPlaneBrep(input, params)
   },

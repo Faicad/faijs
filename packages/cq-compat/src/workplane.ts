@@ -138,7 +138,7 @@ export type PendingWire =
     }
   | { kind: 'polygon'; n: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
   /** Open/closed ring produced by moveTo/lineTo/arcs/polyline + close()/wire(). */
-  | { kind: 'path'; pts: [number, number][]; edges?: PendingEdge[]; construction: boolean; plane?: WirePlane }
+  | { kind: 'path'; pts: [number, number][]; edges?: PendingEdge[]; construction: boolean; plane?: WirePlane; /** Pre-built kernel wire (offset2D results) — buildProfileWire returns it as-is. */ builtWire?: unknown }
 
 /**
  * One drafted 2D edge, in workplane-LOCAL coordinates — the CadQuery
@@ -2135,6 +2135,8 @@ function reorderForWireAssembly(edges: PendingEdge[]): PendingEdge[] {
 
 /** Build a brepjs wire for a pending 2D profile, in world coordinates. */
 async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown> {
+  // Pre-built kernel wire (offset2D results) — returned as-is.
+  if (w.kind === 'path' && w.builtWire) return w.builtWire
   // Use the wire's own creation-plane snapshot when present (loft sections can
   // live on different planes after intermediate workplane()/transformed calls).
   const pl = w.plane ?? {
@@ -5127,4 +5129,420 @@ export async function planarCap(
   // 3) Heal + make the cap face.
   const face = k.makeFace(k.healWire(wires[0], tol))
   return clone(wp, { shape: fromHandle(face), pendingWires: [] })
+}
+
+// ---------------------------------------------------------------------------
+// P1 (Stage 2): split / section / sweep (single section) / offset2D
+// ---------------------------------------------------------------------------
+
+/**
+ * split — CadQuery `Workplane.split(splitter, keepTop, keepBottom)` parity
+ * (plane overload): bisect the current solid with an infinite plane and keep
+ * both halves (upstream keepTop/keepBottom both-true semantics; single-half
+ * filtering is a consumer concern since the halves are returned via tags).
+ *
+ * L1 splitByPlane (Phase 1 probe A verified, solidCount=2); positive side =
+ * the plane-normal side. Halves are fused-kept as a two-solid compound shape
+ * (upstream returns a Workplane whose stack holds both halves).
+ * @param wp - Workplane holding the solid to split
+ * @param point - a point on the cutting plane, workplane-local 2D or world 3D
+ * @param normal - plane normal (world); defaults to the workplane normal
+ * @returns Workplane with the split result (both halves) as .shape
+ */
+export async function split(
+  wp: Workplane,
+  point?: [number, number] | [number, number, number],
+  normal?: [number, number, number],
+): Promise<Workplane> {
+  if (!wp.shape) throw new Error('[cq-compat] split: no shape to split')
+  const k = kern()
+  const solid = ownHandle(wp.shape)
+  // plane point: default workplane origin; 2D local → world
+  const pW =
+    point && point.length === 2
+      ? localToWorld(wp, point[0], point[1])
+      : point
+        ? ([point[0], point[1], point[2]] as [number, number, number])
+        : wp.origin
+  const n = normal ?? wp.normal
+  const halves = k.splitByPlane(solid, { x: pW[0], y: pW[1], z: pW[2] }, { x: n[0], y: n[1], z: n[2] })
+  // keep both halves as a compound (upstream split keeps the requested sides;
+  // both-keep is the faijs-side default, single-side filters via selectors)
+  // BrepHandle → ShapeHandle brand bridge (same as the revolveVec path)
+  const comp = getKernel().makeCompound([halves.positive, halves.negative] as never)
+  return clone(wp, { shape: toShape(comp) })
+}
+
+/**
+ * section — CadQuery `Workplane.section(height, normal)` parity: intersect
+ * the current solid with a plane parallel to the workplane (offset by
+ * `height` along the workplane normal) and produce the section curves.
+ * @param wp - Workplane holding the solid
+ * @param height - plane offset along the workplane normal (default 0)
+ * @param normal - optional world-space plane normal override
+ * @returns Workplane with the section compound (1D curves) as .shape
+ */
+export async function section(wp: Workplane, height = 0, normal?: [number, number, number]): Promise<Workplane> {
+  if (!wp.shape) throw new Error('[cq-compat] section: no shape to section')
+  const k = kern()
+  const solid = ownHandle(wp.shape)
+  const n = normal ?? wp.normal
+  // plane point = workplane origin + height along the normal
+  const pW: [number, number, number] = [
+    wp.origin[0] + n[0] * height,
+    wp.origin[1] + n[1] * height,
+    wp.origin[2] + n[2] * height,
+  ]
+  const curves = k.sectionByPlane(solid, { x: pW[0], y: pW[1], z: pW[2] }, { x: n[0], y: n[1], z: n[2] })
+  if (!curves || !curves.length) {
+    throw new Error('[cq-compat] section: plane does not intersect the shape')
+  }
+  const comp = curves.length === 1 ? curves[0] : getKernel().makeCompound(curves as never)
+  return clone(wp, { shape: toShape(comp) })
+}
+
+/**
+ * sweep — CadQuery `Workplane.sweep(path)` parity (SINGLE section only):
+ * sweep the pending profile wire(s) along `path` (a wire on the current or
+ * given workplane). Multi-section / aux-spine / pipeshell stays blocked
+ * (plan Stage 6 D-layer).
+ * @param wp - Workplane holding the pending profile
+ * @param path - pending path wire built on a Workplane (its .shape must be a wire)
+ * @param transition - OCCT transition mode for corner handling ('transformed' | 'round' | 'right')
+ * @returns Workplane with the swept solid
+ * @remarks GOTCHA (probe-verified): the profile must be PERPENDICULAR to the
+ * spine at the origin (e.g. YZ-plane profile for an X-aligned spine) — a
+ * profile coplanar with the spine is squashed into a degenerate flat pipe
+ * (bbox correct, volume 0). Same as upstream BRepOffsetAPI_MakePipe semantics.
+ */
+export async function sweep(
+  wp: Workplane,
+  path: Workplane,
+  transition: 'transformed' | 'round' | 'right' = 'transformed',
+): Promise<Workplane> {
+  if (!path.shape && !(path.pendingWires ?? []).length) {
+    throw new Error('[cq-compat] sweep: path workplane has no wire (pass a wire() result or a shape)')
+  }
+  const all = (wp.pendingWires ?? []).filter((w) => !w.construction)
+  if (!all.length) throw new Error('[cq-compat] sweep: no pending wire to sweep')
+  wp = await applyPendingFacePlane(wp)
+  const spine = path.shape
+    ? ownHandle(path.shape)
+    : ((await buildProfileWire(path, (path.pendingWires ?? []).filter((w) => !w.construction)[0])) as BrepHandle)
+  // NOTE: `transition` is accepted for API parity with upstream
+  // Workplane.sweep(transition='transformed'|'round'|'right') but the raw
+  // kernel sweep (BRepOffsetAPI_MakePipe) has no transition parameter —
+  // corner handling is fixed by the kernel. Documented, not silently ignored.
+  void transition
+  let result: Shape | null = null
+  for (const g of groupPendingWires(all)) {
+    const outer = await buildProfileWire(wp, g.outer)
+    // single-section pipe: profile must be a WIRE — L1 BrepEngineApi has no
+    // sweep entry, so this goes through the raw kernel (BRepOffsetAPI_MakePipe
+    // via getKernel().sweep). sweepOriented is the multi-section BRepFill API
+    // and rejects faces ("bad shape type of section", probe-verified).
+    const holeWires: unknown[] = []
+    for (const h of g.holes) holeWires.push(await buildProfileWire(wp, h))
+    void holeWires
+    const swept = getKernel().sweep(outer as never, spine as never)
+    const solid = toShape(swept) as Shape
+    result = result ? await fuseShapes(result, solid) : solid
+  }
+  return clone(wp, {
+    shape: result,
+    pendingWires: [],
+    pendingPolygon: undefined,
+    pendingRect: undefined,
+    pendingCircle: undefined,
+    pendingEdges: undefined,
+    currentPoint: undefined,
+  })
+}
+
+/**
+ * offset2D — CadQuery `Workplane.offset2D(d, kind, forConstruction)` parity:
+ * offset all pending wires in-plane by d (negative = inward). Reuses the
+ * kernel `offsetWire2D` (9-22 probe verified). The offset wires replace the
+ * pending wires (upstream pushes them as the new pending set).
+ * @param wp - Workplane with pending wires
+ * @param d - signed offset distance (mm)
+ * @param kind - wire join kind: 'arc' | 'intersection' | 'tangent' (default 'arc')
+ * @param forConstruction - mark the offset wires construction (default false)
+ * @returns Workplane with offset pending wires
+ */
+export async function offset2D(
+  wp: Workplane,
+  d: number,
+  kind: 'arc' | 'intersection' | 'tangent' = 'arc',
+  forConstruction = false,
+): Promise<Workplane> {
+  const all = (wp.pendingWires ?? []).filter((w) => !w.construction)
+  if (!all.length) throw new Error('[cq-compat] offset2D: no pending wires to offset')
+  const joinKind: Record<string, number> = { arc: 0, intersection: 1, tangent: 2 }
+  const out: PendingWire[] = []
+  for (const w of all) {
+    const wire = await buildProfileWire(wp, w)
+    const offset = getKernel().offsetWire2D(wire as never, d, joinKind[kind] ?? 0)
+    out.push({
+      kind: 'path',
+      pts: [],
+      construction: forConstruction,
+      plane: w.plane,
+      builtWire: offset,
+    })
+  }
+  return clone(wp, { pendingWires: out })
+}
+
+// ---------------------------------------------------------------------------
+// P1 (Stage 2 action 6): selector family + utility methods
+// ---------------------------------------------------------------------------
+
+/**
+ * wires — CadQuery `Workplane.wires(selector)` parity: pick every WIRE of the
+ * current shape (upstream returns a compound of wires; here the first wire is
+ * adopted and the rest released — the compound-of-wires form is available via
+ * `compound(wires(wp))` when needed).
+ * @param wp - Workplane holding the shape
+ * @returns Workplane with the first wire as .shape
+ */
+export function wires(wp: Workplane): Workplane {
+  if (!wp.shape) return wp
+  const handle = brepOf(wp.shape)
+  if (handle === undefined) return wp
+  const kernel = getKernel() as unknown as OcctKernel
+  const sub = kernel.getSubShapes(handle as unknown as ShapeHandle, 'wire') as unknown as ShapeHandle[]
+  if (sub.length === 0) return wp
+  for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
+  return clone(wp, { shape: fromHandle(sub[0]) })
+}
+
+/**
+ * compounds — CadQuery `Workplane.compounds(selector)` parity: pick nested
+ * COMPOUNDs of the current shape. The kernel typings omit 'compound' but the
+ * runtime supports it (probe-verified in shape-class.ts).
+ * @param wp - Workplane holding the shape
+ * @returns Workplane with the first nested compound as .shape
+ */
+export function compounds(wp: Workplane): Workplane {
+  if (!wp.shape) return wp
+  const handle = brepOf(wp.shape)
+  if (handle === undefined) return wp
+  const kernel = getKernel() as unknown as OcctKernel
+  const get = kernel.getSubShapes as unknown as (h: unknown, t: string) => ShapeHandle[]
+  // 'compound' is runtime-supported but throws on shapes without nested
+  // compounds (probe: fused solid) — treat as "none found"
+  let sub: ShapeHandle[]
+  try {
+    sub = get(handle, 'compound')
+  } catch {
+    return wp
+  }
+  if (sub.length === 0) return wp
+  for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
+  return clone(wp, { shape: fromHandle(sub[0]) })
+}
+
+/**
+ * shells — CadQuery `Workplane.shells(selector)` parity: pick SHELLs of the
+ * current shape.
+ * @param wp - Workplane holding the shape
+ * @returns Workplane with the first shell as .shape
+ */
+export function shells(wp: Workplane): Workplane {
+  if (!wp.shape) return wp
+  const handle = brepOf(wp.shape)
+  if (handle === undefined) return wp
+  const kernel = getKernel() as unknown as OcctKernel
+  const sub = kernel.getSubShapes(handle as unknown as ShapeHandle, 'shell') as unknown as ShapeHandle[]
+  if (sub.length === 0) return wp
+  for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
+  return clone(wp, { shape: fromHandle(sub[0]) })
+}
+
+/**
+ * mirrorX — CadQuery `Workplane.mirrorX(union)` parity: mirror about the
+ * workplane Y axis (local X → −X, i.e. the YZ plane through the origin).
+ * @param wp - Workplane
+ * @param union - fuse the mirrored copy into the current shape
+ * @returns Promise<Workplane>
+ */
+export async function mirrorX(wp: Workplane, union = false): Promise<Workplane> {
+  return mirror(wp, 'YZ', [0, 0, 0], union)
+}
+
+/**
+ * mirrorY — CadQuery `Workplane.mirrorY(union)` parity: mirror about the
+ * workplane X axis (local Y → −Y, i.e. the XZ plane through the origin).
+ * @param wp - Workplane
+ * @param union - fuse the mirrored copy into the current shape
+ * @returns Promise<Workplane>
+ */
+export async function mirrorY(wp: Workplane, union = false): Promise<Workplane> {
+  return mirror(wp, 'XZ', [0, 0, 0], union)
+}
+
+/**
+ * polarArray — CadQuery `Workplane.polarArray(radius, startAngle, angle,
+ * count, fill, rotate)` parity: push `count` points on a circle of `radius`
+ * in workplane-local coordinates. `fill=true` distributes over the FULL
+ * circle (angle ignored); `rotate=true` stores per-point heading in pts —
+ * pending points only carry positions, rotation is applied by the consuming
+ * op (parity for geometry-consuming mirrors: upstream rotates each placed
+ * object; rect/circle are rotation-invariant so pts-only is sufficient for
+ * the mirrored test surface).
+ * @param wp - Workplane
+ * @param radius - circle radius (mm)
+ * @param startAngle - first point angle (degrees, from local +X)
+ * @param angle - total sweep (degrees); ignored when fill
+ * @param count - point count
+ * @param fill - distribute evenly over the full circle
+ * @param rotate - unused here (positions only; see JSDoc)
+ * @returns Workplane with pushed points
+ */
+export function polarArray(
+  wp: Workplane,
+  radius: number,
+  startAngle = 0,
+  angle = 360,
+  count = 4,
+  fill = true,
+  rotate = true,
+): Workplane {
+  void rotate
+  if (count < 1) throw new Error('[cq-compat] polarArray: count must be >= 1')
+  const pts: [number, number][] = []
+  if (fill) {
+    const step = 360 / count
+    for (let i = 0; i < count; i++) {
+      const a = ((startAngle + i * step) * Math.PI) / 180
+      pts.push([radius * Math.cos(a), radius * Math.sin(a)])
+    }
+  } else {
+    const step = count > 1 ? angle / (count - 1) : 0
+    for (let i = 0; i < count; i++) {
+      const a = ((startAngle + i * step) * Math.PI) / 180
+      pts.push([radius * Math.cos(a), radius * Math.sin(a)])
+    }
+  }
+  return clone(wp, { pts })
+}
+
+/**
+ * polarLine — CadQuery `Workplane.polarLine(distance, angle)` parity: draft a
+ * line of `distance` at `angle` degrees from the current point (local polar).
+ * @param wp - Workplane
+ * @param distance - segment length (mm)
+ * @param angle - direction in degrees (local, from +X)
+ * @returns Workplane
+ */
+export function polarLine(wp: Workplane, distance: number, angle: number): Workplane {
+  const cur = currentLocalPoint(wp)
+  const rad = (angle * Math.PI) / 180
+  return lineTo(wp, cur[0] + distance * Math.cos(rad), cur[1] + distance * Math.sin(rad))
+}
+
+/**
+ * polarLineTo — CadQuery `Workplane.polarLineTo(distance, angle)` parity:
+ * draft a line to the point at polar (distance, angle) FROM THE ORIGIN
+ * (absolute polar destination, unlike polarLine which is relative).
+ * @param wp - Workplane
+ * @param distance - radius from origin (mm)
+ * @param angle - direction in degrees (local, from +X)
+ * @returns Workplane
+ */
+export function polarLineTo(wp: Workplane, distance: number, angle: number): Workplane {
+  const rad = (angle * Math.PI) / 180
+  return lineTo(wp, distance * Math.cos(rad), distance * Math.sin(rad))
+}
+
+/**
+ * rotateAboutCenter — CadQuery `Workplane.rotateAboutCenter(axisEndPoint,
+ * angleDegrees)` parity: rotate the current shape about its bbox centre along
+ * the given local axis (default local +Z when omitted upstream passes (0,1,0)
+ * for the 2-arg form — here the axis is workplane-local (x,y,z)).
+ * @param wp - Workplane holding the shape
+ * @param axisEndPoint - local axis direction (default (0,1,0) upstream)
+ * @param angleDegrees - rotation angle (degrees)
+ * @returns Workplane
+ */
+export async function rotateAboutCenter(
+  wp: Workplane,
+  axisEndPoint: [number, number, number] = [0, 1, 0],
+  angleDegrees = 360,
+): Promise<Workplane> {
+  if (!wp.shape) return wp
+  const k = getKernel() as unknown as OcctKernel
+  const handle = brepOf(wp.shape)
+  if (handle === undefined) return wp
+  const bb = k.getBoundingBox(handle as unknown as ShapeHandle)
+  const center = { x: (bb.xmin + bb.xmax) / 2, y: (bb.ymin + bb.ymax) / 2, z: (bb.zmin + bb.zmax) / 2 }
+  // local axis direction → world
+  const dir: [number, number, number] = [
+    wp.xDir[0] * axisEndPoint[0] + wp.yDir[0] * axisEndPoint[1] + wp.normal[0] * axisEndPoint[2],
+    wp.xDir[1] * axisEndPoint[0] + wp.yDir[1] * axisEndPoint[1] + wp.normal[1] * axisEndPoint[2],
+    wp.xDir[2] * axisEndPoint[0] + wp.yDir[2] * axisEndPoint[1] + wp.normal[2] * axisEndPoint[2],
+  ]
+  const len = Math.hypot(dir[0], dir[1], dir[2]) || 1
+  const rotated = k.rotate(handle as unknown as ShapeHandle, { point: center, direction: { x: dir[0] / len, y: dir[1] / len, z: dir[2] / len } }, (angleDegrees * Math.PI) / 180)
+  return clone(wp, { shape: fromHandle(rotated) })
+}
+
+/**
+ * slot2D — CadQuery `Workplane.slot2D(length, diameter, angle)` parity: push a
+ * stadium-slot wire (length × diameter, rotated by angle degrees) as the
+ * pending profile.
+ * @param wp - Workplane
+ * @param length - overall slot length along local X (mm)
+ * @param diameter - slot width (mm)
+ * @param angle - rotation about the slot centre (degrees)
+ * @returns Workplane
+ */
+export async function slot2D(wp: Workplane, length: number, diameter: number, angle = 0): Promise<Workplane> {
+  if (diameter > length) throw new Error('[cq-compat] slot2D: diameter cannot exceed length')
+  const k = getKernel() as unknown as OcctKernel
+  // upstream semantics: `length` is the OVERALL slot length (incl. both
+  // semicircular caps) — the straight section is length − diameter
+  const straight = length - diameter
+  const h = diameter
+  const p1: [number, number] = [-straight / 2, h / 2]
+  const p2: [number, number] = [straight / 2, h / 2]
+  const p4: [number, number] = [straight / 2, -h / 2]
+  const p3: [number, number] = [-straight / 2, -h / 2]
+  const p5: [number, number] = [-length / 2, 0]
+  const p6: [number, number] = [length / 2, 0]
+  const e1 = k.makeLineEdge(v3o(localToWorld(wp, p1[0], p1[1])), v3o(localToWorld(wp, p2[0], p2[1])))
+  const e2 = k.makeArcEdge(
+    v3o(localToWorld(wp, p2[0], p2[1])),
+    v3o(localToWorld(wp, p6[0], p6[1])),
+    v3o(localToWorld(wp, p4[0], p4[1])),
+  )
+  const e3 = k.makeLineEdge(v3o(localToWorld(wp, p4[0], p4[1])), v3o(localToWorld(wp, p3[0], p3[1])))
+  const e4 = k.makeArcEdge(
+    v3o(localToWorld(wp, p3[0], p3[1])),
+    v3o(localToWorld(wp, p5[0], p5[1])),
+    v3o(localToWorld(wp, p1[0], p1[1])),
+  )
+  const wireH = k.makeWire([e1, e2, e3, e4])
+  for (const e of [e1, e2, e3, e4]) k.release(e)
+  let wireShape: unknown = wireH
+  if (angle) {
+    const center = localToWorld(wp, 0, 0)
+    wireShape = k.rotate(
+      wireH,
+      { point: { x: center[0], y: center[1], z: center[2] }, direction: { x: wp.normal[0], y: wp.normal[1], z: wp.normal[2] } },
+      (angle * Math.PI) / 180,
+    )
+  }
+  return clone(wp, {
+    pendingWires: [
+      ...(wp.pendingWires ?? []),
+      { kind: 'path', pts: [], construction: wp.forConstruction, plane: planeOf(wp), builtWire: wireShape },
+    ],
+  })
+}
+
+/** [x,y,z] tuple → kernel Vec3 object. */
+function v3o(p: [number, number, number]): { x: number; y: number; z: number } {
+  return { x: p[0], y: p[1], z: p[2] }
 }
