@@ -1,6 +1,13 @@
-# CadQuery 兼容性任务 — 进度与待办（2026-09-30）
+# cq-compat CadQuery 2.8.0 parity 进度与待办（2026-09-30）
 
-> 本文档独立记录 `packages/cq-compat` 的 CadQuery 2.8.0 兼容性工作：**当前进度**与**后续待完成内容**。配套计划见 `docs/plans/2026-09-28-cq-compat-remaining-cadquery-support-plan.md`。
+日期：2026-09-30
+状态：**实施中**
+基线 HEAD：`a43f7626`
+范围：`packages/cq-compat`（parity 镜像、manifest、coverage 分析器）
+上游基准：CadQuery **2.8.0**（`tests/baseline.json`）
+配套计划：`docs/plans/2026-09-28-cq-compat-remaining-cadquery-support-plan.md`（本文只记录其上的执行进度与剩余待办）
+
+> 本文档独立记录 `packages/cq-compat` 的 CadQuery 2.8.0 兼容性工作：**当前进度**与**后续待完成内容**。
 >
 > **结论先行：本任务尚未完成。** 字体/文本这一子线（本轮授权范围）已全绿落地；但整体 CadQuery 兼容仍是长线 parity 工程，仍有 293 条用例 `blocked`、47 条 `skipped`，需要镜像补全 + 真实能力实现 + 内核缺口三路并进。
 
