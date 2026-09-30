@@ -62,6 +62,35 @@ describe('textBlueprints', () => {
     expect(wires.length).toBeGreaterThan(0)
     for (const w of wires) kernel.release(w)
   })
+
+  // GOTCHA: opentype.js paths are y-DOWN (canvas convention), OCCT is y-up.
+  // `toPt` must flip y, exactly like the SVG path's `flipY`. Without the flip
+  // the glyphs come out vertically mirrored: ink lands at negative y (an "I"
+  // would sit *below* the baseline). Pinned with the font's real metrics —
+  // OpenSans 'I' at size 10 spans baseline..capHeight = y ∈ [0, 7.1387].
+  it('should flip the opentype y-down axis so text is y-up (baseline at 0)', () => {
+    const boxOf = (wires: ReturnType<typeof textBlueprints>) => {
+      let ymin = Infinity
+      let ymax = -Infinity
+      for (const w of wires) {
+        const b = kernel.getBoundingBox(w)
+        if (b.ymin < ymin) ymin = b.ymin
+        if (b.ymax > ymax) ymax = b.ymax
+      }
+      for (const w of wires) kernel.release(w)
+      return { ymin, ymax }
+    }
+
+    // "I" has no descender: ink sits entirely ABOVE the baseline.
+    const cap = boxOf(textBlueprints(kernel, 'I', { fontSize: 10 }))
+    expect(cap.ymin).toBeCloseTo(0, 3)
+    expect(cap.ymax).toBeCloseTo(7.1387, 2)
+
+    // "_" (underscore) sits BELOW the baseline in font units — a mirrored
+    // (buggy) build would put it above.
+    const under = boxOf(textBlueprints(kernel, '_', { fontSize: 10 }))
+    expect(under.ymax).toBeLessThan(0)
+  })
 })
 
 describe('textToSolid', () => {

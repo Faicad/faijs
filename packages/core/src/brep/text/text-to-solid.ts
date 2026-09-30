@@ -26,10 +26,15 @@ import { getFont } from './fontRegistry'
 /** 点坐标（OCCT 格式） */
 interface Pt { x: number; y: number; z: number }
 
-/** 将 opentype.js 坐标转为 OCCT 点（XY 平面，Z=0） */
+/**
+ * 将 opentype.js 坐标转为 OCCT 点（XY 平面，Z=0）。
+ *
+ * opentype.js 的 path 是 **y 向下**（canvas 约定：字形主体在负 y），OCCT 是
+ * **y 向上**，故这里翻转 y —— 与 `../svg/svg-to-solid.ts` 的 `flipY`
+ * （SVG Y-down → OCCT Y-up）同一约定。X 不翻转，文字从左到右。
+ */
 function toPt(x: number, y: number): Pt {
-  // 与 mesh 路径一致：不翻转 X 轴，文字从左到右
-  return { x, y, z: 0 }
+  return { x, y: -y, z: 0 }
 }
 
 /**

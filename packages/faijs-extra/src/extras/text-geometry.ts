@@ -38,9 +38,10 @@ export async function getOpentypeFont(): Promise<Font> {
 /**
  * Create text geometry centered in X/Z, extruded along +Z.
  *
- * Uses opentype.js font.getPath() → THREE.Shape → ExtrudeGeometry.
- * This is the same font source as the BREP path (text-to-solid),
- * ensuring glyph consistency between mesh and BREP paths.
+ * Uses opentype.js font.getPath() → THREE.Shape → ExtrudeGeometry, flipping
+ * the opentype y-down axis to y-up. This is the same font source and the same
+ * axis convention as the BREP path (text-to-solid), ensuring both glyph and
+ * orientation consistency between the mesh and BREP paths.
  *
  * @param text  Text string to render
  * @param size  Font size in mm
@@ -99,6 +100,9 @@ export function opentypePathToGeometry(
   let currentShape: THREE.Shape | null = null
 
   for (const cmd of commands) {
+    // opentype.js paths are y-down (canvas convention: glyph bodies sit at
+    // negative y); three.js is y-up — mirror, matching the BREP path
+    // (`core/src/brep/text/text-to-solid.ts::toPt`) and the SVG path.
     switch (cmd.type) {
       case 'M':
         // Implicit closure: opentype.js doesn't always emit 'Z' before a new 'M'.
@@ -107,16 +111,16 @@ export function opentypePathToGeometry(
           shapes.push(currentShape)
         }
         currentShape = new THREE.Shape()
-        currentShape.moveTo(cmd.x!, cmd.y!)
+        currentShape.moveTo(cmd.x!, -cmd.y!)
         break
       case 'L':
-        currentShape?.lineTo(cmd.x!, cmd.y!)
+        currentShape?.lineTo(cmd.x!, -cmd.y!)
         break
       case 'C':
-        currentShape?.bezierCurveTo(cmd.x1!, cmd.y1!, cmd.x2!, cmd.y2!, cmd.x!, cmd.y!)
+        currentShape?.bezierCurveTo(cmd.x1!, -cmd.y1!, cmd.x2!, -cmd.y2!, cmd.x!, -cmd.y!)
         break
       case 'Q':
-        currentShape?.quadraticCurveTo(cmd.x1!, cmd.y1!, cmd.x!, cmd.y!)
+        currentShape?.quadraticCurveTo(cmd.x1!, -cmd.y1!, cmd.x!, -cmd.y!)
         break
       case 'Z':
         if (currentShape) {
