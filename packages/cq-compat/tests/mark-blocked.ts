@@ -145,19 +145,20 @@ const BY_KEY: Record<string, string> = {
   // ---------------------------------------------------------------------------
   // pending:mirror cleanup batch (2026-09-11) — verified unreproducible
   // ---------------------------------------------------------------------------
-  // Free-function text(): cadquery text() needs a font engine (fontTools
-  // glyph outlines) cq-compat does not have. test_faceOn additionally engraves
-  // text onto a spherical face (faceOn(f, text("CQ", 1)), 2 faces @ vol 0.1998).
-  'tests.test_free_functions:::test_faceOn__f2': 'op:text',
-  'tests.test_free_functions:::test_text__r1': 'op:text',
-  'tests.test_free_functions:::test_text__r2': 'op:text',
-  'tests.test_free_functions:::test_text__r3': 'op:text',
-  'tests.test_free_functions:::test_text__r4': 'op:text',
-  'tests.test_free_functions:::test_text__r5': 'op:text',
-  'tests.test_free_functions:::test_text__c': 'op:text',
-  'tests.test_free_functions:::test_text__r7': 'op:text',
-  'tests.test_free_functions:::test_text__r8': 'op:text',
-  'tests.test_free_functions:::test_text__r9': 'op:text',
+  // ---------------------------------------------------------------------------
+  // Free-function text() (2026-09-30): the FLAT overload
+  // `text(txt, size, font, path, kind, halign, valign)` is mirrored and passing
+  // (test_text__r1..r5, __c). The two remaining corners are still out of reach:
+  //  - r7/r8/r9 use the SPINE overload `text(txt, size, spine, planar | face)` —
+  //    glyphs are laid out along a path and (r9) projected onto the cylinder's
+  //    side; cq-compat's `text` only builds flat, axis-aligned text.
+  //  - test_faceOn engraves text onto a spherical FACE via `faceOn(f, text(…)`;
+  //    `faceOn` is a `cadquery.func`-only op (never a Workplane/Shape method)
+  //    that cq-compat does not implement.
+  'tests.test_free_functions:::test_text__r7': 'op:text-spine',
+  'tests.test_free_functions:::test_text__r8': 'op:text-spine',
+  'tests.test_free_functions:::test_text__r9': 'op:text-spine',
+  'tests.test_free_functions:::test_faceOn__f2': 'op:faceOn',
   // Free-function draft(): applies taper to an EXISTING solid's faces
   // (draft(box, fbot, fside, 5)); occt-wasm's draft(shape, face, angle, dir)
   // fails outright (same kernel gap as §7.26 testTaperedExtrudeHeight__s2 —

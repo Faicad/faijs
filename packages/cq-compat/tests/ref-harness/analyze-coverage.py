@@ -22,6 +22,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import sys
 from collections import Counter
 
@@ -31,23 +32,66 @@ CACHE_TESTS = os.path.join(PKG, "out", "cache", "v2.8.0", "tests")
 REF_MANIFEST = os.path.join(PKG, "out", "ref", "manifest.json")
 
 # --------------------------------------------------------------------------
-# cq-compat surface (source of truth: packages/cq-compat/src/index.ts)
-# Workplane: Workplane add box rect circle polygon extrude revolve cutBlind hole
-#   cboreHole cskHole threadedHole faces edges vertices workplane center
-#   pushPoints translate rotate mirror union cut intersect fillet shell
-#   val vals transformed setColor
-# Location: Location isLocation composeLocations moved move  (阶段 E)
-# Assembly: faceRef constraint buildAssembly Color
+# cq-compat surface
+#
+# The AUTHORITATIVE source is the published export surface of the three
+# cq-compat packages (cq-compat = workplane/location, cq-compat-assembly =
+# assembly, cq-compat-sketch = the unprefixed Sketch grammar). Those files are
+# parsed at run time below, so exporting a new op is enough to make it count.
+#
+# WHY (2026-09-30): this used to be a hand-copied literal. It silently drifted
+# from the code — `close`/`lineTo`/`spline`/`polyline`/`wire`/`face`/`loft`/
+# `twistExtrude`/`workplaneFromTagged`/`clean`… were all implemented but still
+# counted as missing, so ~130 cases were reported BLOCKED that were not. The
+# committed coverage.json was likewise one script-revision behind itself.
+#
+# CQ_COMPAT_EXTRA below is a *supplement* for upstream names that are genuinely
+# implemented but not exported under that exact name. Keep it small and
+# justified; the moment a name becomes a real export it is redundant here.
 # --------------------------------------------------------------------------
-CQ_COMPAT_OPS = {
-    "Workplane", "add", "box", "rect", "circle", "polygon", "extrude", "revolve", "cutBlind",
-    "cutThruAll", "hole", "cboreHole", "cskHole", "threadedHole", "faces", "edges",
-    "vertices", "workplane", "center", "pushPoints", "rarray", "translate", "rotate",
-    "mirror", "union", "cut", "intersect", "combine", "fillet", "chamfer", "shell",
-    "sphere", "cylinder", "val", "vals", "transformed", "setColor", "text",
-    "Location", "isLocation", "composeLocations", "moved", "move",
-    "faceRef", "constraint", "buildAssembly", "Color",
+CQ_COMPAT_PACKAGES = (
+    os.path.join("cq-compat", "src", "index.ts"),
+    os.path.join("cq-compat-assembly", "src", "index.ts"),
+    os.path.join("cq-compat-sketch", "src", "index.ts"),
+)
+
+# Upstream names that ARE implemented, just under a different spelling.
+CQ_COMPAT_EXTRA: set[str] = {
+    # `cadquery.func.fuse(a, b, …)` is cq-compat's `union` (its mirrors call the
+    # latter — see tests/test_free_functions/test_fuse_multi__*.fai.js).
+    "fuse",
 }
+
+
+def cq_compat_export_surface() -> set[str]:
+    """Every public export name of the cq-compat packages (re-export aliases use
+    the alias, not the local symbol: `sketchRect as rect` contributes `rect`)."""
+    names: set[str] = set()
+    for rel in CQ_COMPAT_PACKAGES:
+        path = os.path.join(PKG, "..", rel)
+        path = os.path.normpath(path)
+        try:
+            src = open(path, encoding="utf-8").read()
+        except OSError as exc:
+            # Fail loud: a silently-empty surface would report everything BLOCKED.
+            raise SystemExit(f"analyze-coverage: cannot read export surface {path}: {exc}")
+        for block in re.finditer(r"export\s*\{([^}]*)\}", src, re.S):
+            for raw in block.group(1).split(","):
+                item = re.sub(r"^\s*type\s+", "", raw.strip())
+                if not item:
+                    continue
+                alias = re.split(r"\s+as\s+", item)
+                names.add((alias[1] if len(alias) > 1 else alias[0]).strip())
+        for decl in re.finditer(
+            r"export\s+(?:async\s+)?(?:function|const|class)\s+([A-Za-z0-9_$]+)", src
+        ):
+            names.add(decl.group(1))
+    if not names:
+        raise SystemExit("analyze-coverage: cq-compat export surface is empty — refusing to guess")
+    return names
+
+
+CQ_COMPAT_OPS = CQ_COMPAT_EXTRA | cq_compat_export_surface()
 
 # Cases whose calls fall in a deliberately unsupported parameter corner of an
 # otherwise-implemented op (P4 batch 1). Explicit exceptions keep them honest
@@ -61,6 +105,16 @@ CASE_NARROW_EXCEPTIONS = {
 
 # Ops that are implemented but with a NARROWER selector grammar than upstream.
 NARROW_SELECTORS = {"faces", "edges", "vertices"}
+
+# `cadquery.func` names that are geometry *type constructors* / data holders,
+# not modelling ops: the tests use them as values (`segment(Vector(0,0,0), …)`)
+# and in assertions, so counting them as ops would flag nearly every case. They
+# are excluded from the op universe on purpose (everything else in `cadquery.func`
+# IS modelling surface).
+CQ_FUNC_DATA_TYPES = {
+    "CompSolid", "Compound", "Edge", "Face", "History", "Location", "Plane",
+    "Shape", "Shell", "Solid", "Vector", "Vertex", "Wire",
+}
 
 # Non-modelling calls that must never count as blocking: pure queries, result
 # inspection, assertion helpers. Anything here is part of the test's *verification*,
@@ -80,18 +134,41 @@ IGNORED = {
 # Every operator that would make a case un-portable for structural reasons.
 CQ_MODULE_DEPS = {"cq_warehouse", "cq_server", "numpy", "scipy", "vtk", "IPython"}
 
+# Hard portability barriers that are NOT part of the CadQuery modelling surface,
+# so `cadquery_op_universe()` reflection cannot see them and they would otherwise
+# be dropped as "not an op". Plan §3 layer C (permanently blocked candidates).
+STRUCTURAL_BLOCKERS = {
+    # pytest machinery — a mirror script has no fixture injection
+    "getfixturevalue", "parametrize", "fixture",
+    # exporters cq-compat does not provide (assembly → vtkjs / vrml / glTF / JSON)
+    "exportGLTF", "exportVrml", "exportVTKJS", "toJSON",
+    # python object protocol — nothing to mirror
+    "__dir__",
+}
+
 
 # --------------------------------------------------------------------------
 # 1. CadQuery op universe (reflected from the real package)
 # --------------------------------------------------------------------------
 def cadquery_op_universe() -> set[str]:
-    """Public modelling methods of the installed CadQuery.
+    """Public modelling surface of the installed CadQuery.
 
-    Requires the venv from tests/baseline.json. Falls back to an empty set so the
-    analysis still runs (it then treats every attr call as an op).
+    Covers BOTH grammars: the Workplane/Shape/Sketch/Assembly *methods* and the
+    `cadquery.func` *free functions* (`from cadquery.func import *`). The latter
+    is a separate namespace — `faceOn` / `wireOn` / `edgeOn` / `imprint` /
+    `project` / `fill` exist ONLY as free functions, never as methods.
+
+    WHY the func module matters (2026-09-30): `calls_in` uses this set to tell a
+    real CadQuery call apart from a module-local helper. With only the class
+    methods, a func-only call was dropped, so `test_faceOn` (`faceOn(f, text(…))`)
+    traced to just `{text}` — both implemented — and was reported PORTABLE while
+    the case is genuinely blocked on `faceOn`. Reflecting the free-function
+    grammar closes that blind spot. Requires the venv from tests/baseline.json;
+    falls back to an empty set so the analysis still runs.
     """
     try:
         import cadquery as cq  # noqa: PLC0415
+        import cadquery.func as cqfunc  # noqa: PLC0415
     except Exception:  # noqa: BLE001
         return set()
     universe: set[str] = set()
@@ -99,6 +176,9 @@ def cadquery_op_universe() -> set[str]:
         universe |= {n for n in dir(cls) if not n.startswith("_")}
     for cls in (cq.Shape, cq.Workplane):
         universe |= {n for n in dir(cls) if not n.startswith("_")}
+    universe |= {
+        n for n in dir(cqfunc) if not n.startswith("_")
+    } - CQ_FUNC_DATA_TYPES
     return universe
 
 
@@ -143,16 +223,34 @@ def collect_free_calls(fn: ast.FunctionDef) -> set[str]:
 
 
 def calls_in(node: ast.AST, universe: set[str], ignored: set[str]) -> list[str]:
-    """Attribute-call names reachable from an expression node."""
+    """Op-call names reachable from an expression node.
+
+    Counts BOTH `x.op(...)` (Workplane/Shape/Sketch methods) and bare `op(...)`
+    (the `cadquery.func` free-function grammar: `box(...)`, `text(...)`,
+    `cylinder(...)`). Bare calls are filtered by the same op universe, which is
+    what keeps module-local helpers (`makeUnitCube()`) out: they are not
+    CadQuery attributes, so they never match.
+
+    WHY (2026-09-30): bare calls used to be ignored entirely, so a case whose
+    geometry is *entirely* free-function calls traced to zero ops and was then
+    reported PORTABLE with no evidence at all (54 of 297 cases).
+    """
     names: list[str] = []
     for sub in ast.walk(node):
-        if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute):
-            n = sub.func.attr
-            if n in ignored or n in names:
-                continue
-            if universe and n not in universe:
-                continue
-            names.append(n)
+        if not isinstance(sub, ast.Call):
+            continue
+        fn = sub.func
+        if isinstance(fn, ast.Attribute):
+            n = fn.attr
+        elif isinstance(fn, ast.Name):
+            n = fn.id
+        else:
+            continue
+        if n in ignored or n in names:
+            continue
+        if universe and n not in universe and n not in STRUCTURAL_BLOCKERS:
+            continue
+        names.append(n)
     return names
 
 
@@ -232,9 +330,14 @@ def trace_calls(fn: ast.FunctionDef, vars_: list[str], universe: set[str],
             for n in calls_in(rhs, universe, ignored):
                 if n not in ops:
                     ops.append(n)
-    if matched:
+    if matched and ops:
         return ops, False
-    # fallback: whole body (e.g. var built in a for-loop or returned expression)
+    # No evidence from the definition chain — either nothing matched the exported
+    # variable, or its RHS named no CadQuery op at all. The second case is not
+    # hypothetical: `assy = Assembly("name")` names only the (non-op) constructor,
+    # while the geometry appears later as `assy.add(...)` / `constraint(...)`
+    # mutations. Falling back to the whole body is weaker evidence (it can see
+    # assertion scaffolding), so it is flagged via `fellBack` in the report.
     return calls_in(fn, universe, ignored), True
 
 

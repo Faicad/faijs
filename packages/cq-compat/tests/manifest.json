@@ -171,7 +171,7 @@
   "tests.test_cadquery::TestCadQuery::testCompSolid__tool": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testCompSolid",
-    "blockedBy": "makeSphere"
+    "blockedBy": "cast"
   },
   "tests.test_cadquery::TestCadQuery::testCompSolid__result": {
     "status": "skipped",
@@ -471,7 +471,7 @@
   "tests.test_cadquery::TestCadQuery::testExplicitClean__s": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExplicitClean",
-    "blockedBy": "clean"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testExtrude__r": {
     "status": "blocked",
@@ -511,22 +511,22 @@
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "workplaneFromTagged"
+    "blockedBy": "section"
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref_extrude": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "workplaneFromTagged"
+    "blockedBy": "section"
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "workplaneFromTagged"
+    "blockedBy": "section"
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part_section": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "workplaneFromTagged"
+    "blockedBy": "section"
   },
   "tests.test_cadquery::TestCadQuery::testFaceIntersectedByLine__shape": {
     "status": "ported",
@@ -589,12 +589,12 @@
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "makeCompound"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy2": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "makeCompound"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box4": {
     "status": "ported",
@@ -604,27 +604,27 @@
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "makeCompound"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box1_cmp": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "makeCompound"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box4_cmp": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "makeCompound"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_cmp": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "makeCompound"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_val": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "makeCompound"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testGlue__box1": {
     "status": "ported",
@@ -740,17 +740,17 @@
   "tests.test_cadquery::TestCadQuery::testLocatedMoved__box": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testLocatedMoved",
-    "blockedBy": "makeBox"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testLocatedMoved__box1": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testLocatedMoved",
-    "blockedBy": "makeBox"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testLocatedMoved__box2": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testLocatedMoved",
-    "blockedBy": "makeBox"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testLoft__s": {
     "status": "ported",
@@ -780,7 +780,7 @@
   "tests.test_cadquery::TestCadQuery::testMakeShellSolid__solid": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testMakeShellSolid",
-    "blockedBy": "makeSolid"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testMultiFaceWorkplane__s": {
     "status": "ported",
@@ -1075,32 +1075,32 @@
   "tests.test_cadquery::TestCadQuery::testSketch__r1": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "finalize"
+    "blockedBy": "placeSketch"
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r2": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "finalize"
+    "blockedBy": "placeSketch"
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r3": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "finalize"
+    "blockedBy": "placeSketch"
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r4": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "finalize"
+    "blockedBy": "placeSketch"
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r5": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "finalize"
+    "blockedBy": "placeSketch"
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r6": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "finalize"
+    "blockedBy": "placeSketch"
   },
   "tests.test_cadquery::TestCadQuery::testSlot2D__result": {
     "status": "blocked",
@@ -1375,17 +1375,17 @@
   "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombine__r": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombine",
-    "blockedBy": "twistExtrude"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut__box": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut",
-    "blockedBy": "twistExtrude"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut__cut": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut",
-    "blockedBy": "twistExtrude"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testTwistedLoft__s": {
     "status": "ported",
@@ -1493,17 +1493,17 @@
   "tests.test_cadquery::TestCadQuery::testWedgeCombined__s": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testWedgeCombined",
-    "blockedBy": "wedge"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testWedgeDefaults__s": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testWedgeDefaults",
-    "blockedBy": "wedge"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testWedgePointList__s": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testWedgePointList",
-    "blockedBy": "wedge"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove__s": {
     "status": "skipped",
@@ -1586,7 +1586,7 @@
   "tests.test_cadquery::TestCadQuery::test_compound_faces_center__compound": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::test_compound_faces_center",
-    "blockedBy": "makeCompound"
+    "blockedBy": "CombinedCenter"
   },
   "tests.test_cadquery::TestCadQuery::test_cutFromBase__box": {
     "status": "ported",
@@ -1718,12 +1718,12 @@
   "tests.test_cadquery::TestCadQuery::test_project__res_ex": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::test_project",
-    "blockedBy": "extrudeLinear"
+    "blockedBy": "project"
   },
   "tests.test_cadquery::TestCadQuery::test_project__res_o_ex": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::test_project",
-    "blockedBy": "extrudeLinear"
+    "blockedBy": "project"
   },
   "tests.test_cadquery::TestCadQuery::test_workplane_iter__s": {
     "status": "skipped",
@@ -1780,37 +1780,37 @@
   "tests.test_shapes:::test_addCavity__b1": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "addCavity"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_addCavity__b2": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "addCavity"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_addCavity__br": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "addCavity"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_replace__b": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "replace"
+    "blockedBy": "plane"
   },
   "tests.test_shapes:::test_replace__f_top_split": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "replace"
+    "blockedBy": "plane"
   },
   "tests.test_shapes:::test_replace__br1": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "replace"
+    "blockedBy": "plane"
   },
   "tests.test_shapes:::test_replace__br2": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "replace"
+    "blockedBy": "plane"
   },
   "tests.test_shapes:::test_single_ent_selector__bs": {
     "status": "ported",
@@ -1905,7 +1905,7 @@
   "tests.test_shapes:::test_set_ops__simple_box": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_set_ops",
-    "blockedBy": "size"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_workplanes::TestWorkplanes::test_all_planes__b2": {
     "status": "ported",
@@ -1985,67 +1985,67 @@
   "tests.test_free_functions:::test_solid__b": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__b_large": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__b_small": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__sphere1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__sphere2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__s1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__s2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__b1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__s3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__s4": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__s5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_solid__s6": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "shells"
+    "blockedBy": "solid"
   },
   "tests.test_free_functions:::test_faceOn__f2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_faceOn",
-    "blockedBy": "op:text",
+    "blockedBy": "op:faceOn",
     "manual": true
   },
   "tests.test_free_functions:::test_box__s": {
@@ -2074,57 +2074,51 @@
     "blockedBy": null
   },
   "tests.test_free_functions:::test_text__r1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "op:text",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_text__r2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "op:text",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_text__r3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "op:text",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_text__r4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "op:text",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_text__r5": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "op:text",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_text__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "op:text",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_text__r7": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "op:text",
+    "blockedBy": "op:text-spine",
     "manual": true
   },
   "tests.test_free_functions:::test_text__r8": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "op:text",
+    "blockedBy": "op:text-spine",
     "manual": true
   },
   "tests.test_free_functions:::test_text__r9": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "op:text",
+    "blockedBy": "op:text-spine",
     "manual": true
   },
   "tests.test_free_functions:::test_operators__b1": {
@@ -2145,42 +2139,42 @@
   "tests.test_free_functions:::test_imprint__b1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "images"
+    "blockedBy": "imprint"
   },
   "tests.test_free_functions:::test_imprint__b2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "images"
+    "blockedBy": "imprint"
   },
   "tests.test_free_functions:::test_imprint__b3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "images"
+    "blockedBy": "imprint"
   },
   "tests.test_free_functions:::test_imprint__res": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "images"
+    "blockedBy": "imprint"
   },
   "tests.test_free_functions:::test_imprint__res_glue_full": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "images"
+    "blockedBy": "imprint"
   },
   "tests.test_free_functions:::test_imprint__res_glue_partial": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "images"
+    "blockedBy": "imprint"
   },
   "tests.test_free_functions:::test_imprint__b1_imp": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "images"
+    "blockedBy": "imprint"
   },
   "tests.test_free_functions:::test_imprint__b3_imp": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "images"
+    "blockedBy": "imprint"
   },
   "tests.test_free_functions:::test_imprint_error__b1": {
     "status": "ported",
@@ -2317,67 +2311,67 @@
   "tests.test_free_functions:::test_prism__box_shape": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism__res1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism__res2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism__res3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism__res4": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism__res5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism__res6": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism_taper__box_shape": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism_taper__res1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism_taper__res2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism_taper__res3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism_taper__res4": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_prism_taper__res5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "face"
+    "blockedBy": "prism"
   },
   "tests.test_free_functions:::test_draft__box_shape": {
     "status": "ported",
@@ -2581,37 +2575,37 @@
   "tests.test_free_functions:::test_history_extrude__res": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_extrude",
-    "blockedBy": "generated"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_history_extrude__sides": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_extrude",
-    "blockedBy": "generated"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_history_sweep__res": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_sweep",
-    "blockedBy": "generated"
+    "blockedBy": "sweep"
   },
   "tests.test_free_functions:::test_history_sweep__side": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_sweep",
-    "blockedBy": "generated"
+    "blockedBy": "sweep"
   },
   "tests.test_free_functions:::test_history_loft__res": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_loft",
-    "blockedBy": "generated"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_history_loft__side": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_loft",
-    "blockedBy": "generated"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_history_offset__sides": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_offset",
-    "blockedBy": "generated"
+    "blockedBy": "plane"
   },
   "tests.test_selectors::TestCQSelectors::testAll__c": {
     "status": "ported",
@@ -2859,7 +2853,7 @@
   "tests.test_cad_objects::TestCadObjects::testCompoundCenter__s": {
     "status": "blocked",
     "source": "tests.test_cad_objects::TestCadObjects::testCompoundCenter",
-    "blockedBy": "cyl"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia__cylinder": {
     "status": "ported",
@@ -2869,12 +2863,12 @@
   "tests.test_cad_objects::TestCadObjects::testPlaneMethods__local_box": {
     "status": "blocked",
     "source": "tests.test_cad_objects::TestCadObjects::testPlaneMethods",
-    "blockedBy": "toLocalCoords"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cad_objects::TestCadObjects::testPlaneMethods__mirror_box": {
     "status": "blocked",
     "source": "tests.test_cad_objects::TestCadObjects::testPlaneMethods",
-    "blockedBy": "toLocalCoords"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_metadata__metadata_assy": {
     "status": "ported",
@@ -3054,22 +3048,22 @@
   "tests.test_assembly:::test_assembly_subshape_import__subshape_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_subshape_import",
-    "blockedBy": "load"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_assembly_subshape_import__imported_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_subshape_import",
-    "blockedBy": "load"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_assembly_multi_subshape_import__multi_subshape_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_multi_subshape_import",
-    "blockedBy": "load"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_assembly_multi_subshape_import__imported_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_multi_subshape_import",
-    "blockedBy": "load"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_plain_assembly_import__cube_1": {
     "status": "blocked",
@@ -3172,17 +3166,17 @@
   "tests.test_assembly:::test_native_export__simple_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_native_export",
-    "blockedBy": "exists"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_vtkjs_export__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_vtkjs_export",
-    "blockedBy": "exists"
+    "blockedBy": "exportVTKJS"
   },
   "tests.test_assembly:::test_vrml_export__simple_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_vrml_export",
-    "blockedBy": "exists"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_toJSON__simple_assy": {
     "status": "ported",
@@ -3212,17 +3206,17 @@
   "tests.test_assembly:::test_export_errors__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_export_errors",
-    "blockedBy": "raises"
+    "blockedBy": "export"
   },
   "tests.test_assembly:::test_save_stl_formats__nested_assy_sphere": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_save_stl_formats",
-    "blockedBy": "save"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_save_gltf__nested_assy_sphere": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_save_gltf",
-    "blockedBy": "save"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_exportGLTF__nested_assy_sphere": {
     "status": "blocked",
@@ -3232,17 +3226,17 @@
   "tests.test_assembly:::test_save_gltf_boxes2__boxes2_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_save_gltf_boxes2",
-    "blockedBy": "save"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_save_vtkjs__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_save_vtkjs",
-    "blockedBy": "save"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_save_raises__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_save_raises",
-    "blockedBy": "raises"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_leaf_node_count__assy": {
     "status": "blocked",
@@ -3301,25 +3295,25 @@
   "tests.test_assembly:::test_constrain__simple_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_constrain",
-    "blockedBy": "op:assembly-solve 用例依赖 constraintEx 未实现的约束类型（FixedPoint/FixedAxis/PointInPlane）或 Face.makePlane 无限面；可复刻面（Plane/Axis/Point 求解）已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "op:assembly-solve",
     "manual": true
   },
   "tests.test_assembly:::test_constrain__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_constrain",
-    "blockedBy": "op:assembly-solve 用例依赖 constraintEx 未实现的约束类型（FixedPoint/FixedAxis/PointInPlane）或 Face.makePlane 无限面；可复刻面（Plane/Axis/Point 求解）已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "op:assembly-solve",
     "manual": true
   },
   "tests.test_assembly:::test_constrain__subassy1": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_constrain",
-    "blockedBy": "op:assembly-solve 用例依赖 constraintEx 未实现的约束类型（FixedPoint/FixedAxis/PointInPlane）或 Face.makePlane 无限面；可复刻面（Plane/Axis/Point 求解）已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "op:assembly-solve",
     "manual": true
   },
   "tests.test_assembly:::test_constrain__subassy2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_constrain",
-    "blockedBy": "op:assembly-solve 用例依赖 constraintEx 未实现的约束类型（FixedPoint/FixedAxis/PointInPlane）或 Face.makePlane 无限面；可复刻面（Plane/Axis/Point 求解）已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "op:assembly-solve",
     "manual": true
   },
   "tests.test_assembly:::test_constrain__b1": {
@@ -3340,32 +3334,32 @@
   "tests.test_assembly:::test_constrain_with_tags__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_constrain_with_tags",
-    "blockedBy": "constrain"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_duplicate_name__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_duplicate_name",
-    "blockedBy": "raises"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_empty_solve__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_empty_solve",
-    "blockedBy": "raises"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_expression_grammar__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_expression_grammar",
-    "blockedBy": "constrain"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_PointInPlane_constraint__box_and_vertex": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_PointInPlane_constraint",
-    "blockedBy": "constrain"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_PointInPlane_3_parts__box_and_vertex": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_PointInPlane_3_parts",
-    "blockedBy": "op:assembly-solve 用例依赖 constraintEx 未实现的约束类型（FixedPoint/FixedAxis/PointInPlane）或 Face.makePlane 无限面；可复刻面（Plane/Axis/Point 求解）已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "op:assembly-solve",
     "manual": true
   },
   "tests.test_assembly:::test_PointInPlane_3_parts__cylinder": {
@@ -3447,19 +3441,19 @@
   "tests.test_assembly:::test_unary_constraints__simple_assy2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_unary_constraints",
-    "blockedBy": "op:assembly-solve 用例依赖 constraintEx 未实现的约束类型（FixedPoint/FixedAxis/PointInPlane）或 Face.makePlane 无限面；可复刻面（Plane/Axis/Point 求解）已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "op:assembly-solve",
     "manual": true
   },
   "tests.test_assembly:::test_unary_constraints__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_unary_constraints",
-    "blockedBy": "op:assembly-solve 用例依赖 constraintEx 未实现的约束类型（FixedPoint/FixedAxis/PointInPlane）或 Face.makePlane 无限面；可复刻面（Plane/Axis/Point 求解）已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "op:assembly-solve",
     "manual": true
   },
   "tests.test_assembly:::test_unary_constraints__w": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_unary_constraints",
-    "blockedBy": "op:assembly-solve 用例依赖 constraintEx 未实现的约束类型（FixedPoint/FixedAxis/PointInPlane）或 Face.makePlane 无限面；可复刻面（Plane/Axis/Point 求解）已由 buildAssembly+solve 镜像覆盖（Phase 1 动作 2 显式 block）",
+    "blockedBy": "op:assembly-solve",
     "manual": true
   },
   "tests.test_assembly:::test_fixed_rotation__simple_assy2": {
@@ -3480,27 +3474,27 @@
   "tests.test_assembly:::test_constraint_validation__simple_assy2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_constraint_validation",
-    "blockedBy": "raises"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_single_unary_constraint__simple_assy2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_single_unary_constraint",
-    "blockedBy": "raises"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_point_on_line__simple_assy2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_point_on_line",
-    "blockedBy": "solve"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_point_on_line__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_point_on_line",
-    "blockedBy": "solve"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_point_on_line__w": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_point_on_line",
-    "blockedBy": "solve"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_axis_constraint__simple_assy2": {
     "status": "ported",
