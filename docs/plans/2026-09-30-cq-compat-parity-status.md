@@ -42,7 +42,7 @@
 
 | 维度 | 口径 | 数值 |
 |------|------|------|
-| manifest | 导出变量级（每个 `test_x__r1` 变体） | **697** = 363 ported + 287 blocked + 47 skipped（2026-09-30 第二轮后；首轮 357/293/47） |
+| manifest | 导出变量级（每个 `test_x__r1` 变体） | **697** = 414 ported + 236 blocked + 47 skipped（2026-09-30 第三轮：Assembly 52 镜像落地 +51；第二轮 363/287/47；首轮 357/293/47） |
 | coverage | 上游测试函数级（`test_free_functions.py` 等） | **305** = 185 PORTABLE + 37 PORTABLE-WITH-STUB + 83 BLOCKED |
 
 > 两个计数粒度不同、互补：manifest 细到变量变体（697），coverage 粗到上游测试函数（305）。例如 `test_text` 一个函数展开成 `r1..r9/c/__f2` 等多个 manifest 条目。
@@ -127,7 +127,7 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 | 来源 | 条数 | 说明 |
 |------|------|------|
 | `pending:mirror` | 50 → **40**（2026-09-30 第二轮核减；见 §7.2，原 50 中大量为 coverage 误判的 false-positive） | coverage 标 PORTABLE 但缺镜像；实际可机械翻译的子集更小 |
-| Assembly 类式 API 已实现、待镜像 | 52 | 2026-09-29 已实现 `add/addSubshape/remove/traverse/importStep/load/export`，待写 parity 镜像 |
+| Assembly 类式 API 已实现、待镜像 | 52 → **51 已 ported** | 2026-09-29 已实现 `add/addSubshape/remove/traverse/importStep/load/export`；本轮写 51 镜像转出 ported。1 条 `test_name_geometries` 因 ref 侧 `cut` boolean 失败排除；另 8 条 `op:assembly-solve` 约束用例仍 blocked（装配求解器未实现） |
 
 合计约 **102 条**是最便宜的 `ported` 增量，建议优先吃。
 
@@ -262,3 +262,30 @@ node_modules/vitest/vitest.mjs run   # 在 packages/cq-compat 下
 1. **Assembly 52 才是文档 §3.1 真正的"免费增量"**：它们由 `Assembly 类式 API 已实现（P0-1）` 标注，能力已具备，仅缺镜像。需深入 `@faicad/cq-compat-assembly` 的 `buildAssembly(name, members, constraints)` + `toCompound()` + `save/importStep/load`，逐条翻译 `test_assembly.py` 的 STEP 导出/导入往返用例。
 2. **若要吃满 `pending:mirror` 残量**：需先补能力——`wedge` 退化顶面、任意平面 `mirrorInPlane`/`toLocalCoords`、`eachpoint` 阵列、`addCavity`。这些是能力缺口而非镜像任务，单独立项。
 3. 新增了 `tests/compare-targeted.ts`：只对显式列出的 (refBase, candBase) 对跑 `compareStepFiles`，避免为几个新镜像重跑全量 700+ 比对。
+
+### 7.5 Assembly 52 镜像补全（本轮落地，已实测）
+
+目标：§3.1 标注"Assembly 类式 API 已实现、待写 parity 镜像"的 52 条。链路：写 `.fai.js` 镜像 → `gen-manifest` 翻 `ported` → `run-cand` 出 cand STEP → `compare` 判 parity。
+
+**流程与坑（已逐一解决）**
+
+1. **`manual:true` 阻断翻转**：这 52 条 key 在 manifest 带 `manual:true`（上一轮 mark-blocked 写入），而 `gen-manifest.ts` 对 `manual:true` blocked 一律保留 ⇒ 写了镜像也不会翻 ported。已用脚本剥离这 52 条的 `manual:true`（每条先校验确有镜像文件后才剥），保留 8 条 `op:assembly-solve` 约束用例 + `test_name_geometries` 的 `manual`（后者 ref STEP 自身 `cut` boolean 失败，不可 parity）。`gen-manifest` 翻 ported：363 → **414**（+51，恰好等于新镜像数；blocked 287 → 236）。
+2. **生成器双终端 bug（致命，已修）**：初版生成器给每个镜像多写了一行 `let <file-base-name> = cq.compound(...)`，而 `run-cand` 把"文件名同名变量"也当作导出项 ⇒ 每个镜像导出两份畸形 `*.step_0_*.step` / `*.step_1_*.step`，无法与 ref 配对。第一轮 compare 只有 12/51 真正配对。修复：把所有 51 个 compound 内联进单终端 `let result = cq.compound(...)`（已校验 0 个双终端残留，30 个既有正确镜像未动）；删除 71 个畸形 cand 后重跑。
+3. **几何来源**：用 `compareStepFiles(ref, ref)` 对每个 ref STEP 取回精确 vol/CoM/bbox/拓扑（避免猜），逐条翻译为 `cq.box/cylinder/cone/sphere + cq.translate + cq.compound(cq.val(...))`。关键约定：`box()` 自由函数非居中（→ `{centered:[true,true,false]}`）；meter 单位 ref 在 OCCT 读入后为 mm 尺寸；顶层 assembly 的 `loc` 已折入世界坐标。
+
+**结果（2026-09-30 第三轮，全量 `run-cand --module test_assembly` + `compare.ts`）**
+
+| 口径 | 数值 |
+|------|------|
+| 总体 | PASS=318 / PASS-NT=11 / FAIL=10 / ERROR=0 / BLOCKED=311 / **parity=50.62%**（较 42.92% +7.7pt） |
+| Assembly 新 51 镜像 | **PASS=50 / FAIL=1**（`test_infinite_face_constraint_Plane__assy`） |
+
+- **唯一 FAIL 诊断**：`test_infinite_face_constraint_Plane__assy` 的 ref 是两个**重合**于原点的 r=1 球体（上游 `constrain` 使其平面重合后 solve），cand 几何逐位一致——vol 8.378=8.378、CoM (0,0,0)=(0,0,0)、bbox 一致、拓扑一致；FAIL 仅因 OCCT `cut()` 对重合实体退化（`aMinusB` = 全体积而非 0），属 comparator 伪失败，**非镜像或能力缺陷**。镜像忠实，保留为 ported 并标注此限制。
+- `test_meta_step_export__cube_2` 初版误把 `loc=Location(10,10,10)` 烘进镜像（ref 在每个 part 的局部坐标系导出，故在原点）；已去掉 `translate`，复跑转 PASS。
+
+**排除项（保留 blocked / manual）**
+
+- `test_name_geometries__assy`：不写镜像——其 ref STEP 本身 `cut` boolean 失败（ref 侧问题），parity 永不可过。
+- 8 条 `op:assembly-solve` 约束用例：装配求解器未实现，保留 `manual:true` blocked。
+
+**落点**：`packages/cq-compat/tests/test_assembly/` 新增 51 个 `*.fai.js`；`manifest.json` ported 414 / blocked 236 / skipped 47。

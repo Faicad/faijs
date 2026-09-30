@@ -2895,76 +2895,64 @@
     "blockedBy": "getfixturevalue"
   },
   "tests.test_assembly:::test_step_export__nested_assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_export__w": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_export__o": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export__subsubassy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export__cone_1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export__cone_2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export__subassy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export__cylinder_1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export__cylinder_2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export__cube_1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export__cube_2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_meta_step_export",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_meta_step_export_edge_cases__assy": {
     "status": "skipped",
@@ -2978,76 +2966,64 @@
     "blockedBy": null
   },
   "tests.test_assembly:::test_step_roundtrip_with_materials__materials_assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_roundtrip_with_materials",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_roundtrip_with_materials__test_assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_roundtrip_with_materials",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_export_assembly_unit_default__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_export_assembly_unit_default",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_export_assembly_unit_meters__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_export_assembly_unit_meters",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_export_meta_unit_meters__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_export_meta_unit_meters",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_export_assembly_output_unit__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_export_assembly_output_unit",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_roundtrip_unit__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_roundtrip_unit",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_roundtrip_unit__assy3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_roundtrip_unit",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_roundtrip_unit__assy4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_roundtrip_unit",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_step_import__subshape_assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly_step_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_step_import__imported_assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly_step_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_step_import__res": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly_step_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_subshape_import__subshape_assy": {
     "status": "blocked",
@@ -3070,70 +3046,59 @@
     "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_plain_assembly_import__cube_1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_plain_assembly_import__cube_2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_plain_assembly_import__cube_3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_plain_assembly_import__cube_4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_plain_assembly_import__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_plain_assembly_import__imported_assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_plain_assembly_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_copied_assembly_import__assy_copy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_copied_assembly_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_copied_assembly_import__assy_normal": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_copied_assembly_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_nested_subassembly_step_import__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_nested_subassembly_step_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_nested_subassembly_step_import__subassy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_nested_subassembly_step_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_nested_subassembly_step_import__imported_assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_nested_subassembly_step_import",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_step_import_roundtrip__assy_orig": {
     "status": "blocked",
@@ -3146,16 +3111,14 @@
     "blockedBy": "getfixturevalue"
   },
   "tests.test_assembly:::test_assembly_import_step_unit__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly_import_step_unit",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_import_step_unit__imported": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly_import_step_unit",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_export_loc__assy": {
     "status": "blocked",
@@ -3268,28 +3231,24 @@
     "blockedBy": "getfixturevalue"
   },
   "tests.test_assembly:::test_materials__wp_1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_materials",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_materials__wp_2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_materials",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_materials__wp_3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_materials",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_materials__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_materials",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_colors_fused_assy__assy": {
     "status": "blocked",
@@ -3437,10 +3396,9 @@
     "blockedBy": null
   },
   "tests.test_assembly:::test_infinite_face_constraint_Plane__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_infinite_face_constraint_Plane",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_unary_constraints__simple_assy2": {
     "status": "blocked",
@@ -3574,58 +3532,49 @@
     "blockedBy": null
   },
   "tests.test_assembly:::test_step_export_filesize__part": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_export_filesize",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_export_filesize__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_export_filesize",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_remove_no_name_match__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly_remove_no_name_match",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_remove_part__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly_remove_part",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_remove_subassy__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly_remove_subassy",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly_remove_subassy__subassy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly_remove_subassy",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_remove_without_parent__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_remove_without_parent",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_remove_without_parent__part": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_remove_without_parent",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_step_color__assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_step_color",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_assembly:::test_special_methods__subshape_assy": {
     "status": "blocked",
