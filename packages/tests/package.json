@@ -1,12 +1,12 @@
 {
   "name": "@faicad/faijs-tests",
-  "version": "0.5.9",
+  "version": "0.22.5",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@faicad/fai-cq-gears": "*",
-    "@faicad/faijs-fixtures": "*",
-    "@faicad/faijs-sketch": "*"
+    "@faicad/fai-cq-gears": "^0.22.0",
+    "@faicad/faijs-fixtures": "^0.22.0",
+    "@faicad/faijs-sketch": "^0.22.0"
   },
   "devDependencies": {
     "typescript": "*",

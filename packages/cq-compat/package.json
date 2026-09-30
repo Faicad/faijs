@@ -43,6 +43,7 @@
   "devDependencies": {
     "@faicad/cq-compat-compare": "file:../cq-compat-compare",
     "@faicad/faijs": "file:../core",
+    "opentype.js": "^1.3.4",
     "typescript": "*",
     "vitest": "*"
   },
