@@ -18,6 +18,7 @@ import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
 import { applyMatrixBrep } from '@faicad/faijs/api/brep-mirror/topologyFns'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import { rotateBrep, translateBrep } from '@faicad/faijs/brep/brep-ops'
 import type { OcctKernel, ShapeHandle, Vec3 } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs/mesh/types'
 // cq-compat owns its CadQuery-compatible text geometry (no faijs-extra dep):
@@ -823,7 +824,15 @@ async function makePolygonPrismAt(
  *   θy = asin(dx), θx = atan2(−dy, dz)   (three.js XYZ-intrinsic, R = Rx·Ry)
  *   Rx(θx)·Ry(θy)·(0,0,1) = (dx, dy, dz)
  */
-async function orientZTo(shape: Shape, d: [number, number, number]): Promise<Shape> {
+/**
+ * Euler angles (deg, XYZ order) rotating the +Z axis onto direction `d`.
+ *
+ * Shared by the op-based `orientZTo` (box / cylinder / cone, where the input
+ * shape comes from a `cad.*` primitive op and therefore already carries a
+ * PartName) and the kernel-level placement used by `text` (whose glyph solid is
+ * built locally — see the GOTCHA in `text`).
+ */
+function orientAngles(d: [number, number, number]): [number, number, number] {
   const len = Math.hypot(d[0], d[1], d[2])
   const dx = d[0] / len
   const dy = d[1] / len
@@ -835,7 +844,11 @@ async function orientZTo(shape: Shape, d: [number, number, number]): Promise<Sha
     (thetaY * 180) / Math.PI,
     0,
   ]
-  return cad.rotate_euler(shape, { angles }) as unknown as Shape
+  return angles
+}
+
+async function orientZTo(shape: Shape, d: [number, number, number]): Promise<Shape> {
+  return cad.rotate_euler(shape, { angles: orientAngles(d) }) as unknown as Shape
 }
 
 /**
@@ -1079,8 +1092,25 @@ export async function text(
   const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
   // Orient the text's extrude axis (+Z) onto the workplane normal, then drop it
   // at the workplane origin.
-  const oriented = await orientZTo(local, n)
-  const placed = (await cad.translate(oriented, { offset: o })) as Shape
+  //
+  // GOTCHA (2026-09-30): these MUST be kernel-level (`rotateBrep` /
+  // `translateBrep`), not `cad.rotate_euler` / `cad.translate`. `cq.*` functions
+  // are plain library functions, not ops, so the first `cad.*` op a statement
+  // runs becomes that statement's *outermost* op — and
+  // `runtimeLineage.register` enforces N1: every geometry input must already
+  // carry a PartName (a PartName is only assigned by the executor at a statement
+  // boundary, so a shape this function built can never have one). Feeding the
+  // glyph solid to `cad.rotate_euler` therefore aborts the run with
+  // `E_TOPO_UNTRACKED_INPUT` ("op 内部临时造的件"). cq-compat's booleans already
+  // go through the kernel (`kern().cut` / `kern().fuse`) for the same reason;
+  // `rotateBrep` uses the affine `kernel.transform`, which is STEP-safe
+  // (see `applyLocation`'s note on the affine vs TopLoc/GTrsf paths). With no
+  // op invoked, the statement simply carries no lineage node — matching what
+  // `cq.cut` / `cq.union` already do.
+  let placed = toShape(rotateBrep(kern(), ownHandle(local), orientAngles(n)))
+  if (o[0] !== 0 || o[1] !== 0 || o[2] !== 0) {
+    placed = toShape(translateBrep(kern(), ownHandle(placed), o))
+  }
 
   // CadQuery: `_combineWithBase(compound, combine, clean)`.
   const mode = normalizeCombine(combine)
@@ -1088,7 +1118,13 @@ export async function text(
   if (mode === false || !wp.shape) {
     result = clone(wp, { shape: placed })
   } else if (mode === 'cut') {
-    result = await cut(wp, placed)
+    // Kernel-level cut, NOT `cut()`: the latter goes through the `cad.subtract`
+    // defineOp, whose N1 guard rejects a geometry input without a PartName —
+    // which the locally built glyph solid never has (same root cause as the
+    // placement GOTCHA above). `cutShapes` is the kernel primitive the rest of
+    // cq-compat's booleans already use (hole / pocket / cutBlind / …), and
+    // `union()` likewise takes the kernel path (`fuseShapes`).
+    result = clone(wp, { shape: await cutShapes(wp.shape, placed) })
   } else {
     result = await union(wp, placed)
   }

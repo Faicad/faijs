@@ -1297,49 +1297,49 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testText__box": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testText",
-    "blockedBy": "text"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testText__obj1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testText",
-    "blockedBy": "text"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testText__obj2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testText",
-    "blockedBy": "text"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testText__obj3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testText",
-    "blockedBy": "text"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testText__obj4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testText",
-    "blockedBy": "text"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testText__obj5": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testText",
-    "blockedBy": "text"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTextAlignment__left_bottom": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTextAlignment",
-    "blockedBy": "text"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTextAlignment__centers": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTextAlignment",
-    "blockedBy": "text"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTextAlignment__right_top": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTextAlignment",
-    "blockedBy": "text"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testToSVG__r": {
     "status": "ported",

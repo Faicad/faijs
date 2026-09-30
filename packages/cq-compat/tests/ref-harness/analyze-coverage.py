@@ -44,7 +44,7 @@ CQ_COMPAT_OPS = {
     "cutThruAll", "hole", "cboreHole", "cskHole", "threadedHole", "faces", "edges",
     "vertices", "workplane", "center", "pushPoints", "rarray", "translate", "rotate",
     "mirror", "union", "cut", "intersect", "combine", "fillet", "chamfer", "shell",
-    "sphere", "cylinder", "val", "vals", "transformed", "setColor",
+    "sphere", "cylinder", "val", "vals", "transformed", "setColor", "text",
     "Location", "isLocation", "composeLocations", "moved", "move",
     "faceRef", "constraint", "buildAssembly", "Color",
 }

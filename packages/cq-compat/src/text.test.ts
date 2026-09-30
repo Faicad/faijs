@@ -72,24 +72,64 @@ describe('cq-compat Workplane.text (self-contained)', () => {
     expect(Math.abs(b.zmax - b.zmin)).toBeLessThan(1e-6)
   }, 60000)
 
-  it('halign/valign align the glyph box (CadQuery testTextAlignment)', async () => {
+  it('halign/valign align the LAYOUT ORIGIN (CadQuery testTextAlignment)', async () => {
+    // Exact CadQuery 2.8.0 + OpenSans-Regular.ttf values for "I" @ size 10
+    // (measured via `Compound.makeText(..., fontPath=OpenSans-Regular.ttf)`).
+    // cadquery.py asserts only loose bounds; we pin the measured geometry so a
+    // regression in the alignment reference is caught.
     const lb = bboxOf(
       await cq.text(cq.Workplane('XY'), 'I', 10, 0, 'cut', { halign: 'left', valign: 'bottom' }),
     )
+    // pen x=0, baseline y=0 ⇒ ink starts at the glyph's side bearing.
+    expect(lb.xmin).toBeCloseTo(0.98145, 2)
+    expect(lb.ymin).toBeCloseTo(0, 3)
+    // Upstream's loose assertions still hold.
     expect(lb.xmin).toBeGreaterThanOrEqual(-1e-3)
     expect(lb.ymin).toBeGreaterThanOrEqual(-1e-3)
 
     const c = bboxOf(
       await cq.text(cq.Workplane('XY'), 'I', 10, 0, 'cut', { halign: 'center', valign: 'center' }),
     )
+    expect(c.xmin).toBeCloseTo(-0.4126, 2)
+    expect(c.ymin).toBeCloseTo(-3.87939, 2)
     expect(Math.abs((c.xmin + c.xmax) / 2)).toBeLessThan(0.5)
     expect(Math.abs((c.ymin + c.ymax) / 2)).toBeLessThan(0.5)
 
     const rt = bboxOf(
       await cq.text(cq.Workplane('XY'), 'I', 10, 0, 'cut', { halign: 'right', valign: 'top' }),
     )
+    expect(rt.xmax).toBeCloseTo(-0.97656, 2)
+    expect(rt.ymax).toBeCloseTo(-3.5498, 2)
     expect(rt.xmax).toBeLessThanOrEqual(1e-3)
     expect(rt.ymax).toBeLessThanOrEqual(1e-3)
+  }, 120000)
+
+  it('GOTCHA: halign measures the ADVANCE width, so a trailing space still shifts', async () => {
+    // `Font_BRepTextBuilder` centres right-aligns on the pen advance, NOT on the
+    // ink box: "I " has the same ink as "I" but W("I ")=W("I")+advance(" "), so
+    // halign="center"/"right" shift by half/full the space too.
+    const bare = bboxOf(
+      await cq.text(cq.Workplane('XY'), 'I', 10, 0, 'cut', { halign: 'center', valign: 'bottom' }),
+    )
+    const spaced = bboxOf(
+      await cq.text(cq.Workplane('XY'), 'I ', 10, 0, 'cut', { halign: 'center', valign: 'bottom' }),
+    )
+    expect(bare.xmin).toBeCloseTo(-0.4126, 2)
+    expect(spaced.xmin).toBeCloseTo(-1.71143, 2)
+    // Same ink width — the glyph did not change, only the alignment origin.
+    expect(spaced.xmax - spaced.xmin).toBeCloseTo(bare.xmax - bare.xmin, 3)
+  }, 120000)
+
+  it('valign is purely font-metric: the shift is constant across strings', async () => {
+    // top ⇒ baseline = -hheaAscender, center ⇒ baseline = -(asc - desc)/2.
+    // For OpenSans asc=2189/2048em, desc=600/2048em ⇒ @size 10: -10.68848 / -3.87939.
+    const v = async (valign: cq.VAlign) =>
+      bboxOf(await cq.text(cq.Workplane('XY'), 'I', 10, 0, 'cut', { halign: 'left', valign }))
+    const bottom = await v('bottom')
+    const center = await v('center')
+    const top = await v('top')
+    expect(center.ymin - bottom.ymin).toBeCloseTo(-3.87939, 2)
+    expect(top.ymin - bottom.ymin).toBeCloseTo(-10.68848, 2)
   }, 120000)
 
   it('combine "cut" (default) removes text from the context solid', async () => {

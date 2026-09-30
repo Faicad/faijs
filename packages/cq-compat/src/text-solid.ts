@@ -7,11 +7,19 @@
  * dependency on the editor-oriented `@faicad/faijs-extra` package.
  *
  * Upstream reference (cadquery 2.8.0, `occ_impl/shapes.py::Compound.makeText`
- * + `cq.py::Workplane.text`):
+ * → `Font_BRepTextBuilder::Perform(theHAlign, theVAlign)`):
  *
- * - the OCCT text builder aligns the glyph box in the LOCAL plane frame —
- *   `halign`: left ⇒ xmin=0, center ⇒ box is x-symmetric, right ⇒ xmax=0;
- *   `valign`: bottom ⇒ ymin=0, center ⇒ y-symmetric, top ⇒ ymax=0;
+ * - alignment is applied to the LAYOUT ORIGIN (the pen), NOT to the ink
+ *   bounding box (measured against cadquery 2.8.0 + OpenSans-Regular.ttf):
+ *   `halign`: left ⇒ pen x=0, center ⇒ pen x=-W/2, right ⇒ pen x=-W, where
+ *   `W` is the string's total ADVANCE width (sum of glyph advances — a trailing
+ *   space still counts: W("I ")=W("I")+advance(" "));
+ *   `valign`: bottom ⇒ baseline y=0, center ⇒ baseline y=-(A-D)/2, top ⇒
+ *   baseline y=-A, where `A`/`D` are the font's hhea ascender/descender scaled
+ *   by `fontSize/unitsPerEm` (OpenSans: A=1.0688em, D=0.2930em). Because the
+ *   reference is the pen/baseline (not the ink box), the ink bbox lands where
+ *   its side bearings / descenders put it — e.g. halign="left" on "I" yields
+ *   ink xmin≈0.98 (the glyph's left side bearing), not 0;
  * - when `height != 0` the flat faces are prisme'd by `height` along the local
  *   +Z (negative ⇒ opposite); when `height == 0` the flat faces are kept as-is;
  * - `Compound.makeText` returns ONE compound holding every glyph — the glyphs
@@ -27,7 +35,7 @@
 import type { BrepBoundingBox, BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import { textBlueprints } from '@faicad/faijs/brep/text/text-to-solid'
-import { ensureDefaultFont } from '@faicad/faijs/brep/text/fontRegistry'
+import { ensureDefaultFont, getFont } from '@faicad/faijs/brep/text/fontRegistry'
 import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
 import { solidToShape } from '@faicad/faijs/brep/brep-ops'
 import { fromBrep } from '@faicad/faijs/shape'
@@ -48,30 +56,6 @@ export interface TextSolidOptions {
   halign?: HAlign
   /** Vertical alignment of the glyph box (default `'center'`). */
   valign?: VAlign
-}
-
-/** Axis-aligned XY box of the glyph parts, used for alignment. */
-interface GlyphBox {
-  xmin: number
-  ymin: number
-  xmax: number
-  ymax: number
-}
-
-/** Union of the per-part bounding boxes (local XY frame). */
-function unionBox(kernel: BrepEngineApi, handles: BrepHandle[]): GlyphBox {
-  let xmin = Infinity
-  let ymin = Infinity
-  let xmax = -Infinity
-  let ymax = -Infinity
-  for (const h of handles) {
-    const b = kernel.getBoundingBox(h)
-    if (b.xmin < xmin) xmin = b.xmin
-    if (b.ymin < ymin) ymin = b.ymin
-    if (b.xmax > xmax) xmax = b.xmax
-    if (b.ymax > ymax) ymax = b.ymax
-  }
-  return { xmin, ymin, xmax, ymax }
 }
 
 /** True when `inner`'s bbox lies inside `outer`'s (a glyph counter nests in its body). */
@@ -161,12 +145,17 @@ export async function buildTextSolid(txt: string, options: TextSolidOptions): Pr
     throw new Error('[cq-compat] text: no renderable glyph outlines')
   }
 
-  // CadQuery aligns the glyph BOX in the local frame (Compound.makeText).
-  const box = unionBox(kernel, parts)
-  const dx =
-    halign === 'left' ? -box.xmin : halign === 'right' ? -box.xmax : -(box.xmin + box.xmax) / 2
-  const dy =
-    valign === 'bottom' ? -box.ymin : valign === 'top' ? -box.ymax : -(box.ymin + box.ymax) / 2
+  // CadQuery aligns the LAYOUT ORIGIN (pen/baseline) in the local frame, not the
+  // ink bbox — see the module header for the measured formula.
+  const font = getFont()
+  if (!font) {
+    throw new Error('[cq-compat] text: no font loaded')
+  }
+  const advance = font.getAdvanceWidth(txt, fontSize)
+  const ascent = (font.ascender * fontSize) / font.unitsPerEm
+  const descent = (-font.descender * fontSize) / font.unitsPerEm
+  const dx = halign === 'left' ? 0 : halign === 'right' ? -advance : -advance / 2
+  const dy = valign === 'bottom' ? 0 : valign === 'top' ? -ascent : -(ascent - descent) / 2
 
   const placed = parts.map((h) => {
     if (dx === 0 && dy === 0) return h
