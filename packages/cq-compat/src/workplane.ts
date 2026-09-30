@@ -1014,22 +1014,36 @@ export async function box(
 /**
  * text — extruded 3D text placed on the workplane.
  *
+ * CadQuery parity note: upstream
+ * `Workplane.text(txt, fontsize, distance, cut=True, combine=False, font=…,
+ * fontPath=…, halign='center', valign='center', …)` ALSO returns a 3D text
+ * solid directly — it extrudes the glyph outlines by `distance` along the
+ * normal (negative = opposite). It is NOT a 2D pending-wire op; upstream has no
+ * 2D text method (verify: vendored `tests/test_cadquery.py::testTextAlignment`
+ * calls `.text("I", 10, 0, …).val().BoundingBox()` with no `.wire().extrude()`).
+ * So this create op is on the right trajectory. The simplified surface below is
+ * NOT yet full parity — remaining gaps:
+ *   - `halign`/`valign`: upstream aligns the glyph bbox (testTextAlignment
+ *     asserts left/bottom ⇒ bbox ≥ 0, center ⇒ bbox center ≈ 0, right/top ⇒
+ *     bbox ≤ 0). Here the solid is X/Z-centered with Y-bottom at 0 only.
+ *   - `distance == 0`: upstream yields 2D faces with no extrude
+ *     (testTextAlignment uses distance=0). `cad.text` requires `depth > 0`.
+ *   - `cut` (upstream default True: subtract text from a parent solid) and
+ *     `combine` (upstream default False; this wrapper defaults true).
+ *   - `font`/`fontPath`/`kind`: core ships a single default OpenSans — exactly
+ *     upstream's `testFont` — so the font matches, but the params are ignored.
+ *
  * @param wp - Workplane (defines placement plane + origin)
  * @param txt - the string to render
  * @param size - font size in mm (glyph cap height ≈ size)
  * @param depth - extrusion depth in mm (along the workplane normal)
- * @param opts - `{ combine? }` (CadQuery default `combine=True` fuses with the
- *   existing solid; `combine=False` keeps it as a separate body)
+ * @param opts - `{ combine? }`
  * @returns Promise<Workplane> carrying the text solid as `val`/`shape`
  *
- * Wiring note: the actual glyph→solid work is delegated to faijs-extra's
- * `textBrep` (registered onto the `cad` singleton at module load). It produces a
- * solid centered on X/Z with its bottom on Y=0, lying in the XY plane; we then
- * orient its +Z (extrude direction) onto `wp.normal` and translate it to
- * `wp.origin`. This is the faijs-idiomatic 3D-text create op — it is NOT
- * CadQuery's 2D sketch op (`wp.text()` adds outline edges to the pending wire
- * for a later `.wire().extrude()`). Full CQ `testText`/`testTextAlignment`
- * parity (which chains that way) remains a follow-up.
+ * Wiring: glyph→solid is delegated to faijs-extra's three-free `textBrep`
+ * (registered onto the `cad` singleton). It yields a solid X/Z-centered with its
+ * bottom on Y=0 in the XY plane; this op orients +Z onto `wp.normal` and
+ * translates it to `wp.origin`.
  */
 export async function text(
   wp: Workplane,
