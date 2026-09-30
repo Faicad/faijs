@@ -1,0 +1,51 @@
+name: OSV Scan
+
+# Complements the Dependabot cooldown: cooldown blocks fresh-but-untrusted,
+# OSV blocks old-but-known-bad. Only package-lock.json exists here (no
+# Cargo.lock), and it covers all packages/* workspaces.
+#
+# The lockfile was cleared to 0 findings on 2026-09-30 by clearing the
+# dev-only ones: brace-expansion 5.0.9 -> 5.0.12 (CVE-2026-102276/102277/
+# 102278), glob 10.4.5 dropped entirely with the coverage-v8 4 bump
+# (CVE-2025-64756), vitest 3.2.7 -> 4.1.11 (CVE-2026-84373). main + the
+# weekly schedule fail closed; PRs report only so a finding can be triaged
+# before it lands.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Don't cancel in-progress main/schedule scans — a rapid second push would
+  # otherwise leave the older commit's lockfile unscanned.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  scan-pr:
+    name: OSV Scan (report-only)
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    with:
+      scan-args: |-
+        --lockfile=package-lock.json
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+  scan-main:
+    name: OSV Scan (blocking)
+    if: github.event_name != 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    with:
+      scan-args: |-
+        --lockfile=package-lock.json
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
