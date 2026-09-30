@@ -10,7 +10,7 @@
 import { mkdtempSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { openContainer } from '../../fcstd/src/container-read.js'
+import { openContainer } from '../src/io/fai-zip/index.js'
 import { CadRuntime } from '../src/cad-runtime/runtime.js'
 import { initOcctWasm } from '../src/occt-kernel/occtKernel.js'
 import { createApiNamespaceWithEditorOps } from '../src/test-support/editor-ops.js'

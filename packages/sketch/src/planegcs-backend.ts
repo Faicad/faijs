@@ -8,8 +8,7 @@
  * M3.5 helper: solved params are pulled back and geometry rebuilt, so the
  * caller can compare against on-disk coordinates (D2).
  */
-import { make_gcs_wrapper, Algorithm } from '@salusoft89/planegcs';
-import type { GcsWrapper } from '@salusoft89/planegcs';
+import { GcsWrapper, init_planegcs_module, Algorithm } from '@salusoft89/planegcs';
 import { ok, type Result } from '@faicad/faijs/api/result';
 import type { FcstdSketchGeom, FcstdSketchCon } from './fcstd-types.js';
 import { ConstraintType, PointPos } from './fcstd-types.js';
@@ -17,30 +16,95 @@ import type { FcstdSolveOutcome, SketchSolver } from './solver.js';
 import { SUPPORTED_CONSTRAINT_TYPES } from './solver.js';
 /** Options for instantiating the planegcs WASM solver. */
 export interface PlanegcsSolverOptions {
-  /** Absolute filesystem path to `planegcs.wasm` (Node hosts). */
+  /** Absolute filesystem path or fetchable URL of `planegcs.wasm`; the module reads the bytes itself. */
   wasmPath?: string
-  /** Raw wasm bytes (browser/worker hosts, injected via HostPorts.assets). */
+  /** Raw wasm bytes, for hosts that already hold the binary. */
   wasmBytes?: Uint8Array | ArrayBuffer
+  /**
+   * Code-package path that only the **platform's own wasm loader** can turn into
+   * a module (WeChat mini program: `WXWebAssembly.instantiate(path, imports)`).
+   *
+   * Unlike `wasmPath`, faijs never fetches this path — the host must have
+   * installed an adapter routing `WebAssembly.instantiate` to the platform
+   * loader, which is what actually compiles those bytes.
+   */
+  wasmLoaderPath?: string
+}
+
+/**
+ * Placeholder `wasmBinary` for {@link PlanegcsSolverOptions.wasmLoaderPath}.
+ *
+ * The emscripten glue only takes its "use the bytes I was handed" branch when
+ * `wasmBinary` is set — in an environment that is neither Node nor
+ * window/importScripts there is no other branch, so it aborts with
+ * "both async and sync fetching of the wasm failed". The host's loader ignores
+ * these bytes (it compiles the code-package path instead), so a zero-length
+ * array is the honest stand-in: it asserts "there is nothing here to fetch".
+ */
+const PLATFORM_LOADER_WASM_BINARY = new Uint8Array(0);
+
+/**
+ * Initialize the planegcs emscripten module and wrap it as a `GcsWrapper`.
+ *
+ * @param moduleArgs - emscripten module arguments (`locateFile` / `wasmBinary`).
+ * @returns the wrapper the solver drives.
+ */
+async function initGcsWrapper(moduleArgs?: Record<string, unknown>): Promise<GcsWrapper> {
+  const mod = await init_planegcs_module(moduleArgs);
+  return new GcsWrapper(new mod.GcsSystem(), mod);
 }
 
 /**
  * Instantiate the planegcs WASM solver.
  *
- * Environment-agnostic: the host supplies the wasm source. Node hosts use
- * `createNodePlanegcsSolver()` from `@faicad/faijs-sketch/node`; browser hosts
- * pass bytes resolved through `HostPorts.assets`.
+ * The host declares the wasm source; exactly one of the three options must be
+ * given — the choice is a static fact about the host, never a runtime fallback:
+ * - `wasmPath`: Node / browser hosts where the module can read a path or fetch a URL;
+ * - `wasmBytes`: hosts that already hold the binary;
+ * - `wasmLoaderPath`: platforms that can only instantiate from a code-package
+ *   path (WeChat mini program) — see the option's own docs.
  *
- * @param options - wasm path (Node) or bytes (browser).
+ * @param options - the single wasm source for this host.
  * @returns a `SketchSolver` backed by the planegcs WASM module.
+ * @throws when no source, or more than one source, is supplied.
  */
 export async function createPlanegcsSolver(options: PlanegcsSolverOptions): Promise<SketchSolver> {
-  const source = options.wasmBytes ?? options.wasmPath;
-  if (!source) {
-    throw new Error('E_SKETCHC_NO_WASM: createPlanegcsSolver needs wasmPath or wasmBytes');
+  const { wasmPath, wasmBytes, wasmLoaderPath } = options;
+  const given = [wasmPath, wasmBytes, wasmLoaderPath].filter((v) => v !== undefined);
+  if (given.length === 0) {
+    throw new Error('E_SKETCHC_NO_WASM: createPlanegcsSolver needs wasmPath, wasmBytes or wasmLoaderPath');
   }
-  const wrapper = await make_gcs_wrapper(source as never);
-  return new PlanegcsSolver(wrapper);
+  if (given.length > 1) {
+    throw new Error(
+      'E_SKETCHC_BAD_WASM: createPlanegcsSolver takes exactly one wasm source (wasmPath / wasmBytes / wasmLoaderPath)',
+    );
+  }
+  if (wasmLoaderPath !== undefined) {
+    return new PlanegcsSolver(
+      await initGcsWrapper({
+        wasmBinary: PLATFORM_LOADER_WASM_BINARY,
+        locateFile: () => wasmLoaderPath,
+      }),
+    );
+  }
+  if (wasmBytes !== undefined) {
+    // Bytes must go through emscripten's `wasmBinary`: `make_gcs_wrapper()` routes
+    // its argument to `locateFile`, which only accepts a path/URL string.
+    return new PlanegcsSolver(await initGcsWrapper({ wasmBinary: toUint8Array(wasmBytes) }));
+  }
+  return new PlanegcsSolver(await initGcsWrapper({ locateFile: () => wasmPath as string }));
 }
+
+/**
+ * Normalize a host-supplied byte source for emscripten's `wasmBinary`.
+ *
+ * @param bytes - raw wasm bytes as a typed array or a buffer.
+ * @returns the same bytes as a `Uint8Array`.
+ */
+function toUint8Array(bytes: Uint8Array | ArrayBuffer): Uint8Array {
+  return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+}
+
 
 /** Internal identity for a GCS point owned by a geometry element. */
 type PtKey = string;

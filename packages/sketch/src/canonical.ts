@@ -6,7 +6,12 @@
  * implementations. Geometry declarations carry coordinates that ARE the solve
  * initial guess; constraints pull them exact.
  *
- * Units follow the project contract: lengths in mm, angles in degrees.
+ * Lengths are in mm. **Every angular quantity is in radians** — arc angles
+ * (`a0`/`a1`), `ellipse.angle` and the `angle` constraint's `value` alike; they
+ * are consumed by `Math.cos`/`Math.sin` and handed to planegcs unchanged (which
+ * works in radians). Measured, not assumed: an `angle` constraint of `Math.PI/2`
+ * solves to 90°, while `90` solves to 5.7°. Hosts that display degrees convert
+ * at their own boundary.
  */
 
 /**

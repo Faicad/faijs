@@ -10,5 +10,7 @@ export {
   readZipEntriesAsync,
   writeZipEntries,
   writeZipEntriesAsync,
+  DEFAULT_MAX_ENTRIES,
+  DEFAULT_MAX_TOTAL_BYTES,
   type ZipReadOptions,
 } from './zip'

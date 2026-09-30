@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "config": {
-    "faijsVersion": "0.22.4"
+    "faijsVersion": "0.22.5"
   },
   "description": "Faicad faijs monorepo — CAD execution engine (@faicad/faijs) and companion libraries",
   "license": "Apache-2.0",
@@ -43,6 +43,7 @@
     "verify-archived-agent-notes": "npx tsx scripts/verify-archived-agent-notes.ts",
     "archive-plans": "node scripts/archive-plans.mjs",
     "set-version": "node scripts/set-version.mjs",
+    "pack": "node scripts/pack.mjs",
     "check-lockstep": "node scripts/check-lockstep.mjs",
     "gen-ops-api-inventory": "npx tsx scripts/gen-ops-api-inventory.ts",
     "check-ops-api-inventory": "npx tsx scripts/gen-ops-api-inventory.ts --check",

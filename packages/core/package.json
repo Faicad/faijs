@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.22.4",
+  "version": "0.22.5",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -93,6 +93,10 @@
     "./io": {
       "types": "./dist/io/index.d.ts",
       "default": "./dist/io/index.js"
+    },
+    "./io/fai-zip": {
+      "types": "./dist/io/fai-zip/index.d.ts",
+      "default": "./dist/io/fai-zip/index.js"
     },
     "./io/*": {
       "types": "./dist/io/*.d.ts",

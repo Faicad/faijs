@@ -70,7 +70,7 @@ npm run test:e2e:preview -w @faicad/faijs-demo
 echo "==> 8/9  npm run doc-sync（文档规范检查）"
 npm run doc-sync
 
-echo "==> 9/9  npm pack（3d_editor tarball）"
+echo "==> 9/9  npm pack（根包可打包性）"
 cd "$ROOT"
 npm pack
 

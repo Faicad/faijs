@@ -179,7 +179,7 @@ Step -Label '7/9  demo e2e:preview（CDN/importmap 产物路径）' -Block {
 
 Step -Label '8/9  npm run doc-sync（文档规范检查）' -Block { npm run doc-sync }
 
-Step -Label '9/9  npm pack（3d_editor tarball）' -Block {
+Step -Label '9/9  npm pack（根包可打包性）' -Block {
     npm pack
 }
 }

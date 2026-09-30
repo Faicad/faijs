@@ -26,18 +26,32 @@ export type ZipLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 /** Default compression level used by the sync/async writers. */
 export const DEFAULT_ZIP_LEVEL: ZipLevel = 6
 
-/** Read-side caps that protect against zip bombs and pathological archives. */
+/** Read-side caps bounding what a single read materialises. */
 export interface ZipReadOptions {
-  /** Max entry count; default 5000. */
+  /** Max entry count; default `DEFAULT_MAX_ENTRIES` (9999). */
   maxEntries?: number
-  /** Max total uncompressed bytes; default 64 MiB. */
+  /** Max total uncompressed bytes; default `DEFAULT_MAX_TOTAL_BYTES` (512 MiB). */
   maxTotalBytes?: number
 }
 
 type RequiredReadOptions = Required<ZipReadOptions>
 
-const DEFAULT_MAX_ENTRIES = 5000
-const DEFAULT_MAX_TOTAL_BYTES = 64 * 1024 * 1024
+/**
+ * Default cap on the number of entries a single read materialises. Deliberately
+ * generous: loading a project container is not the same magnitude as a user
+ * picking an arbitrary file, and container members (byte-exact source shadows,
+ * baked `.brp` payloads) scale with the source document.
+ *
+ * NOTE these caps are *post-decompression* checks — `unzipSync` has already
+ * materialised the archive when they run, so they bound what a caller keeps
+ * and walks, not peak allocation. They are a resource budget, NOT a
+ * zip-bomb defence. Pre-decompression rejection would need fflate's
+ * `filter` (per-entry `originalSize` accounting) and is tracked separately.
+ */
+export const DEFAULT_MAX_ENTRIES = 9999
+
+/** Default cap on total uncompressed bytes; same post-decompression caveat as {@link DEFAULT_MAX_ENTRIES}. */
+export const DEFAULT_MAX_TOTAL_BYTES = 512 * 1024 * 1024
 
 function toBytes(data: Uint8Array | ArrayBuffer): Uint8Array {
   return data instanceof Uint8Array ? data : new Uint8Array(data)

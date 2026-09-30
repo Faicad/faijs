@@ -11,6 +11,8 @@ import {
   readZipEntriesAsync,
   writeZipEntries,
   writeZipEntriesAsync,
+  DEFAULT_MAX_ENTRIES,
+  DEFAULT_MAX_TOTAL_BYTES,
 } from './zip'
 
 describe('io/zip — readZipEntries', () => {
@@ -43,6 +45,39 @@ describe('io/zip — readZipEntries', () => {
     const bytes = writeZipEntries({ 'big.bin': big })
     expect(() => readZipEntries(bytes, { maxTotalBytes: 10 }))
       .toThrowError(/^zip read failed:/)
+  })
+})
+
+describe('io/zip — default read caps', () => {
+  // Locked so the budget cannot shrink silently. 9999 / 512 MiB is sized for
+  // loading a *project container* (byte-exact source shadows, baked .brp
+  // payloads), not for "a user just picked an arbitrary file" — raise it if a
+  // real product ever needs more, but never lower it back.
+  it('locks the defaults at 9999 entries / 512 MiB', () => {
+    expect(DEFAULT_MAX_ENTRIES).toBe(9999)
+    expect(DEFAULT_MAX_TOTAL_BYTES).toBe(512 * 1024 * 1024)
+  })
+
+  it('applies the entry default as an exclusive upper bound', () => {
+    const atCap: Record<string, Uint8Array> = {}
+    for (let i = 0; i < DEFAULT_MAX_ENTRIES; i++) atCap[`e${i}.txt`] = strToU8('x')
+    expect(readZipEntries(writeZipEntries(atCap)).size).toBe(DEFAULT_MAX_ENTRIES)
+
+    const overCap = { ...atCap, [`e${DEFAULT_MAX_ENTRIES}.txt`]: strToU8('x') }
+    expect(() => readZipEntries(writeZipEntries(overCap)))
+      .toThrowError(new RegExp(`maxEntries ${DEFAULT_MAX_ENTRIES}`))
+  })
+
+  // GOTCHA (2026-09-30): these caps are checked *after* `unzipSync` has already
+  // materialised the archive, so they bound what a caller keeps and walks — not
+  // peak allocation. They are a resource budget, NOT a zip-bomb defence; a
+  // 64 MiB-of-zeros archive (~65 KB compressed) is fully expanded before the
+  // cap fires. Do not re-label them as bomb protection.
+  it('cannot reject an archive before it is decompressed — a budget, not a defence', () => {
+    const expanded = new Uint8Array(1024 * 1024)
+    const bytes = writeZipEntries({ 'zeros.bin': expanded })
+    expect(bytes.byteLength).toBeLessThan(expanded.byteLength / 100) // compresses ~1000:1
+    expect(() => readZipEntries(bytes, { maxTotalBytes: 1024 })).toThrowError(/content exceeds limit/)
   })
 })
 

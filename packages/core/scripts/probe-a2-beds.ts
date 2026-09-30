@@ -11,7 +11,7 @@
 // Usage: npx tsx packages/core/scripts/probe-a2-beds.ts
 import { readFileSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { openContainer } from '../../fcstd/src/container-read.js'
+import { openContainer } from '../src/io/fai-zip/index.js'
 import { createRuntime } from '../src/index.js'
 import { createNodePorts } from '../src/node.js'
 import { initOcctWasm } from '../src/occt-kernel/occtKernel.js'

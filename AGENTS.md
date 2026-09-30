@@ -20,7 +20,20 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 3. 全部通过后才准跑ci， `scripts/ci.ps1`。**严禁通过跑 CI 找 bug**。跑完一次 CI 后记住哪些测试失败了，之后只跑失败的测试，不要重复跑 CI。
 
-4. 打包发布前，必须用 `node scripts/set-version.mjs <ver>` 统一更新包族版本（自己改某个包的 `version` 或 @faicad/* range 会被 `check-lockstep.mjs` 判失败：pre-commit、ci.ps1、ci.sh、publish-all 四处都跑）。
+4. 要改版本号时，必须走下面的「版本号升级流程」——版本号一律由脚本改写，禁止手改（手改的 package `version` 或 @faicad/* range 会被 `check-lockstep.mjs` 判失败：pre-commit、ci.ps1、ci.sh、publish-all 四处都跑）。
+
+## ⚠️ 版本号升级流程（唯一写入口，禁止手改）
+
+**禁止手工编辑任何版本号**：`config.faijsVersion`、任何包的 `version`、任何 `@faicad/*` 依赖/peer range。全部由脚本改写。
+
+**这不是洁癖——手改已经造成过实际故障。** 2026-09-30 的 `7355c4a` 手改 `config.faijsVersion` 到 0.22.4（跳过 `set-version.mjs`），同一批改动里 `@faicad/cq-compat` 的 `@faicad/faijs-sketch` peer 写成 `"*"` 而没有被规范化，`check-lockstep.mjs` 随即变红。**判据是脚本的出口，不是人的自觉**——所以 `check-lockstep` 是硬门禁，不是警告。
+
+| 顺序 | 命令 | 作用 |
+|---|---|---|
+| 1 | `npm run set-version -- <MAJOR.MINOR.PATCH>` | **唯一**的版本写入端 |
+| 2 | `node scripts/check-lockstep.mjs` | 改完必须跑（CI 的一部分） |
+
+`set-version.mjs <ver>` 一次改到位：root `config.faijsVersion` + 每个家族包 `version` + 每个 `@faicad/*` registry range（一律规范成 `^<major>.<minor>.0`）+ `cdn/versions.json` + `package-lock.json`。同版本重跑是幂等的修复入口——**修红就走这条路**。
 
 ## ⚠️ 验证与踩坑留档铁律
 
@@ -34,14 +47,14 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 |---|---|
 | `npm run build` | 按序构建：`core` → 根门面（`tsc` 编译各包 src → dist；根门面 build 前 clean） |
 | `npm run build -w <pkg>` | 单包构建，如 `npm run build -w @faicad/faijs` |
-| `npm run pack` | build + `npm pack` → 根目录 `faicad-faijs-0.5.8.tgz`（3d_editor 消费；`prepack` 自动 build） |
+| `npm run pack` | 构建（workspaces 顺序即依赖拓扑）+ 逐包 `npm pack`，tgz 落在各包目录。开关：`--only <pkg>`、`--no-build`、`--dry-run`、`--strict-lockstep` |
 | `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
 | `npm run test --workspaces` | 全量测试（stderr 零容忍由 CI 检查） |
 | `npm run typecheck` | 根 `tsc --noEmit`（tsconfig paths 跟随检查 core 源码）+ `--workspaces` 逐包 |
 | `npm run lint` | `eslint packages/core/src packages/faijs-extra/src`（`scripts/`、`docs/`、`demo/`、`packages/demo/` 被 ignore） |
 | `node scripts/check-ghost-deps.mjs` | 幽灵依赖守卫（每包 import 必须声明在自身 package.json） |
 | `node scripts/check-workspaces-order.mjs` | workspaces 数组顺序 == 依赖拓扑断言 |
-| `node scripts/set-version.mjs <ver>` | 包族版本对齐写入端：把 root `config.faijsVersion` + 全部可发布包 `version` + 全部 @faicad/* registry range 一次改成同一版本线（`--dry-run` 只打印、`--no-lock` 跳过 lock 刷新、`--include-private` 把 fixtures/tests/demo 一起对齐） |
+| `node scripts/set-version.mjs <ver>` | 包族版本对齐**写入端**（升级版本号就走它，见上面「版本号升级流程」）：把 root `config.faijsVersion` + 全部可发布包 `version` + 全部 @faicad/* registry range 一次改成同一版本线（`--dry-run` 只打印、`--no-lock` 跳过 lock 刷新、`--include-private` 把 fixtures/tests/demo 一起对齐） |
 | `node scripts/check-lockstep.mjs` | 包族 lockstep 守卫：① 各可发布包 `version` == root `config.faijsVersion`；② @faicad/* registry 依赖 range 指向该版本线（防 CDN 解析旧版断图）。`--self-test` 用合成包集自测规则引擎，`--include-private` 让 private 包也纳入检查 |
 | `npx madge --circular packages/*/src` | 包图无环守卫 |
 | `pwsh -NoProfile scripts/ci.ps1` | Windows 全量 CI：lint → typecheck → build → workspace 测试 + stderr 检查 → 守卫 → demo e2e ×2 → pack |

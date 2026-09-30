@@ -1,6 +1,6 @@
 {
   "name": "@faicad/cq-compat",
-  "version": "0.22.4",
+  "version": "0.22.5",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -38,7 +38,7 @@
   "peerDependencies": {
     "@faicad/faijs": "^0.22.0",
     "occt-wasm": "^3.8.0",
-    "@faicad/faijs-sketch": "*"
+    "@faicad/faijs-sketch": "^0.22.0"
   },
   "devDependencies": {
     "@faicad/cq-compat-compare": "file:../cq-compat-compare",
