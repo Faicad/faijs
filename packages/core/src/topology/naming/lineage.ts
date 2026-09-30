@@ -470,6 +470,15 @@ export class LineageGraph {
     return this.nodes.size
   }
 
+  /**
+   * 全部已登记语句 id（回走恢复需遍历候选 origin 时用）。
+   *
+   * @returns the registered statement ids.
+   */
+  stmtIds(): StmtId[] {
+    return [...this.nodes.keys()]
+  }
+
   /** 清空（每次执行开始时调用——一次执行内 `StmtId` 稳定）。 */
   clear(): void {
     this.nodes.clear()

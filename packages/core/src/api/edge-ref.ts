@@ -24,10 +24,11 @@
 import type { Shape } from '../mesh/types'
 import { getBrepApi } from '../brep/handle-bridge'
 import { brepOf } from '../shape'
+import { nameOf } from '../runtime-state'
 import type { BrepHandle } from '../brep/engine/types'
 import { captureEdgeHint, findOriginRole, TopoRefError } from '../topology/naming'
 import type { EdgeTopoRef, RoleQualifier } from '../topology/naming'
-import { buildEdgeResolutionContext } from './topo-resolve'
+import { buildEdgeResolutionContext, recoverEdgeFaceRole } from './topo-resolve'
 
 /**
  * 查询几何体第 N 条边的 `EdgeTopoRef`，供 `cad.fillet` / `cad.chamfer` 的 `edges` 使用：
@@ -96,7 +97,13 @@ export function edgeRef(of: Shape, edgeOrdinal: number): EdgeTopoRef {
   const ordinalToHash = ctx.faces.map((f) => f.hash ?? 0)
   const quals: RoleQualifier[] = []
   for (const fo of faceOrdinals.slice(0, 2)) {
-    const found = findOriginRole(table, ordinalToHash, fo)
+    let found = findOriginRole(table, ordinalToHash, fo)
+    if (!found) {
+      // 1.10 前置③ 推广到边路径：目标 part 的 roleTable 缓存残缺，但根节点（名字
+      // 诞生处）的表完整、血缘可回走 → 遍历候选 (origin,role) 重算 hash 集找回身份。
+      const part = nameOf(of as object)
+      if (part) found = recoverEdgeFaceRole(kernel, part, fo, ordinalToHash)
+    }
     if (!found) {
       throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', `edgeRef: adjacent face ordinal ${fo} has no role lineage`)
     }

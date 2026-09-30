@@ -19,9 +19,9 @@ import { nameOf } from '../runtime-state'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
-import { runtimeLineage } from '../topology/naming/lineage'
+import { runtimeLineage, isHashEvolution } from '../topology/naming/lineage'
 import { resolveViaLineage } from '../topology/naming/lineage-resolve'
-import { asStmtId } from '../identity'
+import { asStmtId, type PartName, type StmtId } from '../identity'
 import {
   resolveTopoRef,
   captureFaceHint,
@@ -84,6 +84,123 @@ function recomputeViaLineage(
   })
   if (!('hashes' in result)) return undefined
   return result.hashes
+}
+
+/**
+ * 边路径「无血统邻面」恢复（1.10 前置③ 推广到边路径）。
+ *
+ * `edgeRef` 正查 `findOriginRole(table, ordinalToHash, fo)`（面 hash → `(origin, role)`）
+ * 失败，通常因为**目标 part** 的 roleTable 缓存**残缺**（丢了该面的条目），而**根节点**
+ * （名字的诞生处）的表是完整的：该面的 `(origin, role)` 真实存在，只是没被缓存到目标 part
+ * 的表副本里（drift / 中间 op 原样带走旧 hash 表）。
+ *
+ * 与面路径 `recomputeViaLineage` 同构、方向相反——已知面 hash、不知道它属于哪个
+ * `(origin, role)`。恢复策略：遍历血缘图所有候选 `(origin, role)`，沿 DAG 从根走到目标
+ * part，把根序（该 role 的 hash 集）推进到目标序、换算成目标 hash 集，取**含该面当前 hash**
+ * 者，即该面的真实身份。
+ *
+ * 推进规则（自带，不依赖 `resolveViaLineage` 的严格契约）：
+ * - 中间节点有 ordinal 演化（Map）→ 照用；
+ * - 中间节点是 identity 类（copy/place/transform）但**未挂演化**（既有缺口，见
+ *   `place.ts` 经 compat 路径未 `attachEvolution`）→ 按 1:1 推进（语义正确：identity 不改
+ *   面序）；
+ * - 其余无演化 → 放弃该候选（不乱猜）。
+ *
+ * 命中即回填 `{origin, role}` 让 `resolveEdgeTopo` 继续（exact 或几何兜底）；未命中返回
+ * undefined，调用方保持原 `no role lineage` 报错——零回归。仅跑在 `findOriginRole` 失败
+ * 之后（错误路径），不进热路径。
+ *
+ * @param kernel - the OCCT kernel (hash 换算需要).
+ * @param part - the live part whose adjacent face we are recovering.
+ * @param faceOrdinal - the 1-based face ordinal whose role is missing.
+ * @param ordinalToHash - the part's current face ordinal → hash array.
+ * @returns the recovered `{origin, role}`, or undefined when no lineage walk matches.
+ */
+export function recoverEdgeFaceRole(
+  kernel: BrepEngineApi,
+  part: PartName,
+  faceOrdinal: number,
+  ordinalToHash: readonly number[],
+): { origin: StmtId; role: string } | undefined {
+  const targetHash = ordinalToHash[faceOrdinal - 1]
+  if (targetHash === undefined) return undefined
+
+  // 候选 (origin, role)：血缘图所有节点的输出表（根节点诞生名字处）
+  const candidates: Array<{ origin: string; role: string }> = []
+  for (const stmt of runtimeLineage.stmtIds()) {
+    const tbl = runtimeLineage.outputTableOf(stmt)
+    if (!tbl) continue
+    for (const [origin, roles] of tbl) {
+      for (const roleLine of roles.keys()) candidates.push({ origin, role: roleLine })
+    }
+  }
+
+  for (const c of candidates) {
+    const hashes = lineageHashesAt(kernel, c.origin, c.role, part)
+    if (hashes && hashes.includes(targetHash)) return { origin: asStmtId(c.origin), role: c.role }
+  }
+  return undefined
+}
+
+/**
+ * 沿血缘从 `(origin, role)` 的根走到 `targetPart`，把根序推进到目标序、换算成目标 hash 集。
+ *
+ * @returns the target part's face hashes for this role, or undefined when the
+ *   chain cannot be walked (unreachable / non-identity node without evolution).
+ */
+function lineageHashesAt(
+  kernel: BrepEngineApi,
+  origin: string,
+  roleLine: string,
+  targetPart: PartName,
+): readonly number[] | undefined {
+  const root = runtimeLineage.node(asStmtId(origin))
+  if (!root) return undefined
+  const rootPart = root.outputs[0]
+  if (!rootPart) return undefined
+  const rootHandle = runtimeLineage.outputHandleOf(asStmtId(origin))
+  const rootTable = runtimeLineage.outputTableOf(asStmtId(origin))
+  if (rootHandle === undefined || !rootTable) return undefined
+
+  const rootHashes = rootTable.get(origin)?.get(roleLine)
+  if (rootHashes === undefined || rootHashes.length === 0) return undefined
+  const rootAll = Array.from(kernel.subShapeHashes(rootHandle as BrepHandle, 'face', HASH_UPPER_BOUND))
+  let ordinals: number[] = []
+  for (const h of rootHashes) {
+    const idx = rootAll.indexOf(h)
+    if (idx >= 0) ordinals.push(idx + 1) // ordinal 1 起
+  }
+  if (ordinals.length === 0) return undefined
+
+  // 逐节点推进：root → targetPart（带访问守卫，防异常 DAG 环路挂死执行）
+  const seen = new Set<PartName>()
+  let currentPart: PartName = rootPart
+  while (currentPart !== targetPart) {
+    if (seen.has(currentPart)) return undefined
+    seen.add(currentPart)
+    const consumer = runtimeLineage.nodeConsuming(currentPart)
+    if (!consumer) return undefined
+    const evo = consumer.evolution
+    if (evo && !isHashEvolution(evo)) {
+      ordinals = ordinals.flatMap((o) => evo.get(o) ?? [o])
+    } else if (consumer.provenance.kind === 'identity') {
+      // identity 类未挂演化 → 1:1 推进（语义正确）
+    } else {
+      return undefined
+    }
+    const carry = consumer.outputs.includes(targetPart) ? targetPart : consumer.outputs[0]!
+    currentPart = carry
+  }
+
+  const targetHandle = runtimeLineage.outputHandleOf(runtimeLineage.stmtOf(targetPart) ?? asStmtId(''))
+  if (targetHandle === undefined) return undefined
+  const targetAll = Array.from(kernel.subShapeHashes(targetHandle as BrepHandle, 'face', HASH_UPPER_BOUND))
+  const hashes: number[] = []
+  for (const o of ordinals) {
+    const h = targetAll[o - 1]
+    if (h !== undefined) hashes.push(h)
+  }
+  return hashes.length > 0 ? hashes : undefined
 }
 
 /**
