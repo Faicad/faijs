@@ -7,10 +7,17 @@
 
 import type { Shape } from '@faicad/faijs/mesh/types'
 import { text as meshText } from '../mesh/primitives'
+import { solidToShape } from '@faicad/faijs/brep/brep-ops'
+import { textToSolid } from '@faicad/faijs/brep/text/text-to-solid'
+import { ensureDefaultFont } from '@faicad/faijs/brep/text/fontRegistry'
+import { getSolidBoundingBox } from '@faicad/faijs/brep/brep-utils'
+import { containsCjk, loadSystemCjkFont } from '@faicad/faijs/primitives/text/cjk-font'
+import { getBackends } from '@faicad/faijs/runtime-state'
+import { fromBrep } from '@faicad/faijs/shape'
 import { defineOp } from '@faicad/faijs/sdk'
 import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
 import { assertPositiveNumber } from '@faicad/faijs/api/assert'
-import { textBrep } from './text-brep'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
 /**
  * Validate text parameters: `text` must be a non-empty string, and `size` and
@@ -26,9 +33,47 @@ export function assertTextParams(params: Record<string, unknown>): void {
 }
 
 /**
- * BREP 路径：委托给 three-free 的 `textBrep`（opentype.js → OCCT wire/face →
- * extrude → center + fromBrep 登记）。CJK 降级逻辑见 `./text-brep`。
+ * BREP 路径：opentype.js → OCCT wire/face → extrude → center + fromBrep 登记。
+ *
+ * 与 mesh 路径一样，当文本包含 CJK 字符但没有 CJK 字体时，
+ * 将 CJK 字符替换为 '?' 以实现优雅降级。
  */
+async function textBrep(params: Record<string, unknown>): Promise<Shape> {
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
+  if (!kernel) throw new Error('[stdlib/text] no OCCT kernel')
+
+  await ensureDefaultFont()
+
+  const text = params.text as string
+  const size = params.size as number
+  const depth = params.depth as number
+
+  // 如果文本包含 CJK 字符，检查是否有 CJK 字体
+  let renderText = text
+  if (containsCjk(text)) {
+    const cjkResult = await loadSystemCjkFont()
+    if (!cjkResult) {
+      // 无 CJK 字体：将 CJK 字符替换为 '?' 以实现优雅降级
+      renderText = text.replace(/[\u4E00-\u9FFF\u3400-\u4DBF\u2F800-\u2FA1F\u3000-\u303F\uFF00-\uFFEF]/g, '?')
+    }
+  }
+
+  // 将文字转换为 OCCT solid
+  const rawSolid = textToSolid(kernel, renderText, {
+    fontSize: size,
+    depth,
+  })
+
+  // Center the solid to match mesh path behavior:
+  // X/Z centered at origin, Y bottom aligned to 0
+  const bbox = getSolidBoundingBox(kernel, rawSolid)
+  const cx = (bbox.min[0] + bbox.max[0]) / 2
+  const cz = (bbox.min[2] + bbox.max[2]) / 2
+  const centeredSolid = kernel.translate(rawSolid, -cx, -bbox.min[1], -cz)
+  kernel.release(rawSolid)
+
+  return fromBrep(solidToShape(kernel, centeredSolid), { solid: centeredSolid })
+}
 
 /** 兼容两种调用形态：`cad.text({ text, size, depth })`（创建类）与
  * `cad.text(part0, { text, size, depth })`（历史 fixture 带输入参数，输入被忽略）。 */
@@ -62,7 +107,7 @@ export const text = defineOp({
   brep: async (inputOrParams: unknown, maybeParams?: Record<string, unknown>) => {
     const params = textParamsOf(inputOrParams, maybeParams)
     assertTextParams(params)
-    return textBrep(params as Record<string, unknown>)
+    return textBrep(params)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 })

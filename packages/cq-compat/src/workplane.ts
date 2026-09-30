@@ -20,17 +20,14 @@ import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import type { OcctKernel, ShapeHandle, Vec3 } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs/mesh/types'
-// three-free BREP text path from faijs-extra (the `text` op is editor-owned,
-// not part of core's platform namespace). Importing only the `/text` entry keeps
-// cq-compat's node build free of the mesh/three chain.
-import { textBrep } from '@faicad/faijs-extra/text'
+// cq-compat owns its CadQuery-compatible text geometry (no faijs-extra dep):
+// glyph outlines → OCCT via core `textBlueprints`, aligned per CadQuery.
+import { buildTextSolid, type HAlign, type VAlign } from './text-solid'
+
+export type { HAlign, VAlign } from './text-solid'
 
 // ── cad namespace singleton (created once at module load) ──────────────────
-// Core's platform surface plus the editor `text` op (BREP-only, three-free).
-const cad = {
-  ...createApiNamespace(),
-  text: textBrep,
-} as unknown as Record<string, (...args: unknown[]) => Promise<Shape>>
+const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promise<Shape>>
 
 // ── compatOp 提升边界归一（GOTCHA：borrowDeep 把实参 Shape 换成借用视图）──
 //
@@ -1012,54 +1009,93 @@ export async function box(
 }
 
 /**
- * text — extruded 3D text placed on the workplane.
+ * CadQuery `combine` mode (cadquery `cq.py`: `CombineMode = bool | "cut" | "a" | "s"`).
+ * `"cut"`/`"s"` subtract from the context solid, `true`/`"a"` fuse with it,
+ * `false` keeps the new body separate.
+ */
+export type CombineMode = boolean | 'cut' | 'a' | 's'
+
+/** Normalise a CadQuery `CombineMode` to the cq-compat action. */
+function normalizeCombine(m: CombineMode): false | 'cut' | 'a' {
+  if (m === false) return false
+  if (m === true) return 'a'
+  if (m === 's') return 'cut'
+  return m === 'a' ? 'a' : 'cut'
+}
+
+/**
+ * text — CadQuery `Workplane.text` parity.
  *
- * CadQuery parity note: upstream
- * `Workplane.text(txt, fontsize, distance, cut=True, combine=False, font=…,
- * fontPath=…, halign='center', valign='center', …)` ALSO returns a 3D text
- * solid directly — it extrudes the glyph outlines by `distance` along the
- * normal (negative = opposite). It is NOT a 2D pending-wire op; upstream has no
- * 2D text method (verify: vendored `tests/test_cadquery.py::testTextAlignment`
- * calls `.text("I", 10, 0, …).val().BoundingBox()` with no `.wire().extrude()`).
- * So this create op is on the right trajectory. The simplified surface below is
- * NOT yet full parity — remaining gaps:
- *   - `halign`/`valign`: upstream aligns the glyph bbox (testTextAlignment
- *     asserts left/bottom ⇒ bbox ≥ 0, center ⇒ bbox center ≈ 0, right/top ⇒
- *     bbox ≤ 0). Here the solid is X/Z-centered with Y-bottom at 0 only.
- *   - `distance == 0`: upstream yields 2D faces with no extrude
- *     (testTextAlignment uses distance=0). `cad.text` requires `depth > 0`.
- *   - `cut` (upstream default True: subtract text from a parent solid) and
- *     `combine` (upstream default False; this wrapper defaults true).
- *   - `font`/`fontPath`/`kind`: core ships a single default OpenSans — exactly
- *     upstream's `testFont` — so the font matches, but the params are ignored.
+ * Upstream signature (cadquery 2.8.0 `cq.py::Workplane.text`):
+ * `text(txt, fontsize, distance, combine="cut", clean=True, font="Arial",
+ * fontPath=None, kind="regular", halign="center", valign="center")`.
  *
- * @param wp - Workplane (defines placement plane + origin)
+ * The glyph geometry is built directly by cq-compat (see `./text-solid`) and
+ * aligned via `halign`/`valign`; `distance` extrudes along the workplane normal
+ * (negative = opposite; `0` keeps flat faces — `testTextAlignment` uses 0). The
+ * result is then placed on the workplane (`+Z → wp.normal`, moved to
+ * `wp.origin`) and combined with the context solid per `combine`:
+ *
+ * - `"cut"` (default) / `"s"` — subtract the text from the context solid;
+ * - `true` / `"a"` — fuse the text with the context solid;
+ * - `false` — push the text as a separate body (glyphs stay a compound of parts).
+ * When there is no context solid the text is returned as-is.
+ *
+ * `clean` (default true) runs the CadQuery `clean()` pass (same-face merge) on
+ * the combined result. `font`/`fontPath`/`kind` are accepted for signature
+ * compatibility but resolve to the engine's single default face (OpenSans —
+ * exactly upstream's `testFont`).
+ *
+ * @param wp - Workplane (placement plane + origin + optional context solid)
  * @param txt - the string to render
- * @param size - font size in mm (glyph cap height ≈ size)
- * @param depth - extrusion depth in mm (along the workplane normal)
- * @param opts - `{ combine? }`
- * @returns Promise<Workplane> carrying the text solid as `val`/`shape`
- *
- * Wiring: glyph→solid is delegated to faijs-extra's three-free `textBrep`
- * (registered onto the `cad` singleton). It yields a solid X/Z-centered with its
- * bottom on Y=0 in the XY plane; this op orients +Z onto `wp.normal` and
- * translates it to `wp.origin`.
+ * @param fontsize - font size in model units
+ * @param distance - extrusion distance along the normal (negative = opposite; 0 = flat)
+ * @param combine - `"cut"` (default) | `true`/`"a"` | `false`
+ * @param opts - `{ clean?, halign?, valign?, font?, fontPath?, kind? }`
+ * @returns Promise<Workplane> carrying the resulting shape as `val`/`shape`
  */
 export async function text(
   wp: Workplane,
   txt: string,
-  size: number,
-  depth: number,
-  opts?: { combine?: boolean },
+  fontsize: number,
+  distance: number,
+  combine: CombineMode = 'cut',
+  opts?: {
+    clean?: boolean
+    halign?: HAlign
+    valign?: VAlign
+    font?: string
+    fontPath?: string
+    kind?: string
+  },
 ): Promise<Workplane> {
-  const solid = (await cad.text({ text: txt, size, depth })) as Shape
+  const local = await buildTextSolid(txt, {
+    fontSize: fontsize,
+    distance,
+    halign: opts?.halign,
+    valign: opts?.valign,
+  })
   const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
   const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
   // Orient the text's extrude axis (+Z) onto the workplane normal, then drop it
   // at the workplane origin.
-  const oriented = await orientZTo(solid, n)
-  const placed = await cad.translate(oriented, { offset: o })
-  return combineEachpoint(wp, [placed], opts?.combine ?? true)
+  const oriented = await orientZTo(local, n)
+  const placed = (await cad.translate(oriented, { offset: o })) as Shape
+
+  // CadQuery: `_combineWithBase(compound, combine, clean)`.
+  const mode = normalizeCombine(combine)
+  let result: Workplane
+  if (mode === false || !wp.shape) {
+    result = clone(wp, { shape: placed })
+  } else if (mode === 'cut') {
+    result = await cut(wp, placed)
+  } else {
+    result = await union(wp, placed)
+  }
+  if ((opts?.clean ?? true) && result.shape) {
+    result = clone(result, { shape: await cleanShapes(result.shape) })
+  }
+  return clone(result, { faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
 }
 
 /**

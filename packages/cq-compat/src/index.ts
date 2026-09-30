@@ -100,7 +100,15 @@ export {
   workplaneFromTagged,
   text,
 } from './workplane'
-export type { Workplane as WorkplaneType, RGB, CqLocation, TaggedWorkplane } from './workplane'
+export type {
+  Workplane as WorkplaneType,
+  RGB,
+  CqLocation,
+  TaggedWorkplane,
+  CombineMode,
+  HAlign,
+  VAlign,
+} from './workplane'
 
 // Sketch geometry container (CadQuery Sketch.py parity, non-planegcs part —
 // Phase 2 of the max-cadquery plan; constraints blocked on LGPL verdict).
