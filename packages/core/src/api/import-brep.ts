@@ -19,6 +19,8 @@ import { getBackends, BrepUnsupportedError, getCurrentStmt } from '../runtime-st
 import { OpError } from './internal/result-unwrap'
 import { loadBrep } from '../brep/brep-ops'
 import { fromBrep } from '../shape'
+import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
@@ -40,7 +42,8 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
  * @example
  * const a = await cad.import_brep({ asset: 'Array001.Shape' })
  */
-export async function import_brep(params: Record<string, unknown>): Promise<Shape> {
+/** 裸实现：契约层测试直调（不经 defineOp 的 dispatch 拦截）。 */
+export async function importBrepImpl(params: Record<string, unknown>): Promise<Shape> {
   const assets = getBackends().assets as {
     resolveByKey?(key: string): Promise<{ bytes: ArrayBuffer }>
   } | undefined
@@ -84,3 +87,19 @@ export async function import_brep(params: Record<string, unknown>): Promise<Shap
     roleTable: new Map([[stmtId, roles]]),
   })
 }
+
+/**
+ * GOTCHA（2026-09-30）：import_brep / import_step 必须经 defineOp 包装进入 cad
+ * 命名空间，不能是裸 async 函数。part 键 roleTable（outputTablesByPart）只在
+ * define-op.ts 包装层的 brep 分支登记（shape.ts attachBrep 只落语句键表，因为
+ * fromBrep 时刻 shape 还没被 executor 命名）。裸函数产物没有 part 键表 → 下游
+ * place 的 inputRoleTable（tableOfPart）拿到 undefined → place 产物 roleTable
+ * 断流 → edgeRef 报 "input shape has no role table (nameless shape)"
+ * （fcstd 语料 43 例，如 ISO4032_Hex_Nut_M10 的 chamfer(Pocket001__place)）。
+ */
+export const import_brep = defineOp({
+  name: 'import_brep',
+  brep: importBrepImpl,
+  engines: ['occt'],
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'imported' }] } } as Provenance,
+})

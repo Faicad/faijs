@@ -19,7 +19,7 @@ import {
   type Backends,
 } from '../runtime-state'
 import { OpError } from './internal/result-unwrap'
-import { import_step } from './import-step'
+import { import_step, importStepImpl } from './import-step'
 import { __resetEngineRegistriesForTests } from '../brep/engine/registry'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { asPartName } from '../identity'
@@ -54,24 +54,24 @@ const fakeAssets = {
 describe('import_step: contract errors', () => {
   it('no assets resolveFile backend → OpError E_OP_FAILED', async () => {
     configureBackends(makeBackends('auto'))
-    await expect(import_step({ path: 'x.step' })).rejects.toThrow(OpError)
-    await expect(import_step({ path: 'x.step' })).rejects.toThrow(/assets backend \(resolveFile\) is required/)
+    await expect(importStepImpl({ path: 'x.step' })).rejects.toThrow(OpError)
+    await expect(importStepImpl({ path: 'x.step' })).rejects.toThrow(/assets backend \(resolveFile\) is required/)
   })
 
   it('mesh mode (no OCCT kernel) → BrepUnsupportedError', async () => {
     configureBackends(makeBackends('mesh', undefined, fakeAssets))
-    await expect(import_step({ path: 'x.step' })).rejects.toThrow(BrepUnsupportedError)
+    await expect(importStepImpl({ path: 'x.step' })).rejects.toThrow(BrepUnsupportedError)
   })
 
   it('invalid path arg (non-string) → OpError E_ARGS', async () => {
     configureBackends(makeBackends('auto', undefined, fakeAssets))
-    await expect(import_step({ path: 123 })).rejects.toThrow(OpError)
-    await expect(import_step({ path: 123 })).rejects.toThrow(/path \(string\) is required/)
+    await expect(importStepImpl({ path: 123 })).rejects.toThrow(OpError)
+    await expect(importStepImpl({ path: 123 })).rejects.toThrow(/path \(string\) is required/)
   })
 
   it('empty path → OpError E_ARGS', async () => {
     configureBackends(makeBackends('auto', undefined, fakeAssets))
-    await expect(import_step({ path: '' })).rejects.toThrow(/path \(string\) is required/)
+    await expect(importStepImpl({ path: '' })).rejects.toThrow(/path \(string\) is required/)
   })
 })
 
@@ -97,7 +97,7 @@ describe('import_step: chain-root roleTable (E3)', () => {
     }
     configureBackends(makeBackends('brep', { ...fakeKernel }, fakeAssets))
 
-    await import_step({ path: 'ignored.step' })
+    await importStepImpl({ path: 'ignored.step' })
     // 1.10 前置③：roleTable 权威落点 = 血缘图旁挂（语句键 + part 键），slot 缓存字段已删。
     // 本单测无语句锚点 ⇒ 注入空串锚点（与表的 origin='' 占位一致），读语句键表。
     const { setCurrentStmt } = await import('../runtime-state')
@@ -105,7 +105,7 @@ describe('import_step: chain-root roleTable (E3)', () => {
     setCurrentStmt({ id: '' as never, outputs: [] as never })
     try {
       // 重跑一次让 fromBrep 在锚点内记录（首次调用发生在注入前）
-      await import_step({ path: 'ignored.step' })
+      await importStepImpl({ path: 'ignored.step' })
     } finally {
       setCurrentStmt(undefined)
     }

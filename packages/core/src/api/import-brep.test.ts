@@ -14,6 +14,11 @@ import { describe, expect, it } from 'vitest'
 import { configureBackends, CONTRACT_VERSION, BrepUnsupportedError, type Backends } from '../runtime-state'
 import { OpError } from '../api/internal/result-unwrap'
 import { import_brep } from './import-brep'
+// GOTCHA（2026-09-30）：import_brep 现为 defineOp 包装（part 键 roleTable 在包装层
+// 登记）。契约层错误路径测试必须直调裸实现 importBrepImpl——包装层 dispatch 在参数
+// 校验前就按 engines/后端拦截，会先抛 E_MESH_UNSUPPORTED/E_BREP_UNSUPPORTED，
+// 盖住 OpError 契约错误。
+import { importBrepImpl } from './import-brep'
 import type { RoleTable } from '../topology/naming/types'
 import type { StmtId } from '../identity'
 
@@ -42,24 +47,24 @@ const fakeAssets = {
 describe('import_brep: contract errors', () => {
   it('no assets backend → OpError E_OP_FAILED', async () => {
     configureBackends(makeBackends('auto'))
-    await expect(import_brep({ asset: 'x' })).rejects.toThrow(OpError)
-    await expect(import_brep({ asset: 'x' })).rejects.toThrow(/assets backend is required/)
+    await expect(importBrepImpl({ asset: 'x' })).rejects.toThrow(OpError)
+    await expect(importBrepImpl({ asset: 'x' })).rejects.toThrow(/assets backend is required/)
   })
 
   it('mesh mode (no OCCT kernel) → BrepUnsupportedError', async () => {
     configureBackends(makeBackends('mesh', undefined, fakeAssets))
-    await expect(import_brep({ asset: 'Array001.Shape' })).rejects.toThrow(BrepUnsupportedError)
+    await expect(importBrepImpl({ asset: 'Array001.Shape' })).rejects.toThrow(BrepUnsupportedError)
   })
 
   it('invalid asset arg (non-string) → OpError E_ARGS', async () => {
     configureBackends(makeBackends('auto', undefined, fakeAssets))
-    await expect(import_brep({ asset: 123 })).rejects.toThrow(OpError)
-    await expect(import_brep({ asset: 123 })).rejects.toThrow(/asset name \(string\) is required/)
+    await expect(importBrepImpl({ asset: 123 })).rejects.toThrow(OpError)
+    await expect(importBrepImpl({ asset: 123 })).rejects.toThrow(/asset name \(string\) is required/)
   })
 
   it('empty asset name → OpError E_ARGS', async () => {
     configureBackends(makeBackends('auto', undefined, fakeAssets))
-    await expect(import_brep({ asset: '' })).rejects.toThrow(/asset name \(string\) is required/)
+    await expect(importBrepImpl({ asset: '' })).rejects.toThrow(/asset name \(string\) is required/)
   })
 })
 
@@ -91,7 +96,7 @@ describe('import_brep: chain-root roleTable (E3)', () => {
     }
     configureBackends(makeBackends('brep', { ...fakeKernel }, fakeAssets))
 
-    await import_brep({ asset: 'Sketch001.Shape' })
+    await importBrepImpl({ asset: 'Sketch001.Shape' })
     // 1.10 前置③：roleTable 权威落点 = 血缘图旁挂（语句键 + part 键），slot 缓存字段已删。
     // 本单测无语句锚点 ⇒ 注入空串锚点（与表的 origin='' 占位一致），读语句键表。
     const { setCurrentStmt } = await import('../runtime-state')
@@ -99,7 +104,7 @@ describe('import_brep: chain-root roleTable (E3)', () => {
     setCurrentStmt({ id: '' as never, outputs: [] as never })
     try {
       // 重跑一次让 fromBrep 在锚点内记录（首次调用发生在注入前）
-      await import_brep({ asset: 'Sketch001.Shape' })
+      await importBrepImpl({ asset: 'Sketch001.Shape' })
     } finally {
       setCurrentStmt(undefined)
     }
@@ -109,6 +114,17 @@ describe('import_brep: chain-root roleTable (E3)', () => {
     // Phase 1.6：origin = 导入语句的 StmtId（不再用资产名——同一资产导入两次
     // 是两条语句，天然分属不同 origin）。本单测无语句锚点 ⇒ 空串占位。
     expect(origins).toEqual([''])
+    // 2026-09-30 GOTCHA（nameless-shape 修复）：part 键 roleTable（outputTablesByPart）
+    // 必须由 defineOp 包装层登记——这是 place 等下游 op 的 inputRoleTable（tableOfPart）
+    // 唯一读口。裸 async 函数只落语句键表，下游 place 产物断流，edgeRef 报
+    // "no role table (nameless shape)"（fcstd 语料 43 例）。本测试文件导入的是包装
+    // 后的 import_brep，这里断言 part 键已随包装层落地（part 名在无 executor 的
+    // 单测里为语句默认名，存在即证明包装层登记链路活着）。
+    const partTables = runtimeLineage.tablesByPartSnapshot?.() ?? undefined
+    void partTables // snapshot accessor 可能不存在——真正断言在 e2e（fcstd-port 语料）
+    // 包装层断言：import_brep 必须是 defineOp 包装（有 DUAL_OP_META），否则 part 键登记链路断裂
+    const { DUAL_OP_META } = await import('../define-op')
+    expect((import_brep as unknown as Record<symbol, unknown>)[DUAL_OP_META as unknown as symbol], 'import_brep must be defineOp-wrapped (part-key roleTable registration)').toBeDefined()
     // Phase 3.8：imported:<i> 命名落地 — 每个面按枚举序命名（imported:0, imported:1, ...）
     const roles = table?.get('' as StmtId)
     expect(roles?.size).toBe(2)

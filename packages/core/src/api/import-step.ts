@@ -4,6 +4,8 @@ import { getBrepApi } from '../brep/handle-bridge'
 import { OpError } from './internal/result-unwrap'
 import { loadBrep } from '../brep/brep-ops'
 import { fromBrep } from '../shape'
+import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
 /**
@@ -32,7 +34,8 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
  * const a = await cad.import_step({ path: 'D:/models/box.step' })
  */
 
-export async function import_step(params: Record<string, unknown>): Promise<Shape> {
+/** 裸实现：契约层测试直调（不经 defineOp 的 dispatch 拦截）。 */
+export async function importStepImpl(params: Record<string, unknown>): Promise<Shape> {
   const path = params.path
   if (typeof path !== 'string' || path.length === 0) {
     throw new OpError('import_step', 'E_ARGS', '[api/import_step] path (string) is required')
@@ -72,3 +75,16 @@ export async function import_step(params: Record<string, unknown>): Promise<Shap
   }
   return fromBrep(shape, { solid: solidHandle, roleTable: new Map([[stmtId, roles]]) })
 }
+
+/**
+ * GOTCHA（2026-09-30）：与 import_brep 同——必须经 defineOp 包装进入 cad 命名空间，
+ * 不能是裸 async 函数。part 键 roleTable（outputTablesByPart）只在 define-op.ts
+ * 包装层的 brep 分支登记；裸 async 函数产物没有 part 键表，下游 place/edgeRef
+ * 报 "input shape has no role table (nameless shape)"。
+ */
+export const import_step = defineOp({
+  name: 'import_step',
+  brep: importStepImpl,
+  engines: ['occt'],
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'imported' }] } } as Provenance,
+})
