@@ -256,6 +256,12 @@ export interface Workplane {
    * and reading them back in `_getFaces`.
    */
   pendingFaces?: ShapeHandle[]
+  /**
+   * The two halves kept by a `split(keepTop, keepBottom)` (both-keep) —
+   * picked apart by `partAt(i)`, the flat-model stand-in for upstream
+   * `.all()` stack spreading.
+   */
+  parts?: (Shape | null)[]
 }
 
 /** Snapshot captured by 	ag(): plane frame + carried shape. */
@@ -2679,10 +2685,12 @@ export async function extrude(
   combine: boolean = true,
   opts?: { taper?: number },
 ): Promise<Workplane> {
+  const taper = opts?.taper ?? 0
   // Materialized sketch faces (sketchFinish/placeSketch) take priority — the
   // flat-model equivalent of upstream `_getFaces()` reading Sketch objects
-  // from the stack before pending wires.
-  if (wp.pendingFaces && wp.pendingFaces.length > 0) {
+  // from the stack before pending wires. Zero taper only: a tapered sketch
+  // extrude must fall through to the draftPrism branch below.
+  if (wp.pendingFaces && wp.pendingFaces.length > 0 && taper === 0) {
     const base = wp.shape
     const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
     const kernel = kern() as unknown as {
@@ -2704,8 +2712,33 @@ export async function extrude(
       pts: [],
     })
   }
-  const taper = opts?.taper ?? 0
   if (taper !== 0) {
+    // Materialized sketch faces (sketchFinish/placeSketch) taper through the
+    // same kernel draftPrism used below for pendingWires — per-face prism
+    // along the workplane normal, then fuse into the base.
+    if (wp.pendingFaces && wp.pendingFaces.length > 0) {
+      const faces = wp.pendingFaces
+      const base = wp.shape
+      wp = await applyPendingFacePlane(wp)
+      const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+      const kernel = getKernel() as unknown as {
+        draftPrism: (face: BrepHandle, dx: number, dy: number, dz: number, angleDeg: number) => BrepHandle
+      }
+      let prism: Shape | null = null
+      for (const fh of faces) {
+        const solid = toShape(kernel.draftPrism(fh as unknown as BrepHandle, n[0] * height, n[1] * height, n[2] * height, taper))
+        prism = prism ? await fuseShapes(prism, solid) : solid
+      }
+      const shape = base ? await fuseShapes(base, prism as Shape) : (prism as Shape)
+      return clone(wp, {
+        shape,
+        pendingFaces: undefined,
+        faceSel: null,
+        edgeSel: null,
+        vertexSel: null,
+        pts: [],
+      })
+    }
     // Tapered prism via the kernel draftPrism (BRepOffsetAPI_MakeDraft shell
     // equivalent; sign convention verified: positive angle narrows, matching
     // upstream `extrude(taper=20)` top-face < bottom-face).
@@ -4845,9 +4878,23 @@ export async function intersect(
 function resolveEdgeSelection(shape: Shape, sel: string | null | undefined): unknown[] {
   const edges = kern().getSubShapes(ownHandle(shape), 'edge') as unknown[]
   if (!sel || sel === '') return edges
+  const mHash = /^#([XYZ])$/.exec(sel.trim())
+  if (mHash) {
+    // CadQuery "#Z" (DirectionMinMaxSelector): edges sitting at the MAXIMUM
+    // along the axis, ties included (the top rim of a box — #Z differs from
+    // "|Z" which selects axis-PARALLEL edges).
+    const axisIdx = mHash[1] === 'X' ? 0 : mHash[1] === 'Y' ? 1 : 2
+    const centers = edges.map((e) => {
+      const b = kern().getBoundingBox(e as BrepHandle) as unknown as Record<string, number>
+      return [(b.xmin + b.xmax) / 2, (b.ymin + b.ymax) / 2, (b.zmin + b.zmax) / 2][axisIdx]
+    })
+    const best = Math.max(...centers)
+    const TOL = 1e-6
+    return edges.filter((_, i) => centers[i] >= best - TOL)
+  }
   const m = /^\|([XYZ])$/.exec(sel.trim())
   if (!m) {
-    throw new Error(`[cq-compat] unsupported edge selector "${sel}" (supported: |X |Y |Z)`)
+    throw new Error(`[cq-compat] unsupported edge selector "${sel}" (supported: |X |Y |Z #X #Y #Z)`)
   }
   const axisIdx = m[1] === 'X' ? 0 : m[1] === 'Y' ? 1 : 2
   const perp = [0, 1, 2].filter((i) => i !== axisIdx)
@@ -5688,12 +5735,16 @@ export async function planarCap(
  * @param wp - Workplane holding the solid to split
  * @param point - a point on the cutting plane, workplane-local 2D or world 3D
  * @param normal - plane normal (world); defaults to the workplane normal
+ * @param opts - `{ keepTop?: boolean; keepBottom?: boolean }` (both default
+ *   true; a single side returns just that half, both-kept stores the halves
+ *   for {@link partAt} — the upstream `.all()` equivalent)
  * @returns Workplane with the split result (both halves) as .shape
  */
 export async function split(
   wp: Workplane,
   point?: [number, number] | [number, number, number],
   normal?: [number, number, number],
+  opts?: { keepTop?: boolean; keepBottom?: boolean },
 ): Promise<Workplane> {
   if (!wp.shape) throw new Error('[cq-compat] split: no shape to split')
   const k = kern()
@@ -5707,11 +5758,35 @@ export async function split(
         : wp.origin
   const n = normal ?? wp.normal
   const halves = k.splitByPlane(solid, { x: pW[0], y: pW[1], z: pW[2] }, { x: n[0], y: n[1], z: n[2] })
-  // keep both halves as a compound (upstream split keeps the requested sides;
-  // both-keep is the faijs-side default, single-side filters via selectors)
-  // BrepHandle → ShapeHandle brand bridge (same as the revolveVec path)
+  // keepTop/keepBottom select which half survives (upstream split kwargs);
+  // both-keep is the default and stores the two halves for partAt() — the
+  // flat-model stand-in for upstream `.all()` spreading the halves onto the
+  // stack ((lid, bottom) = ...split(keepTop=True, keepBottom=True).all()).
+  const keepT = opts?.keepTop ?? true
+  const keepB = opts?.keepBottom ?? true
+  if (!keepT && !keepB) throw new Error('[cq-compat] split: keepTop and keepBottom are both false')
+  if (keepT && !keepB) {
+    return clone(wp, { shape: toShape(halves.positive), parts: undefined })
+  }
+  if (!keepT && keepB) {
+    return clone(wp, { shape: toShape(halves.negative), parts: undefined })
+  }
   const comp = getKernel().makeCompound([halves.positive, halves.negative] as never)
-  return clone(wp, { shape: toShape(comp) })
+  return clone(wp, { shape: toShape(comp), parts: [toShape(halves.positive), toShape(halves.negative)] })
+}
+
+/**
+ * partAt — pick the i-th sub-solid kept by the preceding `split` (both halves
+ * kept) as a standalone Workplane. Flat-model equivalent of upstream
+ * `.all()` destructuring: `(lid, bottom) = wp.split(...).all()`.
+ * @param wp - Workplane carrying `parts` (set by split with both halves kept)
+ * @param i - part index (0 = top half, 1 = bottom half)
+ * @returns Workplane carrying that half
+ */
+export function partAt(wp: Workplane, i: number): Workplane {
+  const parts = wp.parts ?? []
+  if (i < 0 || i >= parts.length) throw new Error(`[cq-compat] partAt: index ${i} out of range (${parts.length} parts)`)
+  return clone(wp, { shape: parts[i], parts: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
 }
 
 /**
@@ -5913,7 +5988,8 @@ export async function offset2D(
   const out: PendingWire[] = []
   for (const w of all) {
     const wire = await buildProfileWire(wp, w)
-    const offset = getKernel().offsetWire2D(wire as never, d, joinKind[kind] ?? 0)
+    let offset = getKernel().offsetWire2D(wire as never, d, joinKind[kind] ?? 0)
+    offset = closeOpenOffsetWire(offset)
     out.push({
       kind: 'path',
       pts: [],
@@ -5923,6 +5999,52 @@ export async function offset2D(
     })
   }
   return clone(wp, { pendingWires: out })
+}
+
+/**
+ * closeOpenOffsetWire — offsetting an OPEN input wire yields an OPEN offset
+ * wire (first/last vertices dangling), and `makeFace` rejects open wires
+ * ("makeFace: TopoDS::Wire" — testOffset2D__s). Upstream OCC MakeOffset2D
+ * caps open wires at their endpoints; here the two degree-1 endpoints are
+ * joined with a straight segment and the edges reassembled into ONE closed
+ * wire. Closed inputs pass through untouched.
+ */
+function closeOpenOffsetWire(wire: ShapeHandle): ShapeHandle {
+  const k = getKernel() as unknown as {
+    getSubShapes: (h: ShapeHandle, t: string) => ShapeHandle[]
+    makeLineEdge: (a: Vec3, b: Vec3) => ShapeHandle
+    makeWire: (edges: ShapeHandle[]) => ShapeHandle
+    release: (h: ShapeHandle) => void
+  }
+  const edges = k.getSubShapes(wire, 'edge')
+  if (edges.length === 0) return wire
+  // vertex degree count: an edge endpoint shared by two edges has degree 2
+  const pos = (v: ShapeHandle): [number, number, number] => {
+    const bb = (getKernel() as unknown as OcctKernel).getBoundingBox(v as unknown as ShapeHandle)
+    return [(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2]
+  }
+  const key = (p: [number, number, number]) => p.map((x) => x.toFixed(6)).join(',')
+  const degree = new Map<string, number>()
+  const pointOf = new Map<string, [number, number, number]>()
+  for (const e of edges) {
+    const vs = k.getSubShapes(e, 'vertex')
+    for (const v of vs) {
+      const p = pos(v)
+      const kk = key(p)
+      pointOf.set(kk, p)
+      degree.set(kk, (degree.get(kk) ?? 0) + 1)
+    }
+  }
+  const ends = [...degree.entries()].filter(([, deg]) => deg === 1)
+  if (ends.length !== 2) return wire // already closed (or degenerate) — as-is
+  const a = pointOf.get(ends[0][0])!
+  const b = pointOf.get(ends[1][0])!
+  const cap = k.makeLineEdge({ x: a[0], y: a[1], z: a[2] }, { x: b[0], y: b[1], z: b[2] })
+  const closed = k.makeWire([...edges, cap])
+  for (const e of edges) k.release(e)
+  k.release(cap)
+  k.release(wire)
+  return closed
 }
 
 // ---------------------------------------------------------------------------

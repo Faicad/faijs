@@ -212,24 +212,31 @@ const BY_KEY: Record<string, string> = {
   // testSimpleMirror s, testOccBottle p). These are the ones that turned out to
   // be genuine gaps behind the analyzer's false "portable" verdict.
   // ---------------------------------------------------------------------------
-  // offset2D of an OPEN wire must close it (upstream OCC MakeOffset caps the
-  // ends), then extrude sees 4 closed wires → 4 solids (ref s4, vol
-  // 1.15123653709, bbox ±9.1). cq-compat's offsetWire2D returns an open wire,
-  // so the following extrude dies with "makeFace: TopoDS::Wire".
-  'tests.test_cadquery::TestCadQuery::testOffset2D__s': 'op:offset2D-open-wire',
+  // offset2D of a self-intersecting shrinking profile (polyline+mirrorX+
+  // mirrorY, offset -0.9): upstream OCC MakeOffset2D SPLITS the offset into 4
+  // independent closed regions (ref s4 / vol 1.15123653709), while the kernel
+  // offsetWire2D returns per-input-wire COMPOUNDS of 2 wires (large ring,
+  // face area 72.37 vs upstream's small regions) — a MakeOffset2D semantics
+  // gap, NOT a missing end-cap (probed 2026-10-01: degree analysis shows no
+  // dangling endpoints; makeFace on the sub-wire succeeds with the wrong
+  // area). Needs the kernel's full multi-region offset semantics.
+  'tests.test_cadquery::TestCadQuery::testOffset2D__s': 'op:offset2D-multi-region',
   // testEnclosure needs `split(keepTop=, keepBottom=)` plus `.all()` to index
-  // the two halves as separate objects (lid / bottom); cq-compat's split()
-  // returns a single compound of both halves and has no `all()`/sub-shape
-  // indexing, so lid/bottom/lowerLid/cutlip/topOfLid cannot be separated.
-  'tests.test_cadquery::TestCadQuery::testEnclosure__oshell': 'op:split-all',
-  'tests.test_cadquery::TestCadQuery::testEnclosure__ishell': 'op:split-all',
-  'tests.test_cadquery::TestCadQuery::testEnclosure__box': 'op:split-all',
-  'tests.test_cadquery::TestCadQuery::testEnclosure__lid': 'op:split-all',
-  'tests.test_cadquery::TestCadQuery::testEnclosure__bottom': 'op:split-all',
-  'tests.test_cadquery::TestCadQuery::testEnclosure__lowerLid': 'op:split-all',
-  'tests.test_cadquery::TestCadQuery::testEnclosure__cutlip': 'op:split-all',
-  'tests.test_cadquery::TestCadQuery::testEnclosure__topOfLid': 'op:split-all',
-  'tests.test_cadquery::TestCadQuery::testEnclosure__result': 'op:split-all',
+  // the two halves as separate objects (lid / bottom). The faijs-side gap is
+  // CLOSED (split gained keepTop/keepBottom + partAt, 2026-10-01) — the chain
+  // is now blocked by the KERNEL: fillet REJECTS re-filleting a fillet output
+  // ("fillet: operation failed" / "fillet: TopoDS::Solid" on a still-1-solid
+  // TopoDS), and testEnclosure fillets twice (|Z r10 then #Z r2). Kernel-side,
+  // tracked in docs/analysis/2026-09-29-occt-wasm-gap-plan.md §10.1.
+  'tests.test_cadquery::TestCadQuery::testEnclosure__oshell': 'kernel:fillet-chain-reapply',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__ishell': 'kernel:fillet-chain-reapply',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__box': 'kernel:fillet-chain-reapply',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__lid': 'kernel:fillet-chain-reapply',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__bottom': 'kernel:fillet-chain-reapply',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__lowerLid': 'kernel:fillet-chain-reapply',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__cutlip': 'kernel:fillet-chain-reapply',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__topOfLid': 'kernel:fillet-chain-reapply',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__result': 'kernel:fillet-chain-reapply',
   // extrude("next"/"last") — untilNextFace/untilLastFace — plus the indexed
   // face selector `faces(">X[1]")`. Neither exists. NOTE: the ref geometry also
   // disagrees with a straight reading of the source (wp_ref measures s3 /
@@ -321,10 +328,11 @@ const BY_KEY: Record<string, string> = {
   // test_history_loft__res = loft([plane(1,1), face(circle(1)).moved(z=1)]) —
   // needs the free-function plane() constructor (func-only gap).
   'tests.test_free_functions:::test_history_loft__res': 'plane',
-  // testSketch r2: two sketches each extruded with taper=5 — extrude's taper
-  // path (draftPrism) only consumes pendingWires/pendingRect, not materialized
-  // sketch faces (pendingFaces).
-  'tests.test_cadquery::TestCadQuery::testSketch__r2': 'op:extrude-taper-sketch',
+  // testSketch r2 CLOSED (2026-10-01): extrude's taper branch now consumes
+  // materialized sketch faces (draftPrism), mirror parity PASS (vol 0.835228,
+  // machine-precision). The second .sketch() creates a fresh parent whose
+  // stack holds only sketch2 — the first annulus sketch is NOT in the final
+  // extrude (probed upstream).
   // testSketch r6: placeSketch of two circles located along a SPLINE's
   // locationAt(0)/locationAt(1) frames, then sweep(multisection=True) — needs
   // a frame-aware sketch placement (xDir binding) + sketch-section sweep.

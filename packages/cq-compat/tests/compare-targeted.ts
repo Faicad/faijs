@@ -24,6 +24,7 @@ const pairs: Array<[string, string]> = [
   ['tests.test_cadquery__TestCadQuery__testFuzzyBoolOp__box1_cmp', 'TestCadQuery__testFuzzyBoolOp__box1_cmp'],
   ['tests.test_cadquery__TestCadQuery__testFuzzyBoolOp__box4_cmp', 'TestCadQuery__testFuzzyBoolOp__box4_cmp'],
   ['tests.test_cadquery__TestCadQuery__testSketch__r1', 'TestCadQuery__testSketch__r1'],
+  ['tests.test_cadquery__TestCadQuery__testSketch__r2', 'TestCadQuery__testSketch__r2'],
   ['tests.test_cadquery__TestCadQuery__testSketch__r3', 'TestCadQuery__testSketch__r3'],
   ['tests.test_cadquery__TestCadQuery__testSketch__r4', 'TestCadQuery__testSketch__r4'],
   ['tests.test_cadquery__TestCadQuery__testSketch__r5', 'TestCadQuery__testSketch__r5'],

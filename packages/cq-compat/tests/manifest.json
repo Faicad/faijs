@@ -426,55 +426,55 @@
   "tests.test_cadquery::TestCadQuery::testEnclosure__oshell": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "op:split-all",
+    "blockedBy": "kernel:fillet-chain-reapply",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__ishell": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "op:split-all",
+    "blockedBy": "kernel:fillet-chain-reapply",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__box": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "op:split-all",
+    "blockedBy": "kernel:fillet-chain-reapply",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__lid": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "op:split-all",
+    "blockedBy": "kernel:fillet-chain-reapply",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__bottom": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "op:split-all",
+    "blockedBy": "kernel:fillet-chain-reapply",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__lowerLid": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "op:split-all",
+    "blockedBy": "kernel:fillet-chain-reapply",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__cutlip": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "op:split-all",
+    "blockedBy": "kernel:fillet-chain-reapply",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__topOfLid": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "op:split-all",
+    "blockedBy": "kernel:fillet-chain-reapply",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__result": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "op:split-all",
+    "blockedBy": "kernel:fillet-chain-reapply",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testExplicitClean__s": {
@@ -886,7 +886,7 @@
   "tests.test_cadquery::TestCadQuery::testOffset2D__s": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testOffset2D",
-    "blockedBy": "op:offset2D-open-wire",
+    "blockedBy": "op:offset2D-multi-region",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testOpenCornerShell__s": {
@@ -1099,10 +1099,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "op:extrude-taper-sketch",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r3": {
     "status": "ported",

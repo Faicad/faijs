@@ -511,3 +511,34 @@ IO（importBrep/importBin/export）与 prism/solid 的 blockedBy 均指向「op 
 ### 12.5 门禁（全绿，已实测）
 
 tsc 0 error；eslint 0 error；`verify-export-jsdoc` 全仓过；targeted parity 复跑 PASS=41。
+
+## 13. 续作记录（2026-10-01 第九轮 — faijs 侧可解缺口专项：taper-sketch 关闭 + split/partAt 落地）
+
+> 本轮目标：不吃 occt-wasm 排期，只清 faijs 侧缺口。逐项判定与产出如下。
+
+### 13.1 判定总表（faijs 侧 vs 内核侧）
+
+| 项 | 条数 | 判定 | 本轮处置 |
+|---|---|---|---|
+| `op:extrude-taper-sketch` | 2 | **faijs 侧**（draftPrism 在内核已有，缺 sketch 面通道） | ✅ 关闭：r2 镜像 PASS，manifest 翻 ported（450/200/47） |
+| `op:split-all` | 9 | **faijs 侧缺口已关闭 + 暴露内核新缺口** | ⚠️ split keepTop/keepBottom + partAt 落地（单测 6 条绿）；testEnclosure 整链改判 `kernel:fillet-chain-reapply`（见 13.3） |
+| `op:offset2D-open-wire` | 1 | **改判内核语义差异** | ⚠️ 改判 `op:offset2D-multi-region`：内核 offsetWire2D 返回「每输入 wire 一个含 2 条 sub-wire 的 compound（大环，makeFace 面积 72.37）」，上游 MakeOffset2D 分裂成 4 个独立闭合区域（ref s4/vol 1.1512）——**不是缺端帽**（度数分析无悬空端点），封端修复无效，需内核多区域 offset 语义 |
+| `op:sweep-hole-section` | 1 | faijs 侧（公开带孔面构造） | 顺延（需 sketch 带孔面 + sweep 消费，独立一轮） |
+| `op:prism-from-face` | 4 | 待判定（face-to-face loft 可能用 outerWire loft 复刻） | 顺延 |
+| `op:extrude-until-face` | 4 | faijs 侧（until next/last + `faces(">X[1]")` 索引） | 顺延（且 ref 侧异常需重新推导，见 §8.4） |
+| `op:solid-makeSolid-3d-wire` | 1 | faijs 侧（sketch 层 3D wire 面） | 顺延 |
+| `op:sweep-sketch-sections` | 1 | faijs 侧（spline 全帧放置 + xDir） | 顺延 |
+
+### 13.2 落地的能力（`workplane.ts`，均含单测）
+
+- **`extrude` taper 消费 `pendingFaces`**：sketch 材质化面走内核 `draftPrism`（面逐个沿法向锥柱化 + fuse）。**GOTCHA（探针钉死）**：①上游 `testSketch` r2 的第二个 `.sketch()` 会新建 parent workplane（栈里只剩 sketch2），第一个 annulus sketch **不在最终 extrude 里**——r2 就是 1×1 rect 锥台（vol 0.835228，解析精确吻合）；②`extrude` 开头的无 taper pendingFaces 快速分支必须带 `taper === 0` 条件，否则 taper 永远走不到（本轮实测踩中：cand 直棱柱 vol 1.0 vs ref 0.835）。
+- **`split(wp, point, normal, {keepTop, keepBottom})`**：单侧返回半体；双侧保留（默认）把两半存 `wp.parts`。**`partAt(wp, i)`**：取第 i 个半体为独立 Workplane——上游 `.all()` 解构 `(lid, bottom) = wp.split(...).all()` 的扁平模型替代。
+- **`edges("#X/#Y/#Z")`**：上游 DirectionMinMaxSelector（方向最大值处的边、容差内并列全选，如盒顶棱）——`#Z` 与 `|Z`（轴向平行边）语义不同。
+
+### 13.3 新内核发现：`kernel:fillet-chain-reapply`（9 条，已入 gap-plan §10.1）
+
+内核 fillet **拒绝对 fillet 产出再 fillet**：`fillet: operation failed`（8 条顶棱）或 `fillet: TopoDS::Solid`（单边、内核层探针），而输入仍是 1-solid TopoDS。testEnclosure 整链（`|Z` r10 → `#Z` r2 两次 fillet）被挡——`op:split-all` 的 faijs 侧缺口关闭后，剩余纯内核问题。GOTCHA 已钉进 `p1-workplane-ops.test.ts`（fail-loud 断言错误传播）。
+
+### 13.4 manifest 与门禁
+
+manifest 449/201/47 → **450/200/47**（r2 翻 ported；testEnclosure 9 条改判 `kernel:fillet-chain-reapply`、testOffset2D__s 改判 `op:offset2D-multi-region`，均为内核侧）。门禁全绿：tsc 0 error、eslint 0 error、`verify-export-jsdoc` 过、波及单测（p1-workplane-ops + sketch-workplane）41 passed、targeted parity 复跑 PASS=42。

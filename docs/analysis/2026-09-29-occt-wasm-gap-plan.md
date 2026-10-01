@@ -152,6 +152,7 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 | blockedBy | 条数 | 状态与方案归属 |
 |---|---|---|
 | `kernel:boolean-near-coincident-bspline` | 3 | testTwistExtrude__r / testTwistExtrudeCombine__r（comparator 探针失败）/ **testTwistExtrudeCombineCut__cut（2026-10-01 新实证：90° 扭曲工具体 cut 进盒体，内核布尔 >300 s 挂死——BooleanOp 本体缺陷，不止 comparator）**。方案：occt-wasm 侧核查 BOPAlgo fuzzy/区间处理，或提供可中断/限时布尔。无独立小节（原 E4）。 |
+| `kernel:fillet-chain-reapply` | 9 | **2026-10-01 新发现**：内核 fillet 拒绝对「fillet 产出」再 fillet——`fillet: operation failed`（8 条顶棱）或 `fillet: TopoDS::Solid`（单边、内核层探针），而输入仍是 1-solid TopoDS（getSubShapes('solid')==1）。testEnclosure 整链（|Z r10 → #Z r2 两次 fillet）被挡：op:split-all 的 faijs 侧缺口（split keepTop/keepBottom + partAt）已关闭，剩余纯内核问题。GOTCHA 已钉进 `p1-workplane-ops.test.ts`。方案：occt-wasm 侧核查 fillet wrapper 的句柄生命周期/类型封送（输入 shape 是否在二次调用间被降级）。 |
 | `kernel:shell-outward-opening` | 2 | §3 |
 | `kernel:draft-existing-solid` | 2 | test_draft__res1/res2 + test_free_functions test_draft —— 既有实体拔模（BRepOffsetAPI_DraftAngle 全参面），§0 未单列；需在 occt-wasm 暴露 `BRepOffsetAPI_MakeDraft`/`DraftAngle` 完整入口（face + angle + direction），~40 行。 |
 | `kernel:shell-intersection-join` | 1 | §3 |

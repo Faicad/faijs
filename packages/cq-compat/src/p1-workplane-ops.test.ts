@@ -38,6 +38,9 @@ import {
   copyWorkplane,
   workplane,
   faces,
+  partAt,
+  fillet,
+  edges,
 } from './workplane'
 import { brepOf } from '@faicad/faijs/shape'
 
@@ -77,7 +80,59 @@ describe('copyWorkplane parity (upstream Workplane.copyWorkplane)', () => {
   })
 })
 
+describe('edges("#Z") parity (upstream DirectionMinMaxSelector)', () => {
+  it('#Z selects the 4 top-rim edges of a plain box (fillet applies)', async () => {
+    const b = await box(Workplane(), 10, 10, 10)
+    const f = await fillet(await edges(b, '#Z'), 2)
+    // filleting the 4 top edges keeps the volume below the raw 1000
+    expect(volume(f)).toBeGreaterThan(900)
+    expect(volume(f)).toBeLessThan(1000)
+  })
+
+  it('#Z on an already-filleted box selects the top rim (8 edges incl. arcs)', async () => {
+    // GOTCHA (probed 2026-10-01): the kernel fillet REJECTS re-filleting the
+    // fillet OUTPUT — "fillet: operation failed" (8 top-rim edges) or
+    // "fillet: TopoDS::Solid" (single edge, kernel-level probe) — even though
+    // the input is still a 1-solid TopoDS (getSubShapes 'solid' == 1).
+    // Selector-side #Z resolution is correct (8 edges); the blocker is
+    // kernel-side (blocks the testEnclosure op:split-all chain), so this test
+    // pins the failure propagating (fail-loud, no silent no-op).
+    // NOTE: the first fillet must be geometrically feasible (2r < box width) —
+    // an r=10 fillet on a 10-wide box fails with the same message.
+    const b = await box(Workplane(), 20, 20, 10)
+    const f1 = await fillet(await edges(b, '|Z'), 5)
+    await expect(fillet(await edges(f1, '#Z'), 2)).rejects.toThrow(/TopoDS::Solid|operation failed/)
+  })
+})
+
 describe('split parity (upstream Workplane.split)', () => {
+  it('keepTop only → single top half (vol 4)', async () => {
+    const b = await box(Workplane(), 2, 2, 2)
+    const sp = await split(b, [0, 0, 0], [0, 0, 1], { keepTop: true, keepBottom: false })
+    expect(volume(sp)).toBeCloseTo(4, 6)
+  })
+
+  it('keepBottom only → single bottom half (vol 4)', async () => {
+    const b = await box(Workplane(), 2, 2, 2)
+    const sp = await split(b, [0, 0, 0], [0, 0, 1], { keepTop: false, keepBottom: true })
+    expect(volume(sp)).toBeCloseTo(4, 6)
+  })
+
+  it('both kept → parts[0]/parts[1] via partAt, each vol 4 (upstream .all())', async () => {
+    const b = await box(Workplane(), 2, 2, 2)
+    const sp = await split(b, [0, 0, 0], [0, 0, 1], { keepTop: true, keepBottom: true })
+    const top = partAt(sp, 0)
+    const bottom = partAt(sp, 1)
+    expect(volume(top)).toBeCloseTo(4, 6)
+    expect(volume(bottom)).toBeCloseTo(4, 6)
+  })
+
+  it('partAt index out of range throws', async () => {
+    const b = await box(Workplane(), 2, 2, 2)
+    const sp = await split(b, [0, 0, 0], [0, 0, 1])
+    expect(() => partAt(sp, 5)).toThrow(/out of range/)
+  })
+
   it('2×2×2 box split at z=0.5 keeps both halves → total volume 8', async () => {
     const b = await box(Workplane(), 2, 2, 2)
     const sp = await split(b, [0, 0, 0.5], [0, 0, 1])
