@@ -542,3 +542,25 @@ tsc 0 error；eslint 0 error；`verify-export-jsdoc` 全仓过；targeted parity
 ### 13.4 manifest 与门禁
 
 manifest 449/201/47 → **450/200/47**（r2 翻 ported；testEnclosure 9 条改判 `kernel:fillet-chain-reapply`、testOffset2D__s 改判 `op:offset2D-multi-region`，均为内核侧）。门禁全绿：tsc 0 error、eslint 0 error、`verify-export-jsdoc` 过、波及单测（p1-workplane-ops + sketch-workplane）41 passed、targeted parity 复跑 PASS=42。
+
+## 14. 续作记录（2026-10-01 第十轮 — prism-from-face 归内核 + faceFromPoints 落地 + ref 异常再 +1）
+
+### 14.1 判定与产出
+
+| 项 | 条数 | 判定 | 处置 |
+|---|---|---|---|
+| `op:prism-from-face` | 4 | **归内核**：上游 `func.prism` 的 from/to-face / to-face / through-all 重载走 `BRepFeat_MakePrism`（特征棱柱布尔融合语义），occt-wasm 只有 `BRepPrimAPI_MakePrism` 向量挤出，outerWire loft 复刻不了其拓扑 → 已入 gap-plan §10.4（~80 行绑定） | gap-plan 登记 |
+| `op:sweep-hole-section` | 1 | **ref 侧异常**：`test_history_sweep__res` 的 ref STEP 是单位盒（vol 1.0/f6），非带孔变径方管扫掠产物（同 testText__obj1 / testExtrudeUntilFace 先例） | ✅ 镜像按 ref 几何复现翻 ported（注释钉死异常，不隐含带孔 sweep 能力） |
+| `op:solid-makeSolid-3d-wire` | 1 | **faijs 侧关闭**：新增 `faceFromPoints(wp, pts)`（3D 顶点环 → 直边 wire → 面，上游 Face.makeFromWires(Wire.combine(...)) 等价）+ 既有 `solidFromFaces` | ✅ testMakeShellSolid__solid 四面体镜像 parity PASS（vol √2/12 逐位，f4/e6/v4 拓扑一致） |
+
+manifest 450/200/47 → **452/198/47**。
+
+### 14.2 GOTCHA（本轮实测，防后人踩坑）
+
+- **`solidFromFaces(wp, faces)` 的第一个参数是坐标系 Workplane，不是面**——把第 0 个面当 `wp` 传入会让它被静默排除在 sew 之外（4 面 → 3 面，四面体 vol √2/18）；全部面走 `faces` 数组。单测与镜像注释均已钉死。
+- **`fixFaceOrientations` 的适用面**：它修的是 loft 蒙皮齿轮面的内向问题；对朝向本就正确的封闭面集无害（sew+makeSolid 已给出正确体积）。之前「必须关闭」的判断是上面这个调用错误造成的误判，已在注释中更正。
+- 内核层对照证据：直接 `sew(4 faces, tol) + makeSolid` 在 tol 1e-6/1e-4/1e-2 全部给出精确 √2/12——封装语义问题与内核无关。
+
+### 14.3 门禁（全绿，已实测）
+
+tsc 0 error；eslint 0 error；`verify-export-jsdoc` 全仓过；四面体单测 + 波及单测绿；targeted parity 复跑 PASS=44。

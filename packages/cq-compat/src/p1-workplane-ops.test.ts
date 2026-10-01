@@ -41,6 +41,8 @@ import {
   partAt,
   fillet,
   edges,
+  faceFromPoints,
+  solidFromFaces,
 } from './workplane'
 import { brepOf } from '@faicad/faijs/shape'
 
@@ -102,6 +104,30 @@ describe('edges("#Z") parity (upstream DirectionMinMaxSelector)', () => {
     const b = await box(Workplane(), 20, 20, 10)
     const f1 = await fillet(await edges(b, '|Z'), 5)
     await expect(fillet(await edges(f1, '#Z'), 2)).rejects.toThrow(/TopoDS::Solid|operation failed/)
+  })
+})
+
+describe('faceFromPoints + solidFromFaces parity (upstream testMakeShellSolid)', () => {
+  it('unit tetrahedron from 4 vertex-ring faces → vol √2/12, f4/e6/v4', async () => {
+    // upstream: 4 vertices at (√2/4, ±√2/4, ∓√2/4), 3-edge faces sewn into a
+    // shell, then Solid.makeSolid — a regular tetrahedron of edge 1.
+    const c0 = Math.sqrt(2) / 4
+    const v = [
+      [c0, -c0, c0],
+      [c0, c0, -c0],
+      [-c0, c0, c0],
+      [-c0, -c0, -c0],
+   ] as [number, number, number][]
+    const ixs = [[0, 1, 2], [1, 0, 3], [2, 3, 0], [3, 2, 1]]
+    const faceWps = ixs.map((ix) => faceFromPoints(Workplane(), ix.map((i) => v[i]!)))
+    // NOTE: the FIRST argument of solidFromFaces is the frame workplane (not a
+    // face) — passing faceWps[0] there silently drops it from the sew (3 faces,
+    // vol √2/18). All four faces go in the faces array.
+    const solid = await solidFromFaces(Workplane(), faceWps)
+    // regular tetrahedron of edge 1: V = √2 / 12
+    expect(volume(solid)).toBeCloseTo(Math.SQRT2 / 12, 9)
+    const k = getKernel() as unknown as { getSubShapes: (h: never, t: string) => unknown[] }
+    expect(k.getSubShapes(brepOf(solid.shape as never) as never, 'face').length).toBe(4)
   })
 })
 

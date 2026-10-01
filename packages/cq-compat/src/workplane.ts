@@ -5508,6 +5508,44 @@ export async function twistExtrude(
 }
 
 /**
+ * faceFromPoints — build a planar face from an ordered ring of 3D vertices
+ * (upstream `Face.makeFromWires(Wire.combine([Edge.makeLine(...)]))`): the
+ * points are chained with straight edges and the wire auto-closes (a
+ * duplicated final point is dropped). This is the 3D-wire face path the
+ * sketch layer cannot express (its lineTo draws workplane-local 2D only) and
+ * the input `solidFromFaces` needs for polyhedra (testMakeShellSolid's
+ * tetrahedron: 4 faces × 3 vertices, then Shell.makeShell + Solid.makeSolid).
+ * @param wp - Workplane receiving the face as .shape
+ * @param pts - ordered ring of 3D vertices (≥3); first==last is tolerated
+ * @returns Workplane carrying the face
+ */
+export function faceFromPoints(wp: Workplane, pts: [number, number, number][]): Workplane {
+  if (pts.length < 3) throw new Error('[cq-compat] faceFromPoints: at least 3 vertices are required')
+  const ring = [...pts]
+  const first = ring[0]!
+  const last = ring[ring.length - 1]!
+  if (Math.hypot(first[0] - last[0], first[1] - last[1], first[2] - last[2]) < 1e-12) ring.pop()
+  if (ring.length < 3) throw new Error('[cq-compat] faceFromPoints: degenerate ring after closure')
+  const k = getKernel() as unknown as {
+    makeLineEdge: (a: Vec3, b: Vec3) => ShapeHandle
+    makeWire: (edges: ShapeHandle[]) => ShapeHandle
+    makeFace: (wire: ShapeHandle) => ShapeHandle
+    release: (h: ShapeHandle) => void
+  }
+  const edges: ShapeHandle[] = []
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]!
+    const b = ring[(i + 1) % ring.length]!
+    edges.push(k.makeLineEdge({ x: a[0], y: a[1], z: a[2] }, { x: b[0], y: b[1], z: b[2] }))
+  }
+  const wire = k.makeWire(edges)
+  for (const e of edges) k.release(e)
+  const face = k.makeFace(wire)
+  k.release(wire)
+  return clone(wp, { shape: fromHandle(face), pendingWires: [], pendingEdges: [], currentPoint: undefined, firstPoint: undefined })
+}
+
+/**
  * solidFromFaces — sew a closed set of faces into a solid on the workplane.
  * Equivalent to CadQuery `cq.Shell.makeShell(faces)` + `Solid.makeSolid(...)`
  * (BRepBuilderAPI_Sewing + BRepBuilderAPI_MakeSolid + orientation fix).

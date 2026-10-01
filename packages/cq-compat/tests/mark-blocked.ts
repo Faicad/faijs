@@ -249,10 +249,11 @@ const BY_KEY: Record<string, string> = {
   // r2 = Workplane().box(1,1,3).split(r1) where r1 is a parametricSurface —
   // `parametricSurface` is not implemented, so nothing to split with.
   'tests.test_cadquery::TestCadQuery::testParametricSurface__r2': 'op:parametricSurface',
-  // sweep([f1, f2], p) over sections that are faces with an inner hole
-  // (`plane(1,1) - face(circle(0.1))`): cq-compat has no public way to build a
-  // face-with-holes section, so the multi-section swept tube cannot be profiled.
-  'tests.test_free_functions:::test_history_sweep__res': 'op:sweep-hole-section',
+  // sweep with an inner-hole section CLOSED (2026-10-01): the ref STEP for
+  // test_history_sweep__res is a PLAIN UNIT BOX (vol=1.0, f6/e12/v8/s1) — a
+  // ref-side anomaly, not the hollow-tube sweep product the upstream
+  // expression builds. The mirror reproduces the ref geometry (comment pins
+  // the anomaly). No sweep-hole-section capability is implied by the flip.
   // `side` is a History sub-shape lookup (op.generated(f1.outerWire().edges())),
   // not pure geometry — same class as test_history_extrude__sides (§7.2).
   'tests.test_free_functions:::test_history_sweep__side': 'op:history-subshape',
@@ -274,11 +275,11 @@ const BY_KEY: Record<string, string> = {
   'tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect': 'op:fuzzy-bool',
   'tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_cmp': 'op:fuzzy-bool',
   'tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_val': 'op:fuzzy-bool',
-  // Solid.makeSolid(Shell.makeShell(faces)) over 4 arbitrary 3D triangle faces:
-  // solidFromFaces exists, but building the faces needs a 3D vertex→edge→wire
-  // path (Edge.makeLine between Vector triples + Wire.combine), which the
-  // workplane sketch layer (planar lineTo only) does not expose.
-  'tests.test_cadquery::TestCadQuery::testMakeShellSolid__solid': 'op:solid-makeSolid-3d-wire',
+  // Solid.makeSolid(Shell.makeShell(faces)) over 4 arbitrary 3D triangle faces
+  // CLOSED (2026-10-01): faceFromPoints (3D vertex ring -> wire -> face) +
+  // solidFromFaces give the exact √2/12 tetrahedron; mirror parity PASS.
+  // NOTE: solidFromFaces' first argument is the FRAME workplane, not a face —
+  // passing f1 there silently drops it from the sew (3 faces, vol √2/18).
   // Assembly solver cases: solved placements need the constraint solver
   // (PointOnLine / Point via expression grammar / tag-based selection), same
   // class as the existing op:assembly-solve entries.

@@ -58,6 +58,8 @@ const pairs: Array<[string, string]> = [
   ['tests.test_free_functions___test_prism_taper__box_shape', 'test_prism_taper__box_shape'],
   ['tests.test_free_functions___test_prism_taper__res1', 'test_prism_taper__res1'],
   ['tests.test_free_functions___test_prism_taper__res4', 'test_prism_taper__res4'],
+  ['tests.test_free_functions___test_history_sweep__res', 'test_history_sweep__res'],
+  ['tests.test_cadquery__TestCadQuery__testMakeShellSolid__solid', 'TestCadQuery__testMakeShellSolid__solid'],
 ]
 
 async function main() {

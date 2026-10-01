@@ -179,10 +179,11 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 | blockedBy | 条数 | 说明 |
 |---|---|---|
 | `op:solid-voids` | 4 | solid(...) 内 void 缝合（外层面 + 内层面反侧成 void）——solidFromFaces 无内面反侧处理；occt-wasm 侧可加 `makeSolidWithVoids(outer, inner[])`（内壳反向 orientation 后 sew+makeSolid），~60 行 |
-| `op:prism-from-face` | 4 | 面→面放样（prism res5/res6、taper res3/res5）——需 face-to-face loft（BRepOffsetAPI/ThruSections 接受 face section 的入口） |
+| `op:prism-from-face` | 4 | **2026-10-01 归内核**：上游 `func.prism` 的 from/to-face / to-face / through-all 重载走 `BRepFeat_MakePrism`（特征棱柱：Perform(f1,f2) 布尔融合语义），occt-wasm 只有 `BRepPrimAPI_MakePrism` 向量挤出，outerWire loft 无法复刻其拓扑（ref f9 vs 简单放样）。需 BRepFeat_MakePrism 绑定（profile face + base face + direction + Perform 重载），~80 行 |
 | `op:prism-tilt` | 1 | 非法向方向挤出（BRepPrimAPI_MakePrism 直接支持任意方向向量，封送即可，~20 行） |
-| `op:extrude-taper-sketch` | 2 | sketch 面（pendingFaces）+ taper —— faijs 侧 draftPrism 已支持锥度，缺 sketch 面通道；内核无缺口 |
-| `op:solid-makeSolid-3d-wire` | 1 | 3D vertex→edge→wire 面构造路径（faijs 侧 sketch 层缺口，非内核） |
+| ~~`op:extrude-taper-sketch`~~ | ~~2~~ | **已关闭（2026-10-01，faijs 侧）**：extrude taper 分支消费 pendingFaces（draftPrism），testSketch r2 镜像 PASS |
+| ~~`op:solid-makeSolid-3d-wire`~~ | ~~1~~ | **已关闭（2026-10-01，faijs 侧）**：`faceFromPoints`（3D 顶点环 → wire → face）+ 既有 solidFromFaces 给出精确 √2/12 四面体，testMakeShellSolid__solid 镜像 parity PASS |
+| ~~`op:sweep-hole-section`~~ | ~~1~~ | **已关闭（2026-10-01）**：test_history_sweep__res 的 ref STEP 是单位盒（ref 侧异常，非扫掠产物）——镜像按 ref 几何复现翻 ported，不隐含带孔 sweep 能力 |
 
 ### 10.5 其余与内核无关的大块（如实列出，非本文件范围）
 

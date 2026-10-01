@@ -119,6 +119,7 @@ export {
   sketchFinish,
   eachpoint,
   partAt,
+  faceFromPoints,
 } from './workplane'
 export type {
   Workplane as WorkplaneType,
