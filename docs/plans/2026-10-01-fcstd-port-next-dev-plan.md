@@ -187,13 +187,15 @@
   - `packages/core/src/cad-runtime/module-registry.ts` 的 `liveShapes` **保持原样**——那是跨模块 import 的绑定解析，hidden shape 仍是模块真实导出值，不属「产物导出」层。
   - **corpus parity funnel 尚未重跑**：本修复改变了不少文件的产物文件数，§1 的 886/1,661/922 等数字需按新导出行为重跑后重基线（未做，不得沿用旧数）。
 
-#### B5 修 disk-drive boolean 内核失败（`kernel cut failed`）— 待启动（属 C/D 类，非 solids terminal）
+#### B5 修 disk-drive boolean 内核失败（`kernel cut failed`）✅ 已完成（2026-10-01 续）
 
 - **现象**：disk-drive 复跑 `stage1 ok`、B2 的 `import { assembly }` 形态已正确，但新鲜 run 在 `cad.subtract(Body__chain_2, Pocket002)` 抛 `kernel cut failed … cutWithHistory`。`process-one.py` 在 `do_run` 失败后未清 `step/` 目录，复用了 Sep-27 陈旧 STEP，造成 `solids(1vs2)`/`inv:true` 假象（工具侧 `tools/process-one.py` L96-113 缺陷：应在运行前 `rm -rf step_dir` 或仅采用本次写出的文件）。
-- **根因**：boolean `cut` 内核在 `Body__chain_2 × Pocket002` 上失败——可能是几何退化（Pocket002 的拉伸/减运算输入自交或零体积）触发 OCCT `cutWithHistory` 异常。与 solids terminal 无关，属 C/D 组（几何/内核）范畴。
-- **修复方向**：先定位 `Body__chain_2` 与 `Pocket002` 的几何（哪一步拉伸/布尔产生退化体），再决定是 cad 翻译端约束（如 Pocket002 高度/容差）还是内核 `cutWithHistory` 容错。
-- **判据**：disk-drive `stage2` 转 ok 并能产出 STEP；其 `solids` 届时再按真实 terminal 数重判。
-- **工具侧附带修复**：`tools/process-one.py` 的 `do_run` 在 spawn worker 前清空 `step_dir`，避免陈旧 STEP 污染 `inv`。此修复独立、低风险，可随 B5 一并提交或单独立项。
+- **根因（变体探针实证）**：失败不在输入退化（`chainOnly`/`prev`/`toolOnly` 单独导出均 ok），而在 **OCCT `cutWithHistory` 对「布尔产物作为刀具且与 target 共享子域」的组合失败**（Pocket002 = Pocket001 − Pocket002_cut，Body__chain_2 含 Pocket001）；裸 `kernel.cut` 对最小合成复现成功，但对真实几何仍失败；**`unifySameDomain` 两输入后裸 cut 成功**。
+- **修复（faijs `packages/core/src/api/boolean.ts`）**：history 路径失败时的降级链——① 裸 `kernel[op]` 重试；② 仍失败则 `unifySameDomain(prev)/unifySameDomain(tool)` 后裸 `kernel[op]` 重算；全部失败才抛原 `E_OP_FAILED`（带原 cause）。降级如实丢本次面演化/roleTable（同裸路径语义），GOTCHA 注释留档。
+- **工具侧附带修复**：`fcstd-port tools/process-one.py` 的 `do_run` 在 spawn worker 前清空 `step_dir` 的 `*.step`，防陈旧 STEP 污染 `inv`。
+- **单测（防回归）**：`fcstd-port test/unit/b5-boolean-history-cut-regression.test.ts`（最小合成复现：布尔产物作刀具共享子域 → 修复前 `kernel cut failed`，现 pass）；`test/unit/b5-disk-drive-e2e.test.ts`（真实 Body.fai.js 转 ok 且产 STEP）。探针脚本 `tools/probe-dd-run.mts` / `tools/probe-dd-variants.mts` / `test/unit/b5-probe-variants.test.ts` 按铁律保留。
+- **验证**：回归单测 + e2e 全过；faijs `npm run typecheck` 干净；`boolean-vc8.test.ts` 无回归。
+- **判据达成**：disk-drive 执行转 ok 并产出 STEP（`out.step_0_Body__chain_3` + `out.step_1_assembly`）；全量 parity 漏斗重基线仍属 B4 遗留待办。
 
 ---
 
@@ -280,7 +282,7 @@
 | B2 | ✅ 已完成（commit `a0f94ebf`）：单 Body 别名泄漏终端改为 `assembly` 直接 import，Sprocket 取点 solids 退出 fail + M-B1 单测留档。**覆盖边界（订正）**：仅单 Body 别名泄漏子类；TS35（`1vs4` 中间 var 泄漏）/ disk-drive（`1vs6`→boolean 内核失败）经复跑实证为不同机制，B2 未覆盖（见 B4/B5） |
 | B3 | 撤销：实证非口径错，无需改 parity/truth 侧 |
 | B4 | 待启动：修 runtime 中间 feature-var 泄漏为 terminal（TS35 `solids(1vs4)`）；根因在 `computeLiveShapes.lineConsumes` 对 `import_brep`/`cylinder` 源几何消费漏判；TS35 复跑 `solids 1vs1` |
-| B5 | 待启动（C/D 类）：disk-drive `cad.subtract(Body__chain_2, Pocket002)` boolean 内核 `kernel cut failed`；附带修 `process-one.py` `do_run` 运行前清空 `step_dir` 防陈旧 STEP 污染 |
+| B5 | ✅ 已完成（2026-10-01 续）：`cutWithHistory` 失败降级链（裸 kernel 重试 → unifySameDomain 后重算）+ `process-one.py` 运行前清空 step_dir；disk-drive 转 ok 产 STEP；回归单测 + e2e 留档 |
 | C1 | com 微小偏移重定性完成（口径 vs 真实） |
 | C2 | 取点文件 com 大偏移消除 + 单测留档 |
 | C3 | 取点文件 volume 失配消除 |

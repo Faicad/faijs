@@ -107,14 +107,40 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
           outStmt,
         )
       } catch (cause) {
-        const msg = cause instanceof Error ? cause.message : String(cause)
-        throw new OpError(
-          `boolean/${operation}`,
-          'E_OP_FAILED',
-          `[stdlib/boolean] ${operation}: kernel ${op} failed for inputs ` +
-          `${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`} — ${msg}`,
-          { cause },
-        )
+        // GOTCHA: OCCT 的 *WithHistory 在两输入共享子结构/历史（如布尔产物的布尔）
+        // 时可能 "operation failed"，而同一几何的裸布尔可以成功。降级重试一次裸
+        // kernel[op]：几何结果正确，代价是丢本次面演化/roleTable（如实降级，同下方
+        // 裸路径语义）。裸布尔也失败时，再试 unifySameDomain(两输入) 后重算——
+        // 真实语料（disk-drive）中 tool 是布尔产物且与 target 共享子域，裸 cut 仍失败、
+        // unify 后成功。全部失败才真正抛错。
+        try {
+          resultSolid = kernel[op](prev, tool)
+          lastEvolution = undefined
+          roleTable = undefined
+          if (i > 1) kernel.release(prev)
+          continue
+        } catch {
+          try {
+            const uPrev = kernel.unifySameDomain(prev)
+            const uTool = kernel.unifySameDomain(tool)
+            resultSolid = kernel[op](uPrev, uTool)
+            kernel.release(uPrev)
+            kernel.release(uTool)
+            lastEvolution = undefined
+            roleTable = undefined
+            if (i > 1) kernel.release(prev)
+            continue
+          } catch {
+            const msg = cause instanceof Error ? cause.message : String(cause)
+            throw new OpError(
+              `boolean/${operation}`,
+              'E_OP_FAILED',
+              `[stdlib/boolean] ${operation}: kernel ${op} failed for inputs ` +
+              `${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`} — ${msg}`,
+              { cause },
+            )
+          }
+        }
       }
       resultSolid = r.result
       lastEvolution = r.faceEvolution
