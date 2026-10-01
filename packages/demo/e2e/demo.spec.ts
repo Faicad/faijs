@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
-import { zipSync } from 'fflate'
+import { writeZipEntries } from '@faicad/faijs/io/zip'
 
 /**
  * E2E tests for the faijs CAD demo.
@@ -106,7 +106,7 @@ async function readFaiProjectTree(dirUrl: URL): Promise<Record<string, string>> 
 async function zipFaiProject(files: Record<string, string>): Promise<Buffer> {
   const entries: Record<string, Uint8Array> = {}
   for (const [key, text] of Object.entries(files)) entries[key] = new TextEncoder().encode(text)
-  return Buffer.from(zipSync(entries))
+  return Buffer.from(writeZipEntries(entries))
 }
 
 test.describe('faijs demo', () => {

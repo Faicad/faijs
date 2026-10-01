@@ -1,13 +1,13 @@
 /**
  * zip-loader — zip 通道单测（Node 环境，零 DOM）
  *
- * 用 fflate.zipSync 在内存里构造 zip（不落盘、不依赖 DOM），覆盖（§6.2）：
- * 基本枚举、顶层包裹目录（不剥离）、跳过规则 + 目录条目忽略、反斜杠归一、
- * readSource 命中/越界（文案与 folder 通道一致）、refresh() no-op、
- * 损坏输入（cause 保留）、pickEntryKey 五条分支。
+ * 用 writeZipEntries（@faicad/faijs/io/zip）在内存里构造 zip（不落盘、不依赖
+ * DOM），覆盖（§6.2）：基本枚举、顶层包裹目录（不剥离）、跳过规则 + 目录条目
+ * 忽略、反斜杠归一、readSource 命中/越界（文案与 folder 通道一致）、refresh()
+ * no-op、损坏输入（cause 保留）、pickEntryKey 五条分支。
  */
 import { describe, it, expect } from 'vitest'
-import { zipSync } from 'fflate'
+import { writeZipEntries } from '@faicad/faijs/io/zip'
 import { createZipProjectLoader } from './zip-loader'
 import { pickEntryKey } from './shared'
 
@@ -17,7 +17,7 @@ function zipBytes(files: Record<string, string>): Uint8Array {
   for (const [key, text] of Object.entries(files)) {
     entries[key] = new TextEncoder().encode(text)
   }
-  return zipSync(entries)
+  return writeZipEntries(entries)
 }
 
 describe('createZipProjectLoader: 基础枚举', () => {

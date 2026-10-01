@@ -15,7 +15,7 @@
  */
 
 import { buildStlBufferFromMesh } from './stl'
-import { zipSync, strToU8 } from 'fflate'
+import { writeZipEntries } from '../../io/zip'
 import { UNIT_SCALE, type UnitName } from '../../units'
 import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
@@ -139,10 +139,10 @@ function build3mfBuffer(modelXml: string): ArrayBuffer {
   const rels = `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`
 
-  const zipped = zipSync({
-    '[Content_Types].xml': strToU8(contentTypes),
-    '_rels/.rels': strToU8(rels),
-    '3D/3dmodel.model': strToU8(modelXml),
+  const zipped = writeZipEntries({
+    '[Content_Types].xml': new TextEncoder().encode(contentTypes),
+    '_rels/.rels': new TextEncoder().encode(rels),
+    '3D/3dmodel.model': new TextEncoder().encode(modelXml),
   })
   return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer
 }

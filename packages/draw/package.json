@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-draw",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "faijs 2D drawing DSL - cad.draw fluent scripting over the core geometry2d pure base",
   "keywords": [
     "faijs",
@@ -30,7 +30,7 @@
     "LICENSE"
   ],
   "peerDependencies": {
-    "@faicad/faijs": "^0.23.0"
+    "@faicad/faijs": "^0.24.0"
   },
   "devDependencies": {
     "typescript": "*",

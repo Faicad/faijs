@@ -14,7 +14,7 @@
  * - key 要最终形态：无反斜杠、无 `./` 前缀（ModuleRegistry.normalizeModuleKey
  *   只做最小归一半按 listModules() 精确匹配）。
  */
-import { unzipSync } from 'fflate'
+import { readZipEntries } from '@faicad/faijs/io/zip'
 import type { DemoProjectLoader } from './types'
 import { FAI_SUFFIX, DEFAULT_SKIP_DIRS, escapeError, errMessage, isSkippedDir } from './shared'
 
@@ -24,7 +24,7 @@ export interface ZipProjectOptions {
   skipDirs?: string[]
 }
 
-/** 解压后条目数量 / 总字节上限（R9：防 `unzipSync` 同步解压卡死主线程）。 */
+/** 解压后条目数量 / 总字节上限（R9：防同步解压卡死主线程；与 io/zip 默认值不同，显式传入）。 */
 const MAX_ENTRIES = 5000
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024
 
@@ -45,23 +45,19 @@ export async function createZipProjectLoader(
 
   // A2. 解压；非 zip 字节 → 包成上下文错误抛出（由 main.ts 的 catch 显示）。
   // 实测（fflate 0.8.3）：非 zip 字节抛 `Error('invalid zip data')`；断言外层文案。
-  let rawEntries: Record<string, Uint8Array>
+  // io/zip 的 readZipEntries 承担目录条目过滤与 5000/64MB 上限判定（R9）。
+  let rawEntries: Map<string, Uint8Array>
   try {
-    rawEntries = unzipSync(bytes)
+    rawEntries = readZipEntries(bytes, { maxEntries: MAX_ENTRIES, maxTotalBytes: MAX_TOTAL_BYTES })
   } catch (err) {
     throw new Error(`zip 解析失败: ${errMessage(err)}`, { cause: err })
   }
 
   const skipDirs = new Set(opts?.skipDirs ?? DEFAULT_SKIP_DIRS)
 
-  // A3. 遍历条目（fflate 的 zipSync/unzipSync 都不产出目录条目，故「以 / 结尾」
-  // 的跳过是防御性保留，正常路径不会命中）。
+  // A3. 遍历条目（readZipEntries 不产出目录条目，故「以 / 结尾」的跳过是防御性保留）。
   const source = new Map<string, Uint8Array>()
-  let totalBytes = 0
-  let entryCount = 0
-  for (const [rawKey, value] of Object.entries(rawEntries)) {
-    entryCount++
-    totalBytes += value.byteLength
+  for (const [rawKey, value] of rawEntries) {
     if (rawKey.endsWith('/')) continue // 目录条目（防御性）
     // 路径归一化：`\` → `/`；去掉前导 `./`
     const key = rawKey.replace(/\\/g, '/').replace(/^\.\//, '')
@@ -71,10 +67,7 @@ export async function createZipProjectLoader(
     source.set(key, value)
   }
 
-  // A4. 上限判定在解析后立刻打一枪，防巨包（R9）。
-  if (entryCount > MAX_ENTRIES || totalBytes > MAX_TOTAL_BYTES) {
-    throw new Error(`zip 内容超出上限（64MB / ${MAX_ENTRIES} 条目）`)
-  }
+  // A4. 上限判定由 readZipEntries 在解压入口完成（与 R9 同一语义，见 A2）。
 
   // A5. 清单排序（与 folder 通道排序一致）。
   const modules = [...source.keys()].sort()

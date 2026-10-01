@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "config": {
-    "faijsVersion": "0.23.0"
+    "faijsVersion": "0.24.0"
   },
   "description": "Faicad faijs monorepo — CAD execution engine (@faicad/faijs) and companion libraries",
   "license": "Apache-2.0",

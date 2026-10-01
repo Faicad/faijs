@@ -1,26 +1,10 @@
 /**
  * 3MF load → fai_extrude chain (planeDistance).
  *
- * PARKED with `describe.skip` (2026-09-27): faijs `importFile` does not yet
- * support the 3mf format. Its STL fallback silently returns an *empty* mesh for
- * a 3mf archive (zip bytes are not binary STL; the triangle-count sanity check
- * yields zero facets), so `cad.load({ format: '3mf' })` "succeeds" with
- * positions/indices of length 0, and a subsequent `fai_extrude` on that part
- * fails with `E_OP_FAILED: No valid geometry to extrude`.
- *
- * This is the reproducible evidence (created 2026-09-27 while investigating the
- * Cube334.3mf extrude chain):
- *
- *   const part0 = cad.load({ key, format: '3mf' })          // succeeds, EMPTY mesh
- *   const part1 = cad.fai_extrude(part0, { length: 10, mode: 'centered',
- *     normal: [0,0,1], planeDistance: 17.5 })               // E_OP_FAILED: No valid geometry to extrude
- *
- * 3mf support is a separate follow-up task (new feature, not part of the
- * plane-param semantics change). Once faijs parses 3mf — unzip the archive,
- * read `<vertices>/<triangles>` per object, and bake each build `<item>`
- * transform (ST_Matrix3D, column-major, translation in the last three tokens)
- * into world-space positions so `planeDistance` (a world-plane d value) lines
- * up with the mesh — remove `describe.skip` and this test asserts the chain.
+ * faijs `importFile` supports the 3mf format (readZipEntries + per-object
+ * mesh parse + build `<item>` transform baked into world space), so a
+ * `cad.load({ format: '3mf' })` yields real geometry and a subsequent
+ * `fai_extrude` with a world-plane `planeDistance` executes against it.
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -66,7 +50,7 @@ function createTestAssets(): AssetResolver {
   }
 }
 
-describe.skip('3mf load → fai_extrude chain (planeDistance)', () => {
+describe('3mf load → fai_extrude chain (planeDistance)', () => {
   it('load cube334.3mf (non-empty mesh) then fai_extrude with planeDistance succeeds', async () => {
     fileBlobStore.clear()
     const bufferKey = fileBlobStore.put(threemfBuffer)

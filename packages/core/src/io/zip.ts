@@ -118,19 +118,27 @@ export function readZipEntries(
 
 type EntryTable = Record<string, Uint8Array>
 
+/** Write-side options (compression level + advisory ZIP comment). */
+export interface ZipWriteOptions {
+  /** Compression level; default `DEFAULT_ZIP_LEVEL` (6). */
+  level?: ZipLevel
+  /** Optional ZIP comment (advisory — consumers read it via the EOCD record). */
+  comment?: string
+}
+
 /**
  * Zip an entry table into bytes.
  *
  * @param entries - archive path -> bytes to store.
- * @param level - compression level (default `DEFAULT_ZIP_LEVEL`).
+ * @param opts - optional compression level / ZIP comment.
  * @returns the ZIP bytes.
  * @throws on an empty entry table.
  */
-export function writeZipEntries(entries: EntryTable, level: ZipLevel = DEFAULT_ZIP_LEVEL): Uint8Array {
+export function writeZipEntries(entries: EntryTable, opts?: ZipWriteOptions): Uint8Array {
   if (Object.keys(entries).length === 0) {
     throw new Error('zip write failed: empty entry table')
   }
-  return zipSync(entries, { level })
+  return zipSync(entries, { level: opts?.level ?? DEFAULT_ZIP_LEVEL, comment: opts?.comment })
 }
 
 /** Async read: yields to the event loop between chunks (see plan §D8).
@@ -161,18 +169,18 @@ export function readZipEntriesAsync(
 /** Zip an entry table into bytes, yielding between chunks.
  *
  * @param entries - archive path -> entry to store.
- * @param level - compression level (default 6).
+ * @param opts - optional compression level / ZIP comment.
  * @returns a promise of the ZIP bytes.
  */
 export function writeZipEntriesAsync(
   entries: EntryTable,
-  level: ZipLevel = DEFAULT_ZIP_LEVEL,
+  opts?: ZipWriteOptions,
 ): Promise<Uint8Array> {
   if (Object.keys(entries).length === 0) {
     return Promise.reject(new Error('zip write failed: empty entry table'))
   }
   return new Promise((resolve, reject) => {
-    zip(entries, { level }, (err, out) => {
+    zip(entries, { level: opts?.level ?? DEFAULT_ZIP_LEVEL, comment: opts?.comment }, (err, out) => {
       if (err) {
         reject(new Error(`zip write failed: ${err.message}`))
         return
