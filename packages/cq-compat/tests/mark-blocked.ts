@@ -249,6 +249,78 @@ const BY_KEY: Record<string, string> = {
   // `side` is a History sub-shape lookup (op.generated(f1.outerWire().edges())),
   // not pure geometry — same class as test_history_extrude__sides (§7.2).
   'tests.test_free_functions:::test_history_sweep__side': 'op:history-subshape',
+  // ---------------------------------------------------------------------------
+  // pending:mirror cleanup batch (2026-10-01) — triaged against upstream sources
+  // ---------------------------------------------------------------------------
+  // cut = box.faces(">Z").workplane(invert=True).rect(1.5,5)
+  //        .twistExtrude(10, 90, combine="cut") — the 90°-twist tool cut into
+  // the box hangs the kernel boolean (>300 s, no completion), the same
+  // near-coincident twisted B-spline boolean gap as testTwistExtrude/Combine.
+  'tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut__cut': 'kernel:boolean-near-coincident-bspline',
+  // union/intersect with tol=eps (fuzzy boolean). cq-compat and the core
+  // boolean API have no tolerance channel at all, so the fuzzy-merged results
+  // (res_fuzzy vol 2.001, res_fuzzy_intersect vol 1.0 vs plain 0.499) cannot
+  // be reproduced. box1_cmp/box4_cmp (single-box compounds) ARE mirrored and
+  // pass — only the tol-dependent vars stay blocked.
+  'tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy': 'op:fuzzy-bool',
+  'tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy2': 'op:fuzzy-bool',
+  'tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect': 'op:fuzzy-bool',
+  'tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_cmp': 'op:fuzzy-bool',
+  'tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_val': 'op:fuzzy-bool',
+  // Solid.makeSolid(Shell.makeShell(faces)) over 4 arbitrary 3D triangle faces:
+  // solidFromFaces exists, but building the faces needs a 3D vertex→edge→wire
+  // path (Edge.makeLine between Vector triples + Wire.combine), which the
+  // workplane sketch layer (planar lineTo only) does not expose.
+  'tests.test_cadquery::TestCadQuery::testMakeShellSolid__solid': 'op:solid-makeSolid-3d-wire',
+  // Assembly solver cases: solved placements need the constraint solver
+  // (PointOnLine / Point via expression grammar / tag-based selection), same
+  // class as the existing op:assembly-solve entries.
+  'tests.test_assembly:::test_PointInPlane_constraint__box_and_vertex': 'op:assembly-solve',
+  'tests.test_assembly:::test_point_on_line__assy': 'op:assembly-solve',
+  'tests.test_assembly:::test_point_on_line__simple_assy2': 'op:assembly-solve',
+  'tests.test_assembly:::test_point_on_line__w': 'op:assembly-solve',
+  'tests.test_assembly:::test_expression_grammar__nested_assy': 'op:assembly-solve',
+  'tests.test_assembly:::test_constrain_with_tags__nested_assy': 'op:assembly-solve',
+  // pytest.raises error-path assertions (duplicate name / empty solve /
+  // invalid constraint kind / unary-with-solve) — no exported geometry.
+  'tests.test_assembly:::test_duplicate_name__nested_assy': 'raises',
+  'tests.test_assembly:::test_empty_solve__nested_assy': 'raises',
+  'tests.test_assembly:::test_constraint_validation__simple_assy2': 'raises',
+  'tests.test_assembly:::test_single_unary_constraint__simple_assy2': 'raises',
+  'tests.test_assembly:::test_save_raises__nested_assy': 'raises',
+  // STEP subshape metadata round-trip (subshape names/colors/layers) —
+  // importStep/load return plain members; no _subshape_names metadata channel.
+  'tests.test_assembly:::test_assembly_subshape_import__subshape_assy': 'op:assembly-subshape-import',
+  'tests.test_assembly:::test_assembly_subshape_import__imported_assy': 'op:assembly-subshape-import',
+  'tests.test_assembly:::test_assembly_multi_subshape_import__multi_subshape_assy': 'op:assembly-subshape-import',
+  'tests.test_assembly:::test_assembly_multi_subshape_import__imported_assy': 'op:assembly-subshape-import',
+  // Export-format harness gaps (native/BREP, VRML, STL variants, glTF, VTK.js).
+  'tests.test_assembly:::test_native_export__simple_assy': 'export',
+  'tests.test_assembly:::test_vrml_export__simple_assy': 'export',
+  'tests.test_assembly:::test_save_stl_formats__nested_assy_sphere': 'export',
+  'tests.test_assembly:::test_save_gltf__nested_assy_sphere': 'exportGLTF',
+  'tests.test_assembly:::test_save_vtkjs__nested_assy': 'exportVTKJS',
+  // testCompoundCenter: Workplane.cyl monkeypatch over eachpoint (cylinder
+  // placed at each construction-rect vertex, then unioned) — eachpoint is a
+  // known gap.
+  'tests.test_cad_objects::TestCadObjects::testCompoundCenter__s': 'eachpoint',
+  // Plane.toLocalCoords / Plane.mirrorInPlane — arbitrary-plane coordinate
+  // transforms; only mirrorX/mirrorY (axis-aligned sketch mirror) exist.
+  'tests.test_cad_objects::TestCadObjects::testPlaneMethods__local_box': 'op:plane-toLocalCoords',
+  'tests.test_cad_objects::TestCadObjects::testPlaneMethods__mirror_box': 'op:plane-toLocalCoords',
+  // Shape operator overloads (faces(">Z") | faces("<Z") etc.) — operator
+  // syntax unreachable in the .fai.js restricted subset.
+  'tests.test_shapes:::test_set_ops__simple_box': 'op:shape-operator-overload',
+  // Solid.addCavity — solid with an internal void (2 shells); not implemented.
+  'tests.test_shapes:::test_addCavity__b1': 'op:addCavity',
+  'tests.test_shapes:::test_addCavity__b2': 'op:addCavity',
+  'tests.test_shapes:::test_addCavity__br': 'op:addCavity',
+  // History sub-shape reflection.
+  'tests.test_free_functions:::test_history_extrude__sides': 'op:history-subshape',
+  'tests.test_free_functions:::test_history_loft__side': 'op:history-subshape',
+  // test_history_loft__res = loft([plane(1,1), face(circle(1)).moved(z=1)]) —
+  // needs the free-function plane() constructor (func-only gap).
+  'tests.test_free_functions:::test_history_loft__res': 'plane',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<

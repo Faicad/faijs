@@ -20,6 +20,9 @@ const pairs: Array<[string, string]> = [
   ['tests.test_cadquery__TestCadQuery__testExplicitClean__s', 'TestCadQuery__testExplicitClean__s'],
   ['tests.test_free_functions___test_history_extrude__res', 'test_history_extrude__res'],
   ['tests.test_cadquery__TestCadQuery__testTwistExtrudeCombineCut__box', 'TestCadQuery__testTwistExtrudeCombineCut__box'],
+  ['tests.test_cadquery__TestCadQuery__testTwistExtrudeCombineCut__cut', 'TestCadQuery__testTwistExtrudeCombineCut__cut'],
+  ['tests.test_cadquery__TestCadQuery__testFuzzyBoolOp__box1_cmp', 'TestCadQuery__testFuzzyBoolOp__box1_cmp'],
+  ['tests.test_cadquery__TestCadQuery__testFuzzyBoolOp__box4_cmp', 'TestCadQuery__testFuzzyBoolOp__box4_cmp'],
 ]
 
 async function main() {

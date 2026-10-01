@@ -602,12 +602,14 @@
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:fuzzy-bool",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy2": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:fuzzy-bool",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box4": {
     "status": "ported",
@@ -617,27 +619,30 @@
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:fuzzy-bool",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box1_cmp": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box4_cmp": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_cmp": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:fuzzy-bool",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_val": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:fuzzy-bool",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testGlue__box1": {
     "status": "ported",
@@ -793,7 +798,8 @@
   "tests.test_cadquery::TestCadQuery::testMakeShellSolid__solid": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testMakeShellSolid",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:solid-makeSolid-3d-wire",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testMultiFaceWorkplane__s": {
     "status": "ported",
@@ -1401,7 +1407,8 @@
   "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut__cut": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "kernel:boolean-near-coincident-bspline",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testTwistedLoft__s": {
     "status": "ported",
@@ -1799,17 +1806,20 @@
   "tests.test_shapes:::test_addCavity__b1": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:addCavity",
+    "manual": true
   },
   "tests.test_shapes:::test_addCavity__b2": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:addCavity",
+    "manual": true
   },
   "tests.test_shapes:::test_addCavity__br": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:addCavity",
+    "manual": true
   },
   "tests.test_shapes:::test_replace__b": {
     "status": "blocked",
@@ -1924,7 +1934,8 @@
   "tests.test_shapes:::test_set_ops__simple_box": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_set_ops",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:shape-operator-overload",
+    "manual": true
   },
   "tests.test_workplanes::TestWorkplanes::test_all_planes__b2": {
     "status": "ported",
@@ -2599,7 +2610,8 @@
   "tests.test_free_functions:::test_history_extrude__sides": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_extrude",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:history-subshape",
+    "manual": true
   },
   "tests.test_free_functions:::test_history_sweep__res": {
     "status": "blocked",
@@ -2616,12 +2628,14 @@
   "tests.test_free_functions:::test_history_loft__res": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_loft",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "plane",
+    "manual": true
   },
   "tests.test_free_functions:::test_history_loft__side": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_loft",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:history-subshape",
+    "manual": true
   },
   "tests.test_free_functions:::test_history_offset__sides": {
     "status": "blocked",
@@ -2874,7 +2888,8 @@
   "tests.test_cad_objects::TestCadObjects::testCompoundCenter__s": {
     "status": "blocked",
     "source": "tests.test_cad_objects::TestCadObjects::testCompoundCenter",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "eachpoint",
+    "manual": true
   },
   "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia__cylinder": {
     "status": "ported",
@@ -2884,12 +2899,14 @@
   "tests.test_cad_objects::TestCadObjects::testPlaneMethods__local_box": {
     "status": "blocked",
     "source": "tests.test_cad_objects::TestCadObjects::testPlaneMethods",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:plane-toLocalCoords",
+    "manual": true
   },
   "tests.test_cad_objects::TestCadObjects::testPlaneMethods__mirror_box": {
     "status": "blocked",
     "source": "tests.test_cad_objects::TestCadObjects::testPlaneMethods",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:plane-toLocalCoords",
+    "manual": true
   },
   "tests.test_assembly:::test_metadata__metadata_assy": {
     "status": "ported",
@@ -3045,22 +3062,26 @@
   "tests.test_assembly:::test_assembly_subshape_import__subshape_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_subshape_import",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-subshape-import",
+    "manual": true
   },
   "tests.test_assembly:::test_assembly_subshape_import__imported_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_subshape_import",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-subshape-import",
+    "manual": true
   },
   "tests.test_assembly:::test_assembly_multi_subshape_import__multi_subshape_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_multi_subshape_import",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-subshape-import",
+    "manual": true
   },
   "tests.test_assembly:::test_assembly_multi_subshape_import__imported_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_multi_subshape_import",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-subshape-import",
+    "manual": true
   },
   "tests.test_assembly:::test_plain_assembly_import__cube_1": {
     "status": "ported",
@@ -3150,7 +3171,8 @@
   "tests.test_assembly:::test_native_export__simple_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_native_export",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "export",
+    "manual": true
   },
   "tests.test_assembly:::test_vtkjs_export__nested_assy": {
     "status": "blocked",
@@ -3160,7 +3182,8 @@
   "tests.test_assembly:::test_vrml_export__simple_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_vrml_export",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "export",
+    "manual": true
   },
   "tests.test_assembly:::test_toJSON__simple_assy": {
     "status": "ported",
@@ -3195,12 +3218,14 @@
   "tests.test_assembly:::test_save_stl_formats__nested_assy_sphere": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_save_stl_formats",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "export",
+    "manual": true
   },
   "tests.test_assembly:::test_save_gltf__nested_assy_sphere": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_save_gltf",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "exportGLTF",
+    "manual": true
   },
   "tests.test_assembly:::test_exportGLTF__nested_assy_sphere": {
     "status": "blocked",
@@ -3215,12 +3240,14 @@
   "tests.test_assembly:::test_save_vtkjs__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_save_vtkjs",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "exportVTKJS",
+    "manual": true
   },
   "tests.test_assembly:::test_save_raises__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_save_raises",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "raises",
+    "manual": true
   },
   "tests.test_assembly:::test_leaf_node_count__assy": {
     "status": "blocked",
@@ -3314,27 +3341,32 @@
   "tests.test_assembly:::test_constrain_with_tags__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_constrain_with_tags",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-solve",
+    "manual": true
   },
   "tests.test_assembly:::test_duplicate_name__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_duplicate_name",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "raises",
+    "manual": true
   },
   "tests.test_assembly:::test_empty_solve__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_empty_solve",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "raises",
+    "manual": true
   },
   "tests.test_assembly:::test_expression_grammar__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_expression_grammar",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-solve",
+    "manual": true
   },
   "tests.test_assembly:::test_PointInPlane_constraint__box_and_vertex": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_PointInPlane_constraint",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-solve",
+    "manual": true
   },
   "tests.test_assembly:::test_PointInPlane_3_parts__box_and_vertex": {
     "status": "blocked",
@@ -3453,27 +3485,32 @@
   "tests.test_assembly:::test_constraint_validation__simple_assy2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_constraint_validation",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "raises",
+    "manual": true
   },
   "tests.test_assembly:::test_single_unary_constraint__simple_assy2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_single_unary_constraint",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "raises",
+    "manual": true
   },
   "tests.test_assembly:::test_point_on_line__simple_assy2": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_point_on_line",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-solve",
+    "manual": true
   },
   "tests.test_assembly:::test_point_on_line__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_point_on_line",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-solve",
+    "manual": true
   },
   "tests.test_assembly:::test_point_on_line__w": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_point_on_line",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:assembly-solve",
+    "manual": true
   },
   "tests.test_assembly:::test_axis_constraint__simple_assy2": {
     "status": "ported",

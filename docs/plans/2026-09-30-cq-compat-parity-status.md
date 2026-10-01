@@ -194,6 +194,7 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 1. ~~吃免费增量：`pending:mirror` + Assembly 镜像~~（**已完成**：§7.5 +51，§8.1/8.3 +9）
 2. **再扫一遍"已实现未导出"**（§8.1 的方法）：`analyze-coverage.py` 的 op universe 只认 `src/index.ts` 的导出面，`src/workplane.ts` 里任何没被导出的函数都会被当成"未实现"。这轮一次导出就解锁 26 条 —— **每次补镜像前先跑一次导出面 vs 实现面的差集检查**（`node -e` 比对 `workplane.ts` 的 `export function` 与 `index.ts` 的导出列表）。
    2026-10-01 复查：本包已清空（剩余 18 项是 `gear-test-harness`/`text-solid`/`transpile` 内部件 + 单行 `export {}` 形式的误报）。`cq-compat-assembly` 的 `save`/`importStep`/`load` 同样是单行导出（正则误报）。**唯一可能还有油水的是 `src/shape-class.ts`**：`facesOf` / `makeCompound` / `faceMakePlane` / `faceMakeSplineApprox` 是 CadQuery **Shape 域** API，未经 index.ts 暴露 —— 它正对应 `op:shape.offset`（4 条）等 Shape 域 blocked，值得下一轮先核。
+   2026-10-01 核结（§8.6）：shape-class 导出面已暴露，**收益为零** —— 无任何 blocked 条目以这些名字为根因，coverage/manifest 计数均不变。该线索关闭。
 3. **小粒度能力缺口**：`eachpoint`（4）/ `placeSketch`（6）/ `copyWorkplane`（1）/ `filter`（3）/ `traverse`（2）/ `cutEach`（3）（单测友好、影响面小）。
 4. **中粒度能力缺口**：`prism`（13）/ `imprint`（12）/ `solid`（12）/ `interpPlate`（5）/ `plane`（5）/ `op:shape.offset`（4）（需新几何原语）。
 5. **本轮新识别的具体缺口**（§8.4）：`op:offset2D-open-wire`（开放线 offset 封端，1 条，改动小、建议先吃）、`op:parametricSurface`、`op:sweep-hole-section`（带孔截面）、`op:split-all`（+ 索引选择器 `faces(">X[1]")`）。
@@ -368,3 +369,56 @@ if fill:
 - 8 条 `op:assembly-solve` 约束用例：装配求解器未实现，保留 `manual:true` blocked。
 
 **落点**：`packages/cq-compat/tests/test_assembly/` 新增 51 个 `*.fai.js`；`manifest.json` ported 414 / blocked 236 / skipped 47。
+
+## 9. 续作记录（2026-10-01 第五轮 — shape-class 导出线索核结 + pending:mirror 清仓）
+
+### 9.1 §5.2 线索核结：shape-class 导出面暴露，收益为零
+
+- `src/index.ts` 新增 Shape 域导出：`makeCompound` / `facesOf` / `faceMakePlane` / `faceMakeSplineApprox` + 选择器类（`TypeSelector` / `DirectionSelector` / `NearestToPointSelector` / `StringSyntaxSelector`）+ 句柄工具（`wrapShape` / `borrowShape` / `unwrapShape` / `disposeShape`）+ 类型（`Pt3` / `CqShape` / `Selector`）。typecheck / JSDoc 门禁干净。
+- 重跑 `analyze-coverage.py` + `gen-manifest.ts`：coverage 194/41/62 不变（HEAD 本就是 194/41/62，文档早先记的 200/41/64 是更早口径），manifest 423/227/47 不变 —— **无任何 blocked 条目以这些名字为根因**。§5.2 线索关闭；`op:shape.offset`（4 条）的真实根因是内核 `BRepOffset_MakeOffset` 缺口（§3.3），不是导出面。
+
+### 9.2 pending:mirror 40 条清仓 triage
+
+逐条对照上游源（`out/cache/v2.8.0/tests/`）判定，三条出路：
+
+**① 写镜像并 parity PASS（+2）**
+
+| case | 上游表达式 | parity |
+|------|-----------|--------|
+| `testFuzzyBoolOp__box1_cmp` | `Compound.makeCompound(box1.vals())`（单盒 compound，几何同 box1） | **PASS**（vol/com/bbox 全 0） |
+| `testFuzzyBoolOp__box4_cmp` | 同上，box4 平移 (1e-3,0,0) | **PASS** |
+
+manifest：**423/227/47 → 425/225/47**。
+
+**② 试写但证实不可行（改判 blocked）**
+
+- `testTwistExtrudeCombineCut__cut`：镜像按源码写出（`faces(">Z")→workplane(invert)→rect→twistExtrude(90,10)`，正确参数序为 `(angle,height)`，首轮 `(10,90)` 顺序错误产出退化结果已弃），但 **90° 扭曲工具体 cut 进盒体让内核布尔挂死（>300 s 无完成）** —— 即既有 `kernel:boolean-near-coincident-bspline` 缺口的运行时表现（此前登记只涉 comparator 探针，本次实证 BooleanOp 本身会挂）。改判 `kernel:boolean-near-coincident-bspline`。
+- `testFuzzyBoolOp__res_fuzzy*`（5 条）：`union/intersect(tol=eps)` —— core 布尔 API **无 tolerance 通道**（`packages/core/src/api/boolean.ts` 无任何 tol/fuzzy 参数），fuzzy 合并结果（res_fuzzy vol 2.001、res_fuzzy_intersect vol 1.0 vs 普通 0.499）不可复现。改判 `op:fuzzy-bool`。
+
+**③ 其余 29 条逐条改判准确 blockedBy**（写入 `mark-blocked.ts`，不再是 `pending:mirror`）：
+
+| blockedBy | 条数 | 根因 |
+|-----------|------|------|
+| `op:assembly-solve` | 6 | PointOnLine / 表达式语法 Point / tag 选择约束，需装配求解器 |
+| `raises` | 5 | pytest.raises 错误路径断言（重名/空 solve/非法约束/STL save 抛错），无几何 |
+| `op:assembly-subshape-import` | 4 | STEP 子形状元数据（名字/颜色/层）往返，importStep 无该通道 |
+| `export` / `exportGLTF` / `exportVTKJS` | 5 | 导出格式 harness 缺口（native/VRML/STL 变体/glTF/VTK.js） |
+| `op:history-subshape` | 3 | History 子形状反查 |
+| `op:addCavity` | 3 | 内 void 实体（双 shell），未实现 |
+| `op:plane-toLocalCoords` | 2 | 任意平面坐标变换（`Plane.toLocalCoords`/`mirrorInPlane`），只有 mirrorX/mirrorY |
+| `eachpoint` | 1 | testCompoundCenter 的 monkeypatch eachpoint |
+| `op:shape-operator-overload` | 1 | `faces(">Z") \| faces("<Z")` 运算符语法不可达 |
+| `plane` | 1 | `test_history_loft__res` 需 free-function `plane()` 构造器 |
+| `op:solid-makeSolid-3d-wire` | 1 | `Solid.makeSolid(Shell(faces))` 需 3D vertex→edge→wire 面（`solidFromFaces` 在但面建不出来） |
+
+**④ 镜像工程 GOTCHA（本轮实测，防后人踩坑）**
+
+- `.fai.js` 镜像里 **call 参数位置的嵌套 `await` 不被解析器支持**（`metadata-extractor.ts` E_VALUE: unsupported AwaitExpression）——必须平铺成中间 `let` 变量。
+- `cq.translate(wp, [x,y,z])` 收**数组**，非三参数。
+- `twistExtrude(wp, angle, height)` 参数序是 **(角度, 高度)**，与上游 `twistExtrude(distance, angleDegrees)` 相反（cq-compat JSDoc 注明）。
+- cand STEP 命名惯例不带 `tests.test_x__` 前缀（`TestCadQuery__xxx.step`），手跑 CLI 时别照 ref 名写 `--out`。
+- `compare-targeted.ts` 对 **compound** STEP 报 `importStep: null function or function signature mismatch`（harness 问题），同两条用全量 `compare.ts --only` 判 PASS —— 需要时修 targeted 工具的 compound 读取。
+
+### 9.3 门禁（全绿，已实测）
+
+`cq-compat` tsc 0 error；eslint（src + 2 个测试脚本）0 error；`verify-export-jsdoc` 全仓过；波及单测 `shape-class.test.ts` + `cq-compat.test.ts` 24/24。

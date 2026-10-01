@@ -193,6 +193,31 @@ export type {
   Loc2,
 } from './sketch'
 
+// Shape class model (CadQuery Shape.py parity: Compound.makeCompound /
+// Face.makePlane / Face.makeSplineApprox / Shape topology selectors +
+// Selector class hierarchy). Compound/domain names that already exist on the
+// Workplane layer (shells/solids/compounds) stay Workplane-owned; the Shape
+// domain functions carry their CQ class-method-derived names.
+export {
+  wrapShape,
+  borrowShape,
+  unwrapShape,
+  disposeShape,
+  makeCompound,
+  facesOf,
+  faceMakePlane,
+  faceMakeSplineApprox,
+  TypeSelector,
+  DirectionSelector,
+  NearestToPointSelector,
+  StringSyntaxSelector,
+} from './shape-class'
+export type {
+  Pt3,
+  CqShape,
+  Selector,
+} from './shape-class'
+
 // Internal helpers consumed by @faicad/cq-compat-assembly (the assembly layer
 // split into its own package; these workplane-internal symbols are re-exported
 // so the assembly package does not duplicate them).
