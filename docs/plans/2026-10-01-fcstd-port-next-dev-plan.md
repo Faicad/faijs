@@ -144,6 +144,7 @@
 > **方向订正（重要）**：plan §1.1 把 `solids(1vs2)` 写成「faijs 产 1 个 solid，truth 2 个」——**方向写反了**。`parity-judge.py` 的 verdict 格式是 `(truth vs step)`，即 `1vs2` = **truth=1、faijs=2**。全库实测以 faijs 侧多产出为主。
 
 - **取点**：`0203a22597f2-Sprocket ANSI duplex`（`solids(1vs2)`）、`02d55246310d-TS35`（`solids(1vs4)`）、`04f6a668fdd0-3-5inch-Disk-Drive-SATA`（`solids(1vs6)`）。
+- **⚠️ 覆盖边界（2026-10-01 续，复跑实证订正）**：B2 仅消弭**单 Body 别名泄漏**子类（Sprocket + 651 个 `1vs2` 中的别名子类）。B1 另两个取点文件经 `process-one.py --reconvert` 复跑，**均为不同机制、B2 未覆盖**——见 §B2 覆盖边界与 §B4/§B5。原"B2 通用修复已覆盖全部 1vsN"假设**不成立**：`1vsN`（N>1）中 `1vs2` 是别名子类与中间 var 泄漏子类的混合，更高 N 多为其它 bug（boolean 内核 / 多 Body 旧产物）。
 - **根因（已锁定，实证）**：单 Body 文档生成的 `main.fai.js` 为 `import { Body_out } from './Body.fai.js'; let assembly = Body_out;`，且 `manifest.models[]` 同时列了 `main` 与 `Body`。`Body.fai.js` 顶层 `let Body_out` 在执行时**泄漏为第二个 terminal**，于是 cliRun 把 `Body_out` 与 `assembly` 别名**都导出**（`run-sweep-steps` 出现 `__0_Body_out.step` + `__1_assembly.step`，两者体积完全相同）。`parity-judge.merge_parts()` 对多终端求和 → 同一几何被计 2 次 → `solids 1vs2`（truth=1，faijs=2）。多 Body 文档因 `assembly = cad.compound(...)` 是 compound，cliRun 的「多终端优先导出 compound」早返回只产 1 个 assembly STEP，**不受影响**。
 - **实证验证（zip 直接打补丁跑 worker）**：把单 Body 的 `let assembly = Body_out` 改为 `import { assembly } from './Body.fai.js'`（同名的跨模块 shape var 在运行时合并为一个 terminal），worker 只产出 1 个 `out.step`，`step-invariants.py` 读出 `solids: 1`、体积 18556——与 truth 的 1 solid 对齐。
 - **定性三问结论**：不是 compound 导出语义错、不是 truth/parity 口径错、不是真实几何 merge 缺失——是**翻译产物多产出一个冗余 terminal**（别名 + 顶层 `let` 泄漏）。
@@ -156,11 +157,33 @@
 - **单测**：`codegen.test.ts` 新增 M-B1 断言单 Body 产物 `import { assembly }` 且无 `let assembly = Body_out`；原有 M10.3 多 Body 用例（`<Body>_out` + `cad.compound`）不变。34 个 codegen 用例全过。
 - **端到端验证**：Sprocket ANSI duplex 经 `process-one.py --reconvert` 重跑——`solids` 已退出 fail 列表（原先 `1vs2`），剩余 `volume/area/bbox/com` 属 C 组，正确出界。
 - **判据达成**：取点文件 solids 失配消除 + 单测留档。
+- **⚠️ 覆盖边界（复跑实证）**：B2 只解决**单 Body 别名泄漏**（main 写 `let assembly = Body_out` 别名 → 顶层 `let` 泄漏为第二 terminal）。B1 另两个取点文件**不在 B2 覆盖范围内**，实测如下：
+  - **`TS35`（`solids(1vs4)`，复跑 `stage1/2 ok`）：** 单模块、无 Body 模块；`main.fai.js` 把每个 FCStd feature 译成独立顶层 `let`——`Common = cad.import_brep(...)`、`Cylinder = cad.cylinder(...)`，被 `Cut = cad.subtract(Common, Cylinder)` 消费，最终 `assembly = cad.compound({ members: [Pad__place, Sketch001, Pocket__place, Cut] })`。运行时 `computeLiveShapes`（`packages/core/src/cad-runtime/live-shapes.ts`）把**所有顶层 shape var 当 terminal**导出 → `out.step_0_Common.step` + `out.step_1_Cylinder.step` + `out.step_2_assembly.step` 三文件，`merge_parts` 求和得 `solids 1vs4`（inv `parts:3, solids:4` vs truth `solids:1`）。根因是 **runtime 消费判定漏判 `import_brep`/`cylinder` 这类源几何输出被后续 `subtract` 消费**（非 codegen），属独立 bug → 见 **§B4**。
+  - **`3-5inch-Disk-Drive-SATA`（`solids(1vs6)`，复跑 `stage1 ok` 但 `stage2 run-fail`）：** B2 的 `import { assembly } from './Body.fai.js'` 形态已正确生成（单 Body 折叠对），但新鲜 run 在 `cad.subtract(Body__chain_2, Pocket002)` 抛 `kernel cut failed for inputs … — cutWithHistory`（boolean 内核失败）——与 B2 无关的独立 bug；stale 基线 `1vs6` 来自旧版转换器的多 Body 产物，非单 Body 冗余 terminal。其复跑出现的 `solids(1vs2)` / `inv:true` 是 **`process-one.py` 在 `do_run` 失败后未清 `step/` 目录、误用 Sep-27 陈旧 STEP** 造成的假象（工具侧缺陷，非真实 parity）→ 见 **§B5**。
 
 #### B3 修 truth/parity 侧 solids 统计口径 — 撤销（被 B2 取代）
 
 - **前提不成立**：B1 实证表明 922 的 solids 失配**不是口径错**（merge_parts 的求和语义是对的，它只是忠实地把「被翻译多产出的第二个 terminal」也加进去了）。无需改 `parity-judge.py` / `export-fcstd-truth.py`。
 - 仅当后续发现「真实复合体多实体被 step-invariants 误计」时再重启 B3；当前无此证据。
+
+#### B4 修 runtime 中间 feature-var 泄漏为 terminal（如 TS35 `solids(1vs4)`）— 待启动
+
+- **现象**：单模块多 feature 文档（如 TS35）把每个 FCStd feature 译成独立顶层 `let`（`Common=import_brep`、`Cylinder=cylinder`），被后续 `Cut=subtract(Common,Cylinder)` 消费，但 `computeLiveShapes` 仍把 `Common`/`Cylinder` 当 terminal 导出 → 多文件、solid 计数虚高。
+- **根因（初步，待 B4 实施时坐实）**：`packages/core/src/cad-runtime/live-shapes.ts` 的 `lineConsumes`（L71-128）对 `cad.import_brep` / `cad.cylinder` 这类**源几何/基本体输出**的消费判定有漏判分支——`Cut = cad.subtract(Common, Cylinder)` 的 positional args 本应被 `scan` 识别为消费 `Common`/`Cylinder`，但实测未被识别（需确认 StatementSummary 的 `positional`/`args` 是否含这两个 var-ref，或 C0/C3/C4 短路误判）。
+- **修复方向（二选一，待实证定）**：
+  1. runtime：修正 `computeLiveShapes` 的消费扫描，使被后续语句 param 消费的中间 shape var 不再作为 terminal；或仅把"最终 assembly / 最后赋值"作为终端（需评估对调试中间量导出语义的破坏面）。
+  2. codegen：把中间 feature 内联进消费表达式（如 `Cut = subtract(import_brep(...), cylinder(...))`），避免独立顶层 `let`——改动面更局部、风险更低，但需处理 feature 间依赖顺序。
+- **单测**：合成一个"import_brep × cylinder → subtract → compound"的 fixture，断言运行时只导出一个 `assembly` terminal。
+- **判据**：TS35 `solids` 退出 fail（1vs1）；同文件复跑 parity 其余项。
+- **注意**：B4 是 runtime/codegen 层改动，blast radius 覆盖全部导出；实施前须先在 `packages/core` 跑 `computeLiveShapes` 相关测试取差，确认不误伤"用户确实想导出的中间量"场景（如显式 `keep`）。
+
+#### B5 修 disk-drive boolean 内核失败（`kernel cut failed`）— 待启动（属 C/D 类，非 solids terminal）
+
+- **现象**：disk-drive 复跑 `stage1 ok`、B2 的 `import { assembly }` 形态已正确，但新鲜 run 在 `cad.subtract(Body__chain_2, Pocket002)` 抛 `kernel cut failed … cutWithHistory`。`process-one.py` 在 `do_run` 失败后未清 `step/` 目录，复用了 Sep-27 陈旧 STEP，造成 `solids(1vs2)`/`inv:true` 假象（工具侧 `tools/process-one.py` L96-113 缺陷：应在运行前 `rm -rf step_dir` 或仅采用本次写出的文件）。
+- **根因**：boolean `cut` 内核在 `Body__chain_2 × Pocket002` 上失败——可能是几何退化（Pocket002 的拉伸/减运算输入自交或零体积）触发 OCCT `cutWithHistory` 异常。与 solids terminal 无关，属 C/D 组（几何/内核）范畴。
+- **修复方向**：先定位 `Body__chain_2` 与 `Pocket002` 的几何（哪一步拉伸/布尔产生退化体），再决定是 cad 翻译端约束（如 Pocket002 高度/容差）还是内核 `cutWithHistory` 容错。
+- **判据**：disk-drive `stage2` 转 ok 并能产出 STEP；其 `solids` 届时再按真实 terminal 数重判。
+- **工具侧附带修复**：`tools/process-one.py` 的 `do_run` 在 spawn worker 前清空 `step_dir`，避免陈旧 STEP 污染 `inv`。此修复独立、低风险，可随 B5 一并提交或单独立项。
 
 ---
 
@@ -244,8 +267,10 @@
 |---|---|
 | A1 | ✅ 已完成：no-truth 399 → 2；pass 883 → 886；四层漏斗已刷新 |
 | B1 | ✅ 已定性：单 Body 翻译多产出一个冗余 terminal（别名 + 顶层 `let` 泄漏）；judge 方向为 truth=1 / faijs=2（plan 原写反） |
-| B2 | ✅ 已完成（commit `a0f94ebf`）：单 Body 聚合 terminal 改为 `assembly` 直接 import，Sprocket 取点 solids 退出 fail + M-B1 单测留档 |
+| B2 | ✅ 已完成（commit `a0f94ebf`）：单 Body 别名泄漏终端改为 `assembly` 直接 import，Sprocket 取点 solids 退出 fail + M-B1 单测留档。**覆盖边界（订正）**：仅单 Body 别名泄漏子类；TS35（`1vs4` 中间 var 泄漏）/ disk-drive（`1vs6`→boolean 内核失败）经复跑实证为不同机制，B2 未覆盖（见 B4/B5） |
 | B3 | 撤销：实证非口径错，无需改 parity/truth 侧 |
+| B4 | 待启动：修 runtime 中间 feature-var 泄漏为 terminal（TS35 `solids(1vs4)`）；根因在 `computeLiveShapes.lineConsumes` 对 `import_brep`/`cylinder` 源几何消费漏判；TS35 复跑 `solids 1vs1` |
+| B5 | 待启动（C/D 类）：disk-drive `cad.subtract(Body__chain_2, Pocket002)` boolean 内核 `kernel cut failed`；附带修 `process-one.py` `do_run` 运行前清空 `step_dir` 防陈旧 STEP 污染 |
 | C1 | com 微小偏移重定性完成（口径 vs 真实） |
 | C2 | 取点文件 com 大偏移消除 + 单测留档 |
 | C3 | 取点文件 volume 失配消除 |
