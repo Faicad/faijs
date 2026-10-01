@@ -43,7 +43,7 @@ describe('loadBrep — frozen assets without a solid', () => {
 
   it('imports it as addressable geometry when allowNonSolid is set', () => {
     const { solid, shape } = loadBrep(
-      kernel, fixture('draft-wire.brp'), undefined, undefined, undefined, { allowNonSolid: true },
+      kernel, fixture('draft-wire.brp'), undefined, undefined, { allowNonSolid: true },
     )
     // The handle IS the wire shape (no wrapping compound), and it survives as a
     // queryable sub-shape — downstream transform/group needs `brepOf` to work.
@@ -62,7 +62,7 @@ describe('loadBrep — frozen assets without a solid', () => {
 
   it('keeps importing a real solid through the same flag', () => {
     const { solid } = loadBrep(
-      kernel, fixture('boss-solid.brp'), undefined, undefined, undefined, { allowNonSolid: true },
+      kernel, fixture('boss-solid.brp'), undefined, undefined, { allowNonSolid: true },
     )
     expect(kernel.getSubShapes(solid, 'solid').length).toBeGreaterThan(0)
   })
@@ -73,7 +73,7 @@ describe('loadBrep — frozen assets without a solid', () => {
     // chain — a caller that pipes one into cad.subtract gets a loud failure,
     // never a silently wrong part.
     const wire = loadBrep(
-      kernel, fixture('draft-wire.brp'), undefined, undefined, undefined, { allowNonSolid: true },
+      kernel, fixture('draft-wire.brp'), undefined, undefined, { allowNonSolid: true },
     )
     const solid = loadBrep(kernel, fixture('boss-solid.brp'))
     expect(() => kernel.fuse(solid.solid, wire.solid)).toThrow()

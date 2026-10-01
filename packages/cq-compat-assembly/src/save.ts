@@ -59,7 +59,7 @@ export async function importStep(
   if (!kernel) throw new Error('[cq-compat-assembly] importStep(): BREP kernel unavailable')
   const buffer = readFileSync(path).buffer as ArrayBuffer
   const { solid: solidHandle, shape } = loadBrep(
-    kernel, buffer, undefined, undefined, undefined, { allowNonSolid: true },
+    kernel, buffer, undefined, undefined, { allowNonSolid: true },
   )
   const memberShape = fromBrep(shape, { solid: solidHandle })
   return buildAssembly('imported', [{ name: 'part_1', shape: memberShape }], [])

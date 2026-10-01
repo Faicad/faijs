@@ -68,7 +68,7 @@ export async function importStepImpl(params: Record<string, unknown>): Promise<S
   // C6：非实体一等公民（对齐 import_brep）。loadBrep 自适应：CASCADE Topology
   // 文本走 kernel.fromBREP，其余（STEP/STP）走 kernel.importStep。
   const { solid: solidHandle, shape } = loadBrep(
-    kernel, buffer, undefined, undefined, undefined, { allowNonSolid: true },
+    kernel, buffer, undefined, undefined, { allowNonSolid: true },
   )
   // E3（H12）：链根建 roleTable——导入文件的面没有语义名，按枚举序命名
   // imported:<i>（同一文件重复导入，枚举序稳定，role 名跨次导入保持一致）。

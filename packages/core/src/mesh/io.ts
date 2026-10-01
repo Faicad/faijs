@@ -31,6 +31,13 @@ export interface ImportFileResult {
    * null for declaration-less formats (STL) — the caller's opts.unit decided.
    */
   unit: UnitName | null
+  /**
+   * Total parts the single file declared (e.g. 3MF `<build>` object count),
+   * present only when > 1. Single-part mesh (STL, single-object 3MF) omits it.
+   * When set, `shape` is only the FIRST part's geometry (feijs `load` op is
+   * single-part; the file was downgraded to its first part — §5.4).
+   */
+  multiPartCount?: number
 }
 
 /** SI prefixes that may precede .METRE. in a STEP SI_UNIT, → faijs UnitName. */
@@ -125,28 +132,19 @@ export async function importFile(
 
   if (fmt === '3mf' || fmt === 'threemf') {
     const archive = await parseThreemf(buffer)
-    // Merge every object instance into a single Shape (D1: multi-object stays
-    // one editable part; see plan §8 decision 6). Coordinates are already in
-    // faijs base units from parseThreemf.
-    let totalPos = 0
-    let totalIdx = 0
-    for (const o of archive.objects) {
-      totalPos += o.positions.length
-      totalIdx += o.indices.length
+    // §5.4 单零件收敛：只取**第一个**对象实例（declaration order — `<build><item>`
+    // 序，见 threemf-loader）构造成单一 part；多对象文件记 multiPartCount 供上层
+    // 登记"多零件降级"警告。坐标已在 parseThreemf 里折算为 faijs 基准单位。
+    const first = archive.objects[0]
+    if (!first) {
+      throw new Error('[mesh/io] 3MF contains no objects')
     }
-    const positions = new Float32Array(totalPos)
-    const indices = new Uint32Array(totalIdx)
-    let posAt = 0
-    let idxAt = 0
-    let baseV = 0
-    for (const o of archive.objects) {
-      positions.set(o.positions, posAt)
-      posAt += o.positions.length
-      for (let i = 0; i < o.indices.length; i++) indices[idxAt++] = o.indices[i] + baseV
-      baseV += o.positions.length / 3
+    const multiPartCount = archive.objects.length > 1 ? archive.objects.length : undefined
+    const shape: Shape = {
+      positions: first.positions as Float32Array,
+      indices: first.indices as Uint32Array,
     }
-    const shape: Shape = { positions, indices }
-    return { shape, unit: archive.unit }
+    return { shape, unit: archive.unit, multiPartCount }
   }
 
   if (fmt === 'stl') {

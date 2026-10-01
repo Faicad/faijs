@@ -11,7 +11,7 @@ import { importFile, detectStepUnit } from '@faicad/faijs/mesh/io'
 import { isCadFormat } from '@faicad/faijs/brep/brep-chain'
 import { loadBrep } from '@faicad/faijs/brep/brep-ops'
 import { OpError } from '@faicad/faijs/api/internal/result-unwrap'
-import { getBackends, BrepUnsupportedError, getCurrentStmt, setPendingDetectedUnit } from '@faicad/faijs/runtime-state'
+import { getBackends, BrepUnsupportedError, getCurrentStmt, setPendingDetectedUnit, setPendingMultiPartCount } from '@faicad/faijs/runtime-state'
 import { solid, fromBrep } from '@faicad/faijs/shape'
 import { mm, centimeter, meter, micron, inch, foot, yard, type UnitName, type ValueWithUnits } from '@faicad/faijs/units'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
@@ -41,7 +41,7 @@ import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
  * @param params.format - 格式提示（如 'step'/'stl'；CAD 源走 BREP 精确路径，STL 等三角化源走 mesh 路径）。type:string
  * @note key/path/url 是优先级分流（key 优先，其次 path，最后 url），三者只需其一；同时给多个时按优先级取。`format` 是提示而非强约束——CAD 源（step/stp/brep 等）与三角化源（stl 等）由 `isCadFormat` 静态判定路径。
  * @note 本 op 要求导入物含实体（历史契约）。非实体（wire/face/shell）的导入是平台 `cad.import_brep` 的一等能力，不由本 op 承担。
- * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——key/path/url 三键分流读的是应用侧 `FileRef`，产物语句位置、命名与 partIndex 都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——key/path/url 三键分流读的是应用侧 `FileRef`，产物语句位置与命名都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。多零件文件按 §5.4 单零件收敛——只取第一个（不再有 `partIndex` 概念）。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
  * @example
  * const p = await cad.load({ key: 'file_abc123' })
  * const p = await cad.load({ path: 'D:/models/box.step', format: 'step' })
@@ -79,25 +79,31 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
     throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: load op has no BREP implementation for this source')
   }
 
-  // mesh 路径：importFile 返回 { shape, unit } — unit 是文件自己声明的单位
-  // （元数据；坐标已是基准值）。STL 无声明 → unit=null，opts.unit 决定刻度。
+  // mesh 路径：importFile 返回 { shape, unit, multiPartCount? } — unit 是文件自己
+  // 声明的单位（元数据；坐标已是基准值）。STL 无声明 → unit=null，opts.unit 决定刻度。
+  // 多零件 mesh（多 object 3MF）在 importFile 内部已降级取第一个（§5.4 单零件收敛），
+  // 这里据 multiPartCount 登记"多零件降级" pending → 宿主弹警告（§5.4:166）。
   if (!useBrep) {
     const fmt = params.format as string | undefined
     const opts = buildImportOpts(params.unit)
-    const { shape, unit } = await importFile(buffer, fmt, opts)
+    const { shape, unit, multiPartCount } = await importFile(buffer, fmt, opts)
     registerDetectedUnit(unit)
+    if (multiPartCount !== undefined) registerMultiPartDegradation(multiPartCount)
     return solid(shape)
   }
 
   // BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）
-  // P2：brepChain（meshShapeCache）归引擎侧，loadBrep 不再传
-  // partIndex：多 part 文件（如多 solid STEP）逐 part 加载——宿主为每个 part
-  // 生成独立 load 语句并携带 partIndex，提取 Compound 中对应子 solid。
+  // P2：brepChain（meshShapeCache）归引擎侧，loadBrep 不再传。
+  // §5.4 单零件收敛：多 solid 文件（多零件 STEP）在 loadBrep 内部已降级取第一个
+  // 零件（单一 Shape）并回传 multiSolidCount；此处登记"多零件降级" pending → 宿主
+  // 据零件数弹警告（§5.4:166）。**不再接收/使用 partIndex**（取件点唯一，宿主不再拆）。
   // 红线：不做任何缩放——OCCT 读入已折算到基准，按声明再 scale = 双重换算。
-  const partIndex = typeof params.partIndex === 'number' ? params.partIndex : undefined
-  const { solid: solidHandle, shape } = loadBrep(
-    kernel!, buffer, undefined, undefined, partIndex,
+  const { solid: solidHandle, shape, multiSolidCount } = loadBrep(
+    kernel!, buffer,
   )
+  if (multiSolidCount !== undefined) {
+    registerMultiPartDegradation(multiSolidCount)
+  }
   // BREP 路径的声明单位：走文本探测（元数据；不参与几何运算）。
   const declared = detectStepUnit(new TextDecoder().decode(new Uint8Array(buffer)))
   registerDetectedUnit(declared)
@@ -123,6 +129,20 @@ function registerDetectedUnit(unit: UnitName | null): void {
   const stmt = getCurrentStmt()
   const part = stmt?.outputs[0]
   if (part) setPendingDetectedUnit(part, unit)
+}
+
+/**
+ * Register a "multi-part downgrade" for the current statement's output part
+ * (fileid-container-and-nesting §5.4): a multi-part file ($partCount>=2) was
+ * loaded and only its first part is used. The engine takes this pending value
+ * into ExecutionResult.multiPartCounts so the host can toast
+ * 「该文件包含 N 个零件，当前仅加载第一个」.
+ */
+function registerMultiPartDegradation(partCount: number): void {
+  if (partCount < 2) return
+  const stmt = getCurrentStmt()
+  const part = stmt?.outputs[0]
+  if (part) setPendingMultiPartCount(part, partCount)
 }
 
 /** UnitName → base-scaled ValueWithUnits (length dims only; load is a length-domain op). */

@@ -177,6 +177,13 @@ export interface ExecutionResult {
    * 运算——坐标已是基准值，按它再缩放 = 双重换算。
    */
   detectedUnits?: Map<PartName, string>
+
+  /**
+   * 多零件降级零件数（fileid-container-and-nesting §5.4）：本批次 load op 曾读入
+   * 多零件文件（多 solid STEP / 多 object 3MF）并只取第一个零件时，记 part → 原文件
+   * 零件数（≥2）。宿主据此弹「该文件包含 N 个零件，当前仅加载第一个」警告。
+   */
+  multiPartCounts?: Map<PartName, number>
 }
 
 /**
@@ -1067,6 +1074,7 @@ export class CadRuntime {
       compounds: compounds.size > 0 ? compounds : undefined,
       kinematics: de.kinematicsSnapshot.size > 0 ? de.kinematicsSnapshot : undefined,
       detectedUnits: de.detectedUnitsSnapshot.size > 0 ? de.detectedUnitsSnapshot : undefined,
+      multiPartCounts: de.multiPartCountSnapshot.size > 0 ? de.multiPartCountSnapshot : undefined,
       changed: deChanged ? deChanged.map(asPartName) : undefined,
       activeValues: activeValues.size > 0 ? activeValues : undefined,
     }

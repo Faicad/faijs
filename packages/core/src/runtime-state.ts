@@ -536,3 +536,37 @@ export function takePendingDetectedUnits(): DetectedUnits {
   pendingDetectedUnits.clear()
   return out
 }
+
+// ── 多零件降级登记（fileid-container-and-nesting §5.4：cad.load 只支持单零件）──
+// 与 pendingDetectedUnits 同模式：`cad.load` op 读到多零件文件（多 solid STEP /
+// 多 object 3MF）时降级取第一个零件，并把"原文件零件数"登记到这里；引擎在语句
+// 执行后取走并按 part 名放进 ExecutionResult.multiPartCounts（宿主据此弹警告
+// 「该文件包含 N 个零件，当前仅加载第一个」，§5.4:166）。
+
+/** Per-part declared multi-part degradation (key = PartName; absent = 单零件/无多零件文件). */
+export type MultiPartCounts = Map<PartName, number>
+
+const pendingMultiPartCounts = new Map<PartName, number>()
+
+/**
+ * Register a part that was downgraded from a multi-part file (called from the
+ * load op body; the shape returned is only the first-part geometry).
+ *
+ * @param partName - the variable name the loaded (single) shape is bound to.
+ * @param partCount - the total number of parts the source file declared (>= 2).
+ */
+export function setPendingMultiPartCount(partName: PartName, partCount: number): void {
+  pendingMultiPartCounts.set(partName, partCount)
+}
+
+/**
+ * Take all pending multi-part counts and clear them (engine, after each
+ * statement; consumed exactly once).
+ *
+ * @returns a fresh Map of part name → part count, copied from the pending store.
+ */
+export function takePendingMultiPartCounts(): MultiPartCounts {
+  const out = new Map(pendingMultiPartCounts)
+  pendingMultiPartCounts.clear()
+  return out
+}

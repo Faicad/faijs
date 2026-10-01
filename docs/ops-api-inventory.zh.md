@@ -1192,6 +1192,8 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `heal` | 内核历史 | `gen:heal:<i>` |  |
 | `healSolid` | 内核历史 | `gen:healSolid:<i>` |  |
 | `helix` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
+| `import_brep` | 构造语义 | `imported:0` |  |
+| `import_step` | 构造语义 | `imported:0` |  |
 | `intersect` | 内核历史 | `gen:intersect:<i>` |  |
 | `knurl` | 未建模 | —（不造新面） | knurl is mesh-only, no BREP face identity |
 | `linearPattern` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..-1） |

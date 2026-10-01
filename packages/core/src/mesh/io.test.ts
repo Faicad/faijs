@@ -48,6 +48,42 @@ function threemfBytes(unit: string, size: number): ArrayBuffer {
   return zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength) as ArrayBuffer
 }
 
+/** A 3MF with `n` objects in the `<build>` declaration order, sized `size` each. */
+function multiObjectXml(n: number, size: number): string {
+  const objects = Array.from(
+    { length: n },
+    (_, i) => `<object id="${i + 1}" type="model">
+      <mesh>
+        <vertices>
+          <vertex x="${i * size}" y="0" z="0"/>
+          <vertex x="${i * size + size}" y="0" z="0"/>
+          <vertex x="0" y="${size}" z="0"/>
+          <vertex x="0" y="0" z="${size}"/>
+        </vertices>
+        <triangles>
+          <triangle v1="0" v2="1" v3="2"/>
+          <triangle v1="0" v2="2" v3="3"/>
+        </triangles>
+      </mesh>
+    </object>`,
+  ).join('');
+  const buildItems = Array.from(
+    { length: n },
+    (_, i) => `<item objectid="${i + 1}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`,
+  ).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+  <resources>${objects}</resources>
+  <build>${buildItems}</build>
+</model>`
+}
+
+function multiThreemfBytes(n: number, size: number): ArrayBuffer {
+  const xml = multiObjectXml(n, size)
+  const zip = zipSync({ '3D/3dmodel.model': strToU8(xml) })
+  return zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength) as ArrayBuffer
+}
+
 /** Largest x of a returned Shape's positions. */
 function maxX(positions: ArrayLike<number>): number {
   let mx = -Infinity
@@ -113,6 +149,24 @@ describe('importFile real fixture (cube334.3mf)', () => {
   it('loads a non-empty mesh through format "threemf"', async () => {
     const { shape } = await importFile(buf, 'threemf')
     expect(shape.positions.length).toBeGreaterThan(0)
+  })
+})
+
+describe('importFile 3MF single-part take-first (§5.4 single-part convergence)', () => {
+  it('single object → no multiPartCount and the full mesh', async () => {
+    const { shape, multiPartCount } = await importFile(multiThreemfBytes(1, 10), '3mf')
+    expect(multiPartCount).toBeUndefined()
+    // 第一个（唯一）对象：x 方向覆盖 [0, 10]
+    expect(maxX(shape.positions)).toBeCloseTo(10, 3)
+  })
+
+  it('multi-object → only FIRST object geometry + multiPartCount = N', async () => {
+    const { shape, multiPartCount } = await importFile(multiThreemfBytes(3, 10), '3mf')
+    expect(multiPartCount).toBe(3)
+    // 只保留第一个物体（x ∈ [0,10]），不合并第二/第三个物体
+    expect(maxX(shape.positions)).toBeCloseTo(10, 3)
+    // 位置数量 = 4 顶点 × 3 分量（单个 object 的 mesh）
+    expect(shape.positions.length).toBe(12)
   })
 })
 

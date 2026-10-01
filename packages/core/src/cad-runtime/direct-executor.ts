@@ -27,7 +27,7 @@ import type { StdlibNamespace } from '../runtime-state'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
-import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, takePendingDetectedUnits, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
+import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, takePendingDetectedUnits, takePendingMultiPartCounts, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { runtimeLineage } from '../topology/naming/lineage'
 import { ExecutionLimitError } from './execution-limit-error'
@@ -199,6 +199,8 @@ export class DirectExecutor {
   private kinematicsOut = new Map<PartName, AssemblyKinematicsPose>()
   /** 文件声明单位（load op 登记，PartName → UnitName），collectDirectResult 消费。 */
   private detectedUnitsOut = new Map<PartName, string>()
+  /** 多零件降级零件数（load op 登记，PartName → count，§5.4），collectDirectResult 消费。 */
+  private multiPartCountOut = new Map<PartName, number>()
   /** 执行后端（静态选定；缺省 vm） */
   private readonly execBackend: ExecBackend
 
@@ -210,6 +212,11 @@ export class DirectExecutor {
   /** 文件声明单位快照（load op 语句执行后取走；空 Map 表示本批次无 load）。 */
   get detectedUnitsSnapshot(): Map<PartName, string> {
     return this.detectedUnitsOut
+  }
+
+  /** 多零件降级零件数快照（load op 语句执行后取走；空 Map 表示无多零件降级）。 */
+  get multiPartCountSnapshot(): Map<PartName, number> {
+    return this.multiPartCountOut
   }
 
   constructor(options: DirectExecutorOptions) {
@@ -689,6 +696,11 @@ export class DirectExecutor {
       const pendingUnits = takePendingDetectedUnits()
       for (const [part, unit] of pendingUnits) {
         this.detectedUnitsOut.set(part, unit)
+      }
+      // 多零件降级零件数（load op 登记的 pending 元数据，§5.4）按本语句收编。
+      const pendingMulti = takePendingMultiPartCounts()
+      for (const [part, count] of pendingMulti) {
+        this.multiPartCountOut.set(part, count)
       }
     }
   }

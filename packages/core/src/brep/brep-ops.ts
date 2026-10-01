@@ -750,12 +750,14 @@ export function extrudeBrep(
  * 导入的 solid 存入 brepChain.solidCache，后续操作（drillBrep/splitBrep 等）
  * 将其作为"基座特征"进行精确运算。
  *
- * **设计决策（I5 不准合并）**：
+ * **设计决策（I5 不准合并；fileid-container-and-nesting §5.4 单零件收敛）**：
  * - 单 solid STEP：`importStep` 返回 Compound 包裹（顶层是 `TopoDS_Compound`，
  *   内含 1 个 `TopoDS_Solid`）。此处**解包**返回真实 Solid（`solids[0]`），
  *   下游 `isValid`/编辑/导出都针对真实实体。
- * - 多 solid STEP：返回顶层 Compound **不 fuse**。`meshShape(compound)` 整体显示，
- *   导出时 Compound 仍含全部 solid（非三角化）。逐 part 编辑由 Phase 1 XCAF 负责。
+ * - 多 solid STEP：**只支持单零件**（§5.4）——降级取**第一个** solid 返回（单一
+ *   非复合 Shape），并回传 `multiSolidCount`（≥2 表示本文件被降级取件，由 load op
+ *   登记"多零件降级" pending，宿主据此弹警告 §5.4:166）。取件点唯一，逐 part 拆
+ *   分只发生在 load op 内部，宿主不再发多条 load。
  * - **不调用 `kernel.isValid`**：`importStep` 对单 solid STEP 也返回 Compound 包裹，
  *   `isValid(compound)` 返回 false（Compound 不是 Solid），这会误杀合法 STEP。
  *   合法性判据改为 `getSubShapes(top, 'solid').length >= 1`（含 ≥1 个 solid 即合法），
@@ -765,23 +767,21 @@ export function extrudeBrep(
  * @param buffer     the raw STEP file bytes (a text-encoded ArrayBuffer).
  * @param brepChain  optional - caches the tessellated BrepMeshResult when provided.
  * @param stmtId     optional - the part this solid belongs to, paired with brepChain as the cache key.
- * @param partIndex  optional - for multi-solid files, return the N-th sub-solid
- *                   (host emits one load statement per part with its index).
  * @param opts       optional - `allowNonSolid` relaxes the solid requirement so
  *                   a frozen wireframe/surface asset (a Draft wire, a face, a
  *                   shell) can be imported as addressable geometry. Callers
  *                   must decide this STATICALLY from the asset itself (see
  *                   `brepTextHasSolid`), never by retrying after a failure.
- * @returns { solid: the OCCT solid handle, shape: the display tessellated mesh }
+ * @returns { solid: the OCCT solid handle, shape: the display tessellated mesh,
+ *            multiSolidCount: total solids declared when > 1 (single-part take-first) }
  */
 export function loadBrep(
   kernel: BrepEngineApi,
   buffer: ArrayBuffer,
   brepChain?: BrepChainState,
   stmtId?: PartName,
-  partIndex?: number,
   opts?: { allowNonSolid?: boolean },
-): { solid: BrepHandle; shape: Shape } {
+): { solid: BrepHandle; shape: Shape; multiSolidCount?: number } {
   // BREP 文件（CASCADE Topology 文本格式）必须用 kernel.fromBREP 解析；
   // 误用 STEP 解析器（importStep）读 BREP 会抛 "failed to read STEP data"。
   const decoder = new TextDecoder('utf-8')
@@ -818,29 +818,24 @@ export function loadBrep(
     return { solid: realSolid, shape }
   }
 
-  // 多 solid + partIndex：提取第 partIndex 个子 solid（逐 part load 语句使用）。
-  // 宿主为多 part 文件的每个 part 生成独立 load 语句并携带 partIndex，
-  // 使每条 load 输出对应 part 的几何，而不是整个文件的 Compound。
-  if (partIndex !== undefined) {
-    const target = solids[partIndex]
-    if (!target) {
-      kernel.release(top)
-      throw new Error(
-        `[loadBrep] partIndex ${partIndex} out of range (${solids.length} solids)`,
-      )
-    }
-    kernel.release(top) // 释放 Compound 包裹，target 独立持有（同单 solid 模式）
-    const shape = solidToShape(kernel, target, undefined, brepChain, stmtId)
-    return { solid: target, shape }
+  // 多 solid（§5.4 单零件收敛）：只支持单零件 —— 降级取**第一个** solid，
+  // 返回单一非复合 Shape，并回传 multiSolidCount（≥2 表示本文件被降级取件，
+  // 由 `cad.load` op 登记"多零件降级" pending，宿主据零件数弹警告 §5.4:166）。
+  // 取件点唯一：多零件拆分只发生在 load op 内部，宿主不再逐 part 拆、不再发
+  // 多条 load。`solids` 是 kernel.getSubShapes(top,'solid') 的内核枚举序；对同一
+  // import 路径、同一 OCCT 版本，该序是确定性的，故"第一个"可复现（红线 7）。
+  const first = solids[0]
+  if (!first) {
+    kernel.release(top)
+    throw new Error(`[loadBrep] imported shape has 0 solid sub-shapes`)
   }
-
-  // 多 solid：保留 Compound 不合并（I5），逐 part 编辑由 Phase 1 XCAF 负责
-  // 释放提取的子形句柄（它们是 top 的子引用，top 本身持有几何）
-  for (const s of solids) {
+  // 释放其余多余子形句柄（first 独立持有几何，剩下的子是 top 的子引用）
+  for (const s of solids.slice(1)) {
     try { kernel.release(s) } catch { /* already released */ }
   }
-  const shape = solidToShape(kernel, top, undefined, brepChain, stmtId)
-  return { solid: top, shape }
+  kernel.release(top) // 释放 Compound 包裹，first 独立持有（同单 solid 模式）
+  const shape = solidToShape(kernel, first, undefined, brepChain, stmtId)
+  return { solid: first, shape, multiSolidCount: solids.length }
 }
 
 /** Sub-shape kinds that make an imported shape "addressable but not a solid". */
