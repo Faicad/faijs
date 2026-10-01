@@ -124,6 +124,18 @@ export interface DualOpOptions {
    * 「只在这些引擎上，且要求这些能力」——不会静默放行"目标引擎缺该能力"的组合。
    */
   engines?: readonly BrepEngineId[]
+  /**
+   * 网格实体路径的引擎要求（方案 2026-10-01 §3.4）：本 op 的 mesh 实现**能接受
+   * 网格实体输入**的前提是「当前装配的网格后端 id 在此名单内」。
+   *
+   * 缺省 = `['manifold']`：mesh 实现跑在内置 `mesh/`（manifold CSG）上，它不认识
+   * 网格实体——拿网格实体喂它必须在**执行前**静态报错
+   * （`E_MESH_SOLID_UNSUPPORTED`），绝不运行时改走别的后端。
+   *
+   * 与 `engines` 正交：`engines` 收窄的是 **BREP 引擎**身份，本字段收窄的是
+   * **网格后端**身份（同一个 op 可以"BREP 走 occt、网格实体走 brepkit"）。
+   */
+  meshEngines?: readonly string[]
   outputs?: string[]
   /** L3 schema per named parameter (G1 codegen + UI panel, plain string form). */
   schema?: Record<string, string>
@@ -166,6 +178,8 @@ export interface DualOpMeta {
   capabilities?: BrepCapabilityName[]
   /** 平台身份声明（D11，镜像 DualOpOptions.engines）。 */
   engines?: readonly BrepEngineId[]
+  /** 网格实体路径的引擎要求（镜像 DualOpOptions.meshEngines；缺省 = `['manifold']`）。 */
+  meshEngines?: readonly string[]
   outputs?: string[]
   schema?: Record<string, string>
   /** D11 slot-map declaration (positional → object boxing table, §9 naming). */
@@ -321,6 +335,7 @@ export function defineOp<A extends unknown[]>(
     name: decl.name,
     capabilities: decl.capabilities,
     engines: decl.engines,
+    meshEngines: decl.meshEngines,
     outputs: decl.outputs,
     schema: decl.schema,
     slotMap: decl.slotMap,
@@ -511,6 +526,14 @@ export function assertLibConforms(lib: Record<string, unknown>): void {
         throw new Error(
           `[faijs] lib function '${name}' declares unknown engine '${String(bad)}' — expected one of ${BREP_ENGINE_IDS.join(', ')}`,
         )
+      }
+    }
+    // meshEngines（方案 2026-10-01 §3.4）：非空字符串数组。**不校验 id 是否为
+    // "已注册的网格后端"**——装配在同一时刻前后，且第三方库可以被装配到我们不知道的
+    // 后端上；门禁在 dispatchPath 处按当前装配比对（那里才拿得到真相）。
+    if (meta.meshEngines !== undefined) {
+      if (!Array.isArray(meta.meshEngines) || meta.meshEngines.length === 0 || meta.meshEngines.some((e) => typeof e !== 'string' || e.length === 0)) {
+        throw new Error(`[faijs] lib function '${name}' declares invalid meshEngines (expected non-empty string[])`)
       }
     }
     if (

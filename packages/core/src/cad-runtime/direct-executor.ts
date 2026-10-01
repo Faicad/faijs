@@ -27,7 +27,7 @@ import type { StdlibNamespace } from '../runtime-state'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
-import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, takePendingDetectedUnits, takePendingMultiPartCounts, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
+import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, takePendingDetectedUnits, takePendingMultiPartCounts, takePendingMeshSolids, takePendingMeshTopologies, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { runtimeLineage } from '../topology/naming/lineage'
 import { ExecutionLimitError } from './execution-limit-error'
@@ -201,6 +201,10 @@ export class DirectExecutor {
   private detectedUnitsOut = new Map<PartName, string>()
   /** 多零件降级零件数（load op 登记，PartName → count，§5.4），collectDirectResult 消费。 */
   private multiPartCountOut = new Map<PartName, number>()
+  /** 网格实体句柄（load op 登记，PartName → handle，方案 2026-10-01 §3.3），collectDirectResult 消费。 */
+  private meshSolidOut = new Map<PartName, unknown>()
+  /** 近似拓扑数据（load op 登记，PartName → SelectorRuntimeData），collectDirectResult 消费。 */
+  private meshTopologyOut = new Map<PartName, unknown>()
   /** 执行后端（静态选定；缺省 vm） */
   private readonly execBackend: ExecBackend
 
@@ -217,6 +221,16 @@ export class DirectExecutor {
   /** 多零件降级零件数快照（load op 语句执行后取走；空 Map 表示无多零件降级）。 */
   get multiPartCountSnapshot(): Map<PartName, number> {
     return this.multiPartCountOut
+  }
+
+  /** 网格实体句柄快照（load op 登记；PartName → handle）。 */
+  get meshSolidSnapshot(): Map<PartName, unknown> {
+    return this.meshSolidOut
+  }
+
+  /** 近似拓扑数据快照（load op 登记；PartName → SelectorRuntimeData）。 */
+  get meshTopologySnapshot(): Map<PartName, unknown> {
+    return this.meshTopologyOut
   }
 
   constructor(options: DirectExecutorOptions) {
@@ -701,6 +715,15 @@ export class DirectExecutor {
       const pendingMulti = takePendingMultiPartCounts()
       for (const [part, count] of pendingMulti) {
         this.multiPartCountOut.set(part, count)
+      }
+      // 网格实体句柄 + 近似拓扑（load op 登记，方案 2026-10-01 §3.3）按本语句收编。
+      // 句柄进 MeshSolidRegistry（runtime 侧）、拓扑进 topologyCache —— 由
+      // collectDirectResult 落位（它持有 registry 与 ctx）。
+      for (const [part, solid] of takePendingMeshSolids()) {
+        this.meshSolidOut.set(part, solid)
+      }
+      for (const [part, data] of takePendingMeshTopologies()) {
+        this.meshTopologyOut.set(part, data)
       }
     }
   }

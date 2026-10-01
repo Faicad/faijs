@@ -36,21 +36,35 @@ import type { EdgeTopoRef, ResolutionContext } from '../topology/naming'
 import { resolveTopoRef, facesForQualifier, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext, buildEdgeContextFromSolid } from './topo-resolve'
+import { OpError } from './internal/result-unwrap'
+import { meshKernelFailure, meshSolidEntry, meshSolidProduct, resolveMeshEdges } from './internal/mesh-solid-op'
 import { angleBetweenNormals, materialDihedralFromNormalAngle, chamferAngleFromDistances } from './chamfer-math'
 
 // ── 参数自校验（stdlib 被直接 import 时的防御层）──
 
 /**
  * Validate chamfer parameters: `edges` must be a non-empty array of EdgeTopoRef,
- * each with kind key "edge" and a two-entry faces pair.
+ * each with kind key "edge" and a two-entry faces pair — or of 1-based ordinals
+ * when `opts.allowOrdinals` (the mesh chain, which has no role layer to match
+ * edges against).
  * @param params the raw chamfer operation parameters.
+ * @param opts the selector-form options (mesh chain allows ordinals).
  */
-export function assertChamferParams(params: Record<string, unknown>): void {
+export function assertChamferParams(
+  params: Record<string, unknown>,
+  opts?: { readonly allowOrdinals?: boolean },
+): void {
   const edges = params.edges
   if (!Array.isArray(edges) || edges.length === 0) {
     throw new Error('E_CHAMFER_NO_EDGES: chamfer requires at least one edge')
   }
   for (const e of edges) {
+    if (opts?.allowOrdinals && typeof e === 'number') {
+      if (!Number.isInteger(e) || e < 1) {
+        throw new Error('E_CHAMFER_BAD_EDGE_REF: an edge ordinal must be a positive integer (1-based)')
+      }
+      continue
+    }
     if (!e || typeof e !== 'object' || (e as { kind?: unknown }).kind !== 'edge') {
       throw new Error('E_CHAMFER_BAD_EDGE_REF: every edge entry must be an EdgeTopoRef with kind:"edge"')
     }
@@ -283,13 +297,61 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
 }
 
 /**
- * 在几何体上倒角（等距 / 双距 / 距角）。仅 BREP 可用。
+ * 网格实体路径：对近似拓扑里识别出的边倒角（方案 2026-10-01 §3.5 三明治）。
+ *
+ * 支持的形态与 BREP 路径的差异：
+ * - `equal` → L1 裸 `kernel.chamfer`；`distanceAngle` → `kernel.chamferDistAngle`；
+ * - `twoDistances` **不支持**：它要把 `faces[0]/faces[1]` 两个 role 限定符解析到面，
+ *   再由内核选中的参考面决定 width1/width2 各归哪一侧。近似拓扑没有 role 层，
+ *   这两个限定符无从解析——如实拒绝，不猜一个参考面（猜错 = 倒角落在错误的一侧）。
+ *
+ * 与 fillet 同一条 GOTCHA：一次请求里的全部边交给内核会在共面边链上被整体拒绝，
+ * 本实现如实失败，不自动拆成逐边重试。
+ *
+ * @param input - the mesh-solid input.
+ * @param params - the validated chamfer parameters.
+ * @returns the chamfered mesh solid as a new mesh part.
+ */
+function chamferMeshSolid(input: Shape, params: Record<string, unknown>): Shape {
+  const type = params.type as string
+  const edges = (params.edges as unknown as (number | EdgeTopoRef)[] | undefined) ?? []
+  if (type === 'twoDistances') {
+    throw new OpError(
+      'chamfer',
+      'E_MESH_SOLID_UNSUPPORTED',
+      '[stdlib/chamfer] twoDistances needs role-resolvable adjacent faces to decide which side ' +
+      'carries width1/width2; a mesh solid has no role layer — use type:"equal" or "distanceAngle"',
+    )
+  }
+  const entry = meshSolidEntry(input, 'chamfer')
+  const edgeHandles = resolveMeshEdges(entry, edges, 'chamfer')
+
+  let result: BrepHandle
+  try {
+    result = type === 'distanceAngle'
+      ? entry.kernel.chamferDistAngle(entry.solid, edgeHandles, params.width as number, params.angle as number)
+      : entry.kernel.chamfer(entry.solid, edgeHandles, params.width as number)
+  } catch (cause) {
+    throw meshKernelFailure(
+      'chamfer',
+      'E_CHAMFER_FAILED',
+      `chamfer(type=${type}) on ${edgeHandles.length} edge(s)`,
+      cause,
+    )
+  }
+  return meshSolidProduct(entry, result)
+}
+
+/**
+ * 在几何体上倒角（等距 / 双距 / 距角）。
  * @group 特征
  * @inputs 1
  * @async true
  * @qual ok
  * @name chamfer
- * @note 倒角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。参考面由内核自选，`width1` 沿 faces[0] 侧、`width2` 沿 faces[1] 侧。
+ * @note BREP 输入走完整三形态；**网格实体**输入只支持 `equal` / `distanceAngle`
+ *       （`twoDistances` 需要 role 可解析的邻面，近似拓扑没有 role）。
+ *       `width1` 沿 faces[0] 侧、`width2` 沿 faces[1] 侧（BREP 路径）。
  * @returns Shape 倒角后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @param params.edges - 参与倒角的边（EdgeTopoRef[]，条目为相邻两面的 role 线路）。type:EdgeTopoRef[] required:true
@@ -300,10 +362,17 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
  * @param params.angle - type=distanceAngle: 与参考面夹角（度，(0,90)）。type:number
  * @example
  * const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
+ * const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
  */
 export const chamfer = defineOp({
   // 中立 op（2026-09-26 B 批）：不再声明 engines——equal 路径按引擎能力静态分派
   // （occt→chamferWithHistory 历史路径；brepkit→裸 kernel.chamfer 无演化降级）。
+  // meshEngines：网格实体路径由 brepkit 网格后端提供（方案 2026-10-01 §3.4）。
+  meshEngines: ['brepkit'],
+  mesh(input: Shape, params: Record<string, unknown>) {
+    assertChamferParams(params, { allowOrdinals: true })
+    return chamferMeshSolid(input, params)
+  },
   brep(input: Shape, params: Record<string, unknown>) {
     assertChamferParams(params)
     return chamferBrep(input, params)

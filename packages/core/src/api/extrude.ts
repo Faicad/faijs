@@ -27,7 +27,7 @@ import { extrude as projectedExtrude } from './generated/operations'
 import * as THREE from 'three'
 import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
-import { getCurrentStmt, getBackends } from '../runtime-state'
+import { getCurrentStmt, getBackends, MeshUnsupportedError } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, isCurveShape } from '../shape'
 import { runtimeLineage } from '../topology/naming/lineage'
@@ -35,6 +35,7 @@ import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import { assertPositiveNumber } from './assert'
+import { meshFaceEntry, meshKernelFailure, meshSolidProductWithBackend } from './internal/mesh-solid-op'
 import type { Shape, Vec3 } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -438,10 +439,71 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
 }
 
 /**
+ * `cad.extrude` 的**网格链**实现（方案 2026-10-01 §4 Phase 3-2）。
+ *
+ * 输入是一张**网格链面**（`cad.sketchOnFace` 在近似拓扑面上铺出来的那种），
+ * 输出是一个**新的网格零件**——与输入网格实体同链，同样不具备 STEP 导出资格。
+ *
+ * 只支持"面 + 方向 + 距离"这一支：`upTo` 需要精度链上的求交/裁切（`extrudeUpToSolid`
+ * 走 BREP 内核），近似链没有对应能力，故如实拒绝而不是静默退化成普通拉伸——
+ * "拉伸到那张面"和"拉伸这么长"是两件不同的事，悄悄替换会让用户拿到一个错的实体。
+ *
+ * 方向语义与 BREP 侧**完全一致**（同一份 `normalizeExtrudeOptions`）：位置形态
+ * `cad.extrude(face, 5)` 沿 +Z，`cad.extrude(face, [x,y,z])` 沿该向量；
+ * 缺省法向 `[0,0,1]` 不自动改用面法向——那是两条链共同的行为约定，不在这里分叉。
+ *
+ * @param input - the mesh-chain face to extrude.
+ * @param params - the same positional/object forms the BREP branch accepts.
+ * @returns the new mesh solid (a new mesh part).
+ * @throws {MeshUnsupportedError} on the mesh path when `upTo` is requested.
+ */
+function extrudeMeshChain(input: Shape, params: unknown): Shape {
+  if (!input) throw new Error('[stdlib/extrude] no input geometry')
+  if (isCurveShape(input)) {
+    throw new Error(
+      'E_EXTRUDE_NEEDS_FACE: extrude requires a 2D face input, got a 1D curve (kind="curve")',
+    )
+  }
+  const entry = meshFaceEntry(input, 'extrude')
+
+  const o = normalizeExtrudeOptions(params)
+  assertExtrudeOptions(o)
+  if (o.upTo !== undefined) {
+    throw new MeshUnsupportedError(
+      'E_MESH_SOLID_UNSUPPORTED: extrude upTo is not available on the mesh path — it needs the precision ' +
+      'chain to intersect and trim against a target face. Give an explicit length instead',
+      getCurrentStmt(),
+    )
+  }
+
+  const normal = new THREE.Vector3(...(o.normal ?? [0, 0, 1])).normalize()
+  const sign = o.mode === 'backward' ? -1 : 1
+  const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
+
+  let solid: BrepHandle
+  try {
+    solid = entry.kernel.extrude(entry.face, v[0]!, v[1]!, v[2]!)
+  } catch (cause) {
+    throw meshKernelFailure(
+      'extrude',
+      'E_EXTRUDE_FAILED',
+      `extruding a mesh-chain face by ${o.length} along [${v.join(', ')}]`,
+      cause,
+    )
+  }
+  return meshSolidProductWithBackend(entry.backend, solid)
+}
+
+/**
  * 沿 normal 拉伸几何（面 → 棱柱）。
  *
  * up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影
  * （vendored extrude 为唯一引擎），up-to 模式走半空间组合。
+ *
+ * **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：输入是
+ * `cad.sketchOnFace` 在网格实体识别面上铺出的网格链面时，本 op 沿同一份方向语义
+ * 拉伸出**一个新的网格零件**（同样不具备 STEP 导出资格）。网格链上不支持 `upTo`
+ * （需精度链求交裁切）——会以 `E_MESH_SOLID_UNSUPPORTED` 明确拒绝，不静默当定长拉伸。
  *
  * @group 特征
  * @inputs 1
@@ -464,6 +526,10 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
  */
 export const extrude = defineOp({
   name: 'extrude',
+  meshEngines: ['brepkit'],
+  mesh(input: Shape, params: unknown): Shape {
+    return extrudeMeshChain(input, params)
+  },
   brep: async (input: Shape, params: unknown): Promise<Shape> => {
     if (!input) throw new Error('[stdlib/extrude] no input geometry')
     // Phase 3 执行前预检：1D 曲线（wire / helix / sketch as:'wire'）不是面，不得落进

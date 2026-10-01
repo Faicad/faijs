@@ -16,9 +16,10 @@ import {
 } from '../brep/face-evolution'
 import { getCurrentStmt, getBackends, keepHidden, nameOf } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
-import { fromBrep, brepOf, inputRoleTable } from '../shape'
+import { fromBrep, brepOf, hasMeshSolid, inputRoleTable } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
 import { OpError } from './internal/result-unwrap'
+import { meshKernelFailure, meshSolidEntry, meshSolidProduct } from './internal/mesh-solid-op'
 import { defineOp } from '../sdk'
 import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
 import type { Provenance } from '../topology/naming/lineage'
@@ -144,6 +145,64 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
   )
 }
 
+/**
+ * 网格实体路径：brepkit 网格内核的布尔（方案 2026-10-01 §3.5 三明治）。
+ *
+ * 输入**全部**是网格实体——这一点由 `dispatchPath` 的链门禁保证
+ * （`E_MESH_SOLID_MIXED`：网格实体不得与链外几何同处一次调用），此处只复核不补救。
+ *
+ * 无面演化、无 roleTable：近似拓扑没有 hash 演化，造一张恒等映射就是假身份
+ * （与 brepkit 裸布尔降级同一条纪律）。
+ *
+ * 中间结果是本实现自己造的句柄（不是任何输入），故 i>1 步及时释放；**输入句柄一概
+ * 不释放**——生命周期归链（与 BREP 路径 booleanBrep 的 `if (i > 1) kernel.release(prev)`
+ * 同构）。
+ *
+ * @param inputs - the mesh-solid inputs (≥1).
+ * @param operation - union / subtract / intersect.
+ * @returns the boolean result as a new mesh part.
+ */
+function booleanMeshSolid(inputs: Shape[], operation: BooleanOperation): Shape {
+  const opLabel = `boolean/${operation}`
+  const entries = inputs.map((s) => meshSolidEntry(s, opLabel))
+  const first = entries[0]!
+  const kernel = first.kernel
+  const op: 'fuse' | 'cut' | 'intersect' =
+    operation === 'union' ? 'fuse' : operation === 'subtract' ? 'cut' : 'intersect'
+
+  let result = first.solid
+  for (let i = 1; i < entries.length; i++) {
+    const prev = result
+    try {
+      result = kernel[op](prev, entries[i]!.solid)
+    } catch (cause) {
+      throw meshKernelFailure(
+        opLabel,
+        'E_OP_FAILED',
+        `${op}(${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`})`,
+        cause,
+      )
+    }
+    // i>1：prev 是本实现上一步造出的中间实体，释放它（i=1 时 prev 是**输入**，不碰）。
+    if (i > 1) first.backend.release(prev)
+  }
+  return meshSolidProduct(first, result)
+}
+
+/**
+ * 网格路径分流（方案 2026-10-01 §3.4 规则 4）：输入含网格实体 → brepkit 网格内核；
+ * 否则保持历史上限（内置 `mesh/` 的 manifold CSG）。两条路**互不冒充**——
+ * manifold 不认识网格实体（静态门禁），网格内核也不接受裸网格（无句柄）。
+ *
+ * @param inputs - the geometry inputs.
+ * @param operation - union / subtract / intersect.
+ * @returns the boolean product (mesh solid or manifold mesh shape).
+ */
+function booleanMeshPath(inputs: Shape[], operation: BooleanOperation): Shape | Promise<Shape> {
+  if (inputs.some(hasMeshSolid)) return booleanMeshSolid(inputs, operation)
+  return booleanMesh(inputs, operation)
+}
+
 /** mesh 路径：manifold-3d mesh-CSG。 */
 async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promise<Shape> {
   if (inputs.length < 2) {
@@ -180,9 +239,10 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
  * const a = await cad.union(part0, part1)
   */
 export const union = defineOp({
+  meshEngines: ['brepkit'],
   mesh: (...shapes: Shape[]) => {
     if (shapes.length > 0) keepHidden(...shapes)
-    return booleanMesh(reconcileBrepInputs(shapes), 'union')
+    return booleanMeshPath(reconcileBrepInputs(shapes), 'union')
   },
   brep: (...shapes: Shape[]) => {
     if (shapes.length > 0) keepHidden(...shapes)
@@ -213,9 +273,10 @@ export const union = defineOp({
  * const b = await cad.cut(part0, part1)
   */
 export const cut = defineOp({
+  meshEngines: ['brepkit'],
   mesh: (base: Shape, tool: Shape) => {
     keepHidden(base, tool)
-    return booleanMesh(reconcileBrepInputs([base, tool]), 'subtract')
+    return booleanMeshPath(reconcileBrepInputs([base, tool]), 'subtract')
   },
   brep: (base: Shape, tool: Shape) => {
     keepHidden(base, tool)
@@ -238,9 +299,10 @@ export const cut = defineOp({
  * const b = await cad.subtract(part0, part1)
   */
 export const subtract = defineOp({
+  meshEngines: ['brepkit'],
   mesh: (...shapes: Shape[]) => {
     if (shapes.length > 0) keepHidden(...shapes)
-    return booleanMesh(reconcileBrepInputs(shapes), 'subtract')
+    return booleanMeshPath(reconcileBrepInputs(shapes), 'subtract')
   },
   brep: (...shapes: Shape[]) => {
     if (shapes.length > 0) keepHidden(...shapes)
@@ -264,9 +326,10 @@ export const subtract = defineOp({
  * const c = await cad.intersect(part0, part1)
   */
 export const intersect = defineOp({
+  meshEngines: ['brepkit'],
   mesh: (...shapes: Shape[]) => {
     if (shapes.length > 0) keepHidden(...shapes)
-    return booleanMesh(reconcileBrepInputs(shapes), 'intersect')
+    return booleanMeshPath(reconcileBrepInputs(shapes), 'intersect')
   },
   brep: (...shapes: Shape[]) => {
     if (shapes.length > 0) keepHidden(...shapes)

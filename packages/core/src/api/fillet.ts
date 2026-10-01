@@ -32,21 +32,45 @@ import type { EdgeTopoRef, ResolutionContext } from '../topology/naming'
 import { resolveTopoRef, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext } from './topo-resolve'
+import { meshKernelFailure, meshSolidEntry, meshSolidProduct, resolveMeshEdges } from './internal/mesh-solid-op'
 
 // ── 参数自校验（stdlib 被直接 import 时的防御层）──
 
+/** 边选择器校验选项。 */
+export interface EdgeSelectorCheckOptions {
+  /**
+   * 允许 1 起序号作为边选择器（**仅网格链**；见 `resolveMeshEdges`）。
+   *
+   * 精度链不开这个口子：BREP 的边身份是 role 线路（两个相邻面的 `(origin, role)`），
+   * 序号只是内核枚举序，跨特征会漂移——让精度链接受序号等于把"可重放的引用"降级成
+   * "这次跑出来的下标"。近似链相反：没有 role 层，序号是唯一无歧义的指认方式。
+   */
+  readonly allowOrdinals?: boolean
+}
+
 /**
- * Validate fillet parameters: `edges` must be a non-empty array of EdgeTopoRef,
- * each with kind key "edge" and a two-entry faces pair; `radius` must be a
+ * Validate fillet parameters: `edges` must be a non-empty array of EdgeTopoRef
+ * (each with kind key "edge" and a two-entry faces pair) — or of 1-based
+ * ordinals when `opts.allowOrdinals` (the mesh chain); `radius` must be a
  * positive number (M1: uniform radius only).
  * @param params the raw fillet operation parameters.
+ * @param opts the selector-form options (mesh chain allows ordinals).
  */
-export function assertFilletParams(params: Record<string, unknown>): void {
+export function assertFilletParams(
+  params: Record<string, unknown>,
+  opts?: EdgeSelectorCheckOptions,
+): void {
   const edges = params.edges
   if (!Array.isArray(edges) || edges.length === 0) {
     throw new Error('E_FILLET_NO_EDGES: fillet requires at least one edge')
   }
   for (const e of edges) {
+    if (opts?.allowOrdinals && typeof e === 'number') {
+      if (!Number.isInteger(e) || e < 1) {
+        throw new Error('E_FILLET_BAD_EDGE_REF: an edge ordinal must be a positive integer (1-based)')
+      }
+      continue
+    }
     if (!e || typeof e !== 'object' || (e as { kind?: unknown }).kind !== 'edge') {
       throw new Error('E_FILLET_BAD_EDGE_REF: every edge entry must be an EdgeTopoRef with kind:"edge"')
     }
@@ -128,23 +152,76 @@ function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
 }
 
 /**
- * 在几何体上做圆角（等半径）。仅 BREP 可用。
+ * 网格实体路径：对近似拓扑里识别出的边倒圆角（方案 2026-10-01 §3.5 三明治）。
+ *
+ * 与 BREP 路径的三处实质差异，都是"网格零件没有精度链、没有 role 层"的直接后果：
+ * - 边**按几何或序号**解析：`EdgeTopoRef` 走长度/中点匹配；**1 起序号**直接取自近似
+ *   拓扑的 `edges` 数组下标 + 1（等长边靠几何分不开，序号是唯一无歧义的指认方式）；
+ * - 内核调用走 L1 裸 `kernel.fillet`（`filletWithHistory` 是精度链的面演化能力，
+ *   近似拓扑没有 hash 演化可言，故**不产生** faceEvolution / roleTable，如实缺席
+ *   而不是造一张恒等映射）；
+ * - 产物句柄写回后由 `meshSolidProduct` 重新三角化并重建近似拓扑。
+ *
+ * GOTCHA（2026-10-01 实测，见 `brepkit-kernel/mesh-solid-topology.test.ts`）：
+ * 一次请求里的**全部**边交给内核，会在共面边链（如圆柱端盖的 64 条边）上被整体
+ * 拒绝——不是单条边不可倒，而是"一次性磨圆会自交"。故本实现**如实失败**，不自动
+ * 拆成逐边重试（运行时换策略会掩盖几何事实）。要给共面边链倒角，请分多次调用，
+ * 每次一组几何上互不相邻的边。
+ *
+ * @param input - the mesh-solid input.
+ * @param params - the validated fillet parameters.
+ * @returns the filleted mesh solid as a new mesh part.
+ */
+function filletMeshSolid(input: Shape, params: Record<string, unknown>): Shape {
+  const edges = params.edges as (number | EdgeTopoRef)[]
+  const radius = params.radius as number
+  const entry = meshSolidEntry(input, 'fillet')
+  const edgeHandles = resolveMeshEdges(entry, edges, 'fillet')
+
+  let result: BrepHandle
+  try {
+    result = entry.kernel.fillet(entry.solid, edgeHandles, radius)
+  } catch (cause) {
+    throw meshKernelFailure(
+      'fillet',
+      'E_FILLET_RADIUS_TOO_LARGE',
+      `fillet(r=${radius}) on ${edgeHandles.length} edge(s)`,
+      cause,
+    )
+  }
+  return meshSolidProduct(entry, result)
+}
+
+/**
+ * 在几何体上做圆角（等半径）。
+ *
+ * 两条路径都以 `meshEngines: ['brepkit']` 之外的事实为界：BREP 输入走
+ * `filletWithHistory`（带面演化与 roleTable 传播）；**网格实体**输入走网格后端
+ * （近似拓扑无 role，边按几何或序号解析，无面演化）。非 BREP 的**裸网格**输入仍抛
+ * `E_MESH_SOLID_UNSUPPORTED`——裸网格没有近似拓扑，没有边可选。
  * @group 特征
  * @inputs 1
  * @async true
  * @qual ok
  * @name fillet
- * @note 圆角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。`radius` 为正数（mm）。
- *       圆角后 roleTable 经 filletWithHistory 传播，保证后续特征仍可按 role 选面/选边。
+ * @note `radius` 为正数（mm）。BREP 路径圆角后 roleTable 经 filletWithHistory 传播，
+ *       后续特征仍可按 role 选面/选边；网格实体路径没有 role 层，边只能按几何或
+ *       序号（近似拓扑 `edges` 数组下标 + 1）指认。
  * @returns Shape 圆角后的几何。
  * @param input - 目标几何。type:Shape required:true
- * @param params.edges - 参与圆角的边（EdgeTopoRef[]，条目为相邻两面的 role 线路）。type:EdgeTopoRef[] required:true
+ * @param params.edges - 参与圆角的边：相邻两面的 role 线路（EdgeTopoRef[]）；网格链上也可用 1 起序号。type:EdgeTopoRef[] required:true
  * @param params.radius - 圆角半径（mm，>0）。type:number required:true
  * @example
  * const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], radius:2 })
+ * const q = await cad.fillet(meshPart, { edges: [3], radius: 1 })
  */
 export const fillet = defineOp({
   capabilities: ['directEdit'],
+  meshEngines: ['brepkit'],
+  mesh(input: Shape, params: Record<string, unknown>) {
+    assertFilletParams(params, { allowOrdinals: true })
+    return filletMeshSolid(input, params)
+  },
   brep(input: Shape, params: Record<string, unknown>) {
     assertFilletParams(params)
     return filletBrep(input, params)

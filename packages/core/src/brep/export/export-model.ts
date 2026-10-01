@@ -35,6 +35,29 @@ export interface ExportEntry {
   color?: readonly [number, number, number]
 }
 
+/**
+ * STEP 导出的前置门禁：**网格零件不得导出 STEP**（方案 2026-10-01 §3.1 红线 2 / §3.6）。
+ *
+ * 判据是"有没有精确 BREP 句柄"，不是"有没有 mesh 载荷"：一个 BREP 零件通常同时带着
+ * 显示用三角网格，不能因为 mesh 存在就拒绝它。`mesh` 有而 `solid` 无 = 该 part 的
+ * 唯一几何真源就是三角网格，即网格零件。
+ *
+ * 为什么必须在这里失败而不是"重建一下"：STEP 是 BREP 专属格式（能拿去 CNC 加工）。
+ * 从三角网格重建出来的 facet BREP 写进 STEP 后，读回来的形状与输入网格逐面等价——
+ * 它**看起来像** BREP，却没有任何精确曲面语义。静默产出它就是模糊 mesh/BREP 边界，
+ * 这正是本项目唯一不肯让步的东西。
+ *
+ * @param entry - an export entry.
+ * @throws {Error} `E_STEP_MESH_PART` naming the part, when it has no BREP handle.
+ */
+function assertStepEntryHasSolid(entry: ExportEntry): void {
+  if (entry.solid) return
+  throw new Error(
+    `E_STEP_MESH_PART: part ${JSON.stringify(entry.name ?? '<unnamed>')} has no BREP handle — ` +
+    'a mesh part cannot be exported to STEP (STEP is BREP-only; export STL/3MF instead)',
+  )
+}
+
 /** Output formats supported by the unified {@link exportModel} entry. */
 export type ExportFormat = 'stl' | 'step' | '3mf'
 
@@ -228,20 +251,16 @@ export function exportModelSync(
   }
 
   if (format === 'step') {
+    // 先过门禁再取内核：网格零件的拒绝不该取决于当前是否装好了 BREP 引擎
+    // （"这不是 BREP 零件"才是用户需要看到的第一个事实）。
+    for (const e of entries) assertStepEntryHasSolid(e)
     const kernel = getBrepApi()
     const ownedHandles: BrepHandle[] = []
     const stepEntries: StepExportEntry[] = entries.map((e) => {
-      if (e.solid) {
-        if (scale === 1) return { solid: e.solid, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
-        const scaled = kernel.scale(e.solid, { x: 0, y: 0, z: 0 }, scale)
-        ownedHandles.push(scaled)
-        return { solid: scaled, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
-      }
-      return {
-        ...(e.mesh ? { mesh: { positions: scalePositions(e.mesh.positions, scale), indices: e.mesh.indices } } : {}),
-        ...(e.name ? { name: e.name } : {}),
-        ...(e.color ? { color: [...e.color] as [number, number, number] } : {}),
-      }
+      if (scale === 1) return { solid: e.solid!, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
+      const scaled = kernel.scale(e.solid!, { x: 0, y: 0, z: 0 }, scale)
+      ownedHandles.push(scaled)
+      return { solid: scaled, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
     })
     let buffer = exportStepFromSolids(kernel, stepEntries)
     for (const h of ownedHandles) {
@@ -319,20 +338,15 @@ export async function exportModel(
   if (format === 'step') {
     // 同一 scale 变量喂两类条目（§10.3 规则 7，修 E4）：mesh 缩放 positions，
     // solid 用 owned copy 做 kernel.scale —— 不释放调用方缓存里的原句柄。
+    // 先过门禁再取内核（同同步分支：拒绝理由与引擎装配状态无关）。
+    for (const e of entries) assertStepEntryHasSolid(e)
     const kernel = (await import('../handle-bridge')).getBrepApi() as BrepEngineApi
     const ownedHandles: BrepHandle[] = []
     const stepEntries: StepExportEntry[] = entries.map((e) => {
-      if (e.solid) {
-        if (scale === 1) return { solid: e.solid, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
-        const scaled = kernel.scale(e.solid, { x: 0, y: 0, z: 0 }, scale)
-        ownedHandles.push(scaled)
-        return { solid: scaled, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
-      }
-      return {
-        ...(e.mesh ? { mesh: { positions: scalePositions(e.mesh.positions, scale), indices: e.mesh.indices } } : {}),
-        ...(e.name ? { name: e.name } : {}),
-        ...(e.color ? { color: [...e.color] as [number, number, number] } : {}),
-      }
+      if (scale === 1) return { solid: e.solid!, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
+      const scaled = kernel.scale(e.solid!, { x: 0, y: 0, z: 0 }, scale)
+      ownedHandles.push(scaled)
+      return { solid: scaled, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
     })
     let buffer = exportStepFromSolids(kernel, stepEntries)
     for (const h of ownedHandles) {

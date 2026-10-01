@@ -17,6 +17,10 @@
  *
  * dispatchPath 静态判定 brep/mesh，
  * BREP 路径用 brepOf(input) 取输入实体、fromBrep 登记输出实体。
+ *
+ * 网格链（方案 2026-10-01 §4 Phase 4 / B3 批）：`mesh:` 实现分两支——**网格实体**
+ * 走网格后端内核变换句柄（保持网格零件身份与近似拓扑），**裸网格**维持既有的顶点
+ * 烘焙（manifold 链，无身份可言）。两支靠 `hasMeshSolid` 区分，不靠"能不能跑"试错。
  */
 
 import type { Shape, Vec3 } from '../mesh/types'
@@ -32,12 +36,13 @@ import type { HashEvolution } from '../brep/face-evolution'
 import { getBrepApi } from '../brep/handle-bridge'
 import { getBackends } from '../runtime-state'
 import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
-import { fromBrep, brepOf, inputRoleTable } from '../shape'
+import { fromBrep, brepOf, inputRoleTable, hasMeshSolid } from '../shape'
 import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import { assertVec3, assertPositiveNumber } from './assert'
+import { meshSolidBasicEntry, meshSolidProduct } from './internal/mesh-solid-op'
 import type { BrepHandle } from '../brep/engine/types'
 
 /**
@@ -182,6 +187,38 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
 }
 
 /**
+ * 网格实体路径：把同一个变换应用到网格实体的**句柄**上（方案 2026-10-01 §4 Phase 4 / B3 批）。
+ *
+ * 为什么不复用 `cad.translate` 那套顶点烘焙：那套只动 `positions`、不碰身份槽——
+ * 对一个网格零件用它，等于把"网格实体 + 近似拓扑"静默降级成"裸网格"（下游每一个
+ * 网格 op 都会因此失去选面/选边的能力）。网格链的正确姿势与 BREP 侧完全一致：
+ * **变换句柄**（内核 `translate`/`transform` 带 kind tag 返回新实体），再由
+ * `meshSolidProduct` 重新三角化 + 重建近似拓扑。
+ *
+ * 面演化在这里**如实缺席**：变换按定义 1:1 保面序，但没有 hash 演化可言（近似拓扑
+ * 没有内核 hash）——不造恒等映射，也不传播 roleTable（网格链上没有 roleTable）。
+ *
+ * @param op - the transform operation name.
+ * @param input - the mesh-solid input.
+ * @param params - the validated operation parameters.
+ * @returns the transformed mesh solid as a new mesh part.
+ */
+function transformMeshSolid(op: string, input: Shape, params: Record<string, unknown>): Shape {
+  const entry = meshSolidBasicEntry(input, op)
+  let result: BrepHandle
+  if (op === 'translate') {
+    result = translateBrep(entry.kernel, entry.solid, params.offset as Vec3)
+  } else if (op === 'rotate_euler') {
+    result = rotateBrep(entry.kernel, entry.solid, params.angles as Vec3, params.pivot as Vec3 | undefined)
+  } else if (op === 'scale') {
+    result = scaleBrep(entry.kernel, entry.solid, params.factor as number, params.center as Vec3 | undefined)
+  } else {
+    result = scaleBrep(entry.kernel, entry.solid, params.factor as Vec3, params.center as Vec3 | undefined)
+  }
+  return meshSolidProduct(entry, result)
+}
+
+/**
  * 平移几何体。
  * @group 变换
  * @inputs 1
@@ -197,9 +234,11 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   */
 export const translate = defineOp({
   name: 'translate',
+  meshEngines: ['brepkit'],
   mesh: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/translate] no input geometry')
     assertTranslateParams(params)
+    if (hasMeshSolid(input)) return transformMeshSolid('translate', input, params)
     return cad.translate(input, params.offset as Vec3)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
@@ -232,9 +271,11 @@ export const translate = defineOp({
  */
 export const rotate_euler = defineOp({
   name: 'rotate_euler',
+  meshEngines: ['brepkit'],
   mesh: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/rotate_euler] no input geometry')
     assertRotateParams(params)
+    if (hasMeshSolid(input)) return transformMeshSolid('rotate_euler', input, params)
     return cad.rotate_euler(input, params.angles as Vec3, params.pivot as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
@@ -267,9 +308,11 @@ export const rotate_euler = defineOp({
  */
 export const scale = defineOp({
   name: 'scale',
+  meshEngines: ['brepkit'],
   mesh: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/scale] no input geometry')
     assertScaleParams(params)
+    if (hasMeshSolid(input)) return transformMeshSolid('scale', input, params)
     return cad.scale(input, params.factor as number, params.center as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
@@ -304,9 +347,11 @@ export const scale = defineOp({
  */
 export const scale3d = defineOp({
   name: 'scale3d',
+  meshEngines: ['brepkit'],
   mesh: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/scale3d] no input geometry')
     assertScale3dParams(params)
+    if (hasMeshSolid(input)) return transformMeshSolid('scale3d', input, params)
     return cad.scale3d(input, params.factor as Vec3, params.center as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {

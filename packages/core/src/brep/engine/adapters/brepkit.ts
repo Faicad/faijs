@@ -8,9 +8,15 @@
  * ensureOcctDefaultEngine 的动态 import('occt-wasm') 永不触发。
  */
 
-import { registerBrepEngine, isBrepEngineRegistered, hasBrepEngine, type BrepEngine } from '../registry'
+import {
+  registerBrepEngine, isBrepEngineRegistered, hasBrepEngine,
+  registerMeshEngine, getMeshSolidBackend, isMeshEngineRegistered,
+  type BrepEngine,
+} from '../registry'
 import type { AssertSatisfiesBrepEngineApi } from '../primitives'
 import { createBrepkitPrimitives, type BrepkitPrimitives } from '../../../brepkit-kernel/brepkitKernel'
+import type { MeshSolidBackend } from '../../mesh-solid'
+import { normalizeMeshSolid, describeMeshSolid, buildMeshSolidTopology } from '../../mesh-solid'
 
 /** brepkit 引擎注册 id。 */
 export const BREPKIT_BREP_ENGINE_ID = 'brepkit'
@@ -133,6 +139,45 @@ export async function registerBrepkitBrepEngine(): Promise<void> {
 export async function ensureBrepkitDefaultEngine(): Promise<void> {
   if (hasBrepEngine()) return
   await registerBrepkitBrepEngine()
+}
+
+// ── 网格实体后端（方案 2026-10-01 §3.3） ──
+
+/** brepkit 网格实体后端 id —— 与 `defineOp.meshEngines` 的门禁名同源。 */
+export const BREPKIT_MESH_ENGINE_ID = 'brepkit'
+
+/**
+ * 装配 brepkit **网格实体后端**（网格语义路径；与 BREP 槽独立）。
+ *
+ * 与 `registerBrepkitBrepEngine` 的关系：同一个 brepkit wasm 实例、同一个
+ * `createBrepkitPrimitives()` 对象（已按内核 memo 化，见其 GOTCHA），但走的是
+ * **mesh 语义**——逐三角形导入 → 缝合 → 共面合并 → 网格实体。
+ *
+ * 装与不装的区别：装了，`load` 的 mesh 路径产出的零件带近似拓扑（可选中面/边，
+ * 后续 mesh op 可作用于其上）；不装，mesh 路径维持"裸网格、无拓扑"的历史行为。
+ * 这是**宿主装配事实**，不是错误（与"规范化失败必须报错"是两回事）。
+ *
+ * 幂等：已注册同名 mesh 引擎则跳过。
+ */
+export async function registerBrepkitMeshEngine(): Promise<void> {
+  const primitives = await createBrepkitPrimitives()
+  if (isMeshEngineRegistered(BREPKIT_MESH_ENGINE_ID)) return
+  const backend: MeshSolidBackend = {
+    id: BREPKIT_MESH_ENGINE_ID,
+    kernel: primitives,
+    ops: primitives.meshSolid,
+    normalize: (mesh, opts) => normalizeMeshSolid(backend, mesh, opts),
+    describe: (solid, opts) => describeMeshSolid(backend, solid, opts),
+    buildTopologyData: (result) => buildMeshSolidTopology(backend, result),
+    release: (solid) => { primitives.release(solid) },
+  }
+  registerMeshEngine(BREPKIT_MESH_ENGINE_ID, { id: BREPKIT_MESH_ENGINE_ID, meshSolid: backend })
+}
+
+/** 已注册任何网格实体后端则 no-op；否则注册 brepkit（宿主的显式缺省装配点）。 */
+export async function ensureBrepkitMeshBackend(): Promise<void> {
+  if (getMeshSolidBackend()) return
+  await registerBrepkitMeshEngine()
 }
 
 // §7.8 编译期完整性守卫：brepkit 原语集合必须满足 BrepEngineApi。

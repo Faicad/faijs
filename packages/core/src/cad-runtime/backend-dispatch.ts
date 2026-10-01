@@ -15,12 +15,42 @@
  */
 
 import { getBackends, getCurrentStmt, BrepUnsupportedError, MeshUnsupportedError } from '../runtime-state'
-import { hasBrep } from '../shape'
+import { hasBrep, hasMeshFace, hasMeshSolid } from '../shape'
 import type { BrepEngineId, BrepEvolutionKind, BrepMethodKind } from '../brep/engine/types'
 import type { Shape } from '../mesh/types'
 
 /** 静态判定的两个可能结果：走 BREP 链或 mesh 链。 */
 export type BrepPath = 'brep' | 'mesh'
+
+/**
+ * Shape 身份槽互斥校验（方案 2026-10-01 §3.2）：一个 Shape 只能携带**一种**链身份
+ * ——BREP 精度链句柄 / 网格实体句柄 / 网格链面句柄，三者取一。
+ *
+ * 两人同时存在意味着"这个零件既在精度链又在近似链上"——后续无论按哪一侧分派
+ * 都是错的（按 BREP 走 → 近似几何被当精确实体；按 mesh 走 → 精确句柄悬空）。
+ * 这是设计缺陷而非可恢复状态，故在**分派之前**直接抛错，不给运行时"选边站"的
+ * 机会（静态判定红线）。
+ *
+ * 三个写入点（`attachBrep` / `attachMeshSolid` / `attachMeshFace`）已经把互斥钉在
+ * 写入侧；这里在分派前再兜一层，兜的是"绕开构造器直接改 slot"的路径。
+ *
+ * @param inputs - the shapes feeding the operation.
+ * @throws {Error} `E_SHAPE_SLOT_EXCLUSIVE` when a shape carries more than one chain identity.
+ */
+export function assertShapeSlotExclusive(inputs: readonly Shape[]): void {
+  for (const s of inputs) {
+    const carriers: string[] = []
+    if (hasBrep(s)) carriers.push('BREP')
+    if (hasMeshSolid(s)) carriers.push('mesh solid')
+    if (hasMeshFace(s)) carriers.push('mesh-chain face')
+    if (carriers.length > 1) {
+      throw new Error(
+        `E_SHAPE_SLOT_EXCLUSIVE: input shape carries ${carriers.join(' and ')} handles — ` +
+        'a shape belongs to exactly one chain identity (precision, mesh solid, or mesh-chain face)',
+      )
+    }
+  }
+}
 
 /**
  * 能力名：族级布尔位（`BrepCapabilities` 里类型为 boolean 的字段）**加上**逐核函数的
@@ -91,6 +121,76 @@ export function firstMissingCapability(
 }
 
 /**
+ * `meshEngines` 缺省值（方案 2026-10-01 §3.4）：内置 `mesh/`（manifold CSG）。
+ *
+ * 为什么缺省是"只认识裸网格"而不是"全都能"：mesh 实现默认跑在 manifold 上，它拿不到
+ * 网格实体句柄；给一个不声明 `meshEngines` 的 op 喂网格实体，唯一诚实的结局是**静态
+ * 报错**，而不是在运行时挑一个能跑的后端（红线：无运行时回退）。
+ */
+export const DEFAULT_MESH_ENGINES: readonly string[] = ['manifold']
+
+/**
+ * 网格链输入的静态门禁（方案 2026-10-01 §3.4 规则 1 / 规则 4）。
+ *
+ * "网格链输入"= 网格实体（`meshSolid`）或网格链面（`meshFace`）——两者都是近似链上的
+ * 构造中几何，都要由**声明的**网格后端来读懂。
+ *
+ * 只在**已判定走 mesh 路径**时调用（brep 模式下网格实体的归宿是
+ * `E_BREP_UNSUPPORTED`——网格零件按定义没有精度链，那条判定更贴切）。
+ *
+ * 两条不变量：
+ * 1. **链不可混**：一次调用里要么全是网格链输入，要么都不是。网格链输入与 BREP 实体
+ *    （或裸网格）混在一起时，任一侧的结局都是隐式降级——走 manifold 会把网格实体的
+ *    身份与近似拓扑静默丢掉，走网格后端则拿不到对侧实体的句柄。故直接报错。
+ * 2. **后端必须声明接受**：当前装配的网格后端 id 必须出现在 op 的 `meshEngines` 里。
+ *
+ * @param inputs - the shapes feeding the operation.
+ * @param impls - the op's implementation set (reads `meshEngines` / `name`).
+ * @throws {Error} `E_MESH_SOLID_MIXED` when mesh-chain inputs are mixed with other geometry.
+ * @throws {MeshUnsupportedError} `E_MESH_SOLID_UNSUPPORTED` when the mesh backend is not declared.
+ */
+function assertMeshSolidInputs(
+  inputs: readonly Shape[],
+  impls: { meshEngines?: readonly string[]; name?: string },
+): void {
+  let chainCount = 0
+  for (const s of inputs) if (hasMeshSolid(s) || hasMeshFace(s)) chainCount++
+  if (chainCount === 0) return
+
+  const opLabel = impls.name ? ` '${impls.name}'` : ''
+  if (chainCount !== inputs.length) {
+    throw new Error(
+      `E_MESH_SOLID_MIXED: op${opLabel} got both mesh-chain geometry and other geometry ` +
+      `(${chainCount}/${inputs.length} inputs are mesh solids or mesh-chain faces) — mesh-chain geometry ` +
+      'cannot take part in an operation whose other inputs are outside its chain (the result would silently drop one side)',
+    )
+  }
+
+  const declared = impls.meshEngines ?? DEFAULT_MESH_ENGINES
+  const current = currentMeshBackendId()
+  if (current !== null && declared.includes(current)) return
+  throw new MeshUnsupportedError(
+    `E_MESH_SOLID_UNSUPPORTED: op${opLabel} cannot accept mesh-chain input — current mesh backend ` +
+    `is ${current ?? '<none>'} but the op declares [${declared.join(', ')}]`,
+    getCurrentStmt(),
+  )
+}
+
+/**
+ * 当前装配的网格后端 id（未装配 → null）。
+ *
+ * 读的是**已装配的后端对象自身**（`Backends.kernel.meshSolid`）而不是注册表的另一份
+ * 快照——装配事实只有一个来源，门禁不可能与装配结果漂移。类型在本模块只当结构读
+ * （`{ id?: string }`），因为它对 runtime-state 是 `unknown`（零依赖红线）。
+ *
+ * @returns the assembled mesh backend id, or null when none is assembled.
+ */
+function currentMeshBackendId(): string | null {
+  const backend = getBackends().kernel.meshSolid as { id?: unknown } | undefined
+  return backend && typeof backend.id === 'string' ? backend.id : null
+}
+
+/**
  * Decide whether this invocation takes the BREP or the mesh backend path.
  *
  * Bidirectional dispatch (defineOp contract, D1/D1b/D2):
@@ -134,7 +234,36 @@ export function firstMissingCapability(
  */
 export function dispatchPath(
   inputs: Shape[],
-  impls: { mesh?: unknown; brep?: unknown; name?: string },
+  impls: { mesh?: unknown; brep?: unknown; name?: string; meshEngines?: readonly string[] },
+  requiredCapability?: BrepCapabilityName,
+  engines?: readonly BrepEngineId[],
+): BrepPath {
+  // 前置不变量：槽位互斥（缺陷即报错，先于任何模式/能力判定）。
+  assertShapeSlotExclusive(inputs)
+  const path = decidePath(inputs, impls, requiredCapability, engines)
+  // 网格实体输入的静态门禁（§3.4 规则 1/4）：只在**已经**选定 mesh 路径后判定。
+  // 放在这里而不是最前面，是为了让 brep 模式下的网格实体仍拿到更贴切的
+  // E_BREP_UNSUPPORTED（规则 3）——网格零件没有精度链，那才是它的第一条事实。
+  if (path === 'mesh') assertMeshSolidInputs(inputs, impls)
+  return path
+}
+
+/**
+ * The path decision itself (mode → engine identity → capability → chain).
+ *
+ * Split out of `dispatchPath` so the mesh-solid gate can run *after* the path is
+ * known, without duplicating the four mesh-returning branches. Behaviour is
+ * unchanged: every throw here is a "path not available" refusal.
+ *
+ * @param inputs - the shapes feeding the operation.
+ * @param impls - the op's implementation set (presence + name + meshEngines).
+ * @param requiredCapability - the capability the op declares, if any.
+ * @param engines - the op's BREP platform declaration (D11), if any.
+ * @returns the selected backend path.
+ */
+function decidePath(
+  inputs: Shape[],
+  impls: { mesh?: unknown; brep?: unknown; name?: string; meshEngines?: readonly string[] },
   requiredCapability?: BrepCapabilityName,
   engines?: readonly BrepEngineId[],
 ): BrepPath {

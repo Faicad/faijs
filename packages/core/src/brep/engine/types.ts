@@ -50,7 +50,28 @@ export interface BrepBoundingBox {
   zmax: number
 }
 
-/** BRepMesh 三角化输出（镜像 occt-wasm Mesh 的中立形态）。 */
+/**
+ * 面/边 hash 的上界（唯一真源）。
+ *
+ * 拓扑提取侧用 `kernel.hashCode(subShape, BREP_HASH_BOUND)` 查面/边，
+ * 三角化/线框侧把 hash 写进 `faceGroups[·+2]` / `edgeGroups[·+2]`——
+ * **两侧必须对同一上界取模**，否则查表恒 miss（实测 2026-10-01：
+ * brepkit 适配器曾用 1e9、topologyExt 用 INT32_MAX → 面行 triangleCount 全 0）。
+ * 值取自 OCCT `HASH_CODE_MAX` 惯例，也是 occt-wasm 的实际口径（实测一致）。
+ */
+export const BREP_HASH_BOUND = 2147483647
+
+/**
+ * BRepMesh 三角化输出（镜像 occt-wasm Mesh 的中立形态）。
+ *
+ * ⚠️ 单位口径（L1 契约的一部分，实测钉死）：
+ * - `faceGroups` 三元组 = `[triStart, triCount, faceHash]`，前两元是**索引单位**
+ *   （3/三角形），不是三角形单位；
+ * - `wireframe().edgeGroups` = `[pointStart, pointCount, edgeHash]`，前两元是
+ *   **浮点单位**（3/点）。
+ * 修订任何一侧都要同步改另一侧与 brepkit 适配器（跨引擎一致性测试
+ * `topology/face-group-units.test.ts` 钉住）。
+ */
 export interface BrepMeshResult {
   /** XYZ 交错顶点坐标，长度 = vertexCount * 3 */
   positions: Float32Array
@@ -82,7 +103,7 @@ export interface BrepTessellateOptions {
 export interface BrepEdgeData {
   /** XYZ 交错边采样点 */
   points: Float32Array
-  /** 每边分组：[pointStart, pointCount, edgeHash] 三元组 */
+  /** 每边分组：[pointStart, pointCount, edgeHash] 三元组；前两元为**浮点单位**（3/点）。 */
   edgeGroups: Int32Array
   /** points 中的浮点数总数（= XYZ 坐标数） */
   pointCount: number

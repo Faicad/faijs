@@ -105,3 +105,14 @@ export function initBrepkitWasm(): Promise<BrepKitKernel> {
 export function isBrepkitInitialized(): boolean {
   return getBrepkitKernelSharedState().initPromise !== null
 }
+
+/**
+ * 丢弃当前初始化结果（测试收尾 / 内核释放后调用）。
+ *
+ * `disposeBrepkit()` 必须调它——否则已释放的内核仍被缓存的 `initPromise` 引用，
+ * 下一次 `initBrepkitWasm()` 会返回**已释放**的内核（实测报 `null pointer passed
+ * to rust`）。`customInitFn` 不受影响（宿主注入的装载路径仍在）。
+ */
+export function resetBrepkitWasm(): void {
+  getBrepkitKernelSharedState().initPromise = null
+}

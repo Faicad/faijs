@@ -22,8 +22,9 @@ import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
-import { getBrepEngine, hasBrepEngine, getActiveBrepEngineId } from '../brep/engine/registry'
+import { getBrepEngine, hasBrepEngine, getActiveBrepEngineId, getMeshSolidBackend } from '../brep/engine/registry'
 import { ensureOcctDefaultEngine } from '../brep/engine/adapters/occt'
+import { MeshSolidRegistry } from '../brep/mesh-solid'
 import { ParseError } from '../lang/parse-error'
 import type { SecurityPolicy } from '../lang/security-scanner'
 import type { HostPorts, ExecutionMode } from './ports'
@@ -370,6 +371,14 @@ export class CadRuntime {
   private kernel: BrepEngineApi | null = null
 
   /**
+   * 网格实体句柄注册表（PartName → BrepHandle，方案 2026-10-01 §3.2）。
+   *
+   * **与 `solidCache` 并列且互不干扰**：网格零件永不进 BREP 链，BREP 实体也永不
+   * 进本表。释放语义与 solidCache 对齐（覆盖不释放、delete/clear 释放）。
+   */
+  private readonly meshSolidRegistry = new MeshSolidRegistry()
+
+  /**
    * 惰性初始化的 BREP 链：solidCache / faceEvolutionCache 引用实例持久 Map，
    * kernel 取环境单例。首次需要时创建一次，跨 execute 复用（不再每次新建）。
    */
@@ -582,6 +591,11 @@ export class CadRuntime {
         get sdf() {
           return portsOf().sdf
         },
+        get meshSolid() {
+          // 网格实体后端来自 mesh 引擎槽（与 BREP 槽独立注册）——换 BREP 引擎
+          // 不影响网格零件能力，反之亦然（R2 双槽位正交）。
+          return getMeshSolidBackend() ?? undefined
+        },
       },
       fonts: this.ports.fonts,
       texture: this.ports.texture,
@@ -589,6 +603,8 @@ export class CadRuntime {
       events: this.ports.events,
       cad: this.namespaces.cad,
     })
+    // 网格实体注册表在装配后认领后端（释放句柄要用它；未装配则 null）。
+    this.meshSolidRegistry.setBackend(getMeshSolidBackend())
   }
 
   /**
@@ -1030,6 +1046,9 @@ export class CadRuntime {
       })
     }
     const brepSolids = this.directBrepSolids(terminals, compounds)
+    // 网格零件落位（方案 2026-10-01 §3.3）：load 的 mesh 路径在 op 内完成规范化 +
+    // 近似拓扑构建，把「句柄」与「拓扑数据」登记为 pending；此处收编。
+    this.applyPendingMeshSolids(de.meshSolidSnapshot, de.meshTopologySnapshot)
     // T3：拓扑——宿主注入（mesh/primitive，setTopology 缓存）原样带出 + BREP 真拓扑
     // 自动构建（与 collectResult 的 topology='auto'/'brep' 面同构）。solidCache 已由
     // DirectExecutor 的 setSolid 钩子同步（逐单元执行后写入），此处 buildBrepTopology
@@ -1376,6 +1395,37 @@ export class CadRuntime {
   }
 
   /**
+   * 收编 load op 登记的网格实体句柄 + 近似拓扑（方案 2026-10-01 §3.3）。
+   *
+   * **顶替防护**：PartName 会被重写（`let a = await cad.load({…})` 之后
+   * `a = cad.boxBrep(…)`）。登记前必须核对「当前 ctx 变量槽里挂的就是这个句柄」
+   * （即 `fromMeshSolid` 确实为**当前**这个输出跑过）——否则会把网格实体身份写到一个
+   * BREP 实体上，破坏 `solid`/`meshSolid` 互斥不变量。核不上就整条跳过（旧句柄由
+   * 链释放兜底）。
+   *
+   * @param solids - 待收编的 网格实体句柄（PartName → handle）。
+   * @param topologies - 待收编的 近似拓扑数据（PartName → SelectorRuntimeData）。
+   */
+  private applyPendingMeshSolids(
+    solids: Map<PartName, unknown>,
+    topologies: Map<PartName, unknown>,
+  ): void {
+    const de = this.directExecutor
+    const accepted = new Set<PartName>()
+    for (const [part, handle] of solids) {
+      const v = de.getCtxVar(String(part))
+      if (!v || typeof v !== 'object') continue
+      if (getSlot(v)?.meshSolid !== handle) continue
+      this.meshSolidRegistry.set(part, handle as BrepHandle)
+      accepted.add(part)
+    }
+    for (const [part, data] of topologies) {
+      if (!accepted.has(part)) continue
+      this.setTopology(part, 'mesh', data as SelectorRuntimeData)
+    }
+  }
+
+  /**
    * Get the topology data for a part.
    * @param partName - the part name to look up.
    * @returns the part topology, or undefined.
@@ -1390,6 +1440,17 @@ export class CadRuntime {
    */
   deleteTopology(partName: PartName): void {
     this.topologyCache.delete(partName)
+  }
+
+  /**
+   * 网格实体句柄注册表的只读视图（诊断 / 宿主判定用）。
+   *
+   * 与 `brepChain.solidCache` 平行：宿主想判定"某 part 是不是网格零件"，用
+   * `shape.hasMeshSolid(shape)`；想拿句柄做网格语义操作，从这里取。
+   * @returns the runtime's mesh solid registry.
+   */
+  get meshSolids(): MeshSolidRegistry {
+    return this.meshSolidRegistry
   }
 
   /**
@@ -1488,6 +1549,8 @@ export class CadRuntime {
       }
       // brepChain.meshShapeCache
       this.brepChain?.meshShapeCache?.delete(name)
+      // 网格实体句柄（网格零件）：释放 + 删键（与 solidCache 同语义）
+      this.meshSolidRegistry.delete(name)
       // faceEvolutionCache / roleTableCache (same Map refs as runtime's)
       this.faceEvolutionCache.delete(name)
       this.roleTableCache.delete(name)
@@ -1728,6 +1791,8 @@ export class CadRuntime {
       try { this.kernel?.release(handle) } catch { /* 已释放 */ }
     }
     this.solidCache.clear()
+    // 网格实体句柄（独立注册表，与 solidCache 并列）一并释放
+    this.meshSolidRegistry.clear()
     this.faceEvolutionCache.clear()
     this.roleTableCache.clear()
     this.statementCache.clear()

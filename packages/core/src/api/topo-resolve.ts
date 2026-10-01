@@ -306,6 +306,74 @@ export function buildEdgeResolutionContext(
 }
 
 /**
+ * 为**网格实体**构建带边候选的 ResolutionContext（近似拓扑的边解析入口）。
+ *
+ * 与 `buildEdgeResolutionContext` 的差别只有两点，两点都是"网格零件没有 role 层"
+ * 的直接后果：
+ * 1. 句柄来自 `slot.meshSolid`（网格实体句柄）而不是 `slot.solid`（BREP 句柄）；
+ * 2. **刻意不给 `faceEdgeAdjacency` / `edgeFaceAdjacency`**。
+ *
+ * 第 2 点是有意的，不是省事：邻接表存在的意义是"两面之交 = 一条边"，
+ * 而 `EdgeTopoRef.faces` 是两个 **RoleQualifier**——网格零件没有 role
+ * （Phase 1.8：primitive/mesh 行 origin/role 显式为 null），限定符只是占位。
+ * 带上邻接表反而会让 `resolveEdgeTopo` 走进"按角色取公共边"的分支并必然 not-found；
+ * 不带它，解析就走「无 role 层 → 整个边表的纯几何匹配」（resolve-edge.ts 明写）。
+ * 边身份只能几何，这是如实的能力边界。
+ *
+ * @param kernel - the mesh backend's L1 kernel (live edge handles come from it).
+ * @param shape - the live mesh-solid shape whose naming slot is read.
+ * @returns the edge-enabled resolution context, or undefined when the shape is not a mesh solid.
+ */
+export function buildMeshEdgeResolutionContext(
+  kernel: BrepEngineApi,
+  shape: object | undefined,
+): ResolutionContext | undefined {
+  if (!shape) return undefined
+  const slot = getSlot(shape)
+  const solid = slot?.meshSolid as BrepHandle | undefined
+  if (!solid) return undefined
+
+  const faceHandles = kernel.getSubShapes(solid, 'face')
+  const faces = faceHandles.map((handle, i) => ({ ordinal: i + 1, handle }))
+  const edges: EdgeCandidateEntry[] = kernel.getSubShapes(solid, 'edge').map((handle, i) => ({
+    ordinal: i + 1,
+    handle,
+    hint: captureEdgeHint(kernel, handle),
+  }))
+  return { kernel, faces, edges }
+}
+
+/**
+ * 为**网格实体**构建面解析上下文（`sketchOnFace` 的网格链入口）。
+ *
+ * 面候选直接来自 `slot.meshSolid` 的 `getSubShapes(solid,'face')` 现场句柄——
+ * 与 `buildMeshEdgeResolutionContext` 的面表同源（同一枚举序）。**刻意不给
+ * `roleTable` / 邻接**：网格零件没有 role 层（Phase 1.8），带上 roleTable 只会让
+ * `resolveFaceTopo` 走进 exact 分支并必然落空；不带它，解析就走「全形状按 hint
+ * 几何打分」（resolve-face.ts 步骤 2），命中即 `geometric-fallback`。
+ *
+ * 也因此，网格链上的面只能用**几何**识别（法向 / 中心 / 面积）——这是如实的能力
+ * 边界，不是省事：同尺寸的两个平行面（如立方体的顶面与底面）在几何上无法区分，
+ * 调用方应改用序号。
+ *
+ * @param kernel - the mesh backend's L1 kernel (live face handles come from it).
+ * @param shape - the live mesh-solid shape whose naming slot is read.
+ * @returns the face resolution context, or undefined when the shape is not a mesh solid.
+ */
+export function buildMeshFaceResolutionContext(
+  kernel: BrepEngineApi,
+  shape: object | undefined,
+): ResolutionContext | undefined {
+  if (!shape) return undefined
+  const slot = getSlot(shape)
+  const solid = slot?.meshSolid as BrepHandle | undefined
+  if (!solid) return undefined
+
+  const faces = kernel.getSubShapes(solid, 'face').map((handle, i) => ({ ordinal: i + 1, handle }))
+  return { kernel, faces }
+}
+
+/**
  * 从 BREP 现场句柄建带边候选/邻接的 ResolutionContext（twoDistances 逐边重建用）。
  *
  * 与 `buildEdgeResolutionContext` 相同，但直接接收 live solid 句柄而非 Shape 槽——

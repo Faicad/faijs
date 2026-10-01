@@ -31,6 +31,8 @@ export {
   keep, keepHidden, getRuntimeState, nameOf, setName, setKeepSink,
   setPendingAssemblyTransforms, takePendingAssemblyTransforms, assertContractVersion,
   setPendingDetectedUnit, takePendingDetectedUnits,
+  setPendingMeshSolid, takePendingMeshSolids,
+  setPendingMeshTopology, takePendingMeshTopologies,
   CONTRACT_VERSION,
 } from './runtime-state'
 export type {

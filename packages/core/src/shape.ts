@@ -109,6 +109,152 @@ export function fromBrepCurve(mesh: Shape, holder: BrepHolder): CurveShape {
 }
 
 /**
+ * 网格实体产物的构造器：与 `fromBrep` 对称，登记网格实体句柄（近似链）而非
+ * BREP 句柄（精度链）。
+ *
+ * ```ts
+ * return fromMeshSolid(displayMesh, { meshSolid: result.solid })
+ * ```
+ *
+ * 与 `fromBrep` 的三点差别（方案 §3.2）：
+ * 1. 写 `slot.meshSolid`，**不写** `slot.solid`——网格零件永不进 BREP 链；
+ * 2. 不登记函数 BREP 域（`registerFunctionBrep`）——句柄所有权在
+ *    `MeshSolidRegistry`，按 BREP 内核释放是错的（可能是另一个内核）；
+ * 3. 不旁挂 roleTable（近似拓扑不给语义 role——role 是 BREP 真拓扑的专有能力）。
+ *
+ * @param mesh - the mesh shape to wrap as a solid (display mesh).
+ * @param holder - the mesh-solid holder providing the handle identity.
+ * @returns the created solid shape carrying the mesh-solid slot.
+ */
+export function fromMeshSolid(mesh: Shape, holder: MeshSolidHolder): SolidShape {
+  const s = solid(mesh)
+  attachMeshSolid(s, holder.meshSolid)
+  return s
+}
+
+/** 网格实体句柄容器（与 `BrepHolder` 对称；类型为 unknown 以保持零依赖）。 */
+export interface MeshSolidHolder {
+  /** 网格实体句柄的**身份**（句柄本体在 `MeshSolidRegistry`）。 */
+  meshSolid: unknown
+}
+
+/**
+ * 网格链**面**产物的构造器（方案 2026-10-01 §4 Phase 3）。与 `fromBrep` 的
+ * 面产物对称：BREP 侧 `sketchOnFace` 返回 `fromBrep(solidToShape(kernel, face),
+ * { solid: face })`，这里返回 `fromMeshFace(meshShape(face), { meshFace: face })`。
+ *
+ * `kind` 沿用 `'solid'`（不是 `'shape2d'`）：与 BREP 侧的面 Shape 保持同一形态，
+ * 好让 `extrude` 的 `isCurveShape` 预检在两条链上行为一致——面不是 1D 曲线，
+ * 不该被面消费 op 当成曲线拒掉。
+ *
+ * @param mesh - the face's display mesh (its own tessellation).
+ * @param holder - the mesh-face holder providing the handle identity.
+ * @returns the created shape carrying the mesh-face slot.
+ */
+export function fromMeshFace(mesh: Shape, holder: MeshFaceHolder): SolidShape {
+  const s = solid(mesh)
+  attachMeshFace(s, holder.meshFace)
+  return s
+}
+
+/** 网格链面句柄容器（与 `MeshSolidHolder` 对称；类型为 unknown 以保持零依赖）。 */
+export interface MeshFaceHolder {
+  /** 网格链面句柄的**身份**。 */
+  meshFace: unknown
+}
+
+/**
+ * 把网格实体句柄登记到已构造的 Shape。
+ *
+ * 互斥红线：该 Shape 已有 BREP 句柄或网格链面句柄时**直接抛错**——一个 Shape
+ * 同时声称两种链身份是设计缺陷，不能静默覆盖任何一侧。
+ *
+ * @param s - the already-constructed shape.
+ * @param meshSolid - the mesh solid handle.
+ * @throws {Error} `E_SHAPE_SLOT_EXCLUSIVE` when the shape already carries another chain identity.
+ */
+export function attachMeshSolid(s: Shape, meshSolid: unknown): void {
+  const state = getRuntimeState()
+  const slot = state.slots.get(s) ?? {}
+  if (slot.solid !== undefined) {
+    throw new Error(
+      'E_SHAPE_SLOT_EXCLUSIVE: shape already carries a BREP handle — a shape is either on the precision chain or the mesh chain, never both',
+    )
+  }
+  if (slot.meshFace !== undefined) {
+    throw new Error(
+      'E_SHAPE_SLOT_EXCLUSIVE: shape already carries a mesh-chain face handle — a shape is either a mesh solid or a mesh-chain face, never both',
+    )
+  }
+  slot.meshSolid = meshSolid
+  state.slots.set(s, slot)
+}
+
+/**
+ * 把网格链**面**句柄登记到已构造的 Shape。
+ *
+ * 与 `attachMeshSolid` 同一条互斥红线：已有任意另一种链身份即抛错。
+ *
+ * @param s - the already-constructed shape.
+ * @param meshFace - the mesh-chain face handle.
+ * @throws {Error} `E_SHAPE_SLOT_EXCLUSIVE` when the shape already carries another chain identity.
+ */
+export function attachMeshFace(s: Shape, meshFace: unknown): void {
+  const state = getRuntimeState()
+  const slot = state.slots.get(s) ?? {}
+  if (slot.solid !== undefined || slot.meshSolid !== undefined) {
+    throw new Error(
+      'E_SHAPE_SLOT_EXCLUSIVE: shape already carries a BREP or mesh-solid handle — a mesh-chain face is its own identity',
+    )
+  }
+  slot.meshFace = meshFace
+  state.slots.set(s, slot)
+}
+
+/**
+ * 该 Shape 是否携带网格链面（`sketchOnFace` 在近似拓扑面上的产物）。
+ *
+ * @param shape - the shape to test.
+ * @returns true if the shape carries a mesh-chain face handle.
+ */
+export function hasMeshFace(shape: Shape): boolean {
+  return getRuntimeState().slots.get(shape)?.meshFace !== undefined
+}
+
+/**
+ * 读取该 Shape 的网格链面句柄（无则 undefined）。
+ *
+ * @param shape - the shape whose mesh-chain face handle to read.
+ * @returns the mesh-chain face handle, or undefined if none.
+ */
+export function meshFaceOf(shape: Shape): unknown | undefined {
+  return getRuntimeState().slots.get(shape)?.meshFace
+}
+
+/**
+ * 该 Shape 是否携带网格实体（网格零件）。引擎分派与 UI 查询用。
+ *
+ * 与 `hasBrep` 互斥：正常路径下二者不可能同时为真（`attachMeshSolid` 已经把
+ * 互斥钉在写入侧，`assertShapeSlotExclusive` 在分派前再兜一层）。
+ *
+ * @param shape - the shape to test.
+ * @returns true if the shape carries a mesh solid handle.
+ */
+export function hasMeshSolid(shape: Shape): boolean {
+  return getRuntimeState().slots.get(shape)?.meshSolid !== undefined
+}
+
+/**
+ * 读取该 Shape 的网格实体句柄（无则 undefined）。
+ *
+ * @param shape - the shape whose mesh solid handle to read.
+ * @returns the mesh solid handle, or undefined if none.
+ */
+export function meshSolidOf(shape: Shape): unknown | undefined {
+  return getRuntimeState().slots.get(shape)?.meshSolid
+}
+
+/**
  * 把 BREP 句柄登记到已构造的 Shape（由 `solid` / `curve` 产出）。
  *
  * 集中 brep 登记的四步（identity 槽登记已由构造器完成；此处只补：① 身份槽挂载
@@ -122,6 +268,13 @@ export function fromBrepCurve(mesh: Shape, holder: BrepHolder): CurveShape {
 function attachBrep(s: Shape, holder: BrepHolder): void {
   const state = getRuntimeState()
   const slot = state.slots.get(s) ?? {}
+  if (slot.meshSolid !== undefined || slot.meshFace !== undefined) {
+    // 互斥红线的另一侧：网格链产物不得再被登记成 BREP 实体（那会让 STEP 导出
+    // 静默复活 facet STEP 的通道）。
+    throw new Error(
+      'E_SHAPE_SLOT_EXCLUSIVE: shape already carries a mesh-chain handle — a shape is either on the precision chain or the mesh chain, never both',
+    )
+  }
   slot.solid = holder.solid
   if (holder.faceEvolution) slot.faceEvolution = holder.faceEvolution
   // 1.10 前置③：roleTable **不再写 slot**（字段已删）——权威落点是下方血缘图

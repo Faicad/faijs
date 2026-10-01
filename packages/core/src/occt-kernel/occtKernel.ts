@@ -8,7 +8,8 @@
 import type { OcctKernel, ShapeHandle, Mesh, EdgeData, SurfaceKind, CurveKind, BoundingBox, Vec3, XCAFDocument, LabelInfo, LabelTag } from 'occt-wasm'
 
 import { getSolidColorsOrdered } from './stepColorParser'
-import { DEFAULT_LINEAR_DEFLECTION, SEWING_TOLERANCE } from '../tolerance'
+import { SEWING_TOLERANCE } from '../tolerance'
+import { computeEffectiveDeflection, type MeshDeflectionOptions } from '../brep/effective-deflection'
 import { mm } from '../units'
 
 /** A single tessellated mesh produced by the OCCT kernel. */
@@ -205,52 +206,22 @@ export function disposeOcctWasm(): void {
 }
 
 /** Options controlling mesh deflection during tessellation. */
-export interface MeshDeflectionOptions {
-  linearDeflection?: number
-  angularDeflection?: number
-  /** If true, linearDeflection is multiplied by the bounding-box diagonal
-   *  (matches OCCT's BRepMesh_IncrementalMesh relative=true behaviour). */
-  relative?: boolean
-}
+export type { MeshDeflectionOptions } from '../brep/effective-deflection'
 
 /**
  * Compute the effective linear deflection, applying relative scaling
  * exactly as OCCT does internally: `linDefl * bboxDiagonal` when relative=true.
+ *
+ * 实现已移到引擎中立的 `brep/effective-deflection.ts`（函数体只用
+ * `getBoundingBox`，与 OCCT 无关）——此处 re-export 保持既有导入面零迁移。
+ * 本模块内部仍要用它，故 import 后再 re-export（纯 re-export 不产生本地绑定）。
  *
  * @param kernel - the OCCT kernel
  * @param shape - the shape whose bounding box drives relative scaling
  * @param options - the requested deflection options
  * @returns the effective linear and angular deflection values
  */
-export function computeEffectiveDeflection<S>(
-  kernel: { getBoundingBox(shape: S, useTriangulation?: boolean): BoundingBox },
-  shape: S,
-  options: MeshDeflectionOptions = {},
-): { linearDeflection: number; angularDeflection: number } {
-  const ld = options.linearDeflection ?? DEFAULT_LINEAR_DEFLECTION.as(mm)
-  const ad = options.angularDeflection ?? 0.5
-  const relative = options.relative ?? false
-  if (!relative) return { linearDeflection: ld, angularDeflection: ad }
-
-  // OCCT: BRepBndLib::AddOptimal → bbox diagonal → deflection *= diagonal
-  // 浏览器 WASM 中 compound shape 可能使 getBoundingBox 抛异常，需要容错
-  let bb: BoundingBox
-  try {
-    bb = kernel.getBoundingBox(shape, false)
-  } catch {
-    try {
-      bb = kernel.getBoundingBox(shape, true)
-    } catch {
-      // 无法获取 bbox → 返回非相对模式的默认值
-      return { linearDeflection: ld, angularDeflection: ad }
-    }
-  }
-  const dx = bb.xmax - bb.xmin
-  const dy = bb.ymax - bb.ymin
-  const dz = bb.zmax - bb.zmin
-  const diag = Math.sqrt(dx * dx + dy * dy + dz * dz)
-  return { linearDeflection: ld * diag, angularDeflection: ad }
-}
+export { computeEffectiveDeflection }
 
 /**
  * Import a STEP file to ShapeHandle + Mesh (including face groups).

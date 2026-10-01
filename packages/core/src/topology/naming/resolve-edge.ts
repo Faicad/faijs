@@ -15,7 +15,7 @@
 
 import type { BrepHandle } from '../../brep/engine/types'
 import type { EdgeTopoRef, RoleQualifier, TopoResolution } from './types'
-import { resolveFaceTopo, type FaceCandidateEntry, type ResolutionContext } from './resolve-face'
+import { resolveFaceTopo, type EdgeCandidateEntry, type FaceCandidateEntry, type ResolutionContext } from './resolve-face'
 
 /** Hint 距离比这更近视为不可区分（→ ambiguous）。 */
 const HINT_MARGIN = 1e-6
@@ -78,6 +78,43 @@ function edgeHintScore(edge: { hint?: { length?: number; midpoint?: readonly num
 }
 
 /**
+ * 在候选边集合里按**纯几何** hint（length / midpoint）取最优边。
+ *
+ * 这是「没有 role 层的边身份」的唯一裁决器，两个消费点共用同一份实现：
+ * - `resolveEdgeTopo` 的多公共边裁决与 mesh 降级路径；
+ * - 网格实体（近似拓扑）的边解析——那里 `EdgeTopoRef.faces` 只是占位限定符
+ *   （网格零件没有 role，见 `mesh-primitive.test.ts` 的 Phase 1.8 契约）。
+ *
+ * 无法区分（最优点与次优点差值 < `HINT_MARGIN`）→ `undefined`，调用方按
+ * ambiguous / not-found 如实报错，**绝不**静默拿序号硬取。
+ *
+ * @param edges - the candidate edges (ordinal + optional handle/hint).
+ * @param hint - the edge hint carrying length / midpoint.
+ * @returns the best-matching candidate, or undefined when the hint cannot decide.
+ */
+export function matchEdgeByHint(
+  edges: readonly EdgeCandidateEntry[],
+  hint: EdgeTopoRef['hint'],
+): { ordinal: number; handle?: BrepHandle } | undefined {
+  if (hint.length === undefined && hint.midpoint === undefined) return undefined
+  let best: { ordinal: number; handle?: BrepHandle } | undefined
+  let bestScore = Infinity
+  let secondScore = Infinity
+  for (const edge of edges) {
+    const score = edgeHintScore(edge, hint)
+    if (score < bestScore) {
+      secondScore = bestScore
+      bestScore = score
+      best = { ordinal: edge.ordinal, handle: edge.handle }
+    } else if (score < secondScore) {
+      secondScore = score
+    }
+  }
+  if (best === undefined || secondScore - bestScore < HINT_MARGIN) return undefined
+  return best
+}
+
+/**
  * 解析边 TopoRef 到当前快照的边序号。
  *
  * @param ref - the edge TopoRef to resolve.
@@ -92,6 +129,20 @@ export function resolveEdgeTopo(
   const facesA = facesForQualifier(qualA, ctx)
   const facesB = facesForQualifier(qualB, ctx)
   if (facesA.length === 0 || facesB.length === 0) {
+    // 无 role 层的近似拓扑（网格实体）：`faces` 是占位限定符，两个 RoleQualifier
+    // 都不可能解析到面——既没有 roleTable（网格零件不冒充 role，Phase 1.8），
+    // 限定符本身也不携带几何（类型上只有 origin/role）。边的身份只剩几何一条路：
+    // 在整个边表上按 hint 匹配并标注 geometric-fallback。
+    //
+    // 判据是 `!ctx.faceEdgeAdjacency`：BREP 上下文**总是**带 face→edge 邻接
+    // （buildEdgeResolutionContext 现场枚举），故这条分支对 BREP 零影响——
+    // BREP 侧解析不到面仍然是 not-found，不会退化成"按长度瞎猜一条边"。
+    if (!ctx.faceEdgeAdjacency && ctx.edges && ctx.edges.length > 0) {
+      const best = matchEdgeByHint(ctx.edges, ref.hint)
+      if (best !== undefined) {
+        return { ok: true, entity: { handle: best.handle }, ordinal: best.ordinal, confidence: 'geometric-fallback' }
+      }
+    }
     return { ok: false, reason: 'not-found' }
   }
 
@@ -135,21 +186,8 @@ function bestEdgeByHint(
   hint: EdgeTopoRef['hint'],
   ctx: ResolutionContext,
 ): { ordinal: number; handle?: BrepHandle } | undefined {
-  if (hint.length === undefined && hint.midpoint === undefined) return undefined
-  let best: { ordinal: number; handle?: BrepHandle } | undefined
-  let bestScore = Infinity
-  let secondScore = Infinity
-  for (const ord of ordinals) {
-    const edge = ctx.edges?.find((e) => e.ordinal === ord)
-    const score = edgeHintScore(edge ?? {}, hint)
-    if (score < bestScore) {
-      secondScore = bestScore
-      bestScore = score
-      best = { ordinal: ord, handle: edge?.handle }
-    } else if (score < secondScore) {
-      secondScore = score
-    }
-  }
-  if (best === undefined || secondScore - bestScore < HINT_MARGIN) return undefined
-  return best
+  const pool = ordinals
+    .map((o) => ctx.edges?.find((e) => e.ordinal === o))
+    .filter((e): e is EdgeCandidateEntry => e !== undefined)
+  return matchEdgeByHint(pool, hint)
 }

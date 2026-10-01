@@ -1,12 +1,12 @@
 /**
- * chamfer e2e (.fai.js, BREP-only) — T-A4/T-A5/T-A6 (§4.2)
+ * chamfer e2e (.fai.js) — T-A4/T-A5/T-A6 (§4.2)
  *
  * 覆盖（真实 OCCT，beforeAll registerOcctBrepEngine）：
  * - T-A4 `equal`：box → chamfer(edges, type:'equal', width:1) → BREP 未断链、
  *   面数 6→7、体积减少 ½·w²·L = ½·1·20 = 10（区域 for 盒子棱长 20）。
  * - T-A5 `twoDistances` / `distanceAngle`：实测体积减少符合 §3.5 三角形换算。
- * - T-A6 错误路径：空 edges、缺 faces、width≤0、angle=0/90、输入非 BREP
- *   → E_MESH_UNSUPPORTED（dispatchPath 分支）。
+ * - T-A6 错误路径：空 edges、缺 faces、width≤0、angle=0/90、mesh 模式下裸网格输入
+ *   → E_MESH_SOLID_UNSUPPORTED（chamfer 自 2026-10-01 起有网格实现，BREP 侧见 T-A4/T-A5）。
  *
  * stderr 零容忍（CI 强制）：故意失败用例内 spy console.warn/error 并断言未被调用。
  */
@@ -115,7 +115,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
     expect(errorSpy).not.toHaveBeenCalled()
   })
 
-  it('T-A6b: 非 BREP 输入（mesh 模式）→ E_MESH_UNSUPPORTED', async () => {
+  it('T-A6b: mesh 模式 + 裸网格输入 → E_MESH_SOLID_UNSUPPORTED（不静默回退 BREP）', async () => {
     const meshRuntime = createEditorRuntime(createNodePorts(), 'mesh')
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -125,11 +125,13 @@ describe('chamfer e2e (BREP/OCCT)', () => {
     `
     try {
       const result = await meshRuntime.execute(code, { topology: 'auto' })
-      if (result.failedAt) {
-        expect(result.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED/)
-      } else {
-        throw new Error('expected E_MESH_UNSUPPORTED')
-      }
+      // chamfer 自 2026-10-01 起有 mesh 实现（brepkit 网格后端），mesh 模式因此走**网格路径**，
+      // 不再是"无 mesh 实现 → E_MESH_UNSUPPORTED"。网格路径只认网格实体 + 已装配的网格后端；
+      // 本宿主两者皆无（box 在 mesh 模式下是裸网格），故如实拒绝。
+      expect(result.failedAt).toBeDefined()
+      expect(result.failedAt!.message).toMatch(/E_MESH_SOLID_UNSUPPORTED/)
+      // 关键红线：拒绝是**静态**的，没有偷偷回退到 BREP 链把 part1 做出来。
+      expect(result.brepChain.solidCache.has(asPartName('part1'))).toBe(false)
     } finally {
       meshRuntime.dispose()
       warnSpy.mockRestore()

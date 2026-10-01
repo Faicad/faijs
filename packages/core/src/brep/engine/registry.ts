@@ -26,9 +26,16 @@ export interface BrepEngine {
 /** BREP 引擎异步提供者（宿主装配时注册；引擎初始化完成后 resolve）。 */
 export type BrepEngineProvider = () => Promise<BrepEngine>
 
-/** mesh 引擎实例（槽位 2）——与 BREP 槽完全独立（R2）。Phase 3 钉死形态。 */
+/**
+ * mesh 引擎实例（槽位 2）——与 BREP 槽完全独立（R2）。
+ *
+ * `meshSolid`：可选的**网格实体后端**（方案 2026-10-01 §3.3）。提供它的 mesh
+ * 引擎才能把网格文件导入成"网格实体 + 近似拓扑"。缺省（未提供）= 该 mesh 后端
+ * 只做裸网格布尔，`load` 的 mesh 路径保持"裸网格、无拓扑"的历史行为。
+ */
 export interface MeshEngine {
   readonly id: string
+  readonly meshSolid?: import('../mesh-solid').MeshSolidBackend
 }
 
 const brepEngineProviders = new Map<string, BrepEngineProvider>()
@@ -79,6 +86,15 @@ export function registerMeshEngine(id: string, engine: MeshEngine): void {
   }
   meshEngines.set(id, engine)
   if (defaultMeshId === null) defaultMeshId = id
+}
+
+/**
+ * Whether the given mesh engine is registered (used for idempotent adapter registration).
+ * @param id - the mesh engine registration id to look up.
+ * @returns true when the engine is registered.
+ */
+export function isMeshEngineRegistered(id: string): boolean {
+  return meshEngines.has(id)
 }
 
 /**
@@ -148,6 +164,22 @@ export function getActiveBrepEngineId(): string | null {
  */
 export function getActiveMeshEngineId(): string | null {
   return defaultMeshId
+}
+
+/**
+ * 已装配的网格实体后端（方案 2026-10-01 §3.3）。
+ *
+ * 按**注册顺序**返回第一个声明了 `meshSolid` 的 mesh 引擎——不要求它就是
+ * "默认" mesh 引擎（默认槽位今天无人注册，直接看默认槽会永远拿不到后端）。
+ * 一个都没有 → `null`：这是宿主装配事实，不是错误。
+ *
+ * @returns the assembled mesh-solid backend, or null when none is available.
+ */
+export function getMeshSolidBackend(): import('../mesh-solid').MeshSolidBackend | null {
+  for (const engine of meshEngines.values()) {
+    if (engine.meshSolid) return engine.meshSolid
+  }
+  return null
 }
 
 /**

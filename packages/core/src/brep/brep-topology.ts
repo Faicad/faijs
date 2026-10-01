@@ -1,9 +1,10 @@
 /**
- * BREP 拓扑运行时构建 — 从 OCCT solid 句柄生成 SelectorRuntime + mesh 数据
+ * BREP 拓扑运行时构建 — 从实体句柄生成 SelectorRuntime + mesh 数据
  *
- * @platform occt — 本文件 import occt-kernel（occtKernel / topologyExt）：拓扑
- *   提取直接消费平台原生句柄与扩展方法，由调用方（宿主导出缓存 / 平台装配点）
- *   在 occt 引擎下使用；守卫 R1 豁免、R2 无 defineOp 不适用。
+ * 引擎中立：本文件只经 L1 契约面调用内核（`buildAssemblySelectorManifest` 同理），
+ * 已在 occt 与 brepkit 两个引擎上跑通（`topology/face-group-units.test.ts` 的跨引擎
+ * 一致性用例）。因此**不再**标注 `@platform occt`——标注与 import 位置都已修正
+ * （偏差计算移到 `brep/effective-deflection.ts`；方案 2026-10-01 §3.7）。
  *
  * 与 STEP 文件导入的拓扑提取使用**同源算法**：
  *   meshShape + buildAssemblySelectorManifest + buildSelectorRuntime
@@ -18,7 +19,7 @@
 import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
 import type { SelectorRuntime, SelectorBundle, SelectorManifest } from '../topology/types'
-import { computeEffectiveDeflection } from '../occt-kernel/occtKernel'
+import { computeEffectiveDeflection } from './effective-deflection'
 import { buildAssemblySelectorManifest } from '../occt-kernel/topologyExt'
 import { buildSelectorRuntime } from '../topology/build-selector-runtime'
 import { DEFAULT_LINEAR_DEFLECTION } from '../tolerance'

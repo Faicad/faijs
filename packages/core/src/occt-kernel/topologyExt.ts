@@ -1,4 +1,4 @@
-import type { BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3 } from '../brep/engine/types'
+import { BREP_HASH_BOUND, type BrepHandle, type BrepMeshResult, type BrepBoundingBox, type BrepVec3 } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asEdgeId, asFaceId, asOccurrenceId, asShapeId } from '../identity'
 import { OCTREE_BBOX_FALLBACK } from '../tolerance'
@@ -48,11 +48,9 @@ function tryGetBoundingBox(
 // Topology data stays in mm — the viewer's buildSelectorRuntime is called
 // with scale:1 (scene base unit is mm), so no conversion needed.
 
-// OCCT's TopTools_ShapeMapHasher returns a hash that the C++ facade
-// reduces modulo 2147483647 (INT32_MAX). All kernel-generated hashes
-// (faceGroups, edgeGroups, edgeToFaceMap) use this same bound, so we
-// must pass 2147483647 to hashCode() for the hashes to match.
-const HASH_BOUND = 2147483647
+// 面/边 hash 上界：唯一真源在 brep/engine/types（BREP_HASH_BOUND）——内核
+// 生成的 faceGroups/edgeGroups hash 与 hashCode() 查询必须对同一上界取模。
+const HASH_BOUND = BREP_HASH_BOUND
 // Python SelectorOptions(digits=6) — 所有浮点值输出前舍入到 6 位小数
 const ROUND_DIGITS = 6
 

@@ -42,6 +42,12 @@ import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle, BrepVec3 } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { buildReplicaRoleTable, type ReplicaTransform } from './internal/replica-role-table'
+import {
+  meshKernelFailure,
+  meshPatternProduct,
+  meshSolidBasicEntry,
+  meshSolidProduct,
+} from './internal/mesh-solid-op'
 // Generated compatOps (delegation targets for the thin single-copy overrides).
 // NOTE: transformCopy is NOT a script-face op (arg-spec skip: ComposedTransform
 // is not constructible in .fai.js); it stays a TS-library-only re-export.
@@ -66,6 +72,25 @@ function norm(v: Vec3): Vec3 {
 
 function toBrepVec(v: Vec3): BrepVec3 {
   return { x: v[0], y: v[1], z: v[2] }
+}
+
+/**
+ * `MirrorOptions` 的宽松向量形态（只读元组或 `{x,y,z}`）→ `Vec3`。
+ *
+ * 生成的 compatOp 自己吃得下这两种形态，网格路径要自己换算，故收在一处。
+ *
+ * @param v - the loosely typed vector from the op's options.
+ * @param fallback - the default vector.
+ * @returns the vector as a plain tuple.
+ */
+function optionVec(
+  v: readonly [number, number, number] | { x: number; y: number; z: number } | undefined,
+  fallback: Vec3,
+): Vec3 {
+  if (!v) return fallback
+  if (Array.isArray(v)) return [v[0] as number, v[1] as number, v[2] as number]
+  const o = v as { x: number; y: number; z: number }
+  return [o.x, o.y, o.z]
 }
 
 /** Shared prelude: L1 kernel（getBrepApi，D12）+ BREP input handle + output statement id. */
@@ -121,6 +146,18 @@ function reflectAcrossPlane(p: BrepVec3, o: BrepVec3, n: Vec3): BrepVec3 {
  * const p = await cad.circularPattern(part0, [0, 0, 1], 6)
  */
 export const circularPattern = defineOp({
+  meshEngines: ['brepkit'],
+  mesh(input: Shape, axis: Vec3, count: number, fullAngle: number = 360, center: Vec3 = [0, 0, 0]) {
+    keep(input)
+    const entry = meshSolidBasicEntry(input, 'circularPattern')
+    const u = norm(axis)
+    const step = fullAngle / count
+    // 网格链：内核返回 count 份副本（含原位置），融合成一个网格零件；近似拓扑没有
+    // role 层，故不产 `replica[k]/<inner>` 命名（如实缺席）。
+    return meshPatternProduct(entry, 'circularPattern', 'E_PATTERN_FAILED', () =>
+      entry.kernel.circularPattern(entry.solid, toBrepVec(center), toBrepVec(u), step, count),
+    )
+  },
   brep(input: Shape, axis: Vec3, count: number, fullAngle: number = 360, center: Vec3 = [0, 0, 0]) {
     keep(input)
     const { kernel, solid, outStmt } = prelude(input, 'circularPattern')
@@ -183,6 +220,40 @@ export const circularPattern = defineOp({
  * const p = await cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
  */
 export const gridPattern = defineOp({
+  meshEngines: ['brepkit'],
+  mesh(
+    input: Shape,
+    directionX: Vec3,
+    directionY: Vec3,
+    countX: number,
+    countY: number,
+    spacingX: number,
+    spacingY: number,
+  ) {
+    keep(input)
+    const entry = meshSolidBasicEntry(input, 'gridPattern')
+    const dx = norm(directionX)
+    const dy = norm(directionY)
+    // 网格链走"逐份平移 + fuseAll"（与 rectangularPattern 同口径），不用内核的
+    // `gridPattern`——那支返回**单个 compound 句柄**，近似拓扑无法把 compound 讲成
+    // 一个网格零件；逐份平移则得到与线性/环形阵列同形的单一融合实体。
+    return meshPatternProduct(entry, 'gridPattern', 'E_PATTERN_FAILED', () => {
+      const copies: BrepHandle[] = []
+      for (let ix = 0; ix < countX; ix++) {
+        for (let iy = 0; iy < countY; iy++) {
+          const ox = ix * spacingX
+          const oy = iy * spacingY
+          copies.push(entry.kernel.translate(
+            entry.solid,
+            ox * dx[0] + oy * dy[0],
+            ox * dx[1] + oy * dy[1],
+            ox * dx[2] + oy * dy[2],
+          ))
+        }
+      }
+      return copies
+    })
+  },
   brep(
     input: Shape,
     directionX: Vec3,
@@ -265,6 +336,31 @@ interface RectangularPatternOptions {
  * const p = await cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpacing: 20, yDir: [0,1,0], yCount: 2, ySpacing: 15 })
  */
 export const rectangularPattern = defineOp({
+  meshEngines: ['brepkit'],
+  mesh(input: Shape, options: RectangularPatternOptions) {
+    keep(input)
+    const entry = meshSolidBasicEntry(input, 'rectangularPattern')
+    const { xDir, xCount, xSpacing, yDir, yCount, ySpacing } = options
+    const dx = norm(xDir)
+    const dy = norm(yDir)
+    // 与 BREP 路径同一手法（逐份 translate 再 fuseAll），只是句柄来自网格后端。
+    return meshPatternProduct(entry, 'rectangularPattern', 'E_PATTERN_FAILED', () => {
+      const copies: BrepHandle[] = []
+      for (let ix = 0; ix < xCount; ix++) {
+        for (let iy = 0; iy < yCount; iy++) {
+          const ox = ix * xSpacing
+          const oy = iy * ySpacing
+          copies.push(entry.kernel.translate(
+            entry.solid,
+            ox * dx[0] + oy * dy[0],
+            ox * dx[1] + oy * dy[1],
+            ox * dx[2] + oy * dy[2],
+          ))
+        }
+      }
+      return copies
+    })
+  },
   brep(input: Shape, options: RectangularPatternOptions) {
     keep(input)
     const { kernel, solid, outStmt } = prelude(input, 'rectangularPattern')
@@ -341,6 +437,27 @@ interface MirrorJoinOptions {
  * const p = await cad.mirrorJoin(part0, { normal: [1, 0, 0] })
  */
 export const mirrorJoin = defineOp({
+  meshEngines: ['brepkit'],
+  mesh(input: Shape, options?: MirrorJoinOptions) {
+    keep(input)
+    const entry = meshSolidBasicEntry(input, 'mirrorJoin')
+    const n = norm(optionVec(options?.normal, [1, 0, 0]))
+    const o = toBrepVec(optionVec(options?.at, [0, 0, 0]))
+    // 输入句柄**不释放**（keep 语义）；只释放本次自造的镜像副本。
+    let mirrored: BrepHandle
+    try {
+      mirrored = entry.kernel.mirror(entry.solid, o, toBrepVec(n))
+    } catch (cause) {
+      throw meshKernelFailure('mirrorJoin', 'E_MIRROR_FAILED', `mirror across normal [${n.join(', ')}]`, cause)
+    }
+    try {
+      return meshSolidProduct(entry, entry.kernel.fuse(entry.solid, mirrored))
+    } catch (cause) {
+      throw meshKernelFailure('mirrorJoin', 'E_MIRROR_FAILED', 'fusing the mirrored copy', cause)
+    } finally {
+      entry.backend.release(mirrored)
+    }
+  },
   brep(input: Shape, options?: MirrorJoinOptions) {
     keep(input)
     const { kernel, solid, outStmt } = prelude(input, 'mirrorJoin')
@@ -388,6 +505,20 @@ export const mirrorJoin = defineOp({
  * const p = await cad.mirror(part0, { normal: [1, 0, 0] })
  */
 export const mirror = defineOp({
+  meshEngines: ['brepkit'],
+  mesh(input: Shape, options?: MirrorOptions) {
+    keep(input)
+    const entry = meshSolidBasicEntry(input, 'mirror')
+    const n = norm(optionVec(options?.normal, [1, 0, 0]))
+    const o = toBrepVec(optionVec(options?.at, [0, 0, 0]))
+    let result: BrepHandle
+    try {
+      result = entry.kernel.mirror(entry.solid, o, toBrepVec(n))
+    } catch (cause) {
+      throw meshKernelFailure('mirror', 'E_MIRROR_FAILED', `mirror across normal [${n.join(', ')}]`, cause)
+    }
+    return meshSolidProduct(entry, result)
+  },
   async brep(input: Shape, options?: MirrorOptions) {
     keep(input)
     return (await generatedMirror(input, options)) as Shape
@@ -413,6 +544,18 @@ export const mirror = defineOp({
  * const p = await cad.clone(part0)
  */
 export const clone = defineOp({
+  meshEngines: ['brepkit'],
+  mesh(input: Shape) {
+    keep(input)
+    const entry = meshSolidBasicEntry(input, 'clone')
+    let result: BrepHandle
+    try {
+      result = entry.kernel.copyShape(entry.solid)
+    } catch (cause) {
+      throw meshKernelFailure('clone', 'E_CLONE_FAILED', 'copying the mesh solid handle', cause)
+    }
+    return meshSolidProduct(entry, result)
+  },
   async brep(input: Shape) {
     keep(input)
     return (await generatedClone(input)) as Shape

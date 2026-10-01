@@ -15,15 +15,18 @@
 
 import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
-import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
 import { getOcctKernel, type ShapeHandle } from '../../occt-kernel/occtKernel'
 
-/** STEP 导出条目：一个 part（精确 BREP 形状或三角网格，二选一）。 */
+/** STEP 导出条目：一个 part 的精确 BREP 形状。 */
 export interface StepExportEntry {
-  /** 精确 BREP 形状（solid/shell/face/compound，来自宿主导出缓存）。与 mesh 二选一，solid 优先。 */
-  solid?: BrepHandle
-  /** 三角网格（世界坐标、已按单位缩放），经 reconstructSolidFromMesh 重建为实体。 */
-  mesh?: { positions: Float32Array; indices: Uint32Array }
+  /**
+   * 精确 BREP 形状（solid/shell/face/compound，来自宿主导出缓存）。
+   *
+   * **必填**：曾经的「没有 solid 就从 `mesh` 重建」分支已删除（方案 2026-10-01 §3.6）。
+   * 网格零件导出 STEP 必须**失败**并指出 part 名，而不是被静默升格成 facet BREP——
+   * 那正是本项目区分 mesh/BREP 所要杜绝的产物。网格零件请导出 STL/3MF。
+   */
+  solid: BrepHandle
   /** 实体名称（写入 label name，导出为 PRODUCT 名称）。 */
   name?: string
   /** RGB 0..1 颜色（sRGB 编码，如宿主材质 base color）。写入前转 linear。 */
@@ -45,13 +48,14 @@ function srgbToLinear(c: number): number {
 }
 
 /**
- * Export multiple BREP solids (and/or triangle meshes) to STEP, one
- * independent entity per entry — no fuse, no string splicing.
+ * Export multiple BREP solids to STEP, one independent entity per entry — no
+ * fuse, no string splicing, and **no mesh reconstruction**.
  *
  * @param kernel  OCCT kernel (must match the one that created the solids)
  * @param entries parts to export; each becomes its own XCAF label
  * @returns STEP file content as ArrayBuffer
- * @throws if entries is empty, or a mesh entry fails to reconstruct
+ * @throws if entries is empty, or an entry carries no BREP handle (a mesh part
+ *   cannot be exported to STEP — see `StepExportEntry.solid`)
  */
 export function exportStepFromSolids(
   kernel: BrepEngineApi,
@@ -62,20 +66,21 @@ export function exportStepFromSolids(
   }
 
   const doc = getOcctKernel().createXCAFDocument()
-  // 本函数创建的句柄（展平出的子 solid + mesh 重建的 solid），导出后释放。
+  // 本函数创建的句柄（展平出的子 solid），导出后释放。
   // 缓存里的原 solid（entry.solid）绝不释放，归调用方/缓存所有。
   const ownedHandles: BrepHandle[] = []
 
   try {
     for (const entry of entries) {
-      // 1. 解析 solid：优先用精确 solid；无则从三角网格重建
-      let solid = entry.solid
+      // 1. solid 必须由调用方给出精确 BREP 句柄。这里**没有**网格重建回退：
+      //    留一句「从三角网格重建 BREP」就等于承认 facet STEP 合法。调用侧
+      //    （exportModel）已按 part 名拒绝，本层是最后一道闸。
+      const solid = entry.solid
       if (!solid) {
-        if (!entry.mesh) {
-          throw new Error('StepExportEntry must provide either solid or mesh')
-        }
-        solid = reconstructSolidFromMesh(kernel, entry.mesh.positions, entry.mesh.indices)
-        ownedHandles.push(solid)
+        throw new Error(
+          `E_STEP_MESH_PART: entry ${JSON.stringify(entry.name ?? '<unnamed>')} has no BREP handle — ` +
+          'a mesh part cannot be exported to STEP (export it as STL/3MF instead)',
+        )
       }
 
       // 2. 展平 Compound（多 solid 导入的 part 其 solid 是 Compound）；

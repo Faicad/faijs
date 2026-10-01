@@ -138,7 +138,7 @@ const h = cad.helix({ radius: 5, pitch: 2, turns: 3 })
 
 ### 3.5 `import_brep` ✅
 
-平台 BREP 资产导入：把容器 `assets/` 里的冻结 BREP 载体装成持 OCCT 句柄的 Shape。 `asset` = 容器资产名（去 `.brp` 扩展名；`FsAssetResolver` 对目录资产**双注册**：完整文件名供 `cad.load({ file })` 寻址 + 去扩展名 stem 供 `asset` 寻址）， 由宿主资产解析器按 key 解析（与 `cad.load` 同套解析器）。
+平台 BREP 资产导入：把容器 `assets/` 里的冻结 BREP 载体装成持 OCCT 句柄的 Shape。 `asset` = 资产名（去扩展名，沿用 `FsAssetResolver` 的 `key = basename(file)` 规则）， 由宿主资产解析器按 key 解析（与 `cad.load` 同套解析器）。
 
 ```js
 const a = await cad.import_brep({ asset: 'Array001.Shape' })
@@ -152,11 +152,11 @@ const a = await cad.import_brep({ asset: 'Array001.Shape' })
 
 > 非实体一等（C6）：wire/face/shell 一律可导入，本 op 不设 `allowNonSolid` 一类开关。需要实体的 op（布尔、up-to 目标面）在**使用点**报错，而不是在导入点拒绝。
 >
-> 这是**平台**资产导入 op。编辑器 `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（P8：`{ file }` 资产文件名 + 后缀自判格式 + 画布语句位置语义），平台侧不要复用它（C7）。
+> 这是**平台**资产导入 op。编辑器 `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流 + 画布语句位置语义），平台侧不要复用它（C7）。
 
 ### 3.6 `import_step` ✅
 
-stdlib import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器资产名）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（asset，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（P8：`{ file }` 资产文件名 + 后缀自判格式、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
+stdlib import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
 
 ```js
 const a = await cad.import_step({ path: 'D:/models/box.step' })
@@ -249,7 +249,7 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 ### 3.11 `sketchOnFace` ✅
 
-`cad.sketchOnFace`: place 2D contours on a face of a solid and construct a Shape.
+`cad.sketchOnFace`: place 2D contours on a face of a solid and construct a Shape. **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：`on` 是网格实体 时，轮廓按面自己的**平面框**铺放（原点 = 面包围盒中心、法向 = 面法向），产物是一张 网格链面，可直接交给 `cad.extrude` 拉伸。该分支只接受平面面、只接受默认 `scaleMode`（`'bounds'`/`'native'` 相对 UV 域定义，网格链上没有 UV 域）、只接受 `as:'face'`、且只接受单个轮廓岛——每一条越界都以 `E_MESH_SOLID_UNSUPPORTED` 说明原因。
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -423,10 +423,11 @@ const p1 = cad.translate(part0, { offset: [10, 0, 0] })
 
 ### 5.1 `chamfer` ✅
 
-在几何体上倒角（等距 / 双距 / 距角）。仅 BREP 可用。
+在几何体上倒角（等距 / 双距 / 距角）。
 
 ```js
 const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
+const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -440,7 +441,7 @@ const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box
 
 **异步**。Shape 倒角后的几何。
 
-> 倒角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。参考面由内核自选，`width1` 沿 faces[0] 侧、`width2` 沿 faces[1] 侧。
+> BREP 输入走完整三形态；**网格实体**输入只支持 `equal` / `distanceAngle` （`twoDistances` 需要 role 可解析的邻面，近似拓扑没有 role）。 `width1` 沿 faces[0] 侧、`width2` 沿 faces[1] 侧（BREP 路径）。
 
 ### 5.2 `circularPattern` ✅
 
@@ -535,7 +536,7 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 
 ### 5.7 `extrude` ✅
 
-沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （vendored extrude 为唯一引擎），up-to 模式走半空间组合。
+沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （vendored extrude 为唯一引擎），up-to 模式走半空间组合。 **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：输入是 `cad.sketchOnFace` 在网格实体识别面上铺出的网格链面时，本 op 沿同一份方向语义 拉伸出**一个新的网格零件**（同样不具备 STEP 导出资格）。网格链上不支持 `upTo` （需精度链求交裁切）——会以 `E_MESH_SOLID_UNSUPPORTED` 明确拒绝，不静默当定长拉伸。
 
 ```js
 const p = await cad.extrude(part0, [0, 0, 10])
@@ -557,20 +558,21 @@ const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
 
 ### 5.8 `fillet` ✅
 
-在几何体上做圆角（等半径）。仅 BREP 可用。
+在几何体上做圆角（等半径）。 两条路径都以 `meshEngines: ['brepkit']` 之外的事实为界：BREP 输入走 `filletWithHistory`（带面演化与 roleTable 传播）；**网格实体**输入走网格后端 （近似拓扑无 role，边按几何或序号解析，无面演化）。非 BREP 的**裸网格**输入仍抛 `E_MESH_SOLID_UNSUPPORTED`——裸网格没有近似拓扑，没有边可选。
 
 ```js
 const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], radius:2 })
+const q = await cad.fillet(meshPart, { edges: [3], radius: 1 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `edges` | `EdgeTopoRef[]` | ✅ | — | 参与圆角的边（EdgeTopoRef[]，条目为相邻两面的 role 线路） |
+| `edges` | `EdgeTopoRef[]` | ✅ | — | 参与圆角的边：相邻两面的 role 线路（EdgeTopoRef[]）；网格链上也可用 1 起序号 |
 | `radius` | `number` | ✅ | — | 圆角半径（mm，>0） |
 
 **异步**。Shape 圆角后的几何。
 
-> 圆角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。`radius` 为正数（mm）。 圆角后 roleTable 经 filletWithHistory 传播，保证后续特征仍可按 role 选面/选边。
+> `radius` 为正数（mm）。BREP 路径圆角后 roleTable 经 filletWithHistory 传播， 后续特征仍可按 role 选面/选边；网格实体路径没有 role 层，边只能按几何或 序号（近似拓扑 `edges` 数组下标 + 1）指认。
 
 ### 5.9 `filletVariable` ✅
 
@@ -664,7 +666,7 @@ const p = await cad.linearPattern(part0, [1, 0, 0], 3, 20)
 
 **异步**。Shape 所有副本 fused 后的几何。
 
-> BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。结果面按份数 k 回投影到输入面 角色，产出 `replica[k]/<inner>`（Phase 3 L3 抗重放词汇）。
+> BREP 输入走质心聚类回投，结果面按份数 k 回投影到输入面角色，产出 `replica[k]/<inner>`（Phase 3 L3 抗重放词汇）；**网格实体**输入走网格后端， 阵列后融合为一个新的网格零件，近似拓扑没有 role 层故不产 replica 命名。 裸网格输入仍抛 `E_MESH_UNSUPPORTED`。
 
 ### 5.14 `loft` ✅
 
@@ -781,17 +783,18 @@ const sec = await cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
 
 ```js
 const sh = await cad.shell(part0, { openFaces: [cad.faceRef(part0, 1)], thickness: 2 })
+const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `openFaces` | `FaceTopoRef[]` | ✅ | — | 要移除的面（FaceTopoRef[]，cad.faceRef 产物） |
+| `openFaces` | `FaceTopoRef[]` | ✅ | — | 要移除的面（FaceTopoRef[]，cad.faceRef 产物；网格链可用 1 起序号） |
 | `thickness` | `number` | ✅ | — | 壁厚（mm，>0） |
 | `tolerance` | `number` |  | — | 容差（mm） |
 
 **异步**。Shape 抽壳后的薄壁体。
 
-> 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。 仅 BREP 可用：mesh 输入执行前报错（backend-dispatch 静态判定）。
+> 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。 精度链按 role 线路选面（`cad.faceRef`）；网格链按序号或几何选面——网格零件 没有 role 层，序号是唯一无歧义的指认方式。
 
 ### 5.21 `split` ✅
 

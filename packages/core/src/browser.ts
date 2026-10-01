@@ -76,8 +76,19 @@ export type { OcctKernel, ShapeHandle, WasmTessellatedMesh, Mesh, MeshDeflection
 export { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './brep/engine/adapters/occt'
 export {
   registerBrepEngine, getBrepEngine, hasBrepEngine, getActiveBrepEngineId, freezeEngineRegistries,
+  registerMeshEngine, getMeshEngine, getActiveMeshEngineId, isMeshEngineRegistered, getMeshSolidBackend,
 } from './brep/engine/registry'
-export type { BrepEngine, BrepEngineProvider } from './brep/engine/registry'
+export type { BrepEngine, BrepEngineProvider, MeshEngine } from './brep/engine/registry'
+// 网格实体（近似拓扑的载体）：端口 + 注册表 + 驱动。
+// 注意：**brepkit 网格适配器不在 browser umbrella**——与 BREP 适配器同因
+// （`brepkitWasm` 的 node 分支 `import('brepkit-wasm')` 会被 vite 静态解析，
+// 该包在 web 侧不存在；见 entry-boundary.test.ts）。浏览器宿主需要网格实体时，
+// 从根入口 `@faicad/faijs` 或 `weapp` 取 `ensureBrepkitMeshBackend`，或自备后端。
+export { MeshSolidRegistry, normalizeMeshSolid, describeMeshSolid, buildMeshSolidTopology, weldToleranceFor } from './brep/mesh-solid'
+export type {
+  MeshSolidBackend, MeshSolidResult, MeshSolidKernelOps, MeshSolidInput, MeshSolidNormalizeOptions,
+} from './brep/mesh-solid'
+export { assertShapeSlotExclusive } from './cad-runtime/backend-dispatch'
 export type { BrepEngineApi } from './brep/engine/primitives'
 export type {
   BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3, BrepCapabilities,

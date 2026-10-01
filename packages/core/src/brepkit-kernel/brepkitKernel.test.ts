@@ -78,13 +78,16 @@ suite('brepkit 三角化（拓扑红线：几何与拓扑同源）', () => {
     // 长方体恰 6 个面组
     expect(m.faceCount).toBe(6)
     expect(m.faceGroups!.length).toBe(6 * 3)
-    // faceGroups 三元组 [start, count, hash]：start 单调递增、覆盖全部三角形
+    // faceGroups 三元组 [start, count, hash]：**索引单位**（3/三角形，与 OCCT 同口径，
+    // 见 brep/engine/types.BrepMeshResult 的单位口径注）；start 单调递增、覆盖全部索引。
     const fg = m.faceGroups!
     expect(fg[0]).toBe(0)
     for (let i = 3; i < fg.length; i += 3) {
       expect(fg[i]).toBeGreaterThanOrEqual(fg[i - 3] + fg[i - 2])
     }
-    expect(fg[fg.length - 3] + fg[fg.length - 2]).toBe(m.triangleCount)
+    expect(fg[fg.length - 3] + fg[fg.length - 2]).toBe(m.indices.length)
+    // 每个面组至少覆盖一个完整三角形（count 是 3 的倍数）
+    for (let i = 0; i < fg.length; i += 3) expect(fg[i + 1] % 3).toBe(0)
   })
 
   it('wireframe 返回边折线（长方体 12 条边）', () => {

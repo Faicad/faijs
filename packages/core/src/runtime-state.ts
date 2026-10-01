@@ -83,6 +83,17 @@ export interface Backends {
     readonly brep: unknown | null
     readonly csg: unknown | undefined
     readonly sdf: unknown | undefined
+    /**
+     * 网格实体后端（网格语义路径的内核；`brep/mesh-solid.ts` 的 `MeshSolidBackend`）。
+     *
+     * **与 `brep` 独立**：mesh 零件既可以在「宿主用 OCCT 做 BREP、用 brepkit 做
+     * mesh」的装配下产出，也可以在纯 mesh 模式下产出。未装配 → `undefined`，
+     * 此时 `load` 的 mesh 路径保持"裸网格、无近似拓扑"的历史行为（这不是静默
+     * 降级：没有网格内核是宿主的装配事实，与"规范化失败"是两回事）。
+     *
+     * 类型在本模块里写 `unknown`（零依赖红线），权威类型见 `MeshSolidBackend`。
+     */
+    readonly meshSolid?: unknown
   }
   /** 宿主端口（透传 HostPorts） */
   readonly fonts: unknown
@@ -224,9 +235,30 @@ export function takeFunctionBrepDomain(): unknown[] {
   return domain
 }
 
-/** Shape 身份槽（OCCT 句柄 + 面演化 + 拓扑命名 + 装配行为）。 */
+/** Shape 身份槽（OCCT 句柄 + 网格实体句柄 + 网格面句柄 + 面演化 + 拓扑命名 + 装配行为）。 */
 export interface ShapeSlot {
+  /** BREP 精度链句柄。与 `meshSolid` / `meshFace` **互斥**（同时存在 = 缺陷）。 */
   solid?: unknown
+  /**
+   * 网格实体句柄（近似链）。与 `solid` **互斥**——网格零件按定义没有精度链，
+   * BREP 实体也不携带网格实体。互斥由 `backend-dispatch.assertShapeSlotExclusive`
+   * 在分派前静态校验（不给运行时"选边站"的机会；方案 §3.2）。
+   *
+   * 它只表示"这个 Shape 是网格零件"这一事实，句柄的生命周期由
+   * `brep/mesh-solid.ts` 的 `MeshSolidRegistry` 持有。
+   */
+  meshSolid?: unknown
+  /**
+   * 网格链**面**句柄（近似链的构造中几何，方案 2026-10-01 §4 Phase 3）。
+   *
+   * 与 `solid` / `meshSolid` 互斥：它是网格链上的一张面（`sketchOnFace` 在
+   * 近似拓扑面上铺草图后的产物），既不是精度链实体，也不是网格零件本身。
+   * 它存在的原因和 BREP 链上「面 Shape」完全对称——BREP 侧 `sketchOnFace` 返回
+   * `fromBrep(face, { solid: face })`，面句柄同样占着 `solid` 槽；网格侧若把面句柄
+   * 塞进 `solid`，`hasBrep` 会变真、分派会走精度链，在只有网格后端的宿主上必然报错。
+   * 所以面句柄需要自己的一格，不能借位。
+   */
+  meshFace?: unknown
   faceEvolution?: Map<number, number[]>
   // 1.10 前置③：roleTable 槽字段已删除——权威落点在血缘图旁挂
   // （topology/naming/lineage.ts 的 recordOutput / tableOfPart），
@@ -568,5 +600,59 @@ export function setPendingMultiPartCount(partName: PartName, partCount: number):
 export function takePendingMultiPartCounts(): MultiPartCounts {
   const out = new Map(pendingMultiPartCounts)
   pendingMultiPartCounts.clear()
+  return out
+}
+
+// ── 网格实体登记（方案 2026-10-01 §3.3：load 的 mesh 路径产出网格实体 + 近似拓扑）──
+// 与 pendingDetectedUnits 同模式：load op（在 @faicad/faijs-extra）不能直接持有
+// CadRuntime 实例，故把"规范化得到的句柄"与"近似拓扑数据"登记到这里，引擎在语句
+// 执行后取走：句柄进 MeshSolidRegistry + 写 Shape 槽，拓扑进 topologyCache。
+//
+// 两步分开登记（而不是塞进一个结构）是为了让**拓扑可缺失**：句柄是 mesh 零件的
+// 身份，拓扑是它的可用性；将来若出现"只有句柄、拓扑延后构建"的路径，不需要改协议。
+
+const pendingMeshSolids = new Map<PartName, unknown>()
+const pendingMeshTopologies = new Map<PartName, unknown>()
+
+/**
+ * 登记某 part 的网格实体句柄（load op 调用；由引擎在语句执行后收编）。
+ *
+ * @param partName - the variable name the loaded mesh shape will be bound to.
+ * @param solid - the normalized mesh solid handle (opaque outside the mesh backend).
+ */
+export function setPendingMeshSolid(partName: PartName, solid: unknown): void {
+  pendingMeshSolids.set(partName, solid)
+}
+
+/**
+ * 取走全部待收编的网格实体句柄并清空（引擎在语句执行后调用，消费一次）。
+ *
+ * @returns a fresh Map of part name → mesh solid handle.
+ */
+export function takePendingMeshSolids(): Map<PartName, unknown> {
+  const out = new Map(pendingMeshSolids)
+  pendingMeshSolids.clear()
+  return out
+}
+
+/**
+ * 登记某 part 的近似拓扑数据（load op 调用；`SelectorRuntimeData`，本层只按
+ * `unknown` 透传——零依赖红线）。
+ *
+ * @param partName - the variable name the loaded mesh shape will be bound to.
+ * @param data - the serializable selector runtime data built from the mesh solid.
+ */
+export function setPendingMeshTopology(partName: PartName, data: unknown): void {
+  pendingMeshTopologies.set(partName, data)
+}
+
+/**
+ * 取走全部待收编的近似拓扑数据并清空（引擎在语句执行后调用，消费一次）。
+ *
+ * @returns a fresh Map of part name → selector runtime data.
+ */
+export function takePendingMeshTopologies(): Map<PartName, unknown> {
+  const out = new Map(pendingMeshTopologies)
+  pendingMeshTopologies.clear()
   return out
 }

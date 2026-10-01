@@ -175,12 +175,23 @@ export { registerBrepMockEngine, BREP_MOCK_ENGINE_ID, createBrepMockApi } from '
 // brepkit 端侧 BREP 引擎（微信小程序等无 OCCT 环境）：由宿主注入 wasm init 并抢先注册，
 // 使 ensureBrepChain 不回退 OCCT。setBrepkitWasmInitFn 注入自定义初始化（如 WXWebAssembly 实例化）。
 export { registerBrepkitBrepEngine, BREPKIT_BREP_ENGINE_ID, ensureBrepkitDefaultEngine } from './brep/engine/adapters/brepkit'
+// brepkit 网格实体后端（网格语义路径；与 BREP 槽独立注册）。装了它，`cad.load`
+// 的 STL/3MF 路径才产出「网格实体 + 近似拓扑」；不装则维持裸网格的历史行为。
+export { registerBrepkitMeshEngine, BREPKIT_MESH_ENGINE_ID, ensureBrepkitMeshBackend } from './brep/engine/adapters/brepkit'
 export { setBrepkitWasmInitFn, initBrepkitWasm, isBrepkitInitialized } from './brepkit-kernel/brepkitWasm'
 export {
   registerBrepEngine, getBrepEngine, hasBrepEngine, getActiveBrepEngineId,
   registerMeshEngine, getMeshEngine, getActiveMeshEngineId, freezeEngineRegistries,
+  isMeshEngineRegistered, getMeshSolidBackend,
 } from './brep/engine/registry'
 export type { BrepEngine, BrepEngineProvider, MeshEngine } from './brep/engine/registry'
+// 网格实体（近似拓扑的载体）：端口 + 注册表 + 驱动。
+export { MeshSolidRegistry, normalizeMeshSolid, describeMeshSolid, buildMeshSolidTopology, weldToleranceFor } from './brep/mesh-solid'
+export type {
+  MeshSolidBackend, MeshSolidResult, MeshSolidKernelOps, MeshSolidInput, MeshSolidNormalizeOptions,
+} from './brep/mesh-solid'
+// 槽位互斥不变量（分派前置校验；缺陷即报错）
+export { assertShapeSlotExclusive } from './cad-runtime/backend-dispatch'
 export type { BrepEngineApi } from './brep/engine/primitives'
 export type {
   BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3, BrepCapabilities,

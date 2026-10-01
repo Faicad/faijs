@@ -25,6 +25,7 @@ import { describe, it, expect } from 'vitest'
 import { SYMBOL_TABLE, getFunctionSymbol } from './symbol-table'
 import { createApiNamespace } from '../api/api-namespace'
 import { SCRIPT_FACE_OPS } from '../api/generated/script-face-manifest'
+import { scriptFaceOps } from '../api/generated/script-face'
 import * as apiIndex from '../api/index'
 
 /** cad 命名空间运行时键集（不含 contractVersion 元数据键）。 */
@@ -53,16 +54,30 @@ describe('op-set-consistency: 三源一致（check() 符号表 ≡ cad 面 ⊆ �
     for (const op of SCRIPT_FACE_OPS) {
       expect(cadKeys.has(op.name), `脚本面 op "${op.name}" 未进 cad 命名空间`).toBe(true)
     }
-    // 生成脚本面条目两类：
-    // ① compatOp 产物（kind 'dual-op'，brep-only：无 mesh 实现）→ 必须带 dual-op 元数据；
-    // ② 原生库函数（P25 view 三件套，kind 'faijs'）→ 自实现函数，无 dual-op 元数据（跳过）。
-    const ns = createApiNamespace() as unknown as Record<string, { __faijs__dualOp?: { mesh?: unknown; brep?: unknown } }>
+    // 生成脚本面条目三类：
+    // ① compatOp 产物（kind 'dual-op'）→ 必须带 dual-op 元数据；
+    // ② 原生库函数（P25 view 三件套，kind 'faijs'）→ 自实现函数，无 dual-op 元数据（跳过）；
+    // ③ 手写覆盖（api-namespace 在 `...scriptFaceOps` 之后展开：cut / split / linearPattern /
+    //    circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone）
+    //    → 以手写版为准。
+    // 判据：命名空间条目与生成条目**同一引用** = 未被覆盖（真·生成产物）；否则为手写覆盖。
+    //
+    // brep-only 是**生成器**的不变量（gen-l3-surface §5.4 selfhost：只桥接 brep），
+    // 不是脚本面 op 的不变量——手写覆盖可以带 mesh 路径（网格实体建模，见 mesh-solid 方案）。
+    // 因此 mesh 必须为 undefined 的断言只对真·生成产物生效。
+    const ns = createApiNamespace() as unknown as Record<
+      string,
+      { __faijs__dualOp?: { mesh?: unknown; brep?: unknown } }
+    >
+    const generated = scriptFaceOps as unknown as Record<string, unknown>
     for (const op of SCRIPT_FACE_OPS) {
       const meta = ns[op.name]?.__faijs__dualOp
-      if (meta === undefined) continue // 原生库函数（view 三件套）
-      expect(meta, `compatOp "${op.name}" 缺 dual-op 元数据`).toBeDefined()
-      expect(typeof meta!.brep, `脚本面 op "${op.name}" 缺 brep 实现`).toBe('function')
-      expect(meta!.mesh, `脚本面 op "${op.name}" 不应是 mesh 路径`).toBeUndefined()
+      if (meta === undefined) continue // ② 原生库函数（view 三件套）
+      // 所有 dual op 都必须有 brep 实现：brep 是基线，mesh 只是可选增强层。
+      expect(typeof meta.brep, `脚本面 op "${op.name}" 缺 brep 实现`).toBe('function')
+      if (ns[op.name] !== generated[op.name]) continue // ③ 手写覆盖：mesh 由手写版自行裁决
+      // ① 生成产物：生成器只桥接 brep，出现 mesh 路径即说明生成文件被手改或生成器越权。
+      expect(meta.mesh, `生成的 compatOp "${op.name}" 不应有 mesh 路径（mesh 只能写在手写覆盖里）`).toBeUndefined()
     }
   })
 

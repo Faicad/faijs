@@ -11,10 +11,16 @@ import { importFile, detectStepUnit } from '@faicad/faijs/mesh/io'
 import { isCadFormat } from '@faicad/faijs/brep/brep-chain'
 import { loadBrep } from '@faicad/faijs/brep/brep-ops'
 import { OpError } from '@faicad/faijs/api/internal/result-unwrap'
-import { getBackends, BrepUnsupportedError, getCurrentStmt, setPendingDetectedUnit, setPendingMultiPartCount } from '@faicad/faijs/runtime-state'
-import { solid, fromBrep } from '@faicad/faijs/shape'
+import {
+  getBackends, BrepUnsupportedError, getCurrentStmt,
+  setPendingDetectedUnit, setPendingMultiPartCount,
+  setPendingMeshSolid, setPendingMeshTopology,
+} from '@faicad/faijs/runtime-state'
+import { solid, fromBrep, fromMeshSolid } from '@faicad/faijs/shape'
 import { mm, centimeter, meter, micron, inch, foot, yard, type UnitName, type ValueWithUnits } from '@faicad/faijs/units'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+// 只取**类型**：后端实现的运行时依赖（内核、拓扑构建器）留在 core，不进扩展库。
+import type { MeshSolidBackend } from '@faicad/faijs/brep/mesh-solid'
 
 /**
  * 执行加载操作（统一 load 函数）
@@ -91,7 +97,7 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
     const { shape, unit, multiPartCount } = await importFile(buffer, fmt, opts)
     registerDetectedUnit(unit)
     if (multiPartCount !== undefined) registerMultiPartDegradation(multiPartCount)
-    return solid(shape)
+    return buildMeshPart(shape, file)
   }
 
   // BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）
@@ -110,6 +116,54 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
   const declared = detectStepUnit(new TextDecoder().decode(new Uint8Array(buffer)))
   registerDetectedUnit(declared)
   return fromBrep(shape, { solid: solidHandle })
+}
+
+/**
+ * mesh 路径产物构造：装了网格后端则产出**网格实体 + 近似拓扑**，否则退回裸网格。
+ *
+ * 两条分支的边界（方案 2026-10-01 §3.3）：
+ * - **未装配网格后端**（`kernel.meshSolid` 缺失）→ `solid(shape)`。这是宿主的装配
+ *   事实（如小程序构建不装 brepkit），不是静默降级：该 part 本来就没有网格内核可用。
+ * - **装配了但规范化失败**（开放/非流形/自交网格）→ **抛错**，绝不退化成"无拓扑的
+ *   裸网格"——那会让所有下游 mesh op 失去选择能力，属于"报错好于掩盖"。
+ *
+ * 显示 mesh 用**网格实体的三角化**而不是原始 STL 顶点数组：规则 1（拓扑 faceRuns
+ * 所索引的三角形必须就是用户看到的三角形）。用原始 STL 数组 + 实体重新三角化会让
+ * 两者三角形数/序错位，faceRuns 直接失效。
+ *
+ * @param shape - the parsed mesh payload (base-unit coordinates).
+ * @param file - the source file name (error messages).
+ * @returns the constructed shape (mesh solid when a backend is assembled).
+ */
+function buildMeshPart(shape: Shape, file: string): Shape {
+  const backend = getBackends().kernel.meshSolid as MeshSolidBackend | undefined
+  if (!backend) return solid(shape)
+
+  const part = getCurrentStmt()?.outputs[0]
+  let result: ReturnType<MeshSolidBackend['normalize']>
+  try {
+    result = backend.normalize({ positions: shape.positions, indices: shape.indices })
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    throw new OpError(
+      'load',
+      'E_MESH_SOLID_UNWELDABLE',
+      `E_MESH_SOLID_UNWELDABLE: [stdlib/load] ${JSON.stringify(file)} could not be normalized into a mesh solid` +
+      `${part ? ` (part "${part}")` : ''}: ${reason}`,
+      { cause: err },
+    )
+  }
+
+  // 句柄 + 近似拓扑登记：load op 拿不到 CadRuntime 实例，故走 pending 通道
+  // （与 detectedUnit / multiPartCount 同模式），引擎在语句执行后收编。
+  if (part) {
+    setPendingMeshSolid(part, result.solid)
+    setPendingMeshTopology(part, backend.buildTopologyData(result))
+  }
+  return fromMeshSolid(
+    { positions: result.mesh.positions, indices: result.mesh.indices },
+    { meshSolid: result.solid },
+  )
 }
 
 /**

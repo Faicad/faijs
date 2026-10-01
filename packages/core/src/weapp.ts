@@ -21,11 +21,20 @@ export { setBrepkitWasmInitFn, initBrepkitWasm, isBrepkitInitialized } from './b
 
 // brepkit BREP 引擎注册（weapp 只注册 brepkit，不注册 occt）
 export { registerBrepkitBrepEngine, BREPKIT_BREP_ENGINE_ID, ensureBrepkitDefaultEngine } from './brep/engine/adapters/brepkit'
+// brepkit 网格实体后端（网格语义路径；与 BREP 槽独立注册）。weapp 侧装了它，
+// `cad.load` 的 STL/3MF 路径就产出「网格实体 + 近似拓扑」。
+export { registerBrepkitMeshEngine, BREPKIT_MESH_ENGINE_ID, ensureBrepkitMeshBackend } from './brep/engine/adapters/brepkit'
 
 // BREP 引擎注册表（环境无关；ensureBrepChain 见已注册引擎即跳过 OCCT）
-export { registerBrepEngine, hasBrepEngine, getBrepEngine, getActiveBrepEngineId, freezeEngineRegistries } from './brep/engine/registry'
-export type { BrepEngine, BrepEngineProvider } from './brep/engine/registry'
+export { registerBrepEngine, hasBrepEngine, getBrepEngine, getActiveBrepEngineId, freezeEngineRegistries, registerMeshEngine, getMeshEngine, getActiveMeshEngineId, isMeshEngineRegistered, getMeshSolidBackend } from './brep/engine/registry'
+export type { BrepEngine, BrepEngineProvider, MeshEngine } from './brep/engine/registry'
 export type { BrepEngineApi } from './brep/engine/primitives'
+// 网格实体（近似拓扑的载体）：端口 + 注册表 + 驱动。
+export { MeshSolidRegistry, normalizeMeshSolid, describeMeshSolid, buildMeshSolidTopology, weldToleranceFor } from './brep/mesh-solid'
+export type {
+  MeshSolidBackend, MeshSolidResult, MeshSolidKernelOps, MeshSolidInput, MeshSolidNormalizeOptions,
+} from './brep/mesh-solid'
+export { assertShapeSlotExclusive } from './cad-runtime/backend-dispatch'
 
 // cad-runtime（环境无关执行栈）：createRuntime 为 with-cad 变体（§9.2），与
 // browser/node 入口同口径——自带 cad 命名空间注册，宿主无需手工补注册。

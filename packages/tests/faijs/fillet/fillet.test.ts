@@ -1,11 +1,12 @@
 /**
- * fillet e2e (.fai.js, BREP-only) — M1 等半径圆角
+ * fillet e2e (.fai.js) — M1 等半径圆角
  *
  * 覆盖（真实 OCCT，beforeAll registerOcctBrepEngine）：
  * - T-F1 等半径 radius=2：box 20³ → fillet(edges, radius:2) → BREP 未断链、
  *   面数 6→7、体积减少 ΔV = (4-π)·r²·L/4 (r=2, L=20 ⇒ 约 17.17 mm³)。
  * - T-F2 roleTable 传播：圆角后 faceNaming.role 非空、edgeNaming.faces 可解析。
- * - T-F3 错误路径：空 edges、radius≤0、缺 faces、非 BREP 输入 → E_MESH_UNSUPPORTED。
+ * - T-F3 错误路径：空 edges、radius≤0、缺 faces、mesh 模式下裸网格输入
+ *   → E_MESH_SOLID_UNSUPPORTED（fillet 自 2026-10-01 起有网格实现，BREP 侧见 T-F1）。
  *
  * stderr 零容忍（CI 强制）：故意失败用例内 spy console.warn/error 并断言未被调用。
  */
@@ -111,7 +112,7 @@ describe('fillet e2e (BREP/OCCT)', () => {
     expect(errorSpy).not.toHaveBeenCalled()
   })
 
-  it('T-F3b: 非 BREP 输入（mesh 模式）→ E_MESH_UNSUPPORTED', async () => {
+  it('T-F3b: mesh 模式 + 裸网格输入 → E_MESH_SOLID_UNSUPPORTED（不静默回退 BREP）', async () => {
     const meshRuntime = createEditorRuntime(createNodePorts(), 'mesh')
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -121,11 +122,13 @@ describe('fillet e2e (BREP/OCCT)', () => {
     `
     try {
       const result = await meshRuntime.execute(code, { topology: 'auto' })
-      if (result.failedAt) {
-        expect(result.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED/)
-      } else {
-        throw new Error('expected E_MESH_UNSUPPORTED')
-      }
+      // fillet 自 2026-10-01 起有 mesh 实现（brepkit 网格后端），mesh 模式因此走**网格路径**，
+      // 不再是"无 mesh 实现 → E_MESH_UNSUPPORTED"。网格路径只认网格实体 + 已装配的网格后端；
+      // 本宿主两者皆无（box 在 mesh 模式下是裸网格），故如实拒绝。
+      expect(result.failedAt).toBeDefined()
+      expect(result.failedAt!.message).toMatch(/E_MESH_SOLID_UNSUPPORTED/)
+      // 关键红线：拒绝是**静态**的，没有偷偷回退到 BREP 链把 part1 做出来。
+      expect(result.brepChain.solidCache.has(asPartName('part1'))).toBe(false)
     } finally {
       meshRuntime.dispose()
       warnSpy.mockRestore()
