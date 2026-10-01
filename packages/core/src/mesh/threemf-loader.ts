@@ -26,7 +26,6 @@
  * the *same unzipped map* (single unzip, two consumer chains).
  */
 import { readZipEntries } from '../io/zip'
-import { parseXmlDocument } from '../api/xml-dom'
 import { UNIT_SCALE, type UnitName } from '../units'
 
 /** Map a 3MF unit string to a faijs length unit name. */
@@ -178,14 +177,274 @@ export interface ThreemfArchive {
   extraEntries: Map<string, Uint8Array>
 }
 
-/** Extract the declared unit from an already-parsed `<model>` document. */
-function modelUnit(doc: Document): string {
-  const model = doc.documentElement
-  if (model && model.getAttribute('unit')) {
-    return model.getAttribute('unit')!
+/** Detect triangle-level material attributes (fast-3mf port). */
+const TRI_MATERIAL_ATTR_RE = /(?:^|\s)(?:p1|p2|p3|pid)="/
+
+/**
+ * Loose vertex re-parse: extracts x/y/z independently, tolerating attribute
+ * reordering or newlines inside a vertex tag. Slow path — only used when the
+ * strict regex scan reports a count mismatch (fast-3mf port).
+ */
+function parseVerticesLoose(vertSec: string): Float32Array | null {
+  const vRe = /<vertex\s+([^>]*?)\/?>/g
+  const positions: number[] = []
+  let vm: RegExpExecArray | null
+  while ((vm = vRe.exec(vertSec)) !== null) {
+    const a = vm[1]
+    const x = /(?:^|\s)x="(-?[\d.eE+-]+)"/.exec(a)?.[1]
+    const y = /(?:^|\s)y="(-?[\d.eE+-]+)"/.exec(a)?.[1]
+    const z = /(?:^|\s)z="(-?[\d.eE+-]+)"/.exec(a)?.[1]
+    if (x === undefined || y === undefined || z === undefined) return null
+    positions.push(+x, +y, +z)
   }
-  // Default per 3MF spec is millimeter.
-  return 'millimeter'
+  return new Float32Array(positions)
+}
+
+/**
+ * Loose triangle re-parse: extracts v1/v2/v3 (and pid/p1/p2/p3 when needed)
+ * per attribute, tolerating attribute reordering (fast-3mf port). Slow path —
+ * only used when the strict regex scan reports a count mismatch.
+ */
+function parseTrianglesLoose(
+  triSec: string,
+  withProps: boolean,
+): { index: Uint32Array; props: TriMaterialProps[] | null } | null {
+  const tFullRe = /<triangle\s+([^>]*?)\/?>/g
+  const idx: number[] = []
+  const props: TriMaterialProps[] = []
+  let tm: RegExpExecArray | null
+  while ((tm = tFullRe.exec(triSec)) !== null) {
+    const a = tm[1]
+    const v1 = /(?:^|\s)v1="(\d+)"/.exec(a)?.[1]
+    const v2 = /(?:^|\s)v2="(\d+)"/.exec(a)?.[1]
+    const v3 = /(?:^|\s)v3="(\d+)"/.exec(a)?.[1]
+    if (v1 === undefined || v2 === undefined || v3 === undefined) return null
+    idx.push(+v1, +v2, +v3)
+    if (withProps) {
+      const p: TriMaterialProps = {}
+      const pid = /(?:^|\s)pid="([^"]*)"/.exec(a)?.[1]
+      if (pid !== undefined) p.pid = pid
+      const p1 = /(?:^|\s)p1="([^"]*)"/.exec(a)?.[1]
+      if (p1 !== undefined) p.p1 = +p1
+      const p2 = /(?:^|\s)p2="([^"]*)"/.exec(a)?.[1]
+      if (p2 !== undefined) p.p2 = +p2
+      const p3 = /(?:^|\s)p3="([^"]*)"/.exec(a)?.[1]
+      if (p3 !== undefined) p.p3 = +p3
+      props.push(p)
+    }
+  }
+  return { index: new Uint32Array(idx), props: withProps ? props : null }
+}
+
+/**
+ * Stream-scan one model XML document for `<resources>` material libraries and
+ * `<object>` entries, merging into the shared maps (caller keeps sub-models
+ * first / root last so the root wins id collisions).
+ *
+ * Text-scanner (no DOM) — ported from the host's retired fast-3mf parser, so
+ * very large model documents (Bambu exports reach ~140 MB of XML, where a full
+ * DOM parse exhausts the heap) stay linear in memory. Attribute extraction
+ * keeps fast-3mf's tolerance: attribute reordering / newline variance falls
+ * back to a loose re-parse; namespace-prefixed attributes (`p:objectid`,
+ * `p:transform`) match through substring.
+ */
+function scanResources(
+  xml: string,
+  scale: number,
+  basematerialsById: Map<string, { name?: string; displaycolor?: string }[]>,
+  colorgroupsById: Map<string, Float32Array>,
+  byObjectId: Map<number, ObjectMeshMeta>,
+): void {
+  const resourcesStart = xml.indexOf('<resources>')
+  if (resourcesStart < 0) return
+  const resourcesEnd = xml.indexOf('</resources>', resourcesStart)
+  const resBody = resourcesEnd >= 0
+    ? xml.slice(resourcesStart, resourcesEnd)
+    : xml.slice(resourcesStart)
+
+  // basematerials: id + base list (name/displaycolor).
+  const bmRe = /<basematerials\s+([^>]*)>([\s\S]*?)<\/basematerials>/g
+  let m: RegExpExecArray | null
+  while ((m = bmRe.exec(resBody)) !== null) {
+    const id = /(?:^|\s)id="([^"]+)"/.exec(m[1])?.[1]
+    if (id === undefined) continue
+    const bases: { name?: string; displaycolor?: string }[] = []
+    const baseRe = /<base\s+([^>]*?)\/?>/g
+    let bm2: RegExpExecArray | null
+    while ((bm2 = baseRe.exec(m[2])) !== null) {
+      bases.push({
+        name: /(?:^|\s)name="([^"]*)"/.exec(bm2[1])?.[1],
+        displaycolor: /(?:^|\s)displaycolor="([^"]*)"/.exec(bm2[1])?.[1],
+      })
+    }
+    basematerialsById.set(id, bases)
+  }
+
+  // colorgroup: id + color list (hex → sRGB components).
+  const cgRe = /<colorgroup\s+([^>]*)>([\s\S]*?)<\/colorgroup>/g
+  while ((m = cgRe.exec(resBody)) !== null) {
+    const id = /(?:^|\s)id="([^"]+)"/.exec(m[1])?.[1]
+    if (id === undefined) continue
+    const colors: number[] = []
+    const colorRe = /<color\s+([^>]*?)\/?>/g
+    let cm: RegExpExecArray | null
+    while ((cm = colorRe.exec(m[2])) !== null) {
+      const hex = /(?:^|\s)color="([^"]*)"/.exec(cm[1])?.[1]?.slice(0, 7) ?? '#000000'
+      const rgb = hexToRgb(hex) ?? [0, 0, 0]
+      colors.push(rgb[0], rgb[1], rgb[2])
+    }
+    colorgroupsById.set(id, new Float32Array(colors))
+  }
+
+  // objects — scanned across the whole document (not just `<resources>`) so
+  // out-of-resources `<object>` placements still load (external-data tolerance).
+  const objRe = /<object\s+([^>]*)>([\s\S]*?)<\/object>/g
+  while ((m = objRe.exec(xml)) !== null) {
+    const attrs = m[1]
+    const body = m[2]
+    const idRaw = /(?:^|\s)id="([^"]+)"/.exec(attrs)?.[1]
+    if (idRaw === undefined) continue
+    const id = Number(idRaw)
+    if (!Number.isInteger(id)) continue
+    const name = /(?:^|\s)name="([^"]*)"/.exec(attrs)?.[1]
+    const objPid = /(?:^|\s)pid="([^"]*)"/.exec(attrs)?.[1]
+    const objPindexRaw = /(?:^|\s)pindex="([^"]*)"/.exec(attrs)?.[1]
+    const objPindex = objPindexRaw !== undefined && objPindexRaw !== '' ? Number(objPindexRaw) : undefined
+
+    let meta: ObjectMeshMeta = { id, name, pid: objPid, pindex: objPindex }
+
+    // mesh: vertices + triangles (fast-3mf port — strict regex scan with a
+    // loose attribute-order fallback; missing sub-sections are tolerated and
+    // the object still registers, matching the retired host behavior).
+    const meshStart = body.indexOf('<mesh>')
+    const meshEnd = body.indexOf('</mesh>')
+    if (meshStart >= 0 && meshEnd > meshStart) {
+      const meshBody = body.slice(meshStart, meshEnd)
+
+      // vertices
+      const vertStart = meshBody.indexOf('<vertices>')
+      const vertEnd = meshBody.indexOf('</vertices>')
+      if (vertStart >= 0 && vertEnd > vertStart) {
+        const vertSec = meshBody.slice(vertStart, vertEnd)
+        let vc = 0
+        let p = 0
+        while ((p = vertSec.indexOf('<vertex ', p)) !== -1) { vc++; p += 8 }
+        const vRe = /x="(-?[\d.eE+-]+)"\s+y="(-?[\d.eE+-]+)"\s+z="(-?[\d.eE+-]+)"/g
+        let positions = new Float32Array(vc * 3)
+        let vm: RegExpExecArray | null
+        let vi = 0
+        while ((vm = vRe.exec(vertSec)) !== null) {
+          positions[vi] = +vm[1] * scale
+          positions[vi + 1] = +vm[2] * scale
+          positions[vi + 2] = +vm[3] * scale
+          vi += 3
+        }
+        // XML attributes are unordered (spec XSD) — if any vertex failed to
+        // match (different attribute order / newline after tag), re-scan each
+        // attribute independently instead of giving up.
+        if (vc > 0 && vi !== vc * 3) {
+          const loose = parseVerticesLoose(vertSec)
+          if (!loose) {
+            throw new Error(`[mesh/threemf] cannot parse <vertices> in object ${id}`)
+          }
+          positions = new Float32Array(loose.length)
+          for (let i = 0; i < loose.length; i++) positions[i] = loose[i] * scale
+        }
+        meta = { ...meta, positions }
+      }
+
+      // triangles
+      const triStart = meshBody.indexOf('<triangles>')
+      const triEnd = meshBody.indexOf('</triangles>')
+      if (triStart >= 0 && triEnd > triStart) {
+        const triSec = meshBody.slice(triStart, triEnd)
+        let tc = 0
+        let p = 0
+        while ((p = triSec.indexOf('<triangle ', p)) !== -1) { tc++; p += 10 }
+        const idx = new Uint32Array(tc * 3)
+        const hasMatAttrs = TRI_MATERIAL_ATTR_RE.test(triSec)
+        // Object-level pid without per-triangle material attrs: synthesize
+        // triangle properties so every triangle still routes through the
+        // resource (object pindex default) — fast-3mf semantics.
+        const needsProps = hasMatAttrs || objPid !== undefined
+        const triProps: TriMaterialProps[] | undefined = needsProps ? [] : undefined
+        const tRe = /v1="(\d+)"\s+v2="(\d+)"\s+v3="(\d+)"/g
+        let tm: RegExpExecArray | null
+        let ti = 0
+        while ((tm = tRe.exec(triSec)) !== null) {
+          idx[ti] = +tm[1]
+          idx[ti + 1] = +tm[2]
+          idx[ti + 2] = +tm[3]
+          ti += 3
+        }
+        if (tc > 0 && ti !== tc * 3) {
+          // Attribute order / newline variance → re-scan each attribute
+          // independently (slow path, rare).
+          const loose = parseTrianglesLoose(triSec, needsProps)
+          if (!loose) {
+            throw new Error(`[mesh/threemf] cannot parse <triangles> in object ${id}`)
+          }
+          idx.set(loose.index)
+          if (loose.props) {
+            triProps!.length = 0
+            triProps!.push(...loose.props)
+          }
+        } else if (needsProps) {
+          if (hasMatAttrs) {
+            const tFullRe = /<triangle\s+([^>]*?)\/?>/g
+            let tfm: RegExpExecArray | null
+            while ((tfm = tFullRe.exec(triSec)) !== null) {
+              const a = tfm[1]
+              const tv = /v1="(\d+)"\s+v2="(\d+)"\s+v3="(\d+)"/.exec(a)
+              if (!tv) continue
+              const prop: TriMaterialProps = {}
+              const p1 = /\bp1="([^"]*)"/.exec(a)?.[1]
+              if (p1 !== undefined) prop.p1 = +p1
+              const p2 = /\bp2="([^"]*)"/.exec(a)?.[1]
+              if (p2 !== undefined) prop.p2 = +p2
+              const p3 = /\bp3="([^"]*)"/.exec(a)?.[1]
+              if (p3 !== undefined) prop.p3 = +p3
+              const pidm = /\bpid="([^"]*)"/.exec(a)?.[1]
+              if (pidm !== undefined) prop.pid = pidm
+              triProps!.push(prop)
+            }
+          } else {
+            // Object-level pid only → synthesized props (no per-triangle
+            // material attrs) so materializeMesh's per-triangle lookups fall
+            // through to the object-level defaults.
+            for (let i = 0; i < tc; i++) triProps!.push({})
+          }
+        }
+        meta = { ...meta, indices: idx, triProps }
+      }
+    }
+
+    // `<components>` children — Bambu builds plates/assemblies this way.
+    // A pure component container has no mesh; it still registers in byObjectId
+    // so build items referencing it expand recursively (component instances).
+    const compStart = body.indexOf('<components>')
+    if (compStart >= 0) {
+      const compEnd = body.indexOf('</components>', compStart)
+      const compSec = compEnd >= 0
+        ? body.slice(compStart + '<components>'.length, compEnd)
+        : body.slice(compStart + '<components>'.length)
+      const comps: ObjectComponent[] = []
+      const compRe = /<component\s+([^>]*?)\/?>/g
+      let cpm: RegExpExecArray | null
+      while ((cpm = compRe.exec(compSec)) !== null) {
+        const oid = Number(/objectid="([^"]+)"/.exec(cpm[1])?.[1])
+        if (!Number.isInteger(oid)) continue
+        comps.push({
+          objectId: oid,
+          transform: parseTransformAttr(/\btransform="([^"]*)"/.exec(cpm[1])?.[1] ?? null),
+        })
+      }
+      if (comps.length > 0) meta = { ...meta, components: comps }
+    }
+
+    if (!meta.positions && !meta.components) continue
+    byObjectId.set(id, meta)
+  }
 }
 
 /**
@@ -202,14 +461,14 @@ function modelUnit(doc: Document): string {
  * `unit` is read from the ROOT model document (the file the build items
  * belong to); all documents share the same declared unit in practice.
  */
-async function parseModelXml(docTexts: string[]): Promise<{
+function parseModelXml(docTexts: string[]): {
   unitName: UnitName
   objects: ThreemfObject[]
-}> {
+} {
   // Last document = root model (caller appends it last).
   const rootDoc = docTexts[docTexts.length - 1]
-  const rootXml = await parseXmlDocument(rootDoc)
-  const unit = modelUnit(rootXml)
+  const unitMatch = /<model\b[^>]*\bunit="([^"]+)"/.exec(rootDoc)
+  const unit = unitMatch ? unitMatch[1] : 'millimeter'
   const unitName = threemfUnitToFaijs(unit)
   if (unitName === null) {
     throw new Error(`[mesh/threemf] unsupported <model unit>: ${JSON.stringify(unit)}`)
@@ -223,117 +482,10 @@ async function parseModelXml(docTexts: string[]): Promise<{
   const byObjectId = new Map<number, ObjectMeshMeta>()
 
   for (const text of docTexts) {
-    const doc = await parseXmlDocument(text)
-    const resources = doc.documentElement.getElementsByTagName('resources')[0]
-    if (!resources) continue
-    const baseGroups = resources.getElementsByTagName('basematerials')
-    for (let i = 0; i < baseGroups.length; i++) {
-      const bm = baseGroups[i]
-      const id = bm.getAttribute('id')
-      if (!id) continue
-      const bases = Array.from(bm.getElementsByTagName('base')).map((b) => ({
-        name: b.getAttribute('name') ?? undefined,
-        displaycolor: b.getAttribute('displaycolor') ?? undefined,
-      }))
-      basematerialsById.set(id, bases)
-    }
-    const colorGroups = resources.getElementsByTagName('colorgroup')
-    for (let i = 0; i < colorGroups.length; i++) {
-      const cg = colorGroups[i]
-      const id = cg.getAttribute('id')
-      if (!id) continue
-      const colors = new Float32Array(Array.from(cg.getElementsByTagName('color')).length * 3)
-      let ci = 0
-      for (const c of Array.from(cg.getElementsByTagName('color'))) {
-        const hex = c.getAttribute('color')?.slice(0, 7) ?? '#000000'
-        const rgb = hexToRgb(hex) ?? [0, 0, 0]
-        colors[ci++] = rgb[0]
-        colors[ci++] = rgb[1]
-        colors[ci++] = rgb[2]
-      }
-      colorgroupsById.set(id, colors)
-    }
-    const objects = resources.getElementsByTagName('object')
-    for (let i = 0; i < objects.length; i++) {
-      const obj = objects[i]
-      const id = Number(obj.getAttribute('id'))
-      if (!Number.isInteger(id)) continue
-      const name = obj.getAttribute('name') ?? undefined
-      const objPid = obj.getAttribute('pid') ?? undefined
-      const objPindexRaw = obj.getAttribute('pindex')
-      const objPindex = objPindexRaw !== null && objPindexRaw !== '' ? Number(objPindexRaw) : undefined
-
-      const meshEl = obj.getElementsByTagName('mesh')[0]
-      let meta: ObjectMeshMeta = { id, name, pid: objPid, pindex: objPindex }
-
-      if (meshEl) {
-        const verticesEl = meshEl.getElementsByTagName('vertices')[0]
-        const trianglesEl = meshEl.getElementsByTagName('triangles')[0]
-        if (!verticesEl || !trianglesEl) continue
-
-        const vertexElCh = verticesEl.getElementsByTagName('vertex')
-        const pos = new Float32Array(vertexElCh.length * 3)
-        for (let v = 0; v < vertexElCh.length; v++) {
-          const el = vertexElCh[v]
-          pos[v * 3] = Number(el.getAttribute('x')) * scale
-          pos[v * 3 + 1] = Number(el.getAttribute('y')) * scale
-          pos[v * 3 + 2] = Number(el.getAttribute('z')) * scale
-        }
-
-        const triEls = trianglesEl.getElementsByTagName('triangle')
-        const idx = new Uint32Array(triEls.length * 3)
-
-        // Material props are collected only when the object actually references a
-        // resource (object-level pid or any triangle-level pid/p1) — the common
-        // untextured case stays allocation-free.
-        let triProps: TriMaterialProps[] | undefined = undefined
-        let needProps = objPid !== undefined
-        for (let t = 0; t < triEls.length; t++) {
-          const el = triEls[t]
-          idx[t * 3] = Number(el && el.getAttribute('v1'))
-          idx[t * 3 + 1] = Number(el && el.getAttribute('v2'))
-          idx[t * 3 + 2] = Number(el && el.getAttribute('v3'))
-          if (!needProps && el) {
-            if (el.getAttribute('pid') !== null || el.getAttribute('p1') !== null) needProps = true
-          }
-        }
-        if (needProps) {
-          triProps = []
-          for (let t = 0; t < triEls.length; t++) {
-            const el = triEls[t]
-            const p: TriMaterialProps = {}
-            const pid = el.getAttribute('pid')
-            if (pid !== null) p.pid = pid
-            const p1 = el.getAttribute('p1')
-            if (p1 !== null) p.p1 = Number(p1)
-            const p2 = el.getAttribute('p2')
-            if (p2 !== null) p.p2 = Number(p2)
-            const p3 = el.getAttribute('p3')
-            if (p3 !== null) p.p3 = Number(p3)
-            triProps.push(p)
-          }
-        }
-        meta = { ...meta, positions: pos, indices: idx, triProps }
-      }
-
-      // `<components>` children — Bambu builds plates/assemblies this way.
-      // A pure component container has no mesh; it still registers in byObjectId
-      // so build items referencing it expand recursively (component instances).
-      const compEl = obj.getElementsByTagName('components')[0]
-      if (compEl) {
-        const comps: ObjectComponent[] = []
-        for (const c of Array.from(compEl.getElementsByTagName('component'))) {
-          const oid = Number(c.getAttribute('objectid'))
-          if (!Number.isInteger(oid)) continue
-          comps.push({ objectId: oid, transform: parseTransformAttr(c.getAttribute('transform')) })
-        }
-        if (comps.length > 0) meta = { ...meta, components: comps }
-      }
-
-      if (!meta.positions && !meta.components) continue
-      byObjectId.set(id, meta)
-    }
+    scanResources(text, scale, basematerialsById, colorgroupsById, byObjectId)
   }
+    // (scanResources above handles basematerials / colorgroup / objects)
+    // (mesh/components + registration handled by scanResources)
 
   /**
    * Materialize object instances: a mesh object yields ONE ThreemfObject with
@@ -464,23 +616,30 @@ async function parseModelXml(docTexts: string[]): Promise<{
 
   // build → item → per-instance transforms baked to world space.
   // `<build>` lives in the ROOT model document only.
-  const build = rootXml.documentElement.getElementsByTagName('build')[0]
-  const itemEls = build ? build.getElementsByTagName('item') : []
+  const buildMatch = /<build\b[^>]*>/.exec(rootDoc)
+  let buildSec = ''
+  if (buildMatch) {
+    const buildStart = buildMatch.index
+    const buildEnd = rootDoc.indexOf('</build>', buildStart)
+    buildSec = buildEnd >= 0 ? rootDoc.slice(buildStart, buildEnd) : rootDoc.slice(buildStart)
+  }
+  const itemRe = /<item\b[^>]*>/g
   const out: ThreemfObject[] = []
-
-  if (itemEls.length > 0) {
-    for (let i = 0; i < itemEls.length; i++) {
-      const item = itemEls[i]
-      const objId = Number(item.getAttribute('objectid'))
-      const src = byObjectId.get(objId)
-      if (!src) continue
-      // ST_Matrix3D: 4×3 (12) or 4×4 (16) whose trailing row is "0 0 0 1";
-      // malformed transforms are IGNORED (identity) — never bake NaN into
-      // geometry (mirrors the host's fast-3mf tolerance contract).
-      const tokens = parseTransformAttr(item.getAttribute('transform'))
-      out.push(...materialize(src, tokens ?? undefined, new Set([objId])))
-    }
-  } else {
+  let itemCount = 0
+  let im: RegExpExecArray | null
+  while ((im = itemRe.exec(buildSec)) !== null) {
+    itemCount++
+    const attrs = im[0]
+    const objId = Number(/(?:^|\s)objectid="([^"]+)"/.exec(attrs)?.[1])
+    const src = byObjectId.get(objId)
+    if (!src) continue
+    // ST_Matrix3D: 4×3 (12) or 4×4 (16) whose trailing row is "0 0 0 1";
+    // malformed transforms are IGNORED (identity) — never bake NaN into
+    // geometry (mirrors the host's fast-3mf tolerance contract).
+    const tokens = parseTransformAttr(/\btransform="([^"]*)"/.exec(attrs)?.[1] ?? null)
+    out.push(...materialize(src, tokens ?? undefined, new Set([objId])))
+  }
+  if (itemCount === 0) {
     // No build items: emit every `<resources>` object directly (¶ the empty
     // `<build>` contract — NOT a fallback; see plan §8 decision 8).
     for (const src of byObjectId.values()) {
@@ -527,7 +686,7 @@ export async function parseThreemf(buffer: ArrayBuffer): Promise<ThreemfArchive>
   }
   docKeys.push(rootKey)
   const docTexts = docKeys.map((k) => new TextDecoder().decode(entries.get(k)!))
-  const parsed = await parseModelXml(docTexts)
+  const parsed = parseModelXml(docTexts)
 
   // `extraEntries` = everything that is NOT a model document — Bambu's
   // `Metadata/model_settings.config`, `Metadata/project_settings.config`,

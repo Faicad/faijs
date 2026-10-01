@@ -1,6 +1,6 @@
 {
   "name": "@faicad/fai-cq-warehouse",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -31,7 +31,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.24.0",
+    "@faicad/faijs": "^0.25.0",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {
