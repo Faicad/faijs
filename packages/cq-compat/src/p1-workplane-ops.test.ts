@@ -17,6 +17,9 @@ import {
   circle,
   moveTo,
   lineTo,
+  vLine,
+  hLine,
+  threePointArc,
   wire,
   split,
   section,
@@ -171,13 +174,57 @@ describe('selector family parity', () => {
 })
 
 describe('mirrorX / mirrorY parity', () => {
-  it('mirrorX(union) of a box at +X doubles nothing (self-overlap) but succeeds', async () => {
+  // GOTCHA: upstream (cadquery 2.8.0) `mirrorX()` takes NO arguments and
+  // mirrors about the workplane's X AXIS — local y → −y — not about the YZ
+  // plane (x → −x). Evidence: testSimpleMirror refs bbox x[0,3] y[−2,2] for a
+  // profile drafted entirely in y ≥ 0. An earlier cq-compat mirrored x → −x,
+  // which silently produced the 90°-rotated twin of every mirrored sketch.
+  it('mirrorX mirrors the drafted profile about the X axis (y → −y)', async () => {
+    const p = await vLine(await moveTo(Workplane('XY'), 1, 2), 3)
+    const m = await mirrorX(p)
+    const wires = m.pendingWires ?? []
+    // The drafted line sits wholly off the axis, so no endpoint is shared and
+    // upstream consolidateWires() leaves two separate wires.
+    expect(wires.length).toBe(2)
+    // original y ∈ [2, 5]; mirrored twin y ∈ [−5, −2]
+    const ys = (wires[1] as { pts: [number, number][] }).pts.map((q) => q[1])
+    expect(Math.max(...ys)).toBeCloseTo(-2, 9)
+    expect(Math.min(...ys)).toBeCloseTo(-5, 9)
+  })
+
+  it('mirrorX splices into ONE closed ring when both ends sit on the axis', async () => {
+    // The testSimpleMirror profile: drafted in y ≥ 0, both endpoints on y = 0.
+    let p = await moveTo(Workplane('XY'), 0, 0)
+    p = await lineTo(p, 2, 2)
+    p = await threePointArc(p, [3, 1], [2, 0])
+    const m = await mirrorX(p)
+    const wires = m.pendingWires ?? []
+    expect(wires.length).toBe(1)
+    const pts = (wires[0] as { pts: [number, number][] }).pts
+    // (0,0) → (2,2) → (2,0) → (2,−2) → implicit close back to (0,0)
+    expect(pts.length).toBe(4)
+    expect(pts[0]).toEqual([0, 0])
+    expect(pts[2]).toEqual([2, 0])
+    expect(pts[3]).toEqual([2, -2])
+  })
+
+  it('mirrorY mirrors the drafted profile about the Y axis (x → −x)', async () => {
+    const p = await hLine(await moveTo(Workplane('XY'), 4, 1), 3)
+    const m = await mirrorY(p)
+    const wires = m.pendingWires ?? []
+    expect(wires.length).toBe(2)
+    const xs = (wires[1] as { pts: [number, number][] }).pts.map((q) => q[0])
+    expect(Math.max(...xs)).toBeCloseTo(-4, 9)
+    expect(Math.min(...xs)).toBeCloseTo(-7, 9)
+  })
+
+  it('mirrorX of a solid (no drafting in progress) mirrors the shape', async () => {
     const b = await box(Workplane(), 1, 1, 1)
-    const m = await mirrorX(b, false)
+    const m = await mirrorX(b)
     expect(area(m)).toBeCloseTo(6, 6)
   })
 
-  it('mirrorY(union=false) mirrors without fusing', async () => {
+  it('mirrorY of a solid mirrors the shape without fusing', async () => {
     const b = await box(Workplane(), 1, 1, 1)
     const m = await mirrorY(b)
     expect(area(m)).toBeCloseTo(6, 6)
@@ -194,13 +241,44 @@ describe('polarArray / polarLine / polarLineTo parity', () => {
     expect(pa.pts[1][1]).toBeCloseTo(4, 9)
   })
 
-  it('polarArray fill=false: count-1 spacing over angle', () => {
-    const pa = polarArray(Workplane(), 2, 0, 90, 3, false)
+  // GOTCHA (verified against cadquery 2.8.0 `Workplane.polarArray`): the two
+  // `fill` branches read `angle` OPPOSITE to the intuitive naming.
+  //   fill=True  → `angle` is the TOTAL sweep, so step = angle/(count−1)
+  //                (…unless it is a whole number of turns, then angle/count);
+  //   fill=False → `angle` IS the angle BETWEEN elements, so step = angle.
+  // This test previously asserted the fill=False branch as "count−1 spacing",
+  // i.e. it had the two branches swapped.
+  it('polarArray fill=true on a partial sweep: count-1 spacing over angle', () => {
+    const pa = polarArray(Workplane(), 2, 0, 90, 3, true)
     expect(pa.pts.length).toBe(3)
-    // first at 0°, last at 90°
+    // step = 90/(3−1) = 45° → 0°, 45°, 90°
     expect(pa.pts[0][1]).toBeCloseTo(0, 9)
     expect(pa.pts[2][0]).toBeCloseTo(0, 9)
     expect(pa.pts[2][1]).toBeCloseTo(2, 9)
+  })
+
+  it('polarArray fill=false: angle is the angle BETWEEN elements', () => {
+    const pa = polarArray(Workplane(), 2, 0, 90, 3, false)
+    expect(pa.pts.length).toBe(3)
+    // step = 90° → 0°, 90°, 180°
+    expect(pa.pts[1][0]).toBeCloseTo(0, 9)
+    expect(pa.pts[1][1]).toBeCloseTo(2, 9)
+    expect(pa.pts[2][0]).toBeCloseTo(-2, 9)
+    expect(pa.pts[2][1]).toBeCloseTo(0, 9)
+  })
+
+  it('polarArray carries the polar angle as each point rotation (rotate=True)', () => {
+    const pa = polarArray(Workplane(), 2, 10, 50, 3)
+    expect(pa.ptsAngle).toEqual([10, 35, 60])
+  })
+
+  it('polarArray rotate=False carries no rotation', () => {
+    const pa = polarArray(Workplane(), 2, 10, 50, 3, true, false)
+    expect(pa.ptsAngle).toEqual([0, 0, 0])
+  })
+
+  it('polarArray count<1 raises (upstream ValueError)', () => {
+    expect(() => polarArray(Workplane(), 1, 0, 90, 0)).toThrow(/at least 1 element/)
   })
 
   it('polarLine drafts at an angle from the current point', async () => {

@@ -2,21 +2,13 @@
   "totalCasesInRefManifest": 305,
   "casesWithStep": 297,
   "casesWithoutStep": 8,
-  "portableNow": 180,
-  "portableWithStub": 37,
-  "blocked": 80,
+  "portableNow": 194,
+  "portableWithStub": 41,
+  "blocked": 62,
   "blockedByTop": [
     [
       "getfixturevalue",
       7
-    ],
-    [
-      "split",
-      5
-    ],
-    [
-      "sweep",
-      5
     ],
     [
       "remove",
@@ -52,14 +44,6 @@
     ],
     [
       "importBrep",
-      2
-    ],
-    [
-      "section",
-      2
-    ],
-    [
-      "mirrorX",
       2
     ],
     [
@@ -91,19 +75,35 @@
       1
     ],
     [
-      "offset2D",
-      1
-    ],
-    [
       "parametricCurve",
       1
     ],
     [
-      "polarArray",
+      "placeSketch",
       1
     ],
     [
-      "rotateAboutCenter",
+      "narrow:sphere-angles",
+      1
+    ],
+    [
+      "end",
+      1
+    ],
+    [
+      "CombinedCenter",
+      1
+    ],
+    [
+      "importBin",
+      1
+    ],
+    [
+      "filter",
+      1
+    ],
+    [
+      "solid",
       1
     ]
   ],
@@ -111,14 +111,6 @@
     [
       "getfixturevalue",
       7
-    ],
-    [
-      "sweep",
-      6
-    ],
-    [
-      "split",
-      5
     ],
     [
       "remove",
@@ -149,19 +141,11 @@
       3
     ],
     [
-      "mirrorX",
-      3
-    ],
-    [
       "parametrize",
       3
     ],
     [
       "importBrep",
-      2
-    ],
-    [
-      "section",
       2
     ],
     [
@@ -177,11 +161,11 @@
       2
     ],
     [
-      "Shells",
+      "cast",
       1
     ],
     [
-      "cast",
+      "Shells",
       1
     ],
     [
@@ -197,15 +181,31 @@
       1
     ],
     [
-      "mirrorY",
-      1
-    ],
-    [
-      "offset2D",
-      1
-    ],
-    [
       "parametricCurve",
+      1
+    ],
+    [
+      "placeSketch",
+      1
+    ],
+    [
+      "end",
+      1
+    ],
+    [
+      "CombinedCenter",
+      1
+    ],
+    [
+      "importBin",
+      1
+    ],
+    [
+      "filter",
+      1
+    ],
+    [
+      "solid",
       1
     ]
   ],
@@ -754,8 +754,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testEnclosure": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "split",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "extrude",
         "rect",
@@ -819,8 +819,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "section",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "center",
@@ -1115,8 +1115,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testMultisectionSweep": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sweep",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "sweep",
         "circle",
@@ -1172,8 +1172,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testOccBottle": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "mirrorX",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "extrude",
         "mirrorX",
@@ -1187,8 +1187,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testOffset2D": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "offset2D",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "extrude",
         "offset2D",
@@ -1226,8 +1226,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testParametricSurface": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "split",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "split",
         "box"
@@ -1265,8 +1265,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testPolarArray": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "polarArray",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "polarArray",
         "extrude",
@@ -1279,8 +1279,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testPolarLines": {
       "status": "no-step",
-      "category": "BLOCKED",
-      "blockedBy": "polarLineTo",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "close",
         "polarLineTo",
@@ -1439,8 +1439,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testRotateAboutCenter": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "rotateAboutCenter",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "rotateAboutCenter",
         "box"
@@ -1451,8 +1451,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSection": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "section",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "section"
@@ -1465,8 +1465,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSimpleMirror": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "mirrorX",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "extrude",
         "mirrorX",
@@ -1540,8 +1540,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSlot2D": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "slot2D",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "extrude",
         "slot2D",
@@ -1661,8 +1661,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "split",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": null,
       "ops": [
         "cutThruAll",
         "circle",
@@ -1676,8 +1676,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "split",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": null,
       "ops": [
         "cutThruAll",
         "circle",
@@ -1691,8 +1691,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "split",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": null,
       "ops": [
         "cutThruAll",
         "circle",
@@ -1706,8 +1706,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSweep": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sweep",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "sweep",
         "circle",
@@ -2990,8 +2990,8 @@
     },
     "tests.test_free_functions:::test_sweep": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sweep",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": null,
       "ops": [
         "sweep"
       ],
@@ -3006,8 +3006,8 @@
     },
     "tests.test_free_functions:::test_sweep_aux": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sweep",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "sweep"
       ],
@@ -3109,8 +3109,8 @@
     },
     "tests.test_free_functions:::test_history_sweep": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sweep",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "sweep"
       ],
@@ -4706,6 +4706,35 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testEnclosure",
+      "ops": [
+        "extrude",
+        "rect",
+        "fillet",
+        "workplane",
+        "cut",
+        "circle",
+        "split",
+        "translate",
+        "cboreHole",
+        "cskHole",
+        "hole",
+        "union"
+      ],
+      "vars": [
+        "oshell",
+        "ishell",
+        "box",
+        "lid",
+        "bottom",
+        "lowerLid",
+        "cutlip",
+        "topOfLid",
+        "result"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testExplicitClean",
       "ops": [
         "clean",
@@ -4735,6 +4764,28 @@
         "wp_ref",
         "wp_ref_regular_cut",
         "wp"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
+      "ops": [
+        "box",
+        "center",
+        "move",
+        "workplane",
+        "extrude",
+        "rect",
+        "circle",
+        "workplaneFromTagged",
+        "tag",
+        "section"
+      ],
+      "vars": [
+        "wp_ref",
+        "wp_ref_extrude",
+        "part",
+        "part_section"
       ],
       "fellBack": false
     },
@@ -4950,12 +5001,59 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
+      "ops": [
+        "sweep",
+        "circle",
+        "workplane",
+        "rect",
+        "moveTo"
+      ],
+      "vars": [
+        "defaultSweep",
+        "recttocircleSweep",
+        "circletorectSweep",
+        "specialSweep",
+        "arcSweep",
+        "normalSweep"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testNestedCircle",
       "ops": [
         "extrude",
         "circle",
         "pushPoints",
         "box"
+      ],
+      "vars": [
+        "s"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testOccBottle",
+      "ops": [
+        "extrude",
+        "mirrorX",
+        "vLine",
+        "threePointArc",
+        "center"
+      ],
+      "vars": [
+        "p"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testOffset2D",
+      "ops": [
+        "extrude",
+        "offset2D",
+        "mirrorY",
+        "mirrorX",
+        "polyline"
       ],
       "vars": [
         "s"
@@ -4973,6 +5071,17 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testParametricSurface",
+      "ops": [
+        "split",
+        "box"
+      ],
+      "vars": [
+        "r2"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testPlanes",
       "ops": [
         "cskHole",
@@ -4982,6 +5091,19 @@
       ],
       "vars": [
         "result"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testPolarArray",
+      "ops": [
+        "polarArray",
+        "extrude",
+        "rect",
+        "center"
+      ],
+      "vars": [
+        "s"
       ],
       "fellBack": false
     },
@@ -5109,6 +5231,43 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testRotateAboutCenter",
+      "ops": [
+        "rotateAboutCenter",
+        "box"
+      ],
+      "vars": [
+        "r"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSection",
+      "ops": [
+        "box",
+        "section"
+      ],
+      "vars": [
+        "box",
+        "s1",
+        "s2"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSimpleMirror",
+      "ops": [
+        "extrude",
+        "mirrorX",
+        "threePointArc",
+        "lineTo"
+      ],
+      "vars": [
+        "s"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testSimpleShell",
       "ops": [
         "shell",
@@ -5134,6 +5293,22 @@
       ],
       "vars": [
         "r"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSlot2D",
+      "ops": [
+        "extrude",
+        "slot2D",
+        "cutThruAll",
+        "workplane",
+        "cutBlind",
+        "box"
+      ],
+      "vars": [
+        "result",
+        "box"
       ],
       "fellBack": false
     },
@@ -5205,6 +5380,23 @@
       ],
       "vars": [
         "r"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSweep",
+      "ops": [
+        "sweep",
+        "circle",
+        "rect",
+        "box",
+        "workplane"
+      ],
+      "vars": [
+        "result",
+        "box",
+        "cut",
+        "add"
       ],
       "fellBack": false
     },
@@ -6037,6 +6229,17 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_free_functions:::test_sweep_aux",
+      "ops": [
+        "sweep"
+      ],
+      "vars": [
+        "r1",
+        "r2"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_free_functions:::test_check",
       "ops": [
         "box"
@@ -6054,6 +6257,17 @@
       "vars": [
         "res",
         "sides"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_free_functions:::test_history_sweep",
+      "ops": [
+        "sweep"
+      ],
+      "vars": [
+        "res",
+        "side"
       ],
       "fellBack": false
     },
@@ -6743,6 +6957,72 @@
       "helperMissing": []
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth",
+      "ops": [
+        "cutThruAll",
+        "circle",
+        "workplane",
+        "split"
+      ],
+      "vars": [
+        "c",
+        "result"
+      ],
+      "helpers": [
+        "makeUnitCube",
+        "makeCube"
+      ],
+      "helperOps": [
+        "extrude",
+        "rect"
+      ],
+      "helperMissing": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom",
+      "ops": [
+        "cutThruAll",
+        "circle",
+        "workplane",
+        "split"
+      ],
+      "vars": [
+        "c",
+        "result"
+      ],
+      "helpers": [
+        "makeUnitCube",
+        "makeCube"
+      ],
+      "helperOps": [
+        "extrude",
+        "rect"
+      ],
+      "helperMissing": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf",
+      "ops": [
+        "cutThruAll",
+        "circle",
+        "workplane",
+        "split"
+      ],
+      "vars": [
+        "c",
+        "result"
+      ],
+      "helpers": [
+        "makeUnitCube",
+        "makeCube"
+      ],
+      "helperOps": [
+        "extrude",
+        "rect"
+      ],
+      "helperMissing": []
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testTranslateSolid",
       "ops": [
         "translate"
@@ -6827,6 +7107,25 @@
       ],
       "helpers": [
         "vector_equal"
+      ],
+      "helperOps": [],
+      "helperMissing": []
+    },
+    {
+      "case": "tests.test_free_functions:::test_sweep",
+      "ops": [
+        "sweep"
+      ],
+      "vars": [
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7",
+        "r8"
+      ],
+      "helpers": [
+        "assert_all_valid"
       ],
       "helperOps": [],
       "helperMissing": []
@@ -7384,52 +7683,10 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testEnclosure",
-      "blockedBy": "split",
-      "missing": [
-        "split"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-      "blockedBy": "section",
-      "missing": [
-        "section"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-      "blockedBy": "sweep",
-      "missing": [
-        "sweep"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testNoClean",
       "blockedBy": "interpPlate",
       "missing": [
         "interpPlate"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testOccBottle",
-      "blockedBy": "mirrorX",
-      "missing": [
-        "mirrorX"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testOffset2D",
-      "blockedBy": "offset2D",
-      "missing": [
-        "offset2D",
-        "mirrorY",
-        "mirrorX"
       ],
       "deps": []
     },
@@ -7442,59 +7699,10 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testParametricSurface",
-      "blockedBy": "split",
-      "missing": [
-        "split"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testPolarArray",
-      "blockedBy": "polarArray",
-      "missing": [
-        "polarArray"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testRotateAboutCenter",
-      "blockedBy": "rotateAboutCenter",
-      "missing": [
-        "rotateAboutCenter"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSection",
-      "blockedBy": "section",
-      "missing": [
-        "section"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSimpleMirror",
-      "blockedBy": "mirrorX",
-      "missing": [
-        "mirrorX"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testSketch",
       "blockedBy": "placeSketch",
       "missing": [
-        "placeSketch",
-        "sweep"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSlot2D",
-      "blockedBy": "slot2D",
-      "missing": [
-        "slot2D"
+        "placeSketch"
       ],
       "deps": []
     },
@@ -7502,38 +7710,6 @@
       "case": "tests.test_cadquery::TestCadQuery::testSphereCustom",
       "blockedBy": "narrow:sphere-angles",
       "missing": [],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth",
-      "blockedBy": "split",
-      "missing": [
-        "split"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom",
-      "blockedBy": "split",
-      "missing": [
-        "split"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf",
-      "blockedBy": "split",
-      "missing": [
-        "split"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSweep",
-      "blockedBy": "sweep",
-      "missing": [
-        "sweep"
-      ],
       "deps": []
     },
     {
@@ -7620,8 +7796,7 @@
       "case": "tests.test_free_functions:::test_solid",
       "blockedBy": "solid",
       "missing": [
-        "solid",
-        "shells"
+        "solid"
       ],
       "deps": []
     },
@@ -7690,22 +7865,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_free_functions:::test_sweep",
-      "blockedBy": "sweep",
-      "missing": [
-        "sweep"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_sweep_aux",
-      "blockedBy": "sweep",
-      "missing": [
-        "sweep"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_free_functions:::test_loft_vertex",
       "blockedBy": "plane",
       "missing": [
@@ -7734,14 +7893,6 @@
       "blockedBy": "imprint",
       "missing": [
         "imprint"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_history_sweep",
-      "blockedBy": "sweep",
-      "missing": [
-        "sweep"
       ],
       "deps": []
     },

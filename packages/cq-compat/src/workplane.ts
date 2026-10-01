@@ -129,7 +129,17 @@ export interface WirePlane {
  * move does not retro-actively relocate wires that are already queued.
  */
 export type PendingWire =
-  | { kind: 'rect'; w: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
+  | {
+      kind: 'rect'
+      w: number
+      d: number
+      cx: number
+      cy: number
+      construction: boolean
+      plane?: WirePlane
+      /** Local rotation of the rectangle about (cx, cy), degrees — set by polarArray(rotate=True). */
+      angle?: number
+    }
   | { kind: 'circle'; radius: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
   | {
       kind: 'ellipse'
@@ -186,6 +196,12 @@ export interface Workplane {
   vertexSel: string | null
   /** Accumulated pushPoints (2D offsets in workplane coords). */
   pts: [number, number][]
+  /**
+   * Local rotation (degrees) carried per pushPoint, parallel to `pts` — set
+   * only by `polarArray(rotate=True)` (upstream pushes a Location carrying the
+   * polar angle, so each profile is rotated about its own centre).
+   */
+  ptsAngle?: number[]
   /** Edge midpoints for construction rect (set by .edges()). */
   edgePts?: [number, number][]
   /** forConstruction flag — next rect/circle is construction geometry. */
@@ -1478,7 +1494,17 @@ export function rect(
     pendingRect: { w, d },
     pendingWires: [
       ...(wp.pendingWires ?? []),
-      ...at.map(([px, py]) => ({ kind: 'rect' as const, w, d, cx: px + ox, cy: py + oy, construction: false, plane: planeOf(wp) })),
+      ...at.map(([px, py], i) => ({
+        kind: 'rect' as const,
+        w,
+        d,
+        cx: px + ox,
+        cy: py + oy,
+        construction: false,
+        plane: planeOf(wp),
+        // polarArray(rotate=True) stores the point's polar angle parallel to pts
+        angle: wp.ptsAngle?.[i] ?? 0,
+      })),
     ],
   })
 }
@@ -2501,7 +2527,7 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
     if (edges.length === 0) throw new Error('[cq-compat] buildProfileWire: degenerate path wire')
     return kern().makeWire(edges as BrepHandle[])
   }
-  const ring: [number, number][] =
+  const baseRing: [number, number][] =
     w.kind === 'rect'
       ? [
           [w.cx - w.w / 2, w.cy - w.d / 2],
@@ -2516,6 +2542,24 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
             w.cy + Math.sin(a) * (w.d / 2),
           ] as [number, number]
         })
+  // Upstream `polarArray(..., rotate=True)` pushes each point as a Location
+  // carrying the polar angle, so a profile drawn on it is rotated about its own
+  // centre (cadquery 2.8.0: Location(Vector(x, y), Vector(0, 0, 1), phi_deg)).
+  // `angle` is therefore a LOCAL rotation of the wire, not of the workplane.
+  const wireAngleDeg = w.kind === 'rect' ? (w.angle ?? 0) : 0
+  const ring: [number, number][] =
+    wireAngleDeg === 0
+      ? baseRing
+      : (() => {
+          const ang = (wireAngleDeg * Math.PI) / 180
+          const cs = Math.cos(ang)
+          const sn = Math.sin(ang)
+          return baseRing.map(([x, y]) => {
+            const dx = x - w.cx
+            const dy = y - w.cy
+            return [w.cx + dx * cs - dy * sn, w.cy + dx * sn + dy * cs] as [number, number]
+          })
+        })()
   const edges: unknown[] = []
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i]
@@ -3915,7 +3959,11 @@ export function center(wp: Workplane, x: number, y: number): Workplane {
  */
 export function pushPoints(wp: Workplane, pts: [number, number][]): Workplane {
   const existing = Array.isArray(wp.pts) ? wp.pts : []
-  return clone(wp, { pts: [...existing, ...pts] })
+  // Plain pushPoints carries no rotation: drop any ptsAngle left by a previous
+  // polarArray so the parallel array stays index-aligned with pts.
+  const existingAngles = wp.ptsAngle?.length === existing.length ? wp.ptsAngle : undefined
+  const angles = existingAngles ? [...existingAngles, ...pts.map(() => 0)] : undefined
+  return clone(wp, { pts: [...existing, ...pts], ptsAngle: angles })
 }
 
 /**
@@ -5716,43 +5764,213 @@ export function shells(wp: Workplane): Workplane {
 }
 
 /**
- * mirrorX — CadQuery `Workplane.mirrorX(union)` parity: mirror about the
- * workplane Y axis (local X → −X, i.e. the YZ plane through the origin).
- * @param wp - Workplane
- * @param union - fuse the mirrored copy into the current shape
- * @returns Promise<Workplane>
+ * Mirror every pending wire (and any drafted free edges) about one local axis
+ * of the workplane plane, appending the mirrored copies to the pending list —
+ * the cadquery 2.8.0 `Workplane.mirrorX/mirrorY` recipe:
+ * `wire(forConstruction=False)` → `consolidateWires()` →
+ * `plane.mirrorInPlane(wires, axis)` → append + `consolidateWires()`.
+ *
+ * GOTCHA (verified against cadquery 2.8.0 + the ref STEP bboxes):
+ * `mirrorX` mirrors about the workplane's **X axis**, i.e. local y → −y — NOT
+ * about the YZ plane (x → −x). `testSimpleMirror` (lineTo(2,2) → arc → (2,0))
+ * produces ref bbox x[0,3] y[−2,2], which only holds for y-negation.
+ * @param wp - Workplane holding drafted edges / pending wires
+ * @param axis - 'X' (y → −y) or 'Y' (x → −x), a workplane-LOCAL axis
+ * @returns Workplane with the mirrored wires appended (or the mirrored solid
+ *          when there is no drafting in progress)
  */
-export async function mirrorX(wp: Workplane, union = false): Promise<Workplane> {
-  return mirror(wp, 'YZ', [0, 0, 0], union)
+/** Signed area of a→b→c ≈ 0 ⇒ the three points are collinear (mm², local 2D). */
+function collinear(a: [number, number], b: [number, number], c: [number, number]): boolean {
+  return Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) < 1e-9
+}
+
+async function mirrorSketchAxis(wp: Workplane, axis: 'X' | 'Y'): Promise<Workplane> {
+  // Free edges → one pending wire (upstream `self.wire(forConstruction=False)`).
+  const withWire = (wp.pendingEdges ?? []).length > 0 ? wire(wp, false) : wp
+  const wires = withWire.pendingWires ?? []
+  if (wires.length === 0) {
+    // Nothing drafted: upstream would mirror the carried objects instead.
+    // 'X' axis ⇒ mirror about the plane spanned by the local X axis and the
+    // plane normal (the XZ plane, y → −y); 'Y' ⇒ the YZ plane (x → −x).
+    return mirror(withWire, axis === 'X' ? 'XZ' : 'YZ', withWire.origin)
+  }
+  const flip = (p: [number, number]): [number, number] =>
+    axis === 'X' ? [p[0], -p[1]] : [-p[0], p[1]]
+  const flipEdge = (e: PendingEdge): PendingEdge => {
+    switch (e.kind) {
+      case 'line':
+        return { kind: 'line', from: flip(e.from), to: flip(e.to) }
+      case 'arc3':
+        return { kind: 'arc3', from: flip(e.from), mid: flip(e.mid), to: flip(e.to) }
+      case 'tangentArc':
+        return { kind: 'tangentArc', from: flip(e.from), tgt: [e.tgt[0], -e.tgt[1]], to: flip(e.to) }
+      case 'spline':
+        return { ...e, from: flip(e.from), to: flip(e.to), pts: e.pts.map(flip), endTgt: e.endTgt ? [e.endTgt[0], -e.endTgt[1]] : undefined, builtEdge: undefined }
+      case 'bezier':
+        return { ...e, from: flip(e.from), to: flip(e.to), pts: e.pts.map(flip), endTgt: e.endTgt ? [e.endTgt[0], -e.endTgt[1]] : undefined, builtEdge: undefined }
+    }
+  }
+  // The mirrored half is TRAVERSED BACKWARDS (C'→B'→A'), so every flipped edge
+  // must also swap its endpoints — reversing only the array order leaves the
+  // arrows pointing the wrong way and the seam test then sees three
+  // coincident/degenerate points.
+  const reverseEdge = (e: PendingEdge): PendingEdge => {
+    switch (e.kind) {
+      case 'line':
+        return { kind: 'line', from: e.to, to: e.from }
+      case 'arc3':
+        return { kind: 'arc3', from: e.to, mid: e.mid, to: e.from }
+      case 'tangentArc':
+        return { kind: 'tangentArc', from: e.to, tgt: [-e.tgt[0], -e.tgt[1]], to: e.from }
+      case 'spline':
+        return { ...e, from: e.to, to: e.from, pts: [...e.pts].reverse(), endTgt: undefined, builtEdge: undefined }
+      case 'bezier':
+        return { ...e, from: e.to, to: e.from, pts: [...e.pts].reverse(), endTgt: undefined, builtEdge: undefined }
+    }
+  }
+  // Upper `consolidateWires()` joins the original and the mirrored wire into
+  // ONE ring (they share the on-axis endpoints), so the following extrude sees
+  // a closed profile. Appending the twin as a separate wire instead leaves two
+  // OPEN wires, and an open wire extrudes to an empty shape.
+  const out: PendingWire[] = []
+  for (const w of wires) {
+    if (w.kind !== 'path') {
+      // Analytic profiles (rect/circle/polygon/ellipse) have no vertex ring to
+      // splice: mirror their placement and keep them as separate profiles.
+      out.push(w, { ...w, cy: -w.cy })
+      continue
+    }
+    const mPts = w.pts.map(flip).reverse()
+    const mEdges = w.edges?.map(flipEdge).reverse().map(reverseEdge)
+    const twin: PendingWire = { ...w, pts: mPts, edges: mEdges, builtWire: undefined }
+    // The halves can only be spliced when they share an on-axis endpoint (the
+    // original END == the twin's START). Otherwise consolidateWires leaves two
+    // separate wires — exactly what upstream does.
+    const end = w.pts[w.pts.length - 1]
+    const joint = mPts[0]
+    const startPt = w.pts[0]
+    const tailPt = mPts[mPts.length - 1]
+    // Splice only when BOTH ends sit on the mirror axis — i.e. the original and
+    // its twin meet at both ends and the joined ring CLOSES. A single shared
+    // end only produces an open V (testOffset2D: upstream ends up with 4
+    // independent wires → 4 solids, ref s4; splicing them made `extrude` fail
+    // with "makeFace: TopoDS::Wire").
+    const shares =
+      !!end &&
+      !!joint &&
+      !!startPt &&
+      !!tailPt &&
+      Math.hypot(end[0] - joint[0], end[1] - joint[1]) < 1e-9 &&
+      Math.hypot(startPt[0] - tailPt[0], startPt[1] - tailPt[1]) < 1e-9
+    if (!shares) {
+      out.push(w, twin)
+      continue
+    }
+    let pts: [number, number][]
+    let edges: PendingEdge[] | undefined
+    const src = w.edges ?? []
+    if (src.length > 0 && mEdges && mEdges.length > 0) {
+      const lastE = src[src.length - 1]!
+      const firstM = mEdges[0]!
+      // Seam on the axis: when both halves arrive/depart along COLLINEAR
+      // straight edges the joint is a spurious vertex — keeping it splits one
+      // planar side face into two (testOccBottle: ref f6/e12/v8 vs an
+      // un-spliced f8/e18/v12). Splice the two lines into one.
+      if (
+        lastE.kind === 'line' &&
+        firstM.kind === 'line' &&
+        collinear(lastE.from, lastE.to, firstM.to)
+      ) {
+        pts = [...w.pts.slice(0, -1), ...mPts.slice(1)]
+        edges = [
+          ...src.slice(0, -1),
+          { kind: 'line', from: lastE.from, to: firstM.to },
+          ...mEdges.slice(1),
+        ]
+      } else {
+        pts = [...w.pts, ...mPts.slice(1)]
+        edges = [...src, ...mEdges]
+      }
+    } else {
+      pts = [...w.pts, ...mPts.slice(1)]
+      edges = w.edges ? [...src, ...(mEdges ?? [])] : undefined
+    }
+    // A ring whose ends coincide closes itself: drop the duplicated vertex, and
+    // merge the two straight edges meeting there if they are collinear (the
+    // second seam — without this the closure keeps a vertex on the axis too).
+    if (pts.length > 1 && edges && edges.length > 1) {
+      const a = pts[0]!
+      const b = pts[pts.length - 1]!
+      if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9) {
+        pts.pop()
+        const lastE = edges[edges.length - 1]!
+        const firstE = edges[0]!
+        if (
+          lastE.kind === 'line' &&
+          firstE.kind === 'line' &&
+          collinear(lastE.from, firstE.from, firstE.to)
+        ) {
+          pts.shift()
+          edges = [{ kind: 'line', from: lastE.from, to: firstE.to }, ...edges.slice(1, -1)]
+        }
+      }
+    }
+    out.push({ ...w, pts, edges, builtWire: undefined })
+  }
+  return clone(withWire, { pendingWires: out, pendingEdges: [] })
 }
 
 /**
- * mirrorY — CadQuery `Workplane.mirrorY(union)` parity: mirror about the
- * workplane X axis (local Y → −Y, i.e. the XZ plane through the origin).
+ * mirrorX — CadQuery `Workplane.mirrorX()` parity: mirror the drafted profile
+ * about the workplane's X axis (local y → −y) and append it to the pending
+ * wires, so a following `extrude` closes the two halves into one solid.
  * @param wp - Workplane
- * @param union - fuse the mirrored copy into the current shape
  * @returns Promise<Workplane>
  */
-export async function mirrorY(wp: Workplane, union = false): Promise<Workplane> {
-  return mirror(wp, 'XZ', [0, 0, 0], union)
+export async function mirrorX(wp: Workplane): Promise<Workplane> {
+  return mirrorSketchAxis(wp, 'X')
+}
+
+/**
+ * mirrorY — CadQuery `Workplane.mirrorY()` parity: mirror the drafted profile
+ * about the workplane's Y axis (local x → −x) and append it to the pending
+ * wires.
+ * @param wp - Workplane
+ * @returns Promise<Workplane>
+ */
+export async function mirrorY(wp: Workplane): Promise<Workplane> {
+  return mirrorSketchAxis(wp, 'Y')
 }
 
 /**
  * polarArray — CadQuery `Workplane.polarArray(radius, startAngle, angle,
  * count, fill, rotate)` parity: push `count` points on a circle of `radius`
- * in workplane-local coordinates. `fill=true` distributes over the FULL
- * circle (angle ignored); `rotate=true` stores per-point heading in pts —
- * pending points only carry positions, rotation is applied by the consuming
- * op (parity for geometry-consuming mirrors: upstream rotates each placed
- * object; rect/circle are rotation-invariant so pts-only is sufficient for
- * the mirrored test surface).
+ * in workplane-local coordinates, each optionally carrying the polar angle as
+ * its local rotation.
+ *
+ * GOTCHA (verified against cadquery 2.8.0 `Workplane.polarArray`): `fill=True`
+ * does NOT mean "spread over 360°". Upstream only REINTERPRETS `angle`:
+ *   - `abs(math.remainder(angle, 360)) < TOL` → `angle` becomes the STEP
+ *     (`angle / count`), so a full-circle call of 360 places points every
+ *     `360/count` degrees;
+ *   - otherwise → `angle` is the TOTAL sweep, inclusive of both ends, so the
+ *     step is `angle / (count - 1)`.
+ * A previous cq-compat version hard-coded `360 / count` whenever `fill` was
+ * true, which mis-placed every non-360 sweep (e.g. `polarArray(2, 10, 50, 3)`
+ * landed at 10/130/250° upstream but 10/130/250° here vs upstream 10/35/60°).
+ *
+ * GOTCHA (rotate): upstream pushes `Location(Vector(x, y), Vector(0, 0, 1),
+ * phi_deg)` when `rotate=True`, i.e. the profile drawn on each point is rotated
+ * about its own centre by the polar angle — NOT just translated. The angles are
+ * carried parallel to `pts` in `ptsAngle`; `rect()` is the consumer that
+ * applies them today.
  * @param wp - Workplane
  * @param radius - circle radius (mm)
  * @param startAngle - first point angle (degrees, from local +X)
- * @param angle - total sweep (degrees); ignored when fill
+ * @param angle - total sweep (degrees); reinterpreted per `fill` (see GOTCHA)
  * @param count - point count
- * @param fill - distribute evenly over the full circle
- * @param rotate - unused here (positions only; see JSDoc)
+ * @param fill - interpret `angle` as the total sweep (default true)
+ * @param rotate - carry the polar angle as each point's local rotation
  * @returns Workplane with pushed points
  */
 export function polarArray(
@@ -5764,23 +5982,28 @@ export function polarArray(
   fill = true,
   rotate = true,
 ): Workplane {
-  void rotate
-  if (count < 1) throw new Error('[cq-compat] polarArray: count must be >= 1')
-  const pts: [number, number][] = []
+  // Upstream raises ValueError for count < 1 (not a silent empty array).
+  if (count < 1) throw new Error('[cq-compat] polarArray: at least 1 element required')
+  // IEEE remainder (Python math.remainder), result in [-180, 180].
+  const ieeeRemainder = (x: number, y: number): number => x - y * Math.round(x / y)
+  let stepDeg = angle
   if (fill) {
-    const step = 360 / count
-    for (let i = 0; i < count; i++) {
-      const a = ((startAngle + i * step) * Math.PI) / 180
-      pts.push([radius * Math.cos(a), radius * Math.sin(a)])
-    }
-  } else {
-    const step = count > 1 ? angle / (count - 1) : 0
-    for (let i = 0; i < count; i++) {
-      const a = ((startAngle + i * step) * Math.PI) / 180
-      pts.push([radius * Math.cos(a), radius * Math.sin(a)])
-    }
+    stepDeg =
+      Math.abs(ieeeRemainder(angle, 360)) < 1e-9
+        ? angle / count
+        : count > 1
+          ? angle / (count - 1)
+          : startAngle
   }
-  return clone(wp, { pts })
+  const pts: [number, number][] = []
+  const ptsAngle: number[] = []
+  for (let i = 0; i < count; i++) {
+    const phiDeg = startAngle + stepDeg * i
+    const a = (phiDeg * Math.PI) / 180
+    pts.push([radius * Math.cos(a), radius * Math.sin(a)])
+    ptsAngle.push(rotate ? phiDeg : 0)
+  }
+  return clone(wp, { pts, ptsAngle })
 }
 
 /**

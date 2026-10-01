@@ -1,8 +1,8 @@
 # cq-compat CadQuery 2.8.0 parity 进度与待办（2026-09-30）
 
-日期：2026-09-30
+日期：2026-09-30（续作至 2026-10-01）
 状态：**实施中**
-基线 HEAD：`a43f7626`
+基线 HEAD：`a43f7626`（§8 起基线为 `215a2bef`）
 范围：`packages/cq-compat`（parity 镜像、manifest、coverage 分析器）
 上游基准：CadQuery **2.8.0**（`tests/baseline.json`）
 配套计划：`docs/plans/2026-09-28-cq-compat-remaining-cadquery-support-plan.md`（本文只记录其上的执行进度与剩余待办）
@@ -42,8 +42,8 @@
 
 | 维度 | 口径 | 数值 |
 |------|------|------|
-| manifest | 导出变量级（每个 `test_x__r1` 变体） | **697** = 414 ported + 236 blocked + 47 skipped（2026-09-30 第三轮：Assembly 52 镜像落地 +51；第二轮 363/287/47；首轮 357/293/47） |
-| coverage | 上游测试函数级（`test_free_functions.py` 等） | **305** = 185 PORTABLE + 37 PORTABLE-WITH-STUB + 83 BLOCKED |
+| manifest | 导出变量级（每个 `test_x__r1` 变体） | **697** = 423 ported + 227 blocked + 47 skipped（2026-10-01 第四轮：导出 14 个已实现未暴露的 API，解锁 26 条，落地 9 条镜像 +9；第三轮 414/236/47；第二轮 363/287/47；首轮 357/293/47） |
+| coverage | 上游测试函数级（`test_free_functions.py` 等） | **305** = 200 PORTABLE + 41 PORTABLE-WITH-STUB + 64 BLOCKED（2026-10-01 重算，因 op universe 纳入新导出） |
 
 > 两个计数粒度不同、互补：manifest 细到变量变体（697），coverage 粗到上游测试函数（305）。例如 `test_text` 一个函数展开成 `r1..r9/c/__f2` 等多个 manifest 条目。
 
@@ -113,7 +113,7 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 | `tsc --noEmit`（root） | 0 errors |
 | `eslint`（core + cq-compat 改动文件） | 0 error |
 | `check-ghost-deps` | clean |
-| `cq-compat` vitest | **265 passed / 26 files** |
+| `cq-compat` vitest | **265 passed / 26 files**（2026-09-30 第三轮）→ **272 passed / 26 files**（2026-10-01 第四轮，含新增 mirrorX/mirrorY/polarArray 单测 7 条） |
 | 新增单测 | font-family-index 7/7、ensure-font 6/6、node-font-provider 7/7、text 13/13 |
 
 ---
@@ -191,11 +191,13 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 
 ## 5. 建议的下一步序列
 
-1. **吃免费增量**：批量补 `pending:mirror`（50）+ Assembly 镜像（52）→ 预计 ported 357 → ~459。
-2. **小粒度能力缺口**：`split`/`section`/`eachpoint`/`placeSketch`/`mirrorX`/`copyWorkplane`（单测友好、影响面小）。
-3. **中粒度能力缺口**：`prism`/`imprint`/`plane`/`project`/`solid`/`offset`（需新几何原语）。
-4. **内核缺口**排期到 occt-wasm 迭代；`hollow` 精度问题单独立项。
-5. **测试基础设施**：`getfixturevalue`/`parametrize` harness 增强，解锁 ~19 条。
+1. ~~吃免费增量：`pending:mirror` + Assembly 镜像~~（**已完成**：§7.5 +51，§8.1/8.3 +9）
+2. **再扫一遍"已实现未导出"**（§8.1 的方法）：`analyze-coverage.py` 的 op universe 只认 `src/index.ts` 的导出面，`src/workplane.ts` 里任何没被导出的函数都会被当成"未实现"。这轮一次导出就解锁 26 条 —— **每次补镜像前先跑一次导出面 vs 实现面的差集检查**（`node -e` 比对 `workplane.ts` 的 `export function` 与 `index.ts` 的导出列表）。
+3. **小粒度能力缺口**：`eachpoint`（4）/ `placeSketch`（6）/ `copyWorkplane`（1）/ `filter`（3）/ `traverse`（2）/ `cutEach`（3）（单测友好、影响面小）。
+4. **中粒度能力缺口**：`prism`（13）/ `imprint`（12）/ `solid`（12）/ `interpPlate`（5）/ `plane`（5）/ `op:shape.offset`（4）（需新几何原语）。
+5. **本轮新识别的具体缺口**（§8.4）：`op:offset2D-open-wire`（开放线 offset 封端，1 条，改动小、建议先吃）、`op:parametricSurface`、`op:sweep-hole-section`（带孔截面）、`op:split-all`（+ 索引选择器 `faces(">X[1]")`）。
+6. **内核缺口**排期到 occt-wasm 迭代；`hollow` 精度问题单独立项。
+7. **测试基础设施**：`getfixturevalue`（11）/ `parametrize`（3）/ `__dir__`（2）harness 增强，解锁 ~19 条。
 
 ---
 
@@ -221,6 +223,81 @@ node_modules/vitest/vitest.mjs run   # 在 packages/cq-compat 下
 ```
 
 ---
+
+## 8. 续作记录（2026-10-01 第四轮 — 导出未暴露 API + 修真实语义 bug）
+
+> 本轮从 §3.1「镜像补全」的 `pending:mirror` 残量切入，发现**最大的免费增量不是写镜像，而是把已实现却没导出 API 暴露出来**；并在写镜像过程中测出两个真实 parity bug。
+
+### 8.1 14 个 API 已实现但从未导出（根因：index.ts 手抄清单漂移）
+
+`coverage.json` 的 op universe 由 `analyze-coverage.py` 从 `src/index.ts` 的**实际导出**推导（`CQ_COMPAT_PACKAGES`）。而下列函数在 `src/workplane.ts` 里早已实现并有单测覆盖，却不在 `index.ts` 的导出列表中 ⇒ 分析器把它们当作"未实现"，连带把 26 条本可镜像的用例判为 blocked：
+
+```
+split  section  sweep  offset2D  mirrorX  mirrorY  polarArray
+polarLine  polarLineTo  rotateAboutCenter  slot2D  wires  compounds  shells
+```
+
+（`asBrepShape` / `resolveFaceSelector` 是给 `cq-compat-assembly` 用的内部件，不在此列。）
+
+导出后重跑 `analyze-coverage.py` ⇒ `185/37/83` → **`200/41/64`**；`gen-manifest` ⇒ `pending:mirror` 40 → **66**（+26）。这是本轮性价比最高的一步：**零新代码，只补导出面**。
+
+### 8.2 实测出的两个真实 parity bug（都不是"缺能力"，是"语义错"）
+
+**① `mirrorX` / `mirrorY` 轴向反了**
+
+用 `probe-ref.ts` 读 ref STEP 的 bbox 定为证：`testSimpleMirror` 的轮廓全部画在 y ≥ 0（`(0,0)→(2,2)→弧→(2,0)`），而 ref bbox 是 `x[0,3] y[-2,2]` ⇒ 镜像必须是 **y → −y**（关于 workplane 局部 X 轴）。cq-compat 原实现是 `mirror(wp,'YZ')` = x → −x，**方向反了**。上游语义（`cadquery 2.8.0`）：
+
+- `mirrorX()` 无 `union` 参数，只处理**草图**（`wire()` → `consolidateWires()` → `plane.mirrorInPlane(wires,'X')` → 追加 → 再 `consolidateWires()`）；
+- `'X'` 轴 ⇒ y 取反；`'Y'` ⇒ x 取反。
+
+重写为 `mirrorSketchAxis(wp, axis)`：有 pending 草图则镜像草图（含 `reverseEdge` 反转端点、`shares` 双端共轴判定、拼接缝/闭合缝的共线顶点合并），无草图才回落到镜像 shape。
+
+**② `polarArray` 的 `fill` 分支与上游相反**
+
+上游（`Workplane.polarArray`，实测源码）：
+
+```python
+if fill:
+    if abs(math.remainder(angle, 360)) < TOL: angle = angle / count
+    else:                                     angle = angle / (count - 1)
+# fill=False ⇒ angle 保持原值（docstring: "angle is the angle BETWEEN elements"）
+```
+
+`fill=True` **不是**"铺满 360°"，只是重新解释 `angle`；cq-compat 原实现硬编码 `360 / count`。实测反推也印证：`testPolarArray` 的 ref 顶点 `(3.0335, -1.7099)` 只有按 `polarArray(2,10,50,3)` → 步长 25° → 10°/35°/60° 才对得上。另外 `rotate=True` 时上游 push 的是带极角的 `Location`，轮廓要**绕自身中心旋转**——cq-compat 只 push 了位置。已修：新增 `Workplane.ptsAngle`（与 `pts` 平行）+ `PendingWire` rect 的 `angle` 字段，`rect()` 消费。
+
+### 8.3 本轮新增镜像与 parity 结果
+
+| case | 状态 | vol Δ% | bbox Δ | 拓扑 |
+|------|------|--------|--------|------|
+| `testSection__box` | **PASS** | 0 | 0 | f6/e12/v8 一致 |
+| `testSection__s1` | PASS-NT | 0 | 0 | ref f1/e4/v4 vs cand f0/e4/v8（上游截面成 face，cand 是 wire compound） |
+| `testSection__s2` | PASS-NT | 0 | 0 | 同上 |
+| `testSlot2D__box` | **PASS** | 0 | 0 | 一致 |
+| `testSlot2D__result` | **PASS** | 0 | 0 | 一致 |
+| `testRotateAboutCenter__r` | **PASS** | 0 | 0 | 一致 |
+| `testPolarArray__s` | **PASS** | 0 | 0 | f18/e36/v24 一致 |
+| `testSimpleMirror__s` | **PASS** | 0 | 0 | f6/e12/v8 一致 |
+| `testOccBottle__p` | **PASS** | 7e-12 | 3e-14 | f6/e12/v8 一致 |
+
+7 条逐位一致，2 条数值逐位、仅截面形态不同（face vs wire）。
+
+### 8.4 试过但确认写不出来的（已写入 `mark-blocked.ts`，不再是 `pending:mirror`）
+
+| blockedBy | 条数 | 实测证据 |
+|-----------|------|----------|
+| `op:split-all` | 9（`testEnclosure`） | 需要 `split(keepTop=,keepBottom=)` + `.all()` 索引两个半体；cq-compat `split()` 只给一个 compound，无子形状索引 |
+| `op:extrude-until-face` | 4（`testExtrudeUntilFace`） | 需 `extrude("next"/"last")` + 索引选择器 `faces(">X[1]")`。**另注**：ref 与源码直读不符（`wp_ref` 实测 s3 / vol 2125 / bbox x[-5,32.5]，而两个 10³ box 应为 s2 / 2000 / x[-5,25]），即使补上 op 也需重新推导 |
+| `op:offset2D-open-wire` | 1（`testOffset2D__s`） | 上游 OCC offset 会把开放线封端（最终 4 solids，ref s4 / vol 1.15123653709 / bbox ±9.1）；cq-compat `offsetWire2D` 返回开放线，随后 `extrude` 抛 `makeFace: TopoDS::Wire` |
+| `op:parametricSurface` | 1（`testParametricSurface__r2`） | `r2 = box(1,1,3).split(r1)`，`r1` 来自未实现的 `parametricSurface` |
+| `op:sweep-hole-section` | 1（`test_history_sweep__res`） | 截面是带孔面（`plane(1,1) - face(circle(0.1))`），cq-compat 无公开的"带孔面"构造 |
+| `op:history-subshape` | 1（`test_history_sweep__side`） | History 子形状反查，同 §7.2 |
+
+⇒ §7.2 的判断再次成立：**`pending:mirror` 里混有大量分析器 false-positive**。本轮 26 条解锁中只有 9 条真的可写。
+
+### 8.5 新增工具
+
+- `tests/probe-ref.ts` — 用 `compareStepFiles(ref, ref)` 读出 ref STEP 的精确 vol/CoM/bbox/拓扑。写镜像前先 probe，避免"照源码猜数值"。支持 `--substr`。
+- `tests/compare.ts --only <substr>` — 只比对匹配的 ref，不必每加几个镜像就重跑全量 700 条（parity 分母仍是全量，读逐条状态而非 parity 行）。
 
 ## 7. 续作记录（2026-09-30 第二轮 — 镜像补全）
 
@@ -279,6 +356,7 @@ node_modules/vitest/vitest.mjs run   # 在 packages/cq-compat 下
 |------|------|
 | 总体 | PASS=318 / PASS-NT=11 / FAIL=10 / ERROR=0 / BLOCKED=311 / **parity=50.62%**（较 42.92% +7.7pt） |
 | Assembly 新 51 镜像 | **PASS=50 / FAIL=1**（`test_infinite_face_constraint_Plane__assy`） |
+| （2026-10-01 第四轮复跑） | PASS=325 / PASS-NT=13 / FAIL=10 / ERROR=0 / BLOCKED=302 / **parity=52.00%**（本轮 9 条新镜像贡献 +7 PASS +2 PASS-NT，+1.38pt） |
 
 - **唯一 FAIL 诊断**：`test_infinite_face_constraint_Plane__assy` 的 ref 是两个**重合**于原点的 r=1 球体（上游 `constrain` 使其平面重合后 solve），cand 几何逐位一致——vol 8.378=8.378、CoM (0,0,0)=(0,0,0)、bbox 一致、拓扑一致；FAIL 仅因 OCCT `cut()` 对重合实体退化（`aMinusB` = 全体积而非 0），属 comparator 伪失败，**非镜像或能力缺陷**。镜像忠实，保留为 ported 并标注此限制。
 - `test_meta_step_export__cube_2` 初版误把 `loc=Location(10,10,10)` 烘进镜像（ref 在每个 part 的局部坐标系导出，故在原点）；已去掉 `translate`，复跑转 PASS。

@@ -14,7 +14,12 @@
  * Cases present in ref but with no candidate STEP count as BLOCKED (they are
  * listed from ref/manifest.json so the parity denominator stays honest).
  *
- * Usage: npx tsx packages/cq-compat/tests/compare.ts
+ * Usage: npx tsx packages/cq-compat/tests/compare.ts [--only <substring>]
+ *
+ * `--only` filters the ref STEP files by name so a freshly written mirror can
+ * be graded without re-running the whole ~700-case suite. It does NOT change
+ * the reported parity denominator (still every ref case), so the per-run
+ * counters stay honest — read the per-case statuses, not the parity line.
  */
 
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
@@ -59,9 +64,11 @@ function mainRefCases(): Map<string, string> {
 }
 
 async function main() {
-  const refFiles = existsSync(REF)
-    ? readdirSync(REF).filter((f) => f.endsWith('.step'))
-    : []
+  const onlyIdx = process.argv.indexOf('--only')
+  const only = onlyIdx >= 0 ? (process.argv[onlyIdx + 1] ?? '') : ''
+  const refFiles = (existsSync(REF) ? readdirSync(REF).filter((f) => f.endsWith('.step')) : []).filter(
+    (f) => !only || f.toLowerCase().includes(only.toLowerCase()),
+  )
   const candFiles = existsSync(CAND)
     ? readdirSync(CAND).filter((f) => f.endsWith('.step'))
     : []

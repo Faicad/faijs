@@ -202,6 +202,53 @@ const BY_KEY: Record<string, string> = {
   // asserted; the vertex contributes to the ref compound but its solved
   // position cannot be pinned without the solver).
   'tests.test_assembly:::test_PointInPlane_3_parts__box_and_vertex': 'op:assembly-solve',
+  // ---------------------------------------------------------------------------
+  // Exported-API batch (2026-10-01) — split/section/sweep/offset2D/mirrorX/
+  // mirrorY/polarArray/rotateAboutCenter/slot2D/… were already implemented in
+  // src/workplane.ts but missing from src/index.ts, so the coverage analyzer
+  // counted them as missing. Exporting them flipped 26 cases to
+  // pending:mirror; 10 were mirrored and pass (testSection box/s1/s2,
+  // testSlot2D box/result, testRotateAboutCenter r, testPolarArray s,
+  // testSimpleMirror s, testOccBottle p). These are the ones that turned out to
+  // be genuine gaps behind the analyzer's false "portable" verdict.
+  // ---------------------------------------------------------------------------
+  // offset2D of an OPEN wire must close it (upstream OCC MakeOffset caps the
+  // ends), then extrude sees 4 closed wires → 4 solids (ref s4, vol
+  // 1.15123653709, bbox ±9.1). cq-compat's offsetWire2D returns an open wire,
+  // so the following extrude dies with "makeFace: TopoDS::Wire".
+  'tests.test_cadquery::TestCadQuery::testOffset2D__s': 'op:offset2D-open-wire',
+  // testEnclosure needs `split(keepTop=, keepBottom=)` plus `.all()` to index
+  // the two halves as separate objects (lid / bottom); cq-compat's split()
+  // returns a single compound of both halves and has no `all()`/sub-shape
+  // indexing, so lid/bottom/lowerLid/cutlip/topOfLid cannot be separated.
+  'tests.test_cadquery::TestCadQuery::testEnclosure__oshell': 'op:split-all',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__ishell': 'op:split-all',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__box': 'op:split-all',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__lid': 'op:split-all',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__bottom': 'op:split-all',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__lowerLid': 'op:split-all',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__cutlip': 'op:split-all',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__topOfLid': 'op:split-all',
+  'tests.test_cadquery::TestCadQuery::testEnclosure__result': 'op:split-all',
+  // extrude("next"/"last") — untilNextFace/untilLastFace — plus the indexed
+  // face selector `faces(">X[1]")`. Neither exists. NOTE: the ref geometry also
+  // disagrees with a straight reading of the source (wp_ref measures s3 /
+  // vol 2125 / bbox x[-5, 32.5] where two 10³ boxes would be s2 / 2000 /
+  // x[-5, 25]), so even once the ops land the mirror needs re-deriving.
+  'tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref': 'op:extrude-until-face',
+  'tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref_extrude': 'op:extrude-until-face',
+  'tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part': 'op:extrude-until-face',
+  'tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part_section': 'op:extrude-until-face',
+  // r2 = Workplane().box(1,1,3).split(r1) where r1 is a parametricSurface —
+  // `parametricSurface` is not implemented, so nothing to split with.
+  'tests.test_cadquery::TestCadQuery::testParametricSurface__r2': 'op:parametricSurface',
+  // sweep([f1, f2], p) over sections that are faces with an inner hole
+  // (`plane(1,1) - face(circle(0.1))`): cq-compat has no public way to build a
+  // face-with-holes section, so the multi-section swept tube cannot be profiled.
+  'tests.test_free_functions:::test_history_sweep__res': 'op:sweep-hole-section',
+  // `side` is a History sub-shape lookup (op.generated(f1.outerWire().edges())),
+  // not pure geometry — same class as test_history_extrude__sides (§7.2).
+  'tests.test_free_functions:::test_history_sweep__side': 'op:history-subshape',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<

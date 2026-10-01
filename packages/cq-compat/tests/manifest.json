@@ -426,47 +426,56 @@
   "tests.test_cadquery::TestCadQuery::testEnclosure__oshell": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "split"
+    "blockedBy": "op:split-all",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__ishell": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "split"
+    "blockedBy": "op:split-all",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__box": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "split"
+    "blockedBy": "op:split-all",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__lid": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "split"
+    "blockedBy": "op:split-all",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__bottom": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "split"
+    "blockedBy": "op:split-all",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__lowerLid": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "split"
+    "blockedBy": "op:split-all",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__cutlip": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "split"
+    "blockedBy": "op:split-all",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__topOfLid": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "split"
+    "blockedBy": "op:split-all",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__result": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
-    "blockedBy": "split"
+    "blockedBy": "op:split-all",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testExplicitClean__s": {
     "status": "ported",
@@ -511,22 +520,26 @@
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "section"
+    "blockedBy": "op:extrude-until-face",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref_extrude": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "section"
+    "blockedBy": "op:extrude-until-face",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "section"
+    "blockedBy": "op:extrude-until-face",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part_section": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "section"
+    "blockedBy": "op:extrude-until-face",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testFaceIntersectedByLine__shape": {
     "status": "ported",
@@ -854,9 +867,9 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testOccBottle__p": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testOccBottle",
-    "blockedBy": "mirrorX"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testOffset2D__w4": {
     "status": "skipped",
@@ -867,7 +880,8 @@
   "tests.test_cadquery::TestCadQuery::testOffset2D__s": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testOffset2D",
-    "blockedBy": "offset2D"
+    "blockedBy": "op:offset2D-open-wire",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testOpenCornerShell__s": {
     "status": "ported",
@@ -887,7 +901,8 @@
   "tests.test_cadquery::TestCadQuery::testParametricSurface__r2": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testParametricSurface",
-    "blockedBy": "split"
+    "blockedBy": "op:parametricSurface",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testPlanes__s": {
     "status": "skipped",
@@ -923,9 +938,9 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testPolarArray__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testPolarArray",
-    "blockedBy": "polarArray"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testPolarLines__s": {
     "status": "skipped",
@@ -1019,29 +1034,29 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testRotateAboutCenter__r": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testRotateAboutCenter",
-    "blockedBy": "rotateAboutCenter"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSection__box": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSection",
-    "blockedBy": "section"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSection__s1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSection",
-    "blockedBy": "section"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSection__s2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSection",
-    "blockedBy": "section"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSimpleMirror__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSimpleMirror",
-    "blockedBy": "mirrorX"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSimpleShell__s1": {
     "status": "blocked",
@@ -1103,14 +1118,14 @@
     "blockedBy": "placeSketch"
   },
   "tests.test_cadquery::TestCadQuery::testSlot2D__result": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSlot2D",
-    "blockedBy": "slot2D"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSlot2D__box": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSlot2D",
-    "blockedBy": "slot2D"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse__s": {
     "status": "skipped",
@@ -2589,12 +2604,14 @@
   "tests.test_free_functions:::test_history_sweep__res": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_sweep",
-    "blockedBy": "sweep"
+    "blockedBy": "op:sweep-hole-section",
+    "manual": true
   },
   "tests.test_free_functions:::test_history_sweep__side": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_sweep",
-    "blockedBy": "sweep"
+    "blockedBy": "op:history-subshape",
+    "manual": true
   },
   "tests.test_free_functions:::test_history_loft__res": {
     "status": "blocked",
