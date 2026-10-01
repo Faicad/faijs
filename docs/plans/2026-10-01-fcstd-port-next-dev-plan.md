@@ -278,7 +278,7 @@
   - **结论（不粉饰）**：truth 侧修正**单独不产生任何净 pass**。它是正确的一步（真值不再把同一份材料数两遍），但必须与 §C3c 配对才有收益。
 - **产物**：`out/stage3-truth/c3b-truth.jsonl`（316 条，0 超时 0 错）、`fcstd-truth-c3b.jsonl`（候选合并，**未覆盖 canonical**）、`out/stage3-parity/parity-c3b.json`（候选重判）。canonical `fcstd-truth.jsonl` 与 `parity.json` **保持未动**。
 
-##### C3c 原方向（union 而非 compound）— **实测证伪**，重新界定为 C3c-1/2/3
+##### C3c — 原方向（union 而非 compound）**实测证伪**；重新界定后：C3c-1 再证伪、C3c-2 已修、C3c-3 已归因
 
 **原假设**：无容器文档里连续的 `PartDesign::*` 是累积链；faijs 应 fusion 而非 compound。
 **四项实测（均为独立测量，非推断）证伪之**：
@@ -300,19 +300,32 @@
 
 **重新界定出的三个独立项（各自都有实测规模与机制）**：
 
-| 项 | 规模（全库 3131） | 已实测机制 |
+| 项 | 规模 | 实测结论（2026-10-02） |
 |---|---|---|
-| **C3c-1** 聚合把参考 sketch 当成员 | **727（23.2%）** | `cad.compound({members})` 里出现 `cad.sketch` 变量（0 体积线框）；已判定 533 个中仅 **2 pass**（对照：不含 sketch 成员的 compound 组 136 个里 24 pass）。ISO4762 族即此。 |
-| **C3c-2** ISO4762 内六角螺钉族 | **409（13.1%）** | 全部 fail 于 `volume/area/bbox/com`，**无 solids 失配**。M6x30 实测：truth = `compound(Revolve 1311.030, Pocket 1198.832) = 2509.862 / 2 solids / bbox z[-30, 6]`；faijs 生成码 = `compound([Revolve, Sketch001(线框), Pocket__place(import_brep 冻结)])` —— 比 truth 多一个线框成员。单机制、单族、量级最大。 |
-| **C3c-3** DIN463 TabWasher 族 | **20** | 生成码**没有 compound**（`Fillet` 消费 `Pad`、`Fillet001` 消费 `Fillet`，单根）：faijs 实测 **2 solids / volume 130.62** vs truth **1 solid / 98.943** ⇒ 缺陷在 fillet 链内部，与聚合无关。 |
+| **C3c-1** 聚合把参考 sketch 当成员 | 727 | **证伪 ⇒ 不修**。`tools/_c3c-wire-member.py`（OCP）用同一批冻结 brp 造 `compound(solid)` 与 `compound(solid+wire)`：volume `1311.029621` / area `898.344785` / com `-8.437036` / solids / bbox **全部逐位相同** ⇒ 0 体积线框成员对 invariants **零影响**。上一轮「727 个由线框引起」的推断不成立（C3c-2 的真根因见下）。 |
+| **C3c-2** Pocket 的 `SubShape` 被当成结果 import | 622 文档 / 1028 Pocket | **真根因（与线框无关）**：`feature-translate.ts` 对「带 SubShape 的对象」无条件取 `SubShape`，理由是它「是 feature 的结果缓存」。实测该前提为假——`SubShape` 是 FreeCAD 的 `AddSubShape`，即 feature 增/减的**工具**；对 `PartDesign::Pocket` 就是**被切掉的材料**。M6x30：`Pocket.Shape=PartShape3.brp(1198.832)`、`Pocket.SubShape=PartShape4.brp(112.197，六角槽)`。**已修** commit `2de18c15`。 |
+| **C3c-3** DIN463 TabWasher fillet 链 | 20 | **归因到边选择身份，未修**：`Fillet` 的 `Base=Pad` 且 `Sub=Edge8/Edge11`、`Radius=4`（板厚仅 0.5）。FreeCAD 自身给 98.819（PartShape3），faijs 给 **2 solids / 130.622** ⇒ 边序身份不一致（属 G3 拓扑身份域，非本轮可收口）。 |
 
-**判据**：C3c-1 用「成员里不再出现线框」的可重复断言（`cad.compound` 成员过滤）+ 取点 `Dir_A` 四态；C3c-2 取点 `Screw M6x30 ISO4762 8,8 A2K` 四态全 pass；C3c-3 取点 `DIN463_M6TabWasher` 四态全 pass。
+**C3c-2 判据（已达成）**：取点 `Screw M6x30 ISO4762 8,8 A2K` 由 `SubShape(PartShape4)` 改为 `Shape(PartShape3)`；子集重基线（12 文档，before/after 为**同一样本**，仅代码不同）：
 
-**⚠️ 共同前置（测量门）**：以上三项目前**都无法在 corpus 上验证**——`faijs-invariants.jsonl` 是旧行为的产物，且 fcstd-port 复跑依赖 `faijs-fcstd-convert` tgz 重建 + `npx tsx`（本沙箱拦 npx）。已确认的可行替代：用托管 node 直跑 `node_modules/tsx/dist/cli.mjs`（免 npx）驱动 `convertFcstdFile` → 物化 → `cliRun` 出 STEP → `step-invariants.py`，即把 `probe-a2-exec-sweep.ts` 的骨架扩成子集重基线。
+| 产品 | before | after | truth | 判据 |
+|---|---|---|---|---|
+| M1,6x10 ISO4762 | 34.439 | **59.014** | 59.014 | ✅ pass（逐位） |
+| M1,6x12 ISO4762 | 38.460 | **67.056** | 67.056 | ✅ pass（逐位） |
+| M1,6x16 ISO4762 | 46.502 | **83.141** | 83.141 | ✅ pass（逐位） |
+| M1,6x20 ISO4762 | 54.542 | 99.210 | 99.202 | ❌ 差 8e-5（**参数化 revolve 精度**，与本修无关；本修已消除主要差量） |
 
-##### C3 遗留观察（未取点，另一类）
+同批 8 个非 ISO4762 样本（HSD/battery/endstop/microswitch）**全部** RUN-FAIL 或 CONV-FAIL 于既有缺口（`edgeRef` 越界、`sweep transitionMode`、`sketch 无闭合环`），故收益面只能由 ISO4762 族体现。全族 423 个的重基线已启动（`out/rebased-iso-after.json`）。
 
-- `ISO4762 Hexagon socket head cap screw` 族：bbox x/y 与 truth **完全一致**，但 faijs `bbox z = [-10, 3.2]` vs truth `[-10, 1.6]`（**恰好 2× 头高**），且 faijs 体积**偏小**（34.44 vs 59.01）。生成码是 `cad.revolve(Sketch, {axis:[0,0,1], at:[0,0,0], angle:6.283…})` + 非恒等 sketch 平面（`normal:[1,0,0]`）——机制与 C3a/C3b 不同，属 revolve 轴向/平面帧交互，待单独立项。
+**⚠️ 诚实边界**：这 3 个 pass 是「**与 truth 口径一致**」而非「与真几何一致」——当前 canonical truth 本身把 `Revolve(1311.030)` 与 `Pocket 结果(1198.832)` **双重计数**（Pocket 的 Shape 已含 Revolve 的材料），faijs 修后恰好是同一结构。若 §C3b 的 truth 修正日后 promote（放宽 supersede 判据以剔除切削型前序），faijs 侧需同步让 `compound` 不再并列「前序特征」与其冻结后代 —— 这是 C3b/C3c-2 的**共同收口点**，尚未做。
+
+**测量门（已建成）**：`packages/fcstd/scripts/rebased-sweep.ts` 免 tgz、免 npx 直跑**本工作树**的 `convertFcstdFile` → 物化 → `cliRun` 出 STEP（命名对齐 `state/manifest.jsonl` 的 product stem），交给 fcstd-port 自己的 `step-invariants.py --batch` + `parity-judge.py` 测量 ⇒ 唯一变量是待测代码。
+
+##### C3 遗留观察
+
+- ~~`ISO4762` 族的 bbox z「恰好 2× 头高」+ 体积偏小~~ —— **已由 C3c-2 解释并修复**：该族 `Pocket` 被 import 的 `SubShape`（工具=切掉的材料）本身就在轴向多出一段（六角槽沿 z 0.94..6），且把「应被减掉的材料」当正体积复合 ⇒ bbox z 偏高、体积偏小。修后 3/4 取点与 truth 逐位一致。
+- **M1,6x20 的 8e-5 残差**（99.210 vs 99.202）：`cad.revolve`（参数化重算）与 brp（FreeCAD 导出）之间的精度差，随尺寸增大而放大，落在 1e-5 容差线上。独立问题，未取点。
+- `DIN463` 的 fillet 边身份（C3c-3）：`Fillet.Base = Pad` 的 `Sub=Edge8/Edge11`，而 faijs 的 `cad.edgeRef(Pad, 8/11)` 指向的不是同一条边 ⇒ 需 G3 拓扑身份（`(StmtId, RoleName)`）能力才能收口。
 
 ---
 
@@ -375,7 +388,7 @@
 | C1 | ✅ 已完成（2026-10-01 续）：com 微小偏移 358 个定性为「数值零浮点噪声 ÷ 1e-9 地板」口径假象；parity-judge com 地板改尺度感知（bbox 对角线 × 1e-5）；重判 pass 886 → 1125，大偏移仍正确 fail |
 | C2 | ✅ 已完成（2026-10-01 续）：根因 = `prePlacedAssets` 把 **root** 形状载体的 Document Placement 误当「已放置」丢弃；修复 = header 证据只对 **child** 授权跳过（`childShapeAssets = prePlaced && root` 取反）；HBS com z 5.4284 → **6.1737645296731785**（与 truth 逐位相同，rel 0）；TO92/Beds 输出逐字未变；合成单测 + 真实文件 e2e 留档 |
 | C3 | 取点文件 volume 失配消除（C3a ✅ 已完成 commit `816a4627`；C3b ✅ 已完成 commit `98cb00a` —— 取点 `volume` 已退出 fail 列表，但全量重判 **pass 1125 未变、solids +5**，净 pass 为 0；需与 C3c 配对才有收益） |
-| C3c | ❌ **原方向实测证伪**（fuse-safe 248/316 DIFF；无 XML 判别信号；compound 成员最多 53）。重新界定为：**C3c-1** 聚合剔除参考 sketch 成员（727 个，23.2%）／**C3c-2** ISO4762 族（409 个，13.1%，全 fail volume/area/bbox/com）／**C3c-3** DIN463 TabWasher（20 个，单根 fillet 链出 2 solids）。三项均先需子集重基线（测量门）。 |
+| C3c | ❌ 原方向实测证伪。重新界定后：**C3c-1 再证伪**（线框成员对 compound 的 invariants 逐位无影响，`_c3c-wire-member.py`）／**C3c-2 已修**（`SubShape` 是 `AddSubShape` 工具而非结果；取点 3/4 转 pass，commit `2de18c15`）／**C3c-3 已归因**（DIN463 fillet 边身份，属 G3 域，未修）。测量门 `packages/fcstd/scripts/rebased-sweep.ts` 已建成。 |
 | D1 | scratch dir missing 271 中能跑通的转 ok |
 | D2 | 取点文件 fillet edgeRef run ok + 单测留档 |
 | D3 | timeout 88 分类完成（known-slow / 卡死已修） |
