@@ -1,6 +1,6 @@
 {
   "name": "@faicad/sheetmetal",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "Sheet-metal CAD domain for faijs - flange authoring, fold/unfold flat patterns (ported from brepjs-sheetmetal)",
   "keywords": [
     "sheet-metal",
@@ -10,7 +10,7 @@
     "flat-pattern",
     "bend-allowance"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://gitcode.com/Faicad/faijs.git"
@@ -30,7 +30,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.25.0"
+    "@faicad/faijs": "^0.26.0"
   },
   "devDependencies": {
     "typescript": "*",

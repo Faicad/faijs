@@ -3,7 +3,7 @@
  *
  * faijs `importFile` supports the 3mf format (readZipEntries + per-object
  * mesh parse + build `<item>` transform baked into world space), so a
- * `cad.load({ format: '3mf' })` yields real geometry and a subsequent
+ * `cad.load({ file: 'cube334.3mf' })` yields real geometry and a subsequent
  * `fai_extrude` with a world-plane `planeDistance` executes against it.
  */
 import { describe, it, expect, beforeAll } from 'vitest'
@@ -53,9 +53,10 @@ function createTestAssets(): AssetResolver {
 describe('3mf load → fai_extrude chain (planeDistance)', () => {
   it('load cube334.3mf (non-empty mesh) then fai_extrude with planeDistance succeeds', async () => {
     fileBlobStore.clear()
-    const bufferKey = fileBlobStore.put(threemfBuffer)
+    // P8：资产按文件名注册（file 参数寻址）；format 不再传（后缀自判）。
+    fileBlobStore.put(threemfBuffer, 'cube334.3mf')
     const code = [
-      `const part0 = cad.load({ key: ${JSON.stringify(bufferKey)}, format: '3mf' })`,
+      `const part0 = cad.load({ file: 'cube334.3mf' })`,
       `const part1 = cad.fai_extrude(part0, { length: 10, mode: 'centered', normal: [0, 0, 1], planeDistance: 17.5 })`,
     ].join('\n')
 

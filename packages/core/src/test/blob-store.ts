@@ -13,10 +13,11 @@ export const fileBlobStore = {
   get(key: string): ArrayBuffer | undefined {
     return _store.get(key)
   },
-  put(buffer: ArrayBuffer): string {
-    const key = `blob-${_nextId++}`
-    _store.set(key, buffer)
-    return key
+  /** put(buffer, key?): 默认生成 blob-N；P8 起资产按文件名注册，可显式传文件名作 key。 */
+  put(buffer: ArrayBuffer, key?: string): string {
+    const k = key ?? `blob-${_nextId++}`
+    _store.set(k, buffer)
+    return k
   },
   release(key: string): void {
     _store.delete(key)

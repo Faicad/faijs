@@ -1,8 +1,8 @@
 /**
  * stdlib load — 加载库函数（统一 load 函数）
  *
- *
- * buffer 经宿主资产解析器解析，isCadFormat 静态判定 brep/mesh，
+ * file 指定资产名（用户上传文件名，不含路径、含后缀），经宿主资产解析器按名解析；
+ * 格式由 file 后缀白名单自判（不依赖宿主 format 参数），isCadFormat 静态判定 brep/mesh，
  * 产物经 solid()/fromBrep() 构造器创建。
  */
 
@@ -19,7 +19,7 @@ import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 /**
  * 执行加载操作（统一 load 函数）
  *
- * 按 params 中存在的 key/path/url 分流解析 buffer，全部经宿主资产解析器。
+ * 按 params.file（资产名）从宿主资产库解析 buffer。
  *
  * 静态分派：
  * - CAD 源 + kernel + 非 mesh 模式 → BREP 路径（loadBrep 异常 = 未预期错误，冒泡上报）
@@ -27,7 +27,7 @@ import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
  * - brep 模式且将走 mesh 路径 → 调用前抛 BrepUnsupportedError（不静默回退）
  */
 /**
- * 加载几何资产。key / path / url 三选一（按此优先级分流），内容经宿主资产解析器解析，**引用而非拷贝**。
+ * 加载几何资产。`file` 指定资产名（用户上传文件名，不含路径、含后缀），内容经宿主资产解析器按名解析，**引用而非拷贝**。
  * @group 创建
  * @inputs 0
  * @async true
@@ -35,44 +35,47 @@ import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
  * @name load
  * @note 语言正常化后 loadFile/loadUrl/loadByKey 别名已删除（A4），统一为 `load` 一个函数。
  * @returns Shape 加载的几何，永远是 part 的第一条语句，后面可接特征链。
- * @param params.key - faicad 缓存中的资产 key（内容按 key 取）。type:string
- * @param params.path - 本地绝对路径（非 web 环境）。type:string
- * @param params.url - 网络地址。type:string
- * @param params.format - 格式提示（如 'step'/'stl'；CAD 源走 BREP 精确路径，STL 等三角化源走 mesh 路径）。type:string
- * @note key/path/url 是优先级分流（key 优先，其次 path，最后 url），三者只需其一；同时给多个时按优先级取。`format` 是提示而非强约束——CAD 源（step/stp/brep 等）与三角化源（stl 等）由 `isCadFormat` 静态判定路径。
+ * @param params.file - 资产文件名（用户上传名，不含路径、含后缀，如 'vise.3mf'）；内容按名从宿主资产库取。type:string
+ * @param params.unit - 单位提示（仅对无声明单位的格式（STL）有意义；STEP/3MF 引擎自读声明）。type:string
+ * @note 格式由 `file` 后缀白名单自判：stl/3mf → mesh 路径；step/stp/stpz/brep → BREP 路径。宿主不再传 `format`。
+ * @note 后缀白名单未命中 → 报错（不猜格式）；3MF 后缀会做 zip 魔数 sanity（后缀与内容明显不符时报错）。
  * @note 本 op 要求导入物含实体（历史契约）。非实体（wire/face/shell）的导入是平台 `cad.import_brep` 的一等能力，不由本 op 承担。
- * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——key/path/url 三键分流读的是应用侧 `FileRef`，产物语句位置与命名都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。多零件文件按 §5.4 单零件收敛——只取第一个（不再有 `partIndex` 概念）。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——`file` 读的是应用侧资产库（按用户上传文件名注册），产物语句位置与命名都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。多零件文件按 §5.4 单零件收敛——只取第一个（不再有 `partIndex` 概念）。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
  * @example
- * const p = await cad.load({ key: 'file_abc123' })
- * const p = await cad.load({ path: 'D:/models/box.step', format: 'step' })
- * const p = await cad.load({ url: 'https://…/box.3mf' })
+ * const p = await cad.load({ file: 'box.stl' })
+ * const p = await cad.load({ file: 'box.3mf' })
+ * const p = await cad.load({ file: 'model.step' })
  */
 export async function load(params: Record<string, unknown>): Promise<Shape> {
   const assets = getBackends().assets as {
     resolveByKey(key: string): Promise<{ bytes: ArrayBuffer }>
-    resolveFile(path: string): Promise<ArrayBuffer>
-    resolveUrl(url: string): Promise<ArrayBuffer>
   } | undefined
   if (!assets) {
     throw new OpError('load', 'E_OP_FAILED', '[stdlib/load] assets is required for load op')
   }
 
-  // 按 key/path/url 分流解析 buffer
-  let buffer: ArrayBuffer
-  if (params.key !== undefined && params.key !== null) {
-    buffer = (await assets.resolveByKey(params.key as string)).bytes
-  } else if (params.path !== undefined && params.path !== null) {
-    buffer = await assets.resolveFile(params.path as string)
-  } else if (params.url !== undefined && params.url !== null) {
-    buffer = await assets.resolveUrl(params.url as string)
-  } else {
-    throw new OpError('load', 'E_OP_FAILED', '[stdlib/load] load op requires exactly one of key/path/url')
+  // P8：参数面收敛为 file（资产名，不含路径、含后缀）。key/path/url/format 三键已删除。
+  const file = params.file
+  if (typeof file !== 'string' || file === '') {
+    throw new OpError('load', 'E_ARGS_FORM', '[stdlib/load] load op requires a non-empty file (asset file name, no path)')
   }
+  if (file.includes('/') || file.includes('\\')) {
+    throw new OpError('load', 'E_ARGS_FORM', `[stdlib/load] file must not contain path separators: ${JSON.stringify(file)}`)
+  }
+
+  // 格式自判：file 后缀白名单 → 归一化格式；未命中即报错（不猜格式）。
+  const fmt = formatFromFile(file)
+  if (!fmt) {
+    throw new OpError('load', 'E_ARGS_FORM', `[stdlib/load] unsupported file extension in: ${JSON.stringify(file)}`)
+  }
+
+  const buffer = (await assets.resolveByKey(file)).bytes
+  assertFileMagic(fmt, buffer, file)
 
   // 静态判定路径：mesh 模式 / 无 kernel / 非 CAD 源 → mesh 路径；否则 BREP 路径
   const { config, kernel: kernels } = getBackends()
   const kernel = kernels.brep as BrepEngineApi | null
-  const useBrep = config.mode !== 'mesh' && !!kernel && isCadFormat(params, true)
+  const useBrep = config.mode !== 'mesh' && !!kernel && isCadFormat({ format: fmt }, true)
 
   // brep 模式且将走 mesh-only 路径 → 调用前抛错，不静默回退
   if (!useBrep && config.mode === 'brep') {
@@ -84,7 +87,6 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
   // 多零件 mesh（多 object 3MF）在 importFile 内部已降级取第一个（§5.4 单零件收敛），
   // 这里据 multiPartCount 登记"多零件降级" pending → 宿主弹警告（§5.4:166）。
   if (!useBrep) {
-    const fmt = params.format as string | undefined
     const opts = buildImportOpts(params.unit)
     const { shape, unit, multiPartCount } = await importFile(buffer, fmt, opts)
     registerDetectedUnit(unit)
@@ -108,6 +110,46 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
   const declared = detectStepUnit(new TextDecoder().decode(new Uint8Array(buffer)))
   registerDetectedUnit(declared)
   return fromBrep(shape, { solid: solidHandle })
+}
+
+/**
+ * 文件加载白名单（P8 §4.2/§4.3，与 3d_editor config/file-formats 的 CAD 模型扩展名对齐）：
+ * mesh 路径 stl/3mf；BREP 路径 step/stp/stpz/brep。
+ * iges/igs 刻意不在白名单——occt-wasm 未链接 TKDEIGES（brep-chain CAD_FORMATS 注释），
+ * 走 BREP 路径必然失败；报「不支持的扩展名」比报内核错误更清晰。宿主 iges 现状路径保留。
+ * 返回归一化格式：stp/stpz → 'step'，其余原样；白名单未命中返回 undefined。
+ */
+const LOAD_EXTENSION_WHITELIST: Record<string, string> = {
+  stl: 'stl',
+  '3mf': '3mf',
+  step: 'step',
+  stp: 'step',
+  stpz: 'step',
+  brep: 'brep',
+}
+
+function formatFromFile(file: string): string | undefined {
+  const ext = file.split('.').pop()?.toLowerCase() ?? ''
+  return LOAD_EXTENSION_WHITELIST[ext]
+}
+
+/**
+ * 魔数 sanity（P8 §4.3）：后缀定格式后用文件头校验，后缀与内容明显不符时报错。
+ * 仅 3MF 做显式魔数（zip 头 PK\x03\x04 / PK\x05\x06，可靠且歧义小）；
+ * STL（文本/二进制歧义）、STEP/IGES/BREP（文本格式）不做魔数，由各解析器内部消歧/报错——
+ * 遵循「解析外部数据必须宽容」红线：只有可靠判据才拒绝，不误伤正常文件。
+ */
+function assertFileMagic(fmt: string, buffer: ArrayBuffer, file: string): void {
+  if (fmt !== '3mf') return
+  const bytes = new Uint8Array(buffer.slice(0, 4))
+  const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b && (bytes[2] === 0x03 || bytes[2] === 0x05)
+  if (!isZip) {
+    throw new OpError(
+      'load',
+      'E_ARGS_FORM',
+      `[stdlib/load] file ${JSON.stringify(file)} has .3mf extension but content is not a 3MF archive`,
+    )
+  }
 }
 
 /**

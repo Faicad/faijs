@@ -1,8 +1,8 @@
 {
   "name": "@faicad/cq-compat-compare",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://gitcode.com/Faicad/faijs.git"
@@ -32,7 +32,7 @@
   },
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.25.0",
+    "@faicad/faijs": "^0.26.0",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {

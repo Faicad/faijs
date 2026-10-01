@@ -18,6 +18,11 @@ import { asPartName } from '../identity'
 import { __resetEngineRegistriesForTests } from '../brep/engine/registry'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 
+/** Node Buffer 可能是池化切片的视图（小文件 <8KB 时 .buffer 含偏移/整池），按 byteOffset 正确截取 ArrayBuffer。 */
+function toArrayBuffer(buf: Buffer): ArrayBuffer {
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+}
+
 /** Multi-object 3MF: `n` boxes in `<build>` declaration order, each sized `size`. */
 function multiObjectXml(n: number, size: number): string {
   const objects = Array.from(
@@ -68,14 +73,14 @@ function meshPorts(n: number): HostPorts {
 describe('cad.load single-part convergence (§5.4) — mesh 3MF', () => {
   it('single-object 3MF → no multiPartCounts (no downgrade)', async () => {
     const runtime = createEditorRuntime(meshPorts(1), 'mesh')
-    const result = await runtime.execute('let a = await cad.load({ key: \'k\', format: \'3mf\' })')
+    const result = await runtime.execute('let a = await cad.load({ file: \'k.3mf\' })')
     expect(result.failedAt).toBeUndefined()
     expect(result.multiPartCounts).toBeUndefined()
   })
 
   it('multi-object 3MF → first part only + multiPartCounts[a] = N', async () => {
     const runtime = createEditorRuntime(meshPorts(3), 'mesh')
-    const result = await runtime.execute('let a = await cad.load({ key: \'k\', format: \'3mf\' })')
+    const result = await runtime.execute('let a = await cad.load({ file: \'k.3mf\' })')
     expect(result.failedAt).toBeUndefined()
     expect(result.multiPartCounts).toBeDefined()
     expect(result.multiPartCounts!.get(asPartName('a'))).toBe(3)
@@ -93,9 +98,9 @@ describe('cad.load multi-solid STEP single-part convergence (§5.4) — BREP', (
 
   it('multi-solid STEP → first solid only + multiPartCounts[a] = N (downgrade warning)', async () => {
     await registerOcctBrepEngine()
-    const stepBuf = readFileSync(
-      new URL('../../../fixtures/data/test-model.step', import.meta.url),
-    ).buffer
+    const stepBuf = toArrayBuffer(
+      readFileSync(new URL('../../../fixtures/data/test-model.step', import.meta.url)),
+    )
     const ports: HostPorts = {
       events: { emit: () => undefined },
       assets: {
@@ -106,7 +111,7 @@ describe('cad.load multi-solid STEP single-part convergence (§5.4) — BREP', (
     }
     const runtime = createEditorRuntime(ports, 'brep')
     const result = await runtime.execute(
-      `let a = await cad.load({ path: 'fixtures/test-model.step', format: 'step' })\nlet r = a`,
+      `let a = await cad.load({ file: 'test-model.step' })\nlet r = a`,
     )
     expect(result.failedAt).toBeUndefined()
     expect(result.multiPartCounts).toBeDefined()

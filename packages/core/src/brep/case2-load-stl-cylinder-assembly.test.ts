@@ -122,10 +122,10 @@ async function runScript(statements: string[]): Promise<ExecutionResult> {
 
 describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP independence', () => {
   it('STL load does not break BREP for subsequent cylinder/drill/transforms', async () => {
-    const bufferKey = fileBlobStore.put(stlBuffer)
+    fileBlobStore.put(stlBuffer, 'cube.stl')
     const stmts: string[] = [
       // S0: load STL → non-CAD source → mesh only, no solid
-      makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
+      makeStmt('cube_v0', 'load', { file: 'cube.stl' }, [],
         { }),
       // S1: cylinder → BREP-native → should stay BREP
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
@@ -170,13 +170,13 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     const summaries = analyzeCode(makePartScript(stmts))
     expect(summaries.some(s => s.callee === 'assembly')).toBe(true)
 
-    fileBlobStore.release(bufferKey)
+    fileBlobStore.release('cube.stl')
   })
 
   it('brepSolids contains mated_v0 (BREP) but not cube_v0 (mesh)', async () => {
-    const bufferKey = fileBlobStore.put(stlBuffer)
+    fileBlobStore.put(stlBuffer, 'cube.stl')
     const stmts: string[] = [
-      makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
+      makeStmt('cube_v0', 'load', { file: 'cube.stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
       makeStmt('drilled_v0', 'fai_drill', {
@@ -204,13 +204,13 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     // cube_v0 should NOT be in brepSolids (mesh terminal)
     expect(result.brepSolids!.has(asPartName('cube_v0'))).toBe(false)
 
-    fileBlobStore.release(bufferKey)
+    fileBlobStore.release('cube.stl')
   })
 
   it('STEP export: mated_v0 is precise (ADVANCED_FACE), cube_v0 is faceted', async () => {
-    const bufferKey = fileBlobStore.put(stlBuffer)
+    fileBlobStore.put(stlBuffer, 'cube.stl')
     const stmts: string[] = [
-      makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
+      makeStmt('cube_v0', 'load', { file: 'cube.stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
       makeStmt('drilled_v0', 'fai_drill', {
@@ -244,13 +244,13 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     // (cube-10x5x5.stl is a plain box with no cylindrical surfaces)
     expect(facetedStep).not.toContain('CYLINDRICAL_SURFACE')
 
-    fileBlobStore.release(bufferKey)
+    fileBlobStore.release('cube.stl')
   })
 
   it('assembly statement has correct members and is skipped during execution', async () => {
-    const bufferKey = fileBlobStore.put(stlBuffer)
+    fileBlobStore.put(stlBuffer, 'cube.stl')
     const stmts: string[] = [
-      makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
+      makeStmt('cube_v0', 'load', { file: 'cube.stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
       makeStmt('drilled_v0', 'fai_drill', {
@@ -288,7 +288,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
       asPartName('drilled_v0'),
     ])
 
-    fileBlobStore.release(bufferKey)
+    fileBlobStore.release('cube.stl')
   })
 })
 

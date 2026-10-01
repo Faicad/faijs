@@ -13,7 +13,7 @@
  *     "logo_svg_key": { "path": "assets/logo.svg", "format": "svg" }
  *   }
  *
- * 或简单目录模式（无 manifest）：key = 文件名（不含扩展名）
+ * 或简单目录模式（无 manifest）：key = 完整文件名（含扩展名，P8 资产按文件名注册）
  */
 
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs'
@@ -64,7 +64,7 @@ export interface FsAssetResolverOptions {
  *     "logo_svg_key": { "path": "assets/logo.svg", "format": "svg" }
  *   }
  *
- * Or a plain directory mode (no manifest): key = file name without extension.
+ * Or a plain directory mode (no manifest): key = full file name (with extension, P8: assets are registered by file name).
  */
 export class FsAssetResolver implements AssetResolver {
   private assetsDir: string | undefined
@@ -85,14 +85,22 @@ export class FsAssetResolver implements AssetResolver {
     }
   }
 
-  /** 扫描目录，按文件名（不含扩展名）注册 key */
+  /**
+   * 扫描目录，注册两种 key（同一文件的两个命名空间，非内部逻辑回退）：
+   * - 完整文件名（含扩展名）：P8 起 `cad.load({ file })` 的寻址载体；
+   * - 无扩展名 basename：`cad.import_brep({ asset })` 的平台 BREP 资产约定
+   *   （asset 引用 `<stem>.brp` 的 `<stem>`，容器资产名）。
+   */
   private scanDirectory(dir: string): void {
     const files = readdirSync(dir)
     for (const file of files) {
       const fullPath = resolve(dir, file)
       if (statSync(fullPath).isFile()) {
-        const key = basename(file, extname(file))
-        this.manifest[key] = { path: fullPath, format: inferFormat(fullPath) }
+        this.manifest[file] = { path: fullPath, format: inferFormat(fullPath) }
+        const stem = basename(file, extname(file))
+        if (stem !== file) {
+          this.manifest[stem] = { path: fullPath, format: inferFormat(fullPath) }
+        }
       }
     }
   }
