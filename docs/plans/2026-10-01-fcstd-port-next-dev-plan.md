@@ -240,6 +240,55 @@
 - **改动位置**：视根因定，可能在 `packages/fcstd/src/` 的特征翻译或 `packages/core/src/api/` 的 op 实现。
 - **判据**：取点文件 volume 失配消除。
 
+**取点结果（441 个纯 volume 失配的量级画像，实测）**：`tools/_c3-pick.py` 分档 —— `>1.0` 0 个、`0.1~1` 436 个、`1e-2~0.1` 2 个、`1e-5~1e-2` 3 个；`fails == ["volume"]` 的**纯 volume-only 文件 0 个**（volume 永远与 area/bbox/com 联带）。取点定为**体积恰好差整数倍**那一族（Winch-Model1 系列），因为它给出可判定的机制而非噪声。
+
+##### C3a 剖面 sketch 的平面帧被施加两次 ✅ 已完成（2026-10-01 续，commit `816a4627`）
+
+- **现象（Winch-Model1-Roll-Vertical，三段堆叠 Pad：0..10 / 10..72 / 72..82）**：faijs volume 与真值侧最终形状**逐位相同**（11961.614），但 `bbox z = [0,154]`（真值 82）、`com z = 53.19`（真值 41.0）。体积不变式对平移不敏感 ⇒ 这族只表现为 bbox/com 失配。
+- **根因（源码 + 运行时双证）**：A3（`codegen.ts` L356-361）把 sketch 的 attachment-resolved Placement 作为**显式 `plane: {origin, normal, xAxis}`** 发出，挤出体**已经站在 sketch 帧里**；M8.3（L662）随后又用**同一个** placement 发了一次 `cad.place`。A3 的注释本就写明该 place「被取代」，但守卫从未加上。
+  - 红测实证：禁用守卫时生成码同时含 `plane: {"origin":[0,0,250]}` 与 `cad.place(Pad, position:[0,0,250])`。
+  - 运行时实证（真实文件 STL 包围盒）：修复前 `zMax = 154`，修复后 `82`。
+- **修复**：`codegen.ts` 增加 `sketchCarriesFrame` 守卫 —— 仅当 profile sketch 走**参数化 `cad.sketch` 路径**（`sketchInputs` 非空）且 placement 非恒等时才抑制 place；A5 `cad.profile` 兜底仍在局部坐标构建，保留其 place。
+- **规模**：3131 个产物中 **133 个**带该形态（`tools/_c3-double-place-scan.py`）；与 parity 交叉后**当前 pass 数为 0**（42 fail / 2 no-step / 89 未入判）⇒ 不存在「错误相消」，无回归需要保留。
+- **单测**：`codegen.test.ts` 新增两条（参数化路径不发 place / A5 兜底仍发 place，后者防守卫过宽）；新增 `c3-sketch-frame-e2e.test.ts`（真实文件，缺失即 skip）：① 断言保留 `"origin":[0,0,10]`/`[0,0,72]` 且**无** `cad.place(`；② `cliRun` 全程跑通并由二进制 STL 反解包围盒，断言 `zMax ≈ 82`。**两条在修复前均为红**。
+- **回归**：fcstd 全包 33 文件 / 356 用例全绿；`typecheck -w @faicad/faijs-fcstd` 干净；eslint 干净。
+
+##### C3b truth 侧把 legacy 累积 PartDesign 链重复计数 — 已实现，未收口（见 §C3c）
+
+- **现象**：同一取点文件 truth volume = **23923.228 = 2 × 11961.614**。
+- **根因（OCP 逐形状剖开实证）**：该文档是**无 Body/Part 容器的 legacy 文档**（6 个对象、零引用），legacy PartDesign 的 feature 是**累积**的 —— `Pad(PartShape2)=502.65 / bbox 0..10`、`Pad001(PartShape5)=11458.96 / bbox 0..72`（= Pad + 自身柱体）、`Pad002(PartShape8)=11961.61 / bbox 0..82`。`export-fcstd-truth.py` 的「root = 未被引用者」在无容器时把 6 个**全**当 root 求和：`502.65 + 11458.96 + 11961.61 = 23923.23`，与 truth 记录逐位吻合。**真值侧把同一份材料数了两遍**。
+  - 第二样本 `Winch-Model1-Horizontal-roll` 同构（`402.12 + 13479.00 + 13881.13 = 27762.25` = truth）。
+- **规模**：语料 **316 / 3201（9.9%）** 是「无容器 + ≥2 个带 Shape 的 `PartDesign::*`」（`tools/_c3b-class-size.py`）；已判定的 133 个**当前全部 fail**（零 pass）⇒ 无回归风险。
+- **修复**：`export-fcstd-truth.py` 新增对象 `type` 解析 + `drop_cumulative_part_design()` —— 仅在无容器时生效，且只剔除**被更靠后的 `PartDesign::*` root 证伪 supersede** 的前序 root（体积不小于它 **且** bbox 包含它）；独立 feature（bbox 不相交）一律保留。最终聚合（compound + invariants）一字未改，未命中文件数值不变。
+- **实测**：两个取点文件 truth volume → **11961.614** / **13881.127**，bbox z → 0..82 / 0..90，com z → 41.0 / 45.0 —— 与 `PartShape8` 逐位一致。
+- **⚠️ 未收口（诚实边界，含全量实测数字）**：truth 修正后 solids 由 3 → **1**，而 faijs 侧是 3 个独立 pad 的 `cad.compound`（solids=3）。即本项把「volume 失配」换成了「solids 失配」，取点文件**仍未 pass**。
+  - **C3 判据单项达成**：取点文件 `Winch-Model1-Roll-Vertical` 的 fail 集由
+    `['volume','area','bbox(8.78e-01)','com(3.47e-01)']` → `['area','bbox(8.78e-01)','com(2.97e-01)','solids(1vs3)']`
+    —— **`volume` 已退出失配列表**（§C3 判据字面达成），代价是新出现 `solids(1vs3)`。
+  - **全量重判实测（faijs 侧 STEP 仍是旧产物，故只反映 truth 侧净效）**：
+    `tools/_c3b-merge.py` 合并 316 条（其中 **211 条体积变化**）→ `parity-c3b.json`。
+    | 指标 | 修正前 | 修正后 |
+    |---|---|---|
+    | pass | 1125 | **1125（未变）** |
+    | fail | 1422 | 1422 |
+    | volume | 1363 | 1361（−2） |
+    | solids | 922 | **927（+5）** |
+    | com / area / bbox | 1101 / 1352 / 1036 | 1101 / 1352 / 1036 |
+    - 逐文件差分：**转 pass 0 个、转 fail 0 个**，98 个文件的 fail **集合**发生变化（`tools/_c3b-diff.py`）。
+  - **结论（不粉饰）**：truth 侧修正**单独不产生任何净 pass**。它是正确的一步（真值不再把同一份材料数两遍），但必须与 §C3c 配对才有收益。
+- **产物**：`out/stage3-truth/c3b-truth.jsonl`（316 条，0 超时 0 错）、`fcstd-truth-c3b.jsonl`（候选合并，**未覆盖 canonical**）、`out/stage3-parity/parity-c3b.json`（候选重判）。canonical `fcstd-truth.jsonl` 与 `parity.json` **保持未动**。
+
+##### C3c faijs 侧 legacy 链应 union 而非 compound（待启动）
+
+- **为什么必须**：legacy PartDesign 的语义就是累积 —— `Pad001 = Pad ∪ 自身`，`Pad002 = Pad001 ∪ 自身`。faijs 目前把三个 pad 各自独立挤出后 `cad.compound`（不融合），导致 solids 3 vs 1、area 3978.83 vs 3777.77（compound 把互相重叠的内部面各算一遍）。**融合后 faijs 才与 `PartShape8` 完全一致**（1 solid / 11961.614 / 3777.77 / 0..82 / com 41）。
+- **方向**：把 M9.4 的 chain fold（`const body = memberToBody.get(name)` 分支）扩展到**无容器文档**——对连续的 `PartDesign::*` feature 用合成 body key 走同一条 union/subtract 折叠；`Part::*` 独立件（Duct 系列的 `Part::Extrusion`）不参与，仍按 compound。
+- **风险**：316 个文档需重跑；已判定的 133 个当前全 fail，故无 pass 回归风险，但 boolean union 本身可能引入新的内核失败，须先小样本验证。
+- **判据**：取点文件（Winch-Model1-Roll-Vertical）四态全 pass。
+
+##### C3 遗留观察（未取点，另一类）
+
+- `ISO4762 Hexagon socket head cap screw` 族：bbox x/y 与 truth **完全一致**，但 faijs `bbox z = [-10, 3.2]` vs truth `[-10, 1.6]`（**恰好 2× 头高**），且 faijs 体积**偏小**（34.44 vs 59.01）。生成码是 `cad.revolve(Sketch, {axis:[0,0,1], at:[0,0,0], angle:6.283…})` + 非恒等 sketch 平面（`normal:[1,0,0]`）——机制与 C3a/C3b 不同，属 revolve 轴向/平面帧交互，待单独立项。
+
 ---
 
 ### D 组：stage2 run-fail 472
@@ -300,7 +349,8 @@
 | B5 | ✅ 已完成（2026-10-01 续）：`cutWithHistory` 失败降级链（裸 kernel 重试 → unifySameDomain 后重算）+ `process-one.py` 运行前清空 step_dir；disk-drive 转 ok 产 STEP；回归单测 + e2e 留档 |
 | C1 | ✅ 已完成（2026-10-01 续）：com 微小偏移 358 个定性为「数值零浮点噪声 ÷ 1e-9 地板」口径假象；parity-judge com 地板改尺度感知（bbox 对角线 × 1e-5）；重判 pass 886 → 1125，大偏移仍正确 fail |
 | C2 | ✅ 已完成（2026-10-01 续）：根因 = `prePlacedAssets` 把 **root** 形状载体的 Document Placement 误当「已放置」丢弃；修复 = header 证据只对 **child** 授权跳过（`childShapeAssets = prePlaced && root` 取反）；HBS com z 5.4284 → **6.1737645296731785**（与 truth 逐位相同，rel 0）；TO92/Beds 输出逐字未变；合成单测 + 真实文件 e2e 留档 |
-| C3 | 取点文件 volume 失配消除 |
+| C3 | 取点文件 volume 失配消除（C3a ✅ 已完成 commit `816a4627`；C3b ✅ 已完成 commit `98cb00a` —— 取点 `volume` 已退出 fail 列表，但全量重判 **pass 1125 未变、solids +5**，净 pass 为 0；需与 C3c 配对才有收益） |
+| C3c | 待启动：faijs 侧把 legacy PartDesign 链 union 而非 compound；判据 = 取点文件四态全 pass |
 | D1 | scratch dir missing 271 中能跑通的转 ok |
 | D2 | 取点文件 fillet edgeRef run ok + 单测留档 |
 | D3 | timeout 88 分类完成（known-slow / 卡死已修） |
