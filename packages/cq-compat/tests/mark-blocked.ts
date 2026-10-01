@@ -329,6 +329,29 @@ const BY_KEY: Record<string, string> = {
   // locationAt(0)/locationAt(1) frames, then sweep(multisection=True) — needs
   // a frame-aware sketch placement (xDir binding) + sketch-section sweep.
   'tests.test_cadquery::TestCadQuery::testSketch__r6': 'op:sweep-sketch-sections',
+  // ---------------------------------------------------------------------------
+  // prism/solid free-function batch (2026-10-01) — the plain-geometry vars are
+  // mirrored and pass; these need genuine new geometry paths:
+  // ---------------------------------------------------------------------------
+  // prism with a TILTED direction (0,0.1,1) from the bottom face — extrude
+  // along a non-normal direction from a face is not supported.
+  'tests.test_free_functions:::test_prism__res3': 'op:prism-tilt',
+  // prism FROM/TO faces (loft between two extended faces, or a triangular
+  // section swept face-to-face) — a face-to-face loft op does not exist.
+  'tests.test_free_functions:::test_prism__res5': 'op:prism-from-face',
+  'tests.test_free_functions:::test_prism__res6': 'op:prism-from-face',
+  'tests.test_free_functions:::test_prism_taper__res2': 'op:extrude-taper-sketch',
+  // taper res3 divides box by the circle face (boolean split by a face) before
+  // a from-face subtractive prism — operator + from-face path.
+  'tests.test_free_functions:::test_prism_taper__res3': 'op:prism-from-face',
+  'tests.test_free_functions:::test_prism_taper__res5': 'op:prism-from-face',
+  // solid(...) with INTERNAL VOIDS: outer faces + inner faces sewn into a
+  // solid with voids (2 cubic voids / 2 spherical voids). solidFromFaces
+  // exists but has no inner-void orientation handling.
+  'tests.test_free_functions:::test_solid__s3': 'op:solid-voids',
+  'tests.test_free_functions:::test_solid__s4': 'op:solid-voids',
+  'tests.test_free_functions:::test_solid__s5': 'op:solid-voids',
+  'tests.test_free_functions:::test_solid__s6': 'op:solid-voids',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<

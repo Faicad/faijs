@@ -482,3 +482,32 @@ manifest：**423/227/47 → 425/225/47**。
 ### 11.3 门禁（全绿，已实测）
 
 `cq-compat` tsc 0 error；eslint 0 error；`verify-export-jsdoc` 全仓过；波及单测（p1-workplane-ops/sketch-workplane/cq-compat）43 passed；targeted parity 复跑 PASS=19。
+
+## 12. 续作记录（2026-10-01 第八轮 — IO 通道 7 条 + prism/solid 批次 15 条镜像）
+
+### 12.1 判定方法与洞察
+
+IO（importBrep/importBin/export）与 prism/solid 的 blockedBy 均指向「op 未实现」，但逐 var 对照 ref STEP 后发现：**保存的 ref 多为中间纯几何**（export/import 往返断言本身非几何），`box_shape`/`b_large` 等 fixture var 也是纯基体。本轮零新 API，纯镜像消化。
+
+### 12.2 镜像 +22（全部 parity PASS；manifest 437/213/47 → **449/201/47**）
+
+| 批次 | 条数 | 说明 |
+|------|------|------|
+| IO 通道 | 7 | `testBrepImportExport s/si`、`test_export w/b1/b2`、`test_bin_import_export b/r`——全部 unit box 的两种摆放（Workplane 居中 / free 函数 z[0,1]） |
+| test_solid | 8 | `b/b_large/b_small/b1/sphere1/sphere2/s1/s2`——纯基体 + 装配式 moved 链；s1/s2（缝合同盒）几何即原盒 |
+| test_prism / test_prism_taper | 7 | `box_shape ×2`、`res1`（顶面 boss：faces→workplane→circle→extrude）、`res2`（顶面 cutBlind −0.1）、`res4`（cutThruAll 贯穿）×2 —— 复用既有 Workplane op |
+
+### 12.3 新登记的准确 blockedBy（`op:solid-voids` ×4 / `op:prism-from-face` ×4 / `op:prism-tilt` ×1 / `op:extrude-taper-sketch` ×1）
+
+- `solid(...)` 内 void 缝合（s3/s4/s5/s6）：外层面 + 内层面缝成带 void 实体，solidFromFaces 无内面反侧处理。
+- prism from/to face（res5/res6/taper res3/res5）：面到面放样 op 不存在。
+- prism tilt（res3）：非法向方向挤出。
+- taper res2：带 15° 锥度 boss（同 op:extrude-taper-sketch）。
+
+### 12.4 GOTCHA（本轮实测）
+
+- **上游 free `sphere(0.1)` 的 ref 实际半径 0.05**（vol 0.000524 = 4/3π·0.05³）——cq_warehouse 侧 sphere 参数是**直径**语义（与 `cadquery.Workplane.sphere(radius)` 相反）；镜像按 ref 写 0.05 并在注释钉死。s4 的 ref 是 History 覆写后的 void 变体（f18/vol 0.998），非纯壳缝合——别按源码第一个 s4 推断。
+
+### 12.5 门禁（全绿，已实测）
+
+tsc 0 error；eslint 0 error；`verify-export-jsdoc` 全仓过；targeted parity 复跑 PASS=41。

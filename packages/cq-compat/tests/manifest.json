@@ -53,14 +53,14 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testBrepImportExport__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testBrepImportExport",
-    "blockedBy": "importBrep"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testBrepImportExport__si": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testBrepImportExport",
-    "blockedBy": "importBrep"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testCenterOfBoundBox__obj": {
     "status": "ported",
@@ -1632,9 +1632,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_export__w": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_export",
-    "blockedBy": "export"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_extrude_face__c": {
     "status": "ported",
@@ -2057,22 +2057,26 @@
   "tests.test_free_functions:::test_solid__s3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": "op:solid-voids",
+    "manual": true
   },
   "tests.test_free_functions:::test_solid__s4": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": "op:solid-voids",
+    "manual": true
   },
   "tests.test_free_functions:::test_solid__s5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": "op:solid-voids",
+    "manual": true
   },
   "tests.test_free_functions:::test_solid__s6": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": "op:solid-voids",
+    "manual": true
   },
   "tests.test_free_functions:::test_faceOn__f2": {
     "status": "blocked",
@@ -2341,69 +2345,75 @@
     "manual": true
   },
   "tests.test_free_functions:::test_prism__box_shape": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "prism"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_prism__res1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "prism"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_prism__res2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "prism"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_prism__res3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "prism"
+    "blockedBy": "op:prism-tilt",
+    "manual": true
   },
   "tests.test_free_functions:::test_prism__res4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "prism"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_prism__res5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "prism"
+    "blockedBy": "op:prism-from-face",
+    "manual": true
   },
   "tests.test_free_functions:::test_prism__res6": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism",
-    "blockedBy": "prism"
+    "blockedBy": "op:prism-from-face",
+    "manual": true
   },
   "tests.test_free_functions:::test_prism_taper__box_shape": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "prism"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_prism_taper__res1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "prism"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_prism_taper__res2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "prism"
+    "blockedBy": "op:extrude-taper-sketch",
+    "manual": true
   },
   "tests.test_free_functions:::test_prism_taper__res3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "prism"
+    "blockedBy": "op:prism-from-face",
+    "manual": true
   },
   "tests.test_free_functions:::test_prism_taper__res4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "prism"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_prism_taper__res5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_prism_taper",
-    "blockedBy": "prism"
+    "blockedBy": "op:prism-from-face",
+    "manual": true
   },
   "tests.test_free_functions:::test_draft__box_shape": {
     "status": "ported",
@@ -2570,14 +2580,14 @@
     "manual": true
   },
   "tests.test_free_functions:::test_export__b1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_export",
-    "blockedBy": "importBrep"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_export__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_export",
-    "blockedBy": "importBrep"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_check__s1": {
     "status": "ported",
