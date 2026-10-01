@@ -278,12 +278,37 @@
   - **结论（不粉饰）**：truth 侧修正**单独不产生任何净 pass**。它是正确的一步（真值不再把同一份材料数两遍），但必须与 §C3c 配对才有收益。
 - **产物**：`out/stage3-truth/c3b-truth.jsonl`（316 条，0 超时 0 错）、`fcstd-truth-c3b.jsonl`（候选合并，**未覆盖 canonical**）、`out/stage3-parity/parity-c3b.json`（候选重判）。canonical `fcstd-truth.jsonl` 与 `parity.json` **保持未动**。
 
-##### C3c faijs 侧 legacy 链应 union 而非 compound（待启动）
+##### C3c 原方向（union 而非 compound）— **实测证伪**，重新界定为 C3c-1/2/3
 
-- **为什么必须**：legacy PartDesign 的语义就是累积 —— `Pad001 = Pad ∪ 自身`，`Pad002 = Pad001 ∪ 自身`。faijs 目前把三个 pad 各自独立挤出后 `cad.compound`（不融合），导致 solids 3 vs 1、area 3978.83 vs 3777.77（compound 把互相重叠的内部面各算一遍）。**融合后 faijs 才与 `PartShape8` 完全一致**（1 solid / 11961.614 / 3777.77 / 0..82 / com 41）。
-- **方向**：把 M9.4 的 chain fold（`const body = memberToBody.get(name)` 分支）扩展到**无容器文档**——对连续的 `PartDesign::*` feature 用合成 body key 走同一条 union/subtract 折叠；`Part::*` 独立件（Duct 系列的 `Part::Extrusion`）不参与，仍按 compound。
-- **风险**：316 个文档需重跑；已判定的 133 个当前全 fail，故无 pass 回归风险，但 boolean union 本身可能引入新的内核失败，须先小样本验证。
-- **判据**：取点文件（Winch-Model1-Roll-Vertical）四态全 pass。
+**原假设**：无容器文档里连续的 `PartDesign::*` 是累积链；faijs 应 fusion 而非 compound。
+**四项实测（均为独立测量，非推断）证伪之**：
+
+1. **它们不是「一个链」**：C3b 候选 truth 中，316 个链文档只有 **55** 个塌缩为单形状，其余 **261** 个 truth 明确保留多根 ⇒ 那些特征本就独立。
+2. **union 会错杀 248 个文档**：`tools/_c3c-fuse-safe.py` 用 truth 同一个 supersede 判据取 survivors，逐文档比较 `solids(compound)` vs `solids(fuse)`（OCP 实跑）：
+
+   | 结果 | 数量 | 例 |
+   |---|---|---|
+   | **DIFF**（fuse 合并了 truth 分开的固体） | **248 / 316** | fan-40x40 `compound 12 → fuse 1`；battery-holder-4-AAA `20 → 1`；MK8 `45 → 7` |
+   | same 且 survivors 塌缩为 1（union 正确的真集合） | **51** | Winch-Roll-Vertical、Dir_A、MSOP-8 |
+
+   ⇒ 宽口径 union 不是「修 316 个」，而是**砸掉 248 个**。
+3. **XML 层无判别信号**：2409 个 loose PartDesign 中 **2369 个根本没有 `BaseFeature` 属性**（另 40 个才是空 `<Link value=""/>`，即 P1.3 注释里说的那种）；sketch 的 `Support` 挂「前一特征面」在累积型与独立型文档中都出现（fan-40x40 每个 Pocket 都挂前一特征面，truth 仍保留 12 个固体）。唯一判别信息是几何，codegen 期无内核 ⇒ 结构判别不可能。
+4. **compound 规模极大**：316 个链文档中 **236 个**含 `cad.compound`，成员最多 **53**（ramps-1.4）。全 union 会把聚合变成最多 53 层布尔链（内核风险 + 语义错）。
+
+**真集合只有 ~7 个**（Dir_A/Dir_B/Dir_F、TS35、Wall anchor、rotary-resistor-M64W103KB40、EmergencyButton_LAY37），且它们也**不是单纯 compound 问题**：`Dir_A` 的 compound 是
+`[Pad, Sketch001, Pocket__place, Pad001__place, Pad002__place, Pad003__place]` —— 混入 `Sketch001`（0 体积线框），且 `Pocket` 被 `cad.import_brep(PartShape5)` 当成**正形状**复合（27.428 = 已挖孔的累积形状）⇒ 双重计数。
+
+**重新界定出的三个独立项（各自都有实测规模与机制）**：
+
+| 项 | 规模（全库 3131） | 已实测机制 |
+|---|---|---|
+| **C3c-1** 聚合把参考 sketch 当成员 | **727（23.2%）** | `cad.compound({members})` 里出现 `cad.sketch` 变量（0 体积线框）；已判定 533 个中仅 **2 pass**（对照：不含 sketch 成员的 compound 组 136 个里 24 pass）。ISO4762 族即此。 |
+| **C3c-2** ISO4762 内六角螺钉族 | **409（13.1%）** | 全部 fail 于 `volume/area/bbox/com`，**无 solids 失配**。M6x30 实测：truth = `compound(Revolve 1311.030, Pocket 1198.832) = 2509.862 / 2 solids / bbox z[-30, 6]`；faijs 生成码 = `compound([Revolve, Sketch001(线框), Pocket__place(import_brep 冻结)])` —— 比 truth 多一个线框成员。单机制、单族、量级最大。 |
+| **C3c-3** DIN463 TabWasher 族 | **20** | 生成码**没有 compound**（`Fillet` 消费 `Pad`、`Fillet001` 消费 `Fillet`，单根）：faijs 实测 **2 solids / volume 130.62** vs truth **1 solid / 98.943** ⇒ 缺陷在 fillet 链内部，与聚合无关。 |
+
+**判据**：C3c-1 用「成员里不再出现线框」的可重复断言（`cad.compound` 成员过滤）+ 取点 `Dir_A` 四态；C3c-2 取点 `Screw M6x30 ISO4762 8,8 A2K` 四态全 pass；C3c-3 取点 `DIN463_M6TabWasher` 四态全 pass。
+
+**⚠️ 共同前置（测量门）**：以上三项目前**都无法在 corpus 上验证**——`faijs-invariants.jsonl` 是旧行为的产物，且 fcstd-port 复跑依赖 `faijs-fcstd-convert` tgz 重建 + `npx tsx`（本沙箱拦 npx）。已确认的可行替代：用托管 node 直跑 `node_modules/tsx/dist/cli.mjs`（免 npx）驱动 `convertFcstdFile` → 物化 → `cliRun` 出 STEP → `step-invariants.py`，即把 `probe-a2-exec-sweep.ts` 的骨架扩成子集重基线。
 
 ##### C3 遗留观察（未取点，另一类）
 
@@ -350,7 +375,7 @@
 | C1 | ✅ 已完成（2026-10-01 续）：com 微小偏移 358 个定性为「数值零浮点噪声 ÷ 1e-9 地板」口径假象；parity-judge com 地板改尺度感知（bbox 对角线 × 1e-5）；重判 pass 886 → 1125，大偏移仍正确 fail |
 | C2 | ✅ 已完成（2026-10-01 续）：根因 = `prePlacedAssets` 把 **root** 形状载体的 Document Placement 误当「已放置」丢弃；修复 = header 证据只对 **child** 授权跳过（`childShapeAssets = prePlaced && root` 取反）；HBS com z 5.4284 → **6.1737645296731785**（与 truth 逐位相同，rel 0）；TO92/Beds 输出逐字未变；合成单测 + 真实文件 e2e 留档 |
 | C3 | 取点文件 volume 失配消除（C3a ✅ 已完成 commit `816a4627`；C3b ✅ 已完成 commit `98cb00a` —— 取点 `volume` 已退出 fail 列表，但全量重判 **pass 1125 未变、solids +5**，净 pass 为 0；需与 C3c 配对才有收益） |
-| C3c | 待启动：faijs 侧把 legacy PartDesign 链 union 而非 compound；判据 = 取点文件四态全 pass |
+| C3c | ❌ **原方向实测证伪**（fuse-safe 248/316 DIFF；无 XML 判别信号；compound 成员最多 53）。重新界定为：**C3c-1** 聚合剔除参考 sketch 成员（727 个，23.2%）／**C3c-2** ISO4762 族（409 个，13.1%，全 fail volume/area/bbox/com）／**C3c-3** DIN463 TabWasher（20 个，单根 fillet 链出 2 solids）。三项均先需子集重基线（测量门）。 |
 | D1 | scratch dir missing 271 中能跑通的转 ok |
 | D2 | 取点文件 fillet edgeRef run ok + 单测留档 |
 | D3 | timeout 88 分类完成（known-slow / 卡死已修） |
