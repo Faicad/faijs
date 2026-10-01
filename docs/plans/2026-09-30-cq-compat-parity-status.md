@@ -193,6 +193,7 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 
 1. ~~吃免费增量：`pending:mirror` + Assembly 镜像~~（**已完成**：§7.5 +51，§8.1/8.3 +9）
 2. **再扫一遍"已实现未导出"**（§8.1 的方法）：`analyze-coverage.py` 的 op universe 只认 `src/index.ts` 的导出面，`src/workplane.ts` 里任何没被导出的函数都会被当成"未实现"。这轮一次导出就解锁 26 条 —— **每次补镜像前先跑一次导出面 vs 实现面的差集检查**（`node -e` 比对 `workplane.ts` 的 `export function` 与 `index.ts` 的导出列表）。
+   2026-10-01 复查：本包已清空（剩余 18 项是 `gear-test-harness`/`text-solid`/`transpile` 内部件 + 单行 `export {}` 形式的误报）。`cq-compat-assembly` 的 `save`/`importStep`/`load` 同样是单行导出（正则误报）。**唯一可能还有油水的是 `src/shape-class.ts`**：`facesOf` / `makeCompound` / `faceMakePlane` / `faceMakeSplineApprox` 是 CadQuery **Shape 域** API，未经 index.ts 暴露 —— 它正对应 `op:shape.offset`（4 条）等 Shape 域 blocked，值得下一轮先核。
 3. **小粒度能力缺口**：`eachpoint`（4）/ `placeSketch`（6）/ `copyWorkplane`（1）/ `filter`（3）/ `traverse`（2）/ `cutEach`（3）（单测友好、影响面小）。
 4. **中粒度能力缺口**：`prism`（13）/ `imprint`（12）/ `solid`（12）/ `interpPlate`（5）/ `plane`（5）/ `op:shape.offset`（4）（需新几何原语）。
 5. **本轮新识别的具体缺口**（§8.4）：`op:offset2D-open-wire`（开放线 offset 封端，1 条，改动小、建议先吃）、`op:parametricSurface`、`op:sweep-hole-section`（带孔截面）、`op:split-all`（+ 索引选择器 `faces(">X[1]")`）。
