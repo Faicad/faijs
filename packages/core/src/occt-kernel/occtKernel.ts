@@ -153,9 +153,18 @@ export async function initOcctWasm(): Promise<OcctKernel> {
     // Node.js 环境：从 node_modules 读取 WASM 文件
     if (typeof process !== 'undefined' && process.versions?.node) {
       const { OcctKernel: Ctor } = await import('occt-wasm')
-      const { readFileSync } = await import('node:fs')
+      // 与 resolveOcctWasmPath 同款：经 process.getBuiltinModule 取 node:fs，
+      // 不用 `await import('node:fs')`——后者会被 vite 打包器静态分析 externalize
+      // 并在浏览器构建时报 "node:fs has been externalized" warning（本分支运行时
+      // 不会在浏览器执行，但打包器仍会对动态 import 字符串告警）。
+      const fsBuiltin = (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule?.('node:fs') as
+        | { readFileSync: (p: string) => Buffer }
+        | undefined
+      if (!fsBuiltin) {
+        throw new Error('[faijs] occt-wasm init requires Node.js (process.getBuiltinModule)')
+      }
       const wasmPath = resolveOcctWasmPath()
-      const buf = readFileSync(wasmPath)
+      const buf = fsBuiltin.readFileSync(wasmPath)
       const wasmBinary = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
       s.kernelInstance = await Ctor.init({ wasm: wasmBinary })
       return s.kernelInstance
