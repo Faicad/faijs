@@ -210,13 +210,28 @@
 - **残余**：com fail 1,101 中仍有微小偏移子类（1e-2 ~ 1 区间 202 个）待 C2 一并定性；大偏移 381 个进 C2。
 - **判据达成**：微小偏移类（数值零噪声）归入已知口径并转 pass；大偏移类隔离进 C2。
 
-#### C2 修 placement/attachment 链导致的 com 大偏移
+#### C2 修 placement/attachment 链导致的 com 大偏移 ✅ 已完成（2026-10-01 续）
 
-- **取点**：com >= 100 的 393 个中取一个典型（如 `Sprocket ANSI duplex` com=4.48e+03，或含 Placement/Attachment 的文件）。
-- **复现**：`python tools/process-one.py --reconvert <fcstd>`，检查产出的 `.fai.js` 中 `cad.place` / `cad.translate` / attachment 语句的参数 vs FCStd 源的 Placement。
-- **改动位置**：`packages/fcstd/src/` 的 placement 翻译（`placement.ts` 或 `convert.ts` 中 Placement 解析）、faijs 侧 `api/place.ts` / `api/translate.ts`。
-- **单测**：合成一个带 Placement 偏移的 FCStd fixture，断言转换后几何 com 与 truth 一致。
-- **判据**：取点文件 com 失配消除；同文件复跑 parity pass。
+- **取点**：`Mechanical Parts/Enclosures/HBS/HBS_assembly.FCStd`（`6c96676a4761`，verdict `fail` / `com(1.21e-01)`）。
+- **实测（取点文件，四态）**：
+  | 侧 | volume | com z | bbox z | solids |
+  |---|---|---|---|---|
+  | truth | 1775.9027086 | **6.1737645** | [-2.750005, 21.750005] | 3 |
+  | faijs（修复前） | 1775.9027199 | **5.4284254** | [-2.750000, 21.750000] | 3 |
+  volume/area/bbox/solids 全部吻合，**只有 com z 差 0.7453**（= verdict 的 1.21e-01）。
+- **根因（三层实证，与 B 组同源思路）**：
+  1. 该文档扁平无 Body：`Cut`/`Cut001`（child）被冻结的 `Part::Compound` 消费，`Cut002`（Tuerca 螺母，Document Placement **z=+3**）是 **root**。生成代码为 `cad.compound({members:[Compound, Cut002]})`，**root 的 +3 没被发出**。
+  2. `convert.ts` 的 `prePlacedAssets` 启发式（`brpEmbeddedLocation(brp) == placement` ⇒ 视为「已放置」而跳过 place）对 `PartShape3.brp` 判真——其 Locations 首块就是 `tz=3`，与 Document Placement 相等。**但 OCP 实测该 brp 的几何确实在 local 帧**（`read` 后 bbox z=[-0.4677,6.4677]，raw 去位置后 [-6.4677,0.4677]）——首块 location ≠ 几何是否已烘焙，该启发式**判不出**（H13 两次返工的同一判定问题）。
+  3. truth 口径（`export-fcstd-truth.py`）：**只对 root 形状对象**取 `Placement ∘ read(brp)`；**child 只贡献 `read(brp)`**（父 compound 的冻结 brp 已含 child placement）。faijs 的 `cad.import_brep` 返回的正是 `read(brp)`（root location 由 BREP 读入器施加）⇒ **root 必须叠加 Document Placement，child 维持「embedded==placement 则跳过」**。
+- **修复（`packages/fcstd/src/codegen.ts`）**：新增 `childShapeAssets` = 被其它**有形状对象**引用的形状载体（源码内已有 `nodes[].deps`，无需新解析）；`isPrePlaced` 改为 `prePlacedAssets.has(name) && childShapeAssets.has(name)`。即 header 证据**只对 child 授权跳过**，root 一律按 Document Placement 重放。
+- **数值实证（OCP，与 faijs 同内核族）**：`compound(read(PartShape2), place(read(PartShape3), z=3))` → com z **6.1737645296731785**，与 truth **逐位相同**（delta 0.000000）；修复前同构造给出 **5.428425379385555**，与 faijs 实测 `inv.json` 的 `5.428425372487442` 逐位吻合 ⇒ 模型正确、修复到位。
+- **无回归实证（A/B 逐字比对）**：`TO92.FCStd` = 0 place、`Beds.FCStd` = 13 place，修复前后**逐字符相同**（`Beds` 的 Section002-005 root place 与各 child place 均未变）。
+- **单测（防回归）**：
+  - `packages/fcstd/src/codegen.test.ts` 新增合成用例：同 placement 下 **root 发 1 个 place、child 不发**。
+  - `packages/fcstd/src/c2-root-placement-e2e.test.ts`（真实文件，缺失即 skip）：① 断言生成码 `cad.place(Cut002, position:[0,0,3])` 且**不** place Cut001；② `cliRun` 全程跑通并产非空 STEP。
+  - fcstd 全包 **353 个测试全过**；`npm run typecheck -w @faicad/faijs-fcstd` 干净。
+- **影响半径（诚实边界）**：本改动**只**影响「**root** 形状载体且 `embedded==placement`」的文件——此前这类文件的 Document Placement 被误丢。child 行为一字未动。
+- **未做 / 待办**：**corpus parity funnel 尚未重跑**（与 §B4 遗留同一项）——本次改变了这部分文件的产物几何，§1 的 886/1,661/922 等数字需按新行为重跑后重基线（不得沿用旧数）。另：fcstd-port 侧复跑依赖 `faijs-fcstd-convert` 的 **tgz 重建 + 重装**（`npm pack`），且其 worker 经 `npx tsx` 驱动（本沙箱拦 npx），故本轮以 OCP 数值实证 + 源侧 e2e 替代。
 
 #### C3 修 volume 失配的真实几何差异
 
@@ -284,7 +299,7 @@
 | B4 | 待启动：修 runtime 中间 feature-var 泄漏为 terminal（TS35 `solids(1vs4)`）；根因在 `computeLiveShapes.lineConsumes` 对 `import_brep`/`cylinder` 源几何消费漏判；TS35 复跑 `solids 1vs1` |
 | B5 | ✅ 已完成（2026-10-01 续）：`cutWithHistory` 失败降级链（裸 kernel 重试 → unifySameDomain 后重算）+ `process-one.py` 运行前清空 step_dir；disk-drive 转 ok 产 STEP；回归单测 + e2e 留档 |
 | C1 | ✅ 已完成（2026-10-01 续）：com 微小偏移 358 个定性为「数值零浮点噪声 ÷ 1e-9 地板」口径假象；parity-judge com 地板改尺度感知（bbox 对角线 × 1e-5）；重判 pass 886 → 1125，大偏移仍正确 fail |
-| C2 | 取点文件 com 大偏移消除 + 单测留档 |
+| C2 | ✅ 已完成（2026-10-01 续）：根因 = `prePlacedAssets` 把 **root** 形状载体的 Document Placement 误当「已放置」丢弃；修复 = header 证据只对 **child** 授权跳过（`childShapeAssets = prePlaced && root` 取反）；HBS com z 5.4284 → **6.1737645296731785**（与 truth 逐位相同，rel 0）；TO92/Beds 输出逐字未变；合成单测 + 真实文件 e2e 留档 |
 | C3 | 取点文件 volume 失配消除 |
 | D1 | scratch dir missing 271 中能跑通的转 ok |
 | D2 | 取点文件 fillet edgeRef run ok + 单测留档 |
