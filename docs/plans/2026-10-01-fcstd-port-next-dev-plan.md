@@ -315,9 +315,18 @@
 | M1,6x16 ISO4762 | 46.502 | **83.141** | 83.141 | ✅ pass（逐位） |
 | M1,6x20 ISO4762 | 54.542 | 99.210 | 99.202 | ❌ 差 8e-5（**参数化 revolve 精度**，与本修无关；本修已消除主要差量） |
 
-同批 8 个非 ISO4762 样本（HSD/battery/endstop/microswitch）**全部** RUN-FAIL 或 CONV-FAIL 于既有缺口（`edgeRef` 越界、`sweep transitionMode`、`sketch 无闭合环`），故收益面只能由 ISO4762 族体现。全族 423 个的重基线已启动（`out/rebased-iso-after.json`）。
+同批 8 个非 ISO4762 样本（HSD/battery/endstop/microswitch）**全部** RUN-FAIL 或 CONV-FAIL 于既有缺口（`edgeRef` 越界、`sweep transitionMode`、`sketch 无闭合环`），故收益面只能由 ISO4762 族体现。
 
-**⚠️ 诚实边界**：这 3 个 pass 是「**与 truth 口径一致**」而非「与真几何一致」——当前 canonical truth 本身把 `Revolve(1311.030)` 与 `Pocket 结果(1198.832)` **双重计数**（Pocket 的 Shape 已含 Revolve 的材料），faijs 修后恰好是同一结构。若 §C3b 的 truth 修正日后 promote（放宽 supersede 判据以剔除切削型前序），faijs 侧需同步让 `compound` 不再并列「前序特征」与其冻结后代 —— 这是 C3b/C3c-2 的**共同收口点**，尚未做。
+**全族重基线（423 个，`out/rebased-iso-after.json` / `-parity.json`）**：
+
+| | RUN-OK | pass | fail | 其余 |
+|---|---|---|---|---|
+| **BEFORE**（canonical parity，旧 codegen） | — | **0** | **409** | 14 no-record |
+| **AFTER**（本工作树） | **411** | **118** | 293 | 12 RUN-FAIL（另一批 `ISO4762_Hex_Socket_Head_Cap_Screw_M*.fcstd`，chamfer role-lineage，属 D2 类） |
+
+⇒ 族内 **+118 净 pass**（409 个 fail 的 28.8%）。全库口径：1125 → 约 1243。
+
+**⚠️ 诚实边界**：这些 pass 是「**与 truth 口径一致**」而非「与真几何一致」——当前 canonical truth 本身把 `Revolve(1311.030)` 与 `Pocket 结果(1198.832)` **双重计数**（Pocket 的 Shape 已含 Revolve 的材料），faijs 修后恰好是同一结构。若 §C3b 的 truth 修正日后 promote（放宽 supersede 判据以剔除切削型前序），faijs 侧需同步让 `compound` 不再并列「前序特征」与其冻结后代 —— 这是 C3b/C3c-2 的**共同收口点**，尚未做。
 
 **测量门（已建成）**：`packages/fcstd/scripts/rebased-sweep.ts` 免 tgz、免 npx 直跑**本工作树**的 `convertFcstdFile` → 物化 → `cliRun` 出 STEP（命名对齐 `state/manifest.jsonl` 的 product stem），交给 fcstd-port 自己的 `step-invariants.py --batch` + `parity-judge.py` 测量 ⇒ 唯一变量是待测代码。
 
@@ -331,12 +340,13 @@
 
 ### D 组：stage2 run-fail 472
 
-#### D1 scratch dir missing 271（worker 产物目录缺失）
+#### D1 scratch dir missing — ✅ **已收口**（271 → 12 → 12/12 可跑）
 
 - **取点**：`0031c9f93c85-TO92.fai.zip`（`scratch dir missing (worker produced no output): ENOENT`）。
-- **定性**：worker 执行后 scratch 目录为空——是 worker 崩溃未清理、还是 worker 根本没产出（但 run-sweep 误判为 run-fail 而非 threw）？先确认这 271 个的 worker exit code 与 stderr。
-- **改动位置**：`tools/run-sweep-worker.ts`（scratch 目录创建/清理逻辑）、`tools/run-sweep.ts`（失败分类）。
-- **判据**：271 个中能跑通的转 ok；真崩溃的归入正确失败类。
+- **根因（已在 `run-sweep.ts:116-123` 修过）**：`KEEP_STEPS`（`out/run-sweep-steps`）若不存在，`copyFileSync` 抛 ENOENT，被外层 try/catch 误标成「worker 无产出」，把好产品记成 `failed`。修法 = 循环前 `mkdirSync(KEEP_STEPS, {recursive:true})`。
+- **实测（2026-10-02）**：`state/run-sweep.json` 当前状态为 ok **2559** / run-fail 472 / timeout 88 / **failed 仅 12** —— 旧记录的「271」是修复前基线。
+- **12 个的真伪用测量门逐一验证**：`out/rebased-d1.json` 得 **RUN-OK 12/12**（含取点 TO92 与 M6x30）⇒ 这些是**假失败**（旧 worker 崩溃/环境），产品本身可执行；判 parity 得 **4 pass / 8 fail**（8 个进入真实失败类）。
+- **改动位置**：无需再改；`run-sweep.ts` 的失败分类可再细化（区分「worker 崩溃」与「产物拷贝失败」），非阻塞。
 
 #### D2 nameless-shape edgeRef 203（fillet lineage）
 
@@ -388,8 +398,8 @@
 | C1 | ✅ 已完成（2026-10-01 续）：com 微小偏移 358 个定性为「数值零浮点噪声 ÷ 1e-9 地板」口径假象；parity-judge com 地板改尺度感知（bbox 对角线 × 1e-5）；重判 pass 886 → 1125，大偏移仍正确 fail |
 | C2 | ✅ 已完成（2026-10-01 续）：根因 = `prePlacedAssets` 把 **root** 形状载体的 Document Placement 误当「已放置」丢弃；修复 = header 证据只对 **child** 授权跳过（`childShapeAssets = prePlaced && root` 取反）；HBS com z 5.4284 → **6.1737645296731785**（与 truth 逐位相同，rel 0）；TO92/Beds 输出逐字未变；合成单测 + 真实文件 e2e 留档 |
 | C3 | 取点文件 volume 失配消除（C3a ✅ 已完成 commit `816a4627`；C3b ✅ 已完成 commit `98cb00a` —— 取点 `volume` 已退出 fail 列表，但全量重判 **pass 1125 未变、solids +5**，净 pass 为 0；需与 C3c 配对才有收益） |
-| C3c | ❌ 原方向实测证伪。重新界定后：**C3c-1 再证伪**（线框成员对 compound 的 invariants 逐位无影响，`_c3c-wire-member.py`）／**C3c-2 已修**（`SubShape` 是 `AddSubShape` 工具而非结果；取点 3/4 转 pass，commit `2de18c15`）／**C3c-3 已归因**（DIN463 fillet 边身份，属 G3 域，未修）。测量门 `packages/fcstd/scripts/rebased-sweep.ts` 已建成。 |
-| D1 | scratch dir missing 271 中能跑通的转 ok |
+| C3c | ❌ 原方向实测证伪。重新界定后：**C3c-1 再证伪**（线框成员对 compound 的 invariants 逐位无影响，`_c3c-wire-member.py`）／**C3c-2 已修**（`SubShape` 是 `AddSubShape` 工具而非结果，commit `2de18c15`）—— 全族 423 个重基线 **pass 0 → 118**（+118，RUN-OK 411）／**C3c-3 已归因**（DIN463 fillet 边身份，属 G3 域，未修）。测量门 `packages/fcstd/scripts/rebased-sweep.ts` 已建成。 |
+| D1 | ✅ **已收口**：根因是 `KEEP_STEPS` 缺目录致 ENOENT 被误标（`run-sweep.ts:116-123` 已修）；state 实测 failed 只剩 **12**（旧 271 是修复前基线），12 个经测量门 **RUN-OK 12/12**、parity **4 pass / 8 fail** ⇒ 假失败 |
 | D2 | 取点文件 fillet edgeRef run ok + 单测留档 |
 | D3 | timeout 88 分类完成（known-slow / 卡死已修） |
 | D4 | threw-other 8 消除或归入正确类 |
