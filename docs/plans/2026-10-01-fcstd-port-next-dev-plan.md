@@ -201,14 +201,14 @@
 
 ### C 组：com/volume 失配重定性 + 修复
 
-#### C1 分离 com 微小偏移 vs 大偏移
+#### C1 分离 com 微小偏移 vs 大偏移 ✅ 已完成（2026-10-01 续，判定为口径问题并修复）
 
-- **取点**：com 偏移 < 1e-2 的 354 个（如 `solids(1vs2)` + `com(1.59e-03)` 类）取一个；com >= 100 的 393 个取一个（如 `Sprocket ANSI duplex` com=4.48e+03）。
-- **定性**：
-  - 微小偏移（< 1e-2）：疑为数值精度 / 坐标系原点 / merge_parts 质心加权口径。取一个文件，对比 faijs STEP 与 truth 的 com 分量，看是否是原点平移常数。
-  - 大偏移（>= 100）：真实几何错位，进 C2。
-- **改动位置**（若微小偏移是口径）：`tools/parity-judge.py` 的质心比较容差或 merge_parts 质心加权逻辑。
-- **判据**：微小偏移类重判后转 pass 或归入已知容差；大偏移类隔离进 C2。
+- **取点**：com 偏移 < 1e-2 共 358 个，最小一批集中在 1.02e-05 ~ 1.22e-05（Round Bar 系列、FlatWasher 等），恰在 `tol=1e-5` 判定线附近。
+- **定性（分量实测，Round Bar 125）**：truth com x = −7.71e-15，faijs com x = 2.47e-15——**两侧都是数值零（浮点噪声）**。旧口径 `EPS_FLOOR=1e-9` 作分母，把 1e-15 级噪声放大成 1.02e-5 相对误差，恰好越过判定线。**是口径假象，非真实几何差异**（体积在 1e-13 相对差内完全一致）。
+- **修复**：`fcstd-port tools/parity-judge.py` 的 com 分母地板改为**尺度感知**——`max(|ref|, bbox对角线 × COM_FLOOR_SCALE(1e-5), EPS_FLOOR)`。地板比容差线低两个量级：真实偏移（>=1e-2）仍 fail，浮点噪声零不再膨胀到判定线。
+- **重判结果**：parity pass **886 → 1125**（+239）；com fail 1,555 → 1,101。sanity 双向核验：取点的 3 个 Round Bar 全部转 pass；大偏移文件（com >= 100，381 个，如 Sprocket）仍正确 fail。
+- **残余**：com fail 1,101 中仍有微小偏移子类（1e-2 ~ 1 区间 202 个）待 C2 一并定性；大偏移 381 个进 C2。
+- **判据达成**：微小偏移类（数值零噪声）归入已知口径并转 pass；大偏移类隔离进 C2。
 
 #### C2 修 placement/attachment 链导致的 com 大偏移
 
@@ -283,7 +283,7 @@
 | B3 | 撤销：实证非口径错，无需改 parity/truth 侧 |
 | B4 | 待启动：修 runtime 中间 feature-var 泄漏为 terminal（TS35 `solids(1vs4)`）；根因在 `computeLiveShapes.lineConsumes` 对 `import_brep`/`cylinder` 源几何消费漏判；TS35 复跑 `solids 1vs1` |
 | B5 | ✅ 已完成（2026-10-01 续）：`cutWithHistory` 失败降级链（裸 kernel 重试 → unifySameDomain 后重算）+ `process-one.py` 运行前清空 step_dir；disk-drive 转 ok 产 STEP；回归单测 + e2e 留档 |
-| C1 | com 微小偏移重定性完成（口径 vs 真实） |
+| C1 | ✅ 已完成（2026-10-01 续）：com 微小偏移 358 个定性为「数值零浮点噪声 ÷ 1e-9 地板」口径假象；parity-judge com 地板改尺度感知（bbox 对角线 × 1e-5）；重判 pass 886 → 1125，大偏移仍正确 fail |
 | C2 | 取点文件 com 大偏移消除 + 单测留档 |
 | C3 | 取点文件 volume 失配消除 |
 | D1 | scratch dir missing 271 中能跑通的转 ok |
