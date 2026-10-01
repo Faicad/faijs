@@ -218,7 +218,7 @@
   "tests.test_cadquery::TestCadQuery::testCopyWorkplane__obj1": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testCopyWorkplane",
-    "blockedBy": "copyWorkplane"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testCounterBores__c": {
     "status": "ported",
@@ -404,24 +404,24 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testEachpoint__ref": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testEachpoint",
-    "blockedBy": "eachpoint"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testEachpoint__r": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testEachpoint",
-    "blockedBy": "eachpoint"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testEachpoint__sph": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testEachpoint",
-    "blockedBy": "eachpoint"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testEachpoint__box": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testEachpoint",
-    "blockedBy": "eachpoint"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testEnclosure__oshell": {
     "status": "blocked",
@@ -1582,9 +1582,9 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::test_MergeTags__b": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_MergeTags",
-    "blockedBy": "end"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_bool_operators__w1": {
     "status": "ported",
@@ -1612,9 +1612,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_compound_faces_center__compound": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_compound_faces_center",
-    "blockedBy": "CombinedCenter"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_cutFromBase__box": {
     "status": "ported",
@@ -2916,14 +2916,14 @@
     "blockedBy": null
   },
   "tests.test_assembly:::test_assembly__simple_assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly",
-    "blockedBy": "traverse"
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assembly__nested_assy": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_assembly:::test_assembly",
-    "blockedBy": "traverse"
+    "blockedBy": null
   },
   "tests.test_assembly:::test_assy_root_name__assy": {
     "status": "blocked",

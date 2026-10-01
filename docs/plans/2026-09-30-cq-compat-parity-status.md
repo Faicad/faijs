@@ -458,3 +458,27 @@ manifest：**423/227/47 → 425/225/47**。
 ### 10.5 门禁（全绿，已实测）
 
 `cq-compat` tsc 0 error；eslint（src）0 error；`verify-export-jsdoc` 全仓过；`check-ghost-deps` 829 files OK；sketch 回归 + 集成单测 94 passed（sketch.test/sketch-mirror/sketch-workplane/p1-workplane-ops）。
+
+## 11. 续作记录（2026-10-01 第七轮 — eachpoint 对象形态 + traverse/零散镜像 8 条）
+
+### 11.1 新落地 API
+
+- **`eachpoint(wp, item, opts?)`（`workplane.ts`）**：CadQuery `eachpoint` 的**对象形态**（item = Workplane/Shape）——`.fai.js` 无函数字面量，lambda 形态维持 C 层永久 block，对象形态可实现。取点来源：vertexSel（逐顶点 bbox 中心）→ faceSel（逐面点）→ pts → 原点；`combine: true | false | 'cut'`。**GOTCHA（探针实测）**：内核 `getCenterOfMass` 对 **face** 句柄也返回 (0,0,0)（与 P0-3 的 vertex 记录同款）——改用 bbox 中心（平面面与 COM 等价；曲面非对称质量会偏差）。
+- 句柄传递 GOTCHA：`brepOf(asBrepShape(shape))` 才是内核句柄——直接把 Shape 传 `getSubShapes` 报 `Invalid shape ID: 0`。
+
+### 11.2 镜像 +8（全部 parity PASS；manifest 429/221/47 → **437/213/47**，coverage 194→199 PORTABLE）
+
+| case | parity | 备注 |
+|------|--------|------|
+| `testEachpoint__ref/sph/box` | PASS（逐位） | 保存的 ref 是纯基体几何（eachpoint 断言非几何） |
+| `testEachpoint__r` | PASS（逐位，拓扑 f30/e60/v22 一致） | `box.faces().eachpoint(sph, combine=True)`：6 面中心放球 fuse = 基体 + 3 整球（ref vol 20.566 实证） |
+| `test_assembly__simple_assy` | PASS（comΔ 8.9e-16） | fixture 三盒 + pushPoints 双盒，根 loc 折入世界坐标；traverse/count 断言非几何 |
+| `test_assembly__nested_assy` | PASS（volΔ 3e-14） | 嵌套装配 loc 链（root+SECOND+BOTTOM）合成 |
+| `test_compound_faces_center__compound` | PASS（逐位） | rect+face+translate compound；CombinedCenter 断言非几何 |
+| `test_MergeTags__b` | PASS（逐位） | (1,0,0) 处 1×1×2 盒；tag/end 断言非几何 |
+
+**洞察**：`blockedBy: eachpoint/traverse/CombinedCenter/end` 的条目多为「断言引用了未实现 op，但保存的 ref 只是中间纯几何」——镜像只需复现 ref 几何，缺口判定要逐 var 看 ref 是否真的依赖该 op。
+
+### 11.3 门禁（全绿，已实测）
+
+`cq-compat` tsc 0 error；eslint 0 error；`verify-export-jsdoc` 全仓过；波及单测（p1-workplane-ops/sketch-workplane/cq-compat）43 passed；targeted parity 复跑 PASS=19。

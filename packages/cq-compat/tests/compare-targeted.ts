@@ -27,6 +27,14 @@ const pairs: Array<[string, string]> = [
   ['tests.test_cadquery__TestCadQuery__testSketch__r3', 'TestCadQuery__testSketch__r3'],
   ['tests.test_cadquery__TestCadQuery__testSketch__r4', 'TestCadQuery__testSketch__r4'],
   ['tests.test_cadquery__TestCadQuery__testSketch__r5', 'TestCadQuery__testSketch__r5'],
+  ['tests.test_assembly___test_assembly__simple_assy', 'test_assembly__test_assembly__simple_assy'],
+  ['tests.test_assembly___test_assembly__nested_assy', 'test_assembly__test_assembly__nested_assy'],
+  ['tests.test_cadquery__TestCadQuery__testEachpoint__ref', 'TestCadQuery__testEachpoint__ref'],
+  ['tests.test_cadquery__TestCadQuery__testEachpoint__sph', 'TestCadQuery__testEachpoint__sph'],
+  ['tests.test_cadquery__TestCadQuery__testEachpoint__box', 'TestCadQuery__testEachpoint__box'],
+  ['tests.test_cadquery__TestCadQuery__testEachpoint__r', 'TestCadQuery__testEachpoint__r'],
+  ['tests.test_cadquery__TestCadQuery__test_compound_faces_center__compound', 'TestCadQuery__test_compound_faces_center__compound'],
+  ['tests.test_cadquery__TestCadQuery__test_MergeTags__b', 'TestCadQuery__test_MergeTags__b'],
 ]
 
 async function main() {

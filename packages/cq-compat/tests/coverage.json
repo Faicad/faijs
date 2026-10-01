@@ -2,9 +2,9 @@
   "totalCasesInRefManifest": 305,
   "casesWithStep": 297,
   "casesWithoutStep": 8,
-  "portableNow": 194,
+  "portableNow": 199,
   "portableWithStub": 41,
-  "blocked": 62,
+  "blocked": 57,
   "blockedByTop": [
     [
       "getfixturevalue",
@@ -24,10 +24,6 @@
     ],
     [
       "hollow",
-      3
-    ],
-    [
-      "eachpoint",
       3
     ],
     [
@@ -67,19 +63,11 @@
       1
     ],
     [
-      "copyWorkplane",
-      1
-    ],
-    [
       "cutEach",
       1
     ],
     [
       "parametricCurve",
-      1
-    ],
-    [
-      "placeSketch",
       1
     ],
     [
@@ -104,6 +92,18 @@
     ],
     [
       "solid",
+      1
+    ],
+    [
+      "faceOn",
+      1
+    ],
+    [
+      "draft",
+      1
+    ],
+    [
+      "matrixOfInertia",
       1
     ]
   ],
@@ -137,10 +137,6 @@
       3
     ],
     [
-      "eachpoint",
-      3
-    ],
-    [
       "parametrize",
       3
     ],
@@ -161,19 +157,15 @@
       2
     ],
     [
-      "CompSolids",
-      1
-    ],
-    [
       "cast",
       1
     ],
     [
-      "Shells",
+      "CompSolids",
       1
     ],
     [
-      "copyWorkplane",
+      "Shells",
       1
     ],
     [
@@ -182,10 +174,6 @@
     ],
     [
       "parametricCurve",
-      1
-    ],
-    [
-      "placeSketch",
       1
     ],
     [
@@ -206,6 +194,18 @@
     ],
     [
       "solid",
+      1
+    ],
+    [
+      "faceOn",
+      1
+    ],
+    [
+      "draft",
+      1
+    ],
+    [
+      "matrixOfInertia",
       1
     ]
   ],
@@ -522,8 +522,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testCopyWorkplane": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "copyWorkplane",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "copyWorkplane"
@@ -735,8 +735,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testEachpoint": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "eachpoint",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "eachpoint",
@@ -1510,8 +1510,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSketch": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "placeSketch",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "extrude",
         "finalize",
@@ -3178,8 +3178,8 @@
     },
     "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Shells": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "eachpoint",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "eachpoint",
         "rarray"
@@ -3190,8 +3190,8 @@
     },
     "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "eachpoint",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "eachpoint",
         "rarray"
@@ -4546,6 +4546,17 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testCopyWorkplane",
+      "ops": [
+        "box",
+        "copyWorkplane"
+      ],
+      "vars": [
+        "obj1"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testCounterSinks",
       "ops": [
         "cskHole",
@@ -4702,6 +4713,24 @@
         "s",
         "s2",
         "s3"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testEachpoint",
+      "ops": [
+        "box",
+        "eachpoint",
+        "moved",
+        "cutThruAll",
+        "rect",
+        "sphere"
+      ],
+      "vars": [
+        "ref",
+        "r",
+        "sph",
+        "box"
       ],
       "fellBack": false
     },
@@ -5293,6 +5322,35 @@
       ],
       "vars": [
         "r"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSketch",
+      "ops": [
+        "extrude",
+        "finalize",
+        "clean",
+        "slot",
+        "sketch",
+        "box",
+        "rect",
+        "offset",
+        "circle",
+        "pushPoints",
+        "loft",
+        "placeSketch",
+        "moved",
+        "polygon",
+        "sweep"
+      ],
+      "vars": [
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6"
       ],
       "fellBack": false
     },
@@ -6290,6 +6348,29 @@
       ],
       "vars": [
         "wp"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Shells",
+      "ops": [
+        "eachpoint",
+        "rarray"
+      ],
+      "vars": [
+        "workplane_shells"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids",
+      "ops": [
+        "eachpoint",
+        "rarray"
+      ],
+      "vars": [
+        "workplane_solids",
+        "selected_solids"
       ],
       "fellBack": false
     },
@@ -7659,26 +7740,10 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testCopyWorkplane",
-      "blockedBy": "copyWorkplane",
-      "missing": [
-        "copyWorkplane"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testCutEach",
       "blockedBy": "cutEach",
       "missing": [
         "cutEach"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testEachpoint",
-      "blockedBy": "eachpoint",
-      "missing": [
-        "eachpoint"
       ],
       "deps": []
     },
@@ -7695,14 +7760,6 @@
       "blockedBy": "parametricCurve",
       "missing": [
         "parametricCurve"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSketch",
-      "blockedBy": "placeSketch",
-      "missing": [
-        "placeSketch"
       ],
       "deps": []
     },
@@ -7901,22 +7958,6 @@
       "blockedBy": "plane",
       "missing": [
         "plane"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Shells",
-      "blockedBy": "eachpoint",
-      "missing": [
-        "eachpoint"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids",
-      "blockedBy": "eachpoint",
-      "missing": [
-        "eachpoint"
       ],
       "deps": []
     },

@@ -4017,6 +4017,78 @@ export function placeSketch(wp: Workplane, ...sks: Sketch[]): Workplane {
 }
 
 /**
+ * eachpoint — CadQuery `Workplane.eachpoint` object-form parity (NO lambda:
+ * the `.fai.js` restricted subset has no function literals, so only the
+ * Workplane/Shape item forms are supported — a callable stays permanently
+ * blocked at the parser layer).
+ *
+ * Locations come from the workplane stack (upstream `eachpoint` iterates
+ * `self.objects`): selected vertices, else selected faces (one point per face
+ * COM, orientation kept identity — probed on the `eachpoint(sph, combine=True)`
+ * case, where a sphere placed at each of a 2×2×2 box's six face centres
+ * unions to exactly base + 3 full sphere volumes), else pushed points, else
+ * the plane origin.
+ *
+ * @param wp - Workplane providing the stack locations
+ * @param item - Workplane or Shape to place at each point
+ * @param opts - `{ combine?: boolean | 'cut' }` (default true: fuse into the
+ *   base shape; false keeps the placed copies unfused)
+ * @returns Workplane with the combined (or last-placed) shape
+ */
+export async function eachpoint(
+  wp: Workplane,
+  item: Workplane | Shape,
+  opts?: { combine?: boolean | 'cut' },
+): Promise<Workplane> {
+  const itemShape: Shape | null = (item as Workplane).__cq ? (item as Workplane).shape : (item as Shape)
+  if (!itemShape) throw new Error('[cq-compat] eachpoint: item carries no shape')
+  const kernel = getKernel() as unknown as {
+    getCenterOfMass: (h: BrepHandle) => { x: number; y: number; z: number }
+    translate: (h: BrepHandle, dx: number, dy: number, dz: number) => BrepHandle
+  }
+  const itemHandle = brepOf(asBrepShape(itemShape)) as unknown as BrepHandle
+  const shape = wp.shape ? asBrepShape(wp.shape) : null
+  const shapeHandle = shape ? (brepOf(shape) as unknown as BrepHandle) : null
+  type Pt = [number, number, number]
+  let locs: Pt[] = []
+  if (wp.vertexSel !== null && shapeHandle) {
+    const kernelAny = kernel as unknown as { getSubShapes: (h: BrepHandle, t: string) => BrepHandle[] }
+    for (const v of kernelAny.getSubShapes(shapeHandle, 'vertex')) {
+      const bb = (getKernel() as unknown as { getBoundingBox: (h: BrepHandle) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } }).getBoundingBox(v)
+      locs.push([(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2])
+    }
+  } else if (wp.faceSel !== null && shapeHandle) {
+    const kernelAny = kernel as unknown as { getSubShapes: (h: BrepHandle, t: string) => BrepHandle[] }
+    for (const f of kernelAny.getSubShapes(shapeHandle, 'face')) {
+      // GOTCHA (same as the P0-3 vertex note): kernel getCenterOfMass returns
+      // (0,0,0) for FACE handles — probe-verified on a box's six faces — so
+      // the placement point is the bbox centre (identical to COM for planar
+      // faces; a curved face with asymmetric mass would deviate).
+      const bb = (getKernel() as unknown as { getBoundingBox: (h: BrepHandle) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } }).getBoundingBox(f)
+      locs.push([(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2])
+    }
+  } else if ((wp.pts ?? []).length > 0) {
+    locs = (wp.pts ?? []).map(([x, y]) => localToWorld(wp, x, y))
+  }
+  if (locs.length === 0) locs = [[...wp.origin]]
+  const combine = opts?.combine ?? true
+  let acc: Shape | null = combine === false ? null : shape ? (wp.shape as Shape) : null
+  let separate: Shape | null = null
+  for (const [lx, ly, lz] of locs) {
+    const placed = toShape(kernel.translate(itemHandle, lx, ly, lz))
+    if (combine === 'cut' && acc) {
+      acc = await cutShapes(acc, placed)
+    } else if (combine === false) {
+      separate = separate ? await fuseShapes(separate, placed) : placed
+    } else {
+      acc = acc ? await fuseShapes(acc, placed) : placed
+    }
+  }
+  const result = combine === false ? separate : acc
+  return clone(wp, { shape: result, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+}
+
+/**
  * workplane
  * @param wp - Workplane
  * @param opts - { centerOption?: string; offset?: number }
