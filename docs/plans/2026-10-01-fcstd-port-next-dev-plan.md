@@ -58,7 +58,7 @@
 
 | 模式 | 数量 | 含义 |
 |---|---|---|
-| `1vs2` | 651 | faijs 产 1 个 solid，truth 2 个——主模式 |
+| `1vs2` | 651 | truth 1 个、faijs 2 个（faijs 多产一个冗余 terminal，见 B1/B2）——主模式 |
 | `1vs6` | 30 | faijs 1，truth 6 |
 | `3vs2` | 21 | faijs 3，truth 2 |
 | `1vs4` | 13 | faijs 1，truth 4 |
@@ -139,29 +139,28 @@
 
 ### B 组：solids 失配 922（头号 singleFix）
 
-#### B1 定性 solids 1vsN 失配根因
+#### B1 定性 solids 1vsN 失配根因 ✅ 已定性（2026-10-01 续）
 
-- **取点**：`0203a22597f2-Sprocket ANSI duplex`（`solids(1vs2)`，parts=2）、`02d55246310d-TS35`（`solids(1vs4)`，parts=3）、`04f6a668fdd0-3-5inch-Disk-Drive-SATA`（`solids(1vs6)`，parts=2）。
-- **复现**：`python tools/process-one.py --reconvert <fcstd>`，检查产出的 `.fai.zip` 执行后 STEP 的 solid 数 vs truth 侧 solid 数。
-- **定性三问**：
-  1. faijs 侧 STEP 导出是否把 compound 写成单 solid？用 `python tools/step-invariants.py <faijs.step>` 看 solids 计数。
-  2. truth 侧 `export-fcstd-truth.py` 的 solid 统计是否按独立 TopoDS_Solid 计（而非 compound 内嵌）？
-  3. `parity-judge.py` 的 `merge_parts()` 对多终端产物的 solids 是否「求和」——若 faijs 侧 compound 只算 1 而真理侧求和，即口径错位。
-- **判据**：明确 922 个中多少是「faijs 侧 compound 导出语义错」、多少是「truth/parity 口径错」、多少是「真实几何 merge 缺失」。
+> **方向订正（重要）**：plan §1.1 把 `solids(1vs2)` 写成「faijs 产 1 个 solid，truth 2 个」——**方向写反了**。`parity-judge.py` 的 verdict 格式是 `(truth vs step)`，即 `1vs2` = **truth=1、faijs=2**。全库实测以 faijs 侧多产出为主。
 
-#### B2 修 faijs 侧 compound → STEP 导出的 solids 计数
+- **取点**：`0203a22597f2-Sprocket ANSI duplex`（`solids(1vs2)`）、`02d55246310d-TS35`（`solids(1vs4)`）、`04f6a668fdd0-3-5inch-Disk-Drive-SATA`（`solids(1vs6)`）。
+- **根因（已锁定，实证）**：单 Body 文档生成的 `main.fai.js` 为 `import { Body_out } from './Body.fai.js'; let assembly = Body_out;`，且 `manifest.models[]` 同时列了 `main` 与 `Body`。`Body.fai.js` 顶层 `let Body_out` 在执行时**泄漏为第二个 terminal**，于是 cliRun 把 `Body_out` 与 `assembly` 别名**都导出**（`run-sweep-steps` 出现 `__0_Body_out.step` + `__1_assembly.step`，两者体积完全相同）。`parity-judge.merge_parts()` 对多终端求和 → 同一几何被计 2 次 → `solids 1vs2`（truth=1，faijs=2）。多 Body 文档因 `assembly = cad.compound(...)` 是 compound，cliRun 的「多终端优先导出 compound」早返回只产 1 个 assembly STEP，**不受影响**。
+- **实证验证（zip 直接打补丁跑 worker）**：把单 Body 的 `let assembly = Body_out` 改为 `import { assembly } from './Body.fai.js'`（同名的跨模块 shape var 在运行时合并为一个 terminal），worker 只产出 1 个 `out.step`，`step-invariants.py` 读出 `solids: 1`、体积 18556——与 truth 的 1 solid 对齐。
+- **定性三问结论**：不是 compound 导出语义错、不是 truth/parity 口径错、不是真实几何 merge 缺失——是**翻译产物多产出一个冗余 terminal**（别名 + 顶层 `let` 泄漏）。
+- **判据达成**：922 的主模式 `1vs2`（651）属此类，已通过 B2 修复消除。
 
-- **前提**：B1 判明 faijs 侧把多 solid compound 写成单 solid。
-- **改动位置**：`packages/core/src/brep/` 的 STEP 导出（`brep/engine/step-write.ts` 或对应），或 `packages/core/src/mesh/` 的 mesh 链 STEP 导出。确认 compound 的子 solid 在 STEP 中以独立 `MANIFOLD_SOLID_BREP` 产出而非嵌套。
-- **单测**：合成一个 2-solid compound，导出 STEP，断言 `step-invariants.py` 读出 solids=2。
-- **判据**：B1 取点的 3 个文件 solids 失配消除；同文件复跑 parity pass。
+#### B2 修单 Body 聚合多产出一个冗余 terminal（faijs-fcstd 翻译侧）✅ 已完成（2026-10-01 续，commit `a0f94ebf`）
 
-#### B3 修 truth/parity 侧 solids 统计口径
+- **实际修复位置**：`packages/fcstd/src/codegen.ts`（`generateModel` 聚合分支），**不是** faijs core 的 STEP 导出（B2 原假设的「compound→STEP solids 计数」方向是错的——compound 早已正确，问题在翻译多产 terminal）。
+- **做法**：当 `bodiesWithGeo.size === 1` 时，Body 模块的 terminal 命名为 `assembly`（而非 `<Body>_out`），聚合入口直接 `import { assembly } from './Body.fai.js'`、不再写 `let assembly = Body_out;` 别名。这样执行程序只有 **一个** terminal，cliRun 只导出一个 `out.step`。多 Body 维持 `<Body>_out` + `cad.compound`，不受影响。
+- **单测**：`codegen.test.ts` 新增 M-B1 断言单 Body 产物 `import { assembly }` 且无 `let assembly = Body_out`；原有 M10.3 多 Body 用例（`<Body>_out` + `cad.compound`）不变。34 个 codegen 用例全过。
+- **端到端验证**：Sprocket ANSI duplex 经 `process-one.py --reconvert` 重跑——`solids` 已退出 fail 列表（原先 `1vs2`），剩余 `volume/area/bbox/com` 属 C 组，正确出界。
+- **判据达成**：取点文件 solids 失配消除 + 单测留档。
 
-- **前提**：B1 判明是 `parity-judge.py` 的 `merge_parts()` 或 `export-fcstd-truth.py` 的 solid 统计口径错。
-- **改动位置**：`tools/parity-judge.py` 的 `merge_parts()`（solids 求和逻辑）或 `tools/export-fcstd-truth.py` 的 solid 计数。
-- **单测**：合成多终端产物（2 part × 2 solid），断言 merge 后 solids=4 而非 1。
-- **判据**：口径修正后 922 个 solids 失配中属口径问题的部分消除。
+#### B3 修 truth/parity 侧 solids 统计口径 — 撤销（被 B2 取代）
+
+- **前提不成立**：B1 实证表明 922 的 solids 失配**不是口径错**（merge_parts 的求和语义是对的，它只是忠实地把「被翻译多产出的第二个 terminal」也加进去了）。无需改 `parity-judge.py` / `export-fcstd-truth.py`。
+- 仅当后续发现「真实复合体多实体被 step-invariants 误计」时再重启 B3；当前无此证据。
 
 ---
 
@@ -244,9 +243,9 @@
 | 项 | 判据 |
 |---|---|
 | A1 | ✅ 已完成：no-truth 399 → 2；pass 883 → 886；四层漏斗已刷新 |
-| B1 | solids 失配 922 的根因明确分类（compound 导出 / 口径 / 真实 merge 缺失） |
-| B2 | 取点文件 solids 失配消除 + 单测留档 |
-| B3 | 口径修正后 solids 失配中属口径问题的部分消除 |
+| B1 | ✅ 已定性：单 Body 翻译多产出一个冗余 terminal（别名 + 顶层 `let` 泄漏）；judge 方向为 truth=1 / faijs=2（plan 原写反） |
+| B2 | ✅ 已完成（commit `a0f94ebf`）：单 Body 聚合 terminal 改为 `assembly` 直接 import，Sprocket 取点 solids 退出 fail + M-B1 单测留档 |
+| B3 | 撤销：实证非口径错，无需改 parity/truth 侧 |
 | C1 | com 微小偏移重定性完成（口径 vs 真实） |
 | C2 | 取点文件 com 大偏移消除 + 单测留档 |
 | C3 | 取点文件 volume 失配消除 |
