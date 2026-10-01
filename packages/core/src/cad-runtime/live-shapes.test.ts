@@ -47,6 +47,34 @@ describe('computeLiveShapes: 消费判定', () => {
     expect(names).toEqual(['part2'])
   })
 
+  it('C0/C1 机制锚点：subtract 输入被消费；boolean op 的 keepHidden 使其保留为隐藏终端', () => {
+    // FCStd port「中间 feature var 泄漏为 terminal」（如 TS35 solids 1vsN）的根因锚点。
+    // 两层事实必须同时成立，缺一就会误判根因：
+    //   1）消费扫描本身正确——无 keep 时 `subtract(part0, part1)` 的 positional var-ref
+    //      被 lineConsumes 识别为消费 → 仅 part2 终端（＝下面的第一个断言）。
+    //   2）真运行时 `cad.subtract` 函数体调用 `keepHidden(...inputs)`（`api/boolean.ts`，
+    //      R5 语义：布尔源保留但隐藏）→ 登记落到 subtract 调用行（行号键）→ C0/C1 短路
+    //      「不消费」→ part0/part1 作为 hidden terminal 存活（＝下面的第二个断言，也是
+    //      runtime.test.ts「box+sphere+subtract → 3 终端」的成因）。
+    // 结论：1vsN 不是 computeLiveShapes/lineConsumes 漏判（计划 B4 假设），是 op 内建 keep。
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.cylinder({ radius: 5, height: 20 })',
+      'let part2 = cad.subtract(part0, part1)',
+    ].join('\n')
+    expect(liveShapeNames(code)).toEqual(['part2'])
+    // 模拟 api/boolean.ts 的 keepHidden(part0, part1)：函数体 keep 登记到 subtract 调用行（行 3）
+    const fnKeep = new Map<number, KeepRegistration>()
+    fnKeep.set(3, {
+      kept: new Set([asPartName('part0'), asPartName('part1')]),
+      hidden: new Map([
+        [asPartName('part0'), true],
+        [asPartName('part1'), true],
+      ]),
+    })
+    expect(liveShapeNames(code, fnKeep)).toEqual(['part0', 'part1', 'part2'])
+  })
+
   it('链式重赋值 → 仅 1 终端', () => {
     const names = liveShapeNames([
       'let part0 = cad.box(20, 20, 20, { centered: true })',

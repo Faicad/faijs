@@ -15,9 +15,10 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, existsSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { resolve, join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { cliCheck, cliRun, cliView, parseArgs } from './cli'
+import { cliCheck, cliRun, cliView, parseArgs, selectExportableTerminals } from './cli'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 
@@ -31,7 +32,10 @@ beforeAll(async () => {
 
 // P6：CLI fixture 随 test/faijs 移入 packages/tests（模块相对，与 cwd 无关）
 const FIXTURES_DIR = fileURLToPath(new URL('../../../tests/faijs', import.meta.url))
-const TMP_DIR = fileURLToPath(new URL('../../../tests/tmp-faijs-cli', import.meta.url))
+// 草稿目录放 OS 临时目录：宿主注入的 safe-delete shim 对「仓库内目录单轮删除 >50 文件」
+// 有批量守卫（afterAll 递归清理会抛 SAFE_DELETE_BULK_CONFIRM_REQUIRED 把整个 suite 判失败），
+// 而 os.tmpdir() 在豁免名单里（见用户级记忆的 safe-delete shim 条目）。
+const TMP_DIR = join(tmpdir(), 'faijs-cli-tests')
 
 // Ensure tmp directory exists
 beforeAll(() => {
@@ -128,7 +132,7 @@ describe('cliCheck: dryRun validation', () => {
 })
 
 describe('cliRun: execute and export', () => {
-  it('box-boolean.fai.js → STL multi-terminal output (keep-syntax 后 subtract 保留源且隐藏)', async () => {
+  it('box-boolean.fai.js → STL 单文件输出（隐藏源默认不导出）', async () => {
     const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.fai.js')
     const outPath = resolve(TMP_DIR, 'box-boolean.stl')
 
@@ -136,21 +140,23 @@ describe('cliRun: execute and export', () => {
 
     expect(result.ok).toBe(true)
     expect(result.outputFormat).toBe('stl')
-    // keep-syntax §2.5：subtract 函数体 exec.keepHidden(inputs) → part0/part1 保留（隐藏）
-    // DAG 叶子 = part0/part1(hidden)/part2 三个终端 → 多终端导出（<out>_i_<name>.<ext>）
-    expect(existsSync(`${TMP_DIR}/box-boolean.stl_0_part0.stl`)).toBe(true)
-    expect(existsSync(`${TMP_DIR}/box-boolean.stl_1_part1.stl`)).toBe(true)
-    expect(existsSync(`${TMP_DIR}/box-boolean.stl_2_part2.stl`)).toBe(true)
+    // keep-syntax §2.5：subtract 函数体 exec.keepHidden(inputs) → part0/part1 保留但 hidden。
+    // 隐藏终端在导出层被剔除 ⇒ 只剩可见终端 part2 一个 → 单终端直接写 outPath。
+    // 修复前这里会产出 out.stl_0_part0 / _1_part1 / _2_part2 三份（隐藏源泄漏 → solids 1vsN）。
+    expect(existsSync(outPath)).toBe(true)
+    expect(existsSync(`${TMP_DIR}/box-boolean.stl_0_part0.stl`)).toBe(false)
+    expect(existsSync(`${TMP_DIR}/box-boolean.stl_1_part1.stl`)).toBe(false)
+    expect(existsSync(`${TMP_DIR}/box-boolean.stl_2_part2.stl`)).toBe(false)
 
     // Verify STL file is non-empty and has valid header
-    const buf = readFileSync(`${TMP_DIR}/box-boolean.stl_2_part2.stl`)
+    const buf = readFileSync(outPath)
     expect(buf.length).toBeGreaterThan(84) // at least header + count
     // STL header: first 80 bytes
     const header = buf.slice(0, 10).toString('utf-8')
     expect(header).toContain('Faicad')
   }, 60000)
 
-  it('box-boolean.fai.js → STEP multi-terminal output (brep mode)', async () => {
+  it('box-boolean.fai.js → STEP 单文件输出（brep mode，隐藏源不落盘）', async () => {
     const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.fai.js')
     const outPath = resolve(TMP_DIR, 'box-boolean.step')
 
@@ -158,14 +164,54 @@ describe('cliRun: execute and export', () => {
 
     expect(result.ok).toBe(true)
     expect(result.outputFormat).toBe('step')
-    // 多终端导出：subtract 产物（part2）是唯一带 BREP solid 的终端
-    const part2File = `${TMP_DIR}/box-boolean.step_2_part2.step`
-    expect(existsSync(part2File)).toBe(true)
+    // 单终端（可见的 part2）→ 直接写 outPath；隐藏的 part0/part1 不再各写一份
+    expect(existsSync(outPath)).toBe(true)
+    expect(existsSync(`${TMP_DIR}/box-boolean.step_0_part0.step`)).toBe(false)
+    expect(existsSync(`${TMP_DIR}/box-boolean.step_1_part1.step`)).toBe(false)
 
     // Verify STEP file contains STEP content
-    const content = readFileSync(part2File, 'utf-8')
+    const content = readFileSync(outPath, 'utf-8')
     expect(content).toContain('ISO-10303-21')
     expect(content).toContain('ADVANCED_FACE')
+  }, 60000)
+
+  it('装配兜底导出（writeAssemblyStep fallback）同样剔除隐藏终端', async () => {
+    // 空成员 group → mesh-less 结构 compound 且 memberNames 为空 ⇒ 走 writeAssemblyStep 的
+    // 「导出全部 brepSolids」兜底路径——这正是隐藏源最容易被顺手带出去的地方。
+    const code = [
+      `let part0 = cad.box(20, 20, 20, { centered: true })`,
+      `let part1 = cad.sphere({ radius: 8, center: [0, 0, 0] })`,
+      `let part2 = cad.subtract(part0, part1)`,
+      `let g = cad.group({ name: 'g', members: [] })`,
+    ].join('\n')
+    const tmpFile = resolve(TMP_DIR, 'asm-fallback.fai.js')
+    const visiblePath = resolve(TMP_DIR, 'asm-fallback.step')
+    const allPath = resolve(TMP_DIR, 'asm-fallback-hidden.step')
+    writeFileSync(tmpFile, code)
+
+    const visible = await cliRun(tmpFile, visiblePath, { mode: 'brep', libs: CAD_LIBS })
+    const all = await cliRun(tmpFile, allPath, { mode: 'brep', libs: CAD_LIBS, includeHidden: true })
+    expect(visible.ok).toBe(true)
+    expect(all.ok).toBe(true)
+
+    // ADVANCED_BREP_SHAPE_REPRESENTATION 数量 = 导出实体数（带内腔的 subtract 结果也记 1）。
+    const solidCount = (p: string) =>
+      (readFileSync(p, 'utf-8').match(/ADVANCED_BREP_SHAPE_REPRESENTATION/g) ?? []).length
+    expect(solidCount(visiblePath)).toBe(1) // 兜底只带出可见终端 part2
+    expect(solidCount(allPath)).toBe(3) // includeHidden 才恢复 part0/part1/part2
+  }, 60000)
+
+  it('includeHidden:true → 显式取回旧行为（隐藏源一并导出，多终端）', async () => {
+    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.fai.js')
+    const outPath = resolve(TMP_DIR, 'box-boolean-hidden.stl')
+
+    const result = await cliRun(filePath, outPath, { mode: 'auto', libs: CAD_LIBS, includeHidden: true })
+
+    expect(result.ok).toBe(true)
+    // 3 个终端（含 2 个 hidden）→ 多终端导出（<out>_i_<name>.<ext>）
+    expect(existsSync(`${TMP_DIR}/box-boolean-hidden.stl_0_part0.stl`)).toBe(true)
+    expect(existsSync(`${TMP_DIR}/box-boolean-hidden.stl_1_part1.stl`)).toBe(true)
+    expect(existsSync(`${TMP_DIR}/box-boolean-hidden.stl_2_part2.stl`)).toBe(true)
   }, 60000)
 
   it('text-engrave.fai.js → single terminal STL output', async () => {
@@ -229,9 +275,53 @@ describe('parseArgs', () => {
     expect(result.part).toBe('part0')
   })
 
+  it('parses --include-hidden flag', () => {
+    const result = parseArgs(['node', 'cli.ts', 'run', 'model.fai.js', '--out', 'out.stl', '--include-hidden'])
+    expect(result.includeHidden).toBe(true)
+  })
+
   it('returns null for no args', () => {
     const result = parseArgs(['node', 'cli.ts'])
     expect(result.command).toBe(null)
+  })
+})
+
+describe('selectExportableTerminals: 导出层隐藏终端判据（单一事实来源）', () => {
+  const T = (id: string, hidden?: boolean) => ({ id, ...(hidden ? { hidden: true } : {}) })
+
+  it('默认剔除 hidden 终端，保留其余（顺序不变）', () => {
+    const { exportable, hiddenCount } = selectExportableTerminals([
+      T('part0', true),
+      T('part1', true),
+      T('part2'),
+    ])
+    expect(exportable.map((t) => t.id)).toEqual(['part2'])
+    expect(hiddenCount).toBe(2)
+  })
+
+  it('includeHidden:true → 全部保留（含 hidden）', () => {
+    const all = [T('part0', true), T('part1'), T('part2', true)]
+    const { exportable, hiddenCount } = selectExportableTerminals(all, true)
+    expect(exportable).toEqual(all)
+    expect(hiddenCount).toBe(2)
+  })
+
+  it('全部隐藏 → exportable 为空、hiddenCount=总数（上层据此报错而非静默回退）', () => {
+    const { exportable, hiddenCount } = selectExportableTerminals([T('a', true), T('b', true)])
+    expect(exportable).toEqual([])
+    expect(hiddenCount).toBe(2)
+  })
+
+  it('无 hidden → 原样返回（零回归）', () => {
+    const { exportable, hiddenCount } = selectExportableTerminals([T('a'), T('b')])
+    expect(exportable.map((t) => t.id)).toEqual(['a', 'b'])
+    expect(hiddenCount).toBe(0)
+  })
+
+  it('空集合 → 空、hiddenCount=0', () => {
+    const { exportable, hiddenCount } = selectExportableTerminals([])
+    expect(exportable).toEqual([])
+    expect(hiddenCount).toBe(0)
   })
 })
 
@@ -313,6 +403,27 @@ describe('cliView: execute and project view SVG', () => {
     for (const f of result.outputFiles!) expect(existsSync(f)).toBe(true)
     // 命名后缀：<out>_<i>_<name>.svg
     expect(result.outputFiles![0]).toContain('view-multi.svg_0_part0.svg')
+  }, 60000)
+
+  it('隐藏终端不投影（keep/keepHidden 保留的源几何不落盘）', async () => {
+    // subtract 函数体 keepHidden(part0, part1) → 只有 part2 可见。
+    // 修复前：part0/part1(hidden)/part2 三个终端各写一份 svg（隐藏源泄漏）；
+    // 修复后：只剩可见终端 part2 → 单文件直写 outPath。
+    const code = [
+      `let part0 = cad.box(20, 20, 20, { centered: true })`,
+      `let part1 = cad.sphere({ radius: 8, center: [5, 0, 0] })`,
+      `let part2 = cad.subtract(part0, part1)`,
+    ].join('\n')
+    const tmpFile = resolve(TMP_DIR, 'view-hidden.fai.js')
+    writeFileSync(tmpFile, code)
+    const outPath = resolve(TMP_DIR, 'view-hidden.svg')
+
+    const result = await cliView(tmpFile, outPath, { libs: CAD_LIBS })
+
+    expect(result.ok).toBe(true)
+    expect(result.outputFiles).toEqual([outPath])
+    expect(existsSync(`${TMP_DIR}/view-hidden.svg_0_part0.svg`)).toBe(false)
+    expect(existsSync(`${TMP_DIR}/view-hidden.svg_1_part1.svg`)).toBe(false)
   }, 60000)
 
   it('reports E_BREP_ONLY_INPUT when the shape has no BREP slot (mesh mode)', async () => {

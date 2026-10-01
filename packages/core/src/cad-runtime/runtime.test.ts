@@ -691,9 +691,13 @@ describe('CadRuntime: DAG leaf terminal detection', () => {
     ].join('\n')
     const { result } = await run(code)
     // direct 路径：subtract 的 keepHidden 登记到调用语句锚点；
-    // s1/s2 被保留进终端（与 copy keep 同理：direct 无函数体语句边界）
+    // s1/s2 被保留进终端（与 copy keep 同理：direct 无函数体语句边界）。
+    // 断言 hidden=true（而非仅「存在」）——这正是 keepHidden 的证据，也是 FCStd port
+    // 中间 feature var 泄漏为 terminal（TS35 solids 1vsN）的成因：boolean op 保留源几何。
     const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
     expect([...byId.keys()].sort()).toEqual(['s1', 's2', 's3'])
+    expect(byId.get('s1')!.hidden).toBe(true)
+    expect(byId.get('s2')!.hidden).toBe(true)
     expect(byId.get('s3')!.hidden).toBeUndefined()
   })
 

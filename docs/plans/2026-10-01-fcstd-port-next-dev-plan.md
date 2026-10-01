@@ -158,7 +158,7 @@
 - **端到端验证**：Sprocket ANSI duplex 经 `process-one.py --reconvert` 重跑——`solids` 已退出 fail 列表（原先 `1vs2`），剩余 `volume/area/bbox/com` 属 C 组，正确出界。
 - **判据达成**：取点文件 solids 失配消除 + 单测留档。
 - **⚠️ 覆盖边界（复跑实证）**：B2 只解决**单 Body 别名泄漏**（main 写 `let assembly = Body_out` 别名 → 顶层 `let` 泄漏为第二 terminal）。B1 另两个取点文件**不在 B2 覆盖范围内**，实测如下：
-  - **`TS35`（`solids(1vs4)`，复跑 `stage1/2 ok`）：** 单模块、无 Body 模块；`main.fai.js` 把每个 FCStd feature 译成独立顶层 `let`——`Common = cad.import_brep(...)`、`Cylinder = cad.cylinder(...)`，被 `Cut = cad.subtract(Common, Cylinder)` 消费，最终 `assembly = cad.compound({ members: [Pad__place, Sketch001, Pocket__place, Cut] })`。运行时 `computeLiveShapes`（`packages/core/src/cad-runtime/live-shapes.ts`）把**所有顶层 shape var 当 terminal**导出 → `out.step_0_Common.step` + `out.step_1_Cylinder.step` + `out.step_2_assembly.step` 三文件，`merge_parts` 求和得 `solids 1vs4`（inv `parts:3, solids:4` vs truth `solids:1`）。根因是 **runtime 消费判定漏判 `import_brep`/`cylinder` 这类源几何输出被后续 `subtract` 消费**（非 codegen），属独立 bug → 见 **§B4**。
+  - **`TS35`（`solids(1vs4)`，复跑 `stage1/2 ok`）：** 单模块、无 Body 模块；`main.fai.js` 把每个 FCStd feature 译成独立顶层 `let`——`Common = cad.import_brep(...)`、`Cylinder = cad.cylinder(...)`，被 `Cut = cad.subtract(Common, Cylinder)` 消费，最终 `assembly = cad.compound({ members: [Pad__place, Sketch001, Pocket__place, Cut] })`。运行时 `computeLiveShapes`（`packages/core/src/cad-runtime/live-shapes.ts`）把**所有顶层 shape var 当 terminal**导出 → `out.step_0_Common.step` + `out.step_1_Cylinder.step` + `out.step_2_assembly.step` 三文件，`merge_parts` 求和得 `solids 1vs4`（inv `parts:3, solids:4` vs truth `solids:1`）。**根因不是「消费判定漏判」**——该假设已被 B4 实测推翻：`Common`/`Cylinder` 是被 `subtract` 的 `keepHidden(inputs)`（`api/boolean.ts`，R5「布尔源保留但隐藏」）登记成 **hidden 终端**存活下来的，属**导出层判据**问题 → 见 **§B4**（已修复）。
   - **`3-5inch-Disk-Drive-SATA`（`solids(1vs6)`，复跑 `stage1 ok` 但 `stage2 run-fail`）：** B2 的 `import { assembly } from './Body.fai.js'` 形态已正确生成（单 Body 折叠对），但新鲜 run 在 `cad.subtract(Body__chain_2, Pocket002)` 抛 `kernel cut failed for inputs … — cutWithHistory`（boolean 内核失败）——与 B2 无关的独立 bug；stale 基线 `1vs6` 来自旧版转换器的多 Body 产物，非单 Body 冗余 terminal。其复跑出现的 `solids(1vs2)` / `inv:true` 是 **`process-one.py` 在 `do_run` 失败后未清 `step/` 目录、误用 Sep-27 陈旧 STEP** 造成的假象（工具侧缺陷，非真实 parity）→ 见 **§B5**。
 
 #### B3 修 truth/parity 侧 solids 统计口径 — 撤销（被 B2 取代）
@@ -166,16 +166,26 @@
 - **前提不成立**：B1 实证表明 922 的 solids 失配**不是口径错**（merge_parts 的求和语义是对的，它只是忠实地把「被翻译多产出的第二个 terminal」也加进去了）。无需改 `parity-judge.py` / `export-fcstd-truth.py`。
 - 仅当后续发现「真实复合体多实体被 step-invariants 误计」时再重启 B3；当前无此证据。
 
-#### B4 修 runtime 中间 feature-var 泄漏为 terminal（如 TS35 `solids(1vs4)`）— 待启动
+#### B4 导出层默认跳过 hidden 终端（消 TS35 类 1vsN）✅ 已修复（2026-10-01 续，导出层判据）
 
-- **现象**：单模块多 feature 文档（如 TS35）把每个 FCStd feature 译成独立顶层 `let`（`Common=import_brep`、`Cylinder=cylinder`），被后续 `Cut=subtract(Common,Cylinder)` 消费，但 `computeLiveShapes` 仍把 `Common`/`Cylinder` 当 terminal 导出 → 多文件、solid 计数虚高。
-- **根因（初步，待 B4 实施时坐实）**：`packages/core/src/cad-runtime/live-shapes.ts` 的 `lineConsumes`（L71-128）对 `cad.import_brep` / `cad.cylinder` 这类**源几何/基本体输出**的消费判定有漏判分支——`Cut = cad.subtract(Common, Cylinder)` 的 positional args 本应被 `scan` 识别为消费 `Common`/`Cylinder`，但实测未被识别（需确认 StatementSummary 的 `positional`/`args` 是否含这两个 var-ref，或 C0/C3/C4 短路误判）。
-- **修复方向（二选一，待实证定）**：
-  1. runtime：修正 `computeLiveShapes` 的消费扫描，使被后续语句 param 消费的中间 shape var 不再作为 terminal；或仅把"最终 assembly / 最后赋值"作为终端（需评估对调试中间量导出语义的破坏面）。
-  2. codegen：把中间 feature 内联进消费表达式（如 `Cut = subtract(import_brep(...), cylinder(...))`），避免独立顶层 `let`——改动面更局部、风险更低，但需处理 feature 间依赖顺序。
-- **单测**：合成一个"import_brep × cylinder → subtract → compound"的 fixture，断言运行时只导出一个 `assembly` terminal。
-- **判据**：TS35 `solids` 退出 fail（1vs1）；同文件复跑 parity 其余项。
-- **注意**：B4 是 runtime/codegen 层改动，blast radius 覆盖全部导出；实施前须先在 `packages/core` 跑 `computeLiveShapes` 相关测试取差，确认不误伤"用户确实想导出的中间量"场景（如显式 `keep`）。
+> **⚠️ 本节原假设已被实测推翻**：原写「`computeLiveShapes`/`lineConsumes` 对 `import_brep`/`cylinder` 消费判定漏判」，并给了「改 runtime 消费扫描」或「codegen 内联中间 feature」两条修复方向。**两条都不是真根因**。真根因是**导出层没有跳过 hidden 终端**。
+
+- **现象**：TS35（单模块、无 Body 模块）把每个 FCStd feature 译成顶层 `let`：`Common = cad.import_brep(...)`、`Cylinder = cad.cylinder(...)`，被 `Cut = cad.subtract(Common, Cylinder)` 消费，最终 `assembly = cad.compound({ members: [Pad__place, Sketch001, Pocket__place, Cut] })`。运行时 terminals = `['Common','Cylinder','assembly']` → cliRun 逐终端各写一份 → `out.step_0_Common` + `_1_Cylinder` + `_2_assembly`；`merge_parts` 求和 → `solids 1vs4`。
+- **根因（三层实证）**：
+  1. `extractMetadata(TS35)`：`Cut` 行 `positional = [{var-ref:Common},{var-ref:Cylinder}]`，`meta.keep` 为空 → **提取器正确**，消费引用在；
+  2. 喂**空 keep** 的 standalone `computeLiveShapes` → `['assembly']`（1 个）→ **消费扫描本身没漏**；
+  3. 插桩 `cliRun` 打印 `computeLiveShapes` 入参：`keep.functionBody(Cut 行)` = `{kept:{Common,Cylinder}, hidden:{Common:true,Cylinder:true}}` → 有一个**函数体 keep 落在 subtract 行**。
+  来源：`packages/core/src/api/boolean.ts` 的 `union/cut/subtract/intersect` **无条件** `keepHidden(...inputs)`（注释即 R5「布尔源保留但隐藏」，编辑器要看源）。`lineConsumes` 的 C0/C1 短路据此判「不消费」→ 输入作为 `hidden:true` 终端存活。
+- **既有测试佐证（推翻「升引擎即收敛」）**：`packages/core/src/cad-runtime/runtime.test.ts` 的「boolean: box + sphere + subtract → subtract 终端 + 输入保留隐藏」断言 `terminals=['s1','s2','s3']`（3 个）且**在当前 src 上就是绿的**；0.22.5 dist 与 0.25.0 src 都给 3 ⇒ 这不是版本回归，升级引擎修不了 TS35。
+- **修复（导出层判据，用户裁定「隐藏的语义就是保留但不产出，默认必须跳过」）**：
+  - `packages/core/src/node-host/cli.ts` 新增导出函数 **`selectExportableTerminals(terminals, includeHidden=false)`** 作单一事实来源；`exportExecutionResult` 默认剔除 `hidden` 终端，**全部隐藏时报明确错误**而非静默回退到「最后一个 output」；`selectViewShapes`（`view` 命令）同判据；`writeAssemblyStep` 的「兜底导出全部 brepSolids」分支同样剔除隐藏终端。
+  - 显式 opt-in：`CliRunOptions.includeHidden` + CLI `--include-hidden`（仅在指名要导出隐藏源时用）。
+- **判据达成**：`box-boolean.fai.js`（`subtract` 保留 2 个 hidden 源）现在只产 **1 个** `out.stl` / `out.step`（此前 `_0_part0/_1_part1/_2_part2` 三份）。TS35 结构同型 ⇒ `merge_parts` 只计 1 个 solid，`solids 1vs4` 消除。
+- **单测（防回归）**：`packages/core/src/node-host/cli.test.ts` —— `selectExportableTerminals` 5 例（默认剔除 / `includeHidden` / 全隐藏 / 无 hidden 零回归 / 空集）；`cliRun` box-boolean 单文件（STL+STEP）且不落 `_i_` 隐藏源文件；`includeHidden:true` 恢复 3 文件；**装配兜底路径**剔除隐藏源（`ADVANCED_BREP_SHAPE_REPRESENTATION` 计数 1 vs 3）；`cliView` 隐藏终端不投影；`parseArgs --include-hidden`。
+- **附带**：`cli.test.ts` 草稿目录由仓库内 `packages/tests/tmp-faijs-cli` 迁到 `os.tmpdir()`（宿主 safe-delete shim 对「仓库内目录单轮 >50 文件」有批量守卫，会把 `afterAll` 递归清理判成 suite 失败）。
+- **未做 / 待办**：
+  - `packages/core/src/cad-runtime/module-registry.ts` 的 `liveShapes` **保持原样**——那是跨模块 import 的绑定解析，hidden shape 仍是模块真实导出值，不属「产物导出」层。
+  - **corpus parity funnel 尚未重跑**：本修复改变了不少文件的产物文件数，§1 的 886/1,661/922 等数字需按新导出行为重跑后重基线（未做，不得沿用旧数）。
 
 #### B5 修 disk-drive boolean 内核失败（`kernel cut failed`）— 待启动（属 C/D 类，非 solids terminal）
 

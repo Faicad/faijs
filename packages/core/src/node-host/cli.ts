@@ -156,6 +156,12 @@ export interface CliRunOptions {
    * 缺省由入口文件向上找最近的 package.json。
    */
   projectRoot?: string
+  /**
+   * 连带导出隐藏终端（默认 false）。keep / keepHidden 保留的源几何默认不产出
+   * （隐藏的语义即"保留但不出现在产物里"）；置 true 恢复旧行为，把 hidden 终端
+   * 也一并写盘（多为诊断用途）。
+   */
+  includeHidden?: boolean
 }
 
 /** Result of the `check` (dry-run validation) command. */
@@ -327,7 +333,7 @@ export async function cliRun(
   // exception — the census and batch driver treat a throw as a process crash,
   // while `{ ok: false, error }` keeps it a per-file, classifiable failure.
   try {
-    return await exportExecutionResult(outPath, ext, execResult, terminals)
+    return await exportExecutionResult(outPath, ext, execResult, terminals, opts?.includeHidden ?? false)
   } catch (e) {
     return {
       ok: false,
@@ -337,14 +343,49 @@ export async function cliRun(
   }
 }
 
+/**
+ * 选出「可导出」的终端：默认剔除 hidden。
+ *
+ * 隐藏终端 = 「保留但不产出」（`keep` / `keepHidden` 语义，R5）。导出层必须默认跳过，
+ * 否则布尔运算保留的源几何会对每个 hidden 终端各写一个 `out.step_<i>_<name>` 产物，
+ * 让一个逻辑形状看起来像 N 个（FCStd port 的 `solids 1vsN` 失配即由此而来）。
+ * 需要旧行为（连同隐藏源一起写出，多用于诊断）时显式传 `includeHidden=true`。
+ *
+ * @param terminals - 存活终端集合（含 `hidden` 标记）
+ * @param includeHidden - 是否连同隐藏终端一起导出，缺省 false
+ * @returns `exportable`（可导出终端）与 `hiddenCount`（被剔除的隐藏终端数）
+ */
+export function selectExportableTerminals<T extends { hidden?: boolean }>(
+  terminals: readonly T[],
+  includeHidden = false,
+): { exportable: T[]; hiddenCount: number } {
+  const hiddenCount = terminals.reduce((n, t) => (t.hidden ? n + 1 : n), 0)
+  const exportable = includeHidden ? [...terminals] : terminals.filter((t) => !t.hidden)
+  return { exportable, hiddenCount }
+}
+
 /** Export an executed result to `outPath` (shared body of cliRun's export path). */
 async function exportExecutionResult(
   outPath: string,
   ext: string,
   execResult: Awaited<ReturnType<CadRuntime['execute']>>,
   terminals: NonNullable<Awaited<ReturnType<CadRuntime['execute']>>['terminals']>,
+  includeHidden = false,
 ): Promise<{ ok: boolean; error?: string; outputFile?: string; outputFormat?: string; infos?: string[] }> {
-  if (terminals.length === 0) {
+  const { exportable, hiddenCount } = selectExportableTerminals(terminals, includeHidden)
+  // 装配导出（writeAssemblyStep 的兜底路径）同样不得带出隐藏终端；includeHidden 时传 undefined。
+  const hiddenTerminals = includeHidden
+    ? undefined
+    : new Set(terminals.filter((t) => t.hidden).map((t) => String(t.id)))
+  // 有终端但全部隐藏 → 明确报错（不静默回退到「最后一个 output」，那等于把隐藏源漏出去）。
+  if (!includeHidden && exportable.length === 0 && hiddenCount > 0) {
+    return {
+      ok: false,
+      error: `All ${hiddenCount} live terminal(s) are hidden — nothing to export (pass includeHidden to export them)`,
+    }
+  }
+
+  if (exportable.length === 0) {
     // No terminals — use last output
     const outputNames = [...execResult.outputs.keys()]
     if (outputNames.length === 0) {
@@ -360,15 +401,15 @@ async function exportExecutionResult(
   }
 
   // Single terminal
-  if (terminals.length === 1) {
-    const terminal = terminals[0]
+  if (exportable.length === 1) {
+    const terminal = exportable[0]
     const shape = execResult.outputs.get(terminal.id)
     if (!shape) {
       return { ok: false, error: `No output for terminal "${terminal.id}"` }
     }
     // Assembly (compound with behavior) → expand members with colors
     if (!('positions' in shape) || !('indices' in shape)) {
-      const asmResult = writeAssemblyStep(outPath, ext, shape as CompoundShape, execResult)
+      const asmResult = writeAssemblyStep(outPath, ext, shape as CompoundShape, execResult, hiddenTerminals)
       if (asmResult) return asmResult
     }
     const solidEntry = execResult.brepSolids?.get(terminal.id)
@@ -377,19 +418,19 @@ async function exportExecutionResult(
 
   // Multiple terminals — write each to a separate file
   // First, check if any terminal is a compound (assembly) — export it as a single STEP
-  for (let i = 0; i < terminals.length; i++) {
-    const terminal = terminals[i]
+  for (let i = 0; i < exportable.length; i++) {
+    const terminal = exportable[i]
     const shape = execResult.outputs.get(terminal.id)
     if (!shape) continue
     if (!('positions' in shape) || !('indices' in shape)) {
       // Compound terminal — try assembly STEP export
-      const asmResult = writeAssemblyStep(outPath, ext, shape as CompoundShape, execResult)
+      const asmResult = writeAssemblyStep(outPath, ext, shape as CompoundShape, execResult, hiddenTerminals)
       if (asmResult) return asmResult
     }
   }
   // Then export non-compound terminals
-  for (let i = 0; i < terminals.length; i++) {
-    const terminal = terminals[i]
+  for (let i = 0; i < exportable.length; i++) {
+    const terminal = exportable[i]
     const shape = execResult.outputs.get(terminal.id)
     if (!shape) continue
     if (!('positions' in shape) || !('indices' in shape)) continue // skip compounds
@@ -422,11 +463,12 @@ function parseViewArg(v: string): ViewSpec {
 /**
  * 选出待投影的 shape 列表（`--part` 指定，或按终端自动选择，与 `run` 一致）：
  * 只保留带 mesh 的 shape（compound/assembly 无 mesh，无法投影，跳过）。
+ * 隐藏终端（keep/keepHidden 保留的源几何）默认不投影——与 `run` 同口径。
  */
 function selectViewShapes(
   execResult: {
     outputs: Map<unknown, Shape | CompoundShape>
-    terminals?: Array<{ id: unknown; meta?: { name?: string } }>
+    terminals?: Array<{ id: unknown; hidden?: boolean; meta?: { name?: string } }>
   },
   part?: string,
 ): Array<{ name: string; shape: Shape }> {
@@ -440,8 +482,11 @@ function selectViewShapes(
     return []
   }
 
-  const terminals = execResult.terminals ?? []
-  const ids: unknown[] = terminals.length > 0 ? terminals.map((t) => t.id) : [...outputs.keys()]
+  // 隐藏终端默认不投影。全部终端皆隐藏 → 空集（**不**回退到「所有 outputs」，
+  // 否则会把全部中间量也画出来，与 run 的「全隐藏即无可导出」语义相悖）。
+  const allTerminals = execResult.terminals ?? []
+  const { exportable: terminals } = selectExportableTerminals(allTerminals)
+  const ids: unknown[] = allTerminals.length > 0 ? terminals.map((t) => t.id) : [...outputs.keys()]
   const out: Array<{ name: string; shape: Shape }> = []
   for (const id of ids) {
     const shape = outputs.get(id) ?? outputs.get(asPartName(String(id)))
@@ -603,6 +648,7 @@ function writeAssemblyStep(
     outputs: Map<unknown, Shape | CompoundShape>
     brepSolids?: Map<unknown, { solid: BrepHandle; kernel: BrepEngineApi }>
   },
+  hiddenTerminals?: ReadonlySet<string>,
 ): CliRunResult | null {
   if (ext !== 'step' && ext !== 'stp') return null
   const slot = ensureSlot(compound)
@@ -661,6 +707,9 @@ function writeAssemblyStep(
   // Fallback: export all brepSolids (covers compounds where memberNames wasn't propagated)
   if (entries.length === 0 && execResult.brepSolids) {
     for (const [key, solidEntry] of execResult.brepSolids) {
+      // 隐藏终端（keep/keepHidden 保留的源几何）不得借这条兜底路径落盘——
+      // 与主导出路径同一判据（includeHidden 时 hiddenTerminals 传 undefined，不过滤）。
+      if (hiddenTerminals?.has(String(key))) continue
       if (!kernel) kernel = solidEntry.kernel
       entries.push({
         solid: solidEntry.solid,
@@ -695,6 +744,7 @@ export function parseArgs(argv: string[]): {
   view?: string
   sheet?: string
   part?: string
+  includeHidden?: boolean
 } {
   const args = argv.slice(2) // skip node + script
   if (args.length === 0) return { command: null }
@@ -711,6 +761,7 @@ export function parseArgs(argv: string[]): {
   let view: string | undefined
   let sheet: string | undefined
   let part: string | undefined
+  let includeHidden: boolean | undefined
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]
@@ -733,12 +784,14 @@ export function parseArgs(argv: string[]): {
       sheet = args[++i]
     } else if (arg === '--part') {
       part = args[++i]
+    } else if (arg === '--include-hidden') {
+      includeHidden = true
     } else if (!file && !arg.startsWith('-')) {
       file = arg
     }
   }
 
-  return { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part }
+  return { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part, includeHidden }
 }
 
 /**
@@ -749,7 +802,7 @@ export function parseArgs(argv: string[]): {
  * @returns the process exit code (0 on success, non-zero on failure)
  */
 export async function cliMain(argv: string[], libs?: Record<string, StdlibNamespace>): Promise<number> {
-  const { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part } = parseArgs(argv)
+  const { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part, includeHidden } = parseArgs(argv)
 
   if (!command) {
     process.stderr.write('Usage: faijs-cli <check|run|view> <file.fai.js> [options]\n')
@@ -760,6 +813,7 @@ export async function cliMain(argv: string[], libs?: Record<string, StdlibNamesp
     process.stderr.write('  --assets <dir>            Asset directory\n')
     process.stderr.write('  --fonts <dir>             Extra fonts directory\n')
     process.stderr.write('  --project-root <dir>      Project root for relative .fai.js imports\n')
+    process.stderr.write('  --include-hidden          (run) also export hidden terminals (keep/keepHidden sources; default off)\n')
     process.stderr.write('  --part <name>             (view) shape variable to project (default: terminals)\n')
     process.stderr.write('  --view <dir>              (view) single view: front|back|top|bottom|left|right|iso|"x,y,z" (default front)\n')
     process.stderr.write('  --sheet <a,b,c>           (view) multi-view sheet: front,top,right,iso (mutually exclusive with --view)\n')
@@ -799,7 +853,7 @@ export async function cliMain(argv: string[], libs?: Record<string, StdlibNamesp
     }
 
     const outPath = resolve(out)
-    const result = await cliRun(filePath, outPath, { mode, assetsDir, fontsDir, projectRoot, libs })
+    const result = await cliRun(filePath, outPath, { mode, assetsDir, fontsDir, projectRoot, libs, includeHidden })
 
     if (result.ok) {
       process.stdout.write(`✓ ${filePath} → ${outPath} (${result.outputFormat})\n`)
