@@ -1,7 +1,7 @@
 # occt-wasm 内核缺口修改方案（P2 收口，2026-09-29）
 
-日期：2026-09-29
-状态：**方案**（未实施）
+日期：2026-09-29（**2026-10-01 复核更新**：§0 水位重列 + §10 新增发现 + §9 排期重排）
+状态：**方案（未实施；本文件即 occt-wasm 侧排期的唯一权威清单）**
 范围：cq-compat P2 攻坚后仍攻不动的内核缺口，逐项给出 occt-wasm 侧的修改路径
 上游基准：cadquery-ocp 7.9.3.1.1（OCCT 7.9.3）
 探针纪律：本文每个「实测结论」均来自 `packages/cq-compat/src` 内的临时探针（当日 vitest 跑通），结论已留档为测试或写进 plan §8。
@@ -132,9 +132,61 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 
 ## 9. 优先级建议（若立项内核增强）
 
-1. §4 reshapeRemove/Replace（1 人日，解锁 9 条，API 简单）；
-2. §6.1 球角（0.5 人日，3 条）；
-3. §3 makeThickSolidByJoin（1–2 人日，解锁 4+4 条）；
-4. §6.2 高椭圆 / §6.3 双距离倒角（1 人日，5 条）；
-5. §2 aux-spine 绑定验证（0.5 人日试探，3 条）；
-6. §5 GeomPlate（2–3 人日，5 条，最后做）。
+> 2026-10-01 复核：按当前 manifest 水位与工作量重排（见 §10 的逐项条数）。
+
+1. §4 reshapeRemove/Replace（1 人日，解锁 remove 5 + replace 相关条目，API 简单）；
+2. §6.1 球角（0.5 人日，narrow:sphere-angles 3 条）；
+3. §3 makeThickSolidByJoin（1–2 人日，解锁 shell-outward-opening 2 + shell-intersection-join 1 + hollow 精度 2 + op:shape.offset 4 ≈ 9 条，含 §7 复用）；
+4. §6.2 高椭圆（ellipse-tall-axis 1）/ §6.3 双距离倒角（chamfer-asym 1）（合计 ~1 人日）；
+5. §2 aux-spine 绑定验证（0.5 人日试探，op:sweep.aux-spine 3 条）；
+6. §5 GeomPlate（2–3 人日，interpPlate 5 条，最后做）。
+
+---
+
+## 10. 复核记录（2026-10-01：manifest 当前内核相关 blocked 全量水位）
+
+> 数据源：`packages/cq-compat/tests/manifest.json`（449 ported / 201 blocked / 47 skipped）。下列条目均以当前 blockedBy 精确重列，替代 §0 的原始估计。
+
+### 10.1 `kernel:*` 直接登记（13 条）
+
+| blockedBy | 条数 | 状态与方案归属 |
+|---|---|---|
+| `kernel:boolean-near-coincident-bspline` | 3 | testTwistExtrude__r / testTwistExtrudeCombine__r（comparator 探针失败）/ **testTwistExtrudeCombineCut__cut（2026-10-01 新实证：90° 扭曲工具体 cut 进盒体，内核布尔 >300 s 挂死——BooleanOp 本体缺陷，不止 comparator）**。方案：occt-wasm 侧核查 BOPAlgo fuzzy/区间处理，或提供可中断/限时布尔。无独立小节（原 E4）。 |
+| `kernel:shell-outward-opening` | 2 | §3 |
+| `kernel:draft-existing-solid` | 2 | test_draft__res1/res2 + test_free_functions test_draft —— 既有实体拔模（BRepOffsetAPI_DraftAngle 全参面），§0 未单列；需在 occt-wasm 暴露 `BRepOffsetAPI_MakeDraft`/`DraftAngle` 完整入口（face + angle + direction），~40 行。 |
+| `kernel:shell-intersection-join` | 1 | §3 |
+| `kernel:crash-polygon-cutThruAll` | 1 | 多边形穿透切割崩溃——occt-wasm 侧稳定性缺陷，需最小复现报上游。 |
+| `kernel:loft-coplanar-sections` | 1 | 共面截面放样拒绝。 |
+| `kernel:ellipse-tall-axis` | 1 | §6.2 |
+
+### 10.2 hollow 精度（2 条，随 §3 落地）
+
+`test_hollow__res2` / `test_hollow_open__res2`：上游 MakeThickSolidByJoin Intersection join（锐外角）vs 内核 arc-join（圆角），unit box `0.698/0.565` vs `0.728/0.584`。§3 的 `makeThickSolidByJoin(params)` 落地即解锁。
+
+### 10.3 sweep 残量（9 条，§0 已解锁的部分之外）
+
+| blockedBy | 条数 | 说明 |
+|---|---|---|
+| `op:sweep.pipeshell` | 4 | pipeShell 变体（isFrenet/mode 组合）仍缺 |
+| `op:sweep.multisection` | 3 | 多截面已解锁主流（镜像 24/24 绿），此 3 条是剩余变体（带孔/特殊截面） |
+| `op:sweep.aux-spine` | 3 | §2 |
+| `op:sweep-hole-section` | 1 | 带孔截面 sweep（需公开的带孔面构造） |
+| `op:sweep-sketch-sections` | 1 | testSketch r6：spline 帧放置 + sketch 截面 sweep |
+
+### 10.4 内核/新 op 类（2026-09-30 ~ 10-01 镜像攻坚后新浮出）
+
+| blockedBy | 条数 | 说明 |
+|---|---|---|
+| `op:solid-voids` | 4 | solid(...) 内 void 缝合（外层面 + 内层面反侧成 void）——solidFromFaces 无内面反侧处理；occt-wasm 侧可加 `makeSolidWithVoids(outer, inner[])`（内壳反向 orientation 后 sew+makeSolid），~60 行 |
+| `op:prism-from-face` | 4 | 面→面放样（prism res5/res6、taper res3/res5）——需 face-to-face loft（BRepOffsetAPI/ThruSections 接受 face section 的入口） |
+| `op:prism-tilt` | 1 | 非法向方向挤出（BRepPrimAPI_MakePrism 直接支持任意方向向量，封送即可，~20 行） |
+| `op:extrude-taper-sketch` | 2 | sketch 面（pendingFaces）+ taper —— faijs 侧 draftPrism 已支持锥度，缺 sketch 面通道；内核无缺口 |
+| `op:solid-makeSolid-3d-wire` | 1 | 3D vertex→edge→wire 面构造路径（faijs 侧 sketch 层缺口，非内核） |
+
+### 10.5 其余与内核无关的大块（如实列出，非本文件范围）
+
+- `imprint` 12、`remove` 5、`interpPlate` 5（§5）、`placeSketch` 残量、Assembly 求解器 `op:assembly-solve` 8、pytest/harness 语义 ~19。
+
+### 10.6 复核结论
+
+内核侧可估总量：**§4 reshape 1 人日 + §6 球角/椭圆/倒角 ~1.5 人日 + §3 ThickSolidByJoin 1–2 人日 + §10.4 三个新原语（voids/face-loft/tilt）~2 人日 + aux-spine 验证 0.5 人日 + GeomPlate 2–3 人日 ≈ 8–10 人日**，可解锁 manifest 内核相关 blocked 约 **40 条**（13 kernel + 2 hollow + 9 sweep + 10 新 op 类，去重后）。§10.4 中 `op:extrude-taper-sketch` 与 `op:solid-makeSolid-3d-wire` 是 faijs 侧缺口，不计入 occt-wasm 工作量。
