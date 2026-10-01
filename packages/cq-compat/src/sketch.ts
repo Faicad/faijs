@@ -48,6 +48,12 @@ export interface Sketch {
   selected: ShapeHandle[]
   /** Placement locations for the next declaration (upstream selection-derived loci). */
   locs: Loc2[]
+  /**
+   * World plane the sketch is bound to (set by the Workplane-layer `sketch()`
+   * binding). Undefined for free sketches built directly in XY. The local XY
+   * geometry is mapped into this plane when materialized onto the Workplane.
+   */
+  plane?: { origin: [number, number, number]; normal: [number, number, number] }
   /** Accumulated constraints for the planegcs segment. */
   constraints: SketchConstraint[]
   /** Result of the last {@link solve} (undefined before solving). */
@@ -216,6 +222,11 @@ function applyMode(
         k.release(all[i])
         acc = merged
       }
+      // GOTCHA: do NOT unifySameDomain here — probed on cadquery 2.8.0, the
+      // kernel fuse already matches upstream additive semantics exactly
+      // (crossing slots: area 4.5708 over 5 subfaces), and unifying would
+      // DESTROY the nested-face semantics (upstream rect(2,2)+rect(1,1)
+      // additive keeps 2 faces / area 4 with the inner face as a hole).
       return { faces: [acc], tags: tagOut, tagOut }
     }
     case 's': {
@@ -272,11 +283,23 @@ function applyMode(
  * locus in `sk.locs` (upstream `each()` mechanism: declarations apply at the
  * pushed locations; identity when no loci are pushed). Fresh faces released
  * on a/s/i/r paths.
+ *
+ * `applyLoci=false` skips the placement pass — for derived declarations whose
+ * fresh faces are ALREADY positioned in sketch coordinates (e.g. `offset`
+ * offsets the selected wires in place; re-applying the loci would shift them
+ * again — GOTCHA: without this, circle(loc).wires().offset(-0.1) cut an
+ * offset face shifted to 2×loc instead of subtracting the in-place ring).
  */
-function commit(sk: Sketch, mode: SketchMode, tag: string | undefined, fresh: ShapeHandle[]): Sketch {
+function commit(
+  sk: Sketch,
+  mode: SketchMode,
+  tag: string | undefined,
+  fresh: ShapeHandle[],
+  applyLoci = true,
+): Sketch {
   const k = kernel()
   const placed: ShapeHandle[] = []
-  const locs = sk.locs.length ? sk.locs : [{ x: 0, y: 0 }]
+  const locs = applyLoci ? (sk.locs.length ? sk.locs : [{ x: 0, y: 0 }]) : [{ x: 0, y: 0 }]
   for (const f of fresh) {
     for (const loc of locs) {
       // Always copy: the source handle is released below, so an identity loc
@@ -303,7 +326,9 @@ function commit(sk: Sketch, mode: SketchMode, tag: string | undefined, fresh: Sh
   const { faces, tagOut } = applyMode(k, sk.faces, placed, mode, tag)
   const tags = new Map(sk.tags)
   for (const [t, fs] of tagOut) tags.set(t, fs)
-  return { faces, tags, selected: sk.selected, locs: sk.locs, edges: sk.edges, constraints: sk.constraints }
+  // `plane` (Workplane-layer binding) must survive the round-trip — the
+  // materializer in workplane.ts reads it at sketchFinish/placeSketch time.
+  return { faces, tags, selected: sk.selected, locs: sk.locs, edges: sk.edges, constraints: sk.constraints, plane: sk.plane }
 }
 
 /**
@@ -453,7 +478,10 @@ export function offset(sk: Sketch, d: number, opts?: SketchOpts): Sketch {
     k.release(off)
     fresh.push(f)
   }
-  return commit(sk, mode, opts?.tag, fresh)
+  // The offset faces are derived from the SELECTED wires (already placed in
+  // sketch coordinates), so the mode pass must NOT re-apply the loci —
+  // otherwise an offset face at loc would be shifted again (see commit JSDoc).
+  return commit(sk, mode, opts?.tag, fresh, false)
 }
 
 /**
@@ -1265,12 +1293,16 @@ export function distribute(sk: Sketch, n: number, start = 0, stop = 1, rotate = 
  * @param x - translation along X
  * @param y - translation along Y
  * @param rz - optional rotation about Z (degrees)
+ * @param dz - optional translation along local Z (superset of upstream:
+ * upstream `Sketch.moved(Location(0,0,3))` shifts a finished sketch along the
+ * plane normal; the local-Z form composes with the plane binding at
+ * materialization). Used by the placeSketch/loft mirror path.
  * @returns Sketch
  */
-export function moved(sk: Sketch, x: number, y: number, rz = 0): Sketch {
+export function moved(sk: Sketch, x: number, y: number, rz = 0, dz = 0): Sketch {
   const k = kernel()
   const faces = sk.faces.map((f) => {
-    let h = x || y ? k.translate(f, x, y, 0) : k.copy(f)
+    let h = x || y || dz ? k.translate(f, x, y, dz) : k.copy(f)
     if (rz) h = rotateFace(k, h, rz)
     return h
   })

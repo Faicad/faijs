@@ -35,6 +35,9 @@ import {
   rotateAboutCenter,
   slot2D,
   extrude,
+  copyWorkplane,
+  workplane,
+  faces,
 } from './workplane'
 import { brepOf } from '@faicad/faijs/shape'
 
@@ -53,6 +56,26 @@ function area(wp: Workplane): number {
   const k = getKernel() as unknown as { getSurfaceArea: (h: never) => number }
   return k.getSurfaceArea(brepOf(wp.shape as never) as never)
 }
+
+describe('copyWorkplane parity (upstream Workplane.copyWorkplane)', () => {
+  it('adopts obj0 top-face workplane → box centred at (0,0,5)', async () => {
+    const obj0 = await workplane(await faces(await box(Workplane(), 1, 1, 10), '>Z'))
+    const obj1 = await box(copyWorkplane(Workplane(), obj0), 1, 1, 1)
+    const k = getKernel() as unknown as {
+      getBoundingBox: (h: never) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number }
+    }
+    const bb = k.getBoundingBox(brepOf(obj1.shape as never) as never)
+    // upstream asserts Center == (0, 0, 5): the result is ONLY the 1×1×1 box
+    // at the adopted plane (z=5) — GOTCHA (probed on cadquery 2.8.0): the
+    // copied stack holds just the origin Vector, so the base 1×1×10 box is
+    // NOT fused into the result (bbox z∈[4.5, 5.5]).
+    expect((bb.xmin + bb.xmax) / 2).toBeCloseTo(0, 9)
+    expect((bb.ymin + bb.ymax) / 2).toBeCloseTo(0, 9)
+    expect((bb.zmin + bb.zmax) / 2).toBeCloseTo(5, 9)
+    expect(bb.zmin).toBeCloseTo(4.5, 9)
+    expect(bb.zmax).toBeCloseTo(5.5, 9)
+  })
+})
 
 describe('split parity (upstream Workplane.split)', () => {
   it('2×2×2 box split at z=0.5 keeps both halves → total volume 8', async () => {

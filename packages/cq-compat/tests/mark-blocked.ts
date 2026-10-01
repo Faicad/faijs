@@ -321,6 +321,14 @@ const BY_KEY: Record<string, string> = {
   // test_history_loft__res = loft([plane(1,1), face(circle(1)).moved(z=1)]) —
   // needs the free-function plane() constructor (func-only gap).
   'tests.test_free_functions:::test_history_loft__res': 'plane',
+  // testSketch r2: two sketches each extruded with taper=5 — extrude's taper
+  // path (draftPrism) only consumes pendingWires/pendingRect, not materialized
+  // sketch faces (pendingFaces).
+  'tests.test_cadquery::TestCadQuery::testSketch__r2': 'op:extrude-taper-sketch',
+  // testSketch r6: placeSketch of two circles located along a SPLINE's
+  // locationAt(0)/locationAt(1) frames, then sweep(multisection=True) — needs
+  // a frame-aware sketch placement (xDir binding) + sketch-section sweep.
+  'tests.test_cadquery::TestCadQuery::testSketch__r6': 'op:sweep-sketch-sections',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<

@@ -113,6 +113,10 @@ export {
   wires,
   compounds,
   shells,
+  copyWorkplane,
+  sketch,
+  placeSketch,
+  sketchFinish,
 } from './workplane'
 export type {
   Workplane as WorkplaneType,

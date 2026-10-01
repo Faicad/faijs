@@ -24,6 +24,12 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 // cq-compat owns its CadQuery-compatible text geometry (no faijs-extra dep):
 // glyph outlines → OCCT via core `textBlueprints`, aligned per CadQuery.
 import { buildTextSolid, type HAlign, type VAlign } from './text-solid'
+import {
+  sketch as sketchCreate,
+  copy as sketchCopy,
+  type Sketch,
+  type Loc2,
+} from './sketch'
 
 export type { HAlign, VAlign } from './text-solid'
 
@@ -243,6 +249,13 @@ export interface Workplane {
    * workplaneFromTagged can jump back to the marked plane.
    */
   tags?: Record<string, TaggedWorkplane>
+  /**
+   * Sketch faces materialized onto this workplane (world coordinates) — set
+   * by `sketchFinish`/`placeSketch`, consumed by `extrude`/`loft`. This is
+   * the flat-model stand-in for upstream holding Sketch objects on the stack
+   * and reading them back in `_getFaces`.
+   */
+  pendingFaces?: ShapeHandle[]
 }
 
 /** Snapshot captured by 	ag(): plane frame + carried shape. */
@@ -2666,6 +2679,31 @@ export async function extrude(
   combine: boolean = true,
   opts?: { taper?: number },
 ): Promise<Workplane> {
+  // Materialized sketch faces (sketchFinish/placeSketch) take priority — the
+  // flat-model equivalent of upstream `_getFaces()` reading Sketch objects
+  // from the stack before pending wires.
+  if (wp.pendingFaces && wp.pendingFaces.length > 0) {
+    const base = wp.shape
+    const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+    const kernel = kern() as unknown as {
+      extrude: (face: BrepHandle, dx: number, dy: number, dz: number) => BrepHandle
+    }
+    let prism: Shape | null = null
+    for (const fh of wp.pendingFaces) {
+      const solid = toShape(kernel.extrude(fh as unknown as BrepHandle, n[0] * height, n[1] * height, n[2] * height))
+      prism = prism ? await fuseShapes(prism, solid) : solid
+    }
+    if (!prism) throw new Error('[cq-compat] extrude: no sketch faces to extrude')
+    const shape = combine === false || !base ? prism : await fuseShapes(base, prism)
+    return clone(wp, {
+      shape,
+      pendingFaces: undefined,
+      faceSel: null,
+      edgeSel: null,
+      vertexSel: null,
+      pts: [],
+    })
+  }
   const taper = opts?.taper ?? 0
   if (taper !== 0) {
     // Tapered prism via the kernel draftPrism (BRepOffsetAPI_MakeDraft shell
@@ -3137,6 +3175,18 @@ function hasSolidBase(shape: Shape): boolean {
 
 /** Collect loft sections from a workplane: pending wires first, then stacked faces. */
 async function collectLoftSections(wp: Workplane, sections: unknown[]): Promise<void> {
+  // Materialized sketch faces (sketchFinish/placeSketch) loft through their
+  // outer wires — upstream `_getFaces` yields the sketch faces and the loft
+  // sections from their outer wires (holes dropped, same as stacked faces).
+  if (wp.pendingFaces && wp.pendingFaces.length > 0) {
+    const kernel = getKernel() as unknown as {
+      outerWire: (face: BrepHandle) => BrepHandle
+    }
+    for (const fh of wp.pendingFaces) {
+      sections.push(kernel.outerWire(fh as unknown as BrepHandle))
+    }
+    return
+  }
   const wires = (wp.pendingWires ?? []).filter((w) => !w.construction)
   for (const w of wires) {
     sections.push(await buildProfileWire(wp, w))
@@ -3858,6 +3908,112 @@ export function solids(wp: Workplane): Workplane {
   // the kernel's own makeWireFromMixed wrapper honors).
   for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
   return clone(wp, { shape: fromHandle(sub[0]) })
+}
+
+/**
+ * copyWorkplane — upstream `Workplane.copyWorkplane(obj)`: continue working
+ * on obj's plane. Upstream copies obj's stack, which after `.workplane()`
+ * holds only the plane origin Vector (NOT the solid), so subsequent ops place
+ * geometry at the adopted plane without fusing obj's carried shape. GOTCHA
+ * (probed against cadquery 2.8.0): the result of
+ * `Workplane('XY').copyWorkplane(obj0).box(1,1,1)` is ONLY the 1×1×1 box at
+ * z=5 (bbox z∈[4.5,5.5]) — the 1×1×10 base is NOT part of the result.
+ * @param wp - Workplane (the receiver; only serves as the parent link upstream)
+ * @param obj - Workplane whose plane is adopted
+ * @returns Workplane — clone of obj's plane frame with the shape dropped
+ */
+export function copyWorkplane(wp: Workplane, obj: Workplane): Workplane {
+  void wp
+  return clone(obj, { shape: null, faceSel: null, edgeSel: null, vertexSel: null })
+}
+
+/**
+ * sketch — upstream `Workplane.sketch()`: start a Sketch bound to this
+ * workplane's plane. The returned Sketch is edited with the `sketch*` module
+ * functions and materialized back onto the workplane by {@link sketchFinish}
+ * (upstream `Sketch.finalize()` returns the parent workplane, whose later
+ * `extrude`/`loft` read the sketch faces in `_getFaces`).
+ *
+ * The workplane's stack points (`pushPoints`) seed the sketch's loci —
+ * upstream `sketch()` passes `locs=self._locs()`, so each subsequent
+ * declaration replicates per point.
+ *
+ * GOTCHA (xDir limitation): only the plane normal is bound — the sketch's
+ * local +X maps to the orientation produced by rotating +Z onto the normal
+ * (Euler XYZ). For axis-aligned workplanes this matches upstream; a plane
+ * with a rotated xDir would need a full frame transform.
+ * @param wp - Workplane providing the binding plane and stack loci
+ * @returns Sketch bound to the workplane plane
+ */
+export function sketch(wp: Workplane): Sketch {
+  const sk = sketchCreate()
+  sk.plane = { origin: [...wp.origin] as [number, number, number], normal: [...wp.normal] as [number, number, number] }
+  const pts = wp.pts ?? []
+  if (pts.length > 0) {
+    const angles = wp.ptsAngle
+    sk.locs = pts.map(
+      ([x, y], i): Loc2 => ({ x, y, angle: angles?.[i] || undefined }),
+    )
+  }
+  return sk
+}
+
+/**
+ * materializeSketch — map a sketch's local-XY faces into its bound plane
+ * (rotate +Z onto the plane normal, then translate to the plane origin) and
+ * release the local handles. Unbound sketches are returned as-is.
+ */
+function materializeSketch(sk: Sketch): ShapeHandle[] {
+  const kernel = getKernel() as unknown as BrepEngineApi
+  const plane = sk.plane
+  return sk.faces.map((f) => {
+    if (!plane) return f
+    const rotated = rotateBrep(
+      kernel,
+      f as unknown as BrepHandle,
+      orientAngles(plane.normal) as never,
+    )
+    const moved = translateBrep(kernel, rotated, plane.origin as never)
+    return moved as unknown as ShapeHandle
+  })
+}
+
+/**
+ * sketchFinish — upstream `Sketch.finalize()` when the parent is a
+ * Workplane: hand the sketch's faces over to the workplane so the following
+ * `extrude`/`loft` consume them (flat-model equivalent of upstream holding
+ * the Sketch on the stack and reading it in `_getFaces`).
+ * @param sk - Sketch whose faces are materialized
+ * @param wp - Workplane receiving the materialized faces
+ * @returns Workplane with `pendingFaces` set
+ */
+export function sketchFinish(sk: Sketch, wp: Workplane): Workplane {
+  return clone(wp, { pendingFaces: materializeSketch(sk), faceSel: null, edgeSel: null, vertexSel: null })
+}
+
+/**
+ * placeSketch — upstream `Workplane.placeSketch(*sketches)`: place already
+ * built sketch(es) on the current workplane. Each sketch is copied, its
+ * loci reseeded from the workplane stack (`_locs`), then the faces are
+ * materialized into the workplane plane and queued as `pendingFaces` for the
+ * following `extrude`/`loft`.
+ * @param wp - Workplane providing the placement plane and stack loci
+ * @param sks - Sketches to place
+ * @returns Workplane with `pendingFaces` set
+ */
+export function placeSketch(wp: Workplane, ...sks: Sketch[]): Workplane {
+  const pts = wp.pts ?? []
+  const angles = wp.ptsAngle
+  const faces: ShapeHandle[] = []
+  for (const s of sks) {
+    const copy = sketchCopy(s)
+    if (pts.length > 0) {
+      copy.locs = pts.map(([x, y], i): Loc2 => ({ x, y, angle: angles?.[i] || undefined }))
+    }
+    if (!copy.plane) copy.plane = { origin: [...wp.origin] as [number, number, number], normal: [...wp.normal] as [number, number, number] }
+    faces.push(...materializeSketch(copy))
+  }
+  return clone(wp, { pendingFaces: faces, faceSel: null, edgeSel: null, vertexSel: null })
 }
 
 /**

@@ -1094,34 +1094,36 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "placeSketch"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r2": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "placeSketch"
+    "blockedBy": "op:extrude-taper-sketch",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "placeSketch"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "placeSketch"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r5": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "placeSketch"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSketch__r6": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSketch",
-    "blockedBy": "placeSketch"
+    "blockedBy": "op:sweep-sketch-sections",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testSlot2D__result": {
     "status": "ported",

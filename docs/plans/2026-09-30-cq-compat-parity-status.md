@@ -422,3 +422,39 @@ manifest：**423/227/47 → 425/225/47**。
 ### 9.3 门禁（全绿，已实测）
 
 `cq-compat` tsc 0 error；eslint（src + 2 个测试脚本）0 error；`verify-export-jsdoc` 全仓过；波及单测 `shape-class.test.ts` + `cq-compat.test.ts` 24/24。
+
+## 10. 续作记录（2026-10-01 第六轮 — copyWorkplane + placeSketch/wp.sketch() 集成 + testSketch 4 镜像）
+
+### 10.1 新落地 API（`packages/cq-compat/src/workplane.ts` + `sketch.ts`）
+
+- **`copyWorkplane(wp, obj)`**：采纳 obj 的平面（GOTCHA，探针 2.8.0 实证：CQ `.workplane()` 把栈清成 [origin Vector]，复制结果**不含 obj 的实体**——`copyWorkplane(obj0).box(1,1,1)` 只产出 z=5 处的 1×1×1 小盒，不与 base 融合；实现为 clone 时丢 shape）。
+- **`sketch(wp)`**：`Workplane.sketch()` 绑定——Sketch 新增可选 `plane {origin, normal}` 字段，workplane 栈点（pushPoints）作为 sketch loci 种子（上游 `sketch()` 传 `locs=self._locs()`）。xDir 限制：仅绑定法向（+Z→normal 欧拉旋转），YZ 类旋转平面需全帧变换（testSketch 用例不涉及）。
+- **`sketchFinish(sk, wp)`**（上游 `Sketch.finalize()` 的 Workplane 端）：把 sketch 面材质化进世界坐标挂到 `wp.pendingFaces`（新 Workplane 字段——扁平模型对上游「Sketch 挂栈 + `_getFaces` 回读」的替代）。
+- **`placeSketch(wp, ...sks)`**：复制 sketch、重播 loci、材质化进 `pendingFaces`。
+- **`extrude`**：优先消费 `pendingFaces`（逐面沿法向棱柱化 + fuse，`combine=false` 只留棱柱）；**`loft`**：经面 outerWire 作截面放样（与上游 `_getFaces` 同构）。
+- **`sketch.ts` `moved` 加 `dz`**（上游 `Sketch.moved(Location(0,0,3))` 的平面法向平移超集，供 placeSketch+loft 镜像）。
+
+### 10.2 修的两个真实 parity bug（sketch 层既有语义错）
+
+- **`commit` 对派生声明重复套用 loci**：`circle(loc).wires().offset(-0.1,'s')` 的 offset 面随选中 wire 已在 loc 处，commit 再平移一次 → 减出面跑到 2×loc（r3 体积差 391%）。修：`commit` 加 `applyLoci` 参数，`offset` 传 false（面已随选中实体就位，不得再播 loci）。
+- **GOTCHA（探针钉死，勿再"修"）**：applyMode 'a' 的 kernel fuse **本来就与上游一致**（十字 slot union 面积 4.5708/5 子面；嵌套 rect 保 2 面面积 4）——中途试加 `unifySameDomain` 反而摧毁嵌套面语义（上游嵌套 rect 2 面 → 1 面），已回退并在代码注释钉死。另：**上游 `Sketch.slot(w,h)` 的 w 是弧心距**（slot(2,1) 面积 2.7854，与 Workplane.slot2D 的「总长含帽」约定相反，venv 实测）。
+
+### 10.3 testSketch 镜像与 parity（+4 PASS，manifest 425/225/47 → **429/221/47**）
+
+| case | parity | 备注 |
+|------|--------|------|
+| `testSketch__r1` | **PASS**（vol/com/bbox 全 0，拓扑 f19/e48/v32 一致） | slot×2 + clean + 面上 extrude |
+| `testSketch__r3` | **PASS**（逐位） | pushPoints → circle → wires().offset(-0.1,'s')（踩出 commit loci bug） |
+| `testSketch__r4` | **PASS**（逐位） | placeSketch(s, s.moved z+3) + loft（trapezoid(3,1,120) 钝角上宽，ref vol 10.732） |
+| `testSketch__r5` | **PASS**（逐位） | polygon sketch extrude，vol 0.5 |
+| `testSketch__r2` | blocked `op:extrude-taper-sketch` | extrude taper 路径只吃 pendingWires，不吃 sketch 面 |
+| `testSketch__r6` | blocked `op:sweep-sketch-sections` | spline locationAt 帧放置 + sketch 截面 sweep（xDir 全帧变换） |
+
+### 10.4 镜像工程 GOTCHA（追加）
+
+- **`.fai.js` 变量名禁用 `top`**（security-scanner SEC_IDENT——全局对象名黑名单），用 `topWp`/`topSk`。
+- `sketch(wp)` 绑定面时 box 是**居中**的：`box(10,10,1)` 顶面在 z=0.5 而非 1。
+
+### 10.5 门禁（全绿，已实测）
+
+`cq-compat` tsc 0 error；eslint（src）0 error；`verify-export-jsdoc` 全仓过；`check-ghost-deps` 829 files OK；sketch 回归 + 集成单测 94 passed（sketch.test/sketch-mirror/sketch-workplane/p1-workplane-ops）。
