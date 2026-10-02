@@ -233,6 +233,17 @@ export type {
   CqBBox,
 } from './shape-class'
 
+// Plane coordinate transforms (CadQuery Plane.toLocalCoords / mirrorInPlane
+// parity, audit §3.4). Reuses kernel generalTransform; no core changes.
+export {
+  toLocalCoords,
+  toWorldCoords,
+  mirrorInPlane,
+  toLocalCoordsVec,
+  mirrorInPlaneVec,
+} from './plane'
+export type { CqPlane } from './plane'
+
 // Internal helpers (asBrepShape/resolveFaceSelector) are consumed by the
 // assembly layer in src/assembly/ (merged 2026-10-02, ex standalone
 // cq-compat-assembly package) — no longer re-exported for an external package.

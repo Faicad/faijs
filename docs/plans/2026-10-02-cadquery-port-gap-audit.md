@@ -21,7 +21,7 @@
    - **Shape 类模型 + 内省查询 API**（最大；值/元数据查询子集 `volume/area/length/center/bbox/isValid/geomType` 已于 2026-10-02 **P1 实施**，剩余 ~74 个 `Shape` 方法——构造器、`transform`/`translate`/`rotate`、几何操作 `Sections`/`Shells`、`distToShape` 等——仍属后续大项）
    - **对象栈模型**（`.all()/.end()/.val()/.vals()` 多对象 Workplane）
    - **对象选择器类**（Box/RadiusNth/LengthNth/AreaNth/NearestToShape/BooleanSelector）
-   - **任意平面变换**（`Plane.toLocalCoords`/`mirrorInPlane`，faijs-cadquery 只有 `mirrorX/mirrorY`）
+   - **任意平面变换**（`Plane.toLocalCoords`/`mirrorInPlane`，faijs-cadquery 只有 `mirrorX/mirrorY`）——**P2 已于 2026-10-02 实施**（三件套 + 向量形态，16 用例全绿）
    - （已派生）`wires()/shells()/solids()` 选择器、`2D` 草图选择器、导出保真（GLTF/VTK/带颜色-名字-层的 STEP）
 4. **方法论修正**：凡是"查询 / 内省 / 返回子形状或值"的 API，**不应只靠 STEP 几何比对判定 parity**。正确范式是**一次性 Python（CadQuery 2.8.0）参考捕获 → 把真值固化进 TS 断言**（已被 `selectors.test.ts` 验证可行），而非每次重跑 Python 的自动化探针通道。该范式应推广到上述所有沉默缺口（见 §5）。
 
@@ -96,7 +96,11 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 
 - **当前实现（源码核查 2026-10-02）**：`packages/faijs-cadquery/src` 中 `toLocalCoords` **完全不存在**；`mirrorInPlane` 仅在 `workplane.ts:5821` 注释中出现（描述上游语义），faijs-cadquery 只有 `mirrorX`/`mirrorY`（`2026-09-30` §7.2 已确认：`test_cad_objects` 的 `local_box`/`mirror_box` 因缺任意平面变换被判 blocked）。
 - **缺口规模**：上游 `Plane` 完整坐标变换 API（toLocalCoords/toWorldCoords/mirrorInPlane/rotate/translate 等），`2026-09-30` §9.2 只登了 `op:plane-toLocalCoords` 2 条——**把"任意平面变换"整体低估为 2 条**，实际是整套 `Plane` 变换面的缺失。
-- **审计动作**：把 `Plane` 变换 API 整体列为缺口（而非 2 条），对 `toLocalCoords`/`mirrorInPlane` 做**一次性 Python 参考捕获 → 固化 TS 坐标断言**（见 §5）。
+- **P2 实施结果（2026-10-02）**：把 `Plane` 变换 API 整体立案（不止 2 条），`toLocalCoords`/`toWorldCoords`/`mirrorInPlane` 三件套已在 `packages/faijs-cadquery/src/plane.ts` 落地（新增 `CqPlane` 帧类型 + `toLocalCoords`/`toWorldCoords`/`mirrorInPlane`/`toLocalCoordsVec`/`mirrorInPlaneVec` 五个函数）。实现只复用内核既有 `generalTransform(shape, matrix)`（3×4 行主序仿射矩阵）与 `getKernel`，**未改 core**。关键语义差异（探针证实）已固化并 GOTCHA 标注：
+  - **`mirrorInPlane` 反射轴语义（探针证实）**：CadQuery `axis='X'` 是**关于平面 X 轴线的反射**（翻转 local y&z），`axis='Y'` 翻转 local x&z——**不是**关于 YZ/XZ 平面的反射。矩阵用 Householder 反射 `R = -I + 2·u⊗u` + 平移 `T = 2·(origin − (origin·u)u)` 精确对齐（首次手写矩阵把"关于线反射"误写成"关于平面反射"导致 4 个测试失败，已手工验算全部捕获值修正）。
+  - **`mirrorInPlane` 返回拓扑差异（探针证实）**：CadQuery 返回 `Shell`，faijs 保留输入拓扑（solid 仍是 solid）——几何相同，仅 TopoDS 标签不同，按 GOTCHA 记录，非 faijs 缺陷。
+  - CadQuery `Plane.mirrorInPlane(cq.Vector)` **不接受 Vector 参数**（抛错），故向量形态 `mirrorInPlaneVec` 改为**纯基反射自洽验证**（不捕获 CadQuery 调用），仅 `toLocalCoordsVec` 捕获真值。
+- **审计动作（P2 已完成）**：对 `toLocalCoords`/`mirrorInPlane` 做**一次性 Python 参考捕获 → 固化 TS 坐标断言**（见 §5）：参考捕获见 `packages/faijs-cadquery/tests/ref-harness/plane-transform-probe.py`（CadQuery 2.8.0，XY/TR/TILT/Y 平面 + ROOT/OFF 盒，不进 CI），断言见 `src/plane.test.ts`（16 用例全绿，容差 1e-6）。`toWorldCoords` 是 `toLocalCoords` 的逆，由矩阵逆自洽覆盖。
 
 ### 3.5 E 类 · 派生沉默缺口（与上面同源，单独一轮）
 
@@ -172,7 +176,7 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 |---|---|---|---|
 | **P0** | 字符串语法全量 + 逐级收窄（沿用 §5.1 一次性参考捕获范式，不建 per-run 探针通道） | 选择器方案既定范围；验证已用一次性捕获范式落地（`selectors.test.ts`） | — |
 | **P1** | **几何量断言** + Shape 类模型内省 API 审计 | **已完成**（2026-10-02）：查询子集 volume/area/length/center/bbox/isValid/geomType 已在 `shape-class.ts` 暴露 + 一次性捕获断言全绿；剩余 ~74 个 `Shape` 方法（`transform`/构造器/几何操作/`distToShape` 等）待续 | — |
-| **P2** | **坐标变换一次性捕获** + Plane 任意平面变换审计（整体立案，非 2 条） | §3.4，被严重低估 | P1 |
+| **P2** | **坐标变换一次性捕获** + Plane 任意平面变换审计（整体立案，非 2 条） | **已完成**（2026-10-02）：`plane.ts` 落地 `toLocalCoords`/`toWorldCoords`/`mirrorInPlane` + 向量形态，一次性 Python 捕获断言 16 用例全绿；曝光 `mirrorInPlane` 反射轴语义（关于 X/Y 轴**线**反射）+ 返回 Shell vs 保留拓扑两个 GOTCHA | P1 |
 | **P3** | 对象栈模型结构性改造 + 对象栈一次性捕获 | §3.2，结构性、工作量最大 | 选择器逐级收窄落地后 |
 | **P4** | 对象选择器类（C 类）+ `wires/shells/solids` 选择器 + 2D 草图选择器 | §3.3/§3.5，同源派生 | P0 字符串选择器落地后 |
 
@@ -187,7 +191,7 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 - [ ] **（待办）** 修内核级 `length` on solid 重复计数（`occt-wasm` `getLength` 逐面遍历共享边）——edge 级 `lengthOf` 正确，solid/compound 级需去重，否则 `Length()` 语义与 CadQuery 唯一边求和不符。
 - [ ] **（待办）** 把本审计 §3 的 A–E 类沉默缺口**反向补登**进 `2026-09-30` §3.2（作为"沉默缺口"子节），使缺口清单完整。
 - [ ] P0：推进选择器方案字符串语法全量 + 逐级收窄（**一次性 Python 捕获 → 固化 TS 断言**，不建 per-run 探针通道）。
-- [ ] P2：把 `Plane` 任意平面变换整体立案（不止 `op:plane-toLocalCoords` 2 条），对 `toLocalCoords`/`mirrorInPlane` 做一次性坐标捕获断言。
+- [ ] **（已做 · P2）** 把 `Plane` 任意平面变换整体立案（不止 2 条），对 `toLocalCoords`/`mirrorInPlane` 做**一次性 Python 坐标捕获 → 固化 TS 断言**：实现见 `packages/faijs-cadquery/src/plane.ts`（`CqPlane` 帧 + `toLocalCoords`/`toWorldCoords`/`mirrorInPlane`/`toLocalCoordsVec`/`mirrorInPlaneVec`，复用内核 `generalTransform` + `getKernel`，未改 core）、断言见 `src/plane.test.ts`（16 用例全绿，容差 1e-6）、参考捕获见 `packages/faijs-cadquery/tests/ref-harness/plane-transform-probe.py`（CadQuery 2.8.0 XY/TR/TILT/Y 平面 + ROOT/OFF 盒，不进 CI）。曝光两个真实语义差异：`mirrorInPlane` 反射轴是"关于 X/Y 轴**线**反射"（翻转 local y&z 或 x&z，非关于 YZ/XZ 平面）——Householder 反射矩阵对齐；CadQuery 返回 `Shell`、faijs 保留输入拓扑（几何相同、TopoDS 标签不同），按 GOTCHA 记录。`toWorldCoords` 为 `toLocalCoords` 逆，由矩阵逆自洽覆盖。
 - [ ] P1 之后：审计剩余 ~74 个 `Shape` 方法（构造器、`transform`/`translate`/`rotate`、`Sections`/`Shells` 几何操作、`distToShape` 等），逐个判定"已实现 / 语义空心 / 缺失"，并与本审计 §5 范式落地断言。
 - [ ] 评估 `analyze-coverage.py` 增加 `geometry-producing` / `value-producing` 维度标签（§5.4），根治度量失明。
 - [ ] 每立项一个沉默缺口，先写一次性 Python 参考捕获 + 固化 TS 断言（复用 `selectors.test.ts` 的"捕获真值 → 硬编码期望 → 引擎重算"纪律）。
