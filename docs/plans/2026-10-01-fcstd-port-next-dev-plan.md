@@ -489,3 +489,41 @@
 - **stage2 other 271（scratch dir missing）**：可能是 worker 并发/清理问题而非几何 bug，先定性再修。
 
 - 本计划不改动 faijs 的 op 归属设计（sketch/draw 留在各自包、由宿主合并是既定契约）。
+
+---
+
+## 7. 全量重基线（2026-10-03，0.27.0 引擎，B4/C2/C3a/C3c-2/D2/D4a-2/D4a-3 修复后）
+
+> 触发：B4（hidden 终端剔除）、C2（root placement）、C3a（双重 place 抑制）、D2（extrude 方向旋转）、D4a-2/3（跨 Body 重发）改变了大量产物的文件数与几何，§1 数字作废。本次为引擎 `0.27.0`（sha `af8e778d…`）的全量重转 + 重跑 + 重判，旧 state 已备份（`run-sweep.json.bak.pre0270`）。
+
+### 7.1 四层漏斗（实测，`out/stage3-parity/parity.json` + `logs/stage3-0270.log`）
+
+| 阶段 | 旧基线（0.22.5，§1） | 新基线（0.27.0） | 变化 |
+|---|---|---|---|
+| stage1 翻译 ok | 3,103（96.9%） | 3,103 / 3,201（96.9%） | 持平（gap 98 → 97，failed 1 为 `cli-no-json` 需取点） |
+| stage2 执行 ok | 2,559（80.0%） | 2,733（87.3%） | +174 |
+| stage2 run-fail | 472 | 317 | −155 |
+| stage2 timeout | 88 | 41 | −47 |
+| parity pass | 1,125 | **860** | **−265** |
+| parity fail | 1,422 | 1,559 | +137 |
+| parity no-truth | 2 | 2 | 持平 |
+| promoted | 1,006 | 1,006（未跑 --promote） | — |
+
+### 7.2 fail 分类（`parity.json` failClasses 实测）
+
+| 类 | 旧（§1.1） | 新 | 变化 |
+|---|---|---|---|
+| com | 1,101 | 1,250 | +149 |
+| bbox | 1,036 | 1,122 | +86 |
+| volume | 1,361 | 1,071 | −290 |
+| area | 1,352 | 1,026 | −326 |
+| solids | 927 | 708 | −219（B4 hidden 终端剔除生效；`solids(1vs2)` 仍余 479） |
+
+### 7.3 诚实解读（不粉饰）
+
+- **pass 1125 → 860 不是回退的单一信号**：fail 文件集整体换血——B4/D2 使此前「多终端重复计数掩盖」的文件暴露出真实失配（终端数变少后，merge_parts 的分母与加权和都变了）；com/bbox 类上升与此一致。C3c-2 的 +118（ISO4762 族）与 D1 的 4 pass 已含在 860 内。
+- **stage2 ok +174 / timeout −47**：B5（cut 降级链）、D2（extrude 方向）、D4a（语法层）的净收益，方向健康。
+- **stage2 `failed` 40 条是本轮工具链事故残留**（`run-sweep-worker` 的 `openContainer` import 崩溃期写入的假失败），本轮未重跑覆盖（resume 只跳 ok、不重跑 failed）；下次 sweep 加 `--only failed` 补跑后再计。
+- **工具侧修复（本轮）**：`batch-convert.ts` / `run-sweep.ts` 陈旧包名 `faijs-fcstd` → `faijs-freecad`；`run-sweep-worker.ts` 的 `openContainer` 改从 `@faicad/faijs/io/fai-zip` 导入；宿主侧补装 `three` / `occt-wasm@3.8.4` / `manifold-3d` peer 依赖；清空被 resume 误判的 4,333 个旧引擎 STEP 缓存（`out/run-sweep-steps`）。
+- **invariants 1,133 条 vs judge 2,421 verdicts 的差异**：no-step（run-fail/timeout 无 STEP 可提取）按设计不进 invariants；与旧口径一致。
+- **下一轮头号 singleFix**：`solids(1vs2)` 残余 479（终端选择/冗余 terminal 的另一子类，见 §D4 附带发现的「合并端口 parity 口径」项）；com 大偏移 381→ 按新 failClasses 重新取点。
