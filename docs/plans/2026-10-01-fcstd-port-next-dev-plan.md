@@ -397,7 +397,7 @@
   | `ComputerDesk` | RUN-FAIL：`"Sketch007" is not exported by module "model/Body007.fai.js" (live shapes: Revolution, Body007_out)` | ⚠️ **同根因残留**：命名 import 已生成（parser 过了），但 module-registry 的 live-shape 导出面没把 `Sketch007` 暴露出来 ⇒ 运行期解析失败 |
   | `Precast_Beam_for_Slabs_BIM_Parametric` | RUN-FAIL：`model/Body011.fai.js` line 5 `unknown identifier "Pad010"` | ⚠️ **同根因残留**：`Pad010__place` 是 Body 侧**反向引用** main 变量，本次修复只覆盖了「Body 引用别的 Body」，未覆盖「Body 引用 main」 |
 
-- **判读（诚实边界）**：**2/4 修复生效**（`SEC_FREE_IDENT` 消除），**2/4 转为下一层同源缺陷**。D4a 的 parser 侧症状已消除；剩下的两个是「跨模块名字解析」的**下游两段**——(a) module-registry live-shape 导出面缺内部变量，(b) Body→main 反向引用未生成 import。这两段各自独立，应作为 **D4a-2 / D4a-3** 单独立项（一类一修），不并入本次提交。
+- **判读（诚实边界）**：**2/4 修复生效**（`SEC_FREE_IDENT` 消除），**2/4 转为下一层缺陷**。D4a 的 parser 侧症状已消除；剩下的两个**不是**「module-registry 导出面缺变量」——实测证明是 **A-9 语义边界**（跨 Body 共享的源若在源 Body 内已被消费，就不可能被导出）。故作 **D4a-2 / D4a-3** 单独立项，且 D4a-2 的修法是 codegen 侧**重发**而非放开 A-9。
 - **判据**：✅ 4 个 `SEC_FREE_IDENT` 的 parser 症状全部消除（取点 RUN-OK 1 + 归入正确失败类 3）。
 
 #### D4b `Maximum call stack`（`arduinounomisswhite`，1 个）
@@ -408,10 +408,30 @@
 
 - 生成的 `.fai.js` 把 import 放进了函数体。改动位置：`packages/faijs-freecad/src/codegen.ts`（import 位置）。
 
-#### D4 拆出的下一轮取点（D4a 下游，各自一类一修）
+#### D4a-2 跨 Body 共享**内部源**（非终端）—— 不能靠放开 A-9 修（已实证）
 
-- **D4a-2 module-registry live-shape 导出面缺 Body 内部变量**：`ComputerDesk` 生成码已合法（parser 过），但运行期 `"Sketch007" is not exported by module "model/Body007.fai.js" (live shapes: Revolution, Body007_out)` —— 导出面只列了终端，未带出被跨模块 import 的内部变量。改动位置：module-registry 的导出面收集。
-- **D4a-3 Body → main 反向引用未生成 import**：`Precast_Beam_for_Slabs_BIM_Parametric` 的 `model/Body011.fai.js` line 5 引用 main 的 `Pad010`（`Pad010__place`）。本次只覆盖了「Body 引用别的 Body」方向。改动位置：`codegen.ts` 的 `bodyImports` 收集需补 main 方向。
+- **现象**：`ComputerDesk` 的 `model/Body007.fai.js` 是
+  ```
+  let Sketch007 = cad.sketch({...})            // s0
+  let Revolution = cad.revolve(Sketch007, ...) // s1 —— Sketch007 在这里被消费
+  let Body007_out = Revolution                 // 终端
+  ```
+  而 `model/Body008.fai.js` 需要**同一个** `Sketch007`（做 `Revolution001`）。D4a 已为它生成 `import { Sketch007 } from './Body007.fai.js'`（parser 因此过了），但运行期报 `"Sketch007" is not exported by module "model/Body007.fai.js" (live shapes: Revolution, Body007_out)`。
+- **根因（实测，非推断）**：`Sketch007` 在 Body007 **内部被 `revolve` 消费** ⇒ 不是 Body007 的终端 ⇒ 按 **A-9「A 内被消费的 shape 不在 `A.liveShapes`」** 它**本就不该**可导入。用与生成码**完全同形**的两模块探针（`Body007` 消费 `Sketch007` + `Body008` 命名导入）复现，得到**逐字相同**的 `failedAt`：
+  ```
+  "Sketch007" is not exported by module "Body007.fai.js" (live shapes: Revolution, Body007_out)
+  ```
+- **⇒ 不能改 `resolveBinding` 放开非存活 shape**：`.agents/notes/rejected/architecture/2026-09-09-named-import-of-constants.md` 明确留档「Admit all values, shapes included — rejected outright: breaks A-9」，且 `packages/tests/faijs/no-ir/multifile/multifile.test.ts` 的 A-9 用例会**逐字**拦下（`import { base }` 对已消费 shape 必须失败）。**这是一道有意的设计边界，不是缺口。**
+- **正确修法方向（codegen 侧，未实施）**：Body008 需要的不是「导入 Body007 的内部变量」，而是**自己重发（re-emit）那份 sketch**——它必须在 Body008 的调用行上是本模块的声明（或抽到一个**共享 bootstrap 模块**由两边同时导出）。判据：跨 Body 共享的输入若在源 Body 里**已被消费**（非终端），就必须在消费方本地重发，不能走 import；只有当共享源**本身是终端**时，D4a 的命名 import 才是对的。
+- **前置分类（未做）**：4 个命中各需先判「共享源是终端 / 非终端」，再定 codegen 分支。
+- **状态**：❌ **未修**。D4a 的 parser 症状已消除（生成码合法），但运行期此分支**必然失败**——D4a 在这两个取点上是**只到语法层、未到语义层**，如实记录。
+
+#### D4a-3 Body → main 反向引用未生成 import
+
+- **现象**：`Precast_Beam_for_Slabs_BIM_Parametric` 的 `model/Body011.fai.js` line 5 引用 main 的 `Pad010`（生成形态 `Pad010__place`）。
+- **根因**：D4a 只覆盖「Body 引用**别的 Body**」方向，未覆盖「Body 引用 **main**」方向 ⇒ 无 import。
+- **修法方向**：`codegen.ts` 的 `bodyImports` 收集需补 main 方向；但**同 D4a-2 的约束**——若 main 的该变量不在 `mainOuts`（非 main 终端）则同样会撞 A-9，需先分类。
+- **状态**：❌ 未修。
 
 #### D4 附带发现（未处理，留档）
 
@@ -449,7 +469,7 @@
 | D1 | ✅ **已收口**：根因是 `KEEP_STEPS` 缺目录致 ENOENT 被误标（`run-sweep.ts:116-123` 已修）；state 实测 failed 只剩 **12**（旧 271 是修复前基线），12 个经测量门 **RUN-OK 12/12**、parity **4 pass / 8 fail** ⇒ 假失败 |
 | D2 | ✅ 已完成（2026-10-02）：真根因是 A3 plane 帧与 extrude「局部 +Z」契约冲突（C3a 抑制 place 后暴露），取点 `Sliding_door` RUN-FAIL → **RUN-OK**；codegen 旋转 extrude 方向到 plane 法向；3 条单测（2 条修复前红）；静态命中 **276** 个产品（0 个 up-to）。276 的端到端重基线**未跑**（见 §D2 诚实边界） |
 | D3 | timeout 88 分类完成（known-slow / 卡死已修） |
-| D4 | **D4a ✅ 已完成**（2026-10-02）：真根因 = `mixed` 路由把跨 Body 引用的 call 无脑推给 main，而 main 看不到别的 Body 内部变量 ⇒ 生成未声明标识。修复 = `mixed` 收窄为 `own===undefined && foreignInBody`、`staysHome` 留家、Body/main 两侧补命名 import、`lowerBody` 加 `crossImports` 参数（`idBase=lines.length` 保证 `sN` 不变）。静态命中 **4**；新增合成单测 + `d4a-no-free-ident-e2e.test.ts` 语料门（**修复前 2 failed / 40 passed**，修复后全绿）；全包 33 文件 **359 passed + 1 expected fail**、stderr 0、tsc 干净。端到端 4 取点：**RUN-OK 1** / `SEC_FREE_IDENT` 消除并入 `SWEEP_TRANSITION_UNSUPPORTED` 1 / 转下游两类（D4a-2 live-shape 导出面、D4a-3 Body→main 反向引用）2。D4b / D4c 未启动 |
+| D4 | **D4a ✅ 已完成（语法层）**（2026-10-02）：真根因 = `mixed` 路由把跨 Body 引用的 call 无脑推给 main，而 main 看不到别的 Body 内部变量 ⇒ 生成未声明标识。修复 = `mixed` 收窄为 `own===undefined && foreignInBody`、`staysHome` 留家、Body/main 两侧补命名 import、`lowerBody` 加 `crossImports` 参数（`idBase=lines.length` 保证 `sN` 不变）。静态命中 **4**；新增合成单测 + `d4a-no-free-ident-e2e.test.ts` 语料门（**修复前 2 failed / 40 passed**，修复后全绿）；全包 33 文件 **359 passed + 1 expected fail**、stderr 0、tsc 干净。端到端 4 取点：**RUN-OK 1** / `SEC_FREE_IDENT` 消除并入 `SWEEP_TRANSITION_UNSUPPORTED` 1 / **2 个转入 A-9 语义边界（D4a-2/D4a-3，未修）**。⚠️ **诚实边界**：D4a 只到语法层——跨 Body 共享的源若在源 Body 内已被 `revolve` 消费（非终端），A-9 必然拒绝该 import，已用同形探针逐字复现。D4b / D4c 未启动 |
 | E1 | stage1 gap 98 逐类下降 |
 | 全程 | 一类一提交、门禁全过、`--no-verify` 零使用、后台任务零并行 |
 
