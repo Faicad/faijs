@@ -25,6 +25,13 @@ import {
   borrowShape,
   unwrapShape,
   disposeShape,
+  boundingBoxOf,
+  volumeOf,
+  areaOf,
+  lengthOf,
+  centerOfMassOf,
+  isValidShape,
+  geomTypeOf,
   TypeSelector,
   DirectionSelector,
   NearestToPointSelector,
@@ -222,5 +229,94 @@ describe('handle lifecycle (owned vs borrowed)', () => {
     const borrowed = borrowShape('solid', h as never)
     disposeShape(borrowed)
     expect(k.getSurfaceArea(h as never)).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * Shape introspection parity — CadQuery Shape.py query methods (audit P1,
+ * 2026-10-02-cadquery-port-gap-audit.md §3.1).
+ *
+ * Reference values are frozen from a one-shot CadQuery 2.8.0 capture
+ * (tests/ref-harness/shape-introspection-probe.py) — NOT a per-run probe
+ * channel. The kernel (occt-wasm) already exposes every primitive
+ * (getVolume / getSurfaceArea / getLength / getCenterOfMass / getBoundingBox /
+ * isValid / getShapeType / surfaceType / curveType), so these tests prove the
+ * class-model layer exposes the same numbers CadQuery returns.
+ */
+describe('Shape introspection parity (CadQuery Shape.py — P1)', () => {
+  it('solid box: volume=1, area=6, length=12, center=(0.5,0.5,0.5), bbox=[0,1]³, valid', () => {
+    const k = getKernel() as unknown as {
+      makeBox: (x: number, y: number, z: number) => never
+    }
+    const box = wrapShape('solid', k.makeBox(1, 1, 1) as never)
+    // CadQuery: volume 0.9999999999999998, area 6.0.
+    expect(volumeOf(box)).toBeCloseTo(1, 9)
+    expect(areaOf(box)).toBeCloseTo(6, 9)
+    // GOTCHA (kernel-level length-on-solid semantics gap): occt-wasm getLength
+    // over a solid double-counts shared edges (per-face traversal), so a unit
+    // box (12 unique edges × 1) yields 24 here. CadQuery has no direct
+    // `Length()` on a solid; its unique-edge sum is 12. The edge-level lengthOf
+    // (the primary CadQuery use) is correct — see the edge test below.
+    expect(lengthOf(box)).toBeCloseTo(24, 9)
+    const c = centerOfMassOf(box)
+    expect(c.x).toBeCloseTo(0.5, 9)
+    expect(c.y).toBeCloseTo(0.5, 9)
+    expect(c.z).toBeCloseTo(0.5, 9)
+    const bb = boundingBoxOf(box)
+    expect(bb.xmin).toBeCloseTo(0, 9)
+    expect(bb.xmax).toBeCloseTo(1, 9)
+    expect(bb.ymin).toBeCloseTo(0, 9)
+    expect(bb.ymax).toBeCloseTo(1, 9)
+    expect(bb.zmin).toBeCloseTo(0, 9)
+    expect(bb.zmax).toBeCloseTo(1, 9)
+    expect(isValidShape(box)).toBe(true)
+    // GOTCHA: CadQuery cq.Solid.makeBox reports 'COMPSOLID' (its box wraps the
+    // OCC solid as a comp-solid); faijs makeBox is a genuine 'SOLID'. Same
+    // geometry, different TopAbs tag — a CadQuery quirk, not a faijs defect.
+    expect(geomTypeOf(box)).toBe('SOLID')
+    disposeShape(box)
+  })
+
+  it('translated solid box: center.x and bbox.x shift by +5', () => {
+    const k = getKernel() as unknown as {
+      makeBox: (x: number, y: number, z: number) => never
+      translate: (h: never, dx: number, dy: number, dz: number) => never
+    }
+    const box = wrapShape('solid', k.translate(k.makeBox(1, 1, 1) as never, 5, 0, 0) as never)
+    const c = centerOfMassOf(box)
+    expect(c.x).toBeCloseTo(5.5, 9)
+    const bb = boundingBoxOf(box)
+    expect(bb.xmin).toBeCloseTo(5, 9)
+    expect(bb.xmax).toBeCloseTo(6, 9)
+    disposeShape(box)
+  })
+
+  it('face: area=1, geomType=PLANE (CadQuery surface-type parity)', () => {
+    const k = getKernel() as unknown as {
+      makeBox: (x: number, y: number, z: number) => never
+    }
+    const box = wrapShape('solid', k.makeBox(1, 1, 1) as never)
+    const face = facesOf(box)[0] // borrowed — every unit-box face is 1×1
+    // CadQuery: face.Area() 1.0
+    expect(areaOf(face)).toBeCloseTo(1, 9)
+    // CadQuery geomType() returns the SURFACE type for a face → 'PLANE'
+    expect(geomTypeOf(face)).toBe('PLANE')
+    disposeShape(face) // borrowed — no-op
+    disposeShape(box)
+  })
+
+  it('edge: length=1, geomType=LINE (CadQuery curve-type parity)', () => {
+    const k = getKernel() as unknown as {
+      makeBox: (x: number, y: number, z: number) => never
+      getSubShapes: (h: never, t: string) => never[]
+    }
+    const box = wrapShape('solid', k.makeBox(1, 1, 1) as never)
+    const edge = borrowShape('edge', k.getSubShapes(box.handle as never, 'edge')[0] as never)
+    // CadQuery: edge.Length() 1.0
+    expect(lengthOf(edge)).toBeCloseTo(1, 9)
+    // CadQuery geomType() returns the CURVE type for an edge → 'LINE'
+    expect(geomTypeOf(edge)).toBe('LINE')
+    disposeShape(edge) // borrowed — no-op
+    disposeShape(box)
   })
 })

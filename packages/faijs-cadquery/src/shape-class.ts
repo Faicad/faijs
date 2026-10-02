@@ -406,6 +406,143 @@ export class StringSyntaxSelector implements Selector {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Shape introspection (upstream Shape.py query methods)
+//
+// These return values / metadata, not geometry — they are the "silent gap"
+// audited in 2026-10-02-cadquery-port-gap-audit.md §3.1 (P1). The occt-wasm
+// kernel already exposes every primitive (getVolume / getSurfaceArea /
+// getLength / getCenterOfMass / getBoundingBox / isValid / getShapeType — see
+// occt-primitives.ts:408-414 + 322), so parity here is a matter of exposing
+// them on the class model, NOT of building new kernel capability. Values are
+// verified against a one-time CadQuery 2.8.0 reference capture
+// (tests/ref-harness/shape-introspection-probe.py) and frozen into
+// src/shape-class.test.ts — see audit §5.1 (one-shot Python capture → TS
+// assertion), never a per-run probe channel.
+// ---------------------------------------------------------------------------
+
+/** Axis-aligned bounding box (mirrors occt-wasm `BoundingBox`). */
+export interface CqBBox {
+  xmin: number
+  xmax: number
+  ymin: number
+  ymax: number
+  zmin: number
+  zmax: number
+}
+
+/** Kernel surface for the introspection primitives used below. */
+interface IntrospectKernel {
+  getBoundingBox(h: ShapeHandle, useTriangulation?: boolean): CqBBox
+  getVolume(h: ShapeHandle): number
+  getSurfaceArea(h: ShapeHandle): number
+  getLength(h: ShapeHandle): number
+  getCenterOfMass(h: ShapeHandle): Pt3
+  isValid(h: ShapeHandle): boolean
+  getShapeType(h: ShapeHandle): string
+  surfaceType(h: ShapeHandle): string
+  curveType(h: ShapeHandle): string
+}
+
+function introspect(): IntrospectKernel {
+  return kernel() as unknown as IntrospectKernel
+}
+
+/**
+ * `Shape.BoundingBox()` — axis-aligned extent of the shape.
+ * @param s - shape (wrapper or handle)
+ * @returns the bounding box
+ */
+export function boundingBoxOf(s: CqShape | ShapeHandle): CqBBox {
+  return introspect().getBoundingBox(unwrapShape(s))
+}
+
+/**
+ * `Shape.Volume()` — solid/compound volume (mm³).
+ * @param s - shape (wrapper or handle)
+ * @returns volume
+ */
+export function volumeOf(s: CqShape | ShapeHandle): number {
+  return introspect().getVolume(unwrapShape(s))
+}
+
+/**
+ * `Shape.Area()` — surface area (mm²). For a face this is the face area; for a
+ * solid/compound the total surface area.
+ * @param s - shape (wrapper or handle)
+ * @returns surface area
+ */
+export function areaOf(s: CqShape | ShapeHandle): number {
+  return introspect().getSurfaceArea(unwrapShape(s))
+}
+
+/**
+ * `Shape.Length()` — cumulative edge length (mm). For an edge this is its span;
+ * for a wire/solid the sum of its edges.
+ * @param s - shape (wrapper or handle)
+ * @returns length
+ */
+export function lengthOf(s: CqShape | ShapeHandle): number {
+  return introspect().getLength(unwrapShape(s))
+}
+
+/**
+ * `Shape.Center()` — center of mass (mm). For a uniform solid/face this equals
+ * the geometric center.
+ * @param s - shape (wrapper or handle)
+ * @returns center of mass
+ */
+export function centerOfMassOf(s: CqShape | ShapeHandle): Pt3 {
+  return introspect().getCenterOfMass(unwrapShape(s))
+}
+
+/**
+ * `Shape.isValid()`.
+ * @param s - shape (wrapper or handle)
+ * @returns true when the underlying BREP is valid
+ */
+export function isValidShape(s: CqShape | ShapeHandle): boolean {
+  return introspect().isValid(unwrapShape(s))
+}
+
+/** Map occt-wasm `ShapeType` → CadQuery `geomType()` uppercase codes. */
+const GEOM_TYPE_MAP: Record<string, string> = {
+  compound: 'COMPOUND',
+  compsolid: 'COMPSOLID',
+  solid: 'SOLID',
+  shell: 'SHELL',
+  face: 'FACE',
+  wire: 'WIRE',
+  edge: 'EDGE',
+  vertex: 'VERTEX',
+  shape: 'SHAPE',
+}
+
+/**
+ * `Shape.geomType()` — mirrors CadQuery's **heterogeneous** semantics
+ * (probe-verified against CadQuery 2.8.0, see
+ * `tests/ref-harness/shape-introspection-probe.py`):
+ *  - solid / compound / shell / wire / vertex → the **TopAbs** type, uppercased
+ *    (`'SOLID'` / `'SHELL'` / …);
+ *  - **face → the SURFACE type** (`'PLANE'` / `'CYLINDER'` / `'BSPLINE'` / …);
+ *  - **edge → the CURVE type** (`'LINE'` / `'CIRCLE'` / `'BSPLINE'` / …).
+ *
+ * GOTCHA: CadQuery `cq.Solid.makeBox(1,1,1)` reports `'COMPSOLID'` (its box
+ * construction wraps the OCC solid as a comp-solid); faijs `makeBox` yields a
+ * genuine `'SOLID'`. The two are the same geometry — only the TopAbs tag
+ * differs, a CadQuery-side quirk, not a faijs defect.
+ *
+ * @param s - shape (wrapper or handle)
+ * @returns the geometry type code
+ */
+export function geomTypeOf(s: CqShape | ShapeHandle): string {
+  const h = unwrapShape(s)
+  const t = introspect().getShapeType(h)
+  if (t === 'face') return introspect().surfaceType(h).toUpperCase()
+  if (t === 'edge') return introspect().curveType(h).toUpperCase()
+  return GEOM_TYPE_MAP[t] ?? t.toUpperCase()
+}
+
 /** Normalise a 3D direction vector. */
 function norm3(v: Pt3): Pt3 {
   const len = Math.hypot(v.x, v.y, v.z) || 1

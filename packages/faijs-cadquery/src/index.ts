@@ -218,11 +218,19 @@ export {
   DirectionSelector,
   NearestToPointSelector,
   StringSyntaxSelector,
+  boundingBoxOf,
+  volumeOf,
+  areaOf,
+  lengthOf,
+  centerOfMassOf,
+  isValidShape,
+  geomTypeOf,
 } from './shape-class'
 export type {
   Pt3,
   CqShape,
   Selector,
+  CqBBox,
 } from './shape-class'
 
 // Internal helpers (asBrepShape/resolveFaceSelector) are consumed by the
