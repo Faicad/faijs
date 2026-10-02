@@ -23,7 +23,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 | `packages/tests` | `@faicad/faijs-tests` | 私有，集成测试 |
 | `packages/demo` | `@faicad/faijs-demo` | 私有，vite 演示 |
 
-依赖方向单向无环：`fai_cq_gears / fai_cq_warehouse / sheetmetal → core`、`tests → fixtures`、`根 → core`。**core 无内部依赖。**
+依赖方向单向无环：`fai_cq_gears / faijs-fasteners / sheetmetal → core`、`tests → fixtures`、`根 → core`。**core 无内部依赖。**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐

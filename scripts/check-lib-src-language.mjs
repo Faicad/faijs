@@ -5,7 +5,7 @@
  * - 建模脚本必须纯 JS（经 faijs 执行，运行时不允许 TS 语法/剥离）；
  * - 库代码必须 TS：脚本可 import 的库包，src/ 必须有 .ts 源码，禁止手写 .js。
  *
- * 审计规则：可发布库包（core / cq-compat / fai_cq_gears / fai_cq_warehouse /
+ * 审计规则：可发布库包（core / cq-compat / fai_cq_gears / faijs-fasteners /
  * sheetmetal）的 src/ 下：.ts（含 .d.ts）≥ 1，且 .js/.mjs/.cjs = 0。
  *
  * 用法：node scripts/check-lib-src-language.mjs
@@ -16,7 +16,7 @@ import { join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
-const libPackages = ['core', 'faijs-extra', 'cq-compat', 'fai_cq_gears', 'fai_cq_warehouse', 'sheetmetal']
+const libPackages = ['core', 'faijs-extra', 'cq-compat', 'fai_cq_gears', 'faijs-fasteners', 'sheetmetal']
 const jsExt = new Set(['.js', '.mjs', '.cjs'])
 // vendored 测试内核目录（wasm bindgen 产物，非手写库源码；发布 tarball 白名单
 // 已排除 src/，见 publish-all.ps1 的 E2 断言）。

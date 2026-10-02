@@ -1,7 +1,7 @@
 /**
- * check-lib-layering — fai_cq_warehouse 分层静态门禁（方案 §10，W8 落地）
+ * check-lib-layering — faijs-fasteners 分层静态门禁（方案 §10，W8 落地）
  *
- * 规则（仅作用于 packages/fai_cq_warehouse 的 src/ 与 scripts/）：
+ * 规则（仅作用于 packages/faijs-fasteners 的 src/ 与 scripts/）：
  *  1. 禁止 `from 'occt-wasm'` / `initOcctWasm` —— 不得绕 host 注入直接消费内核；
  *  2. 禁止 `getGearKernel` —— 不得消费另一个第三方库（fai_cq_gears）的东西；
  *  3. `getBackends()` 只允许出现在 src/kernel.ts（其余文件必须经 requireKernel()）；
@@ -17,7 +17,7 @@ import { join, dirname, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const pkgRoot = join(repoRoot, 'packages', 'fai_cq_warehouse')
+const pkgRoot = join(repoRoot, 'packages', 'faijs-fasteners')
 const SCOPES = ['src', 'scripts'].map((d) => join(pkgRoot, d))
 const KERNEL_FILE = 'kernel.ts'
 
@@ -77,4 +77,4 @@ if (violations.length > 0) {
   for (const v of violations) console.error(`  - ${v}`)
   process.exit(1)
 }
-console.log('[check-lib-layering] OK — fai_cq_warehouse 分层门禁通过')
+console.log('[check-lib-layering] OK — faijs-fasteners 分层门禁通过')

@@ -64,7 +64,7 @@
     "packages/cq-compat-compare",
     "packages/cq-compat",
     "packages/fai_cq_gears",
-    "packages/fai_cq_warehouse",
+    "packages/faijs-fasteners",
     "packages/sheetmetal",
     "packages/fixtures",
     "packages/tests",

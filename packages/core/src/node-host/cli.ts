@@ -54,7 +54,7 @@ const CLI_SHORT_NAMES: Record<string, string> = {
   'sheetmetal': '@faicad/sheetmetal',
   'cq-compat': '@faicad/cq-compat',
   'fai-cq-gears': '@faicad/fai-cq-gears',
-  'fai-cq-warehouse': '@faicad/fai-cq-warehouse',
+  'faijs-fasteners': '@faicad/faijs-fasteners',
 }
 
 /**
