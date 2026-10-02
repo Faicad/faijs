@@ -21,6 +21,7 @@ import { fromHandle } from '@faicad/faijs/sdk'
 import { solveSketch, type SolveSketchOptions } from '@faicad/faijs-sketch'
 import type { SketchConstraint as CanonicalConstraint, SketchGeom } from '@faicad/faijs-sketch'
 import type { OcctKernel, ShapeHandle, Vec3 } from 'occt-wasm'
+import { centerOf } from './shape-class'
 
 /** Canonical sketch geometry type re-exported for the package surface. */
 export type { SketchGeom, SolveSketchOptions }
@@ -490,52 +491,84 @@ export function offset(sk: Sketch, d: number, opts?: SketchOpts): Sketch {
  * @returns Sketch (selected faces feed the next geometric declaration)
  */
 /**
- * Minimal 2D string-selector parity (upstream StringSyntaxSelector subset used
- * by test_sketch): "<X"/">X"/"<Y"/">Y" tie-tolerant extremes over element
- * centres, ">(x,y,z)"/">>(x,y,z)" direction extremes, "or"/"and"/"not X"
- * boolean composition.
+ * Upstream `_NthSelector` cluster tolerance — `DirectionMinMaxSelector` (the
+ * `>X` / `<X` string forms) inherits it, so near-ties inside 1e-4 collapse into
+ * ONE cluster and are all returned together.
  */
-function applyStringSelector(k: OcctKernel, els: ShapeHandle[], expr: string): ShapeHandle[] {
-  const centre = (h: ShapeHandle): [number, number] => {
-    // bbox centre (vertices have no linear COM — it would return (0,0,0))
-    const bb = k.getBoundingBox(h)
-    return [(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2]
-  }
+const NTH_TOLERANCE = 1e-4
+
+/**
+ * 2D string-selector parity with upstream `StringSyntaxSelector`
+ * (`Sketch._select` dispatches to exactly the same class the 3D Workplane
+ * selectors use), limited to the direction-extreme subset plus boolean
+ * composition. Two things upstream and only upstream decides:
+ *
+ *  - the ordering key is `Center()` — the TYPE-DISPATCHED mass centre (see
+ *    `centerOf`), not the bbox centre. For a triangle face / L-shaped wire /
+ *    circular arc the two differ by millimetres, which flips which element
+ *    `>X` picks (probe-verified, `sketch-selectors.test.ts`);
+ *  - extremes are CLUSTERED at 1e-4 (window measured from the cluster's first
+ *    key), not "within an epsilon of the single best value".
+ *
+ * GOTCHA (upstream): an empty candidate list RAISES instead of yielding an
+ * empty selection (`_NthSelector.filter`: "Can not return the Nth element of an
+ * empty list").
+ */
+function applyStringSelector(els: ShapeHandle[], expr: string): ShapeHandle[] {
   const directionOf = (tok: string): [number, number] | null => {
     const m = /^[<>]{1,2}\(\s*([^,]+),([^,)]+)/.exec(tok)
     if (m) return [Number(m[1]), Number(m[2])]
-    if (/^[<>]{0,2}X$/i.test(tok)) return [1, 0]
-    if (/^[<>]{0,2}Y$/i.test(tok)) return [0, 1]
+    const axis = tok.replace(/^[<>]{1,2}/, '').toUpperCase()
+    if (axis === 'X') return [1, 0]
+    if (axis === 'Y') return [0, 1]
+    if (axis === 'Z') return [0, 0]
+    if (axis === 'XY') return [1, 1]
+    if (axis === 'XZ') return [1, 0]
+    if (axis === 'YZ') return [0, 1]
     return null
   }
-  // one extreme condition: [><](X|Y|(dx,dy[,dz]))
+  // one extreme condition: [><](X|Y|Z|XY|XZ|YZ|(dx,dy))
   const evalCond = (els: ShapeHandle[], cond: string): ShapeHandle[] => {
+    if (!els.length) throw new Error('Can not return the Nth element of an empty list')
     const dir = directionOf(cond)
     if (!dir) throw new Error('Unsupported sketch selector term: ' + cond)
     const maxSide = cond.startsWith('>')
-    const proj = (p: [number, number]) => p[0] * dir[0] + p[1] * dir[1]
-    let best = maxSide ? -Infinity : Infinity
-    const centres = new Map<ShapeHandle, [number, number]>()
-    for (const el of els) {
-      const c = centre(el)
-      centres.set(el, c)
-      const v = proj(c)
-      if (maxSide ? v > best : v < best) best = v
+    const keyed = els.map((el) => {
+      const c = centerOf(el)
+      return { el, key: c.x * dir[0] + c.y * dir[1] }
+    })
+    keyed.sort((a, b) => a.key - b.key)
+    // upstream `_NthSelector.cluster`: a new cluster starts as soon as a key
+    // falls outside the tolerance window measured from the CLUSTER's first key.
+    const clusters: ShapeHandle[][] = [[]]
+    let start = keyed[0].key
+    for (const { el, key } of keyed) {
+      if (Math.abs(key - start) <= NTH_TOLERANCE) clusters[clusters.length - 1].push(el)
+      else {
+        clusters.push([el])
+        start = key
+      }
     }
-    const TOL = 1e-6
-    return els.filter((el) => Math.abs(proj(centres.get(el)!) - best) < TOL)
+    return maxSide ? clusters[clusters.length - 1] : clusters[0]
   }
   const evalTerm = (els: ShapeHandle[], term: string): ShapeHandle[] => {
     const trimmed = term.trim()
     if (trimmed.startsWith('not ')) {
+      // upstream: SubtractSelector(Selector(), term) — complement over the SAME
+      // full candidate list (set difference, so output order is not meaningful).
       const excluded = new Set(evalCond(els, trimmed.slice(4).trim()))
       return els.filter((el) => !excluded.has(el))
     }
     const parts = trimmed.split(' and ').map((p) => p.trim())
     if (parts.length === 1) return evalCond(els, parts[0])
-    let out = els
-    for (const p of parts) out = out.filter((el) => evalCond([el], p).length > 0)
-    return out
+    // upstream AndSelector: EVERY operand is applied to the SAME full list and
+    // the results are intersected — they do not chain into one another.
+    let out: ShapeHandle[] | null = null
+    for (const p of parts) {
+      const hit = new Set(evalCond(els, p))
+      out = out === null ? [...hit] : out.filter((el) => hit.has(el))
+    }
+    return out ?? []
   }
   const groups = expr.split(' or ').map((g) => g.trim())
   const seen = new Set<ShapeHandle>()
@@ -630,7 +663,7 @@ export function vertices(sk: Sketch, sel?: string, tag?: string): Sketch {
 /** Apply the string-selector expression (if any) to a raw selection. */
 function filterSel(els: ShapeHandle[], sel?: string): ShapeHandle[] {
   if (!sel) return els
-  return applyStringSelector(kernel(), els, sel)
+  return applyStringSelector(els, sel)
 }
 
 /**
@@ -929,26 +962,32 @@ export function segment(
   opts?: SketchEdgeOpts,
 ): Sketch {
   const k = kernel()
+  const isPt = (v: unknown): v is Pt2 => Array.isArray(v) && v.length === 2
   let p1: Pt2
   let p2: Pt2
+  let edgeOpts: SketchEdgeOpts | undefined = opts
   if (typeof aOrP1 === 'number' && typeof bOrP2 === 'number') {
     // (length, angle) overload
     p1 = endPoint(sk)
     const rad = (bOrP2 * Math.PI) / 180
     p2 = [p1[0] + aOrP1 * Math.cos(rad), p1[1] + aOrP1 * Math.sin(rad)]
-  } else if (bOrP2 === undefined) {
-    // (p2 only) — continue from the current end point
-    p1 = endPoint(sk)
-    p2 = aOrP1 as Pt2
-  } else if (typeof aOrP1 === 'number') {
-    throw new Error('segment: unsupported argument combination')
-  } else {
-    // (p1, p2)
+  } else if (isPt(aOrP1) && isPt(bOrP2)) {
+    // (p1, p2) overload
     p1 = aOrP1
-    p2 = bOrP2 as Pt2
+    p2 = bOrP2
+  } else if (isPt(aOrP1)) {
+    // (p2 [, opts]) — continue from the current end point. GOTCHA: an options
+    // object in the SECOND position must not be read as a point; upstream
+    // dispatches on types (`@multimethod`), and `segment([0,1], tag='e')` means
+    // "to (0,1) from the current end point", NOT "from (0,1) to the tag object".
+    p1 = endPoint(sk)
+    p2 = aOrP1
+    edgeOpts = (bOrP2 as SketchEdgeOpts | undefined) ?? opts
+  } else {
+    throw new Error('segment: unsupported argument combination')
   }
   const e = k.makeLineEdge(v3(p1[0], p1[1], 0), v3(p2[0], p2[1], 0))
-  return edge(sk, e, opts?.tag, opts?.forConstruction ?? false)
+  return edge(sk, e, edgeOpts?.tag, edgeOpts?.forConstruction ?? false)
 }
 
 /**

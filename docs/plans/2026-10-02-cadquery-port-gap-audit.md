@@ -111,7 +111,7 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 | 项 | 现状 | 来源 |
 |---|---|---|
 | ~~`wires()/shells()/solids()/compounds()` 选择器~~ **（已闭环 2026-10-03）** | 实际比 §4.8 的排除理由更复杂：`_collectProperty` 的 Solid→Compounds 特例在 2.8.0 的公开 API 上**不可触发**（见下）；真正的缺口是 `Shape.Wires()` 从未落地，且 Workplane 层把四个 kind 都实现成"取第一个子形"的几何 op | 同源失明 |
-| `2D` 草图选择器（`sketch.ts:498 applyStringSelector`） | `2026-10-02` §4.8 排除（目标不是 3D 拓扑实体） | 同源失明 |
+| ~~`2D` 草图选择器（`sketch.ts` `applyStringSelector`）~~ **（已闭环 2026-10-03）** | `2026-10-02` §4.8 排除（目标不是 3D 拓扑实体）——**排除理由不成立**：上游 `Sketch._select` 分派的正是 3D 侧同一个 `StringSyntaxSelector` | 同源失明 |
 | 导出保真（GLTF / VTK.js / VRML / 带颜色-名字-层的 STEP 子形状往返） | `2026-09-30` §3.4 塞进"测试基础设施"口径（5 条），实为输出格式特性缺口 | 分量被低估 |
 
 #### E 类第一项已闭环：`Shape.Wires()` 与 kind 选择器的真实语义（2026-10-03）
@@ -120,6 +120,19 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 
 1. **§4.8 的排除理由不成立**：`_collectProperty("Solids")` 的 Solid→Compounds 特例触发条件是「栈对象是 `Solid` **类实例** 且 `ShapeType()=="Compound"`」。对 2.8.0 实测 `box` / `faces()` / `wires()` / `solids()` / `union` / `cut` / 链式 `union` / `newObject` / `findSolid()` 九种构造，栈对象的类全是 `Solid/Solid`、`Compound/Compound` 或 `Face/Face`，**无一命中**（只有强转 `cq.Solid(compound.wrapped)` 才 `special=True`，且此时 `Compounds()`=1，即返回它自己）。故该分支在公开 API 上不可达 —— **不实现**，以 GOTCHA 记录。
 2. **真缺口是"面的多重 wire"**：一个 face 贡献**全部** wire（外环 + 每个孔一个）—— 带两孔的板顶面 `Wires()`=3（长度 60 / π / 3π，分别对应周长与两个孔周长）。Workplane 层原有 `wires()/shells()/solids()/compounds()` 一律"取第一个子形"，把这个语义整个丢掉（未改，属 P3 对象栈范围：上游把 N 个子形压栈，faijs 载波只有单个 `.shape`）。
+#### E 类第二项已闭环：2D 草图选择器（2026-10-03）
+
+一次性捕获见 `packages/faijs-cadquery/tests/ref-harness/sketch-selectors-probe.py`（不进 CI），真值固化在 `src/sketch-selectors.test.ts`（18 用例全绿）；落地 `src/sketch.ts` 的 `applyStringSelector`。四条关键发现：
+
+1. **§4.8 的排除理由同样不成立**：上游 `Sketch._select`（`cadquery/sketch.py:675`）对字符串选择器走的就是 `StringSyntaxSelector(...)` —— 与 3D Workplane 侧**同一个类**。所谓"目标不是 3D 拓扑实体"并不能把 2D 侧排除在选择器语义之外。同源病，同样静默。
+2. **2D 侧也必须跑 `Center()`（第三次踩到同一根因）**：三角形面 / 圆弧的 `Center()` 与 bbox 中心差到足以**翻转** `>X` 的选中对象（三角形 `Center().x=3.333` vs bbox 中心 `5.0`；r=10 的四分之一圆弧 `Center().x=6.366` vs bbox 中心 `5.0`）。
+3. **并列判据是 1e-4 簇容差，不是"距极值 1e-6 以内"**：两个面中心 x 相差 5e-5 时上游把二者并成一簇，`>X` 与 `<X` **都返回两个**；相差 2e-4 才分裂成两簇。原实现的 1e-6 硬窗口会漏掉整簇。
+4. **`and` 曾是空操作**：原实现把每个 term 依次作用于上一个结果，且对单元素列表取极值恒真 ⇒ `A and B` 实际等于 `A`。上游 `AndSelector` 是"各操作数都作用于**同一份完整候选集**再求交"，已改为求交（反例 `faces(">X and <Y")` 在修复前返回 `>X` 面、修复后为**空**）。
+
+另**连带修掉一个既有 bug**（非本轮目标、被本轮改动暴露）：`segment(s, [0,1], {tag:'e'})` 被 faijs 误判为 `(p1, p2)` 重载 —— 第二位的 options 对象被当成点，造出 **NaN 端点** 的边（bbox 为 `NaN`、`Center()` 退化为 `(0,0,0)`）。此前之所以不显形，是因为 NaN 投影既不大于也不小于 `best`，恒被过滤掉。已按上游 `@multimethod` 的类型分派修正（`sketch.ts` `segment`）：第二位不是点即视为 `(p2[, opts])` 续接重载。受影响的既有用例 `sketch-mirror.test.ts` `segment+close: edges(<X).delete()` 现按真实几何判定。
+
+**捕获方法学陷阱（务必照做）**：上游 `Sketch` 的 `_selection` 是**就地可变**的 —— `push()` 会把 `Location` 留在 `_selection` 里，`faces()`/`edges()` 也会覆盖它。复用同一个 sketch 做多次选择，后续调用会解析到"上一次选择"而不是面（实测 `faces().vals()` 直接返回空）。故**每个选择都要新建 fixture**（或 `reset()`）。同源：faijs 的 `push` 把顶点留在 `selected` 里（上游留的是 `Location`，`_select` 里被 `isinstance(el, Location)` 跳过）—— 两者都导致"push 之后直接选"得到空，但机制不同，已按 GOTCHA 记录、**未改** `push`。
+
 3. **字符串选择器必须跑 `Center()` 而不是 bbox 中心**（与本审计 §3.3 同源）：构造两个**等长（40）、同尺寸**的 L 形 wire P/Q，其 `Center()` 排序为 P(6.6) > Q(4.3)，而 bbox 中心排序为 P(5.0) < Q(5.9) —— `>X` 在两种实现下选中**不同的**子形。已把 `StringSyntaxSelector` / `NearestToPointSelector` 从 bbox 中心改为 `centerOf()`，并以该夹具锁死（变异回退 bbox 版本即 1 failed）。其余 GOTCHA：face 的 `Shells()/Solids()/Compounds()` 全为 0（故 `faces(">Z").solids()` 是空选择，不是所属 solid）；`Compounds()` 对 compound 返回**它自己**（1 个），对 solid 返回 0。
 
 ---
@@ -191,7 +204,8 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 | **P2** | **坐标变换一次性捕获** + Plane 任意平面变换审计（整体立案，非 2 条） | **已完成**（2026-10-02）：`plane.ts` 落地 `toLocalCoords`/`toWorldCoords`/`mirrorInPlane` + 向量形态，一次性 Python 捕获断言 16 用例全绿；曝光 `mirrorInPlane` 反射轴语义（关于 X/Y 轴**线**反射）+ 返回 Shell vs 保留拓扑两个 GOTCHA | P1 |
 | **P3** | 对象栈模型结构性改造 + 对象栈一次性捕获 | §3.2，结构性、工作量最大 | 选择器逐级收窄落地后 |
 | ~~**P4**~~ | **对象选择器类（C 类）——已完成（2026-10-02）** | §3.3（已闭环） | P0 字符串选择器落地后 |
-| ~~**P4b**~~ | **kind 选择器 `wires/shells/solids/compounds` ——已完成（2026-10-03）**：`wiresOf()` 落地 + 12 用例真值断言；`StringSyntaxSelector`/`NearestToPointSelector` 改用 `Center()` 类型分派 | §3.5 第一行已闭环；2D 草图选择器 + 导出保真仍待办 | P4 |
+| ~~**P4b**~~ | **kind 选择器 `wires/shells/solids/compounds` ——已完成（2026-10-03）**：`wiresOf()` 落地 + 12 用例真值断言；`StringSyntaxSelector`/`NearestToPointSelector` 改用 `Center()` 类型分派 | §3.5 第一行已闭环 | P4 |
+| ~~**P4c**~~ | **2D 草图选择器 ——已完成（2026-10-03）**：`applyStringSelector` 改为 `Center()` + 1e-4 簇容差 + 真求交的 `and`；18 用例真值断言；连带修 `segment` 重载分派（NaN 端点） | §3.5 第二行已闭环；导出保真仍待办 | P4 |
 
 > **共同风险**（一句话）：P1–P4 的所有缺口，都和这次的选择器是**同一类病**——"镜像全绿但语义空心"，因为度量只能看见导出几何。解决它们的不是更多镜像，而是 §5 的一次性参考捕获范式（把真值固化进 TS 断言）。
 
@@ -204,6 +218,7 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 - [x] **（已做 · 2026-10-02）** `length` on solid 归一化：core occt / brepkit 适配器 + faijs-cadquery `lengthOf` 统一为「唯一 edge 弧长之和」（L1 `getLength` 语义定稿，替换原「内核级缺口」定性）；两引擎逐位一致，且对齐 CadQuery 唯一边求和。方案见 `2026-10-02-l1-getlength-unique-edge-normalization.md`，回归见 `packages/core/src/brep/engine/getlength-domain.probe.test.ts`。
 - [x] **（已做 · P4）** 对象选择器类（C 类）整体立案并落地：`packages/faijs-cadquery/src/object-selectors.ts`（CenterNth/LengthNth/AreaNth/RadiusNth + Box/NearestToShape + And/Sum/Subtract/Inverse），前置能力 `centerOf`/`radiusOf`/`shapeTypeOf` 补进 `src/shape-class.ts`；一次性 Python 捕获 `tests/ref-harness/object-selectors-probe.py` → 断言 `src/object-selectors.test.ts`（43 用例全绿）。GOTCHA 五条见 §3.3（全丢弃抛错 / 贴合盒返回空 / 方向不归一化 / 簇容差自簇首起算 / 平局取首个 + 真最小距离）。
 - [x] **（已做 · P4b，2026-10-03）** E 类第一项闭环 —— kind 选择器：`src/shape-class.ts` 新增 `wiresOf()`（`Shape.Wires()`，此前完全缺失），并把 `StringSyntaxSelector` / `NearestToPointSelector` 的选择基准从 bbox 中心改为上游 `Center()` 类型分派质心（`centerOf()`）；一次性捕获 `tests/ref-harness/kind-selectors-probe.py` → 断言 `src/kind-selectors.test.ts`（12 用例全绿，变异回退 bbox 版本即红）。冻结 GOTCHA 四条：face 的 `Shells()/Solids()/Compounds()` 全为 0；`Compounds()` 对 compound 返回它自己；带孔面的 `Wires()`=外环+每孔一个；`_collectProperty` 的 Solid→Compounds 特例在 2.8.0 公开 API 上**不可触发**（九种构造实测），故不实现。Workplane 层 `wires()/shells()/solids()/compounds()` 仍为"取第一个子形"的几何 op —— 它们需要 P3 的多对象栈才能表达"N 个子形入栈"，**留待 P3**。
+- [x] **（已做 · P4c，2026-10-03）** E 类第二项闭环 —— 2D 草图选择器：`src/sketch.ts` 的 `applyStringSelector` 从"bbox 中心 + 距极值 1e-6"改为上游 `StringSyntaxSelector` 的真实语义（`Center()` 类型分派质心 + `_NthSelector` 的 1e-4 簇容差 + 真求交的 `and` + 空候选集抛错），并把轴串扩展到 `X/Y/Z/XY/XZ/YZ`；一次性捕获 `tests/ref-harness/sketch-selectors-probe.py` → 断言 `src/sketch-selectors.test.ts`（18 用例全绿，变异回退 bbox 版本即 6 failed、回退链式 `and` 即 1 failed）。冻结 GOTCHA 四条：三角形面 / 圆弧的 `Center()` 与 bbox 中心**翻转** `>X` 的选择；中心相距 5e-5 的两者并成一簇（`>X` 与 `<X` 都返回全部）；`and` 是各操作数作用于同一候选集再求交（`>X and <Y` 为空）；空候选集抛 `Can not return the Nth element of an empty list`。连带修掉既有 `segment` 重载分派 bug（第二位 options 被当点 → NaN 端点）。**未改** `push`（上游 push 留 `Location`、faijs 留顶点，机制不同，按 GOTCHA 记录）。
 - [ ] **（待办）** 把本审计 §3 的 A–E 类沉默缺口**反向补登**进 `2026-09-30` §3.2（作为"沉默缺口"子节），使缺口清单完整。
 - [ ] P0：推进选择器方案字符串语法全量 + 逐级收窄（**一次性 Python 捕获 → 固化 TS 断言**，不建 per-run 探针通道）。
 - [ ] **（已做 · P2）** 把 `Plane` 任意平面变换整体立案（不止 2 条），对 `toLocalCoords`/`mirrorInPlane` 做**一次性 Python 坐标捕获 → 固化 TS 断言**：实现见 `packages/faijs-cadquery/src/plane.ts`（`CqPlane` 帧 + `toLocalCoords`/`toWorldCoords`/`mirrorInPlane`/`toLocalCoordsVec`/`mirrorInPlaneVec`，复用内核 `generalTransform` + `getKernel`，未改 core）、断言见 `src/plane.test.ts`（16 用例全绿，容差 1e-6）、参考捕获见 `packages/faijs-cadquery/tests/ref-harness/plane-transform-probe.py`（CadQuery 2.8.0 XY/TR/TILT/Y 平面 + ROOT/OFF 盒，不进 CI）。曝光两个真实语义差异：`mirrorInPlane` 反射轴是"关于 X/Y 轴**线**反射"（翻转 local y&z 或 x&z，非关于 YZ/XZ 平面）——Householder 反射矩阵对齐；CadQuery 返回 `Shell`、faijs 保留输入拓扑（几何相同、TopoDS 标签不同），按 GOTCHA 记录。`toWorldCoords` 为 `toLocalCoords` 逆，由矩阵逆自洽覆盖。
