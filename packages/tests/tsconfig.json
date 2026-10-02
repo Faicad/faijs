@@ -27,7 +27,12 @@
       "@faicad/faijs/*": ["../core/src/*"],
       "@faicad/faijs-extra": ["../faijs-extra/src/index.ts"],
       "@faicad/faijs-extra/*": ["../faijs-extra/src/*"],
+      "@faicad/faijs-gears": ["../faijs-gears/src/index.ts"],
+      "@faicad/faijs-gears/*": ["../faijs-gears/src/*"],
+      "@faicad/faijs-sketch": ["../sketch/src/index.ts"],
+      "@faicad/faijs-sketch/*": ["../sketch/src/*"],
       "@faicad/sheetmetal": ["../sheetmetal/src/index.ts"],
+      "@faicad/sheetmetal/*": ["../sheetmetal/src/*"],
       "@faicad/faijs-fixtures": ["../fixtures/data"]
     }
   },

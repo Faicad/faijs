@@ -21,6 +21,8 @@
       "@faicad/faijs/*": ["../core/src/*"],
       "@faicad/faijs-extra": ["../faijs-extra/src/index.ts"],
       "@faicad/faijs-extra/*": ["../faijs-extra/src/*"],
+      "@faicad/faijs-cadquery": ["./src/index.ts"],
+      "@faicad/faijs-cadquery/*": ["./src/*"],
       "@faicad/cq-compat-compare": ["../cq-compat-compare/src/index.ts"],
       "@faicad/cq-compat-compare/*": ["../cq-compat-compare/src/*"]
     }
