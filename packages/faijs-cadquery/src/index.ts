@@ -223,9 +223,30 @@ export {
   areaOf,
   lengthOf,
   centerOfMassOf,
+  centerOf,
+  radiusOf,
+  shapeTypeOf,
   isValidShape,
   geomTypeOf,
 } from './shape-class'
+
+// Object selector classes (CadQuery selectors.py object-selector parity —
+// audit §3.3 "C 类 · 对象选择器类", priority P4). Upstream composes these with
+// the `&` / `+` / `-` operators; TS has no operator overloading, so the binary
+// classes are constructed explicitly.
+export {
+  NthSelector,
+  CenterNthSelector,
+  LengthNthSelector,
+  AreaNthSelector,
+  RadiusNthSelector,
+  BoxSelector,
+  NearestToShapeSelector,
+  AndSelector,
+  SumSelector,
+  SubtractSelector,
+  InverseSelector,
+} from './object-selectors'
 export type {
   Pt3,
   CqShape,

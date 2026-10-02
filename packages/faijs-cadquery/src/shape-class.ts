@@ -28,7 +28,7 @@ export interface ShapeClassBase {
 
 /** A shape handle wrapper in the class model (Face/Wire/Edge/Solid/Compound). */
 export interface CqShape extends ShapeClassBase {
-  kind: 'face' | 'wire' | 'edge' | 'solid' | 'shell' | 'compound'
+  kind: 'face' | 'wire' | 'edge' | 'solid' | 'shell' | 'compound' | 'vertex'
   handle: ShapeHandle
 }
 
@@ -438,10 +438,15 @@ interface IntrospectKernel {
   getSurfaceArea(h: ShapeHandle): number
   getLength(h: ShapeHandle): number
   getCenterOfMass(h: ShapeHandle): Pt3
+  getLinearCenterOfMass(h: ShapeHandle): Pt3
+  getSurfaceCenterOfMass(h: ShapeHandle): Pt3
+  vertexPosition(h: ShapeHandle): Pt3
   isValid(h: ShapeHandle): boolean
   getShapeType(h: ShapeHandle): string
   surfaceType(h: ShapeHandle): string
   curveType(h: ShapeHandle): string
+  curveParameters(h: ShapeHandle): { first: number; last: number }
+  curvePointAtParam(h: ShapeHandle, param: number): Pt3
 }
 
 function introspect(): IntrospectKernel {
@@ -557,6 +562,144 @@ export function geomTypeOf(s: CqShape | ShapeHandle): string {
   if (t === 'face') return introspect().surfaceType(h).toUpperCase()
   if (t === 'edge') return introspect().curveType(h).toUpperCase()
   return GEOM_TYPE_MAP[t] ?? t.toUpperCase()
+}
+
+/**
+ * `Shape.ShapeType()` — the raw topological type of the shape (`'solid'` /
+ * `'face'` / `'edge'` / …), i.e. the value CadQuery's selectors branch on.
+ *
+ * Distinct from {@link geomTypeOf}: that one mirrors CadQuery's *heterogeneous*
+ * `geomType()` (face → surface type, edge → curve type); this one is the plain
+ * TopAbs type.
+ *
+ * @param s - shape (wrapper or handle)
+ * @returns the lowercase topological type name
+ */
+export function shapeTypeOf(s: CqShape | ShapeHandle): string {
+  return introspect().getShapeType(unwrapShape(s))
+}
+
+/**
+ * Mass-property kind CadQuery uses for a shape's `Center()`
+ * (`Shape._mass_calc_function` + `shape_properties_LUT`).
+ */
+type MassKind = 'vertex' | 'linear' | 'surface' | 'volume'
+
+/** Resolve the mass-property kind, descending into compounds like CadQuery. */
+function massKindOf(h: ShapeHandle): MassKind {
+  const ik = introspect()
+  const t = ik.getShapeType(h)
+  if (t === 'vertex') return 'vertex'
+  if (t === 'edge' || t === 'wire') return 'linear'
+  if (t === 'face' || t === 'shell') return 'surface'
+  if (t === 'solid' || t === 'compsolid') return 'volume'
+  if (t === 'compound') {
+    // GOTCHA (upstream): a compound takes the kind of its FIRST NON-COMPOUND
+    // child (recursively); an empty compound falls back to volume properties.
+    const k = kernel()
+    const mark = k.checkpoint()
+    try {
+      let child: ShapeHandle | undefined = k.iterShapes(h)[0]
+      while (child !== undefined && introspect().getShapeType(child) === 'compound') {
+        child = k.iterShapes(child)[0]
+      }
+      return child === undefined ? 'volume' : massKindOf(child)
+    } finally {
+      k.releaseSince(mark)
+    }
+  }
+  return 'volume'
+}
+
+/**
+ * `Shape.Center()` — the shape's centre with CadQuery's **per-shape-type**
+ * mass-property dispatch (probe-verified against CadQuery 2.8.0):
+ *  - vertex → the point itself;
+ *  - edge / wire → LINEAR properties (curve centre of mass);
+ *  - face / shell → SURFACE properties (surface centre of mass);
+ *  - solid / comp-solid → VOLUME properties;
+ *  - compound → the kind of its first non-compound child (empty → volume).
+ *
+ * This is NOT {@link centerOfMassOf}: that one always reads volume properties,
+ * which is only correct for solids. Every object selector that reasons about
+ * "the" centre of an object (BoxSelector centre mode, CenterNthSelector) uses
+ * THIS dispatch — using volume properties on a face would silently return a
+ * degenerate value.
+ *
+ * @param s - shape (wrapper or handle)
+ * @returns the CadQuery-semantics centre
+ */
+export function centerOf(s: CqShape | ShapeHandle): Pt3 {
+  const ik = introspect()
+  const h = unwrapShape(s)
+  switch (massKindOf(h)) {
+    case 'vertex':
+      return ik.vertexPosition(h)
+    case 'linear':
+      return ik.getLinearCenterOfMass(h)
+    case 'surface':
+      return ik.getSurfaceCenterOfMass(h)
+    default:
+      return ik.getCenterOfMass(h)
+  }
+}
+
+/**
+ * `Shape.radius()` — the radius of the circular geometry underlying an
+ * edge / wire (upstream `Mixin1D.radius()` = `geom.Circle().Radius()`).
+ *
+ * GOTCHA (upstream): a wire's radius is simply the radius of its FIRST edge,
+ * and a shape that cannot be reduced to a circle raises (a straight edge has
+ * no radius) — callers that want "ignore it" must catch, which is exactly what
+ * `RadiusNthSelector` does (such elements are dropped, not failed).
+ *
+ * The radius is recovered from three sampled points on the curve
+ * (circumradius), because the kernel exposes no direct "circle radius of an
+ * edge" primitive; for an exact circle this agrees with OCC to ~1e-12.
+ *
+ * @param s - an edge or wire (wrapper or handle)
+ * @returns the circle radius
+ * @throws when the shape is not an edge/wire, or is not circular
+ */
+export function radiusOf(s: CqShape | ShapeHandle): number {
+  const k = kernel()
+  const ik = introspect()
+  const h = unwrapShape(s)
+  const t = ik.getShapeType(h)
+  if (t === 'wire') {
+    const mark = k.checkpoint()
+    try {
+      const edges = k.getSubShapes(h, 'edge')
+      if (!edges.length) throw new Error('Shape could not be reduced to a circle')
+      return circleRadiusOf(edges[0])
+    } finally {
+      k.releaseSince(mark)
+    }
+  }
+  if (t !== 'edge') throw new Error('Shape could not be reduced to a circle')
+  return circleRadiusOf(h)
+}
+
+/** Circumradius of a circular edge sampled at three curve parameters. */
+function circleRadiusOf(edge: ShapeHandle): number {
+  const ik = introspect()
+  if (ik.curveType(edge) !== 'circle') throw new Error('Shape could not be reduced to a circle')
+  const { first, last } = ik.curveParameters(edge)
+  const a = ik.curvePointAtParam(edge, first)
+  const b = ik.curvePointAtParam(edge, first + ((last - first) * 1) / 3)
+  const c = ik.curvePointAtParam(edge, first + ((last - first) * 2) / 3)
+  const abx = b.x - a.x
+  const aby = b.y - a.y
+  const abz = b.z - a.z
+  const acx = c.x - a.x
+  const acy = c.y - a.y
+  const acz = c.z - a.z
+  const cross = Math.hypot(aby * acz - abz * acy, abz * acx - abx * acz, abx * acy - aby * acx)
+  if (cross < 1e-12) throw new Error('Shape could not be reduced to a circle')
+  const la = Math.hypot(c.x - b.x, c.y - b.y, c.z - b.z)
+  const lb = Math.hypot(c.x - a.x, c.y - a.y, c.z - a.z)
+  const lc = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z)
+  return (la * lb * lc) / (2 * cross)
 }
 
 /** Normalise a 3D direction vector. */

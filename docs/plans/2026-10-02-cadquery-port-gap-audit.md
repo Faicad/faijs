@@ -20,7 +20,7 @@
 3. 下一个最该立项审计的**沉默缺口**（文档从未登记、mirror 全绿但语义空心）：
    - **Shape 类模型 + 内省查询 API**（最大；值/元数据查询子集 `volume/area/length/center/bbox/isValid/geomType` 已于 2026-10-02 **P1 实施**，剩余 ~74 个 `Shape` 方法——构造器、`transform`/`translate`/`rotate`、几何操作 `Sections`/`Shells`、`distToShape` 等——仍属后续大项）
    - **对象栈模型**（`.all()/.end()/.val()/.vals()` 多对象 Workplane）
-   - **对象选择器类**（Box/RadiusNth/LengthNth/AreaNth/NearestToShape/BooleanSelector）
+   - **对象选择器类**（Box/RadiusNth/LengthNth/AreaNth/NearestToShape/BooleanSelector）——**P4 已于 2026-10-02 实施**（见 §3.3）
    - **任意平面变换**（`Plane.toLocalCoords`/`mirrorInPlane`，faijs-cadquery 只有 `mirrorX/mirrorY`）——**P2 已于 2026-10-02 实施**（三件套 + 向量形态，16 用例全绿）
    - （已派生）`wires()/shells()/solids()` 选择器、`2D` 草图选择器、导出保真（GLTF/VTK/带颜色-名字-层的 STEP）
 4. **方法论修正**：凡是"查询 / 内省 / 返回子形状或值"的 API，**不应只靠 STEP 几何比对判定 parity**。正确范式是**一次性 Python（CadQuery 2.8.0）参考捕获 → 把真值固化进 TS 断言**（已被 `selectors.test.ts` 验证可行），而非每次重跑 Python 的自动化探针通道。该范式应推广到上述所有沉默缺口（见 §5）。
@@ -91,6 +91,10 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 - **上游**：`selectors.py` 约 15 个选择器类（`2026-10-02` 方案 §3.1 全量列出）。
 - **为什么沉默**：`2026-10-02` 方案 §4.8 显式排除（D2 裁决为"字符串语法全量"，对象选择器类不在本版）；`2026-09-28` §2.4 虽提到"选择器类体系…按镜像需求逐条加"，但从未作为缺口登记进 `2026-09-30` §3.2。
 - **审计动作**：待字符串选择器（D2 范围）落地后，第二轮审计对象选择器类。
+- **P4 实施结果（2026-10-02，C 类已闭环）**：对象选择器类整体立案并落地于 `packages/faijs-cadquery/src/object-selectors.ts`，覆盖 `CenterNthSelector` / `LengthNthSelector` / `AreaNthSelector` / `RadiusNthSelector`（共用上游 `_NthSelector` 的 cluster 语义）+ `BoxSelector` / `NearestToShapeSelector` + `AndSelector` / `SumSelector` / `SubtractSelector` / `InverseSelector`。上游用 `& + -` 运算符组合，TS 无运算符重载 ⇒ 二元类显式构造。
+  - **前置能力补齐（`shape-class.ts`，非旁路）**：`centerOf`（CadQuery `Shape.Center()` 的**按类型分派**质心：vertex→点本身、edge/wire→线性属性、face/shell→曲面属性、solid/comp-solid→体积属性、compound→第一个非 compound 子体的类型）——这与既有 `centerOfMassOf`（恒取体积属性）**不是同一个值**，面上取体积属性会静默得到退化值；`radiusOf`（edge/wire 的圆半径，wire 取首条边、非圆抛错）；`shapeTypeOf`（`Shape.ShapeType()` 原始拓扑类型，区别于异质的 `geomTypeOf`）。
+  - **验证（§5.1 范式）**：一次性 Python 参考捕获 `tests/ref-harness/object-selectors-probe.py`（CadQuery 2.8.0，不进 CI）→ 真值固化进 `src/object-selectors.test.ts`（43 用例全绿，中心容差 1e-6，fixture 几何自校验：板 bbox/面面积/边长、孔板体积 384.2920367）。
+  - **暴露并固化的 GOTCHA（均为上游真实语义，非 faijs 缺陷）**：① 候选**全部被丢弃**时 Nth 选择器**抛错**而非返回空集（上游 `key_and_obj[0][0]` 无保护，实测 `IndexError: list index out of range`）——例如 `LengthNthSelector` 作用于面、`AreaNthSelector` 作用于边；② `BoxSelector(boundingbox=True)` 对**刚好贴合**的盒返回空（两端严格 `<`，需加 padding 才选中全部）；③ `CenterNthSelector` 的方向向量**不归一化**（`Center().dot(v)`）；④ cluster 容差窗口自簇首元素起算（1e-4 步长链会并成一簇）；⑤ `NearestToShapeSelector` 平局取输入顺序首个，且 `Shape.distance()` 是 BRepExtrema 真最小距离（4 / 11）而非质心距。
 
 ### 3.4 D 类 · 任意平面变换（`Plane.toLocalCoords` / `mirrorInPlane`）
 
@@ -178,7 +182,7 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 | **P1** | **几何量断言** + Shape 类模型内省 API 审计 | **已完成**（2026-10-02）：查询子集 volume/area/length/center/bbox/isValid/geomType 已在 `shape-class.ts` 暴露 + 一次性捕获断言全绿；剩余 ~74 个 `Shape` 方法（`transform`/构造器/几何操作/`distToShape` 等）待续 | — |
 | **P2** | **坐标变换一次性捕获** + Plane 任意平面变换审计（整体立案，非 2 条） | **已完成**（2026-10-02）：`plane.ts` 落地 `toLocalCoords`/`toWorldCoords`/`mirrorInPlane` + 向量形态，一次性 Python 捕获断言 16 用例全绿；曝光 `mirrorInPlane` 反射轴语义（关于 X/Y 轴**线**反射）+ 返回 Shell vs 保留拓扑两个 GOTCHA | P1 |
 | **P3** | 对象栈模型结构性改造 + 对象栈一次性捕获 | §3.2，结构性、工作量最大 | 选择器逐级收窄落地后 |
-| **P4** | 对象选择器类（C 类）+ `wires/shells/solids` 选择器 + 2D 草图选择器 | §3.3/§3.5，同源派生 | P0 字符串选择器落地后 |
+| ~~**P4**~~ | **对象选择器类（C 类）——已完成（2026-10-02）**；`wires/shells/solids` 选择器 + 2D 草图选择器仍是 E 类派生待办 | §3.3（已闭环）/§3.5（待办） | P0 字符串选择器落地后 |
 
 > **共同风险**（一句话）：P1–P4 的所有缺口，都和这次的选择器是**同一类病**——"镜像全绿但语义空心"，因为度量只能看见导出几何。解决它们的不是更多镜像，而是 §5 的一次性参考捕获范式（把真值固化进 TS 断言）。
 
@@ -189,6 +193,7 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 - [ ] **（已做）** 刷新 `2026-09-30` 文档头部为 452/198/47 / 199·41·62，消除与 §14 漂移。
 - [ ] **（已做 · P1）** 对 `Shape` 内省 API（`volume/area/length/center/bbox/isValid/geomType`）做**一次性 Python 捕获 → 固化 TS 值断言**：实现见 `packages/faijs-cadquery/src/shape-class.ts`（introspection 段）、断言见 `src/shape-class.test.ts`（`Shape introspection parity` 段，20 用例全绿）、参考捕获见 `packages/faijs-cadquery/tests/ref-harness/shape-introspection-probe.py`（CadQuery 2.8.0，不进 CI）。暴露并记录了两个真实语义差异：`geomType()` 异质语义（face→`PLANE`/edge→`LINE`，已对齐；`cq.Solid.makeBox`→`COMPSOLID` 怪癖按 GOTCHA 记录）、`length` on solid 重复计数（24 vs 12）——**已于 2026-10-02 归一化为唯一 edge 弧长之和**。
 - [x] **（已做 · 2026-10-02）** `length` on solid 归一化：core occt / brepkit 适配器 + faijs-cadquery `lengthOf` 统一为「唯一 edge 弧长之和」（L1 `getLength` 语义定稿，替换原「内核级缺口」定性）；两引擎逐位一致，且对齐 CadQuery 唯一边求和。方案见 `2026-10-02-l1-getlength-unique-edge-normalization.md`，回归见 `packages/core/src/brep/engine/getlength-domain.probe.test.ts`。
+- [x] **（已做 · P4）** 对象选择器类（C 类）整体立案并落地：`packages/faijs-cadquery/src/object-selectors.ts`（CenterNth/LengthNth/AreaNth/RadiusNth + Box/NearestToShape + And/Sum/Subtract/Inverse），前置能力 `centerOf`/`radiusOf`/`shapeTypeOf` 补进 `src/shape-class.ts`；一次性 Python 捕获 `tests/ref-harness/object-selectors-probe.py` → 断言 `src/object-selectors.test.ts`（43 用例全绿）。GOTCHA 五条见 §3.3（全丢弃抛错 / 贴合盒返回空 / 方向不归一化 / 簇容差自簇首起算 / 平局取首个 + 真最小距离）。
 - [ ] **（待办）** 把本审计 §3 的 A–E 类沉默缺口**反向补登**进 `2026-09-30` §3.2（作为"沉默缺口"子节），使缺口清单完整。
 - [ ] P0：推进选择器方案字符串语法全量 + 逐级收窄（**一次性 Python 捕获 → 固化 TS 断言**，不建 per-run 探针通道）。
 - [ ] **（已做 · P2）** 把 `Plane` 任意平面变换整体立案（不止 2 条），对 `toLocalCoords`/`mirrorInPlane` 做**一次性 Python 坐标捕获 → 固化 TS 断言**：实现见 `packages/faijs-cadquery/src/plane.ts`（`CqPlane` 帧 + `toLocalCoords`/`toWorldCoords`/`mirrorInPlane`/`toLocalCoordsVec`/`mirrorInPlaneVec`，复用内核 `generalTransform` + `getKernel`，未改 core）、断言见 `src/plane.test.ts`（16 用例全绿，容差 1e-6）、参考捕获见 `packages/faijs-cadquery/tests/ref-harness/plane-transform-probe.py`（CadQuery 2.8.0 XY/TR/TILT/Y 平面 + ROOT/OFF 盒，不进 CI）。曝光两个真实语义差异：`mirrorInPlane` 反射轴是"关于 X/Y 轴**线**反射"（翻转 local y&z 或 x&z，非关于 YZ/XZ 平面）——Householder 反射矩阵对齐；CadQuery 返回 `Shell`、faijs 保留输入拓扑（几何相同、TopoDS 标签不同），按 GOTCHA 记录。`toWorldCoords` 为 `toLocalCoords` 逆，由矩阵逆自洽覆盖。
