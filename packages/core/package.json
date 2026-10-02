@@ -22,6 +22,10 @@
       "types": "./dist/api/brepjs-compat/index.d.ts",
       "default": "./dist/api/brepjs-compat/index.js"
     },
+    "./api/cadquery-selectors": {
+      "types": "./dist/api/cadquery-selectors/index.d.ts",
+      "default": "./dist/api/cadquery-selectors/index.js"
+    },
     "./brepjs-compat": {
       "types": "./dist/api/brepjs-compat/index.d.ts",
       "default": "./dist/api/brepjs-compat/index.js"

@@ -110,4 +110,7 @@ export { map, andThen } from './brepjs-compat'
 //    / measureArea / measureLength）为 api/generated/measurement.ts 第一方
 //    同步版，一并平铺（cad 面的 volume/area/length 为 async 脚本面重命名）。
 export * from './brep-topology'
+// CadQuery 拓扑选择器子系统（独立物理边界，与 topo-resolve 隔离）：
+// 等价搬运自 cq-compat，子路径直达 @faicad/faijs/api/cadquery-selectors。
+export * from './cadquery-selectors'
 export { measureVolume, measureArea, measureLength } from './generated/measurement'
