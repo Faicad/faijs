@@ -33,6 +33,21 @@ jobs:
 
       - run: npx vitest run
 
+      # 根 vitest projects 有意排除 draw / faijs-fasteners / faijs-gears（均较重或有
+      # 独立配置）；这里按包单独跑。faijs-gears 只跑轻量核心子集（API 面 + 齿廓数学 +
+      # 新增类纯数学 + 裸齿轮体积；全套 BREP parity >900s 不适合 CI，见 ci.ps1 注释）。
+      - name: Run faijs-draw tests
+        working-directory: packages/draw
+        run: npx vitest run
+
+      - name: Run faijs-fasteners tests
+        working-directory: packages/faijs-fasteners
+        run: npx vitest run
+
+      - name: Run faijs-gears core subset tests
+        working-directory: packages/faijs-gears
+        run: npx vitest run src/index.test.ts src/profile.test.ts src/new-gear-math.test.ts src/spur-gear-build.test.ts
+
       - name: Install demo dependencies
         working-directory: packages/demo
         run: npm ci

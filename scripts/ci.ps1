@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 param(
     [Parameter(Position = 0, HelpMessage = '"all" to log full output to ci.log. Default: direct console output.')]
     [string]$Mode
@@ -87,13 +87,28 @@ $tmpVitest = [System.IO.Path]::GetTempFileName()
 $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS } else { 300000 } # 5 分钟
 # 单包预算覆盖：faijs-cadquery 的 BREP/parity-smoke 套件单跑约 389s（+pretest build），
 # 5 分钟预算必然被看门狗误杀导致结果不可信（见 docs/plans/2026-09-28-cq-compat-remaining-cadquery-support-plan.md §1.2）。900s 留足 build + 抖动余量。
-$testBudgetOverrides = @{ '@faicad/faijs-cadquery' = 900000 }
-$testPackages = @('@faicad/faijs','@faicad/faijs-sketch','@faicad/faijs-extra','@faicad/faijs-freecad','@faicad/sheetmetal','@faicad/faijs-cadquery','@faicad/faijs-tests','@faicad/faijs-demo')
+# faijs-gears / faijs-fasteners 同为 BREP parity 大套件（gears 全套 >900s，CI 只跑其
+# 轻量子集，见下方 $gearsSubset 注释；fasteners 全量实测 139s，600s 留足慢机余量）。
+$testBudgetOverrides = @{
+  '@faicad/faijs-cadquery'   = 900000
+  '@faicad/faijs-fasteners'  = 600000
+}
+# faijs-gears 全套 BREP parity 测试 >900s（features.test.ts 单文件 240s+），历史上从未
+# 进过 CI；这里只跑轻量但灵敏的核心子集：API 面装载自检（index）、齿廓数学层 vs cq_gears
+# （profile，1e-9 级最灵敏信号）、新增 5 类纯数学装配量（new-gear-math）、裸齿轮实体体积
+# 对比（spur-gear-build）。实测 3.86s / 159 passed。完整套件仍可 `npm test -w @faicad/faijs-gears` 单独跑。
+$gearsSubset = 'src/index.test.ts src/profile.test.ts src/new-gear-math.test.ts src/spur-gear-build.test.ts'
+$testPackages = @('@faicad/faijs','@faicad/faijs-sketch','@faicad/faijs-extra','@faicad/faijs-freecad','@faicad/sheetmetal','@faicad/faijs-cadquery','@faicad/faijs-gears','@faicad/faijs-fasteners','@faicad/faijs-draw','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
     $pkgBudget = if ($env:FAIJS_TEST_BUDGET_MS) { $testBudgetMs } elseif ($testBudgetOverrides.ContainsKey($pkg)) { $testBudgetOverrides[$pkg] } else { $testBudgetMs }
     Write-Host "    -- $pkg（budget=${pkgBudget}ms）"
-    node scripts/run-tests-with-watchdog.mjs --budget-ms $pkgBudget -- npm run test -w $pkg 2>&1 | Tee-Object -FilePath $tmpVitest -Append
+    # faijs-gears 只跑轻量子集（在包目录内用包自己的 vitest.config.ts 跑）
+    if ($pkg -eq '@faicad/faijs-gears') {
+        node scripts/run-tests-with-watchdog.mjs --budget-ms $pkgBudget --cwd packages/faijs-gears -- npx vitest run $gearsSubset 2>&1 | Tee-Object -FilePath $tmpVitest -Append
+    } else {
+        node scripts/run-tests-with-watchdog.mjs --budget-ms $pkgBudget -- npm run test -w $pkg 2>&1 | Tee-Object -FilePath $tmpVitest -Append
+    }
     if ($LASTEXITCODE -ne 0) {
         $stepFail = $true
         if ($allMode) {
