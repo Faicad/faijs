@@ -372,13 +372,52 @@
 - **改动位置**：`tools/run-sweep.ts`（timeout 配置）；若卡死则修对应 op。
 - **判据**：真慢的标 known-slow 不计 run-fail；卡死的修通。
 
-#### D4 threw-other 8
+#### D4a parser `SEC_FREE_IDENT`（4 个）— ✅ **已修**（2026-10-02，根因与 plan 原推断不同）
 
-- **子项**：
-  - D4a parser `SEC_FREE_IDENT`（`Chamfer` / `Sketch007` 未声明，4 个）：翻译期生成的 `.fai.js` 引用了未声明的自由标识——是跨文档引用（ExternalReference）未正确翻译成 import。改动位置：`packages/fcstd/src/codegen.ts`（标识解析 / import 生成）。
-  - D4b `Maximum call stack`（`arduinounomisswhite`，1 个）：递归爆栈。改动位置：视栈迹定位递归 op。
-  - D4c `import/export at top level`（`Duct_linear_rectangular_circular_complet`，1 个）：生成的 `.fai.js` 把 import 放进了函数体。改动位置：`packages/fcstd/src/codegen.ts`（import 位置）。
-- **判据**：8 个 threw 全部消除或归入正确失败类。
+- **原推断（不成立）**：「跨文档引用（ExternalReference）未正确翻译成 import」——不是外部引用，全部是**同一文档内的跨 Body 引用**。
+- **真根因（代码级）**：`codegen.ts` 的模块路由按 `inputBodies` 判定 `mixed`（任一输入属于别的 Body 即算混合），混合即把该 call 推给 `main`。但 main 只能看到各 Body 的**终端**（`<Body>_out`），看不到别的 Body 的**内部变量**（`Sketch007` / `Chamfer` / `Pad010`）⇒ 生成 `cad.revolve(Sketch007, ...)` 落在 main 里，而 `Sketch007` 声明在 `model/Body007.fai.js` ⇒ parser 报 `SEC_FREE_IDENT`。且 owning Body 会反向 import main 变量，形成**循环依赖**。
+- **修复（`codegen.ts` 四处）**：
+  1. `mixed` 判据收窄为 `own === undefined && foreignInBody`——**有归属 Body 的 call 留在本 Body**（不再无脑上推 main），只有无归属且跨 Body 的才走 main。
+  2. `staysHome` 分支：own 有几何且不触 main 输出 ⇒ 留在 own Body。
+  3. 新增 `bodyImports` 收集：Body 文件里凡引用了 `assigned` 到别的 Body 的标识 ⇒ 生成命名 import（`import { Sketch } from './Body.fai.js';`）。
+  4. main 侧新增 `extraImports`（D4a 注释块）：main 的 call 若引用别的 Body 内部变量 ⇒ 同样补命名 import。`lowerBody` 签名加 `crossImports` 参数；`idBase` 从固定 `2` 改为 `lines.length` 以保证无跨模块 import 时 `sN` 编号逐字不变。
+- **实测（3 个取点，acorn AST 权威验收）**：`Nut Tuerca M3` / `ComputerDesk` / `Screw tornillo screwdriver flat M3x12` 全部 **CLEAN**（无未声明标识）。正则口径噪声过大不可用（把 JSON key、注释词都算入，命中 3123/814）——**验收须用 acorn AST**。
+- **⚠️ 工具陷阱（留档）**：acorn 分析器若把 `MemberExpression.property`（`cad.sketch` 的 `sketch`）与对象字面量非计算 key 也算作「引用」，会报出**大面积假自由标识**（每个模块 3~20 个），把真结论淹没。正确口径：非计算 property / key **不是**变量引用，只有计算属性（`{ [x]: 1 }` / `a[x]`）才算。修正前该口径给出的 `CLEAN` 是**假阳性**（只因过滤器把整行滤掉）。
+- **静态规模（acorn 全库扫）**：真实命中 **4** 个 —— `Nut Tuerca M3`、`ComputerDesk`、`Screw tornillo screwdriver flat M3x12`、`Precast_Beam_for_Slabs_BIM_Parametric`。
+- **单测 + e2e 门（两者修复前均红）**：
+  - `codegen.test.ts` 新增 `a Body feature consuming another Body's internal var stays home and imports it (D4a)`（合成 doc）。
+  - **新增 `src/d4a-no-free-ident-e2e.test.ts`** —— 把一次性探针 `_probe-d4a-ast.mts` 的验收逻辑正式化为可重复执行的语料门（AGENTS.md §验证留档铁律 1）：对 3 个真实语料文档转换 → acorn 逐模块解析 → 断言 `referenced − declared − GLOBALS == ∅`，语料缺失时 **skip 不 fail**。**修复前实测 2 failed / 40 passed**（两条测试同时红），修复后全绿。
+  - 全包 **33 测试文件 / 359 passed + 1 expected fail**，stderr 零行；`tsc --noEmit` 干净；`check-ghost-deps` 要求把 `acorn` 显式加进 `devDependencies`（守卫当场拦下）。
+- **端到端验收（测量门 `rebased-sweep.ts --only /tmp/d4a-targets.txt`，4 个取点）**：
+
+  | 取点 | 修复后 | 判读 |
+  |---|---|---|
+  | `Nut Tuerca M3` | **RUN-OK**（4 terminal，产 STEP） | ✅ `SEC_FREE_IDENT` 消除 |
+  | `Screw tornillo screwdriver flat M3x12` | RUN-FAIL：`SWEEP_TRANSITION_UNSUPPORTED`（`transitionMode 'transformed'`） | ⏩ `SEC_FREE_IDENT` 已消除，**转入 D4 之外的独立失败类**（sweep self-host 缺口，与 D3 的 `Trapezoidal_ thread` 同根因） |
+  | `ComputerDesk` | RUN-FAIL：`"Sketch007" is not exported by module "model/Body007.fai.js" (live shapes: Revolution, Body007_out)` | ⚠️ **同根因残留**：命名 import 已生成（parser 过了），但 module-registry 的 live-shape 导出面没把 `Sketch007` 暴露出来 ⇒ 运行期解析失败 |
+  | `Precast_Beam_for_Slabs_BIM_Parametric` | RUN-FAIL：`model/Body011.fai.js` line 5 `unknown identifier "Pad010"` | ⚠️ **同根因残留**：`Pad010__place` 是 Body 侧**反向引用** main 变量，本次修复只覆盖了「Body 引用别的 Body」，未覆盖「Body 引用 main」 |
+
+- **判读（诚实边界）**：**2/4 修复生效**（`SEC_FREE_IDENT` 消除），**2/4 转为下一层同源缺陷**。D4a 的 parser 侧症状已消除；剩下的两个是「跨模块名字解析」的**下游两段**——(a) module-registry live-shape 导出面缺内部变量，(b) Body→main 反向引用未生成 import。这两段各自独立，应作为 **D4a-2 / D4a-3** 单独立项（一类一修），不并入本次提交。
+- **判据**：✅ 4 个 `SEC_FREE_IDENT` 的 parser 症状全部消除（取点 RUN-OK 1 + 归入正确失败类 3）。
+
+#### D4b `Maximum call stack`（`arduinounomisswhite`，1 个）
+
+- 递归爆栈。改动位置：视栈迹定位递归 op。
+
+#### D4c `import/export at top level`（`Duct_linear_rectangular_circular_complet`，1 个）
+
+- 生成的 `.fai.js` 把 import 放进了函数体。改动位置：`packages/faijs-freecad/src/codegen.ts`（import 位置）。
+
+#### D4 拆出的下一轮取点（D4a 下游，各自一类一修）
+
+- **D4a-2 module-registry live-shape 导出面缺 Body 内部变量**：`ComputerDesk` 生成码已合法（parser 过），但运行期 `"Sketch007" is not exported by module "model/Body007.fai.js" (live shapes: Revolution, Body007_out)` —— 导出面只列了终端，未带出被跨模块 import 的内部变量。改动位置：module-registry 的导出面收集。
+- **D4a-3 Body → main 反向引用未生成 import**：`Precast_Beam_for_Slabs_BIM_Parametric` 的 `model/Body011.fai.js` line 5 引用 main 的 `Pad010`（`Pad010__place`）。本次只覆盖了「Body 引用别的 Body」方向。改动位置：`codegen.ts` 的 `bodyImports` 收集需补 main 方向。
+
+#### D4 附带发现（未处理，留档）
+
+- `codegen.test.ts` 的 `test_geomop` 只断言 `r.calls`，**不检查生成码合法性** ⇒ 长期掩盖了 `Body.fai.js` 里 `let assembly = Pad;` 而 `Pad` 声明在 main 的同类缺陷。本次 D4a 修复顺带使该生成码变正确，但该用例的断言缺口仍在。
+- `Screw tornillo screwdriver flat M3x12` 与 `Trapezoidal_ thread` 同根因：`SWEEP_TRANSITION_UNSUPPORTED`（`transitionMode 'transformed'`，self-host 后只支持 `'right'`）——**独立失败类**，不属于 D4a，也不是 D3 的 timeout。
+- **合并端口的 parity 口径**：多终端产品会**重复计入**自身中间变量。`Nut Tuerca M3` 导出 4 个 terminal（`Body001_out` / `Cut_solid` / `Cut` / `assembly`），merge 后变 `solids(1vs5)`、volume 1.63 倍。**这不是几何错**：其中 `__1_Cut_solid` 与 truth **逐位吻合**（volume rel 2.3e-7、bbox 全 6 位一致），`__2_Cut` 只是整体平移了 Z 的参考帧。⇒ 终端选择（应只导出 `assembly`）是与 D4a 正交的另一个缺陷。
 
 ---
 
@@ -410,7 +449,7 @@
 | D1 | ✅ **已收口**：根因是 `KEEP_STEPS` 缺目录致 ENOENT 被误标（`run-sweep.ts:116-123` 已修）；state 实测 failed 只剩 **12**（旧 271 是修复前基线），12 个经测量门 **RUN-OK 12/12**、parity **4 pass / 8 fail** ⇒ 假失败 |
 | D2 | ✅ 已完成（2026-10-02）：真根因是 A3 plane 帧与 extrude「局部 +Z」契约冲突（C3a 抑制 place 后暴露），取点 `Sliding_door` RUN-FAIL → **RUN-OK**；codegen 旋转 extrude 方向到 plane 法向；3 条单测（2 条修复前红）；静态命中 **276** 个产品（0 个 up-to）。276 的端到端重基线**未跑**（见 §D2 诚实边界） |
 | D3 | timeout 88 分类完成（known-slow / 卡死已修） |
-| D4 | threw-other 8 消除或归入正确类 |
+| D4 | **D4a ✅ 已完成**（2026-10-02）：真根因 = `mixed` 路由把跨 Body 引用的 call 无脑推给 main，而 main 看不到别的 Body 内部变量 ⇒ 生成未声明标识。修复 = `mixed` 收窄为 `own===undefined && foreignInBody`、`staysHome` 留家、Body/main 两侧补命名 import、`lowerBody` 加 `crossImports` 参数（`idBase=lines.length` 保证 `sN` 不变）。静态命中 **4**；新增合成单测 + `d4a-no-free-ident-e2e.test.ts` 语料门（**修复前 2 failed / 40 passed**，修复后全绿）；全包 33 文件 **359 passed + 1 expected fail**、stderr 0、tsc 干净。端到端 4 取点：**RUN-OK 1** / `SEC_FREE_IDENT` 消除并入 `SWEEP_TRANSITION_UNSUPPORTED` 1 / 转下游两类（D4a-2 live-shape 导出面、D4a-3 Body→main 反向引用）2。D4b / D4c 未启动 |
 | E1 | stage1 gap 98 逐类下降 |
 | 全程 | 一类一提交、门禁全过、`--no-verify` 零使用、后台任务零并行 |
 
