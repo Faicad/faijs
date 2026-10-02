@@ -212,6 +212,7 @@ export {
   disposeShape,
   makeCompound,
   facesOf,
+  wiresOf,
   faceMakePlane,
   faceMakeSplineApprox,
   TypeSelector,

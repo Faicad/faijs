@@ -196,6 +196,20 @@ export function makeCompound(shapes: Array<CqShape | ShapeHandle>): CqShape {
 // ---------------------------------------------------------------------------
 
 /**
+ * wiresOf — Shape.Wires topological wire extraction (upstream `Shape.Wires()`).
+ *
+ * A face contributes ALL of its wires: the outer boundary plus one wire per
+ * hole (probe-verified against CadQuery 2.8.0: the top face of a plate pierced
+ * by two holes yields 3 wires — see `kind-selectors.test.ts`).
+ * @param s - shape (wrapper or handle)
+ * @returns borrowed CqShape list
+ */
+export function wiresOf(s: CqShape | ShapeHandle): CqShape[] {
+  const k = kernel()
+  return (k.getSubShapes(unwrapShape(s), 'wire') as unknown as ShapeHandle[]).map((h) => borrowShape('wire', h))
+}
+
+/**
  * Shape.shells — topological shell extraction.
  * @param s - compound/solid shape (wrapper or handle)
  * @returns borrowed CqShape list
@@ -333,18 +347,21 @@ export class DirectionSelector implements Selector {
 
 /**
  * NearestToPointSelector — upstream `NearestToPointSelector(pnt)`: the single
- * shape whose centre is nearest to the point.
+ * shape closest to the point.
+ *
+ * The distance is measured from the shape's upstream `Center()` (the
+ * type-dispatched centre of mass — see {@link centerOf}), NOT from the bbox
+ * centre: for an L-shaped wire the two differ by several mm, which is enough to
+ * flip the winner (probe-verified, `kind-selectors.test.ts`).
  */
 export class NearestToPointSelector implements Selector {
   constructor(private readonly pnt: Pt3) {}
   filter(items: CqShape[]): CqShape[] {
-    const k = kernel()
     if (!items.length) return []
     let best = items[0]
     let bestD = Infinity
     for (const i of items) {
-      const bb = k.getBoundingBox(i.handle)
-      const c = { x: (bb.xmin + bb.xmax) / 2, y: (bb.ymin + bb.ymax) / 2, z: (bb.zmin + bb.zmax) / 2 }
+      const c = centerOf(i)
       const d = (c.x - this.pnt.x) ** 2 + (c.y - this.pnt.y) ** 2 + (c.z - this.pnt.z) ** 2
       if (d < bestD) {
         bestD = d
@@ -357,17 +374,19 @@ export class NearestToPointSelector implements Selector {
 
 /**
  * StringSyntaxSelector — upstream `StringSyntaxSelector(selector)` subset used
- * by the shape-class mirrors: `>X/<X/>Y/<Y/>Z/<Z` direction extremes over
- * bbox centres and `or` composition (per-term evaluation, union deduplicated).
+ * by the shape-class mirrors: `>X/<X/>Y/<Y/>Z/<Z` direction extremes over shape
+ * centres and `or` composition (per-term evaluation, union deduplicated).
+ *
+ * Extremes are taken over upstream's `Center()` — the TYPE-DISPATCHED centre of
+ * mass (see {@link centerOf}) — not over the bbox centre. GOTCHA (captured):
+ * for a 2-wire fixture whose wire lengths are equal, `Center()` ordering and
+ * bbox-centre ordering DISAGREE (`>X` picks one wire on `Center()` and the
+ * other on bbox), so a bbox shortcut silently selects a different sub-shape.
  */
 export class StringSyntaxSelector implements Selector {
   constructor(private readonly expr: string) {}
   filter(items: CqShape[]): CqShape[] {
-    const k = kernel()
-    const centre = (h: ShapeHandle): Pt3 => {
-      const bb = k.getBoundingBox(h)
-      return { x: (bb.xmin + bb.xmax) / 2, y: (bb.ymin + bb.ymax) / 2, z: (bb.zmin + bb.zmax) / 2 }
-    }
+    const centre = (el: CqShape): Pt3 => centerOf(el)
     const dirOf = (tok: string): Pt3 | null => {
       if (/^[<>]{1,2}X$/i.test(tok)) return { x: 1, y: 0, z: 0 }
       if (/^[<>]{1,2}Y$/i.test(tok)) return { x: 0, y: 1, z: 0 }
@@ -383,7 +402,7 @@ export class StringSyntaxSelector implements Selector {
       let best = maxSide ? -Infinity : Infinity
       const proj = new Map<CqShape, number>()
       for (const el of els) {
-        const c = centre(el.handle)
+        const c = centre(el)
         const v = c.x * dir.x + c.y * dir.y + c.z * dir.z
         proj.set(el, v)
         if (maxSide ? v > best : v < best) best = v
