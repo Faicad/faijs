@@ -27,6 +27,11 @@ jobs:
 
       - run: npm ci
 
+      # multi-version brepkit tests load unpacked wasm kernels from
+      # _test-kernels/ (gitignored); fetch them after a clean checkout.
+      - name: Fetch test brepkit-wasm kernels
+        run: node scripts/fetch-test-kernels.mjs
+
       - run: npm run lint
 
       - run: npm run typecheck
