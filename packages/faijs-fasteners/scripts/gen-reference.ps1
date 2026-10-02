@@ -1,7 +1,7 @@
 # gen-reference — A 侧参考生成（CadQuery + cq_warehouse）的 PowerShell 转调壳
 #
 # 实际逻辑全在 gen-reference.py；本脚本只负责定位 Python interpreter 后透传参数。
-# interpreter 优先级（照 fai_cq_gears 先例）：
+# interpreter 优先级（照 faijs-gears 先例）：
 #   1. 环境变量 FAI_CQ_PYTHON
 #   2. C:\Users\ylt\cadquery-env\Scripts\python.exe（本机 cadquery 2.8.0 环境）
 #

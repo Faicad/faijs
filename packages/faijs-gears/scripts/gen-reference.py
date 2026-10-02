@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 """
-gen-reference.py — 生成 cq_gears（CadQuery / OCP）侧的参考数据，供 fai_cq_gears
+gen-reference.py — 生成 cq_gears（CadQuery / OCP）侧的参考数据，供 faijs-gears
 的一致性测试使用。
 
 产出（默认写到 <pkg>/fixtures/reference/）：

@@ -31,7 +31,7 @@ The editor extension library is a separate package:
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)
 
-A `.fai.js` script can `import * as gear from 'my-lib'` and call `gear.makeSpurGear(...)`; the host loads your module (`import(url)`) and registers it via `CadRuntime.registerLib(binding, module)` **before** any check/execute. Published example: `@faicad/fai-cq-gears` (15 gear factories, verbatim CadQuery ports).
+A `.fai.js` script can `import * as gear from 'my-lib'` and call `gear.makeSpurGear(...)`; the host loads your module (`import(url)`) and registers it via `CadRuntime.registerLib(binding, module)` **before** any check/execute. Published example: `@faicad/faijs-gears` (15 gear factories, verbatim CadQuery ports).
 
 Your module is a plain ESM file exporting functions — write it against the SDK entry:
 

@@ -230,6 +230,6 @@ export type {
 // cq-compat-assembly package) — no longer re-exported for an external package.
 
 // Gear primitive layer (raw-handle kernel access for the cq_gears port)
-// migrated to @faicad/fai-cq-gears `src/kernel/` (2026-10-02) — the only
-// consumer was fai_cq_gears itself.
+// migrated to @faicad/faijs-gears `src/kernel/` (2026-10-02) — the only
+// consumer was faijs-gears itself.
 export type { Vec3 } from './geom-types'

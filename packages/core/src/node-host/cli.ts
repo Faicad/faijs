@@ -53,7 +53,7 @@ const CLI_SCOPED_PREFIX = '@faicad/'
 const CLI_SHORT_NAMES: Record<string, string> = {
   'sheetmetal': '@faicad/sheetmetal',
   'cq-compat': '@faicad/cq-compat',
-  'fai-cq-gears': '@faicad/fai-cq-gears',
+  'faijs-gears': '@faicad/faijs-gears',
   'faijs-fasteners': '@faicad/faijs-fasteners',
 }
 

@@ -9,7 +9,7 @@
 
   Publish scope (see docs/plans/2026-09-19-npm-publish-plan.md section 2):
     @faicad/faijs (core) -> @faicad/faijs-extra -> @faicad/cq-compat
-    -> @faicad/fai-cq-gears -> @faicad/faijs-fasteners -> @faicad/sheetmetal
+    -> @faicad/faijs-gears -> @faicad/faijs-fasteners -> @faicad/sheetmetal
   (@faicad/gear-lib-demo excluded per Q2; the mini lathe sample project moved out of the repo.)
 
 .PARAMETER DryRun
@@ -84,7 +84,7 @@ $Packages = @(
   @{ Name = '@faicad/faijs-fcstd';     Path = 'packages/fcstd' },
   @{ Name = '@faicad/cq-compat';        Path = 'packages/cq-compat' },
   @{ Name = '@faicad/cq-compat-assembly'; Path = 'packages/cq-compat-assembly' },
-  @{ Name = '@faicad/fai-cq-gears';     Path = 'packages/fai_cq_gears' },
+  @{ Name = '@faicad/faijs-gears';     Path = 'packages/faijs-gears' },
   @{ Name = '@faicad/faijs-fasteners'; Path = 'packages/faijs-fasteners' },
   @{ Name = '@faicad/sheetmetal';       Path = 'packages/sheetmetal' }
 )

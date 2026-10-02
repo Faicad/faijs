@@ -2,13 +2,7 @@
   "@faicad/cq-compat": {
     "autoLift": false
   },
-  "@faicad/cq-compat-assembly": {
-    "autoLift": false
-  },
   "@faicad/cq-compat-compare": {
-    "autoLift": false
-  },
-  "@faicad/cq-compat-sketch": {
     "autoLift": false
   }
 }

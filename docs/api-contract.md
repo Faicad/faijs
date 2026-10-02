@@ -23,7 +23,7 @@ faijs is an **npm workspaces monorepo**. The root package `@faicad/faijs` is a *
 | `packages/tests` | `@faicad/faijs-tests` | Private, integration tests |
 | `packages/demo` | `@faicad/faijs-demo` | Private, vite demo |
 
-Dependencies are one-directional and acyclic: `fai_cq_gears / faijs-fasteners / sheetmetal → core`, `tests → fixtures`, `root → core`. **core has no internal dependencies.**
+Dependencies are one-directional and acyclic: `faijs-gears / faijs-fasteners / sheetmetal → core`, `tests → fixtures`, `root → core`. **core has no internal dependencies.**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐

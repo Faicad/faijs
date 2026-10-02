@@ -11,5 +11,5 @@
 export * from './workplane'
 // Assembly layer (merged 2026-10-02, ex standalone cq-compat-assembly package)
 // now lives in src/assembly/ — browser entry: `./assembly/browser`. Gear
-// primitives migrated to @faicad/fai-cq-gears `src/kernel/` (2026-10-02); the
-// only consumer was fai_cq_gears itself, which no longer depends on this package.
+// primitives migrated to @faicad/faijs-gears `src/kernel/` (2026-10-02); the
+// only consumer was faijs-gears itself, which no longer depends on this package.

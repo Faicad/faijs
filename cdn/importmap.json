@@ -2,13 +2,11 @@
   "imports": {
     "@faicad/faijs": "https://cdn.jsdelivr.net/npm/@faicad/faijs/+esm",
     "@faicad/cq-compat": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat/+esm",
-    "@faicad/cq-compat-assembly": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-assembly/+esm",
     "@faicad/cq-compat-compare": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-compare/+esm",
-    "@faicad/cq-compat-sketch": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-sketch/+esm",
     "@faicad/faijs-draw": "https://cdn.jsdelivr.net/npm/@faicad/faijs-draw/+esm",
     "@faicad/faijs-extra": "https://cdn.jsdelivr.net/npm/@faicad/faijs-extra/+esm",
-    "@faicad/fai-cq-gears": "https://cdn.jsdelivr.net/npm/@faicad/fai-cq-gears/+esm",
     "@faicad/faijs-fasteners": "https://cdn.jsdelivr.net/npm/@faicad/faijs-fasteners/+esm",
+    "@faicad/faijs-gears": "https://cdn.jsdelivr.net/npm/@faicad/faijs-gears/+esm",
     "@faicad/faijs-fcstd": "https://cdn.jsdelivr.net/npm/@faicad/faijs-fcstd/+esm",
     "@faicad/sheetmetal": "https://cdn.jsdelivr.net/npm/@faicad/sheetmetal/+esm",
     "@faicad/faijs-sketch": "https://cdn.jsdelivr.net/npm/@faicad/faijs-sketch/+esm"

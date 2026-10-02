@@ -17,7 +17,7 @@
  *      published, so the mirror has (and must not have) a pin for them. Skipped
  *      when the file is absent.
  *
- * Rule 2 exists because of a 2026-09 incident: `fai_cq_gears` had bumped itself to
+ * Rule 2 exists because of a 2026-09 incident: `faijs-gears` had bumped itself to
  * 0.16.x while its `dependencies` still declared `"@faicad/cq-compat": "^0.14.0"`, so
  * the CDN build resolved a stale `cq-compat@0.14.1` whose pinned `@faicad/faijs`
  * broke the package graph. Rule 1 alone cannot catch a stale range; rule 2 alone
@@ -65,7 +65,7 @@ function selfTest() {
       title: 'stale dependency range is caught',
       family: new Map([
         mk('@faicad/faijs', '0.20.0'),
-        mk('@faicad/fai-cq-gears', '0.20.0', { dependencies: { '@faicad/faijs': '^0.14.0' } }),
+        mk('@faicad/faijs-gears', '0.20.0', { dependencies: { '@faicad/faijs': '^0.14.0' } }),
       ]),
       declared: '0.20.0',
       expect: 1,

@@ -274,7 +274,7 @@ describe('§3 admitCompatLib — bare fn 只认 fn.outputs（多产物契约名�
   })
 })
 describe('§7 async library fn — Promise<Result<…>> is awaited before unwrap', () => {
-  // GOTCHA: every kernel-awaiting library (all `@faicad/fai-cq-gears` factories
+  // GOTCHA: every kernel-awaiting library (all `@faicad/faijs-gears` factories
   // do `await getGearKernel()`) returns `Promise<Result<…>>`. `unwrapResult` is a
   // deliberately sync leaf, so an un-awaited promise is NOT ResultLike: it used
   // to fall through to `adoptOut` untouched and the statement produced a

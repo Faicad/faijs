@@ -50,7 +50,7 @@ export interface AssemblyCompareOptions {
    * Skip the fused (A∪B → cut) boolean-difference computation entirely
    * (default false). The fused cut is expensive on near-coincident B-spline
    * faces and the occt-wasm kernel can return inverted/garbage solids for it
-   * (documented in fai_cq_gears analysis docs); per-part volume/CoM/bbox
+   * (documented in faijs-gears analysis docs); per-part volume/CoM/bbox
    * checks remain the verdict. When true, `booleanDiff` is reported as
    * {aMinusB: NaN, bMinusA: NaN, match: true}.
    */

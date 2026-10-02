@@ -1,7 +1,7 @@
 /**
  * spline-face — P0 可行性尖峰：三种 B-spline 曲面方案的实测偏差
  *
- * 判据（不是拍脑袋定的，见 `docs/analysis/2026-09-08-fai-cq-gears-spike.md`）：
+ * 判据（不是拍脑袋定的，见 `docs/analysis/2026-09-08-faijs-gears-spike.md`）：
  *
  * 1. **面积相对偏差** `|A_ours − A_cq| / A_cq` —— 曲面整体形状的标量指纹，
  *    对「拟合得太松/太紧」极其敏感；
@@ -29,7 +29,7 @@ import { gearGeometryForClass, toothFaceGrids, type SpurGearGeometry } from './p
 /**
  * 实测标定阈值（2026-09-08 首次实测后写入）。
  *
- * 修改前必读：`docs/analysis/2026-09-08-fai-cq-gears-spike.md`。
+ * 修改前必读：`docs/analysis/2026-09-08-faijs-gears-spike.md`。
  * 这些数字的含义是「cq 与 faijs 两侧曲面构造差异的量级」，不是「允许的建模误差」。
  */
 export const THRESHOLDS = {

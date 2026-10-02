@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     // Monorepo：测试分布在各 workspace 包内（根 src/ 无测试），各包 alias 不同
-    // （sheetmetal/cq-compat/fai_cq_gears/tests 均有自定义解析），根配置只做
+    // （sheetmetal/cq-compat/faijs-gears/tests 均有自定义解析），根配置只做
     // projects 分发，让每个包按自己的配置（含 alias）跑。
     projects: [
       'packages/core',
@@ -20,7 +20,7 @@ export default defineConfig({
       'packages/sheetmetal',
       'packages/demo',
       'packages/tests',
-      // 注意：不包含 packages/cq-compat 与 packages/fai_cq_gears —— 两者较重，
+      // 注意：不包含 packages/cq-compat 与 packages/faijs-gears —— 两者较重，
       // 用户明确要求根目录测试忽略它们（各包仍可单独 `npm test -w <pkg>` 运行）。
     ],
     testTimeout: 300000,

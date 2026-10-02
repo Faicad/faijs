@@ -9,7 +9,7 @@
  *     grid both agree, which is the domain where occt's fit and CadQuery's
  *     `makeSplineApprox` coincide. The gear-grid precision (4.2e-11 straight /
  *     5.6e-7 helical) is validated where the gear fixtures live, in
- *     `packages/fai_cq_gears/src/spline-face.test.ts`.
+ *     `packages/faijs-gears/src/spline-face.test.ts`.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'

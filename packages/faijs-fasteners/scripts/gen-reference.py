@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 """
 gen-reference.py — 生成 cq_warehouse（CadQuery / OCP）侧的参考数据，供
-fai_cq_warehouse 的一致性测试使用（A 侧真值管线，照 fai_cq_gears 同名脚本范式）。
+fai_cq_warehouse 的一致性测试使用（A 侧真值管线，照 faijs-gears 同名脚本范式）。
 
 产出（默认写到 <pkg>/fixtures/reference/）：
   * manifest.json   —— 每个用例的 volume / bbox / 质心 / 零件树（parts[]，含顺序）
@@ -349,7 +349,7 @@ CASE_SETS = {
 
 
 def bootstrap_sys_path() -> str:
-    """把 cq_warehouse 源码目录插进 sys.path（免 pip install，照 fai_cq_gears 先例）。"""
+    """把 cq_warehouse 源码目录插进 sys.path（免 pip install，照 faijs-gears 先例）。"""
     src = Path(os.environ.get("FAI_CQ_UPSTREAM", str(DEFAULT_CQ_WAREHOUSE_SRC)))
     if not src.exists():
         print(f"[gen-reference] upstream src not found: {src}", file=sys.stderr)
@@ -554,7 +554,7 @@ def main() -> int:
     import cadquery as cq  # noqa: PLC0415
 
     # 与既有 manifest 合并（按 id upsert）：新增用例不丢历史用例——
-    # 与 fai_cq_gears 的 merge-reference.ts 同一条约定（一个事实一个家）
+    # 与 faijs-gears 的 merge-reference.ts 同一条约定（一个事实一个家）
     manifest_path = out_dir / "manifest.json"
     if manifest_path.exists():
         try:

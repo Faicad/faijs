@@ -1,7 +1,7 @@
 /**
  * occtKernel / brepkitWasm 跨实例共享状态测试（随 0.18.2 发布，2026-09-26）。
  *
- * 背景：CDN 装载的第三方库（sheetmetal/cq-compat/fai-cq-gears）在 jsDelivr
+ * 背景：CDN 装载的第三方库（sheetmetal/cq-compat/faijs-gears）在 jsDelivr
  * +esm 打包时把 peer `@faicad/faijs` 外部化为**独立模块实例**（根入口与
  * /api/ 子路径是不同 URL → 不同 bundle）。模块级单例导致各实例持有独立的
  * occt/brepkit 内核：库实例内核从未初始化（`occt-wasm kernel not initialized`）

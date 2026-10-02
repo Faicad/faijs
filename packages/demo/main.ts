@@ -48,7 +48,7 @@ async function bindKernelToCdnFaijs(): Promise<void> {
   cdnFaijsBound = true // 单飞：并发装载只绑一次；失败允许重试
   // GOTCHA（2026-09-24，实测）：未加版本号的 `@faicad/faijs/+esm` 不能用于绑定——
   // jsDelivr 对 `latest` 的 +esm 打包**有 CDN 缓存**：0.16.0 发布 6 分钟后该 URL 仍返回
-  // 0.14.1 的构建。而 CDN 上的库包（fai-cq-gears / cq-compat）在其 +esm 里把 peer
+  // 0.14.1 的构建。而 CDN 上的库包（faijs-gears / cq-compat）在其 +esm 里把 peer
   // `@faicad/faijs` 内联成**精确版本**（实测 0.16.0），于是 demo 会绑到一份、库包用另一份
   // → 两份 faijs 实例 → 后端内核注册表不共享（正是本函数存在的理由）。
   // 因此与库装载同口径：先查 npm registry 的 /latest 文档（无 CDN 缓存、带 CORS 头），
@@ -146,9 +146,9 @@ let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
 part0 = cad.rotate_euler(part0, { angles: [0, 0, 30] })
 part0 = cad.translate(part0, { offset: [5, 0, 0] })
 part0 = cad.scale3d(part0, { factor: [1, 1, 2] })`,
-  // 真齿轮库 `@faicad/fai-cq-gears`（15 类，CadQuery 逐字移植）：参数名沿用
+  // 真齿轮库 `@faicad/faijs-gears`（15 类，CadQuery 逐字移植）：参数名沿用
   // Python（module / teeth_number / width）。中心距 = module·(z1+z2)/2 = 36。
-  'gear-demo': `import * as gears from '@faicad/fai-cq-gears'
+  'gear-demo': `import * as gears from '@faicad/faijs-gears'
 
 let g1 = gears.spurGear({ module: 2, teeth_number: 24, width: 8 })
 let g2 = gears.spurGear({ module: 2, teeth_number: 12, width: 8 })

@@ -161,15 +161,15 @@ test.describe('faijs demo', () => {
     }
   })
 
-  test('gear-demo：真齿轮库 fai_cq_gears 出 brep 几何（走 CDN）', async ({ page }) => {
-    // `@faicad/fai-cq-gears` 现从 jsDelivr CDN 加载（0.13.2 起已修复 cq-compat
+  test('gear-demo：真齿轮库 faijs-gears 出 brep 几何（走 CDN）', async ({ page }) => {
+    // `@faicad/faijs-gears` 现从 jsDelivr CDN 加载（0.13.2 起已修复 cq-compat
     // 依赖解析，+esm 不再 404）；它的工厂全是 async（await getGearKernel），
     // 走 compat 边界收养为 faijs Shape。
     await page.goto('/')
     await waitForStatusOk(page)
 
     await page.locator(SELECTOR.exampleSelect).selectOption('gear-demo')
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as gears from '@faicad\/fai-cq-gears'/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as gears from '@faicad\/faijs-gears'/)
     await waitForStatusOk(page)
     const status = await page.locator(SELECTOR.statusBar).textContent()
     // spurGear ×2 + translate + union → 终端 1 个（u1）

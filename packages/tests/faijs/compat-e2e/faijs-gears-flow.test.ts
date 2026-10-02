@@ -1,10 +1,10 @@
 /**
- * fai_cq_gears through the compat boundary — the guard for "the browser side
+ * faijs-gears through the compat boundary — the guard for "the browser side
  * can consume a real published gear library".
  *
  * Why this file exists: `@faicad/gear-lib-demo` (the former demo-side gear
  * library) was deleted on 2026-09-21; the demo's `gear-demo` example now has to
- * run a real gear library. `@faicad/fai-cq-gears` is that library, and it is
+ * run a real gear library. `@faicad/faijs-gears` is that library, and it is
  * **fully async** — every factory does `await getGearKernel()` and returns
  * `Promise<Result<BrepHandle, string>>`. That shape is what the compat bridge
  * must be able to adopt, so this file is the acceptance gate for both halves of
@@ -24,13 +24,13 @@ import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { Shape } from '@faicad/faijs/mesh/types'
-import * as gears from '@faicad/fai-cq-gears'
+import * as gears from '@faicad/faijs-gears'
 import { yieldWorkerRpc } from '../_support/worker-yield.js'
 import { createEditorRuntime } from '../_support/editor-runtime'
 
 /** The script the demo `gear-demo` example runs (kept in sync by assertion). */
 export const SCRIPT = [
-  "import * as gears from '@faicad/fai-cq-gears'",
+  "import * as gears from '@faicad/faijs-gears'",
   'let g1 = gears.spurGear({ module: 2, teeth_number: 24, width: 8 })',
   'let g2 = gears.spurGear({ module: 2, teeth_number: 12, width: 8 })',
   'let m1 = cad.translate(g2, { offset: [36, 0, 0] })',
@@ -45,7 +45,7 @@ beforeAll(async () => {
   runtime = createEditorRuntime(createNodePorts(), 'auto')
   runtime.registerLib('gears', gears as never, {
     autoLift: true,
-    packageName: '@faicad/fai-cq-gears',
+    packageName: '@faicad/faijs-gears',
   })
   result = await runtime.execute(SCRIPT)
 }, 240000)
@@ -56,7 +56,7 @@ function shapeOf(part: string): Shape {
   return v as Shape
 }
 
-describe('@faicad/fai-cq-gears through the compat boundary', () => {
+describe('@faicad/faijs-gears through the compat boundary', () => {
   it('① async factory product is adopted into a BREP Shape (not a promise)', async () => {
     expect(result.failedAt).toBeUndefined()
     const g1 = shapeOf('g1')
@@ -85,7 +85,7 @@ describe('@faicad/fai-cq-gears through the compat boundary', () => {
     const meshRuntime = createEditorRuntime(createNodePorts(), 'mesh')
     meshRuntime.registerLib('gears', gears as never, {
       autoLift: true,
-      packageName: '@faicad/fai-cq-gears',
+      packageName: '@faicad/faijs-gears',
     })
     const meshResult = await meshRuntime.execute(SCRIPT)
     expect(meshResult.failedAt).toBeDefined()

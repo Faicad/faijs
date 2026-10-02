@@ -1,13 +1,13 @@
 {
   "name": "@faicad/faijs-tests",
-  "version": "0.22.5",
+  "version": "0.26.2",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
-    "@faicad/fai-cq-gears": "^0.22.0",
-    "@faicad/faijs-fixtures": "^0.22.0",
-    "@faicad/faijs-sketch": "^0.22.0"
+    "@faicad/faijs-gears": "^0.26.0",
+    "@faicad/faijs-fixtures": "^0.26.0",
+    "@faicad/faijs-sketch": "^0.26.0"
   },
   "devDependencies": {
     "typescript": "*",

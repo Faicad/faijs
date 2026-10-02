@@ -1,6 +1,6 @@
 """Generate BARE herringbone reference STEPs (no chamfer/bore/hub/spokes).
 
-Used to validate fai_cq_gears herringbone solid build against a clean cq_gears
+Used to validate faijs-gears herringbone solid build against a clean cq_gears
 baseline. Run with cadquery-env; cq_gears resolved from FAI_CQ_GEARS_SRC.
 """
 import json
@@ -14,7 +14,7 @@ if (os.path.join(SRC, "cq_gears", "__init__.py")):
 import cadquery as cq
 import cq_gears
 
-OUT = r"D:\Faicad\faijs\packages\fai_cq_gears\fixtures\reference"
+OUT = r"D:\Faicad\faijs\packages\faijs-gears\fixtures\reference"
 
 CASES = [
     {"id": "hb-basic", "class": "HerringboneGear",

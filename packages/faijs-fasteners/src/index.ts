@@ -4,11 +4,11 @@
  * 移植自 cq_warehouse（上游 0.8.0）的 6 个几何模块：
  * thread（5 类）/ nut（7 类）/ screw（12 类）/ washer（3 类）/ bearing（5 类）/ sprocket（1 类）。
  *
- * 约定（方案 §4.2，与 fai_cq_gears 同构）：
+ * 约定（方案 §4.2，与 faijs-gears 同构）：
  * - 参数名逐字沿用 Python；构建函数返回 `Result`（kernel 阶段失败转 `err`）。
  * - `types()`/`sizes()` 类方法转 `nutTypes()`/`nutSizes()` 等函数式形态（params.ts）。
  * - `contractVersion` 语义见方案 §4.2.1：本包 API 形状 + 参数表来源 + STEP 输出
- *   形态的行为契约版本；与内核契约对齐（照 fai_cq_gears，勿硬编码）。
+ *   形态的行为契约版本；与内核契约对齐（照 faijs-gears，勿硬编码）。
  * - P1 增项已落地：孔系列（holes.ts，函数式）与 Chain（chain.ts，平面 2+ 链轮），
  *   见 Agent Note 2026-09-15-fai-cq-warehouse-w9-p1-chain-holes。
  */

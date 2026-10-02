@@ -18,7 +18,7 @@ import { compareAssemblyFiles, type AssemblyCompareOptions, type AssemblyCompare
 
 /**
  * 标定后的容差（2026-09-08 P0 实测，见
- * `docs/analysis/2026-09-08-fai-cq-gears-spike.md`）。
+ * `docs/analysis/2026-09-08-faijs-gears-spike.md`）。
  *
  * | 维度 | 值 | 依据 |
  * |---|---|---|
@@ -38,7 +38,7 @@ export const CALIBRATED_COMPARE: AssemblyCompareOptions = {
   matchNames: false,
   // 方案 §9.2：布尔差是绝对量、**不进门禁主判据**；且内核对近重合 B 样条面
   // 的融合 cut 既可能返回反向实体（bp-angled-helix B−A=−1.319、cgp-basic ≈整件体积，
-  // 见 docs/analysis/2026-09-13-fai-cq-gears-crossed-pair-phase-scan.md）又可能挂死
+  // 见 docs/analysis/2026-09-13-faijs-gears-crossed-pair-phase-scan.md）又可能挂死
   // wasm（case03 后 30+ 分钟无输出，进程只能强杀）。故比对一律跳过融合布尔，
   // 以逐件（体积/质心/bbox）指标为判定。
   skipFusedBoolean: true,
@@ -51,13 +51,13 @@ export const CALIBRATED_COMPARE: AssemblyCompareOptions = {
  * 共同根因：齿面是 B-spline 逼近（cq 用 makeSplineSurface / makeSplineApprox，
  * 我方走 row-approx-loft / grid-approx），两侧逼近曲线/曲面必然不同，体积差随
  * 齿面螺旋度放大。线性门禁（bbox/com 1e-3）**不在此放宽**——超差的用例在
- * T2 报表中记为已知偏差（见 docs/analysis/2026-09-13-fai-cq-gears-t2-full-rerun.md）。
+ * T2 报表中记为已知偏差（见 docs/analysis/2026-09-13-faijs-gears-t2-full-rerun.md）。
  */
 const CASE_TOLERANCE_OVERRIDES: Array<{ match: RegExp; options: AssemblyCompareOptions; reason: string }> = [
   {
     // Bevel 族（单体 case08–case13 + 齿轮对 bp-*）：实测最坏单体 1.9e-4（case11，
     // surface_splines=12）、齿轮对逐件 1.415e-5；门禁 5e-4 = 实测最坏 ×2.6。
-    // 见 docs/analysis/2026-09-12-fai-cq-gears-bevel-precision.md
+    // 见 docs/analysis/2026-09-12-faijs-gears-bevel-precision.md
     match: /^(case\d+-BevelGear|bp-)/,
     options: { volumeRelativeTolerance: 5e-4 },
     reason: 'Bevel tooth-face B-spline approximation difference (measured worst 1.9e-4, gate 5e-4)',
@@ -183,7 +183,7 @@ export function formatCompareLine(r: AssemblyCompareResult): string {
  *    ≈ 整件体积）。
  *
  * 这是**显式分类**而非放宽容差：布尔项不参与等价判定时，逐件指标仍是硬门禁。
- * 依据与相位扫描实证见 `docs/analysis/2026-09-13-fai-cq-gears-crossed-pair-phase-scan.md`。
+ * 依据与相位扫描实证见 `docs/analysis/2026-09-13-faijs-gears-crossed-pair-phase-scan.md`。
  *
  * @param r 比对结果
  * @returns true = 伪差（除融合布尔外全部指标合格）

@@ -3,7 +3,7 @@
  *
  * 规则（仅作用于 packages/faijs-fasteners 的 src/ 与 scripts/）：
  *  1. 禁止 `from 'occt-wasm'` / `initOcctWasm` —— 不得绕 host 注入直接消费内核；
- *  2. 禁止 `getGearKernel` —— 不得消费另一个第三方库（fai_cq_gears）的东西；
+ *  2. 禁止 `getGearKernel` —— 不得消费另一个第三方库（faijs-gears）的东西；
  *  3. `getBackends()` 只允许出现在 src/kernel.ts（其余文件必须经 requireKernel()）；
  *  4. 禁止 `as any`；
  *  5. 禁止 type-only import `occt-wasm` 的 `OcctKernel`。
@@ -25,7 +25,7 @@ const RULES = [
   { id: 'occt-wasm-import', re: /from\s+['"]occt-wasm['"]|import\s*\(\s*['"]occt-wasm['"]\s*\)/, files: null, msg: "不得 import 'occt-wasm'（内核须经 host 注入的 requireKernel()）" },
   // initOcctWasm 只允许 host 角色的 src/test-setup.ts（方案 §5.1 约束 2：库代码不初始化内核）
   { id: 'initOcctWasm', re: /\binitOcctWasm\b/, files: ['src/test-setup.ts'], msg: '不得调用 initOcctWasm（仅 host 角色 src/test-setup.ts 允许）' },
-  { id: 'getGearKernel', re: /\bgetGearKernel\b/, files: null, msg: "不得消费 fai_cq_gears 的 getGearKernel（那是另一个第三方库的内部入口）" },
+  { id: 'getGearKernel', re: /\bgetGearKernel\b/, files: null, msg: "不得消费 faijs-gears 的 getGearKernel（那是另一个第三方库的内部入口）" },
   { id: 'as-any', re: /\bas\s+any\b/, files: null, msg: '禁止 as any' },
   { id: 'occt-kernel-type', re: /\bOcctKernel\b/, files: null, msg: '禁止 type-only import occt-wasm 的 OcctKernel' },
 ]

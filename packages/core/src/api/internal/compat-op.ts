@@ -173,7 +173,7 @@ function buildAdapter(fn: (...args: unknown[]) => unknown, spec: CompatSpec): Br
     // BREP chain）。默认 true 保持 brepjs 形态库的借入语义。
     const effective = spec.borrow === false ? args : args.map((a) => borrowDeep(a, 0))
     // Async library fns are supported: a library that awaits its kernel (every
-    // `@faicad/fai-cq-gears` factory does — `await getGearKernel()`) returns
+    // `@faicad/faijs-gears` factory does — `await getGearKernel()`) returns
     // `Promise<Result<…>>`, and the shared unwrap is a sync leaf that only
     // recognizes settled Result records. Awaiting a non-promise product is a
     // no-op, so sync libraries are unaffected.

@@ -1,5 +1,5 @@
 /**
- * compare-all — 批量比对 A 侧（CadQuery 参考 STEP）与 B 侧（fai_cq_gears 产出）
+ * compare-all — 批量比对 A 侧（CadQuery 参考 STEP）与 B 侧（faijs-gears 产出）
  *
  * 前置：先跑 `scripts/gen-reference.py`（A 侧）与 `scripts/export-ours.ts`（B 侧）。
  *

@@ -5230,9 +5230,9 @@ export function setColor(wp: Workplane, color: RGB): Workplane {
 }
 
 // ── Gear-extension primitives (E1–E4) ───────────────────────────────────────
-// These four ops are required by the fai_cq_gears port (see
+// These four ops are required by the faijs-gears port (see
 // docs/plans/2026-09-11-cq-compat-gears-extensions-e1-e4.md). All call the
-// occt-wasm kernel directly via `getKernel()` — the same singleton fai_cq_gears
+// occt-wasm kernel directly via `getKernel()` — the same singleton faijs-gears
 // uses — so their `ShapeHandle`s are compatible with the rest of cq-compat.
 // occt-wasm already exposes `bsplineSurface` / `makeHelixWire` / `split` /
 // `halfSpace` natively (node_modules/occt-wasm/dist/index.d.ts:77/112/189/390),
@@ -5550,7 +5550,7 @@ export function faceFromPoints(wp: Workplane, pts: [number, number, number][]): 
  * Equivalent to CadQuery `cq.Shell.makeShell(faces)` + `Solid.makeSolid(...)`
  * (BRepBuilderAPI_Sewing + BRepBuilderAPI_MakeSolid + orientation fix).
  *
- * This is cq-compat extension E5 (fai_cq_gears port plan §13-6): the existing
+ * This is cq-compat extension E5 (faijs-gears port plan §13-6): the existing
  * `shell` op is hollowing (thickening a solid), not sewing face patches into
  * a solid, and gears need the latter after their tooth-face/cap faces are built.
  *
@@ -5633,7 +5633,7 @@ function edgeEndsRaw(
  * workplane shape. Equivalent to CadQuery gears' `planarCapAtZ` /
  * `Face.makeFromWires(Wire.combine(boundaryEdges, tol))`.
  *
- * This is cq-compat extension E6 (fai_cq_gears port plan §13-6): the existing
+ * This is cq-compat extension E6 (faijs-gears port plan §13-6): the existing
  * `wire`/`face` ops only consume pending drawing descriptors, not edges that
  * already exist inside kernel shapes — gears need to close their tooth-face
  * patches with end caps built from those edges.

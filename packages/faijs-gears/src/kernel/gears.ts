@@ -4,10 +4,10 @@
  * cq_gears' tooth faces are B-spline patches built from (u,v) point grids and
  * assembled by sewing — these need raw kernel construction primitives that no
  * Workplane op exposes (bsplineSurface / approximatePoints / interpolatePoints,
- * tolerant edge chaining, sew+makeSolid). The fai_cq_gears v1 port probed them
+ * tolerant edge chaining, sew+makeSolid). The faijs-gears v1 port probed them
  * in its own `kernel.ts` / `geom-build.ts` / `spline-face.ts`; per the port
  * plan (§4) the implementations must live INSIDE cq-compat — this file is that
- * landing spot. fai_cq_gears only imports from here; it must not touch
+ * landing spot. faijs-gears only imports from here; it must not touch
  * occt-wasm directly.
  *
  * Everything here is a verbatim port of the proven v1 implementations (same
@@ -28,7 +28,7 @@ export interface GearAxis {
  * Raw occt-wasm capability surface — superset of `BrepEngineApi`.
  *
  * Declares exactly the methods the cq_gears port consumes; the probe test in
- * fai_cq_gears asserts each one exists on the live kernel, so a kernel upgrade
+ * faijs-gears asserts each one exists on the live kernel, so a kernel upgrade
  * that renames a binding turns red immediately instead of failing at runtime
  * with `undefined is not a function`.
  */
@@ -110,7 +110,7 @@ export function getGearKernel(): Promise<GearKernel> {
   return gearKernelPromise
 }
 
-// ── tolerant edge chaining (port of fai_cq_gears v1 geom-build.ts) ─────────
+// ── tolerant edge chaining (port of faijs-gears v1 geom-build.ts) ─────────
 
 /** The two endpoints of an edge (order = the edge's parameter direction). */
 export interface GearEdgeEnds {
@@ -275,7 +275,7 @@ export function gearShellToSolid(
   return kernel.makeSolid(shell)
 }
 
-// ── spline tooth faces (port of fai_cq_gears v1 spline-face.ts) ────────────
+// ── spline tooth faces (port of faijs-gears v1 spline-face.ts) ────────────
 
 /**
  * Tooth-face B-spline face strategies (mirrors cq `Face.makeSplineApprox`).
@@ -298,10 +298,10 @@ export const GEAR_SPLINE_FACE_STRATEGIES: readonly GearSplineFaceStrategy[] = [
 /**
  * Default strategy chosen by P0 measurement (2026-09-08).
  *
- * Per the measured table in the fai_cq_gears spike: S2's area relative
+ * Per the measured table in the faijs-gears spike: S2's area relative
  * deviation is 5.6e-7 / max sample-point distance 2.6e-6 mm — about three
  * orders of magnitude better than S1/S3. See
- * `docs/analysis/2026-09-08-fai-cq-gears-spike.md`.
+ * `docs/analysis/2026-09-08-faijs-gears-spike.md`.
  */
 export const DEFAULT_GEAR_SPLINE_FACE_STRATEGY: GearSplineFaceStrategy = 'row-approx-loft'
 

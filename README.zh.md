@@ -31,7 +31,7 @@ Faicad CAD 执行引擎——`faijs` 语言 parser、BREP/mesh 双链路几何�
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)
 
-`.fai.js` 脚本可以 `import * as gear from 'my-lib'` 并调用 `gear.makeSpurGear(...)`；宿主加载你的模块（`import(url)`）并在任何 check/execute 之前通过 `CadRuntime.registerLib(binding, module)` 注册。已发布示例：`@faicad/fai-cq-gears`（15 个齿轮工厂，CadQuery 逐字移植）。
+`.fai.js` 脚本可以 `import * as gear from 'my-lib'` 并调用 `gear.makeSpurGear(...)`；宿主加载你的模块（`import(url)`）并在任何 check/execute 之前通过 `CadRuntime.registerLib(binding, module)` 注册。已发布示例：`@faicad/faijs-gears`（15 个齿轮工厂，CadQuery 逐字移植）。
 
 你的模块是一个导出函数的普通 ESM 文件——通过 SDK 入口编写：
 

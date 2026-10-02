@@ -4,8 +4,8 @@
   "@faicad/cq-compat-compare": "0.26.2",
   "@faicad/faijs-draw": "0.26.2",
   "@faicad/faijs-extra": "0.26.2",
-  "@faicad/fai-cq-gears": "0.26.2",
   "@faicad/faijs-fasteners": "0.26.2",
+  "@faicad/faijs-gears": "0.26.2",
   "@faicad/faijs-fcstd": "0.26.2",
   "@faicad/sheetmetal": "0.26.2",
   "@faicad/faijs-sketch": "0.26.2"

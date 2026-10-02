@@ -1,5 +1,5 @@
 /**
- * index — fai_cq_gears 公共 API 入口（15 个齿轮类 + contractVersion）
+ * index — faijs-gears 公共 API 入口（15 个齿轮类 + contractVersion）
  *
  * ## 现状（2026-09-13）
  *

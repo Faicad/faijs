@@ -13,7 +13,7 @@ export default defineConfig({
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
       { find: '@faicad/sheetmetal', replacement: resolve(__dirname, '../sheetmetal/src/index.ts') },
-      { find: '@faicad/fai-cq-gears', replacement: resolve(__dirname, '../fai_cq_gears/src/index.ts') },
+      { find: '@faicad/faijs-gears', replacement: resolve(__dirname, '../faijs-gears/src/index.ts') },
       { find: '@faicad/cq-compat', replacement: resolve(__dirname, '../cq-compat/src/index.ts') },
       { find: '@faicad/faijs-fixtures', replacement: resolve(__dirname, '../fixtures/data') },
     ],

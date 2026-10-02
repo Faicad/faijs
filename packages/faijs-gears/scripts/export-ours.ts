@@ -1,5 +1,5 @@
 /**
- * export-ours — 用 fai_cq_gears 生成对照 STEP（等价性比对的 B 侧）
+ * export-ours — 用 faijs-gears 生成对照 STEP（等价性比对的 B 侧）
  *
  * 与 `scripts/gen-reference.py`（A 侧，CadQuery）成对使用，然后由
  * `scripts/compare-all.ts` 走**装配一致性比对**（compareAssemblyFiles，见

@@ -33,7 +33,7 @@ export interface WasmImportResult {
 // 2026-09-26 跨实例共享（随 0.18.2 发布）：
 // kernelInstance / initPromise / customInitFn 从"模块级单例"提升为挂在
 // globalThis 上的共享状态（与 runtime-state.ts 的 `__FAICAD_FAIJS_RUNTIME__`
-// 同款设计）。原因：CDN 装载的第三方库（sheetmetal/cq-compat/fai-cq-gears）
+// 同款设计）。原因：CDN 装载的第三方库（sheetmetal/cq-compat/faijs-gears）
 // 在 jsDelivr +esm 打包时把 peer `@faicad/faijs` 外部化为**独立模块实例**
 // （根入口与 /api/ 子路径是不同 URL → 不同 bundle），模块级单例导致：
 // - 库实例的 occt 内核从未初始化 → `occt-wasm kernel not initialized`；
