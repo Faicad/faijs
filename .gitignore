@@ -53,4 +53,4 @@ docs/patents
 # 根目录一次性散件：探针输出 / 发布 dry-run 记录 / 冲突解决临时 dump
 /out-*
 probe-*/
-*.tmp.json
+*.tmp.jsonpackages/core/src/brep/engine/multi-engine-results.json
