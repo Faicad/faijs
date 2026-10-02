@@ -73,7 +73,8 @@ function Run-Npm {
 
 # Publishable packages in topological order. @faicad/cq-compat-compare is a
 # dev-only internal test tool and stays out of the publish list;
-# @faicad/cq-compat-sketch is not yet validated and is deliberately withheld. The family
+# @faicad/cq-compat-sketch was merged into @faicad/faijs-cadquery (and its assembly
+# layer with it, 2026-10-02) and is deliberately withheld. The family
 # publishes under ONE lockstep version (step 1 below): a package that needs a
 # different version line cannot live in this list.
 $Packages = @(
@@ -83,7 +84,6 @@ $Packages = @(
   @{ Name = '@faicad/faijs-draw';      Path = 'packages/draw' },
   @{ Name = '@faicad/faijs-freecad';  Path = 'packages/faijs-freecad' },
   @{ Name = '@faicad/faijs-cadquery';        Path = 'packages/faijs-cadquery' },
-  @{ Name = '@faicad/cq-compat-assembly'; Path = 'packages/cq-compat-assembly' },
   @{ Name = '@faicad/faijs-gears';     Path = 'packages/faijs-gears' },
   @{ Name = '@faicad/faijs-fasteners'; Path = 'packages/faijs-fasteners' },
   @{ Name = '@faicad/sheetmetal';       Path = 'packages/sheetmetal' }
