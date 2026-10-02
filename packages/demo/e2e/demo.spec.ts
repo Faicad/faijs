@@ -28,10 +28,10 @@ const SELECTOR = {
 }
 
 const EXAMPLE_SNIPPETS: Record<string, string> = {
-  'box-boolean': 'cad.box(20, 20, 20, { centered: true })',
-  'drill-test': 'cad.cylinder(5, 20, { centered: true',
+  'box-boolean': 'cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })',
+  'drill-test': 'cad.cylinder(5 * MM, 20 * MM, { centered: true',
   'text-engrave': "cad.text(part0, { text: 'HELLO'",
-  'transform-chain': 'cad.rotate_euler(part0, { angles: [0, 0, 30] }',
+  'transform-chain': 'cad.rotate_euler(part0, { angles: [0 * DEGREE, 0 * DEGREE, 30 * DEGREE] }',
   'gear-demo': "gears.spurGear({ module: 2, teeth_number: 24",
 }
 
@@ -113,7 +113,7 @@ test.describe('faijs demo', () => {
   test('页面加载：标题、默认示例代码、初始状态栏', async ({ page }) => {
     await page.goto('/')
     await expect(page).toHaveTitle('faijs — CAD Scripting Demo')
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.box\(20, 20, 20, \{ centered: true \}\)/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.box\(20 \* MM, 20 \* MM, 20 \* MM, \{ centered: true \}\)/)
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('box-boolean')
     // 下载按钮初始为 disabled（尚无成功运行结果）
     await expect(page.locator(SELECTOR.btnStep)).toBeDisabled()
@@ -194,7 +194,7 @@ test.describe('faijs demo', () => {
     await waitForStatusOk(page)
 
     await page.locator(SELECTOR.editor).fill(
-      `import * as none from '@faicad/no-such-lib-demo'\nlet part0 = cad.box(10, 10, 10, { centered: true })`,
+      `import * as none from '@faicad/no-such-lib-demo'\nlet part0 = cad.box(10 * MM, 10 * MM, 10 * MM, { centered: true })`,
     )
     await page.locator(SELECTOR.runBtn).click()
     // 装载是异步的：点 Run 后状态栏先是 "Executing…"，必须等最终态再断言。
@@ -233,7 +233,7 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    const snippet = `let part0 = cad.box(7, 7, 7, { centered: true })\nlet part1 = cad.cylinder(2, 12, { centered: true, at: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
+    const snippet = `let part0 = cad.box(7 * MM, 7 * MM, 7 * MM, { centered: true })\nlet part1 = cad.cylinder(2 * MM, 12 * MM, { centered: true, at: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
       name: 'custom-part.fai.js',
       mimeType: 'text/plain',
@@ -250,13 +250,13 @@ test.describe('faijs demo', () => {
     expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
   })
 
-  test('打开单文件 axk.fai.js：cq-compat 自动装载，brep 成功、mesh 显式不可用', async ({ page }) => {
+  test('打开单文件 axk.fai.js：faijs-cadquery 自动装载，brep 成功、mesh 显式不可用', async ({ page }) => {
     await page.goto('/')
     await waitForStatusOk(page)
 
     // axk.fai.js 现为多文件项目的一部分（第 2 行 `import * as config from
     // '../config.fai.js'`），单文件打开没有目录上下文无法解析兄弟模块；多文件
-    // 装配已在下方「Open Folder 装配」用例覆盖。这里保留该用例的原初意图——cq-compat
+    // 装配已在下方「Open Folder 装配」用例覆盖。这里保留该用例的原初意图——faijs-cadquery
     // 自动装载 + brep 产出几何、mesh 显式不可用——用与 axk 等价的自包含段验证：
     // 同一组 cq-compat 原语（extrude / rect / fillet / val；fillet 为 brep-only，
     // mesh 链路 E_MESH_UNSUPPORTED）。
@@ -274,10 +274,10 @@ test.describe('faijs demo', () => {
 
     await waitForStatusOk(page)
     // 文件内容已载入编辑器，import specifier 为完整 scoped 名 '@faicad/faijs-cadquery'
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as cq from '@faicad\/cq-compat'/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as cq from '@faicad\/faijs-cadquery'/)
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
     const status = await page.locator(SELECTOR.statusBar).textContent()
-    // cq-compat 自动装载后 brep 链路真实产出几何（不再报 unregistered library）
+    // faijs-cadquery 自动装载后 brep 链路真实产出几何（不再报 unregistered library）
     expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
     // mesh 链路显式不可用（cq-compat fillet 等走 brep-only compatOp，E_MESH_UNSUPPORTED）
     expect(status).toMatch(/mesh: (Failed|Mesh unavailable)/i)
@@ -287,7 +287,7 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    const snippet = `let part0 = cad.box(7, 7, 7, { centered: true })\nlet part1 = cad.cylinder(2, 12, { centered: true, at: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
+    const snippet = `let part0 = cad.box(7 * MM, 7 * MM, 7 * MM, { centered: true })\nlet part1 = cad.cylinder(2 * MM, 12 * MM, { centered: true, at: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
       name: 'custom-part.fai.js',
       mimeType: 'text/plain',
@@ -298,12 +298,12 @@ test.describe('faijs demo', () => {
     // 切到内置示例：编辑器变为示例内容
     await page.locator(SELECTOR.exampleSelect).selectOption('drill-test')
     await waitForStatusOk(page)
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(5, 20, { centered: true, at: \[0, 0, 0\] }\)/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(5 \* MM, 20 \* MM, { centered: true, at: \[0, 0, 0\] }\)/)
 
     // 切回 __file__：恢复文件内容，下拉仍显示文件名
     await page.locator(SELECTOR.exampleSelect).selectOption('__file__')
     await waitForStatusOk(page)
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(2, 12, { centered: true, at: \[0, 0, 0\] }\)/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(2 \* MM, 12 \* MM, { centered: true, at: \[0, 0, 0\] }\)/)
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
     await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.fai.js')
   })
@@ -325,8 +325,8 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(10, 10, 10, { centered: true })
-let part1 = cad.sphere({ radius: 4, center: [2, 0, 0] })
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(10 * MM, 10 * MM, 10 * MM, { centered: true })
+let part1 = cad.sphere({ radius: 4 * MM, center: [2 * MM, 0, 0] })
 let part2 = cad.subtract(part0, part1)`)
     await page.locator(SELECTOR.runBtn).click()
     await waitForStatusOk(page)
@@ -346,7 +346,7 @@ let part2 = cad.subtract(part0, part1)`)
     await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
 
     // 手动修改代码 → 按钮恢复可用
-    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(3, 3, 3, { centered: true })`)
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(3 * MM, 3 * MM, 3 * MM, { centered: true })`)
     await expect(page.locator(SELECTOR.runBtn)).toBeEnabled()
 
     // 点击运行 → 完成后内容无变化 → 再次置灰
@@ -364,7 +364,7 @@ let part2 = cad.subtract(part0, part1)`)
     await page.goto('/')
     await waitForStatusOk(page)
 
-    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(6, 6, 6, { centered: true })`)
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(6 * MM, 6 * MM, 6 * MM, { centered: true })`)
     await page.locator(SELECTOR.editor).press('Control+Enter')
     await waitForStatusOk(page)
 
@@ -564,7 +564,7 @@ let part2 = cad.subtract(part0, part1)`)
     await expect(page.locator(SELECTOR.statusBar)).toHaveClass(/error/)
 
     // 页面不崩:后续点击 Run 仍可成功执行
-    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(8, 8, 8, { centered: true })`)
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(8 * MM, 8 * MM, 8 * MM, { centered: true })`)
     await page.locator(SELECTOR.runBtn).click()
     await waitForStatusOk(page)
   })

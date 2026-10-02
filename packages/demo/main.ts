@@ -132,19 +132,19 @@ const demoLibLoader: LibLoader = {
 // ── Example .fai.js files ──
 
 const EXAMPLES: Record<string, string> = {
-  'box-boolean': `let part0 = cad.box(20, 20, 20, { centered: true })
-let part1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
+  'box-boolean': `let part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
+let part1 = cad.sphere({ radius: 8 * MM, center: [5 * MM, 0, 0] })
 let part2 = cad.subtract(part0, part1)`,
-  'drill-test': `let part0 = cad.box(30, 20, 15, { centered: true })
-let part1 = cad.cylinder(5, 20, { centered: true, at: [0, 0, 0] })
+  'drill-test': `let part0 = cad.box(30 * MM, 20 * MM, 15 * MM, { centered: true })
+let part1 = cad.cylinder(5 * MM, 20 * MM, { centered: true, at: [0, 0, 0] })
 let part2 = cad.subtract(part0, part1)
-part2 = cad.translate(part2, { offset: [10, 0, 0] })`,
-  'text-engrave': `let part0 = cad.box(30, 30, 30, { centered: true })
-part0 = cad.translate(part0, { offset: [0, 0, 14] })
+part2 = cad.translate(part2, { offset: [10 * MM, 0 * MM, 0 * MM] })`,
+  'text-engrave': `let part0 = cad.box(30 * MM, 30 * MM, 30 * MM, { centered: true })
+part0 = cad.translate(part0, { offset: [0 * MM, 0 * MM, 14 * MM] })
 let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
-  'transform-chain': `let part0 = cad.box(20, 10, 5, { centered: true })
-part0 = cad.rotate_euler(part0, { angles: [0, 0, 30] })
-part0 = cad.translate(part0, { offset: [5, 0, 0] })
+  'transform-chain': `let part0 = cad.box(20 * MM, 10 * MM, 5 * MM, { centered: true })
+part0 = cad.rotate_euler(part0, { angles: [0 * DEGREE, 0 * DEGREE, 30 * DEGREE] })
+part0 = cad.translate(part0, { offset: [5 * MM, 0 * MM, 0 * MM] })
 part0 = cad.scale3d(part0, { factor: [1, 1, 2] })`,
   // 真齿轮库 `@faicad/faijs-gears`（15 类，CadQuery 逐字移植）：参数名沿用
   // Python（module / teeth_number / width）。中心距 = module·(z1+z2)/2 = 36。
@@ -152,7 +152,7 @@ part0 = cad.scale3d(part0, { factor: [1, 1, 2] })`,
 
 let g1 = gears.spurGear({ module: 2, teeth_number: 24, width: 8 })
 let g2 = gears.spurGear({ module: 2, teeth_number: 12, width: 8 })
-let m1 = cad.translate(g2, { offset: [36, 0, 0] })
+let m1 = cad.translate(g2, { offset: [36 * MM, 0 * MM, 0 * MM] })
 let u1 = cad.union(g1, m1)`,
   'sheetmetal-demo': `import * as sm from '@faicad/sheetmetal'
 
