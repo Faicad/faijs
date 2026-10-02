@@ -99,7 +99,12 @@ function parseCsv(text: string): string[][] {
 }
 
 function sha256File(path: string): string {
-  return createHash('sha256').update(readFileSync(path)).digest('hex')
+  // Normalize line endings (CRLF→LF) before hashing: git checkout may deliver
+  // the same upstream content with either ending, and the hash must be a
+  // content fingerprint, not a checkout artifact (probed 2026-10-02: a
+  // CRLF checkout tripped the params.test.ts guard after an LF re-checkout).
+  const text = readFileSync(path, 'utf8')
+  return createHash('sha256').update(text.replace(/\r\n/g, '\n')).digest('hex')
 }
 
 function gitHeadOf(dir: string): string | null {

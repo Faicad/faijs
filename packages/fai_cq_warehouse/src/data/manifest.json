@@ -9,238 +9,238 @@
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 3,
-      "sha256": "eff4dedcab8ca70d30770211e869d03c9c016379ca524f30113bc6b5afdeb817"
+      "sha256": "ebeeaca34171d79fab71bcd061961d0a60a22753a632dcd19dc3dd1bc65c6010"
     },
     "button_head_parameters": {
       "source": "button_head_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 8,
-      "sha256": "e521320f19d60dfd40ddab8b8b4dc92fd0cfbd9a326aed8b56dee50f854639eb"
+      "sha256": "40dd89b4abb3e5b060f216bca2a826591f9186d1a37e66c53096063f4e2c1098"
     },
     "button_head_with_collar_parameters": {
       "source": "button_head_with_collar_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 8,
-      "sha256": "7b46b1f379fbccbedddc4ddc380ea98138dd7fb2389373937433656947dd4995"
+      "sha256": "bd3f1836dab7f889506a119af80d5ef01bf890bc8d262e4b66696db092834629"
     },
     "chamfered_washer_parameters": {
       "source": "chamfered_washer_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 52,
-      "sha256": "ca62a5eccdc4ab715a43c09532aafe19bb8a8e75b59294dff8f75c5a33b7eeff"
+      "sha256": "df21d3d5d732ac1da51ca41ee6075fa156982c51c4bc5f05b9e1949bb7db8783"
     },
     "cheese_head_parameters": {
       "source": "cheese_head_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 10,
-      "sha256": "81b9a05db635d45a44c54730bfada0ceee8d585c3829b76a77680acd562a974a"
+      "sha256": "2dc49a7024c195a221b4e2a423622ed459ff48f6ecb56f071bf82e7cd5a13f36"
     },
     "cheese_head_washer_parameters": {
       "source": "cheese_head_washer_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 22,
-      "sha256": "d4381a0bf0fc80d39a719d23ec23857858f66c35512688aefd11013e5f2e6fdd"
+      "sha256": "bf8cceffd3b5d51c08f3fe08925b34fb8fe5501a95fededa36ff44033f25d00e"
     },
     "clearance_hole_sizes": {
       "source": "clearance_hole_sizes.csv",
       "mode": "clearance_holes",
       "referencedByUpstream": true,
       "rows": 85,
-      "sha256": "f030b56c52cbfa282e6b2e0ede1cf2947ea5c2d5ebc61a31a3d33d2897b6f803"
+      "sha256": "ddce8e3e1a2f9611022230152816964705cc658b5f7817f38ff69871d0ede028"
     },
     "countersunk_head_parameters": {
       "source": "countersunk_head_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 50,
-      "sha256": "0d3a09a1dc80e281ce18c2a9528307743b3b6c05ebf4e880464105ceb0e6cfc9"
+      "sha256": "6f4192c5459cf5625437b2a04fbe1801a8c7cf01a6a2fc316547d5d782210cd4"
     },
     "domed_cap_nut_parameters": {
       "source": "domed_cap_nut_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 12,
-      "sha256": "e521c6b4a39881b200135a09aa1e8bae984b4fef28b76365e35fdbdb259c8f81"
+      "sha256": "df1e9b960c182a912bf563caa6210f16910071f76fa4927a92aaccae918e86fa"
     },
     "drill_sizes": {
       "source": "drill_sizes.csv",
       "mode": "drill_sizes",
       "referencedByUpstream": true,
       "rows": 106,
-      "sha256": "cc5bc5c0af75520f8284c1887b9c1c679c57415ac303a1ebea4b78f31c944396"
+      "sha256": "516a0fb1c3c58320afb6884839d5dd1e13726b6e668cf29e1b3d3edb38aef14b"
     },
     "heatset_nut_parameters": {
       "source": "heatset_nut_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 22,
-      "sha256": "296125010858e5de72687212e0e01cc8bd103e4da0efce975ceb580518470807"
+      "sha256": "6b43af8951810f87d3cb7ec2a7083846afb046c432d1999b65f06cfec04e3f1e"
     },
     "hex_head_parameters": {
       "source": "hex_head_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 29,
-      "sha256": "67d485d7a69d9a5a578048c1dfbfbfd1af3c98e44738c25fa0ea1610a2cc035b"
+      "sha256": "aecb2b7927db46df16d710c707fe6accc06960260858680e25a771b460f9705e"
     },
     "hex_head_with_flange_parameters": {
       "source": "hex_head_with_flange_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 8,
-      "sha256": "9bcc7bf88348f90d4201020691d877048ad0e409ea7ca437bfe2d069da1be727"
+      "sha256": "ca63fb72489230a027948e4928f8801a6ff0b4cee5935d3d96f5b541123a6c74"
     },
     "hex_nut_parameters": {
       "source": "hex_nut_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 31,
-      "sha256": "f12d3de3c81b3dd44cc923bfb67fcab47ceb9c5a594ab2720a68f7e6d8309c80"
+      "sha256": "d43fb52182ea302af0ac9e9ce102c2743abb84060e8f90a16c0e42d90c0388ea"
     },
     "hex_nut_with_flange_parameters": {
       "source": "hex_nut_with_flange_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 15,
-      "sha256": "c4a2bb92387c31fe792eabcf259a396319e9ca8559e362900438a5b7f67206d8"
+      "sha256": "5a7dd2bed88f0496e32e77542fa3da9ed878241b8b36ed205be3b47a009ae414"
     },
     "imperial_set_screw_parameters": {
       "source": "imperial_set_screw_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": false,
       "rows": 37,
-      "sha256": "4d8b673c5d15c3fee4d2344ce92f400dacc3abef49433a3681a1a9d397fdb6ac"
+      "sha256": "d6a21f200cd6d7ffe75592f3aa7f06a5887c467de5e7ea288625f22501be906e"
     },
     "iso10664def": {
       "source": "iso10664def.csv",
       "mode": "parameters_metric",
       "referencedByUpstream": true,
       "rows": 16,
-      "sha256": "e0f96953e3a4cfa142d4c94f964f2ff019043ee7cfef83bedefe5fcfaa16f685"
+      "sha256": "0d6100566b9f22f9b50e2e86776c8d67a19f6975adf1ef7a10f4afa907d579ee"
     },
     "metric_set_screw_parameters": {
       "source": "metric_set_screw_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": false,
       "rows": 12,
-      "sha256": "b5e866f01c81ee0e91fc479e7a316744829d2c7aed1058783c33cd3bb7871cd5"
+      "sha256": "f539efc79bd1c15159b6b80ff274a476023b4f8e9bb2e9bd7aa6035fbc148c45"
     },
     "nominal_screw_lengths": {
       "source": "nominal_screw_lengths.csv",
       "mode": "nominal_screw_lengths",
       "referencedByUpstream": true,
       "rows": 26,
-      "sha256": "f8b0c1ab05f372283284f2840147d5b60f33f3c942e2df2e24070e8d566f8a86"
+      "sha256": "f84315ed20392d464ba73fbbf92627e6c0d6bc8fa7f309a0d673ee61a6e12bfa"
     },
     "pan_head_parameters": {
       "source": "pan_head_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 20,
-      "sha256": "684eb75c43c536ebc860c1b5b5b24c5f553745e728657820bca22187ef43f828"
+      "sha256": "d66377b9eb5e6871073455957ef21c88f2b7b810b7bb1bb85bb921ebcbb5ece1"
     },
     "pan_head_with_collar_parameters": {
       "source": "pan_head_with_collar_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 6,
-      "sha256": "271db7a649d602eba0eb39c87f2acb45a7bb48af8ecc695578c63edb86a1fdfc"
+      "sha256": "8af2a974ce39b412b28a10ccaf6c5cf6584f8f5ff3ac1358a75f1559cd32fd4b"
     },
     "plain_washer_parameters": {
       "source": "plain_washer_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 33,
-      "sha256": "661e5433662b9779a2ba35debd08fe27aa95cbb6bef892833ed6e5b2085ccbbc"
+      "sha256": "d40ece8029ec2c64723bd42490dcbf6bf11090d4ecf6c746779e520ecbd1fb55"
     },
     "raised_cheese_head_parameters": {
       "source": "raised_cheese_head_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 10,
-      "sha256": "501ee8269ade4f15b3f4765974e4cd21e4987a3c5be1e8e17f3a991856ede646"
+      "sha256": "237842b1a3c7a42dcc713fc1160efd72b24f838b3aa50bd37e8730453d7deb3b"
     },
     "raised_countersunk_oval_head_parameters": {
       "source": "raised_countersunk_oval_head_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 13,
-      "sha256": "13096729828bcabd466b3b60f83e1d21f07db349cf9b8474541b339080228f6b"
+      "sha256": "e437142cb2740ac12d7546c0a72c87ff5dd177e7324e2ae984ed6a2f66825e2f"
     },
     "setscrew_parameters": {
       "source": "setscrew_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 18,
-      "sha256": "4ecbffb74d0dfbd2beaccf46c1dbef4ba08f82498d415ee725632fb96d1ea490"
+      "sha256": "92c6dba094cb70b92ebd18e69a07ae48cb5f659081404fe1b9c1576bc1b0cc2f"
     },
     "single_row_angular_contact_ball_bearing_parameters": {
       "source": "single_row_angular_contact_ball_bearing_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 9,
-      "sha256": "5c3c91f2188d2561c3d5fc2452790d3794a95d64003ba86842e522da5d8cb716"
+      "sha256": "8381a6f851f4f52b4f7f7ad22b87e83121c0c6b1ac0febbf5d19b572f47e30e2"
     },
     "single_row_capped_deep_groove_ball_bearing_parameters": {
       "source": "single_row_capped_deep_groove_ball_bearing_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 25,
-      "sha256": "bbe683a48e9fdd4cf9b074d9796e1df61941cca4c8297407ce8f0c961ec83ace"
+      "sha256": "d5c966f30193a5977da7135b8ff835e06ea3a52f53176506532ba758fc8c6349"
     },
     "single_row_cylindrical_roller_bearing_parameters": {
       "source": "single_row_cylindrical_roller_bearing_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 9,
-      "sha256": "07da70f6ad11e48714097e9fc72fb415604f877c8ccf1750c1e65b33cc16ed1e"
+      "sha256": "c959881ac1270e4c1ab0d65bdaac96086db3bfa139873fc0aa4f1b5fe276bca8"
     },
     "single_row_deep_groove_ball_bearing_parameters": {
       "source": "single_row_deep_groove_ball_bearing_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 31,
-      "sha256": "ae46c9ac7d60639f29552a2dfe6087c8a546301f8990d57c68ba874adaabb18b"
+      "sha256": "56c8eb0360d6e5348643ac2a5e5fed69db3929d38f66a0e632530630af9a60fe"
     },
     "single_row_tapered_roller_bearing_parameters": {
       "source": "single_row_tapered_roller_bearing_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 26,
-      "sha256": "73b9b0ea636ad93d10ae01996df8f40844a679ac8c2d667b9f966f2d6e2840f4"
+      "sha256": "9315cc22e50213021fe02e586f76b35014f4c91ced64b3243307ad954011e93c"
     },
     "socket_head_cap_parameters": {
       "source": "socket_head_cap_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 61,
-      "sha256": "d9266c2164d1bfbb1b858a11c44be93e550106391dc1197db2dfe446c35f822d"
+      "sha256": "31d9762f952acb29de1ba6f0dc99b9edeb336f996033b80b29b2c6236977b752"
     },
     "square_nut_parameters": {
       "source": "square_nut_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 6,
-      "sha256": "e5a7a93d915a5e05d0adf0c9f77df4b79b00b4f43e341a571480db1d3f86f412"
+      "sha256": "4f65801d7bccd292c898d8487dbd4f5cd064b1b574b9e8e52617435ff34a75ba"
     },
     "tap_hole_sizes": {
       "source": "tap_hole_sizes.csv",
       "mode": "tap_holes",
       "referencedByUpstream": true,
       "rows": 99,
-      "sha256": "e052ab0b2dff10053d6adfbda0d9ea27f9de953900770358db6c7ed53fb14652"
+      "sha256": "8972b5b7484e0b708d6c73c13faaa9a58d4fee40b45104e5de6dffa856fa69a1"
     },
     "unchamfered_hex_nut_parameters": {
       "source": "unchamfered_hex_nut_parameters.csv",
       "mode": "parameters",
       "referencedByUpstream": true,
       "rows": 10,
-      "sha256": "0bd29e6317a9628de6c6ea68633bde186cb4af4fb14c9f8deac8497f7848f4d1"
+      "sha256": "b86cbca91f47f61a8612beb026d5d4f7bcbdae11063770787130d5c2231085ba"
     }
   }
 }

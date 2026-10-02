@@ -211,7 +211,7 @@ describe('W1 数据层（方案 §8-W1 验收）', () => {
     expect(imperialStrToFloat('3/8')).toBeCloseTo(9.525, 9)
   })
 
-  it('34 表哈希断言：manifest sha256 与当前上游 CSV 一致（上游变动必须显式更新）', () => {
+  it('34 表哈希断言：manifest sha256 与当前上游 CSV 一致（行尾归一化后；上游变动必须显式更新）', () => {
     const upstream = process.env.FAI_CQ_UPSTREAM ?? UPSTREAM_DEFAULT
     const m = dataManifest as unknown as {
       tables: Record<string, { source: string; sha256: string }>
@@ -219,8 +219,16 @@ describe('W1 数据层（方案 §8-W1 验收）', () => {
     let checked = 0
     for (const [name, entry] of Object.entries(m.tables)) {
       const p = join(upstream, entry.source)
-      const actual = createHash('sha256').update(readFileSync(p)).digest('hex')
-      expect(actual, `${name} (${entry.source}) upstream data changed — rerun gen-data.ts`).toBe(entry.sha256)
+      // Normalize line endings before hashing: git checkout may deliver the
+      // same content with LF or CRLF, and that must not fail the guard
+      // (probed 2026-10-02: manifest captured CRLF, a later LF checkout
+      // tripped this test with byte-identical data).
+      const raw = readFileSync(p, 'utf8')
+      const actual = createHash('sha256').update(raw.replace(/\r\n/g, '\n')).digest('hex')
+      expect(
+        actual,
+        `${name} (${entry.source}) upstream data changed (line-ending-normalized) — rerun gen-data.ts`,
+      ).toBe(entry.sha256)
       checked++
     }
     expect(checked).toBe(34)
