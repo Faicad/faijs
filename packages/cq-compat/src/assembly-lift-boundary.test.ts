@@ -30,8 +30,8 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 import type { CompoundShape } from '@faicad/faijs/shape'
 import type { AssemblyConstraint } from '@faicad/faijs/api/assembly/types'
 import * as cq from '@faicad/cq-compat'
-import { asBrepShape, resolveFaceSelector } from '@faicad/cq-compat'
-import { buildAssembly, constraint, constraintEx } from './index'
+import { asBrepShape, resolveFaceSelector } from './workplane'
+import { buildAssembly, constraint, constraintEx } from './assembly/index'
 
 type V3 = [number, number, number]
 

@@ -9,7 +9,7 @@
  * writing `import * as cq from '@faicad/cq-compat'`.
  */
 export * from './workplane'
-// Assembly layer moved out of the main package → @faicad/cq-compat-assembly
-// (browser entry there: ./browser). Gear primitives migrated to
-// @faicad/fai-cq-gears `src/kernel/` (2026-10-02); the only consumer was
-// fai_cq_gears itself, which no longer depends on this package.
+// Assembly layer (merged 2026-10-02, ex standalone cq-compat-assembly package)
+// now lives in src/assembly/ — browser entry: `./assembly/browser`. Gear
+// primitives migrated to @faicad/fai-cq-gears `src/kernel/` (2026-10-02); the
+// only consumer was fai_cq_gears itself, which no longer depends on this package.

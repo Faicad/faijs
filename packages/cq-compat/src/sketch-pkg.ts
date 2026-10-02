@@ -1,11 +1,11 @@
 /**
- * @faicad/cq-compat-sketch — CadQuery Sketch.py-compatible 2D sketch container
+ * @faicad/cq-compat/sketch (merged 2026-10-02, ex standalone package) — CadQuery Sketch.py-compatible 2D sketch container
  * for faijs.
  *
  * CadQuery grammar surface (unprefixed names; the cq-compat main package
  * exposes the same functions with a `sketch` prefix):
  *   import { sketch, rect, circle, polygon, faces, wires, extrude } from
- *     '@faicad/cq-compat-sketch'
+ *     '@faicad/cq-compat/sketch (merged 2026-10-02, ex standalone package)'
  *
  *   let s = sketch()
  *   s = rect(s, 2, 2)
@@ -69,7 +69,7 @@ export {
   sketchConstrain as constrain,
   sketchSolve as solve,
   sketchFinalize as finalize,
-} from '@faicad/cq-compat'
+} from './index'
 export type {
   Sketch,
   SketchMode,
@@ -82,4 +82,4 @@ export type {
   SketchGeom,
   Pt2,
   Loc2,
-} from '@faicad/cq-compat'
+} from './index'

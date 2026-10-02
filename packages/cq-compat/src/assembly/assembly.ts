@@ -1,5 +1,5 @@
 /**
- * @faicad/cq-compat-assembly — CadQuery-compatible assembly layer for faijs.
+ * @faicad/cq-compat/assembly — CadQuery-compatible assembly layer for faijs.
  *
  * Maps CadQuery Assembly.constrain DSL ("part@faces@>Z[-2]", "Plane"/"Axis") to
  * faijs AssemblyConstraint objects with EntityRef geometry snapshots, and wraps
@@ -41,8 +41,8 @@ import { applyTransformBrep } from '@faicad/faijs/brep/brep-ops'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { AssemblyTransform } from '@faicad/faijs/runtime-state'
-import type { RGB } from '@faicad/cq-compat'
-import { resolveFaceSelector, asBrepShape } from '@faicad/cq-compat'
+import type { RGB } from '../workplane'
+import { resolveFaceSelector, asBrepShape } from '../workplane'
 
 /**
  * 装配输入归一：Workplane 载体（{ shape }，cq.box 等产物）→ 内部 Shape，
@@ -163,13 +163,13 @@ async function resolveAxisRef(part: string, shape: Shape): Promise<EntityRef> {
   shape = asBrepShape(shape) // 提升边界：实参可能是借用视图
   const handle = brepOf(shape)
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!handle || !kernel) throw new Error(`[cq-compat-assembly] axisRef: BREP unavailable for part "${part}"`)
+  if (!handle || !kernel) throw new Error(`[cq-compat/assembly] axisRef: BREP unavailable for part "${part}"`)
   // 整形状一次 wireframe，按 edgeGroups 逐边取折线区间。
   // 依据 topologyExt.ts：wireframe() 与 getSubShapes 同用 TopExp::MapShapes +
   // IndexedMap，故 edge 枚举顺序一致——第 i 条 edge 对应 edgeGroups[i*3..]。
   const wf = kernel.wireframe(handle as never, 0.01)
   const groups = wf.edgeGroups
-  if (!groups || groups.length < 3) throw new Error(`[cq-compat-assembly] axisRef: wireframe returned no edge groups for part "${part}"`)
+  if (!groups || groups.length < 3) throw new Error(`[cq-compat/assembly] axisRef: wireframe returned no edge groups for part "${part}"`)
   const edgeCount = groups.length / 3
   for (let ei = 0; ei < edgeCount; ei++) {
     const start = groups[ei * 3]
@@ -183,7 +183,7 @@ async function resolveAxisRef(part: string, shape: Shape): Promise<EntityRef> {
     const axis = fitCircleAxis(pts)
     if (axis) return axisRef(part, axis.origin, axis.direction)
   }
-  throw new Error(`[cq-compat-assembly] axisRef: no circular edge found in part "${part}"`)
+  throw new Error(`[cq-compat/assembly] axisRef: no circular edge found in part "${part}"`)
 }
 
 /** 对一组（应共面、闭合）的 XYZ 点拟合圆轴，返回原点(圆心投影)与方向(法向)，非圆/退化返回 null。 */
@@ -545,7 +545,7 @@ export function buildAssembly(
       this.unsupported = result.unsupported
       if (!result.converged) {
         throw new Error(
-          `[cq-compat-assembly] solve() did not converge (dof=${result.dof}); unsupported: ` +
+          `[cq-compat/assembly] solve() did not converge (dof=${result.dof}); unsupported: ` +
             (result.unsupported.length > 0 ? result.unsupported.join(', ') : '(no detail)'),
         )
       }
@@ -605,7 +605,7 @@ export function buildAssembly(
         member = { name: p_name ?? defaultMemberName(this.members), shape: obj as Shape, color: p_color }
       }
       if (this.members.some((m) => m.name === member.name)) {
-        throw new Error(`[cq-compat-assembly] add: duplicate member name "${member.name}"`)
+        throw new Error(`[cq-compat/assembly] add: duplicate member name "${member.name}"`)
       }
       return buildAssembly(this.name, [...this.members, member], this.constraints, {
         solver: this.solver,
@@ -615,7 +615,7 @@ export function buildAssembly(
     addSubshape(shape: Shape, p_name?: string, p_color?: RGB): CqAssembly {
       const n = p_name ?? defaultSubshapeName(this.subshapes)
       if (n in this.subshapes) {
-        throw new Error(`[cq-compat-assembly] addSubshape: duplicate subshape name "${n}"`)
+        throw new Error(`[cq-compat/assembly] addSubshape: duplicate subshape name "${n}"`)
       }
       const subshapes = { ...this.subshapes, [n]: { name: n, shape, color: p_color } }
       return buildAssembly(this.name, this.members, this.constraints, {
@@ -625,7 +625,7 @@ export function buildAssembly(
     },
     remove(name: string): CqAssembly {
       if (!this.members.some((m) => m.name === name)) {
-        throw new Error(`[cq-compat-assembly] remove: no member named "${name}"`)
+        throw new Error(`[cq-compat/assembly] remove: no member named "${name}"`)
       }
       const members = this.members.filter((m) => m.name !== name)
       const remaining = new Set(members.map((m) => m.name))

@@ -1,9 +1,10 @@
 /**
- * @faicad/cq-compat-assembly — CadQuery-compatible assembly layer for faijs.
+ * @faicad/cq-compat/assembly — CadQuery-compatible assembly layer (node entry).
  *
- * CadQuery grammar surface:
- *   import * as cq from '@faicad/cq-compat'          // workplane（主包）
- *   import * as asm from '@faicad/cq-compat-assembly' // 装配（本包）
+ * CadQuery grammar surface (merged into the main package 2026-10-02, from the
+ * former @faicad/cq-compat-assembly standalone package):
+ *   import * as cq from '@faicad/cq-compat'            // workplane（主包根入口）
+ *   import * as asm from '@faicad/cq-compat/assembly'  // 装配（本子路径）
  *
  *   let c = await asm.constraintEx('a','>Z',shapeA,'b','<Z',shapeB,'Plane')
  *   let a = asm.buildAssembly('name', [{name:'a',shape:shapeA},...], [c[0]])
@@ -13,6 +14,8 @@
  *
  * 消费方必须使用 CadQuery solve 相关 API（solve()/toCompound()/save()），
  * 禁止直调 core 内部求解器（getSlot(compound).behavior.solveDetailed 等）。
+ *
+ * 本入口含 save()（import node:fs），仅供 Node；浏览器用 `./assembly/browser`。
  */
 
 export {

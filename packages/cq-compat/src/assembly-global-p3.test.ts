@@ -21,7 +21,7 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 import type { AssemblyConstraint } from '@faicad/faijs/api/assembly/types'
 import type { AssemblyTransform } from '@faicad/faijs/runtime-state'
 import * as cq from '@faicad/cq-compat'
-import { buildAssembly, constraintEx } from './index'
+import { buildAssembly, constraintEx } from './assembly/index'
 
 let runtime: ReturnType<typeof createRuntime>
 let boxA: Shape

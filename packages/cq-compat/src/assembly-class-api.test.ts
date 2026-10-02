@@ -13,7 +13,7 @@ import { createNodePorts } from '@faicad/faijs/node'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from '@faicad/cq-compat'
-import * as asmPkg from './index'
+import * as asmPkg from './assembly/index'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
@@ -127,7 +127,7 @@ describe('CqAssembly.add 在 .fai.js 脚本面可用（Q4 探针）', () => {
     const res = await runtime.execute(
       [
         "import * as cq from '@faicad/cq-compat'",
-        "import * as asm from '@faicad/cq-compat-assembly'",
+        "import * as asm from '@faicad/cq-compat/assembly'",
         "let wp = cq.Workplane('XY')",
         'let s = cq.val(cq.box(wp, 10, 10, 10))',
         "let asm0 = asm.buildAssembly('root', [{ name: 'a', shape: s }], [])",

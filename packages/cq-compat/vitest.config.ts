@@ -7,6 +7,7 @@ export default defineConfig({
       // M7：包名解析到活源码（不经 dist）。与 tsconfig paths 一致。
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
+      { find: '@faicad/faijs-extra', replacement: resolve(__dirname, '../faijs-extra/src') },
       { find: '@faicad/cq-compat-compare', replacement: resolve(__dirname, '../cq-compat-compare/src') },
     ],
   },

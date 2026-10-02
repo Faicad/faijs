@@ -1,9 +1,7 @@
 {
   "@faicad/faijs": "0.26.2",
   "@faicad/cq-compat": "0.26.2",
-  "@faicad/cq-compat-assembly": "0.26.2",
   "@faicad/cq-compat-compare": "0.26.2",
-  "@faicad/cq-compat-sketch": "0.26.2",
   "@faicad/faijs-draw": "0.26.2",
   "@faicad/faijs-extra": "0.26.2",
   "@faicad/fai-cq-gears": "0.26.2",

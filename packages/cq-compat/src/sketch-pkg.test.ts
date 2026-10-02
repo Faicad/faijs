@@ -1,13 +1,13 @@
 /**
- * Package-surface smoke tests: `@faicad/cq-compat-sketch` re-exports the
+ * Package-surface smoke tests: `@faicad/cq-compat/sketch (merged 2026-10-02, ex standalone package)` re-exports the
  * sketch container with unprefixed CadQuery grammar names and the extrude
  * outlet works end to end.
  */
 import { describe, expect, it, beforeAll } from 'vitest'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import { brepOf } from '@faicad/faijs/shape'
-import { setupNativeKernel } from '../../cq-compat/src/gear-test-harness'
-import { sketch, rect, circle, slot, faces, wires, offset, reset, area, faceCount, extrude, dispose } from './index'
+import { setupNativeKernel } from './gear-test-harness'
+import { sketch, rect, circle, slot, faces, wires, offset, reset, area, faceCount, extrude, dispose } from './sketch-pkg'
 
 beforeAll(async () => {
   await setupNativeKernel()

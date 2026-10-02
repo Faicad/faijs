@@ -9,7 +9,7 @@
  */
 import { describe, expect, it, beforeAll } from 'vitest'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
-import { setupNativeKernel } from '../../cq-compat/src/gear-test-harness'
+import { setupNativeKernel } from './gear-test-harness'
 import {
   sketch,
   rect,
@@ -46,8 +46,8 @@ import {
   area,
   faceCount,
   dispose,
-} from './index'
-import type { Sketch } from './index'
+} from './sketch-pkg'
+import type { Sketch } from './sketch-pkg'
 
 beforeAll(async () => {
   await setupNativeKernel()

@@ -15,7 +15,7 @@ import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { AssemblyConstraint } from '@faicad/faijs/api/assembly/types'
 import * as cq from '@faicad/cq-compat'
-import { pointRef, axisRef, constraintEx, constraint } from './index'
+import { pointRef, axisRef, constraintEx, constraint } from './assembly/index'
 
 let runtime: ReturnType<typeof createRuntime>
 let boxShape: Shape

@@ -225,15 +225,9 @@ export type {
   Selector,
 } from './shape-class'
 
-// Internal helpers consumed by @faicad/cq-compat-assembly (the assembly layer
-// split into its own package; these workplane-internal symbols are re-exported
-// so the assembly package does not duplicate them).
-export { asBrepShape, resolveFaceSelector } from './workplane'
-
-// Assembly layer (buildAssembly/constraint/constraintEx/faceRef/pointRef/axisRef/
-// Color + CadQuery solve()/toCompound()/save()) lives in
-// @faicad/cq-compat-assembly. STEP / assembly equivalence comparers (dev-only)
-// live in @faicad/cq-compat-compare.
+// Internal helpers (asBrepShape/resolveFaceSelector) are consumed by the
+// assembly layer in src/assembly/ (merged 2026-10-02, ex standalone
+// cq-compat-assembly package) — no longer re-exported for an external package.
 
 // Gear primitive layer (raw-handle kernel access for the cq_gears port)
 // migrated to @faicad/fai-cq-gears `src/kernel/` (2026-10-02) — the only
