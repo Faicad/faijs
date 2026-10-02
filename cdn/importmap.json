@@ -1,7 +1,7 @@
 {
   "imports": {
     "@faicad/faijs": "https://cdn.jsdelivr.net/npm/@faicad/faijs/+esm",
-    "@faicad/cq-compat": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat/+esm",
+    "@faicad/faijs-cadquery": "https://cdn.jsdelivr.net/npm/@faicad/faijs-cadquery/+esm",
     "@faicad/cq-compat-compare": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-compare/+esm",
     "@faicad/faijs-draw": "https://cdn.jsdelivr.net/npm/@faicad/faijs-draw/+esm",
     "@faicad/faijs-extra": "https://cdn.jsdelivr.net/npm/@faicad/faijs-extra/+esm",

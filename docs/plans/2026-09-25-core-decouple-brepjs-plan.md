@@ -246,7 +246,7 @@ grep -c 'compatOp(projectBrepOp(' packages/core/src/api/generated/{topology,oper
 | `packages/sheetmetal` | 40 文件（25 src + 15 test） | 建模范畴的真实消费方 | §5.8 |
 | `packages/tests` | 21 文件 / 115 处 | `p3-vendored-surface`、`p5-vendored-surface`（vendored 面测试套件）+ `d10-occt-single-instance` + 两个 `kernel-setup.ts` | §5.9 |
 | `packages/demo` | `vite.config.ts` 1 处 | `resolve.alias` 把 `@faicad/faijs-brepjs` 指向 `../brepjs/src`（活源码联动） | §5.9 |
-| `packages/cq-compat` | 9 文件 | import core 的 `api/internal/l3-bridge`（借入面）——**经 core 间接耦合** | §0.2 待裁决 3 |
+| `packages/faijs-cadquery` | 9 文件 | import core 的 `api/internal/l3-bridge`（借入面）——**经 core 间接耦合** | §0.2 待裁决 3 |
 | `packages/brepjs` 自身 | 262 文件 / 1.57MB（`src`）+ 7 个根 barrel | vendored 树与 brepjs 兼容面本体，包名自引用（subpath 导出） | **随裁决 9 整体删除**（§5.9） |
 | **根级配置与发布通道**（实测 5 处） | — | ① 根 `package.json` 的 `workspaces[0] = "packages/brepjs"`（`check-workspaces-order.mjs` 按拓扑序断言）；② 根 `build` 脚本首段 `npm run build -w @faicad/faijs-brepjs`；③ `cdn/importmap.json` 第 3 行 jsdelivr 条目；④ `cdn/versions.json` 第 2 行 `"0.16.2"`（**未发布的死登记**）；⑤ `packages/core/tsconfig.vendored.json`（include 仍指向**已不存在**的 `src/vendored/brepjs/**`，`ci.ps1` L151 与 `ci.sh` 仍在跑它 —— 残留死配置） | §5.9 全部删除 |
 | `scripts/` | 3 个文件 | `check-layer-boundaries.mjs`、`check-vendored-branding.mjs`、`publish-all.ps1` 硬编码包名 | §5.9 |
@@ -334,7 +334,7 @@ brepjs 包等于让包 re-export 自己；且裁决 9 后**连可迁的目标包
   op，共 35 个。本方案将它们全部**自有化**：改为 core 直连 occt 引擎的实现。
 - **l3-bridge / borrow**：core Shape（数字句柄）⇄ vendored `ShapeHandle`
   （对象视图）的零拷贝互操作（arena 句柄同源，D10 单实例）。**注意**：
-  `borrowBrepjsShape` / `adoptBrepjsProduct` 被 `packages/cq-compat` 当公开 API
+  `borrowBrepjsShape` / `adoptBrepjsProduct` 被 `packages/faijs-cadquery` 当公开 API
   使用（9 处）——core 内部停用 ≠ 删除这个对外借入面（§0.2 待裁决 3）。
 
 ## 4. 目标架构
@@ -673,7 +673,7 @@ cq-compat / 守卫脚本 / 根级配置；全部收口后按裁决 9 **删除 `p
      「core 引擎直接可用」）。
 2. **`packages/demo`**：`vite.config.ts` 的 alias 指向 `../brepjs/src` ——
    随包删除，**该 alias 条目删除**；收口判据 = demo 不再经 core 到 brepjs。
-3. **`packages/cq-compat`**：9 处 `api/internal/l3-bridge` 借入面 → §0.2
+3. **`packages/faijs-cadquery`**：9 处 `api/internal/l3-bridge` 借入面 → §0.2
    裁决 4（「迁扩展包」分支已失效，只剩「core 保留」或「cq-compat 改写」）。
 4. **`scripts/`**：
    - `check-vendored-branding.mjs`：守卫对象（vendored 树字符串 + 包名）随包

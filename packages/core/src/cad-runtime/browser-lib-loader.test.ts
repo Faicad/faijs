@@ -146,14 +146,14 @@ describe('createBrowserLibLoader — autoLiftFor / prefetchMeta', () => {
     })) as unknown as typeof fetch
     const loader = createBrowserLibLoader({
       cdnBase: CDN,
-      versions: { '@faicad/cq-compat': '0.13.0' },
+      versions: { '@faicad/faijs-cadquery': '0.13.0' },
       fetchImpl,
     })
-    expect(loader.options?.autoLiftFor?.('@faicad/cq-compat')).toBeUndefined()
+    expect(loader.options?.autoLiftFor?.('@faicad/faijs-cadquery')).toBeUndefined()
     await loader.prefetchMeta()
-    expect(fetchImpl).toHaveBeenCalledWith(`${CDN}@faicad/cq-compat@0.13.0/package.json`)
+    expect(fetchImpl).toHaveBeenCalledWith(`${CDN}@faicad/faijs-cadquery@0.13.0/package.json`)
     // 预热后可同步取到（runtime 在装载后立即读该值）
-    expect(loader.options?.autoLiftFor?.('@faicad/cq-compat')).toBe(false)
+    expect(loader.options?.autoLiftFor?.('@faicad/faijs-cadquery')).toBe(false)
   })
 
   it('prefetchMeta：网络失败 / 非法响应静默跳过，不抛错也不写 meta', async () => {

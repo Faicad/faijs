@@ -26,7 +26,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 **禁止手工编辑任何版本号**：`config.faijsVersion`、任何包的 `version`、任何 `@faicad/*` 依赖/peer range。全部由脚本改写。
 
-**这不是洁癖——手改已经造成过实际故障。** 2026-09-30 的 `7355c4a` 手改 `config.faijsVersion` 到 0.22.4（跳过 `set-version.mjs`），同一批改动里 `@faicad/cq-compat` 的 `@faicad/faijs-sketch` peer 写成 `"*"` 而没有被规范化，`check-lockstep.mjs` 随即变红。**判据是脚本的出口，不是人的自觉**——所以 `check-lockstep` 是硬门禁，不是警告。
+**这不是洁癖——手改已经造成过实际故障。** 2026-09-30 的 `7355c4a` 手改 `config.faijsVersion` 到 0.22.4（跳过 `set-version.mjs`），同一批改动里 `@faicad/faijs-cadquery` 的 `@faicad/faijs-sketch` peer 写成 `"*"` 而没有被规范化，`check-lockstep.mjs` 随即变红。**判据是脚本的出口，不是人的自觉**——所以 `check-lockstep` 是硬门禁，不是警告。
 
 | 顺序 | 命令 | 作用 |
 |---|---|---|

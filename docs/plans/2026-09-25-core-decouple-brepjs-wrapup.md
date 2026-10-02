@@ -246,7 +246,7 @@ npm run test -w @faicad/faijs-tests  # compat-e2e（sheetmetal-flow/aluminum-enc
      出口或删除（按 §2.2 A/B 落点）。
 2. **`packages/demo`**：`vite.config.ts:105` 的 brepjs alias 条目删除；
    收口判据 = demo 不再经 core 到 brepjs。
-3. **`packages/cq-compat`**：9 处 `api/internal/l3-bridge` 借入面——
+3. **`packages/faijs-cadquery`**：9 处 `api/internal/l3-bridge` 借入面——
    按原 §0.2 待裁决 3：core 保留该借入面（内部已自有化，对外签名不动）或
    cq-compat 改写为直接调 core 出口；执行前把两案的测试影响对比给用户拍板
    （不阻塞 §2/§3.1，可并行）。

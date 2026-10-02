@@ -226,7 +226,7 @@ M2 内部再分两步：**M2a = 能解析**（手写/UI 生成的 derived 引用
 
 **结论：不能直接复用为 faijs 的边选择机制；可作为"几何限定符"叠加，并共享一份解析器。稳定策略按谓词种类分级（§4.2）。**
 
-cq-compat 现状（`packages/cq-compat/src/workplane.ts`）：`resolveEdgeSelection`（:1514-1538）只支持空串（全部边）与 `|X`/`|Y`/`|Z`（按包围盒判定，垂直方向 extent ≤ `PAD = 0.5mm`，:1526 硬编码）；`resolveFaceEdgeSelection`（:1609）额外支持 `>Z`/`<X` 类方向极值。不支持的一律 throw（fail loud，这个姿态要沿用）。
+cq-compat 现状（`packages/faijs-cadquery/src/workplane.ts`）：`resolveEdgeSelection`（:1514-1538）只支持空串（全部边）与 `|X`/`|Y`/`|Z`（按包围盒判定，垂直方向 extent ≤ `PAD = 0.5mm`，:1526 硬编码）；`resolveFaceEdgeSelection`（:1609）额外支持 `>Z`/`<X` 类方向极值。不支持的一律 throw（fail loud，这个姿态要沿用）。
 
 ### 4.1 不能当"唯一主机制"的四条理由
 
@@ -267,7 +267,7 @@ cq-compat 现状（`packages/cq-compat/src/workplane.ts`）：`resolveEdgeSelect
 | P1b | 变半径：逐边 `filletVariable` + 单边校验 + 不产 roleTable（§3.3） | M2 | `api/fillet.ts` |
 | P2a | 边引用扩型 `EdgeFaceQualifier`（能解析） | M2a | `naming/types.ts`、`resolve-edge.ts`、`resolve-derived.ts` |
 | P2b | derived 面命名行通道（`PartNaming.derivedFaceNaming` 可选字段） | M2b | `naming/build-naming.ts`、`naming/types.ts` |
-| P3 | 几何限定符 `api/edge-selector.ts` + fillet/chamfer 接纳字符串（§4.3） | M2 | `api/edge-selector.ts`、`api/fillet.ts`、`api/chamfer.ts`、`packages/cq-compat/src/workplane.ts` |
+| P3 | 几何限定符 `api/edge-selector.ts` + fillet/chamfer 接纳字符串（§4.3） | M2 | `api/edge-selector.ts`、`api/fillet.ts`、`api/chamfer.ts`、`packages/faijs-cadquery/src/workplane.ts` |
 | P4 | 脚本面登记：`api-namespace.ts` 加键 → `api/index.ts` 加 `export { fillet } from './fillet'` → 重跑生成脚本 | M1 | `api/api-namespace.ts:54`、`api/index.ts:20` |
 | P5 | chamfer 补 WithHistory + roleTable（§3.2 末段，含兼容性处理） | M1 | `api/chamfer.ts:205-217` |
 | P6 | 文档：`ops-api-inventory.md` 新增 fillet 条目（照 :327 chamfer 条目格式）+ 限定符语法表；`api-contract.md` 补错误码与命名约定 | M1 | `docs/ops-api-inventory.md`、`docs/api-contract.md` |

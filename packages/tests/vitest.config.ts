@@ -14,7 +14,7 @@ export default defineConfig({
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
       { find: '@faicad/sheetmetal', replacement: resolve(__dirname, '../sheetmetal/src/index.ts') },
       { find: '@faicad/faijs-gears', replacement: resolve(__dirname, '../faijs-gears/src/index.ts') },
-      { find: '@faicad/cq-compat', replacement: resolve(__dirname, '../cq-compat/src/index.ts') },
+      { find: '@faicad/faijs-cadquery', replacement: resolve(__dirname, '../faijs-cadquery/src/index.ts') },
       { find: '@faicad/faijs-fixtures', replacement: resolve(__dirname, '../fixtures/data') },
     ],
   },

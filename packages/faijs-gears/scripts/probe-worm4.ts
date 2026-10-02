@@ -1,7 +1,7 @@
 /**
  * probe-worm4.ts — 定位 Worm 壳不封闭的自由边（只被一个面使用的边）
  */
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { wormGeometry } from '../src/profile'
 import { buildWormGearFaces } from '../src/worm_gear'
 

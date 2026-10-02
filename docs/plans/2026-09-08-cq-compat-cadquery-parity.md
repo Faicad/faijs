@@ -2,7 +2,7 @@
 
 > 状态：**实施中**（P0–P4 批次1 已落地；P2 镜像 55 var，PASS 50 + PASS-NT 1 / FAIL 4；P5 CI 接入已落地；P4 批次2（loft/revolve/多 pending-wire）未开始。实测记录见 §11）
 > 日期：2026-09-08
-> 范围：`packages/cq-compat`、`packages/mini_lathe`（受影响的消费方）
+> 范围：`packages/faijs-cadquery`、`packages/mini_lathe`（受影响的消费方）
 
 ---
 
@@ -16,7 +16,7 @@
 |---|---|
 | C1 | 验证对象 = CadQuery 上游 `tests/` 目录中的**建模测试用例** |
 | C2 | 参考侧产物 = CadQuery 跑测试时**导出 STEP** |
-| C3 | `packages/cq-compat` 下建立**同样的 tests 目录**，逐用例镜像 |
+| C3 | `packages/faijs-cadquery` 下建立**同样的 tests 目录**，逐用例镜像 |
 | C4 | 判定 = **双方 STEP 文件一致**；非建模用例（如 `test_jupyter.py`）忽略 |
 
 ---
@@ -35,7 +35,7 @@
 ### 2.2 mini_lathe 实测：7/7 零件与 CadQuery 参考**不等价**
 
 用新装的 CadQuery 跑 `C:\git\CADQ\mini_lathe`（远端最新 `15cf47d`）导出参考 STEP，再用本仓库
-`packages/cq-compat/scripts/compare-step.ts` 与 faijs brep 模式产物对比：
+`packages/faijs-cadquery/scripts/compare-step.ts` 与 faijs brep 模式产物对比：
 
 | 零件 | 体积偏差 | 质心偏差(mm) | 拓扑 A(ref) → B(faijs) | 布尔差 (A-B / B-A, mm³) |
 |---|---|---|---|---|
@@ -65,7 +65,7 @@
 
 ### 2.3 已定位的直接原因
 
-1. **选择器索引被静默丢弃**：`packages/cq-compat/src/workplane.ts:125-126`
+1. **选择器索引被静默丢弃**：`packages/faijs-cadquery/src/workplane.ts:125-126`
    `sel.replace(/\[-?\d+\]$/, '')` 直接剥掉后缀，`faces(wp, sel)` 签名也只接受 `string`。
    上游 `slide_top.py` 的 `.faces("-Y")[1]` / `.faces("+Y")[1]`、`assemb.py` 的
    `"bp@faces@>Z[-2]"` 全部降级为纯方向选择。
@@ -89,7 +89,7 @@
 **目标**
 
 - G1 **参考侧产线**：一条命令从 CadQuery 上游建模测试导出全部 STEP + manifest（几何基线）。
-- G2 **镜像侧产线**：`packages/cq-compat/tests/` 逐用例镜像 CadQuery tests，同一样例ID 映射到同名 STEP。
+- G2 **镜像侧产线**：`packages/faijs-cadquery/tests/` 逐用例镜像 CadQuery tests，同一样例ID 映射到同名 STEP。
 - G3 **判定**：一条命令跑完全部比对，输出三态（`PASS` / `FAIL` / `BLOCKED`）报告。
 - G4 **修复驱动**：每个 `BLOCKED` 标注**首个阻塞 op**，`parity score` 单调可观测；修一个 op 解锁一批用例。
 
@@ -108,7 +108,7 @@
 
 ## 4. 版本与基线锁定（必须先定，否则不可复现）
 
-参考基线写入 `packages/cq-compat/tests/baseline.json`（新增，纳入 git）：
+参考基线写入 `packages/faijs-cadquery/tests/baseline.json`（新增，纳入 git）：
 
 ```json
 {
@@ -162,7 +162,7 @@ def test_x(self):
 - `try/finally` 而非末尾追加：保证 `return`、断言失败、异常路径都能触发导出。
 - `locals()` 覆盖**所有命名过的中间变量**——链式调用产生的匿名 Workplane 不计，因此导出数量天然适中
   （实测平均每用例 ~2 个），且**变量名可在镜像侧对齐**。
-- 插件本体定位：`packages/cq-compat/tests/ref-harness/cq_step_plugin.py`（POC 已在 `D:\tmp\cq-poc` 验证）。
+- 插件本体定位：`packages/faijs-cadquery/tests/ref-harness/cq_step_plugin.py`（POC 已在 `D:\tmp\cq-poc` 验证）。
 
 ### 5.3 捕获与过滤规则
 
@@ -181,7 +181,7 @@ def test_x(self):
 ### 5.4 产物布局
 
 ```
-packages/cq-compat/out/ref/
+packages/faijs-cadquery/out/ref/
   <module>__<Class>__<test>__<var>.step     # ":" → "_"
   manifest.json                             # case → [{var,type,volume,file}] / [{var,error}]
 ```
@@ -223,7 +223,7 @@ packages/cq-compat/out/ref/
 ### 6.1 目录结构（严格镜像 CadQuery `tests/` 文件名）
 
 ```
-packages/cq-compat/
+packages/faijs-cadquery/
   tests/
     baseline.json                      # §4 版本锁定
     manifest.json                      # 用例三态清单（唯一事实源）
@@ -277,7 +277,7 @@ packages/cq-compat/
 
 1. harness 在导出参考 STEP 的同时，顺带把每个用例 body **剥离断言**后落成 `case.py`
    （建模语句 + 导出语句），作为移植输入。
-2. 复用现有 `packages/cq-compat/scripts/transpile-file.ts`（Python → `.fai.js`，已支持链式调用、
+2. 复用现有 `packages/faijs-cadquery/scripts/transpile-file.ts`（Python → `.fai.js`，已支持链式调用、
    list comprehension、`math`、函数抽取）自动生成初版。
 3. 人工校对 / 补 op；对每个 `.fai.js` 头部保留 `source:` 注释，指向上游用例出处。
 4. 脚本须以 `let result = ...` 结尾，变量名与参考侧 `__var__` 对齐。
@@ -353,7 +353,7 @@ blocked 中 `pending:mirror` 238 个（op 齐备、只差写镜像脚本），�
 
 ### 7.1 复用现有工具
 
-`packages/cq-compat/src/step-compare.ts::compareStepFiles`（CLI `compare-step.ts`）已实现：
+`packages/faijs-cadquery/src/step-compare.ts::compareStepFiles`（CLI `compare-step.ts`）已实现：
 包围盒、体积、质心、拓扑计数、双向布尔差。**不新写比对器**，只加批量驱动 `tests/compare.ts`。
 
 ### 7.2 判定规则
@@ -390,8 +390,8 @@ parity = PASS 数 / (PASS 数 + BLOCKED 数 + FAIL 数)
 | P1 | 参考侧落地：`ref-harness/` 插件 + `run-ref.py`（读 baseline，tag 快照导出到缓存目录，整体只读、不改动用户的工作树），跑出首份全量参考资产 | `out/ref/*` + `ref/manifest.json` | P0 | ✅（650 STEP + manifest；快照在 `out/cache/v2.8.0/tests`） |
 | P2 | 镜像骨架：`tests/` 目录 + `manifest.json` 生成器 + `run-cand.ts` + `compare.ts`，**先挑 20 个高价值用例跑通端到端** | 端到端流水线可跑 | P1 | ✅（16 case / 27 var，清单见 §6.5；`analyze-coverage.py` + `coverage.json` 产出 blockedBy 实测排行） |
 | P3 | 首批修复（已知四处，见 §2.3 与 §2.2.1）：选择器索引 / pushPoints 传播 / union compound / **装配体零件命名与 CadQuery `name=` 对齐**；每修一处重跑受影响用例 | 四处定点修复 + 覆盖率回升 | P2 | ✅（此前已修四处；本轮由镜像比对再修 5 处，见 §11.2） |
-| P4 | 规模化移植：按 `blockedBy` 频次补 op（`chamfer` → `revolve` → `sweep/loft` → 2D wire 面 → 阵列/日记），每批配 unit test（`packages/cq-compat/src/*.test.ts`）与对应 case 解锁 | manifest 大规模转 `ported` | P3 | ⬜ 未开始（238 个 `pending:mirror` var 可先行；op 补齐顺序按 §6.5 排行：moved → sphere → close → loft → cylinder） |
-| P5 | 回归治理：把 smoke 子集（≤30 case，参考 STEP 作为 fixture 入库）接入 `vitest`/CI；全量刷新由本地作业定期执行 | CI 门禁 | P4 | ⬜ 未开始（`scripts/ci.ps1` 的逐包测试列表尚未包含 `@faicad/cq-compat`） |
+| P4 | 规模化移植：按 `blockedBy` 频次补 op（`chamfer` → `revolve` → `sweep/loft` → 2D wire 面 → 阵列/日记），每批配 unit test（`packages/faijs-cadquery/src/*.test.ts`）与对应 case 解锁 | manifest 大规模转 `ported` | P3 | ⬜ 未开始（238 个 `pending:mirror` var 可先行；op 补齐顺序按 §6.5 排行：moved → sphere → close → loft → cylinder） |
+| P5 | 回归治理：把 smoke 子集（≤30 case，参考 STEP 作为 fixture 入库）接入 `vitest`/CI；全量刷新由本地作业定期执行 | CI 门禁 | P4 | ⬜ 未开始（`scripts/ci.ps1` 的逐包测试列表尚未包含 `@faicad/faijs-cadquery`） |
 
 **CI 取舍**：全量参考资产 20.7 MB、且 CI 里装 Python+CadQuery 代价过大；
 所以 CI 只跑**已入库的 smoke 子集 + fixture STEP**，全量 parity 由本地
@@ -402,7 +402,7 @@ parity = PASS 数 / (PASS 数 + BLOCKED 数 + FAIL 数)
 
 ## 9. 验收标准
 
-1. `npm run compat:ref`（`-w @faicad/cq-compat`）能从锁定的 CadQuery tag 复现参考资产，
+1. `npm run compat:ref`（`-w @faicad/faijs-cadquery`）能从锁定的 CadQuery tag 复现参考资产，
    退出码 0，且 manifest 用例数与本版本承诺一致。
 2. `npm run compat:report` 输出三态清单；`manifest.json` 中无 `<no status>`、无 `blockedBy` 为空的 blocked 项。
 3. mini_lathe 7 零件重跑 `compare-step`：`slide_top` / `slide_mid` 的
@@ -507,7 +507,7 @@ cq-compat 单测 **31/31 通过**；mini_lathe verify-all 全部通过（无回�
 剩余 4 FAIL 均为预期缺口：testNestedCircle / testTwoWorkplanes×2（多 pending-wire）、
 testMultiFaceWorkplane（布尔差 0.100 恰在容差上，vol/拓扑全等，待查）。
 
-**P5 CI 接入**：`scripts/ci.ps1` `$testPackages` 加入 `@faicad/cq-compat`（ci.sh 走
+**P5 CI 接入**：`scripts/ci.ps1` `$testPackages` 加入 `@faicad/faijs-cadquery`（ci.sh 走
 `--workspaces` 自动覆盖）；根 package.json 新增 `compat:ref` / `compat:cand` / `compat:report`。
 smoke fixture 入库（P5 的 vitest 接入部分）仍未开始。
 
@@ -531,6 +531,6 @@ C:/Users/ylt/cadquery-env/Scripts/python.exe -m pytest -p cq_step_plugin <cache>
 npx tsx packages/core/scripts/faijs-cli.ts run <case>.fai.js --out out/cand/<case>.step --mode brep
 
 # 判定
-npx tsx packages/cq-compat/scripts/compare-step.ts <ref>.step <cand>.step --json
-npx tsx packages/cq-compat/scripts/compare-assembly.ts <ref>.step <cand>.step
+npx tsx packages/faijs-cadquery/scripts/compare-step.ts <ref>.step <cand>.step --json
+npx tsx packages/faijs-cadquery/scripts/compare-assembly.ts <ref>.step <cand>.step
 ```

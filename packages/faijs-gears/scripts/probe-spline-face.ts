@@ -9,7 +9,7 @@
  */
 
 import { loadManifest } from '../src/fixtures'
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { buildSplineFace, SPLINE_FACE_STRATEGIES, type SplineFaceStrategy } from '../src/spline-face'
 import { spurGearGeometry, toothFaceGrids } from '../src/profile'
 import type { SpurGearParams } from '../src/profile'

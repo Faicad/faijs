@@ -8,7 +8,7 @@
   -> npm view verification -> emit a publish record.
 
   Publish scope (see docs/plans/2026-09-19-npm-publish-plan.md section 2):
-    @faicad/faijs (core) -> @faicad/faijs-extra -> @faicad/cq-compat
+    @faicad/faijs (core) -> @faicad/faijs-extra -> @faicad/faijs-cadquery
     -> @faicad/faijs-gears -> @faicad/faijs-fasteners -> @faicad/sheetmetal
   (@faicad/gear-lib-demo excluded per Q2; the mini lathe sample project moved out of the repo.)
 
@@ -82,7 +82,7 @@ $Packages = @(
   @{ Name = '@faicad/faijs-extra';     Path = 'packages/faijs-extra' },
   @{ Name = '@faicad/faijs-draw';      Path = 'packages/draw' },
   @{ Name = '@faicad/faijs-freecad';  Path = 'packages/faijs-freecad' },
-  @{ Name = '@faicad/cq-compat';        Path = 'packages/cq-compat' },
+  @{ Name = '@faicad/faijs-cadquery';        Path = 'packages/faijs-cadquery' },
   @{ Name = '@faicad/cq-compat-assembly'; Path = 'packages/cq-compat-assembly' },
   @{ Name = '@faicad/faijs-gears';     Path = 'packages/faijs-gears' },
   @{ Name = '@faicad/faijs-fasteners'; Path = 'packages/faijs-fasteners' },

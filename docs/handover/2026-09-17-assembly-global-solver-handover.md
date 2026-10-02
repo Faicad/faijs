@@ -33,7 +33,7 @@
 
 | 套件 | 结果 |
 |---|---|
-| `packages/cq-compat` `npx vitest run assembly` | **5 文件通过 / 1 文件跳过，23 用例通过 / 6 跳过，exit 0** |
+| `packages/faijs-cadquery` `npx vitest run assembly` | **5 文件通过 / 1 文件跳过，23 用例通过 / 6 跳过，exit 0** |
 | ├ `assembly-constraints.test.ts`（P1.5） | 11 通过 |
 | ├ `assembly-global-e2e.test.ts`（P2） | 3 通过 |
 | ├ `assembly-global-p3.test.ts`（P3 多成员回归） | 3 通过 |
@@ -181,8 +181,8 @@ B. borrowed view: isShape=false brepOf=false keys=wrapped,disposed,delete,onDisp
 B. borrowed view -> FAIL: TypeError: Cannot read properties of undefined (reading 'length')
     at Object.boundingBox (packages/core/src/mesh/query.ts:20:39)
     at Object.bboxMax    (packages/core/src/api/geom.ts:130:14)
-    at bboxMax           (packages/cq-compat/src/workplane.ts:353:14)
-    at resolveFaceSelector (packages/cq-compat/src/workplane.ts:631:15)
+    at bboxMax           (packages/faijs-cadquery/src/workplane.ts:353:14)
+    at resolveFaceSelector (packages/faijs-cadquery/src/workplane.ts:631:15)
 ```
 
 ### 4.4 为什么"单测全绿、e2e 红"
@@ -221,7 +221,7 @@ B. borrowed view -> FAIL: TypeError: Cannot read properties of undefined (readin
 2. **选择器索引丢失：移植 `assembly.fai.js` 丢了 CQ 原件的 `[-2]`**（c1 bp 侧、c2 mb 侧、c3 tp 侧，对照 `mini_lathe/assemb.py` 逐条核对）：`>Z[-2]` 经 `DirectionNthSelector`（按面心坐标降序、聚簇后第 2 末）选的是**凹槽底面 z=6.1**，裸 `>Z` 选外顶面 z=8。「mate 要 8」即此因。我方 `resolveFaceSelector` 的 `[-2]` 实现（聚簇升序取第 2 末）语义与 CQ 一致，**选择器实现无需改，只需把索引补回移植件**。
 
 **修复内容（2026-09-17）：**
-- `packages/cq-compat/src/assembly.ts`：`Axis` → `angle: 180`（含 GOTCHA 注释）；`constraintEx` 注释表同步。
+- `packages/faijs-cadquery/src/assembly.ts`：`Axis` → `angle: 180`（含 GOTCHA 注释）；`constraintEx` 注释表同步。
 - `packages/mini_lathe/src/assembly.fai.js`：c1/c2/c3 补回 `>Z[-2]` 索引（含对齐说明注释）。
 - 回归测试：`assembly-constraints.test.ts` 的 2 个 Axis 用例翻转为 `angle:180` 断言（错误映射 `align` 以 GOTCHA 注释留档）；e2e 3 个数值断言解除 `it.skip` 常跑。
 
@@ -240,7 +240,7 @@ B. borrowed view -> FAIL: TypeError: Cannot read properties of undefined (readin
 - `api/assembly/solve.ts` — 加 `SolveOptions` 分派 + `residuals` 字段 + pivot 分支
 - `api/compound.ts` — `AssemblyParams.solver` / `AssemblyBehavior.solver` + 两处透传
 
-**cq-compat（`packages/cq-compat/src/`）**
+**cq-compat（`packages/faijs-cadquery/src/`）**
 - `assembly.ts`（371 行）— `constraintEx`（7 类）+ `pointRef`/`axisRef` + `resolveAxisRef` 重写 + `buildAssembly` 默认 `global`
 - `assembly-compare.ts`（378 行）— `pairing` 三模式（P0b）
 - `index.ts` — 导出 `pointRef`/`axisRef`/`constraintEx`
@@ -261,8 +261,8 @@ B. borrowed view -> FAIL: TypeError: Cannot read properties of undefined (readin
 ## 6. 接手必读的坑
 
 - **compatOp lift 语义（本阶段最大坑）**：`registerLib` 的 `autoLift` 缺省 = `!hasDualOp(ns)`。库命名空间只要没有 dual-op，**所有**裸函数都会被 `compatOp` 提升为 brep-only op，且实参照例先经 `borrowDeep`（faijs Shape → 借用视图）。**推论：直接调用（测试进程内）正常 ≠ 经 `runtime.execute` 正常。** 写「吃 Shape 的库函数」时必须按这个边界设计。详见 §4.3。
-- **CLI 链路陷阱**：`assembly.fai.js` import `@faicad/cq-compat` → 解析到 **stale dist**；cq-compat dist 又 import `@faicad/faijs` → **stale dist**。用 CLI 跑真实装配前必须先 `npm run build`（core + root）+ `npm run build -w @faicad/cq-compat`；否则 global 默认不生效、P3 看不到改进。**本阶段的 e2e 因此改为在 vitest 内直接消费 `src/`**（`createFsProjectLoader` + `projectKeyOf` 装载多文件 `assembly.fai.js`，绕过 dist）。
-- **多文件 `.fai.js` 执行姿势**（本阶段验证有效的写法）：`runtime.execute(code, { entryKey })`，`entryKey = projectKeyOf(root, entryFile)`（相对项目根的 POSIX key）。`ports.projectLoader` 只负责**相对/绝对** specifier；**裸 specifier（如 `@faicad/cq-compat`）由 `registerLib` 的 libLoader 解析**，所以必须 `runtime.registerLib('cq', cq, { packageName: '@faicad/cq-compat' })`。`createFsProjectLoader`/`projectKeyOf` 不在 `node-host/index.ts` 的导出面里，要从 `core/src/node-host/fs-project-loader` 直接引。
+- **CLI 链路陷阱**：`assembly.fai.js` import `@faicad/faijs-cadquery` → 解析到 **stale dist**；cq-compat dist 又 import `@faicad/faijs` → **stale dist**。用 CLI 跑真实装配前必须先 `npm run build`（core + root）+ `npm run build -w @faicad/faijs-cadquery`；否则 global 默认不生效、P3 看不到改进。**本阶段的 e2e 因此改为在 vitest 内直接消费 `src/`**（`createFsProjectLoader` + `projectKeyOf` 装载多文件 `assembly.fai.js`，绕过 dist）。
+- **多文件 `.fai.js` 执行姿势**（本阶段验证有效的写法）：`runtime.execute(code, { entryKey })`，`entryKey = projectKeyOf(root, entryFile)`（相对项目根的 POSIX key）。`ports.projectLoader` 只负责**相对/绝对** specifier；**裸 specifier（如 `@faicad/faijs-cadquery`）由 `registerLib` 的 libLoader 解析**，所以必须 `runtime.registerLib('cq', cq, { packageName: '@faicad/faijs-cadquery' })`。`createFsProjectLoader`/`projectKeyOf` 不在 `node-host/index.ts` 的导出面里，要从 `core/src/node-host/fs-project-loader` 直接引。
 - **occt-wasm teardown segfault**：整 suite 退出码可能为 1，属噪音（输出完整）；按文件单跑可确认真假。
 - **vitest 日志可读性**：PowerShell 重定向出的 log 含 ANSI/NUL，`Read` 会拒读；用 `tr -d '\000' | tr -cd '\11\12\15\40-\176'` 清洗后再看。
 - **brep-only 边界**：`cq.constraint` 经 lift 后是 brep-only；FCStd 产物整链路同样 brep-only。
@@ -284,13 +284,13 @@ B. borrowed view -> FAIL: TypeError: Cannot read properties of undefined (readin
 
 ```bash
 # 真实装配 e2e（6/6：结构断言 3 + 数值断言 3，§4bis 修复后全绿）
-cd packages/cq-compat && npx vitest run assembly-mini-lathe-e2e.test.ts --no-coverage
+cd packages/faijs-cadquery && npx vitest run assembly-mini-lathe-e2e.test.ts --no-coverage
 
 # §4 修复的回归守卫（4 用例全绿）
-cd packages/cq-compat && npx vitest run assembly-lift-boundary.test.ts --no-coverage
+cd packages/faijs-cadquery && npx vitest run assembly-lift-boundary.test.ts --no-coverage
 
 # cq-compat 装配全套
-cd packages/cq-compat && npx vitest run assembly --no-coverage
+cd packages/faijs-cadquery && npx vitest run assembly --no-coverage
 
 # core 求解器单测 + chain 回归
 cd packages/core && npx vitest run src/api/assembly --no-coverage
@@ -305,7 +305,7 @@ C:\Users\ylt\cadquery-env\Scripts\python.exe packages/mini_lathe/scripts/export-
 
 - 执行计划：`docs/plans/2026-09-17-assembly-global-solver-plan.md`
 - 设计依据（裁定 1–6 / B1–B10）：`docs/plans/2026-09-08-assembly-dual-solver.md`
-- 缺陷守卫测试：`packages/cq-compat/src/assembly-lift-boundary.test.ts`
+- 缺陷守卫测试：`packages/faijs-cadquery/src/assembly-lift-boundary.test.ts`
 - 契约：`docs/api-contract.md` §12（Assembly）
 - 同阶段另一条主线（FCStd 端口）：`docs/handover/2026-09-17-fcstd-phase2-completion-handover.md`
 - 本阶段逐日记录：`.workbuddy/memory/2026-09-17.md`

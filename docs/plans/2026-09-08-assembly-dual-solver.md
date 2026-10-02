@@ -318,7 +318,7 @@ pivot 取 `depOrigins`（dep 实体本地 origin，`solve.ts:88`）；
 
 ### 4.5 与 cq-compat / mini_lathe 的接线
 
-- `packages/cq-compat/src/assembly.ts`：`getSlot(c).behavior.solve` 已通
+- `packages/faijs-cadquery/src/assembly.ts`：`getSlot(c).behavior.solve` 已通
   （上轮修复），只需在构造 AssemblyBehavior 时补 `solver: 'global'`；
 - mini_lathe 装配导出走 cq-compat → 自动切 `global`；
 - **影响声明**：切换后 slide_top/slide_mid 的装配位姿会变化（这正是目的），
@@ -376,7 +376,7 @@ warnings 满足；**唯一抛错路径**是约束类型不支持。此表需同�
 
 ### 5.2 语义对拍（扩展 parity harness）
 
-- `packages/cq-compat/tests/ref-harness/` 新增装配导出模式：
+- `packages/faijs-cadquery/tests/ref-harness/` 新增装配导出模式：
   Python 侧按用例构造 `cq.Assembly` + `constrain` + `solve()`，
   导出每成员 `Location`（`toTuple()`）为 JSON；
 - JS 侧同约束构造跑 `global`，比对每成员平移/旋转；
@@ -387,7 +387,7 @@ warnings 满足；**唯一抛错路径**是约束类型不支持。此表需同�
 ### 5.3 端到端（mini_lathe）
 
 > **前置未解项（阻断级）**：「每成员位姿差」要求两侧成员能一一配对，而现状不能。
-> `packages/cq-compat/src/assembly-compare.ts:85` 默认 `matchNames: true`，
+> `packages/faijs-cadquery/src/assembly-compare.ts:85` 默认 `matchNames: true`，
 > 且 :30-31 的注释自陈：CQ 侧 PRODUCT 名是 `"SOLID"`、faijs 侧是 `"shape_x"`，
 > 名字不在我们控制下 → 逐零件比对的结果是 `not found in B`（原 parity 方案 §2.2.1 已记录）。
 > faijs 侧的命名能力其实已具备（`buildAssembly(name, members[{name}])`，`assembly.ts:97`；

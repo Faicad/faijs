@@ -28,7 +28,7 @@
 | G1 | cq_gears → faijs **库**（非脚本），名字 `fai_cq_gears` | 新 workspace 包 `packages/fai_cq_gears`（npm `@faicad/fai-cq-gears`），绑定名 `fai_cq_gears`，导出函数式 API，返回 `Result`（§4） |
 | G2 | 功能完整移植 | 15 个类全部有对应导出；分两批：9 个单体齿轮（P2–P4）+ 6 个齿轮对/轮系（P5）（§3.1、§7） |
 | G3 | 测试一并移植 | 三层测试：T1 回归（31 例，cq 自带期望值）、T2 STEP 等价性（**用户点名的核心**）、T3 稳定性（随机参数 + 不变量 + 报告）（§6） |
-| G4 | 用已有 STEP 等价性工具保证双方一致 | 复用 `@faicad/cq-compat` 的 `compareStepFiles` / `printCompareReport`；Python 侧出参考 STEP，faijs 侧出对照 STEP，按校准后的容差门禁（§6.2） |
+| G4 | 用已有 STEP 等价性工具保证双方一致 | 复用 `@faicad/faijs-cadquery` 的 `compareStepFiles` / `printCompareReport`；Python 侧出参考 STEP，faijs 侧出对照 STEP，按校准后的容差门禁（§6.2） |
 
 ---
 
@@ -43,7 +43,7 @@
 | 返回值三分类：faijs `Shape` / OCCT 句柄（`__occtWasm`）/ 纯数据记录 | 同 §2.3 |
 | 裸函数经 `{ autoLift: true }` 提升为 brep-only op；`fn.outputs` 声明多输出字段 | `runtime.ts:364`（签名 `{ default?, autoLift?, packageName? }`）、`library-dev-guide.md` §2.6 |
 | 宿主注册：`runtime.registerLib('gear', gear, { autoLift: true, packageName: '...' })` | `packages/gear-lib-demo/src/gear.test.ts:85`（实测写法） |
-| CLI 装载白名单 | `packages/core/src/node-host/cli.ts:38` `CLI_ALLOWED_LIBS = new Set(['@faicad/gear-lib-demo', '@faicad/sheetmetal', '@faicad/cq-compat'])` |
+| CLI 装载白名单 | `packages/core/src/node-host/cli.ts:38` `CLI_ALLOWED_LIBS = new Set(['@faicad/gear-lib-demo', '@faicad/sheetmetal', '@faicad/faijs-cadquery'])` |
 | 包内测试必须自带 `vitest.config.ts` 把包名 alias 到活源码 | `packages/sheetmetal/vitest.config.ts`（模板）；根 `vitest.config.ts` 只 include 根 `src/**` |
 
 ### 1.2 库面 API 可用性（逐个核实，这是本方案的核心依据）
@@ -81,15 +81,15 @@ op」组成。逐个核实结果（2026-09-08，grep 源码）：
 
 | 设施 | 位置 | 说明 |
 |---|---|---|
-| `compareStepFiles(a, b, options)` | `packages/cq-compat/src/step-compare.ts:107` | 五维比对：bbox / volume / centerOfMass / topology / 布尔差（A-B、B-A） |
+| `compareStepFiles(a, b, options)` | `packages/faijs-cadquery/src/step-compare.ts:107` | 五维比对：bbox / volume / centerOfMass / topology / 布尔差（A-B、B-A） |
 | `printCompareReport(result)` | 同文件 `:187` | 人类可读报告 |
-| CLI | `packages/cq-compat/scripts/compare-step.ts` | `npx tsx … <a.step> <b.step> [--linear-tol] [--volume-tol] [--boolean-tol] [--no-strict-topology] [--json]`，退出码 0/1 |
+| CLI | `packages/faijs-cadquery/scripts/compare-step.ts` | `npx tsx … <a.step> <b.step> [--linear-tol] [--volume-tol] [--boolean-tol] [--no-strict-topology] [--json]`，退出码 0/1 |
 | 默认容差 | `step-compare.ts:64` | `linear 1e-4`、`volumeRelative 1e-4`、`booleanVolume 1e-3`、`strictTopology true` |
-| 装配版 | `packages/cq-compat/src/assembly-compare.ts` | mini_lathe 实际使用的容差更松：`linear 1e-3`、`volume 1e-3`、`boolean 1e-1`、`strictTopology false`（`:73`） |
-| 公开导出 | `packages/cq-compat/src/index.ts:53` | `compareStepFiles` / `printCompareReport` 已在包入口导出 |
+| 装配版 | `packages/faijs-cadquery/src/assembly-compare.ts` | mini_lathe 实际使用的容差更松：`linear 1e-3`、`volume 1e-3`、`boolean 1e-1`、`strictTopology false`（`:73`） |
+| 公开导出 | `packages/faijs-cadquery/src/index.ts:53` | `compareStepFiles` / `printCompareReport` 已在包入口导出 |
 
-⇒ **复用方式**：`fai_cq_gears` 把 `@faicad/cq-compat` 作为 **devDependency** 引入，测试里
-`import { compareStepFiles } from '@faicad/cq-compat'`（§6.2）。不搬运、不复制实现。
+⇒ **复用方式**：`fai_cq_gears` 把 `@faicad/faijs-cadquery` 作为 **devDependency** 引入，测试里
+`import { compareStepFiles } from '@faicad/faijs-cadquery'`（§6.2）。不搬运、不复制实现。
 （备选：把比对工具抽到中性包——**不采用**，会动 cq-compat 的公开面且无收益。）
 
 ### 1.4 参考 STEP 的生成环境（实测可用）
@@ -109,12 +109,12 @@ C:\Users\yuan_\cq-editor\python.exe
 ### 1.5 工程接入点清单（实施时逐条改）
 
 1. 根 `package.json` 的 `workspaces` 数组：新增 `packages/fai_cq_gears`，**必须排在
-   `packages/cq-compat` 之后**（依赖拓扑断言：`scripts/check-workspaces-order.mjs`）。
+   `packages/faijs-cadquery` 之后**（依赖拓扑断言：`scripts/check-workspaces-order.mjs`）。
 2. `packages/core/src/node-host/cli.ts:38` `CLI_ALLOWED_LIBS` 增加 `'@faicad/fai-cq-gears'`。
 3. 新包自带 `vitest.config.ts`（抄 `packages/sheetmetal/vitest.config.ts`，改 `__dirname` 相对路径）。
 4. 新包自带 `tsconfig.json` / `tsconfig.build.json`（抄 `packages/gear-lib-demo`）。
 5. 幽灵依赖守卫 `scripts/check-ghost-deps.mjs`：包 `package.json` 必须声明
-   `@faicad/faijs`（devDep `file:../..`）、`occt-wasm`（peer）、`@faicad/cq-compat`（devDep，仅测试用）。
+   `@faicad/faijs`（devDep `file:../..`）、`occt-wasm`（peer）、`@faicad/faijs-cadquery`（devDep，仅测试用）。
 6. `packages/tests/vitest.config.ts`：如要加脚本级 e2e，追加 alias
    `'@faicad/fai-cq-gears' → ../fai_cq_gears/src/index.ts`，并在 `@faicad/faijs-tests`
    的 `dependencies` 声明该包。
@@ -422,7 +422,7 @@ export function planetaryGearset(params: PlanetaryGearsetParams): Result<Planeta
      - 同参数调 fai_cq_gears.<fn>(params) → Result<Solid>
      - exportStepFromSolid(solid.wrapped, kernel) → out/<id>.step
        （签名实测：exportStepFromSolid(solid, kernel) → ArrayBuffer，brep/export/step.ts:124）
-③ 比对：compareStepFiles(refPath, ourPath, options)  ← @faicad/cq-compat
+③ 比对：compareStepFiles(refPath, ourPath, options)  ← @faicad/faijs-cadquery
 ```
 
 **容差校准（不许拍脑袋，P0 出数）**：
@@ -498,7 +498,7 @@ export function planetaryGearset(params: PlanetaryGearsetParams): Result<Planeta
    `strictTopology: false`）；失败输出五维明细。
 4. **T3**：稳定性套件可复现（同 seed 同结果），报告含通过率与失败标签分布；
    已知的不稳定参数区间要有记录（而不是把用例删掉）。
-5. **零核心改动**：`packages/core/src/**`、`packages/cq-compat/src/**` 除
+5. **零核心改动**：`packages/core/src/**`、`packages/faijs-cadquery/src/**` 除
    `CLI_ALLOWED_LIBS` 一行外无改动（`git diff` 核验）；若实施中确实需要改，
    必须单独说明理由并走用户确认。
 6. **工程守卫**：`check-ghost-deps`、`check-workspaces-order`、`madge --circular` 全过；
@@ -515,7 +515,7 @@ export function planetaryGearset(params: PlanetaryGearsetParams): Result<Planeta
 |---|---|---|
 | 1 | 库名 | 目录 `packages/fai_cq_gears`，npm `@faicad/fai-cq-gears`，绑定 `fai_cq_gears` |
 | 2 | API 形态 | 单调用（构造 + build 合一），参数名沿用 Python |
-| 3 | 比对工具 | 直接依赖 `@faicad/cq-compat`（devDep）复用 `compareStepFiles`，不搬运不改写 |
+| 3 | 比对工具 | 直接依赖 `@faicad/faijs-cadquery`（devDep）复用 `compareStepFiles`，不搬运不改写 |
 | 4 | 参考 STEP | 用 `C:\Users\yuan_\cq-editor\python.exe` 生成，入库，附版本与源 sha |
 | 5 | `strictTopology` | 恒为 `false`（B-spline 表示必然不同） |
 | 6 | 齿轮对返回形态 | 具名记录 + `fn.outputs`（逐件可比对着色），不返回 compound |

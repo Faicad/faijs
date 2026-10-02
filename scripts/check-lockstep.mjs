@@ -18,7 +18,7 @@
  *      when the file is absent.
  *
  * Rule 2 exists because of a 2026-09 incident: `faijs-gears` had bumped itself to
- * 0.16.x while its `dependencies` still declared `"@faicad/cq-compat": "^0.14.0"`, so
+ * 0.16.x while its `dependencies` still declared `"@faicad/faijs-cadquery": "^0.14.0"`, so
  * the CDN build resolved a stale `cq-compat@0.14.1` whose pinned `@faicad/faijs`
  * broke the package graph. Rule 1 alone cannot catch a stale range; rule 2 alone
  * cannot catch a forked version line. Both run. Rule 3 exists because the mirror is

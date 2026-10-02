@@ -19,7 +19,7 @@ import { asPartName } from '@faicad/faijs/identity'
 import { writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as cq from '@faicad/cq-compat'
+import * as cq from '@faicad/faijs-cadquery'
 import { compareAssemblyFiles } from './index'
 
 let fa: string
@@ -28,9 +28,9 @@ let fb: string
 beforeAll(async () => {
   await registerOcctBrepEngine()
   const runtime = createRuntime(createNodePorts(), 'brep')
-  runtime.registerLib('cq', cq as never, { packageName: '@faicad/cq-compat' } as never)
+  runtime.registerLib('cq', cq as never, { packageName: '@faicad/faijs-cadquery' } as never)
   const res = await runtime.execute([
-    "import * as cq from '@faicad/cq-compat'",
+    "import * as cq from '@faicad/faijs-cadquery'",
     'let small = cq.val(cq.box(cq.Workplane("XY"), 10, 10, 10))',
     'let big = cq.val(cq.box(cq.Workplane("XY"), 30, 30, 30))',
   ].join('\n'))

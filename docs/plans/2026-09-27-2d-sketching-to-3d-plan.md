@@ -57,14 +57,14 @@
 |---|---|---|---|---|
 | 轮廓面 | `cad.profile`（brep-only） | `packages/core/src/api/profile.ts` | 锁死 z=0，无 plane/origin | 自造 parent 链 + `depthOf` + 面积比较（`profile.ts:237-266`），探针为环首采样点 |
 | 约束草图 | `cad.sketch`（`@faicad/faijs-sketch`，宿主注入） | `packages/sketch/src/`（planegcs） | 局部 XY | 经 `contour.ts` 出环后调 `buildProfileShape`（`faces.ts:57-64`） |
-| CQ 兼容容器 | `@faicad/cq-compat-sketch`（re-export） | `packages/cq-compat/src/sketch.ts` | 全部硬编码 z=0，`extrude` 写死 `(0,0,height)` | 面级内核布尔 |
+| CQ 兼容容器 | `@faicad/cq-compat-sketch`（re-export） | `packages/faijs-cadquery/src/sketch.ts` | 全部硬编码 z=0，`extrude` 写死 `(0,0,height)` | 面级内核布尔 |
 | SVG | `svgToSolid` 内部通路 | `packages/core/src/brep/svg/svg-to-solid.ts` | z=0，仅 XY 仿射 | 独立 `classifyHoles`（质心 + bbox 预筛，`svg-to-solid.ts:757-818`）；已知 bug：质心探针跑丢、≥3 层嵌套静默丢岛 |
 
 **桥接能力（`sketchOnPlane` / `sketchOnFace` / `punchHole`）：零实现。** 全仓仅出现在未实施的 2026-09-26 方案文档与 `api/surface/arg-spec.ts` 的 skip 登记中。
 
 **3D 消费端**：`cad.extrude`（`extrude.ts:465-533`）接受已在 3D 空间的平面 face，支持任意拉伸向量与 `upTo`，但**不负责草图放置**；它拒绝 1D 曲线（`E_EXTRUDE_NEEDS_FACE`，`extrude.ts:471-475`）。另有 `revolve`/`sweep`/`loft`。
 
-**内核层**：faijs 没有 2D 曲线句柄体系。L1 契约 `BrepEngineApi`（`packages/core/src/brep/engine/primitives.ts:33-273`）中 2D→3D 桥接所需原语缺失：`liftCurve2dToPlane`、`buildEdgeOnSurface`、`intersectCurves2d`、`draftPrism` 均不在 L1；`engine-method-map.json` 把前两者标为 `occt-only`，`draftPrism` 未登记（仅 `packages/cq-compat/src/workplane.ts:2382` 经强转调用 occt 原生）。现有 profile 是"解析式 2D 轮廓 → 直接构 3D 边"的旁路（`profile.ts:164-182`）。
+**内核层**：faijs 没有 2D 曲线句柄体系。L1 契约 `BrepEngineApi`（`packages/core/src/brep/engine/primitives.ts:33-273`）中 2D→3D 桥接所需原语缺失：`liftCurve2dToPlane`、`buildEdgeOnSurface`、`intersectCurves2d`、`draftPrism` 均不在 L1；`engine-method-map.json` 把前两者标为 `occt-only`，`draftPrism` 未登记（仅 `packages/faijs-cadquery/src/workplane.ts:2382` 经强转调用 occt 原生）。现有 profile 是"解析式 2D 轮廓 → 直接构 3D 边"的旁路（`profile.ts:164-182`）。
 
 **API 投影面**：`api/surface/arg-spec.ts` 中 `module:'2d'`（`:1117-1457`）与 `module:'sketching'`（`:2671-2846`）除 `makeBaseBox` 外全为 `skip`；`api/brepjs-compat/index.ts` 在 core-decouple 后只剩纯组合子，vendored brepjs 树已删除（`packages/brepjs/` 仅剩 `dist`）。
 

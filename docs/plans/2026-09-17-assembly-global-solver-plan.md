@@ -4,7 +4,7 @@
 状态：方案（未实施）
 作者：按 faijs 现有设计推导，落地执行版
 依赖设计依据：`docs/plans/2026-09-08-assembly-dual-solver.md`（下称「双求解器方案」，含 B1–B10 源码标定与 裁定 1–6）
-范围：`packages/core/src/api/assembly/solvers/`（新增模块）、`api/assembly/solve.ts`、`api/compound.ts`、`packages/cq-compat/src/assembly.ts`、`packages/cq-compat/src/assembly-compare.ts`、`packages/cq-compat/tests/ref-harness/`
+范围：`packages/core/src/api/assembly/solvers/`（新增模块）、`api/assembly/solve.ts`、`api/compound.ts`、`packages/faijs-cadquery/src/assembly.ts`、`packages/faijs-cadquery/src/assembly-compare.ts`、`packages/faijs-cadquery/tests/ref-harness/`
 
 > **与双求解器方案的关系**：本计划不重述其论证，直接承接其 裁定 1–6 与代价表，补齐它在 2026-09-08 之后暴露的落地缺口（约束种类覆盖不全、无端到端单测、比对器成员配对阻断），并给出**当前代码库的真实行号与精确改动点**。双求解器方案是设计依据，本计划是执行清单。
 
@@ -14,13 +14,13 @@
 
 | 项 | 状态 | 证据 |
 |---|---|---|
-| cq-compat 约束翻译层 | 已实现（仅 Plane/Axis） | `packages/cq-compat/src/assembly.ts:74` `type: 'Plane' | 'Axis'` |
+| cq-compat 约束翻译层 | 已实现（仅 Plane/Axis） | `packages/faijs-cadquery/src/assembly.ts:74` `type: 'Plane' | 'Axis'` |
 | faijs 侧约束类型面 | 齐全 | `api/assembly/types.ts:52-125`：mate/align/coincident/concentric/distance/angle/parallel/perpendicular/fixed |
 | `cad.assembly` 求解器选项 | **不存在** `solver` 字段 | `grep 'solver\?:' packages/core/src/api/` → 0 命中 |
 | 实际求解器 | 仅 vendored brepjs 链式 `solveConstraints` | `solve.ts:92` 无分支；`compound.ts:109` 直调 |
 | `global` 求解器 | **未实现** | `api/assembly/solvers/` 目录不存在；git 无 `global-solver` 提交 |
 | 比对器成员配对 | **阻断**（`matchNames` 默认 true，CQ 名 `SOLID` vs faijs `shape_x`） | `assembly-compare.ts:30-31,164-165` |
-| 装配端到端单测 | **零引用** | `grep buildAssembly packages/cq-compat/src/*.test.ts` → 0 |
+| 装配端到端单测 | **零引用** | `grep buildAssembly packages/faijs-cadquery/src/*.test.ts` → 0 |
 | 已知位姿偏差 | mini_lathe 6–19mm | 双求解器方案 §1.2 |
 
 **结论**：装配"外形"已接（翻译+chain 求解可出装配体），"求解语义"未接（global 缺位、结果与 CQ 不等价、仅支持 Plane/Axis）。本计划目标即补齐语义层。
@@ -182,7 +182,7 @@ P0b 与 P1 可**串行先后**，但必须在 P3 验收前完成（双求解器�
 
 | 阶段 | 内容 | 产出 / 验收 |
 |---|---|---|
-| **P0 基线定标** | `packages/cq-compat/tests/ref-harness/run-ref-assembly.py`：用 cadquery-env 构造 mini_lathe 装配 + `constrain` + `solve()`，导出每成员 `Location.toTuple()` 为 JSON；同步记录 faijs chain 现状位姿与 diff（6–19mm 精确定标） | 基线 JSON + 公差目标（平移/旋转）写入 `ref-harness/baseline.json` |
+| **P0 基线定标** | `packages/faijs-cadquery/tests/ref-harness/run-ref-assembly.py`：用 cadquery-env 构造 mini_lathe 装配 + `constrain` + `solve()`，导出每成员 `Location.toTuple()` 为 JSON；同步记录 faijs chain 现状位姿与 diff（6–19mm 精确定标） | 基线 JSON + 公差目标（平移/旋转）写入 `ref-harness/baseline.json` |
 | **P0b 成员配对** | `assembly-compare.ts` 加 `pairing` 选项 + 实现 `order-centroid`（跨命名比对用） | 比对器可 pair CQ `SOLID` ↔ faijs `shape_x`，§6.3 可跑 |
 | **P1 核心求解器** | `solvers/types.ts` + `solvers/linalg.ts` + `solvers/global-solver.ts` + `solvers/pose-from-delta.ts`；`solve.ts` 分派；`compound.ts` 两处透传 | 模块 + `global-solver.test.ts` 全绿（§6.1） |
 | **P1.5 约束补全** | `assembly.ts` 加 `constraintEx` + `pointRef`/`axisRef`，覆盖 Plane/Axis/Point/Cylinder/Distance/Fixed/Revolute | 翻译层单测覆盖 7 类 |

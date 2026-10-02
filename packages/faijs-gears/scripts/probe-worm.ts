@@ -1,7 +1,7 @@
 /**
  * probe-worm.ts — 诊断 Worm 端盖组线：x=±length/2 处收集到的边 / wire 形态
  */
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'
 

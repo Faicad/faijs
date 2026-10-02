@@ -3,7 +3,7 @@
 日期：2026-09-28
 状态：**实施中**（2026-09-29 优先级重排：执行顺序改为 P0-1 Assembly → P0-2 Sketch → P0-3 Shape → P1 Workplane → P2 内核 → P3 随需）
 基线 HEAD：`208d2402`
-范围：`packages/cq-compat`、`cq-compat-assembly`、`cq-compat-sketch`、`cq-compat-compare` + `packages/core`（引擎侧支撑）
+范围：`packages/faijs-cadquery`、`cq-compat-assembly`、`cq-compat-sketch`、`cq-compat-compare` + `packages/core`（引擎侧支撑）
 上游基准：CadQuery **2.8.0**（`tests/baseline.json`：cadquery-ocp 7.9.3.1.1 / occt-wasm ^3.8.0）
 上游计划：`docs/plans/2026-09-22-cq-compat-max-cadquery-support-plan.md`（Phase 0–6，Phase 0/1/2(部分)/3/5/6 已落地，遗留见其 §8）
 
@@ -16,8 +16,8 @@
 产出：① 用**当日实测**重新盘点完成度（§1–§2）；② 把剩余缺口按可行性分层（§3）；③ 给出可执行的分期开发计划（§4）与验收口径（§5）。
 
 **方法说明（可复现）**：完成度不是靠读计划文档推断，而是三个实测源——
-1. 上游 API 面：`python -c "import cadquery"` 反射导出 CQ 2.8.0 的 `Workplane/Sketch/Shape/Assembly` 方法表（本机 `C:\Users\ylt\cadquery-env` 内 cadquery 2.8.0），与 `packages/cq-compat/src/index.ts` 导出面做差集；
-2. 用例面：`packages/cq-compat/tests/manifest.json`（697 条三态）+ `out/ref`（651 STEP）+ `out/cand`（282 STEP）；
+1. 上游 API 面：`python -c "import cadquery"` 反射导出 CQ 2.8.0 的 `Workplane/Sketch/Shape/Assembly` 方法表（本机 `C:\Users\ylt\cadquery-env` 内 cadquery 2.8.0），与 `packages/faijs-cadquery/src/index.ts` 导出面做差集；
+2. 用例面：`packages/faijs-cadquery/tests/manifest.json`（697 条三态）+ `out/ref`（651 STEP）+ `out/cand`（282 STEP）；
 3. 代码面：`npx vitest run`（cq-compat 包）当日结果。
 
 ---
@@ -65,7 +65,7 @@ Duration    351.93s
 - cq-compat 仍传 `{ anglesDeg }`，共 3 处调用点：`src/workplane.ts:832`（`orientZTo`，被 `hole`/`cboreHole`/`cskHole`/`cutThruAll`/`cylinder` 等全部"沿法向打孔/建体"路径依赖）、`:3687`、`rotate` 的 `:4083`。
 - 影响面：不只是单测——**所有涉及 cylinder/hole/counterBore/counterSink/切穿的镜像在 cand 生成阶段同样会炸**（parity smoke 阶段 D 的 30 个入库用例中 8 个直接执行失败），因此 §1.3 的 parity 历史值已**不可信**。
 
-**为什么没被 CI 拦住**：`scripts/ci.ps1` 第 4 步确实跑 `@faicad/cq-compat`（`scripts/ci.ps1:89`），但预算是 `FAIJS_TEST_BUDGET_MS=300000`（5 分钟，`ci.ps1:87`），而实测纯 vitest 耗时 **351.9s**，`npm run test` 还带 `pretest: npm run build`——**预算必然不够**，看门狗超时后结果不可信。
+**为什么没被 CI 拦住**：`scripts/ci.ps1` 第 4 步确实跑 `@faicad/faijs-cadquery`（`scripts/ci.ps1:89`），但预算是 `FAIJS_TEST_BUDGET_MS=300000`（5 分钟，`ci.ps1:87`），而实测纯 vitest 耗时 **351.9s**，`npm run test` 还带 `pretest: npm run build`——**预算必然不够**，看门狗超时后结果不可信。
 
 ### 1.3 parity（几何等价性）—— 当前值未知，必须重跑
 
@@ -83,9 +83,9 @@ Duration    351.93s
 ### 1.4 包与依赖现状
 
 ```
-@faicad/cq-compat          0.21.0  runtime deps: 无；dev: cq-compat-compare / faijs / ts / vitest
-@faicad/cq-compat-sketch   0.21.0  deps: @faicad/cq-compat（file:）          ← 纯 re-export，无独立实现
-@faicad/cq-compat-assembly 0.21.0  deps: @faicad/cq-compat + @faicad/faijs-extra
+@faicad/faijs-cadquery          0.21.0  runtime deps: 无；dev: cq-compat-compare / faijs / ts / vitest
+@faicad/cq-compat-sketch   0.21.0  deps: @faicad/faijs-cadquery（file:）          ← 纯 re-export，无独立实现
+@faicad/cq-compat-assembly 0.21.0  deps: @faicad/faijs-cadquery + @faicad/faijs-extra
 @faicad/cq-compat-compare  0.21.0  dev-only 比较器（STEP/装配等价性）
 @faicad/faijs-sketch       0.21.0  deps: @salusoft89/planegcs 1.2.0（LGPL，独立包隔离）
 ```
@@ -146,7 +146,7 @@ Duration    351.93s
 
 `add`、`addSubshape`、`remove`、`traverse`、`load`、`importStep`、`export`（`solve`/`toCompound`/`save`/`constrain`/`constraintEx` 已有）
 
-**现状（澄清"有包≠已补齐"）**：装配层在独立包 **`@faicad/cq-compat-assembly`**（`packages/cq-compat-assembly/src/assembly.ts:379` 的 `CqAssembly`），它实现的是**「一次性构造 + 求解」**——`buildAssembly(name, members[], constraints[])` → `solve()` → `toCompound()`/`save()`；`CqAssembly` 接口**只有 `solve()`/`toCompound()` 两个方法**，没有 CQ 的**迭代式类面**（`add`/`remove`/`traverse`/`load`/`importStep`/`export`）。主包 `@faicad/cq-compat` 不 re-export 装配层（`packages/cq-compat/src/index.ts:134` 注释）。
+**现状（澄清"有包≠已补齐"）**：装配层在独立包 **`@faicad/cq-compat-assembly`**（`packages/cq-compat-assembly/src/assembly.ts:379` 的 `CqAssembly`），它实现的是**「一次性构造 + 求解」**——`buildAssembly(name, members[], constraints[])` → `solve()` → `toCompound()`/`save()`；`CqAssembly` 接口**只有 `solve()`/`toCompound()` 两个方法**，没有 CQ 的**迭代式类面**（`add`/`remove`/`traverse`/`load`/`importStep`/`export`）。主包 `@faicad/faijs-cadquery` 不 re-export 装配层（`packages/faijs-cadquery/src/index.ts:134` 注释）。
 
 ⇒ 9-22 判定的"类式 API 无法在 `.fai.js` 表达"**需要修正**：真正的限制不是语法，而是"不可变语义 + 递归遍历"的实现成本；mini_lathe 已用 `cq.buildAssembly(...)` + `asm.solve()` 验证过对象方法调用在脚本面可用。**Assembly 是单块最大缺口**。manifest 实测 blockedBy 分三摊：**44 条**（理由写「Assembly 类式 API（obj/children/add/remove/constrain 对象方法）**无法在 .fai.js 受限子集表达**」——**该理由已过期，必须重判**）+ **8 条**（类式 STEP 导入/导出 `importStep`/`save`）+ **8 条**（`op:assembly-solve` 依赖 `constraintEx` 缺 FixedPoint/FixedAxis/PointInPlane 或 `Face.makePlane` 无限面，后两项与 §2.4 交叉）。
 
@@ -199,9 +199,9 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 - **动作**：
   1. 修 `rotate_euler` 参数名：`src/workplane.ts:832`、`:3687`、`:4083` 的 `{ anglesDeg }` → `{ angles }`（core 现签名 `packages/core/src/api/transform.ts:227`）。**先确认是 cq-compat 侧未跟进改名，而非 core 侧 breaking**——查 `git log -p -- packages/core/src/api/transform.ts` 定位改名提交；若 core 侧改名未同步兼容层，则兼容层改；若 core 曾兼容 `anglesDeg` 后移除，需在 core 侧补断言测试防止再次静默移除。
   2. 补防回归单测（GOTCHA 标记）：断言 `rotate_euler` 只接受 `angles` 键，且 `orientZTo` 在任意法向上产出与 CQ 一致的孔位（覆盖 hole/cboreHole/cskHole/cutThruAll/cylinder 五条路径）。
-  3. 重跑 `npm run test -w @faicad/cq-compat` → 154 全绿（含 stderr 零容忍）。
-  4. **（P3·随需，不再执行）** ~~重跑 `npx tsx packages/cq-compat/tests/compare.ts`（先 `run-cand.ts` 全量再 compare），记录真实 PASS/FAIL/parity 水位~~——用户判定为无意义的数小时批跑：faijs 早期阶段代码高频变更，**不做**；需要观测时手动跑一次，不作为任何工作项的前置/收尾。
-  5. **CI 预算修正**：`scripts/ci.ps1:87` 的 5 分钟预算 < 实测 351.9s（且 `npm run test` 含 build）。二选一：把 `@faicad/cq-compat` 单列更长预算（建议 900s），或把 cq-compat 测试分片（慢的 brep/parity smoke 单独一份）。否则 Stage 1+ 的回归仍会被看门狗吃掉。
+  3. 重跑 `npm run test -w @faicad/faijs-cadquery` → 154 全绿（含 stderr 零容忍）。
+  4. **（P3·随需，不再执行）** ~~重跑 `npx tsx packages/faijs-cadquery/tests/compare.ts`（先 `run-cand.ts` 全量再 compare），记录真实 PASS/FAIL/parity 水位~~——用户判定为无意义的数小时批跑：faijs 早期阶段代码高频变更，**不做**；需要观测时手动跑一次，不作为任何工作项的前置/收尾。
+  5. **CI 预算修正**：`scripts/ci.ps1:87` 的 5 分钟预算 < 实测 351.9s（且 `npm run test` 含 build）。二选一：把 `@faicad/faijs-cadquery` 单列更长预算（建议 900s），或把 cq-compat 测试分片（慢的 brep/parity smoke 单独一份）。否则 Stage 1+ 的回归仍会被看门狗吃掉。
 - **验收**：单测 154 全绿（**已达成**）；3 处 `anglesDeg` 归零（**已达成**）；CI 预算已提（**已达成**）。~~`out/report.md` 新时间戳 + PASS 水位~~ → 随需。
 - **风险**：若 core 侧近期还有其它参数改名（units 重构引入），可能不只 `rotate_euler` 一处——**波及范围单测**跑一遍即可（`rotate-euler-contract.test.ts` 已覆盖 `orientZTo` 全孔系路径），无需全量。
 
@@ -287,7 +287,7 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 | `images`（贴图） | 8 | 非几何 → **永久 block** |
 | `raises`/`finalize` | 12 | helper/断言语义 → **永久 block**（`finalize` 随 Stage 4 约束段重新判定） |
 
-- **纪律**：攻坚前必须写**探针实测**（`packages/cq-compat/out/probe*.ts` 风格），结论留档为测试；攻不动 → 维持 blocked + 根因，**禁止静默降级或放宽容差**。
+- **纪律**：攻坚前必须写**探针实测**（`packages/faijs-cadquery/out/probe*.ts` 风格），结论留档为测试；攻不动 → 维持 blocked + 根因，**禁止静默降级或放宽容差**。
 
 ### Stage 7｜【P3·随需】收尾：门禁、文档、消费方同步
 
@@ -334,7 +334,7 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 2. **量纲声明（新增，2026-09-28 units 系统引入）**：新增 op 必须在 arg-spec/`paramDims` 声明参数量纲（angle/length/…），否则 units 校验与 codegen 通道会红；
 3. **镜像 = 唯一 ported 判据**：`gen-manifest` 只按镜像文件存在判定 ported，禁止手改 status 造假；
 4. **防回归**：与预期不符的 API 用法必须落成 `GOTCHA:` 标注的测试（本次 `rotate_euler` 参数名即典型，Stage 0 动作 2）；
-5. **消费方同步（H3）**：改 API 必须同步 **`../3d_editor` 与 `../cadquery-port`**（mini_lathe 等 CQ 项目移植消费 `@faicad/cq-compat` / `@faicad/cq-compat-assembly`）；装配消费面禁止直调 core 求解器（9-22 修订要求 3）；
+5. **消费方同步（H3）**：改 API 必须同步 **`../3d_editor` 与 `../cadquery-port`**（mini_lathe 等 CQ 项目移植消费 `@faicad/faijs-cadquery` / `@faicad/cq-compat-assembly`）；装配消费面禁止直调 core 求解器（9-22 修订要求 3）；
 6. **依赖最小化**：`fai_cq_gears` 运行时零改动；LGPL 依赖（planegcs）只走独立包 + peer/optional，不进运行时依赖链；
 7. **后台任务纪律**：长任务串行，跑 cq-compat 全量测试/compare 期间不叠加其它长任务。
 
@@ -344,8 +344,8 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 
 | 编号 | 问题 | 建议 |
 |---|---|---|
-| Q1 | ~~`rotate_euler` 改名是 core 侧 breaking 未同步，还是 cq-compat 漏改？~~ | **已解决（2026-09-29）**：定为 cq-compat 侧未跟进改名（core 无 breaking），3 处调用点已在 `7da2e650` 修正；并按"core 加断言测试"补 GOTCHA 防回归测试 `packages/cq-compat/src/rotate-euler-contract.test.ts`。 |
-| Q2 | ~~CI 里 `@faicad/cq-compat` 预算 5 分钟不够（实测 351.9s + build）~~ | **已解决（2026-09-29）**：`scripts/ci.ps1` 为 `@faicad/cq-compat` 单列 **900s** 预算（其余包保持 300s，`FAIJS_TEST_BUDGET_MS` 仍可整体覆盖）。 |
+| Q1 | ~~`rotate_euler` 改名是 core 侧 breaking 未同步，还是 cq-compat 漏改？~~ | **已解决（2026-09-29）**：定为 cq-compat 侧未跟进改名（core 无 breaking），3 处调用点已在 `7da2e650` 修正；并按"core 加断言测试"补 GOTCHA 防回归测试 `packages/faijs-cadquery/src/rotate-euler-contract.test.ts`。 |
+| Q2 | ~~CI 里 `@faicad/faijs-cadquery` 预算 5 分钟不够（实测 351.9s + build）~~ | **已解决（2026-09-29）**：`scripts/ci.ps1` 为 `@faicad/faijs-cadquery` 单列 **900s** 预算（其余包保持 300s，`FAIJS_TEST_BUDGET_MS` 仍可整体覆盖）。 |
 | Q3 | `cq-compat-sketch` 引入 `@faicad/faijs-sketch`（planegcs，LGPL）的形态 | peerDependencies + optional import；需法务口径确认 |
 | Q4 | Assembly 类式 API 的不可变语义在 `.fai.js` 语句模型下是否放行 | Stage 3 先做 1 个探针用例验证，再铺开 |
 | Q5 | Shape 类模型（81 方法）是否全量立项 | **不全量**；高价值子集直接落地（P0-3），可行性评估并入实现过程，不再单独立文档 |
@@ -360,7 +360,7 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
 - 2026-09-28：完成现状盘点（§1–§3 数据均为当日实测）与计划编制（§4–§7）。**未实施任何代码改动**。
 - 2026-09-29（**优先级重排**）：按用户要求把"快速补齐 API 缺口"升为头等大事——原 Stage 3/4/5（Assembly/Sketch/Shape）上调为 **P0**，原 Stage 0/1（回归 + 全量 parity + stale 重扫 + ref 扩展）降为 **P3 随需**，原 Stage 2 降为 **P1**；明确禁止把全量 `run-cand`/`compare` 当作前置或收尾（§4 重排原则、§6 最高纪律、§5 门禁改为 API 覆盖率）。
 - 2026-09-29（**P0-1 立项细化**）：按用户要求把 `../cadquery-port` 纳入消费方同步（§6-5、Stage 3-F），把 `mini_lathe/tests/assembly-e2e.test.ts` 定为 P0-1 首选验收样本；Stage 3 展开为工作项 A–F（含重判 44 条过期 blockedBy）；§2.3 澄清「cq-compat-assembly 已有包 ≠ 缺口已补」。
-- 2026-09-29（**Stage 0 收口**）：动作 1（`anglesDeg`→`angles`）已由前一提交 `7da2e650` 完成；本日补齐动作 2 的 GOTCHA 防回归测试 `packages/cq-compat/src/rotate-euler-contract.test.ts`（7 tests，覆盖 `anglesDeg` 拒收 + `orientZTo` 在 >X 非轴对齐法向的 hole / cutThruAll / cskHole / cboreHole / cylinder 五路径）；动作 3 实测 `cq-compat` 单测 **154 passed / 20 files**；动作 5 修正 `scripts/ci.ps1` 为 cq-compat 单列 900s 预算。动作 4（全量 parity 重跑）按重排**不做**（随需）。
+- 2026-09-29（**Stage 0 收口**）：动作 1（`anglesDeg`→`angles`）已由前一提交 `7da2e650` 完成；本日补齐动作 2 的 GOTCHA 防回归测试 `packages/faijs-cadquery/src/rotate-euler-contract.test.ts`（7 tests，覆盖 `anglesDeg` 拒收 + `orientZTo` 在 >X 非轴对齐法向的 hole / cutThruAll / cskHole / cboreHole / cylinder 五路径）；动作 3 实测 `cq-compat` 单测 **154 passed / 20 files**；动作 5 修正 `scripts/ci.ps1` 为 cq-compat 单列 900s 预算。动作 4（全量 parity 重跑）按重排**不做**（随需）。
 - 2026-09-29（**P0-1 Assembly 类式 API 全部完成**）：工作项 A–F 全绿，`cq-compat-assembly` 全包 **36 passed / 5 files**，typecheck + lint 干净。
   - **A**：`CqAssembly` 接口加 `add`/`addSubshape`/`remove`（不可变语义，返回新对象）；`buildAssembly` 注入实现；`remove` 过滤 dangling 约束（偏离 CQ：faijs 构造时验证引用必须存在）；新增 `CqSubshape`/`AssemblyAddArg` 类型导出。
   - **B**：`traverse()` — generator 方法，扁平结构产出 `[[name, this]]`（嵌套装配待后续）。
@@ -369,15 +369,15 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
   - **F**：`mini_lathe` e2e 因既有 `fillet: KERNEL_ERROR`（非本次引入）失败；消费方不受新增 API 影响（未改现有签名）。
   - 测试：`packages/cq-compat-assembly/src/assembly-class-api.test.ts`（15 tests：A 8 + B 2 + C 3 + Q4 探针 1 + 端到端 1）。
 - 2026-09-29（**P0-2 Sketch 完整化全部完成**）：Stage 4 六项动作落地，`cq-compat` + `cq-compat-sketch` 两包 typecheck/lint 干净，sketch 相关测试 **93 passed**（cq-compat：`sketch.test.ts` 17 + `sketch-mirror.test.ts` 42；cq-compat-sketch：`sketch-pkg.test.ts` 3 + `sketch-pkg-extended.test.ts` 34）。
-  - **几何声明补齐**（`packages/cq-compat/src/sketch.ts`）：`push`/`edge`/`face`/`segment`（3 重载：两点/续接/长度角度）/`arc`（3 重载：三点/续接/圆心半径扫角，≥360° 出整圆）/`spline`/`bezier`/`close`；`Sketch` 状态扩展 `edges`（pending 边，upstream `_edges`）+ `locs`（Loc2 放置点，upstream each() 机制——声明在 push/rarray/parray/distribute 的 loci 处复制放置）。
+  - **几何声明补齐**（`packages/faijs-cadquery/src/sketch.ts`）：`push`/`edge`/`face`/`segment`（3 重载：两点/续接/长度角度）/`arc`（3 重载：三点/续接/圆心半径扫角，≥360° 出整圆）/`spline`/`bezier`/`close`；`Sketch` 状态扩展 `edges`（pending 边，upstream `_edges`）+ `locs`（Loc2 放置点，upstream each() 机制——声明在 push/rarray/parray/distribute 的 loci 处复制放置）。
   - **模式与组合**：`assemble`（pending 边端点配链成 wire，最长外环 + `addHolesInFace` 内孔）、`add`/`subtract`（选择集与 `_faces` 布尔）。
   - **变换/阵列/编辑**：`rarray`/`parray`（含 rotate 语义：基点随方位角旋转）/`distribute`（闭曲线均分 n 段、开曲线含两端点）/`moved`/`located`/`copy`/`delete`（face 按 bbox 中心签名匹配剔除）/`replace`/`fillet`/`chamfer`（内核无 `BRepFilletAPI_MakeFillet2d`，自实现有序环走查重建：邻边按 d 截断 + 角点插弧/倒角边，fillet 弧深用精确切线公式 `d(1/sin(θ/2)−1)`，面积与上游对齐到 1e-5）/`hull`（Andrew 单调链凸包 + `hullFromPoints`）/`clean`（`unifySameDomain`）。
   - **选择器**：`faces/wires/edges/vertices` 支持 `(sel?, tag?)`——tag 取 tagged 实体子形状、sel 支持 2D 字符串选择子集（`<X/>X/<Y/>Y` 极值、`>(x,y)` 方向、`or/and/not X` 组合），中心一律用 bbox 中心（顶点无 COM，GOTCHA：`getLinearCenterOfMass` 在 vertex 上返回 (0,0,0) 导致极值全并列）；`wires()` 对齐上游返回全部 wire（含孔 wire），`tag()` 无选择时抛错（upstream test_missing_selection）；`reset()` 同时清 locs（上游 push 后 reset 语义）。
   - **约束段**：`constrain`（tag/kind 校验，unknown 抛错）+ `solve`（`toCanonical` 把 pending 边投影为 `SketchGeom`——arc 由三点反解圆心/半径/span，约束映射到 `@faicad/faijs-sketch` 的 canonical 约束模型（Fixed/Coincident/Distance/Length/Angle/Orientation/Radius/ArcAngle）→ `solveSketch` planegcs 管线 → 解后几何重建边 handle；conflicting/failed 显式抛错（禁静默烘焙，§10.6））+ `finalize`。依赖形态：`@faicad/faijs-sketch` 走 peerDependencies（LGPL 隔离，与该包现状一致）；`constrain/solve` 端到端 wasm 源注入待消费方接 HostPorts，镜像层先覆盖 validation/错误路径。
   - **导出面**：`cq-compat/src/index.ts` 增 `sketch*` 前缀名 28 个 + 类型 8 个；`cq-compat-sketch` 无前缀 CadQuery 语法名同步 28 个。
-  - **镜像**：`packages/cq-compat/src/sketch-mirror.test.ts` 42 条（test_face_interface/distribute/rarray/parray/modifiers/delete/edge_interface/bezier/located/replace/add/subtract/finalize/selectors/missing_selection/hullFromPoints），全部 PASS（验收 ≥15 条 PASS ≥10 达标）；`test_sketch` 中 `importDXF`/`export(dxf)`/`filter/map/sort/invoke`（回调类）与 planegcs 全量求解断言按 Stage 1 结论维持 blocked/随需。
+  - **镜像**：`packages/faijs-cadquery/src/sketch-mirror.test.ts` 42 条（test_face_interface/distribute/rarray/parray/modifiers/delete/edge_interface/bezier/located/replace/add/subtract/finalize/selectors/missing_selection/hullFromPoints），全部 PASS（验收 ≥15 条 PASS ≥10 达标）；`test_sketch` 中 `importDXF`/`export(dxf)`/`filter/map/sort/invoke`（回调类）与 planegcs 全量求解断言按 Stage 1 结论维持 blocked/随需。
   - **GOTCHA 留档**：① kernel handle 是引用计数句柄——commit() 的 identity loci 必须 `k.copy` 后再 release 源（alias+release = 全部面 Invalid shape ID）；② `curveParameters` 返回 `{first,last}` 对象非元组；③ `makeBezierEdge` 收 `Vec3[]` 非 flat 数组；④ 2D fillet 边数（OCCT wire 愈合 9 条 vs BRepFilletAPI 10 条）不作 parity 锚，面积才是。
-- 2026-09-29（**P0-3 Shape 类模型与选择器体系·高价值子集全部完成**）：Stage 5 动作 1/2/4 落地，新文件 `packages/cq-compat/src/shape-class.ts` + `shape-class.test.ts`（16 tests 全 PASS），typecheck/lint 干净。
+- 2026-09-29（**P0-3 Shape 类模型与选择器体系·高价值子集全部完成**）：Stage 5 动作 1/2/4 落地，新文件 `packages/faijs-cadquery/src/shape-class.ts` + `shape-class.test.ts`（16 tests 全 PASS），typecheck/lint 干净。
   - **类模型基础设施**（动作 1）：工厂函数 + 对象方法链；句柄生命周期在第一条实现里定型——`CqShape{kind,handle,owned}`，owned 包装器 `disposeShape` 释放句柄、borrowed 视图（选择器结果/Workplane 互操作）dispose 为 no-op，与 core fromHandle 收编模式同构不双重释放。
   - **Face.makePlane**（动作 2）：内核无无限面原语，按 plan 决议用 ×100 有限面替代（2×2 参数 → 200×200）；法向用 Rodrigues 旋转 +Z→dir，basePnt 平移。Assembly 8 条 `op:assembly-solve` 中依赖 makePlane 的用例现在可镜像（`Plane/Axis/Point` 可复刻求解路径）。
   - **Compound.makeCompound**：接受 wrapper/裸 handle 均匀列表（`unwrapShape` 归一）；`Shape.shells/solids/compounds/facesOf` 四个拓扑选择器（borrowed 视图返回）。GOTCHA：内核 `getSubShapes` 运行时支持 `'compound'` 但类型定义缺该枚举——收窄断言绕过（探针验证返回 1）。
@@ -385,7 +385,7 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
   - **动作 3（remove/replace）**：维持 D 层永久 block（内核 `defeature` 语义 ≠ CQ `remove`，不得冒充——9-23 实测纪律不变）。
   - **makeSplineApprox 边界**：sync 类模型路径显式抛错并指向异步 `splineFace` op（内核无同步网格→BSplineSurface 插值入口）；消费方走 op 通道，不作静默降级。
   - **全量化工作量估算**（验收项）：Shape.py 81 方法中，拓扑选择器类（faces/edges/vertices/shells/solids/compounds/wires）约 10 个已由本基础设施直接覆盖；几何查询类（Area/Volume/Center/BB 等 ~20 个）是 kernel 直通薄封装，单人日级；布尔/变换类（fuse/cut/mirror/rotate ~15 个）可透传 cq-compat 现有 op；剩余高难类（makeSplineApprox 同步化、location 体系、BRepTools_ReShape 依赖的 remove/replace）需内核增强，估 3–5 人日。
-- 2026-09-29（**P1 Workplane 剩余 op 补齐·Stage 2 动作 2–4/6 完成**）：`packages/cq-compat/src/workplane.ts` 新增 13 个方法 + `p1-workplane-ops.test.ts` 22 tests 全 PASS；波及单测（cq-compat.test/p4-ops/parity-smoke/moved）65 passed 不回归；cq-compat 与 core typecheck/lint 干净。
+- 2026-09-29（**P1 Workplane 剩余 op 补齐·Stage 2 动作 2–4/6 完成**）：`packages/faijs-cadquery/src/workplane.ts` 新增 13 个方法 + `p1-workplane-ops.test.ts` 22 tests 全 PASS；波及单测（cq-compat.test/p4-ops/parity-smoke/moved）65 passed 不回归；cq-compat 与 core typecheck/lint 干净。
   - **split**（动作 2）：L1 `splitByPlane`（正/负两半均保留成 compound）；GOTCHA——L1 断言 solidCount=2，边界平面（过面留一侧空）抛 `expected 2 solids`，只支持内部平面。
   - **section**（动作 3）：L1 `sectionByPlane`（截线 compound），无交线显式抛错。
   - **sweep 单截面**（动作 5）：走裸内核 `getKernel().sweep`（BRepOffsetAPI_MakePipe）——L1 `BrepEngineApi` 无 sweep 入口、`sweepOriented` 是多截面 BRepFill API 拒收 wire/face（探针实测）；path 接受 `.shape` 或 `wire()` 的 pendingWires 两种形态。**GOTCHA（探针实测）**：剖面必须⊥ spine（YZ 剖面沿 X spine 体积 πr²L ✓）——共面剖面被压扁成退化 flat pipe（bbox 正确、体积 0）；`transition` 参数为 API parity 保留，MakePipe 无 transition 概念（JSDoc 注明）。
@@ -399,7 +399,7 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
   - **❌ 需内核增强（写明修改方案）**：shell 外扩/intersection join（`BRepOffsetAPI_MakeThickSolidByJoin` 完整参数面，§3，1–2 人日解锁 8 条）、`remove`/`replace`（`BRepTools_ReShape` 绑定，§4，1 人日解锁 9 条）、`interpPlate`（`GeomPlate_BuildPlateSurface`，§5，2–3 人日解锁 5 条）、球角/高椭圆/双距离倒角（§6，2 人日解锁 5 条）、3D `shape.offset`（与 §3 同源复用，§7）。
   - **❌ 非内核问题（永久 block 维持）**：`parametricCurve/Surface`、`eachpoint/map/filter`（解析器 C 层）；`getfixturevalue`/`images`/`raises`/`finalize`（pytest/helper 语义）。
   - 优先级建议（方案文档 §9）：reshape(1d) → 球角(0.5d) → ThickSolidByJoin(1–2d) → 椭圆/倒角(1d) → aux-spine 验证(0.5d) → GeomPlate(2–3d)。
-- 2026-09-30（**P1 工具组收口 — size/clean/bezier/consolidateWires/sort**）：§2.1 A-straight 中遗留的 5 个 Workplane 方法落地，`packages/cq-compat/src/workplane.ts` 新增 `size`/`clean`/`bezier`/`consolidateWires`/`sort` + 同目录单测 `src/tool-group-ops.test.ts`（9 tests 全 PASS）；`packages/cq-compat` typecheck + lint 干净；波及回归（`cq-compat.test`/`arcs2d`/`p1-workplane-ops` + 本文件）**49 passed / 4 files / 0 stderr**。
+- 2026-09-30（**P1 工具组收口 — size/clean/bezier/consolidateWires/sort**）：§2.1 A-straight 中遗留的 5 个 Workplane 方法落地，`packages/faijs-cadquery/src/workplane.ts` 新增 `size`/`clean`/`bezier`/`consolidateWires`/`sort` + 同目录单测 `src/tool-group-ops.test.ts`（9 tests 全 PASS）；`packages/faijs-cadquery` typecheck + lint 干净；波及回归（`cq-compat.test`/`arcs2d`/`p1-workplane-ops` + 本文件）**49 passed / 4 files / 0 stderr**。
   - **size**：`kern().getBoundingBox` → `[dx,dy,dz]`（无 solid 抛错）。
   - **clean**：`fixShape` → `removeDegenerateEdges` → `healSolid` 序列（上游 `Solid.fix` 对齐），无 solid 抛错。
   - **bezier**：`getKernel().makeBezierEdge`（控制点 → 世界坐标）一次性建边、`builtEdge` 强引用挂进 `PendingEdge`（新增 `kind:'bezier'`，复用 `buildProfileWire` 的 `else if (e.builtEdge)` 分支），`lastEdgeEndTangent` 同步认 `bezier`（复用 `splineEndTangent`）；`wire()`+`extrude()` 验证出体。
@@ -412,21 +412,21 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
   - **根因澄清**：cq-compat 在模块加载时自建 `cad = createApiNamespace()`（只含 core 平台面），`cad.text` 不在其中；且 `cad.text` 的 op 实现（`packages/faijs-extra/src/ops/text.ts`）经 `../mesh/primitives` 间接拖入 `three/examples`，若整体注册进 cq-compat 的 node 构建会违反「core three-free」原则并在 node 拉起 three。
   - **接线方案（three-free）**：在 faijs-extra 抽出 **brep-only** 入口 `packages/faijs-extra/src/ops/text-brep.ts`（导出 `textBrep(params)`，只用 core 的 `textToSolid` + `fontRegistry` + `getSolidBoundingBox`，不触 mesh/three，含 CJK 降级分支），`ops/text.ts` 改为复用它（行为不变）；新增子路径导出 `"./text"`（`dist/text.js`，`src/text.ts` 再导出 `textBrep`）。cq-compat 仅引 `@faicad/faijs-extra/text`，在 `cad` 单例上挂 `text: textBrep`。faijs-extra `entry-boundary.test.ts`（three-free 边界）4/4 仍绿。
   - **`Workplane.text(txt, size, depth, opts?)`**：自由函数（`cq.text(wp, …)` 形态），经 `cad.text` 产 3D 文字实体（X/Z 居中、Y 底对齐原点），再 `orientZTo`(+Z→`wp.normal`) + `cad.translate` 到 `wp.origin`，走 `combineEachpoint`（默认 `combine=True` 与既有实体融合）。
-  - **字体通道（node）**：新增 `packages/cq-compat/src/font-loader.ts`，`setupCqFont()` 注入 fs `FontLoader` 读取 core 的 `packages/core/src/assets/fonts/OpenSans-Regular.ttf`（路径相对本模块解析，src/dist 双态可用，与 core `fontTestHelper.ts` 同机制）；cq-compat `devDependencies` 加 `@faicad/faijs-extra: file:../faijs-extra`（解析 + ghost-dep 守卫；发布态需改为 registry 依赖，已注明）。
+  - **字体通道（node）**：新增 `packages/faijs-cadquery/src/font-loader.ts`，`setupCqFont()` 注入 fs `FontLoader` 读取 core 的 `packages/core/src/assets/fonts/OpenSans-Regular.ttf`（路径相对本模块解析，src/dist 双态可用，与 core `fontTestHelper.ts` 同机制）；cq-compat `devDependencies` 加 `@faicad/faijs-extra: file:../faijs-extra`（解析 + ghost-dep 守卫；发布态需改为 registry 依赖，已注明）。
   - **验收**：`src/text.test.ts`（3 tests 全 PASS：cq 命名空间产出有效 brep / XY 面沿 +Z 深度≈4 / `top` 面沿法向深度≈2）；cq-compat 波及回归 **52 passed / 5 files / 0 stderr**；typecheck + lint + `check-ghost-deps` 全绿。
-  - **⚠️ 勘误（2026-09-30 当日更正）**：本条初稿曾断言「CQ 的 `wp.text()` 是 2D 草图语义（字形轮廓加进 pending wire 再 `.wire().extrude()`），cq-compat 的 3D 实体 `Workplane.text` 与之不同」。**该论断错误**。查仓库内 CadQuery v2.8.0 官方测试缓存 `packages/cq-compat/out/cache/v2.8.0/tests/test_cadquery.py`：`testTextAlignment`（L3937）直接 `Workplane().text("I", 10, 0, halign=…, valign=…, fontPath=testFont).val().BoundingBox()`，`testText`（L3850）直接 `.text("CQ 2.0", 0.5, 0.05, combine=True, …).val().Volume()` / `.solids().vals()` / `.faces(">Z").vals()`——**都没有 `.wire().extrude()` 链**；上游 API 参考亦写明 `Workplane.text(txt, fontsize, distance[, …]) Returns a 3D text`，中文教程明确「Workplane 沒有 2D 概念的文字處理方法」。**CQ 的 `text` 本身就是 3D 实体创建 op**（内部按 `distance` 沿法向挤出，负值反向）。故 cq-compat 的 3D 实体 `Workplane.text` 方向正确，真正差距是**参数面 + 对齐语义**，不是「2D wire 链」。
+  - **⚠️ 勘误（2026-09-30 当日更正）**：本条初稿曾断言「CQ 的 `wp.text()` 是 2D 草图语义（字形轮廓加进 pending wire 再 `.wire().extrude()`），cq-compat 的 3D 实体 `Workplane.text` 与之不同」。**该论断错误**。查仓库内 CadQuery v2.8.0 官方测试缓存 `packages/faijs-cadquery/out/cache/v2.8.0/tests/test_cadquery.py`：`testTextAlignment`（L3937）直接 `Workplane().text("I", 10, 0, halign=…, valign=…, fontPath=testFont).val().BoundingBox()`，`testText`（L3850）直接 `.text("CQ 2.0", 0.5, 0.05, combine=True, …).val().Volume()` / `.solids().vals()` / `.faces(">Z").vals()`——**都没有 `.wire().extrude()` 链**；上游 API 参考亦写明 `Workplane.text(txt, fontsize, distance[, …]) Returns a 3D text`，中文教程明确「Workplane 沒有 2D 概念的文字處理方法」。**CQ 的 `text` 本身就是 3D 实体创建 op**（内部按 `distance` 沿法向挤出，负值反向）。故 cq-compat 的 3D 实体 `Workplane.text` 方向正确，真正差距是**参数面 + 对齐语义**，不是「2D wire 链」。
   - **诚实披露（更正后）**：`text` 在**能力层**已解除阻塞——此前 `cad.text` 完全不可达（cq-compat 模块级 `cad = createApiNamespace()` 只含 core 平台面），任何 text 尝试直接报错；现字体→OCCT 实体通路可达且跑通（3 tests）。但 manifest 中 **9 条** `blockedBy:"text"`（`testText__box/obj1..obj5` + `testTextAlignment__left_bottom/centers/right_top`；实测 **9 条**，非早前估的 19）仍维持 `blocked`，因 `Workplane.text` 尚未满足上游语义：① `halign`/`valign` 缺失（testTextAlignment 断言字形 bbox 对齐：left/bottom ⇒ bbox ≥ 0、center ⇒ bbox center ≈ 0、right/top ⇒ bbox ≤ 0；本实现只做 X/Z 居中、Y 底对齐）；② `distance=0`（2D、不挤出，testTextAlignment 用到）不支持——`cad.text` 要求 `depth>0`；③ `cut`（上游默认 True：从父实体减除）与 `combine`（上游默认 **False**；本实现默认 true，是既有 parity 偏差）语义未对齐；④ `font`/`fontPath`/`kind` 参数未接收（core 单一默认 OpenSans 恰与上游 `testFont` 同字体，故字形本身匹配）。**下一步**：补齐 ①②③④ 四项即可翻转这 9 条。`imprint`（4 条）仍是下一个独立缺口。
 
 - 2026-09-30（**`text` 改为 cq-compat 自实现 — 去掉 faijs-extra 依赖 + 补齐全部 CQ 语义**；**取代上一条「faijs-extra 接线」记录**）：用户裁定 `@faicad/faijs-extra` 是小众需求合集，cq-compat 不得依赖它、须自持 CQ 兼容 API。
   - **去依赖**：回退上一提交对 faijs-extra 的改动（`ops/text.ts` 恢复内联 `textBrep`、去掉 `./text` 子路径导出、删除 `src/ops/text-brep.ts` 与 `src/text.ts`；faijs-extra 回到未改动状态，typecheck + `entry-boundary.test.ts` 4/4 仍绿）；cq-compat 去掉 faijs-extra devDependency、删除冗余的 `src/font-loader.ts`（字体 loader 由 `createNodePorts()`→node-host `setFontLoader` 自动注入，无需自建）；`cad` 单例恢复为纯 `createApiNamespace()`。
-  - **自实现（`packages/cq-compat/src/text-solid.ts`，新）**：`buildTextSolid(txt, {fontSize, distance, halign, valign})` 直接用 core `textBlueprints`（opentype.js→OCCT wire）+`makeFace`/`extrude`/`makeCompound`/`translate`/`getBoundingBox` 构建：每个字形轮廓各成一件（`distance===0` ⇒ face，否则 prism），**不融合**（对应上游 `Compound.makeText` 返回含每字形的 compound）；对齐按字形盒在**局部坐标系**平移（halign: left⇒xmin=0 / center⇒x 对称 / right⇒xmax=0；valign 同理）。
+  - **自实现（`packages/faijs-cadquery/src/text-solid.ts`，新）**：`buildTextSolid(txt, {fontSize, distance, halign, valign})` 直接用 core `textBlueprints`（opentype.js→OCCT wire）+`makeFace`/`extrude`/`makeCompound`/`translate`/`getBoundingBox` 构建：每个字形轮廓各成一件（`distance===0` ⇒ face，否则 prism），**不融合**（对应上游 `Compound.makeText` 返回含每字形的 compound）；对齐按字形盒在**局部坐标系**平移（halign: left⇒xmin=0 / center⇒x 对称 / right⇒xmax=0；valign 同理）。
   - **`Workplane.text(txt, fontsize, distance, combine="cut", opts?)`**：签名对齐上游 `cq.py::Workplane.text(txt, fontsize, distance, combine="cut", clean=True, font, fontPath, kind, halign, valign)`；`combine` 支持 `"cut"`(默认)/`"s"`/`true`/`"a"`/`false`（`CombineMode`），无上下文实体时直接返回文字；`clean` 默认 true 走 `cleanShapes`（same-face merge）；`font`/`fontPath`/`kind` 接受但解析为引擎单一默认字体（OpenSans==上游 `testFont`）。放置仍是 `orientZTo`(+Z→`wp.normal`)+`cad.translate` 到 `wp.origin`。
   - **已知限制（如实标注）**：字形内孔（如 `O`/`A`/`Q` 的封闭轮廓）当前未按 outer/hole 合并 —— 每个 wire 各建 face，内孔会被「填充」；目标测试（`testText`/`testTextAlignment`，字形 `I`/`CQ 2.0`）只断言相对体积与面/体计数，不受影响。补齐需 outer/hole 分组（`groupPendingWires` 语义）。
   - **验收**：`src/text.test.ts` 重写为 7 tests 全 PASS（cq 命名空间产 brep / `distance>0` 沿法向挤出 / `distance=0` 平面 z 跨度≈0 / `halign`·`valign` left-bottom·center·right-top 三组断言 / `combine` 默认 cut 体积↓·`true` 融合体积↑·`false` 只留文字体）；cq-compat 波及回归 **56 passed / 5 files / 0 stderr**；typecheck + lint + `check-ghost-deps`（817 files）全绿。
   - **manifest 由 `blocked`→`ported` 的剩余步骤（另一步，未做）**：`blockedBy:"text"` 由 `tests/ref-harness/analyze-coverage.py` 的 `CQ_COMPAT_OPS` 集合机检产生（`text` 不在集合内）。翻转需：① 把 `"text"` 加入该集合；② 为 9 条表达式写镜像 `.fai.js`（`tests/test_cadquery/TestCadQuery__testText__*.fai.js` 等）；③ 重跑 `analyze-coverage.py` → `gen-manifest.ts`。注意 cq-compat 单 shape 模型下 `solids().vals()` 只取首个 solid，`testText__obj3` 的「5 solids」类断言镜像时需换等价表达式（如 compound 子件计数）。
 
 - 2026-09-30（**`text` 字形内孔修复 + parity 管线受阻于 core 既有字体 bug**）：
-  - **内孔修复（已落地）**：`packages/cq-compat/src/text-solid.ts` 原按 `textBlueprints` 返回的**每个**闭合轮廓各建一件 face ⇒ 字形内孔（`O`/`Q`/`A`/`0` 的反形）被「填充」。现按 **bbox 嵌套分层**重新分组：depth 偶 = 字形主体、depth 奇 = 其直接孔；主体 `makeFace` + `addHolesInFace(face, holes)`（内核已有该 API，`packages/core/src/api/profile.ts:248` 同款用法），再按 `distance` extrude。改后 `"CQ 2.0"` 由 7 件降为 **5 件 solid**，与上游 `Compound.makeText` 一致。
+  - **内孔修复（已落地）**：`packages/faijs-cadquery/src/text-solid.ts` 原按 `textBlueprints` 返回的**每个**闭合轮廓各建一件 face ⇒ 字形内孔（`O`/`Q`/`A`/`0` 的反形）被「填充」。现按 **bbox 嵌套分层**重新分组：depth 偶 = 字形主体、depth 奇 = 其直接孔；主体 `makeFace` + `addHolesInFace(face, holes)`（内核已有该 API，`packages/core/src/api/profile.ts:248` 同款用法），再按 `distance` extrude。改后 `"CQ 2.0"` 由 7 件降为 **5 件 solid**，与上游 `Compound.makeText` 一致。
   - **实测 parity 证据（不经 CLI）**：`src/text.test.ts` 新增断言 —— `text(Workplane('XY'), 'CQ 2.0', 0.5, 0.05, false)` 得 **5 solids** 且体积 `toBeCloseTo(0.006893209, 4)` 命中上游 `testText__obj4`（OpenSans）参考值。8 tests 全 PASS；波及回归 **57 passed / 5 files / 0 stderr**；typecheck + lint 干净。
   - **ref STEP 异常（须记）**：`out/ref/...testText__obj1.step` 实测几何（vol=7.3919、**2 solids**、bbox 越界至 2.0057）与我用 cadquery 2.8.0 **重跑同一表达式**（vol=7.9921、1 solid、bbox=box）**不一致**（obj2/3/4/5 全部一致）⇒ 该 ref STEP 属 ref 侧异常，不能作为 parity 目标。
   - **`font="Sans"` ≠ OpenSans（须记）**：上游 `testText__obj2/obj3` 用 `font="Sans"`（无 `fontPath`）⇒ OCC 解析到**系统** sans 字体，体积 0.007938346；`obj4/obj5` 用 `fontPath=testFont`(OpenSans) ⇒ 0.006893209（差 15%）。cq-compat 引擎只有单一默认字体，故 obj2/obj3 字形无法逐位对齐。
@@ -452,7 +452,7 @@ cq-compat 走 Workplane 函数链，没有 CQ 的 `Shape`/`Face`/`Edge`/`Wire`/`
     ③ op 宇宙只反射 Workplane/Assembly/Sketch/Shape 的**方法**，**漏掉 `cadquery.func` 自由函数面** —— `faceOn`/`wireOn`/`edgeOn`/`imprint`/`project`/`fill` 只存在于 func，`test_faceOn`（`faceOn(f, text(…))`）因此只追到 `{text}` 而被误判 PORTABLE。已把 `cadquery.func` 名并入宇宙，仅排除数据型构造器（`CQ_FUNC_DATA_TYPES`：Vector/Location/Plane/Face/Compound/Shell/Solid/Wire/Edge/Vertex/CompSolid/History/Shape）。
   - **重算结果（本日实测）**：`tests/coverage.json` → **PORTABLE 180 / PORTABLE-WITH-STUB 37 / BLOCKED 80**（共 305 case）。较"195/37/65"新增 **15 条** PORTABLE→BLOCKED，blockedBy 全部为真实 func-only 缺口（`plane`/`hollow`/`prism`/`draft`/`project`/`imprint`/`faceOn`）；`gen-manifest` 连带刷新受影响未镜像 var 的 blockedBy（`plane` 5、`prism` 13、`project` 2、`imprint` 12）。**已抽查** `test_replace`（`plane(0.5,0.5)`）、`test_hollow`（`hollow(box_shape,-0.1)`）、`test_history_offset`（`plane`+`History`）、`test_loft_vertex` 等的上游源，确认新 blockedBy 属实。
   - **core 字体（用户授权后改）**：
-    - **度量**：`packages/cq-compat/src/text-solid.ts::verticalMetrics` 的 descent 计入 **`hhea.lineGap`**（`(|descender|+lineGap)×size/upm`）。Arial lineGap=67/2048 暴露该缺口（size 10 ⇒ ascent 9.05273 / descent 2.44629；漏项使文字整体偏低下移 0.164）；OpenSans lineGap=0 故所有 OpenSans 用例掩盖了它。
+    - **度量**：`packages/faijs-cadquery/src/text-solid.ts::verticalMetrics` 的 descent 计入 **`hhea.lineGap`**（`(|descender|+lineGap)×size/upm`）。Arial lineGap=67/2048 暴露该缺口（size 10 ⇒ ascent 9.05273 / descent 2.44629；漏项使文字整体偏低下移 0.164）；OpenSans lineGap=0 故所有 OpenSans 用例掩盖了它。
     - **按名/按路径解析**：`FontLoader` 新增可选 `resolveFont?(nameOrPath)`；`fontRegistry.ensureFont(nameOrPath)` 按"已注册键 → 宿主 resolveFont → 默认字体回退"解析，**解析不到回退默认、不抛**（对齐 OCC `Font_FontMgr::FindFont`）。Node host 新增 `node-host/font-family-index.ts`（只读 sfnt `name` 表建"家族→路径"索引：**两阶段读**——4KiB 头定位 `name` 表偏移再精读该表，因 Arial 的 `name` 在 ~0xF0000，64KiB 头上限够不着；跳过 `.ttc/.woff/.woff2`）；`node-font-provider.resolveFont` = 路径 → 已注册键（含文件名 stem）→ 系统家族索引。Browser host `resolveFont` 走注入 `fontUrls`/可 fetch URL，无系统枚举。
     - **测试**：`node-host/font-family-index.test.ts`（7）、`brep/text/fontRegistry.ensure-font.test.ts`（6，GOTCHA：未知名回退不抛）、cq-compat `src/text.test.ts` 新增 GOTCHA（lineGap 公式 / 未知名回退 / `fontPath` 优先于 `font`）全 PASS。
   - **free-function `text` 镜像（parity 实测）**：`tests/test_free_functions/test_text__{r1..r5,c}.fai.js` 落地，用**当前代码**重导 cand STEP 后判 parity —— **5×PASS-NT + 1×PASS**（vol/com/bbox 差全为 0；r1..r5 唯一差异是解析边拆分：ref `f2/e12/v24` vs cand `f2/e49/v98`，**面数一致**）。余两个角落维持 blocked 并改判**真实缺口**：`r7/r8/r9`（`text(txt,size,spine[,planar|face])` 路径排字/投影）→ `op:text-spine`；`test_faceOn__f2` → `op:faceOn`。

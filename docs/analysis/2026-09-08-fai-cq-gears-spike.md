@@ -20,7 +20,7 @@
 
 - Python 参考侧：`C:\Users\yuan_\cq-editor\python.exe`（cadquery 2.6.dev0 + cq_gears 0.62，site-packages 与 `C:\git\CADQ\cq_gears` 逐字节一致）。系统 `python` 无 cadquery。
 - faijs 侧参考数据由 `scripts/gen-reference.py --set spike` 生成，落在 `fixtures/reference/`（manifest.json 含齿面点阵/面积/体积/bbox/STEP 路径；测试与比对脚本都从 manifest 读，不硬编码期望值）。
-- 五维比对复用 `@faicad/cq-compat` 的 `compareStepFiles`（devDependency 引用，未搬运实现）。
+- 五维比对复用 `@faicad/faijs-cadquery` 的 `compareStepFiles`（devDependency 引用，未搬运实现）。
 
 ## 3. §4.4 三方案实测（齿面 B-spline）
 

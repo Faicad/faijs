@@ -23,7 +23,7 @@
 
 ## 1. 结论摘要
 
-- 建议新建 **`packages/fai_cq_warehouse`**（包名 `@faicad/fai-cq-warehouse`），依赖 `@faicad/cq-compat`（dev + peer）与 `@faicad/faijs`。
+- 建议新建 **`packages/fai_cq_warehouse`**（包名 `@faicad/fai-cq-warehouse`），依赖 `@faicad/faijs-cadquery`（dev + peer）与 `@faicad/faijs`。
 - **分层定位（§4.3）**：`cq-compat` ≈ CadQuery（平台），`fai_cq_warehouse` ≈ cq_warehouse（第三方库）。**平台不为一个第三方库写专属代码**——本移植对 `cq-compat` 与 `core` **零改动**；CadQuery 已有而 cq-compat 未实现的（`polarArray` / `consolidateWires` / `makeRuledSurface` / `makeNSidedSurface` …）是平台的 parity 欠账，本包只提 backlog 并在自己包内临时兜；CadQuery 也没有的（`Workplane.fillet2D` 等）本包自己写，正如上游 `extensions.py` 那样。
 - **可移植主体是 5 个几何模块**：`thread` / `fastener` / `bearing` / `sprocket` / `chain`。数量以 §2.7 的**实测清单**为准：**可实例化类 34 个**（P0 范围 33 个——`Chain` 归 P1，见 §3.2）+ **抽象基类 5 个** + **参数表 34 张**（其中 2 张在上游源码零引用，见附录 A）。
   > ⚠️ 本方案初稿写的「6 个基类 + 26 个具体类」**已作废**：实测 `__subclasses__` 与 `__abstractmethods__` 对不上（27 与 26 都不对）。所有验收判据一律引用 §2.7 的清单表，不再引用裸数字。
@@ -300,7 +300,7 @@ export const contractVersion = 1
 
 | Python 世界 | 本项目 | 性质 |
 |---|---|---|
-| CadQuery | `@faicad/cq-compat`（+ `@faicad/faijs`） | **平台 / 公共能力层** |
+| CadQuery | `@faicad/faijs-cadquery`（+ `@faicad/faijs`） | **平台 / 公共能力层** |
 | cq_warehouse | `@faicad/fai-cq-warehouse` | **第三方库** |
 
 **推论：平台不得为一个第三方库写专属代码。** 原提议「在 cq-compat 新建 `src/warehouse.ts` 存放本包专有的螺旋面 / 滚花 / 放样原语」，等价于要求 CadQuery 内置 cq_warehouse 的实现——**作废**。否则每移植一个 CadQuery 生态库（下一个可能是 cq_warehouse 之外的任何库），平台都要改一次，这不可能成立。
@@ -353,7 +353,7 @@ cadquery 2.8.0（`cadquery-env/Lib/site-packages/cadquery`）：
                │                                      │ 注入                                   │
                ▼                                      ▼                                       │
   ┌─ 平台层 ───────────────────────────────────┐   ┌─ core: Backends.kernel.brep ─┐           │
-  │ @faicad/cq-compat  ≈ CadQuery              │   │ occt-wasm（BrepEngineApi）   │           │
+  │ @faicad/faijs-cadquery  ≈ CadQuery              │   │ occt-wasm（BrepEngineApi）   │           │
   │ Workplane parity 算子（公共能力，不属于本包）│◄──┤ BrepHandle / 几何原语        │           │
   └────────────────────────────────────────────┘   └──────────────────────────────┘           │
         ▲ 只读消费（parity 缺的 → 提 backlog，不改它）          ▲ 只读（getBackends，非 init）  │
@@ -497,7 +497,7 @@ export function requireKernel(): BrepEngineApi {
 
 判定口径（§4.3 归属树）：表最后一列不再写「改哪里补」，而是写**归谁**——① parity 欠账（cq-compat 路线图，本包只记 backlog）② 本包自己写 ③ 本包 `kernel.ts` 兜底。
 
-先列当前状态（基于 `packages/cq-compat/src/workplane.ts` 与 `packages/core/src/brep/engine/primitives.ts` 的 grep 实测）：
+先列当前状态（基于 `packages/faijs-cadquery/src/workplane.ts` 与 `packages/core/src/brep/engine/primitives.ts` 的 grep 实测）：
 
 | 能力 | 上游调用点 | 平台现状 | 归属与本包做法 |
 |---|---|---|---|
@@ -688,7 +688,7 @@ export function requireKernel(): BrepEngineApi {
 
 | # | 债务 | 位置 | 为何本轮不改 | 迁移路径 |
 |---|---|---|---|---|
-| D1 | **第三方库代码住进了平台层**：`cq-compat/src/gears.ts`（432 行）是 cq_gears 移植的私有原语层，却放在 CadQuery 等价层里；同时它 `initOcctWasm()` 让库自带内核，违反 `library-dev-guide.md:245` | `packages/cq-compat/src/gears.ts`（尤其 `:99-105`）；下游引用 20+ 处 | cq-compat 已移交第三方；fai_cq_gears 已验收，不宜与本轮耦合 | ① 本移植按 §4.3 走「零改动平台」路线，用实战验证第三方自包含可行；② 出一份错位分析文档；③ 将 `gears.ts` 内容下沉回 `fai_cq_gears/src/kernel.ts`（仅在 cq-compat 留 deprecated 转发一个版本周期）；④ 内核改为 `getBackends()` 注入 |
+| D1 | **第三方库代码住进了平台层**：`cq-compat/src/gears.ts`（432 行）是 cq_gears 移植的私有原语层，却放在 CadQuery 等价层里；同时它 `initOcctWasm()` 让库自带内核，违反 `library-dev-guide.md:245` | `packages/faijs-cadquery/src/gears.ts`（尤其 `:99-105`）；下游引用 20+ 处 | cq-compat 已移交第三方；fai_cq_gears 已验收，不宜与本轮耦合 | ① 本移植按 §4.3 走「零改动平台」路线，用实战验证第三方自包含可行；② 出一份错位分析文档；③ 将 `gears.ts` 内容下沉回 `fai_cq_gears/src/kernel.ts`（仅在 cq-compat 留 deprecated 转发一个版本周期）；④ 内核改为 `getBackends()` 注入 |
 | D2 | 为了让移植能推进而在 `cq-compat` 复制了一份底层能力（本可以避免的那次） | 本方案初稿 §4.3（已作废，保留作反面教材） | 已被指出并纠正 | 归档教训：先做归属判定树，再决定写哪儿 |
 | D3 | **内核类型被擦除**：`Backends.kernel.brep` 声明为 `unknown \| null`（理由是「避免本模块依赖具体实现」，`runtime-state.ts:41`），导致 core 自身 19 处消费点被迫写 `as BrepEngineApi \| null` 裸断言，类型错误全部推迟到运行时 | `core/src/runtime-state.ts:58`；消费点 `core/src/api/*.ts`（18 处）、`core/src/cad-runtime/direct-executor.ts:580` | 属平台自身的类型契约问题，与本移植无关；且本轮已裁决对 core/cq-compat 零改动（§4.3） | 已核实**可修且不成环**：`brep/engine/primitives.ts:13-25` 只依赖 `./types`、`runtime-state.ts:17` 只依赖 `./identity`。方向是 `Backends<K extends KernelBase>` 泛型或最小公共接口 `KernelBase`（**不要**直接收窄成 `BrepEngineApi`——那会强迫第三方引擎实现全部 60 个方法），配合已有能力位 `config.brepCapabilities`（`runtime-state.ts:49-56`）做能力路由。**提给 core backlog，本移植只记录不动手**；修复后本包仅需改 `src/kernel.ts` 一行（§5.5.2 第 1 层） |
 
@@ -700,9 +700,9 @@ export function requireKernel(): BrepEngineApi {
 - **分层静态门禁**（W8 落地，防 §4.3 的错位复发）：包内 `src/` 与 `scripts/` 禁止出现 `from 'occt-wasm'`、`initOcctWasm`、`getGearKernel`——前两条是「不得绕 host 注入」，第三条是「不得消费另一个第三方库的东西」（那不是平台 API）。实现用 eslint `no-restricted-imports` / `no-restricted-syntax`，或照 `scripts/check-ghost-deps.mjs` 写一个 `check-lib-layering.mjs`；命即 CI 红。
 - **内核取值点唯一门禁**（对应 §5.5.2，防 R10）：三条同性质的静态规则——① `getBackends()` 只允许出现在 `src/kernel.ts`（其余文件必须经 `requireKernel()`）；② 禁止出现 `as any`；③ 禁止 type-only import `occt-wasm` 的 `OcctKernel`。三条并入上面的 `check-lib-layering.mjs`。
 - **内核契约门禁**：`src/kernel-conformance.test.ts`（两级断言）必须常绿；新增 any `WarehouseKernel` 成员时**必须先加进该测试的清单**，CI 才会校验它。
-- **零改动平台自检**：本移植 PR 的 diff 不得包含 `packages/cq-compat/**` 与 `packages/core/**`（除新增 backlog 文档外）；若确需改动，必须在 PR 里说明为何该能力属于平台而非本库。
+- **零改动平台自检**：本移植 PR 的 diff 不得包含 `packages/faijs-cadquery/**` 与 `packages/core/**`（除新增 backlog 文档外）；若确需改动，必须在 PR 里说明为何该能力属于平台而非本库。
 - 全量完成判据：**§2.7 清单里 P0 范围的 33 个可实例化类**（Thread 5 + Nut 7 + Screw 12 + Washer 3 + Bearing 5 + Sprocket 1）全部有 **≥2 个规格**通过 STEP 等价比对；`types()`/`sizes()` 与 Python 逐字一致；数据层 34 表哈希通过（其中 2 张零引用表标 `referencedByUpstream:false`）；W3–W7 每阶段的容差标定文档齐备（§7.3.1）。P1 两项（Chain / 孔系列）不计入此判据，未做的在 Agent Note 里显式标注。
-- CI：接入 `npm run test --workspaces`（stderr 零容忍，照 AGENTS.md 约定）；`npm run doc-sync` 通过；改动 cq-compat 后必须 `npm run build -w @faicad/cq-compat` 再跑 B 侧（CLI 走 dist，vitest 走 src alias——cq-compat 既有红线）。
+- CI：接入 `npm run test --workspaces`（stderr 零容忍，照 AGENTS.md 约定）；`npm run doc-sync` 通过；改动 cq-compat 后必须 `npm run build -w @faicad/faijs-cadquery` 再跑 B 侧（CLI 走 dist，vitest 走 src alias——cq-compat 既有红线）。
 
 ---
 

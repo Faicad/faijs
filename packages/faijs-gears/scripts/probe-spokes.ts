@@ -5,7 +5,7 @@
  *   chamfer+bore → +recess → +hub → +spokes(无 fillet) → +spokes(fillet)
  * 与 cq 参考（manifest volume）对照，定位误差来自 spokes 还是 fillet。
  */
-import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
+import { getGearKernel, type GearKernel } from '@faicad/faijs-cadquery'
 import { buildSpurGearSolid } from '../src/spur_gear'
 import { applyRecess, applyHub, applySpokes, type GearFeatureOptions } from '../src/features'
 import { spurGearGeometry } from '../src/profile'

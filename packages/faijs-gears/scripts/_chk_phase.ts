@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs'
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
 import { placeSecondGear } from '../src/crossed_pair'
 import { crossedHelicalGearGeometry } from '../src/profile'

@@ -1,7 +1,7 @@
 /**
  * probe-worm2.ts — 诊断 Worm 端盖 section 边的端点间隙（为何组不成一条闭环）
  */
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'
 

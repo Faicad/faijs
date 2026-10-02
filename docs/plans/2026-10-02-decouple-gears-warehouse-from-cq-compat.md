@@ -19,7 +19,7 @@
 
 ### 1.2 fai_cq_gears：深度依赖，但依赖面完全收敛在一个文件
 
-全部运行时依赖集中在 `packages/cq-compat/src/gears.ts`（437 行）——该文件头注释自述"为 cq_gears 移植而生（landing spot），fai_cq_gears only imports from here"。
+全部运行时依赖集中在 `packages/faijs-cadquery/src/gears.ts`（437 行）——该文件头注释自述"为 cq_gears 移植而生（landing spot），fai_cq_gears only imports from here"。
 
 被消费的 API/功能清单：
 
@@ -44,7 +44,7 @@
 
 测试侧牵连：
 - `packages/tests/faijs/compat-e2e/fai-cq-gears-flow.test.ts`：注释提到 `getGearKernel`，实际消费的是 `@faicad/fai-cq-gears` 包门面（迁移后不受影响，需验证）。
-- fai_cq_gears 自己的 26 个文件的 `@faicad/cq-compat` import（含 type-only）需替换。
+- fai_cq_gears 自己的 26 个文件的 `@faicad/faijs-cadquery` import（含 type-only）需替换。
 - 两个包的 `vitest.config.ts` alias、`package.json` 依赖声明需同步。
 
 ## 2. 方案：把 gears.ts 整体迁入 fai_cq_gears
@@ -53,20 +53,20 @@
 
 ### 2.1 改动清单
 
-1. **搬迁文件**：`packages/cq-compat/src/gears.ts` → `packages/fai_cq_gears/src/kernel/gears.ts`
+1. **搬迁文件**：`packages/faijs-cadquery/src/gears.ts` → `packages/fai_cq_gears/src/kernel/gears.ts`
    - `import type { Vec3 } from './geom-types'` → 改用包内 `./math` 的 `Vec3`（fai_cq_gears 已有 `math.ts`；确认字段兼容：两者均为 `{x,y,z}`，纯类型替换）。若 math.ts 的 Vec3 与 geom-types 结构不一致，则在 kernel/gears.ts 内联最小 `Vec3` 接口（避免为类型引入跨包依赖）。
    - 其余内容逐字节保留（含全部 GOTCHA 注释与红线说明）。
 2. **fai_cq_gears 内替换 import**：26 个文件中
-   - `from '@faicad/cq-compat'` → `from './kernel/gears'`（或建 `./kernel` barrel 统一出口，减少路径噪音）；
+   - `from '@faicad/faijs-cadquery'` → `from './kernel/gears'`（或建 `./kernel` barrel 统一出口，减少路径噪音）；
    - `spline-face.ts` 的 re-export 行同步改源。
-3. **package.json（fai_cq_gears）**：删除 `"dependencies": { "@faicad/cq-compat": "^0.26.0" }`（改为空或移除字段）；peerDependencies 不变。
-4. **vitest.config.ts（fai_cq_gears）**：删除 `@faicad/cq-compat` alias 行。
+3. **package.json（fai_cq_gears）**：删除 `"dependencies": { "@faicad/faijs-cadquery": "^0.26.0" }`（改为空或移除字段）；peerDependencies 不变。
+4. **vitest.config.ts（fai_cq_gears）**：删除 `@faicad/faijs-cadquery` alias 行。
 5. **cq-compat 侧清理**：
    - 删除 `src/gears.ts`；
    - index.ts 删除两段齿轮 re-export（第 238–265 行附近）；
    - browser.ts 删除 `export * from './gears'` 及其注释（browser.ts 该行注释本身写明其存在理由就是 fai-cq-gears）。
 6. **lockstep**：不新增/不减少包，只动依赖边，`check-lockstep` 规则不受影响；版本号按流程走 `set-version`（patch 位 +1）。
-7. **文档**：`.agents/notes/` 新增一条 Agent Note（齿轮原语层所有权从 cq-compat 迁至 fai_cq_gears）；grep 全仓 `@faicad/cq-compat` 文档引用更新指向。
+7. **文档**：`.agents/notes/` 新增一条 Agent Note（齿轮原语层所有权从 cq-compat 迁至 fai_cq_gears）；grep 全仓 `@faicad/faijs-cadquery` 文档引用更新指向。
 
 ### 2.2 验证步骤
 

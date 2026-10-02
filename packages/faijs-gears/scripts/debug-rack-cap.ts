@@ -5,7 +5,7 @@
  * connectEdgesToWires 分组结果，定位 3 环成因。
  */
 
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import {
   rackToothFaces, toothAtPosition, cutPlane, endCapFace, backFace, planarCapAtZ,
 } from '../src/rack_gear'

@@ -1,14 +1,14 @@
 # 将 CadQuery 拓扑选择器子系统上移至 faijs core（独立子目录 `cadquery-selectors/`）
 
-> 状态：**方案已定，待实施**（基于 `packages/core`、`packages/cq-compat` 当前源码核实，日期 2026-10-02）。
-> 范围：`packages/core`（新增子目录）、`packages/cq-compat`（退化为薄封装）。
+> 状态：**方案已定，待实施**（基于 `packages/core`、`packages/faijs-cadquery` 当前源码核实，日期 2026-10-02）。
+> 范围：`packages/core`（新增子目录）、`packages/faijs-cadquery`（退化为薄封装）。
 > 说明：本文是 faijs 仓库内部实施记录；以当前源码为准，不引用任何历史 plan 作为现状依据。下游 `@faicad/animation` 的接入 / 升级 / 去依赖在本仓库范围之外，由其自身方案记录。
 
 ---
 
 ## 1. 目标
 
-把 CadQuery 风格的**拓扑选择器子系统**（字符串语法 `>Z` / `<Z` / `+Z` / `|Z` / `#Z` / 命名视图 / 多轴 / 索引 / 最近点，作用于 face / edge / vertex）从 `packages/cq-compat` 的实现中**上移到 `packages/core`**，作为 core 的一个**独立子目录**承载，并让 cq-compat 退化为从 core 薄封装 / re-export，不再维护选择器解析逻辑。
+把 CadQuery 风格的**拓扑选择器子系统**（字符串语法 `>Z` / `<Z` / `+Z` / `|Z` / `#Z` / 命名视图 / 多轴 / 索引 / 最近点，作用于 face / edge / vertex）从 `packages/faijs-cadquery` 的实现中**上移到 `packages/core`**，作为 core 的一个**独立子目录**承载，并让 cq-compat 退化为从 core 薄封装 / re-export，不再维护选择器解析逻辑。
 
 达成后：
 - core 拥有与 CadQuery 完全对齐的通用拓扑选择器能力（`@faicad/faijs/api/cadquery-selectors`）；
@@ -21,14 +21,14 @@
 
 ### 2.1 同仓 monorepo，cq-compat 源码在本地
 - 仓库 `packages/`：`core`、`cq-compat`、`cq-compat-assembly`、`cq-compat-compare`、`cq-compat-sketch`、`fai_cq_gears`、`sheetmetal` 等。
-- cq-compat 源码：`packages/cq-compat/src/{workplane.ts, shape-class.ts, sketch.ts, index.ts, *.test.ts}`。
+- cq-compat 源码：`packages/faijs-cadquery/src/{workplane.ts, shape-class.ts, sketch.ts, index.ts, *.test.ts}`。
 - 这是 intra-package 重构，不是跨仓库；所有改动都在本仓库内。
 
 ### 2.2 两套「选择」机制，不要混淆
 - **(A) CadQuery 字符串 / 对象选择器**（cq-compat 实现，本次迁移对象）：`resolveFaceSelector(shape,'>Z')`、`edges('|Z')`、`DirectionSelector` 类等；枚举真实 BREP 的面 / 边 / 顶点，按方向 / 命名视图 / 索引挑。
 - **(B) core 的命名 / 血缘 TopoRef 系统**（`api/topo-resolve.ts` + `topology/naming/`）：按 `(origin, role)` 在构建期捕获、运行期沿血缘 DAG 回走重算（`roleTable` miss → `recomputeViaLineage`）。这是 faijs 自有命名拓扑能力，与 (A) 正交。**本次不改动它，且新子系统与之物理隔离**。
 
-### 2.3 cq-compat 的 CadQuery 选择器面（本次迁移对象，经读 `packages/cq-compat/src` 确认）
+### 2.3 cq-compat 的 CadQuery 选择器面（本次迁移对象，经读 `packages/faijs-cadquery/src` 确认）
 - 字符串解析器：
   - `resolveFaceSelector(shape, sel, centerOption?)` — `workplane.ts:565`，返回 `{ center, normal }`。
   - `resolveEdgeSelection(shape, sel)` — `workplane.ts:4878`：`|X|Y|Z` 轴平行边；`#X#Y#Z` 轴极值边（含并列）；空 = 全部。
@@ -151,7 +151,7 @@ cq-compat `asBrepShape` 处理 compatOp 借用视图（`{ wrapped: {id} }`）→
    export { resolveFaceSelector, resolveEdgeSelector, resolveVertexSelector }
      from '@faicad/faijs/api/cadquery-selectors'
    ```
-   （保持 `@faicad/cq-compat` 公共 API 不变，下游无感）。
+   （保持 `@faicad/faijs-cadquery` 公共 API 不变，下游无感）。
 3. 选择器类（`DirectionSelector`/`StringSyntaxSelector`/`NearestToPointSelector`/`TypeSelector`，`shape-class.ts`）Phase 2 改为从 core 引入实现或薄继承——注意 `DirectionSelector` 用 `containsPoint` 做符号消歧，须先确认 `BrepEngineApi` 是否等价（见 §7 风险）。
 4. `asBrepShape` **保留**在 cq-compat（它仍被 cq-compat 的装配代码 `constraintEx` 使用，且本项目核心入口也要用它，不属于可删的重复代码）。
 5. Workplane 管道、`CqShape` 类模型、CadQuery op 语义**保留**（这些是 cq-compat 的职责，不属于「选择器解析」）。
@@ -169,7 +169,7 @@ cq-compat `asBrepShape` 处理 compatOp 借用视图（`{ wrapped: {id} }`）→
    - edge / vertex 分支：用本机 CadQuery 2.8.0（`.venv`）跑对照，记录期望值再断言；本机不可用时标注待验证。
 
 ### cq-compat
-5. 改 re-export 后，`npm test -w @faicad/cq-compat` 确认 `resolveFaceSelector` 行为与旧版一致（同样以 CadQuery 2.8.0 为基准）。
+5. 改 re-export 后，`npm test -w @faicad/faijs-cadquery` 确认 `resolveFaceSelector` 行为与旧版一致（同样以 CadQuery 2.8.0 为基准）。
 
 ---
 

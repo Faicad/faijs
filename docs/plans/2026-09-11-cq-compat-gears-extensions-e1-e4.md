@@ -3,7 +3,7 @@
 日期：2026-09-11
 状态：**已落地 / 已验证**（2026-09-11）—— 4 个 op 已在 `workplane.ts` 实现并导出，11 个单元测试全绿，全包 122 测试无回归；parity（run-cand 镜像）已执行：E3 `splitFace` 3 用例 PASS，E1/E2/E4 按根因登记 BLOCKED（见 §13 实施记录、§14 parity 结果）。**E1 `splineFace` 已按其 §4.5 验收补齐（默认 S2 `row-approx-loft`，实测 4.2e-11 / 5.6e-7），详见 §4.6。**
 上游需求源：`docs/plans/2026-09-11-fai-cq-gears-port.md` §4（fai_cq_gears 移植依赖 cq-compat，本文件是该依赖的 cq-compat 侧落地拆分）
-适用范围：仅 `@faicad/cq-compat` 包内改动，随 cq-compat 独立 PR 合入；fai_cq_gears 侧消费见上游方案。
+适用范围：仅 `@faicad/faijs-cadquery` 包内改动，随 cq-compat 独立 PR 合入；fai_cq_gears 侧消费见上游方案。
 
 ---
 
@@ -57,14 +57,14 @@
 
 ## 3. 通用实现范式（每个 E 都遵循）
 
-1. **加 op 函数**：在 `packages/cq-compat/src/workplane.ts` 新增 `export function <op>(wp: Workplane, ...): Workplane`，末尾 `return clone(wp, { shape: <newShape> })`（或视语义改 pending/selector）。
+1. **加 op 函数**：在 `packages/faijs-cadquery/src/workplane.ts` 新增 `export function <op>(wp: Workplane, ...): Workplane`，末尾 `return clone(wp, { shape: <newShape> })`（或视语义改 pending/selector）。
 2. **调内核**：`const k = getKernel() as unknown as OcctKernel`，调用 §2.1 的原生方法；返回 `ShapeHandle` 经 `fromHandle(...)` / `brepOf(...)`（workplane.ts:15-16 已导入）包成 faijs `Shape`。
 3. **错误处理**：内核返回非空 `ShapeHandle` 才包；失败抛 `[cq-compat] <op>: ...` 错误信息（参照 spline 的 `throw new Error('[cq-compat] spline: ...')`，workplane.ts:1723/1767/1777）。
 4. **导出**：在 `src/index.ts:17` 块追加名字。
 5. **JSDoc**：定义处写完整 JSDoc（门禁硬要求）。
 6. **单元测试**：`src/<op>.test.ts`，`beforeAll` 内 `await initOcctWasm()`（参照 cq-compat.test.ts:9/98），断言几何量化指标（见各 E 验收）。
-7. **parity 镜像**：在 `packages/cq-compat/tests/test_cadquery/` 加 CadQuery 标准库 op 的 Python 镜像脚本 + 对应 TS 消费，跑 `npx tsx tests/run-cand.ts --only <substring>`。
-8. **构建**：改 src 后先 `npm run build -w @faicad/cq-compat`（run-cand 消费 dist，见工作记忆 parity 流程）。
+7. **parity 镜像**：在 `packages/faijs-cadquery/tests/test_cadquery/` 加 CadQuery 标准库 op 的 Python 镜像脚本 + 对应 TS 消费，跑 `npx tsx tests/run-cand.ts --only <substring>`。
+8. **构建**：改 src 后先 `npm run build -w @faicad/faijs-cadquery`（run-cand 消费 dist，见工作记忆 parity 流程）。
 
 ---
 
@@ -266,15 +266,15 @@ export function twistExtrude(
 ## 8. 测试策略
 
 ### 8.1 单元测试（vitest，快速反馈）
-- 每个 E 加 `packages/cq-compat/src/<op>.test.ts`，复用共享 harness `gear-test-harness.ts` 的 `setupNativeKernel()`（内部 `registerOcctBrepEngine()` + `configureBackends({kernel:{brep:getKernel()}})`，使 `fromHandle` 可用且与原生单例同实例；**不要**用 `initOcctWasm()` 另起实例，也不要用 `createRuntime` 直接调 op——见 §13.2）。
+- 每个 E 加 `packages/faijs-cadquery/src/<op>.test.ts`，复用共享 harness `gear-test-harness.ts` 的 `setupNativeKernel()`（内部 `registerOcctBrepEngine()` + `configureBackends({kernel:{brep:getKernel()}})`，使 `fromHandle` 可用且与原生单例同实例；**不要**用 `initOcctWasm()` 另起实例，也不要用 `createRuntime` 直接调 op——见 §13.2）。
 - 基类形状经原生 `getKernel()` 构造（`makeBox`/`makeRectangle`+`translate`/`makeCircleEdge`+`makeWire`+`makeFace`），避免走 `cad.*` 后端。workplane 根用 literal（`mkWP()`，非 `cq.workplane('XY')`）。
 - 断言见各 E §5/§6/§7 验收；E4 额外有 "no profile → throws" 守卫用例。
-- 跑：`npm run test -w @faicad/cq-compat`（或 `npx vitest run src/<op>.test.ts`）。
+- 跑：`npm run test -w @faicad/faijs-cadquery`（或 `npx vitest run src/<op>.test.ts`）。
 
 ### 8.2 parity 镜像（run-cand，对照 CadQuery 2.8.0 标准库）
-- 在 `packages/cq-compat/tests/test_cadquery/` 加 4 个 Python 镜像脚本，分别用 CadQuery 标准库 `Face.makeSplineSurface` / `Workplane().makeHelix` / `face.split` / `Workplane().twistExtrude` 生成 reference STEP。
+- 在 `packages/faijs-cadquery/tests/test_cadquery/` 加 4 个 Python 镜像脚本，分别用 CadQuery 标准库 `Face.makeSplineSurface` / `Workplane().makeHelix` / `face.split` / `Workplane().twistExtrude` 生成 reference STEP。
 - 跑：`npx tsx tests/run-cand.ts --only <substring>`（substring 如 `face_spline` / `helix` / `split_face` / `twist_extrude`）。
-- **流程硬约束**：run-cand 消费 dist；改 src 后**先** `npm run build -w @faicad/cq-compat` 再 run-cand（工作记忆 parity 流程）。
+- **流程硬约束**：run-cand 消费 dist；改 src 后**先** `npm run build -w @faicad/faijs-cadquery` 再 run-cand（工作记忆 parity 流程）。
 - 参考值生成用 `C:\Users\ylt\cadquery-env\Scripts\python.exe out/probe.py <step>`（上游方案 §1.5 已记录；旧路径 `C:\Users\yuan_\cq-editor\python.exe` 由执行方二选一）。
 
 ---
@@ -282,19 +282,19 @@ export function twistExtrude(
 ## 9. 验收门禁（本 PR 必须全绿）
 
 1. **JSDoc 门禁**：`verify-export-jsdoc` repo-wide 扫描通过（4 个新导出 op 在 `workplane.ts` 定义处均有完整 JSDoc）。
-2. **构建**：`npm run build -w @faicad/cq-compat` 通过。
-3. **单元测试**：`npm run test -w @faicad/cq-compat` 中 4 个新 `<op>.test.ts` 全绿。
+2. **构建**：`npm run build -w @faicad/faijs-cadquery` 通过。
+3. **单元测试**：`npm run test -w @faicad/faijs-cadquery` 中 4 个新 `<op>.test.ts` 全绿。
 4. **parity**：4 个新 `run-cand` case 达到 PASS 或 PASS-NT（参考 occt-wasm Deg/Tol 对齐后精度）。
-5. **改动边界**：`git diff` 核验除 `workplane.ts` + `index.ts` + 新测试/镜像文件外，`packages/cq-compat/src/**` 无其它逻辑改动；**不触碰 `packages/core` / `packages/fai_cq_gears`**（fai_cq_gears 消费侧改动在上游方案、独立 PR）。
+5. **改动边界**：`git diff` 核验除 `workplane.ts` + `index.ts` + 新测试/镜像文件外，`packages/faijs-cadquery/src/**` 无其它逻辑改动；**不触碰 `packages/core` / `packages/fai_cq_gears`**（fai_cq_gears 消费侧改动在上游方案、独立 PR）。
 6. **内核单例**：4 个 op 全部经 `getKernel()`，无 `initOcctWasm()` 另起实例（grep 核验）。
 
 ---
 
 ## 10. 与 fai_cq_gears 的接口契约
 
-- fai_cq_gears 消费方式（上游方案 §4）：`import { splineFace, helix, splitFace, twistExtrude } from '@faicad/cq-compat'`。
+- fai_cq_gears 消费方式（上游方案 §4）：`import { splineFace, helix, splitFace, twistExtrude } from '@faicad/faijs-cadquery'`。
 - **临时 shim 删除条款**（上游方案 §4 末段）：fai_cq_gears `src/kernel.ts` 可能在 E1–E4 合入前保留 `// TEMP-SHIM: delete when cq-compat E{n} lands` 薄桥；本 PR 合入后，fai_cq_gears 侧必须删除对应 shim，使 `grep -rn "occt-wasm\|initOcctWasm\|RawOcctKernel" packages/fai_cq_gears/src` 除已删 shim 外零命中（上游方案 §11 验收第 2 条）。
-- 版本配合：本 PR 合入并发布 cq-compat 后，fai_cq_gears 的 `package.json` devDependency `@faicad/cq-compat` 指向更新版本，方可解锁对应齿轮类。
+- 版本配合：本 PR 合入并发布 cq-compat 后，fai_cq_gears 的 `package.json` devDependency `@faicad/faijs-cadquery` 指向更新版本，方可解锁对应齿轮类。
 
 ---
 
@@ -312,10 +312,10 @@ export function twistExtrude(
 
 ```bash
 # 构建（run-cand 消费 dist，必须先 build）
-npm run build -w @faicad/cq-compat
+npm run build -w @faicad/faijs-cadquery
 
 # 单元测试
-npm run test -w @faicad/cq-compat
+npm run test -w @faicad/faijs-cadquery
 
 # parity 增量（仅跑某 E）
 npx tsx tests/run-cand.ts --only face_spline
@@ -332,9 +332,9 @@ npx tsx tests/run-cand.ts --only twist_extrude
 ## 13. 实施记录（2026-09-11，实测结论，给 fai_cq_gears 移植与后续原生 op 复用）
 
 ### 13.1 落地文件
-- `packages/cq-compat/src/workplane.ts`：§齿轮扩展区（workplane.ts:4082 起）新增 4 个 `export async function`：
+- `packages/faijs-cadquery/src/workplane.ts`：§齿轮扩展区（workplane.ts:4082 起）新增 4 个 `export async function`：
   `splineFace`（bsplineSurface）、`helix`（makeHelixWire）、`splitFace`（halfSpace + split + getSubShapes 选片）、`twistExtrude`（原生 rotate/translate 扫截面 + loft）。
-- `packages/cq-compat/src/index.ts`:87-90 导出块追加 4 个名字。
+- `packages/faijs-cadquery/src/index.ts`:87-90 导出块追加 4 个名字。
 - 单元测试：`splineFace.test.ts` / `helix.test.ts` / `splitFace.test.ts` / `twistExtrude.test.ts`（共 9 用例）。
 - 共享测试 harness：`gear-test-harness.ts`（非 `.test.ts`，不被 vitest 当作用例；被 4 个 spec 复用）。
 
@@ -351,10 +351,10 @@ npx tsx tests/run-cand.ts --only twist_extrude
 6. **【测试基类约束】**：`makeRectangle(w,h)` 直接返回面（无需 makeWire+makeFace）；单 circle edge 经 `makeFace` 会 "construction failed"（圆边不被 OCCT 当作闭合 wire 接收），故 profile 用 `makeRectangle` + `translate` 居中。
 
 ### 13.3 验收结果（本 PR 门禁）
-- 构建：`npm run build -w @faicad/cq-compat` 通过（6 dist 文件，无 stderr）。
-- 类型：`tsc --noEmit -p packages/cq-compat/tsconfig.json` 通过（含 4 个测试文件 + harness）。
+- 构建：`npm run build -w @faicad/faijs-cadquery` 通过（6 dist 文件，无 stderr）。
+- 类型：`tsc --noEmit -p packages/faijs-cadquery/tsconfig.json` 通过（含 4 个测试文件 + harness）。
 - 单元：4 个新 `<op>.test.ts` **9/9 全绿**。
-- 回归：`npm run test -w @faicad/cq-compat` 全包 **122/122 通过**（15 文件），无回归。
+- 回归：`npm run test -w @faicad/faijs-cadquery` 全包 **122/122 通过**（15 文件），无回归。
 - 内核单例：4 op 全部经 `getKernel()`，无 `initOcctWasm()` 另起实例（grep 核验）。
 - parity（run-cand，§8.2）：**已执行**（2026-09-11，本机 cadquery-env）。E3 `splitFace` 3 个用例 **PASS**（本包 parity 35.23% → **35.69%**，PASS +3）；E1/E2/E4 经实测**不可由现有比较器判分**，已按框架约定登记 `blocked`（见 §14）。
 

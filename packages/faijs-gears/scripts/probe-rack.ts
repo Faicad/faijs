@@ -8,7 +8,7 @@
  * 用法：node ../../node_modules/tsx/dist/cli.mjs scripts/probe-rack.ts
  */
 
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { buildSplineFace } from '../src/spline-face'
 import type { ToothGrid } from '../src/profile'
 import type { Vec3 } from '../src/math'

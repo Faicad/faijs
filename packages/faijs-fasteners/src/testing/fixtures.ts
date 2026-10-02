@@ -53,7 +53,7 @@ export function ourStepPath(id: string): string {
  *
  * ⚠️ 不能直接传 `readFileSync` 的 Buffer：小文件会被 Node 放进 8KB 池，
  * `buf.buffer` 是整个池（尾部有垃圾），STEP < ~4KB 时导入必失败。
- * 同一处理见 `@faicad/cq-compat` 的 `step-compare.ts`。
+ * 同一处理见 `@faicad/faijs-cadquery` 的 `step-compare.ts`。
  * @param path - STEP 文件绝对路径。
  * @returns 仅覆盖该文件字节的 ArrayBuffer。
  */

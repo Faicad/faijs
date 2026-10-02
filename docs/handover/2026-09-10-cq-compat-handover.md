@@ -1,12 +1,12 @@
 # cq-compat ⇄ CadQuery parity 项目交接说明
 
-> 首版 2026-09-10；**本版刷新 2026-09-11（基线数据、E1–E4 落地、E5/E6 缺口全部更新）**。交接对象：接手的第三方开发方 / Agent。交接范围：`faijs` monorepo 中的 `packages/cq-compat`（CadQuery 兼容层）及其 parity（几何一致性）验证体系。
+> 首版 2026-09-10；**本版刷新 2026-09-11（基线数据、E1–E4 落地、E5/E6 缺口全部更新）**。交接对象：接手的第三方开发方 / Agent。交接范围：`faijs` monorepo 中的 `packages/faijs-cadquery`（CadQuery 兼容层）及其 parity（几何一致性）验证体系。
 
 ---
 
 ## 0. 三分钟速览
 
-**这个项目在做什么** 在 JS/TS（浏览器 + Node）里复刻 **CadQuery 2.8.0** 的几何建模能力，包名 `@faicad/cq-compat`，底层几何内核是 `occt-wasm`（OCCT 编译到 WebAssembly），通过 faijs 的 BREP 链路驱动。
+**这个项目在做什么** 在 JS/TS（浏览器 + Node）里复刻 **CadQuery 2.8.0** 的几何建模能力，包名 `@faicad/faijs-cadquery`，底层几何内核是 `occt-wasm`（OCCT 编译到 WebAssembly），通过 faijs 的 BREP 链路驱动。
 
 **怎么衡量做得对不对** 用「几何一致性比对（parity）」而不是单元测试来判定：
 
@@ -99,7 +99,7 @@ C:\Users\ylt\cadquery-env\Scripts\python.exe -m pip install -i https://pypi.tuna
 
 ### 1.3 版本锁定文件
 
-`packages/cq-compat/tests/baseline.json`（**改这里等于改基线，需双方确认**）：
+`packages/faijs-cadquery/tests/baseline.json`（**改这里等于改基线，需双方确认**）：
 
 ```json
 {
@@ -116,14 +116,14 @@ C:\Users\ylt\cadquery-env\Scripts\python.exe -m pip install -i https://pypi.tuna
 }
 ```
 
-> ❗ **CadQuery 源码检出的坑**：`C:\git\CADQ\cadquery` 当前 HEAD 是 `a6bedc0`（`v2.8.0-20`，提交信息 "Try OCP 8.0.1"），它依赖 **OCP 8.0.1**，与 venv 里装的 7.9.3.1.1 **不兼容**。所以所有参考数据一律以 **`v2.8.0` tag 快照**为准，通过 `git -C <src> archive v2.8.0 tests` 抽到 `packages/cq-compat/out/cache/v2.8.0/tests`（**只读快照，不要改用户检出**）。
+> ❗ **CadQuery 源码检出的坑**：`C:\git\CADQ\cadquery` 当前 HEAD 是 `a6bedc0`（`v2.8.0-20`，提交信息 "Try OCP 8.0.1"），它依赖 **OCP 8.0.1**，与 venv 里装的 7.9.3.1.1 **不兼容**。所以所有参考数据一律以 **`v2.8.0` tag 快照**为准，通过 `git -C <src> archive v2.8.0 tests` 抽到 `packages/faijs-cadquery/out/cache/v2.8.0/tests`（**只读快照，不要改用户检出**）。
 
 ---
 
 ## 2. 目录结构导览（cq-compat）
 
 ```
-packages/cq-compat/
+packages/faijs-cadquery/
   src/
     index.ts              # cq-compat 公共导出面（Workplane / box / shell / wedge / loft / wire2d /
                           #   splineFace / helix / splitFace / twistExtrude …）
@@ -211,7 +211,7 @@ packages/cq-compat/
 // source: test_cadquery.py::TestCadQuery::testClosedShell (var s1)
 // s1 = Workplane("XY").box(2, 2, 2).shell(-0.1)
 // Closed hollow, walls inward: 12 faces, vol 2.168 (= 8 - 1.8^3).
-import * as cq from '@faicad/cq-compat'
+import * as cq from '@faicad/faijs-cadquery'
 let b = await cq.box(cq.Workplane('XY'), 2, 2, 2)
 let s1 = await cq.shell(b, -0.1)
 let result = cq.val(s1)
@@ -260,7 +260,7 @@ npm install --registry=https://registry.npmmirror.com
 # 构建（顺序很重要：core → 门面 → cq-compat）
 npm run build -w @faicad/faijs
 npm run build                 # 根门面（会先 clean dist）
-npm run build -w @faicad/cq-compat
+npm run build -w @faicad/faijs-cadquery
 ```
 
 > ⚠️ **构建顺序是硬约束**：`packages/core/dist` 经常落后于 `src`；改了 core 后不先 build core，下游包会报 `${symbol} 不存在`。workspace 链接缺失时重跑 `npm install`。
@@ -269,7 +269,7 @@ npm run build -w @faicad/cq-compat
 
 ```bash
 # 产出约 650 个 STEP / 约 21 MB（已 gitignore）
-C:/Users/ylt/cadquery-env/Scripts/python.exe packages/cq-compat/tests/ref-harness/run-ref.py
+C:/Users/ylt/cadquery-env/Scripts/python.exe packages/faijs-cadquery/tests/ref-harness/run-ref.py
 # 等价：npm run compat:ref
 ```
 
@@ -278,8 +278,8 @@ C:/Users/ylt/cadquery-env/Scripts/python.exe packages/cq-compat/tests/ref-harnes
 ### 4.2 覆盖率静态分析（可选但是 gen-manifest 的输入）
 
 ```bash
-C:/Users/ylt/cadquery-env/Scripts/python.exe packages/cq-compat/tests/ref-harness/analyze-coverage.py \
-    --json packages/cq-compat/tests/coverage.json
+C:/Users/ylt/cadquery-env/Scripts/python.exe packages/faijs-cadquery/tests/ref-harness/analyze-coverage.py \
+    --json packages/faijs-cadquery/tests/coverage.json
 ```
 
 > **已知噪音**：该脚本退出码可能是 139 / 段错误（venv 卸载 OCCT DLL 时），**JSON 已写完，可忽略**。
@@ -287,7 +287,7 @@ C:/Users/ylt/cadquery-env/Scripts/python.exe packages/cq-compat/tests/ref-harnes
 ### 4.3 生成/刷新三态清单
 
 ```bash
-npx tsx packages/cq-compat/tests/gen-manifest.ts
+npx tsx packages/faijs-cadquery/tests/gen-manifest.ts
 ```
 
 依赖 `out/ref/manifest.json`（所以 4.1 必须先跑）。它会保留已有手工标注（`status`/`blockedBy`/`manual`）。
@@ -295,18 +295,18 @@ npx tsx packages/cq-compat/tests/gen-manifest.ts
 ### 4.4 导出候选 STEP
 
 ```bash
-npx tsx packages/cq-compat/tests/run-cand.ts                 # 全量（约 20 分钟）
-npx tsx packages/cq-compat/tests/run-cand.ts --only test_loft # 增量（推荐日常用）
-npx tsx packages/cq-compat/tests/run-cand.ts --module test_free_functions
+npx tsx packages/faijs-cadquery/tests/run-cand.ts                 # 全量（约 20 分钟）
+npx tsx packages/faijs-cadquery/tests/run-cand.ts --only test_loft # 增量（推荐日常用）
+npx tsx packages/faijs-cadquery/tests/run-cand.ts --module test_free_functions
 ```
 
-> ❗ **改了 `packages/cq-compat/src` 之后，必须先 `npm run build -w @faicad/cq-compat` 再跑 run-cand**——run-cand 是调 faijs CLI，CLI 经 `@faicad/cq-compat` 的 `main` 走 **dist**。（vitest 单测走 src alias，两者口径不同。）
+> ❗ **改了 `packages/faijs-cadquery/src` 之后，必须先 `npm run build -w @faicad/faijs-cadquery` 再跑 run-cand**——run-cand 是调 faijs CLI，CLI 经 `@faicad/faijs-cadquery` 的 `main` 走 **dist**。（vitest 单测走 src alias，两者口径不同。）
 
 ### 4.5 比对出报告
 
 ```bash
-npx tsx packages/cq-compat/tests/compare.ts
-# 产物：packages/cq-compat/out/report.md（人读）+ out/report.json（机读）
+npx tsx packages/faijs-cadquery/tests/compare.ts
+# 产物：packages/faijs-cadquery/out/report.md（人读）+ out/report.json（机读）
 ```
 
 一键串起来：`npm run compat:report`（= gen-manifest → run-cand → compare）。
@@ -314,9 +314,9 @@ npx tsx packages/cq-compat/tests/compare.ts
 ### 4.6 测试与 CI
 
 ```bash
-npm run test -w @faicad/cq-compat     # cq-compat 单测（vitest，走 src；约 5 分钟）
-npm run typecheck -w @faicad/cq-compat
-npm run lint -w @faicad/cq-compat
+npm run test -w @faicad/faijs-cadquery     # cq-compat 单测（vitest，走 src；约 5 分钟）
+npm run typecheck -w @faicad/faijs-cadquery
+npm run lint -w @faicad/faijs-cadquery
 npm run doc-sync                      # 全仓文档门禁（提交前必过）
 pwsh -NoProfile scripts/ci.ps1        # 全量 CI（慢，不要拿它找 bug）
 ```
@@ -336,7 +336,7 @@ pwsh -NoProfile scripts/ci.ps1        # 全量 CI（慢，不要拿它找 bug）
 7. **Windows 下 `spawnSync` 解析不了无扩展名的 `npx` shim**，`run-cand.ts` 里已通过 `shell: true` 处理，不要「优化」掉。
 8. **`analyze-coverage.py` 的 139 退出码是已知噪音**，不要当成失败去修。
 9. **CadQuery 检出的 HEAD 依赖 OCP 8.0.1，与 venv 的 7.9.3.1.1 不兼容**——一律用 `v2.8.0` tag 快照。
-10. **`tsx` 调试脚本不能直接 `import '@faicad/cq-compat'`**（模块解析会失败）。要调试就写临时 vitest 测试文件（模式照抄 `src/wire2d.test.ts` 的 `beforeAll` runtime 初始化）。
+10. **`tsx` 调试脚本不能直接 `import '@faicad/faijs-cadquery'`**（模块解析会失败）。要调试就写临时 vitest 测试文件（模式照抄 `src/wire2d.test.ts` 的 `beforeAll` runtime 初始化）。
 11. **上游语义不要停留在 CadQuery 的 Python 包装层**，用 `inspect.getsource` 逐层追到具体 OCCT 类（例如 `BRepBuilderAPI_MakeWire` 的 List 重载、`LocOpe_DPrism`、`MakeThickSolidByJoin`）。
 12. **kernel 能力「声明存在 ≠ 可用」**：先扫 `node_modules/occt-wasm/dist/index.d.ts` 的方法清单，再写临时 vitest 探针实测（`offsetWire2D`、`draft`、`sweepOriented(auxSpine)` 都在实测中失败过）。
 13. **【新增】直接调原生 kernel op 前必须配 `configureBackends`**（E1–E4 实施时踩到，见 §7.12）。`registerOcctBrepEngine()` 只初始化原生单例 + 注册引擎，**不**调 `configureBackends`；不配就调 op 会抛 "backends not configured"。也**不要**用 `createRuntime(ports,'brep')`——它的 `kernel.brep` 只在 `runtime.execute` 内惰性填充，直接调 op 取到 null。
@@ -447,7 +447,7 @@ E1–E4 已实现并导出（`splineFace` / `helix` / `splitFace` / `twistExtrud
 2. 写 `.fai.js` 镜像 → `gen-manifest` → `run-cand --only <子串>` → `compare`；
 3. 失败的先解剖 ref STEP 的**逐面几何类型**（PLANE/CONE/BSPLINE + 面积 + 质心）判断上游走的是哪条 OCCT 路径，再决定「复刻」还是「manual block」；
 4. 确认不可复刻：`mark-blocked.ts` 登记 `manual: true` + 具体 `blockedBy`，并**删掉 cand STEP**；
-5. 收尾：`npm run test -w @faicad/cq-compat` 全绿 + `compare` 的 FAIL 数不增加，然后在 phase2 计划追加 `### 7.2x 阶段 K …` 记录（**并保持本交接文档 §0 的基线表同步**）。
+5. 收尾：`npm run test -w @faicad/faijs-cadquery` 全绿 + `compare` 的 FAIL 数不增加，然后在 phase2 计划追加 `### 7.2x 阶段 K …` 记录（**并保持本交接文档 §0 的基线表同步**）。
 
 ### 8.3 cq-compat 的下游消费者：`fai_cq_gears`
 
@@ -459,8 +459,8 @@ E1–E4 已实现并导出（`splineFace` / `helix` / `splitFace` / `twistExtrud
 
 | 需求 | 手段 |
 |---|---|
-| 看某个 STEP 的体积/质心/包围盒/面数 | `C:/Users/ylt/cadquery-env/Scripts/python.exe packages/cq-compat/out/probe.py <a.step> <b.step>` |
-| 抠出上游某个测试方法的源码 | `C:/Users/ylt/cadquery-env/Scripts/python.exe packages/cq-compat/out/extract-case.py TestCadQuery.testLoft` |
+| 看某个 STEP 的体积/质心/包围盒/面数 | `C:/Users/ylt/cadquery-env/Scripts/python.exe packages/faijs-cadquery/out/probe.py <a.step> <b.step>` |
+| 抠出上游某个测试方法的源码 | `C:/Users/ylt/cadquery-env/Scripts/python.exe packages/faijs-cadquery/out/extract-case.py TestCadQuery.testLoft` |
 | 查上游某函数的真实实现（追到 OCCT 类） | `C:/Users/ylt/cadquery-env/Scripts/python.exe -c "import inspect, cadquery; print(inspect.getsource(cadquery.Solid.extrudeLinear))"` |
 | 查 wasm kernel 有哪些方法 | 扫 `node_modules/occt-wasm/dist/index.d.ts` |
 | 实测某个 kernel 方法能不能用 | 写临时 vitest 文件（照抄 `src/wire2d.test.ts` 的 beforeAll 初始化），不要用裸 tsx 脚本 |
@@ -474,13 +474,13 @@ E1–E4 已实现并导出（`splineFace` / `helix` / `splitFace` / `twistExtrud
 
 按顺序跑完，全部通过才算环境接住了：
 
-- [ ] `npm run build -w @faicad/faijs && npm run build && npm run build -w @faicad/cq-compat` 无错误
-- [ ] `C:/Users/ylt/cadquery-env/Scripts/python.exe packages/cq-compat/tests/ref-harness/run-ref.py` → `out/ref` 有 **650** 个 `.step`
-- [ ] `npx tsx packages/cq-compat/tests/gen-manifest.ts` → `tests/manifest.json` 条目数不减少（基线 699）
-- [ ] `npx tsx packages/cq-compat/tests/run-cand.ts` → `out/cand` 有 **282** 个 `.step`（全量约 20 分钟）
-- [ ] `npx tsx packages/cq-compat/tests/compare.ts` → 输出 `PASS=247 PASS-NT=4 FAIL=1 ERROR=0 BLOCKED=398 parity=38.62%`
-- [ ] `npm run test -w @faicad/cq-compat` → **124 passed / 0 failed（15 files）**
-- [ ] `npm run typecheck -w @faicad/cq-compat` 无错误
+- [ ] `npm run build -w @faicad/faijs && npm run build && npm run build -w @faicad/faijs-cadquery` 无错误
+- [ ] `C:/Users/ylt/cadquery-env/Scripts/python.exe packages/faijs-cadquery/tests/ref-harness/run-ref.py` → `out/ref` 有 **650** 个 `.step`
+- [ ] `npx tsx packages/faijs-cadquery/tests/gen-manifest.ts` → `tests/manifest.json` 条目数不减少（基线 699）
+- [ ] `npx tsx packages/faijs-cadquery/tests/run-cand.ts` → `out/cand` 有 **282** 个 `.step`（全量约 20 分钟）
+- [ ] `npx tsx packages/faijs-cadquery/tests/compare.ts` → 输出 `PASS=247 PASS-NT=4 FAIL=1 ERROR=0 BLOCKED=398 parity=38.62%`
+- [ ] `npm run test -w @faicad/faijs-cadquery` → **124 passed / 0 failed（15 files）**
+- [ ] `npm run typecheck -w @faicad/faijs-cadquery` 无错误
 - [ ] `npm run doc-sync` 全绿
 
 若 PASS/parity 与基线不一致，**先查是不是 `out/cand` 里残留了已 block 用例的 STEP**（坑 #1）。另注意 `out/cand` 里可能有若干形如 `<case>.step_0_*` / `.step_1_*` 的中间产物（多步导出残留），它们不参与配对计分，属于无害噪音。
@@ -525,7 +525,7 @@ block 分类原则：内核/比较器限制 → blocked（写清根因）；几�
 
 四个必须记住的坑：
   1) block 一个 case 要同时删 out/cand/<case>.step（compare 扫目录不读 manifest）
-  2) 改 src 后必须 npm run build -w @faicad/cq-compat 再 run-cand（CLI 走 dist）
+  2) 改 src 后必须 npm run build -w @faicad/faijs-cadquery 再 run-cand（CLI 走 dist）
   3) 新增镜像后必须重跑 gen-manifest.ts
   4) 直接调原生 kernel op 前必须 configureBackends（否则 "backends not configured"）
 

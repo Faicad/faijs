@@ -87,7 +87,7 @@ FSA picker / OPFS / 拖拽目录 / zip / IndexedDB，选哪个是产品决策。
 - **不改 `packages/demo/e2e/demo.spec.ts` 的既有断言**：P1（搬家）结束后它应当是**零 diff**；
   P2（zip）只允许**追加**用例，不允许改写既有用例。
 - **不动引擎**：`cad-runtime/`、`node-host/`、`autoLiftFor`、`libLoader` 全部不动。
-- **不动** `packages/cq-compat` 的 5 个 `top` → `top_face` 改名与 tests README 双语修复
+- **不动** `packages/faijs-cadquery` 的 5 个 `top` → `top_face` 改名与 tests README 双语修复
   （修的是 pre-existing 红，与本题无关，回退它们只会制造噪声）。
 - **不做** zip 写回 / 导出 zip / 从 URL 拉 zip / 拖拽目录 / IndexedDB 持久化 / 多目录挂载 /
   `findProjectRoot` 浏览器版（延续旧方案的非目标，本方案也不做）。
@@ -426,7 +426,7 @@ async function zipFaiProject(files: Record<string, string>): Promise<Buffer> {
 
 | # | 用例 | 关键断言 |
 |---|---|---|
-| Z1 | **真实 mini_lathe**（`readFaiProjectTree(new URL('../../mini_lathe/', import.meta.url))` → `zipFaiProject` → `setInputFiles('#zip-input', { name: 'mini_lathe.zip', mimeType: 'application/zip', buffer })`） | `#example-select` 值 = `__proj:src/assembly.fai.js`；编辑器含 `import * as cq from '@faicad/cq-compat'`；状态栏匹配 `/Project: \S+ \(src\/assembly\.fai\.js\) — OK — brep: \d+ shape\(s\)/`；STEP 下载以 `ISO-10303-21` 开头且含 `ADVANCED_FACE` |
+| Z1 | **真实 mini_lathe**（`readFaiProjectTree(new URL('../../mini_lathe/', import.meta.url))` → `zipFaiProject` → `setInputFiles('#zip-input', { name: 'mini_lathe.zip', mimeType: 'application/zip', buffer })`） | `#example-select` 值 = `__proj:src/assembly.fai.js`；编辑器含 `import * as cq from '@faicad/faijs-cadquery'`；状态栏匹配 `/Project: \S+ \(src\/assembly\.fai\.js\) — OK — brep: \d+ shape\(s\)/`；STEP 下载以 `ISO-10303-21` 开头且含 `ADVANCED_FACE` |
 | Z2 | 顶层包裹目录（把 `e2e/fixtures/mesh-project/` 的 key 全部加 `wrapped/` 前缀再打包） | 入口选中 `__proj:wrapped/src/assembly.fai.js`（后缀启发式命中）；brep + mesh 双链都 OK；两个 canvas 截图 > 1000 字节 |
 | Z3 | zip 内无 `.fai.js`（只放 `README.md`） | 状态栏含 `没有 .fai.js 文件`；`class` 含 `error`；不进入项目模式 |
 | Z4 | 损坏 zip（`Buffer.from('not a zip')`） | 状态栏含 `打开压缩包失败:`；`class` 含 `error`；页面不崩（后续点击 Run 仍可用） |

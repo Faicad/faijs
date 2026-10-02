@@ -94,7 +94,7 @@ cq_gears 自身没有 `BevelGearPair` 的回归数据，故按方案 §9.4 用 `
 
 ### 6.2 T2（`compareAssemblyFiles`）：唯一越界项是**逐件体积容差**
 
-三例 T2 均判 `DIFFERENT`。为定位确切分项，按 `packages/cq-compat/src/assembly-compare.ts` 的判据复刻 Level 1–3（结构 + 逐件，不含 fuse/布尔），全精度实测如下（相对分数 = `diffPct / 100`）：
+三例 T2 均判 `DIFFERENT`。为定位确切分项，按 `packages/faijs-cadquery/src/assembly-compare.ts` 的判据复刻 Level 1–3（结构 + 逐件，不含 fuse/布尔），全精度实测如下（相对分数 = `diffPct / 100`）：
 
 | 用例 | 件 | 体积相对分数 | `volMatch`（容差 1e-6） | com 差 | bbox 差 |
 |---|---|---|---|---|---|

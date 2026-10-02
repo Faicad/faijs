@@ -261,7 +261,7 @@ test.describe('faijs demo', () => {
     // 同一组 cq-compat 原语（extrude / rect / fillet / val；fillet 为 brep-only，
     // mesh 链路 E_MESH_UNSUPPORTED）。
     const snippet = [
-      `import * as cq from '@faicad/cq-compat'`,
+      `import * as cq from '@faicad/faijs-cadquery'`,
       `let axk_wp = cq.extrude(cq.rect(cq.Workplane('XY'), 30, 20), 4)`,
       `axk_wp = cq.fillet(cq.edges(axk_wp, '|Z'), 1)`,
       `let axk = cq.val(axk_wp)`,
@@ -273,7 +273,7 @@ test.describe('faijs demo', () => {
     })
 
     await waitForStatusOk(page)
-    // 文件内容已载入编辑器，import specifier 为完整 scoped 名 '@faicad/cq-compat'
+    // 文件内容已载入编辑器，import specifier 为完整 scoped 名 '@faicad/faijs-cadquery'
     await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as cq from '@faicad\/cq-compat'/)
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
     const status = await page.locator(SELECTOR.statusBar).textContent()

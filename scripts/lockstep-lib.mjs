@@ -11,7 +11,7 @@
  *      family version line (`^<major>.<minor>.0`).
  *
  * The second half exists because of a 2026-09 incident: `faijs-gears` had bumped
- * itself to 0.16.x while its `dependencies` still declared `"@faicad/cq-compat":
+ * itself to 0.16.x while its `dependencies` still declared `"@faicad/faijs-cadquery":
  * "^0.14.0"`, so a CDN build resolved a stale `cq-compat@0.14.1` and the package
  * graph broke. Version equality alone cannot catch that; both halves are needed.
  */

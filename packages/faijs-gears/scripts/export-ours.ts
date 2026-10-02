@@ -14,7 +14,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { exportStepFromSolids, type StepExportEntry } from '@faicad/faijs'
 import { loadManifest, OUT_DIR, type ReferenceCase } from '../src/fixtures'
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { buildSpurGearSolid, buildHerringboneGearSolid, buildHyperbolicGearSolid, type BuildSpurGearOptions } from '../src/spur_gear'
 import {
   buildRingGearSolid, buildHerringboneRingGearSolid,
@@ -40,7 +40,7 @@ import type {
   HyperbolicGearParams, WormParams,
 } from '../src/profile'
 import type { SplineFaceStrategy } from '../src/spline-face'
-import type { GearKernel } from '@faicad/cq-compat'
+import type { GearKernel } from '@faicad/faijs-cadquery'
 import type { BrepHandle } from '@faicad/faijs'
 
 function arg(name: string): string | undefined {

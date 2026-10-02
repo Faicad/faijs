@@ -1,7 +1,7 @@
 /**
  * cadquery-selectors/borrow-bridge — compatOp 提升边界归一（等价搬运自 cq-compat）
  *
- * 原实现位于 `packages/cq-compat/src/workplane.ts` 的 `asBrepShape`，本文件为
+ * 原实现位于 `packages/faijs-cadquery/src/workplane.ts` 的 `asBrepShape`，本文件为
  * 原样搬运（仅 import 路径改为 core 内部相对路径），零逻辑改动。
  */
 

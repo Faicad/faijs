@@ -1,7 +1,7 @@
 # fai_cq_gears —— 把 cq_gears 移植为 faijs 库（以 cq-compat 为地基的可执行规范）
 
 日期：2026-09-11
-修订：2026-09-11 第 2 版（架构反转：从「裸 occt-wasm 内核自建」改为「依赖 `@faicad/cq-compat` 建模层」）
+修订：2026-09-11 第 2 版（架构反转：从「裸 occt-wasm 内核自建」改为「依赖 `@faicad/faijs-cadquery` 建模层」）
 状态：**15 类功能移植全部已落地（2026-09-13，见 §8 各类标注与 §13 风险表现状列）；架构迁移（cq-compat 化，§1/§4）与 T3 稳定性测试（§9.3）未实施**
 移植源（交由执行方持有，本机可不可用不影响本规范）：`C:\git\CADQ\cq_gears`（cq_gears 0.62，Apache-2.0）
 基线仓库：`D:\Faicad\faijs`
@@ -21,7 +21,7 @@
 > 当前请求（2026-09-11 第 1 版）：这份文档已过期，请重新写一份，要给能够无歧义的交给第三方执行。
 
 > **当前指令（2026-09-11 第 2 版，本次重写依据）**：必须重新写这份方案，让 cq_gears 的移植**依赖 cq-compat**。
-> 即 fai_cq_gears 不得直接在裸 `occt-wasm` 内核上自建几何，必须复用 `@faicad/cq-compat` 的 Workplane 建模层；
+> 即 fai_cq_gears 不得直接在裸 `occt-wasm` 内核上自建几何，必须复用 `@faicad/faijs-cadquery` 的 Workplane 建模层；
 > cq-compat 缺失的齿轮必需原语作为 cq-compat 的扩展任务补齐，fai_cq_gears 阻塞其上。
 
 拆解为 4 个目标，执行方必须逐项交付证据：
@@ -31,7 +31,7 @@
 | G1 | cq_gears → faijs **库**（非脚本），名 `fai_cq_gears` | 见 §6：包 `packages/fai_cq_gears`，绑定名 `fai_cq_gears`，导出函数式 API，返回 `Result` |
 | G2 | 功能完整移植 | 15 个类全部有对应导出（§8 逐类给出 cq_gears 源 op → cq-compat op 映射） |
 | G3 | 测试一并移植 | 三层测试 T1 回归（31 例 + 6 新类）、T2 STEP 等价性（用户点名核心）、T3 稳定性（§9） |
-| G4 | 用已有 STEP 等价性工具保证双方一致 | 复用 `@faicad/cq-compat` 的 `compareAssemblyFiles`（**不是** `compareStepFiles`，原因见 §1.8），A 侧 Python 出参考 STEP，B 侧 faijs（经 cq-compat）出对照 STEP |
+| G4 | 用已有 STEP 等价性工具保证双方一致 | 复用 `@faicad/faijs-cadquery` 的 `compareAssemblyFiles`（**不是** `compareStepFiles`，原因见 §1.8），A 侧 Python 出参考 STEP，B 侧 faijs（经 cq-compat）出对照 STEP |
 
 ---
 
@@ -45,13 +45,13 @@
 ### 1.2 本版决策：fai_cq_gears 是 cq-compat 的**消费者**
 
 cq_gears 在 Python 里本就是**建立在 CadQuery `Workplane` 操作之上**的库（`extrude` / `cut` / `union` / `loft` / `fillet` / `revolve` / `face` / `spline` / `translate` / `rotate` / `mirror`…）。
-`@faicad/cq-compat` 就是 CadQuery `Workplane` API 的 TS 兼容层（见 `packages/cq-compat/src/index.ts` 导出的全套 op）。
+`@faicad/faijs-cadquery` 就是 CadQuery `Workplane` API 的 TS 兼容层（见 `packages/faijs-cadquery/src/index.ts` 导出的全套 op）。
 因此**最自然的移植就是 1:1 翻译**：把 cq_gears 每个 `_build` 方法里的 CadQuery 调用，逐条映射到 cq-compat 的对应 op。
 这样 fai_cq_gears 自动继承 cq-compat 已解决的怪癖与规避，**不再重复踩坑**。
 
 ### 1.3 依赖边界（精确，避免歧义）
 
-fai_cq_gears **依赖** `@faicad/cq-compat` 的：
+fai_cq_gears **依赖** `@faicad/faijs-cadquery` 的：
 
 1. **全部建模 op**（§3 映射表）：extrude / cut / union / intersect / combine / loft / fillet / chamfer / shell / revolve / hole / face / spline / wire / box / cylinder / cone / torus / wedge / circle / ellipse / polygon / rect / rarray / translate / rotate / mirror / workplane / faces / edges / vertices / center / pushPoints / moveTo / lineTo / add / compound / val / transformed 等（`cq-compat/src/index.ts` 已导出，2026-09-11 实测）。
 2. **STEP 比对工具** `compareAssemblyFiles` / `printAssemblyReport`（`cq-compat/src/index.ts:97` 导出）——T2 门禁，黑盒复用。
@@ -124,7 +124,7 @@ packages/fai_cq_gears/
 - **数学层** `src/math.ts` / `src/profile.ts`：纯 TS，直接保留，移植各齿轮的 `utils.py` 数学部分时直接用，不另写、不碰内核。
 - **比对** `src/testing/compare.ts`：保留，内部 `compareAssemblyFiles`（cq-compat）不变。
 - **参考生成** `scripts/gen-reference.py`（A 侧）：保留。
-- **建模层（本版唯一地基）**：`import * as cq from '@faicad/cq-compat'`，全部几何经 cq-compat Workplane op 构建。详见 §3 映射表。
+- **建模层（本版唯一地基）**：`import * as cq from '@faicad/faijs-cadquery'`，全部几何经 cq-compat Workplane op 构建。详见 §3 映射表。
 
 ### 2.5 已知缺口清单（本版视角，按严重度）
 
@@ -191,7 +191,7 @@ cq 导出的参考 STEP 是 N 个独立 PRODUCT/solid，faijs 导出可能是 1 
 **扩展落地约束**：
 - 每个扩展走 cq-compat 既有 `compatOp` / Workplane op 注册机制，加 JSDoc（cq-compat 的 `verify-export-jsdoc` 门禁会扫全仓，见工作记忆 lefthook 门禁）。
 - 扩展须自带 cq-compat 侧 `.fai.js` 镜像测试 + parity case，并入 cq-compat `tests/manifest.json`。
-- fai_cq_gears 不 import 这些扩展的裸内核实现；只 `import { splineFace, helix, splitFace, twistExtrude } from '@faicad/cq-compat'`。
+- fai_cq_gears 不 import 这些扩展的裸内核实现；只 `import { splineFace, helix, splitFace, twistExtrude } from '@faicad/faijs-cadquery'`。
 
 **临时 shim 条款（仅过渡期）**：在 E1–E4 合入 cq-compat 之前，fai_cq_gears 可在 `src/kernel.ts` 保留一个**明确标注 `// TEMP-SHIM: delete when cq-compat E{n} lands`** 的薄桥，直接调 `occt-wasm` 仅覆盖该缺口；E 落地后对应 shim **必须删除**，不得留作正式路径。这是本版唯一允许 fai_cq_gears 触裸内核的例外，且带删除期限。
 
@@ -228,7 +228,7 @@ cq 导出的参考 STEP 是 N 个独立 PRODUCT/solid，faijs 导出可能是 1 
 ```ts
 import { CONTRACT_VERSION } from '@faicad/faijs/sdk'        // 值=3，勿硬编码
 import type { BrepHandle } from '@faicad/faijs'
-import * as cq from '@faicad/cq-compat'                      // 唯一建模地基
+import * as cq from '@faicad/faijs-cadquery'                      // 唯一建模地基
 import { spurGear, type SpurGearParams } from './spur_gear'
 import { ok, type Result } from '@faicad/faijs/sdk'
 
@@ -408,7 +408,7 @@ npm run test    -w @faicad/fai-cq-gears        # 现有 test 全绿（spline-fac
 ## 11. 验收（交付前逐项核对）
 
 1. **功能**：15 个类全部有导出函数（经 cq-compat 编排），参数名与 Python 逐字一致；`contractVersion` 已导出；`.fai.js` 里 `import * as gears from '@faicad/fai-cq-gears'` 可调。
-2. **依赖合规**：库运行时代码 `grep -rn "occt-wasm\|initOcctWasm\|RawOcctKernel" src` **除 §4 临时 shim 外零命中**；全部几何经 `@faicad/cq-compat` op；E1–E4 落地后对应 shim 已删除。
+2. **依赖合规**：库运行时代码 `grep -rn "occt-wasm\|initOcctWasm\|RawOcctKernel" src` **除 §4 临时 shim 外零命中**；全部几何经 `@faicad/faijs-cadquery` op；E1–E4 落地后对应 shim 已删除。
 3. **T1**：31 例 + 6 新类 `|Δvolume| ≤ 1e-3`、`|Δbbox| ≤ 1e-3`。
 4. **T2**：全部用例 `compareAssemblyFiles(...).equivalent === true`（`strictTopology:false`、标定容差）。
 5. **T3**：稳定性套件可复现，报告含通过率与失败标签分布。

@@ -1,10 +1,10 @@
 /**
  * @faicad/cq-compat-compare — STEP / assembly geometry equivalence comparers
- * (dev-only tooling), split from @faicad/cq-compat.
+ * (dev-only tooling), split from @faicad/faijs-cadquery.
  *
  * This package is NOT part of any runtime dependency chain: it is consumed only
  * by test harnesses, parity scripts and verification tooling. The CadQuery
- * compatibility surface lives in @faicad/cq-compat (workplane / 2D drawing /
+ * compatibility surface lives in @faicad/faijs-cadquery (workplane / 2D drawing /
  * features / selectors) and @faicad/cq-compat-assembly (assembly solve API).
  */
 

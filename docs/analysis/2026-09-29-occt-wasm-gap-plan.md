@@ -4,7 +4,7 @@
 状态：**方案（未实施；本文件即 occt-wasm 侧排期的唯一权威清单）**
 范围：cq-compat P2 攻坚后仍攻不动的内核缺口，逐项给出 occt-wasm 侧的修改路径
 上游基准：cadquery-ocp 7.9.3.1.1（OCCT 7.9.3）
-探针纪律：本文每个「实测结论」均来自 `packages/cq-compat/src` 内的临时探针（当日 vitest 跑通），结论已留档为测试或写进 plan §8。
+探针纪律：本文每个「实测结论」均来自 `packages/faijs-cadquery/src` 内的临时探针（当日 vitest 跑通），结论已留档为测试或写进 plan §8。
 
 ---
 
@@ -145,7 +145,7 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 
 ## 10. 复核记录（2026-10-01：manifest 当前内核相关 blocked 全量水位）
 
-> 数据源：`packages/cq-compat/tests/manifest.json`（449 ported / 201 blocked / 47 skipped）。下列条目均以当前 blockedBy 精确重列，替代 §0 的原始估计。
+> 数据源：`packages/faijs-cadquery/tests/manifest.json`（449 ported / 201 blocked / 47 skipped）。下列条目均以当前 blockedBy 精确重列，替代 §0 的原始估计。
 
 ### 10.1 `kernel:*` 直接登记（13 条）
 

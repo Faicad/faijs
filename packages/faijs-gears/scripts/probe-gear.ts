@@ -9,7 +9,7 @@
  */
 
 import { loadManifest, type ReferenceCase } from '../src/fixtures'
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { planarCapAtZ, buildToothFaces } from '../src/spur_gear'
 import { spurGearGeometry } from '../src/profile'
 import type { SpurGearParams } from '../src/profile'

@@ -64,7 +64,7 @@ compound。**实测否定**：`cad.union(wp.shape, shifted)` 的行为完全符�
 
 ### 6. ✅【更正】真正根因 A：`cutBlind` 忽略 `wp.pts`（CadQuery stack 语义缺失）
 
-`packages/cq-compat/src/workplane.ts` 的 `cutBlind` 只用 `wp.origin` 创建一个切削工具
+`packages/faijs-cadquery/src/workplane.ts` 的 `cutBlind` 只用 `wp.origin` 创建一个切削工具
 并 subtract 一次，**从不遍历 `wp.pts`**。slide_top 期望的是两个侧槽（x=±38.3），实际
 只切了中心一个槽（体积验证：105600 − 27.4×36×1 = 104613.6，恰为单槽）。
 
@@ -100,7 +100,7 @@ solid（**几何错误**：boss 位置错，零件被压成一个伪「正确」
 CadQuery 文档（the-stack）：每个 Workplane 有一个 stack（坐标系/点列表）；`pushPoints`
 设置/追加点；`hole`/`cutBlind`/boss `extrude` 等特征操作**对 stack 中每个点创建特征**。
 
-cq-compat 现状核对（`packages/cq-compat/src/workplane.ts`）：
+cq-compat 现状核对（`packages/faijs-cadquery/src/workplane.ts`）：
 
 | 函数 | CadQuery 语义 | cq-compat 现状 |
 |---|---|---|
@@ -153,10 +153,10 @@ compound 的。」验证实验结果：
 
 | 文件 | 作用 |
 |---|---|
-| `packages/cq-compat/src/workplane.ts` | cq-compat Workplane 实现（cutBlind/hole/cboreHole/extrude 的 pts 处理） |
+| `packages/faijs-cadquery/src/workplane.ts` | cq-compat Workplane 实现（cutBlind/hole/cboreHole/extrude 的 pts 处理） |
 | `packages/core/src/cad-runtime/direct-executor.ts` | 顶层语句 transform（transformArg 括号丢失 bug） |
-| `packages/cq-compat/src/step-compare.ts` | 整件 STEP 比对（不可作唯一判据） |
-| `packages/cq-compat/src/assembly-compare.ts` | 装配一致性比对（必须项） |
+| `packages/faijs-cadquery/src/step-compare.ts` | 整件 STEP 比对（不可作唯一判据） |
+| `packages/faijs-cadquery/src/assembly-compare.ts` | 装配一致性比对（必须项） |
 | `packages/core/src/api/boolean.ts` | `booleanBrep` / `union` defineOp（无 bug） |
 | `packages/core/src/brep/face-evolution.ts` | `booleanWithRoleTable` / `fuseWithHistory`（无 bug） |
 | `packages/core/src/brep/brep-ops.ts` | `solidToShape`（无 bug） |

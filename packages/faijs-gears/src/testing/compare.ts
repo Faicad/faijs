@@ -1,8 +1,8 @@
 /**
- * testing/compare — 封装 `@faicad/cq-compat` 的 STEP 等价性比对
+ * testing/compare — 封装 `@faicad/faijs-cadquery` 的 STEP 等价性比对
  *
  * 放在 `src/testing/` 而不是库源码里，是因为比对属于**测试期依赖**
- * （`@faicad/cq-compat` 是 devDependency）——库运行时不该依赖它。
+ * （`@faicad/faijs-cadquery` 是 devDependency）——库运行时不该依赖它。
  * `tsconfig.build.json` 已排除本目录。
  *
  * 一个事实一个家：容差只在**这里**定义，测试与 `scripts/compare-all.ts` 共用同一份。

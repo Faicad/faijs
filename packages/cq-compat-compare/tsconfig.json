@@ -19,8 +19,8 @@
     "paths": {
       "@faicad/faijs": ["../core/src/index.ts"],
       "@faicad/faijs/*": ["../core/src/*"],
-      "@faicad/cq-compat": ["../cq-compat/src/index.ts"],
-      "@faicad/cq-compat/*": ["../cq-compat/src/*"]
+      "@faicad/faijs-cadquery": ["../faijs-cadquery/src/index.ts"],
+      "@faicad/faijs-cadquery/*": ["../faijs-cadquery/src/*"]
     }
   },
   "include": ["src/**/*.ts"],

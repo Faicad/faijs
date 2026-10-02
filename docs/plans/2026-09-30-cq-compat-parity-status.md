@@ -3,11 +3,11 @@
 日期：2026-09-30（续作至 2026-10-01）
 状态：**实施中**
 基线 HEAD：`a43f7626`（§8 起基线为 `215a2bef`）
-范围：`packages/cq-compat`（parity 镜像、manifest、coverage 分析器）
+范围：`packages/faijs-cadquery`（parity 镜像、manifest、coverage 分析器）
 上游基准：CadQuery **2.8.0**（`tests/baseline.json`）
 配套计划：`docs/plans/2026-09-28-cq-compat-remaining-cadquery-support-plan.md`（本文只记录其上的执行进度与剩余待办）
 
-> 本文档独立记录 `packages/cq-compat` 的 CadQuery 2.8.0 兼容性工作：**当前进度**与**后续待完成内容**。
+> 本文档独立记录 `packages/faijs-cadquery` 的 CadQuery 2.8.0 兼容性工作：**当前进度**与**后续待完成内容**。
 >
 > **结论先行：本任务尚未完成。** 字体/文本这一子线（本轮授权范围）已全绿落地；但整体 CadQuery 兼容仍是长线 parity 工程，仍有 293 条用例 `blocked`、47 条 `skipped`，需要镜像补全 + 真实能力实现 + 内核缺口三路并进。
 
@@ -207,11 +207,11 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 
 ```bash
 # coverage 重算（需 cadquery venv，见 tests/baseline.json）
-python packages/cq-compat/tests/ref-harness/analyze-coverage.py --json packages/cq-compat/tests/coverage.json
+python packages/faijs-cadquery/tests/ref-harness/analyze-coverage.py --json packages/faijs-cadquery/tests/coverage.json
 
 # manifest 重算（先 mark-blocked，再 gen-manifest）
-node_modules/tsx/dist/cli.mjs packages/cq-compat/tests/mark-blocked.ts
-node_modules/tsx/dist/cli.mjs packages/cq-compat/tests/gen-manifest.ts
+node_modules/tsx/dist/cli.mjs packages/faijs-cadquery/tests/mark-blocked.ts
+node_modules/tsx/dist/cli.mjs packages/faijs-cadquery/tests/gen-manifest.ts
 
 # 单镜像 parity（cand 导出 + 比对）
 node_modules/tsx/dist/cli.mjs packages/core/scripts/faijs-cli.ts run <mirror>.fai.js --out out/cand/<case>.step --mode brep
@@ -220,8 +220,8 @@ python <probe_cmp>.py
 # 门禁
 node_modules/tsx/dist/cli.mjs scripts/verify-export-jsdoc.ts
 node_modules/typescript/bin/tsc --noEmit -p packages/core/tsconfig.json
-node_modules/eslint/bin/eslint.js packages/core/src packages/cq-compat/src
-node_modules/vitest/vitest.mjs run   # 在 packages/cq-compat 下
+node_modules/eslint/bin/eslint.js packages/core/src packages/faijs-cadquery/src
+node_modules/vitest/vitest.mjs run   # 在 packages/faijs-cadquery 下
 ```
 
 ---
@@ -303,7 +303,7 @@ if fill:
 
 ## 7. 续作记录（2026-09-30 第二轮 — 镜像补全）
 
-> 本轮从 §3.1 的"镜像补全"切入，按"上游源 → 翻译 → `gen-manifest` → `run-cand` → 针对性 parity"流程推进，并逐条核对上游 `test_*.py` 源（本地缓存于 `packages/cq-compat/out/cache/v2.8.0/tests/`）。
+> 本轮从 §3.1 的"镜像补全"切入，按"上游源 → 翻译 → `gen-manifest` → `run-cand` → 针对性 parity"流程推进，并逐条核对上游 `test_*.py` 源（本地缓存于 `packages/faijs-cadquery/out/cache/v2.8.0/tests/`）。
 
 ### 7.1 已验证 ported 的 6 条（parity 全绿）
 
@@ -368,7 +368,7 @@ if fill:
 - `test_name_geometries__assy`：不写镜像——其 ref STEP 本身 `cut` boolean 失败（ref 侧问题），parity 永不可过。
 - 8 条 `op:assembly-solve` 约束用例：装配求解器未实现，保留 `manual:true` blocked。
 
-**落点**：`packages/cq-compat/tests/test_assembly/` 新增 51 个 `*.fai.js`；`manifest.json` ported 414 / blocked 236 / skipped 47。
+**落点**：`packages/faijs-cadquery/tests/test_assembly/` 新增 51 个 `*.fai.js`；`manifest.json` ported 414 / blocked 236 / skipped 47。
 
 ## 9. 续作记录（2026-10-01 第五轮 — shape-class 导出线索核结 + pending:mirror 清仓）
 
@@ -425,7 +425,7 @@ manifest：**423/227/47 → 425/225/47**。
 
 ## 10. 续作记录（2026-10-01 第六轮 — copyWorkplane + placeSketch/wp.sketch() 集成 + testSketch 4 镜像）
 
-### 10.1 新落地 API（`packages/cq-compat/src/workplane.ts` + `sketch.ts`）
+### 10.1 新落地 API（`packages/faijs-cadquery/src/workplane.ts` + `sketch.ts`）
 
 - **`copyWorkplane(wp, obj)`**：采纳 obj 的平面（GOTCHA，探针 2.8.0 实证：CQ `.workplane()` 把栈清成 [origin Vector]，复制结果**不含 obj 的实体**——`copyWorkplane(obj0).box(1,1,1)` 只产出 z=5 处的 1×1×1 小盒，不与 base 融合；实现为 clone 时丢 shape）。
 - **`sketch(wp)`**：`Workplane.sketch()` 绑定——Sketch 新增可选 `plane {origin, normal}` 字段，workplane 栈点（pushPoints）作为 sketch loci 种子（上游 `sketch()` 传 `locs=self._locs()`）。xDir 限制：仅绑定法向（+Z→normal 欧拉旋转），YZ 类旋转平面需全帧变换（testSketch 用例不涉及）。

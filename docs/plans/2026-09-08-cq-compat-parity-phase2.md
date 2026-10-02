@@ -3,7 +3,7 @@
 > 状态：**方案（未实施）**
 > 日期：2026-09-08
 > 上游方案：`docs/plans/2026-09-08-cq-compat-cadquery-parity.md`（P0–P4 批次1 已落地，本计划承接其未完成项）
-> 范围：`packages/cq-compat`、`packages/mini_lathe`（受影响的消费方）
+> 范围：`packages/faijs-cadquery`、`packages/mini_lathe`（受影响的消费方）
 
 ---
 
@@ -21,7 +21,7 @@
 | C2 | 排序规则 = **先易后难**，且必须满足**依赖顺序**（被依赖的排前面） |
 
 上一轮（原方案 §1）的基础约束继续有效：验证对象是 CadQuery 上游建模测试（C1'）、参考侧导出 STEP（C2'）、
-`packages/cq-compat/tests/` 逐用例镜像（C3'）、判定标准为双方 STEP 一致（C4'），非建模用例忽略。
+`packages/faijs-cadquery/tests/` 逐用例镜像（C3'）、判定标准为双方 STEP 一致（C4'），非建模用例忽略。
 
 ---
 
@@ -134,12 +134,12 @@ graph TD
 
 | 任务 | 内容 |
 |---|---|
-| D1 | 从阶段 B 的稳定 PASS 用例中挑 **≤30 个**，把 ref STEP 复制进 `packages/cq-compat/tests/fixtures/ref/` 入库 |
+| D1 | 从阶段 B 的稳定 PASS 用例中挑 **≤30 个**，把 ref STEP 复制进 `packages/faijs-cadquery/tests/fixtures/ref/` 入库 |
 | D2 | 新增 vitest 测试：对 smoke 子集跑 `run-cand` 逻辑 + `compareStepFiles`（复用现有 `src/step-compare.ts`，不新写比对器），断言 PASS |
 | D3 | 全量（650）仍走本地 `npm run compat:all`，不进 CI（原方案 §8 CI 取舍不变） |
-| D4 | 确认 `scripts/ci.ps1` 已含 `@faicad/cq-compat`（已加，需实测跑通一次） |
+| D4 | 确认 `scripts/ci.ps1` 已含 `@faicad/faijs-cadquery`（已加，需实测跑通一次） |
 
-**验收**：`npm run test -w @faicad/cq-compat` 含 smoke 比对且全绿；CI 时长增量可接受。
+**验收**：`npm run test -w @faicad/faijs-cadquery` 含 smoke 比对且全绿；CI 时长增量可接受。
 
 ### 阶段 E — `moved` 系 op（难度 ★★，依赖 B）
 
@@ -158,7 +158,7 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 - `moved` 是 **Shape 级** API（`Shape.moved(*locs)`），不是 Workplane op —— 这解释了为什么它被
   分析器单列成 75 var 的最大阻塞项。
 - 需要 cq-compat 侧提供 `Location` 构造（`Location(Vector(...))` / `Location(0,0,1)`）与 `moved` 包装；
-  **当前 `packages/cq-compat/src` 与 `packages/core/src/api/brepjs-compat` 均无 `Location` 导出**，
+  **当前 `packages/faijs-cadquery/src` 与 `packages/core/src/api/brepjs-compat` 均无 `Location` 导出**，
   需新建或从 brepjs 投影。
 
 | 任务 | 内容 |
@@ -216,7 +216,7 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 
 根因：`slide_top.fai.js` 移植丢失了 CadQuery 原版 `faces("-Y")[1]` / `faces("+Y")[1]` 的 `[1]` 索引——`cq.faces()` op 本就不支持索引，导致 hex 切与 hole 全部落在 base 极端面（y=±60）而非 boss 面（y≈±14.05/±4.05）。`resolveFaceSelector` 的索引分支对 `+`/`-` 方向选择器排序方向写反（会让 `[1]` 选到 base），且对 boss +Y 面算出的法线是内法线，使 `cutBlind` 的 `invNormal` 把下刀方向指向空腔、不落料。
 
-修复（`packages/cq-compat/src/workplane.ts` `resolveFaceSelector`）：
+修复（`packages/faijs-cadquery/src/workplane.ts` `resolveFaceSelector`）：
 - 索引分支排序方向改按选择器首字符判定：`-Y`/`>Z` 升序，`+Y`/`<Z` 降序，使 `[1]`=boss 面；
 - 对 `+`/`-` 选择器，先用面外法线过滤候选（只保留与选择器轴/符号平行的面），并直接以 `fallbackNormal` 作为外法线（修复 boss +Y 面下刀方向）；
 - `slide_top.fai.js` 三处 `faces("±Y")` 补回 `[1]`（对应 CadQuery `faces("±Y")[1]`）。
@@ -224,7 +224,7 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 验收（`packages/mini_lathe/scripts/verify-all.ts`，CLI 内核注册回归同步修复于 `packages/core/src/node-host/cli.ts`）：
 - 复刻几何实测体积 **88421.299**、`zmax` **21.700**，与 CadQuery 2.8.0 ref（cadquery-env 实跑 `slide_top.py`）**零误差**（≤0.01% 达成）；
 - 7 零件各 1 leaf、装配 6 leaf，verify-all 全绿，零回归；
-- 回归测试 `packages/cq-compat/src/slide-top-stage-g.test.ts`（选择器 + 体积双断言）；cq-compat 全量 127 测试通过。
+- 回归测试 `packages/faijs-cadquery/src/slide-top-stage-g.test.ts`（选择器 + 体积双断言）；cq-compat 全量 127 测试通过。
 
 | 任务 | 内容 |
 |---|---|
@@ -316,7 +316,7 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 
 1. **A**：`manifest.json` 的 `ported` 数 == 磁盘 `.fai.js` 数；无空 `blockedBy` 的 blocked 项。
 2. **B**：每批镜像 `compare.ts` 零 ERROR；批次 parity 单调上升；报告贴入 PR。
-3. **D**：`npm run test -w @faicad/cq-compat` 含 smoke STEP 比对且全绿；`scripts/ci.ps1` 实测跑通。
+3. **D**：`npm run test -w @faicad/faijs-cadquery` 含 smoke STEP 比对且全绿；`scripts/ci.ps1` 实测跑通。
 4. **E/F/H**：每新增一个 op，至少解锁一个镜像用例（原方案 §9 验收标准 4 沿用）。
 5. **F1**：55 个旧镜像零回归（硬要求）。
 6. **G**：mini_lathe 7 零件全部达到体积相对偏差 ≤ 0.01%，`verify-all.ts` 零回归。
@@ -478,7 +478,7 @@ wire 各自成独立实体后 fuse。即 SVG 式的 outer+holes 包含树，而�
 `makeCircle(radius, center?, normal?)`、`makeLine(v1, v2)`、`assembleWire(edges)`、
 `makeFace(wire, holes?)`、`addHolesInFace(face, holes)`。
 
-**cq-compat 侧** `packages/cq-compat/src/workplane.ts`：
+**cq-compat 侧** `packages/faijs-cadquery/src/workplane.ts`：
 
 | 改动 | 说明 |
 |---|---|
@@ -506,19 +506,19 @@ wire 各自成独立实体后 fuse。即 SVG 式的 outer+holes 包含树，而�
 1. **镜像脚本缺陷（既有）**：单语句链式 `cq.circle(cq.circle(p, 4), 2)` 中外层 `4` 在
    参数求值时丢失（`pendingWires` 记到 `radius=undefined`），产出退化为纯 box。
    镜像已改写为多语句形态（每个 `cq.circle` 独立一行），并在脚本头注释说明。
-2. **`cq-compat/dist` 落后（流程教训）**：CLI 经 `@faicad/cq-compat` 包名 → node_modules
+2. **`cq-compat/dist` 落后（流程教训）**：CLI 经 `@faicad/faijs-cadquery` 包名 → node_modules
    软链 → **dist** 解析；只改 src 不构建 dist，新 `pendingWires` 路径完全不生效。
-   需 `npm run build -w @faicad/cq-compat`（与 core 同理，`AGENTS.md` 既有规则）。
+   需 `npm run build -w @faicad/faijs-cadquery`（与 core 同理，`AGENTS.md` 既有规则）。
 
 收尾：调试日志已清理（`grep DBG` 零命中），临时探针测试已删，
-单测 `npm run test -w @faicad/cq-compat` **31/31 全绿**。
+单测 `npm run test -w @faicad/faijs-cadquery` **31/31 全绿**。
 
 > 📌 流程修正：本阶段先后踩了 **core/dist** 与 **cq-compat/dist** 两个"dist 落后"坑。
 > 凡改动 `packages/*/src` 后跑 CLI 级验证（`run-cand.ts` / `faijs-cli.ts`），必须先构建对应包。
 
 ### 7.9 阶段 F2 — `revolve`（✅ 完成，2026-09-09）
 
-**实现**（`packages/cq-compat/src/workplane.ts`）：
+**实现**（`packages/faijs-cadquery/src/workplane.ts`）：
 
 - 新增 `revolve(wp, angleDegrees?, axisStart?, axisEnd?, combine?)`：消费 `pendingWires`
   列表（与 extrude 同分组逻辑），轴端点为**局部坐标**（上游 `Workplane.revolve` 语义，
@@ -577,7 +577,7 @@ blockedBy 停留在 'loft'，属 R1 所述"分析器盲区"）。待该 API 族�
 
 **实现**：
 
-- `packages/cq-compat/src/workplane.ts`：新增 `CqLocation`（`pos` + `rot` 度）+
+- `packages/faijs-cadquery/src/workplane.ts`：新增 `CqLocation`（`pos` + `rot` 度）+
   `Location(...)` 构造（vector / 数值 varargs / `{x,y,z,rx,ry,rz}` 关键字三形态）、
   `isLocation`、`composeLocations(a,b)`（= 上游 `Location.__mul__`，R = Ra·Rb、
   t = Ra·t_b + t_a，含矩阵→欧拉角还原）、`moved(wp, ...locs)`、`move(wp, ...locs)`。
@@ -634,7 +634,7 @@ testWorkplaneOrientationOnVertex parent。`parent` 触发 SEC_IDENT（window.par
 **指标**：parity **16.31% → 20.92%**（PASS 105 → 135，FAIL=0，ERROR=0），
 `ported` 136 与磁盘一致；cq-compat 单测 54/54 全绿；mini_lathe `verify-all.ts` 零回归。
 
-#### 本批修复的 4 个 op 缺陷 / 缺口（均在 `packages/cq-compat/src/workplane.ts`）
+#### 本批修复的 4 个 op 缺陷 / 缺口（均在 `packages/faijs-cadquery/src/workplane.ts`）
 
 1. **mirror 潜伏 bug（静默错误参数）**：旧实现传 `{ plane }` 给内核，而 `MirrorOptions`
    是 `{ normal, at }` —— `plane` 被忽略、每次都按默认法向 [1,0,0] 镜像。重写为完整上游语义
@@ -785,12 +785,12 @@ mark-blocked.ts 移除 4 条 U22 标注（26 → 22），blocked 495 → 491。
 
 D1–D4 全部落地：
 
-- **D1**：30 个稳定 PASS 用例的 ref STEP 入库 `packages/cq-compat/tests/fixtures/ref/`
+- **D1**：30 个稳定 PASS 用例的 ref STEP 入库 `packages/faijs-cadquery/tests/fixtures/ref/`
   （覆盖：test_cadquery 原语/boolean/chamfer/cut/counterbores/cup/combine/fillet/
   revolve/loft 18 + test_selectors 边 compound 1 + test_shapes 2 +
   test_free_functions 原语/moved/extrude-both/compound 8 + test_workplanes mirror 1）。
   fixture 是不可变基线，更新必须重跑 ref-harness 再拷贝。
-- **D2**：新增 `packages/cq-compat/src/parity-smoke.test.ts`（31 it）：每 case 经
+- **D2**：新增 `packages/faijs-cadquery/src/parity-smoke.test.ts`（31 it）：每 case 经
   faijs-cli 导出候选 STEP + `compareStepFiles`（复用 `src/step-compare.ts`）比对，
   options 与 `tests/compare.ts` 的 PASS 判据一致（strictTopology=false、
   线性/体积 1e-3、布尔差 0.1mm³）。**实测 31/31 全绿（约 235s，串行 ~8s/case）**。
@@ -799,7 +799,7 @@ D1–D4 全部落地：
   取排序第一个。
 - **D3**：全量 650 case 仍走本地 `tests/compare.ts`，不进 CI（不变）。
 - **D4**：CI 4/9 watchdog 矩阵实测：`node scripts/run-tests-with-watchdog.mjs
-  --budget-ms 300000 -- npm run test -w @faicad/cq-compat` → **85/85 全绿、
+  --budget-ms 300000 -- npm run test -w @faicad/faijs-cadquery` → **85/85 全绿、
   stderr 零输出**（54 单测 + 31 smoke）。ci.ps1 的 lint/typecheck/build
   （1–3 步）在 PS 5.1 下实测通过。
 
@@ -861,12 +861,12 @@ npx tsx tests/gen-manifest.ts
 npx tsx tests/run-cand.ts && npx tsx tests/compare.ts
 
 # 单用例取证（阶段 C）
-npx tsx packages/cq-compat/scripts/compare-step.ts <ref>.step <cand>.step --json
+npx tsx packages/faijs-cadquery/scripts/compare-step.ts <ref>.step <cand>.step --json
 ```
 
 ### 7.23 阶段 H — 2D wire 基础 ✅ 完成（2026-09-09 晚）
 
-**实现**（`packages/cq-compat/src/workplane.ts`）：
+**实现**（`packages/faijs-cadquery/src/workplane.ts`）：
 
 - `Workplane` 新增 `currentPoint` / `firstPoint` / `pendingEdges` 草图状态与
   `PendingWire` 的 `path` 种类（世界坐标顶点序列 + 创建时平面快照）。
@@ -906,7 +906,7 @@ testClosedShell s1–s4（shell 组）、test_map_apply_filter_sort w（solids()
 
 ### 7.24 阶段 I（第一部分）— 弧线/样条 op ✅ 完成（2026-09-09 深夜）
 
-**实现**（`packages/cq-compat/src/workplane.ts`）：
+**实现**（`packages/faijs-cadquery/src/workplane.ts`）：
 
 - `PendingEdge` 扩展为判别联合：`line` / `arc3`（三点弧）/ `tangentArc`
   （起点+起点切向+终点）/ `spline`（插值点表+内核端切向）。`wire()` 把完整
@@ -954,7 +954,7 @@ test_map_apply_filter_sort w（solids()）、其余 blockedBy 为深水 op 组�
 
 ### 7.25 阶段 I（第二部分）— wedge/shell/solids + 缺口容忍装配 ✅ 完成（2026-09-10）
 
-**实现**（`packages/cq-compat/src/workplane.ts`，另有 core 侧零改动）：
+**实现**（`packages/faijs-cadquery/src/workplane.ts`，另有 core 侧零改动）：
 
 - **`wedge` op**：kernel 无 `makeWedge`，用 `loft(wires, isSolid, ruled=true)`
   精确构造（底/顶矩形全平面面片，与 OCCT `BRepPrimAPI_MakeWedge` 几何等价，
@@ -1185,7 +1185,7 @@ cq-compat 单测全绿（109 passed / 11 files）。
 
 **顺带修掉存量 lint**：`workplane.ts` 在 HEAD 就有 2 个 error
 （`no-useless-assignment` on `solids`、`no-useless-escape` on `[<>+\-]`），已修
-（IIFE 化 / `-` 移到字符类末尾），`npx eslint packages/cq-compat/src` 该包 **0 error**。
+（IIFE 化 / `-` 移到字符类末尾），`npx eslint packages/faijs-cadquery/src` 该包 **0 error**。
 
 **指标**：PASS 216 → **220**（+4），PASS-NT 4，FAIL **0**，ERROR **0**，BLOCKED 426，
 parity 33.85% → **34.46%**。cq-compat 单测全绿（11 files / 113 passed；本批净增 2 项：

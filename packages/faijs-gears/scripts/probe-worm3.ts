@@ -1,7 +1,7 @@
 /**
  * probe-worm3.ts — 诊断 grid-approx 下 Worm 端盖两条 wire 的形态与 sew 结果
  */
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'
 import { connectEdgesToWires } from '../src/geom-build'

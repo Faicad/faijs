@@ -211,7 +211,7 @@ part0 = cad.fai_extrude(part0, { length: 5 })
 - **多文件项目 + zip 通道**：`ProjectLoader` 契约在 `cad-runtime/ports.ts:226`；`packages/demo/src/project/zip-loader.ts` 已用 `fflate` 落地 zip 项目加载（上限 64MB / 5000 条目）。**`.fai.zip` 可以做成它的超集**——`zip-loader.ts:70` 只挑 `.fai.js` 条目作模块，其余条目被忽略，因此往包里塞 `assets/`、`freecad/` 不会破坏现有加载路径（入口启发式是否命中 `model/main.fai.js` 需实测确认）。
 - **拓扑命名基础设施**：`packages/core/src/topology/naming/`（`face-evolution.ts`、`geom-hint.ts`、`score.ts`、`resolve-*.ts`）提供了「用几何提示重新解析引用」的能力，正好是 R1 的缓解手段。
 - **几何导入**：`occt-kernel/highLevelApi.ts:60/120` 的 `importStepMultiPart` / `importStep` / `importBrepToMesh` → 烘焙回退有落点。
-- **第三方库移植范式**：`packages/cq-compat`、`packages/fai_cq_gears`、`packages/fai_cq_warehouse` 证明了「把一套外部建模 API 移植成 faijs 库」这条路是可走的（`@faicad/faijs/sdk` 的 `defineOp` / `compatOp` / `registerLib`）。FreeCAD 特征集可以按同样方式做成一个 `fai_freecad` 库。
+- **第三方库移植范式**：`packages/faijs-cadquery`、`packages/fai_cq_gears`、`packages/fai_cq_warehouse` 证明了「把一套外部建模 API 移植成 faijs 库」这条路是可走的（`@faicad/faijs/sdk` 的 `defineOp` / `compatOp` / `registerLib`）。FreeCAD 特征集可以按同样方式做成一个 `fai_freecad` 库。
 
 ---
 

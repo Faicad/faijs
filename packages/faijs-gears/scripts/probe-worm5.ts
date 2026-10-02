@@ -3,7 +3,7 @@
  * （左平面 section 完整、右平面只出 2 条边；试法向反转 + 递归提边 + common 对照）
  */
 import type { BrepHandle } from '@faicad/faijs'
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'
 

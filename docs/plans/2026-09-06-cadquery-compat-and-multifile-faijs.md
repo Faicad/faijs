@@ -8,8 +8,8 @@
 
 ## 实施结果摘要（2026-09-07）
 
-- **新增包**：`packages/cq-compat/`（`@faicad/cq-compat`，v0.1.0），已加入根 workspaces 和 CLI 白名单。
-- **新增示例包**：`packages/mini_lathe/`（`@faicad/mini-lathe`，private），包含移植后的 7 个零件 `.fai.js` 脚本 + 装配体脚本，依赖 `@faicad/cq-compat`，已加入根 workspaces。
+- **新增包**：`packages/faijs-cadquery/`（`@faicad/faijs-cadquery`，v0.1.0），已加入根 workspaces 和 CLI 白名单。
+- **新增示例包**：`packages/mini_lathe/`（`@faicad/mini-lathe`，private），包含移植后的 7 个零件 `.fai.js` 脚本 + 装配体脚本，依赖 `@faicad/faijs-cadquery`，已加入根 workspaces。
 - **Workplane 兼容载体**：`src/workplane.ts`，实现 CadQuery Workplane 链式 API（box/rect/circle/polygon/extrude/cutBlind/hole/cboreHole/cskHole/threadedHole/faces/edges/vertices/workplane/center/pushPoints/translate/rotate/mirror/union/cut/intersect/fillet/shell/val/vals/transformed/setColor），几何藏 `.shape`，自定义 prototype 规避 compatOp borrowDeep 破坏。
 - **装配体兼容层**：`src/assembly.ts`，实现 `faceRef`（bbox 近似解析选择器→EntityRef）、`constraint`（Plane→mate，Axis→align）、`buildAssembly`（构造 cad.assembly + memberColors）、`Color` 辅助。
 - **Python→.fai.js 转译器**：`src/transpile.ts` + `scripts/transpile-file.ts`，支持链式调用展开、config 常量内联、math 模块映射、列表推导式、切片合并、async/await 注入。
@@ -68,7 +68,7 @@
 
 | # | 目标 | 本方案结论 |
 |---|---|---|
-| G1 | CadQuery API 兼容层，移植工作量最小 | 兼容层做**库** `@faicad/cq-compat` + **转译器**自动拆链（§4.2）；兼容层内部用**库面 API** 实现全部 CadQuery 语义 |
+| G1 | CadQuery API 兼容层，移植工作量最小 | 兼容层做**库** `@faicad/faijs-cadquery` + **转译器**自动拆链（§4.2）；兼容层内部用**库面 API** 实现全部 CadQuery 语义 |
 | G2 | brepjs 兼容必须保留 | **已由统一投影落地**（`brepjsCompat` 1299+42）；本方案不再触碰导出面，只做脚本面准入决策（§4.5） |
 | G3 | `.fai.js` 多文件互引用 | **已落地**（§1.2），本方案补映射规则与约束 |
 | G4 | 装配代码可写在 `.fai.js` 里 | **已落地**（`cad.assembly` + 新约束类型 + `asm1.solve()`），转译器把 CadQuery `constrain` 翻译为 faijs 约束对象（§4.4） |
@@ -204,7 +204,7 @@ faijs 代码分两种形态，对 API 导出的要求不同：
    `circle` / `rotate` 全部在库面可见。**P0 需做一次调用集核对**（§4.7）。
 2. **脚本形态的新增需求可以通过「不新增 cad.\* 符号」消化**：CadQuery 特有语义
    （Workplane 载体、选择器、`rect`/`hole`/`cutBlind`/`fillet`/`shell`/阵列/孔型）全部
-   沉入兼容层**库** `@faicad/cq-compat`（TS 实现，内部调用库面 API）；
+   沉入兼容层**库** `@faicad/faijs-cadquery`（TS 实现，内部调用库面 API）；
    拆链后脚本里直接 `cad.*` 调用的都是**已有 61 个 op**（`fai_extrude` / `translate` /
    `cut` / `union` / `rotate` / `mirror` / `drill`…）。
    ⇒ **理论上脚本面不需要新增任何符号**（§4.5 的论证）。
@@ -277,7 +277,7 @@ Assembly 2 | cskHole 2 | outerWire 1 | mirror 1 | makeSphere 1 | text 1 | solve 
 ### 4.1 总体原则
 
 > **P-a**：CadQuery 语义（链式、选择器、Workplane 载体、阵列、孔型、fillet/shell）全部
-> 实现在 **TS 库 `@faicad/cq-compat`** 里——库是 TS，不受 `.fai.js` 语法限制，可自由使用
+> 实现在 **TS 库 `@faicad/faijs-cadquery`** 里——库是 TS，不受 `.fai.js` 语法限制，可自由使用
 > `class`（载体除外，见 §4.2.1 红线）/ `for-of` / `async-await` / 链式；
 > 其内部实现调用**库面 API**（`brepjsCompat` 1299+42，已导出）。
 >
@@ -295,7 +295,7 @@ Assembly 2 | cskHole 2 | outerWire 1 | mirror 1 | makeSphere 1 | text 1 | solve 
 CadQuery 的 `Workplane` 在 faijs 里实现为 **plain object**，几何藏在 `.shape` 字段：
 
 ```ts
-// packages/cq-compat/src/workplane.ts（示意，非完整实现）
+// packages/faijs-cadquery/src/workplane.ts（示意，非完整实现）
 export interface Workplane {
   __cq: true
   plane: string
@@ -396,7 +396,7 @@ let bp_n = bp_m.fillet(2)             // 库内：EdgeTopoRef → 活句柄 → 
 `cq` 兼容层的 `fillet` 实现（TS 库内，无语法限制）：
 
 ```ts
-// packages/cq-compat/src/ops.ts（示意）
+// packages/faijs-cadquery/src/ops.ts（示意）
 import { fillet as brepjsFillet } from '@faicad/faijs'          // 库面已导出（brepjsCompat）
 // 或经 brepjsCompat 命名空间：import { brepjsCompat } from '@faicad/faijs'
 
@@ -573,7 +573,7 @@ core 改动）。**默认走兼容层；脚本面准入机制只作为未来需�
 
 | 阶段 | 内容 | 人工量 |
 |---|---|---|
-| 一次性 | 兼容层库 `@faicad/cq-compat`（Workplane + 选择器 + 孔型 + 阵列 + 装配构造 + fillet/shell 桥接） | **主要成本**（TS 库，内部调库面 API） |
+| 一次性 | 兼容层库 `@faicad/faijs-cadquery`（Workplane + 选择器 + 孔型 + 阵列 + 装配构造 + fillet/shell 桥接） | **主要成本**（TS 库，内部调库面 API） |
 | 一次性 | 转译器（Python AST → `.fai.js`，含 constrain → constraints 映射） | **主要成本** |
 | 一次性 | 选择器运行期解析器（库内，`>Z`/`|Z`/`>Z[-2]` 排序规则） | 中 |
 | 一次性 | cq_gears 调用集核对（P0 前置，范围外需求预检） | 小 |
@@ -624,5 +624,5 @@ mini_lathe 预期产物：`config.fai.js` + 6~9 个零件 `.fai.js` + `assemb.fa
 2. ~~**转译器 vs 真链式**~~ —— **已裁决：转译器**（零执行器改动、不冲突，§4.2.2）。
 3. ~~**CadQuery `Axis` 约束的精确映射**~~ —— **已裁决：`align`**（经代码分析：平面 face 引用在 `concentric` 直译路径报错，`align` 走 `axisFromFace` 手动编码轴可用；语义=法向同向+面中心重合。实施时用 mini_lathe 实际装配结果验证，§4.4.1）。
 4. ~~**颜色 / 爆炸视图**~~ —— **已裁决：颜色必须支持**（assembly `memberColors` + CLI 展开导出带色，§4.4.3）；**爆炸视图 UI 层做**（3d_editor 已实现，faijs 不做）。
-5. **兼容层库的落地位置**：`@faicad/cq-compat` 放 `packages/cq-compat`（workspace 内新包，参照 `gear-lib-demo` 装载方式）。需加入 CLI 白名单 `CLI_ALLOWED_LIBS`。
+5. **兼容层库的落地位置**：`@faicad/faijs-cadquery` 放 `packages/faijs-cadquery`（workspace 内新包，参照 `gear-lib-demo` 装载方式）。需加入 CLI 白名单 `CLI_ALLOWED_LIBS`。
 6. ~~**C1 投影范围**~~ —— **已过时作废**：统一投影方案已取代 C1-a/C1-b 手工补投影路线（本方案 §4.5 论证脚本面零新增）。

@@ -52,7 +52,7 @@ const CLI_SCOPED_PREFIX = '@faicad/'
 /** 已登记短名 → scoped 全名归一表（仅收录 `@faicad/` 范围内的库，防同名陌生人包）。 */
 const CLI_SHORT_NAMES: Record<string, string> = {
   'sheetmetal': '@faicad/sheetmetal',
-  'cq-compat': '@faicad/cq-compat',
+  'faijs-cadquery': '@faicad/faijs-cadquery',
   'faijs-gears': '@faicad/faijs-gears',
   'faijs-fasteners': '@faicad/faijs-fasteners',
 }

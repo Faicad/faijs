@@ -5,7 +5,7 @@
 > 关联文档：
 > - `docs/plans/2026-09-08-cq-compat-parity-phase2.md`（阶段 A–K 可达范围与 Stage G 闭环）
 > - `docs/handover/2026-09-10-cq-compat-handover.md`（cq-compat 已移交第三方）
-> - `packages/cq-compat/src/workplane.ts`（`resolveFaceSelector`、`compatFn` 投影链路）
+> - `packages/faijs-cadquery/src/workplane.ts`（`resolveFaceSelector`、`compatFn` 投影链路）
 
 ---
 
@@ -53,7 +53,7 @@ cq-compat 把 CadQuery op 经 `compatFn(name)` 投影到 vendored brepjs / occt-
 ### 2.3 `shell` 外扩（正厚度 + 移除面）
 - **现状**：内核只给圆角（arc）offset。
 - **缺口**：上游 `MakeThickSolidByJoin` 的尖角 **intersection-join** 无等价。
-- **实证回滚**："切扫掠板"启发式实测体积偏 0.016+ → 已回滚为显式抛错（见 `packages/cq-compat/src/workplane.ts` 历史记录）。
+- **实证回滚**："切扫掠板"启发式实测体积偏 0.016+ → 已回滚为显式抛错（见 `packages/faijs-cadquery/src/workplane.ts` 历史记录）。
 - **处置**：标 `blocked`，等内核暴露 `MakeThickSolidByJoin`。
 
 ### 2.4 高椭圆主轴

@@ -87,7 +87,7 @@
 理由：
 
 - 与既有的拆分范式一致：`@faicad/faijs-extra`（2026-09-24 拆出编辑器扩展库）、
-  `@faicad/cq-compat*` 系列都在本 monorepo 内作 workspace 包、lockstep 发布；
+  `@faicad/faijs-cadquery*` 系列都在本 monorepo 内作 workspace 包、lockstep 发布；
 - 复用本仓 CI（lint/typecheck/build/test/守卫）、版本 lockstep、`publish-all.ps1` 拓扑发布；
 - 不引入跨仓库版本漂移与 tgz 手工重装（fcstd-port 本就要消费它）。
 

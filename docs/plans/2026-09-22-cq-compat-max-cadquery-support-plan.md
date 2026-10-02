@@ -2,7 +2,7 @@
 
 日期：2026-09-22
 状态：已落地（2026-09-22 拆包实施完成；§5 的 Phase 1–5 路线图后续按里程碑推进）
-范围：`packages/cq-compat` + `packages/core`（引擎侧支撑能力）+ `packages/fai_cq_gears` + `packages/fai_cq_warehouse`（依赖审计与拆包）
+范围：`packages/faijs-cadquery` + `packages/core`（引擎侧支撑能力）+ `packages/fai_cq_gears` + `packages/fai_cq_warehouse`（依赖审计与拆包）
 基线：`651fb4e`（2026-09-11，cq-compat parity 交接时 HEAD）→ `7724f22`（2026-09-22，当前 HEAD），区间共 **141 个提交**
 依据文档：
 - `docs/handover/2026-09-10-cq-compat-handover.md`（parity 体系、手工 block 清单、语义差异）
@@ -33,7 +33,7 @@
 
 > cq-compat为什么要有assembly/2D 全量，这些独立出来呀。不要改已有的fai_cq_gears。
 
-拆解：**只拆两个域——装配、2D 草图**，各自独立成包（§3.1）；`@faicad/cq-compat` 主包**保留 CadQuery 兼容主体**（workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / 齿轮内核），不挖空；`fai_cq_gears` 的依赖声明、导入路径、源码**一律不改**（§3 + §5 Phase 0）。
+拆解：**只拆两个域——装配、2D 草图**，各自独立成包（§3.1）；`@faicad/faijs-cadquery` 主包**保留 CadQuery 兼容主体**（workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / 齿轮内核），不挖空；`fai_cq_gears` 的依赖声明、导入路径、源码**一律不改**（§3 + §5 Phase 0）。
 
 **修订要求 2（2026-09-22 会话，用户原话）**：
 
@@ -78,7 +78,7 @@
 
 | 库 | 运行时依赖（package.json） | 是否重复实现 cq-compat | 审计证据 |
 |---|---|---|---|
-| `@faicad/fai-cq-gears` | `@faicad/cq-compat ^0.13.0`（唯一 runtime 依赖）+ peer `@faicad/faijs` / `occt-wasm` | **否** | raw kernel 层已于 `01ede80` 迁入 cq-compat（`cq-compat/src/gears.ts`：`GearKernel` / `getGearKernel` / `connectEdgesToWires` / `gearFaceFromWires` / `gearShellToSolid` / `gearEdgeEnds` / `buildGearSplineFace` / …）；`src/spline-face.ts` 是**薄适配层**（保留 v1 导入名 + 测量工具，几何 op 本体在 cq-compat）；fai_cq_gears 直接消费 `getGearKernel` 等，**不再触碰 occt-wasm** |
+| `@faicad/fai-cq-gears` | `@faicad/faijs-cadquery ^0.13.0`（唯一 runtime 依赖）+ peer `@faicad/faijs` / `occt-wasm` | **否** | raw kernel 层已于 `01ede80` 迁入 cq-compat（`cq-compat/src/gears.ts`：`GearKernel` / `getGearKernel` / `connectEdgesToWires` / `gearFaceFromWires` / `gearShellToSolid` / `gearEdgeEnds` / `buildGearSplineFace` / …）；`src/spline-face.ts` 是**薄适配层**（保留 v1 导入名 + 测量工具，几何 op 本体在 cq-compat）；fai_cq_gears 直接消费 `getGearKernel` 等，**不再触碰 occt-wasm** |
 | `@faicad/fai-cq-warehouse` | `dependencies: {}`；cq-compat 仅 **devDependencies**（测试 parity 判定入口 `compareAssemblyFiles`） | **否** | `src/kernel.ts` 红线：不 import occt-wasm / `GearKernel`，只声明自用 `BrepEngineApi` 成员；全包无 assembly / workplane 实现，直接用 `@faicad/faijs` 的 op |
 
 **结论**：两库都**没有**重复实现 cq-compat 功能（gears 已于 `01ede80` 去重、warehouse 从未重复）。但存在两个**依赖面问题**：
@@ -113,13 +113,13 @@
 > 用户要求：cadquery 的功能拆成多个包；别人用 `fai_cq_gears` / `fai_cq_warehouse` 时既不能重复实现 cq-compat 代码，依赖也要更少；**装配兼容层独立成包**；**已有 `fai_cq_gears` 一律不改**——拆包只发生在 cq-compat 侧（修订要求）。
 >
 > **边界澄清（用户原话，2026-09-22）**：「cq-compat的含义是cadquery兼容。你都去掉了，还谈什么兼容？？？明明只说了装配和2D草图，独立出去。」
-> 即：`@faicad/cq-compat` 主包**保留全部 CadQuery 兼容主体**（workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / 齿轮内核），**只拆出三个非兼容域：装配、2D 草图、compare（dev 工具）**。
+> 即：`@faicad/faijs-cadquery` 主包**保留全部 CadQuery 兼容主体**（workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / 齿轮内核），**只拆出三个非兼容域：装配、2D 草图、compare（dev 工具）**。
 
 ### 3.1 目标包布局
 
 ```
 @faicad/faijs                     引擎（不变；occt-wasm 由宿主注入）
-@faicad/cq-compat                 CadQuery 兼容主包（保留现状主体，不挖空）：
+@faicad/faijs-cadquery                 CadQuery 兼容主包（保留现状主体，不挖空）：
                                   workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / TS 兼容面
                                   + 齿轮 primitive 内核层 + 共享类型
                                   **不再内置装配、不再内置 2D 草图、不再内置 compare**
@@ -134,20 +134,20 @@
                                   compareStepFiles / compareAssemblyFiles / printCompareReport /
                                   printAssemblyReport + 全部 Compare 类型；**仅测试/开发脚本消费，
                                   不进入任何运行时依赖链**
-@faicad/fai-cq-gears              运行时零改动：仍依赖 @faicad/cq-compat，仍从它导入 getGearKernel 等
+@faicad/fai-cq-gears              运行时零改动：仍依赖 @faicad/faijs-cadquery，仍从它导入 getGearKernel 等
                                   （+ occt-wasm peer）；dev 侧 compare import 改指 cq-compat-compare
 @faicad/fai-cq-warehouse          运行时依赖 @faicad/faijs（不变）；cq-compat 仅 dev → 改为
                                   cq-compat-compare 仅 dev（测试 parity 用）
 ```
 
-> **注（2026-09-22 用户拍板）**：① 不做聚合包 `cq-compat-all`（用户：不用）——全量 CadQuery 体验 = 装 `@faicad/cq-compat` 主包 + 按需加装 `cq-compat-assembly` / `cq-compat-sketch`；② `cq-compat-sketch` 包名与边界已确认（用户：可以）。
+> **注（2026-09-22 用户拍板）**：① 不做聚合包 `cq-compat-all`（用户：不用）——全量 CadQuery 体验 = 装 `@faicad/faijs-cadquery` 主包 + 按需加装 `cq-compat-assembly` / `cq-compat-sketch`；② `cq-compat-sketch` 包名与边界已确认（用户：可以）。
 
 ### 3.2 拆包原则
 
 1. **cq-compat 保持「CadQuery 兼容」含义**：主包内容 = 现有建模兼容主体（workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / TS 兼容面 / 齿轮内核）**全部保留**，拆包不得挖空主包；
 2. **只拆三个非兼容域**：① 装配 → `cq-compat-assembly`；② 2D 草图 → `cq-compat-sketch`（Sketch 层，Phase 2 落点）；③ **compare（dev 工具）→ `cq-compat-compare`（dev-only）**。其余一律不动；
 3. **compare 独立 = dev 工具隔离**：`compareStepFiles` / `compareAssemblyFiles` 等**不是 CadQuery 兼容 API**（运行时无人消费），独立成 dev-only 包后，**任何包的运行时依赖链永不出现它**；
-4. **fai_cq_gears 冻结（用户硬约束，口径：运行时）**：`fai_cq_gears` 的运行时依赖声明、`src/` 源码**一行不改**——运行时只从 `@faicad/cq-compat` 导入齿轮内核（`getGearKernel` 等），与 compare 独立无关；**dev 侧例外**：`scripts/_chk_phase.ts`、`compare-all.ts` 的 compare import 机械改指 `cq-compat-compare`（compare 独立的必然结果，devDependencies 增补该包）；
+4. **fai_cq_gears 冻结（用户硬约束，口径：运行时）**：`fai_cq_gears` 的运行时依赖声明、`src/` 源码**一行不改**——运行时只从 `@faicad/faijs-cadquery` 导入齿轮内核（`getGearKernel` 等），与 compare 独立无关；**dev 侧例外**：`scripts/_chk_phase.ts`、`compare-all.ts` 的 compare import 机械改指 `cq-compat-compare`（compare 独立的必然结果，devDependencies 增补该包）；
 5. **消费方只依赖用到的域**：需要装配的用户只装 `cq-compat-assembly`；需要 2D 草图装 `cq-compat-sketch`；测试/开发脚本用 `cq-compat-compare`；**不做聚合包**（用户拍板，2026-09-22）；
 6. **防重复实现 = CI 硬约束**：import 边界审计（§5 Phase 0 动作 3）+ `check-ghost-deps`，任何「复制 cq-compat 实现」的提交直接红；
 7. **装配兼容面 = 纯 CadQuery 语法（用户修订要求 3）**：`buildAssembly` 返回装配对象并暴露 `solve()` / `toCompound()`（对应 CQ `Assembly.solve()` / `toCompound()`），内部封装 core 求解器；**消费方（含 mini_lathe）禁止直调 core 求解器**——`getSlot().behavior.solveDetailed()` 属 faijs 内部探针，不在兼容面上。
@@ -157,7 +157,7 @@
 | 面 | 影响 |
 |---|---|
 | `docs/plans/2026-09-19-npm-publish-plan.md` | 发布清单增补 `cq-compat-sketch` / `cq-compat-assembly` / `cq-compat-compare`（拓扑序：cq-compat 之后、warehouse/gears 之前）；**不做** `cq-compat-all`（用户拍板） |
-| 3d_editor | 装配相关 import 从 `@faicad/cq-compat` 改指 `@faicad/cq-compat-assembly`；workplane/2D 绘图等**保持从 `@faicad/cq-compat` 导入不变**；compare 不被 3d_editor 使用（核实清单见 Phase 0 动作 4）；变更须同步（H3） |
+| 3d_editor | 装配相关 import 从 `@faicad/faijs-cadquery` 改指 `@faicad/cq-compat-assembly`；workplane/2D 绘图等**保持从 `@faicad/faijs-cadquery` 导入不变**；compare 不被 3d_editor 使用（核实清单见 Phase 0 动作 4）；变更须同步（H3） |
 | cq-compat parity 测试 | 镜像随域包走（装配镜像 → cq-compat-assembly；2D 草图镜像 → cq-compat-sketch，Phase 2 起）；parity 判定基础设施（gen-manifest / out 参考导出）从 `cq-compat-compare` 导入 |
 | fai_cq_gears / fai_cq_warehouse 测试 | 两库 `src/testing/compare.ts`（薄封装，本地容差/用例配置，非重复实现）底层改调 `@faicad/cq-compat-compare` 的 `compareAssemblyFiles`；`import type { AssemblyCompareResult }` 改指新包 |
 | mini_lathe（`../cadquery-port`，独立项目） | **装配消费面改走 CadQuery 语法**：`getSlot(compound).behavior.solveDetailed()`（core 内部探针）→ `asm.solve()` / `asm.toCompound()`（cq-compat-assembly）；作为该包的第一个验证消费方 |
@@ -212,14 +212,14 @@
 
 ### Phase 0｜CadQuery 功能拆包与依赖最小化（用户新要求，前置）
 
-- **目标**：`@faicad/cq-compat` **保持 CadQuery 兼容含义**（主包兼容主体不动，不挖空）；只把 **装配**、**2D 草图**、**compare（dev 工具）** 三个非兼容域独立成包（装配兼容层独立，见 §3.1）；`fai_cq_gears` **运行时零改动**；两库永不重复实现 cq-compat 功能。
+- **目标**：`@faicad/faijs-cadquery` **保持 CadQuery 兼容含义**（主包兼容主体不动，不挖空）；只把 **装配**、**2D 草图**、**compare（dev 工具）** 三个非兼容域独立成包（装配兼容层独立，见 §3.1）；`fai_cq_gears` **运行时零改动**；两库永不重复实现 cq-compat 功能。
 - **动作**：
-  1. 从 `@faicad/cq-compat` 拆出 `cq-compat-assembly`（buildAssembly / constraint / constraintEx / faceRef / pointRef / axisRef / Color）与 `cq-compat-compare`（step-compare.ts / assembly-compare.ts + 全部 Compare 类型，dev-only）；新建 `cq-compat-sketch` 作为 2D 草图 / Sketch 层的家（Phase 2 落点，含未来 planegcs 约束 Sketch）；主包**保留** workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / 齿轮内核，**不再导出装配与 compare**；不做聚合包（用户拍板）；
-  2. **fai_cq_gears 冻结（运行时）**：运行时依赖声明、`src/` 源码全部保持（仍依赖 `@faicad/cq-compat`、仍从它导入 `getGearKernel` 等）；**dev 侧机械改指**：`scripts/_chk_phase.ts` / `compare-all.ts` 的 compare import 改指 `@faicad/cq-compat-compare`，devDependencies 增补该包；`fai_cq_warehouse` 保持仅 `@faicad/faijs` 运行时依赖，dev 侧 cq-compat → `cq-compat-compare`；
-  3. 新增 CI 守卫：import 边界审计（fai_cq_gears `src/` 仍从 `@faicad/cq-compat` 导入 = 白名单；cq-compat 主包内**禁止反向 import** assembly/sketch/compare；fai_cq_warehouse `src/` 禁止任何 cq-compat import；**任何包运行时依赖链禁止出现 `cq-compat-compare`**）+ 复用既有 `check-ghost-deps`；
-  4. 发布前全仓 grep `@faicad/cq-compat` 消费方，核实 compare 使用者清单（预期：仅 cq-compat 自身 parity、gears/warehouse 测试与 scripts），同步 `docs/plans/2026-09-19-npm-publish-plan.md` 发布清单与 3d_editor 消费面（§3.3）；
+  1. 从 `@faicad/faijs-cadquery` 拆出 `cq-compat-assembly`（buildAssembly / constraint / constraintEx / faceRef / pointRef / axisRef / Color）与 `cq-compat-compare`（step-compare.ts / assembly-compare.ts + 全部 Compare 类型，dev-only）；新建 `cq-compat-sketch` 作为 2D 草图 / Sketch 层的家（Phase 2 落点，含未来 planegcs 约束 Sketch）；主包**保留** workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / 齿轮内核，**不再导出装配与 compare**；不做聚合包（用户拍板）；
+  2. **fai_cq_gears 冻结（运行时）**：运行时依赖声明、`src/` 源码全部保持（仍依赖 `@faicad/faijs-cadquery`、仍从它导入 `getGearKernel` 等）；**dev 侧机械改指**：`scripts/_chk_phase.ts` / `compare-all.ts` 的 compare import 改指 `@faicad/cq-compat-compare`，devDependencies 增补该包；`fai_cq_warehouse` 保持仅 `@faicad/faijs` 运行时依赖，dev 侧 cq-compat → `cq-compat-compare`；
+  3. 新增 CI 守卫：import 边界审计（fai_cq_gears `src/` 仍从 `@faicad/faijs-cadquery` 导入 = 白名单；cq-compat 主包内**禁止反向 import** assembly/sketch/compare；fai_cq_warehouse `src/` 禁止任何 cq-compat import；**任何包运行时依赖链禁止出现 `cq-compat-compare`**）+ 复用既有 `check-ghost-deps`；
+  4. 发布前全仓 grep `@faicad/faijs-cadquery` 消费方，核实 compare 使用者清单（预期：仅 cq-compat 自身 parity、gears/warehouse 测试与 scripts），同步 `docs/plans/2026-09-19-npm-publish-plan.md` 发布清单与 3d_editor 消费面（§3.3）；
   5. **cq-compat-assembly 提供 CadQuery 风格 solve API（用户修订要求 3）**：`buildAssembly` 返回装配对象，暴露 `solve()` / `toCompound()`（对应 CQ `Assembly.solve()` / `toCompound()`），内部封装 core 求解器；**mini_lathe 消费面迁移**：`getSlot(compound).behavior.solveDetailed()` → `asm.solve()`（CQ 语法，无 core 求解器直调）。
-- **验收**：拆包后 `@faicad/cq-compat` 仍导出全部建模兼容面（workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / 齿轮内核），**不再导出装配、compare，不内置 2D 草图**；`npm ls` 验证任何包运行时依赖图**不含** `cq-compat-compare`；fai_cq_gears 运行时零改动、dev 侧改指后测试全绿；warehouse 测试全绿（dev 改指）；守卫脚本入 CI 全绿；3d_editor 迁移后全绿；**mini_lathe e2e 改走 `asm.solve()` 后 6/6 全绿，消费面无 `getSlot`/`behavior` 探针**。
+- **验收**：拆包后 `@faicad/faijs-cadquery` 仍导出全部建模兼容面（workplane / 2D 绘图 / 体素 / 特征 / 选择器 / 变换 / 齿轮内核），**不再导出装配、compare，不内置 2D 草图**；`npm ls` 验证任何包运行时依赖图**不含** `cq-compat-compare`；fai_cq_gears 运行时零改动、dev 侧改指后测试全绿；warehouse 测试全绿（dev 改指）；守卫脚本入 CI 全绿；3d_editor 迁移后全绿；**mini_lathe e2e 改走 `asm.solve()` 后 6/6 全绿，消费面无 `getSlot`/`behavior` 探针**。
 - **风险**：拆包触碰发布计划与 3d_editor 装配导入面 → 变更 API 须同步 `../3d_editor`（H3 纪律）；`fai_cq_gears` 的 dev 侧改指是「运行时零改动」口径的唯一例外（compare 独立的必然结果，用户已授权）。
 
 ### Phase 1｜装配镜像化（依赖 §2 装配求解器）
@@ -295,7 +295,7 @@
 **DoD（每个 Phase 收尾）**：
 - [ ] 新增镜像后重跑 `gen-manifest.ts`（manifest 与磁盘不脱节）；
 - [ ] block 用例时**同时删除对应 `out/cand/*.step`**；
-- [x] `npm run test -w @faicad/cq-compat` 全绿（131 passed，`--maxWorkers=2` 稳定）、stderr 零容忍；
+- [x] `npm run test -w @faicad/faijs-cadquery` 全绿（131 passed，`--maxWorkers=2` 稳定）、stderr 零容忍；
 - [ ] `npm run typecheck` / `lint` / `doc-sync` 全绿；
 - [x] Phase 0 后重跑 `check-ghost-deps`（830 文件）+ `check-workspaces-order` 全绿；import 边界守卫（cq-compat 主包无 assembly/compare 反向 import、warehouse src 无 cq-compat、compare dev-only）由拆包结构保证；
 - [x] 发布清单（`docs/plans/2026-09-19-npm-publish-plan.md`）已同步新增子包与拓扑序；
@@ -323,7 +323,7 @@
 - `@faicad/cq-compat-compare` — dev-only 几何等价性比较器（STEP/装配 compare，原 `step-compare.ts`/`assembly-compare.ts` 迁入），不进任何包运行时依赖链；fai_cq_gears / fai_cq_warehouse 的 dev 侧 compare import 全部改指本包。2 测试全绿。
 - `@faicad/cq-compat-sketch` — 2D 草图（Sketch 约束驱动参数化草图）骨架：`export {}` + Phase-2 注释（镜像 CQ sketch.py / occ_impl/sketch_solver.py 边界，按 §5 Phase 2 填充）。
 
-**主包 `@faicad/cq-compat`（0.13.2）**：删除 `assembly.ts` / `step-compare.ts` / `assembly-compare.ts` 及 4 个装配测试 + p0b 测试（共 7 文件）；`index.ts` 移除装配/compare 导出、新增 `export { asBrepShape, resolveFaceSelector } from ''./workplane''`；`browser.ts` 只留 workplane + gears；4 处 compare import 改指新包。131 测试全绿。
+**主包 `@faicad/faijs-cadquery`（0.13.2）**：删除 `assembly.ts` / `step-compare.ts` / `assembly-compare.ts` 及 4 个装配测试 + p0b 测试（共 7 文件）；`index.ts` 移除装配/compare 导出、新增 `export { asBrepShape, resolveFaceSelector } from ''./workplane''`；`browser.ts` 只留 workplane + gears；4 处 compare import 改指新包。131 测试全绿。
 
 **接线**：根 workspaces 扩至 11 项（core → cq-compat-compare → cq-compat → cq-compat-assembly → cq-compat-sketch → fai_cq_gears → fai_cq_warehouse → sheetmetal → fixtures → tests → demo；compare 在 cq-compat 前因主包 devDeps 依赖）；`check-workspaces-order` / `check-ghost-deps` 全绿。core 侧修复 3 处存量 typecheck bug：`compound-geom.ts`/`import-brep.ts`/`place.ts` 的 `BrepEngineApi` 导入源 `../brep/engine/types` → `../brep/engine/primitives`（定义在 primitives.ts）。
 

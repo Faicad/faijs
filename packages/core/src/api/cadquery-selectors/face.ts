@@ -1,7 +1,7 @@
 /**
  * cadquery-selectors/face — CadQuery face 字符串选择器
  *
- * 等价搬运自 `packages/cq-compat/src/workplane.ts` 的 `resolveFaceSelector`
+ * 等价搬运自 `packages/faijs-cadquery/src/workplane.ts` 的 `resolveFaceSelector`
  * （含其私有 `NAMED_VIEW_TO_AXIS`、`bboxMax`/`bboxMin`、`cad` 单例）。仅 import
  * 路径改为 core 内部相对路径，逻辑逐行不变，零功能增减。
  *

@@ -106,7 +106,7 @@ faijs 的额外优势：身份是**纯文本、JSON 安全、可手改、可 dif
 
 ### 3.1 cq-compat 现有的选择器是"不支持就报错"，不是"猜"
 
-`packages/cq-compat/src/workplane.ts:1514-1538`：
+`packages/faijs-cadquery/src/workplane.ts:1514-1538`：
 
 ```ts
 const m = /^\|([XYZ])$/.exec(sel.trim())

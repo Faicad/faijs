@@ -27,7 +27,7 @@
 | 根门面（待 §9 决策，倾向废弃） | `@faicad/faijs` | 0.12.1 | **private: true** | **见 §9 D2**：建议 core 升格为 `@faicad/faijs`，本门面包删除 |
 | core（升格为公开引擎包，见 §9） | `@faicad/faijs` → `@faicad/faijs` | 0.13.0 | 否 | **发布**（拟改名为 `@faicad/faijs`，cad 内置） |
 | fcstd（2026-09-24 抽包新增） | `@faicad/faijs-fcstd` | 0.16.1 | 否 | **发布**（FCStd 读层 + `.fai.js` 转换流水线 + 批量 CLI；peer 依赖 `@faicad/faijs`。core 自此不再携带 `./fcstd` / `./fcstd-convert` 子路径与 `faijs-fcstd-convert` bin，见 `docs/plans/2026-09-24-fcstd-extract-package-plan.md`） |
-| cq-compat | `@faicad/cq-compat` | 0.13.2 | 否 | **发布**（兼容主体：workplane/2D 绘图/体素/特征/选择器/变换/齿轮内核） |
+| cq-compat | `@faicad/faijs-cadquery` | 0.13.2 | 否 | **发布**（兼容主体：workplane/2D 绘图/体素/特征/选择器/变换/齿轮内核） |
 | cq-compat-assembly（2026-09-22 拆包新增） | `@faicad/cq-compat-assembly` | 0.1.0 | 否 | **发布**（装配兼容层：buildAssembly/solve()/toCompound()/save()，封装 core 求解器） |
 | cq-compat-compare（2026-09-22 拆包新增） | `@faicad/cq-compat-compare` | 0.1.0 | 否 | **发布**（dev-only 几何等价性比较器；禁止进入任何包运行时依赖链） |
 | cq-compat-sketch（2026-09-22 拆包新增） | `@faicad/cq-compat-sketch` | 0.1.0 | 否 | **发布**（2D 约束草图域，当前骨架，按方案 Phase 2 填充） |
@@ -76,7 +76,7 @@ monorepo 包间强耦合（根门面 re-export core 全量 API），独立版本
 - **semver 幅度**：破坏性变更（breaking change，如拓扑身份/API 契约变更）必须升 **minor**（0.x 阶段第二位 +1，如 0.13.x → 0.14.x），禁止只升 patch；新增能力升 minor；bug 修复升 patch；
 - **最后一位（patch）从 1 开始、不用 0**：版本号尾部（patch 位）不使用 `x.y.0`，从 1 起（如 `0.14.1`）；
 - **全部可发布包统一同号**（fixed/lockstep）：当前 6 项拓扑身份 breaking change 一起升到 `0.14.1`；
-- peerDependencies 对 `@faicad/faijs`/`@faicad/cq-compat` 锁同号 minor 范围（`^0.14.0`）；
+- peerDependencies 对 `@faicad/faijs`/`@faicad/faijs-cadquery` 锁同号 minor 范围（`^0.14.0`）；
 - 发布脚本一次校验全部包版本一致，不一致即拒绝发布；
 - 后续可用 changesets 管理升级日志（可选，非必需，见 Q5）。
 

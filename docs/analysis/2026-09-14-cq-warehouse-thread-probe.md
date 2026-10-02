@@ -9,7 +9,7 @@
 
 ## 1. 判定口径（为什么体积要另立基准）
 
-`@faicad/cq-compat` 的 `compareAssemblyFiles` 用 `getVolume` / `getCenterOfMass`，二者都走 **`BRepGProp` 精确曲面积分**。该积分对**螺旋 B 样条面**出现**求积混叠**（quadrature aliasing），实测 A 侧 Thread（raw/raw）自相矛盾：
+`@faicad/faijs-cadquery` 的 `compareAssemblyFiles` 用 `getVolume` / `getCenterOfMass`，二者都走 **`BRepGProp` 精确曲面积分**。该积分对**螺旋 B 样条面**出现**求积混叠**（quadrature aliasing），实测 A 侧 Thread（raw/raw）自相矛盾：
 
 | 量 | 值 | 来源 |
 |---|---|---|

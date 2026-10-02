@@ -1,7 +1,7 @@
 /**
  * probe-worm7.ts — 三种建面策略下的 Worm 体积 vs manifest 参考
  */
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 import { wormGeometry } from '../src/profile'
 import { buildWormSolid } from '../src/worm_gear'
 import { SPLINE_FACE_STRATEGIES } from '../src/spline-face'

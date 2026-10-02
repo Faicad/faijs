@@ -6,7 +6,7 @@
  *   n=3 sw=8  id=16 od=32 → 135.627591
  *   n=3 sw=20 id=40 od=100 → 1588.455195
  */
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '@faicad/faijs-cadquery'
 
 async function main(): Promise<void> {
   const kernel = await getGearKernel()

@@ -1,7 +1,7 @@
 # CadQuery 选择器完整支持方案（顶点点选择器 + 字符串语法全量 + 选择器探针通道）
 
-> 状态：**方案已定，待实施**。依据为 `packages/core`、`packages/cq-compat`、`packages/cq-compat-assembly` 的当前源码，以及 `C:\git\CADQ\cadquery`（HEAD `a637795`，v2.8.0 线）的 `selectors.py` / `cq.py` / `tests/test_selectors.py`。
-> 范围：`packages/core`（选择器子系统扩展）、`packages/cq-compat`（接线与去重）、`packages/cq-compat/tests`（新增验证通道）。
+> 状态：**方案已定，待实施**。依据为 `packages/core`、`packages/faijs-cadquery`、`packages/cq-compat-assembly` 的当前源码，以及 `C:\git\CADQ\cadquery`（HEAD `a637795`，v2.8.0 线）的 `selectors.py` / `cq.py` / `tests/test_selectors.py`。
+> 范围：`packages/core`（选择器子系统扩展）、`packages/faijs-cadquery`（接线与去重）、`packages/faijs-cadquery/tests`（新增验证通道）。
 > 本文只陈述**当前源码事实**与**目标设计**，不复述历史方案、不引用任何 plan 文档作为现状依据。
 
 ---
@@ -68,7 +68,7 @@ vertices(wp, sel) → clone(wp, { vertexSel: ..., faceSel: null, edgeSel: null }
 
 ### 2.4 验证通道现状：STEP 比对看不见选择结果
 
-现有流水线（`packages/cq-compat/tests/README.md` 与源码）：
+现有流水线（`packages/faijs-cadquery/tests/README.md` 与源码）：
 
 ```
 ref-harness/cq_step_plugin.py   # pytest 插件，AST 注入 try/finally + __CQ_EXPORT__(locals(), case_id)
@@ -350,7 +350,7 @@ faceSel / edgeSel / vertexSel   // 不变
 
 **三段式**：同一份 **spec** 驱动两侧，各自产出同构 JSON，再做差分。
 
-**(a) spec** — 新增 `packages/cq-compat/tests/selectors-probe.json`（与 `manifest.json` 同为仓库事实源，人工维护）：
+**(a) spec** — 新增 `packages/faijs-cadquery/tests/selectors-probe.json`（与 `manifest.json` 同为仓库事实源，人工维护）：
 
 ```json
 {
@@ -507,7 +507,7 @@ faceSel / edgeSel / vertexSel   // 不变
 3. **无孤儿用例**：`selectors-probe.json` 的每条 id 都被矩阵引用。
 4. **上游引用可核**：`upstream` 为 `"file:line"` 时，若 `C:\git\CADQ\cadquery` 存在则校验该行确实含对应选择器字面量；路径不存在时打印 `UPSTREAM-SKIP` 警告，**不计失败**（诚实口径，与 `blocked` 的处理一致）。
 
-门禁同时挂在两处：`npm test -w @faicad/cq-compat` 里的一条 test，以及 `compare-selectors.ts` 报告尾部的 `UNCOVERED` 行。新增语法而未补案例，CI 必红。
+门禁同时挂在两处：`npm test -w @faicad/faijs-cadquery` 里的一条 test，以及 `compare-selectors.ts` 报告尾部的 `UNCOVERED` 行。新增语法而未补案例，CI 必红。
 
 ---
 
@@ -516,11 +516,11 @@ faceSel / edgeSel / vertexSel   // 不变
 | 阶段 | 内容 | 验收 | 阻塞 |
 |---|---|---|---|
 | **P0** 探针通道 | `selectors-probe.json` 骨架；`cq_step_plugin.py` + `run-ref.py` 扩展（`CQ_PROBE_SPEC`）；`tests/probe-cand.ts`；`tests/compare-selectors.ts`；`tests/README.md` 更新；重建 cadquery 环境；录 `out/ref/selectors.json` | 差分脚本能产出报告，且**在 `testVertexFilter` 上如实报 FAIL**（通道看得见缺口）；`MISSING-REF` 计数为 0 | 需重建 venv |
-| **P1** 语法层 | `grammar.ts` + `descriptor.ts`（手写递归下降，零新依赖）；建 `selectors-coverage.json` + `check-selector-coverage.ts` 门禁骨架；导出 `SYNTAX_FEATURES` | 23 条 `testGrammar` 表达式全通过；12 条非法表达式全抛错；4 个 `>Z >Z[-2] >>Z >>Z[2]` 描述对象互不相同；**S1–S16 / E1–E7 的「解析层」条目全部有案例**（▫️ 行在此闭环）。**不触碰现有行为**，`npm test -w @faicad/cq-compat` 全绿 | 无 |
+| **P1** 语法层 | `grammar.ts` + `descriptor.ts`（手写递归下降，零新依赖）；建 `selectors-coverage.json` + `check-selector-coverage.ts` 门禁骨架；导出 `SYNTAX_FEATURES` | 23 条 `testGrammar` 表达式全通过；12 条非法表达式全抛错；4 个 `>Z >Z[-2] >>Z >>Z[2]` 描述对象互不相同；**S1–S16 / E1–E7 的「解析层」条目全部有案例**（▫️ 行在此闭环）。**不触碰现有行为**，`npm test -w @faicad/faijs-cadquery` 全绿 | 无 |
 | **P2** 投影 + 谓词 + 求解器 | `entity.ts` / `predicates.ts` / `resolve.ts`；`face.ts` 改为投影（`resolveFaceSelector` 签名不变）；建 6 个 fixture 与 `extra` 探针用例 | 探针 face 条目全 PASS；`selectors.test.ts` 覆盖 `\|`/`#`/`%PLANE`/`and`/`or`/`not`/`exc`/多轴/向量/索引；**S1–S16 / E1–E7 / C1–C9 的 face 行全部非 `UNCOVERED`**（E4、E6、S15 在此补行为）；`slide-top-stage-g.test.ts`、`parity-fixes.test.ts`、`siblings.probe.test.ts`、`loft.test.ts`、`sketch-workplane.test.ts` 全绿；STEP 通道 `test_selectors` 46 条仍 PASS | P0（face 差分）、P1 |
 | **P3** edge 全量 | 谓词扩到 edge；`resolveEdgeSelection` / `resolveFaceEdgeSelection` 改为投影；删除 `selectEdgeHandles` | 探针 edge 条目全 PASS；**S1–S7、S13–S15 的 edge 行全部非 `UNCOVERED`**；`edges(">Z")`/`edges("+Z")`/`edges("#Z")`/`edges("\|Z")`/`edges(">Z or <Z")` 语义与 ref 一致；`p1-workplane-ops.test.ts`、`siblings.probe.test.ts`、`chamfer`/`fillet` 目录测试全绿 | P2 |
 | **P4** vertex 全量 + 逐级收窄 | `vertex.ts`；`Workplane.selChain`；`faces/edges/vertices` 写链；`eachpoint` 改走 `resolveSelection`；删除 `selectFaceHandles` / 改写 `selectFaceHandlesForRemoval` | 探针 vertex 条目全 PASS（含 `testVertices` / `testVertexFilter` 的 `(0,0,1)`）；**S1–S15 的 vertex 行与 C1–C9 全部非 `UNCOVERED`**（含 `extra.vertex.parZ`/`perpZ`/`type` 三条**空集**断言的 `GOTCHA` 测试）；`resolveVertexSelector` 单测；`.faces("+Z").vertices("<XY")` 精确命中；`.faces(">Z").eachpoint()` 只落在被选面；`assembly-lift-boundary.test.ts` 全绿 | P3 |
-| **P5** 去重收口 + 镜像补全 | `shape-class.ts` 4 类收口到 core（`NearestToPointSelector` 只改为 `Center()` 语义后保留）；补 16 个缺镜像；重跑 `gen-manifest.ts`；`tests/README.md` / `baseline.json` 更新 | `grep -rn "cross(\|getAngle\|NAMED_VIEW" packages/cq-compat/src` 不再出现选择器算法实现（只剩薄封装）；`npm test -w @faicad/cq-compat` / `-w @faicad/faijs` / `-w @faicad/faijs-tests` 全绿；STEP 报告无新增 FAIL | P4 |
+| **P5** 去重收口 + 镜像补全 | `shape-class.ts` 4 类收口到 core（`NearestToPointSelector` 只改为 `Center()` 语义后保留）；补 16 个缺镜像；重跑 `gen-manifest.ts`；`tests/README.md` / `baseline.json` 更新 | `grep -rn "cross(\|getAngle\|NAMED_VIEW" packages/faijs-cadquery/src` 不再出现选择器算法实现（只剩薄封装）；`npm test -w @faicad/faijs-cadquery` / `-w @faicad/faijs` / `-w @faicad/faijs-tests` 全绿；STEP 报告无新增 FAIL | P4 |
 
 **每阶段的验收里都含一条 D5 门禁项**：`check-selector-coverage.ts` 中该阶段负责的语法条目必须"有案例且非 `UNCOVERED`"。门禁只认矩阵与 probe spec 的一致性，**不认"我已经测过了"的口头结论**——P1–P4 每阶段结束都要跑一次，未覆盖条目会以 `UNCOVERED: <feature-id>` 列在报告里。
 

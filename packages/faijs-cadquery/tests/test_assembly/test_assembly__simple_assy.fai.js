@@ -1,0 +1,16 @@
+// source: test_assembly.py::test_assembly (var simple_assy)
+// fixture: b1 = Solid.makeBox(1,1,1) at loc (2,-5,0)  (corner box -> centre (2.5,-4.5,0.5))
+//          b2 = Workplane().box(1,1,2) at loc (1,1,0); root loc (2,-5,0) folds in -> (3,-4,0)
+//          b3 = pushPoints([(0,0),(-2,-5)]).box(1,1,3) at loc (2,3,0) -> (4,-2,0) and (2,-7,0)
+// (the traverse/count asserts are non-geometry; only the compound is compared)
+// ref anchor: vol=9, com (2.9444,-4.3889,0.05556), topo f24/e48/v32/s4
+import * as cq from '@faicad/faijs-cadquery'
+let b1 = await cq.translate(cq.Workplane(), [2.5, -4.5, 0.5])
+let p1 = await cq.box(b1, 1, 1, 1)
+let b2 = await cq.translate(cq.Workplane(), [3, -4, 0])
+let p2 = await cq.box(b2, 1, 1, 2)
+let b3a = await cq.translate(cq.Workplane(), [4, -2, 0])
+let p3 = await cq.box(b3a, 1, 1, 3)
+let b3b = await cq.translate(cq.Workplane(), [2, -7, 0])
+let p4 = await cq.box(b3b, 1, 1, 3)
+let result = cq.compound(cq.val(p1), cq.val(p2), cq.val(p3), cq.val(p4))

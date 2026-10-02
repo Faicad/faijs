@@ -20,7 +20,7 @@ export default defineConfig({
       'packages/sheetmetal',
       'packages/demo',
       'packages/tests',
-      // 注意：不包含 packages/cq-compat 与 packages/faijs-gears —— 两者较重，
+      // 注意：不包含 packages/faijs-cadquery 与 packages/faijs-gears —— 两者较重，
       // 用户明确要求根目录测试忽略它们（各包仍可单独 `npm test -w <pkg>` 运行）。
     ],
     testTimeout: 300000,
