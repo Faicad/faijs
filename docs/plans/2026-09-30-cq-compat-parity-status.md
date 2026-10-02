@@ -195,6 +195,8 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 
 **方法论修正**：上述缺口不应只靠 STEP 几何比对判定 parity，应推广 `2026-10-02-cadquery-selector-parity-plan.md` §5.1 的"语义级探针通道"（选择器探针 + 几何量探针 + 坐标变换探针 + 对象栈探针），并评估给 `analyze-coverage.py` 增加 `geometry-producing` / `value-producing` 维度标签。
 
+**闭环进度（2026-10-03 回写）**：探针通道已改为 `2026-10-02-cadquery-port-gap-audit.md` §5.1 的**一次性 Python 参考捕获 → 真值固化进 TS 断言**范式（per-run 通道已弃用）。已闭环：**A**（内省查询，20 用例）、**C**（对象选择器类，43 用例）、**D**（Plane 变换，16 用例）、**E1**（`wires/shells/solids/compounds` kind 选择器，12 用例）、**E2**（2D 草图选择器，18 用例）。仍开放：**B**（对象栈 —— 结构性，需先立方案）、**E3**（导出保真：GLTF / VTK.js / VRML / 带颜色-名字-层的 STEP）。`analyze-coverage.py` 的维度标签**已实施**（见审计 §5.4），并顺带修掉它自重命名提交 `e84817eb` 起就 404 的导出面路径。
+
 ---
 
 ## 4. 风险与已知问题

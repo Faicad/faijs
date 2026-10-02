@@ -10,6 +10,11 @@ answer to "移植哪些测试". This script produces that answer by static analy
      (`out/ref/manifest.json`) -> the ops each case really touches
   3. subtract what `@faicad/faijs-cadquery` implements -> portable vs blocked, with the
      first missing op per case (`blockedBy`)
+  4. label every op by its OUTPUT DIMENSION (`geometry-producing` /
+     `value-producing` / `plumbing` — audit §5.4) so the report can tell
+     "geometry aligned" apart from "semantics aligned". Value ops with no §5.1
+     truth assertion are reported as blind spots instead of silently counting
+     as covered.
 
 Only stdlib is needed. Uses the same CadQuery tag snapshot as `run-ref.py`.
 
@@ -34,10 +39,11 @@ REF_MANIFEST = os.path.join(PKG, "out", "ref", "manifest.json")
 # --------------------------------------------------------------------------
 # cq-compat surface
 #
-# The AUTHORITATIVE source is the published export surface of the three
-# cq-compat packages (cq-compat = workplane/location, cq-compat-assembly =
-# assembly, cq-compat-sketch = the unprefixed Sketch grammar). Those files are
-# parsed at run time below, so exporting a new op is enough to make it count.
+# The AUTHORITATIVE source is the published export surface of the CadQuery
+# compatibility layer — today a single package, @faicad/faijs-cadquery, which
+# carries the Workplane grammar, the 2D Sketch grammar and (upstream) the
+# assembly helpers. The file is parsed at run time below, so exporting a new op
+# is enough to make it count.
 #
 # WHY (2026-09-30): this used to be a hand-copied literal. It silently drifted
 # from the code — `close`/`lineTo`/`spline`/`polyline`/`wire`/`face`/`loft`/
@@ -45,14 +51,27 @@ REF_MANIFEST = os.path.join(PKG, "out", "ref", "manifest.json")
 # counted as missing, so ~130 cases were reported BLOCKED that were not. The
 # committed coverage.json was likewise one script-revision behind itself.
 #
+# WHY this list was rewritten (2026-10-03): it used to name three packages
+# (`cq-compat`, `cq-compat-assembly`, `cq-compat-sketch`). The rename commit
+# folded them all into @faicad/faijs-cadquery — the assembly surface became the
+# `./assembly` subpath and the 2D Sketch grammar the `./sketch` subpath — so
+# every path here 404'd. Because the surface is read at import time the script
+# died before doing anything, and it stayed dead from that rename onwards:
+# exactly the drift this section exists to prevent. Fail loudly, but point at
+# paths that still resolve.
+#
 # CQ_COMPAT_EXTRA below is a *supplement* for upstream names that are genuinely
 # implemented but not exported under that exact name. Keep it small and
 # justified; the moment a name becomes a real export it is redundant here.
 # --------------------------------------------------------------------------
+# All three public subpath entries of @faicad/faijs-cadquery's CadQuery surface
+# (`package.json` `exports`): the root grammar, the assembly solver subpath
+# (merged 2026-10-02 from the ex standalone cq-compat-assembly package) and the
+# unprefixed 2D Sketch grammar.
 CQ_COMPAT_PACKAGES = (
-    os.path.join("cq-compat", "src", "index.ts"),
-    os.path.join("cq-compat-assembly", "src", "index.ts"),
-    os.path.join("cq-compat-sketch", "src", "index.ts"),
+    os.path.join("faijs-cadquery", "src", "index.ts"),
+    os.path.join("faijs-cadquery", "src", "assembly", "index.ts"),
+    os.path.join("faijs-cadquery", "src", "sketch-pkg.ts"),
 )
 
 # Upstream names that ARE implemented, just under a different spelling.
@@ -68,8 +87,7 @@ def cq_compat_export_surface() -> set[str]:
     the alias, not the local symbol: `sketchRect as rect` contributes `rect`)."""
     names: set[str] = set()
     for rel in CQ_COMPAT_PACKAGES:
-        path = os.path.join(PKG, "..", rel)
-        path = os.path.normpath(path)
+        path = os.path.normpath(os.path.join(PKG, "..", rel))
         try:
             src = open(path, encoding="utf-8").read()
         except OSError as exc:
@@ -145,6 +163,93 @@ STRUCTURAL_BLOCKERS = {
     # python object protocol — nothing to mirror
     "__dir__",
 }
+
+
+# --------------------------------------------------------------------------
+# 1b. Output-dimension labels (audit §5.4)
+#
+# "Is op X implemented?" is the wrong question. An op's *output dimension*
+# decides whether the STEP-geometry comparator can ever see it:
+#
+#   geometry-producing  → the result lands in the exported STEP, so
+#                         `compare.ts` validates it. Coverage here means
+#                         "geometry aligned".
+#   value-producing     → returns a sub-shape reference, a scalar, or metadata
+#                         (selectors, object-stack destructuring, Shape
+#                         introspection, coordinate transforms). None of it
+#                         reaches the STEP file, so `compare.ts` is BLIND to it.
+#                         Coverage here means nothing unless a §5.1 one-shot
+#                         truth assertion exists for that op.
+#   plumbing            → test scaffolding, exporters, python object protocol.
+#                         Neither channel applies.
+#
+# WHY this exists (2026-10-03): every "silent gap" the audit found (§3.2–§3.5)
+# was an op that was counted as ported because it was exported, while the thing
+# it actually returns was never compared. Labelling makes that visible: the
+# report can now separate "geometry aligned" from "semantics aligned".
+# --------------------------------------------------------------------------
+GEOMETRY_PRODUCING = "geometry-producing"
+VALUE_PRODUCING = "value-producing"
+PLUMBING = "plumbing"
+
+# Upstream ops whose output is a sub-shape reference, a value, or metadata —
+# i.e. invisible to STEP comparison. Selectors come first (they hand back
+# references into an existing shape), then the Shape/Workplane query surface.
+VALUE_OPS: set[str] = {
+    # selectors / object-stack destructuring
+    "faces", "edges", "vertices", "wires", "shells", "solids", "compounds",
+    "all", "first", "last", "item", "get", "sortBy", "filterBy", "toArray",
+    "val", "vals", "valWrapped", "valWrapper", "shape", "shapes", "findSolid",
+    "select", "tag", "end", "nth",
+    # Shape introspection queries (values, not geometry)
+    "Volume", "Area", "Length", "Distance", "isValid", "Center",
+    "CenterOfBoundBox", "CenterOfMass", "BoundingBox", "ShapeType", "geomType",
+    "Faces", "Edges", "Vertices", "Solids", "Wires", "Shells", "Compounds",
+    "Locations",
+    # coordinate transforms (return a transformed point/shape, compared by value)
+    "toLocalCoords", "toWorldCoords", "mirrorInPlane",
+}
+
+# Plumbing: never a portability signal, never a parity signal either.
+PLUMBING_OPS: set[str] = {
+    "exportStep", "toCompound", "addShape", "copy", "deepcopy", "newObject",
+    "Type", "hashCode", "IsEqual", "Tolerance", " ShapeType",
+} | STRUCTURAL_BLOCKERS
+
+# Upstream value ops whose semantics are ALREADY pinned by a §5.1 one-shot
+# CadQuery 2.8.0 capture frozen into a TS assertion. Keeping this list honest is
+# the point of the whole section: an op here has a real truth anchor, an op
+# outside it is a blind spot no matter what the export surface says.
+VERIFIED_VALUE_OPS: set[str] = {
+    # selectors — src/selectors.test.ts, src/selectors-narrowing.test.ts,
+    #             src/object-selectors.test.ts (43 cases)
+    "faces", "edges", "vertices",
+    # kind selectors — src/kind-selectors.test.ts (12 cases)
+    "wires", "shells", "solids", "compounds",
+    # 2D sketch selectors — src/sketch-selectors.test.ts (18 cases)
+    "select",
+    # Shape introspection — src/shape-class.test.ts
+    "Volume", "Area", "Length", "Center", "BoundingBox", "isValid", "geomType",
+    # plane transforms — src/plane.test.ts (16 cases)
+    "toLocalCoords", "toWorldCoords", "mirrorInPlane",
+}
+
+
+def dimension_of(op: str) -> str:
+    """Output dimension of an upstream op (see the block above)."""
+    if op in VALUE_OPS:
+        return VALUE_PRODUCING
+    if op in PLUMBING_OPS:
+        return PLUMBING
+    return GEOMETRY_PRODUCING
+
+
+def split_dimensions(ops: list[str]) -> dict[str, list[str]]:
+    """Bucket a case's ops by output dimension, order preserved."""
+    out: dict[str, list[str]] = {GEOMETRY_PRODUCING: [], VALUE_PRODUCING: [], PLUMBING: []}
+    for op in ops:
+        out[dimension_of(op)].append(op)
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -344,7 +449,56 @@ def trace_calls(fn: ast.FunctionDef, vars_: list[str], universe: set[str],
 # --------------------------------------------------------------------------
 # 3. main
 # --------------------------------------------------------------------------
+def self_test() -> int:
+    """Invariants of the dimension labelling (audit §5.4).
+
+    `--self-test` runs without the ref manifest or a CadQuery install, so it can
+    be re-run after any edit to the op sets. It guards the two ways the labels
+    go wrong: an op in two dimensions at once, and a "verified" op that is not a
+    value op at all (which would quietly zero out a blind spot).
+    """
+    checks: list[tuple[str, bool]] = []
+
+    checks.append(("dimensions are disjoint",
+                   not (VALUE_OPS & PLUMBING_OPS)))
+    checks.append(("verified subset of value ops",
+                   VERIFIED_VALUE_OPS <= VALUE_OPS))
+    checks.append(("no selector counted as geometry",
+                   all(dimension_of(n) == VALUE_PRODUCING
+                       for n in ("faces", "edges", "vertices", "wires",
+                                 "solids", "shells", "compounds"))))
+    checks.append(("no query counted as geometry",
+                   all(dimension_of(n) == VALUE_PRODUCING
+                       for n in ("Volume", "Area", "Length", "Center",
+                                 "BoundingBox", "isValid", "CenterOfMass"))))
+    checks.append(("modelling ops stay geometry",
+                   all(dimension_of(n) == GEOMETRY_PRODUCING
+                       for n in ("box", "cylinder", "extrude", "cut", "union",
+                                 "fillet", "chamfer", "hole", "workplane"))))
+    checks.append(("structural blockers are plumbing",
+                   all(dimension_of(n) == PLUMBING for n in STRUCTURAL_BLOCKERS)))
+    buckets = split_dimensions(["box", "faces", "exportStep"])
+    checks.append(("split_dimensions buckets by dimension",
+                   buckets[GEOMETRY_PRODUCING] == ["box"]
+                   and buckets[VALUE_PRODUCING] == ["faces"]
+                   and buckets[PLUMBING] == ["exportStep"]))
+    checks.append(("export surface non-empty", len(CQ_COMPAT_OPS) > 0))
+
+    failed = [name for name, ok in checks if not ok]
+    for name, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+    if failed:
+        print(f"self-test FAILED: {len(failed)} invariant(s)", file=sys.stderr)
+        return 1
+    print(f"self-test ok ({len(checks)} invariants, "
+          f"{len(CQ_COMPAT_OPS)} ops in the cq surface)")
+    return 0
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        return self_test()
+
     top_n = 25
     if "--top" in sys.argv:
         top_n = int(sys.argv[sys.argv.index("--top") + 1])
@@ -407,6 +561,13 @@ def main() -> int:
         helpers, helper_ops = expand_helpers(free, helper_index, universe, IGNORED)
         missing = [n for n in ops if n not in CQ_COMPAT_OPS]
         helper_missing = [n for n in helper_ops if n not in CQ_COMPAT_OPS]
+        # Second pass with the value ops UN-ignored: `ops` deliberately drops
+        # selectors/queries so they cannot block a case, but the dimension
+        # labels need to see them — that is the whole point of §5.4.
+        touched, _ = trace_calls(fn, exported_vars, universe, IGNORED - VALUE_OPS)
+        dims = split_dimensions(touched)
+        unverified_value_ops = [n for n in dims[VALUE_PRODUCING]
+                                if n not in VERIFIED_VALUE_OPS]
         deps = sorted(free & CQ_MODULE_DEPS)
         if missing:
             category = "BLOCKED"
@@ -432,6 +593,8 @@ def main() -> int:
             "helperMissing": helper_missing,
             "steps": len(exported), "fellBack": fell_back,
             "vars": exported_vars,
+            "dims": {k: v for k, v in dims.items() if v},
+            "unverifiedValueOps": unverified_value_ops,
         })
 
     exported_cases = [r for r in results if r.get("status") == "exported"]
@@ -448,6 +611,19 @@ def main() -> int:
     for r in exported_cases:
         op_counter.update(set(r["missing"]))
 
+    # --- §5.4 output dimensions -------------------------------------------
+    dim_counter: Counter[str] = Counter()
+    for r in exported_cases:
+        dim_counter.update(set(r.get("dims", {})))
+    # A case whose geometry is portable but which touches value ops we have no
+    # truth assertion for is the audit's blind spot: STEP parity says PASS while
+    # the returned sub-shape / value is unchecked.
+    blind = [r for r in exported_cases
+             if r.get("category") != "BLOCKED" and r.get("unverifiedValueOps")]
+    blind_counter: Counter[str] = Counter()
+    for r in blind:
+        blind_counter.update(set(r["unverifiedValueOps"]))
+
     report = {
         "totalCasesInRefManifest": len(results),
         "casesWithStep": len(exported_cases),
@@ -457,6 +633,16 @@ def main() -> int:
         "blocked": len(blocked),
         "blockedByTop": block_counter.most_common(top_n),
         "missingOpTop": op_counter.most_common(top_n),
+        # --- §5.4 output dimensions ---------------------------------------
+        # `casesTouching` counts exported cases that touch at least one op of a
+        # given dimension; `valueBlindSpotCases` counts the non-blocked ones
+        # whose value ops have NO §5.1 truth assertion. That number is the
+        # honest ceiling on "semantics aligned" — everything above it is
+        # geometry-only coverage.
+        "dimensionCases": dict(dim_counter),
+        "valueBlindSpotCases": len(blind),
+        "valueBlindSpotOpTop": blind_counter.most_common(top_n),
+        "verifiedValueOps": sorted(VERIFIED_VALUE_OPS),
         # flat per-case map consumed by tests/gen-manifest.ts
         "cases": {
             r["case"]: {
@@ -465,12 +651,15 @@ def main() -> int:
                 "blockedBy": r.get("blockedBy"),
                 "ops": r.get("ops", []),
                 "vars": r.get("vars", []),
+                "valueRisk": bool(r.get("unverifiedValueOps")),
+                "unverifiedValueOps": r.get("unverifiedValueOps", []),
             }
             for r in results
         },
         "portableCases": [
             {"case": r["case"], "ops": r["ops"], "vars": r["vars"],
-             "fellBack": r.get("fellBack", False)}
+             "fellBack": r.get("fellBack", False),
+             "unverifiedValueOps": r.get("unverifiedValueOps", [])}
             for r in portable
         ],
         "stubCases": [
@@ -485,6 +674,20 @@ def main() -> int:
             for r in blocked
         ],
     }
+
+    print(
+        f"output dimensions (exported cases): "
+        + ", ".join(f"{k}={dim_counter.get(k, 0)}" for k in
+                    (GEOMETRY_PRODUCING, VALUE_PRODUCING, PLUMBING)),
+        file=sys.stderr,
+    )
+    print(
+        f"value blind spots: {len(blind)} of {len(exported_cases)} exported cases "
+        f"touch a value-producing op with NO §5.1 truth assertion",
+        file=sys.stderr,
+    )
+    for op, n in blind_counter.most_common(10):
+        print(f"  unverified: {op} ({n} cases)", file=sys.stderr)
 
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if "--json" in sys.argv:

@@ -182,9 +182,17 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 
 这些全部走 §5.1 的一次性捕获范式，而非 STEP `compare.ts`。
 
-### 5.4 度量改造建议（可选，但能根治）
+### 5.4 度量改造建议（可选，但能根治） —— **已实施（2026-10-03）**
 
-`analyze-coverage.py` 的 op universe 只认"是否实现 / 导出"。建议增加一个**维度标签**：每个上游 API 标记为 `geometry-producing`（进 STEP parity）或 `value/subshape-producing`（进 §5.1 一次性断言通道）。前者继续走 `compare.ts`，后者进对应断言。**这样 coverage 计数才能区分"几何已对齐"与"语义已对齐"**，不再把 §3 的沉默缺口藏在 64.8% 的 ported 里。
+`analyze-coverage.py` 的 op universe 只认"是否实现 / 导出"。已增加一个**维度标签**：每个上游 API 标记为 `geometry-producing`（进 STEP parity）或 `value-producing`（返回子形状引用 / 值 / 元数据，进 §5.1 一次性断言通道）或 `plumbing`（测试脚手架、导出器、Python 对象协议，两通道都不适用）。**coverage 计数现在能区分"几何已对齐"与"语义已对齐"**，不再把 §3 的沉默缺口藏在 64.8% 的 ported 里。
+
+**顺带发现的硬事实：这个脚本自重命名提交起就是死的**（`e84817eb refactor(cq-compat): rename packages/cq-compat to packages/faijs-cadquery`）。它 import 期就读 `packages/{cq-compat,cq-compat-assembly,cq-compat-sketch}/src/index.ts`，三个路径全部 404 ⇒ `cq_compat_export_surface()` 抛 `SystemExit`，脚本一行分析都没跑过。已改为 `@faicad/faijs-cadquery` 的**三个公开子路径**（`package.json` `exports`）：根语法 `src/index.ts`、装配求解 `src/assembly/index.ts`（2026-10-02 由独立 cq-compat-assembly 包并入）、无前缀 2D 草图语法 `src/sketch-pkg.ts`。
+
+**自证（最有力的一条）**：补齐三个子路径后重算，得到 **199 / 41 / 57**（portable / with-stub / blocked），与入库产物 `tests/coverage.json` **逐位一致** —— 说明该路径重建就是重命名前的等价面，不是凑数。只补根 `index.ts` 时是 174 / 38 / 85（装配与草图面被漏算，多出 28 条假 blocked）。
+
+**新度量的第一个结论**：297 条有 STEP 的用例中，**39 条**在几何口径下"已覆盖"，却触碰了**没有任何 §5.1 真值断言**的 value 类 op —— 盲区榜首是 `val`（16 条）/ `vals`（14 条）/ `tag`（4 条）/ `Faces`（3 条）/ `all`、`first`（各 2 条）。**榜首两项正确地重新指向 P3 对象栈**（`.val()/.vals()` 解构的正是栈上对象），这是度量独立于文档排序给出的同一优先级。
+
+**防回归**：`--self-test`（8 条不变式：三维度互斥、`VERIFIED ⊆ VALUE`、选择器/查询不得落到 geometry、建模 op 不得落到 value、结构阻塞项是 plumbing、分桶正确、导出面非空）—— 不需要 ref manifest 也不需要 CadQuery 环境即可跑。**变异检验**：把 `val`/`vals` 谎报进 `VERIFIED_VALUE_OPS`，盲区数 **39 → 13**，证明该计数对"是否真有真值断言"敏感而非空转。
 
 ### 5.5 红线（沿用仓库纪律）
 
@@ -219,11 +227,11 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 - [x] **（已做 · P4）** 对象选择器类（C 类）整体立案并落地：`packages/faijs-cadquery/src/object-selectors.ts`（CenterNth/LengthNth/AreaNth/RadiusNth + Box/NearestToShape + And/Sum/Subtract/Inverse），前置能力 `centerOf`/`radiusOf`/`shapeTypeOf` 补进 `src/shape-class.ts`；一次性 Python 捕获 `tests/ref-harness/object-selectors-probe.py` → 断言 `src/object-selectors.test.ts`（43 用例全绿）。GOTCHA 五条见 §3.3（全丢弃抛错 / 贴合盒返回空 / 方向不归一化 / 簇容差自簇首起算 / 平局取首个 + 真最小距离）。
 - [x] **（已做 · P4b，2026-10-03）** E 类第一项闭环 —— kind 选择器：`src/shape-class.ts` 新增 `wiresOf()`（`Shape.Wires()`，此前完全缺失），并把 `StringSyntaxSelector` / `NearestToPointSelector` 的选择基准从 bbox 中心改为上游 `Center()` 类型分派质心（`centerOf()`）；一次性捕获 `tests/ref-harness/kind-selectors-probe.py` → 断言 `src/kind-selectors.test.ts`（12 用例全绿，变异回退 bbox 版本即红）。冻结 GOTCHA 四条：face 的 `Shells()/Solids()/Compounds()` 全为 0；`Compounds()` 对 compound 返回它自己；带孔面的 `Wires()`=外环+每孔一个；`_collectProperty` 的 Solid→Compounds 特例在 2.8.0 公开 API 上**不可触发**（九种构造实测），故不实现。Workplane 层 `wires()/shells()/solids()/compounds()` 仍为"取第一个子形"的几何 op —— 它们需要 P3 的多对象栈才能表达"N 个子形入栈"，**留待 P3**。
 - [x] **（已做 · P4c，2026-10-03）** E 类第二项闭环 —— 2D 草图选择器：`src/sketch.ts` 的 `applyStringSelector` 从"bbox 中心 + 距极值 1e-6"改为上游 `StringSyntaxSelector` 的真实语义（`Center()` 类型分派质心 + `_NthSelector` 的 1e-4 簇容差 + 真求交的 `and` + 空候选集抛错），并把轴串扩展到 `X/Y/Z/XY/XZ/YZ`；一次性捕获 `tests/ref-harness/sketch-selectors-probe.py` → 断言 `src/sketch-selectors.test.ts`（18 用例全绿，变异回退 bbox 版本即 6 failed、回退链式 `and` 即 1 failed）。冻结 GOTCHA 四条：三角形面 / 圆弧的 `Center()` 与 bbox 中心**翻转** `>X` 的选择；中心相距 5e-5 的两者并成一簇（`>X` 与 `<X` 都返回全部）；`and` 是各操作数作用于同一候选集再求交（`>X and <Y` 为空）；空候选集抛 `Can not return the Nth element of an empty list`。连带修掉既有 `segment` 重载分派 bug（第二位 options 被当点 → NaN 端点）。**未改** `push`（上游 push 留 `Location`、faijs 留顶点，机制不同，按 GOTCHA 记录）。
-- [ ] **（待办）** 把本审计 §3 的 A–E 类沉默缺口**反向补登**进 `2026-09-30` §3.2（作为"沉默缺口"子节），使缺口清单完整。
+- [x] **（已做）** 把本审计 §3 的 A–E 类沉默缺口**反向补登**进 `2026-09-30` —— 落在 **§3.6「沉默缺口」**（§3.2 只收"能力缺口"，故另立小节），并已回写各类的闭环进度。
 - [ ] P0：推进选择器方案字符串语法全量 + 逐级收窄（**一次性 Python 捕获 → 固化 TS 断言**，不建 per-run 探针通道）。
 - [ ] **（已做 · P2）** 把 `Plane` 任意平面变换整体立案（不止 2 条），对 `toLocalCoords`/`mirrorInPlane` 做**一次性 Python 坐标捕获 → 固化 TS 断言**：实现见 `packages/faijs-cadquery/src/plane.ts`（`CqPlane` 帧 + `toLocalCoords`/`toWorldCoords`/`mirrorInPlane`/`toLocalCoordsVec`/`mirrorInPlaneVec`，复用内核 `generalTransform` + `getKernel`，未改 core）、断言见 `src/plane.test.ts`（16 用例全绿，容差 1e-6）、参考捕获见 `packages/faijs-cadquery/tests/ref-harness/plane-transform-probe.py`（CadQuery 2.8.0 XY/TR/TILT/Y 平面 + ROOT/OFF 盒，不进 CI）。曝光两个真实语义差异：`mirrorInPlane` 反射轴是"关于 X/Y 轴**线**反射"（翻转 local y&z 或 x&z，非关于 YZ/XZ 平面）——Householder 反射矩阵对齐；CadQuery 返回 `Shell`、faijs 保留输入拓扑（几何相同、TopoDS 标签不同），按 GOTCHA 记录。`toWorldCoords` 为 `toLocalCoords` 逆，由矩阵逆自洽覆盖。
 - [ ] P1 之后：审计剩余 ~74 个 `Shape` 方法（构造器、`transform`/`translate`/`rotate`、`Sections`/`Shells` 几何操作、`distToShape` 等），逐个判定"已实现 / 语义空心 / 缺失"，并与本审计 §5 范式落地断言。
-- [ ] 评估 `analyze-coverage.py` 增加 `geometry-producing` / `value-producing` 维度标签（§5.4），根治度量失明。
+- [x] **（已做 · 2026-10-03）** `analyze-coverage.py` 增加 `geometry-producing` / `value-producing` / `plumbing` 维度标签（§5.4），根治度量失明：新增 `--self-test`（8 条不变式）+ 每 case 的 `dims` / `unverifiedValueOps` / `valueRisk` + 报告级 `dimensionCases` / `valueBlindSpotCases` / `valueBlindSpotOpTop` / `verifiedValueOps`；stderr 打印维度分布与盲区榜。**同时修掉该脚本自重命名提交 `e84817eb` 起就 404 的三条包路径**（改指 `@faicad/faijs-cadquery` 的三个公开子路径），重算结果与入库 `coverage.json` 的 199/41/57 逐位一致。**未**重算入库 `coverage.json`（会翻转 130+ case 状态，须单独一轮核验）。首个结论：39/297 条几何已覆盖的用例触碰无真值断言的 value op，榜首 `val`/`vals`（16/14）正指向 P3 对象栈。
 - [ ] 每立项一个沉默缺口，先写一次性 Python 参考捕获 + 固化 TS 断言（复用 `selectors.test.ts` 的"捕获真值 → 硬编码期望 → 引擎重算"纪律）。
 
 ---
