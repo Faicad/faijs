@@ -1,7 +1,7 @@
 {
   "cadquerySrc": "C:\\git\\CADQ\\cadquery",
   "cadqueryTag": "v2.8.0",
-  "python": "C:\\Users\\ylt\\cadquery-env\\Scripts\\python.exe",
+  "python": "C:\\cqenv\\Scripts\\python.exe",
   "cadqueryVersion": "2.8.0",
   "ocp": "cadquery-ocp 7.9.3.1.1",
   "pytest": "9.1.1",

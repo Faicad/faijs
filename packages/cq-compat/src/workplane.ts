@@ -21,7 +21,10 @@ import {
   resolveFaceSelector,
   resolveEdgeSelection,
   resolveFaceEdgeSelection,
+  resolveVertexSelection,
+  resolveSelection,
 } from '@faicad/faijs/api/cadquery-selectors'
+import type { SelStep } from '@faicad/faijs/api/cadquery-selectors'
 export { resolveFaceSelector }
 import { applyMatrixBrep } from '@faicad/faijs/api/brep-mirror/topologyFns'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
@@ -208,6 +211,15 @@ export interface Workplane {
   edgeSel: string | null
   /** Pending vertex selector. Set by .vertices(). */
   vertexSel: string | null
+  /**
+   * Persistent selection chain across kind transitions (plan §4.7). Because
+   * `faces`/`edges`/`vertices` null the OTHER two single-kind fields, the
+   * cross-kind narrowing context (`.faces(">Z").vertices("<XY")`) cannot be
+   * recovered from them; this parallel chain preserves every {kind, sel} step
+   * so `.eachpoint()` / fillet / chamfer can run the narrowing engine over
+   * `resolveSelection(shape, selChain)` (plan §4.5).
+   */
+  selChain?: SelStep[]
   /** Accumulated pushPoints (2D offsets in workplane coords). */
   pts: [number, number][]
   /**
@@ -400,6 +412,7 @@ function makeWorkplane(plane: string): Workplane {
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
+    selChain: undefined,
     pts: [] as [number, number][],
     forConstruction: false,
   }) as Workplane
@@ -675,7 +688,7 @@ async function combineEachpoint(
   } else {
     shape = makeCompoundShape(shapes)
   }
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
 
 /**
@@ -864,7 +877,7 @@ export async function text(
   if ((opts?.clean ?? true) && result.shape) {
     result = clone(result, { shape: await cleanShapes(result.shape) })
   }
-  return clone(result, { faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+  return clone(result, { faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
 
 /**
@@ -2400,6 +2413,7 @@ export async function extrude(
       faceSel: null,
       edgeSel: null,
       vertexSel: null,
+      selChain: undefined,
       pts: [],
     })
   }
@@ -2427,6 +2441,7 @@ export async function extrude(
         faceSel: null,
         edgeSel: null,
         vertexSel: null,
+        selChain: undefined,
         pts: [],
       })
     }
@@ -2480,6 +2495,7 @@ export async function extrude(
       faceSel: null,
       edgeSel: null,
       vertexSel: null,
+      selChain: undefined,
       pts: [],
     })
   }
@@ -2505,23 +2521,24 @@ export async function extrude(
       faceSel: null,
       edgeSel: null,
       vertexSel: null,
+      selChain: undefined,
       pts: [],
     })
   }
   // If there's a pending 2D profile (rect/circle/polygon) and no existing shape, create the 3D solid
   if (wp.pendingPolygon && !wp.shape) {
     const shape = await makePolygonPrismAt(wp, wp.pendingPolygon, height, wp.normal)
-    return clone(wp, { shape, pendingWires: [], pendingPolygon: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+    return clone(wp, { shape, pendingWires: [], pendingPolygon: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
   }
   if (wp.pendingRect && !wp.shape) {
     const { w, d } = wp.pendingRect
     const shape = await makeBoxAt(wp, w, d, height)
-    return clone(wp, { shape, pendingWires: [], pendingRect: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+    return clone(wp, { shape, pendingWires: [], pendingRect: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
   }
   if (wp.pendingCircle && !wp.shape) {
     const { radius } = wp.pendingCircle
     const shape = await makeCylinderAt(wp, radius, height)
-    return clone(wp, { shape, pendingWires: [], pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+    return clone(wp, { shape, pendingWires: [], pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
   }
   // Boss extrude on existing shape: create profile at each workplane point and union
   if (wp.shape) {
@@ -2615,6 +2632,7 @@ export async function extrude(
           faceSel: null,
           edgeSel: null,
           vertexSel: null,
+          selChain: undefined,
           pts: [],
         })
       }
@@ -2627,6 +2645,7 @@ export async function extrude(
         faceSel: null,
         edgeSel: null,
         vertexSel: null,
+        selChain: undefined,
         pts: [],
       })
     }
@@ -2799,6 +2818,7 @@ async function outwardTaperPrism(
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
+    selChain: undefined,
     pts: [],
   })
 }
@@ -2874,6 +2894,7 @@ export async function revolve(
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
+    selChain: undefined,
     pts: [],
   })
 }
@@ -2987,6 +3008,7 @@ export async function loft(wp: Workplane, ...rest: (Workplane | LoftOptions)[]):
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
+    selChain: undefined,
     pts: [],
   })
 }
@@ -3085,7 +3107,7 @@ export async function cutBlind(
     }
     result = await cutShapes(result, tool)
   }
-  return clone(wp, { shape: result, faceSel: null, edgeSel: null, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
+  return clone(wp, { shape: result, faceSel: null, edgeSel: null, selChain: undefined, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
 }
 
 /**
@@ -3148,7 +3170,7 @@ export async function cutThruAll(wp: Workplane): Promise<Workplane> {
     }
     shape = await cutShapes(shape, tool)
   }
-  return clone(wp, { shape, faceSel: null, edgeSel: null, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
+  return clone(wp, { shape, faceSel: null, edgeSel: null, selChain: undefined, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
 }
 
 /**
@@ -3186,7 +3208,7 @@ export async function hole(
     result = await cutShapes(result, cyl)
   }
 
-  return clone(wp, { shape: result, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+  return clone(wp, { shape: result, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
 
 /**
@@ -3506,8 +3528,31 @@ export async function siblings(
  * @param sel - string
  * @returns Workplane
  */
+/**
+ * Append a narrowing step to a selChain. A repeated same-kind step replaces
+ * the previous one (CadQuery `.faces(a).faces(b)` keeps only the later), a
+ * new kind appends (`.faces(">Z").vertices("<XY")` narrows face→vertex).
+ */
+function appendSelStep(prev: SelStep[] | undefined, step: SelStep): SelStep[] {
+  if (!prev || prev.length === 0) return [step]
+  const last = prev[prev.length - 1]
+  if (last.kind === step.kind) return [...prev.slice(0, -1), step]
+  return [...prev, step]
+}
+
+/**
+ * faces — CadQuery Workplane.faces(sel) parity: select faces by a CadQuery
+ * string selector and append a `face` step to the narrowing chain, so a later
+ * `.vertices(...)` / `.edges(...)` / `.eachpoint()` can narrow further
+ * (plan §4.7 cross-kind narrowing).
+ *
+ * @param wp - Workplane whose current objects are narrowed.
+ * @param sel - The CadQuery face selector string.
+ * @returns A workplane carrying the `face` selection + the updated chain.
+ */
 export function faces(wp: Workplane, sel: string): Workplane {
-  return clone(wp, { faceSel: sel, edgeSel: null, vertexSel: null })
+  const chain: SelStep[] = appendSelStep(wp.selChain, { kind: 'face', sel })
+  return clone(wp, { faceSel: sel, edgeSel: null, vertexSel: null, selChain: chain })
 }
 
 /**
@@ -3557,6 +3602,7 @@ export function workplaneFromTagged(wp: Workplane, name: string): Workplane {
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
+    selChain: undefined,
   })
 }
 
@@ -3580,7 +3626,9 @@ export function edges(
       pts = [pts[idx]]
     }
   }
-  return clone(wp, { edgeSel: typeof sel === 'string' ? sel : '', faceSel: null, vertexSel: null, pts: [...pts] })
+  const selStr = typeof sel === 'string' ? sel : ''
+  const chain: SelStep[] = appendSelStep(wp.selChain, { kind: 'edge', sel: selStr })
+  return clone(wp, { edgeSel: selStr, faceSel: null, vertexSel: null, pts: [...pts], selChain: chain })
 }
 
 /**
@@ -3603,7 +3651,9 @@ export function vertices(
       pts = [pts[idx]]
     }
   }
-  return clone(wp, { vertexSel: typeof sel === 'string' ? sel : '', faceSel: null, edgeSel: null, pts: [...pts] })
+  const selStr = typeof sel === 'string' ? sel : ''
+  const chain: SelStep[] = appendSelStep(wp.selChain, { kind: 'vertex', sel: selStr })
+  return clone(wp, { vertexSel: selStr, faceSel: null, edgeSel: null, pts: [...pts], selChain: chain })
 }
 
 /**
@@ -3648,7 +3698,7 @@ export function solids(wp: Workplane): Workplane {
  */
 export function copyWorkplane(wp: Workplane, obj: Workplane): Workplane {
   void wp
-  return clone(obj, { shape: null, faceSel: null, edgeSel: null, vertexSel: null })
+  return clone(obj, { shape: null, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -3712,7 +3762,7 @@ function materializeSketch(sk: Sketch): ShapeHandle[] {
  * @returns Workplane with `pendingFaces` set
  */
 export function sketchFinish(sk: Sketch, wp: Workplane): Workplane {
-  return clone(wp, { pendingFaces: materializeSketch(sk), faceSel: null, edgeSel: null, vertexSel: null })
+  return clone(wp, { pendingFaces: materializeSketch(sk), faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -3737,7 +3787,7 @@ export function placeSketch(wp: Workplane, ...sks: Sketch[]): Workplane {
     if (!copy.plane) copy.plane = { origin: [...wp.origin] as [number, number, number], normal: [...wp.normal] as [number, number, number] }
     faces.push(...materializeSketch(copy))
   }
-  return clone(wp, { pendingFaces: faces, faceSel: null, edgeSel: null, vertexSel: null })
+  return clone(wp, { pendingFaces: faces, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -3775,7 +3825,19 @@ export async function eachpoint(
   const shapeHandle = shape ? (brepOf(shape) as unknown as BrepHandle) : null
   type Pt = [number, number, number]
   let locs: Pt[] = []
-  if (wp.vertexSel !== null && shapeHandle) {
+  if (wp.selChain && wp.selChain.length > 0 && shapeHandle) {
+    // Narrowing chain (plan §4.7): `.faces("s").eachpoint(x)` places at EACH
+    // selected face's centre, `.faces("a").vertices().eachpoint(x)` at each
+    // surviving vertex, etc. — the engine-readable form of the stack upstream
+    // iterates over (`self.objects`).
+    const bbox = (h: unknown): { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } =>
+      (getKernel() as unknown as { getBoundingBox: (h: unknown) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } }).getBoundingBox(h)
+    const res = resolveSelection(shapeHandle as never, wp.selChain)
+    for (const h of res.handles) {
+      const bb = bbox(h as unknown)
+      locs.push([(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2])
+    }
+  } else if (wp.vertexSel !== null && shapeHandle) {
     const kernelAny = kernel as unknown as { getSubShapes: (h: BrepHandle, t: string) => BrepHandle[] }
     for (const v of kernelAny.getSubShapes(shapeHandle, 'vertex')) {
       const bb = (getKernel() as unknown as { getBoundingBox: (h: BrepHandle) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } }).getBoundingBox(v)
@@ -3809,7 +3871,7 @@ export async function eachpoint(
     }
   }
   const result = combine === false ? separate : acc
-  return clone(wp, { shape: result, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+  return clone(wp, { shape: result, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
 
 /**
@@ -3837,7 +3899,7 @@ export async function workplane(
     const normal = invert ? flip(wp.normal) : wp.normal
     if (opts?.offset) {
       const offset = vscale(normal, opts.offset)
-      return clone(wp, { origin: vadd(wp.origin, offset), faceSel: null })
+      return clone(wp, { origin: vadd(wp.origin, offset), faceSel: null, selChain: undefined })
     }
     if (invert) {
       const yDir: [number, number, number] = [
@@ -3845,9 +3907,9 @@ export async function workplane(
         normal[2] * wp.xDir[0] - normal[0] * wp.xDir[2],
         normal[0] * wp.xDir[1] - normal[1] * wp.xDir[0],
       ]
-      return clone(wp, { normal, yDir, faceSel: null })
+      return clone(wp, { normal, yDir, faceSel: null, selChain: undefined })
     }
-    return clone(wp, { faceSel: null })
+    return clone(wp, { faceSel: null, selChain: undefined })
   }
 
   const { center, normal: faceNormal } = await resolveFaceSelector(wp.shape, wp.faceSel, opts?.centerOption)
@@ -3887,6 +3949,7 @@ export async function workplane(
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
+    selChain: undefined,
     pts: [],
   })
 }
@@ -4017,7 +4080,7 @@ export async function mirror(
   const shape = union ? await fuseShapes(wp.shape, mirrored) : mirrored
   // Upstream returns a newObject stack holding only the mirrored/unioned
   // objects — pending selectors do not survive a mirror.
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -4043,7 +4106,7 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
       throw new Error('[cq-compat] faceCompound "all": shape has no faces')
     }
     const shape = toShape(kern().makeCompound(faces as BrepHandle[]))
-    return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
+    return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
   }
   const m = /^([<>])([XYZ])(?:\[-?\d+\])?$/.exec(s.trim())
   if (!m) {
@@ -4071,7 +4134,7 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
     .reduce((best, c) => (sign * c > sign * best ? c : best))
   const picked = perp.filter((f) => Math.abs(center(bounds(f)) - extremum) <= 1e-6)
   const shape = toShape(kern().makeCompound(picked as BrepHandle[]))
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -4109,7 +4172,7 @@ export async function edgeCompound(wp: Workplane, sel: string): Promise<Workplan
     .reduce((best, c) => (sign * c > sign * best ? c : best))
   const picked = edges.filter((e) => Math.abs(center(bounds(e)) - extremum) <= 1e-6)
   const shape = toShape(kern().makeCompound(picked as BrepHandle[]))
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 // ── Location / moved / move (阶段 E) ─────────────────────────────────────
@@ -4395,6 +4458,7 @@ export async function moved(wp: Workplane, ...locs: unknown[]): Promise<Workplan
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
+    selChain: undefined,
     pts: [],
     pendingWires: [],
   })
@@ -4496,6 +4560,7 @@ export async function face(wp: Workplane): Promise<Workplane> {
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
+    selChain: undefined,
     pts: [],
   })
 }
@@ -4587,7 +4652,7 @@ export async function fillet(wp: Workplane, radius: number): Promise<Workplane> 
   }
   const product = kern().fillet(ownHandle(wp.shape), edges as BrepHandle[], radius)
   const shape = toShape(product)
-  return clone(wp, { shape, edgeSel: null, faceSel: null })
+  return clone(wp, { shape, edgeSel: null, faceSel: null, selChain: undefined })
 }
 
 /**
@@ -4625,7 +4690,7 @@ export async function chamfer(
   }
   const product = kern().chamfer(ownHandle(wp.shape), edges as BrepHandle[], length)
   const shape = toShape(product)
-  return clone(wp, { shape, edgeSel: null, faceSel: null })
+  return clone(wp, { shape, edgeSel: null, faceSel: null, selChain: undefined })
 }
 
 
@@ -4694,7 +4759,7 @@ export async function shell(wp: Workplane, thickness: number): Promise<Workplane
     const outer = fromHandle(kernel.offset(h, thickness, 1e-3))
     shape = await cutShapes(outer, wp.shape)
   }
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -5421,7 +5486,7 @@ export async function split(
 export function partAt(wp: Workplane, i: number): Workplane {
   const parts = wp.parts ?? []
   if (i < 0 || i >= parts.length) throw new Error(`[cq-compat] partAt: index ${i} out of range (${parts.length} parts)`)
-  return clone(wp, { shape: parts[i], parts: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+  return clone(wp, { shape: parts[i], parts: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
 
 /**

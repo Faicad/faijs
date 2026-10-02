@@ -4,6 +4,9 @@
  * 等价搬运自 `packages/cq-compat/src/workplane.ts` 的 `resolveFaceSelector`
  * （含其私有 `NAMED_VIEW_TO_AXIS`、`bboxMax`/`bboxMin`、`cad` 单例）。仅 import
  * 路径改为 core 内部相对路径，逻辑逐行不变，零功能增减。
+ *
+ * @platform occt — face 选择对 BREP 面做枚举/比较，经 `getKernel()` 与
+ * `getBrepApi()` 访问 occt 原生内核（getSubShapes / surface 查询等）。
  */
 
 import { createApiNamespace } from '../api-namespace'
