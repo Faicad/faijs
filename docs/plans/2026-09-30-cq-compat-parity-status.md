@@ -1,4 +1,4 @@
-# cq-compat CadQuery 2.8.0 parity 进度与待办（2026-09-30）
+# faijs-cadquery（原 cq-compat）CadQuery 2.8.0 parity 进度与待办（2026-09-30）
 
 日期：2026-09-30（续作至 2026-10-01）
 状态：**实施中**
@@ -9,17 +9,19 @@
 
 > 本文档独立记录 `packages/faijs-cadquery` 的 CadQuery 2.8.0 兼容性工作：**当前进度**与**后续待完成内容**。
 >
-> **结论先行：本任务尚未完成。** 字体/文本这一子线（本轮授权范围）已全绿落地；但整体 CadQuery 兼容仍是长线 parity 工程，仍有 293 条用例 `blocked`、47 条 `skipped`，需要镜像补全 + 真实能力实现 + 内核缺口三路并进。
+> **结论先行：本任务尚未完成。** 字体/文本这一子线（本轮授权范围）已全绿落地；但整体 CadQuery 兼容仍是长线 parity 工程，仍有 **198 条用例 `blocked`、47 条 `skipped`**（§14 第十轮最终态：manifest **452 ported / 198 blocked / 47 skipped**，coverage **199 PORTABLE / 41 STUB / 62 BLOCKED**），需要镜像补全 + 真实能力实现 + 内核缺口三路并进。
+>
+> > **（2026-10-02 头部刷新）**：本节原停留于第四轮口径（423/227/47、293 blocked），已对齐 §14 第十轮最终态 452/198/47 / 199·41·62；历轮轨迹见 §2.1。另见 `2026-10-02-cadquery-port-gap-audit.md`——parity 框架对"查询/内省/语义空心"类功能结构性失明，本文补全了文档此前遗漏的"沉默缺口"（Shape 类模型、对象栈模型、对象选择器类、任意平面变换等）。
 
 ---
 
 ## 1. 任务概述
 
-`cq-compat` 是 `@faicad/faijs` monorepo 下的一个 **workspace 包**（不是兄弟仓库），提供与 CadQuery 2.8.0 兼容的建模 API。目标是**逐用例与上游 CadQuery 在 BREP 几何上 parity**。
+`faijs-cadquery`(@faicad/faijs-cadquery) 是 `@faicad/faijs` monorepo 下的一个 **workspace 包**（不是兄弟仓库），提供与 CadQuery 2.8.0 兼容的建模 API。目标是**逐用例与上游 CadQuery 在 BREP 几何上 parity**。
 
 **关键约束（来自用户裁定）**
 
-- `cq-compat` **不得依赖** `@faicad/faijs-extra`（小众需求合集）。它自持 CadQuery 兼容 API，直接消费 core 子路径（如 `brep/text/text-to-solid`、`brep/text/fontRegistry`）。
+- `faijs-cadquery` **不得依赖** `@faicad/faijs-extra`（小众需求合集）。它自持 CadQuery 兼容 API，直接消费 core 子路径（如 `brep/text/text-to-solid`、`brep/text/fontRegistry`）。
 - 三库（`fai_cq_gears` / `warehouse` / `sheetmetal`）是同一 monorepo 的 workspace 包，同样零 `defineOp`/`compatOp`，导出裸 `Result` 函数走 `registerLib` 的 `autoLift`。
 
 **parity 度量方式**
@@ -42,8 +44,8 @@
 
 | 维度 | 口径 | 数值 |
 |------|------|------|
-| manifest | 导出变量级（每个 `test_x__r1` 变体） | **697** = 423 ported + 227 blocked + 47 skipped（2026-10-01 第四轮：导出 14 个已实现未暴露的 API，解锁 26 条，落地 9 条镜像 +9；第三轮 414/236/47；第二轮 363/287/47；首轮 357/293/47） |
-| coverage | 上游测试函数级（`test_free_functions.py` 等） | **305** = 200 PORTABLE + 41 PORTABLE-WITH-STUB + 64 BLOCKED（2026-10-01 重算，因 op universe 纳入新导出） |
+| manifest | 导出变量级（每个 `test_x__r1` 变体） | **697** = **452 ported** + **198 blocked** + 47 skipped（**§14 第十轮最终态**；历轮：首 357/293/47 → 二 363/287/47 → 三 414/236/47 → 四 423/227/47 → 十 452/198/47；2026-10-02 头部刷新） |
+| coverage | 上游测试函数级（`test_free_functions.py` 等） | **302** = **199 PORTABLE** + 41 PORTABLE-WITH-STUB + **62 BLOCKED**（§9.1/§11.2 最终态；原 §2.1 记 200/41/64 为第四轮口径，2026-10-02 刷新；coverage.json 本身曾陈旧，以最新口径为准） |
 
 > 两个计数粒度不同、互补：manifest 细到变量变体（697），coverage 粗到上游测试函数（305）。例如 `test_text` 一个函数展开成 `r1..r9/c/__f2` 等多个 manifest 条目。
 
@@ -95,14 +97,14 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 **④ coverage 分析器 op universe 修正（根因修复，非只改产物）**
 
 - 旧 `CQ_COMPAT_OPS` 是手抄字面量，漏 `close/lineTo/spline/polyline/wire/face/loft/twistExtrude/workplaneFromTagged/clean` 等；且未纳 `cadquery.func` 的 free-function-only 名（`faceOn/hollow/prism/plane/draft/project/imprint`）；
-- 改为从 `src/index.ts` **实际导出**推导 cq-compat 包集合 + 纳入 `cadquery.func` 面（排掉数据类型构造器）；
+- 改为从 `src/index.ts` **实际导出**推导 faijs-cadquery 包集合 + 纳入 `cadquery.func` 面（排掉数据类型构造器）；
 - 重算后 `104/35/158 → 180/37/80`（PORTABLE/STUB/BLOCKED）；
 - 纳入 `func` 面使 15 个用例从 PORTABLE 翻为 BLOCKED（逐条核对均确属 func-only 能力）；`gen-manifest` 连带把 110 条 stale `blockedBy` 精炼为 `pending:mirror`。
 
 **⑤ 门禁修复**
 
 - `import-brep.ts` / `import-step.ts` 的 `defineOp` 包装（属 edgeRef 工作流，今日日志）使裸实现导出函数缺 JSDoc ⇒ `verify-export-jsdoc` 全仓红；补 4 行 JSDoc（纯注释、零逻辑）后全仓归零；
-- `cq-compat/package.json` 补 `opentype.js` devDep（对齐 core `^1.3.4`），修 `check-ghost-deps`。
+- `faijs-cadquery/package.json` 补 `opentype.js` devDep（对齐 core `^1.3.4`），修 `check-ghost-deps`。
 
 ### 2.3 门禁与测试状态（全绿，已实测）
 
@@ -111,9 +113,9 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 | `verify-export-jsdoc` | `every exported name documented`（exit 0） |
 | `tsc --noEmit`（core 包） | 0 errors |
 | `tsc --noEmit`（root） | 0 errors |
-| `eslint`（core + cq-compat 改动文件） | 0 error |
+| `eslint`（core + faijs-cadquery 改动文件） | 0 error |
 | `check-ghost-deps` | clean |
-| `cq-compat` vitest | **265 passed / 26 files**（2026-09-30 第三轮）→ **272 passed / 26 files**（2026-10-01 第四轮，含新增 mirrorX/mirrorY/polarArray 单测 7 条） |
+| `faijs-cadquery` vitest | **265 passed / 26 files**（2026-09-30 第三轮）→ **272 passed / 26 files**（2026-10-01 第四轮，含新增 mirrorX/mirrorY/polarArray 单测 7 条） |
 | 新增单测 | font-family-index 7/7、ensure-font 6/6、node-font-provider 7/7、text 13/13 |
 
 ---
@@ -145,7 +147,7 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 | `offset`（`shape.offset` 4 + `offset2D` 1） | 5 | 偏移 |
 | `placeSketch` | 6 | 放置草图 |
 | `plane` | 5、`project` 2、`remove` 5 | func-only 几何 |
-| `op:text-spine` | 3 | text 在圆柱 spine 上（`r7/r8/r9`），cq-compat `text()` 自由函数尚无 spine 重载 |
+| `op:text-spine` | 3 | text 在圆柱 spine 上（`r7/r8/r9`），faijs-cadquery `text()` 自由函数尚无 spine 重载 |
 | `op:faceOn` | 1 | `cadquery.func.faceOn` 未实现 |
 | 零散 | ~20 | `slot2D` 2、`mirrorX` 2、`copyWorkplane` 1、`polarArray` 1、`rotateAboutCenter` 1、`parametricCurve` 2、`cast` 1、`filter` 3、`traverse` 2、`end` 1、`CombinedCenter` 1、`importBrep` 4、`importBin` 2、`export` 3、`op:CQ`/`Workplane.plugin`/`findSolid`/`pendingWires`/`Solid.makeCone`/`threePointArc`/`polyline`/`extrude.*` 等 |
 
@@ -179,6 +181,20 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 - **core 字体在 Node ESM 下曾坏**：`fontRegistry.ts` 用 `import * as opentype` + `opentype.parse`，Node ESM 下 `import *` 只得 `{default}`，`parse` 为 undefined。已在 `964d750e`、`a4d31821` 修（一行 `(ns as {default?}).default ?? ns` + y 轴翻转），本论 valign/解析修复建立在之上。
 - **ref 陷阱**：`out/ref/...testText__obj1.step` 与上游同表达式重跑不符（ref 侧异常，非我们错）；`font="Sans"`（无 `fontPath`）走 OCC 系统 sans ≠ 引擎 OpenSans（体积差 15%）⇒ 依赖 `font="Sans"` 的用例无法逐位对齐。
 
+### 3.6 沉默缺口（2026-10-02 审计补登，文档此前遗漏）
+
+> 以下缺口**从不进 §3.2–3.4 的登记**，因为 parity 框架对"查询/内省/返回子形状或值"的操作结构性失明：它们要么"镜像全绿但语义空心"，要么"返回值是元数据不进导出 STEP"。详见 `2026-10-02-cadquery-port-gap-audit.md` §2–§3。
+
+| 类 | 缺口 | 现状（源码核查 2026-10-02） | 风险 |
+|---|---|---|---|
+| A | **Shape 类模型 + 内省查询 API**（最大） | `shape-class.ts` 仅 `CqShape` + 4 个选择器类（`Type/Direction/NearestToPoint/StringSyntax`）；无 `.Center()/.Area()/.Volume()/.BoundingBox()/.isValid()/.geomType()` 等（上游 Shape 81 方法 ≈0% 覆盖） | 镜像全绿但 API 不可用 |
+| B | **对象栈模型**（`.all()/.end()/.val()/.vals()` 多对象 Workplane） | `workplane.ts` 为扁平单对象模型，无对象栈方法 | 结构性，阻断选择器逐级收窄与 `.all()` 解构 |
+| C | **对象选择器类**（`Box`/`RadiusNth`/`LengthNth`/`AreaNth`/`NearestToShape`/`BooleanSelector`） | `shape-class.ts` 无上述类（仅 4 个字符串/方向类） | 同源沉默，待字符串选择器落地后第二轮审计 |
+| D | **任意平面变换**（`Plane.toLocalCoords`/`mirrorInPlane`） | `toLocalCoords` 全仓零命中；`mirrorInPlane` 仅注释提及，faijs-cadquery 只有 `mirrorX/mirrorY`（§9.2 仅登 2 条，严重低估为整套 `Plane` 变换面缺失） | 被低估为 2 条，实为整面缺失 |
+| E | 派生：`wires()/shells()/solids()` 选择器、2D 草图选择器、导出保真（GLTF/VTK/带颜色-名字-层 STEP） | 同源失明，分散在 §3.2/§3.4 | 分量被低估 |
+
+**方法论修正**：上述缺口不应只靠 STEP 几何比对判定 parity，应推广 `2026-10-02-cadquery-selector-parity-plan.md` §5.1 的"语义级探针通道"（选择器探针 + 几何量探针 + 坐标变换探针 + 对象栈探针），并评估给 `analyze-coverage.py` 增加 `geometry-producing` / `value-producing` 维度标签。
+
 ---
 
 ## 4. 风险与已知问题
@@ -193,7 +209,7 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 
 1. ~~吃免费增量：`pending:mirror` + Assembly 镜像~~（**已完成**：§7.5 +51，§8.1/8.3 +9）
 2. **再扫一遍"已实现未导出"**（§8.1 的方法）：`analyze-coverage.py` 的 op universe 只认 `src/index.ts` 的导出面，`src/workplane.ts` 里任何没被导出的函数都会被当成"未实现"。这轮一次导出就解锁 26 条 —— **每次补镜像前先跑一次导出面 vs 实现面的差集检查**（`node -e` 比对 `workplane.ts` 的 `export function` 与 `index.ts` 的导出列表）。
-   2026-10-01 复查：本包已清空（剩余 18 项是 `gear-test-harness`/`text-solid`/`transpile` 内部件 + 单行 `export {}` 形式的误报）。`cq-compat-assembly` 的 `save`/`importStep`/`load` 同样是单行导出（正则误报）。**唯一可能还有油水的是 `src/shape-class.ts`**：`facesOf` / `makeCompound` / `faceMakePlane` / `faceMakeSplineApprox` 是 CadQuery **Shape 域** API，未经 index.ts 暴露 —— 它正对应 `op:shape.offset`（4 条）等 Shape 域 blocked，值得下一轮先核。
+   2026-10-01 复查：本包已清空（剩余 18 项是 `gear-test-harness`/`text-solid`/`transpile` 内部件 + 单行 `export {}` 形式的误报）。`cq-compat-assembly`（现并入 `packages/faijs-cadquery/src/assembly`，原 `@faicad/cq-compat-assembly`）的 `save`/`importStep`/`load` 同样是单行导出（正则误报）。**唯一可能还有油水的是 `src/shape-class.ts`**：`facesOf` / `makeCompound` / `faceMakePlane` / `faceMakeSplineApprox` 是 CadQuery **Shape 域** API，未经 index.ts 暴露 —— 它正对应 `op:shape.offset`（4 条）等 Shape 域 blocked，值得下一轮先核。
    2026-10-01 核结（§8.6）：shape-class 导出面已暴露，**收益为零** —— 无任何 blocked 条目以这些名字为根因，coverage/manifest 计数均不变。该线索关闭。
 3. **小粒度能力缺口**：`eachpoint`（4）/ `placeSketch`（6）/ `copyWorkplane`（1）/ `filter`（3）/ `traverse`（2）/ `cutEach`（3）（单测友好、影响面小）。
 4. **中粒度能力缺口**：`prism`（13）/ `imprint`（12）/ `solid`（12）/ `interpPlate`（5）/ `plane`（5）/ `op:shape.offset`（4）（需新几何原语）。
@@ -239,7 +255,7 @@ split  section  sweep  offset2D  mirrorX  mirrorY  polarArray
 polarLine  polarLineTo  rotateAboutCenter  slot2D  wires  compounds  shells
 ```
 
-（`asBrepShape` / `resolveFaceSelector` 是给 `cq-compat-assembly` 用的内部件，不在此列。）
+（`asBrepShape` / `resolveFaceSelector` 是给 assembly（`packages/faijs-cadquery/src/assembly`，原 `cq-compat-assembly`）用的内部件，不在此列。）
 
 导出后重跑 `analyze-coverage.py` ⇒ `185/37/83` → **`200/41/64`**；`gen-manifest` ⇒ `pending:mirror` 40 → **66**（+26）。这是本轮性价比最高的一步：**零新代码，只补导出面**。
 
@@ -247,7 +263,7 @@ polarLine  polarLineTo  rotateAboutCenter  slot2D  wires  compounds  shells
 
 **① `mirrorX` / `mirrorY` 轴向反了**
 
-用 `probe-ref.ts` 读 ref STEP 的 bbox 定为证：`testSimpleMirror` 的轮廓全部画在 y ≥ 0（`(0,0)→(2,2)→弧→(2,0)`），而 ref bbox 是 `x[0,3] y[-2,2]` ⇒ 镜像必须是 **y → −y**（关于 workplane 局部 X 轴）。cq-compat 原实现是 `mirror(wp,'YZ')` = x → −x，**方向反了**。上游语义（`cadquery 2.8.0`）：
+用 `probe-ref.ts` 读 ref STEP 的 bbox 定为证：`testSimpleMirror` 的轮廓全部画在 y ≥ 0（`(0,0)→(2,2)→弧→(2,0)`），而 ref bbox 是 `x[0,3] y[-2,2]` ⇒ 镜像必须是 **y → −y**（关于 workplane 局部 X 轴）。faijs-cadquery 原实现是 `mirror(wp,'YZ')` = x → −x，**方向反了**。上游语义（`cadquery 2.8.0`）：
 
 - `mirrorX()` 无 `union` 参数，只处理**草图**（`wire()` → `consolidateWires()` → `plane.mirrorInPlane(wires,'X')` → 追加 → 再 `consolidateWires()`）；
 - `'X'` 轴 ⇒ y 取反；`'Y'` ⇒ x 取反。
@@ -265,7 +281,7 @@ if fill:
 # fill=False ⇒ angle 保持原值（docstring: "angle is the angle BETWEEN elements"）
 ```
 
-`fill=True` **不是**"铺满 360°"，只是重新解释 `angle`；cq-compat 原实现硬编码 `360 / count`。实测反推也印证：`testPolarArray` 的 ref 顶点 `(3.0335, -1.7099)` 只有按 `polarArray(2,10,50,3)` → 步长 25° → 10°/35°/60° 才对得上。另外 `rotate=True` 时上游 push 的是带极角的 `Location`，轮廓要**绕自身中心旋转**——cq-compat 只 push 了位置。已修：新增 `Workplane.ptsAngle`（与 `pts` 平行）+ `PendingWire` rect 的 `angle` 字段，`rect()` 消费。
+`fill=True` **不是**"铺满 360°"，只是重新解释 `angle`；faijs-cadquery 原实现硬编码 `360 / count`。实测反推也印证：`testPolarArray` 的 ref 顶点 `(3.0335, -1.7099)` 只有按 `polarArray(2,10,50,3)` → 步长 25° → 10°/35°/60° 才对得上。另外 `rotate=True` 时上游 push 的是带极角的 `Location`，轮廓要**绕自身中心旋转**——faijs-cadquery 只 push 了位置。已修：新增 `Workplane.ptsAngle`（与 `pts` 平行）+ `PendingWire` rect 的 `angle` 字段，`rect()` 消费。
 
 ### 8.3 本轮新增镜像与 parity 结果
 
@@ -287,11 +303,11 @@ if fill:
 
 | blockedBy | 条数 | 实测证据 |
 |-----------|------|----------|
-| `op:split-all` | 9（`testEnclosure`） | 需要 `split(keepTop=,keepBottom=)` + `.all()` 索引两个半体；cq-compat `split()` 只给一个 compound，无子形状索引 |
+| `op:split-all` | 9（`testEnclosure`） | 需要 `split(keepTop=,keepBottom=)` + `.all()` 索引两个半体；faijs-cadquery `split()` 只给一个 compound，无子形状索引 |
 | `op:extrude-until-face` | 4（`testExtrudeUntilFace`） | 需 `extrude("next"/"last")` + 索引选择器 `faces(">X[1]")`。**另注**：ref 与源码直读不符（`wp_ref` 实测 s3 / vol 2125 / bbox x[-5,32.5]，而两个 10³ box 应为 s2 / 2000 / x[-5,25]），即使补上 op 也需重新推导 |
-| `op:offset2D-open-wire` | 1（`testOffset2D__s`） | 上游 OCC offset 会把开放线封端（最终 4 solids，ref s4 / vol 1.15123653709 / bbox ±9.1）；cq-compat `offsetWire2D` 返回开放线，随后 `extrude` 抛 `makeFace: TopoDS::Wire` |
+| `op:offset2D-open-wire` | 1（`testOffset2D__s`） | 上游 OCC offset 会把开放线封端（最终 4 solids，ref s4 / vol 1.15123653709 / bbox ±9.1）；faijs-cadquery `offsetWire2D` 返回开放线，随后 `extrude` 抛 `makeFace: TopoDS::Wire` |
 | `op:parametricSurface` | 1（`testParametricSurface__r2`） | `r2 = box(1,1,3).split(r1)`，`r1` 来自未实现的 `parametricSurface` |
-| `op:sweep-hole-section` | 1（`test_history_sweep__res`） | 截面是带孔面（`plane(1,1) - face(circle(0.1))`），cq-compat 无公开的"带孔面"构造 |
+| `op:sweep-hole-section` | 1（`test_history_sweep__res`） | 截面是带孔面（`plane(1,1) - face(circle(0.1))`），faijs-cadquery 无公开的"带孔面"构造 |
 | `op:history-subshape` | 1（`test_history_sweep__side`） | History 子形状反查，同 §7.2 |
 
 ⇒ §7.2 的判断再次成立：**`pending:mirror` 里混有大量分析器 false-positive**。本轮 26 条解锁中只有 9 条真的可写。
@@ -318,15 +334,15 @@ if fill:
 
 ### 7.2 发现 `pending:mirror` 存在大量误判（重要更正 §3.1 的乐观估计）
 
-§3.1 把 `pending:mirror` 50 条称为"coverage 已判可移植、缺镜像、批量补齐即翻 ported"。逐条核对上游源后发现其中**相当一部分依赖 cq-compat 并不具备的能力**，属 coverage AST 分析的 false-positive：
+§3.1 把 `pending:mirror` 50 条称为"coverage 已判可移植、缺镜像、批量补齐即翻 ported"。逐条核对上游源后发现其中**相当一部分依赖 faijs-cadquery 并不具备的能力**，属 coverage AST 分析的 false-positive：
 
 | 用例 | 实际缺口 | 备注 |
 |------|----------|------|
 | `test_history_extrude` / `test_history_loft` 的 `sides` / `side` | `History` 子形状反查（`op.generated` / `first` / `last`） | 仅 `res`（实体）可镜像；`sides` 是从 History 反查的面集合，非纯几何 |
-| `test_cad_objects::TestCadObjects` 的 `local_box` / `mirror_box` | `Plane.toLocalCoords` / `mirrorInPlane`（任意平面变换） | cq-compat 仅有 `mirrorX`/`mirrorY`，无任意平面变换 |
-| `test_cad_objects::TestCadObjects` 的 `s` | `eachpoint` + 圆柱体阵列 union | 需 cq-compat 的 `eachpoint` 投影 |
-| `test_shapes::test_addCavity` 的 `br` | `Solid.addCavity`（空腔 = 带 void 的实体） | cq-compat 无 `addCavity` |
-| `test_cadquery::testWedge*` 的 3 条 | `wedge` 退化顶面（顶面缩成点时 `makeLineEdge` 零长边失败） | 上游 OCCT 能建四棱锥；cq-compat `wedge` 不能 → `op:wedge-degenerate-top` |
+| `test_cad_objects::TestCadObjects` 的 `local_box` / `mirror_box` | `Plane.toLocalCoords` / `mirrorInPlane`（任意平面变换） | faijs-cadquery 仅有 `mirrorX`/`mirrorY`，无任意平面变换 |
+| `test_cad_objects::TestCadObjects` 的 `s` | `eachpoint` + 圆柱体阵列 union | 需 faijs-cadquery 的 `eachpoint` 投影 |
+| `test_shapes::test_addCavity` 的 `br` | `Solid.addCavity`（空腔 = 带 void 的实体） | faijs-cadquery 无 `addCavity` |
+| `test_cadquery::testWedge*` 的 3 条 | `wedge` 退化顶面（顶面缩成点时 `makeLineEdge` 零长边失败） | 上游 OCCT 能建四棱锥；faijs-cadquery `wedge` 不能 → `op:wedge-degenerate-top` |
 | `testTwistExtrudeCombine` 的 `r` | 扭曲 B-spline 实体布尔探针 | 同 E4 `kernel:boolean-near-coincident-bspline`（几何本身正确，仅 comparator 布尔探针失败） |
 
 ⇒ 真实可"纯写镜像"的 `pending:mirror` 子集远小于 50；重算后 `pending:mirror` 由 50 → **40**，且其中仍可能继续暴露能力缺口。
@@ -338,7 +354,7 @@ if fill:
 
 ### 7.4 下一步建议
 
-1. **Assembly 52 才是文档 §3.1 真正的"免费增量"**：它们由 `Assembly 类式 API 已实现（P0-1）` 标注，能力已具备，仅缺镜像。需深入 `@faicad/cq-compat-assembly` 的 `buildAssembly(name, members, constraints)` + `toCompound()` + `save/importStep/load`，逐条翻译 `test_assembly.py` 的 STEP 导出/导入往返用例。
+1. **Assembly 52 才是文档 §3.1 真正的"免费增量"**：它们由 `Assembly 类式 API 已实现（P0-1）` 标注，能力已具备，仅缺镜像。需深入 `packages/faijs-cadquery/src/assembly/assembly.ts`（原 `@faicad/cq-compat-assembly`）的 `buildAssembly(...)` + `toCompound()` + `save/importStep/load`，逐条翻译 `test_assembly.py` 的 STEP 导出/导入往返用例。
 2. **若要吃满 `pending:mirror` 残量**：需先补能力——`wedge` 退化顶面、任意平面 `mirrorInPlane`/`toLocalCoords`、`eachpoint` 阵列、`addCavity`。这些是能力缺口而非镜像任务，单独立项。
 3. 新增了 `tests/compare-targeted.ts`：只对显式列出的 (refBase, candBase) 对跑 `compareStepFiles`，避免为几个新镜像重跑全量 700+ 比对。
 
@@ -415,13 +431,13 @@ manifest：**423/227/47 → 425/225/47**。
 
 - `.fai.js` 镜像里 **call 参数位置的嵌套 `await` 不被解析器支持**（`metadata-extractor.ts` E_VALUE: unsupported AwaitExpression）——必须平铺成中间 `let` 变量。
 - `cq.translate(wp, [x,y,z])` 收**数组**，非三参数。
-- `twistExtrude(wp, angle, height)` 参数序是 **(角度, 高度)**，与上游 `twistExtrude(distance, angleDegrees)` 相反（cq-compat JSDoc 注明）。
+- `twistExtrude(wp, angle, height)` 参数序是 **(角度, 高度)**，与上游 `twistExtrude(distance, angleDegrees)` 相反（faijs-cadquery JSDoc 注明）。
 - cand STEP 命名惯例不带 `tests.test_x__` 前缀（`TestCadQuery__xxx.step`），手跑 CLI 时别照 ref 名写 `--out`。
 - `compare-targeted.ts` 对 **compound** STEP 报 `importStep: null function or function signature mismatch`（harness 问题），同两条用全量 `compare.ts --only` 判 PASS —— 需要时修 targeted 工具的 compound 读取。
 
 ### 9.3 门禁（全绿，已实测）
 
-`cq-compat` tsc 0 error；eslint（src + 2 个测试脚本）0 error；`verify-export-jsdoc` 全仓过；波及单测 `shape-class.test.ts` + `cq-compat.test.ts` 24/24。
+`faijs-cadquery` tsc 0 error；eslint（src + 2 个测试脚本）0 error；`verify-export-jsdoc` 全仓过；波及单测 `shape-class.test.ts` + `faijs-cadquery.test.ts` 24/24。
 
 ## 10. 续作记录（2026-10-01 第六轮 — copyWorkplane + placeSketch/wp.sketch() 集成 + testSketch 4 镜像）
 
@@ -457,7 +473,7 @@ manifest：**423/227/47 → 425/225/47**。
 
 ### 10.5 门禁（全绿，已实测）
 
-`cq-compat` tsc 0 error；eslint（src）0 error；`verify-export-jsdoc` 全仓过；`check-ghost-deps` 829 files OK；sketch 回归 + 集成单测 94 passed（sketch.test/sketch-mirror/sketch-workplane/p1-workplane-ops）。
+`faijs-cadquery` tsc 0 error；eslint（src）0 error；`verify-export-jsdoc` 全仓过；`check-ghost-deps` 829 files OK；sketch 回归 + 集成单测 94 passed（sketch.test/sketch-mirror/sketch-workplane/p1-workplane-ops）。
 
 ## 11. 续作记录（2026-10-01 第七轮 — eachpoint 对象形态 + traverse/零散镜像 8 条）
 
@@ -481,7 +497,7 @@ manifest：**423/227/47 → 425/225/47**。
 
 ### 11.3 门禁（全绿，已实测）
 
-`cq-compat` tsc 0 error；eslint 0 error；`verify-export-jsdoc` 全仓过；波及单测（p1-workplane-ops/sketch-workplane/cq-compat）43 passed；targeted parity 复跑 PASS=19。
+`faijs-cadquery` tsc 0 error；eslint 0 error；`verify-export-jsdoc` 全仓过；波及单测（p1-workplane-ops/sketch-workplane/faijs-cadquery）43 passed；targeted parity 复跑 PASS=19。
 
 ## 12. 续作记录（2026-10-01 第八轮 — IO 通道 7 条 + prism/solid 批次 15 条镜像）
 

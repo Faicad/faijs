@@ -1,6 +1,6 @@
 # CadQuery 选择器完整支持方案（顶点点选择器 + 字符串语法全量 + 选择器探针通道）
 
-> 状态：**方案已定，待实施**。依据为 `packages/core`、`packages/faijs-cadquery`、`packages/cq-compat-assembly` 的当前源码，以及 `C:\git\CADQ\cadquery`（HEAD `a637795`，v2.8.0 线）的 `selectors.py` / `cq.py` / `tests/test_selectors.py`。
+> 状态：**方案已定，待实施**。依据为 `packages/core`、`packages/faijs-cadquery`（assembly 已并入 `packages/core/src/api/assembly`）的当前源码，以及 `C:\git\CADQ\cadquery`（HEAD `a637795`，v2.8.0 线）的 `selectors.py` / `cq.py` / `tests/test_selectors.py`。
 > 范围：`packages/core`（选择器子系统扩展）、`packages/faijs-cadquery`（接线与去重）、`packages/faijs-cadquery/tests`（新增验证通道）。
 > 本文只陈述**当前源码事实**与**目标设计**，不复述历史方案、不引用任何 plan 文档作为现状依据。
 
@@ -58,11 +58,11 @@ vertices(wp, sel) → clone(wp, { vertexSel: ..., faceSel: null, edgeSel: null }
 |---|---|---|
 | 1 | `core/src/api/cadquery-selectors/face.ts` | `resolveFaceSelector`（`>`/`<`/`+`/`-`/多轴/索引/命名视图） |
 | 2 | `core/src/api/cadquery-selectors/edge.ts` | `resolveEdgeSelection`（`\|`/`#`）、`resolveFaceEdgeSelection` |
-| 3 | `cq-compat/src/workplane.ts:3322` | `selectFaceHandles`（siblings 用；复制了 `>`/`<`/索引/命名视图 + 面积打破） |
-| 4 | `cq-compat/src/workplane.ts:3358` | `selectEdgeHandles`（siblings 用；`\|` 用 bbox 严格零、`>`/`<` 用 bbox 极值） |
-| 5 | `cq-compat/src/workplane.ts:4707` | `selectFaceHandlesForRemoval` |
-| 6 | `cq-compat/src/shape-class.ts:255-407` | `TypeSelector` / `DirectionSelector`（`containsPoint` 消歧，仅面 + 居中射线）/ `NearestToPointSelector`（bbox 中心）/ `StringSyntaxSelector`（只认 `>X`/`<X` 与 `or`） |
-| 7 | `cq-compat/src/sketch.ts:493` | `applyStringSelector`（2D 草图元素；目标类型不同，见 §4.9） |
+| 3 | `faijs-cadquery/src/workplane.ts:3322` | `selectFaceHandles`（siblings 用；复制了 `>`/`<`/索引/命名视图 + 面积打破） |
+| 4 | `faijs-cadquery/src/workplane.ts:3358` | `selectEdgeHandles`（siblings 用；`\|` 用 bbox 严格零、`>`/`<` 用 bbox 极值） |
+| 5 | `faijs-cadquery/src/workplane.ts:4707` | `selectFaceHandlesForRemoval` |
+| 6 | `faijs-cadquery/src/shape-class.ts:255-407` | `TypeSelector` / `DirectionSelector`（`containsPoint` 消歧，仅面 + 居中射线）/ `NearestToPointSelector`（bbox 中心）/ `StringSyntaxSelector`（只认 `>X`/`<X` 与 `or`） |
+| 7 | `faijs-cadquery/src/sketch.ts:498` | `applyStringSelector`（2D 草图元素；目标类型不同，见 §4.9） |
 
 同一个 `>Z` 现在有 4 套不同实现（#1/#3/#5/#6）；同一份 `|Z` 有 3 套。任何一处修语义，其余几处不会同步。
 
@@ -294,12 +294,12 @@ return { kind, handles: candidates }
 ```
 
 - `step.sel` 为空串（`.vertices()` / `.edges()`）→ 不过滤，返回收集结果（CadQuery 的 `_filter` 在 selector 为 `None` 时原样返回）。
-- 错误对齐 §3.1：空候选集上做 Nth → 抛错（`ValueError` 对应）；索引越界 → 抛错（`IndexError` 对应）。错误消息带 `[cq-compat]` 前缀以维持现有文本约定。
+- 错误对齐 §3.1：空候选集上做 Nth → 抛错（`ValueError` 对应）；索引越界 → 抛错（`IndexError` 对应）。错误消息带 `[faijs-cadquery]` 前缀以维持现有文本约定。
 - 断链兜底：`brepOf(shape)` 为 `undefined`（无 BREP 链）时保留现有"整形状 bbox 兜底"行为（`face.ts:312-325`），以保证 mesh-only 场景下游不崩——**但 `|`/`#`/`%` 等需要真实面/边的选择器在无 BREP 时必须抛错**，不得静默返回形状中心。
 
 ### 4.6 兼容投影（签名不变）
 
-对外三个兼容函数退化为薄投影，`cq-compat` 与 `cq-compat-assembly` 的下游不用改：
+对外三个兼容函数退化为薄投影，`faijs-cadquery` 与 `core/api/assembly` 的下游不用改：
 
 | 函数 | 新实现 |
 |---|---|
@@ -310,7 +310,7 @@ return { kind, handles: candidates }
 
 > `resolveFaceSelector` 的 `normal` 从"轴向量"改为"真实外法向"是**有意为之**：`|`/`#`/`+`/`-` 只对平面面有意义，用轴向量无法表达；而单轴 `>Z` 的真实外法向在平面面上与 `[0,0,±1]` 一致，故 `workplane()` / `faceRef` 的行为不变。此点由探针 + 现有单测双向锁定（§5）。
 
-### 4.7 cq-compat 接线
+### 4.7 faijs-cadquery 接线
 
 **`Workplane` 增一个字段**（不改现有三个）：
 
@@ -327,8 +327,8 @@ faceSel / edgeSel / vertexSel   // 不变
 - `workplane()`：继续调 `resolveFaceSelector(wp.shape, wp.faceSel)`，`|Z`/`#Z`/`%PLANE` 从此走真实语义而非静默兜底。
 - `fillet`/`chamfer`（`workplane.ts:4582-4625`）：`resolveEdgeSelection` 一行不改，内部改为走新引擎；`.faces(...).edges()` 分支改调 `resolveFaceEdgeSelection` 的新投影。
 - 三处私有实现收口：`selectFaceHandles`（:3322）与 `selectEdgeHandles`（:3358）删除，改为 `resolveSelection(shape, [{face|edge, sel}])`；`selectFaceHandlesForRemoval`（:4707）同源改写（实施时先读全其调用链再动）。
-- `CqShape` 类模型（`shape-class.ts`）的 `facesOf/shells/solids` 保留；其 4 个 Selector 类改为 core 实现的薄适配：`TypeSelector` / `DirectionSelector` / `ParallelDirSelector` / `PerpendicularDirSelector` / `DirectionSelector` / `CenterNthSelector` 均从 `@faicad/faijs/api/cadquery-selectors` 引入（`CqShape` → 内部 handle 的适配在 cq-compat 侧，core 不认识 `CqShape`）。
-- `NearestToPointSelector` 属对象选择器类（不在 D2 范围）：**保留在 cq-compat**，但**改为用 `Center()` 语义**（当前用 bbox 中心，`shape-class.ts:346`）以对齐上游；`StringSyntaxSelector` 删除，改为委托 core 的语法引擎。
+- `CqShape` 类模型（`shape-class.ts`）的 `facesOf/shells/solids` 保留；其 4 个 Selector 类改为 core 实现的薄适配：`TypeSelector` / `DirectionSelector` / `ParallelDirSelector` / `PerpendicularDirSelector` / `DirectionSelector` / `CenterNthSelector` 均从 `@faicad/faijs/api/cadquery-selectors` 引入（`CqShape` → 内部 handle 的适配在 faijs-cadquery 侧，core 不认识 `CqShape`）。
+- `NearestToPointSelector` 属对象选择器类（不在 D2 范围）：**保留在 faijs-cadquery**，但**改为用 `Center()` 语义**（当前用 bbox 中心，`shape-class.ts:346`）以对齐上游；`StringSyntaxSelector` 删除，改为委托 core 的语法引擎。
 
 ### 4.8 不在本版范围（显式记录，避免误读为"已支持"）
 
@@ -534,7 +534,7 @@ faceSel / edgeSel / vertexSel   // 不变
 |---|---|---|
 | R1 | **ref 环境不可用**：`baseline.json.python` 指向的 venv 本机不存在，P0 的 ref 数据录不出来，差分只剩 `MISSING-REF` | P1 的语法层与 §5.2 的纯行为断言**不被阻塞**，可先推进；P0 环境重建作为独立前置项先行。若重建失败，如实标注"探针通道已建但无 ref 基线"，**不得**用 cand-vs-cand 自比冒充通过 |
 | R2 | **面外法向朝向**：内核 `surfaceNormal(f,uMid,vMid)` 不携带面朝向（`shape-class.ts:267-272` 实测），而 CadQuery 的 `normalAt()` 带朝向。`\|`/`#`/`+`/`-` 的正确性依赖它 | 用 `containsPoint(owningSolid, center + n·ε)` 消歧（`shape-class.ts:307-319` 已验证）；ε 取 `min(ext)*1e-3 + 1e-6`；落成 `GOTCHA:` 测试（两侧对同一盒体应给出同号法向）。对非封闭/多体上下文（无单一 owning solid）退化为参数法向，并在文档标注为已知边界 |
-| R3 | **`resolveFaceSelector` 的 `normal` 语义变更**（轴向量 → 真实外法向）可能影响 `workplane()` / `faceRef` 的下游（`cq-compat-assembly/src/assembly.ts:78`） | 平面面上两者一致；以探针 + `assembly-lift-boundary.test.ts` + `slide-top-stage-g.test.ts` 双向锁定。若出现偏离，保留"轴向量"作为 `opts.axisNormal` 逃生口，但**默认走真实法向**（否则 `\|`/`#` 无法表达） |
+| R3 | **`resolveFaceSelector` 的 `normal` 语义变更**（轴向量 → 真实外法向）可能影响 `workplane()` / `faceRef` 的下游（`packages/faijs-cadquery/src/assembly/assembly.ts:78`，原 `cq-compat-assembly`） | 平面面上两者一致；以探针 + `assembly-lift-boundary.test.ts` + `slide-top-stage-g.test.ts` 双向锁定。若出现偏离，保留"轴向量"作为 `opts.axisNormal` 逃生口，但**默认走真实法向**（否则 `\|`/`#` 无法表达） |
 | R4 | **边切向符号随参数向**：CadQuery 的 `+A` 对边是符号敏感的（`getAngle` 0..π），而边参数方向由 OCCT 决定，`OCP` 与 `occt-wasm` 两条句柄通路的朝向可能不同 → `+A` 在边上可能不一致 | 探针先测；若确认朝向不可控，对边的 `signed` 断言降为"平行性 + 符号按参考实现"，并在报告里把该条目标注为 `ORIENTATION-SENSITIVE`（**不静默放宽**，明确记为已知边界）。`\|`/`#` 天然符号不敏感，不受影响 |
 | R5 | **近似改精确导致现有镜像/单测回归**：`>`/`<` 去掉"垂直过滤 + 面积打破"后，此前靠该近似通过的面用例可能变化 | P2 的验收明确要求 `test_selectors` 46 条与 5 个既有单测文件全绿；先跑差分定位，再判断是"参考更对"还是"实现有误"，**不得**为了绿而保留近似 |
 | R6 | **`selChain` 与 `faceSel/edgeSel/vertexSel` 双轨期间状态不一致**（例如 `siblings` 读 `selChain` 而 `fillet` 读 `edgeSel`） | 双轨只在 P4 引入；`faceSel/edgeSel/vertexSel` 定义为 `selChain` 末位同 kind 项的**纯投影**，构造时同步写入，不允许单独赋值。P5 收口后加一条断言：任一 `Workplane` 上两者必须一致 |
@@ -561,8 +561,8 @@ faceSel / edgeSel / vertexSel   // 不变
 | 7 | 同上 | `predicates.ts` + `resolve.ts`（`resolveSelection`） | 5,6 |
 | 8 | 同上 | `face.ts` 改投影；`selectors.test.ts` 补齐 | 7 |
 | 9 | 同上 | `edge.ts` / `vertex.ts` 改扩；`index.ts` 出口 | 7 |
-| 10 | `cq-compat/src/` | `Workplane.selChain`；`faces/edges/vertices` 写链；`eachpoint` 改走 `resolveSelection`；删 `selectFaceHandles`/`selectEdgeHandles`；改写 `selectFaceHandlesForRemoval` | 9 |
-| 11 | `cq-compat/src/` | `shape-class.ts` 4 类收口到 core；`StringSyntaxSelector` 改委托；`NearestToPointSelector` 改 `Center()` | 9 |
+| 10 | `faijs-cadquery/src/` | `Workplane.selChain`；`faces/edges/vertices` 写链；`eachpoint` 改走 `resolveSelection`；删 `selectFaceHandles`/`selectEdgeHandles`；改写 `selectFaceHandlesForRemoval` | 9 |
+| 11 | `faijs-cadquery/src/` | `shape-class.ts` 4 类收口到 core；`StringSyntaxSelector` 改委托；`NearestToPointSelector` 改 `Center()` | 9 |
 | 12 | `tests/` | 补 16 个缺镜像；重跑 `gen-manifest.ts`；重跑 STEP 通道确认无新增 FAIL | 10,11 |
 | 12b | `tests/` | 跑 `check-selector-coverage.ts`：§5.5 覆盖矩阵全部条目非 `UNCOVERED`，`UPSTREAM-SKIP` 为 0（或已如实记录） | 1b,12 |
 | 13 | 全仓 | `typecheck` / `lint` / 各包 test / `check-lockstep.mjs`（未改版本号则免）/ `ci.ps1` 一次 | 全部 |
