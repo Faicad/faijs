@@ -88,7 +88,7 @@ $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS 
 # 单包预算覆盖：cq-compat 的 BREP/parity-smoke 套件单跑约 389s（+pretest build），
 # 5 分钟预算必然被看门狗误杀导致结果不可信（见 docs/plans/2026-09-28-cq-compat-remaining-cadquery-support-plan.md §1.2）。900s 留足 build + 抖动余量。
 $testBudgetOverrides = @{ '@faicad/cq-compat' = 900000 }
-$testPackages = @('@faicad/faijs','@faicad/faijs-sketch','@faicad/faijs-extra','@faicad/faijs-fcstd','@faicad/sheetmetal','@faicad/cq-compat','@faicad/faijs-tests','@faicad/faijs-demo')
+$testPackages = @('@faicad/faijs','@faicad/faijs-sketch','@faicad/faijs-extra','@faicad/faijs-freecad','@faicad/sheetmetal','@faicad/cq-compat','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
     $pkgBudget = if ($env:FAIJS_TEST_BUDGET_MS) { $testBudgetMs } elseif ($testBudgetOverrides.ContainsKey($pkg)) { $testBudgetOverrides[$pkg] } else { $testBudgetMs }

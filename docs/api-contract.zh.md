@@ -126,7 +126,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 **`partN` 只约束 UI 生成的代码。** AI 或手写代码可用任意**合法 JS 标识符**（`const shaft = cad.cylinder({ … })`）；引擎对两者一视同仁。
 
 > ⚠️ **命名铁律（硬性）。** `partN` 只由**唯一一个**组件产出——`lang/allocate-id.ts` 的 `derivePartName`，即 UI 自己的代码生成器。它是 **UI 层细节，随时可能改变、绝对不能被其它任何代码依赖**：
-> - 引擎、FCStd→faijs 翻译器（`packages/fcstd`）、任何其它代码生成器、以及测试都**不得假定、生成或正则匹配** `partN` 变量名（不得用 `/\^part\d+\$/` 去匹配、不得把源名字覆盖成计数器）。
+> - 引擎、FCStd→faijs 翻译器（`packages/faijs-freecad`）、任何其它代码生成器、以及测试都**不得假定、生成或正则匹配** `partN` 变量名（不得用 `/\^part\d+\$/` 去匹配、不得把源名字覆盖成计数器）。
 > - 代码生成器必须使用**调用方/源提供的名字**（如 FCStd 对象自带的 `obj.name`，收敛为合法标识符），不是 `partN`。翻译器的变量名就是 FCStd 源名字；聚合根别名用 `assembly`，不是 `part_out`。
 > - 引擎对每一个合法标识符一视同仁——除 `derivePartName` 内部外，不存在任何规范的 `partN` 形态。
 

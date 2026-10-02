@@ -126,7 +126,7 @@ The model number N is the maximum `partN` found by a lexical scan of the code te
 **`partN` constrains UI-generated code only.** AI-written or hand-written code may use any **legal JS identifier** (`const shaft = cad.cylinder({ … })`); the engine treats both identically.
 
 > ⚠️ **Naming admonition (hard rule).** `partN` is produced by exactly ONE component — `derivePartName` in `lang/allocate-id.ts`, the UI's own code generator. It is a **UI-layer detail that may change at any time and MUST NOT be depended upon by any other code**:
-> - The engine, the FCStd→faijs translator (`packages/fcstd`), any other code generator, and tests must **never assume, emit, or pattern-match** a `partN` variable name (no `/\^part\d+\$/` matching, no overwriting a source name with a counter).
+> - The engine, the FCStd→faijs translator (`packages/faijs-freecad`), any other code generator, and tests must **never assume, emit, or pattern-match** a `partN` variable name (no `/\^part\d+\$/` matching, no overwriting a source name with a counter).
 > - Code generators must use caller/source-provided names (e.g. the FCStd object's own `obj.name`, sanitized to a legal identifier), not `partN`. The translator's variable names are the FCStd source names; the aggregate root alias is `assembly`, not `part_out`.
 > - The engine treats every legal identifier identically — there is no canonical `partN` form anywhere except inside `derivePartName`.
 

@@ -7,7 +7,7 @@
     "@faicad/faijs-extra": "https://cdn.jsdelivr.net/npm/@faicad/faijs-extra/+esm",
     "@faicad/faijs-fasteners": "https://cdn.jsdelivr.net/npm/@faicad/faijs-fasteners/+esm",
     "@faicad/faijs-gears": "https://cdn.jsdelivr.net/npm/@faicad/faijs-gears/+esm",
-    "@faicad/faijs-fcstd": "https://cdn.jsdelivr.net/npm/@faicad/faijs-fcstd/+esm",
+    "@faicad/faijs-freecad": "https://cdn.jsdelivr.net/npm/@faicad/faijs-freecad/+esm",
     "@faicad/sheetmetal": "https://cdn.jsdelivr.net/npm/@faicad/sheetmetal/+esm",
     "@faicad/faijs-sketch": "https://cdn.jsdelivr.net/npm/@faicad/faijs-sketch/+esm"
   }

@@ -60,7 +60,7 @@
     "packages/draw",
     "packages/sketch",
     "packages/faijs-extra",
-    "packages/fcstd",
+    "packages/faijs-freecad",
     "packages/cq-compat-compare",
     "packages/cq-compat",
     "packages/faijs-gears",

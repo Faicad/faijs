@@ -74,7 +74,7 @@ function selfTest() {
       title: 'local file: range is not constrained',
       family: new Map([
         mk('@faicad/faijs', '0.20.0'),
-        mk('@faicad/faijs-fcstd', '0.20.0', { dependencies: { '@faicad/faijs': 'file:../core' } }),
+        mk('@faicad/faijs-freecad', '0.20.0', { dependencies: { '@faicad/faijs': 'file:../core' } }),
       ]),
       declared: '0.20.0',
       expect: 0,

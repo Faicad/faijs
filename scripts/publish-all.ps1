@@ -81,7 +81,7 @@ $Packages = @(
   @{ Name = '@faicad/faijs-sketch';    Path = 'packages/sketch' },
   @{ Name = '@faicad/faijs-extra';     Path = 'packages/faijs-extra' },
   @{ Name = '@faicad/faijs-draw';      Path = 'packages/draw' },
-  @{ Name = '@faicad/faijs-fcstd';     Path = 'packages/fcstd' },
+  @{ Name = '@faicad/faijs-freecad';  Path = 'packages/faijs-freecad' },
   @{ Name = '@faicad/cq-compat';        Path = 'packages/cq-compat' },
   @{ Name = '@faicad/cq-compat-assembly'; Path = 'packages/cq-compat-assembly' },
   @{ Name = '@faicad/faijs-gears';     Path = 'packages/faijs-gears' },

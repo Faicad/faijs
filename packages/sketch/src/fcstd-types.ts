@@ -1,6 +1,6 @@
 /**
  * fcstd-types — FCStd sketch geometry / constraint model (migrated from
- * `@faicad/faijs-fcstd`'s `sketch-parse.ts`, type half only).
+ * `@faicad/faijs-freecad`'s `sketch-parse.ts`, type half only).
  *
  * These are the FreeCAD-shaped records the solver pipeline consumes: geometry
  * carries an `index` (geoId) and 3D sketch-local coordinates; constraints carry

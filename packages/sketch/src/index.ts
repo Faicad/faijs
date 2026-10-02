@@ -5,7 +5,7 @@
  * - `solveSketch` — canonical entry to the planegcs pipeline;
  * - `sketchFaces` — solve + contour + core face construction;
  * - the FCStd solve pipeline (`SketchSolver` / `extractContours` / `classifySketch`)
- *   consumed by `@faicad/faijs-fcstd`;
+ *   consumed by `@faicad/faijs-freecad`;
  * - the `cad.sketch` script-face op and its `cad`-namespace merge helpers.
  *
  * Node hosts import the wasm path resolver from `@faicad/faijs-sketch/node`;
