@@ -66,7 +66,7 @@ describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
     expect(r.outputs.get(asPartName('b'))).toBeDefined()
   })
 
-  it('occt：值与引擎一致（20×10×5 盒 → 面积 700、体积 1000、边总长 280）', async () => {
+  it('occt：值与引擎一致（20×10×5 盒 → 面积 700、体积 1000、边总长 140）', async () => {
     const r = await runBreps('const b = cad.box(20, 10, 5)')
     expect(r.failedAt).toBeUndefined()
     const shape = r.outputs.get(asPartName('b'))! as Shape
@@ -77,9 +77,9 @@ describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
     expect(a).toBeCloseTo(700, -1) // 2·(20·10 + 20·5 + 10·5)
     // 体积 = 20·10·5。
     expect(v).toBeCloseTo(1000, -1)
-    // occt getLength 对 solid 按「边-面」计数：12 条边总长 140 × 2 = 280。
+    // getLength = 唯一 edge 弧长之和（2026-10-02 归一化）：12 条边总长 140。
     // （「与引擎一致」是验收口径——脚本值 == 引擎值，见下方直接比对。）
-    expect(l).toBeCloseTo(280, -1)
+    expect(l).toBeCloseTo(140, -1)
     // 与引擎 L1 测量面直接比对（同一口径）。
     const handle = occtApi.makeBox(20, 10, 5)
     try {
@@ -108,18 +108,15 @@ describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
     const shape = r2.outputs.get(asPartName('b'))! as Shape
     const bkApi = (await getBrepEngine()).primitives
     expect(await area(shape)).toBeCloseTo(700, -1)
-    // brepkit getLength(solid) 语义不稳定：D6 表只钉 wire/edge 语义，对 solid 走
-    // getEdgeCurveType→edgeLength 的「第一条边」判定，边枚举顺序依赖构建历史
-    // （脚本产出与直接 makeBox 的首边不同：10 vs 20）。数值一致性验收以 occt 为准
-    // （见上：280 == 引擎值）；brepkit 下只验收「可调用、返回有限正数」。
+    // getLength 归一化后两引擎同口径（唯一 edge 弧长之和）：brepkit 下同样 == 140，
+    // 与 occt 逐位一致（旧实现的「首条边」漂移与 occt 的「Σ面周长」已成历史）。
     const lShape = await length(shape)
-    expect(Number.isFinite(lShape)).toBe(true)
-    expect(lShape).toBeGreaterThan(0)
+    expect(lShape).toBeCloseTo(140, -1)
     // volume 是 L1 中立测量面，双引擎同一口径：brepkit 下体积同样 == 1000。
     expect(await volume(shape)).toBeCloseTo(1000, -1)
     const h = bkApi.makeBox(20, 10, 5)
     try {
-      expect(bkApi.getLength(h)).toBeGreaterThan(0)
+      expect(bkApi.getLength(h)).toBeCloseTo(140, -1)
       expect(bkApi.getVolume(h)).toBeCloseTo(1000, -1)
     } finally {
       bkApi.release(h)

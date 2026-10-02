@@ -408,7 +408,23 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     getVolume: (shape) => k.getVolume(asShape(shape)),
     getCenterOfMass: (shape) => v3(k.getCenterOfMass(asShape(shape))),
     getSurfaceArea: (shape) => k.getSurfaceArea(asShape(shape)),
-    getLength: (shape) => k.getLength(asShape(shape)),
+    // getLength：唯一 edge 弧长之和（与 brepkit 适配器同口径，D5）。
+    // OCC 原生 LinearProperties 默认 SkipShared=false，按**面**遍历、把每条共享边按
+    // 相邻面各计一次 ⇒ 实体得到的是「Σ 面周长」而非弧长（20×10×5 盒 → 280 = 2×140）。
+    // 归一化为 TopExp 去重后的边逐条求和。checkpoint/releaseSince 是 occt-wasm 为
+    // 「枚举子形状句柄后批量回收」提供的 arena 机制（index.d.ts:274-279, 498-511）；
+    // h 在 checkpoint 之前产生，不会被回收。
+    getLength: (shape) => {
+      const h = asShape(shape)
+      const mark = k.checkpoint()
+      try {
+        let total = 0
+        for (const e of k.getSubShapes(h, 'edge')) total += k.getLength(e)
+        return total
+      } finally {
+        k.releaseSince(mark)
+      }
+    },
 
     // ── validation & repair ──
     isValid: (shape) => k.isValid(asShape(shape)),

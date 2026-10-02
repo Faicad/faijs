@@ -689,9 +689,9 @@
     {
       "core": "getLength",
       "occt": "getLength",
-      "brepkit": "wireLength",
+      "brepkit": null,
       "status": "dialect",
-      "note": "Phase 4 补齐；wire/edge 入参差异适配器判别（D6）"
+      "note": "双方适配器组合实现：唯一 edge 弧长之和（TopExp 去重）。OCC 原生 LinearProperties 默认 SkipShared=false 按面重复计共享边（盒 ×2）；brepkit 旧的首边判定随构建历史漂移，已弃"
     },
     {
       "core": "getLinearCenterOfMass",

@@ -252,12 +252,12 @@ describe('Shape introspection parity (CadQuery Shape.py — P1)', () => {
     // CadQuery: volume 0.9999999999999998, area 6.0.
     expect(volumeOf(box)).toBeCloseTo(1, 9)
     expect(areaOf(box)).toBeCloseTo(6, 9)
-    // GOTCHA (kernel-level length-on-solid semantics gap): occt-wasm getLength
-    // over a solid double-counts shared edges (per-face traversal), so a unit
-    // box (12 unique edges × 1) yields 24 here. CadQuery has no direct
-    // `Length()` on a solid; its unique-edge sum is 12. The edge-level lengthOf
-    // (the primary CadQuery use) is correct — see the edge test below.
-    expect(lengthOf(box)).toBeCloseTo(24, 9)
+    // lengthOf = unique-edge sum (2026-10-02 normalization): a unit box (12
+    // edges × 1) → 12, matching CadQuery's `sum(e.Length() for e in
+    // solid.Edges())`. CadQuery has no direct `Length()` on a solid (it lives on
+    // Mixin1D), and the raw occt kernel's per-face traversal would give 24; this
+    // class layer normalizes to the unique-edge sum.
+    expect(lengthOf(box)).toBeCloseTo(12, 9)
     const c = centerOfMassOf(box)
     expect(c.x).toBeCloseTo(0.5, 9)
     expect(c.y).toBeCloseTo(0.5, 9)

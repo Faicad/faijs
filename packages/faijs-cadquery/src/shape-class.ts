@@ -477,13 +477,29 @@ export function areaOf(s: CqShape | ShapeHandle): number {
 }
 
 /**
- * `Shape.Length()` — cumulative edge length (mm). For an edge this is its span;
- * for a wire/solid the sum of its edges.
+ * `Shape.Length()` counterpart — cumulative edge length (mm) = the sum of every
+ * unique edge's arc length. For an edge this is its span; for a wire/solid the
+ * sum of its edges. CadQuery defines `Length()` only on `Mixin1D` (Edge/Wire) and
+ * has no `Solid.Length()`; this value equals the `sum(e.Length() for e in
+ * shape.Edges())` a CadQuery user would write by hand.
  * @param s - shape (wrapper or handle)
  * @returns length
  */
 export function lengthOf(s: CqShape | ShapeHandle): number {
-  return introspect().getLength(unwrapShape(s))
+  const k = kernel()
+  const h = unwrapShape(s)
+  // 唯一 edge 弧长之和 = CadQuery 的 `sum(e.Length() for e in shape.Edges())`。
+  // 裸 occt kernel 的 `getLength` 走 `BRepGProp::LinearProperties` 默认口径，按面
+  // 遍历会把共享边计两次（单位盒 24 = 2×12），与 CadQuery 不符；故此处按去重边求和
+  // （与 core L1 `occt-primitives.ts` 的 getLength 归一化同口径）。
+  const mark = k.checkpoint()
+  try {
+    let total = 0
+    for (const e of k.getSubShapes(h, 'edge')) total += k.curveLength(e)
+    return total
+  } finally {
+    k.releaseSince(mark)
+  }
 }
 
 /**

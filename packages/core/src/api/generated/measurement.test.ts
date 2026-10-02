@@ -2,7 +2,7 @@
  * measurement 数值钉住（core-decouple wrapup §3.1 迁移自
  * tests/faijs/vendored-measurement-selfhost 的数值价值）：core 第一方同步
  * 测量面（api/generated/measurement）的数值——20×10×5 盒 → 体积 1000 /
- * 面积 700 / 边总长 280（12 条边按「边-面」计数 ×2）。
+ * 面积 700 / 边总长 140（唯一 edge 弧长之和；2026-10-02 归一化前为 280）。
  *
  * 运行：npx vitest run src/api/generated/measurement.test.ts
  */
@@ -41,8 +41,8 @@ describe('measurement 数值钉住（第一方同步面）', () => {
     expect(measureArea(s)).toBeCloseTo(BOX_AREA, 6)
   })
 
-  it('同盒 → length 280（12 条边 ×2 计数）', async () => {
+  it('同盒 → length 140（12 条唯一边弧长之和）', async () => {
     const s = await box({ width: 20, depth: 10, height: 5 })
-    expect(measureLength(s)).toBeCloseTo(280, 6)
+    expect(measureLength(s)).toBeCloseTo(140, 6)
   })
 })

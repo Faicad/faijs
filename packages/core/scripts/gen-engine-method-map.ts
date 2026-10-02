@@ -173,7 +173,7 @@ const HAND_MAP: MapEntry[] = [
   { core: 'getVolume', occt: 'getVolume', brepkit: 'volume', status: 'dialect' },
   { core: 'getCenterOfMass', occt: 'getCenterOfMass', brepkit: 'centerOfMass', status: 'dialect' },
   { core: 'getSurfaceArea', occt: 'getSurfaceArea', brepkit: 'surfaceArea', status: 'dialect', note: 'Phase 4 补齐 brepkit 接线（D6：面积进 L1）' },
-  { core: 'getLength', occt: 'getLength', brepkit: 'wireLength', status: 'dialect', note: 'Phase 4 补齐；wire/edge 入参差异适配器判别（D6）' },
+  { core: 'getLength', occt: 'getLength', brepkit: null, status: 'dialect', note: '双方适配器组合实现：唯一 edge 弧长之和（TopExp 去重）。OCC 原生 LinearProperties 默认 SkipShared=false 按面重复计共享边（盒 ×2）；brepkit 旧的首边判定随构建历史漂移，已弃' },
   { core: 'getLinearCenterOfMass', occt: 'getLinearCenterOfMass', brepkit: null, status: 'occt-only', platform: 'occt', note: 'D6：单方语义 → L2，不进能力名空间' },
   { core: 'getInertia', occt: 'getInertia', brepkit: null, status: 'occt-only', platform: 'occt', note: 'D6 → L2' },
   { core: 'distanceBetween', occt: 'distanceBetween', brepkit: 'solidToSolidDistance', status: 'occt-only', platform: 'occt', note: 'D6：语义不完全对齐（brepkit 分 pointToFace/solidToSolid 多个），先留双方 L2' },

@@ -1030,9 +1030,22 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       const compKids = knownCompounds.get(s)
       if (compKids) {
         // compound（sectionByPlane 面组 / makeCompound 多实体 / importStep 多实体）：
-        // 'face' 返回子面，'solid' 返回子实体，其余空。
+        // 'face' 返回子面，'solid' 返回子实体，'edge' 返回各子句柄的边，其余空。
         if (type === 'face') return tag(compKids.filter((k) => knownFaces.has(k)))
         if (type === 'solid') return tag(compKids.filter((k) => !knownFaces.has(k) && !knownWires.has(k) && !knownEdges.has(k)))
+        if (type === 'edge') {
+          // 2026-10-02 补：此前 compound 的边查询落到 `return []`，会让归一化后的
+          // getLength(compound) 静默变 0。按子句柄的已知类型分发，与 occt 的
+          // getSubShapes(compound,'edge')（返回全部子边）对齐。
+          const out: number[] = []
+          for (const kid of compKids) {
+            if (knownFaces.has(kid)) out.push(...arr(kernel.getFaceEdges(kid)))
+            else if (knownWires.has(kid)) out.push(...arr(kernel.getWireEdges(kid)))
+            else if (knownEdges.has(kid)) out.push(kid)
+            else out.push(...arr(kernel.getSolidEdges(kid)))
+          }
+          return tag(out)
+        }
         return []
       }
       let list: number[]
@@ -1316,16 +1329,14 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return Number(kernel.surfaceArea(asNum(shape), 0.05))
     },
     getLength(shape: BrepHandle): number {
-      // 方言映射：L1 getLength ↔ brepkit edgeLength(edge) / wireLength(wire)。
-      // wire 与 edge 的入参差异在适配器内判别（D6）：edgeLength 只吃 edge 句柄，
-      // 对 wire 会抛错；据此分发，两条路径都失败时如实抛出（不静默返回 0）。
-      const s = asNum(shape)
-      try {
-        kernel.getEdgeCurveType(s)
-        return Number(kernel.edgeLength(s))
-      } catch {
-        return Number(kernel.wireLength(s))
-      }
+      // 唯一 edge 弧长之和（与 occt 适配器同口径，D5）。
+      // 旧实现用 `try { getEdgeCurveType } catch { wireLength }` 判别入参差异，但
+      // getEdgeCurveType 对 solid / face / wire **也不抛错**，于是统一走 edgeLength，
+      // 返回「首条边」长度——值随构建历史漂移（盒 20 vs 10；两边的 wire 真长 15 却给 20），
+      // 且与 occt 的 Σ 面周长（280）不同口径。改为按 topo 去重枚举边后求和。
+      let total = 0
+      for (const e of api.getSubShapes(shape, 'edge')) total += api.curveLength(e)
+      return total
     },
 
     // ── 校验与修复 ──
