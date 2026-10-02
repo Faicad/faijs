@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/api-contract.md
-api-contract.md: ca2f8336649e4d2af2269ec1f3f409277cec02b8
-api-contract.zh.md: 15a1bef97690d482a59ae07428f0dea5140542ca
+api-contract.md: 7f16496c6c012db72ca58e7a444d12a5a5f34297
+api-contract.zh.md: e6be4e5ecb2824cc711bc5a16f31c7edf9752bea

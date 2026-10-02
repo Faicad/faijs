@@ -32,11 +32,19 @@ export async function save(
   }
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[cq-compat-assembly] save(): BREP kernel unavailable')
-  const entries = asm.members.map((m) => ({
-    solid: brepOf(m.shape) as BrepHandle | undefined,
-    name: m.name,
-    color: m.color,
-  }))
+  // STEP 是 BREP 专属格式：装配成员里只要有网格零件就**明确报错**并指出成员名，
+  // 绝不静默跳过（少写一个成员同样是错的）或重建一个 facet BREP
+  // （方案 2026-10-01 §3.6 / 红线 2）。
+  const entries = asm.members.map((m) => {
+    const solid = brepOf(m.shape) as BrepHandle | undefined
+    if (!solid) {
+      throw new Error(
+        `E_STEP_MESH_PART: member ${JSON.stringify(m.name)} has no BREP handle — ` +
+        'a mesh part cannot be exported to STEP (STEP is BREP-only)',
+      )
+    }
+    return { solid, name: m.name, color: m.color }
+  })
   const buf = exportStepFromSolids(kernel, entries)
   writeFileSync(path, Buffer.from(buf))
 }

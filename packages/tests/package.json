@@ -2,6 +2,7 @@
   "name": "@faicad/faijs-tests",
   "version": "0.22.5",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
     "@faicad/fai-cq-gears": "^0.22.0",
