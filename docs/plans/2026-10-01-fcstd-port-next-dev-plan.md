@@ -348,13 +348,21 @@
 - **12 个的真伪用测量门逐一验证**：`out/rebased-d1.json` 得 **RUN-OK 12/12**（含取点 TO92 与 M6x30）⇒ 这些是**假失败**（旧 worker 崩溃/环境），产品本身可执行；判 parity 得 **4 pass / 8 fail**（8 个进入真实失败类）。
 - **改动位置**：无需再改；`run-sweep.ts` 的失败分类可再细化（区分「worker 崩溃」与「产物拷贝失败」），非阻塞。
 
-#### D2 nameless-shape edgeRef 203（fillet lineage）
+#### D2 nameless-shape edgeRef（fillet lineage）— ✅ **已修**（2026-10-02，根因与 plan 原推断不同）
 
-- **取点**：`00300e4653b7-Sliding_door.fai.zip`（`edgeRef: adjacent face ordinal 10 has no role lineage`，fillet callee）。
-- **根因**：fillet/chamfer 选边时，相邻面的 role lineage 缺失——输入 shape 的面无 role table（导入 BREP / 布尔运算后产物 nameless）。
-- **改动位置**：`packages/core/src/topology/`（role lineage 构造）、`packages/core/src/api/fillet.ts` / `api/chamfer.ts`（edgeRef 解析）、`packages/fcstd/src/`（翻译期是否给导入 BREP 补 role）。
-- **单测**：合成一个「导入 BREP → fillet 选边」fixture，断言 edgeRef 能解析。
-- **判据**：取点文件 run ok 且产 STEP。
+- **取点**：`00300e4653b7-Sliding_door.fai.zip`（`Execution failed at statement 10 (callee: fillet): edgeRef: adjacent face ordinal 10 has no role lineage`；manifest 记的是修复前基线的 `ordinal 7`）。
+- **原推断（不成立）**：「导入 BREP / 布尔产物 nameless ⇒ 面无 role table」。实测该取点的输入**不是**导入 BREP，而是 `cad.extrude(Sketch003, [0,-2.2e-15,9.999])`。
+- **真根因（三层实测，非推断）**：
+  1. `packages/fcstd/scripts/probe-d2-faces.ts` 对 extrude 产物逐面问 `cad.faceRef`：10 面中 **6 面有 role、4 面无名**（ordinal 5/7/9/10）。无名面**都是 `plane` 且法向 ±Y** —— 与已命名的 cap 同向，只是被 `extrudeConstructRoles` 的「cap 只取沿轴投影最小/最大两片」规则丢掉。
+  2. 内核几何（`getBoundingBox`）：solid bbox = x −50..2450、z 80..2240、**y 跨度 5e-13** ⇒ 这个棱柱的厚度≈0。即拉伸方向落在**轮廓自身平面内**。
+  3. 逐面 `surfaceType`：4 个侧壁是 `extrusion`（不是 `plane`），其 `surfaceNormal(uv 中点)` 返回模长 4.4e-16 的退化值 ⇒ 侧壁的 wall/cap 判定靠噪声比值，覆盖随机。
+  ⇒ 上游真因是**方向错**：A3 把参数化 profile 用 `plane: {origin, normal, xAxis}` 放到了**世界帧**（本例法向 `[0,-1,2.2e-16]`），而 `feature-translate` 仍按「sketch 局部 +Z」发 `cad.extrude(profile, [0,0,len])` —— 该契约依赖 M8.3 的 `cad.place` 重定向，而 C3a 已把它抑制。零厚度薄片 ⇒ 面分类失据 ⇒ 下游 fillet 的 `edgeRef` 报 no role lineage。
+- **修复**：`codegen.ts` 在 C3a 守卫同一处增加方向旋转 —— 当 profile sketch 走参数化 plane 帧时，把 extrude 的 `[0,0,len]` 改写成 `{ length: |len|, normal: planeBasis(placement).n × sign }`；`Reversed` / 负长度把符号送进 `normal`（`cad.extrude` 要求 `length > 0`），符号化长度（`symNeg` 的 `-(expr)`）剥掉外层取反。对象形态（up-to）调用不改写。
+- **实测**：取点 RUN-FAIL → **RUN-OK**（`out/rebased-d2-after`：Fillet + assembly 两个 STEP）。生成码由 `cad.extrude(Sketch003, [0,-2.220446049250313e-15,9.999999999999998])` 变为 `cad.extrude(Sketch003, { length: 9.999999999999998, normal: [0,-0.9999999999999998,2.220446049250313e-16] })`。
+- **规模（静态实测，`tools/_d2-scan.py` 扫 3131 个产物）**：**276** 个产品的 extrude 消费带 plane 帧的 sketch；其中 **0 个**同时发对象形态（up-to）extrude ⇒ up-to 分支不受本次改写影响。
+- **单测**：`codegen.test.ts` 新增 3 条（方向取 plane 法向 / `Reversed` 翻 normal 不取负长度 / A5 兜底仍 `[0,0,len]`）；**前两条在修复前为红**（临时禁用修复实测 2 failed / 38 passed）。
+- **判据**：✅ 取点 run ok 且产 STEP。
+- **未做的量测（诚实边界）**：276 个的端到端 before/after 重基线未跑 —— 单次进程跨产品会因 OCCT wasm 堆增长被杀（实测第 4~6 个产品后静默退出），分片驱动已加进 `rebased-sweep.ts`（`--skip/--limit`），但 60 个样本两遍 ≈ 40 分钟，本轮未启动。故 **276 是静态命中面，不是实测净 pass**。
 
 #### D3 timeout 88
 
@@ -400,7 +408,7 @@
 | C3 | 取点文件 volume 失配消除（C3a ✅ 已完成 commit `816a4627`；C3b ✅ 已完成 commit `98cb00a` —— 取点 `volume` 已退出 fail 列表，但全量重判 **pass 1125 未变、solids +5**，净 pass 为 0；需与 C3c 配对才有收益） |
 | C3c | ❌ 原方向实测证伪。重新界定后：**C3c-1 再证伪**（线框成员对 compound 的 invariants 逐位无影响，`_c3c-wire-member.py`）／**C3c-2 已修**（`SubShape` 是 `AddSubShape` 工具而非结果，commit `2de18c15`）—— 全族 423 个重基线 **pass 0 → 118**（+118，RUN-OK 411）／**C3c-3 已归因**（DIN463 fillet 边身份，属 G3 域，未修）。测量门 `packages/fcstd/scripts/rebased-sweep.ts` 已建成。 |
 | D1 | ✅ **已收口**：根因是 `KEEP_STEPS` 缺目录致 ENOENT 被误标（`run-sweep.ts:116-123` 已修）；state 实测 failed 只剩 **12**（旧 271 是修复前基线），12 个经测量门 **RUN-OK 12/12**、parity **4 pass / 8 fail** ⇒ 假失败 |
-| D2 | 取点文件 fillet edgeRef run ok + 单测留档 |
+| D2 | ✅ 已完成（2026-10-02）：真根因是 A3 plane 帧与 extrude「局部 +Z」契约冲突（C3a 抑制 place 后暴露），取点 `Sliding_door` RUN-FAIL → **RUN-OK**；codegen 旋转 extrude 方向到 plane 法向；3 条单测（2 条修复前红）；静态命中 **276** 个产品（0 个 up-to）。276 的端到端重基线**未跑**（见 §D2 诚实边界） |
 | D3 | timeout 88 分类完成（known-slow / 卡死已修） |
 | D4 | threw-other 8 消除或归入正确类 |
 | E1 | stage1 gap 98 逐类下降 |
