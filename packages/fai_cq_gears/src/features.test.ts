@@ -11,7 +11,7 @@
  * - HerringboneGear + 全套特征（case05 / case06）
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
+import { getGearKernel, type GearKernel } from './kernel'
 import { buildSpurGearSolid, buildHerringboneGearSolid, type BuildSpurGearOptions } from './spur_gear'
 import { buildRingGearSolid, type BuildRingGearOptions } from './ring_gear'
 import { buildCrossedHelicalSolid } from './crossed_helical_gear'

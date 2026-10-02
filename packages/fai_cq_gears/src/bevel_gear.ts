@@ -27,7 +27,7 @@
  */
 
 import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
-import type { GearKernel } from '@faicad/cq-compat'
+import type { GearKernel } from './kernel'
 import {
   GEAR_BASE_CONSTANTS, bevelGearGeometry,
   type BevelGearGeometry, type BevelGearParams, type ToothGrid,
@@ -37,7 +37,7 @@ import {
   buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY,
   type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
-import { connectEdgesToWires } from '@faicad/cq-compat'
+import { connectEdgesToWires } from './kernel'
 
 /** 判定「边上所有采样点是否落在 z 平面内」的容差（mm）。 */
 const PLANE_PICK_TOL = 1e-6

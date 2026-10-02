@@ -3,8 +3,8 @@
  *
  * ## 现状（2026-09-13）
  *
- * 本包经 `@faicad/cq-compat` 的齿轮原语层消费内核（`getGearKernel()`，
- * cq-compat 内部统一归属 occt 内核访问），入口签名（参数名逐字沿用 Python、
+ * 本包经 `src/kernel/` 的齿轮原语层消费内核（`getGearKernel()`，自 cq-compat
+ * 迁入；occt 内核访问统一归属该层），入口签名（参数名逐字沿用 Python、
  * 返回 `Result`）保持不变。
  *
  * 每个导出函数：
@@ -17,7 +17,7 @@
 
 import type { BrepHandle } from '@faicad/faijs'
 import { ok, err, type Result, CONTRACT_VERSION } from '@faicad/faijs'
-import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
+import { getGearKernel, type GearKernel } from './kernel'
 
 import {
   buildSpurGearSolid, buildHerringboneGearSolid, buildHyperbolicGearSolid,

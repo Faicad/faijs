@@ -6,7 +6,7 @@
  * last stderr line (tag grammar shared with stability.test.ts) and exits 1.
  */
 
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '../kernel'
 import { STABILITY_SUITES } from './cases'
 
 async function main(): Promise<void> {

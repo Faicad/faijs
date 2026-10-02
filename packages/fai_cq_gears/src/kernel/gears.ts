@@ -16,7 +16,7 @@
 
 import { initOcctWasm } from '@faicad/faijs'
 import type { BrepEngineApi, BrepHandle, BrepVec3 } from '@faicad/faijs'
-import type { Vec3 } from './geom-types'
+import type { Vec3 } from '../math'
 
 /** Rotation/mirror axis (occt-wasm shape). */
 export interface GearAxis {

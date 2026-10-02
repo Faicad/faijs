@@ -17,7 +17,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { loadManifest, OUT_DIR, type ReferenceGrid } from './fixtures'
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from './kernel'
 import {
   measureSplineFace,
   SPLINE_FACE_STRATEGIES,

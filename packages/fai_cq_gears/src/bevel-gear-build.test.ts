@@ -15,7 +15,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
+import { getGearKernel, type GearKernel } from './kernel'
 import { buildBevelGearSolid } from './bevel_gear'
 import { loadManifest } from './fixtures'
 import { bevelGearOptionsFromArgs } from './testing/reference-options'

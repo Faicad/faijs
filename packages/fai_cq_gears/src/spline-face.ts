@@ -1,12 +1,12 @@
 /**
- * spline-face — thin adapter over cq-compat's gear spline-face primitives.
+ * spline-face — thin adapter over the package's gear spline-face primitives.
  *
- * The three B-spline face strategies (probed in the v1 spike, 2026-09-08) moved
- * INTO cq-compat per the port plan (§4/§5): raw kernel knowledge lives there,
- * fai_cq_gears only consumes. This file preserves the v1 import names for
+ * The strategies (probed in the v1 spike, 2026-09-08) now live in
+ * `src/kernel/` (migrated verbatim from cq-compat): raw kernel knowledge is
+ * confined there. This file preserves the v1 import names for
  * existing call sites and keeps the measurement helpers (they are test/report
  * tooling, not geometry ops — they stay in this package but consume the
- * cq-compat kernel type).
+ * kernel's GearKernel type).
  *
  * | strategy | how | semantic delta vs cq |
  * |---|---|---|
@@ -27,7 +27,7 @@ import {
   type GearKernel,
   type GearSplineFaceOptions,
   type GearSplineFaceStrategy,
-} from '@faicad/cq-compat'
+} from './kernel'
 import type { Vec3 } from './math'
 import type { ToothGrid } from './profile'
 

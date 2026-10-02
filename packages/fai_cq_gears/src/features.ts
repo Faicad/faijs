@@ -18,7 +18,7 @@
  */
 
 import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
-import type { GearKernel } from '@faicad/cq-compat'
+import type { GearKernel } from './kernel'
 
 /** cq `_make_chamfer` 的小偏移量（避免共面自交）。 */
 export const CHAMFER_E = 0.01

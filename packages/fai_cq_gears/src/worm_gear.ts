@@ -22,7 +22,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs'
-import type { GearKernel } from '@faicad/cq-compat'
+import type { GearKernel } from './kernel'
 import {
   wormGeometry,
   type ToothGrid, type WormGeometry, type WormParams,
@@ -32,7 +32,7 @@ import {
   buildSplineFace,
   type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
-import { connectEdgesToWires } from '@faicad/cq-compat'
+import { connectEdgesToWires } from './kernel'
 
 /** Worm 覆写 GearBase 的类常量（`worm_gear.py` 类属性）。 */
 const WORM_SURFACE_SPLINES = 8

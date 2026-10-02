@@ -10,7 +10,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs'
-import type { GearKernel } from '@faicad/cq-compat'
+import type { GearKernel } from './kernel'
 import {
   crossedHelicalGearGeometry, type CrossedHelicalGearParams,
 } from './profile'

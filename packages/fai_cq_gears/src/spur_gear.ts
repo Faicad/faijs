@@ -15,7 +15,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs'
-import type { GearKernel } from '@faicad/cq-compat'
+import type { GearKernel } from './kernel'
 import { GEAR_BASE_CONSTANTS } from './profile'
 import { toothFaceGrids, type SpurGearGeometry, type SpurGearParams } from './profile'
 import { spurGearGeometry, hyperbolicGearGeometry, type HyperbolicGearParams } from './profile'
@@ -23,7 +23,7 @@ import {
   buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY,
   type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
-import { connectEdgesToWires } from '@faicad/cq-compat'
+import { connectEdgesToWires } from './kernel'
 import {
   applyChamfer, applyBore, applyRecess, applyHub, applySpokes, applyMissingTeeth,
   type GearFeatureOptions,

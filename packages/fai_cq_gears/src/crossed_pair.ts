@@ -30,7 +30,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs'
-import type { GearKernel, GearAxis } from '@faicad/cq-compat'
+import type { GearKernel, GearAxis } from './kernel'
 import {
   crossedHelicalGearGeometry, hyperbolicGearGeometry,
   type CrossedHelicalGearParams, type HyperbolicGearParams, type HyperbolicGearGeometry,

@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
+import { getGearKernel, type GearKernel } from './kernel'
 import { buildSpurGearSolid } from './spur_gear'
 import type { SpurGearParams } from './profile'
 

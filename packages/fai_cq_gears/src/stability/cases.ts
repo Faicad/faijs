@@ -27,7 +27,7 @@ import {
 } from '../rack_gear'
 import { buildWormSolid } from '../worm_gear'
 import { buildBevelGearSolid } from '../bevel_gear'
-import type { GearKernel } from '@faicad/cq-compat'
+import type { GearKernel } from '../kernel'
 
 /** Failure tags, verbatim from cq `tests/stability/utils.py`. */
 export type StabilityTag =

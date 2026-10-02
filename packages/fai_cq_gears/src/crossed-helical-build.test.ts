@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
+import { getGearKernel, type GearKernel } from './kernel'
 import { buildCrossedHelicalSolid } from './crossed_helical_gear'
 import type { CrossedHelicalGearParams } from './profile'
 

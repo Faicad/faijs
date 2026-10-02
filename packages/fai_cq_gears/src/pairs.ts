@@ -46,7 +46,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs'
-import type { GearKernel, GearAxis } from '@faicad/cq-compat'
+import type { GearKernel, GearAxis } from './kernel'
 import { bevelGearGeometry, type BevelGearGeometry, type BevelGearParams } from './profile'
 import { buildBevelGearSolid, type BuildBevelGearOptions } from './bevel_gear'
 import type { SplineFaceStrategy } from './spline-face'

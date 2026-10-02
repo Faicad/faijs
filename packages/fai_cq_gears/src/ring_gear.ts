@@ -18,14 +18,14 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs'
-import type { GearKernel } from '@faicad/cq-compat'
+import type { GearKernel } from './kernel'
 import { ringGearGeometry, GEAR_BASE_CONSTANTS, type RingGearParams } from './profile'
 import {
   DEFAULT_SPLINE_FACE_STRATEGY,
   soleFace, type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
 import { buildToothFaces, buildHerringboneToothFaces } from './spur_gear'
-import { connectEdgesToWires, gearFaceFromWires as faceFromWires } from '@faicad/cq-compat'
+import { connectEdgesToWires, gearFaceFromWires as faceFromWires } from './kernel'
 import {
   applyChamfer, applyBore, type GearFeatureOptions,
 } from './features'

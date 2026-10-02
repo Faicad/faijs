@@ -7,7 +7,7 @@
  * - worm-2threads：双头、lead_angle=15°（多头 tau 分度 + 圈间平移）
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
+import { getGearKernel, type GearKernel } from './kernel'
 import { buildWormSolid } from './worm_gear'
 import { loadManifest } from './fixtures'
 import type { WormParams } from './profile'

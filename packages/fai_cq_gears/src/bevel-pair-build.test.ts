@@ -21,7 +21,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { BrepHandle } from '@faicad/faijs'
-import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
+import { getGearKernel, type GearKernel } from './kernel'
 import { buildBevelGearPair, type BevelGearPairParams } from './pairs'
 import { bevelPairOptionsFromArgs } from './testing/reference-options'
 import { loadManifest, type ReferenceCase, type ReferencePart } from './fixtures'

@@ -1,8 +1,8 @@
 /** One-off probe: failing spur case bbox across the 3 spline-face strategies. */
-import { getGearKernel } from '@faicad/cq-compat'
+import { getGearKernel } from '../kernel'
 import { buildSpurGearSolid } from '../spur_gear'
 import { spurGearGeometry } from '../profile'
-import { GEAR_SPLINE_FACE_STRATEGIES } from '@faicad/cq-compat'
+import { GEAR_SPLINE_FACE_STRATEGIES } from '../kernel'
 
 const params = {
   module: 2.536741155560594, teeth_number: 177, width: 745.762991226348,

@@ -19,13 +19,13 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs'
-import type { GearKernel } from '@faicad/cq-compat'
+import type { GearKernel } from './kernel'
 import {
   GEAR_BASE_CONSTANTS, rackGearGeometry,
   type RackGearGeometry, type RackGearParams, type ToothGrid, type ToothSegment,
 } from './profile'
 import { buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY, type SplineFaceStrategy } from './spline-face'
-import { connectEdgesToWires, gearEdgeEnds as edgeEnds, gearShellToSolid as shellToSolid } from '@faicad/cq-compat'
+import { connectEdgesToWires, gearEdgeEnds as edgeEnds, gearShellToSolid as shellToSolid } from './kernel'
 import { vec3, type Vec3 } from './math'
 
 /** 侧端裁剪平面比齿廓超出的余量（Python `cp_ext`）。 */

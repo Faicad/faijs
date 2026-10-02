@@ -10,10 +10,6 @@
  */
 export * from './workplane'
 // Assembly layer moved out of the main package → @faicad/cq-compat-assembly
-// (browser entry there: ./browser). Gear primitives stay here (browser-safe:
-// gears.ts imports only `@faicad/faijs`'s initOcctWasm + types — no node
-// builtins), so they belong in this entry just as much as workplane do.
-// Without this line `@faicad/fai-cq-gears` (which imports `getGearKernel`
-// from `@faicad/cq-compat`) has no browser resolution and every gear factory
-// throws at call time.
-export * from './gears'
+// (browser entry there: ./browser). Gear primitives migrated to
+// @faicad/fai-cq-gears `src/kernel/` (2026-10-02); the only consumer was
+// fai_cq_gears itself, which no longer depends on this package.

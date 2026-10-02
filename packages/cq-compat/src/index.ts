@@ -235,28 +235,7 @@ export { asBrepShape, resolveFaceSelector } from './workplane'
 // @faicad/cq-compat-assembly. STEP / assembly equivalence comparers (dev-only)
 // live in @faicad/cq-compat-compare.
 
-// Gear primitive layer (raw-handle kernel access for the cq_gears port;
-// see gears.ts header). fai_cq_gears consumes these instead of occt-wasm.
-export {
-  getGearKernel,
-  connectEdgesToWires,
-  gearFaceFromWires,
-  gearShellToSolid,
-  gearEdgeEnds,
-  buildGearSplineFace,
-  soleGearFace,
-  gearDistanceToFace,
-  gearFaceDeviation,
-  DEFAULT_GEAR_SPLINE_FACE_STRATEGY,
-  GEAR_SPLINE_FACE_STRATEGIES,
-} from './gears'
-export type {
-  GearKernel,
-  GearAxis,
-  GearEdgeEnds,
-  GearSplineFaceStrategy,
-  GearSplineFaceOptions,
-  GearSplineGrid,
-  GearDeviationStats,
-} from './gears'
+// Gear primitive layer (raw-handle kernel access for the cq_gears port)
+// migrated to @faicad/fai-cq-gears `src/kernel/` (2026-10-02) — the only
+// consumer was fai_cq_gears itself.
 export type { Vec3 } from './geom-types'

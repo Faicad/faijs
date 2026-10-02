@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
+import { getGearKernel, type GearKernel } from './kernel'
 import { buildHerringboneGearSolid } from './spur_gear'
 import { buildHerringboneRingGearSolid } from './ring_gear'
 import type { SpurGearParams, RingGearParams } from './profile'
