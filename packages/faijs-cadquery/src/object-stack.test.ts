@@ -81,8 +81,8 @@ async function bigBox() {
 /**
  * The first lateral face (100 mm²) of a 10×10×10 box, as an faijs `Shape`.
  *
- * `Workplane.faces()` only records a deferred marker until P3-3 makes it eager,
- * so a test that needs a real face object takes it straight from the selector
+ * `Workplane.faces()` is EAGER (P3-3): it resolves + pushes immediately. A test
+ * that needs a real face object still takes it straight from the selector
  * engine. 100 mm² picks a side face unambiguously (the top and bottom are 600).
  */
 function faceOfArea100(solid: Shape): Shape {
@@ -106,24 +106,28 @@ describe('size — the stack length, NOT a bounding box', () => {
     expect(size(await box(Workplane('XY'), 1, 1, 1))).toBe(1)
   })
 
-  it('a pending face selection does not change the stack yet (P3-3 makes it eager)', async () => {
-    // Upstream `cube.faces('>Z').size()` is 1 because `faces()` immediately
-    // resolves and PUSHES the face. In faijs, `faces()` only records a deferred
-    // marker (`faceSel` + `selChain`) that a later op consumes — P3-3 turns it
-    // into a real multi-object push. Until then the stack is untouched, so the
-    // stack length stays 1 and the shape is still the box. Freezing the
-    // CURRENT behaviour; P3-3 must update this assertion.
+  it('faces() eagerly pushes the selected face (P3-3)', async () => {
+    // Upstream `cube.faces('>Z')` immediately resolves + pushes the top face; the
+    // stack head is now the face, not the box. Probe (`p3-3-*.py`):
+    //   cube.faces('>Z').size() == 1  and  .val().ShapeType() == 'Face'
     const c = await box(Workplane('XY'), 1, 1, 1)
     const marked = faces(c, '>Z')
     expect(size(marked)).toBe(1)
-    expect(vol(marked.objects[0])).toBeCloseTo(1, 6)
+    expect(shapeTypeOf(brepOf(marked.objects[0]) as never)).toBe('face')
+    // the pushed face is the 1×1 top face (area 1), not the 1-volume box
+    expect(areaOf(brepOf(marked.objects[0]) as never)).toBeCloseTo(1, 6)
   })
 
-  it('a pending edge selection likewise leaves the stack alone', async () => {
+  it('edges() eagerly pushes the selected edges of the narrowed face (P3-3)', async () => {
+    // `cube.faces('>Z').edges('|Z')` → after `faces('>Z')` the stack holds the top
+    // face; `edges('|Z')` collects its edges filtered by `|Z` (parallel to Z). The
+    // top face is horizontal, so none of its 4 edges run along Z → 0 (probe
+    // `faces('>Z').edges('|Z').size()` == 0). Assert the push itself with the
+    // empty selector, which returns all 4 face edges.
     const c = await box(Workplane('XY'), 1, 1, 1)
-    const marked = edges(faces(c, '>Z'), '|Z')
-    expect(size(marked)).toBe(1)
-    expect(vol(marked.objects[0])).toBeCloseTo(1, 6)
+    expect(size(edges(faces(c, '>Z'), ''))).toBe(4)
+    expect(shapeTypeOf(brepOf(edges(faces(c, '>Z'), '').objects[0]) as never)).toBe('edge')
+    expect(size(edges(faces(c, '>Z'), '|Z'))).toBe(0)
   })
 
   it('bboxSize still answers the old question (2×3×4 box → [2,3,4])', async () => {

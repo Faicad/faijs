@@ -1,7 +1,7 @@
 # P3 开发计划 —— Workplane 对象栈模型（faijs-cadquery）
 
 > 日期：2026-10-03
-> 状态：**实施中** —— P3-0 / P3-1 / P3-2 已完成（2026-10-03，见 §6.1「批次进度」），P3-3 起待做
+> 状态：**实施中** —— P3-0 / P3-1 / P3-2 / P3-3 已完成（2026-10-03，见 §6.1「批次进度」），P3-4 起待做
 > 范围：`packages/faijs-cadquery`（`src/workplane.ts` 载体模型 + `src/transpile.ts` + `src/index.ts` 导出面 + `tests/ref-harness/`）
 > 上游基准：CadQuery **2.8.0**（`cq.py` + `out/cache/v2.8.0/tests/`）
 > 配套文档：
@@ -125,6 +125,7 @@ stack 没命中 → 递归 parent（searchParents）
 | G8 | `_collectProperty` 用 **dict 当 ordered set**，去重按**对象身份**（`__hash__`/`__eq__`） | `cq.py:236` | faijs 的 `Shape` 是引擎对象，身份语义不同 → §3.3 决议 |
 | G9 | 子形去重按句柄 id 的**拓扑身份**（`kernel.isSame`）而非几何相等（`Shape.__eq__`） | `workplane.ts:selectKindHandles`（§3.3） | 上游按几何相等去重，两者不等价；faijs 无 `Shape.__eq__`，只能用 `isSame` |
 | G10 | `workplane.ts` 内**不得直接调** `getKernel().getSubShapes(h, kind)` —— 会抛 `Cannot read properties of undefined (reading 'OcctKernel')`；该 wasm glue 闭包引用的 `OcctKernel` 符号只有在 `shape-class.ts` 进入 import 图后才被钉住。kind 选择器必须复用 `shape-class.ts` 的 `solids/wiresOf/shells/compounds` | `workplane.ts:selectKindHandles`（探针实测） | 直接调会让所有 kind 选择器静默退化成「返回空」；复用 `shape-class` 路径 |
+| G11 | `baseShape`（基础实体，parent 链的替身）**必须随几何替换失效**：`clone(wp,{objects})` 若未显式给 `baseShape` 即清空。否则 `faces()` 记下的原始 box 会穿过 `cutBlind` 之后的下一次 `faces()`，让 `hole` 切错基准 | `workplane.ts:clone`（`parity-fixes` `>Z[0]` 用例实测） | 不清 ⇒ 体积少切一刀（误差恰等于该刀体积）；`workplane`/`rect` 不传 `objects` ⇒ base 跨它们保留 |
 
 ---
 
@@ -277,7 +278,7 @@ return clone(wp, { shape: fromHandle(sub[0]) })
 | **P3-0** | 栈地基：`objects` 字段 + `shape` 派生 getter + `clone()` 不变式 | `workplane.ts`（接口 + `makeWorkplane` + `clone` + 48 写点机械替换） | **零**（`shape` 恒等） | — |
 | **P3-1** | 栈读侧 API + 两处语义修正：`size`/`add`/`all`/`first`/`last`/`item`/`findSolid` | `workplane.ts` + `index.ts` + 新测试 | `size`/`add` 语义**变**（当前消费者 0，见 §6.2 决议） | P3-0 |
 | **P3-2** | kind 选择器多对象压栈（`wires/shells/solids/compounds`）+ 快/慢路径（§3.5） | 4 个 op + 新测试 | **变**（多对象才变） | P3-1 | ✅ 已完成（2026-10-03）
-| **P3-3** | `faces/edges/vertices` 多对象 + `selChain` 引擎升级为栈上逐对象求并集 | `workplane.ts` + core `cadquery-selectors`（`resolveSelection` 签名） | **变**（逐级收窄语义修正） | P3-2 |
+| **P3-3** | `faces/edges/vertices` 多对象 + `selChain` 引擎升级为栈上逐对象求并集 | `workplane.ts` + core `cadquery-selectors`（`resolveSelection` 签名） | **变**（逐级收窄语义修正） | P3-2 | ✅ 已完成（2026-10-03）
 | **P3-4** | `end()` + `parent` 链 + `split` 多体入栈 + `partAt` 降级 shim + 464 mirror 全量 parity | `workplane.ts` + mirror 回归 | **变** | P3-3 |
 
 **P3-0 的第一个测试**（必须先写、必须先红后绿）：
@@ -327,7 +328,7 @@ return clone(wp, { shape: fromHandle(sub[0]) })
 
 **命名裁决**：上游 `.filter()/.map()/.apply()/.sort()` 是**接收 Python callable** 的栈操作，faijs 对应形态接收 TS 回调。`filter`/`map`/`apply` 在扁平的 `import * as cq` 命名空间里太通用 ⇒ 导出为 `stackFilter`/`stackMap`/`stackApply`/`sortStack`（理由写在 JSDoc 里）。`sort` 保留给既有的 pendingWires 排序（无上游对应名）。
 
-**P3-1 未做、留给后续批次**：`end()` 需 parent 链（`cq.py:669` 走 parent，faijs 是 immutable 无引用）⇒ 属 P3-4；`faces()/edges()/vertices()` 仍是**延迟选择标记**（只写 `faceSel`/`selChain`，不立即求值压栈）⇒ 真压栈属 **P3-3**（P3-2 只覆盖 `wires`/`shells`/`solids`/`compounds`，见下）。**测试已把这两处的「当前行为」冻结**，P3-3 落地时必须同步更新那两条断言。
+**P3-1 未做、留给后续批次**：`end()` 需 parent 链（`cq.py:669` 走 parent，faijs 是 immutable 无引用）⇒ 属 P3-4；`faces()/edges()/vertices()` 仍是**延迟选择标记**（只写 `faceSel`/`selChain`，不立即求值压栈）⇒ 真压栈属 **P3-3**（P3-2 只覆盖 `wires`/`shells`/`solids`/`compounds`，见下）。**测试已把这两处的「当前行为」冻结**；**P3-3 已落地并同步更新那两条断言**（`object-stack.test.ts` 的 `faces()`/`edges()` 段已改为即时压栈语义）。
 
 **P3-2 ✅ 已完成（2026-10-03）**
 
@@ -344,6 +345,29 @@ return clone(wp, { shape: fromHandle(sub[0]) })
 **实施中踩到并固化进守卫的坑**：
 1. **`getSubShapes` 模块绑定陷阱（G10）**——`workplane.ts` 直接调 `getKernel().getSubShapes(h, kind)` 抛 `Cannot read properties of undefined (reading 'OcctKernel')`：该 wasm glue 闭包引用的 `OcctKernel` 符号只有在 `shape-class.ts` 进入 import 图后才被钉住。经三轮探针（cube/compound 计数 → warmup-order → reuse-shape-class）定位，最终复用 `shape-class.ts` 的 `solids/wiresOf/shells/compounds` 走通；计数与上游探针逐位一致（cube 1/6/1/0、two 2/12/2/1）。
 2. **无命中必须返回空栈而非原 wp**——`selectKindHandles` 返回 `null` 时，若 `compounds(wp)` 返回 `wp` 原样，会上报 `size()==1` 而非上游的 `0`（`cube.compounds().size()==0` 由 `kind-selectors-probe.py` 冻结）。改走 `clone(wp, { objects: [] })`，与 CadQuery「无匹配 = 空选择」一致。`solids/wires/shells` 在 cube 上有命中故不受影响，行为对常见路径零变化。
+
+**P3-3 ✅ 已完成（2026-10-03）**
+
+| 项 | 结果 |
+|---|---|
+| 净改动 | `workplane.ts`（`faces`/`edges`/`vertices` 改为**即时压栈** + 新增 `selectOnStack`/`baseSolid` 两个 helper + `baseShape` 字段 + `clone` 里 `baseShape` 失效规则 + `eachpoint` 改走栈 + 约 30 处基础实体消费者 `wp.shape` → `baseSolid(wp)`）、新增 `src/faces-edges-vertices-stack.test.ts`（14 用例）、改写 `object-stack.test.ts` 两条「延迟标记」断言为即时压栈 |
+| 包内单测 | **526 全绿 → 540 全绿**（45 文件，+14 = 新增 P3-3 冻结用例；**先红后绿**：改实现前 6 条新断言红、改坏消费者时 33 条既有断言红，修复后全绿） |
+| `tsc --noEmit` | **零错** |
+| parity | 全量 **540 全绿**（含 464 mirror：`cq.val()` 几何逐位不变；`slide_top` Stage G 复算体积 **88421.299** 与 CadQuery ref 逐位相同） |
+| 变异测试 | **已做**：把 `selectOnStack` 的 owner 强制退回 `src[0]`（单对象）⇒ **4 条多实体断言红**（`two solids: faces()→12` / `edges("|Z")→8` / `faces(">Z").edges()→8` / `vertices()→16`）；还原即绿 |
+| 探针 | `tests/ref-harness/p3-3-{stack-push,multi-solid,progressive,nomatch,eachpoint}-probe.py`（一次性，不入 CI） |
+| core | **未改**（走 §10.3 免授权路径；`selectOnStack` 只在 cq-compat 侧合成 compound 再调 `resolveSelection`） |
+
+**捕获推翻方案里的 2 个假设（先探针后实现再次兜住错实现）**：
+
+1. **方案 §8.2 的 `faces("+Z").vertices("<XY").size()==4` 是错的 —— 真值 1**。`<XY` 是全局 `min(x+y)` 选择器，作用在**那张面的 4 个顶点**上 ⇒ 唯一角点 = 1；带**空**选择器 `.vertices()` 才是 4（整张面的全部顶点）。已按 1 冻结。
+2. **`.box().box()` 不是两实体栈**：默认 `combine=True` 会 fuse 成单实体。真多实体栈必须 `.add()` 一个**平移分开**的 solid（否则重合面被 `isSame` 去重成 1）。⇒ 探针与测试都改为 `add(box@(5,0,0))`。
+
+**实施中踩到并固化进守卫的坑**：
+
+1. **CadQuery 的基础实体来自 `findSolid()`（parent 链），不是 `self.objects[0]`**——`cutBlind`（`cq.py:3511`）用 `self.findSolid()`、`fillet`（`cq.py:1219`）用 `self.findSolid()` + `self.edges().vals()`、`_fuseWithBase` 用 `_findType((Solid,), searchStack=True, searchParents=True)`。faijs 无 parent 链（P3-4 才补），**既有约 30 处消费者一直偷读 `wp.shape` 当基础实体** —— 这在「P3-3 前 `faces()` 是延迟标记、`wp.shape` 仍是实体」时恰好成立，**一旦 `faces()` 真压栈（`wp.shape` 变成面）就全炸（首批 33 条红）**。修法：新增 `baseSolid(wp) = wp.baseShape ?? wp.shape`（parent 链的替身），基础实体消费者统一改读它。**非收窄流是恒等变换**（`baseShape` 未设 ⇒ `wp.shape`），故常见路径零变化。
+2. **`baseShape` 会被陈旧传播（G11）**——`cutBlind` 等用 `clone(wp,{objects})` 替换几何时，`baseShape` 仍是从上游 `faces()` 带下来的**原始 box**；随后的 `faces(cutSolid,'>Z')` 便把 base 记成原始 box，`hole` 切错基准（体积正好少切一刀，误差 = 该刀体积）。修法集中在 `clone`：**只要覆写 `objects` 且未显式给 `baseShape`，就清空 `baseShape`**（几何被替换 ⇒ 旧基础失效）；`workplane`/`rect`/`circle`/`pushPoints` 不传 `objects` ⇒ base 跨它们保留。
+3. **`workplane()` 必须用「基础实体 + `faceSel`」而非被压入的单面**——`resolveFaceSelector(单面, '>Z[0]')` 无法复现**索引选择器**与多面选择语义（`slide_top` 的 `faces("-Y")[1]` 与 `parity-fixes` 的 `>Z[0]`/`>Z[-1]` 因此错）。改回旧路径后两条转绿，`slide_top` 体积精确回到 ref。
 
 ### 6.2 需实测才能定的两点 → **预置二分支处置**（不留「待定」）
 

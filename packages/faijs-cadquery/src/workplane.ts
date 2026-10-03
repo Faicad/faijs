@@ -37,7 +37,7 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 // occt-wasm 的 OcctKernel 符号钉进 getSubShapes 闭包。本模块直接调
 // kernel.getSubShapes 会抛 "Cannot read properties of undefined (reading
 // 'OcctKernel')"（GOTCHA：见下方 selectKindHandles 注释），故必须复用本路径。
-import { solids as scSolids, wiresOf as scWiresOf, shells as scShells, compounds as scCompounds } from './shape-class'
+import { solids as scSolids, wiresOf as scWiresOf, shells as scShells, compounds as scCompounds, makeCompound } from './shape-class'
 import type { CqShape } from './shape-class'
 // cq-compat owns its CadQuery-compatible text geometry (no faijs-extra dep):
 // glyph outlines → OCCT via core `textBlueprints`, aligned per CadQuery.
@@ -227,6 +227,17 @@ export interface Workplane {
    * `.shape` 都会让栈与视图脱节。P3-4 收尾时删除本字段。
    */
   shape: Shape | null
+  /**
+   * P3-3: the solid a narrowing selection (`faces`/`edges`/`vertices`) was
+   * derived from. `faces()` pushes the selected sub-shapes onto `objects` and
+   * sets `wp.shape = objects[0]` (a FACE, matching upstream `.val()`), but a
+   * downstream op such as `eachpoint(combine=True)` must fuse the placed parts
+   * into the ORIGINAL solid, not into the narrowed face (fusing a child
+   * sub-shape handle with a solid fails in the brep kernel). So the pre-selection
+   * solid is preserved here and carried forward across chained narrowings.
+   * `eachpoint` uses `baseShape ?? shape` as its combine base.
+   */
+  baseShape?: Shape | null
   /** Pending face selector (e.g. ">Z", "<X"). Set by .faces(). */
   faceSel: string | null
   /** Pending edge selector (e.g. "|Z", ""). Set by .edges(). */
@@ -495,6 +506,19 @@ function clone(wp: Workplane, overrides: Partial<Workplane>): Workplane {
     )
   }
   const out = Object.assign(Object.create(WP_PROTO), wp, overrides) as Workplane
+  // `baseShape` is the pre-selection SOLID a modification op operates on (P3-3's
+  // stand-in for upstream's parent chain — see `baseSolid`). It must NOT survive
+  // a geometry REPLACEMENT: once an op writes new geometry into `objects`, the
+  // old base is stale. Concretely `box.faces('>Z').workplane().rect().cutBlind()`
+  // leaves the cut solid on the stack, and a following `faces('>Z')` must take
+  // the CUT solid as its base — not the original box. Clearing here (the single
+  // maintenance point) does that automatically: an op that replaces `objects`
+  // clears the base unless it explicitly supplies a new one (the narrowing ops
+  // do). Plane/profile-only ops (workplane / rect / circle / pushPoints) don't
+  // touch `objects`, so the base is preserved across them.
+  if ('objects' in overrides && !('baseShape' in overrides)) {
+    out.baseShape = undefined
+  }
   out.shape = out.objects[0] ?? null
   return out
 }
@@ -515,6 +539,29 @@ function clone(wp: Workplane, overrides: Partial<Workplane>): Workplane {
 export function dispose(wp: Workplane): void {
   const kh = getKernel() as unknown as OcctKernel
   for (const h of wp.ownedHandles ?? []) kh.release(h as never)
+}
+
+/**
+ * baseSolid — the SOLID a modification op operates on, independent of the
+ * current selection.
+ *
+ * P3-3 made `faces()`/`edges()`/`vertices()` push the selected sub-shapes onto
+ * the stack, so after `.faces(">Z")` the stack head (`wp.shape`) is a FACE, not
+ * the solid — matching upstream, where `newObject` replaces `self.objects` with
+ * the selected faces (`cq.py:1312`) and the solid is recovered from the PARENT
+ * chain via `findSolid()` (`cq.py:1219` fillet, `cq.py:3511` cutBlind).
+ *
+ * faijs has no parent chain until P3-4, so the pre-selection solid is carried on
+ * `wp.baseShape` by the narrowing ops. This helper is that stand-in: it returns
+ * `baseShape` when narrowing happened, else the stack head. For an un-narrowed
+ * workplane it is IDENTITY (`baseShape` is unset ⇒ `wp.shape`), so every call
+ * site that reads a base solid keeps its exact behaviour on the common path.
+ *
+ * @param wp - Workplane
+ * @returns the base solid, or null when there is none
+ */
+function baseSolid(wp: Workplane): Shape | null {
+  return wp.baseShape ?? wp.shape
 }
 
 /**
@@ -778,7 +825,7 @@ async function combineEachpoint(
     for (let i = 1; i < shapes.length; i++) {
       shape = await fuseShapes(shape, shapes[i], clean)
     }
-    if (wp.shape) shape = await fuseShapes(wp.shape, shape, clean)
+    if (baseSolid(wp)) shape = await fuseShapes(baseSolid(wp)!, shape, clean)
   } else {
     shape = makeCompoundShape(shapes)
   }
@@ -987,7 +1034,7 @@ export async function text(
   // CadQuery: `_combineWithBase(compound, combine, clean)`.
   const mode = normalizeCombine(combine)
   let result: Workplane
-  if (mode === false || !wp.shape) {
+  if (mode === false || !baseSolid(wp)) {
     result = clone(wp, { objects: [placed ]})
   } else if (mode === 'cut') {
     // Kernel-level cut, NOT `cut()`: the latter goes through the `cad.subtract`
@@ -996,7 +1043,7 @@ export async function text(
     // placement GOTCHA above). `cutShapes` is the kernel primitive the rest of
     // cq-compat's booleans already use (hole / pocket / cutBlind / …), and
     // `union()` likewise takes the kernel path (`fuseShapes`).
-    result = clone(wp, { objects: [await cutShapes(wp.shape, placed) ]})
+    result = clone(wp, { objects: [await cutShapes(baseSolid(wp)!, placed) ]})
   } else {
     result = await union(wp, placed)
   }
@@ -2198,8 +2245,8 @@ export function bboxSize(wp: Workplane): [number, number, number] {
  * @returns Workplane with the healed solid
  */
 export function clean(wp: Workplane, tolerance?: number): Workplane {
-  if (!wp.shape) throw new Error('[cq-compat] clean: no solid on the workplane')
-  let h = ownHandle(wp.shape)
+  if (!baseSolid(wp)) throw new Error('[cq-compat] clean: no solid on the workplane')
+  let h = ownHandle(baseSolid(wp)!)
   h = kern().fixShape(h)
   h = kern().removeDegenerateEdges(h, tolerance)
   h = kern().healSolid(h, tolerance)
@@ -2553,7 +2600,7 @@ export async function extrude(
   // from the stack before pending wires. Zero taper only: a tapered sketch
   // extrude must fall through to the draftPrism branch below.
   if (wp.pendingFaces && wp.pendingFaces.length > 0 && taper === 0) {
-    const base = wp.shape
+    const base = baseSolid(wp)
     const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
     const kernel = kern() as unknown as {
       extrude: (face: BrepHandle, dx: number, dy: number, dz: number) => BrepHandle
@@ -2581,7 +2628,7 @@ export async function extrude(
     // along the workplane normal, then fuse into the base.
     if (wp.pendingFaces && wp.pendingFaces.length > 0) {
       const faces = wp.pendingFaces
-      const base = wp.shape
+      const base = baseSolid(wp)
       wp = await applyPendingFacePlane(wp)
       const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
       const kernel = getKernel() as unknown as {
@@ -2610,7 +2657,7 @@ export async function extrude(
     if (solidWires.length !== 1) {
       throw new Error('[cq-compat] extrude: taper requires exactly one pending profile wire')
     }
-    const base = wp.shape
+    const base = baseSolid(wp)
     wp = await applyPendingFacePlane(wp)
     const profile = await buildProfileWire(wp, solidWires[0])
     if (taper < 0) {
@@ -2665,7 +2712,7 @@ export async function extrude(
   // the pendingWires LIST path. Ellipse wires likewise have no legacy slot and
   // are materialized via buildProfileWire. Everything else keeps the old condition.
   if (solidWires.length > 1 || hasPathWire(wp) || solidWires.some((w) => w.kind === 'ellipse')) {
-    const base = wp.shape
+    const base = baseSolid(wp)
     wp = await applyPendingFacePlane(wp)
     const prism = await extrudePendingWires(wp, height)
     const shape =
@@ -2684,24 +2731,24 @@ export async function extrude(
     })
   }
   // If there's a pending 2D profile (rect/circle/polygon) and no existing shape, create the 3D solid
-  if (wp.pendingPolygon && !wp.shape) {
+  if (wp.pendingPolygon && !baseSolid(wp)) {
     const shape = await makePolygonPrismAt(wp, wp.pendingPolygon, height, wp.normal)
     return clone(wp, { objects: [shape], pendingWires: [], pendingPolygon: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
   }
-  if (wp.pendingRect && !wp.shape) {
+  if (wp.pendingRect && !baseSolid(wp)) {
     const { w, d } = wp.pendingRect
     const shape = await makeBoxAt(wp, w, d, height)
     return clone(wp, { objects: [shape], pendingWires: [], pendingRect: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
   }
-  if (wp.pendingCircle && !wp.shape) {
+  if (wp.pendingCircle && !baseSolid(wp)) {
     const { radius } = wp.pendingCircle
     const shape = await makeCylinderAt(wp, radius, height)
     return clone(wp, { objects: [shape], pendingWires: [], pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
   }
   // Boss extrude on existing shape: create profile at each workplane point and union
-  if (wp.shape) {
+  if (baseSolid(wp)) {
     // A pending faces(sel) lifts the profile plane (CadQuery implicit workplane).
-    const base = wp.shape
+    const base = baseSolid(wp)!
     wp = await applyPendingFacePlane(wp)
     const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
     // Slight overlap ensures OCCT fuse merges coplanar faces into one solid
@@ -3036,7 +3083,7 @@ export async function revolve(
     result = result ? await fuseShapes(result, revolved) : revolved
   }
 
-  const base = wp.shape
+  const base = baseSolid(wp)
   let shape = result as Shape
   if (combine === 'cut' && base) shape = await cutShapes(base, shape)
   else if (combine === true && base) shape = await fuseShapes(base, shape)
@@ -3146,7 +3193,7 @@ export async function loft(wp: Workplane, ...rest: (Workplane | LoftOptions)[]):
     : toShape(getKernel().loft(wireHandles, true, ruled))
   ) as Shape
 
-  const base = wp.shape
+  const base = baseSolid(wp)
   let shape = solid
   const combine = opts?.combine ?? true
   if (combine === 'cut' && base) shape = await cutShapes(base, shape)
@@ -3182,8 +3229,8 @@ export async function cutBlind(
   depth: number,
   opts?: { w?: number; d?: number; radius?: number; taper?: number },
 ): Promise<Workplane> {
-  if (!wp.shape) return wp
-  const base = wp.shape
+  if (!baseSolid(wp)) return wp
+  const base = baseSolid(wp)!
   wp = await applyPendingFacePlane(wp)
   const absDepth = Math.abs(depth)
   const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
@@ -3278,8 +3325,8 @@ export async function cutBlind(
  * exact for any profile depth.
  */
 export async function cutThruAll(wp: Workplane): Promise<Workplane> {
-  if (!wp.shape) return wp
-  const base = wp.shape
+  if (!baseSolid(wp)) return wp
+  const base = baseSolid(wp)!
   wp = await applyPendingFacePlane(wp)
   if (!wp.pendingCircle && !wp.pendingRect && !wp.pendingPolygon && !hasPathWire(wp)) {
     throw new Error('[cq-compat] cutThruAll requires a pending 2D profile')
@@ -3341,17 +3388,17 @@ export async function hole(
   diameter: number,
   depth?: number,
 ): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   const radius = diameter / 2
-  const max = await bboxMax(wp.shape)
-  const min = await bboxMin(wp.shape)
+  const max = await bboxMax(baseSolid(wp)!)
+  const min = await bboxMin(baseSolid(wp)!)
   // Through-hole with margin, measured along the workplane normal.
   const ext: [number, number, number] = [max[0] - min[0], max[1] - min[1], max[2] - min[2]]
   const totalHeight = Math.abs(vdot(ext, wp.normal)) + 4
   const holeHeight = depth ?? totalHeight
 
   const points = eachPoints(wp)
-  let result = wp.shape
+  let result = baseSolid(wp)!
 
   for (const [px, py] of points) {
     const holeOrigin = localToWorld(wp, px, py)
@@ -3708,7 +3755,19 @@ function appendSelStep(prev: SelStep[] | undefined, step: SelStep): SelStep[] {
  */
 export function faces(wp: Workplane, sel: string): Workplane {
   const chain: SelStep[] = appendSelStep(wp.selChain, { kind: 'face', sel })
-  return clone(wp, { faceSel: sel, edgeSel: null, vertexSel: null, selChain: chain })
+  // P3-3: EAGER push (upstream `_selectObjects` returns a NEW workplane carrying
+  // the selected faces — `cq.py:753`). `clone()` sets `wp.shape = objects[0]`, so
+  // the stack head becomes the first selected face, matching CadQuery's model.
+  // No match → empty stack (size 0), not the original object.
+  const handles = selectOnStack(wp, 'face', sel)
+  return clone(wp, {
+    objects: handles.map((h) => fromHandle(h)),
+    faceSel: sel,
+    edgeSel: null,
+    vertexSel: null,
+    selChain: chain,
+    baseShape: wp.baseShape ?? wp.shape,
+  })
 }
 
 /**
@@ -3773,6 +3832,7 @@ export function edges(
   sel?: string | { slice?: [number, number]; index?: number },
 ): Workplane {
   let pts = wp.edgePts ?? (Array.isArray(wp.pts) ? wp.pts : [])
+  let sliceSel: { slice?: [number, number]; index?: number } | null = null
   if (sel && typeof sel === 'object') {
     if (sel.slice) {
       const [start, end] = sel.slice
@@ -3781,10 +3841,24 @@ export function edges(
       const idx = sel.index < 0 ? pts.length + sel.index : sel.index
       pts = [pts[idx]]
     }
+    sliceSel = sel
   }
   const selStr = typeof sel === 'string' ? sel : ''
   const chain: SelStep[] = appendSelStep(wp.selChain, { kind: 'edge', sel: selStr })
-  return clone(wp, { edgeSel: selStr, faceSel: null, vertexSel: null, pts: [...pts], selChain: chain })
+  // P3-3: EAGER push (see `faces`). The `{slice}`/`{index}` object form selects a
+  // subset of the collected edges (upstream `edges(slice=...)`), applied to the
+  // resolved stack, not to `pts`.
+  let handles = selectOnStack(wp, 'edge', selStr)
+  if (sliceSel) handles = pickBySlice(handles, sliceSel)
+  return clone(wp, {
+    objects: handles.map((h) => fromHandle(h)),
+    edgeSel: selStr,
+    faceSel: null,
+    vertexSel: null,
+    pts: [...pts],
+    selChain: chain,
+    baseShape: wp.baseShape ?? wp.shape,
+  })
 }
 
 /**
@@ -3798,6 +3872,7 @@ export function vertices(
   sel?: string | { slice?: [number, number]; index?: number },
 ): Workplane {
   let pts = Array.isArray(wp.pts) ? wp.pts : []
+  let sliceSel: { slice?: [number, number]; index?: number } | null = null
   if (sel && typeof sel === 'object') {
     if (sel.slice) {
       const [start, end] = sel.slice
@@ -3806,10 +3881,23 @@ export function vertices(
       const idx = sel.index < 0 ? pts.length + sel.index : sel.index
       pts = [pts[idx]]
     }
+    sliceSel = sel
   }
   const selStr = typeof sel === 'string' ? sel : ''
   const chain: SelStep[] = appendSelStep(wp.selChain, { kind: 'vertex', sel: selStr })
-  return clone(wp, { vertexSel: selStr, faceSel: null, edgeSel: null, pts: [...pts], selChain: chain })
+  // P3-3: EAGER push (see `faces`). The `{slice}`/`{index}` object form selects a
+  // subset of the collected vertices, applied to the resolved stack.
+  let handles = selectOnStack(wp, 'vertex', selStr)
+  if (sliceSel) handles = pickBySlice(handles, sliceSel)
+  return clone(wp, {
+    objects: handles.map((h) => fromHandle(h)),
+    vertexSel: selStr,
+    faceSel: null,
+    edgeSel: null,
+    pts: [...pts],
+    selChain: chain,
+    baseShape: wp.baseShape ?? wp.shape,
+  })
 }
 
 /**
@@ -3912,6 +4000,63 @@ function pushKindSubShapes(wp: Workplane, handles: ShapeHandle[]): Workplane {
     return clone(wp, { objects: [fromHandle(handles[0])] })
   }
   return clone(wp, { objects: handles.map((h) => fromHandle(h)) })
+}
+
+/**
+ * P3-3 shared core for the narrowing selectors (`faces`/`edges`/`vertices`).
+ *
+ * CadQuery `Workplane._selectObjects` (`cq.py:753`) collects the requested
+ * sub-shapes of EVERY stack object, pools them, and runs the SELECTOR over the
+ * POOLED set (`cq.py:236` `_filter` over the union — global min/max selectors
+ * like `<XY` / `>Z` must see every candidate, not per-object; probe-verified:
+ * `box().add(box@5).faces('>Z').vertices('<XY')` is 1, not 2). We reproduce that
+ * by forming one owner — a `makeCompound` of all stack objects when there is
+ * more than one, the single object directly otherwise — and resolving the single
+ * `{kind, sel}` step against it. `resolveSelection` already dedups by kernel
+ * identity internally, so no extra dedup is needed here.
+ *
+ * GOTCHA (same trap as G10): never call `kernel.getSubShapes(h, kind)` directly
+ * from this module — delegate to `resolveSelection` (core cadquery-selectors),
+ * which is the production path and is safe.
+ *
+ * The returned handles are freshly referenced sub-shapes of the (temporary)
+ * compound; the caller adopts each via `fromHandle`. The temporary compound is
+ * released in the `finally` branch (only when we actually built one), because
+ * its children are now owned by the adopted Shapes — the leak control (plan §3.5).
+ */
+function selectOnStack(wp: Workplane, kind: 'face' | 'edge' | 'vertex', sel: string): ShapeHandle[] {
+  if (wp.objects.length === 0) return []
+  const kernel = getKernel() as unknown as OcctKernel
+  const src: ShapeHandle[] = []
+  for (const obj of wp.objects) {
+    const h = brepOf(obj) as unknown as ShapeHandle | undefined
+    if (h !== undefined) src.push(h as ShapeHandle)
+  }
+  if (src.length === 0) return []
+  const multi = src.length > 1
+  const owner: ShapeHandle = multi
+    ? ((makeCompound(src as never) as unknown as { handle: ShapeHandle }).handle as ShapeHandle)
+    : src[0]
+  try {
+    return resolveSelection(owner as never, [{ kind, sel }]).handles
+  } catch {
+    return []
+  } finally {
+    if (multi) kernel.release(owner as never)
+  }
+}
+
+/** Apply a `{slice}` / `{index}` selection over a collected handle list. */
+function pickBySlice(handles: ShapeHandle[], sel: { slice?: [number, number]; index?: number }): ShapeHandle[] {
+  if (sel.slice) {
+    const [s, e] = sel.slice
+    return handles.slice(s ?? 0, e ?? handles.length)
+  }
+  if (sel.index !== undefined) {
+    const idx = sel.index < 0 ? handles.length + sel.index : sel.index
+    return handles[idx] === undefined ? [] : [handles[idx]]
+  }
+  return handles
 }
 
 /**
@@ -4081,15 +4226,18 @@ export async function eachpoint(
   const shapeHandle = shape ? (brepOf(shape) as unknown as BrepHandle) : null
   type Pt = [number, number, number]
   let locs: Pt[] = []
-  if (wp.selChain && wp.selChain.length > 0 && shapeHandle) {
-    // Narrowing chain (plan §4.7): `.faces("s").eachpoint(x)` places at EACH
-    // selected face's centre, `.faces("a").vertices().eachpoint(x)` at each
-    // surviving vertex, etc. — the engine-readable form of the stack upstream
-    // iterates over (`self.objects`).
+  if (wp.selChain && wp.selChain.length > 0 && wp.objects.length > 0) {
+    // P3-3: the narrowing chain has ALREADY been pushed onto the stack by
+    // `faces`/`edges`/`vertices` (eager push). Place at the centre of EACH stack
+    // object — multi-object stacks yield multiple placements (`.faces('|Z')
+    // .eachpoint(x)` places at both planar faces). Using `wp.objects` (not a
+    // single `shapeHandle`) is what makes the multi-object case correct, whereas
+    // re-resolving the chain against `wp.shape` would only see the first object.
     const bbox = (h: unknown): { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } =>
       (getKernel() as unknown as { getBoundingBox: (h: unknown) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } }).getBoundingBox(h)
-    const res = resolveSelection(shapeHandle as never, wp.selChain)
-    for (const h of res.handles) {
+    for (const obj of wp.objects) {
+      const h = brepOf(obj)
+      if (h === undefined) continue
       const bb = bbox(h as unknown)
       locs.push([(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2])
     }
@@ -4114,7 +4262,13 @@ export async function eachpoint(
   }
   if (locs.length === 0) locs = [[...wp.origin]]
   const combine = opts?.combine ?? true
-  let acc: Shape | null = combine === false ? null : shape ? (wp.shape as Shape) : null
+  // P3-3: fuse the placed parts into the ORIGINAL solid (`baseShape`), not into
+  // the narrowed face that `wp.shape` now holds after `faces()` pushed it. A
+  // child sub-shape handle fused with a solid fails in the brep kernel, and the
+  // intuitive result is "bumps added to the part", so `baseShape` carries the
+  // pre-selection solid forward.
+  const baseShape = wp.baseShape ?? wp.shape
+  let acc: Shape | null = combine === false ? null : shape ? (baseShape as Shape) : null
   let separate: Shape | null = null
   for (const [lx, ly, lz] of locs) {
     const placed = toShape(kernel.translate(itemHandle, lx, ly, lz))
@@ -4150,7 +4304,7 @@ export async function workplane(
     -n[1],
     -n[2],
   ]
-  if (!wp.shape || !wp.faceSel) {
+  if (!baseSolid(wp) || !wp.faceSel) {
     // No face selected — just apply offset
     const normal = invert ? flip(wp.normal) : wp.normal
     if (opts?.offset) {
@@ -4168,7 +4322,13 @@ export async function workplane(
     return clone(wp, { faceSel: null, selChain: undefined })
   }
 
-  const { center, normal: faceNormal } = await resolveFaceSelector(wp.shape, wp.faceSel, opts?.centerOption)
+  // Resolve the plane against the BASE solid + `faceSel` (the pre-P3-3 path),
+  // NOT the single pushed face: `resolveFaceSelector` on a bare face cannot
+  // reproduce the indexed (`>Z[0]`) / multi-face selection semantics, and the
+  // base + selector is exactly what upstream's `workplane()` sees (it reads the
+  // selected faces off `self.objects`, but the plane derivation is over the
+  // face SET, which the selector re-creates).
+  const { center, normal: faceNormal } = await resolveFaceSelector(baseSolid(wp)!, wp.faceSel, opts?.centerOption)
   // CadQuery default centerOption is "ProjectedOrigin": project the current
   // origin onto the face plane. "CenterOfBoundBox"/"CenterOfMass" keep the
   // face centroid returned by resolveFaceSelector.
@@ -4264,7 +4424,7 @@ export async function rotate(
   axis: [number, number, number],
   angle: number,
 ): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   const angles: [number, number, number] = [
     axis[0] * angle,
     axis[1] * angle,
@@ -4314,7 +4474,7 @@ export async function mirror(
   basePointVector?: [number, number, number],
   union?: boolean,
 ): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   let normal: [number, number, number]
   let at: [number, number, number]
   if (mirrorPlane && typeof mirrorPlane === 'object' && !Array.isArray(mirrorPlane)) {
@@ -4333,7 +4493,7 @@ export async function mirror(
     at = basePointVector ?? [0, 0, 0]
   }
   const mirrored = await cad.mirror(resolveInputShape(wp), { normal, at })
-  const shape = union ? await fuseShapes(wp.shape, mirrored) : mirrored
+  const shape = union ? await fuseShapes(baseSolid(wp)!, mirrored) : mirrored
   // Upstream returns a newObject stack holding only the mirrored/unioned
   // objects — pending selectors do not survive a mirror.
   return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
@@ -4354,10 +4514,10 @@ export async function mirror(
  * @returns Promise<Workplane> carrying the face compound
  */
 export async function faceCompound(wp: Workplane, sel: string): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   const s = NAMED_VIEW_TO_AXIS[sel.trim().toLowerCase()] ?? sel
   if (s.trim().toLowerCase() === 'all') {
-    const faces = kern().getSubShapes(ownHandle(wp.shape), 'face') as unknown[]
+    const faces = kern().getSubShapes(ownHandle(baseSolid(wp)!), 'face') as unknown[]
     if (faces.length === 0) {
       throw new Error('[cq-compat] faceCompound "all": shape has no faces')
     }
@@ -4372,7 +4532,7 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
   const sign = m[1] === '>' ? 1 : -1
   const bounds = (h: unknown): Record<string, number> =>
     kern().getBoundingBox(h as BrepHandle) as unknown as Record<string, number>
-  const faces = kern().getSubShapes(ownHandle(wp.shape), 'face') as unknown[]
+  const faces = kern().getSubShapes(ownHandle(baseSolid(wp)!), 'face') as unknown[]
   // DirectionMinMaxSelector: among faces perpendicular to the axis, take ALL
   // faces whose center sits at the extremum (ties included — the two-boxes
   // compound exports BOTH top faces).
@@ -4410,7 +4570,7 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
  * @returns Promise<Workplane> carrying the edge compound
  */
 export async function edgeCompound(wp: Workplane, sel: string): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   const s = NAMED_VIEW_TO_AXIS[sel.trim().toLowerCase()] ?? sel
   const m = /^([<>])([XYZ])(?:\[-?\d+\])?$/.exec(s.trim())
   if (!m) {
@@ -4420,7 +4580,7 @@ export async function edgeCompound(wp: Workplane, sel: string): Promise<Workplan
   const sign = m[1] === '>' ? 1 : -1
   const bounds = (h: unknown): Record<string, number> =>
     kern().getBoundingBox(h as BrepHandle) as unknown as Record<string, number>
-  const edges = kern().getSubShapes(ownHandle(wp.shape), 'edge') as unknown[]
+  const edges = kern().getSubShapes(ownHandle(baseSolid(wp)!), 'edge') as unknown[]
   const center = (b: Record<string, number>): number =>
     [(b.xmin + b.xmax) / 2, (b.ymin + b.ymax) / 2, (b.zmin + b.zmax) / 2][axis]
   const extremum = edges
@@ -4693,13 +4853,13 @@ async function applyLocation(shape: Shape, loc: CqLocation): Promise<Shape> {
  * @returns Promise<Workplane>
  */
 export async function moved(wp: Workplane, ...locs: unknown[]): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   const resolved = toLocations(locs)
   const copies: Shape[] = []
   for (const l of resolved) copies.push(await applyLocation(resolveInputShape(wp), l))
   let shape: Shape
   if (copies.length === 0) {
-    shape = wp.shape
+    shape = baseSolid(wp)!
   } else if (copies.length === 1) {
     shape = copies[0]
   } else {
@@ -4742,10 +4902,10 @@ export async function union(
   wp: Workplane,
   other: Workplane | Shape,
 ): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   const otherShape = 'shape' in other ? (other as Workplane).shape : (other as Shape)
   if (!otherShape) return wp
-  const shape = await fuseShapes(wp.shape, otherShape)
+  const shape = await fuseShapes(baseSolid(wp)!, otherShape)
   return clone(wp, { objects: [shape] })
 }
 
@@ -4762,8 +4922,8 @@ export async function union(
  * (testCombine: 11 faces either way).
  */
 export async function combine(wp: Workplane): Promise<Workplane> {
-  if (!wp.shape) return wp
-  const shape = await cleanShapes(wp.shape)
+  if (!baseSolid(wp)) return wp
+  const shape = await cleanShapes(baseSolid(wp)!)
   return clone(wp, { objects: [shape] })
 }
 
@@ -4777,7 +4937,7 @@ export async function cut(
   wp: Workplane,
   other: Workplane | Shape,
 ): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   const otherShape = 'shape' in other ? (other as Workplane).shape : (other as Shape)
   if (!otherShape) return wp
   const shape = await cad.subtract(resolveInputShape(wp), resolveInputShape(other))
@@ -4866,10 +5026,10 @@ export async function intersect(
   wp: Workplane,
   other: Workplane | Shape,
 ): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   const otherShape = 'shape' in other ? (other as Workplane).shape : (other as Shape)
   if (!otherShape) return wp
-  const shape = await intersectShapes(wp.shape, otherShape)
+  const shape = await intersectShapes(baseSolid(wp)!, otherShape)
   return clone(wp, { objects: [shape] })
 }
 
@@ -4897,16 +5057,16 @@ export async function intersect(
  * @returns Promise resolving to a new Workplane holding the filleted shape.
  */
 export async function fillet(wp: Workplane, radius: number): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   let edges: unknown[]
   if (wp.edgeSel !== null && wp.edgeSel !== undefined) {
-    edges = resolveEdgeSelection(wp.shape, wp.edgeSel)
+    edges = resolveEdgeSelection(baseSolid(wp)!, wp.edgeSel)
   } else if (wp.faceSel) {
-    edges = resolveFaceEdgeSelection(wp.shape, wp.faceSel)
+    edges = resolveFaceEdgeSelection(baseSolid(wp)!, wp.faceSel)
   } else {
-    edges = resolveEdgeSelection(wp.shape, undefined)
+    edges = resolveEdgeSelection(baseSolid(wp)!, undefined)
   }
-  const product = kern().fillet(ownHandle(wp.shape), edges as BrepHandle[], radius)
+  const product = kern().fillet(ownHandle(baseSolid(wp)!), edges as BrepHandle[], radius)
   const shape = toShape(product)
   return clone(wp, { objects: [shape], edgeSel: null, faceSel: null, selChain: undefined })
 }
@@ -4935,16 +5095,16 @@ export async function chamfer(
   if (length2 !== undefined) {
     throw new Error('[cq-compat] chamfer length2 (asymmetric) is not supported by the occt-wasm kernel')
   }
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   let edges: unknown[]
   if (wp.edgeSel !== null && wp.edgeSel !== undefined) {
-    edges = resolveEdgeSelection(wp.shape, wp.edgeSel)
+    edges = resolveEdgeSelection(baseSolid(wp)!, wp.edgeSel)
   } else if (wp.faceSel) {
-    edges = resolveFaceEdgeSelection(wp.shape, wp.faceSel)
+    edges = resolveFaceEdgeSelection(baseSolid(wp)!, wp.faceSel)
   } else {
-    edges = resolveEdgeSelection(wp.shape, undefined)
+    edges = resolveEdgeSelection(baseSolid(wp)!, undefined)
   }
-  const product = kern().chamfer(ownHandle(wp.shape), edges as BrepHandle[], length)
+  const product = kern().chamfer(ownHandle(baseSolid(wp)!), edges as BrepHandle[], length)
   const shape = toShape(product)
   return clone(wp, { objects: [shape], edgeSel: null, faceSel: null, selChain: undefined })
 }
@@ -4972,8 +5132,8 @@ export async function chamfer(
  * @returns Promise<Workplane>
  */
 export async function shell(wp: Workplane, thickness: number): Promise<Workplane> {
-  if (!wp.shape) return wp
-  const handle = brepOf(wp.shape)
+  if (!baseSolid(wp)) return wp
+  const handle = brepOf(baseSolid(wp)!)
   if (handle === undefined) return wp
   const kernel = getKernel() as unknown as OcctKernel
   const facesToRemove: ShapeHandle[] = []
@@ -4994,7 +5154,7 @@ export async function shell(wp: Workplane, thickness: number): Promise<Workplane
       // faces degenerates to the inward-offset solid (measured: box(2,2,2)
       // +0.1 -> 1.8^3 = 5.832), so the wall solid is original minus offset.
       const inner = fromHandle(kernel.shell(h, [], -thickness, 1e-3))
-      shape = await cutShapes(wp.shape, inner)
+      shape = await cutShapes(baseSolid(wp)!, inner)
     }
   } else {
     if (facesToRemove.length > 0) {
@@ -5013,7 +5173,7 @@ export async function shell(wp: Workplane, thickness: number): Promise<Workplane
     // original solid (verified vs 2.8.0: box(2,2,2).shell(0.1) -> 32 faces,
     // vol 2.592684356757526, bbox +-1.1).
     const outer = fromHandle(kernel.offset(h, thickness, 1e-3))
-    shape = await cutShapes(outer, wp.shape)
+    shape = await cutShapes(outer, baseSolid(wp)!)
   }
   return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
@@ -5874,9 +6034,9 @@ export async function split(
   normal?: [number, number, number],
   opts?: { keepTop?: boolean; keepBottom?: boolean },
 ): Promise<Workplane> {
-  if (!wp.shape) throw new Error('[cq-compat] split: no shape to split')
+  if (!baseSolid(wp)) throw new Error('[cq-compat] split: no shape to split')
   const k = kern()
-  const solid = ownHandle(wp.shape)
+  const solid = ownHandle(baseSolid(wp)!)
   // plane point: default workplane origin; 2D local → world
   const pW =
     point && point.length === 2
@@ -5927,9 +6087,9 @@ export function partAt(wp: Workplane, i: number): Workplane {
  * @returns Workplane with the section compound (1D curves) as .shape
  */
 export async function section(wp: Workplane, height = 0, normal?: [number, number, number]): Promise<Workplane> {
-  if (!wp.shape) throw new Error('[cq-compat] section: no shape to section')
+  if (!baseSolid(wp)) throw new Error('[cq-compat] section: no shape to section')
   const k = kern()
-  const solid = ownHandle(wp.shape)
+  const solid = ownHandle(baseSolid(wp)!)
   const n = normal ?? wp.normal
   // plane point = workplane origin + height along the normal
   const pW: [number, number, number] = [
@@ -6530,9 +6690,9 @@ export async function rotateAboutCenter(
   axisEndPoint: [number, number, number] = [0, 1, 0],
   angleDegrees = 360,
 ): Promise<Workplane> {
-  if (!wp.shape) return wp
+  if (!baseSolid(wp)) return wp
   const k = getKernel() as unknown as OcctKernel
-  const handle = brepOf(wp.shape)
+  const handle = brepOf(baseSolid(wp)!)
   if (handle === undefined) return wp
   const bb = k.getBoundingBox(handle as unknown as ShapeHandle)
   const center = { x: (bb.xmin + bb.xmax) / 2, y: (bb.ymin + bb.ymax) / 2, z: (bb.zmin + bb.zmax) / 2 }
