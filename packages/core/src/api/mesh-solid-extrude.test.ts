@@ -19,7 +19,7 @@
  *   后向拉伸（`mode:'backward'`）钻**进**盒子内部，故差集 = 1000−120。两个方向都测，
  *   才能同时钉住"拉伸方向语义没在网格链上分叉"。
  *
- * 全部产物都必须是**网格零件**（新网格零件同样不具备 STEP 导出资格，方案 §4 Phase 3-3）。
+ * 全部产物都必须是**网格零件**（方案 §4 Phase 3-3）。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import type { HostPorts } from '../cad-runtime/ports'

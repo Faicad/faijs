@@ -175,6 +175,30 @@ describe('cliRun: execute and export', () => {
     expect(content).toContain('ADVANCED_FACE')
   }, 60000)
 
+  it('纯网格零件（STL 导入）→ STEP 导出仍可用（mesh 重建通路）', async () => {
+    // 2026-10-02 曾把这条通路从导出入口整体摘掉（E_STEP_MESH_PART）：网格零件被
+    // 结构性拒绝导出 STEP。该改动已撤销——脚本面纯网格模型导 STEP 必须照旧可用，
+    // 本用例钉住它，防止再次被无声摘掉。
+    const tmpFile = resolve(TMP_DIR, 'mesh-load.fai.js')
+    writeFileSync(tmpFile, "let a = await cad.load({ file: 'cube-10x5x5.stl' })")
+    const outPath = resolve(TMP_DIR, 'mesh-load.step')
+    const meshAssets = fileURLToPath(new URL('../../../fixtures/data', import.meta.url))
+
+    const result = await cliRun(tmpFile, outPath, {
+      mode: 'auto',
+      libs: CAD_LIBS,
+      assetsDir: meshAssets,
+    })
+
+    expect(result.ok, result.error ?? '').toBe(true)
+    expect(result.outputFormat).toBe('step')
+    expect(existsSync(outPath)).toBe(true)
+    const content = readFileSync(outPath, 'utf-8')
+    expect(content).toContain('ISO-10303-21')
+    // 网格零件经 reconstructSolidFromMesh 重建后按精确 BREP 形态写出。
+    expect(content).toContain('ADVANCED_FACE')
+  }, 120000)
+
   it('装配兜底导出（writeAssemblyStep fallback）同样剔除隐藏终端', async () => {
     // 空成员 group → mesh-less 结构 compound 且 memberNames 为空 ⇒ 走 writeAssemblyStep 的
     // 「导出全部 brepSolids」兜底路径——这正是隐藏源最容易被顺手带出去的地方。

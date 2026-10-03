@@ -269,8 +269,8 @@ function attachBrep(s: Shape, holder: BrepHolder): void {
   const state = getRuntimeState()
   const slot = state.slots.get(s) ?? {}
   if (slot.meshSolid !== undefined || slot.meshFace !== undefined) {
-    // 互斥红线的另一侧：网格链产物不得再被登记成 BREP 实体（那会让 STEP 导出
-    // 静默复活 facet STEP 的通道）。
+    // 互斥红线的另一侧：网格链产物不得再被登记成 BREP 实体（一个 Shape 只能
+    // 在精度链或网格链之一上）。
     throw new Error(
       'E_SHAPE_SLOT_EXCLUSIVE: shape already carries a mesh-chain handle — a shape is either on the precision chain or the mesh chain, never both',
     )

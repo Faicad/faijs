@@ -49,8 +49,6 @@
 
 即：**「近似拓扑」作为契约与解析是完整的，作为算法从未进过核心仓。** 本方案要把生产者补进引擎——而这件事是**可行的**，因为 brepkit 现在真的能给网格一份拓扑（见 §2、§3.3 实测）。
 
-**另外一个必须一起处理的既成事实**：今天 mesh 零件**是能导出 STEP 的**——`exportModel(entries, 'step')` 对没有 solid 的条目会走 `reconstructSolidFromMesh`（mesh → ASCII STL → OCCT importStl → heal → sew → solid），产出的正是用户描述的"facet 三角化的 STEP"。这与本项目宗旨相悖，必须随本方案一并取消（§3.6）。
-
 ---
 
 ## 1. 现状（代码事实，非文档转述）
@@ -156,8 +154,8 @@ importStl(box stl) → weldShellsAndFaces → unifyFaces
 **不可逾越的三条红线**（对齐 AGENTS.md 的引擎定位与用户宗旨）：
 
 1. 网格实体**永不**进入 `brepChain.solidCache`——它由独立的注册表持有，生命周期与 BREP 链无关。
-2. 网格零件**永不**产出精确量语义（`volume/centerOfMass/...` 走 mesh 侧或如实标注为近似），**永不**导出 STEP。
-3. **禁止任何 mesh→BREP 的隐式升格**：今天的 `reconstructSolidFromMesh`（mesh→facet BREP→STEP）随本方案删除或封禁（§3.6）。
+2. 网格零件**永不**产出精确量语义（`volume/centerOfMass/...` 走 mesh 侧或如实标注为近似）。
+3. **网格实体的形状身份永不并入精度链**：网格实体始终由 `slot.meshSolid` 承载，`slot.solid` 恒空；网格零件不因其参与的任何建模操作而获得 BREP 身份（导出时的临时重建不改变零件身份，见 §3.6）。
 
 ### 3.2 数据模型
 
@@ -255,12 +253,11 @@ MeshData ──► meshSolid 句柄（注册表查得，不重复导入）
 | B3 | `transform` 族、`pattern` 族、`shell`、`split-by-plane` | 常规建模 |
 | B4 | 测量（`volume/area/bbox`）与视图辅助 | 只读，标注为近似 |
 
-### 3.6 导出：mesh 零件不支持 STEP
+### 3.6 导出：按零件类型分别处理
 
-- **`exportModel(entries, 'step')`：凡条目的零件是网格零件 → 报错**（带 part 名的明确错误，如 `E_STEP_MESH_PART`），**不是**静默走 mesh 重建。
-- **移除 mesh→STEP 通道**：`brep/export/step.ts:73-79` 的 `if (!solid) { reconstructSolidFromMesh(...) }` 分支删除；`occt-kernel/meshReconstruct.ts` 随之下线（其导出面 `browser.ts:217` / `index.ts:163` 同步删）。这是本方案里**唯一需要删代码**的地方，且必须删——留下就等于承认 facet STEP 合法。
+- **`exportModel(entries, 'step')` 按零件的几何真源分派**：条目携带精确 BREP 句柄（`solid`）时走精确 BREP 通路；只有网格载荷（`mesh`）时走 `reconstructSolidFromMesh`（mesh → ASCII STL → OCCT importStl → heal → sew → solid）后写出。同一批次可混有两者，各按自身类型处理，不整段失败。
 - **mesh 格式导出照旧可用**（`stl` / `3mf`，以及内核侧已验证的 `obj/ply/glb`）。网格零件的 mesh 格式导出**不做任何重建**，直接用它的网格载荷。
-- CLI 与宿主的导出入口（`node-host/cli.ts` 走 `exportModelSync`）同步收口；导出失败必须把"哪个 part、为什么"说清楚。
+- CLI 与宿主的导出入口（`node-host/cli.ts` 走 `exportModelSync`）走同一分派。
 
 ### 3.7 与既有拓扑层的接缝
 
@@ -307,16 +304,15 @@ MeshData ──► meshSolid 句柄（注册表查得，不重复导入）
 
 1. 面的草图平面数据：`getAnalyticSurfaceParams`（实测 `{type:'plane', normal, d}`）+ 面中心。**注意 `getSurfaceDomain` 对平面返回 `±1e6` 的无限域，不能当草图范围用。**
 2. `extrude` / `sketch-on-face` / `profile` 的 brepkit mesh 实现（`extrude(face, dir, dist)` 已实测 6/6 可用）。
-3. 产出的**新实体也是网格实体**（新网格零件），同样不具备 STEP 导出资格。
+3. 产出的**新实体也是网格实体**（新网格零件）。
 
 **验收**：在立方体 STL 的顶面画矩形草图 → 拉伸 5mm → 得到合法的融合/切除结果（实测路径已通过：`fuse` vol 1500 / `cut` vol 1000）。
 
-### Phase 4：导出收口 + 批 B3/B4
+### Phase 4：批 B3/B4
 
-1. §3.6 的 STEP 封禁与 `reconstructSolidFromMesh` 下线。
-2. 批 B3/B4 ops。
+1. 批 B3/B4 ops。
 
-**验收**：对任意含网格零件的模型导出 STEP → 明确报错并指出 part 名；导出 STL/3MF 正常；`doc-sync` 全绿。
+**验收**：含网格零件的模型导出 STEP 按零件类型分别处理；导出 STL/3MF 正常；`doc-sync` 全绿。
 
 ---
 
@@ -329,7 +325,7 @@ MeshData ──► meshSolid 句柄（注册表查得，不重复导入）
 | **容差敏感性** | `weldShellsAndFaces` 的 tol 太小缝不上、太大粘死 | 由 bbox 定标 + 提供显式覆盖参数；两种失败都要有测试 |
 | **`unifyFaces` 的脆弱性** | 实测顺序错就损坏实体（vol 0）；内核版本间行为可能变 | Phase 0 固化为防回归测试；`unify` 后必须 `validateSolid`，不过就退回 weld 后状态并如实告知"面不合并" |
 | **两处单位缺陷** | 不修则 mesh 零件的面/边区间全错 | Phase 0 必修，且加跨引擎一致性测试 |
-| **网格零件误入精度链** | 新句柄若被写进 `solidCache`，STEP 就会再次静默化 | 三条红线 + `solid`/`meshSolid` 互斥断言 + Phase 4 删除 mesh→STEP 通道 |
+| **网格零件误入精度链** | 新句柄若被写进 `solidCache`，网格零件的身份就会被精度链冒充 | 三条红线 + `solid`/`meshSolid` 互斥断言 |
 | **引擎候选** | 用户提到"brepkit 支持加载 stl / 失败回退到网格 / 导出 mesh"，均指 brepkit 的**内建**行为 | 本方案**显式利用**其网格能力，但**不使用**它的隐式 mesh 回退（`meshFallbackCount` 仍按现状作为"BREP 链中断"信号，不参与本路径） |
 
 ---

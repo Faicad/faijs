@@ -442,7 +442,7 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
  * `cad.extrude` 的**网格链**实现（方案 2026-10-01 §4 Phase 3-2）。
  *
  * 输入是一张**网格链面**（`cad.sketchOnFace` 在近似拓扑面上铺出来的那种），
- * 输出是一个**新的网格零件**——与输入网格实体同链，同样不具备 STEP 导出资格。
+ * 输出是一个**新的网格零件**——与输入网格实体同链。
  *
  * 只支持"面 + 方向 + 距离"这一支：`upTo` 需要精度链上的求交/裁切（`extrudeUpToSolid`
  * 走 BREP 内核），近似链没有对应能力，故如实拒绝而不是静默退化成普通拉伸——
@@ -502,7 +502,7 @@ function extrudeMeshChain(input: Shape, params: unknown): Shape {
  *
  * **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：输入是
  * `cad.sketchOnFace` 在网格实体识别面上铺出的网格链面时，本 op 沿同一份方向语义
- * 拉伸出**一个新的网格零件**（同样不具备 STEP 导出资格）。网格链上不支持 `upTo`
+ * 拉伸出**一个新的网格零件**。网格链上不支持 `upTo`
  * （需精度链求交裁切）——会以 `E_MESH_SOLID_UNSUPPORTED` 明确拒绝，不静默当定长拉伸。
  *
  * @group 特征

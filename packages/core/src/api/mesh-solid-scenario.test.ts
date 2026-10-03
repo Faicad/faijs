@@ -16,8 +16,8 @@
  *    12 条长 10 的边；32 边形棱柱：34 面 / 96 边）——这是"能选中"的前提。
  * 2. **改型**：倒圆角 → 面上草图 → 拉伸 → 布尔，全部产物仍是**网格零件**（无 BREP
  *    句柄、不进 solidCache），体积落在解析预期上（不是"跑通了就行"）。
- * 3. **导出**：同一条链的产物导 STL 正常，导 STEP 明确报错并指出 part 名
- *    （`E_STEP_MESH_PART`）——网格零件按定义不可导 STEP，不做 facet 重建。
+ * 3. **导出**：同一条链的产物导 STL 正常；STEP 通路对网格零件不再做结构性拒绝
+ *    （本 runtime 只装网格后端，故 STEP 失败于 BREP 内核缺失，而非被拒绝导出）。
  *
  * 体积解析值（10³ 立方体）：
  * - 单条棱倒 r=1 圆角磨掉 (1 − π/4)·r²·L = 0.2146×10 → 997.854
@@ -287,7 +287,7 @@ describe('场景：上传 STL → 识别边倒圆角 → 识别面草图 → 拉
     expect(volumeOf(runtime, 'c')).toBeCloseTo(1000 - (1 - Math.PI / 4) * 10 - 120, 0)
   })
 
-  it('第 5 步「导出」：同一条链的产物导 STL 正常，导 STEP 明确拒绝并指出 part 名', async () => {
+  it('第 5 步「导出」：同一条链的产物导 STL 正常；STEP 通路不再结构性拒绝网格零件', async () => {
     const runtime = createEditorRuntime(PORTS(), 'mesh')
     const result = await runtime.execute(`${LOAD_CUBE}\nlet b = cad.fillet(a, { edges: [1], radius: 1 })`)
     expect(NO_FAIL(result)).toBe('no failure')
@@ -303,11 +303,12 @@ describe('场景：上传 STL → 识别边倒圆角 → 识别面草图 → 拉
     // 三角形数写回读：与网格载荷一致（不是空的、也不是重建出来的另一份）
     expect(new DataView(stl).getUint32(80, true)).toBe(shape.indices.length / 3)
 
-    // STEP：明确拒绝，并指出是哪个 part
-    expect(() => exportModelSync([entry], 'step')).toThrow(/E_STEP_MESH_PART/)
-    expect(() => exportModelSync([entry], 'step')).toThrow(/"b"/)
-    // 拒绝理由与 BREP 引擎是否装配无关（本运行时装的是网格后端，没有 OCCT）
-    expect(() => exportModelSync([entry], 'step')).toThrow(/mesh part cannot be exported to STEP/)
+    // STEP：网格零件不再被结构性拒绝（E_STEP_MESH_PART 已撤销）——mesh 条目会进入
+    // STEP 重建通路。本 runtime 只装配网格后端（无 OCCT），因此这里报的是内核缺失，
+    // 而不是"网格零件不许导 STEP"；成功路径由 step-export.test.ts 的 OCCT 环境覆盖。
+    let stepError = ''
+    try { exportModelSync([entry], 'step') } catch (e) { stepError = (e as Error).message }
+    expect(stepError).not.toMatch(/E_STEP_MESH_PART/)
   })
 
   it('非盒体（32 边形棱柱）也走同一条链：按序号对识别边倒圆角 → 仍是网格零件', async () => {

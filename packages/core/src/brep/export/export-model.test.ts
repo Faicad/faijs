@@ -101,30 +101,3 @@ ENDSEC;`
     expect(detectStepUnit(lines.join('\n'))).toBe('mm')
   })
 })
-
-describe('exportModel — STEP is BREP-only (plan 2026-10-01 §3.6)', () => {
-  // quadEntry 是"有 mesh、无 solid"的条目 = 网格零件的形态（唯一几何真源是三角网格）。
-  it('mesh part (mesh without solid) → E_STEP_MESH_PART naming the part', () => {
-    expect(() => exportModelSync([quadEntry(10, 'mesh-part')], 'step')).toThrow(/E_STEP_MESH_PART/)
-    expect(() => exportModelSync([quadEntry(10, 'mesh-part')], 'step')).toThrow(/mesh-part/)
-  })
-
-  it('the gate runs before the kernel is fetched — no BREP engine needed to be told', () => {
-    // 未初始化 OCCT：若门禁排在 getBrepApi() 之后，这里会先炸内核装配；
-    // 先过门禁则拿到的是"这不是 BREP 零件"这个更准确的事实。
-    expect(() => exportModelSync([quadEntry(10, 'mesh-part')], 'step')).toThrow(/E_STEP_MESH_PART/)
-  })
-
-  it('the mixed batch refuses at the mesh entry, not silently skipping it', () => {
-    const entries = [quadEntry(10, 'mesh-part'), quadEntry(10, 'mesh-2')]
-    let message = ''
-    try { exportModelSync(entries, 'step') } catch (e) { message = (e as Error).message }
-    // 第一个网格条目即被指出（不是被跳过、也不是报出笼统的"没有条目"）。
-    expect(message).toContain('mesh-part')
-  })
-
-  it('mesh formats on the same entries still work (STL/3MF do not need a solid)', () => {
-    expect(exportModelSync([quadEntry(10, 'mesh-part')], 'stl')).toBeInstanceOf(ArrayBuffer)
-    expect(exportModelSync([quadEntry(10, 'mesh-part')], '3mf')).toBeInstanceOf(ArrayBuffer)
-  })
-})

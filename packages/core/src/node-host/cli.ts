@@ -590,8 +590,8 @@ export async function cliView(
  *
  * 按零件类型分别处理导出：
  * - STL：取网格载荷（BREP 零件先经内核三角化），无重建。
- * - STEP：**只吃精确 BREP 句柄**。网格零件（无 BREP 句柄）在导出入口处明确报错
- *   `E_STEP_MESH_PART`（含 part 名）——facet STEP 通道已于方案 2026-10-01 §3.6 下线。
+ * - STEP：有 BREP solid → 精确 STEP（ADVANCED_FACE）；无 BREP solid → 该零件的
+ *   三角网格经重建管线导出（exportModelSync 内的 mesh 条目通路）。
  *
  * keep-syntax §5.1：outputs 现含 compound（group/assembly 产物，无 mesh）；
  * compound 无法导出，给出明确错误（此前"不在 outputs 中"是静默失败）。

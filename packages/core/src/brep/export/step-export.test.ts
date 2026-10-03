@@ -7,7 +7,7 @@
  * - 多实体各自成为 STEP 中独立实体（MANIFOLD_SOLID_BREP ≥ 2），互不 fuse
  * - 导出 → importAssemblyFromStep 回读：part 数与名称一一对应（身份闭环）
  * - Compound 展平命名（`name [n]`）与导入侧拆分一致
- * - 网格零件（无 BREP 句柄）导出 STEP 被明确拒绝并指出 part 名（E_STEP_MESH_PART）
+ * - mesh 零件经 reconstructSolidFromMesh 重建后导出（ADVANCED_FACE）
  * - 颜色保留、空 entries 抛错、导出后原 solid 句柄仍有效
  *
  * Run: npx vitest run src/brep/export/step-export.test.ts
@@ -20,7 +20,7 @@ import type { AssemblyPartNode } from '../../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
-import { exportStepFromSolids, type StepExportEntry } from './step'
+import { exportStepFromSolids } from './step'
 
 let kernel: BrepEngineApi
 
@@ -162,40 +162,29 @@ describe('exportStepFromSolids', () => {
     }
   })
 
-  it('GOTCHA：网格条目不再被重建——网格零件导出 STEP 明确报错并指出 part 名', () => {
-    // 曾经这里是 'mesh entry: reconstructed solid exported as ADVANCED_FACE'：
-    // mesh → reconstructSolidFromMesh → facet BREP → STEP。该通路已删除
-    // （方案 2026-10-01 §3.6）：它产出的文件**看起来像** BREP，读回来却与输入三角
-    // 网格逐面等价——没有任何精确曲面语义，正是 mesh/BREP 边界必须拒绝的东西。
-    const entry = { name: 'faceted-part', mesh: unitCubeMesh() } as unknown as StepExportEntry
-    expect(() => exportStepFromSolids(kernel, [entry])).toThrow(/E_STEP_MESH_PART/)
-    // 必须指出是哪个 part，否则多零件模型里用户无从定位
-    expect(() => exportStepFromSolids(kernel, [entry])).toThrow(/faceted-part/)
-  })
+  it('mesh entry: reconstructed solid exported as ADVANCED_FACE', async () => {
+    const buffer = exportStepFromSolids(kernel, [
+      { mesh: unitCubeMesh(), name: 'faceted-part' },
+    ])
+    const text = decodeStep(buffer)
+    expect(text).toContain('ADVANCED_FACE')
 
-  it('mixed solid + mesh entries: the mesh entry is refused, not silently skipped', async () => {
-    // 另一种同样错误的行为是"跳过网格成员、只写 BREP 成员"——少写一个成员等于
-    // 静默丢件。故混合批次必须整体失败。
-    const box = makeBox(0, 0, 0)
+    const nodes = await importAssemblyFromStep(buffer)
     try {
-      const entries = [
-        { solid: box, name: 'brep-part' },
-        { name: 'mesh-part', mesh: unitCubeMesh() },
-      ] as unknown as StepExportEntry[]
-      expect(() => exportStepFromSolids(kernel, entries)).toThrow(/E_STEP_MESH_PART/)
-      expect(() => exportStepFromSolids(kernel, entries)).toThrow(/mesh-part/)
+      const leaves = collectLeaves(nodes)
+      expect(leaves).toHaveLength(1)
+      expect(leaves[0].name).toBe('faceted-part')
     } finally {
-      kernel.release(box)
+      releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
     }
   })
 
-  it('two solid entries: two independent entities, no string splicing', async () => {
-    const boxA = makeBox(0, 0, 0)
-    const boxB = makeBox(20, 0, 0)
+  it('mixed solid + mesh entries: two independent entities, no string splicing', async () => {
+    const box = makeBox(0, 0, 0)
     try {
       const buffer = exportStepFromSolids(kernel, [
-        { solid: boxA, name: 'brep-part' },
-        { solid: boxB, name: 'brep-part-2' },
+        { solid: box, name: 'brep-part' },
+        { mesh: unitCubeMesh(), name: 'mesh-part' },
       ])
       const text = decodeStep(buffer)
 
@@ -208,13 +197,12 @@ describe('exportStepFromSolids', () => {
       const nodes = await importAssemblyFromStep(buffer)
       try {
         const names = collectLeaves(nodes).map(l => l.name).sort()
-        expect(names).toEqual(['brep-part', 'brep-part-2'])
+        expect(names).toEqual(['brep-part', 'mesh-part'])
       } finally {
         releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
       }
     } finally {
-      kernel.release(boxA)
-      kernel.release(boxB)
+      kernel.release(box)
     }
   })
 
@@ -245,11 +233,15 @@ describe('exportStepFromSolids', () => {
     expect(() => exportStepFromSolids(kernel, [])).toThrow('No exportable geometry')
   })
 
-  it('entry without a solid throws E_STEP_MESH_PART (mesh-only is not exportable to STEP)', () => {
-    // 类型上 `solid` 已是必填；这里强转绕过类型，证明**运行期**最后一道闸也在。
-    const orphan = { name: 'mesh-only' } as unknown as StepExportEntry
-    expect(() => exportStepFromSolids(kernel, [orphan])).toThrow(/E_STEP_MESH_PART/)
-    expect(() => exportStepFromSolids(kernel, [orphan])).toThrow(/mesh-only/)
+  it('entry without solid or mesh throws', () => {
+    const box = makeBox(0, 0, 0)
+    try {
+      expect(() => exportStepFromSolids(kernel, [{}])).toThrow(
+        'StepExportEntry must provide either solid or mesh',
+      )
+    } finally {
+      kernel.release(box)
+    }
   })
 
   it('original solid handles remain usable after export (no premature release)', () => {

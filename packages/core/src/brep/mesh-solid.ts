@@ -4,7 +4,7 @@
  *
  * 名词边界（方案 §3.1）：
  * - **网格实体** = 由网格文件导入、经「规范化」得到的引擎实体。它是**近似拓扑**
- *   的载体，不是精度链的一环；永不进 `brepChain.solidCache`、永不导出 STEP。
+ *   的载体，不是精度链的一环；永不进 `brepChain.solidCache`。
  * - **规范化** = `importIndexedMesh` → `weldShellsAndFaces(tol)` → `unifyFaces()`。
  *   **顺序不可交换**：先 `unifyFaces` 会把实体做坏（体积归零），防回归用例见
  *   `brepkit-kernel/mesh-solid-topology.test.ts`。
