@@ -276,6 +276,21 @@ export class PlanegcsSolver implements SketchSolver {
             type: 'arc', id: `A${g.index}`, c_id: c, start_id: s, end_id: e,
             start_angle: g.startAngle, end_angle: g.endAngle, radius: g.radius,
           });
+          // GOTCHA (2026-10-03, measured — see `shapes-solve.test.ts`)：这里**没有**
+          // push `arc_rules`（GCS 的 ConstraintArcRules：|start−centre| = |end−centre| =
+          // radius）。后果是圆弧的 `radius` / `start_angle` / `end_angle` 是只写参数：
+          //   • `radius`（ConstraintType.Radius）在弧上**不生效**——`arc_radius` 改的是
+          //     这个没人读的参数，而回读半径是按首尾点算的 |start − centre|（实测：
+          //     arc r=5 + `{kind:'radius', value:2}` → 解完 r 仍是 5）；
+          //   • 弧的首尾点可以漂到离圆心不同的距离，回读时尾点又被"按 r 投影"回去
+          //     —— 静默改几何（实测：slot 弧心挪 2mm 后两端的半径差 2.03mm）。
+          //
+          // 补上 arc_rules 能同时修掉这两点，**但会引入假冲突**：形状自带约束 + 调用方
+          // 约束的组合（如 slot + 一条 length）会被 GCS 判成 conflicting（solver 自己
+          // 打印 RedundantSolving-LevenbergMarquardt），而该系统明明有解。实测矩阵：
+          //   slot(4 重合+2H+2 radius) 扰动 → conflicting；去掉 H 或去掉 radius 均 ok；
+          //   rect / roundedRect / trapezoid / polygon + length → 全 ok。
+          // 所以先不 push，缺口如实登记在 `shapes.ts` 的 slot/roundedRect 注释与测试里。
           arcs.set(g.index, { center: c, start: s, end: e });
           break;
         }
@@ -774,11 +789,19 @@ export class PlanegcsSolver implements SketchSolver {
           const c = this.readPoint(el.center);
           const f1 = this.readPoint(el.focus1);
           if (c && f1) {
-            const major = Math.hypot(f1.x - c.x, f1.y - c.y) * 1;
+            // The GCS ellipse primitive is (centre, focus1, radmin): the major
+            // radius is DERIVED, a = √(c_focal² + b²) where c_focal = |focus1 −
+            // centre| — that is how the push side is read back by GCS itself.
+            // Reporting `c_focal` as `majorRadius` (the previous behaviour)
+            // silently shrank every ellipse: rx=10/ry=5 came back as 8.66
+            // (√75 = √(10²−5²)) — measured 2026-10-03, pinned by
+            // `shapes-solve.test.ts` ("初值即解" / ellipse).
+            const focal = Math.hypot(f1.x - c.x, f1.y - c.y);
+            const major = Math.sqrt(focal * focal + g.minorRadius * g.minorRadius);
             const angleXU = Math.atan2(f1.y - c.y, f1.x - c.x);
-            // minor radius is a parameter on the ellipse primitive; approximate
-            // pull via ratio is not exposed — keep stored minor (M3 scope).
-            out.push({ ...g, cx: c.x, cy: c.y, majorRadius: g.majorRadius * (major / g.majorRadius), angleXU });
+            // minor radius is a parameter on the ellipse primitive; the pull
+            // side is not exposed — keep the stored minor (M3 scope).
+            out.push({ ...g, cx: c.x, cy: c.y, majorRadius: major, angleXU });
           } else out.push(g);
           break;
         }

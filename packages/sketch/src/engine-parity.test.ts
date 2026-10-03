@@ -46,7 +46,10 @@
  * - `uvBounds` returns the sentinel `±1e6` for ANY planar face on brepkit —
  *   measured identical for the known-good `cad.profile` path and for
  *   `sketchFaces`. It is NOT a failure signal.
- * - `getLength` on a multi-edge wire is not the wire total.
+ * - `getLength` on a multi-edge wire was NOT the wire total (edge-length path
+ *   won the dialect discrimination). Fixed by `1c06570` (2026-10-02): the L1
+ *   `getLength` now sums the unique-edge arc lengths, so a 4-edge wire DOES
+ *   report 140 — the pin below was updated to the fixed behaviour.
  *
  * Run: npx vitest run src/engine-parity.test.ts
  */
@@ -309,18 +312,18 @@ describe('brepkit measurement traps', () => {
     expect(api.meshShape(face).triangleCount).toBe(2)
   })
 
-  it('getLength on a 4-edge wire is not the wire total', () => {
+  it('getLength on a 4-edge wire is the wire total (fixed 2026-10-02, 1c06570)', () => {
     const e1 = api.makeLineEdge({ x: 0, y: 0, z: 0 }, { x: 40, y: 0, z: 0 })
     const e2 = api.makeLineEdge({ x: 40, y: 0, z: 0 }, { x: 40, y: 30, z: 0 })
     const e3 = api.makeLineEdge({ x: 40, y: 30, z: 0 }, { x: 0, y: 30, z: 0 })
     const e4 = api.makeLineEdge({ x: 0, y: 30, z: 0 }, { x: 0, y: 0, z: 0 })
     const w = api.makeWire([e1, e2, e3, e4])
     expect(api.getLength(e1)).toBeCloseTo(40, 1)
-    // Pinned defect: the wire total should be 140. `getLength` maps to
-    // `edgeLength` first and only falls back to `wireLength` when that throws
-    // (`brepkitKernel.ts:1039-1050`); for a wire handle the edge path does not
-    // throw, so a multi-edge wire reports something else entirely.
-    expect(api.getLength(w)).not.toBeCloseTo(140, 1)
+    // Was a pinned defect ("edge length path wins for a wire handle, so the wire
+    // total is something else"). `1c06570` normalised L1 getLength to
+    // Σ unique-edge arc length, so the wire now reports its real perimeter —
+    // same dialect as occt. Re-pinned on the fixed behaviour (2026-10-03).
+    expect(api.getLength(w)).toBeCloseTo(140, 1)
   })
 })
 

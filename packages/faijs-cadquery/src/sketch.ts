@@ -18,8 +18,15 @@
 
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import { fromHandle } from '@faicad/faijs/sdk'
-import { solveSketch, type SolveSketchOptions } from '@faicad/faijs-sketch'
-import type { SketchConstraint as CanonicalConstraint, SketchGeom } from '@faicad/faijs-sketch'
+import {
+  solveSketch, type SolveSketchOptions,
+  // 形状坐标数学的唯一实现（库面）——本兼容层只做 CadQuery 语法适配，不再自己算一套。
+  regularPolygonVertices, slotOutline, trapezoidCorners, arcPoints, clampedUniformKnots,
+  CADQUERY_TO_CONSTRAINT_KIND, constraintKindFromCadQuery,
+} from '@faicad/faijs-sketch'
+import type {
+  SketchConstraint as CanonicalConstraint, SketchConstraintKind, SketchGeom,
+} from '@faicad/faijs-sketch'
 import type { OcctKernel, ShapeHandle, Vec3 } from 'occt-wasm'
 import { centerOf } from './shape-class'
 
@@ -400,11 +407,11 @@ export function polygon(sk: Sketch, pts: Array<[number, number]>, opts?: SketchO
  * @returns Sketch
  */
 export function regularPolygon(sk: Sketch, r: number, n: number, opts?: SketchOpts): Sketch {
-  const pts: Array<[number, number]> = []
-  for (let i = 0; i <= n; i++) {
-    const a = (i * 2 * Math.PI) / n
-    pts.push([r * Math.sin(a), r * Math.cos(a)])
-  }
+  // CadQuery 的 regularPolygon 是「首顶点在 +Y、顺时针」——正是库面
+  // `regularPolygonVertices(r, n, π/2, ccw=false)` 的约定（公式只在库面写一次）。
+  const verts = regularPolygonVertices(r, n, Math.PI / 2, false)
+  const pts: Array<[number, number]> = verts.map(([x, y]) => [x, y])
+  pts.push(pts[0]!) // 闭合环（makePolygonFace 会丢掉重复点）
   return polygon(sk, pts, opts)
 }
 
@@ -420,16 +427,23 @@ export function regularPolygon(sk: Sketch, r: number, n: number, opts?: SketchOp
 export function slot(sk: Sketch, w: number, h: number, opts?: SketchOpts): Sketch {
   const k = kernel()
   const mode = opts?.mode ?? 'a'
-  const p1: [number, number] = [-w / 2, h / 2]
-  const p2: [number, number] = [w / 2, h / 2]
-  const p3: [number, number] = [-w / 2, -h / 2]
-  const p4: [number, number] = [w / 2, -h / 2]
-  const p5: [number, number] = [-w / 2 - h / 2, 0]
-  const p6: [number, number] = [w / 2 + h / 2, 0]
-  const e1 = k.makeLineEdge(v3(p1[0], p1[1], 0), v3(p2[0], p2[1], 0))
-  const e2 = k.makeArcEdge(v3(p2[0], p2[1], 0), v3(p6[0], p6[1], 0), v3(p4[0], p4[1], 0))
-  const e3 = k.makeLineEdge(v3(p4[0], p4[1], 0), v3(p3[0], p3[1], 0))
-  const e4 = k.makeArcEdge(v3(p3[0], p3[1], 0), v3(p5[0], p5[1], 0), v3(p1[0], p1[1], 0))
+  // 直边与端半圆的坐标全部来自库面 `slotOutline`（它的 `d` 就是 CQ 的 `h`）；本层
+  // 只把结果接成与既有链序一致的四条边：上直边 → 右端弧 → 下直边 → 左端弧。
+  const o = slotOutline(w, h)
+  const lineOf = (a: [number, number], b: [number, number]): ShapeHandle =>
+    k.makeLineEdge(v3(a[0], a[1], 0), v3(b[0], b[1], 0))
+  const arcOf = (arc: { c: [number, number]; r: number; a0: number; a1: number }): ShapeHandle => {
+    // 库面给的是逆时针 a0→a1；本容器的链序要顺着走同一条弧的反向，三点取反即可
+    // （同一段弧反向走，半程点是同一个点）。
+    const p = arcPoints(arc.c, arc.r, arc.a0, arc.a1, true)
+    return k.makeArcEdge(
+      v3(p.end[0], p.end[1], 0), v3(p.mid[0], p.mid[1], 0), v3(p.start[0], p.start[1], 0),
+    )
+  }
+  const e1 = lineOf(o.top[1]!, o.top[0]!)
+  const e2 = arcOf(o.rightArc)
+  const e3 = lineOf(o.bottom[1]!, o.bottom[0]!)
+  const e4 = arcOf(o.leftArc)
   const wire = k.makeWire([e1, e2, e3, e4])
   for (const e of [e1, e2, e3, e4]) k.release(e)
   const face = k.makeFace(wire)
@@ -450,13 +464,12 @@ export function slot(sk: Sketch, w: number, h: number, opts?: SketchOpts): Sketc
  */
 export function trapezoid(sk: Sketch, w: number, h: number, a1: number, a2?: number, opts?: SketchOpts): Sketch {
   const a2v = a2 ?? a1
-  const v1: [number, number] = [-w / 2, -h / 2]
-  const v2: [number, number] = [w / 2, -h / 2]
-  const t1 = h / Math.tan((a1 * Math.PI) / 180)
-  const t2 = h / Math.tan((a2v * Math.PI) / 180)
-  const v3: [number, number] = [-w / 2 + t1, h / 2]
-  const v4: [number, number] = [w / 2 - t2, h / 2]
-  return polygon(sk, [v1, v2, v4, v3, v1], opts)
+  // CQ 的 a1/a2 是**度**，库面 `trapezoidCorners` 是弧度（与 canonical 同单位）——
+  // 度→弧度是 CadQuery 边界的事，角点数学只在库面写一次。
+  const corners = trapezoidCorners(w, h, (a1 * Math.PI) / 180, (a2v * Math.PI) / 180)
+  const ring: Array<[number, number]> = corners.map(([x, y]) => [x, y])
+  ring.push(ring[0]!)
+  return polygon(sk, ring, opts)
 }
 
 /**
@@ -1024,14 +1037,11 @@ export function arc(
       canon = { kind: 'circle', cx, cy, r }
       e = start
     } else {
-      const pt = (ang: number): Pt2 => [
-        cx + r * Math.cos((ang * Math.PI) / 180),
-        cy + r * Math.sin((ang * Math.PI) / 180),
-      ]
-      const p1 = pt(a0)
-      const pm = pt(a0 + da / 2)
-      const p3 = pt(a0 + da)
-      e = k.makeArcEdge(v3(p1[0], p1[1], 0), v3(pm[0], pm[1], 0), v3(p3[0], p3[1], 0))
+      // 三点弧的取点走库面 `arcPoints`（deg→rad 是 CadQuery 边界的事）。
+      const p = arcPoints([cx, cy], r, (a0 * Math.PI) / 180, ((a0 + da) * Math.PI) / 180, da > 0)
+      e = k.makeArcEdge(
+        v3(p.start[0], p.start[1], 0), v3(p.mid[0], p.mid[1], 0), v3(p.end[0], p.end[1], 0),
+      )
       canon = { kind: 'arc', cx, cy, r, a0: (a0 * Math.PI) / 180, a1: ((a0 + da) * Math.PI) / 180, ccw: da > 0 }
     }
   } else if (Array.isArray(b) && Array.isArray(c)) {
@@ -1073,24 +1083,17 @@ export function spline(sk: Sketch, pts: Pt2[], opts?: SketchEdgeOpts & { periodi
   for (const p of pts) flat.push(p[0], p[1], 0)
   const n = pts.length
   const degree = Math.min(3, n - 1)
-  // clamped uniform knots for the given degree and pole count
-  const nKnots = n + degree + 1
-  const knots: number[] = []
-  for (let i = 0; i < nKnots; i++) {
-    const t = i - degree
-    knots.push(Math.min(Math.max(t, 0), n - degree))
-  }
+  // 钳位均匀节点向量由库面给出（与 canonical bspline 载荷同一实现）。
+  // 下面是**方言换算**而非几何数学：OCCT 的 makeBSplineEdge 要「去重值 + 多重度」
+  // 两个平行数组，库面给的是展开后的整条向量 —— 只做 run-length 拆分。
+  const knots = clampedUniformKnots(n, degree)
   const uniq: number[] = []
-  for (const t of knots) if (!uniq.length || uniq[uniq.length - 1] !== t) uniq.push(t)
   const uniqMults: number[] = []
-  {
-    let run = 1
-    for (let i = 1; i <= knots.length; i++) {
-      if (i < knots.length && knots[i] === knots[i - 1]) run++
-      else {
-        uniqMults.push(run)
-        run = 1
-      }
+  for (const t of knots) {
+    if (uniq.length && uniq[uniq.length - 1] === t) uniqMults[uniqMults.length - 1]! += 1
+    else {
+      uniq.push(t)
+      uniqMults.push(1)
     }
   }
   const e = k.makeBSplineEdge(flat, [], uniq, uniqMults, degree, opts?.periodic ?? false)
@@ -1720,10 +1723,13 @@ export interface SketchConstrainSpec {
  * @returns Sketch
  */
 export function constrain(sk: Sketch, spec: SketchConstrainSpec): Sketch {
+  // 名字表来自库面（`CADQUERY_TO_CONSTRAINT_KIND` = planegcs 桥能表达的那 8 种，
+  // 含 `fixed` 的两个 CadQuery 拼法）；上游还接受但桥不支持的名字在下面补齐，
+  // 这样"名字是否合法"与"能否桥接"两个判断不各写一份表。
   const KNOWN = new Set([
-    'Fixed', 'FixedPoint', 'Coincident', 'Horizontal', 'Vertical', 'Parallel',
-    'Perpendicular', 'Tangent', 'Distance', 'DistanceX', 'DistanceY', 'Length',
-    'Angle', 'Orientation', 'Radius', 'Diameter', 'ArcAngle', 'Equal',
+    ...Object.keys(CADQUERY_TO_CONSTRAINT_KIND),
+    'Horizontal', 'Vertical', 'Parallel', 'Perpendicular', 'Tangent',
+    'DistanceX', 'DistanceY', 'Diameter', 'Equal',
   ])
   for (const t of spec.tags) {
     if (!sk.tags.has(t)) throw new Error('Tag not found: ' + t)
@@ -1777,17 +1783,25 @@ function toCanonical(sk: Sketch): { geoms: SketchGeom[]; constraints: CanonicalC
   })
   const constraints: CanonicalConstraint[] = []
   for (const c of sk.constraints) {
-    const kind = c.kind
     const [t1, t2] = c.tags
     const ref = (t: string) => ({ tag: t, index: 0 })
+    // CadQuery 名 → canonical kind 只有库面一份表（`Fixed`/`FixedPoint` 两个拼法都认）；
+    // 本层只做 CQ 的**参数方言**：Distance 是 3 维向量、Orientation 是 2 维方向向量、
+    // Angle/ArcAngle 是**度**（canonical 一律弧度）。
+    let kind: SketchConstraintKind
+    try {
+      kind = constraintKindFromCadQuery(c.kind)
+    } catch {
+      throw new Error('Constraint kind not supported by the planegcs bridge: ' + c.kind)
+    }
     switch (kind) {
-      case 'Fixed':
+      case 'fixed':
         constraints.push({ kind: 'fixed', of: ref(t1) })
         break
-      case 'Coincident':
+      case 'coincident':
         if (t2) constraints.push({ kind: 'coincident', a: ref(t1), b: ref(t2) })
         break
-      case 'Distance':
+      case 'distance':
         if (t2 && typeof c.arg === 'object' && c.arg !== null) {
           const v = c.arg as { [k: number]: number }
           const val = v[2]
@@ -1796,29 +1810,27 @@ function toCanonical(sk: Sketch): { geoms: SketchGeom[]; constraints: CanonicalC
           constraints.push({ kind: 'distance', a: ref(t1), b: ref(t1), value: c.arg })
         }
         break
-      case 'Length':
+      case 'length':
         if (typeof c.arg === 'number') constraints.push({ kind: 'length', of: ref(t1), value: c.arg })
         break
-      case 'Angle':
+      case 'angle':
         if (t2 && typeof c.arg === 'number') {
           constraints.push({ kind: 'angle', a: ref(t1), b: ref(t2), value: (c.arg * Math.PI) / 180 })
         }
         break
-      case 'Orientation':
+      case 'orientation':
         if (Array.isArray(c.arg) && c.arg.length === 2) {
           constraints.push({ kind: 'orientation', of: ref(t1), dir: [c.arg[0], c.arg[1]] })
         }
         break
-      case 'Radius':
+      case 'radius':
         if (typeof c.arg === 'number') constraints.push({ kind: 'radius', of: ref(t1), value: c.arg })
         break
-      case 'ArcAngle':
+      case 'arcAngle':
         if (typeof c.arg === 'number') {
           constraints.push({ kind: 'arcAngle', of: ref(t1), value: (c.arg * Math.PI) / 180 })
         }
         break
-      default:
-        throw new Error('Constraint kind not supported by the planegcs bridge: ' + kind)
     }
   }
   return { geoms, constraints }

@@ -36,6 +36,19 @@ export type { SolveSketchOptions } from './solve.js'
 export { sketchFaces, shapeFromSolved } from './faces.js'
 export type { SketchFacesOptions } from './faces.js'
 
+// ── semantic shape surface (`cad.sketch({ shapes })`) ──
+export {
+  expandShapes, nextShapeTag, shapeHandles, dragShapeHandle, handleForGeomControl,
+  refsOfConstraint,
+  SketchShapeError,
+  rectCorners, regularPolygonVertices, slotOutline, trapezoidCorners, clampedUniformKnots,
+  arcPoints, arcSweep,
+} from './shapes.js'
+export type {
+  SketchShape, SketchMode, ShapeBase, ShapeSpan, ExpandedShapes,
+  ShapeHandle, ShapeHandleKind, GeomControl, Pt2,
+} from './shapes.js'
+
 // ── FCStd solve pipeline (consumed by the fcstd port) ──
 export type { SketchSolver, FcstdSolveOutcome, ExternalFixedSeg } from './solver.js'
 export { SUPPORTED_CONSTRAINT_TYPES, allConstraintsSupported } from './solver.js'

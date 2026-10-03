@@ -580,10 +580,22 @@ export const CONSTRAINT_KIND_TO_CADQUERY: Partial<Record<SketchConstraintKind, s
   arcAngle: 'ArcAngle',
 }
 
-/** CadQuery constraint name → canonical kind. */
-export const CADQUERY_TO_CONSTRAINT_KIND: Record<string, SketchConstraintKind> = Object.fromEntries(
-  Object.entries(CONSTRAINT_KIND_TO_CADQUERY).map(([kind, name]) => [name, kind as SketchConstraintKind]),
-)
+/**
+ * CadQuery constraint name → canonical kind.
+ *
+ * Beyond the one-name-per-kind reverse of {@link CONSTRAINT_KIND_TO_CADQUERY},
+ * CadQuery spells the fixed constraint **two** ways — `Fixed` (whole entity) and
+ * `FixedPoint` (a point) — and both mean canonical `fixed` here. The forward
+ * direction emits `FixedPoint`; the reverse direction must accept either, or a
+ * caller that reads upstream CadQuery scripts (`s.constrain(f, "Fixed")`) gets
+ * `E_SKETCHC_UNSUPPORTED_CONSTRAINT` on a name upstream accepts.
+ */
+export const CADQUERY_TO_CONSTRAINT_KIND: Record<string, SketchConstraintKind> = {
+  ...Object.fromEntries(
+    Object.entries(CONSTRAINT_KIND_TO_CADQUERY).map(([kind, name]) => [name, kind as SketchConstraintKind]),
+  ),
+  Fixed: 'fixed',
+}
 
 /**
  * Map a canonical constraint kind to its CadQuery name.

@@ -2,11 +2,20 @@
  * shapes — `cad.sketch` 的**语义图元面**（脚本面）。
  *
  * 一条规则：**形状语义只在这里实现一次**。
- * - `expandShapes`：语义图元 → canonical 几何 + 形状自带约束（正向，求解前）；
- * - `shapeFromGeoms`：编辑后的派生几何 → 形状参数（反向，交互拖拽写回用）。
+ * - 正向（求解前）：`expandShapes` 语义图元 → canonical 几何 + 形状自带约束；
+ * - 反向（交互写回）：`shapeHandles` 给出可拖手柄，`dragShapeHandle` 把"拖到哪"写回形状
+ *   参数，`handleForGeomControl` 负责"派生几何上的某个控制点 → 哪个手柄"的翻译。
+ *   宿主不认识任何形状数学，只做 tag 查表 + 调这三个函数。
  *
  * 宿主（3d_editor 等）只负责鼠标/吸附/命中这类交互，**禁止再自持一份展开逻辑**：
  * 草稿以 shapes 为真源，派生几何一律由本模块算出来。
+ *
+ * ── 角度规则的唯一实现：`arcSweep` ────────────────────────────────────────
+ * 弧的有符号扫掠跨度这条规则，全仓库只应有一处实现（本模块的 `arcSweep`）：
+ * core `geometry2d/adapt.ts#profileSegToCurve` 建弧、宿主采样折线、faijs-cadquery
+ * 三点弧取点，三处必须同解——否则"编辑期看到的弧"与"内核建的弧"不是同一条，
+ * 仓库里已踩过 `sketch-arc-ccw-gotcha`（CW 短弧被当 CCW 补角长弧，revolve 退化、
+ * BRepMesh 挂死）。宿主要算扫角就 import 它，**不要抄**。
  *
  * ── 单位 ──────────────────────────────────────────────────────────────────
  * 长度 mm；**所有角度一律弧度**（与 `canonical.ts` 同一条约定：arc 的 `a0/a1`、
@@ -816,11 +825,27 @@ function translatePoint(p: Pt2, from: Pt2, to: Pt2): Pt2 {
 }
 
 /**
- * 圆弧的有符号扫掠（与 `canonical.ts` 的约定一致：方向由 `ccw` 决定，缺省按 `a1 > a0`
- * 推断；`a0 === a1` 视为整圆）。宿主 `sketch-draft.ts#arcSpan` 与 core
- * `geometry2d/adapt.ts` 用的是同一条规则——中点手柄要落在弧上，必须与它们同解。
+ * 圆弧的有符号扫掠跨度（弧度）。**这条规则的全仓库唯一实现。**
+ *
+ * 规则**必须与 core 的 `geometry2d/adapt.ts#profileSegToCurve` 完全一致**，否则
+ * 编辑期预览画的弧与执行后内核建的弧不是同一条——那正是仓库里踩过的
+ * `sketch-arc-ccw-gotcha`（CW 短弧被当成 CCW 补角长弧，revolve 退化、BRepMesh 挂死）：
+ *
+ * - **方向由 `ccw` 决定，不由 `a1 - a0` 的符号决定**；`ccw` 缺省时按 `a1 > a0` 推断
+ *   （canonical 的既有约定：`cq-compat` 产 `ccw: da > 0`）。
+ * - 扫角用 `while` 平移到 (0, 2π]，**不能用 `%`**——整圆恰为 2π 时 `x % x === 0`
+ *   会把它消成退化线段。
+ * - `a0 === a1` 视为整圆（扫角 2π）。
+ *
+ * 消费方：本模块的 `arcMidAngle` / `arcPoints`；宿主（3d_editor）的弧采样与吸附
+ * （原先自己抄了一份 `arcSpan`，2026-10-03 收归到这里）；faijs-cadquery 的三点弧。
+ *
+ * @param a0 - 起始角（弧度）。
+ * @param a1 - 终止角（弧度）。
+ * @param ccw - 逆时针为正；缺省按 `a1 > a0` 推断。
+ * @returns 有符号扫角：`ccw` 为正、顺为负，绝对值落在 (0, 2π]。
  */
-function arcSweep(a0: number, a1: number, ccw: boolean | undefined): number {
+export function arcSweep(a0: number, a1: number, ccw: boolean | undefined): number {
   const dir = ccw ?? a1 - a0 > 0
   let sweep = dir ? a1 - a0 : a0 - a1
   while (sweep <= 0) sweep += Math.PI * 2

@@ -12,9 +12,9 @@
     "test:e2e:preview": "playwright test --config playwright.preview.config.ts"
   },
   "dependencies": {
-    "@faicad/faijs": "^0.28.0",
-    "@faicad/faijs-extra": "^0.28.0",
-    "@faicad/sheetmetal": "^0.28.0",
+    "@faicad/faijs": "^0.29.0",
+    "@faicad/faijs-extra": "^0.29.0",
+    "@faicad/sheetmetal": "^0.29.0",
     "manifold-3d": "^3.5.1",
     "occt-wasm": "^3.8.0",
     "three": "^0.184.0"
@@ -26,5 +26,5 @@
     "vite": "^6.0.0",
     "vitest": "*"
   },
-  "version": "0.28.0"
+  "version": "0.29.1"
 }
