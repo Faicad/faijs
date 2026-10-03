@@ -20,7 +20,9 @@
       "@faicad/faijs": ["../core/src/index.ts"],
       "@faicad/faijs/*": ["../core/src/*"],
       "@faicad/faijs-cadquery": ["../faijs-cadquery/src/index.ts"],
-      "@faicad/faijs-cadquery/*": ["../faijs-cadquery/src/*"]
+      "@faicad/faijs-cadquery/*": ["../faijs-cadquery/src/*"],
+      "@faicad/faijs-sketch": ["../sketch/src/index.ts"],
+      "@faicad/faijs-sketch/*": ["../sketch/src/*"]
     }
   },
   "include": ["src/**/*.ts"],
