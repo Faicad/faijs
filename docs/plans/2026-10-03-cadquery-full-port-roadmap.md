@@ -26,9 +26,9 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 457 ported / 193 blocked / 47 skipped** | `tests/manifest.json`（2026-10-03 **B1-6 后**实读） |
+| **manifest**（导出变量级） | **697 = 468 ported / 182 blocked / 47 skipped** | `tests/manifest.json`（2026-10-03 **B1-3a 后**实读） |
 | **coverage**（上游测试函数级） | **305 = 201 PORTABLE / 41 PORTABLE-WITH-STUB / 55 BLOCKED** | `tests/coverage.json`（2026-10-03 **B0 重算后**实读：`portableNow 201` / `portableWithStub 41` / `blocked 55`） |
-| **镜像文件** | **469** 个 `.fai.js` + **12** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-03 **B1-6 后**实测） |
+| **镜像文件** | **480** 个 `.fai.js` + **12** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-03 **B1-3a 后**实测） |
 | **包内单测** | 548 全绿（46 文件） | P3-4 收官实测 |
 
 ⚠ **两个分母不同源，不可换算**：manifest 的 452/198/47 是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
@@ -47,7 +47,7 @@
 
 ⚠ **旧文档的一处硬错误（勿再传播）**：它写「镜像文件 551 个 `.fai.js`」。**实测 464**（`find tests -name "*.fai.js" | wc -l`）。凡引用镜像计数以本文 §1 为准。
 
-**manifest 实测 blockedBy 分布（193 条，64 个 distinct，2026-10-03 **B1-6 落地后**从 `manifest.json` 聚合）**：
+**manifest 实测 blockedBy 分布（182 条，57 个 distinct，2026-10-03 **B1-3a 落地后**从 `manifest.json` 聚合）**：
 
 ```
 14 op:assembly-solve      12 imprint                11 getfixturevalue         9 kernel:fillet-chain-reapply
@@ -56,15 +56,22 @@
  4 op:extrude-until-face   4 op:prism-from-face      4 op:shape.offset         4 op:solid-voids
  4 op:sweep.pipeshell      3 cutEach                 3 filter                  3 kernel:boolean-near-coincident-bspline
  3 narrow:sphere-angles    3 op:addCavity            3 op:cutBlind.until-face  3 op:history-subshape
- 3 op:sweep.aux-spine      3 op:sweep.multisection   3 op:text-spine           3 op:wedge-degenerate-top
- 3 parametrize             2 __dir__                 2 exportGLTF              2 exportVTKJS
- 2 importBin               2 kernel:draft-existing-solid 2 kernel:hollow-intersection-join 2 kernel:shell-outward-opening
- 2 op:plane-toLocalCoords  2 op:shell                2 parametricCurve         2 pending:mirror
- 2 project
- …（其余 23 项各 1 条）
-```
+ 3 op:sweep.aux-spine      3 op:sweep.multisection   3 op:text-spine           3 parametrize
+ 2 __dir__                 2 exportGLTF              2 exportVTKJS             2 importBin
+ 2 kernel:draft-existing-solid 2 kernel:hollow-intersection-join 2 kernel:shell-outward-opening 2 op:plane-toLocalCoords
+ 2 op:shell                2 parametricCurve         2 pending:mirror          2 project
+ …（其余 21 项各 1 条）
+ ```
 
 > **B1-6 对分布的影响**：关掉 `op:extrude.both`(2) / `op:extrude.combine-s`(2) / `op:extrude.combine-cut`(1) 三个标签 ⇒ distinct 67→64、blocked 总数 198→193。
+
+> **B1-7 对分布的影响**：关掉 `op:wedge-degenerate-top`(3) ⇒ distinct 64→63、blocked 总数 193→190、ported 457→460（新增 3 条 `testWedge*` 镜像）。**coverage 函数级不变**（`wedge` 早已 PORTABLE，见 §1 的两个分母不可换算）。
+
+> **B1-3a 对分布的影响**：关掉 `op:Solid.makeCone`(1) / `op:CQ`(1) / `op:polyline`(1，**陈旧标签** —— `Workplane.polyline` 早已存在，缺的只是镜像) ⇒ distinct 63→58、blocked 总数 190→185、ported 460→465（新增 `testCone__s` / `testCone__t` / `testIbeam__res` / `testBoundingBox__result` / `testFindSolid__s` 五条镜像）。`op:Workplane.plugin` 保持 blocked（见下行）。
+>
+> **B1-3a 实测订正（镜像约定，补 B0-6）**：B0-6 记「双终端是 compound 专属」——**不完整**。实测 `let s = <lib 函数产出的裸 Shape>` + `let t = await cq.CQ(s)` 也会导出 **两个终端**（`_0_s.step` + `_1_result.step`），即「被 lib 函数调用消费」不足以把裸 Shape 记为已消费（Workplane 值本来就不是终端，所以链式 Workplane 中间量没问题）。**写法纪律：裸 Shape 一律内联进消费它的调用，不单独 `let`。**（已写进 `TestCadQuery__testCone__t.fai.js` 的 GOTCHA 注释。）
+>
+> **B1-3a 第二条镜像约定**：`.fai.js` **不接受嵌套 `await` 作实参**（`E_VALUE: unsupported value expression: AwaitExpression`，`lang/metadata-extractor.ts:810`）。链必须摊平成逐句 `let`（Workplane 中间量是安全的），不能写 `cq.mirrorY(await cq.polyline(...))`。（已写进 `TestCadQuery__testIbeam__res.fai.js` 的 GOTCHA 注释。）
 
 > **数据卫生（B0-5 已完成）**：原分布里有 **3 条 `blockedBy` 是整句散文**（2 条 hollow 精度、1 条 Assembly 说明）。已规范化为标签：hollow 两条 → `kernel:hollow-intersection-join`（见 G-F9 / B6-2）；`test_name_geometries__assy` → `plane`（原散文声称「Assembly API 已实现、待写镜像」，经 B0-4 修 surface 后暴露真因是 free `plane()` 缺失，见 G-C6 / B1-5）。manifest 整体只改这 3 行，452/198/47 不变。
 
@@ -129,18 +136,18 @@
 | **G-C11** | `extrude("next"/"last")` until-face（4）+ `cutBlind.until-face`（3）+ 索引选择器 `faces(">X[1]")` | **7** | 3 |
 | **G-C12** | `offset2D` multi-region（1）+ `shape.offset`（4） | **5** | 3 |
 | **G-C13** | `parametricCurve`（2）+ `parametricSurface`（1） | **3** | 3 |
-| **G-C14** | `cutEach` | **3** | 2 |
+| **G-C14** | ~~`cutEach`~~ ✅ **已关 2026-10-03（B1-8）** | **3→0** | 2 |
 | **G-C15** | `hollow`（closed / 带移除面） | **3** | 3 |
 | **G-C16** | `text` spine 重载（3）+ `faceOn`（1） | **4** | 3 |
-| **G-C17** | `wedge` 退化顶面（`op:wedge-degenerate-top`） | **3** | 2 |
+| **G-C17** ✅ **已关 2026-10-03（B1-7）** | `wedge` 退化顶面（`op:wedge-degenerate-top`）—— `xmin==xmax && zmin==zmax` 时底环 → 顶点 loft（`loftWithVertices`） | **3→0** | — |
 | **G-C18** | `History` 子形状反查（`op.generated/first/last`） | **3** | 3 |
-| **G-C19** | Shape **运算符重载**（`faces(">Z") \| faces("<Z")`）在 `.fai.js` 受限子集内可达 | **1** | 2 |
-| **G-C20** | 零散 free：`Solid.makeCone` / `CQ()` 包装 / `Workplane.plugin` / free `threePointArc` / free `polyline` | **5** | 2 |
+| **G-C19** | Shape **运算符重载**（`faces(">Z") \| faces("<Z")`）—— ⚠ **2026-10-03 实测订正**：JS 无运算符重载，`.fai.js` 是 JS 子集 ⇒ 需要 core `lang/` 语法层扩展（非本仓单独立项）；且 `test_set_ops` **只断言 `.size()`**（非几何），parity 本就无法验证它 ⇒ **保持 blocked，不写 stub 镜像**（与 `importBin` 的几何锚点 stub 同样处理：不冒充 ported） | **1** | 4（core） |
+| **G-C20** | 零散 free：~~`Solid.makeCone`~~ / ~~`CQ()` 包装~~ / ~~`Workplane.polyline`（陈旧标签）~~（**三项已关 2026-10-03 B1-3a**）/ `Workplane.plugin`（需 lambda + 猴补，**不可行**→G-C25）/ free `threePointArc`（待判） | **5→1** | 2 |
 | **G-C21** | IO：`importBrep`（5）/ `importBin`（2）/ `export`（native BREP + STL 变体；**VRML/GLTF/VTK.js 归 §2.3 排除**） | **12** | 2 |
 | **G-C22** | `sweep-sketch-sections`（1）+ `extrude-taper-sketch`（1） | **2** | 3 |
 | **G-C23** | `shell`（`op:shell` 2）+ `pendingWires` 多轮廓（1） | **3** | 3 |
 | **G-C24** | `CombinedCenter`（1）/ `filter`（3）/ `matrixOfInertia`（1）/ `cast`（1）/ `largestDimension`（1）/ `consolidateWires` | **8** | 2 |
-| **G-C25** | `eachpoint` **lambda 形态**（对象形态已实现；`.fai.js` 无函数字面量需语法支持） | **1** | 4 |
+| **G-C25** | `eachpoint` **lambda 形态**（对象形态已实现；`.fai.js` 无函数字面量需语法支持）—— **2026-10-03 归并**：`op:eachpoint`（`testCompoundCenter__s`）、`op:Workplane.plugin`（`testCylinderPlugin__s`）、`narrow:cutEach` 的 lambda 形态、`narrow:filter`（`test_special`）**四条同源**——都要「函数字面量 +（plugin 还要）类猴补」，同属 `.fai.js` 语法扩展长线 | **4** | 4 |
 | **G-C26** | `narrow:sphere-angles`（3）+ `narrow:chamfer-asym`（1）：参数未打通（faijs 侧，待判定） | **4** | 2 |
 | **G-C27** | **Assembly 子路径导入被自动装载成根包命名空间**（`test_toCompound__assy1` / `__c3`）：镜像 specifier 正确（`@faicad/faijs-cadquery/assembly`），但 core `lang/metadata-extractor.ts:145` 的 `derivePackageName()` **丢掉子路径**（`@faicad/faijs-cadquery/assembly` → `@faicad/faijs-cadquery`）；`runtime.autoLoadLibsFromImports`（`cad-runtime/runtime.ts:1212`）遂 `loadLib(packageName)` 装载**根包** ⇒ 运行时 `cqa.constraint is not a function`（root 不导出 assembly API）。**根因在 core，改 core 需授权**；**非「陈旧 dist」**——`dist/assembly/index.js` 确实导出 `constraint` 且是新鲜产物（B0 期间误判，2026-10-03 实测证伪）。 | **2** | 3 |
 
@@ -178,6 +185,7 @@
 | **G-F8** | STEP 写出 B-spline wire 精度退化 | 1 | STEP writer 保真 |
 | **G-F9** | `hollow(t>0)` 精度（arc-join vs intersection-join） | 2 | 同 G-F1 |
 | **G-F10** | `prism` from/to-face | 4 | `BRepFeat_MakePrism`（~80 行绑定） |
+| **G-F11** | `chamfer` **非对称双距离**（`narrow:chamfer-asym`，`testChamferAsymmetrical__cube`）—— 2026-10-03 实测定性：上游走 `BRepFilletAPI_MakeChamfer.Add(d1, d2, edge, face)`（`occ_impl/shapes.py:4011-4022`，逐 edge 配 edge→face 映射表），occt-wasm 只暴露 `chamfer(distance)` 与 `chamferDistAngle(distance, angleDeg)`，**没有双距离通道** ⇒ 属内核绑定缺口，不是 faijs 侧参数没打通 | 1 | `BRepFilletAPI_MakeChamfer::Add(d1,d2,E,F)` + edge→face map |
 
 #### 类 G · ref 侧异常（**不是 faijs 缺口**，但需重新推导镜像）
 
@@ -247,16 +255,16 @@
 
 | 序 | 项 | 影响 | 动作要点 |
 |---|---|---|---|
-| **B1-1** | ~~**G-C21 IO 通道**（importBrep 5 / importBin 2 / export 5）~~ **订正（实测）**：仅 `importBin`（**2**，`test_bin_import_export__b/__r`，无镜像）属纯 B1；`importBrep` 标签实测 **0**（`testBrepImportExport__s/__si`、`test_export__w/__b1/__b2` 已 ported，靠几何锚点 stub 通过）；`export` 5 全是装配导出（`test_native_export` / `test_export_errors` / `test_save_stl_formats` 依赖 B5 + G-D3；`test_vrml_export` / `test_export_vtkjs` 属 §2.3 排除）⇒ **净余 2** | **2** | `Shape.importBin(bytes)` 走内核 load（core `api/import-brep.ts` 的 `importBrepImpl` 已有资产入口，需补 bytes 直入）+ 写 2 条镜像 |
+| **B1-1** ⚠ **2026-10-03 二次订正（无 ref ⇒ 不进 parity）** | ~~**G-C21 IO 通道**~~：① `out/ref/` 里**没有** `test_bin_import_export` 的参考 STEP（实测 `ls out/ref \| grep -i bin_import` = 0 条）⇒ 这 2 条**永远无法配对**，补镜像也不产生 parity 信号；② 真阻塞是内核只暴露 `loadCached(brepString)`（读）而**没有 BREP 字节写出通道**（occt-wasm 只 `exportStep`/`exportStl`），且 `.fai.js` 无文件 IO ⇒ 端到端 importBin 需要内核补「写出」绑定；③ `importBrep` 标签实测 0、`export` 5 条归 B5/§2.3（同前）⇒ **净收益 0，本项降为「内核依赖 + 无 ref」，从 B1 移出**（保留 `importBin` 标签） | **2→0（不进 parity）** | 内核 `BRepTools` 写出绑定 |
 | **B1-2** | **G-C24 零散值面**（filter 3 / CombinedCenter 1 / matrixOfInertia 1 / cast 1 / largestDimension 1 / consolidateWires） | 8 | 多为 Shape 域小函数 + Workplane 镜像 |
-| **B1-3** | **G-C20 零散 free**（Solid.makeCone / CQ / Workplane.plugin / free threePointArc / free polyline） | 5 | 自由函数构造器 + 类式包装 |
+| **B1-3** ✅ **B1-3a 已完成 2026-10-03** | **G-C20 零散 free**（Solid.makeCone / CQ / Workplane.plugin / free threePointArc / free polyline）—— **B1-3a**：① `solidMakeCone(radius1, radius2, height)`（走内核 `makeCone`，因 core `cad.cone` 断言 `radiusBottom>0`、拒绝上游允许的「底半径=0」；`radius1` 是**底**半径，ref 质心 z=1.5 是判据）+ ② `CQ`（上游 `CQ = Workplane` 别名，`cq.py:4565`，`CQ(s)` = 以 s 为栈的 XY workplane，`parent=null`）⇒ `testCone__s` / `__t` 双 PASS；③ `op:polyline` 是**陈旧标签**（`Workplane.polyline` 早已存在，缺的是镜像）⇒ 补 `testIbeam__res`，**PASS-NT**（几何逐位一致 vol 5800 / 布尔差 0，镜像轴上有未愈合接缝：cand f15/e39/v26 vs ref f14/e36/v24）；④ `op:threePointArc` **同为陈旧标签** ⇒ 补 `testBoundingBox__result`（25 步摊平链），**PASS**（vol 13234.9225135，topo f26/e72/v48 全中）；⑤ `op:findSolid` **亦是陈旧标签**（P3 起已导出）⇒ 补 `testFindSolid__s`，**PASS**（两未合立方体的 compound，vol 2 / f12/e24/v16/s2）。7 单测 + 3 变异全绿。**剩余 1 项**：`Workplane.plugin`（需猴补类方法 + lambda，**不可行**，并入 G-C25） | 5→**1** | 自由函数构造器 + 类式包装 |
 | **B1-4** | **G-C3 remove** ⚠ **内核依赖**：上游 `Shape.remove` 用 `BRepTools_ReShape`（faijs 内核未暴露）⇒ 移 **B6**（或用 `getSubShapes + sew/compound` 近似后跑 parity；`test_remove` 需 `innerShells()`） | 5 | 见 B6 |
 | **B1-5** | **G-C6 free `plane()`** | 6 | 自由函数平面构造器（`plane(1,1)`） |
 | **B1-6** ✅ **已完成 2026-10-03** | **G-C10 extrude 变体**（both 2 / combine-cut 1 / combine-s 2）—— `extrude(wp,h,combine,{taper,both})`：`combine∈{cut,s}` 委托 `cutBlind`（cq.py:3063-3065）、`both=True` 从 ±h 两平面各挤 h 再 fuse（cq.py:3788-3792）；`cutBlind` 补方向号规则（`depth<0` 沿 −normal，cq.py:3526-3528）。5 条镜像（`testExtrude__{s,wp_ref,wp,wp_ref_regular_cut,r}`）+ 6 单测 + 4 变异全绿 | 5→**0** | 消费面参数通道 |
-| **B1-7** | **G-C17 wedge 退化顶面** | 3 | 顶面缩成点时建四棱锥（上游 `makeLineEdge` 零长边分支） |
-| **B1-8** | **G-C14 cutEach** | 3 | 逐子形切割 |
-| **B1-9** | **G-C19 运算符重载** | 1 | `.fai.js` 子集内可达的 `\|` 语法 |
-| **B1-10** | **G-C26 narrow 参数**（chamfer-asym 1）—— ⚠ `sphere-angles`（3）**已定性内核侧**（`workplane.ts:1099`）⇒ 移 **B6**，本项仅余 chamfer-asym | 1 | 打通 chamfer 非对称参数（需先判定 faijs/内核侧） |
+| **B1-7** ✅ **已完成 2026-10-03** | **G-C17 wedge 退化顶面** —— `xmin==xmax && zmin==zmax` 时改走「底环 → 顶点」loft（`loftWithVertices` = `BRepOffsetAPI_ThruSections::AddVertex`），产出 5 面四棱锥。**连带修 pre-existing CLI bug**：楔体把内核自建的 solid 喂给 `cad.translate`，在 CLI 的 `autoLift:false` 宿主下被 N1 守卫拒绝（`E_TOPO_UNTRACKED_INPUT`）⇒ 改内核级 `translateBrep`。3 条镜像（`testWedge{Defaults,PointList,Combined}__s`）+ 2 单测 + 3 变异全绿 | 3→**0** | 消费面几何构造 |
+| **B1-8** ✅ **已完成 2026-10-03** | **G-C14 cutEach** —— 对象形态 `cutEach(wp, item, {clean})`（lambda 形态不可达，同 G-C25）：上下文实体取 `wp.baseShape ?? findSolid(wp)`（上游靠 `findSolid(searchParents=True)` 穿过 `vertices()` 收缩，faijs 的 `findSolid` 只读当前栈 ⇒ 用 P3-3 的 `baseShape` 当替身；无实体时照上游抛错）；逐 locus 放置 item 并切掉（等价于上游一次性 `cut(*results)`）。**连带抽出 `eachpointLocations` / `translateHandle` 两处 helper**（`eachpoint` 复用，39 条 `object-stack.test.ts` 冻结断言不变）。3 条镜像（`testCutEach__w` / `__c` = 两个基础立方体、`__w0` = 真切割结果 vol 4）+ 3 单测 + 2 变异全绿 | 3→**0** | 逐子形切割 |
+| **B1-9** ✅ **已判定 2026-10-03（结论=不做，理由见 G-C19）** | **G-C19 运算符重载** —— JS 无运算符重载（需 core `lang/` 扩展）+ 该用例只断言 `size()` ⇒ **保持 blocked 且不写 stub**；从 B1 移出，与 G-C25（lambda）同归「`.fai.js` 语法扩展」长线 | 1→**0（保持 blocked）** | — |
+| **B1-10** ✅ **已判定 2026-10-03（结论=移 B6）** | **G-C26 narrow 参数**（chamfer-asym 1）—— ⚠ `sphere-angles`（3）已定性内核侧（`workplane.ts:1099`）；chamfer-asym **本日读源码定性也是内核侧**：上游 `BRepFilletAPI_MakeChamfer.Add(d1,d2,E,F)`（`occ_impl/shapes.py:4011-4022`），occt-wasm 只有 `chamfer(d)` / `chamferDistAngle(d,angle)`，**无双距离通道**（`workplane.ts:5312` 的显式抛错是正确终态）⇒ 整项移 **B6-9 / G-F11**，本批**无剩余** | 1→**0** | — |
 | **B1-11** | **G-B3 mirror transpile 映射** | — | `.all()/.end()/.val()/.vals()` 进 `transpile.ts`（即便当前 mirror 0 处，为双端完整） |
 | **B1-12** | **G-A2/G-A3 Shape 域 kind + `_collectProperty` 特例** | 2 | `Shells()/CompSolids()/Compounds()` + Solid→Compounds 特例 |
 
@@ -339,6 +347,7 @@
 | **B6-6** | **G-F3 loft-coplanar-sections** | 1 | `ThruSections` 参数 |
 | **B6-7** | **G-F8 step-export-wire-fidelity** | 1 | STEP writer 保真 |
 | **B6-8** | **G-F6 crash-polygon-cutThruAll** | 1 | 崩溃根因 |
+| **B6-9** | **G-F11 chamfer 双距离**（`narrow:chamfer-asym`）—— 2026-10-03 从 B1-10 移入（定性见 G-F11） | 1 | `BRepFilletAPI_MakeChamfer::Add(d1,d2,E,F)` + edge→face map |
 
 > 内核跟踪文档：`docs/analysis/2026-09-29-occt-wasm-gap-plan.md`（§10.1 fillet-chain / §10.4 prism-from-face）。**本表逐项对应过去，不再是「已定性、不排期」。**
 
@@ -346,7 +355,7 @@
 
 ## 4. 每批的验收判据（硬门禁，不过 = 本批不做成）
 
-1. **全量 parity 零回归**：`npx tsx tests/run-cand.ts` + `npx tsx tests/compare.ts` ⇒ 464 个 mirror 的 `cq.val()` 产物几何逐位不变（新解锁项允许新增 PASS，但不许让既有 PASS 翻红）。
+1. **全量 parity 零回归**：`npx tsx tests/run-cand.ts` + `npx tsx tests/compare.ts` ⇒ 480 个 mirror 的 `cq.val()` 产物几何逐位不变（新解锁项允许新增 PASS，但不许让既有 PASS 翻红）。**PASS-NT（几何逐位一致、仅拓扑差）算通过**——`compare.ts:155` 的 parity 口径就是 `(pass + passNt) / refCaseCount`；但必须在镜像注释 + manifest `reason` 里写明差异（如 `pass-nt:mirror-seam`）。
 2. **包内单测全绿**：`npm run test -w @faicad/faijs-cadquery`（`pretest` 会先 build；改 `src/` 后 CLI 走 `dist`，**别用陈旧产物测**）。
 3. **门禁全过**：`npm run typecheck -w @faicad/faijs-cadquery`（根 `tsc` 10 项既有红属基线，**对基线取差**）、`npm run lint`、根 `verify-export-jsdoc`（新导出必须有 JSDoc）、`check-ghost-deps`、`check-lockstep`（若动版本）。
 4. **变异测试做过**：把新实现的关键分支改坏，断言必须变红。**没做过变异测试的断言不算验证。**
