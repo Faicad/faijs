@@ -114,6 +114,7 @@ jobs:
           node scripts/check-core-no-brepjs.mjs
           node scripts/check-lib-src-language.mjs
           node scripts/check-test-fs-scope.mjs
+          node scripts/check-tsconfig-paths.mjs
 
       # 6/9
       - name: Demo e2e (dev server, workspace dist)
