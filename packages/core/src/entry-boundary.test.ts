@@ -7,7 +7,7 @@
  * 被 vite 静态解析，而 weapp 专用 npm 包在 web 侧不存在）。
  */
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -100,16 +100,21 @@ describe('browser umbrella must not contain brepkit', () => {
 })
 
 describe('weapp worker host constraints (3d_editor side)', () => {
-  const workerSrc = readFileSync(
-    path.resolve(srcDir, '../../../../3d_editor/packages/platform/src/weapp/faijs.worker.ts'),
-    'utf-8',
+  // This guard reads a file in the *sibling* 3d_editor checkout, which exists
+  // only in a developer's local workspace (faijs and 3d_editor side by side).
+  // CI checks out faijs alone, so the file is absent there and the guard has
+  // nothing to assert — skip instead of failing the suite.
+  const workerPath = path.resolve(
+    srcDir,
+    '../../../../3d_editor/packages/platform/src/weapp/faijs.worker.ts',
   )
+  const workerSrc = existsSync(workerPath) ? readFileSync(workerPath, 'utf-8') : null
 
-  it('weapp worker must not import the browser umbrella', () => {
+  it.skipIf(workerSrc === null)('weapp worker must not import the browser umbrella', () => {
     expect(workerSrc).not.toMatch(/from\s+['"]@faicad\/faijs(-core)?\/browser['"]/)
   })
 
-  it('weapp worker imports brepkit symbols from the weapp entry, not deep paths', () => {
+  it.skipIf(workerSrc === null)('weapp worker imports brepkit symbols from the weapp entry, not deep paths', () => {
     // After migration the worker should use '@faicad/faijs/weapp' (or faijs-core/weapp)
     // for brepkit symbols; deep brepkit-kernel imports are the old leaky path.
     expect(workerSrc).not.toMatch(/from\s+['"]@faicad\/faijs(-core)?\/brepkit-kernel\//)

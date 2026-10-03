@@ -96,11 +96,11 @@ async function main(): Promise<void> {
   console.log(`   参考体积 = ${c.volume}`)
 
   // ⑥ 布尔差诊断（STEP 比对里的 boolean diff 失败时看这里）
-  const { readFileSync } = await import('node:fs')
   const { stepPath } = await import('../src/fixtures')
   const { buildOurShape } = await import('./export-ours')
   const ours = buildOurShape(kernel, c, strategy)
-  const ref = kernel.importStep(readFileSync(stepPath(c.id)).buffer as ArrayBuffer)
+  const { readFileArrayBuffer } = await import('@faicad/faijs/io/bytes')
+  const ref = kernel.importStep(readFileArrayBuffer(stepPath(c.id)))
   console.log('⑥ 布尔差：')
   info(kernel, ours, 'ours')
   info(kernel, ref, 'reference')

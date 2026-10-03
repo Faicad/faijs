@@ -14,3 +14,4 @@ export {
   DEFAULT_MAX_TOTAL_BYTES,
   type ZipReadOptions,
 } from './zip'
+export { toArrayBuffer, readFileArrayBuffer } from './bytes'

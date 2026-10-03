@@ -10,7 +10,6 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { readFileSync } from 'node:fs'
 import type { HostPorts } from '../cad-runtime/ports'
 import {
   configureBackends,
@@ -26,12 +25,15 @@ import { asPartName } from '../identity'
 import type { RoleTable } from '../topology/naming/types'
 import type { StmtId } from '../identity'
 import { createEditorRuntime } from '../test-support/editor-ops'
+import { readFileArrayBuffer } from '../io/bytes'
 
 // ── 素材与 helpers ──
 
-const STEP_BUFFER = readFileSync(
-  new URL('../../../fixtures/data/box_boss.step', import.meta.url),
-).buffer
+// GOTCHA：不能用 `readFileSync(url).buffer` —— 那是 Buffer 的**底层存储**，Node 24
+// 上来自共享池（文件字节在非零 byteOffset，存储比文件大）。occt-wasm 的
+// importStep 会 `TextDecoder().decode(整个 ArrayBuffer)`，池残留会被当成 STEP
+// 正文解析，CI(Node 24) 报 "Line 2: unexpected QUID, expecting STEP"。见 io/bytes.test.ts。
+const STEP_BUFFER = readFileArrayBuffer(new URL('../../../fixtures/data/box_boss.step', import.meta.url))
 
 function makeBackends(mode: 'auto' | 'brep' | 'mesh', kernelBrep?: unknown, assets?: unknown): Backends {
   return {

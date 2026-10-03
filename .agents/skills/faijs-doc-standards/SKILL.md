@@ -18,6 +18,7 @@ When writing or editing documentation in the faijs repository, follow these stan
 3. One physical line per prose paragraph
 4. Bilingual pairing required for standing docs and Agent Notes (not for `docs/plans/` or `docs/analysis/`)
 5. Run `npm run doc-sync` before submitting
+6. `docs/plans/` design documents must open with a provenance line naming the producing agent (model) and application, e.g. `- 产出：deepseek-V4.1-Flash + Workbuddy`
 
 ## See also
 
