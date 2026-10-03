@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-cadquery",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "type": "module",
   "license": "AGPL-3.0-only",
   "repository": {
@@ -48,10 +48,10 @@
   },
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.27.0",
+    "@faicad/faijs": "^0.28.0",
     "occt-wasm": "^3.8.0",
-    "@faicad/faijs-sketch": "^0.27.0",
-    "@faicad/faijs-extra": "^0.27.0"
+    "@faicad/faijs-sketch": "^0.28.0",
+    "@faicad/faijs-extra": "^0.28.0"
   },
   "devDependencies": {
     "@faicad/cq-compat-compare": "file:../cq-compat-compare",
