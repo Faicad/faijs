@@ -93,11 +93,37 @@
 - **改动位置**：sweep op 实现（`packages/core`）；翻译侧 gap 归类在 `packages/faijs-freecad/src/feature-translate.ts`。
 - **判据**：取点 run ok（实现）或转 stage1 gap（显式上报），不再以 run-fail 形态出现。
 
-### I 组：com 大偏移 253 + bbox 失配（C2 后残余 attachment 链）
+### I 组：com 大偏移 253 + bbox 失配 —— **已定性（2026-10-03），faijs 侧无缺陷，原「每档一个 singleFix」作废**
 
 - **取点**：从 parity verdicts 取 `com >= 1` 的文件按 offset 分档（1~10 / 10~100 / >=100），各取 1 个。
-- **做法**：对齐 10-01 plan §C2 的三层实证法（生成码 → truth 口径 → OCP 数值），逐档定性：attachment 模式未翻译 / Placement 组合语义 / 多终端加权口径。
-- **判据**：每档一个 singleFix；取点文件 com 退出 fail 列表。
+- **做法**：对齐 10-01 plan §C2 的三层实证法（生成码 → truth 口径 → OCP 数值），逐档定性。
+- **原判据「每档一个 singleFix」已作废** —— 实测 253 个里 faijs 侧帧缺陷 **0 个**。分类器
+  `fcstd-port/tools/_i-group-triage.py`（产物 `out/i-group-triage.json`）对每个文件算
+  A=root `.brp` 裸读、B=A+各 root 的 Document Placement、T=磁盘 truth：
+
+  | 分类 | 数量 | 含义 |
+  |---|---|---|
+  | `B==A` | **185** | Placement 对该文件无影响 ⇒ com 偏移另有根因，不是帧问题 |
+  | `TRUTH-DOUBLE-APPLY` | **33** | **truth 侧缺陷**，faijs 是对的 |
+  | neither（T≠A 且 T≠B） | 34 | truth 磁盘记录与本模块算法不一致，未定性 |
+  | `faijs-missed-placement` | 1 | 后证为**分类器缺陷**：`xtal-2016` 的 truth volume 恰为 A 的一半（2.909331 vs 5.818662），而 `same()` 只比 bbox+com 未比 volume，误判 |
+
+- **TRUTH-DOUBLE-APPLY 的机理（两个独立取点复现）**：Tapon / Caisson 的 root 特征自身
+  Document Placement 是 90°X 旋转（Q=0.7071,0,0,0.7071），而该特征的 `.brp` **已经烘焙了**
+  这个旋转；`export-fcstd-truth.py` 无条件再施放一次 ⇒ truth 是同一实体被转了两次。
+  同一文档内**草图的 `.brp` 相反**（`PartShape.brp` 裸读是未旋转的 sketch 局部坐标），所以
+  对草图施放是对的 —— 两种约定在一个文档里共存，「对每个 root 一律施放」只对后者成立。
+  - 数值证据（Tapon，OCP）：brp 裸读 `vol=3211.434185 bbox=[-16,-16,0, 16,16,12.25] com=[0,0,7.6153]`；
+    truth 记录 `bbox=[-16,-12.25,-16, 16,0,16] com=[0,-7.6153,0]`；**faijs 导出逐位等于前者**。
+  - faijs 侧没跟着错，是因为 C3 的 `sketchCarriesFrame` guard 抑制了 M8.3 的 `cad.place`。
+  - 判别器：`fcstd-port/tools/_i-group-frame-probe.py <corpus-rel>…` 打印 A / B / T 三行。
+- **留档**：`packages/faijs-freecad/src/i-group-frame-e2e.test.ts`（5 用例，两样本 e2e +
+  「raw 与 truth 只差一个 90°X 旋转」的冻结断言）。变异验证：把「无 `cad.place`」断言翻成
+  要求有 ⇒ 套件变红，断言承重。
+- **后续**：33 个 truth 侧缺陷要修在 `export-fcstd-truth.py`（判据：对 root **特征**的 `.brp`
+  先探 `Locations` 头，旋转已烘焙则不再施放），属 truth 口径变更，**须用户批准**（同 L 组
+  的审批性质）。185 个 `B==A` 的 com 偏移与 34 个 neither 需另起根因分析，不是帧问题。
+
 
 ### J 组：stage2 failed 40 补跑（工具卫生，半小时）
 
@@ -124,7 +150,7 @@
 | F | kernel-boolean 取点转 ok + 降级链单测留档 |
 | G | edgeRef 取点转 ok 或归因 G3 记档 |
 | H | sweep-transition 消失于 run-fail（实现或显式 gap） |
-| I | com/bbox 每档取点转 pass |
+| I | ~~com/bbox 每档取点转 pass~~ → **已定性：faijs 侧帧缺陷 0；33 个是 truth 侧双重施放（待批准修 truth），185 个 `B==A` 另查根因** |
 | J | state 无 failed 假记录 |
 | K | gap 97 逐类下降 |
 | L | promote 与 truth 口径变更经用户批准 |
