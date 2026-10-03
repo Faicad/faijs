@@ -45,7 +45,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 | 命令 | 说明 |
 |---|---|
-| `npm run build` | 按序构建：`core` → `faijs-draw` → `faijs-extra` → `sheetmetal`（`tsc` 编译各包 src → dist；demo e2e 消费这些包的 dist，见下） |
+| `npm run build` | 按序构建：`core` → `faijs-draw` → `faijs-sketch` → `faijs-extra` → `sheetmetal`（`tsc` 编译各包 src → dist；demo e2e 与 faijs-cadquery / cq-compat-compare 的 pretest 构建消费这些包的 dist） |
 | `npm run build -w <pkg>` | 单包构建，如 `npm run build -w @faicad/faijs` |
 | `npm run pack` | 构建（workspaces 顺序即依赖拓扑）+ 逐包 `npm pack`，tgz 落在各包目录。开关：`--only <pkg>`、`--no-build`、`--dry-run`、`--strict-lockstep` |
 | `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |

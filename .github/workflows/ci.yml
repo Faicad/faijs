@@ -49,10 +49,12 @@ jobs:
           npm run typecheck
           npm run typecheck --workspaces --if-present
 
-      # 3/9 — build every demo-required dist BEFORE running tests: demo is a
-      # workspace member consuming @faicad/* through each package's dist/
-      # (no src aliases), so a fresh checkout has nothing until this runs.
-      - name: Build (core → faijs-extra → sheetmetal)
+      # 3/9 — build every dist needed before tests: demo consumes @faicad/*
+      # through each package's dist/ (no src aliases), and per-package
+      # pretest builds (faijs-cadquery, cq-compat-compare) resolve
+      # @faicad/faijs-sketch via node_modules -> dist. A fresh checkout has
+      # nothing until this runs.
+      - name: Build (core → draw → sketch → extra → sheetmetal)
         run: npm run build
 
       # 4/9 — per-package tests. faijs-gears only runs its lightweight core
