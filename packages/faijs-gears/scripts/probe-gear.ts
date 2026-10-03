@@ -99,7 +99,7 @@ async function main(): Promise<void> {
   const { stepPath } = await import('../src/fixtures')
   const { buildOurShape } = await import('./export-ours')
   const ours = buildOurShape(kernel, c, strategy)
-  const { readFileArrayBuffer } = await import('@faicad/faijs/io/bytes')
+  const { readFileArrayBuffer } = await import('@faicad/faijs/io/bytes-node')
   const ref = kernel.importStep(readFileArrayBuffer(stepPath(c.id)))
   console.log('⑥ 布尔差：')
   info(kernel, ours, 'ours')

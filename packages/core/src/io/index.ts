@@ -14,4 +14,7 @@ export {
   DEFAULT_MAX_TOTAL_BYTES,
   type ZipReadOptions,
 } from './zip'
-export { toArrayBuffer, readFileArrayBuffer } from './bytes'
+// toArrayBuffer is browser-safe; readFileArrayBuffer is Node-only and lives in
+// bytes-node.ts — exporting it here would pull node:fs into browser bundles
+// (seen as a hard rollup error in the 3d_editor web build).
+export { toArrayBuffer } from './bytes'

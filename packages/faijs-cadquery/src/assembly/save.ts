@@ -6,9 +6,9 @@
  * solve()/toCompound()；save()/importStep()/load() 仅在 Node（CLI / 测试）使用。
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { getBackends } from '@faicad/faijs/runtime-state'
-import { readFileArrayBuffer } from '@faicad/faijs/io/bytes'
+import { readFileArrayBuffer } from '@faicad/faijs/io/bytes-node'
 import { brepOf, fromBrep } from '@faicad/faijs/shape'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import { exportStepFromSolids } from '@faicad/faijs/brep/export/step'

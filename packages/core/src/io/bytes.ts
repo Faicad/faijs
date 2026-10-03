@@ -18,9 +18,11 @@
  *   holding a `Buffer`/subarray does not have to slice it by hand.
  * - Zero-copy is deliberately not attempted: the sources are whole-file reads,
  *   where one copy is cheaper than reasoning about who else owns the store.
+ *
+ * Browser-safe: this module must stay free of node: imports — it is
+ * re-exported from `io/index.ts`, which is imported by browser bundles. The
+ * Node-only file reader lives in `io/bytes-node.ts` (`@faicad/faijs/node`).
  */
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
 /**
  * Copy a BufferSource into a standalone ArrayBuffer sized exactly to its bytes.
@@ -40,17 +42,4 @@ export function toArrayBuffer(source: BufferSource): ArrayBuffer {
     (source as ArrayBufferView).byteLength,
   )
   return view.slice().buffer as ArrayBuffer
-}
-
-/**
- * Read a file into a standalone ArrayBuffer sized exactly to the file.
- *
- * Equivalent to `toArrayBuffer(readFileSync(path))`; provided so filesystem
- * callers do not have to remember why the `.buffer` shorthand is unsafe.
- *
- * @param path - filesystem path to read, as a string or a `file:` URL.
- * @returns a new ArrayBuffer owned solely by the caller.
- */
-export function readFileArrayBuffer(path: string | URL): ArrayBuffer {
-  return toArrayBuffer(readFileSync(fileURLToPath(path)))
 }

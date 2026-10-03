@@ -20,7 +20,8 @@
  */
 import { describe, it, expect } from 'vitest'
 import { Buffer } from 'node:buffer'
-import { toArrayBuffer, readFileArrayBuffer } from './bytes'
+import { toArrayBuffer } from './bytes'
+import { readFileArrayBuffer } from './bytes-node'
 
 /** Node's shared Buffer pool; a Buffer below half of it is carved out of this. */
 const POOL_BYTES = 8192

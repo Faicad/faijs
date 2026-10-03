@@ -25,7 +25,7 @@ import { asPartName } from '../identity'
 import type { RoleTable } from '../topology/naming/types'
 import type { StmtId } from '../identity'
 import { createEditorRuntime } from '../test-support/editor-ops'
-import { readFileArrayBuffer } from '../io/bytes'
+import { readFileArrayBuffer } from '../io/bytes-node'
 
 // ── 素材与 helpers ──
 
