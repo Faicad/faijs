@@ -380,10 +380,11 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testCylinderPlugin__s": {
-    "status": "blocked",
+    "status": "skipped",
     "source": "tests.test_cadquery::TestCadQuery::testCylinderPlugin",
-    "blockedBy": "op:Workplane.plugin",
-    "manual": true
+    "blockedBy": null,
+    "manual": true,
+    "reason": "out-of-scope: CadQuery 1.x plugin/monkey-patch extensibility pattern (Workplane.plugin + class-method monkeypatch), removed in 2.x; explicitly unsupported, like VTK/GLTF/VRML exporters (roadmap §2.3). Not a future gap — the underlying eachpoint-lambda capability is tracked separately by G-C25 / testCompoundCenter__s."
   },
   "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft__s": {
     "status": "ported",
@@ -3172,15 +3173,18 @@
     "manual": true
   },
   "tests.test_assembly:::test_vtkjs_export__nested_assy": {
-    "status": "blocked",
+    "status": "skipped",
     "source": "tests.test_assembly:::test_vtkjs_export",
-    "blockedBy": "exportVTKJS"
+    "blockedBy": null,
+    "manual": true,
+    "reason": "out-of-scope: VTK.js visualization exporter (roadmap §2.3). Explicitly unsupported — faijs UI preview uses lightweight ghost/overlay rendering, not exported geometry."
   },
   "tests.test_assembly:::test_vrml_export__simple_assy": {
-    "status": "blocked",
+    "status": "skipped",
     "source": "tests.test_assembly:::test_vrml_export",
-    "blockedBy": "export",
-    "manual": true
+    "blockedBy": null,
+    "manual": true,
+    "reason": "out-of-scope: VRML visualization exporter (roadmap §2.3). Like GLTF/VTK.js — explicitly unsupported; faijs UI preview uses lightweight ghost/overlay rendering, not exported geometry."
   },
   "tests.test_assembly:::test_toJSON__simple_assy": {
     "status": "ported",
@@ -3203,9 +3207,11 @@
     "blockedBy": "parametrize"
   },
   "tests.test_assembly:::test_export_vtkjs__nested_assy": {
-    "status": "blocked",
+    "status": "skipped",
     "source": "tests.test_assembly:::test_export_vtkjs",
-    "blockedBy": "export"
+    "blockedBy": null,
+    "manual": true,
+    "reason": "out-of-scope: VTK.js visualization exporter (roadmap §2.3). Explicitly unsupported — faijs UI preview uses lightweight ghost/overlay rendering, not exported geometry."
   },
   "tests.test_assembly:::test_export_errors__nested_assy": {
     "status": "blocked",
@@ -3219,26 +3225,32 @@
     "manual": true
   },
   "tests.test_assembly:::test_save_gltf__nested_assy_sphere": {
-    "status": "blocked",
+    "status": "skipped",
     "source": "tests.test_assembly:::test_save_gltf",
-    "blockedBy": "exportGLTF",
-    "manual": true
+    "blockedBy": null,
+    "manual": true,
+    "reason": "out-of-scope: glTF visualization exporter (roadmap §2.3). Explicitly unsupported — faijs UI preview uses lightweight ghost/overlay rendering, not exported geometry."
   },
   "tests.test_assembly:::test_exportGLTF__nested_assy_sphere": {
-    "status": "blocked",
+    "status": "skipped",
     "source": "tests.test_assembly:::test_exportGLTF",
-    "blockedBy": "exportGLTF"
+    "blockedBy": null,
+    "manual": true,
+    "reason": "out-of-scope: glTF visualization exporter (roadmap §2.3). Explicitly unsupported — faijs UI preview uses lightweight ghost/overlay rendering, not exported geometry."
   },
   "tests.test_assembly:::test_save_gltf_boxes2__boxes2_assy": {
-    "status": "blocked",
+    "status": "skipped",
     "source": "tests.test_assembly:::test_save_gltf_boxes2",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null,
+    "manual": true,
+    "reason": "out-of-scope: glTF visualization exporter (roadmap §2.3). Explicitly unsupported — faijs UI preview uses lightweight ghost/overlay rendering, not exported geometry."
   },
   "tests.test_assembly:::test_save_vtkjs__nested_assy": {
-    "status": "blocked",
+    "status": "skipped",
     "source": "tests.test_assembly:::test_save_vtkjs",
-    "blockedBy": "exportVTKJS",
-    "manual": true
+    "blockedBy": null,
+    "manual": true,
+    "reason": "out-of-scope: VTK.js visualization exporter (roadmap §2.3). Explicitly unsupported — faijs UI preview uses lightweight ghost/overlay rendering, not exported geometry."
   },
   "tests.test_assembly:::test_save_raises__nested_assy": {
     "status": "blocked",

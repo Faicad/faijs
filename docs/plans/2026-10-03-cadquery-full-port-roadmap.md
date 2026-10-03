@@ -12,7 +12,7 @@
 
 ## 0. 定位与立场（**读这一节就够知道本文和旧文档差在哪**）
 
-1. **唯一排除项是 UI 层的可视化发布导出器**：`GLTF` / `VTK.js` / `VRML`（外加 `toJSON` —— Jupyter/网页显示用的 Python 对象协议）。它们是给「看图」用的出口，不是建模能力，与 faijs「mesh 是正式数据、不是预览」的定位无关。**除此之外，本条路线图不写「已决策不做」。**
+1. **唯一排除项有两类**：(a) UI 层可视化发布导出器 `GLTF` / `VTK.js` / `VRML`（共 **7** 条，见 §2.3）；(b) CadQuery 1.x 遗留的插件模式 `Workplane.plugin`（类方法猴补，2.x 已移除，**1** 条，见 §2.3）。两者均**非未来缺口**、明确不支持。`toJSON` 显示协议实际已实现（**ported**），不在此列。**除此之外，本条路线图不写「已决策不做」。**
 2. **所有缺口都是要完成的项目。** 差别只在难度与依赖：
    - **本仓可做** ⇒ 排在 B0–B4；
    - **需先扩 occt-wasm 绑定** ⇒ 排在 B6，是**排期问题，不是「不做」**；
@@ -26,7 +26,7 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 468 ported / 182 blocked / 47 skipped** | `tests/manifest.json`（2026-10-03 **B1-3a 后**实读） |
+| **manifest**（导出变量级） | **697 = 468 ported / 174 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 实读：plugin 1 + 可视化 7 已重分类 skipped） |
 | **coverage**（上游测试函数级） | **305 = 201 PORTABLE / 41 PORTABLE-WITH-STUB / 55 BLOCKED** | `tests/coverage.json`（2026-10-03 **B0 重算后**实读：`portableNow 201` / `portableWithStub 41` / `blocked 55`） |
 | **镜像文件** | **480** 个 `.fai.js` + **12** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-03 **B1-3a 后**实测） |
 | **包内单测** | 548 全绿（46 文件） | P3-4 收官实测 |
@@ -67,7 +67,7 @@
 
 > **B1-7 对分布的影响**：关掉 `op:wedge-degenerate-top`(3) ⇒ distinct 64→63、blocked 总数 193→190、ported 457→460（新增 3 条 `testWedge*` 镜像）。**coverage 函数级不变**（`wedge` 早已 PORTABLE，见 §1 的两个分母不可换算）。
 
-> **B1-3a 对分布的影响**：关掉 `op:Solid.makeCone`(1) / `op:CQ`(1) / `op:polyline`(1，**陈旧标签** —— `Workplane.polyline` 早已存在，缺的只是镜像) ⇒ distinct 63→58、blocked 总数 190→185、ported 460→465（新增 `testCone__s` / `testCone__t` / `testIbeam__res` / `testBoundingBox__result` / `testFindSolid__s` 五条镜像）。`op:Workplane.plugin` 保持 blocked（见下行）。
+> **B1-3a 对分布的影响**：关掉 `op:Solid.makeCone`(1) / `op:CQ`(1) / `op:polyline`(1，**陈旧标签** —— `Workplane.polyline` 早已存在，缺的只是镜像) ⇒ distinct 63→58、blocked 总数 190→185、ported 460→465（新增 `testCone__s` / `testCone__t` / `testIbeam__res` / `testBoundingBox__result` / `testFindSolid__s` 五条镜像）。`op:Workplane.plugin` 已于 2026-10-04 重分类为 **skipped**（out-of-scope，归 §2.3，类 VTK/GLTF）—— 非未来缺口（其底层 `eachpoint` lambda 仍由 G-C25 跟踪）。
 >
 > **B1-3a 实测订正（镜像约定，补 B0-6）**：B0-6 记「双终端是 compound 专属」——**不完整**。实测 `let s = <lib 函数产出的裸 Shape>` + `let t = await cq.CQ(s)` 也会导出 **两个终端**（`_0_s.step` + `_1_result.step`），即「被 lib 函数调用消费」不足以把裸 Shape 记为已消费（Workplane 值本来就不是终端，所以链式 Workplane 中间量没问题）。**写法纪律：裸 Shape 一律内联进消费它的调用，不单独 `let`。**（已写进 `TestCadQuery__testCone__t.fai.js` 的 GOTCHA 注释。）
 >
@@ -142,12 +142,12 @@
 | **G-C17** ✅ **已关 2026-10-03（B1-7）** | `wedge` 退化顶面（`op:wedge-degenerate-top`）—— `xmin==xmax && zmin==zmax` 时底环 → 顶点 loft（`loftWithVertices`） | **3→0** | — |
 | **G-C18** | `History` 子形状反查（`op.generated/first/last`） | **3** | 3 |
 | **G-C19** | Shape **运算符重载**（`faces(">Z") \| faces("<Z")`）—— ⚠ **2026-10-03 实测订正**：JS 无运算符重载，`.fai.js` 是 JS 子集 ⇒ 需要 core `lang/` 语法层扩展（非本仓单独立项）；且 `test_set_ops` **只断言 `.size()`**（非几何），parity 本就无法验证它 ⇒ **保持 blocked，不写 stub 镜像**（与 `importBin` 的几何锚点 stub 同样处理：不冒充 ported） | **1** | 4（core） |
-| **G-C20** | 零散 free：~~`Solid.makeCone`~~ / ~~`CQ()` 包装~~ / ~~`Workplane.polyline`（陈旧标签）~~（**三项已关 2026-10-03 B1-3a**）/ `Workplane.plugin`（需 lambda + 猴补，**不可行**→G-C25）/ free `threePointArc`（待判） | **5→1** | 2 |
+| **G-C20** | 零散 free：~~`Solid.makeCone`~~ / ~~`CQ()` 包装~~ / ~~`Workplane.polyline`（陈旧标签）~~（**三项已关 2026-10-03 B1-3a**）/ `Workplane.plugin`（CadQuery 1.x 遗留，`Workplane.plugin` 方法 2.x 已移除；明确不支持，归 §2.3 排除，类 VTK/GLTF）/ free `threePointArc`（待判） | **5→1** | 2 |
 | **G-C21** | IO：`importBrep`（5）/ `importBin`（2）/ `export`（native BREP + STL 变体；**VRML/GLTF/VTK.js 归 §2.3 排除**） | **12** | 2 |
 | **G-C22** | `sweep-sketch-sections`（1）+ `extrude-taper-sketch`（1） | **2** | 3 |
 | **G-C23** | `shell`（`op:shell` 2）+ `pendingWires` 多轮廓（1） | **3** | 3 |
 | **G-C24** | `CombinedCenter`（1）/ `filter`（3）/ `matrixOfInertia`（1）/ `cast`（1）/ `largestDimension`（1）/ `consolidateWires` | **8** | 2 |
-| **G-C25** | `eachpoint` **lambda 形态**（对象形态已实现；`.fai.js` 无函数字面量需语法支持）—— **2026-10-03 归并**：`op:eachpoint`（`testCompoundCenter__s`）、`op:Workplane.plugin`（`testCylinderPlugin__s`）、`narrow:cutEach` 的 lambda 形态、`narrow:filter`（`test_special`）**四条同源**——都要「函数字面量 +（plugin 还要）类猴补」，同属 `.fai.js` 语法扩展长线 | **4** | 4 |
+| **G-C25** | `eachpoint` **lambda 形态**（对象形态已实现；`.fai.js` 无函数字面量需语法支持）—— **2026-10-03 归并**（plugin 已于 2026-10-04 移出，归 §2.3 排除）：`op:eachpoint`（`testCompoundCenter__s`）、`narrow:cutEach` 的 lambda 形态、`narrow:filter`（`test_special`）**三条同源**——都要「函数字面量」，同属 `.fai.js` 语法扩展长线 | **3** | 4 |
 | **G-C26** | `narrow:sphere-angles`（3）+ `narrow:chamfer-asym`（1）：参数未打通（faijs 侧，待判定） | **4** | 2 |
 | **G-C27** | **Assembly 子路径导入被自动装载成根包命名空间**（`test_toCompound__assy1` / `__c3`）：镜像 specifier 正确（`@faicad/faijs-cadquery/assembly`），但 core `lang/metadata-extractor.ts:145` 的 `derivePackageName()` **丢掉子路径**（`@faicad/faijs-cadquery/assembly` → `@faicad/faijs-cadquery`）；`runtime.autoLoadLibsFromImports`（`cad-runtime/runtime.ts:1212`）遂 `loadLib(packageName)` 装载**根包** ⇒ 运行时 `cqa.constraint is not a function`（root 不导出 assembly API）。**根因在 core，改 core 需授权**；**非「陈旧 dist」**——`dist/assembly/index.js` 确实导出 `constraint` 且是新鲜产物（B0 期间误判，2026-10-03 实测证伪）。 | **2** | 3 |
 
@@ -195,13 +195,14 @@
 | **G-G2** | `ref:degenerate-compound-vertex`（`test_loft_to_vertex__c` 的 ref 是退化 compound，comparator 布尔探针失败） | 需 comparator 支持非 solid 度量 |
 | **G-G3** | `testText__obj1` / `test_history_sweep__res` ref 异常（ref 是纯盒） | 已按 ref 冻结，注释钉死；不需动 |
 
-### 2.3 唯一排除项（**只有这一条**）
+### 2.3 唯一排除项（**两类**）
 
 | 项 | 影响 | 理由 |
 |---|---|---|
-| `GLTF` / `VTK.js` / `VRML` 导出 + `toJSON` | manifest 5 条（`exportGLTF` 2 / `exportVTKJS` 2 / 含 VRML 的 `export` 之一）+ coverage `export` 的一部分 | 它们是上游 **Assembly 的可视化发布导出器 / Python 显示协议**，是「看图」出口而非建模能力。faijs 侧 UI 预览走**更轻量**的幽灵渲染/叠加层，不依赖导出几何。内核也**并非做不到**（`occt-wasm` 有 `XAFDocument.exportGLTF()`），**不做的理由是「没有需求」**。 |
+| `GLTF` / `VTK.js` / `VRML` 可视化导出器 | manifest **7** 条：VTK.js 3（`test_vtkjs_export` / `test_save_vtkjs` / `test_export_vtkjs`）、glTF 3（`test_save_gltf__nested_assy_sphere` / `test_exportGLTF__nested_assy_sphere` / `test_save_gltf_boxes2`）、VRML 1（`test_vrml_export`） | 它们是上游 **Assembly 的可视化发布导出器**，是「看图」出口而非建模能力。faijs 侧 UI 预览走**更轻量**的幽灵渲染/叠加层，不依赖导出几何。内核也**并非做不到**（`occt-wasm` 有 `XAFDocument.exportGLTF()`），**不做的理由是「没有需求」**。 |
+| `Workplane.plugin` / CadQuery 插件模式（类方法猴补 + `eachpoint` lambda） | manifest 1 条（`testCylinderPlugin__s`） | CadQuery 1.x 遗留 API（`Workplane.plugin` 方法在 2.x 已彻底移除）。上游 `testCylinderPlugin` 仅演示「给 `Workplane` 类动态挂自定义方法、内部调 `eachpoint`」的扩展模式——并非独立建模能力。faijs 不提供类猴补/函数字面量通道（`.fai.js` 是 JS 子集、无 lambda），且此模式无需求 ⇒ **明确不支持，非未来缺口**。底层 `eachpoint` lambda 能力仍由 G-C25 / `testCompoundCenter__s` 跟踪。 |
 
-> **边界说明**：`export`（manifest 5 条）里含 **native/BREP** 与 **STL 变体** —— 这两类是**建模数据出口，不是 UI 层**，**保留为待办**（见 G-C21）。只有其中的 **VRML/GLTF/VTK.js** 归本条排除。
+> **边界说明**：`export`（blockedBy=`export` 现剩 3 条：`native_export` / `save_stl_formats` / `export_errors`）里含 **native/BREP** 与 **STL 变体** —— 这两类是**建模数据出口，不是 UI 层**，**保留为待办**（见 G-C21）。其中的 **VRML/GLTF/VTK.js 共 7 条**已重分类为 `skipped`，归本条排除。
 
 ---
 
@@ -257,7 +258,7 @@
 |---|---|---|---|
 | **B1-1** ⚠ **2026-10-03 二次订正（无 ref ⇒ 不进 parity）** | ~~**G-C21 IO 通道**~~：① `out/ref/` 里**没有** `test_bin_import_export` 的参考 STEP（实测 `ls out/ref \| grep -i bin_import` = 0 条）⇒ 这 2 条**永远无法配对**，补镜像也不产生 parity 信号；② 真阻塞是内核只暴露 `loadCached(brepString)`（读）而**没有 BREP 字节写出通道**（occt-wasm 只 `exportStep`/`exportStl`），且 `.fai.js` 无文件 IO ⇒ 端到端 importBin 需要内核补「写出」绑定；③ `importBrep` 标签实测 0、`export` 5 条归 B5/§2.3（同前）⇒ **净收益 0，本项降为「内核依赖 + 无 ref」，从 B1 移出**（保留 `importBin` 标签） | **2→0（不进 parity）** | 内核 `BRepTools` 写出绑定 |
 | **B1-2** | **G-C24 零散值面**（filter 3 / CombinedCenter 1 / matrixOfInertia 1 / cast 1 / largestDimension 1 / consolidateWires） | 8 | 多为 Shape 域小函数 + Workplane 镜像 |
-| **B1-3** ✅ **B1-3a 已完成 2026-10-03** | **G-C20 零散 free**（Solid.makeCone / CQ / Workplane.plugin / free threePointArc / free polyline）—— **B1-3a**：① `solidMakeCone(radius1, radius2, height)`（走内核 `makeCone`，因 core `cad.cone` 断言 `radiusBottom>0`、拒绝上游允许的「底半径=0」；`radius1` 是**底**半径，ref 质心 z=1.5 是判据）+ ② `CQ`（上游 `CQ = Workplane` 别名，`cq.py:4565`，`CQ(s)` = 以 s 为栈的 XY workplane，`parent=null`）⇒ `testCone__s` / `__t` 双 PASS；③ `op:polyline` 是**陈旧标签**（`Workplane.polyline` 早已存在，缺的是镜像）⇒ 补 `testIbeam__res`，**PASS-NT**（几何逐位一致 vol 5800 / 布尔差 0，镜像轴上有未愈合接缝：cand f15/e39/v26 vs ref f14/e36/v24）；④ `op:threePointArc` **同为陈旧标签** ⇒ 补 `testBoundingBox__result`（25 步摊平链），**PASS**（vol 13234.9225135，topo f26/e72/v48 全中）；⑤ `op:findSolid` **亦是陈旧标签**（P3 起已导出）⇒ 补 `testFindSolid__s`，**PASS**（两未合立方体的 compound，vol 2 / f12/e24/v16/s2）。7 单测 + 3 变异全绿。**剩余 1 项**：`Workplane.plugin`（需猴补类方法 + lambda，**不可行**，并入 G-C25） | 5→**1** | 自由函数构造器 + 类式包装 |
+| **B1-3** ✅ **B1-3a 已完成 2026-10-03** | **G-C20 零散 free**（Solid.makeCone / CQ / Workplane.plugin / free threePointArc / free polyline）—— **B1-3a**：① `solidMakeCone(radius1, radius2, height)`（走内核 `makeCone`，因 core `cad.cone` 断言 `radiusBottom>0`、拒绝上游允许的「底半径=0」；`radius1` 是**底**半径，ref 质心 z=1.5 是判据）+ ② `CQ`（上游 `CQ = Workplane` 别名，`cq.py:4565`，`CQ(s)` = 以 s 为栈的 XY workplane，`parent=null`）⇒ `testCone__s` / `__t` 双 PASS；③ `op:polyline` 是**陈旧标签**（`Workplane.polyline` 早已存在，缺的是镜像）⇒ 补 `testIbeam__res`，**PASS-NT**（几何逐位一致 vol 5800 / 布尔差 0，镜像轴上有未愈合接缝：cand f15/e39/v26 vs ref f14/e36/v24）；④ `op:threePointArc` **同为陈旧标签** ⇒ 补 `testBoundingBox__result`（25 步摊平链），**PASS**（vol 13234.9225135，topo f26/e72/v48 全中）；⑤ `op:findSolid` **亦是陈旧标签**（P3 起已导出）⇒ 补 `testFindSolid__s`，**PASS**（两未合立方体的 compound，vol 2 / f12/e24/v16/s2）。7 单测 + 3 变异全绿。**剩余 1 项**：free `threePointArc`（待判）；`Workplane.plugin` 明确不支持、已归 §2.3 排除（类 VTK/GLTF），非未来缺口 | 5→**1** | 自由函数构造器 + 类式包装 |
 | **B1-4** | **G-C3 remove** ⚠ **内核依赖**：上游 `Shape.remove` 用 `BRepTools_ReShape`（faijs 内核未暴露）⇒ 移 **B6**（或用 `getSubShapes + sew/compound` 近似后跑 parity；`test_remove` 需 `innerShells()`） | 5 | 见 B6 |
 | **B1-5** | **G-C6 free `plane()`** | 6 | 自由函数平面构造器（`plane(1,1)`） |
 | **B1-6** ✅ **已完成 2026-10-03** | **G-C10 extrude 变体**（both 2 / combine-cut 1 / combine-s 2）—— `extrude(wp,h,combine,{taper,both})`：`combine∈{cut,s}` 委托 `cutBlind`（cq.py:3063-3065）、`both=True` 从 ±h 两平面各挤 h 再 fuse（cq.py:3788-3792）；`cutBlind` 补方向号规则（`depth<0` 沿 −normal，cq.py:3526-3528）。5 条镜像（`testExtrude__{s,wp_ref,wp,wp_ref_regular_cut,r}`）+ 6 单测 + 4 变异全绿 | 5→**0** | 消费面参数通道 |

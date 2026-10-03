@@ -44,10 +44,14 @@ const BY_KEY: Record<string, string> = {
   //   and `CQ` (upstream's `CQ = Workplane` alias, cq.py:4565) builds an XY
   //   workplane seeded with a shape. testCone__s / testCone__t both carry mirrors
   //   and parity-PASS against their refs (vol 2.09439510239, com z 1.5).
-  //   NOTE: `Workplane.plugin` (testCylinderPlugin) stays blocked — it needs a
-  //   monkey-patched class method plus an `eachpoint` lambda, neither of which
-  //   the `.fai.js` subset can express (folds into G-C25).
-  'tests.test_cadquery::TestCadQuery::testCylinderPlugin__s': 'op:Workplane.plugin',
+  //   NOTE: `Workplane.plugin` / the CadQuery plugin-pattern (testCylinderPlugin)
+  //   is NOT a `blocked` (future-gap) case — it is explicitly OUT OF SCOPE and is
+  //   recorded as `skipped` in manifest.json (roadmap §2.3, like VTK/GLTF/VRML).
+  //   `Workplane.plugin` was a CadQuery 1.x method removed in 2.x; the upstream
+  //   test only demonstrates monkey-patching a class method (internally
+  //   `eachpoint(lambda) + union`). The underlying `eachpoint`-lambda capability
+  //   is a real future gap tracked separately by G-C25 / testCompoundCenter__s.
+  //   => removed from BY_KEY 2026-10-04 so gen-manifest won't re-pin it to blocked.
   // CLOSED 2026-10-03 (roadmap B1-3a, stale label #3): `findSolid` has been
   //   exported since the object-stack work (P3) — the label was stale. Mirror
   //   `testFindSolid__s` is a straight PASS (compound of the two uncombined
@@ -321,12 +325,12 @@ const BY_KEY: Record<string, string> = {
   'tests.test_assembly:::test_assembly_subshape_import__imported_assy': 'op:assembly-subshape-import',
   'tests.test_assembly:::test_assembly_multi_subshape_import__multi_subshape_assy': 'op:assembly-subshape-import',
   'tests.test_assembly:::test_assembly_multi_subshape_import__imported_assy': 'op:assembly-subshape-import',
-  // Export-format harness gaps (native/BREP, VRML, STL variants, glTF, VTK.js).
+  // Real export gaps that stay blocked (future work):
+  //   - native/BREP export (test_native_export), STL variants (test_save_stl_formats)
+  // Visualizer exporters (VRML / glTF / VTK.js) moved to `skipped` in manifest.json
+  // (roadmap §2.3) — explicitly unsupported, like Workplane.plugin.
   'tests.test_assembly:::test_native_export__simple_assy': 'export',
-  'tests.test_assembly:::test_vrml_export__simple_assy': 'export',
   'tests.test_assembly:::test_save_stl_formats__nested_assy_sphere': 'export',
-  'tests.test_assembly:::test_save_gltf__nested_assy_sphere': 'exportGLTF',
-  'tests.test_assembly:::test_save_vtkjs__nested_assy': 'exportVTKJS',
   // testCompoundCenter: Workplane.cyl monkeypatch over eachpoint (cylinder
   // placed at each construction-rect vertex, then unioned) — eachpoint is a
   // known gap.
