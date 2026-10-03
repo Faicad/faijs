@@ -1509,22 +1509,19 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testWedgeCombined__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testWedgeCombined",
-    "blockedBy": "op:wedge-degenerate-top",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testWedgeDefaults__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testWedgeDefaults",
-    "blockedBy": "op:wedge-degenerate-top",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testWedgePointList__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testWedgePointList",
-    "blockedBy": "op:wedge-degenerate-top",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove__s": {
     "status": "skipped",

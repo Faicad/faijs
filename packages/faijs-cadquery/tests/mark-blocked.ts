@@ -146,13 +146,15 @@ const BY_KEY: Record<string, string> = {
   // pending:mirror cleanup batch (2026-09-11) — verified unreproducible
   // ---------------------------------------------------------------------------
   // ---------------------------------------------------------------------------
-  // wedge() with a degenerate (point) top — upstream CadQuery 2.8.0 builds a
-  // 5-face pyramid/wedge when xmin==xmax && ymin==ymax, but cq-compat's wedge
-  // lofts two rectangles via makeLineEdge, which throws on the zero-area top
-  // wire. Genuine wedge capability gap, not a mirror-translation issue.
-  'tests.test_cadquery::TestCadQuery::testWedgeDefaults__s': 'op:wedge-degenerate-top',
-  'tests.test_cadquery::TestCadQuery::testWedgeCombined__s': 'op:wedge-degenerate-top',
-  'tests.test_cadquery::TestCadQuery::testWedgePointList__s': 'op:wedge-degenerate-top',
+  // CLOSED 2026-10-03 (roadmap B1-7): wedge() with a degenerate (point) top.
+  // Upstream CadQuery 2.8.0 builds a 5-face pyramid when xmin==xmax && zmin==zmax;
+  // cq-compat now lofts the bottom wire to the apex vertex via `loftWithVertices`
+  // (BRepOffsetAPI_ThruSections::AddVertex). The three mirrors
+  // (testWedgeDefaults__s / testWedgeCombined__s / testWedgePointList__s) are in
+  // place and parity-PASS. Also fixed: wedge fed its kernel-built solid to
+  // `cad.translate`, which the CLI's autoLift:false path rejected via the
+  // N1 guard (E_TOPO_UNTRACKED_INPUT) — it now uses kernel-level `translateBrep`.
+  // ---------------------------------------------------------------------------
   // twistExtrude of a rect by 45deg over height 10 produces a twisted B-spline
   // solid; the comparator's symmetric boolean probe fails asymmetrically on the
   // near-coincident surfaces (same root cause as E4 testTwistExtrude,

@@ -26,7 +26,7 @@ import * as cq from './index'
 
 let runtime: ReturnType<typeof createRuntime>
 
-async function runVol(lines: string[]): Promise<{ vol: number; faces: number }> {
+async function runVol(lines: string[]): Promise<{ vol: number; faces: number; vertices: number }> {
   const code = ["import * as cq from '@faicad/faijs-cadquery'", ...lines, 'let result = cq.val(wp_out)'].join('\n')
   const res = await runtime.execute(code)
   if (res.failedAt) {
@@ -38,7 +38,8 @@ async function runVol(lines: string[]): Promise<{ vol: number; faces: number }> 
   const h = brepOf(shape!) as BrepHandle
   const vol = getBrepApi().getVolume(h)
   const faces = (getBrepApi().getSubShapes(h, 'face') as unknown[]).length
-  return { vol, faces }
+  const vertices = (getBrepApi().getSubShapes(h, 'vertex') as unknown[]).length
+  return { vol, faces, vertices }
 }
 
 beforeAll(async () => {
@@ -74,6 +75,50 @@ describe('wedge', () => {
       'let wp_out = await cq.wedge(cq.Workplane(), 4, 1, 2, 1, 0.5, 3, 2)',
     ])
     expect(vol).toBeCloseTo(5.333333333333333, 4)
+  })
+
+  it('degenerate top (xmin==xmax && zmin==zmax) builds a 5-face pyramid', async () => {
+    // Upstream `Workplane().wedge(10,10,10,5,5,5,5)` collapses the top face to
+    // the single point (5, 10, 5) => a right square pyramid: 5 faces (1 quad
+    // base + 4 triangular sides), 5 vertices, vol = 10*10*10/3.
+    // ref (out/ref/…testWedgeDefaults__s.step): vol 333.33333333333337, Solid.
+    const { vol, faces, vertices } = await runVol([
+      'let wp_out = await cq.wedge(cq.Workplane("XY"), 10, 10, 10, 5, 5, 5, 5)',
+    ])
+    expect(vol).toBeCloseTo(1000 / 3, 6)
+    expect(faces).toBe(5)
+    expect(vertices).toBe(5)
+  })
+
+  it('runs under the CLI loader settings (autoLift:false) — N1 guard regression', async () => {
+    // The CLI host loads @faicad/faijs-cadquery with `faijs.autoLift:false`
+    // (packages/faijs-cadquery/package.json → node-host/cli.ts autoLiftFor), so
+    // `cq.*` functions are NOT lifted into ops: the FIRST `cad.*` op a statement
+    // runs becomes that statement's outermost op, and `runtimeLineage.register`'s
+    // N1 guard then rejects any geometry input without a PartName. A shape built
+    // inside `cq.wedge` can never carry one, so wedge MUST place it with the
+    // kernel transform (`translateBrep`), not `cad.translate`.
+    //
+    // This file's default `runtime` lifts `cq` (registerLib's inferred default),
+    // which HIDES that whole class of bug. This second runtime mirrors the CLI so
+    // the N1 guard is actually exercised — the assertion below is exactly the
+    // regression that the autoLift:false path would miss.
+    const cliRuntime = createRuntime(createNodePorts(), 'brep')
+    cliRuntime.registerLib('cq', cq as never, {
+      packageName: '@faicad/faijs-cadquery',
+      autoLift: false,
+    } as never)
+    const res = await cliRuntime.execute(
+      [
+        "import * as cq from '@faicad/faijs-cadquery'",
+        'let wp_out = await cq.wedge(cq.Workplane("XY"), 10, 10, 10, 5, 5, 5, 5)',
+        'let result = cq.val(wp_out)',
+      ].join('\n'),
+    )
+    expect(res.failedAt).toBeUndefined()
+    const shape = res.outputs.get(asPartName('result')) as Shape | undefined
+    expect(shape).toBeDefined()
+    expect(getBrepApi().getVolume(brepOf(shape!) as BrepHandle)).toBeCloseTo(1000 / 3, 6)
   })
 })
 

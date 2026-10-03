@@ -1131,6 +1131,13 @@ export async function sphere(
  * identical to the OCCT primitive (verified vs cadquery 2.8.0: testClean
  * wedge-with-sphere union vol 9.079922 / testNoClean 10.650718).
  *
+ * Degenerate top: when `xmin == xmax && zmin == zmax` the top rectangle collapses
+ * to a single point, and OCCT emits a 5-face pyramid (its zero-length-edge
+ * branch). A two-rectangle loft cannot express that (`makeLineEdge` would be
+ * asked for a zero-length edge), so that case lofts the bottom wire to the apex
+ * vertex instead — `loftWithVertices`, i.e. `BRepOffsetAPI_ThruSections::AddVertex`
+ * (verified vs 2.8.0: `wedge(10,10,10,5,5,5,5)` -> vol 1000/3, 5 faces, 5 vertices).
+ *
  * `centered=True` (default) shifts by (−dx/2, −dy/2, −dz/2) along the LOCAL
  * workplane axes, mirroring upstream's `offset` computation. Limitation: the
  * kernel has no makeWedge primitive, and upstream composes the wedge in WORLD
@@ -1186,17 +1193,54 @@ export async function wedge(
     p3(ox + dx, oy, oz + dz),
     p3(ox, oy, oz + dz),
   ])
-  const top = rectWire([
-    p3(ox + xmin, oy + dy, oz + zmin),
-    p3(ox + xmax, oy + dy, oz + zmin),
-    p3(ox + xmax, oy + dy, oz + zmax),
-    p3(ox + xmin, oy + dy, oz + zmax),
-  ])
-  const solid = toShape(getKernel().loft([bottom as never, top as never], true, true)) as Shape
+  let solid: Shape
+  if (xmin === xmax && zmin === zmax) {
+    // Degenerate top — the top rectangle collapses to the single point
+    // (xmin, dy, zmin), so there is no top face. OCCT's `BRepPrimAPI_MakeWedge`
+    // still emits a valid 5-face pyramid (its zero-length-edge branch), but our
+    // "loft between two rect wires" build would ask `makeLineEdge` for a
+    // zero-length edge and fail. Loft the bottom wire to the apex vertex instead
+    // (`BRepOffsetAPI_ThruSections::AddVertex`, exposed as `loftWithVertices`).
+    // Verified vs cadquery 2.8.0: `Workplane("XY").wedge(10,10,10,5,5,5,5)` ->
+    // vol 1000/3, 5 faces (1 quad base + 4 triangular sides), 5 vertices.
+    const apex = p3(ox + xmin, oy + dy, oz + zmin)
+    const ka = getKernel() as unknown as {
+      makeVertex: (x: number, y: number, z: number) => BrepHandle
+      loftWithVertices: (
+        wires: unknown[],
+        isSolid: boolean,
+        ruled: boolean,
+        startVertex: BrepHandle | undefined,
+        endVertex: BrepHandle | undefined,
+      ) => unknown
+      release: (h: BrepHandle) => void
+    }
+    const apexV = ka.makeVertex(apex[0], apex[1], apex[2])
+    try {
+      solid = toShape(ka.loftWithVertices([bottom as never], true, true, undefined, apexV)) as Shape
+    } finally {
+      ka.release(apexV)
+    }
+  } else {
+    const top = rectWire([
+      p3(ox + xmin, oy + dy, oz + zmin),
+      p3(ox + xmax, oy + dy, oz + zmin),
+      p3(ox + xmax, oy + dy, oz + zmax),
+      p3(ox + xmin, oy + dy, oz + zmax),
+    ])
+    solid = toShape(getKernel().loft([bottom as never, top as never], true, true)) as Shape
+  }
   const points = eachPoints(wp)
   const shapes: Shape[] = []
   for (const [px, py] of points) {
-    shapes.push(await cad.translate(solid, { offset: localToWorld(wp, px, py) }))
+    // Kernel-level translate, NOT `cad.translate` (same GOTCHA as `text` /
+    // `cutBlind`, see the placement note above): `cq.wedge` is a plain library
+    // function, so the first `cad.*` op its statement runs becomes that
+    // statement's outermost op, and `runtimeLineage.register`'s N1 guard rejects
+    // a geometry input without a PartName — which the solid built inside this
+    // function can never have. `translateBrep` is the affine kernel transform the
+    // other cq-compat builders already use, and it leaves no lineage node.
+    shapes.push(toShape(translateBrep(kern(), ownHandle(solid), localToWorld(wp, px, py))))
   }
   return combineEachpoint(wp, shapes, opts?.combine ?? true, opts?.clean ?? true)
 }
