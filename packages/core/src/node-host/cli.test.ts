@@ -129,6 +129,38 @@ describe('cliCheck: dryRun validation', () => {
     expect(result.ok).toBe(false)
     expect(result.errors.some((e) => e.stage === 'symbol' && e.message.includes('cad.sketch'))).toBe(true)
   })
+
+  // I-group (2026-10-03): the guard above is right about a MISSING op but
+  // wrong about a host-MERGED one. `rebased-sweep.ts` merges the sketch and
+  // draw namespaces and hands them to cliRun, yet every product's checkErrors
+  // carried `unknown op: cad.sketch ...` because cliCheck had no way to learn
+  // what the host merges — it only reads the static symbol table. A sweep that
+  // trusts checkErrors then reads every runnable product as broken.
+  it('cliCheck accepts an op the host declares via opts.libs (same namespace cliRun gets)', () => {
+    const code = `export default async (cad) => {
+  const s0 = cad.sketch({ geoms: [] })
+  return { shape: s0 }
+}`
+    const tmpFile = resolve(TMP_DIR, 'cli-merged-sketch.fai.js')
+    writeFileSync(tmpFile, code)
+    const result = cliCheck(tmpFile, { libs: { cad: { sketch: () => ({}) } } })
+    expect(result.errors.filter((e) => e.stage === 'symbol')).toEqual([])
+    expect(result.ok).toBe(true)
+  })
+
+  it('opts.libs does not mask a genuinely absent op', () => {
+    const code = `export default async (cad) => {
+  const s0 = cad.sketch({ geoms: [] })
+  const p0 = cad.bogusFn({ size: 20 })
+  return { shape: p0 }
+}`
+    const tmpFile = resolve(TMP_DIR, 'cli-merged-partial.fai.js')
+    writeFileSync(tmpFile, code)
+    const result = cliCheck(tmpFile, { libs: { cad: { sketch: () => ({}) } } })
+    expect(result.ok).toBe(false)
+    const sym = result.errors.find((e) => e.stage === 'symbol')
+    expect(sym!.message).toContain('cad.bogusFn')
+  })
 })
 
 describe('cliRun: execute and export', () => {

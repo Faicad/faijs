@@ -104,25 +104,81 @@
   | 分类 | 数量 | 含义 |
   |---|---|---|
   | `B==A` | **185** | Placement 对该文件无影响 ⇒ com 偏移另有根因，不是帧问题 |
-  | `TRUTH-DOUBLE-APPLY` | **33** | **truth 侧缺陷**，faijs 是对的 |
+  | `TRUTH-DOUBLE-APPLY` | **33** | T==B 且 A!=B（**其中只有 8 个真是帧问题，见下**） |
   | neither（T≠A 且 T≠B） | 34 | truth 磁盘记录与本模块算法不一致，未定性 |
   | `faijs-missed-placement` | 1 | 后证为**分类器缺陷**：`xtal-2016` 的 truth volume 恰为 A 的一半（2.909331 vs 5.818662），而 `same()` 只比 bbox+com 未比 volume，误判 |
 
-- **TRUTH-DOUBLE-APPLY 的机理（两个独立取点复现）**：Tapon / Caisson 的 root 特征自身
-  Document Placement 是 90°X 旋转（Q=0.7071,0,0,0.7071），而该特征的 `.brp` **已经烘焙了**
-  这个旋转；`export-fcstd-truth.py` 无条件再施放一次 ⇒ truth 是同一实体被转了两次。
-  同一文档内**草图的 `.brp` 相反**（`PartShape.brp` 裸读是未旋转的 sketch 局部坐标），所以
-  对草图施放是对的 —— 两种约定在一个文档里共存，「对每个 root 一律施放」只对后者成立。
-  - 数值证据（Tapon，OCP）：brp 裸读 `vol=3211.434185 bbox=[-16,-16,0, 16,16,12.25] com=[0,0,7.6153]`；
-    truth 记录 `bbox=[-16,-12.25,-16, 16,0,16] com=[0,-7.6153,0]`；**faijs 导出逐位等于前者**。
-  - faijs 侧没跟着错，是因为 C3 的 `sketchCarriesFrame` guard 抑制了 M8.3 的 `cad.place`。
-  - 判别器：`fcstd-port/tools/_i-group-frame-probe.py <corpus-rel>…` 打印 A / B / T 三行。
+- **⚠️ 33 个必须再按失配形状切分（2026-10-03 补测）**：刚体变换不改 volume/area/solids，所以
+  **只有「fails ⊆ {bbox, com}」才是帧候选**。实测 33 个里仅 **8 个**满足，其余 **25 个同时失配
+  volume/area/solids**（QFN20-5x4 是 21vs6 solids、LED_0603 是 9vs21）⇒ 那是**两边在比不同的
+  形状集合**（truth 的 ROOT 选取 vs faijs 的终端选取），与帧无关。**别把 33 一起当帧问题修。**
+  - 8 个帧候选：servo-screw-1.7x6.2 / servo-screw-2x7_5 / EncoderCircuit / Motor-CC-3.3V-WlToy911 /
+    InitialFinal / Caisson / F623ZZ_Ball_Bearing / Tapon。
+- **8 个的机理（Tapon / Caisson 双样本复现）**：root 特征的 `.brp` 读出来就**已经**在
+  Document Placement 施加后的姿态上，而 `export-fcstd-truth.py` 对每个 root 再施放一次 ⇒ truth
+  多了一次变换。faijs 侧读 raw 是对的。
+  - 数值证据（Tapon，OCP，`tools/_i-group-frame-probe.py`）：
+    - A `read(brp)` = `bbox=[-16,-16,-1e-07, 16,16,12.25] com=[0,0,7.6153]`
+    - A′ `BRepBuilderAPI_Copy(read)`（identity location 的副本）**与 A 逐位相同** ⇒ 该 brp
+      **没有独立的 TopLoc_Location**，姿态已折进几何
+    - B `apply_placement(read, P)` = `bbox=[-16,-12.25,-16, 16,1e-07,16] com=[0,-7.6153,0]` = **T**
+  - **⚠️ 修法三次被自己的实测否决，不要照抄任何一条**：
+    ① 「剥 location 再施放」—— `BRepBuilderAPI_Transform` 是**复合**而非替换，
+       `BRepBuilderAPI_Copy` 虽给 identity location 但 A′==A 证明无可剥之物 ⇒ **空操作**；
+    ② 「按对象类型跳过」（PartDesign::*/Revolution 不施放）—— **21 个回归**，
+       `PartDesign::Pad`/`Pocket` 跳过会破坏原本正确的文件；
+    ③ 「E==P 就跳过」—— HBS `Cut002`（E==P）**必须**施放，Caisson（E==P）**必须**跳过，同条件
+       反结论；且 HBS 的唯一 root 只有 identity Placement 的 `Compound`，`Cut002` 是 child
+       不参与 truth ⇒ C2 那条「root 必须重放 Placement」的结论在 HBS 上**无法被现有 truth 复现**
+       （三个候选表达式都給 com z 5.42843，truth 是 6.173765）。
+  - **结论**：8 个的修法需要能区分「brp 几何已含 Placement」与「不含」的信息，而 A′==A 说明
+    **`.brp` 层面已无此信息**（`Locations` ASCII 头在 Tapon 三个成员上都写着同一个旋转矩阵，
+    但 OCCT 读出的 location 各不相同 ⇒ **头不可信，必须用 `shape.Location()`**）。可行的方向是
+    从 **Document 语义**入手（PartDesign 特征的 `.brp` 已知含 Tip 位姿），而不是从 brp 头反推。
 - **留档**：`packages/faijs-freecad/src/i-group-frame-e2e.test.ts`（5 用例，两样本 e2e +
   「raw 与 truth 只差一个 90°X 旋转」的冻结断言）。变异验证：把「无 `cad.place`」断言翻成
-  要求有 ⇒ 套件变红，断言承重。
-- **后续**：33 个 truth 侧缺陷要修在 `export-fcstd-truth.py`（判据：对 root **特征**的 `.brp`
-  先探 `Locations` 头，旋转已烘焙则不再施放），属 truth 口径变更，**须用户批准**（同 L 组
-  的审批性质）。185 个 `B==A` 的 com 偏移与 34 个 neither 需另起根因分析，不是帧问题。
+  要求有 ⇒ 套件变红，断言承重。⚠️ 该测试的 `raw` 断言是「faijs 不重放」这一**当前行为**的冻结，
+  不表达「faijs 正确」——truth 侧修好后这两者会一致，测试仍绿。
+- **后续**：8 个帧问题待修（修法未定，见上）；185 个 `B==A` 与 34 个 neither 需另起根因分析。
+
+### I 组延伸：profile 混入 terminal compound（2026-10-03 已修，影响 727/3131 语料）
+
+- **取点**：`Mechanical Parts/cable-chain-links/cable-chain-link-25_5x16x12_5mm.fcstd`
+  （25 个"几何量也失配"里 solids 只差 1 的最干净样本）。
+- **实测**：faijs 单终端 `solids 12 / vol 21506.67`，truth `solids 11 / vol 58157.32`
+  —— **faijs 只有 truth 的 37% 体积**。原判据「faijs 导出多终端」被否（只导出 1 个）。
+- **根因**：`lower()`（`codegen.ts`）算 roots 的条件是「没被任何 call 消费」，而
+  `cad.sketch` / `cad.profile` 声明时 `inputs: []`（`codegen.ts:368`），消费者只通过
+  `params.sketch` 引用它。**消费者没被翻译时（真实文件里那些 Pocket 走了
+  `cad.import_brep` 冻结形状），草图就成了游离 roots**，被塞进 terminal `cad.compound`。
+  cable-chain 一行就有 **5 个 sketch 混进 16 个 members**。
+- **影响面实测**（`fcstd-port/tools/_i-profile-census.mjs`，遍历 3131 个 `.fai.zip`）：
+  **1863 个产品含 profile op，727 个把 profile 混进了 terminal compound（23%）**。
+- **修法**：`PROFILE_OPS = {cad.sketch, cad.profile}` 从 roots 里排除。**不要**改成「把 profile
+  标记成被消费」—— extrude 是用 `params.sketch`（渲染进 options 的裸变量名）携带它的，
+  不走 `inputs`；改 roots 过滤才能保持 `lower()` 作为「什么进产物」的唯一事实来源。
+- **留档**：`codegen.test.ts` 两条新用例。⚠️ **第一版 fixture 是无效的**：草图被 Pad 正常消费，
+  变异（拿掉 filter）后测试**仍全绿** —— 它压根没触发 bug。改成**游离 profile**（消费者的
+  feature 类型不被翻译）后变异恰好 1 条变红，才算承重。
+- **⚠️ 同一根因的第二处（未修）**：修完 compound 侧后 cable-chain 仍导出 **6 个 STEP**，
+  其中 5 个是 sketch（`volume 0 / solids 0`）。它们是**独立的 live terminal**
+  （`computeLiveShapes` / `live-shapes.ts` 层面），不在 compound 里。判「是否实体」不属于
+  keep/hidden 终端语义的职责，**未在该处加过滤**（会改变 profile 语义）—— 需单独立项。
+
+### I 组延伸 2：`cliCheck` 误报 run-time 合并的 op（2026-10-03 已修）
+
+- **现象**：`rebased-sweep.ts` 每个产品的 `checkErrors` 都带
+  `unknown op: cad.sketch is not in the cad namespace`，但同一脚本第 166 行把
+  `mergeSketchNamespace(...)` 的结果传给了 `cliRun` —— 判定与执行看的不是同一个命名空间。
+- **根因**：`cliCheck` 的 unknown-op 守卫只查 `symbolTableNames()`（**静态**符号表），
+  `CliCheckOptions` 根本没有 `libs` 字段，调用方无法告知自己合并了什么。
+  **一个完全可运行的产品被报成 broken**，任何信任 `checkErrors` 的 sweep 都会把整个语料读成坏的。
+- **修法**：`CliCheckOptions` 加 `libs?: Record<string, unknown>`，守卫把这些 namespace 的
+  key 并入 known。`rebased-sweep.ts` 改为 `cliCheck(entry, { assetsDir, libs: { cad: CAD_NS } })`，
+  与 `cliRun` 传同一个 `CAD_NS`。cable-chain 的 `checkErrors` 由 1 条变 **0 条**。
+- **留档**：`cli.test.ts` 三条（D11 原有那条「未 merge 必须报错」仍绿 + 「已 merge 不得报错」
+  + 「`libs` 不得掩盖真缺失的 op」）。变异敏感。
+
 
 
 ### J 组：stage2 failed 40 补跑（工具卫生，半小时）
@@ -150,7 +206,9 @@
 | F | kernel-boolean 取点转 ok + 降级链单测留档 |
 | G | edgeRef 取点转 ok 或归因 G3 记档 |
 | H | sweep-transition 消失于 run-fail（实现或显式 gap） |
-| I | ~~com/bbox 每档取点转 pass~~ → **已定性：faijs 侧帧缺陷 0；33 个是 truth 侧双重施放（待批准修 truth），185 个 `B==A` 另查根因** |
+| I | ~~com/bbox 每档取点转 pass~~ → **已定性：faijs 侧帧缺陷 0。33 个里仅 8 个是帧问题（修法三次被实测否决，待定），25 个是选择差异；185 个 `B==A` 另查根因** |
+| I-ext | ~~profile 混入 terminal compound~~ → **已修**（727/3131 语料受影响）；残留 5 个 sketch 独立终端未修 |
+| I-ext2 | ~~`cliCheck` 误报合并的 op~~ → **已修**（每产品 1 条误报 → 0） |
 | J | state 无 failed 假记录 |
 | K | gap 97 逐类下降 |
 | L | promote 与 truth 口径变更经用户批准 |

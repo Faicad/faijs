@@ -137,6 +137,19 @@ export interface CliCheckOptions {
   assetsDir?: string
   /** Extra fonts directory used by the node ports. */
   fontsDir?: string
+  /**
+   * Extra cad-namespace entries the host merges at run time (`cad.sketch`
+   * from @faicad/faijs-sketch, `cad.draw` from @faicad/faijs-draw).
+   *
+   * I-group (2026-10-03): the unknown-op guard compares the script's callees
+   * against `symbolTableNames()`, which knows only the STATIC table. A host
+   * that merges those libraries and passes them to {@link cliRun} therefore
+   * got `unknown op: cad.sketch is not in the cad namespace` from every check
+   * of a perfectly runnable script — `rebased-sweep.ts` reported it for every
+   * product in a corpus sweep. Check and run must see the same namespace, so
+   * the caller states its merged entries here.
+   */
+  libs?: Record<string, unknown>
 }
 
 /** Options accepted by the `run` command. */
@@ -253,6 +266,13 @@ export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckRes
   // the check on any unknown callee.
   if (result.ok && result.script) {
     const known = new Set(symbolTableNames())
+    // Ops the host merges at run time are not in the static table; accept the
+    // names it declares as known so check agrees with the run that follows.
+    for (const ns of Object.values(_opts?.libs ?? {})) {
+      if (ns && typeof ns === 'object') {
+        for (const key of Object.keys(ns as Record<string, unknown>)) known.add(key)
+      }
+    }
     const unknown = [...new Set(result.script.callees)].filter((n) => !known.has(n))
     for (const name of unknown) {
       errors.push({
