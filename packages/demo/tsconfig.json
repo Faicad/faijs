@@ -12,7 +12,16 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@faicad/faijs": ["../core/dist/index.d.ts"],
+      "@faicad/faijs/*": ["../core/dist/*"],
+      "@faicad/faijs-extra": ["../faijs-extra/dist/index.d.ts"],
+      "@faicad/faijs-extra/*": ["../faijs-extra/dist/*"],
+      "@faicad/sheetmetal": ["../sheetmetal/dist/index.d.ts"],
+      "@faicad/sheetmetal/*": ["../sheetmetal/dist/*"]
+    }
   },
   "include": ["**/*.ts"]
 }

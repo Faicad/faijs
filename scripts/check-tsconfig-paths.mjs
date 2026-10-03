@@ -33,9 +33,6 @@ const violations = []
 
 // 全部 workspace 包名（用于区分真实内部依赖与运行时虚拟库/外部包）
 const workspaceNames = new Set()
-// 设计内 dist 消费者（AGENTS.md：demo 经 workspace 链接消费 dist、不 alias 源码），
-// 对它们 import @faicad/* 走 node_modules→dist 是契约，不是脏依赖
-const DIST_CONSUMERS = new Set(['@faicad/faijs-demo'])
 
 function collectWorkspaceNames() {
   const wsRoot = join(ROOT, 'packages')
@@ -96,8 +93,6 @@ function coveredByKeys(specifier, keys) {
 }
 
 function walkSrc(srcDir, pkgName, keys, pkgRel) {
-  // 设计内 dist 消费者豁免（其 @faicad/* import 走 node_modules→dist 是契约）
-  const isDistConsumer = DIST_CONSUMERS.has(pkgName)
   let entries
   try {
     entries = readdirSync(srcDir)
@@ -132,8 +127,6 @@ function walkSrc(srcDir, pkgName, keys, pkgRel) {
           const pkg = packageName(specifier)
           // 非 workspace 包名（运行时虚拟库如 gear-demo、外部包）不归本守卫管
           if (!workspaceNames.has(pkg)) continue
-          // 设计内 dist 消费者豁免
-          if (DIST_CONSUMERS.has(pkgName)) continue
           // 自引用与已覆盖者放行
           if (pkg === pkgName) continue
           if (coveredByKeys(specifier, keys)) continue
