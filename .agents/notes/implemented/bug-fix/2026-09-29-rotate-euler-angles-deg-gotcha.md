@@ -1,5 +1,7 @@
 # Agent Note: rotate_euler 的参数名是踩坑热点（anglesDeg 误用信号）
 
+Status: implemented
+
 ## Problem
 
 `cad.rotate_euler` 的契约参数名是 `angles`（度值，XYZ 序），但仓库内 4 处

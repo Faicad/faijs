@@ -1,5 +1,7 @@
 # Agent Note: Reopen the ellipse kind at the cad.sketch entry
 
+Status: implemented
+
 ## Problem
 
 The canonical sketch schema reserved `point` / `ellipse` / `bspline`, and
