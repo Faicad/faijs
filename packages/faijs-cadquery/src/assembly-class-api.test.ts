@@ -159,15 +159,20 @@ describe('CqAssembly.traverse（P0-1 工作项 B）', () => {
   })
 })
 describe('importStep/load（P0-1 工作项 C）', () => {
-  it('importStep 读 STEP → 单成员装配', async () => {
-    const asm = await asmPkg.importStep(fixtureStep)
-    expect(asm.members).toHaveLength(1)
-    expect(asm.members[0].name).toBe('part_1')
-    expect(asm.name).toBe('imported')
+  // 2026-10-03：夹具从 `box_boss.step`（裸 shape 导出，无装配）换成真装配。
+  // 旧断言（`part_1` / `imported` / 单成员）描述的是「拍平成匿名单成员」的旧行为，
+  // 那正是 upstream `test_assembly_step_import` 里 `pytest.raises(ValueError)` 所否定的。
+  const assemblyStep = resolve(here, '../../fixtures/data/step-metadata/cq-assembly-two-parts.step')
+
+  it('importStep 读装配 STEP → 保留装配名与成员名', async () => {
+    const asm = await asmPkg.importStep(assemblyStep)
+    expect(asm.members).toHaveLength(2)
+    expect(asm.members.map((m) => m.name)).toEqual(['cube_1', 'cyl_1'])
+    expect(asm.name).toBe('top_level')
   })
 
   it('importStep 后 solve/toCompound 可用', async () => {
-    const asm = await asmPkg.importStep(fixtureStep)
+    const asm = await asmPkg.importStep(assemblyStep)
     const solved = asm.solve()
     expect(solved.converged).toBe(true)
     const compound = solved.toCompound()
@@ -175,7 +180,15 @@ describe('importStep/load（P0-1 工作项 C）', () => {
   })
 
   it('load 是 importStep 别名', async () => {
-    const asm = await asmPkg.load(fixtureStep)
-    expect(asm.members).toHaveLength(1)
+    const asm = await asmPkg.load(assemblyStep)
+    expect(asm.members).toHaveLength(2)
+  })
+
+  it('GOTCHA: 非装配 STEP 被拒绝，不再拍平成 part_1', async () => {
+    // 上游语义：ValueError("Step file does not contain an assembly")
+    // （`test_assembly_step_import` 末尾的 pytest.raises 断言）。
+    await expect(asmPkg.importStep(fixtureStep)).rejects.toThrow(
+      /does not contain an assembly/,
+    )
   })
 })

@@ -112,7 +112,8 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 |---|---|---|
 | ~~`wires()/shells()/solids()/compounds()` 选择器~~ **（已闭环 2026-10-03）** | 实际比 §4.8 的排除理由更复杂：`_collectProperty` 的 Solid→Compounds 特例在 2.8.0 的公开 API 上**不可触发**（见下）；真正的缺口是 `Shape.Wires()` 从未落地，且 Workplane 层把四个 kind 都实现成"取第一个子形"的几何 op | 同源失明 |
 | ~~`2D` 草图选择器（`sketch.ts` `applyStringSelector`）~~ **（已闭环 2026-10-03）** | `2026-10-02` §4.8 排除（目标不是 3D 拓扑实体）——**排除理由不成立**：上游 `Sketch._select` 分派的正是 3D 侧同一个 `StringSyntaxSelector` | 同源失明 |
-| 导出保真（GLTF / VTK.js / VRML / 带颜色-名字-层的 STEP 子形状往返） | `2026-09-30` §3.4 塞进"测试基础设施"口径（5 条），实为输出格式特性缺口 | 分量被低估 |
+| ~~导出保真·可视化发布格式（GLTF / VTK.js / VRML）~~ **（E3a · 判 out-of-scope，2026-10-03 关闭）** | 它们是上游 **Assembly 的可视化发布导出器**，不是建模能力；与 faijs「mesh 是正式数据，不是预览」的定位无关。进清单是 §3.4 的 **harness 分类产物**（`blockedBy` 标记的是镜像框架不支持这些格式，不是 CadQuery 能力缺失）。内核侧**并非做不到**（`occt-wasm` 有 `XAFDocument.exportGLTF()`），不做的理由是「没有需求」 | 分类事故，非缺口 |
+| STEP 子形状元数据往返 **（E3b · 部分闭环，2026-10-03）** | 实测拆成三块（见下）：① 成员级 name/color + 非装配拒绝 —— **已修**；② 导出侧装配结构 —— **内核能力缺口**；③ 子形状 name/layer —— **内核能力缺口**。`2026-09-30` §3.4 把它记为 5 条 `blockedBy`，口径是「harness 不支持」 | 分量被低估 + 内核面受限 |
 
 #### E 类第一项已闭环：`Shape.Wires()` 与 kind 选择器的真实语义（2026-10-03）
 
@@ -132,6 +133,38 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 另**连带修掉一个既有 bug**（非本轮目标、被本轮改动暴露）：`segment(s, [0,1], {tag:'e'})` 被 faijs 误判为 `(p1, p2)` 重载 —— 第二位的 options 对象被当成点，造出 **NaN 端点** 的边（bbox 为 `NaN`、`Center()` 退化为 `(0,0,0)`）。此前之所以不显形，是因为 NaN 投影既不大于也不小于 `best`，恒被过滤掉。已按上游 `@multimethod` 的类型分派修正（`sketch.ts` `segment`）：第二位不是点即视为 `(p2[, opts])` 续接重载。受影响的既有用例 `sketch-mirror.test.ts` `segment+close: edges(<X).delete()` 现按真实几何判定。
 
 **捕获方法学陷阱（务必照做）**：上游 `Sketch` 的 `_selection` 是**就地可变**的 —— `push()` 会把 `Location` 留在 `_selection` 里，`faces()`/`edges()` 也会覆盖它。复用同一个 sketch 做多次选择，后续调用会解析到"上一次选择"而不是面（实测 `faces().vals()` 直接返回空）。故**每个选择都要新建 fixture**（或 `reset()`）。同源：faijs 的 `push` 把顶点留在 `selected` 里（上游留的是 `Location`，`_select` 里被 `isinstance(el, Location)` 跳过）—— 两者都导致"push 之后直接选"得到空，但机制不同，已按 GOTCHA 记录、**未改** `push`。
+
+#### E 类第三项：STEP 子形状元数据（E3b，2026-10-03）
+
+一次性捕获见 `packages/faijs-cadquery/tests/ref-harness/step-metadata-probe.py` 与 `predefined-colour-probe.py`（CadQuery 2.8.0 / OCCT 7.9.3，不进 CI）；夹具由前者再生成（`packages/fixtures/data/step-metadata/`）；断言在 `packages/faijs-cadquery/src/assembly-import-step.test.ts`（5 用例）与 `packages/core/src/occt-kernel/stepColorParser.test.ts`（8 用例）。
+
+**先拆项**：原一行其实是两类东西。**E3a（GLTF/VTK.js/VRML）判 out-of-scope 关闭** —— 它们是上游 Assembly 的**可视化发布导出器**，不是建模能力；进缺口清单本身是 `2026-09-30` §3.4 的 harness 分类产物（`blockedBy` 记的是镜像框架不支持该格式，导致 5 条用例判 blocked）。内核也**不是做不到**（`occt-wasm` 有 `XAFDocument.exportGLTF()`），不做的理由是「没有需求」。**E3b 保留并重新定性**：不是「导出格式缺口」，而是「`importStep` 丢元数据 + 颜色解析器漏一类链尾 + 导出侧写不出装配结构」。
+
+**E3b 已修（2 项，都在本仓能力面内）**
+
+1. **`importStep` 走 XCAF**（`packages/faijs-cadquery/src/assembly/save.ts`）。此前走 `loadBrep` 拍平成匿名单成员 `part_1`，**装配名、成员名、成员颜色全丢**。现在保留 root 名（`top_level`）、成员名（`cube_1`/`cyl_1`）与成员颜色，并把组件位姿烘焙进形状（上游把它存在 `loc` 字段里；`CqAssembly` 没有 `loc`，故烘焙是唯一等价形态）。**非装配 STEP 现在抛错**（对齐上游 `ValueError("Step file does not contain an assembly")`）—— 上游那条 `test_assembly_step_import` 的 `pytest.raises(ValueError)` 断言此前被 faijs 静默吞掉。
+2. **STEP 颜色解析器补 `DRAUGHTING_PRE_DEFINED_COLOUR`**（`packages/core/src/occt-kernel/stepColorParser.ts`）。这是本轮最"沉默"的一条：STEP 只在颜色**恰好等于某个 ISO 预定义色**时才写名字形式，近似色才写 `COLOUR_RGB`。原解析器只认后者 ⇒ **`Color(1,0,0)`/`Color("green")` 这类颜色在 faijs 侧整批读不出**（CadQuery 侧读得出来，因为 OCCT 自己认这张表）。已补 13 个名字的 RGB，值**逐位冻结自 OCCT 的 `Quantity_Color`**（不是手写的 0/0.5/1 —— 例如 `orange` 是 `(1, 0.376262009, 0)`，`pink` 是 `(1, 0.527114987, 0.59720099)`）。
+
+**E3b 未修（内核能力缺口，有实测证据，不是没做）**
+
+3. **导出侧写不出装配结构**。CadQuery 的 `Assembly.importStep` 要求顶层 label `IsTopLevel && IsAssembly`，而 faijs 的 `exportStepFromSolids` 只写 N 个平铺 free shape ⇒ **CQ 读 faijs 导出的装配会直接抛 `ValueError`**（实测）。要修必须让内核能建**无几何装配 label**（上游用 `shape_tool.NewShape()` + `AddComponent`）；内核 `XCAFDocument` 只有 `addShape(shape, …)` 与 `addChild(parent, shape, …)`，**没有 `NewShape`/`AddAssembly`**。穷举可用组合（6 个变体实测）：
+
+   | 组合 | 结果 |
+   |---|---|
+   | `addShape(shape)`（现状） | 导出成功，但无装配结构 → CQ `ValueError` |
+   | `addShape(a)` + `addChild(root, a)`（自引用） | `xcafExportSTEP` 抛 `IMPORT_EXPORT_FAILED` |
+   | `addShape(a)` + `addChild(root, b≠a)` | 导出"成功"但**组件根本没写进文件**（无 `NEXT_ASSEMBLY_USAGE_OCCURRENCE`） |
+   | 空 compound 当 root + 2 children | 导出成功但 1608 字符、**0 个 B-rep**（几何没写） |
+   | compound(root) + `addChild(root, 子 solid)` ×2 | **唯一能写出真装配的组合**：CQ 读回 root 名正确、成员几何正确 |
+   | 同上但期望组件名/颜色 | 组件 PRODUCT 名恒为 **`'SOLID'`**、`STYLED_ITEM` 为 **0** ⇒ `addChild` 的 `name`/`color` 不落盘 |
+
+   即：唯一可行组合写不出成员名与颜色，等于用装配结构换掉元数据 —— **不可接受**。故导出侧保持现状并在此登记，需要内核补 `NewShape`/`AddAssembly` 与组件级 name/color 落盘。
+
+4. **子形状 name/color/layer 不可读**（上游 4 条 `op:assembly-subshape-import` 用例的断言全在这上面：`children[0]._subshape_names` / `_subshape_layers` / `_subshape_colors`）。CadQuery 侧往返成立（实测 `cube_1_top_face` + `cube_1_top_face_layer` 都能读回，文件里有 `PRESENTATION_LAYER_ASSIGNMENT`）；faijs 侧做不到，因为内核 `XCAFDocument` **不暴露** `XCAFDoc_ShapeTool.GetSubShapes`（子形状 label）与 `LayerTool`（层），`LabelInfo` 只有 `name`/`hasColor`/`isAssembly`/`isComponent`。这 4 条因此**不能解锁**（不是"待办"，是能力缺口）。
+
+**顺带修掉的 core 侧判定缺口**：`AssemblyPartNode` 新增 `syntheticGroup` 标记 —— "单个 product 含多 solid compound"会被 core 拆成虚拟子节点并标 `isAssembly: true`（供场景树用），但那种形状在上游 `IsAssembly_s` 为 **false**。没有这个标记，一个平坦的多 solid STEP 会被 `importStep` 误判成装配。cli/scene 侧不受影响（新增可选字段）。
+
+**验证**：`stepColorParser.test.ts` 8/8、`assembly-import-step.test.ts` 5/5；两次变异检验 —— 停用命名色分支 → 2 条颜色用例失败；撤掉非装配守卫 → 抛出用例失败。
 
 3. **字符串选择器必须跑 `Center()` 而不是 bbox 中心**（与本审计 §3.3 同源）：构造两个**等长（40）、同尺寸**的 L 形 wire P/Q，其 `Center()` 排序为 P(6.6) > Q(4.3)，而 bbox 中心排序为 P(5.0) < Q(5.9) —— `>X` 在两种实现下选中**不同的**子形。已把 `StringSyntaxSelector` / `NearestToPointSelector` 从 bbox 中心改为 `centerOf()`，并以该夹具锁死（变异回退 bbox 版本即 1 failed）。其余 GOTCHA：face 的 `Shells()/Solids()/Compounds()` 全为 0（故 `faces(">Z").solids()` 是空选择，不是所属 solid）；`Compounds()` 对 compound 返回**它自己**（1 个），对 solid 返回 0。
 
@@ -214,6 +247,8 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 | ~~**P4**~~ | **对象选择器类（C 类）——已完成（2026-10-02）** | §3.3（已闭环） | P0 字符串选择器落地后 |
 | ~~**P4b**~~ | **kind 选择器 `wires/shells/solids/compounds` ——已完成（2026-10-03）**：`wiresOf()` 落地 + 12 用例真值断言；`StringSyntaxSelector`/`NearestToPointSelector` 改用 `Center()` 类型分派 | §3.5 第一行已闭环 | P4 |
 | ~~**P4c**~~ | **2D 草图选择器 ——已完成（2026-10-03）**：`applyStringSelector` 改为 `Center()` + 1e-4 簇容差 + 真求交的 `and`；18 用例真值断言；连带修 `segment` 重载分派（NaN 端点） | §3.5 第二行已闭环；导出保真仍待办 | P4 |
+| ~~**P4d**~~ | **STEP 元数据（E3b）——可做部分已完成（2026-10-03）**：`importStep` 走 XCAF（装配名/成员名/颜色/位姿烘焙）+ 非装配抛错、core 颜色解析器补 `DRAUGHTING_PRE_DEFINED_COLOUR`、`AssemblyPartNode.syntheticGroup` 判定位；13 用例真值断言 | §3.5 第三行（E3b）已部分闭环 | P4b |
+| **P5** | E3b 剩余：**导出侧装配结构** + 子形状 name/color/layer | **内核能力缺口**（`XCAFDocument` 无 `NewShape`/`AddAssembly`、无 `ShapeTool.GetSubShapes`/`LayerTool`）——需先扩内核，本仓无法自行解决；详见 §3.5 E3b 第 3–4 条 | 内核升级 |
 
 > **共同风险**（一句话）：P1–P4 的所有缺口，都和这次的选择器是**同一类病**——"镜像全绿但语义空心"，因为度量只能看见导出几何。解决它们的不是更多镜像，而是 §5 的一次性参考捕获范式（把真值固化进 TS 断言）。
 
@@ -227,6 +262,9 @@ parity = 最终导出实体的 STEP 几何比对。选择器产出的是**进程
 - [x] **（已做 · P4）** 对象选择器类（C 类）整体立案并落地：`packages/faijs-cadquery/src/object-selectors.ts`（CenterNth/LengthNth/AreaNth/RadiusNth + Box/NearestToShape + And/Sum/Subtract/Inverse），前置能力 `centerOf`/`radiusOf`/`shapeTypeOf` 补进 `src/shape-class.ts`；一次性 Python 捕获 `tests/ref-harness/object-selectors-probe.py` → 断言 `src/object-selectors.test.ts`（43 用例全绿）。GOTCHA 五条见 §3.3（全丢弃抛错 / 贴合盒返回空 / 方向不归一化 / 簇容差自簇首起算 / 平局取首个 + 真最小距离）。
 - [x] **（已做 · P4b，2026-10-03）** E 类第一项闭环 —— kind 选择器：`src/shape-class.ts` 新增 `wiresOf()`（`Shape.Wires()`，此前完全缺失），并把 `StringSyntaxSelector` / `NearestToPointSelector` 的选择基准从 bbox 中心改为上游 `Center()` 类型分派质心（`centerOf()`）；一次性捕获 `tests/ref-harness/kind-selectors-probe.py` → 断言 `src/kind-selectors.test.ts`（12 用例全绿，变异回退 bbox 版本即红）。冻结 GOTCHA 四条：face 的 `Shells()/Solids()/Compounds()` 全为 0；`Compounds()` 对 compound 返回它自己；带孔面的 `Wires()`=外环+每孔一个；`_collectProperty` 的 Solid→Compounds 特例在 2.8.0 公开 API 上**不可触发**（九种构造实测），故不实现。Workplane 层 `wires()/shells()/solids()/compounds()` 仍为"取第一个子形"的几何 op —— 它们需要 P3 的多对象栈才能表达"N 个子形入栈"，**留待 P3**。
 - [x] **（已做 · P4c，2026-10-03）** E 类第二项闭环 —— 2D 草图选择器：`src/sketch.ts` 的 `applyStringSelector` 从"bbox 中心 + 距极值 1e-6"改为上游 `StringSyntaxSelector` 的真实语义（`Center()` 类型分派质心 + `_NthSelector` 的 1e-4 簇容差 + 真求交的 `and` + 空候选集抛错），并把轴串扩展到 `X/Y/Z/XY/XZ/YZ`；一次性捕获 `tests/ref-harness/sketch-selectors-probe.py` → 断言 `src/sketch-selectors.test.ts`（18 用例全绿，变异回退 bbox 版本即 6 failed、回退链式 `and` 即 1 failed）。冻结 GOTCHA 四条：三角形面 / 圆弧的 `Center()` 与 bbox 中心**翻转** `>X` 的选择；中心相距 5e-5 的两者并成一簇（`>X` 与 `<X` 都返回全部）；`and` 是各操作数作用于同一候选集再求交（`>X and <Y` 为空）；空候选集抛 `Can not return the Nth element of an empty list`。连带修掉既有 `segment` 重载分派 bug（第二位 options 被当点 → NaN 端点）。**未改** `push`（上游 push 留 `Location`、faijs 留顶点，机制不同，按 GOTCHA 记录）。
+- [x] **（已做 · P4d，2026-10-03）** E 类第三项（E3b）可做部分闭环 —— STEP 子形状元数据：① `packages/faijs-cadquery/src/assembly/save.ts` 的 `importStep` 从 `loadBrep`（拍平成匿名 `part_1`）改为 XCAF，保留装配名/成员名/成员颜色并把组件位姿烘焙进形状；**非装配 STEP 现在抛错**（对齐上游 `ValueError`）。② `packages/core/src/occt-kernel/stepColorParser.ts` 补 `DRAUGHTING_PRE_DEFINED_COLOUR`（13 个 ISO 名，值逐位冻结自 OCCT `Quantity_Color`）——此前凡颜色恰好命中预定义色就**整批静默丢失**。③ `AssemblyPartNode.syntheticGroup` 区分"文件里的真装配"与"core 为场景树虚拟拆分的多 solid 组"，否则平坦多 solid STEP 会被误判成装配。捕获 `tests/ref-harness/step-metadata-probe.py` + `predefined-colour-probe.py`（不进 CI，前者同时再生成 `packages/fixtures/data/step-metadata/` 夹具），断言 `src/assembly-import-step.test.ts`（5）+ `packages/core/src/occt-kernel/stepColorParser.test.ts`（8）。变异检验两次均生效（停用命名色分支 → 2 failed；撤掉非装配守卫 → 1 failed）。
+- [x] **（已做 · 2026-10-03）** E 类第三项（E3a）**判 out-of-scope 关闭** —— GLTF/VTK.js/VRML 是上游 Assembly 的**可视化发布导出器**，与 faijs 定位无关；它们进缺口清单是 `2026-09-30` §3.4 的 harness 分类产物（`blockedBy` 记的是镜像框架不支持该格式）。内核侧并非做不到（有 `XAFDocument.exportGLTF()`），不做的理由是「没有需求」。
+- [ ] **（内核依赖，本仓无法自行解决）** E3b 剩余两项：**导出侧装配结构**（内核 `XCAFDocument` 无 `NewShape`/`AddAssembly`；实测唯一能写出装配结构的组合会丢掉组件名与颜色）与**子形状 name/color/layer 读取**（内核无 `ShapeTool.GetSubShapes`/`LayerTool`，故上游 4 条 `op:assembly-subshape-import` 用例不能解锁）。详见 §3.5 E3b 第 3–4 条。
 - [x] **（已做）** 把本审计 §3 的 A–E 类沉默缺口**反向补登**进 `2026-09-30` —— 落在 **§3.6「沉默缺口」**（§3.2 只收"能力缺口"，故另立小节），并已回写各类的闭环进度。
 - [ ] P0：推进选择器方案字符串语法全量 + 逐级收窄（**一次性 Python 捕获 → 固化 TS 断言**，不建 per-run 探针通道）。
 - [ ] **（已做 · P2）** 把 `Plane` 任意平面变换整体立案（不止 2 条），对 `toLocalCoords`/`mirrorInPlane` 做**一次性 Python 坐标捕获 → 固化 TS 断言**：实现见 `packages/faijs-cadquery/src/plane.ts`（`CqPlane` 帧 + `toLocalCoords`/`toWorldCoords`/`mirrorInPlane`/`toLocalCoordsVec`/`mirrorInPlaneVec`，复用内核 `generalTransform` + `getKernel`，未改 core）、断言见 `src/plane.test.ts`（16 用例全绿，容差 1e-6）、参考捕获见 `packages/faijs-cadquery/tests/ref-harness/plane-transform-probe.py`（CadQuery 2.8.0 XY/TR/TILT/Y 平面 + ROOT/OFF 盒，不进 CI）。曝光两个真实语义差异：`mirrorInPlane` 反射轴是"关于 X/Y 轴**线**反射"（翻转 local y&z 或 x&z，非关于 YZ/XZ 平面）——Householder 反射矩阵对齐；CadQuery 返回 `Shell`、faijs 保留输入拓扑（几何相同、TopoDS 标签不同），按 GOTCHA 记录。`toWorldCoords` 为 `toLocalCoords` 逆，由矩阵逆自洽覆盖。

@@ -176,6 +176,8 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 
 需增强镜像框架（fixture / parametrize / 反射）才能解锁这 ~19 条。
 
+**重新定性（2026-10-03）**：`exportGLTF` / `exportVTKJS` 两项**不属"待解锁"** —— 它们是上游 `Assembly` 的**可视化发布导出器**（产出给网页/可视化用），不是建模能力，与 faijs「mesh 是正式数据、不是预览；UI 预览不应依赖导出」的定位无关。它们出现在本表只是"镜像框架不认识这种出口"的分类结果。判 **out-of-scope 并关闭**（内核侧并非做不到：`occt-wasm` 有 `XAFDocument.exportGLTF()`）。详见 `2026-10-02-cadquery-port-gap-audit.md` §3.5 E3a。`toJSON` 同理（Python 对象协议，不是几何能力）。剩余真正待解锁的是 `getfixturevalue` / `parametrize` / `__dir__` / `fixture` 这类**框架机制**条目。
+
 ### 3.5 已识别但需注意的隐藏根因
 
 - **core 字体在 Node ESM 下曾坏**：`fontRegistry.ts` 用 `import * as opentype` + `opentype.parse`，Node ESM 下 `import *` 只得 `{default}`，`parse` 为 undefined。已在 `964d750e`、`a4d31821` 修（一行 `(ns as {default?}).default ?? ns` + y 轴翻转），本论 valign/解析修复建立在之上。
@@ -191,11 +193,11 @@ a43f7626 fix(scripts): exempt private packages from the CDN pin rule in check-lo
 | B | **对象栈模型**（`.all()/.end()/.val()/.vals()` 多对象 Workplane） | `workplane.ts` 为扁平单对象模型，无对象栈方法 | 结构性，阻断选择器逐级收窄与 `.all()` 解构 |
 | C | **对象选择器类**（`Box`/`RadiusNth`/`LengthNth`/`AreaNth`/`NearestToShape`/`BooleanSelector`） | `shape-class.ts` 无上述类（仅 4 个字符串/方向类） | 同源沉默，待字符串选择器落地后第二轮审计 |
 | D | **任意平面变换**（`Plane.toLocalCoords`/`mirrorInPlane`） | `toLocalCoords` 全仓零命中；`mirrorInPlane` 仅注释提及，faijs-cadquery 只有 `mirrorX/mirrorY`（§9.2 仅登 2 条，严重低估为整套 `Plane` 变换面缺失） | 被低估为 2 条，实为整面缺失 |
-| E | 派生：`wires()/shells()/solids()` 选择器、2D 草图选择器、导出保真（GLTF/VTK/带颜色-名字-层 STEP） | 同源失明，分散在 §3.2/§3.4 | 分量被低估 |
+| E | 派生：E1 `wires()/shells()/solids()/compounds()` 选择器、E2 2D 草图选择器、E3 STEP 元数据（原记「导出保真」，含 GLTF/VTK/带颜色-名字-层 STEP） | **E1/E2 已闭环**（2026-10-03）；**E3a（GLTF/VTK.js/VRML）判 out-of-scope 关闭**（可视化发布格式，非建模能力，见 §3.4）；**E3b 部分闭环**：成员级 name/color + 非装配拒绝已修，导出侧装配结构与子形状 name/layer 受内核 `XCAFDocument` 能力限制 | 同源失明，分散在 §3.2/§3.4 |
 
 **方法论修正**：上述缺口不应只靠 STEP 几何比对判定 parity，应推广 `2026-10-02-cadquery-selector-parity-plan.md` §5.1 的"语义级探针通道"（选择器探针 + 几何量探针 + 坐标变换探针 + 对象栈探针），并评估给 `analyze-coverage.py` 增加 `geometry-producing` / `value-producing` 维度标签。
 
-**闭环进度（2026-10-03 回写）**：探针通道已改为 `2026-10-02-cadquery-port-gap-audit.md` §5.1 的**一次性 Python 参考捕获 → 真值固化进 TS 断言**范式（per-run 通道已弃用）。已闭环：**A**（内省查询，20 用例）、**C**（对象选择器类，43 用例）、**D**（Plane 变换，16 用例）、**E1**（`wires/shells/solids/compounds` kind 选择器，12 用例）、**E2**（2D 草图选择器，18 用例）。仍开放：**B**（对象栈 —— 结构性，需先立方案）、**E3**（导出保真：GLTF / VTK.js / VRML / 带颜色-名字-层的 STEP）。`analyze-coverage.py` 的维度标签**已实施**（见审计 §5.4），并顺带修掉它自重命名提交 `e84817eb` 起就 404 的导出面路径。
+**闭环进度（2026-10-03 回写）**：探针通道已改为 `2026-10-02-cadquery-port-gap-audit.md` §5.1 的**一次性 Python 参考捕获 → 真值固化进 TS 断言**范式（per-run 通道已弃用）。已闭环：**A**（内省查询，20 用例）、**C**（对象选择器类，43 用例）、**D**（Plane 变换，16 用例）、**E1**（`wires/shells/solids/compounds` kind 选择器，12 用例）、**E2**（2D 草图选择器，18 用例）、**E3b 可做部分**（STEP 元数据：`importStep` 走 XCAF + 非装配抛错 + 命名色解析，13 用例）。**E3a（GLTF/VTK.js/VRML）判 out-of-scope 关闭**。仍开放：**B**（对象栈 —— 结构性，需先立方案）、**E3b 剩余**（导出侧装配结构、子形状 name/color/layer —— **内核能力缺口**，需 `XCAFDocument` 补 `NewShape`/`AddAssembly` 与 `ShapeTool.GetSubShapes`/`LayerTool`，故上游 4 条 `op:assembly-subshape-import` 用例不能解锁）。`analyze-coverage.py` 的维度标签**已实施**（见审计 §5.4），并顺带修掉它自重命名提交 `e84817eb` 起就 404 的导出面路径。
 
 ---
 

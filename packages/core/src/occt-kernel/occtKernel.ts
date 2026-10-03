@@ -265,6 +265,17 @@ export interface AssemblyPartNode {
   name: string
   /** True if this node is an assembly (has child components). */
   isAssembly: boolean
+  /**
+   * True when `isAssembly` was **synthesised by this reader**, not read from the
+   * file: a single XCAF product holding a multi-solid compound gets split into
+   * virtual children so each solid becomes its own scene node.
+   *
+   * The distinction matters to callers that must answer "is this file really an
+   * assembly?" — e.g. `Assembly.importStep` parity, where upstream rejects a STEP
+   * with no assembly structure (`shape_tool.IsAssembly_s` is false for such a
+   * product). Without this flag a flat multi-solid STEP looks like an assembly.
+   */
+  syntheticGroup?: boolean
   /** True if this node is a component reference (leaf part with location). */
   isComponent: boolean
   /** Shape handle with location baked in (for components) or raw shape (for roots).
@@ -401,6 +412,7 @@ function walkLabel(
         labelPath: path,
         name,
         isAssembly: true, // mark as assembly so it becomes a group node
+        syntheticGroup: true, // ...but it is NOT an assembly in the file
         isComponent: false,
         shapeHandle: null,
         prototypeKey: null,

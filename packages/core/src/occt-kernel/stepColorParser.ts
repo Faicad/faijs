@@ -6,6 +6,10 @@
  *   → SURFACE_SIDE_STYLE → SURFACE_STYLE_FILL_AREA → FILL_AREA_STYLE
  *   → FILL_AREA_STYLE_COLOUR → COLOUR_RGB
  *
+ * 链尾有两种：`COLOUR_RGB('',r,g,b)`（任意色）和
+ * `DRAUGHTING_PRE_DEFINED_COLOUR('red')`（**恰好命中预定义色时**的紧凑写法，
+ * 见 STEP_PREDEFINED_COLOURS）。两者都必须认，否则整类颜色静默丢失。
+ *
  * STYLED_ITEM 的第三个参数引用被着色的 shape entity（通常是 MANIFOLD_SOLID_BREP）。
  * 我们解析这个引用链，建立 solid entity ID → color 的映射。
  *
@@ -13,6 +17,36 @@
  * 而非 label 层级），此解析器作为后备方案提取颜色。
  */
 
+/**
+ * STEP `draughting_pre_defined_colour` 名字 → RGB。
+ *
+ * 值与 OCCT 的 `Quantity_Color(Quantity_NOC_<NAME>)` 逐位一致（CadQuery 写出
+ * 预定义色后，OCCT 读回的就是这一步的结果），由一次性捕获
+ * `packages/faijs-cadquery/tests/ref-harness/predefined-colour-probe.py` 取得
+ * （CadQuery 2.8.0 / OCCT 7.9.3，不进 CI）——**不要手调这些数字**：它们只有
+ * 与 OCCT 同源才能让「写出 → 读回」逐位相等。
+ *
+ * 上游只会在这个 RGB 与预定义色**完全相等**时写名字形式；近似色仍写
+ * `COLOUR_RGB`（实测：0.5/0.5/0.5、0/0/0.5、(0.123,0.456,0.789) 都走 RGB）。
+ */
+export const STEP_PREDEFINED_COLOURS: Readonly<Record<string, readonly [number, number, number]>> = {
+  black: [0, 0, 0],
+  red: [1, 0, 0],
+  green: [0, 1, 0],
+  blue: [0, 0, 1],
+  yellow: [1, 1, 0],
+  magenta: [1, 0, 1],
+  cyan: [0, 1, 1],
+  white: [1, 1, 1],
+  orange: [1, 0.376262009, 0],
+  pink: [1, 0.527114987, 0.59720099],
+  brown: [0.376262009, 0.023153, 0.023153],
+  purple: [0.351532996, 0.014444, 0.871366024],
+  gold: [1, 0.679542005, 0],
+}
+
+
+/** A parsed STEP entity: its numeric id, type keyword, and raw parameter text. */
 export interface StepEntity {
   id: number
   type: string
@@ -84,6 +118,14 @@ function resolveColorChain(
       return [nums[0], nums[1], nums[2]]
     }
     return null
+  }
+
+  if (entity.type === 'DRAUGHTING_PRE_DEFINED_COLOUR') {
+    // Parse: 'red' — the whole chain collapses to one of the ISO names.
+    const name = entity.params.trim().replace(/^'/, '').replace(/'$/, '').toLowerCase()
+    const rgb = STEP_PREDEFINED_COLOURS[name]
+    // Unknown name: return null rather than inventing a colour.
+    return rgb ? [rgb[0], rgb[1], rgb[2]] : null
   }
 
   // For all intermediate types, follow # references
