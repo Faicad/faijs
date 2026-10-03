@@ -203,7 +203,22 @@ export interface Workplane {
   xDir: [number, number, number]
   /** Workplane local +Y in world coordinates (= normal × xDir). */
   yDir: [number, number, number]
-  /** Current geometry (faijs Shape), or null for empty workplane. */
+  /**
+   * 【对象栈 · 唯一真源】P3 起，Workplane 承载的是 CadQuery 的**对象栈**
+   * （上游 `cq.py:246 Workplane.objects`），不是单个形状。空栈 = `[]`。
+   *
+   * 不变式（由 {@link clone} 单点维持）：`shape === (objects[0] ?? null)`。
+   * 任何新的载体构造都必须走 `clone` / `Workplane()`，不得手工 `Object.assign`。
+   */
+  objects: Shape[]
+  /**
+   * 【派生视图 · 过渡垫片】= `objects[0] ?? null`。对应上游 `.val()`。
+   *
+   * 保留本字段是为了让 140 处源码读点、49 处测试读点、以及跨子路径的鸭子类型
+   * 消费者（`assembly/assembly.ts` / `assembly/save.ts` 读 `v.shape`）零改动继续
+   * 工作。它**不是**独立的存储 —— 由 `clone()` 从 `objects` 派生，任何直接写
+   * `.shape` 都会让栈与视图脱节。P3-4 收尾时删除本字段。
+   */
   shape: Shape | null
   /** Pending face selector (e.g. ">Z", "<X"). Set by .faces(). */
   faceSel: string | null
@@ -408,6 +423,7 @@ function makeWorkplane(plane: string): Workplane {
     normal: a.n,
     xDir: a.x,
     yDir,
+    objects: [] as Shape[],
     shape: null,
     faceSel: null,
     edgeSel: null,
@@ -418,9 +434,49 @@ function makeWorkplane(plane: string): Workplane {
   }) as Workplane
 }
 
-/** Clone a workplane with overrides (preserves custom prototype). */
+/**
+ * 把「可能是 null 的单个形状」变成对象栈。
+ *
+ * P3 不变式的两条推论，都由这一处承担：
+ *
+ * 1. **栈里不存 null** —— `objects: Shape[]` 的元素类型是 `Shape`，而旧代码里
+ *    若干 op 的结果变量是 `Shape | null`（如 `eachpoint` 的 `acc`/`separate`、
+ *    `split` 的 `parts[i]`）。旧的单字段 `shape: Shape | null` 能直接装下 null；
+ *    栈不能 —— 栈的长度本身就是信息（`size()`），塞 null 会让它撒谎。
+ * 2. **null 形状 ⇔ 空栈** —— `shape` 是派生的（`objects[0] ?? null`），所以
+ *    「没有形状」在栈模型里的唯一正确表示就是空数组。派生关系自动成立，
+ *    不需要调用点各自写 `?? null`。
+ *
+ * @param shape - 单个形状，或 null / undefined 表示「无」
+ * @returns `[shape]`，或无形状时的 `[]`
+ */
+function stackOf(shape: Shape | null | undefined): Shape[] {
+  return shape ? [shape] : []
+}
+
+/**
+ * Clone a workplane with overrides (preserves custom prototype).
+ *
+ * P3：这是**载体不变式的唯一维持点** —— `shape` 在此从 `objects` 派生
+ * （`shape === objects[0] ?? null`）。因此：
+ *
+ * - 写几何一律写 `overrides.objects`（`[X]` 或 `[X, Y]`），**禁止**写
+ *   `overrides.shape`：那会让栈与派生视图脱节，且不会有任何症状。传入即抛。
+ * - 5 处历史遗留的 `{ ...wp }` 对象展开（`cutBlind` / `cutThruAll` / `hole` /
+ *   `cboreHole` 的 eachpoint 载体）已在 P3-0 改走本函数 —— 它们既丢失
+ *   `WP_PROTO`（⇒ `borrowDeep` 会遍历其字段，破坏 autoLift 边界），也会把
+ *   `shape` 固化成数据属性。
+ */
 function clone(wp: Workplane, overrides: Partial<Workplane>): Workplane {
-  return Object.assign(Object.create(WP_PROTO), wp, overrides) as Workplane
+  if ('shape' in overrides) {
+    throw new Error(
+      '[cq-compat] clone: overrides.shape is forbidden — it is DERIVED from `objects` ' +
+        '(`shape === objects[0] ?? null`). Write `objects: [shape]` instead.',
+    )
+  }
+  const out = Object.assign(Object.create(WP_PROTO), wp, overrides) as Workplane
+  out.shape = out.objects[0] ?? null
+  return out
 }
 
 /**
@@ -688,7 +744,7 @@ async function combineEachpoint(
   } else {
     shape = makeCompoundShape(shapes)
   }
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
+  return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
 
 /**
@@ -707,7 +763,7 @@ export function Workplane(plane: string = 'XY'): Workplane {
  * @returns Promise<Workplane>
  */
 export async function add(wp: Workplane, shape: Shape): Promise<Workplane> {
-  return clone(wp, { shape })
+  return clone(wp, { objects: [shape] })
 }
 
 /**
@@ -862,7 +918,7 @@ export async function text(
   const mode = normalizeCombine(combine)
   let result: Workplane
   if (mode === false || !wp.shape) {
-    result = clone(wp, { shape: placed })
+    result = clone(wp, { objects: [placed ]})
   } else if (mode === 'cut') {
     // Kernel-level cut, NOT `cut()`: the latter goes through the `cad.subtract`
     // defineOp, whose N1 guard rejects a geometry input without a PartName —
@@ -870,12 +926,12 @@ export async function text(
     // placement GOTCHA above). `cutShapes` is the kernel primitive the rest of
     // cq-compat's booleans already use (hole / pocket / cutBlind / …), and
     // `union()` likewise takes the kernel path (`fuseShapes`).
-    result = clone(wp, { shape: await cutShapes(wp.shape, placed) })
+    result = clone(wp, { objects: [await cutShapes(wp.shape, placed) ]})
   } else {
     result = await union(wp, placed)
   }
   if ((opts?.clean ?? true) && result.shape) {
-    result = clone(result, { shape: await cleanShapes(result.shape) })
+    result = clone(result, { objects: [await cleanShapes(result.shape) ]})
   }
   return clone(result, { faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
@@ -2045,7 +2101,7 @@ export function clean(wp: Workplane, tolerance?: number): Workplane {
   h = kern().fixShape(h)
   h = kern().removeDegenerateEdges(h, tolerance)
   h = kern().healSolid(h, tolerance)
-  return clone(wp, { shape: toShape(h) })
+  return clone(wp, { objects: [toShape(h) ]})
 }
 
 /**
@@ -2064,7 +2120,7 @@ export async function consolidateWires(wp: Workplane): Promise<Workplane> {
   }
   const built = (await Promise.all(wires.map((w) => buildProfileWire(wp, w)))) as BrepHandle[]
   const compound = kern().makeCompound(built)
-  return clone(wp, { shape: toShape(compound), pendingWires: [] })
+  return clone(wp, { objects: [toShape(compound)], pendingWires: [] })
 }
 
 /**
@@ -2408,7 +2464,7 @@ export async function extrude(
     if (!prism) throw new Error('[cq-compat] extrude: no sketch faces to extrude')
     const shape = combine === false || !base ? prism : await fuseShapes(base, prism)
     return clone(wp, {
-      shape,
+      objects: [shape],
       pendingFaces: undefined,
       faceSel: null,
       edgeSel: null,
@@ -2436,7 +2492,7 @@ export async function extrude(
       }
       const shape = base ? await fuseShapes(base, prism as Shape) : (prism as Shape)
       return clone(wp, {
-        shape,
+        objects: [shape],
         pendingFaces: undefined,
         faceSel: null,
         edgeSel: null,
@@ -2487,7 +2543,7 @@ export async function extrude(
     const prism = fromHandle(raw)
     const shape = combine === false || !base ? prism : await fuseShapes(base, prism)
     return clone(wp, {
-      shape,
+      objects: [shape],
       pendingWires: [],
       pendingPolygon: undefined,
       pendingRect: undefined,
@@ -2513,7 +2569,7 @@ export async function extrude(
     const shape =
       combine === false || !base ? prism : await fuseShapes(base, prism)
     return clone(wp, {
-      shape,
+      objects: [shape],
       pendingWires: [],
       pendingPolygon: undefined,
       pendingRect: undefined,
@@ -2528,17 +2584,17 @@ export async function extrude(
   // If there's a pending 2D profile (rect/circle/polygon) and no existing shape, create the 3D solid
   if (wp.pendingPolygon && !wp.shape) {
     const shape = await makePolygonPrismAt(wp, wp.pendingPolygon, height, wp.normal)
-    return clone(wp, { shape, pendingWires: [], pendingPolygon: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
+    return clone(wp, { objects: [shape], pendingWires: [], pendingPolygon: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
   }
   if (wp.pendingRect && !wp.shape) {
     const { w, d } = wp.pendingRect
     const shape = await makeBoxAt(wp, w, d, height)
-    return clone(wp, { shape, pendingWires: [], pendingRect: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
+    return clone(wp, { objects: [shape], pendingWires: [], pendingRect: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
   }
   if (wp.pendingCircle && !wp.shape) {
     const { radius } = wp.pendingCircle
     const shape = await makeCylinderAt(wp, radius, height)
-    return clone(wp, { shape, pendingWires: [], pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
+    return clone(wp, { objects: [shape], pendingWires: [], pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
   }
   // Boss extrude on existing shape: create profile at each workplane point and union
   if (wp.shape) {
@@ -2554,7 +2610,7 @@ export async function extrude(
       let shape = base
       let separate: Shape | null = null
       for (const [px, py] of points) {
-        const bossWp: Workplane = { ...wp, origin: localToWorld(wp, px, py) }
+        const bossWp = clone(wp, { origin: localToWorld(wp, px, py) })
         // combine=false keeps the new solid standalone: no OVERLAP padding (it
         // exists only to make the fuse merge coplanar faces) and no fuse.
         const h = combine === false ? height : height + OVERLAP
@@ -2613,10 +2669,9 @@ export async function extrude(
                 bossB.zmax - bossB.zmin,
               ) +
             10
-          const belowWp: Workplane = {
-            ...wp,
+          const belowWp = clone(wp, {
             origin: [o[0] - n[0] * BIG, o[1] - n[1] * BIG, o[2] - n[2] * BIG],
-          }
+          })
           const slab = await makeBoxAt(belowWp, BIG, BIG, BIG)
           const strayBelow = await intersectShapes(stray, slab)
           shape = await cutShapes(shape, strayBelow)
@@ -2624,7 +2679,7 @@ export async function extrude(
       }
       if (combine === false && separate) {
         return clone(wp, {
-          shape: separate,
+          objects: stackOf(separate),
           pendingWires: [],
           pendingPolygon: undefined,
           pendingRect: undefined,
@@ -2637,7 +2692,7 @@ export async function extrude(
         })
       }
       return clone(wp, {
-        shape,
+        objects: [shape],
         pendingWires: [],
         pendingPolygon: undefined,
         pendingRect: undefined,
@@ -2810,7 +2865,7 @@ async function outwardTaperPrism(
   const prism = fromHandle(solid)
   const shape = combine === false || !base ? prism : await fuseShapes(base, prism)
   return clone(wp, {
-    shape,
+    objects: [shape],
     pendingWires: [],
     pendingPolygon: undefined,
     pendingRect: undefined,
@@ -2886,7 +2941,7 @@ export async function revolve(
   // combine === false → keep the revolved solid alone
 
   return clone(wp, {
-    shape,
+    objects: [shape],
     pendingWires: [],
     pendingPolygon: undefined,
     pendingRect: undefined,
@@ -3000,7 +3055,7 @@ export async function loft(wp: Workplane, ...rest: (Workplane | LoftOptions)[]):
   // (`findSolid()` returns None otherwise — test_loft_face).
 
   return clone(wp, {
-    shape,
+    objects: [shape],
     pendingWires: [],
     pendingPolygon: undefined,
     pendingRect: undefined,
@@ -3064,7 +3119,7 @@ export async function cutBlind(
     const tool = fromHandle(raw)
     result = await cutShapes(base, tool)
     return clone(wp, {
-      shape: result,
+      objects: stackOf(result),
       faceSel: null,
       edgeSel: null,
       pts: [],
@@ -3078,11 +3133,10 @@ export async function cutBlind(
   // point. With no pushed points, the cut happens at the workplane origin.
   const ptsArr = eachPoints(wp)
   for (const [px, py] of ptsArr) {
-    const cutWp: Workplane = {
-      ...wp,
+    const cutWp = clone(wp, {
       origin: localToWorld(wp, px, py),
       normal: invNormal,
-    }
+    })
     let tool: Shape
     if (hasPathWire(wp)) {
       // Drafted wire (moveTo/lineTo/polyline + close): extrude the profile into
@@ -3107,7 +3161,7 @@ export async function cutBlind(
     }
     result = await cutShapes(result, tool)
   }
-  return clone(wp, { shape: result, faceSel: null, edgeSel: null, selChain: undefined, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
+  return clone(wp, { objects: [result], faceSel: null, edgeSel: null, selChain: undefined, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
 }
 
 /**
@@ -3149,7 +3203,7 @@ export async function cutThruAll(wp: Workplane): Promise<Workplane> {
   let shape = base
   for (const [px, py] of ptsArr) {
     // Tool base at point - n·B, extending 2B along +n — covers both directions.
-    const thruWp: Workplane = { ...wp, origin: vsub(localToWorld(wp, px, py), vscale(n, B)) }
+    const thruWp = clone(wp, { origin: vsub(localToWorld(wp, px, py), vscale(n, B)) })
     let tool: Shape
     if (hasPathWire(wp)) {
       // Drafted wire: the tool must span the whole solid along the normal and
@@ -3170,7 +3224,7 @@ export async function cutThruAll(wp: Workplane): Promise<Workplane> {
     }
     shape = await cutShapes(shape, tool)
   }
-  return clone(wp, { shape, faceSel: null, edgeSel: null, selChain: undefined, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
+  return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, selChain: undefined, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
 }
 
 /**
@@ -3201,14 +3255,14 @@ export async function hole(
     const holeOrigin = localToWorld(wp, px, py)
     const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
     const cyl = await makeCylinderAt(
-      { ...wp, origin: holeOrigin, normal: invNormal },
+      clone(wp, { origin: holeOrigin, normal: invNormal }),
       radius,
       holeHeight,
     )
     result = await cutShapes(result, cyl)
   }
 
-  return clone(wp, { shape: result, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
+  return clone(wp, { objects: stackOf(result), faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
 
 /**
@@ -3245,7 +3299,7 @@ export async function cboreHole(
       const cyl = await makeCylinderAt({ ...result, origin, normal: invNormal }, cboreRadius, cboreDepth)
       shape = await cutShapes(shape, cyl)
     }
-    result = clone(result, { shape })
+    result = clone(result, { objects: [shape] })
   }
   return clone(result, { pts: [] })
 }
@@ -3280,7 +3334,7 @@ export async function cskHole(
       const cone = await makeConeAt({ ...result, origin }, cskRadius, cskDepth, invNormal)
       shape = await cutShapes(shape, cone)
     }
-    result = clone(result, { shape })
+    result = clone(result, { objects: [shape] })
   }
   return clone(result, { pts: [] })
 }
@@ -3519,7 +3573,7 @@ export async function siblings(
   for (const h of out) if (!uniq.some((x) => isSameHandle(x, h))) uniq.push(h)
   const compound =
     uniq.length === 0 ? await cad.compound({ members: [] }) : await cad.compound({ members: uniq.map((h) => fromHandle(h as unknown as ShapeHandle)) })
-  return clone(makeWorkplane('XY'), { shape: compound })
+  return clone(makeWorkplane('XY'), { objects: [compound ]})
 }
 
 /**
@@ -3681,7 +3735,7 @@ export function solids(wp: Workplane): Workplane {
   // getSubShapes copies each sub-shape into its own arena slot — same contract
   // the kernel's own makeWireFromMixed wrapper honors).
   for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
-  return clone(wp, { shape: fromHandle(sub[0]) })
+  return clone(wp, { objects: [fromHandle(sub[0]) ]})
 }
 
 /**
@@ -3698,7 +3752,7 @@ export function solids(wp: Workplane): Workplane {
  */
 export function copyWorkplane(wp: Workplane, obj: Workplane): Workplane {
   void wp
-  return clone(obj, { shape: null, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
+  return clone(obj, { objects: [], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -3871,7 +3925,7 @@ export async function eachpoint(
     }
   }
   const result = combine === false ? separate : acc
-  return clone(wp, { shape: result, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
+  return clone(wp, { objects: stackOf(result), faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
 
 /**
@@ -3993,7 +4047,7 @@ export async function translate(
 ): Promise<Workplane> {
   if (!wp.shape) return clone(wp, { origin: vadd(wp.origin, v) })
   const shape = await cad.translate(resolveInputShape(wp), { offset: v })
-  return clone(wp, { shape, origin: vadd(wp.origin, v) })
+  return clone(wp, { objects: [shape], origin: vadd(wp.origin, v) })
 }
 
 /**
@@ -4015,7 +4069,7 @@ export async function rotate(
     axis[2] * angle,
   ]
   const shape = await cad.rotate_euler(resolveInputShape(wp), { angles })
-  return clone(wp, { shape })
+  return clone(wp, { objects: [shape] })
 }
 
 /**
@@ -4080,7 +4134,7 @@ export async function mirror(
   const shape = union ? await fuseShapes(wp.shape, mirrored) : mirrored
   // Upstream returns a newObject stack holding only the mirrored/unioned
   // objects — pending selectors do not survive a mirror.
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
+  return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -4106,7 +4160,7 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
       throw new Error('[cq-compat] faceCompound "all": shape has no faces')
     }
     const shape = toShape(kern().makeCompound(faces as BrepHandle[]))
-    return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
+    return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
   }
   const m = /^([<>])([XYZ])(?:\[-?\d+\])?$/.exec(s.trim())
   if (!m) {
@@ -4134,7 +4188,7 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
     .reduce((best, c) => (sign * c > sign * best ? c : best))
   const picked = perp.filter((f) => Math.abs(center(bounds(f)) - extremum) <= 1e-6)
   const shape = toShape(kern().makeCompound(picked as BrepHandle[]))
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
+  return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -4172,7 +4226,7 @@ export async function edgeCompound(wp: Workplane, sel: string): Promise<Workplan
     .reduce((best, c) => (sign * c > sign * best ? c : best))
   const picked = edges.filter((e) => Math.abs(center(bounds(e)) - extremum) <= 1e-6)
   const shape = toShape(kern().makeCompound(picked as BrepHandle[]))
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
+  return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 // ── Location / moved / move (阶段 E) ─────────────────────────────────────
@@ -4454,7 +4508,7 @@ export async function moved(wp: Workplane, ...locs: unknown[]): Promise<Workplan
     shape = toShape(kern().makeCompound(handles))
   }
   return clone(wp, {
-    shape,
+    objects: [shape],
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
@@ -4490,7 +4544,7 @@ export async function union(
   const otherShape = 'shape' in other ? (other as Workplane).shape : (other as Shape)
   if (!otherShape) return wp
   const shape = await fuseShapes(wp.shape, otherShape)
-  return clone(wp, { shape })
+  return clone(wp, { objects: [shape] })
 }
 
 /**
@@ -4508,7 +4562,7 @@ export async function union(
 export async function combine(wp: Workplane): Promise<Workplane> {
   if (!wp.shape) return wp
   const shape = await cleanShapes(wp.shape)
-  return clone(wp, { shape })
+  return clone(wp, { objects: [shape] })
 }
 
 /**
@@ -4525,7 +4579,7 @@ export async function cut(
   const otherShape = 'shape' in other ? (other as Workplane).shape : (other as Shape)
   if (!otherShape) return wp
   const shape = await cad.subtract(resolveInputShape(wp), resolveInputShape(other))
-  return clone(wp, { shape })
+  return clone(wp, { objects: [shape] })
 }
 
 /**
@@ -4552,7 +4606,7 @@ export async function face(wp: Workplane): Promise<Workplane> {
   }
   const shape = faces.length === 1 ? faces[0] : makeCompoundShape(faces)
   return clone(wp, {
-    shape,
+    objects: [shape],
     pendingWires: [],
     pendingRect: undefined,
     pendingCircle: undefined,
@@ -4614,7 +4668,7 @@ export async function intersect(
   const otherShape = 'shape' in other ? (other as Workplane).shape : (other as Shape)
   if (!otherShape) return wp
   const shape = await intersectShapes(wp.shape, otherShape)
-  return clone(wp, { shape })
+  return clone(wp, { objects: [shape] })
 }
 
 /**
@@ -4652,7 +4706,7 @@ export async function fillet(wp: Workplane, radius: number): Promise<Workplane> 
   }
   const product = kern().fillet(ownHandle(wp.shape), edges as BrepHandle[], radius)
   const shape = toShape(product)
-  return clone(wp, { shape, edgeSel: null, faceSel: null, selChain: undefined })
+  return clone(wp, { objects: [shape], edgeSel: null, faceSel: null, selChain: undefined })
 }
 
 /**
@@ -4690,7 +4744,7 @@ export async function chamfer(
   }
   const product = kern().chamfer(ownHandle(wp.shape), edges as BrepHandle[], length)
   const shape = toShape(product)
-  return clone(wp, { shape, edgeSel: null, faceSel: null, selChain: undefined })
+  return clone(wp, { objects: [shape], edgeSel: null, faceSel: null, selChain: undefined })
 }
 
 
@@ -4759,7 +4813,7 @@ export async function shell(wp: Workplane, thickness: number): Promise<Workplane
     const outer = fromHandle(kernel.offset(h, thickness, 1e-3))
     shape = await cutShapes(outer, wp.shape)
   }
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
+  return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
 }
 
 /**
@@ -4978,7 +5032,7 @@ export async function splineFace(
   }
 
   if (opts.strategy === 'grid') {
-    return clone(wp, { shape: fromHandle(k.bsplineSurface(grid.map(v3), rows, cols)) })
+    return clone(wp, { objects: [fromHandle(k.bsplineSurface(grid.map(v3), rows, cols)) ]})
   }
 
   const tol = opts.tolerance ?? 1e-2
@@ -5000,7 +5054,7 @@ export async function splineFace(
     }
     face = faces[0]
   }
-  return clone(wp, { shape: fromHandle(face) })
+  return clone(wp, { objects: [fromHandle(face) ]})
 }
 
 /**
@@ -5037,7 +5091,7 @@ export async function helix(
       ) => ShapeHandle
     }
   ).makeHelixWire(v3(wp.origin), v3(axis), pitch, height, radius)
-  return clone(wp, { shape: fromHandle(raw) })
+  return clone(wp, { objects: [fromHandle(raw) ]})
 }
 
 /**
@@ -5098,7 +5152,7 @@ export async function splitFace(
   // NOTE: we intentionally do NOT release `compound` / unchosen fragments here —
   // the kept `result` is adopted by fromHandle; freeing the arena slots would
   // invalidate it. The leak is bounded per call (one split).
-  return clone(wp, { shape: fromHandle(result) })
+  return clone(wp, { objects: [fromHandle(result) ]})
 }
 
 /**
@@ -5164,7 +5218,7 @@ export async function twistExtrude(
     const t = i / steps
     const rot = k.rotate(base, { point: v3(src.origin), direction: v3(axis) }, angle * t * DEG2RAD)
     const tr = k.translate(rot, axis[0] * height * t, axis[1] * height * t, axis[2] * height * t)
-    sections.push(clone(src, { shape: fromHandle(tr), pendingWires: [] }))
+    sections.push(clone(src, { objects: [fromHandle(tr)], pendingWires: [] }))
   }
   return loft(sections[0], ...sections.slice(1), { ruled: false })
 }
@@ -5204,7 +5258,7 @@ export function faceFromPoints(wp: Workplane, pts: [number, number, number][]): 
   for (const e of edges) k.release(e)
   const face = k.makeFace(wire)
   k.release(wire)
-  return clone(wp, { shape: fromHandle(face), pendingWires: [], pendingEdges: [], currentPoint: undefined, firstPoint: undefined })
+  return clone(wp, { objects: [fromHandle(face)], pendingWires: [], pendingEdges: [], currentPoint: undefined, firstPoint: undefined })
 }
 
 /**
@@ -5266,7 +5320,7 @@ export async function solidFromFaces(
       `[cq-compat] solidFromFaces: result is not a solid (got ${k.getShapeType(result)})`,
     )
   }
-  return clone(wp, { shape: fromHandle(result), pendingWires: [] })
+  return clone(wp, { objects: [fromHandle(result)], pendingWires: [] })
 }
 
 /** Endpoints of a curve edge (parameter-space — B-spline edges carry no
@@ -5416,7 +5470,7 @@ export async function planarCap(
 
   // 3) Heal + make the cap face.
   const face = k.makeFace(k.healWire(wires[0], tol))
-  return clone(wp, { shape: fromHandle(face), pendingWires: [] })
+  return clone(wp, { objects: [fromHandle(face)], pendingWires: [] })
 }
 
 // ---------------------------------------------------------------------------
@@ -5466,13 +5520,13 @@ export async function split(
   const keepB = opts?.keepBottom ?? true
   if (!keepT && !keepB) throw new Error('[cq-compat] split: keepTop and keepBottom are both false')
   if (keepT && !keepB) {
-    return clone(wp, { shape: toShape(halves.positive), parts: undefined })
+    return clone(wp, { objects: [toShape(halves.positive)], parts: undefined })
   }
   if (!keepT && keepB) {
-    return clone(wp, { shape: toShape(halves.negative), parts: undefined })
+    return clone(wp, { objects: [toShape(halves.negative)], parts: undefined })
   }
   const comp = getKernel().makeCompound([halves.positive, halves.negative] as never)
-  return clone(wp, { shape: toShape(comp), parts: [toShape(halves.positive), toShape(halves.negative)] })
+  return clone(wp, { objects: [toShape(comp)], parts: [toShape(halves.positive), toShape(halves.negative)] })
 }
 
 /**
@@ -5486,7 +5540,7 @@ export async function split(
 export function partAt(wp: Workplane, i: number): Workplane {
   const parts = wp.parts ?? []
   if (i < 0 || i >= parts.length) throw new Error(`[cq-compat] partAt: index ${i} out of range (${parts.length} parts)`)
-  return clone(wp, { shape: parts[i], parts: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
+  return clone(wp, { objects: stackOf(parts[i]), parts: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
 }
 
 /**
@@ -5514,7 +5568,7 @@ export async function section(wp: Workplane, height = 0, normal?: [number, numbe
     throw new Error('[cq-compat] section: plane does not intersect the shape')
   }
   const comp = curves.length === 1 ? curves[0] : getKernel().makeCompound(curves as never)
-  return clone(wp, { shape: toShape(comp) })
+  return clone(wp, { objects: [toShape(comp) ]})
 }
 
 /**
@@ -5630,7 +5684,7 @@ export async function sweep(
     result = result ? await fuseShapes(result, solid) : solid
   }
   return clone(wp, {
-    shape: result,
+    objects: stackOf(result),
     pendingWires: [],
     pendingPolygon: undefined,
     pendingRect: undefined,
@@ -5767,7 +5821,7 @@ export function wires(wp: Workplane): Workplane {
   const sub = kernel.getSubShapes(handle as unknown as ShapeHandle, 'wire') as unknown as ShapeHandle[]
   if (sub.length === 0) return wp
   for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
-  return clone(wp, { shape: fromHandle(sub[0]) })
+  return clone(wp, { objects: [fromHandle(sub[0]) ]})
 }
 
 /**
@@ -5793,7 +5847,7 @@ export function compounds(wp: Workplane): Workplane {
   }
   if (sub.length === 0) return wp
   for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
-  return clone(wp, { shape: fromHandle(sub[0]) })
+  return clone(wp, { objects: [fromHandle(sub[0]) ]})
 }
 
 /**
@@ -5810,7 +5864,7 @@ export function shells(wp: Workplane): Workplane {
   const sub = kernel.getSubShapes(handle as unknown as ShapeHandle, 'shell') as unknown as ShapeHandle[]
   if (sub.length === 0) return wp
   for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
-  return clone(wp, { shape: fromHandle(sub[0]) })
+  return clone(wp, { objects: [fromHandle(sub[0]) ]})
 }
 
 /**
@@ -6113,7 +6167,7 @@ export async function rotateAboutCenter(
   ]
   const len = Math.hypot(dir[0], dir[1], dir[2]) || 1
   const rotated = k.rotate(handle as unknown as ShapeHandle, { point: center, direction: { x: dir[0] / len, y: dir[1] / len, z: dir[2] / len } }, (angleDegrees * Math.PI) / 180)
-  return clone(wp, { shape: fromHandle(rotated) })
+  return clone(wp, { objects: [fromHandle(rotated) ]})
 }
 
 /**

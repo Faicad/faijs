@@ -74,14 +74,25 @@ export function kernel(): OcctKernel {
 /**
  * Build a minimal valid root `Workplane` without touching the `cad.*` backend.
  *
- * Defaults to the XY plane at the origin (normal +Z, xDir +X, yDir +Y) with no
- * shape and no pending wires; pass `over` to override any field (e.g.
- * `{ shape }` or `{ normal, origin }`).
+ * Defaults to the XY plane at the origin (normal +Z, xDir +X, yDir +Y) with an
+ * empty object stack and no pending wires; pass `over` to override any field
+ * (e.g. `{ objects: [shape] }` or `{ normal, origin }`).
+ *
+ * P3: this fixture builds the carrier as a literal rather than through
+ * `workplane.ts`'s private `clone()`, so it upholds the `shape === objects[0]`
+ * invariant itself — accepting an `over` that sets only one of the two would
+ * break it, and `shape` (being derived) is dropped from `over` unless `objects`
+ * is given too.
  *
  * @param over - partial overrides merged onto the default workplane
  * @returns a `Workplane` literal suitable as the first argument of an op
  */
 export function mkWP(over: Partial<Workplane> = {}): Workplane {
+  // `shape` is DERIVED from `objects` (P3). Tolerate a caller that still passes
+  // the legacy `over.shape` by folding it into the stack, so existing fixtures
+  // keep working; an explicit `over.objects` always wins.
+  const { shape: overShape, objects: overObjects, ...rest } = over
+  const objects = overObjects ?? (overShape ? [overShape] : [])
   return {
     __cq: true,
     plane: 'XY',
@@ -89,13 +100,14 @@ export function mkWP(over: Partial<Workplane> = {}): Workplane {
     normal: [0, 0, 1],
     xDir: [1, 0, 0],
     yDir: [0, 1, 0],
-    shape: null,
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
     pts: [],
     forConstruction: false,
-    ...over,
+    ...rest,
+    objects,
+    shape: objects[0] ?? null,
   }
 }
 
