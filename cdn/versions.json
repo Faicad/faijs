@@ -7,6 +7,7 @@
   "@faicad/faijs-fasteners": "0.29.1",
   "@faicad/faijs-freecad": "0.29.1",
   "@faicad/faijs-gears": "0.29.1",
+  "@faicad/faijs-viewer": "0.29.1",
   "@faicad/sheetmetal": "0.29.1",
   "@faicad/faijs-sketch": "0.29.1"
 }
