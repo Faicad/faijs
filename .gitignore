@@ -55,6 +55,3 @@ docs/patents
 probe-*/
 *.tmp.json
 packages/core/src/brep/engine/multi-engine-results.json
-
-# backup of a downstream package build (not source)
-packages/sketch/dist.__cibak/
