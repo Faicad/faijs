@@ -9,6 +9,5 @@ let wp0 = cq.Workplane('XY')
 let wp1 = await cq.rect(wp0, 4, 4, { forConstruction: true })
 let wp2 = await cq.vertices(wp1)
 let wp3 = await cq.box(wp2, 1, 1, 1, { combine: false })
-let tagged = cq.tag(wp3, '4 objs')
-let result = tagged
+let result = cq.tag(wp3, '4 objs')
 let resultVal = cq.val(result)

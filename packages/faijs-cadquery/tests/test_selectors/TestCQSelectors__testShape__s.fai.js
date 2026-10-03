@@ -3,5 +3,4 @@
 // ref (cadquery 2.8.0): Solid, vol 6
 import * as cq from '@faicad/faijs-cadquery'
 let w = await cq.box(cq.Workplane('XY'), 3, 2, 1)
-let s = cq.val(w)
-let result = s
+let result = cq.val(w)

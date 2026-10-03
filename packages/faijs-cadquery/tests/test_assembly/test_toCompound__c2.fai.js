@@ -17,5 +17,4 @@ let box2 = await cq.box(cq.Workplane('XY'), 1, 1, 5)
 let box2t = await cq.translate(box2, [0, 0, 4.5])
 let box3 = await cq.box(cq.Workplane('XY'), 1, 1, 6)
 let box3t = await cq.translate(box3, [0, 0, 10])
-let c2 = cq.compound(cq.val(box0), cq.val(box1), cq.val(box2t), cq.val(box3t))
-let result = c2
+let result = cq.compound(cq.val(box0), cq.val(box1), cq.val(box2t), cq.val(box3t))

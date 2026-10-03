@@ -5,5 +5,4 @@
 import * as cq from '@faicad/faijs-cadquery'
 let p = cq.pushPoints(cq.Workplane('XY'), [[0, 0], [2, 0]])
 let w = await cq.box(p, 1, 1, 1)
-let c = cq.val(w)
-let result = c
+let result = cq.val(w)

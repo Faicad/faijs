@@ -361,6 +361,19 @@ const BY_KEY: Record<string, string> = {
   'tests.test_free_functions:::test_solid__s4': 'op:solid-voids',
   'tests.test_free_functions:::test_solid__s5': 'op:solid-voids',
   'tests.test_free_functions:::test_solid__s6': 'op:solid-voids',
+  // B0-5 data hygiene: these three carried a full prose sentence as `blockedBy`
+  // (written by an earlier script revision, then orphaned when their BY_KEY
+  // entries were dropped — gen-manifest preserves `manual: true` annotations, so
+  // the prose survived every regeneration). Normalised to tags:
+  //   · hollow(t>0) needs MakeThickSolidByJoin with an INTERSECTION join; the
+  //     occt-wasm offset is arc-join only (0.698/0.565 vs upstream 0.728/0.584
+  //     on the unit box) — kernel work, roadmap G-F9 / B6-2.
+  //   · test_name_geometries is blocked by the free `plane()` constructor
+  //     (roadmap G-C6 / B1-5); addSubshape was masking it until B0-4 fixed the
+  //     assembly surface.
+  'tests.test_free_functions:::test_hollow__res2': 'kernel:hollow-intersection-join',
+  'tests.test_free_functions:::test_hollow_open__res2': 'kernel:hollow-intersection-join',
+  'tests.test_assembly:::test_name_geometries__assy': 'plane',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<

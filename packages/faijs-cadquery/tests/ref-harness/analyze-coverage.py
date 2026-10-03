@@ -79,6 +79,19 @@ CQ_COMPAT_EXTRA: set[str] = {
     # `cadquery.func.fuse(a, b, …)` is cq-compat's `union` (its mirrors call the
     # latter — see tests/test_free_functions/test_fuse_multi__*.fai.js).
     "fuse",
+    # CqAssembly *methods* (src/assembly/assembly.ts), reached as `assy.traverse()`
+    # / `assy.addSubshape(...)`. They are implemented but are class members, not
+    # top-level exports, so `cq_compat_export_surface()` cannot see them.
+    #
+    # ONLY names with no unimplemented namesake are listed here. `remove` is
+    # deliberately ABSENT: Assembly.remove is implemented, but Shape.remove is a
+    # real gap (roadmap G-C3), and the op universe is a flat name set — adding
+    # `remove` would wrongly unblock tests.test_shapes::test_remove /
+    # test_free_functions::test_sewing. Until the analyzer resolves a call against
+    # its receiver type, ambiguous names like `remove` must stay "missing"
+    # (conservative = honest). Tracked as a modeling limitation, not a data fix.
+    "addSubshape",
+    "traverse",
 }
 
 

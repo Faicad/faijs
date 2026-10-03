@@ -8,5 +8,4 @@
 import * as cq from '@faicad/faijs-cadquery'
 let box0 = await cq.box(cq.Workplane('XY'), 1, 1, 3, { centered: [true, true, false] })
 let box1 = await cq.box(cq.Workplane('XY'), 1, 1, 4)
-let assy0 = cq.compound(cq.val(box0), cq.val(box1))
-let result = assy0
+let result = cq.compound(cq.val(box0), cq.val(box1))

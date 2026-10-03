@@ -16,5 +16,4 @@ let bC = await cq.box(cq.Workplane('XY'), 1, 1, 1, { centered: false })
 let bCt = await cq.translate(bC, [3, -5, 0])
 let bD = await cq.box(cq.Workplane('XY'), 1, 1, 1, { centered: false })
 let bDt = await cq.translate(bD, [4, -5, 0])
-let metadata_assy = cq.compound(cq.val(bAt), cq.val(bBt), cq.val(bCt), cq.val(bDt))
-let result = metadata_assy
+let result = cq.compound(cq.val(bAt), cq.val(bBt), cq.val(bCt), cq.val(bDt))

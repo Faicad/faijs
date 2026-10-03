@@ -7,5 +7,4 @@
 import * as cq from '@faicad/faijs-cadquery'
 let b1 = await cq.box(cq.Workplane('XY'), 1, 1, 1, { centered: [true, true, false] })
 let b2 = await cq.moved(b1, cq.Location([1, 0, 0]))
-let bundle = cq.compound(cq.val(b1), cq.val(b2))
-let result = bundle
+let result = cq.compound(cq.val(b1), cq.val(b2))

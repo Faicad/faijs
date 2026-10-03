@@ -2323,7 +2323,7 @@
   "tests.test_free_functions:::test_hollow__res2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_hollow",
-    "blockedBy": "upstream free hollow(t>0) uses MakeThickSolidByJoin with Intersection join (sharp outer corners); the occt-wasm kernel offset is arc-join only (rounded), giving 0.698/0.565 vs upstream 0.728/0.584 on the unit box. Revisit when the wasm surface exposes an intersection-join offset.",
+    "blockedBy": "kernel:hollow-intersection-join",
     "manual": true
   },
   "tests.test_free_functions:::test_hollow_open__box_shape": {
@@ -2339,7 +2339,7 @@
   "tests.test_free_functions:::test_hollow_open__res2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_hollow_open",
-    "blockedBy": "upstream free hollow(t>0) uses MakeThickSolidByJoin with Intersection join (sharp outer corners); the occt-wasm kernel offset is arc-join only (rounded), giving 0.698/0.565 vs upstream 0.728/0.584 on the unit box. Revisit when the wasm surface exposes an intersection-join offset.",
+    "blockedBy": "kernel:hollow-intersection-join",
     "manual": true
   },
   "tests.test_free_functions:::test_prism__box_shape": {
@@ -3652,7 +3652,7 @@
   "tests.test_assembly:::test_name_geometries__assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_name_geometries",
-    "blockedBy": "Assembly 类式 API 已实现（P0-1 工作项 A-D，2026-09-29：add/addSubshape/remove/traverse/importStep/load/export）；待写 parity 镜像",
+    "blockedBy": "plane",
     "manual": true
   }
 }

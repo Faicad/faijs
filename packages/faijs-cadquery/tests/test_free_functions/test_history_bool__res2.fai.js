@@ -10,5 +10,4 @@ let b1 = await cq.translate(b0, [0, 0, 0.5])
 let t0 = await cq.box(cq.Workplane('XY'), 1, 0.5, 0.1)
 let b2 = await cq.translate(t0, [0, 0, 0.05])
 let res = await cq.cut(b1, b2)
-let res2 = cq.compound(cq.val(res), cq.val(b2))
-let result = res2
+let result = cq.compound(cq.val(res), cq.val(b2))

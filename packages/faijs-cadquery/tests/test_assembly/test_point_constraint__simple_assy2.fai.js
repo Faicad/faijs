@@ -7,5 +7,4 @@ import * as cq from '@faicad/faijs-cadquery'
 let b1 = await cq.box(cq.Workplane('XY'), 1, 1, 1)
 let b20 = await cq.box(cq.Workplane('XY'), 2, 1, 1)
 let b2 = await cq.translate(b20, [0, 0, 1])
-let simple_assy2 = cq.compound(cq.val(b1), cq.val(b2))
-let result = simple_assy2
+let result = cq.compound(cq.val(b1), cq.val(b2))

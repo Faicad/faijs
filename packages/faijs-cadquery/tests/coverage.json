@@ -2,9 +2,9 @@
   "totalCasesInRefManifest": 305,
   "casesWithStep": 297,
   "casesWithoutStep": 8,
-  "portableNow": 199,
+  "portableNow": 201,
   "portableWithStub": 41,
-  "blocked": 57,
+  "blocked": 55,
   "blockedByTop": [
     [
       "getfixturevalue",
@@ -13,6 +13,10 @@
     [
       "remove",
       5
+    ],
+    [
+      "plane",
+      4
     ],
     [
       "imprint",
@@ -28,10 +32,6 @@
     ],
     [
       "export",
-      3
-    ],
-    [
-      "plane",
       3
     ],
     [
@@ -75,10 +75,6 @@
       1
     ],
     [
-      "end",
-      1
-    ],
-    [
       "CombinedCenter",
       1
     ],
@@ -104,6 +100,10 @@
     ],
     [
       "matrixOfInertia",
+      1
+    ],
+    [
+      "exportVTKJS",
       1
     ]
   ],
@@ -157,11 +157,11 @@
       2
     ],
     [
-      "cast",
+      "CompSolids",
       1
     ],
     [
-      "CompSolids",
+      "cast",
       1
     ],
     [
@@ -174,10 +174,6 @@
     ],
     [
       "parametricCurve",
-      1
-    ],
-    [
-      "end",
       1
     ],
     [
@@ -207,7 +203,83 @@
     [
       "matrixOfInertia",
       1
+    ],
+    [
+      "exportVTKJS",
+      1
     ]
+  ],
+  "dimensionCases": {
+    "value-producing": 125,
+    "geometry-producing": 276,
+    "plumbing": 15
+  },
+  "valueBlindSpotCases": 41,
+  "valueBlindSpotOpTop": [
+    [
+      "val",
+      16
+    ],
+    [
+      "vals",
+      14
+    ],
+    [
+      "tag",
+      5
+    ],
+    [
+      "Faces",
+      3
+    ],
+    [
+      "all",
+      2
+    ],
+    [
+      "first",
+      2
+    ],
+    [
+      "Solids",
+      2
+    ],
+    [
+      "findSolid",
+      1
+    ],
+    [
+      "Vertices",
+      1
+    ],
+    [
+      "end",
+      1
+    ],
+    [
+      "last",
+      1
+    ]
+  ],
+  "verifiedValueOps": [
+    "Area",
+    "BoundingBox",
+    "Center",
+    "Length",
+    "Volume",
+    "compounds",
+    "edges",
+    "faces",
+    "geomType",
+    "isValid",
+    "mirrorInPlane",
+    "select",
+    "shells",
+    "solids",
+    "toLocalCoords",
+    "toWorldCoords",
+    "vertices",
+    "wires"
   ],
   "cases": {
     "tests.test_cadquery::TestCadQuery::test2DDrawing": {
@@ -230,7 +302,12 @@
         "move",
         "moveTo"
       ],
-      "vars": []
+      "vars": [],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val",
+        "first"
+      ]
     },
     "tests.test_cadquery::TestCadQuery::testAngledHoles": {
       "status": "exported",
@@ -245,7 +322,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testBasicLines": {
       "status": "exported",
@@ -264,7 +343,9 @@
         "r",
         "r1",
         "r2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testBoundingBox": {
       "status": "exported",
@@ -275,7 +356,9 @@
       ],
       "vars": [
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testBoxCombine": {
       "status": "exported",
@@ -288,7 +371,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testBoxDefaults": {
       "status": "exported",
@@ -299,7 +384,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testBoxPointList": {
       "status": "exported",
@@ -311,7 +398,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testBrepImportExport": {
       "status": "exported",
@@ -324,6 +413,10 @@
       "vars": [
         "s",
         "si"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testCenterOfBoundBox": {
@@ -336,7 +429,9 @@
       ],
       "vars": [
         "obj"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testChamfer": {
       "status": "exported",
@@ -347,7 +442,9 @@
       ],
       "vars": [
         "cube"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testChamferAsymmetrical": {
       "status": "exported",
@@ -358,7 +455,9 @@
       ],
       "vars": [
         "cube"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testChamferCylinder": {
       "status": "exported",
@@ -371,7 +470,9 @@
       ],
       "vars": [
         "cylinder"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testClean": {
       "status": "exported",
@@ -398,7 +499,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testClose": {
       "status": "exported",
@@ -416,7 +519,9 @@
         "b",
         "obj1",
         "obj2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testClosedShell": {
       "status": "exported",
@@ -437,6 +542,10 @@
         "s4_shape",
         "s4_shell_1",
         "s4_shell_2"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testCombine": {
@@ -453,7 +562,9 @@
       "vars": [
         "objects1",
         "objects2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop": {
       "status": "exported",
@@ -469,7 +580,9 @@
         "s",
         "t",
         "oo"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCompSolid": {
       "status": "exported",
@@ -482,6 +595,11 @@
       ],
       "vars": [
         "tool"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "Shells",
+        "Solids"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testCone": {
@@ -494,7 +612,9 @@
       "vars": [
         "s",
         "t"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testConsolidateWires": {
       "status": "no-step",
@@ -505,7 +625,9 @@
         "size",
         "lineTo"
       ],
-      "vars": []
+      "vars": [],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testConstructionWire": {
       "status": "exported",
@@ -518,7 +640,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCopyWorkplane": {
       "status": "exported",
@@ -530,7 +654,9 @@
       ],
       "vars": [
         "obj1"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCounterBores": {
       "status": "exported",
@@ -544,7 +670,9 @@
       "vars": [
         "c",
         "c2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCounterSinks": {
       "status": "exported",
@@ -558,7 +686,9 @@
       ],
       "vars": [
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCubePlugin": {
       "status": "exported",
@@ -571,7 +701,9 @@
       ],
       "vars": [
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCup": {
       "status": "exported",
@@ -587,7 +719,9 @@
         "s1",
         "s2",
         "s3"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCut": {
       "status": "exported",
@@ -603,6 +737,10 @@
         "toCut",
         "resS",
         "sugar"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace": {
@@ -623,7 +761,9 @@
         "wp",
         "wp_last",
         "wp_next"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCutEach": {
       "status": "exported",
@@ -638,6 +778,10 @@
         "w",
         "w0",
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testCutThroughAll": {
@@ -656,7 +800,9 @@
       "vars": [
         "r",
         "t"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCutToFaceOffsetNOTIMPLEMENTEDYET": {
       "status": "exported",
@@ -669,7 +815,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCylinderCentering": {
       "status": "exported",
@@ -682,7 +830,9 @@
         "s",
         "s0",
         "s1"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCylinderCenteringAndDirection": {
       "status": "exported",
@@ -693,7 +843,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCylinderDefaults": {
       "status": "exported",
@@ -704,7 +856,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testCylinderPlugin": {
       "status": "exported",
@@ -715,7 +869,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft": {
       "status": "exported",
@@ -731,7 +887,9 @@
         "s",
         "s2",
         "s3"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testEachpoint": {
       "status": "exported",
@@ -750,6 +908,10 @@
         "r",
         "sph",
         "box"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testEnclosure": {
@@ -780,6 +942,10 @@
         "cutlip",
         "topOfLid",
         "result"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "all"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testExplicitClean": {
@@ -795,7 +961,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testExtrude": {
       "status": "exported",
@@ -815,7 +983,9 @@
         "wp_ref",
         "wp_ref_regular_cut",
         "wp"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace": {
       "status": "exported",
@@ -838,6 +1008,10 @@
         "wp_ref_extrude",
         "part",
         "part_section"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "tag"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testFaceIntersectedByLine": {
@@ -851,7 +1025,9 @@
       ],
       "vars": [
         "shape"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testFillet": {
       "status": "exported",
@@ -865,7 +1041,9 @@
       ],
       "vars": [
         "c"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testFindSolid": {
       "status": "exported",
@@ -878,6 +1056,10 @@
       "vars": [
         "r",
         "s"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "findSolid"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testFluentMethodInheritance": {
@@ -887,7 +1069,9 @@
       "ops": [
         "moveTo"
       ],
-      "vars": []
+      "vars": [],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testFrontReference": {
       "status": "exported",
@@ -899,7 +1083,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp": {
       "status": "exported",
@@ -923,6 +1109,11 @@
         "box4_cmp",
         "res_fuzzy_intersect_cmp",
         "res_fuzzy_intersect_val"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals",
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testGlue": {
@@ -940,7 +1131,9 @@
         "box2",
         "res",
         "obj"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testIbeam": {
       "status": "exported",
@@ -951,7 +1144,9 @@
       ],
       "vars": [
         "res"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testIntersect": {
       "status": "exported",
@@ -970,6 +1165,10 @@
         "b1",
         "b2",
         "sugar"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testIsInside": {
@@ -982,7 +1181,9 @@
       "vars": [
         "box1",
         "box2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testIsInsideSolid": {
       "status": "exported",
@@ -998,6 +1199,10 @@
         "model",
         "solid",
         "void"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testLargestDimension": {
@@ -1010,7 +1215,9 @@
         "extrude",
         "rect"
       ],
-      "vars": []
+      "vars": [],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testLegoBrick": {
       "status": "exported",
@@ -1027,7 +1234,9 @@
       "vars": [
         "s",
         "tmp"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testLocatedMoved": {
       "status": "exported",
@@ -1041,7 +1250,9 @@
         "box",
         "box1",
         "box2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testLoft": {
       "status": "exported",
@@ -1059,7 +1270,9 @@
         "box",
         "cut",
         "add"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testLoftCombine": {
       "status": "exported",
@@ -1074,7 +1287,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testMakeShellSolid": {
       "status": "exported",
@@ -1085,6 +1300,11 @@
       ],
       "vars": [
         "solid"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "Vertices",
+        "Faces"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testMultiFaceWorkplane": {
@@ -1098,7 +1318,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testMultiWireWorkplane": {
       "status": "exported",
@@ -1111,7 +1333,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testMultisectionSweep": {
       "status": "exported",
@@ -1131,7 +1355,9 @@
         "specialSweep",
         "arcSweep",
         "normalSweep"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testNestedCircle": {
       "status": "exported",
@@ -1145,7 +1371,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testNoClean": {
       "status": "exported",
@@ -1168,7 +1396,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testOccBottle": {
       "status": "exported",
@@ -1183,7 +1413,9 @@
       ],
       "vars": [
         "p"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testOffset2D": {
       "status": "exported",
@@ -1198,7 +1430,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testOpenCornerShell": {
       "status": "exported",
@@ -1209,7 +1443,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testParametricCurve": {
       "status": "exported",
@@ -1222,7 +1458,9 @@
       "vars": [
         "res_open",
         "res_closed"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testParametricSurface": {
       "status": "exported",
@@ -1234,7 +1472,9 @@
       ],
       "vars": [
         "r2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testPlanes": {
       "status": "exported",
@@ -1248,7 +1488,9 @@
       ],
       "vars": [
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testPointList": {
       "status": "exported",
@@ -1261,7 +1503,9 @@
       "vars": [
         "c",
         "body"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testPolarArray": {
       "status": "exported",
@@ -1275,7 +1519,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testPolarLines": {
       "status": "no-step",
@@ -1288,7 +1534,11 @@
         "size",
         "move"
       ],
-      "vars": []
+      "vars": [],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     "tests.test_cadquery::TestCadQuery::testPolygonPlugin": {
       "status": "exported",
@@ -1302,7 +1552,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testPopPending": {
       "status": "exported",
@@ -1315,7 +1567,9 @@
       "vars": [
         "w4",
         "w5"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testQuickStartXY": {
       "status": "exported",
@@ -1329,7 +1583,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testQuickStartXZ": {
       "status": "exported",
@@ -1343,7 +1599,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testQuickStartYZ": {
       "status": "exported",
@@ -1357,7 +1615,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testRectArray": {
       "status": "no-step",
@@ -1371,7 +1631,11 @@
         "workplane",
         "box"
       ],
-      "vars": []
+      "vars": [],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "all"
+      ]
     },
     "tests.test_cadquery::TestCadQuery::testRevolveCone": {
       "status": "exported",
@@ -1384,7 +1648,9 @@
       ],
       "vars": [
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testRevolveCut": {
       "status": "exported",
@@ -1400,7 +1666,9 @@
       "vars": [
         "box",
         "cut"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testRevolveCylinder": {
       "status": "exported",
@@ -1412,7 +1680,9 @@
       ],
       "vars": [
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testRevolveDonut": {
       "status": "exported",
@@ -1424,7 +1694,9 @@
       ],
       "vars": [
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testRotate": {
       "status": "exported",
@@ -1435,7 +1707,9 @@
       ],
       "vars": [
         "box"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testRotateAboutCenter": {
       "status": "exported",
@@ -1447,7 +1721,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSection": {
       "status": "exported",
@@ -1461,7 +1737,9 @@
         "box",
         "s1",
         "s2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSimpleMirror": {
       "status": "exported",
@@ -1475,7 +1753,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSimpleShell": {
       "status": "exported",
@@ -1491,7 +1771,9 @@
         "s1",
         "s2",
         "s3"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSimpleWorkplane": {
       "status": "exported",
@@ -1506,7 +1788,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSketch": {
       "status": "exported",
@@ -1536,7 +1820,9 @@
         "r4",
         "r5",
         "r6"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSlot2D": {
       "status": "exported",
@@ -1553,7 +1839,9 @@
       "vars": [
         "result",
         "box"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse": {
       "status": "exported",
@@ -1567,7 +1855,9 @@
       "vars": [
         "r",
         "t"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSolidReferencesCombine": {
       "status": "exported",
@@ -1581,7 +1871,9 @@
       "vars": [
         "c",
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue": {
       "status": "exported",
@@ -1595,7 +1887,9 @@
       "vars": [
         "r",
         "t"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSphereCombine": {
       "status": "exported",
@@ -1607,7 +1901,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSphereCustom": {
       "status": "exported",
@@ -1620,7 +1916,9 @@
         "s",
         "s0",
         "s1"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSphereDefaults": {
       "status": "exported",
@@ -1631,7 +1929,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSpherePointList": {
       "status": "exported",
@@ -1643,7 +1943,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSplineShape": {
       "status": "exported",
@@ -1657,7 +1959,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth": {
       "status": "exported",
@@ -1672,7 +1976,9 @@
       "vars": [
         "c",
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom": {
       "status": "exported",
@@ -1687,7 +1993,9 @@
       "vars": [
         "c",
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf": {
       "status": "exported",
@@ -1702,7 +2010,9 @@
       "vars": [
         "c",
         "result"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testSweep": {
       "status": "exported",
@@ -1720,6 +2030,10 @@
         "box",
         "cut",
         "add"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testTag": {
@@ -1734,6 +2048,10 @@
       ],
       "vars": [
         "result"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "tag"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testTagSelectors": {
@@ -1751,6 +2069,10 @@
         "result0",
         "result1",
         "result2"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "tag"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testTangentArcToPoint": {
@@ -1770,7 +2092,9 @@
         "s0",
         "s1",
         "s2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTaperedExtrudeCutBlind": {
       "status": "exported",
@@ -1785,7 +2109,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight": {
       "status": "exported",
@@ -1798,7 +2124,9 @@
       "vars": [
         "s",
         "s2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testText": {
       "status": "exported",
@@ -1816,7 +2144,9 @@
         "obj3",
         "obj4",
         "obj5"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTextAlignment": {
       "status": "exported",
@@ -1829,7 +2159,9 @@
         "left_bottom",
         "centers",
         "right_top"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testToSVG": {
       "status": "exported",
@@ -1841,7 +2173,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTopFaceFillet": {
       "status": "exported",
@@ -1853,7 +2187,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTranslateSolid": {
       "status": "exported",
@@ -1865,7 +2201,9 @@
       "vars": [
         "c",
         "d"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTriangularPrism": {
       "status": "exported",
@@ -1878,7 +2216,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTwistExtrude": {
       "status": "exported",
@@ -1889,7 +2229,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombine": {
       "status": "exported",
@@ -1900,7 +2242,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut": {
       "status": "exported",
@@ -1915,7 +2259,9 @@
       "vars": [
         "box",
         "cut"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTwistedLoft": {
       "status": "exported",
@@ -1929,7 +2275,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testTwoWorkplanes": {
       "status": "exported",
@@ -1945,7 +2293,9 @@
       "vars": [
         "r",
         "t"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testUnionCompound": {
       "status": "exported",
@@ -1962,7 +2312,9 @@
         "shape_to_cut",
         "o",
         "obj"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testUnionNoArgs": {
       "status": "exported",
@@ -1978,7 +2330,9 @@
       "vars": [
         "objects1",
         "objects2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testUnions": {
       "status": "exported",
@@ -1998,7 +2352,9 @@
         "resS",
         "sugar1",
         "sugar2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testWedgeCombined": {
       "status": "exported",
@@ -2010,7 +2366,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testWedgeDefaults": {
       "status": "exported",
@@ -2021,7 +2379,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testWedgePointList": {
       "status": "exported",
@@ -2033,7 +2393,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove": {
       "status": "exported",
@@ -2045,7 +2407,9 @@
       ],
       "vars": [
         "t"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testWorkplaneCenterOptions": {
       "status": "exported",
@@ -2061,7 +2425,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testWorkplaneFromFace": {
       "status": "exported",
@@ -2073,7 +2439,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testWorkplaneFromTagged": {
       "status": "exported",
@@ -2091,6 +2459,10 @@
       ],
       "vars": [
         "result"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "tag"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testWorkplaneOnExistingSolid": {
@@ -2104,7 +2476,9 @@
       ],
       "vars": [
         "c"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::testWorkplaneOrientationOnVertex": {
       "status": "exported",
@@ -2116,12 +2490,14 @@
       ],
       "vars": [
         "parent"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_MergeTags": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "end",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "end",
         "tag",
@@ -2131,6 +2507,11 @@
       ],
       "vars": [
         "b"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "end",
+        "tag"
       ]
     },
     "tests.test_cadquery::TestCadQuery::test_bool_operators": {
@@ -2143,7 +2524,9 @@
       "vars": [
         "w1",
         "w2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_combineWithBase": {
       "status": "exported",
@@ -2157,6 +2540,10 @@
         "box",
         "sphere",
         "new_box"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::test_compound_faces_center": {
@@ -2170,6 +2557,10 @@
       ],
       "vars": [
         "compound"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::test_cutFromBase": {
@@ -2184,6 +2575,10 @@
         "box",
         "sphere",
         "hoolow_box"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::test_export": {
@@ -2196,7 +2591,9 @@
       ],
       "vars": [
         "w"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_extrude_face": {
       "status": "exported",
@@ -2207,7 +2604,9 @@
       ],
       "vars": [
         "c"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_findFromEdge": {
       "status": "exported",
@@ -2218,7 +2617,9 @@
       ],
       "vars": [
         "part2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_getitem": {
       "status": "exported",
@@ -2230,7 +2631,9 @@
       ],
       "vars": [
         "w"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_interpPlate": {
       "status": "exported",
@@ -2249,7 +2652,9 @@
         "plate_3",
         "plate_4",
         "plate_6"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_invoke": {
       "status": "exported",
@@ -2261,7 +2666,9 @@
       ],
       "vars": [
         "w"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_iterators": {
       "status": "exported",
@@ -2278,6 +2685,10 @@
         "s",
         "c",
         "fs"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_cadquery::TestCadQuery::test_loft_face": {
@@ -2293,7 +2704,9 @@
         "c",
         "w1",
         "w2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_loft_to_vertex": {
       "status": "exported",
@@ -2308,7 +2721,9 @@
         "c",
         "w1",
         "w2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_map_apply_filter_sort": {
       "status": "exported",
@@ -2320,14 +2735,18 @@
       ],
       "vars": [
         "w"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_plane_repr": {
       "status": "no-step",
       "category": "PORTABLE",
       "blockedBy": null,
       "ops": [],
-      "vars": []
+      "vars": [],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_project": {
       "status": "exported",
@@ -2339,7 +2758,9 @@
       "vars": [
         "res_ex",
         "res_o_ex"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cadquery::TestCadQuery::test_workplane_iter": {
       "status": "exported",
@@ -2351,7 +2772,9 @@
       "vars": [
         "w2",
         "w3"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_isSolid": {
       "status": "exported",
@@ -2362,7 +2785,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_shells": {
       "status": "exported",
@@ -2374,7 +2799,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_bin_import_export": {
       "status": "exported",
@@ -2387,7 +2814,9 @@
       "vars": [
         "b",
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_remove": {
       "status": "exported",
@@ -2401,7 +2830,9 @@
       "vars": [
         "b",
         "br"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_addCavity": {
       "status": "exported",
@@ -2415,7 +2846,9 @@
         "b1",
         "b2",
         "br"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_replace": {
       "status": "exported",
@@ -2432,7 +2865,9 @@
         "f_top_split",
         "br1",
         "br2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_single_ent_selector": {
       "status": "exported",
@@ -2445,7 +2880,9 @@
       "vars": [
         "bs",
         "fs"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_special": {
       "status": "exported",
@@ -2461,7 +2898,9 @@
         "c",
         "cf",
         "cs"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_reverse": {
       "status": "exported",
@@ -2472,7 +2911,9 @@
       ],
       "vars": [
         "simple_box"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_siblings": {
       "status": "exported",
@@ -2496,7 +2937,9 @@
         "level_2",
         "level_3",
         "level_123"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_shapes:::test_set_ops": {
       "status": "exported",
@@ -2507,7 +2950,9 @@
       ],
       "vars": [
         "simple_box"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_workplanes::TestWorkplanes::test_all_planes": {
       "status": "exported",
@@ -2519,7 +2964,9 @@
       ],
       "vars": [
         "b2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_workplanes::TestWorkplanes::test_bad_plane_input": {
       "status": "exported",
@@ -2530,7 +2977,9 @@
       ],
       "vars": [
         "b2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_workplanes::TestWorkplanes::test_mirror": {
       "status": "exported",
@@ -2542,7 +2991,9 @@
       ],
       "vars": [
         "b2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_workplanes::TestWorkplanes::test_mirror_axis": {
       "status": "exported",
@@ -2554,7 +3005,9 @@
       ],
       "vars": [
         "b2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence": {
       "status": "exported",
@@ -2567,7 +3020,9 @@
       "vars": [
         "boxTmp",
         "b"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_workplanes::TestWorkplanes::test_mirror_face": {
       "status": "exported",
@@ -2581,7 +3036,9 @@
       ],
       "vars": [
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_workplanes::TestWorkplanes::test_mirror_workplane": {
       "status": "exported",
@@ -2593,7 +3050,9 @@
       ],
       "vars": [
         "b2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_utils": {
       "status": "exported",
@@ -2605,7 +3064,9 @@
       ],
       "vars": [
         "r4"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_constructors": {
       "status": "exported",
@@ -2619,6 +3080,10 @@
         "b",
         "c1",
         "c2"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "Faces"
       ]
     },
     "tests.test_free_functions:::test_sewing": {
@@ -2635,7 +3100,9 @@
         "b",
         "sh",
         "res3"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_solid": {
       "status": "exported",
@@ -2661,6 +3128,10 @@
         "s4",
         "s5",
         "s6"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "Faces"
       ]
     },
     "tests.test_free_functions:::test_faceOn": {
@@ -2673,7 +3144,9 @@
       ],
       "vars": [
         "f2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_box": {
       "status": "exported",
@@ -2684,7 +3157,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_cylinder": {
       "status": "exported",
@@ -2695,7 +3170,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_sphere": {
       "status": "exported",
@@ -2706,7 +3183,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_torus": {
       "status": "exported",
@@ -2717,7 +3196,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_cone": {
       "status": "exported",
@@ -2728,7 +3209,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_text": {
       "status": "exported",
@@ -2749,7 +3232,9 @@
         "r7",
         "r8",
         "r9"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_operators": {
       "status": "exported",
@@ -2763,7 +3248,9 @@
         "b1",
         "b2",
         "b3"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_imprint": {
       "status": "exported",
@@ -2783,7 +3270,9 @@
         "res_glue_partial",
         "b1_imp",
         "b3_imp"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_imprint_error": {
       "status": "exported",
@@ -2798,7 +3287,9 @@
         "b1",
         "b2",
         "_"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_fuse_multi": {
       "status": "exported",
@@ -2812,7 +3303,9 @@
       "vars": [
         "b",
         "res"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_moved": {
       "status": "exported",
@@ -2840,7 +3333,9 @@
         "s2",
         "s3",
         "s4"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_hollow": {
       "status": "exported",
@@ -2853,7 +3348,9 @@
         "box_shape",
         "res1",
         "res2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_hollow_open": {
       "status": "exported",
@@ -2866,7 +3363,9 @@
         "box_shape",
         "res1",
         "res2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_prism": {
       "status": "exported",
@@ -2884,7 +3383,9 @@
         "res4",
         "res5",
         "res6"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_prism_taper": {
       "status": "exported",
@@ -2903,7 +3404,9 @@
         "res3",
         "res4",
         "res5"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_draft": {
       "status": "exported",
@@ -2920,7 +3423,9 @@
         "res1",
         "res2",
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_clean": {
       "status": "exported",
@@ -2933,7 +3438,9 @@
       "vars": [
         "b1",
         "b2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_fillet": {
       "status": "exported",
@@ -2946,7 +3453,9 @@
       "vars": [
         "b",
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_chamfer": {
       "status": "exported",
@@ -2959,7 +3468,9 @@
       "vars": [
         "b",
         "r"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_extrude": {
       "status": "exported",
@@ -2971,7 +3482,9 @@
       "vars": [
         "r4",
         "r5"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_offset": {
       "status": "exported",
@@ -2986,7 +3499,9 @@
         "r2",
         "r3",
         "r4"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_sweep": {
       "status": "exported",
@@ -3002,7 +3517,9 @@
         "r6",
         "r7",
         "r8"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_sweep_aux": {
       "status": "exported",
@@ -3014,7 +3531,9 @@
       "vars": [
         "r1",
         "r2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_loft": {
       "status": "exported",
@@ -3026,7 +3545,9 @@
       "vars": [
         "r4",
         "r6"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_loft_vertex": {
       "status": "exported",
@@ -3041,7 +3562,9 @@
         "r2",
         "r3",
         "r4"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_project": {
       "status": "exported",
@@ -3053,7 +3576,9 @@
       ],
       "vars": [
         "res"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_export": {
       "status": "exported",
@@ -3066,7 +3591,9 @@
       "vars": [
         "b1",
         "b2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_check": {
       "status": "exported",
@@ -3077,7 +3604,9 @@
       ],
       "vars": [
         "s1"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_history_bool": {
       "status": "exported",
@@ -3093,7 +3622,9 @@
         "b2",
         "res",
         "res2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_history_extrude": {
       "status": "exported",
@@ -3105,7 +3636,9 @@
       "vars": [
         "res",
         "sides"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_history_sweep": {
       "status": "exported",
@@ -3117,7 +3650,9 @@
       "vars": [
         "res",
         "side"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_history_loft": {
       "status": "exported",
@@ -3129,7 +3664,9 @@
       "vars": [
         "res",
         "side"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_free_functions:::test_history_offset": {
       "status": "exported",
@@ -3142,7 +3679,9 @@
       ],
       "vars": [
         "sides"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testAll": {
       "status": "exported",
@@ -3153,6 +3692,10 @@
       ],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "all"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testAndSelector": {
@@ -3162,6 +3705,10 @@
       "ops": [],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testAreaNthSelector_NonplanarWire": {
@@ -3174,7 +3721,9 @@
       ],
       "vars": [
         "wp"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Shells": {
       "status": "exported",
@@ -3186,7 +3735,9 @@
       ],
       "vars": [
         "workplane_shells"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids": {
       "status": "exported",
@@ -3199,7 +3750,9 @@
       "vars": [
         "workplane_solids",
         "selected_solids"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testBaseDirSelector": {
       "status": "exported",
@@ -3215,7 +3768,9 @@
         "c",
         "c_curves",
         "comp"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testBox": {
       "status": "exported",
@@ -3224,6 +3779,10 @@
       "ops": [],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testCenterNthSelector": {
@@ -3247,7 +3806,9 @@
         "box1",
         "box0_selected",
         "box1_selected"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testComplexStringSelector": {
       "status": "exported",
@@ -3256,6 +3817,10 @@
       "ops": [],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testEdgeTypesFilter": {
@@ -3269,7 +3834,9 @@
       ],
       "vars": [
         "c"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testFaceCount": {
       "status": "exported",
@@ -3280,7 +3847,9 @@
       ],
       "vars": [
         "c"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testFaceDirFilter": {
       "status": "exported",
@@ -3291,6 +3860,10 @@
       ],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testFaceTypesFilter": {
@@ -3302,7 +3875,9 @@
       ],
       "vars": [
         "c"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testFirst": {
       "status": "exported",
@@ -3311,6 +3886,11 @@
       "ops": [],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val",
+        "first"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testInverseSelector": {
@@ -3320,6 +3900,10 @@
       "ops": [],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes": {
@@ -3333,7 +3917,9 @@
       "vars": [
         "w0",
         "val"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testMaxDistance": {
       "status": "exported",
@@ -3344,6 +3930,10 @@
       ],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testMinDistance": {
@@ -3355,6 +3945,10 @@
       ],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testNearestToPoint": {
@@ -3364,6 +3958,10 @@
       "ops": [],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testNearestToShape": {
@@ -3379,7 +3977,9 @@
         "b2",
         "b3",
         "res"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testNthDistance": {
       "status": "exported",
@@ -3393,7 +3993,9 @@
       "vars": [
         "c",
         "twisted_boxes"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_selectors::TestCQSelectors::testParallelEdgeFilter": {
       "status": "exported",
@@ -3404,6 +4006,10 @@
       ],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testPerpendicularDirFilter": {
@@ -3415,6 +4021,10 @@
       ],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testRadiusNthSelector": {
@@ -3430,6 +4040,11 @@
       ],
       "vars": [
         "solid"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals",
+        "val"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testShape": {
@@ -3444,6 +4059,10 @@
         "s",
         "res1",
         "res4"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testSolid": {
@@ -3455,6 +4074,11 @@
       ],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "first",
+        "last"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testSubtractSelector": {
@@ -3464,6 +4088,10 @@
       "ops": [],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testSumSelector": {
@@ -3473,6 +4101,10 @@
       "ops": [],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testVertexFilter": {
@@ -3484,6 +4116,10 @@
       ],
       "vars": [
         "c"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_selectors::TestCQSelectors::testWorkplaneCenter": {
@@ -3493,7 +4129,9 @@
       "ops": [
         "center"
       ],
-      "vars": []
+      "vars": [],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cad_objects::TestCadObjects::testCompoundCenter": {
       "status": "exported",
@@ -3504,7 +4142,9 @@
       ],
       "vars": [
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia": {
       "status": "exported",
@@ -3515,7 +4155,9 @@
       ],
       "vars": [
         "cylinder"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_cad_objects::TestCadObjects::testPlaneMethods": {
       "status": "exported",
@@ -3525,6 +4167,10 @@
       "vars": [
         "local_box",
         "mirror_box"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "vals"
       ]
     },
     "tests.test_assembly:::test_metadata": {
@@ -3534,18 +4180,24 @@
       "ops": [],
       "vars": [
         "metadata_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_assembly": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "traverse",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "traverse"
       ],
       "vars": [
         "simple_assy",
         "nested_assy"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "Solids"
       ]
     },
     "tests.test_assembly:::test_assy_root_name": {
@@ -3557,7 +4209,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_step_export": {
       "status": "exported",
@@ -3570,7 +4224,9 @@
         "nested_assy",
         "w",
         "o"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_meta_step_export": {
       "status": "exported",
@@ -3591,7 +4247,9 @@
         "assy",
         "cube_1",
         "cube_2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_meta_step_export_edge_cases": {
       "status": "exported",
@@ -3602,7 +4260,9 @@
       ],
       "vars": [
         "cube"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_step_roundtrip_with_materials": {
       "status": "exported",
@@ -3614,7 +4274,9 @@
       "vars": [
         "materials_assy",
         "test_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_step_export_assembly_unit_default": {
       "status": "exported",
@@ -3626,7 +4288,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_step_export_assembly_unit_meters": {
       "status": "exported",
@@ -3638,7 +4302,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_step_export_meta_unit_meters": {
       "status": "exported",
@@ -3650,7 +4316,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_step_export_assembly_output_unit": {
       "status": "exported",
@@ -3662,7 +4330,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_step_roundtrip_unit": {
       "status": "exported",
@@ -3675,7 +4345,9 @@
         "assy",
         "assy3",
         "assy4"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_assembly_step_import": {
       "status": "exported",
@@ -3689,7 +4361,9 @@
         "subshape_assy",
         "imported_assy",
         "res"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_assembly_subshape_import": {
       "status": "exported",
@@ -3701,7 +4375,9 @@
       "vars": [
         "subshape_assy",
         "imported_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_assembly_multi_subshape_import": {
       "status": "exported",
@@ -3713,7 +4389,9 @@
       "vars": [
         "multi_subshape_assy",
         "imported_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_plain_assembly_import": {
       "status": "exported",
@@ -3730,7 +4408,9 @@
         "cube_4",
         "assy",
         "imported_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_copied_assembly_import": {
       "status": "exported",
@@ -3742,7 +4422,9 @@
       "vars": [
         "assy_copy",
         "assy_normal"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_nested_subassembly_step_import": {
       "status": "exported",
@@ -3755,7 +4437,9 @@
         "assy",
         "subassy",
         "imported_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_assembly_step_import_roundtrip": {
       "status": "exported",
@@ -3769,7 +4453,9 @@
       "vars": [
         "assy_orig",
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_assembly_import_step_unit": {
       "status": "exported",
@@ -3781,7 +4467,9 @@
       "vars": [
         "assy",
         "imported"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_step_export_loc": {
       "status": "exported",
@@ -3794,7 +4482,9 @@
       "vars": [
         "assy",
         "o"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_native_export": {
       "status": "exported",
@@ -3803,7 +4493,9 @@
       "ops": [],
       "vars": [
         "simple_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_vtkjs_export": {
       "status": "exported",
@@ -3814,7 +4506,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_vrml_export": {
       "status": "exported",
@@ -3823,7 +4517,9 @@
       "ops": [],
       "vars": [
         "simple_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_toJSON": {
       "status": "exported",
@@ -3835,7 +4531,9 @@
       "vars": [
         "simple_assy",
         "empty_top_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_save": {
       "status": "exported",
@@ -3847,7 +4545,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_export": {
       "status": "exported",
@@ -3859,7 +4559,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_export_vtkjs": {
       "status": "exported",
@@ -3870,7 +4572,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_export_errors": {
       "status": "exported",
@@ -3881,7 +4585,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_save_stl_formats": {
       "status": "exported",
@@ -3892,7 +4598,9 @@
       ],
       "vars": [
         "nested_assy_sphere"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_save_gltf": {
       "status": "exported",
@@ -3903,7 +4611,9 @@
       ],
       "vars": [
         "nested_assy_sphere"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_exportGLTF": {
       "status": "exported",
@@ -3914,7 +4624,9 @@
       ],
       "vars": [
         "nested_assy_sphere"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_save_gltf_boxes2": {
       "status": "exported",
@@ -3925,7 +4637,9 @@
       ],
       "vars": [
         "boxes2_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_save_vtkjs": {
       "status": "exported",
@@ -3936,7 +4650,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_save_raises": {
       "status": "exported",
@@ -3947,7 +4663,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_leaf_node_count": {
       "status": "exported",
@@ -3958,7 +4676,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_colors_assy0": {
       "status": "exported",
@@ -3971,7 +4691,9 @@
       "vars": [
         "assy",
         "assy_i"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_colors_assy1": {
       "status": "exported",
@@ -3984,7 +4706,9 @@
       "vars": [
         "assy",
         "assy_i"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_materials": {
       "status": "exported",
@@ -3998,7 +4722,9 @@
         "wp_2",
         "wp_3",
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_colors_fused_assy": {
       "status": "exported",
@@ -4009,7 +4735,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_constrain": {
       "status": "exported",
@@ -4027,6 +4755,11 @@
         "b1",
         "b2",
         "b3"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val",
+        "Faces"
       ]
     },
     "tests.test_assembly:::test_constrain_with_tags": {
@@ -4039,7 +4772,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_duplicate_name": {
       "status": "exported",
@@ -4050,7 +4785,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_empty_solve": {
       "status": "exported",
@@ -4061,7 +4798,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_expression_grammar": {
       "status": "exported",
@@ -4072,7 +4811,9 @@
       ],
       "vars": [
         "nested_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_PointInPlane_constraint": {
       "status": "exported",
@@ -4084,6 +4825,10 @@
       ],
       "vars": [
         "box_and_vertex"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "val"
       ]
     },
     "tests.test_assembly:::test_PointInPlane_3_parts": {
@@ -4097,7 +4842,9 @@
       "vars": [
         "box_and_vertex",
         "cylinder"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_PointInPlane_param": {
       "status": "exported",
@@ -4110,7 +4857,9 @@
       ],
       "vars": [
         "box_and_vertex"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_toCompound": {
       "status": "exported",
@@ -4132,7 +4881,9 @@
         "assy1",
         "c2",
         "c3"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_infinite_face_constraint_Plane": {
       "status": "exported",
@@ -4143,7 +4894,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_unary_constraints": {
       "status": "exported",
@@ -4156,7 +4909,9 @@
         "simple_assy2",
         "assy",
         "w"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_fixed_rotation": {
       "status": "exported",
@@ -4169,7 +4924,9 @@
         "simple_assy2",
         "assy",
         "w"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_constraint_validation": {
       "status": "exported",
@@ -4180,7 +4937,9 @@
       ],
       "vars": [
         "simple_assy2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_single_unary_constraint": {
       "status": "exported",
@@ -4192,7 +4951,9 @@
       ],
       "vars": [
         "simple_assy2"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_point_on_line": {
       "status": "exported",
@@ -4206,7 +4967,9 @@
         "simple_assy2",
         "assy",
         "w"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_axis_constraint": {
       "status": "exported",
@@ -4219,7 +4982,9 @@
       "vars": [
         "simple_assy2",
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_point_constraint": {
       "status": "exported",
@@ -4232,7 +4997,9 @@
       "vars": [
         "simple_assy2",
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_imprinting": {
       "status": "exported",
@@ -4246,7 +5013,9 @@
         "disjoint_assy",
         "r",
         "s"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_order_of_transform": {
       "status": "exported",
@@ -4259,6 +5028,10 @@
         "marker",
         "m1",
         "m2"
+      ],
+      "valueRisk": true,
+      "unverifiedValueOps": [
+        "Solids"
       ]
     },
     "tests.test_assembly:::test_step_export_filesize": {
@@ -4271,7 +5044,9 @@
       "vars": [
         "part",
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_assembly_remove_no_name_match": {
       "status": "exported",
@@ -4284,7 +5059,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_assembly_remove_part": {
       "status": "exported",
@@ -4297,7 +5074,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_assembly_remove_subassy": {
       "status": "exported",
@@ -4311,7 +5090,9 @@
       "vars": [
         "assy",
         "subassy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_remove_without_parent": {
       "status": "exported",
@@ -4323,7 +5104,9 @@
       "vars": [
         "assy",
         "part"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_step_color": {
       "status": "exported",
@@ -4335,7 +5118,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_special_methods": {
       "status": "exported",
@@ -4346,7 +5131,9 @@
       ],
       "vars": [
         "subshape_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_subshape_access": {
       "status": "exported",
@@ -4357,12 +5144,14 @@
       ],
       "vars": [
         "subshape_assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     },
     "tests.test_assembly:::test_name_geometries": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "addSubshape",
+      "blockedBy": "plane",
       "ops": [
         "add",
         "addSubshape",
@@ -4373,7 +5162,9 @@
       ],
       "vars": [
         "assy"
-      ]
+      ],
+      "valueRisk": false,
+      "unverifiedValueOps": []
     }
   },
   "portableCases": [
@@ -4389,7 +5180,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testBasicLines",
@@ -4407,7 +5199,8 @@
         "r1",
         "r2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testBoundingBox",
@@ -4417,7 +5210,8 @@
       "vars": [
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testBoxCombine",
@@ -4429,7 +5223,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testBoxDefaults",
@@ -4439,7 +5234,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testBoxPointList",
@@ -4450,7 +5246,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCenterOfBoundBox",
@@ -4461,7 +5258,8 @@
       "vars": [
         "obj"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testChamferCylinder",
@@ -4473,7 +5271,8 @@
       "vars": [
         "cylinder"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testClose",
@@ -4490,7 +5289,8 @@
         "obj1",
         "obj2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCombine",
@@ -4505,7 +5305,8 @@
         "objects1",
         "objects2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop",
@@ -4520,7 +5321,8 @@
         "t",
         "oo"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCone",
@@ -4531,7 +5333,8 @@
         "s",
         "t"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testConstructionWire",
@@ -4543,7 +5346,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCopyWorkplane",
@@ -4554,7 +5358,8 @@
       "vars": [
         "obj1"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCounterSinks",
@@ -4567,7 +5372,8 @@
       "vars": [
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCubePlugin",
@@ -4579,7 +5385,8 @@
       "vars": [
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCup",
@@ -4594,7 +5401,8 @@
         "s2",
         "s3"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCut",
@@ -4609,7 +5417,10 @@
         "resS",
         "sugar"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace",
@@ -4628,7 +5439,8 @@
         "wp_last",
         "wp_next"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCutThroughAll",
@@ -4645,7 +5457,8 @@
         "r",
         "t"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCutToFaceOffsetNOTIMPLEMENTEDYET",
@@ -4657,7 +5470,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCylinderCentering",
@@ -4669,7 +5483,8 @@
         "s0",
         "s1"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCylinderCenteringAndDirection",
@@ -4679,7 +5494,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCylinderDefaults",
@@ -4689,7 +5505,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCylinderPlugin",
@@ -4699,7 +5516,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft",
@@ -4714,7 +5532,8 @@
         "s2",
         "s3"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testEachpoint",
@@ -4732,7 +5551,10 @@
         "sph",
         "box"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testEnclosure",
@@ -4761,7 +5583,10 @@
         "topOfLid",
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "all"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testExplicitClean",
@@ -4775,7 +5600,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testExtrude",
@@ -4794,7 +5620,8 @@
         "wp_ref_regular_cut",
         "wp"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
@@ -4816,7 +5643,10 @@
         "part",
         "part_section"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "tag"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testFaceIntersectedByLine",
@@ -4828,7 +5658,8 @@
       "vars": [
         "shape"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testFindSolid",
@@ -4840,7 +5671,10 @@
         "r",
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "findSolid"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
@@ -4863,7 +5697,11 @@
         "res_fuzzy_intersect_cmp",
         "res_fuzzy_intersect_val"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "vals",
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testGlue",
@@ -4879,7 +5717,8 @@
         "res",
         "obj"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testIbeam",
@@ -4889,7 +5728,8 @@
       "vars": [
         "res"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testIntersect",
@@ -4907,7 +5747,10 @@
         "b2",
         "sugar"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testIsInside",
@@ -4918,7 +5761,8 @@
         "box1",
         "box2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testIsInsideSolid",
@@ -4933,7 +5777,10 @@
         "solid",
         "void"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testLegoBrick",
@@ -4949,7 +5796,8 @@
         "s",
         "tmp"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testLocatedMoved",
@@ -4962,7 +5810,8 @@
         "box1",
         "box2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testLoft",
@@ -4979,7 +5828,8 @@
         "cut",
         "add"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testLoftCombine",
@@ -4993,7 +5843,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testMakeShellSolid",
@@ -5003,7 +5854,11 @@
       "vars": [
         "solid"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": [
+        "Vertices",
+        "Faces"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testMultiFaceWorkplane",
@@ -5015,7 +5870,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testMultiWireWorkplane",
@@ -5027,7 +5883,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
@@ -5046,7 +5903,8 @@
         "arcSweep",
         "normalSweep"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testNestedCircle",
@@ -5059,7 +5917,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testOccBottle",
@@ -5073,7 +5932,8 @@
       "vars": [
         "p"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testOffset2D",
@@ -5087,7 +5947,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testOpenCornerShell",
@@ -5097,7 +5958,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testParametricSurface",
@@ -5108,7 +5970,8 @@
       "vars": [
         "r2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testPlanes",
@@ -5121,7 +5984,8 @@
       "vars": [
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testPolarArray",
@@ -5134,7 +5998,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testPolygonPlugin",
@@ -5147,7 +6012,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testPopPending",
@@ -5159,7 +6025,8 @@
         "w4",
         "w5"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testQuickStartXY",
@@ -5172,7 +6039,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testQuickStartXZ",
@@ -5185,7 +6053,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testQuickStartYZ",
@@ -5198,7 +6067,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testRevolveCone",
@@ -5210,7 +6080,8 @@
       "vars": [
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testRevolveCut",
@@ -5225,7 +6096,8 @@
         "box",
         "cut"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testRevolveCylinder",
@@ -5236,7 +6108,8 @@
       "vars": [
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testRevolveDonut",
@@ -5247,7 +6120,8 @@
       "vars": [
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testRotate",
@@ -5257,7 +6131,8 @@
       "vars": [
         "box"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testRotateAboutCenter",
@@ -5268,7 +6143,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSection",
@@ -5281,7 +6157,8 @@
         "s1",
         "s2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSimpleMirror",
@@ -5294,7 +6171,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSimpleShell",
@@ -5309,7 +6187,8 @@
         "s2",
         "s3"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSimpleWorkplane",
@@ -5323,7 +6202,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSketch",
@@ -5352,7 +6232,8 @@
         "r5",
         "r6"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSlot2D",
@@ -5368,7 +6249,8 @@
         "result",
         "box"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse",
@@ -5381,7 +6263,8 @@
         "r",
         "t"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue",
@@ -5394,7 +6277,8 @@
         "r",
         "t"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSphereCombine",
@@ -5405,7 +6289,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSphereDefaults",
@@ -5415,7 +6300,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSpherePointList",
@@ -5426,7 +6312,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSplineShape",
@@ -5439,7 +6326,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSweep",
@@ -5456,7 +6344,10 @@
         "cut",
         "add"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTag",
@@ -5469,7 +6360,10 @@
       "vars": [
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "tag"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTagSelectors",
@@ -5485,7 +6379,10 @@
         "result1",
         "result2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "tag"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTangentArcToPoint",
@@ -5503,7 +6400,8 @@
         "s1",
         "s2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTaperedExtrudeCutBlind",
@@ -5517,7 +6415,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight",
@@ -5529,7 +6428,8 @@
         "s",
         "s2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testText",
@@ -5546,7 +6446,8 @@
         "obj4",
         "obj5"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTextAlignment",
@@ -5558,7 +6459,8 @@
         "centers",
         "right_top"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testToSVG",
@@ -5569,7 +6471,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTopFaceFillet",
@@ -5580,7 +6483,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTriangularPrism",
@@ -5592,7 +6496,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTwistExtrude",
@@ -5602,7 +6507,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombine",
@@ -5612,7 +6518,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut",
@@ -5626,7 +6533,8 @@
         "box",
         "cut"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTwistedLoft",
@@ -5639,7 +6547,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTwoWorkplanes",
@@ -5654,7 +6563,8 @@
         "r",
         "t"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testUnionCompound",
@@ -5670,7 +6580,8 @@
         "o",
         "obj"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testUnionNoArgs",
@@ -5685,7 +6596,8 @@
         "objects1",
         "objects2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testUnions",
@@ -5704,7 +6616,8 @@
         "sugar1",
         "sugar2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testWedgeCombined",
@@ -5715,7 +6628,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testWedgeDefaults",
@@ -5725,7 +6639,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testWedgePointList",
@@ -5736,7 +6651,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove",
@@ -5747,7 +6663,8 @@
       "vars": [
         "t"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testWorkplaneCenterOptions",
@@ -5762,7 +6679,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testWorkplaneFromTagged",
@@ -5779,7 +6697,10 @@
       "vars": [
         "result"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "tag"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testWorkplaneOrientationOnVertex",
@@ -5790,7 +6711,26 @@
       "vars": [
         "parent"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::test_MergeTags",
+      "ops": [
+        "end",
+        "tag",
+        "box",
+        "cylinder",
+        "workplane"
+      ],
+      "vars": [
+        "b"
+      ],
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "end",
+        "tag"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_bool_operators",
@@ -5801,7 +6741,8 @@
         "w1",
         "w2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_combineWithBase",
@@ -5814,7 +6755,10 @@
         "sphere",
         "new_box"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_cutFromBase",
@@ -5827,7 +6771,10 @@
         "sphere",
         "hoolow_box"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_extrude_face",
@@ -5837,7 +6784,8 @@
       "vars": [
         "c"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_findFromEdge",
@@ -5847,7 +6795,8 @@
       "vars": [
         "part2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_getitem",
@@ -5858,7 +6807,8 @@
       "vars": [
         "w"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_invoke",
@@ -5869,7 +6819,8 @@
       "vars": [
         "w"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_iterators",
@@ -5885,7 +6836,10 @@
         "c",
         "fs"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_loft_face",
@@ -5899,7 +6853,8 @@
         "w1",
         "w2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_loft_to_vertex",
@@ -5913,7 +6868,8 @@
         "w1",
         "w2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_map_apply_filter_sort",
@@ -5924,7 +6880,8 @@
       "vars": [
         "w"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::test_workplane_iter",
@@ -5935,7 +6892,8 @@
         "w2",
         "w3"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_shapes:::test_isSolid",
@@ -5945,7 +6903,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_shapes:::test_shells",
@@ -5956,7 +6915,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_shapes:::test_addCavity",
@@ -5969,7 +6929,8 @@
         "b2",
         "br"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_shapes:::test_single_ent_selector",
@@ -5981,7 +6942,8 @@
         "bs",
         "fs"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_shapes:::test_reverse",
@@ -5991,7 +6953,8 @@
       "vars": [
         "simple_box"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_shapes:::test_siblings",
@@ -6014,7 +6977,8 @@
         "level_3",
         "level_123"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_shapes:::test_set_ops",
@@ -6024,7 +6988,8 @@
       "vars": [
         "simple_box"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_workplanes::TestWorkplanes::test_all_planes",
@@ -6035,7 +7000,8 @@
       "vars": [
         "b2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_workplanes::TestWorkplanes::test_bad_plane_input",
@@ -6045,7 +7011,8 @@
       "vars": [
         "b2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_workplanes::TestWorkplanes::test_mirror",
@@ -6056,7 +7023,8 @@
       "vars": [
         "b2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_workplanes::TestWorkplanes::test_mirror_axis",
@@ -6067,7 +7035,8 @@
       "vars": [
         "b2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence",
@@ -6079,7 +7048,8 @@
         "boxTmp",
         "b"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_workplanes::TestWorkplanes::test_mirror_face",
@@ -6092,7 +7062,8 @@
       "vars": [
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_workplanes::TestWorkplanes::test_mirror_workplane",
@@ -6103,7 +7074,8 @@
       "vars": [
         "b2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_utils",
@@ -6114,7 +7086,8 @@
       "vars": [
         "r4"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_constructors",
@@ -6127,7 +7100,10 @@
         "c1",
         "c2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "Faces"
+      ]
     },
     {
       "case": "tests.test_free_functions:::test_box",
@@ -6137,7 +7113,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_cylinder",
@@ -6147,7 +7124,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_sphere",
@@ -6157,7 +7135,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_torus",
@@ -6167,7 +7146,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_cone",
@@ -6177,7 +7157,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_text",
@@ -6197,7 +7178,8 @@
         "r8",
         "r9"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_operators",
@@ -6210,7 +7192,8 @@
         "b2",
         "b3"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_fuse_multi",
@@ -6223,7 +7206,8 @@
         "b",
         "res"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_clean",
@@ -6235,7 +7219,8 @@
         "b1",
         "b2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_fillet",
@@ -6247,7 +7232,8 @@
         "b",
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_chamfer",
@@ -6259,7 +7245,8 @@
         "b",
         "r"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_extrude",
@@ -6270,7 +7257,8 @@
         "r4",
         "r5"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_offset",
@@ -6284,7 +7272,8 @@
         "r3",
         "r4"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_sweep_aux",
@@ -6295,7 +7284,8 @@
         "r1",
         "r2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_check",
@@ -6305,7 +7295,8 @@
       "vars": [
         "s1"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_history_extrude",
@@ -6316,7 +7307,8 @@
         "res",
         "sides"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_history_sweep",
@@ -6327,7 +7319,8 @@
         "res",
         "side"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_free_functions:::test_history_loft",
@@ -6338,7 +7331,8 @@
         "res",
         "side"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_NonplanarWire",
@@ -6349,7 +7343,8 @@
       "vars": [
         "wp"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Shells",
@@ -6360,7 +7355,8 @@
       "vars": [
         "workplane_shells"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids",
@@ -6372,7 +7368,8 @@
         "workplane_solids",
         "selected_solids"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testEdgeTypesFilter",
@@ -6384,7 +7381,8 @@
       "vars": [
         "c"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes",
@@ -6396,7 +7394,8 @@
         "w0",
         "val"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testNearestToShape",
@@ -6410,7 +7409,8 @@
         "b3",
         "res"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testNthDistance",
@@ -6423,7 +7423,8 @@
         "c",
         "twisted_boxes"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testShape",
@@ -6436,7 +7437,10 @@
         "res1",
         "res4"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cad_objects::TestCadObjects::testCompoundCenter",
@@ -6446,7 +7450,8 @@
       "vars": [
         "s"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_cad_objects::TestCadObjects::testPlaneMethods",
@@ -6455,7 +7460,10 @@
         "local_box",
         "mirror_box"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": [
+        "vals"
+      ]
     },
     {
       "case": "tests.test_assembly:::test_metadata",
@@ -6463,7 +7471,22 @@
       "vars": [
         "metadata_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_assembly",
+      "ops": [
+        "traverse"
+      ],
+      "vars": [
+        "simple_assy",
+        "nested_assy"
+      ],
+      "fellBack": true,
+      "unverifiedValueOps": [
+        "Solids"
+      ]
     },
     {
       "case": "tests.test_assembly:::test_step_export",
@@ -6475,7 +7498,8 @@
         "w",
         "o"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_meta_step_export",
@@ -6495,7 +7519,8 @@
         "cube_1",
         "cube_2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_meta_step_export_edge_cases",
@@ -6505,7 +7530,8 @@
       "vars": [
         "cube"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_step_roundtrip_with_materials",
@@ -6516,7 +7542,8 @@
         "materials_assy",
         "test_assy"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_step_export_assembly_unit_default",
@@ -6527,7 +7554,8 @@
       "vars": [
         "assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_step_export_assembly_unit_meters",
@@ -6538,7 +7566,8 @@
       "vars": [
         "assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_step_export_meta_unit_meters",
@@ -6549,7 +7578,8 @@
       "vars": [
         "assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_step_export_assembly_output_unit",
@@ -6560,7 +7590,8 @@
       "vars": [
         "assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_step_roundtrip_unit",
@@ -6572,7 +7603,8 @@
         "assy3",
         "assy4"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_assembly_step_import",
@@ -6585,7 +7617,8 @@
         "imported_assy",
         "res"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_assembly_subshape_import",
@@ -6596,7 +7629,8 @@
         "subshape_assy",
         "imported_assy"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_assembly_multi_subshape_import",
@@ -6607,7 +7641,8 @@
         "multi_subshape_assy",
         "imported_assy"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_plain_assembly_import",
@@ -6623,7 +7658,8 @@
         "assy",
         "imported_assy"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_nested_subassembly_step_import",
@@ -6635,7 +7671,8 @@
         "subassy",
         "imported_assy"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_assembly_import_step_unit",
@@ -6646,7 +7683,8 @@
         "assy",
         "imported"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_native_export",
@@ -6654,7 +7692,8 @@
       "vars": [
         "simple_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_vrml_export",
@@ -6662,7 +7701,8 @@
       "vars": [
         "simple_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_save_stl_formats",
@@ -6672,7 +7712,8 @@
       "vars": [
         "nested_assy_sphere"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_save_gltf",
@@ -6682,7 +7723,8 @@
       "vars": [
         "nested_assy_sphere"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_save_gltf_boxes2",
@@ -6692,7 +7734,8 @@
       "vars": [
         "boxes2_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_save_vtkjs",
@@ -6702,7 +7745,8 @@
       "vars": [
         "nested_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_save_raises",
@@ -6712,7 +7756,8 @@
       "vars": [
         "nested_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_materials",
@@ -6725,7 +7770,8 @@
         "wp_3",
         "assy"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_constrain_with_tags",
@@ -6736,7 +7782,8 @@
       "vars": [
         "nested_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_duplicate_name",
@@ -6746,7 +7793,8 @@
       "vars": [
         "nested_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_empty_solve",
@@ -6756,7 +7804,8 @@
       "vars": [
         "nested_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_expression_grammar",
@@ -6766,7 +7815,8 @@
       "vars": [
         "nested_assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_toCompound",
@@ -6787,7 +7837,8 @@
         "c2",
         "c3"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_unary_constraints",
@@ -6799,7 +7850,8 @@
         "assy",
         "w"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_fixed_rotation",
@@ -6811,7 +7863,8 @@
         "assy",
         "w"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_constraint_validation",
@@ -6821,7 +7874,8 @@
       "vars": [
         "simple_assy2"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_single_unary_constraint",
@@ -6832,7 +7886,8 @@
       "vars": [
         "simple_assy2"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_point_on_line",
@@ -6845,7 +7900,8 @@
         "assy",
         "w"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_axis_constraint",
@@ -6857,7 +7913,8 @@
         "simple_assy2",
         "assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_point_constraint",
@@ -6869,7 +7926,8 @@
         "simple_assy2",
         "assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_order_of_transform",
@@ -6881,7 +7939,10 @@
         "m1",
         "m2"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "Solids"
+      ]
     },
     {
       "case": "tests.test_assembly:::test_step_export_filesize",
@@ -6892,7 +7953,8 @@
         "part",
         "assy"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_remove_without_parent",
@@ -6903,7 +7965,8 @@
         "assy",
         "part"
       ],
-      "fellBack": false
+      "fellBack": false,
+      "unverifiedValueOps": []
     },
     {
       "case": "tests.test_assembly:::test_step_color",
@@ -6914,7 +7977,8 @@
       "vars": [
         "assy"
       ],
-      "fellBack": true
+      "fellBack": true,
+      "unverifiedValueOps": []
     }
   ],
   "stubCases": [
@@ -7770,14 +8834,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::test_MergeTags",
-      "blockedBy": "end",
-      "missing": [
-        "end"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::test_compound_faces_center",
       "blockedBy": "CombinedCenter",
       "missing": [
@@ -7970,14 +9026,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_assembly:::test_assembly",
-      "blockedBy": "traverse",
-      "missing": [
-        "traverse"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_assembly:::test_assy_root_name",
       "blockedBy": "getfixturevalue",
       "missing": [
@@ -8148,9 +9196,8 @@
     },
     {
       "case": "tests.test_assembly:::test_name_geometries",
-      "blockedBy": "addSubshape",
+      "blockedBy": "plane",
       "missing": [
-        "addSubshape",
         "plane"
       ],
       "deps": []

@@ -14,5 +14,4 @@ let b3a = await cq.box(cq.Workplane('XY'), 1, 1, 0.5)
 let b3at = await cq.translate(b3a, [-2, 4, 0])
 let b3b = await cq.box(cq.Workplane('XY'), 1, 1, 0.5)
 let b3bt = await cq.translate(b3b, [2, 4, 0])
-let c1 = cq.compound(cq.val(b1), cq.val(b2t), cq.val(b3at), cq.val(b3bt))
-let result = c1
+let result = cq.compound(cq.val(b1), cq.val(b2t), cq.val(b3at), cq.val(b3bt))

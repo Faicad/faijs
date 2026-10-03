@@ -4,5 +4,4 @@
 import * as cq from '@faicad/faijs-cadquery'
 let w0 = cq.Workplane('XY')
 let f = await cq.face(cq.rect(w0, 1, 1))
-let c = cq.compound(cq.val(f))
-let result = c
+let result = cq.compound(cq.val(f))

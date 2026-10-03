@@ -9,7 +9,7 @@
 //   x/y all [-0.5,0.5]; z bands [0,3] [3,7] [7,12] [12,18]
 // Solved through the CadQuery grammar (cq-compat-assembly solve()/toCompound()).
 import * as cq from '@faicad/faijs-cadquery'
-import * as cqa from '@faicad/cq-compat-assembly'
+import * as cqa from '@faicad/faijs-cadquery/assembly'
 let box0 = await cq.box(cq.Workplane('XY'), 1, 1, 3, { centered: [true, true, false] })
 let box1 = await cq.box(cq.Workplane('XY'), 1, 1, 4)
 let box2 = await cq.box(cq.Workplane('XY'), 1, 1, 5)
@@ -24,5 +24,4 @@ let asm = cqa.buildAssembly('assy0', [
   { name: 'box3', shape: box3 },
 ], [cA, cB, cC])
 asm.solve()
-let c3 = asm.toCompound()
-let result = c3
+let result = asm.toCompound()
