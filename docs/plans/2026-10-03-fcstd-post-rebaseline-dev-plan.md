@@ -118,12 +118,13 @@
 - **改动位置**：`packages/core/src/api/edge-ref.ts`（lineage 解析）＋翻译侧 ordinal
   记录语义（`packages/faijs-freecad/src/`）。
 
-### H 组：sweep-transition 25（self-host sweep 缺口）
+### H 组：sweep-transition 26 —— **已判定（2026-10-03）：实现不可行，维持显式 gap，已不再以 run-fail 出现**
 
-- **现象**：`SWEEP_TRANSITION_UNSUPPORTED: transitionMode 'transformed' is not supported after selfhosting (only 'right' default)`。现知 25+ 个（Screw tornillo / Trapezoidal thread / Duct 系列同根因）。
-- **做法**：① 判定 `'transformed'` transition 的语义与工作量——若可实现则在 sweep op 补该模式；若不可行，则把该 gap 显式上报为 `E_SWEEP_UNSUPPORTED` 并在翻译侧记 gap（而不是 run-fail）。
-- **改动位置**：sweep op 实现（`packages/core`）；翻译侧 gap 归类在 `packages/faijs-freecad/src/feature-translate.ts`。
-- **判据**：取点 run ok（实现）或转 stage1 gap（显式上报），不再以 run-fail 形态出现。
+- **现象**：`cad.sweep` 抛 `SWEEP_TRANSITION_UNSUPPORTED: transitionMode 'transformed' is not supported after selfhosting (only 'right' default)`。26 个（Duct / fan / battery-holder / Bathroom_cabinet_sink 等）。
+- **判定（实测）**：occt-wasm 绑定层 `sweepPipeShell(profile, spine, frenet?, smooth?)` **没有 transition 模式参数**——FreeCAD 的 Transformed/Round 需要 `BRepOffsetAPI_MakePipeShell.SetTransitionMode`，当前 wasm 绑定未暴露 ⇒ 实现路线不可行（除非先扩 occt-wasm 绑定，超出本组范围）。
+- **现状即正确形态**：翻译侧（`feature-translate.ts:1824`）对 `transformed`/`round` 显式记 gap `sweep-transition-unsupported:*`（honest bake）；取点 3 个重转实证失败已从 run-fail **前移为 stage1 翻译 gap**，不再污染 stage2 run-fail 分类。
+- **留档**：`feature-translate.test.ts`（`Transition`='1'/'Transformed'/'2'/'Round' 四值全部断言 baked + reason 匹配）。
+- **后续**：26 个文件停在 stage1 gap（计入 K 组的 gap 口径）；若未来 occt-wasm 暴露 SetTransitionMode，可重新评估实现。
 
 ### I 组：com 大偏移 253 + bbox 失配 —— **已定性（2026-10-03），faijs 侧无缺陷，原「每档一个 singleFix」作废**
 
