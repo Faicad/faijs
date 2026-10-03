@@ -47,13 +47,13 @@
   },
   "peerDependencies": {
     "@faicad/faijs": "^0.29.0",
-    "occt-wasm": "^3.8.4"
+    "occt-wasm": "^5.3.2"
   },
   "devDependencies": {
     "typescript": "*",
     "vitest": "*",
-    "occt-wasm": "^3.8.4",
-    "three": "^0.184.0",
+    "occt-wasm": "^5.3.2",
+    "three": "^0.186.1",
     "@types/three": "^0.184.1",
     "acorn": "^8.18.0"
   },
