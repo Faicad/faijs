@@ -32,6 +32,13 @@ import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import { rotateBrep, translateBrep } from '@faicad/faijs/brep/brep-ops'
 import type { OcctKernel, ShapeHandle, Vec3 } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs/mesh/types'
+// 子形状提取统一走 shape-class.ts 的 solids/wiresOf/shells/compounds——
+// 它们内部经 unwrapShape + getSubShapes，且（关键）其 import 副作用会把
+// occt-wasm 的 OcctKernel 符号钉进 getSubShapes 闭包。本模块直接调
+// kernel.getSubShapes 会抛 "Cannot read properties of undefined (reading
+// 'OcctKernel')"（GOTCHA：见下方 selectKindHandles 注释），故必须复用本路径。
+import { solids as scSolids, wiresOf as scWiresOf, shells as scShells, compounds as scCompounds } from './shape-class'
+import type { CqShape } from './shape-class'
 // cq-compat owns its CadQuery-compatible text geometry (no faijs-extra dep):
 // glyph outlines → OCCT via core `textBlueprints`, aligned per CadQuery.
 import { buildTextSolid, type HAlign, type VAlign } from './text-solid'
@@ -297,6 +304,19 @@ export interface Workplane {
    * `.all()` stack spreading.
    */
   parts?: (Shape | null)[]
+  /**
+   * Raw kernel handles the carrier owns DIRECTLY (in addition to, and
+   * independently of, the Shapes in `objects`). `dispose()` frees these.
+   *
+   * The P3-2 kind selectors (`solids`/`wires`/`shells`/`compounds`) do NOT use
+   * this field: they adopt each sub-shape through `fromHandle`, which attaches
+   * the kernel handle to the returned `Shape` and releases it on Shape disposal
+   * (fromBrep `{ solid }` contract, handle-bridge.ts:144). Re-populating the same
+   * handles here would DOUBLE-FREE. This slot is reserved for carriers that hold
+   * a raw handle not yet wrapped (e.g. future split-halves plumbing). Keep the
+   * two ownership paths disjoint.
+   */
+  ownedHandles?: number[]
 }
 
 /** Snapshot captured by 	ag(): plane frame + carried shape. */
@@ -477,6 +497,24 @@ function clone(wp: Workplane, overrides: Partial<Workplane>): Workplane {
   const out = Object.assign(Object.create(WP_PROTO), wp, overrides) as Workplane
   out.shape = out.objects[0] ?? null
   return out
+}
+
+/**
+ * Dispose a workplane's DIRECTLY-owned raw kernel handles (`ownedHandles`).
+ *
+ * Only the handles in `ownedHandles` are freed here. The stack objects in
+ * `objects` own their own kernel handles through `fromHandle` (see the field's
+ * JSDoc) and are released by their Shape disposal — releasing them again would
+ * double-free, so this function deliberately leaves them alone. The P3-2 kind
+ * selectors rely on that `fromHandle` ownership and never populate
+ * `ownedHandles`, so calling `dispose` on their result is a no-op for the
+ * handles (and still walkable for any carrier that does own raw handles).
+ *
+ * @param wp - Workplane to dispose
+ */
+export function dispose(wp: Workplane): void {
+  const kh = getKernel() as unknown as OcctKernel
+  for (const h of wp.ownedHandles ?? []) kh.release(h as never)
 }
 
 /**
@@ -3775,31 +3813,131 @@ export function vertices(
 }
 
 /**
- * solids — CadQuery `Workplane.solids(selector)` parity (selector forms not
- * supported; bare `solids()` only).
+ * P3-2 shared core for the kind selectors (`solids`/`wires`/`shells`/`compounds`).
  *
- * Upstream returns a new Workplane whose stack holds each solid of the current
- * compound as a separate object, so `val()` is the FIRST solid (verified vs
- * cadquery 2.8.0: test_map_apply_filter_sort w.val() = vol 1.0 solid). The
- * cq-compat carrier keeps a single `.shape`, so `solids()` mirrors the
- * observable contract: the carrier shape becomes the first solid of the
- * compound (a single-solid shape passes through unchanged).
+ * Upstream `_collectProperty` (`cq.py:227`) pools the requested sub-shapes of
+ * EVERY stack object and dedups by topology identity; these helpers mirror that.
  *
- * @param wp - Workplane
- * @returns Workplane whose carried shape is the compound's first solid
+ * The returned handles are freshly allocated by `getSubShapes`. The caller must
+ * ADOPT them (via `fromHandle`) — never `release` them — because `fromHandle`
+ * takes ownership of the kernel handle (fromBrep `{ solid }` contract,
+ * handle-bridge.ts:144) and the Shape's disposal releases it. That adoption is
+ * exactly the leak control (plan §3.5, R2): the slow path keeps every handle
+ * alive on the stack instead of freeing the extras like the old single-object
+ * code did.
+ */
+/**
+ * Collect every sub-shape of `kind` across ALL stack objects (P3-2 multi-object
+ * push). Returns the de-duplicated list of raw kernel handles, or `null` when no
+ * object contributes any.
+ *
+ * GOTCHA (cost a full probe session to pin down): `selectKindHandles` MUST NOT
+ * call `getKernel().getSubShapes(h, kind)` directly from this module. Doing so
+ * throws `Cannot read properties of undefined (reading 'OcctKernel')` — the
+ * occt-wasm wasm glue closes `getSubShapes` over the module-level `OcctKernel`
+ * symbol, and that symbol is only bound once `shape-class.ts` is on the import
+ * graph (its static import of the kernel path performs the side-effect). So we
+ * delegate to `shape-class.ts`'s `solids`/`wiresOf`/`shells`/`compounds`, which
+ * are the same extractors used by the production selector code and are proven
+ * to return correct counts (compound-of-2 → solids=2, wire=12, shell=2,
+ * compound=1). Re-introducing a direct `getSubShapes` call here would silently
+ * regress every kind selector to "returns nothing".
+ *
+ * The four extractors take a `CqShape | ShapeHandle`; we feed `brepOf(obj)`
+ * (the numeric occt-wasm handle — `BrepHandle` is a branded number, so it is a
+ * valid `ShapeHandle`). They return BORROWED `CqShape`s whose `.handle` is the
+ * raw sub-shape handle; we re-home each via `fromHandle` (the leak control,
+ * see `pushKindSubShapes`).
+ *
+ * G9: upstream dedups by `Shape.__eq__` (geometry identity); faijs has no such
+ * operator, so dedup by topology identity via `kernel.isSame` (the same OCCT
+ * IsSame semantic `MapShapesAndAncestors` uses — see workplane.ts:3614).
+ */
+function selectKindHandles(
+  wp: Workplane,
+  kind: 'solid' | 'wire' | 'shell' | 'compound',
+): ShapeHandle[] | null {
+  if (wp.objects.length === 0) return null
+  const kernel = getKernel() as unknown as OcctKernel
+  const extract = (obj: Shape): CqShape[] => {
+    const h = brepOf(obj) as unknown as ShapeHandle
+    if (h === undefined) return []
+    switch (kind) {
+      case 'solid':
+        return scSolids(h as never)
+      case 'wire':
+        return scWiresOf(h as never)
+      case 'shell':
+        return scShells(h as never)
+      case 'compound':
+        return scCompounds(h as never)
+    }
+  }
+  const out: ShapeHandle[] = []
+  for (const obj of wp.objects) {
+    // A throw (e.g. `getSubShapes(h, 'compound')` on a shape with no nested
+    // compound — the old `compounds()` swallowed this) means "none here".
+    let subs: CqShape[]
+    try {
+      subs = extract(obj)
+    } catch {
+      subs = []
+    }
+    for (const s of subs) {
+      const sub = (s as CqShape).handle
+      if (sub !== undefined) out.push(sub as ShapeHandle)
+    }
+  }
+  if (out.length === 0) return null
+  const uniq: ShapeHandle[] = []
+  for (const h of out) {
+    if (!uniq.some((x) => kernel.isSame(x as never, h as never))) uniq.push(h)
+  }
+  return uniq
+}
+
+/**
+ * Push the selected sub-shape handles onto the stack (fast / slow path).
+ *
+ * FAST PATH (single hit): identical to the pre-P3-2 behaviour — adopt the one
+ * sub-shape, nothing else to release. Zero behaviour and zero leak change on
+ * the common path, so every existing mirror / parity case is undisturbed.
+ *
+ * SLOW PATH (many hits): push EVERY handle as its own stack object. Each
+ * `fromHandle` adopts its kernel handle, so we deliberately do NOT release any
+ * of them (releasing would leak). The stack objects own their handles.
+ */
+function pushKindSubShapes(wp: Workplane, handles: ShapeHandle[]): Workplane {
+  if (handles.length === 1) {
+    return clone(wp, { objects: [fromHandle(handles[0])] })
+  }
+  return clone(wp, { objects: handles.map((h) => fromHandle(h)) })
+}
+
+/**
+ * solids — CadQuery `Workplane.solids()` (`cq.py:716`, `_selectObjects('Solids')`).
+ *
+ * P3-2: every solid of every stack object is pushed as its OWN stack entry.
+ * Upstream `solids()` keeps the solids SEPARATE — it does NOT aggregate them
+ * into a compound; that is `findSolid()`'s job (see G3 in `object-stack.test.ts`).
+ * With exactly one solid the result is a single-object stack identical to the
+ * pre-P3-2 behaviour (fast path → no behaviour / leak change).
+ *
+ * GOTCHA: `solids()` ≠ `findSolid()`. `findSolid()` gathers the solids into ONE
+ * compound; `solids()` returns N separate solids.
+ *
+ * @param wp - Workplane (may hold one or several stack objects)
+ * @returns Workplane whose stack holds each solid as a separate object
  */
 export function solids(wp: Workplane): Workplane {
-  if (!wp.shape) return wp
-  const handle = brepOf(wp.shape)
-  if (handle === undefined) return wp
-  const kernel = getKernel() as unknown as OcctKernel
-  const sub = kernel.getSubShapes(handle as unknown as ShapeHandle, 'solid') as unknown as ShapeHandle[]
-  if (sub.length === 0) return wp
-  // Adopt the first solid into faijs ownership; release the rest (raw kernel
-  // getSubShapes copies each sub-shape into its own arena slot — same contract
-  // the kernel's own makeWireFromMixed wrapper honors).
-  for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
-  return clone(wp, { objects: [fromHandle(sub[0]) ]})
+  const handles = selectKindHandles(wp, 'solid')
+  // No object contributes a sub-shape of this kind → the selection is EMPTY
+  // (CadQuery returns a 0-element stack, e.g. `cube.compounds().size() == 0`;
+  // `kind-selectors-probe.py` freezes this). Returning `wp` unchanged would
+  // keep the original object on the stack and report size 1 — a silent
+  // deviation from upstream.
+  if (!handles) return clone(wp, { objects: [] })
+  return pushKindSubShapes(wp, handles)
 }
 
 /**
@@ -6042,65 +6180,68 @@ function closeOpenOffsetWire(wire: ShapeHandle): ShapeHandle {
 // ---------------------------------------------------------------------------
 
 /**
- * wires — CadQuery `Workplane.wires(selector)` parity: pick every WIRE of the
- * current shape (upstream returns a compound of wires; here the first wire is
- * adopted and the rest released — the compound-of-wires form is available via
- * `compound(wires(wp))` when needed).
- * @param wp - Workplane holding the shape
- * @returns Workplane with the first wire as .shape
+ * wires — CadQuery `Workplane.wires()` (`cq.py:716`, `_selectObjects('Wires')`).
+ *
+ * P3-2: every wire of every stack object is pushed as its own stack entry (fast
+ * / slow path — a single wire keeps the pre-P3-2 behaviour exactly). Upstream
+ * `wires()` returns the wires SEPARATELY, so a box yields 6 wires (one per face
+ * boundary), not one compound-of-wires.
+ *
+ * @param wp - Workplane holding the shape(s)
+ * @returns Workplane whose stack holds each wire as a separate object
  */
 export function wires(wp: Workplane): Workplane {
-  if (!wp.shape) return wp
-  const handle = brepOf(wp.shape)
-  if (handle === undefined) return wp
-  const kernel = getKernel() as unknown as OcctKernel
-  const sub = kernel.getSubShapes(handle as unknown as ShapeHandle, 'wire') as unknown as ShapeHandle[]
-  if (sub.length === 0) return wp
-  for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
-  return clone(wp, { objects: [fromHandle(sub[0]) ]})
+  const handles = selectKindHandles(wp, 'wire')
+  // No object contributes a sub-shape of this kind → the selection is EMPTY
+  // (CadQuery returns a 0-element stack, e.g. `cube.compounds().size() == 0`;
+  // `kind-selectors-probe.py` freezes this). Returning `wp` unchanged would
+  // keep the original object on the stack and report size 1 — a silent
+  // deviation from upstream.
+  if (!handles) return clone(wp, { objects: [] })
+  return pushKindSubShapes(wp, handles)
 }
 
 /**
- * compounds — CadQuery `Workplane.compounds(selector)` parity: pick nested
- * COMPOUNDs of the current shape. The kernel typings omit 'compound' but the
- * runtime supports it (probe-verified in shape-class.ts).
- * @param wp - Workplane holding the shape
- * @returns Workplane with the first nested compound as .shape
+ * compounds — CadQuery `Workplane.compounds()` (`cq.py:716`, `_selectObjects('Compounds')`).
+ *
+ * P3-2: every nested compound of every stack object is pushed as its own stack
+ * entry. The kernel's `getSubShapes(h, 'compound')` throws on shapes without
+ * nested compounds, which `selectKindHandles` treats as "none here" (probe: a
+ * plain solid returns 0 compounds). Upstream's TopExp walk includes the whole
+ * compound itself, so `compounds()` on a compound-of-two returns 1.
+ *
+ * @param wp - Workplane holding the shape(s)
+ * @returns Workplane whose stack holds each nested compound as a separate object
  */
 export function compounds(wp: Workplane): Workplane {
-  if (!wp.shape) return wp
-  const handle = brepOf(wp.shape)
-  if (handle === undefined) return wp
-  const kernel = getKernel() as unknown as OcctKernel
-  const get = kernel.getSubShapes as unknown as (h: unknown, t: string) => ShapeHandle[]
-  // 'compound' is runtime-supported but throws on shapes without nested
-  // compounds (probe: fused solid) — treat as "none found"
-  let sub: ShapeHandle[]
-  try {
-    sub = get(handle, 'compound')
-  } catch {
-    return wp
-  }
-  if (sub.length === 0) return wp
-  for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
-  return clone(wp, { objects: [fromHandle(sub[0]) ]})
+  const handles = selectKindHandles(wp, 'compound')
+  // No object contributes a sub-shape of this kind → the selection is EMPTY
+  // (CadQuery returns a 0-element stack, e.g. `cube.compounds().size() == 0`;
+  // `kind-selectors-probe.py` freezes this). Returning `wp` unchanged would
+  // keep the original object on the stack and report size 1 — a silent
+  // deviation from upstream.
+  if (!handles) return clone(wp, { objects: [] })
+  return pushKindSubShapes(wp, handles)
 }
 
 /**
- * shells — CadQuery `Workplane.shells(selector)` parity: pick SHELLs of the
- * current shape.
- * @param wp - Workplane holding the shape
- * @returns Workplane with the first shell as .shape
+ * shells — CadQuery `Workplane.shells()` (`cq.py:716`, `_selectObjects('Shells')`).
+ *
+ * P3-2: every shell of every stack object is pushed as its own stack entry.
+ * A box yields 1 shell; a compound of solids yields one shell per solid.
+ *
+ * @param wp - Workplane holding the shape(s)
+ * @returns Workplane whose stack holds each shell as a separate object
  */
 export function shells(wp: Workplane): Workplane {
-  if (!wp.shape) return wp
-  const handle = brepOf(wp.shape)
-  if (handle === undefined) return wp
-  const kernel = getKernel() as unknown as OcctKernel
-  const sub = kernel.getSubShapes(handle as unknown as ShapeHandle, 'shell') as unknown as ShapeHandle[]
-  if (sub.length === 0) return wp
-  for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
-  return clone(wp, { objects: [fromHandle(sub[0]) ]})
+  const handles = selectKindHandles(wp, 'shell')
+  // No object contributes a sub-shape of this kind → the selection is EMPTY
+  // (CadQuery returns a 0-element stack, e.g. `cube.compounds().size() == 0`;
+  // `kind-selectors-probe.py` freezes this). Returning `wp` unchanged would
+  // keep the original object on the stack and report size 1 — a silent
+  // deviation from upstream.
+  if (!handles) return clone(wp, { objects: [] })
+  return pushKindSubShapes(wp, handles)
 }
 
 /**
