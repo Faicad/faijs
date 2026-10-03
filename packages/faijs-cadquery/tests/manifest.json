@@ -483,16 +483,14 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testExtrude__r": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testExtrude",
-    "blockedBy": "op:extrude.combine-cut",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testExtrude__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testExtrude",
-    "blockedBy": "op:extrude.both",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testExtrude__box": {
     "status": "ported",
@@ -500,22 +498,19 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testExtrude__wp_ref": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testExtrude",
-    "blockedBy": "op:extrude.both",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testExtrude__wp_ref_regular_cut": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testExtrude",
-    "blockedBy": "op:extrude.combine-s",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testExtrude__wp": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testExtrude",
-    "blockedBy": "op:extrude.combine-s",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref": {
     "status": "blocked",

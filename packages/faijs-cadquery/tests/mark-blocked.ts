@@ -35,12 +35,12 @@ const BY_KEY: Record<string, string> = {
   'tests.test_cadquery::TestCadQuery::testCone__t': 'op:CQ',
   'tests.test_cadquery::TestCadQuery::testCylinderPlugin__s': 'op:Workplane.plugin',
   'tests.test_cadquery::TestCadQuery::testFindSolid__s': 'op:findSolid',
-  // extrude(both=) / extrude(combine="cut"|"s")
-  'tests.test_cadquery::TestCadQuery::testExtrude__s': 'op:extrude.both',
-  'tests.test_cadquery::TestCadQuery::testExtrude__r': 'op:extrude.combine-cut',
-  'tests.test_cadquery::TestCadQuery::testExtrude__wp_ref': 'op:extrude.both',
-  'tests.test_cadquery::TestCadQuery::testExtrude__wp_ref_regular_cut': 'op:extrude.combine-s',
-  'tests.test_cadquery::TestCadQuery::testExtrude__wp': 'op:extrude.combine-s',
+  // extrude(both=) / extrude(combine="cut"|"s") — CLOSED 2026-10-03 (roadmap B1-6):
+  //   testExtrude__s / __wp_ref (both=True), testExtrude__wp /
+  //   __wp_ref_regular_cut (combine="s"), and testExtrude__r (combine="cut") now
+  //   all carry mirrors. The five BY_KEY entries were removed so gen-manifest
+  //   re-derives them as `ported` (their manifest.json entries were cleared too —
+  //   gen-manifest preserves any prior `blocked` + `manual:true` annotation).
   // cutBlind("last"|"next") — untilLastFace / untilNextFace
   'tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp': 'op:cutBlind.until-face',
   'tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp_last': 'op:cutBlind.until-face',

@@ -2595,7 +2595,8 @@ function hasPathWire(wp: Workplane): boolean {
  * @param combine - true (default): fuse the new solid with the carried shape;
  *   false: the carrier holds ONLY the freshly extruded solid (upstream
  *   `extrude(..., False)` — verified: testSolidReferenceCombineFalse exports the
- *   lone boss, Compound vol 0.03125). The "cut"/"s" modes are NOT supported yet.
+ *   lone boss, Compound vol 0.03125). `"cut"` / `"s"` are subtractive: they
+ *   delegate to {@link cutBlind}, exactly as upstream (`cq.py:3720-3722`).
  * @returns Promise<Workplane>
  */
 /** Extract the numeric kernel id from a brepjs shape wrapper (or raw handle). */
@@ -2617,17 +2618,63 @@ function rawShapeId(shapeWrapper: unknown): number {
  *
  * @param wp - Workplane
  * @param height - extrusion distance along the workplane normal
- * @param combine - fuse the result with the carried shape (default true)
- * @param opts - { taper?: number } draft angle in degrees
+ * @param combine - fuse the result with the carried shape (default true);
+ *   `"cut"` / `"s"` cut it out (delegates to cutBlind, like upstream)
+ * @param opts - { taper?: number } draft angle in degrees;
+ *   { both?: boolean } extrude symmetrically ±height (upstream `extrude(..., both=True)`)
  * @returns Promise<Workplane>
  */
 export async function extrude(
   wp: Workplane,
   height: number,
-  combine: boolean = true,
-  opts?: { taper?: number },
+  combine: boolean | 'cut' | 's' = true,
+  opts?: { taper?: number; both?: boolean },
 ): Promise<Workplane> {
   const taper = opts?.taper ?? 0
+  const both = opts?.both ?? false
+  // CadQuery: `combine in ("cut","s")` delegates to cutBlind (cq.py:3720-3722) —
+  // a subtractive extrude and cutBlind are the same op upstream.
+  if (combine === 'cut' || combine === 's') {
+    return cutBlind(wp, height, { ...(taper ? { taper } : {}), both })
+  }
+  // CadQuery `both=True`: extrude the profile ±height and fuse the two prisms
+  // (cq.py:3786-3791, `s1.fuse(s2, glue=True)`). Implemented as two standalone
+  // prisms (combine=false) fused, then combined with any base per `combine`.
+  // Verified vs 2.8.0: `circle(1).extrude(1, both=True)` -> vol 2π, z[-1,1];
+  // `rect(40,40).extrude(20, both=True)` -> vol 64000, bbox ±20.
+  if (both) {
+    const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
+    const nb: [number, number, number] = Array.isArray(wp.normal) ? wp.normal : [0, 0, 1]
+    const pos = await extrude(clone(wp, {}), height, false, { taper })
+    // Negative half: extrude +height from a plane shifted -n·height. Mathematically
+    // identical to extruding -height, but the profile primitives (makeCylinderAt
+    // et al.) take a positive height and re-centre from the workplane origin.
+    const neg = await extrude(
+      clone(wp, { origin: vsub(o, vscale(nb, height)) }),
+      height,
+      false,
+      { taper },
+    )
+    const pShape = pos.objects[0]
+    const nShape = neg.objects[0]
+    const prism = pShape && nShape ? await fuseShapes(pShape, nShape) : (pShape ?? nShape)
+    if (!prism) throw new Error('[cq-compat] extrude: both=True produced no solid')
+    const base = baseSolid(wp)
+    const shape = combine === false || !base ? prism : await fuseShapes(base, prism)
+    return clone(wp, {
+      objects: [shape],
+      pendingWires: [],
+      pendingPolygon: undefined,
+      pendingRect: undefined,
+      pendingCircle: undefined,
+      pendingFaces: undefined,
+      faceSel: null,
+      edgeSel: null,
+      vertexSel: null,
+      selChain: undefined,
+      pts: [],
+    })
+  }
   // Materialized sketch faces (sketchFinish/placeSketch) take priority — the
   // flat-model equivalent of upstream `_getFaces()` reading Sketch objects
   // from the stack before pending wires. Zero taper only: a tapered sketch
@@ -3254,19 +3301,35 @@ export async function loft(wp: Workplane, ...rest: (Workplane | LoftOptions)[]):
  * cutBlind
  * @param wp - Workplane
  * @param depth - number
- * @param opts - { w?: number; d?: number; radius?: number }
+ * @param opts - { w?: number; d?: number; radius?: number; taper?: number;
+ *   both?: boolean } `both` cuts ±depth about the profile plane (CadQuery
+ *   passes `both` straight through to `_extrude`, cq.py:3721)
  * @returns Promise<Workplane>
  */
 export async function cutBlind(
   wp: Workplane,
   depth: number,
-  opts?: { w?: number; d?: number; radius?: number; taper?: number },
+  opts?: { w?: number; d?: number; radius?: number; taper?: number; both?: boolean },
 ): Promise<Workplane> {
   if (!baseSolid(wp)) return wp
   const base = baseSolid(wp)!
   wp = await applyPendingFacePlane(wp)
   const absDepth = Math.abs(depth)
-  const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
+  const both = opts?.both ?? false
+  if (both && opts?.taper) {
+    // Honest gap: upstream supports both+taper (both are forwarded to _extrude),
+    // but no mirrored case exercises it. Throw rather than silently drop `both`.
+    throw new Error('[cq-compat] cutBlind: both with taper is not implemented')
+  }
+  const n: [number, number, number] = Array.isArray(wp.normal) ? wp.normal : [0, 0, 1]
+  const invNormal: [number, number, number] = [-n[0], -n[1], -n[2]]
+  // CadQuery cutBlind(+d) cuts along +normal, cutBlind(-d) along -normal
+  // (cq.py:3697-3699 "the distance to cut to, normal to the workplane plane …
+  // a negative float … extends this way in the opposite direction"). A pushed
+  // face's workplane normal points OUT of the solid, so the common
+  // `cutBlind(-depth)` idiom is what cuts inward — which is why every mirrored
+  // caller passes a negative depth.
+  const cutDir: [number, number, number] = depth < 0 ? invNormal : n
   let result = base
   if (opts?.taper) {
     // Tapered pocket via kernel draftPrism (same sign convention as extrude:
@@ -3293,9 +3356,9 @@ export async function cutBlind(
       }
     ).draftPrism(
       rawShapeId(face) as unknown as ShapeHandle,
-      invNormal[0] * absDepth,
-      invNormal[1] * absDepth,
-      invNormal[2] * absDepth,
+      cutDir[0] * absDepth,
+      cutDir[1] * absDepth,
+      cutDir[2] * absDepth,
       opts.taper,
     )
     const tool = fromHandle(raw)
@@ -3314,32 +3377,43 @@ export async function cutBlind(
   // CadQuery semantics: pushPoints() before cutBlind() repeats the cut at every
   // point. With no pushed points, the cut happens at the workplane origin.
   const ptsArr = eachPoints(wp)
+  const toolDepth = both ? 2 * absDepth : absDepth
   for (const [px, py] of ptsArr) {
-    const cutWp = clone(wp, {
-      origin: localToWorld(wp, px, py),
-      normal: invNormal,
-    })
+    const pt = localToWorld(wp, px, py)
+    // `both`: the tool spans ±absDepth about the profile plane — its base sits at
+    // -n·absDepth and is extruded 2·absDepth along +n. Otherwise the tool hangs
+    // off the profile plane along `cutDir` by absDepth.
+    const cutWp = both
+      ? clone(wp, { origin: vsub(pt, vscale(n, absDepth)), normal: n })
+      : clone(wp, { origin: pt, normal: cutDir })
+    const toolDir = both ? n : cutDir
     let tool: Shape
     if (hasPathWire(wp)) {
       // Drafted wire (moveTo/lineTo/polyline + close): extrude the profile into
-      // the cut tool along the (inverted) workplane normal.
-      tool = await pendingPathPrism(wp, [
-        invNormal[0] * absDepth,
-        invNormal[1] * absDepth,
-        invNormal[2] * absDepth,
-      ])
+      // the cut tool along `toolDir`.
+      tool = both
+        ? await pendingPathPrism(
+            wp,
+            [n[0] * toolDepth, n[1] * toolDepth, n[2] * toolDepth],
+            vscale(n, -absDepth),
+          )
+        : await pendingPathPrism(wp, [
+            cutDir[0] * absDepth,
+            cutDir[1] * absDepth,
+            cutDir[2] * absDepth,
+          ])
     } else if (wp.pendingCircle) {
-      tool = await makeCylinderAt(cutWp, wp.pendingCircle.radius, absDepth)
+      tool = await makeCylinderAt(cutWp, wp.pendingCircle.radius, toolDepth)
     } else if (wp.pendingRect) {
-      tool = await makeBoxAt(cutWp, wp.pendingRect.w, wp.pendingRect.d, absDepth)
+      tool = await makeBoxAt(cutWp, wp.pendingRect.w, wp.pendingRect.d, toolDepth)
     } else if (wp.pendingPolygon) {
-      tool = await makePolygonPrismAt(cutWp, wp.pendingPolygon, absDepth, invNormal)
+      tool = await makePolygonPrismAt(cutWp, wp.pendingPolygon, toolDepth, toolDir)
     } else if (opts?.radius !== undefined) {
-      tool = await makeCylinderAt(cutWp, opts.radius, absDepth)
+      tool = await makeCylinderAt(cutWp, opts.radius, toolDepth)
     } else if (opts?.w !== undefined && opts?.d !== undefined) {
-      tool = await makeBoxAt(cutWp, opts.w, opts.d, absDepth)
+      tool = await makeBoxAt(cutWp, opts.w, opts.d, toolDepth)
     } else {
-      tool = await makeBoxAt(cutWp, 1000, 1000, absDepth)
+      tool = await makeBoxAt(cutWp, 1000, 1000, toolDepth)
     }
     result = await cutShapes(result, tool)
   }

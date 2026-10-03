@@ -26,9 +26,9 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 452 ported / 198 blocked / 47 skipped** | `tests/manifest.json`（2026-10-03 实读） |
+| **manifest**（导出变量级） | **697 = 457 ported / 193 blocked / 47 skipped** | `tests/manifest.json`（2026-10-03 **B1-6 后**实读） |
 | **coverage**（上游测试函数级） | **305 = 201 PORTABLE / 41 PORTABLE-WITH-STUB / 55 BLOCKED** | `tests/coverage.json`（2026-10-03 **B0 重算后**实读：`portableNow 201` / `portableWithStub 41` / `blocked 55`） |
-| **镜像文件** | **464** 个 `.fai.js` + **12** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-03 实测） |
+| **镜像文件** | **469** 个 `.fai.js` + **12** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-03 **B1-6 后**实测） |
 | **包内单测** | 548 全绿（46 文件） | P3-4 收官实测 |
 
 ⚠ **两个分母不同源，不可换算**：manifest 的 452/198/47 是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
@@ -47,21 +47,24 @@
 
 ⚠ **旧文档的一处硬错误（勿再传播）**：它写「镜像文件 551 个 `.fai.js`」。**实测 464**（`find tests -name "*.fai.js" | wc -l`）。凡引用镜像计数以本文 §1 为准。
 
-**manifest 实测 blockedBy 分布（198 条，67 个 distinct，2026-10-03 B0-5 重算后从 `manifest.json` 聚合）**：
+**manifest 实测 blockedBy 分布（193 条，64 个 distinct，2026-10-03 **B1-6 落地后**从 `manifest.json` 聚合）**：
 
 ```
-14 op:assembly-solve   12 imprint    11 getfixturevalue   9 kernel:fillet-chain-reapply
- 8 solid                7 plane       5 op:fuzzy-bool      5 interpPlate     5 remove
- 5 export               5 raises      4 op:extrude-until-face  4 op:solid-voids  4 op:prism-from-face
- 4 op:shape.offset      4 op:sweep.pipeshell  4 op:assembly-subshape-import  3 op:cutBlind.until-face
- 3 cutEach              3 op:sweep.multisection  3 narrow:sphere-angles  3 op:sweep.aux-spine
- 3 kernel:boolean-near-coincident-bspline  3 op:wedge-degenerate-top  3 op:addCavity
- 3 filter               3 op:text-spine  3 op:history-subshape  3 parametrize  2 pending:mirror
- 2 op:extrude.both      2 op:extrude.combine-s  2 op:shell  2 parametricCurve
- 2 kernel:shell-outward-opening  2 project  2 importBin  2 kernel:draft-existing-solid
- 2 kernel:hollow-intersection-join  2 op:plane-toLocalCoords  2 exportVTKJS  2 exportGLTF  2 __dir__
- …（其余 34 项各 1 条）
+14 op:assembly-solve      12 imprint                11 getfixturevalue         9 kernel:fillet-chain-reapply
+ 8 solid                   7 plane                   5 export                  5 interpPlate
+ 5 op:fuzzy-bool           5 raises                  5 remove                  4 op:assembly-subshape-import
+ 4 op:extrude-until-face   4 op:prism-from-face      4 op:shape.offset         4 op:solid-voids
+ 4 op:sweep.pipeshell      3 cutEach                 3 filter                  3 kernel:boolean-near-coincident-bspline
+ 3 narrow:sphere-angles    3 op:addCavity            3 op:cutBlind.until-face  3 op:history-subshape
+ 3 op:sweep.aux-spine      3 op:sweep.multisection   3 op:text-spine           3 op:wedge-degenerate-top
+ 3 parametrize             2 __dir__                 2 exportGLTF              2 exportVTKJS
+ 2 importBin               2 kernel:draft-existing-solid 2 kernel:hollow-intersection-join 2 kernel:shell-outward-opening
+ 2 op:plane-toLocalCoords  2 op:shell                2 parametricCurve         2 pending:mirror
+ 2 project
+ …（其余 23 项各 1 条）
 ```
+
+> **B1-6 对分布的影响**：关掉 `op:extrude.both`(2) / `op:extrude.combine-s`(2) / `op:extrude.combine-cut`(1) 三个标签 ⇒ distinct 67→64、blocked 总数 198→193。
 
 > **数据卫生（B0-5 已完成）**：原分布里有 **3 条 `blockedBy` 是整句散文**（2 条 hollow 精度、1 条 Assembly 说明）。已规范化为标签：hollow 两条 → `kernel:hollow-intersection-join`（见 G-F9 / B6-2）；`test_name_geometries__assy` → `plane`（原散文声称「Assembly API 已实现、待写镜像」，经 B0-4 修 surface 后暴露真因是 free `plane()` 缺失，见 G-C6 / B1-5）。manifest 整体只改这 3 行，452/198/47 不变。
 
@@ -122,7 +125,7 @@
 | **G-C7** | `prism` tilt（非法向挤出，1）+ from/to-face（4，见 G-F11） | **5** | 3 |
 | **G-C8** | `solid(...)` 内 void 缝合（4）+ `Solid.addCavity`（3） | **7** | 3 |
 | **G-C9** | `sweep` pipeshell（4）/ multisection（3）/ aux-spine（3） | **10** | 3 |
-| **G-C10** | `extrude` 的 `both=`（2）/ `combine="cut"`（1）/ `combine="s"`（2） | **5** | 2 |
+| **G-C10** ✅ **已闭（B1-6, 2026-10-03）** | ~~`extrude` 的 `both=`（2）/ `combine="cut"`（1）/ `combine="s"`（2）~~ | ~~**5**~~ **0** | 2 |
 | **G-C11** | `extrude("next"/"last")` until-face（4）+ `cutBlind.until-face`（3）+ 索引选择器 `faces(">X[1]")` | **7** | 3 |
 | **G-C12** | `offset2D` multi-region（1）+ `shape.offset`（4） | **5** | 3 |
 | **G-C13** | `parametricCurve`（2）+ `parametricSurface`（1） | **3** | 3 |
@@ -139,7 +142,7 @@
 | **G-C24** | `CombinedCenter`（1）/ `filter`（3）/ `matrixOfInertia`（1）/ `cast`（1）/ `largestDimension`（1）/ `consolidateWires` | **8** | 2 |
 | **G-C25** | `eachpoint` **lambda 形态**（对象形态已实现；`.fai.js` 无函数字面量需语法支持） | **1** | 4 |
 | **G-C26** | `narrow:sphere-angles`（3）+ `narrow:chamfer-asym`（1）：参数未打通（faijs 侧，待判定） | **4** | 2 |
-| **G-C27** | **Assembly 子路径导入不可解析**（`test_toCompound__assy1` / `__c3`）：镜像已改用正确 specifier `@faicad/faijs-cadquery/assembly`，但 CLI 库装载把它解析到**陈旧 dist**（`dist/runtime-state` 缺失）⇒ 运行时 `cqa.constraint is not a function`。B0-6 新暴露 | **2** | 3 |
+| **G-C27** | **Assembly 子路径导入被自动装载成根包命名空间**（`test_toCompound__assy1` / `__c3`）：镜像 specifier 正确（`@faicad/faijs-cadquery/assembly`），但 core `lang/metadata-extractor.ts:145` 的 `derivePackageName()` **丢掉子路径**（`@faicad/faijs-cadquery/assembly` → `@faicad/faijs-cadquery`）；`runtime.autoLoadLibsFromImports`（`cad-runtime/runtime.ts:1212`）遂 `loadLib(packageName)` 装载**根包** ⇒ 运行时 `cqa.constraint is not a function`（root 不导出 assembly API）。**根因在 core，改 core 需授权**；**非「陈旧 dist」**——`dist/assembly/index.js` 确实导出 `constraint` 且是新鲜产物（B0 期间误判，2026-10-03 实测证伪）。 | **2** | 3 |
 
 #### 类 D · 装配（难度 4–5）
 
@@ -231,20 +234,29 @@
 
 ### B1 · 小粒度 op（难度 2；单文件、单测友好、影响面小）
 
+> **⚠ 开工前实测订正（2026-10-03，读上游 `out/cache/v2.8.0/tests/*.py` + 内核 `primitives.ts` / `occt-kernel/*` 面）**：本表原由「coverage `blockedByTop` 计数」推导，**未逐项核全链路可行性**，开测即推翻多处：
+> 1. **「解锁」= 实现 op + 新写 mirror**（实测：452 ported **全部有镜像**、198 blocked **全部无镜像**，逐条 `existsSync(mirrorPath(key))`）⇒ 只补 API 而镜像不变，parity **零变化**。
+> 2. **`remove` / `replace` 是内核依赖**：上游用 `BRepTools_ReShape`（`occ_impl/shapes.py:1892` / `:1872`），faijs 内核层（`brep/engine/primitives.ts` + `occt-kernel/*`）**未暴露** ⇒ 应移 B6（或用 `getSubShapes + sew` 近似，须 parity 验证）。**B1-4 与 B1-5 的 `replace` 部分据此下修。**
+> 3. **`narrow:sphere-angles` 是内核依赖**：`workplane.ts:1099` 已注明 partial sweep 无法由 `cad.sphere` 原语表达 ⇒ 按 B1-10 预置二分支**移 B6**。
+> 4. **`cutEach`（B1-8）/ `filter`（B1-2 的 `test_special`）/ `solid` 带 `inner`（B1-2）需 `.fai.js` 没有的 lambda 或多 op 组合** ⇒ 实际门槛高于「难度 2」。
+> 5. **B1-1 口径错**，见下行。
+
+> **✅ B1-6 已完成（2026-10-03，本批第一个落地项）**：`extrude(wp,h,combine,{taper,both})` — `combine∈{cut,s}` 委托 `cutBlind`、`both=True` 从 ±h 两平面各挤 h 再 fuse；`cutBlind` 补 `depth<0` 沿 −normal 的方向号规则。5 条镜像 `testExtrude__{s,wp_ref,wp,wp_ref_regular_cut,r}` + 6 单测 + 4 变异全绿；manifest **452→457 ported / 198→193 blocked**，coverage 函数级 **不变**（`testExtrude` 早已 PORTABLE，见 §1）。
+
 按「一次导出/一次小原语就能解锁多条」排序：
 
 | 序 | 项 | 影响 | 动作要点 |
 |---|---|---|---|
-| **B1-1** | **G-C21 IO 通道**（importBrep 5 / importBin 2 / export native·STL 5） | 12 | `importBrep`/`importBin` 走内核 load；`export` 的 native BREP + STL 变体走宿主；**VRML/GLTF/VTK.js 归 §2.3 排除** |
+| **B1-1** | ~~**G-C21 IO 通道**（importBrep 5 / importBin 2 / export 5）~~ **订正（实测）**：仅 `importBin`（**2**，`test_bin_import_export__b/__r`，无镜像）属纯 B1；`importBrep` 标签实测 **0**（`testBrepImportExport__s/__si`、`test_export__w/__b1/__b2` 已 ported，靠几何锚点 stub 通过）；`export` 5 全是装配导出（`test_native_export` / `test_export_errors` / `test_save_stl_formats` 依赖 B5 + G-D3；`test_vrml_export` / `test_export_vtkjs` 属 §2.3 排除）⇒ **净余 2** | **2** | `Shape.importBin(bytes)` 走内核 load（core `api/import-brep.ts` 的 `importBrepImpl` 已有资产入口，需补 bytes 直入）+ 写 2 条镜像 |
 | **B1-2** | **G-C24 零散值面**（filter 3 / CombinedCenter 1 / matrixOfInertia 1 / cast 1 / largestDimension 1 / consolidateWires） | 8 | 多为 Shape 域小函数 + Workplane 镜像 |
 | **B1-3** | **G-C20 零散 free**（Solid.makeCone / CQ / Workplane.plugin / free threePointArc / free polyline） | 5 | 自由函数构造器 + 类式包装 |
-| **B1-4** | **G-C3 remove** | 5 | `Shape.remove(subshape)` 子形移除 |
+| **B1-4** | **G-C3 remove** ⚠ **内核依赖**：上游 `Shape.remove` 用 `BRepTools_ReShape`（faijs 内核未暴露）⇒ 移 **B6**（或用 `getSubShapes + sew/compound` 近似后跑 parity；`test_remove` 需 `innerShells()`） | 5 | 见 B6 |
 | **B1-5** | **G-C6 free `plane()`** | 6 | 自由函数平面构造器（`plane(1,1)`） |
-| **B1-6** | **G-C10 extrude 变体**（both 2 / combine-cut 1 / combine-s 2） | 5 | 消费面参数通道 |
+| **B1-6** ✅ **已完成 2026-10-03** | **G-C10 extrude 变体**（both 2 / combine-cut 1 / combine-s 2）—— `extrude(wp,h,combine,{taper,both})`：`combine∈{cut,s}` 委托 `cutBlind`（cq.py:3720-3722）、`both=True` 从 ±h 两平面各挤 h 再 fuse（cq.py:3786-3791）；`cutBlind` 补方向号规则（`depth<0` 沿 −normal，cq.py:3697-3699）。5 条镜像（`testExtrude__{s,wp_ref,wp,wp_ref_regular_cut,r}`）+ 6 单测 + 4 变异全绿 | 5→**0** | 消费面参数通道 |
 | **B1-7** | **G-C17 wedge 退化顶面** | 3 | 顶面缩成点时建四棱锥（上游 `makeLineEdge` 零长边分支） |
 | **B1-8** | **G-C14 cutEach** | 3 | 逐子形切割 |
 | **B1-9** | **G-C19 运算符重载** | 1 | `.fai.js` 子集内可达的 `\|` 语法 |
-| **B1-10** | **G-C26 narrow 参数**（sphere-angles 3 / chamfer-asym 1） | 4 | 打通参数；需先判定是 faijs 侧还是内核侧（**预置二分支**：若内核侧 ⇒ 移入 B6 并登记） |
+| **B1-10** | **G-C26 narrow 参数**（chamfer-asym 1）—— ⚠ `sphere-angles`（3）**已定性内核侧**（`workplane.ts:1099`）⇒ 移 **B6**，本项仅余 chamfer-asym | 1 | 打通 chamfer 非对称参数（需先判定 faijs/内核侧） |
 | **B1-11** | **G-B3 mirror transpile 映射** | — | `.all()/.end()/.val()/.vals()` 进 `transpile.ts`（即便当前 mirror 0 处，为双端完整） |
 | **B1-12** | **G-A2/G-A3 Shape 域 kind + `_collectProperty` 特例** | 2 | `Shells()/CompSolids()/Compounds()` + Solid→Compounds 特例 |
 
