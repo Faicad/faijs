@@ -2,10 +2,12 @@
  * `.fai.zip` container schemas (docs/fai-zip-format.md §4, §7).
  *
  * `.fai.zip` is faijs' own container format, so this module carries the format
- * itself and nothing producer-specific: `source` and `requiresBrep` are §4
- * manifest fields (described in §8.2 as conversion provenance), not an FCStd
- * leak. Producer members such as `mapping.json` and `freecad/**` are passed
- * through opaquely (spec §3, "Optional, producer-defined").
+ * itself and nothing producer-specific: `source` is a §4 manifest field
+ * (described in §8.2 as conversion provenance), not an FCStd leak. Producer
+ * members such as `mapping.json` and `freecad/**` are passed through opaquely
+ * (spec §3, "Optional, producer-defined"). `requiresBrep` was removed in
+ * 2026-10-03 (fai-zip-third-party-sdk-and-viewer-plan): BREP is always the
+ * default-required execution chain, so no per-container flag exists.
  *
  * Environment-independent by construction: no `node:*`, no DOM, no fflate.
  * Text members go through the UTF-8 codec below, ZIP bytes go through
@@ -47,8 +49,6 @@ export interface ContainerManifest {
     programVersion: string
     schemaVersion: number
   }
-  /** the model graph requires the BREP chain (spec §8.2) */
-  requiresBrep?: boolean
 }
 
 /**

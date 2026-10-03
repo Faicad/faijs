@@ -162,7 +162,6 @@ function readManifestFrom(members: MemberMap): ContainerManifest {
     ...(typeof manifest.appVersion === 'string' ? { appVersion: manifest.appVersion } : {}),
     ...(typeof manifest.label === 'string' ? { label: manifest.label } : {}),
     ...(typeof manifest.source === 'object' && manifest.source !== null ? { source: manifest.source as ContainerManifest['source'] } : {}),
-    ...(typeof manifest.requiresBrep === 'boolean' ? { requiresBrep: manifest.requiresBrep } : {}),
   }
 }
 

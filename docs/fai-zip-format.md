@@ -65,8 +65,7 @@ The manifest is a UTF-8 JSON object:
   "appVersion": "0.18.3",
   "label": "Engraved import",
 
-  "source": { "file": "Beds.FCStd", "programVersion": "0.21.1", "schemaVersion": 4 },
-  "requiresBrep": true
+  "source": { "file": "Beds.FCStd", "programVersion": "0.21.1", "schemaVersion": 4 }
 }
 ```
 
@@ -84,7 +83,6 @@ The manifest is a UTF-8 JSON object:
 | `appVersion` | Optional | string | Version of the producing tool. Display only |
 | `label` | Optional | string | Container display name. Display only |
 | `source` | Optional | object | FCStd conversion provenance (§8.2). Display only |
-| `requiresBrep` | Optional | boolean | The model graph requires the BREP chain (§8.2) |
 
 Rules:
 
@@ -159,13 +157,14 @@ Obligations:
 
 The FCStd → `.fai.zip` converter writes additional members that record the fidelity of a conversion. They are conventions of that producer, not requirements on any other; a container without them is conforming.
 
+The baked carriers have no mesh parser, so a viewer must run the BREP execution chain; this is the default-required chain of the execution SDK and is not declared per-container (no `manifest.requiresBrep` field).
+
 | Member | Contents |
 |---|---|
 | `mapping.json` | Per-object fidelity ledger: one entry per source object with its disposition (`translated`, `baked`, `preserved-only`), the reason when it was not translated, and the artifacts it produced |
 | `freecad/**` | Byte-exact shadow of every member of the source document archive; the conversion drops no source bytes |
 | `assets/*.brp` | Baked BREP carriers, referenced by the converted scripts through the platform BREP-asset import op |
 | `manifest.source` | Provenance: source file name, producing program version, document schema version |
-| `manifest.requiresBrep` | `true` when the model graph requires the BREP chain — the baked carriers have no mesh parser, so a host that cannot provide the BREP chain must fail rather than silently substitute a mesh path |
 
 ## 9. Reader obligations
 

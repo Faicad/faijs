@@ -36,7 +36,6 @@ export interface ContainerAssembly {
     appVersion?: string
     label?: string
     source?: ContainerManifest['source']
-    requiresBrep?: boolean
   }
   /** `model/**` members: full container path → source text. Every `models[].entry` must be present */
   modules: Record<string, string>
@@ -127,7 +126,6 @@ export function createManifest(input: Pick<ContainerAssembly, 'models' | 'active
     ...(meta.appVersion !== undefined ? { appVersion: meta.appVersion } : {}),
     ...(meta.label !== undefined ? { label: meta.label } : {}),
     ...(meta.source !== undefined ? { source: meta.source } : {}),
-    ...(meta.requiresBrep !== undefined ? { requiresBrep: meta.requiresBrep } : {}),
   }
 }
 

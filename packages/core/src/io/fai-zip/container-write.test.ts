@@ -44,7 +44,6 @@ describe('createManifest — the single manifest constructor', () => {
         appVersion: '0.22.4',
         label: 'Project',
         source: { file: 'Beds.FCStd', programVersion: '0.21.1', schemaVersion: 4 },
-        requiresBrep: true,
       },
     })
     expect(manifest).toEqual({
@@ -56,7 +55,6 @@ describe('createManifest — the single manifest constructor', () => {
       appVersion: '0.22.4',
       label: 'Project',
       source: { file: 'Beds.FCStd', programVersion: '0.21.1', schemaVersion: 4 },
-      requiresBrep: true,
     })
   })
 
@@ -184,7 +182,6 @@ describe('writeContainer — round trip through openContainer', () => {
         createdAt: '2026-09-30T00:00:00.000Z',
         appVersion: '0.22.4',
         source: { file: 'Beds.FCStd', programVersion: '0.21.1', schemaVersion: 4 },
-        requiresBrep: true,
       },
       modules: {
         'model/main.fai.js': 'import { Body_out } from "./Body.fai.js"',

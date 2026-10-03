@@ -65,8 +65,7 @@ manifest 是一个 UTF-8 JSON 对象：
   "appVersion": "0.18.3",
   "label": "Engraved import",
 
-  "source": { "file": "Beds.FCStd", "programVersion": "0.21.1", "schemaVersion": 4 },
-  "requiresBrep": true
+  "source": { "file": "Beds.FCStd", "programVersion": "0.21.1", "schemaVersion": 4 }
 }
 ```
 
@@ -84,7 +83,6 @@ manifest 是一个 UTF-8 JSON 对象：
 | `appVersion` | 可选 | string | 产出工具的版本。仅供展示 |
 | `label` | 可选 | string | 容器显示名。仅供展示 |
 | `source` | 可选 | object | FCStd 转换溯源（§8.2）。仅供展示 |
-| `requiresBrep` | 可选 | boolean | 该模型图要求 BREP 链（§8.2） |
 
 规则：
 
@@ -159,13 +157,14 @@ manifest 是一个 UTF-8 JSON 对象：
 
 FCStd → `.fai.zip` 转换器会写出额外的成员，用于记录一次转换的保真情况。它们是该转换器的约定，不是对任何其它写入方的要求；没有它们的容器同样是合格的。
 
+烘焙载体没有 mesh 解析器，因此查看方必须运行 BREP 执行链；这是执行 SDK 的**默认必需链**，不由容器逐个声明（无 `manifest.requiresBrep` 字段）。
+
 | 成员 | 内容 |
 |---|---|
 | `mapping.json` | 逐对象保真账本：每个源对象一条，含 disposition（`translated`、`baked`、`preserved-only`）、未翻译时的原因，以及它产出的 artifacts |
 | `freecad/**` | 源文档归档全体成员的字节级影子；转换不丢弃任何源字节 |
 | `assets/*.brp` | 烘焙的 BREP 载体，由转换后的脚本经平台 BREP 资产导入 op 引用 |
 | `manifest.source` | 溯源：源文件名、产出程序版本、文档 schema 版本 |
-| `manifest.requiresBrep` | 模型图要求 BREP 链时为 `true` —— 烘焙载体没有 mesh 解析器，因此无法提供 BREP 链的宿主必须报错，不得静默改走 mesh 路径 |
 
 ## 9. 读取方义务
 
