@@ -149,6 +149,30 @@ describe('cq-compat phase H — 2D drafting', () => {
 
   it('drafted wire works as a cut tool (cutBlind)', async () => {
     // 10x10x10 box with a triangular prism (area 0.5 x depth 1) removed.
+    //
+    // GOTCHA — cutBlind sign convention (verified vs cadquery 2.8.0, 2026-10-03):
+    //   cutBlind(+d) cuts ALONG the workplane normal, cutBlind(-d) into the solid
+    //   (docstring cq.py:3526-3528; `_extrude` sets eDir = zDir * distance,
+    //   cq.py:3748). This workplane sits on the >Z face with an OUTWARD (+Z)
+    //   normal, so a NEGATIVE depth is what removes material here — a negative
+    //   depth is required; +1 extrudes the tool away from the box (vol 1000).
+    //   The old faijs implementation always cut along -normal and so silently
+    //   accepted +1; the companion test below now pins the corrected rule.
+    const s = await runShape([
+      "let b = await cq.box(cq.Workplane('XY'), 10, 10, 10)",
+      "let f = await cq.faces(b, '>Z')",
+      'let w = await cq.workplane(f)',
+      'let w1 = await cq.lineTo(w, 1, 0)',
+      'let w2 = await cq.lineTo(w1, 1, 1)',
+      'let w3 = await cq.close(w2)',
+      'let wp_out = await cq.cutBlind(w3, -1)',
+    ])
+    expect(volume(s)).toBeCloseTo(1000 - 0.5, 3)
+  })
+
+  it('cutBlind(+) on an outward-normal workplane extrudes the tool outward (no cut)', async () => {
+    // Same geometry with a POSITIVE depth: the tool spans z in [5, 6] and misses
+    // the box entirely. Upstream probe (cadquery 2.8.0) returns 1000.0 here.
     const s = await runShape([
       "let b = await cq.box(cq.Workplane('XY'), 10, 10, 10)",
       "let f = await cq.faces(b, '>Z')",
@@ -158,6 +182,6 @@ describe('cq-compat phase H — 2D drafting', () => {
       'let w3 = await cq.close(w2)',
       'let wp_out = await cq.cutBlind(w3, 1)',
     ])
-    expect(volume(s)).toBeCloseTo(1000 - 0.5, 3)
+    expect(volume(s)).toBeCloseTo(1000, 3)
   })
 })

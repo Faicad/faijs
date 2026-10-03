@@ -8,8 +8,8 @@
  *   ... .rect(20,20).extrude(20, both=True, "s")  -> vol 48000 (through hole)
  * wp_ref.workplane(offset=-20).rect(20,20).extrude(40, "s") -> vol 48000
  *
- * Upstream delegates `combine in ("cut","s")` to cutBlind (cq.py:3720-3722) and
- * `both=True` to `_extrude` (which extrudes ±distance and fuses, cq.py:3786-3791).
+ * Upstream delegates `combine in ("cut","s")` to cutBlind (cq.py:3063-3065) and
+ * `both=True` to `_extrude` (which extrudes ±distance and fuses, cq.py:3788-3792).
  */
 import { describe, expect, it, beforeAll } from 'vitest'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
@@ -75,7 +75,7 @@ describe('extrude combine="s" (subtractive — delegates to cutBlind)', () => {
   })
 })
 
-describe('extrude combine="cut" (cq.py:3713-3716)', () => {
+describe('extrude combine="cut" (cq.py:3063-3065)', () => {
   it('box(5,5,5).faces(">Z").workplane(invert=True).circle(0.5).extrude(4, "cut") → vol 125-π', async () => {
     // workplane(invert=True) flips the >Z face's outward normal (+Z) to -Z, so a
     // POSITIVE depth cuts *into* the solid (a r=0.5 pocket 4 deep: z=+2.5 → -1.5).
@@ -86,7 +86,7 @@ describe('extrude combine="cut" (cq.py:3713-3716)', () => {
   })
 })
 
-describe('cutBlind direction sign (cq.py:3697-3699)', () => {
+describe('cutBlind direction sign (cq.py:3526-3528)', () => {
   it('POSITIVE depth cuts along +normal: bottom-face workplane → through hole', async () => {
     // wp_ref is a 40×40×40 box centred at origin; workplane(offset=-20) sits at
     // z=-20 with normal +Z. Cut 40 along +Z → z[-20,20] → through hole (48000).

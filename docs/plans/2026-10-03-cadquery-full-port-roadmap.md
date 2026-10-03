@@ -252,7 +252,7 @@
 | **B1-3** | **G-C20 零散 free**（Solid.makeCone / CQ / Workplane.plugin / free threePointArc / free polyline） | 5 | 自由函数构造器 + 类式包装 |
 | **B1-4** | **G-C3 remove** ⚠ **内核依赖**：上游 `Shape.remove` 用 `BRepTools_ReShape`（faijs 内核未暴露）⇒ 移 **B6**（或用 `getSubShapes + sew/compound` 近似后跑 parity；`test_remove` 需 `innerShells()`） | 5 | 见 B6 |
 | **B1-5** | **G-C6 free `plane()`** | 6 | 自由函数平面构造器（`plane(1,1)`） |
-| **B1-6** ✅ **已完成 2026-10-03** | **G-C10 extrude 变体**（both 2 / combine-cut 1 / combine-s 2）—— `extrude(wp,h,combine,{taper,both})`：`combine∈{cut,s}` 委托 `cutBlind`（cq.py:3720-3722）、`both=True` 从 ±h 两平面各挤 h 再 fuse（cq.py:3786-3791）；`cutBlind` 补方向号规则（`depth<0` 沿 −normal，cq.py:3697-3699）。5 条镜像（`testExtrude__{s,wp_ref,wp,wp_ref_regular_cut,r}`）+ 6 单测 + 4 变异全绿 | 5→**0** | 消费面参数通道 |
+| **B1-6** ✅ **已完成 2026-10-03** | **G-C10 extrude 变体**（both 2 / combine-cut 1 / combine-s 2）—— `extrude(wp,h,combine,{taper,both})`：`combine∈{cut,s}` 委托 `cutBlind`（cq.py:3063-3065）、`both=True` 从 ±h 两平面各挤 h 再 fuse（cq.py:3788-3792）；`cutBlind` 补方向号规则（`depth<0` 沿 −normal，cq.py:3526-3528）。5 条镜像（`testExtrude__{s,wp_ref,wp,wp_ref_regular_cut,r}`）+ 6 单测 + 4 变异全绿 | 5→**0** | 消费面参数通道 |
 | **B1-7** | **G-C17 wedge 退化顶面** | 3 | 顶面缩成点时建四棱锥（上游 `makeLineEdge` 零长边分支） |
 | **B1-8** | **G-C14 cutEach** | 3 | 逐子形切割 |
 | **B1-9** | **G-C19 运算符重载** | 1 | `.fai.js` 子集内可达的 `\|` 语法 |

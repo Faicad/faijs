@@ -2596,7 +2596,7 @@ function hasPathWire(wp: Workplane): boolean {
  *   false: the carrier holds ONLY the freshly extruded solid (upstream
  *   `extrude(..., False)` — verified: testSolidReferenceCombineFalse exports the
  *   lone boss, Compound vol 0.03125). `"cut"` / `"s"` are subtractive: they
- *   delegate to {@link cutBlind}, exactly as upstream (`cq.py:3720-3722`).
+ *   delegate to {@link cutBlind}, exactly as upstream (`cq.py:3063-3065`).
  * @returns Promise<Workplane>
  */
 /** Extract the numeric kernel id from a brepjs shape wrapper (or raw handle). */
@@ -2632,13 +2632,13 @@ export async function extrude(
 ): Promise<Workplane> {
   const taper = opts?.taper ?? 0
   const both = opts?.both ?? false
-  // CadQuery: `combine in ("cut","s")` delegates to cutBlind (cq.py:3720-3722) —
+  // CadQuery: `combine in ("cut","s")` delegates to cutBlind (cq.py:3063-3065) —
   // a subtractive extrude and cutBlind are the same op upstream.
   if (combine === 'cut' || combine === 's') {
     return cutBlind(wp, height, { ...(taper ? { taper } : {}), both })
   }
   // CadQuery `both=True`: extrude the profile ±height and fuse the two prisms
-  // (cq.py:3786-3791, `s1.fuse(s2, glue=True)`). Implemented as two standalone
+  // (cq.py:3788-3792, `s1.fuse(s2, glue=True)`). Implemented as two standalone
   // prisms (combine=false) fused, then combined with any base per `combine`.
   // Verified vs 2.8.0: `circle(1).extrude(1, both=True)` -> vol 2π, z[-1,1];
   // `rect(40,40).extrude(20, both=True)` -> vol 64000, bbox ±20.
@@ -3303,7 +3303,7 @@ export async function loft(wp: Workplane, ...rest: (Workplane | LoftOptions)[]):
  * @param depth - number
  * @param opts - { w?: number; d?: number; radius?: number; taper?: number;
  *   both?: boolean } `both` cuts ±depth about the profile plane (CadQuery
- *   passes `both` straight through to `_extrude`, cq.py:3721)
+ *   passes `both` straight through to `_extrude`, cq.py:3575-3577)
  * @returns Promise<Workplane>
  */
 export async function cutBlind(
@@ -3324,7 +3324,7 @@ export async function cutBlind(
   const n: [number, number, number] = Array.isArray(wp.normal) ? wp.normal : [0, 0, 1]
   const invNormal: [number, number, number] = [-n[0], -n[1], -n[2]]
   // CadQuery cutBlind(+d) cuts along +normal, cutBlind(-d) along -normal
-  // (cq.py:3697-3699 "the distance to cut to, normal to the workplane plane …
+  // (cq.py:3526-3528 "the distance to cut to, normal to the workplane plane …
   // a negative float … extends this way in the opposite direction"). A pushed
   // face's workplane normal points OUT of the solid, so the common
   // `cutBlind(-depth)` idiom is what cuts inward — which is why every mirrored
