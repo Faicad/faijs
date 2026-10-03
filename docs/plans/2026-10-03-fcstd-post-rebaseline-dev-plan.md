@@ -85,10 +85,16 @@
      内核探针（裸资产）上 `fuseWithHistory`/裸 fuse/unify 后 fuse **全部成功** —— 内核无罪。
   3. 另两个取点已非 fuse 失败：FAULHABER 现为 chamfer edgeRef 越界（归 G 组）；
      Beam-coupling-5mm 抛 `wireframe: BRepAdaptor_Curve::No geometry`（另行归类）。
-- **结论**：F 组原「扩 B5 降级链」工作项作废。真修法在 codegen/转换器的位姿约定一致性
-  （FeaturePython 冻结 sketch 的 brp 导出位姿 vs place 发射判据），与 I 组 double-apply
-  同根：**需要「brp 资产是否已含 Placement」的权威判定**——该判定 I 组已三次被实测否决
-  修法，归入 I 组统一收口，不在 F 组单修。
+- **结论**：F 组原「扩 B5 降级链」工作项作废。真根因已修（2026-10-03）：
+  `brpEmbeddedLocation`（`unpack.ts`）只读平移、把零平移当恒等——**纯旋转内嵌
+  （90°X，tx=ty=tz=0）被报成 null** → `prePlacedAssets` skip 不命中 → child 资产被
+  `cad.place` 二次施放 → 挤出方向躺在轮廓面内 → 退化薄片 → fuse 全链失败。
+  修法：返回**完整 3×4 变换**，恒等（旋转 AND 平移）才 null；convert 侧比较
+  **旋转+平移全等**才 skip（`quatToMatrix` 对比）。这同时是 I 组「brp 是否已含
+  Placement」权威判定的**可判定子集**（头部内嵌 location 的 child 资产）；
+  Tapon/Caisson 型「几何已折进坐标、头不可信」的 ROOT 场景仍归 I 组后续收口。
+- **留档**：`packages/faijs-freecad/src/brp-embedded-location.test.ts`（4 用例，
+  含 GOTCHA：纯旋转内嵌不得读成 null；变异验证：翻错断言即红）。
 - **改动位置**：原定 `packages/core/src/api/boolean.ts`（降级链，无需改）；真根因在
   `packages/faijs-freecad/src/codegen.ts`（place 发射判据）与转换器资产导出位姿约定。
 
