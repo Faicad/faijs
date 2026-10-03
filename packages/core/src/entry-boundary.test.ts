@@ -7,7 +7,7 @@
  * 被 vite 静态解析，而 weapp 专用 npm 包在 web 侧不存在）。
  */
 import { describe, it, expect } from 'vitest'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
