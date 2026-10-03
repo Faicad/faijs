@@ -97,4 +97,54 @@ describe('V-C8: boolean errors are op-named and explicit', () => {
       }
     }
   })
+
+  // F 组 (kernel-boolean run-fail corpus, 2026-10-03): an import_brep asset
+  // may be a WIRE/FACE (ShapeBinder frozen geometry). It carries an OCCT
+  // handle so it passes the handle guard, but OCCT BOP only accepts solids —
+  // fuse(wire, solid) fails with "operation failed" (FAULHABER / Beam-coupling
+  // takepoints; kernel probe: PartShape5/6 = wire, PartShape93 = face,
+  // volume 0). union is a SOLID merge: non-solid inputs are skipped (C3c-1
+  // proved zero-volume wire members have zero effect on invariants).
+  it('union skips non-solid (wire/face) inputs and fuses only the solids (F组)', async () => {
+    const fused: unknown[] = []
+    const kernel = {
+      // Only the solid pair ever reaches the kernel.
+      fuseWithHistory: (a: unknown, b: unknown) => {
+        fused.push(a, b)
+        return { result: { h: 9 }, modified: [] }
+      },
+      subShapeHashes: () => [101],
+      release: () => undefined,
+      shapeType: (h: unknown) => (typeof h === 'object' && h !== null && (h as { wire?: boolean }).wire ? 'wire' : 'solid'),
+      // fromBrep post-processing (STEP-side result shape) needs a meshable solid
+      meshShape: () => ({ positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), faceGroups: [] }),
+    }
+    configureBackends(makeBackends(kernel))
+    const wire = handledShape({ wire: true })
+    const a = handledShape({ h: 1 })
+    const b = handledShape({ h: 2 })
+    const r = await union(wire, a, b)
+    expect(r).toBeDefined()
+    expect(fused).toEqual([{ h: 1 }, { h: 2 }]) // wire never hit the kernel
+  })
+
+  it('union with NO solid input fails explicitly (E_BREP_UNSUPPORTED, F组)', async () => {
+    const kernel = {
+      fuseWithHistory: () => { throw new Error('must not be called') },
+      subShapeHashes: () => [101],
+      release: () => undefined,
+      shapeType: () => 'wire',
+    }
+    configureBackends(makeBackends(kernel))
+    const w1 = handledShape({ wire: 1 })
+    const w2 = handledShape({ wire: 2 })
+    try {
+      await union(w1, w2)
+      expect.unreachable('must throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(OpError)
+      expect((e as OpError).code).toBe('E_BREP_UNSUPPORTED')
+      expect((e as OpError).message).toMatch(/no solid input/)
+    }
+  })
 })

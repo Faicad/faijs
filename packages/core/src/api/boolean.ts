@@ -72,19 +72,44 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
   const op: 'fuse' | 'cut' | 'intersect' =
     operation === 'union' ? 'fuse' : operation === 'subtract' ? 'cut' : 'intersect'
 
+  // F 组（2026-10-03，FAULHABER/Beam-coupling 语料）：import_brep 资产可能是
+  // wire/face（ShapeBinder 冻结几何）——它们带 OCCT handle、能通过上面的
+  // 「无 handle」守卫，但 OCCT 的 BOP 只接受 solid：fuse(wire, solid) 直接
+  // "operation failed"（内核直测实证，PartShape5/PartShape6/PartShape93 均
+  // wire/face、vol=0）。C3c-1 已实证 0 体积线框成员对 compound invariants
+  // 零影响 ⇒ union 的语义是 solid 合流，非 solid 输入如实跳过（keepHidden
+  // 语义不变）；全非 solid 才抛错。cut/intersect 语义不变（工具/交域必须 solid）。
+  const NON_SOLID = new Set(['wire', 'face', 'shell', 'vertex', 'edge'])
+  const inputTypes = inputSolids.map((h) => {
+    try { return h ? (kernel.shapeType(h) as string) : 'solid' } catch { return 'solid' }
+  })
+  // compound/compsolid 可能含 solid，是合法 fuse 输入——只跳过确定的非 solid 类型。
+  const boolIdx = operation === 'union'
+    ? inputTypes.map((t, i) => (NON_SOLID.has(t) ? -1 : i)).filter((i) => i >= 0)
+    : inputs.map((_, i) => i)
+  if (operation === 'union' && boolIdx.length === 0) {
+    throw new OpError(
+      `boolean/${operation}`,
+      'E_BREP_UNSUPPORTED',
+      `[stdlib/boolean] ${operation}: no solid input — wire/face/shell geometry cannot fuse (types: ${inputTypes.join(', ')})`,
+    )
+  }
+
   // 静态定轨：当前引擎是否声明了本 op 的面演化核函数（读的是同一声明源 dispatchPath 用的
   // 能力集，不是运行时探测）。fuse/cut 因 gate 保证此处恒 true；intersect 在 occt true、
   // brepkit/mock false（后者走 L1 裸 `kernel[op]`，该方法是 BrepEngineApi 必需成员，必存在）。
   const historyCap = op === 'fuse' ? 'fuseWithHistory' : op === 'cut' ? 'cutWithHistory' : 'intersectWithHistory'
   const useHistory = engineCapabilitySet(getBackends().config.brepCapabilities).has(historyCap)
 
-  // 首个输入作为 target 起点
-  resultSolid = inputSolids[0]!
+  // 首个 solid 输入作为 target 起点（F 组：可能不是 inputs[0] —— wire/face
+  // 资产常排在前面作为 profile/binder）。
+  resultSolid = inputSolids[boolIdx[0]!]!
   roleTable = useHistory
-    ? (inputRoleTable(inputs[0]) as ReadonlyMap<unknown, unknown> | undefined)
+    ? (inputRoleTable(inputs[boolIdx[0]!]) as ReadonlyMap<unknown, unknown> | undefined)
     : undefined
 
-  for (let i = 1; i < inputSolids.length; i++) {
+  for (let bi = 1; bi < boolIdx.length; bi++) {
+    const i = boolIdx[bi]!
     const prev = resultSolid
     const tool = inputSolids[i]!
 
