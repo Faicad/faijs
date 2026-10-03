@@ -16,6 +16,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { BrepEngineApi } from './engine/primitives'
 import {
+  booleanWithRoleTable,
   cutWithHistoryBrep,
   fuseWithHistoryBrep,
   getFaceHashes,
@@ -87,6 +88,36 @@ describe('face-evolution utility functions', () => {
     expect(result).toBeDefined()
     expect(faceEvolution.size).toBeGreaterThan(0)
 
+    kernel.release(result)
+    kernel.release(boxA)
+    kernel.release(boxB)
+  })
+
+  // G 组 (edgeRef-lineage corpus, 2026-10-03): fuse SEAM faces belong to
+  // neither parent's lineage — they were left role-less, so a downstream
+  // edgeRef at a fillet hit 'adjacent face ordinal N has no role lineage'
+  // (Flapper LHS takepoint: midplane pad = union of two half-prisms, the
+  // seam plane face had no role). booleanWithRoleTable now registers
+  // uncovered result faces as seam faces under the boolean statement's
+  // origin — real lineage (the face WAS born there), not a forged mapping.
+  it('fuse seam faces get a seam role under the boolean statement origin (G组)', () => {
+    const boxA = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })
+    const boxB = kernel.makeBoxFromCorners({ x: 10, y: 0, z: 0 }, { x: 20, y: 10, z: 10 })
+    const { result, roleTable } = booleanWithRoleTable(kernel, 'fuse', boxA, boxB, new Map(), new Map(), 's9')
+    // every result face must now carry lineage (parent faces + seam faces)
+    const covered = new Set<unknown>()
+    for (const roles of roleTable.values()) {
+      for (const hs of (roles as ReadonlyMap<string, readonly number[]>).values()) for (const h of hs) covered.add(h)
+    }
+    const faces = kernel.getSubShapes(result, 'face')
+    const hashes = getFaceHashes(kernel, result)
+    const uncovered = hashes.filter((h) => !covered.has(h))
+    expect(uncovered).toEqual([])
+    // and the seam origin exists when seam faces were produced
+    const seamRoles = roleTable.get('s9') as ReadonlyMap<string, readonly number[]> | undefined
+    const seamCount = seamRoles ? (seamRoles.get('seam')?.length ?? 0) : 0
+    expect(covered.size + seamCount).toBeGreaterThan(0)
+    for (const f of faces) kernel.release(f)
     kernel.release(result)
     kernel.release(boxA)
     kernel.release(boxB)

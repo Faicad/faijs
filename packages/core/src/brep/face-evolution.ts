@@ -344,6 +344,25 @@ export function booleanWithRoleTable(
   const { a: evoA, b: evoB } = splitHashEvolutionByOrigin(evo, hashesA, hashesB)
   const merged = mergeRoleTablesLocal(tableA, evoA, tableB, evoB, outStmt)
 
+  // G 组（2026-10-03，Flapper LHS 语料）：fuse 的接缝面（两半挤出 union 时
+  // 共享平面被 BOP 重建的面）既不属于 A 也不属于 B 的血缘，merge 后无 role —
+  // 下游 edgeRef/fillet 查邻面时报 "no role lineage"（face-evolution 注释里
+  // 一直挂着的 "seam faces are a Phase 4+ concern" 正是本盲区）。把不属于任何
+  // 已知血缘的结果面登记为新 origin（本次语句）的 `seam` 角色——血缘真实
+  // （该面确实诞生于本次布尔），不是伪造映射。
+  if (op === 'fuse') {
+    const covered = new Set<unknown>()
+    for (const roles of merged.values()) {
+      for (const hs of (roles as ReadonlyMap<string, readonly number[]>).values()) {
+        for (const h of hs) covered.add(h)
+      }
+    }
+    const seamHashes = getFaceHashes(kernel, evo.result).filter((h) => !covered.has(h))
+    if (seamHashes.length > 0) {
+      (merged as Map<unknown, unknown>).set(outStmt, new Map([['seam', seamHashes]]))
+    }
+  }
+
   return { result: evo.result, faceEvolution, roleTable: merged }
 }
 
