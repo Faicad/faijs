@@ -18,8 +18,6 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { setupNativeKernel } from './gear-test-harness'
 import { Workplane, box, union, val, vals, split } from './workplane'
-import { brepOf } from '@faicad/faijs/shape'
-import type { Shape } from '@faicad/faijs/mesh/types'
 
 beforeAll(async () => {
   await setupNativeKernel()

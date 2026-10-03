@@ -757,13 +757,45 @@ export function Workplane(plane: string = 'XY'): Workplane {
 }
 
 /**
- * add
- * @param wp - Workplane
- * @param shape - Shape
- * @returns Promise<Workplane>
+ * add — put objects on the stack.
+ *
+ * CadQuery `Workplane.add(obj)` (`cq.py:387-408`) has three branches, all of
+ * which APPEND: a list is extended, a Workplane contributes its own stack
+ * (plus a tag merge), and a single object is appended. It then returns `self`
+ * — upstream mutates in place. faijs is an immutable carrier chain, so this
+ * returns a NEW workplane; for the mirror's straight-line `.fai.js` the two are
+ * indistinguishable (GOTCHA, recorded deliberately).
+ *
+ * Probe-verified consequence of the earlier REPLACING behaviour: the upstream
+ * idiom `s1.add(s.faces('+Y')).add(s.faces('+X'))` (test_cadquery.py:2447)
+ * produces a 3-element stack `[Solid, Face, Face]` with areas
+ * `[600, 100, 100]` on a 10×10×10 box. The old faijs `add` kept only the last
+ * face — silently, with no error.
+ *
+ * GOTCHA (probe-verified deviation): when `obj` is a Workplane, upstream
+ * extends with EVERY object on that workplane's stack. faijs's stack holds
+ * shapes only (locations live in `wp.pts`, see `size`), so this appends the
+ * source's single `shape`. Passing an ARRAY of shapes reproduces upstream's
+ * multi-object behaviour exactly — that is the fully-aligned path.
+ *
+ * @param wp - Workplane whose stack is extended
+ * @param obj - a `Shape`, another `Workplane` (its `.shape` is taken), or an
+ *   iterable of `Shape`s
+ * @returns a new Workplane with the objects appended
  */
-export async function add(wp: Workplane, shape: Shape): Promise<Workplane> {
-  return clone(wp, { objects: [shape] })
+export function add(wp: Workplane, obj: Shape | Workplane | Array<Shape | Workplane>): Workplane {
+  const incoming: Shape[] = []
+  const push = (v: Shape | Workplane): void => {
+    const s = isShape(v) ? (v as Shape) : (v as Workplane).shape
+    if (s) incoming.push(s)
+  }
+  if (Array.isArray(obj)) {
+    for (const v of obj) push(v)
+  } else {
+    push(obj as Shape | Workplane)
+  }
+  if (incoming.length === 0) return clone(wp, {})
+  return clone(wp, { objects: [...wp.objects, ...incoming] })
 }
 
 /**
@@ -2075,13 +2107,45 @@ export function bezier(
 }
 
 /**
- * size — bounding-box dimensions of the current solid
- * (CadQuery `Workplane.size` returns `(dx, dy, dz)`).
+ * size — number of objects on the stack.
+ *
+ * CadQuery `Workplane.size()` is `len(self.objects)` (`cq.py:358`), NOT a
+ * bounding box. Probe-verified: `cube.size() == 1`, `cube.faces('>Z').size()
+ * == 1`, `cube.faces('>Z').edges().size() == 4`, an empty workplane is 0.
+ *
+ * GOTCHA (probe-verified, known deviation): upstream's stack also carries
+ * `Vector` LOCATIONS — `pushPoints` / `rarray` / `center()` each push one
+ * `Vector` per point, so `Workplane("XY").pushPoints(three_pts).size() == 3`
+ * upstream. faijs keeps positions in the parallel array `wp.pts` and its
+ * stack holds SHAPES only, so the same workplane reports 0. This is a carrier
+ * capability boundary, not a bug: faking Vectors into `objects` would make
+ * `all()` / `item()` / `first()` hand back non-shapes and break the type
+ * contract of the whole read-side API. The bbox-length reading that used to
+ * live here is now `bboxSize` (below).
+ *
  * @param wp - Workplane
- * @returns [dx, dy, dz] in mm
+ * @returns the number of objects on the stack
  */
-export function size(wp: Workplane): [number, number, number] {
-  if (!wp.shape) throw new Error('[cq-compat] size: no solid on the workplane')
+export function size(wp: Workplane): number {
+  return wp.objects.length
+}
+
+/**
+ * bboxSize — bounding-box dimensions `(dx, dy, dy)` of the FIRST stack object.
+ *
+ * faijs-specific: this is what P3-1's old `size()` computed, and it is NOT an
+ * upstream `Workplane` method (upstream reaches it through
+ * `val().BoundingBox().xlen/ylen/zlen`, or `Shape.Size()` — which does not
+ * exist on `Solid` in 2.8.0, probe-verified `AttributeError`). Kept under an
+ * honest name rather than being deleted, because it is a genuinely useful
+ * query and the shape-class layer already exposes `boundingBoxOf`.
+ *
+ * @param wp - Workplane whose first object's bbox is measured
+ * @returns `[dx, dy, dz]` in mm
+ * @throws if the stack is empty
+ */
+export function bboxSize(wp: Workplane): [number, number, number] {
+  if (!wp.shape) throw new Error('[cq-compat] bboxSize: no solid on the workplane')
   const bb = kern().getBoundingBox(ownHandle(wp.shape)) as unknown as Record<string, number>
   return [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin]
 }
@@ -4859,21 +4923,193 @@ function selectFaceHandlesForRemoval(
 }
 
 /**
- * val
+ * val — the first object on the stack (upstream `.val()`, `cq.py:411`).
+ *
+ * GOTCHA (probe-verified deviation): upstream returns `self.plane.origin` — a
+ * `Vector` — when the stack is EMPTY; faijs returns `null`. There is no `Vector`
+ * carrier in this package (nothing named `Vector` is exported), and widening the
+ * return type to `Shape | Vector` would infect every consumer of the most-used
+ * read API. `null` is the honest answer for "no object".
+ *
  * @param wp - Workplane
- * @returns Shape | null
+ * @returns the first stack object, or null when the stack is empty
  */
 export function val(wp: Workplane): Shape | null {
   return wp.shape
 }
 
 /**
- * vals
+ * vals — every object on the stack (upstream `.vals()`, `cq.py:364`).
+ *
+ * GOTCHA: upstream returns `self.objects` — the LIVE list, not a copy — so a
+ * caller mutating it mutates the stack. faijs's carrier is immutable, so this
+ * returns a copy; the aliasing hazard cannot arise.
+ *
  * @param wp - Workplane
- * @returns (Shape | null)[]
+ * @returns the stack contents (empty array for an empty stack)
  */
-export function vals(wp: Workplane): (Shape | null)[] {
-  return wp.shape ? [wp.shape] : []
+export function vals(wp: Workplane): Shape[] {
+  return [...wp.objects]
+}
+
+/**
+ * all — one single-object Workplane per stack object (upstream `.all()`,
+ * `cq.py:346`: `[self.newObject([o]) for o in self.objects]`).
+ *
+ * Contrast with `vals`, which hands back the objects themselves. Upstream each
+ * element is a full Workplane carrying the CURRENT plane, so `.all()[i].val()`
+ * is the i-th object.
+ *
+ * @param wp - Workplane
+ * @returns a new Workplane per stack object, in stack order
+ */
+export function all(wp: Workplane): Workplane[] {
+  return wp.objects.map((s) => clone(wp, { objects: [s] }))
+}
+
+/**
+ * first — a single-object Workplane holding the FIRST stack object
+ * (upstream `.first()`, `cq.py:644` = `newObject(objects[0:1])`).
+ *
+ * @param wp - Workplane
+ * @returns a workplane carrying `objects[0]`, or the empty workplane when the
+ *   stack is empty (upstream raises `IndexError`; faijs returns an empty stack
+ *   because the carrier has no way to represent "a stack of one missing thing")
+ */
+export function first(wp: Workplane): Workplane {
+  return wp.objects.length ? clone(wp, { objects: [wp.objects[0]] }) : clone(wp, { objects: [] })
+}
+
+/**
+ * last — a single-object Workplane holding the LAST stack object
+ * (upstream `.last()`, `cq.py:661` = `newObject([objects[-1]])`).
+ *
+ * @param wp - Workplane
+ * @returns a workplane carrying the last object, or the empty workplane
+ */
+export function last(wp: Workplane): Workplane {
+  const n = wp.objects.length
+  return n ? clone(wp, { objects: [wp.objects[n - 1]] }) : clone(wp, { objects: [] })
+}
+
+/**
+ * item — a single-object Workplane holding the i-th stack object
+ * (upstream `.item(i)`, `cq.py:653`). Negative indices count from the end.
+ *
+ * GOTCHA (probe-verified): out-of-range raises `IndexError: list index out of
+ * range` upstream — it does NOT clamp and does NOT return an empty stack.
+ *
+ * @param wp - Workplane
+ * @param i - stack index; negative counts from the end
+ * @returns a workplane carrying that one object
+ * @throws if `i` is out of range (mirrors upstream)
+ */
+export function item(wp: Workplane, i: number): Workplane {
+  const n = wp.objects.length
+  const idx = i < 0 ? n + i : i
+  if (idx < 0 || idx >= n) {
+    throw new Error(`[cq-compat] item: index ${i} out of range (stack holds ${n})`)
+  }
+  return clone(wp, { objects: [wp.objects[idx]] })
+}
+
+/**
+ * findSolid — the solid(s) of this workplane, gathered into ONE compound
+ * (upstream `.findSolid()`, `cq.py:721` → `_findType((Solid,), …)`).
+ *
+ * GOTCHA (probe-verified, NOT the same as `solids()`): upstream's `_findType`
+ * ends with `return Compound.makeCompound(rv)` for the Solid case — so
+ * `findSolid()` returns a **Compound even when the stack holds a single
+ * solid** (probe: unit cube → `ShapeType() == "Compound"`, volume identical to
+ * the solid to the last bit). With two solids on the stack its volume is
+ * exactly their sum. By contrast `solids()` returns the solids SEPARATELY
+ * (two-element stack, `val().ShapeType() == "Solid"`). So the two are strictly
+ * different queries and neither can stand in for the other.
+ *
+ * The search also walks the PARENT chain upstream. faijs's P3-4 introduces
+ * that chain; until then there is no parent, so only the current stack is
+ * searched. Every current consumer of a base solid reads `wp.shape`, which is
+ * the stack head — the same object `_findType` would find.
+ *
+ * @param wp - Workplane
+ * @returns a compound of every solid on the stack
+ * @throws when the stack holds no solid (mirrors upstream's `ValueError`)
+ */
+export function findSolid(wp: Workplane): Shape {
+  const solids = wp.objects.filter((s) => hasSolidBase(s))
+  if (!solids.length) {
+    throw new Error(
+      '[cq-compat] findSolid: cannot find a solid on the stack' +
+        (wp.objects.length ? ` (stack holds ${wp.objects.length} non-solid object(s))` : ' (empty stack)'),
+    )
+  }
+  // NOT `makeCompoundShape` — that helper collapses a single input to itself
+  // (workplane.ts's `makeCompoundShape`), which would hand back a Solid and
+  // defeat the whole point. Upstream always ends in `Compound.makeCompound`,
+  // so even a one-solid stack yields a Compound.
+  return toShape(kern().makeCompound(solids.map((s) => ownHandle(s))))
+}
+
+/**
+ * stackFilter — keep the stack objects for which `pred` holds
+ * (upstream `.filter(f)`, `cq.py:4460` = `newObject(filter(f, objects))`).
+ *
+ * NAMING: the `stack` prefix is deliberate, not decoration. These three
+ * upstream methods take a Python callable; their faijs counterparts take a TS
+ * callback, and `filter` / `map` / `apply` are far too generic a name to
+ * occupy an unqualified slot in a flat `import * as cq` namespace shared with
+ * the rest of the CadQuery surface (`cq.map` reading as "map the object stack"
+ * is already a stretch). Upstream callers name them `.filter()/.map()/.apply()`
+ * on a Workplane receiver; the transpiler emits `cq.<name>(wp, …)`, so the
+ * prefix is what keeps the call site unambiguous.
+ *
+ * @param wp - Workplane
+ * @param pred - predicate applied to each object
+ * @returns a new workplane holding the survivors, in stack order
+ */
+export function stackFilter(wp: Workplane, pred: (s: Shape) => boolean): Workplane {
+  return clone(wp, { objects: wp.objects.filter(pred) })
+}
+
+/**
+ * stackMap — apply `fn` to every stack object (upstream `.map(f)`, `cq.py:4470`).
+ *
+ * @param wp - Workplane
+ * @param fn - mapping applied to each object
+ * @returns a new workplane holding the mapped objects, in stack order
+ */
+export function stackMap(wp: Workplane, fn: (s: Shape) => Shape): Workplane {
+  return clone(wp, { objects: wp.objects.map(fn) })
+}
+
+/**
+ * stackApply — apply `fn` to the whole stack at once (upstream `.apply(f)`,
+ * `cq.py:4480` = `newObject(f(self.objects))`). Upstream hands the callback the
+ * live list; faijs passes a copy (the carrier is immutable).
+ *
+ * @param wp - Workplane
+ * @param fn - receives the whole stack, returns the new stack
+ * @returns a new workplane holding whatever `fn` returned
+ */
+export function stackApply(wp: Workplane, fn: (objects: Shape[]) => Shape[]): Workplane {
+  return clone(wp, { objects: fn([...wp.objects]) })
+}
+
+/**
+ * sort — reorder the stack objects (upstream `.sort(key)`, `cq.py:4490` =
+ * `newObject(sorted(objects, key=key))`).
+ *
+ * Note this is the STACK sort. It is a different op from the pending-wire sort
+ * that has always been exported under this name (`sort(wp, 'area' | 'length' |
+ * 'x' | 'y')`, which orders `wp.pendingWires` before extrusion) — that one is
+ * faijs-specific and has no upstream counterpart under this name.
+ *
+ * @param wp - Workplane
+ * @param key - comparator over stack objects
+ * @returns a new workplane holding the sorted objects
+ */
+export function sortStack(wp: Workplane, key: (a: Shape, b: Shape) => number): Workplane {
+  return clone(wp, { objects: [...wp.objects].sort(key) })
 }
 
 /**

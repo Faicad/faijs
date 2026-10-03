@@ -19,6 +19,8 @@ import {
   extrude,
   bezier,
   size,
+  bboxSize,
+  pushPoints,
   clean,
   consolidateWires,
   sort,
@@ -35,17 +37,44 @@ function volume(wp: Workplane): number {
   return k.getVolume(brepOf(wp.shape as never) as never)
 }
 
-describe('size (upstream Workplane.size)', () => {
-  it('2×3×4 box → size [2,3,4]', async () => {
+/**
+ * `size` / `bboxSize` — the P3-1 semantic split.
+ *
+ * The old test here was titled "size (upstream Workplane.size)" while asserting
+ * bounding-box dimensions. That was wrong: upstream `Workplane.size()` is
+ * `len(self.objects)` (`cq.py:358`), probe-verified on a unit cube
+ * (`size() == 1`, `faces('>Z').edges().size() == 4`). `size` now returns the
+ * stack length; the bbox reading it used to compute lives on as `bboxSize`.
+ */
+describe('size (upstream Workplane.size = stack length)', () => {
+  it('a fresh workplane has an empty stack', () => {
+    expect(size(Workplane())).toBe(0)
+  })
+
+  it('a single box is one object on the stack', async () => {
+    expect(size(await box(Workplane(), 2, 3, 4))).toBe(1)
+  })
+
+  it('pushPoints does NOT grow the shape stack (faijs keeps positions in wp.pts)', async () => {
+    // GOTCHA (probe-verified deviation): upstream pushes one Vector per point,
+    // so `pushPoints(three).size() == 3` there. faijs's stack holds shapes only.
+    const wp = pushPoints(Workplane(), [[-1, 0], [1, 0], [0, 1]])
+    expect(size(wp)).toBe(0)
+    expect(wp.pts).toHaveLength(3)
+  })
+})
+
+describe('bboxSize (faijs-specific: bbox dimensions of the first stack object)', () => {
+  it('2×3×4 box → [2,3,4]', async () => {
     const b = await box(Workplane(), 2, 3, 4)
-    const d = size(b)
+    const d = bboxSize(b)
     expect(d[0]).toBeCloseTo(2, 6)
     expect(d[1]).toBeCloseTo(3, 6)
     expect(d[2]).toBeCloseTo(4, 6)
   })
 
   it('throws when the workplane has no solid', () => {
-    expect(() => size(Workplane())).toThrow(/no solid/)
+    expect(() => bboxSize(Workplane())).toThrow(/no solid/)
   })
 })
 

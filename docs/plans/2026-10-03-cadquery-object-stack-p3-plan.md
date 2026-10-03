@@ -1,7 +1,7 @@
 # P3 开发计划 —— Workplane 对象栈模型（faijs-cadquery）
 
 > 日期：2026-10-03
-> 状态：**实施中** —— P3-0 已完成（2026-10-03，见 §6.1「批次进度」），P3-1 起待做
+> 状态：**实施中** —— P3-0 / P3-1 已完成（2026-10-03，见 §6.1「批次进度」），P3-2 起待做
 > 范围：`packages/faijs-cadquery`（`src/workplane.ts` 载体模型 + `src/transpile.ts` + `src/index.ts` 导出面 + `tests/ref-harness/`）
 > 上游基准：CadQuery **2.8.0**（`cq.py` + `out/cache/v2.8.0/tests/`）
 > 配套文档：
@@ -299,6 +299,33 @@ return clone(wp, { shape: fromHandle(sub[0]) })
 **实施中踩到并已固化进守卫的两类坑**：
 1. **机械改写漏改**——行级正则漏掉「`clone(wp, {` 后换行才写 `shape:`」（3 处）与「`shape,` 简写」（8 处）。两次都是 `clone()` 的抛错闸门当场抓出来的。⇒ 守卫改为**扫全文 + 按嵌套深度取顶层键**（已离线用注入变异验证：多行/同行/简写三种形态全抓，`tag()` 的嵌套 `shape` 不误报）。
 2. **core `dist` 陈旧**——`packages/core/dist` 是 10-02 的而源码是今天改的，导致 build 报 `syntheticGroup` 不存在。**非新问题**，但 **parity CLI 走 `dist`，改 src 前必须先重建 core dist**，否则测的是旧 core。
+
+**P3-1 ✅ 已完成（2026-10-03）**
+
+| 项 | 结果 |
+|---|---|
+| 净改动 | `workplane.ts`（`size` 改语义 + 新增 `bboxSize`/`all`/`first`/`last`/`item`/`findSolid`/`stackFilter`/`stackMap`/`stackApply`/`sortStack` + `add` 改语义）、`index.ts`（10 个新导出）、新增 `src/object-stack.test.ts`（39 用例）、改写 `tool-group-ops.test.ts` 的 `size` 段 |
+| 包内单测 | **473 全绿 → 515 全绿**（43 文件，+42 = 新增 39 + 改写 3） |
+| `tsc --noEmit` | **零错** |
+| 变异测试 | 三条都做：`size` 退回单对象 ⇒ **8 红**；`add` 退回替换 ⇒ **16 红**；`findSolid` 退回 `makeCompoundShape` ⇒ **1 红** |
+| 探针 | `tests/ref-harness/object-stack-probe.py` + `object-stack-probe2.py`（一次性，不入 CI） |
+| core | **未改** |
+
+**捕获推翻方案里的 3 个假设**（这是 P3-1 最大的价值 —— 若照方案直接写，会写出 3 个错实现）：
+
+1. **`findSolid()` 恒返回 Compound，不是「多命中才聚」**。探针：unit cube 的 `findSolid().ShapeType() == "Compound"`，体积与 solid 逐位相同（差 0.0）；两实体时体积恰为其和。**与 `solids()` 严格不同**（`two.solids().size()==2`、`.val()` 是 `Solid`）。**实现上还有第二道坑**：`makeCompoundShape` 单元素时**直接返回该元素**（`workplane.ts:721`），用它就永远拿不到 Compound ⇒ `findSolid` 必须显式 `kern().makeCompound(...)`。
+2. **`pushPoints` / `rarray` / `center()` 压的是 `Vector`**，不是 Shape。faijs 用平行数组 `wp.pts` 承载位置、栈只承载形状 ⇒ **`size()` 在 pushPoints 工作面返回 0，上游是 3**。**裁定：这是载体能力边界，按真语义差冻结进测试**（不伪造 Vector 入栈 —— 那会让 `all()/item()/first()` 返回非形状，破坏整条读侧 API 的类型契约）。方案的 §5.1「栈元素 = Shape」表述需按此理解。
+3. **`add(Workplane)` extend 的是源的「单个代表对象」**，不是源的整个栈（探针：源分别是 1 solid 和 3-solid compound，结果 size 都 = 1）。⇒ faijs 侧 `add(wp, srcWp)` = `[...wp.objects, srcWp.shape]`，**与上游在「源栈多对象」时不一致**，登记为已知偏差；**`add(wp, [a,b,c])` 数组形态可完全对齐**。
+
+**捕获还纠正了一处方案自己的错**：`val()` / `vals()` **早已存在**（§1），P3-1 不是新增而是**修正 `vals()` 从「恒返回 0/1 元素」改为真读栈**。
+
+**实施中发现并修掉的 2 个真 bug**：
+- `findSolid` 若误用 `makeCompoundShape` ⇒ 单 solid 时返回 Solid 而非 Compound（见上）。
+- 既有测试 `tool-group-ops.test.ts` 的 `describe` 标题写着「size (upstream Workplane.size)」却断言 bbox —— **标题与断言不符的既存测试**，P3-1 一并纠正为 `size`（栈长）+ `bboxSize`（bbox）两段。
+
+**命名裁决**：上游 `.filter()/.map()/.apply()/.sort()` 是**接收 Python callable** 的栈操作，faijs 对应形态接收 TS 回调。`filter`/`map`/`apply` 在扁平的 `import * as cq` 命名空间里太通用 ⇒ 导出为 `stackFilter`/`stackMap`/`stackApply`/`sortStack`（理由写在 JSDoc 里）。`sort` 保留给既有的 pendingWires 排序（无上游对应名）。
+
+**P3-1 未做、留给后续批次**：`end()` 需 parent 链（`cq.py:669` 走 parent，faijs 是 immutable 无引用）⇒ 属 P3-4；`faces()/edges()/vertices()` 仍是**延迟选择标记**（只写 `faceSel`/`selChain`，不立即求值压栈）⇒ 真压栈属 P3-2/P3-3。**测试已把这两处的「当前行为」冻结**，P3-2/P3-3 落地时必须同步更新那两条断言。
 
 ### 6.2 需实测才能定的两点 → **预置二分支处置**（不留「待定」）
 
