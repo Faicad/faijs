@@ -3,7 +3,7 @@
  *  1. 参数表逐值与 A 侧快照（Python eval 语义）一致，相对容差 1e-12；
  *  2. types()/sizes()/selectBySize 与快照派生结果一致；
  *  3. 工艺表（clearance/tap/drill/nominal）与上游已解析结果（快照 resolved 段）一致；
- *  4. 34 表哈希断言（上游数据变动必须显式更新）。
+ *  4. 34 表哈希断言（fixtures/upstream/ 快照基线；上游变动必须显式更新快照）。
  *
  * 快照由 `pwsh -NoProfile scripts/gen-reference.ps1 --dump-data` 生成。
  */
@@ -37,7 +37,11 @@ import dataManifest from './data/manifest.json'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SNAPSHOT = join(HERE, '../fixtures/reference/data-snapshot.json')
-const UPSTREAM_DEFAULT = 'C:/git/CADQ/cq_warehouse/src/cq_warehouse'
+// Hash-guard baseline: the 34 upstream CSVs are snapshotted verbatim into
+// fixtures/upstream/ (same content as cq_warehouse @ the manifest's
+// upstreamGitHead) so the guard is reproducible on any machine. To compare
+// against a live upstream clone instead, point FAI_CQ_UPSTREAM at it.
+const UPSTREAM_DEFAULT = join(HERE, '../fixtures/upstream')
 
 interface Snapshot {
   tables: Record<string, Record<string, Record<string, number | string>>>
