@@ -219,11 +219,28 @@
 - **做法**：`node --import tsx tools/run-sweep.ts --only failed`（依赖已修好的 worker import），覆盖 import 崩溃期的假失败记录。
 - **判据**：state 无 `failed` 残留；真实失败并入 §1.2 分类。
 
-### K 组：stage1 gap 97 逐类清零（E1 延续）
+### K 组：stage1 gap 97 逐类清零（E1 延续）—— **top3 已修（2026-10-03）**
 
-- **top singleFix**：`sketch-empty-geoms` 28（空 sketch 应跳过而非 gap）、`extrusion-zero-length` 16、`shape-asset-broken` 14。
-- **做法**：沿用一类一修纪律；每类伴合成 fixture 单测 + GOTCHA 标注。
-- **判据**：gap 97 逐类下降，ok 率逼近 100%。
+- **top singleFix（batch-report 实测：`sketch-empty-geoms` 28 / `shape-asset-broken` 27 / `extrusion-zero-length` 19）三类均已定性并修复**：
+  1. **sketch-empty-geoms 28**：Document.xml 实证 `GeometryList count="0"`——**真空草图**
+     对几何零贡献，不是翻译缺口。修法：`auditMapping` 把该 reason 归为
+     `skipped-empty` disposition（加入 `ALLOWED_DISPOSITIONS` 白名单 + `counts.skippedEmpty`
+     承接计数）；消费空草图的 Pad/Pocket 各自按 missing-dependency 记账。
+     留档：`sketch-empty-geoms-skip.test.ts`（e2e 取点 + 白名单 tripwire）。
+  2. **extrusion-zero-length 19**：Duct 取点实证 `LengthFwd=-1.0`（`-VarSet.Flange_Thickness`
+     表达式求值）——FreeCAD 负长度语义是「沿反方向挤 |len|」，旧代码 `fwdLen > 0`
+     门把它静默吞掉。修法：`emitExtrude` 符号折进方向（len<0 → -unitDir×|len|）。
+     留档：`feature-translate.test.ts` GOTCHA 用例（-1 → (0,0,-1)）。
+  3. **shape-asset-broken 27**：Metal_Box 取点实证 `PartShape9.brp` **源头就是 0 字节**
+     （FreeCAD 把几何折进 Body 链的空缓存），受害者是 `PartDesign::Mirrored`——
+     它不在 WHITELIST、无翻译分支，被 0 字节缓存拉成 gap。修法：新增
+     `PartDesign::Mirrored` 分支（Originals 空 → `cad.mirrorJoin(BODY_CHAIN_BASE,
+     {normal, at})`，镜像面从 MirrorPlane 的 sketch V_Axis/H_Axis 或 origin 平面
+     解析）+ 入 WHITELIST。留档：`feature-translate.test.ts` 两条 Mirrored 用例。
+- **效果**：FCBL_table_parametric 已转 ok；Metal_Box 残余 1 条 `external-geometry-unresolved`
+  （另一类，不在本项）。三类修复合计消解 gap **约 74 个文件位**（取点验证口径，全量待下轮 sweep）。
+- **判据**：gap 97 逐类下降 ✓（top3 清零）；余下类（multifuse-missing-dependency 11、
+  fillet-missing-base 7 等）留待后续循环。
 
 ### L 组：promote 决策（用户审批项）
 
