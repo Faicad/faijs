@@ -1,0 +1,47 @@
+// source: test_cadquery.py::TestCadQuery::testBoundingBox (var result, FINAL value)
+// result0 = Workplane("XY").moveTo(10,0).lineTo(5,0)
+//   .threePointArc((3.9393,0.4393),(3.5,1.5))
+//   .threePointArc((3.0607,2.5607),(2,3)).lineTo(1.5,3)
+//   .threePointArc((0.4393,3.4393),(0,4.5))
+//   .lineTo(0,13.5).threePointArc((0.4393,14.5607),(1.5,15))
+//   .lineTo(28,15).lineTo(28,13.5).lineTo(24,13.5).lineTo(24,11.5)
+//   .lineTo(27,11.5).lineTo(27,10).lineTo(22,10).lineTo(22,13.2)
+//   .lineTo(14.5,13.2).lineTo(14.5,10).lineTo(12.5,10).lineTo(12.5,13.2)
+//   .lineTo(5.5,13.2).lineTo(5.5,2)
+//   .threePointArc((5.793,1.293),(6.5,1)).lineTo(10,1).close()
+// result = result0.extrude(100)
+// ref (out/ref/…testBoundingBox__result.step): vol 13234.9225135,
+//   com (9.36523963941, 10.1990228605, 50), bbox x[0,28] y[0,15] z[0,100],
+//   topo f26/e72/v48/s1
+//
+// GOTCHA: chained `.fai.js` must be FLAT statements — a nested `await` in an
+// argument position is rejected (`E_VALUE: unsupported value expression:
+// AwaitExpression`), so every upstream chain step becomes its own `let`.
+import * as cq from '@faicad/faijs-cadquery'
+let w0 = await cq.moveTo(cq.Workplane('XY'), 10, 0)
+let w1 = await cq.lineTo(w0, 5, 0)
+let w2 = await cq.threePointArc(w1, [3.9393, 0.4393], [3.5, 1.5])
+let w3 = await cq.threePointArc(w2, [3.0607, 2.5607], [2, 3])
+let w4 = await cq.lineTo(w3, 1.5, 3)
+let w5 = await cq.threePointArc(w4, [0.4393, 3.4393], [0, 4.5])
+let w6 = await cq.lineTo(w5, 0, 13.5)
+let w7 = await cq.threePointArc(w6, [0.4393, 14.5607], [1.5, 15])
+let w8 = await cq.lineTo(w7, 28, 15)
+let w9 = await cq.lineTo(w8, 28, 13.5)
+let w10 = await cq.lineTo(w9, 24, 13.5)
+let w11 = await cq.lineTo(w10, 24, 11.5)
+let w12 = await cq.lineTo(w11, 27, 11.5)
+let w13 = await cq.lineTo(w12, 27, 10)
+let w14 = await cq.lineTo(w13, 22, 10)
+let w15 = await cq.lineTo(w14, 22, 13.2)
+let w16 = await cq.lineTo(w15, 14.5, 13.2)
+let w17 = await cq.lineTo(w16, 14.5, 10)
+let w18 = await cq.lineTo(w17, 12.5, 10)
+let w19 = await cq.lineTo(w18, 12.5, 13.2)
+let w20 = await cq.lineTo(w19, 5.5, 13.2)
+let w21 = await cq.lineTo(w20, 5.5, 2)
+let w22 = await cq.threePointArc(w21, [5.793, 1.293], [6.5, 1])
+let w23 = await cq.lineTo(w22, 10, 1)
+let w24 = await cq.close(w23)
+let wp_out = await cq.extrude(w24, 100)
+let result = cq.val(wp_out)

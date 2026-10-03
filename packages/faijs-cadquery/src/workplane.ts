@@ -866,12 +866,57 @@ async function combineEachpoint(
 }
 
 /**
- * Workplane
- * @param plane - string
+ * Workplane — upstream `Workplane(...)` (`cq.py:161-198`), including the
+ * single-object overload: upstream accepts a `Vector` / `Location` / `Shape` as
+ * the FIRST argument, in which case the plane is `XY` and that object becomes
+ * the whole initial stack (`cq.py:184-192`).
+ *
+ * @param plane - plane name (`XY`/`YZ`/…, see {@link makeWorkplane}), or a
+ *   `Shape` / `Workplane` to seed an XY workplane with (upstream's `obj`
+ *   overload — the form `CQ(s)` relies on).
  * @returns Workplane
  */
-export function Workplane(plane: string = 'XY'): Workplane {
+export function Workplane(plane: string | Shape | Workplane = 'XY'): Workplane {
+  if (typeof plane !== 'string') return workplaneFromObject(plane)
   return makeWorkplane(plane)
+}
+
+/**
+ * CQ — upstream's `CQ` alias of the Workplane constructor (`cq.py:4565`
+ * `CQ = Workplane`), i.e. `CQ(s)` is exactly `Workplane(s)`: an XY workplane
+ * whose stack holds `s`. Kept as a separate export (instead of a re-export
+ * alias) so the compat surface names it the way upstream tests spell it.
+ *
+ * @param obj - plane name, or a `Shape` / `Workplane` to seed the stack with
+ *   (defaults to `'XY'`).
+ * @returns Workplane carrying `obj` on the stack (or an empty XY workplane)
+ */
+export function CQ(obj?: string | Shape | Workplane): Workplane {
+  return Workplane(obj ?? 'XY')
+}
+
+/**
+ * Build an XY workplane whose initial stack is a single existing object
+ * (upstream `Workplane.__init__` object branch, `cq.py:184-192`).
+ *
+ * GOTCHA: upstream sets `parent = None` there (`cq.py:193`) — a workplane built
+ * from a bare object STARTS a chain, it is not the child of anything. `clone`
+ * (the single place that extends the parent chain, see P3-4) always attaches
+ * the receiver as parent, so the link is cleared afterwards.
+ *
+ * The seed is normalised with {@link asBrepShape} so a `Shape`, its borrowed
+ * view form, or a `Workplane` all land on the stack as a real `Shape`.
+ *
+ * @param obj - the seed object: a `Shape`, or a `Workplane` (its `.shape`)
+ * @returns Workplane with `objects: [obj]`
+ */
+function workplaneFromObject(obj: Shape | Workplane): Workplane {
+  const base = makeWorkplane('XY')
+  const seed = asBrepShape(isShape(obj) ? obj : (obj as Workplane).shape)
+  if (!seed) return base
+  const out = clone(base, { objects: [seed] })
+  out.parent = undefined
+  return out
 }
 
 /**
@@ -1377,6 +1422,44 @@ export async function cone(
   // by h/2 so the base circle sits on z=0 (upstream free-function semantics).
   const shape = await cad.translate(base as unknown as Shape, { offset: [0, 0, h / 2] })
   return combineEachpoint(wp, [shape as Shape], opts?.combine ?? true)
+}
+
+/**
+ * solidMakeCone — CadQuery `Solid.makeCone(radius1, radius2, height, pnt, dir,
+ * angleDegrees)` class-method parity (`occ_impl/shapes.py:4211-4233`).
+ *
+ * Two differences from the free `cone(d1, d2, h)` above — both bite:
+ *
+ * 1. **RADII, not diameters.** `Solid.makeCone(0, 1, 2)` is a cone of base
+ *    radius 0 and top radius 1, height 2.
+ * 2. **radius1 is the BASE (z=0) radius.** OCCT's `BRepPrimAPI_MakeCone(r1, r2,
+ *    h)` puts r1 on the base plane and r2 at z = h, so `makeCone(0, 1, 2)` is an
+ *    APEX-DOWN cone: centroid z = 1.5 (= 3h/4 from the apex), not 0.5.
+ *    Ref-verified against cadquery 2.8.0 (`testCone__s.step`): vol 2.0943951,
+ *    com z 1.5, bbox z[0,2], topo f2/e3/v2.
+ *
+ * Built with the kernel primitive rather than `cad.cone` because core's cone
+ * asserts `radiusBottom > 0` (`api/primitives.ts` `assertConeParams`), which
+ * rejects the apex-at-the-base case upstream allows. Kernel-only also keeps the
+ * constructor off the lineage chain — a `cq.*` function is not lifted into an op
+ * under the CLI's `autoLift:false`, so the first `cad.*` op it ran would become
+ * the statement's outermost op and trip the N1 guard (same GOTCHA as `wedge`).
+ *
+ * Equal radii are rejected by OCCT (`Standard_DomainError: cone with two
+ * identic radii`) — verified identical on cadquery 2.8.0
+ * (`Solid.makeCone(1, 1, 2)` raises the same error upstream), so a cylinder has
+ * to be built as a cylinder, not as a zero-taper cone.
+ *
+ * @param radius1 - radius at the base plane z = 0 (0 ⇒ apex at the base)
+ * @param radius2 - radius at z = height
+ * @param height - height along +Z (must be > 0, as upstream requires)
+ * @returns the cone solid
+ */
+export function solidMakeCone(radius1: number, radius2: number, height: number): Shape {
+  if (!(height > 0)) {
+    throw new Error(`[cq-compat] solidMakeCone: height must be > 0 (got ${height})`)
+  }
+  return toShape(kern().makeCone(radius1, radius2, height))
 }
 
 /**
@@ -4343,6 +4426,116 @@ export function placeSketch(wp: Workplane, ...sks: Sketch[]): Workplane {
 }
 
 /**
+ * Translate a kernel handle by a world-space offset (placement primitive shared
+ * by {@link eachpoint} and {@link cutEach}).
+ * @param h - handle to move
+ * @param dx - offset along world X
+ * @param dy - offset along world Y
+ * @param dz - offset along world Z
+ * @returns the translated handle (owned by the caller)
+ */
+function translateHandle(h: BrepHandle, dx: number, dy: number, dz: number): BrepHandle {
+  const k = getKernel() as unknown as {
+    translate: (h: BrepHandle, dx: number, dy: number, dz: number) => BrepHandle
+  }
+  return k.translate(h, dx, dy, dz)
+}
+
+/**
+ * The world points an eachpoint-style op places its item at (upstream
+ * `eachpoint` iterates `self.objects`, `cq.py:4410`).
+ *
+ * Resolution order: the objects a narrowing selection pushed onto the stack
+ * (`vertices()` / `faces()` / `edges()`), else the pushed `pts`, else an empty
+ * list (callers fall back to the plane origin).
+ *
+ * @param wp - Workplane providing the stack / pushed points
+ * @returns one world-space point per stack locus
+ */
+function eachpointLocations(wp: Workplane): [number, number, number][] {
+  const locs: [number, number, number][] = []
+  // P3-4 §8.3: the legacy single-marker (`vertexSel` / `faceSel`) fallback
+  // branches were deleted here. `faces()`/`edges()`/`vertices()` now always
+  // push the selection AND record it in `selChain`, and every site that clears a
+  // marker clears `selChain` with it — so those branches were unreachable. The
+  // narrow case is handled by this branch over `wp.objects`.
+  if (wp.selChain && wp.selChain.length > 0 && wp.objects.length > 0) {
+    // P3-3: the narrowing chain has ALREADY been pushed onto the stack by
+    // `faces`/`edges`/`vertices` (eager push). Place at the centre of EACH stack
+    // object — multi-object stacks yield multiple placements (`.faces('|Z')
+    // .eachpoint(x)` places at both planar faces). Using `wp.objects` (not a
+    // single `shapeHandle`) is what makes the multi-object case correct, whereas
+    // re-resolving the chain against `wp.shape` would only see the first object.
+    const bbox = (h: unknown): { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } =>
+      (getKernel() as unknown as { getBoundingBox: (h: unknown) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } }).getBoundingBox(h)
+    for (const obj of wp.objects) {
+      const h = brepOf(obj)
+      if (h === undefined) continue
+      const bb = bbox(h as unknown)
+      locs.push([(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2])
+    }
+  } else if ((wp.pts ?? []).length > 0) {
+    locs.push(...(wp.pts ?? []).map(([x, y]) => localToWorld(wp, x, y)))
+  }
+  return locs
+}
+
+/**
+ * cutEach — CadQuery `Workplane.cutEach(fcn)` object-form parity
+ * (`cq.py:2784-2810`). Upstream is
+ *
+ * ```python
+ * ctxSolid = self.findSolid()          # raises ValueError when there is none
+ * results = self.eachpoint(fcn, useLocalCoords).vals()
+ * s = ctxSolid.cut(*results)           # ALL placed copies, one boolean
+ * if clean: s = s.clean()
+ * return self.newObject([s])
+ * ```
+ *
+ * The lambda form is unreachable in `.fai.js` (no function literals), so — same
+ * deal as {@link eachpoint} — the item is passed as an object and placed at every
+ * stack locus. Unlike `eachpoint(combine="cut")`, the base is `findSolid()`
+ * (the compound of every solid on the stack) and the result REPLACES the stack
+ * with the cut solid.
+ *
+ * GOTCHA: the cut is applied one placed copy at a time, which is equivalent to
+ * upstream's single `cut(*results)` boolean for non-overlapping tools
+ * (`(A−B)−C == A−(B∪C)`); the reference case (`testCutEach`) is exactly that.
+ *
+ * @param wp - Workplane providing the stack loci and the context solid
+ * @param item - Workplane or Shape to place at each locus and cut away
+ * @param opts - `{ clean?: boolean }` (default true, matching upstream)
+ * @returns Workplane whose stack holds the cut solid
+ * @throws when the stack holds no solid (mirrors upstream's `ValueError`)
+ */
+export async function cutEach(
+  wp: Workplane,
+  item: Workplane | Shape,
+  opts?: { clean?: boolean },
+): Promise<Workplane> {
+  const itemShape: Shape | null = (item as Workplane).__cq ? (item as Workplane).shape : (item as Shape)
+  if (!itemShape) throw new Error('[cq-compat] cutEach: item carries no shape')
+  const itemHandle = brepOf(asBrepShape(itemShape)) as unknown as BrepHandle
+  // Upstream's contract: `findSolid()` raises ValueError when there is no solid
+  // (the second half of `testCutEach` asserts exactly that). Its default
+  // `searchParents=True` is what reaches the solid BEFORE the narrowing — after
+  // `w.vertices()` the stack holds 8 vertex objects, so a stack-only lookup
+  // would always throw. faijs's `findSolid` deliberately does not walk parents
+  // (documented deviation, G-B1), so the pre-selection solid comes from P3-3's
+  // `baseShape` — the same stand-in `eachpoint` uses for its combine base.
+  const ctxSolid: Shape = wp.baseShape ?? findSolid(wp)
+  const locs = eachpointLocations(wp)
+  let acc: Shape = ctxSolid
+  for (const [lx, ly, lz] of locs) {
+    const placed = toShape(translateHandle(itemHandle, lx, ly, lz))
+    acc = opts?.clean === false
+      ? toShape(kern().cut(ownHandle(acc), ownHandle(placed)))
+      : await cutShapes(acc, placed)
+  }
+  return clone(wp, { objects: [acc], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
+}
+
+/**
  * eachpoint — CadQuery `Workplane.eachpoint` object-form parity (NO lambda:
  * the `.fai.js` restricted subset has no function literals, so only the
  * Workplane/Shape item forms are supported — a callable stays permanently
@@ -4368,38 +4561,10 @@ export async function eachpoint(
 ): Promise<Workplane> {
   const itemShape: Shape | null = (item as Workplane).__cq ? (item as Workplane).shape : (item as Shape)
   if (!itemShape) throw new Error('[cq-compat] eachpoint: item carries no shape')
-  const kernel = getKernel() as unknown as {
-    getCenterOfMass: (h: BrepHandle) => { x: number; y: number; z: number }
-    translate: (h: BrepHandle, dx: number, dy: number, dz: number) => BrepHandle
-  }
   const itemHandle = brepOf(asBrepShape(itemShape)) as unknown as BrepHandle
   const shape = wp.shape ? asBrepShape(wp.shape) : null
-  type Pt = [number, number, number]
-  let locs: Pt[] = []
-  // P3-4 §8.3: the legacy single-marker (`vertexSel` / `faceSel`) fallback
-  // branches were deleted here. `faces()`/`edges()`/`vertices()` now always
-  // push the selection AND record it in `selChain`, and every site that clears a
-  // marker clears `selChain` with it — so those branches were unreachable. The
-  // narrow case is handled by this branch over `wp.objects`.
-  if (wp.selChain && wp.selChain.length > 0 && wp.objects.length > 0) {
-    // P3-3: the narrowing chain has ALREADY been pushed onto the stack by
-    // `faces`/`edges`/`vertices` (eager push). Place at the centre of EACH stack
-    // object — multi-object stacks yield multiple placements (`.faces('|Z')
-    // .eachpoint(x)` places at both planar faces). Using `wp.objects` (not a
-    // single `shapeHandle`) is what makes the multi-object case correct, whereas
-    // re-resolving the chain against `wp.shape` would only see the first object.
-    const bbox = (h: unknown): { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } =>
-      (getKernel() as unknown as { getBoundingBox: (h: unknown) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } }).getBoundingBox(h)
-    for (const obj of wp.objects) {
-      const h = brepOf(obj)
-      if (h === undefined) continue
-      const bb = bbox(h as unknown)
-      locs.push([(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2])
-    }
-  } else if ((wp.pts ?? []).length > 0) {
-    locs = (wp.pts ?? []).map(([x, y]) => localToWorld(wp, x, y))
-  }
-  if (locs.length === 0) locs = [[...wp.origin]]
+  const locs = eachpointLocations(wp)
+  if (locs.length === 0) locs.push([...wp.origin] as [number, number, number])
   const combine = opts?.combine ?? true
   // P3-3: fuse the placed parts into the ORIGINAL solid (`baseShape`), not into
   // the narrowed face that `wp.shape` now holds after `faces()` pushed it. A
@@ -4410,7 +4575,7 @@ export async function eachpoint(
   let acc: Shape | null = combine === false ? null : shape ? (baseShape as Shape) : null
   let separate: Shape | null = null
   for (const [lx, ly, lz] of locs) {
-    const placed = toShape(kernel.translate(itemHandle, lx, ly, lz))
+    const placed = toShape(translateHandle(itemHandle, lx, ly, lz))
     if (combine === 'cut' && acc) {
       acc = await cutShapes(acc, placed)
     } else if (combine === false) {

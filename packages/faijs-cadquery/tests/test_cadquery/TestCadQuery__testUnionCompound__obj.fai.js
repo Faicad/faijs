@@ -12,6 +12,10 @@
 // per piece — and bundles them with compound() as the result (same pattern as
 // test_history_bool__res2; intermediate Shape lets consumed by the compound do
 // not become CLI terminals, so the export stays a single .step file).
+// GOTCHA (found by the 2026-10-03 full sweep): the tool/base must be passed as
+// the WORKPLANE, not as `cq.val(wp)` — a raw Shape produced inline has no
+// PartName, and the lineage N1 guard rejects it (`第 N 个输入 Shape 没有 PartName`).
+// Same trap as `wedge`'s `cad.translate` (see workplane.ts:1048).
 // ref (cadquery 2.8.0): Compound, vol 8952.625, bbox [-15,-10,-15]..[15,10,15]
 import * as cq from '@faicad/faijs-cadquery'
 let box1 = await cq.box(cq.Workplane('XY'), 10, 20, 30)
@@ -21,10 +25,10 @@ let tool = await cq.translate(t0, [8, 8, 8])
 let a0 = await cq.box(cq.Workplane('XY'), 10, 10, 20)
 let bL = await cq.translate(a0, [-10, 0, 0])
 let bR = await cq.translate(a0, [10, 0, 0])
-let p1 = await cq.cut(box1, cq.val(box2))
-let p2 = await cq.cut(p1, cq.val(tool))
-let p3 = await cq.intersect(box1, cq.val(box2))
-let p4 = await cq.cut(p3, cq.val(tool))
-let p5 = await cq.cut(bL, cq.val(tool))
-let p6 = await cq.cut(bR, cq.val(tool))
+let p1 = await cq.cut(box1, box2)
+let p2 = await cq.cut(p1, tool)
+let p3 = await cq.intersect(box1, box2)
+let p4 = await cq.cut(p3, tool)
+let p5 = await cq.cut(bL, tool)
+let p6 = await cq.cut(bR, tool)
 let result = cq.compound(cq.val(p2), cq.val(p4), cq.val(p5), cq.val(p6))

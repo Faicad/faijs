@@ -28,13 +28,30 @@ const BY_KEY: Record<string, string> = {
   // occt-wasm process (Node-level crash, not a JS throw) — see U21 in the phase2 plan
   'tests.test_cadquery::TestCadQuery::testPolygonPlugin__s': 'kernel:crash-polygon-cutThruAll',
   // 2-D wire ops not implemented
-  'tests.test_cadquery::TestCadQuery::testBoundingBox__result': 'op:threePointArc',
-  'tests.test_cadquery::TestCadQuery::testIbeam__res': 'op:polyline',
+  // CLOSED 2026-10-03 (roadmap B1-3a, stale label #2): `Workplane.threePointArc`
+  //   has existed since the 2-D arc ops — the label was stale too. The mirror
+  //   (a 25-step flat chain: nested `await` in an argument position is rejected
+  //   by the parser) is a straight PASS: vol 13234.9225135, topo f26/e72/v48.
+  // CLOSED 2026-10-03 (roadmap B1-3a, stale label): `Workplane.polyline` has
+  //   existed since the 2-D drafting ops — the label was stale, not a missing
+  //   API. The mirror now exists and is PASS-NT: geometry is exact against the
+  //   ref (vol 5800, boolean diff 0) but the mirrored profile keeps an unhealed
+  //   seam on the mirror axis (cand f15/e39/v26 vs ref f14/e36/v24).
   // free-function Solid constructors / CQ() wrapper
-  'tests.test_cadquery::TestCadQuery::testCone__s': 'op:Solid.makeCone',
-  'tests.test_cadquery::TestCadQuery::testCone__t': 'op:CQ',
+  // CLOSED 2026-10-03 (roadmap B1-3a): `Solid.makeCone(radius1, radius2, height)`
+  //   is exported as `cq.solidMakeCone` (kernel primitive — core's `cad.cone`
+  //   asserts radiusBottom > 0 and rejects the apex-at-base case upstream allows),
+  //   and `CQ` (upstream's `CQ = Workplane` alias, cq.py:4565) builds an XY
+  //   workplane seeded with a shape. testCone__s / testCone__t both carry mirrors
+  //   and parity-PASS against their refs (vol 2.09439510239, com z 1.5).
+  //   NOTE: `Workplane.plugin` (testCylinderPlugin) stays blocked — it needs a
+  //   monkey-patched class method plus an `eachpoint` lambda, neither of which
+  //   the `.fai.js` subset can express (folds into G-C25).
   'tests.test_cadquery::TestCadQuery::testCylinderPlugin__s': 'op:Workplane.plugin',
-  'tests.test_cadquery::TestCadQuery::testFindSolid__s': 'op:findSolid',
+  // CLOSED 2026-10-03 (roadmap B1-3a, stale label #3): `findSolid` has been
+  //   exported since the object-stack work (P3) — the label was stale. Mirror
+  //   `testFindSolid__s` is a straight PASS (compound of the two uncombined
+  //   cubes: vol 2, topo f12/e24/v16/s2).
   // extrude(both=) / extrude(combine="cut"|"s") — CLOSED 2026-10-03 (roadmap B1-6):
   //   testExtrude__s / __wp_ref (both=True), testExtrude__wp /
   //   __wp_ref_regular_cut (combine="s"), and testExtrude__r (combine="cut") now

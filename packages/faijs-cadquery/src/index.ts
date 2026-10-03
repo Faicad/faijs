@@ -23,6 +23,8 @@ export {
   cylinder,
   torus,
   cone,
+  solidMakeCone,
+  CQ,
   rarray,
   rect,
   circle,
@@ -129,6 +131,7 @@ export {
   placeSketch,
   sketchFinish,
   eachpoint,
+  cutEach,
   partAt,
   faceFromPoints,
 } from './workplane'

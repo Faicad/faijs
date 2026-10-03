@@ -32,10 +32,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testBoundingBox__result": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testBoundingBox",
-    "blockedBy": "op:threePointArc",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testBoxCombine__s": {
     "status": "ported",
@@ -180,16 +179,14 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testCone__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testCone",
-    "blockedBy": "op:Solid.makeCone",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testCone__t": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testCone",
-    "blockedBy": "op:CQ",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testConsolidateWires__w1": {
     "status": "skipped",
@@ -316,19 +313,19 @@
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testCutEach__w": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testCutEach",
-    "blockedBy": "cutEach"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testCutEach__w0": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testCutEach",
-    "blockedBy": "cutEach"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testCutEach__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testCutEach",
-    "blockedBy": "cutEach"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testCutThroughAll__s": {
     "status": "skipped",
@@ -552,10 +549,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testFindSolid__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testFindSolid",
-    "blockedBy": "op:findSolid",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testFluentMethodInheritance__wp": {
     "status": "skipped",
@@ -666,10 +662,10 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testIbeam__res": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testIbeam",
-    "blockedBy": "op:polyline",
-    "manual": true
+    "blockedBy": null,
+    "reason": "pass-nt:mirror-seam"
   },
   "tests.test_cadquery::TestCadQuery::testIntersect__s": {
     "status": "skipped",
