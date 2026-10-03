@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-extra",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "Editor extension library for faijs - fai_* ops, group/assembly/copy/load, and the svg / 3D-text creators",
   "keywords": [
     "faijs",

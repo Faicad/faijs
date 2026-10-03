@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-draw",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "faijs 2D drawing DSL - cad.draw fluent scripting over the core geometry2d pure base",
   "keywords": [
     "faijs",
