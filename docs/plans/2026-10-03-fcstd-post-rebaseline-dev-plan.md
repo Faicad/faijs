@@ -70,21 +70,47 @@
 
 ## 3. 工作项（按建议优先级排序，无强制顺序）
 
-### F 组：kernel-boolean run-fail 161（run-fail 头号类）
+### F 组：kernel-boolean run-fail 161（run-fail 头号类）—— **已重新定性（2026-10-03），不是内核缺陷**
 
 - **现象**：`cad.subtract/fuse/intersect` 抛 `kernel cut failed … cutWithHistory / E_OP_FAILED`。B5 降级链（裸 kernel → unifySameDomain → 裸重算）已修 disk-drive 型，但 161 个新组合仍失败。
-- **取点**：从 `state/run-sweep.json.jsonl` 取 `kernel-boolean` 类前 3 个失败文件，逐个 `--reconvert` 复现。
-- **做法**：对每个取点扩 B5 降级链的覆盖（如 `unifySameDomain` 前置、按 op 差异化降级、或对退化输入先 `fix`）；逐个判定「内核真不支持」还是「输入退化需清洗」。
-- **改动位置**：`packages/core/src/api/boolean.ts`（降级链）；输入清洗在 `packages/faijs-freecad/src/feature-translate.ts`。
-- **判据**：取点 run ok 且产 STEP；回归单测留档（修复前红）。
+- **重定性（取点 3 个实测）**：
+  1. 当前 state 里真 `kernel fuse failed` 只有 **6 个**（161 是旧粗口径，把 fillet/sketch 的
+     `E_OP_FAILED` 也算了进去）；6 个全是 `union`，输入多含 ShapeBinder/import_brep 产物。
+  2. 取点 FCBL_chair_upholstered 复现链：`Part::Extrusion`（Symmetric，Dir=(0,1,0)）的 base
+     sketch `Sketch001` 类型是 **`Part::FeaturePython`**（非 `Sketcher::SketchObject`）。
+     转换器把它的 `.brp` 资产按**世界位姿**导出（raw bbox z∈[327.8, 971.6]，与 truth 一致），
+     但 codegen 仍按「sketch 带非恒等 Placement」发射 `cad.place(Sketch001, Q90°X)` ——
+     **place 二次施放**（I 组 double-apply 家族）。结果挤出面被移到 y∈[-971,-327]、
+     世界 Dir=(0,±450,0) 与面**共面** → 退化薄片（vol≈3e-10）→ fuse 三级降级全败。
+     内核探针（裸资产）上 `fuseWithHistory`/裸 fuse/unify 后 fuse **全部成功** —— 内核无罪。
+  3. 另两个取点已非 fuse 失败：FAULHABER 现为 chamfer edgeRef 越界（归 G 组）；
+     Beam-coupling-5mm 抛 `wireframe: BRepAdaptor_Curve::No geometry`（另行归类）。
+- **结论**：F 组原「扩 B5 降级链」工作项作废。真修法在 codegen/转换器的位姿约定一致性
+  （FeaturePython 冻结 sketch 的 brp 导出位姿 vs place 发射判据），与 I 组 double-apply
+  同根：**需要「brp 资产是否已含 Placement」的权威判定**——该判定 I 组已三次被实测否决
+  修法，归入 I 组统一收口，不在 F 组单修。
+- **改动位置**：原定 `packages/core/src/api/boolean.ts`（降级链，无需改）；真根因在
+  `packages/faijs-freecad/src/codegen.ts`（place 发射判据）与转换器资产导出位姿约定。
 
-### G 组：edgeRef-lineage run-fail 104（D2 的下游残余）
+### G 组：edgeRef-lineage run-fail 104（D2 的下游残余）—— **取点已定性（2026-10-03），归 G3 专项记档**
 
 - **现象**：`edgeRef: adjacent face ordinal N has no role lineage`（fillet/chamfer callee）。D2 修了 plane 帧方向，但 extrude 产物仍有无名面（cap 判定对退化薄片失据的同类问题）。
-- **取点**：取 `edgeRef-lineage` 前 3 个文件，用 `probe-d2-faces.ts` 思路逐面问 `faceRef`，确认无名面构成。
-- **做法**：视根因定——可能是 role 表对 cap/wall 分派的另一盲区，或 fillet 的边选择身份问题（与 C3c-3 DIN463 同域，G3 拓扑身份）。
-- **改动位置**：`packages/core/src/api/extrude`（role 分派）或 `cad.edgeRef` 侧。
-- **判据**：取点 run ok；若归因到 G3 拓扑身份域则记档并转入 G3 专项，不在本组硬修。
+- **取点定性（3 个实测，2026-10-03）**：当前 state 里 edgeRef 类实为 **两个子类**（87 个）：
+  1. **`has no role lineage`**（如 ISO4762 M6x40：`cad.chamfer(Cut, …)` 的 `Cut =
+     cad.subtract(Revolution, Pocket)`，而 `Pocket` 是 `cad.import_brep` 冻结资产
+     PartShape7）——资产面**天然无 role 表**，其衍生的边/邻面拿不到 lineage 是
+     **语义必然**，不是 role 分派盲区。修法只能是翻译侧把冻结资产面接入 role 图
+     （G3 拓扑身份域），或 edgeRef 对资产面走降级定位。
+  2. **`edge ordinal N out of range [1, M]`**（如 pushbutton-right-angle：
+     `Fillet001` 引用 `Pad002` 的 edge 15，faijs 产物只有 3 条边）——FreeCAD 端
+     edge 序号是在**原始 FCStd 形状**上数的，faijs 重建的形状边数/序完全不同。
+     这是**拓扑身份对齐**问题（翻译侧记录的 ordinal 语义失效），同属 G3。
+  3. 取点 Flapper LHS 当前已变为 `E_FILLET_RADIUS_TOO_LARGE`（kernel fillet 失败），
+     不再是 edgeRef 类——归 kernel 域另行分类。
+- **结论**：两类都归 **G3 拓扑身份专项**（与 C3c-3 DIN463 同域），按 plan 判据记档转出，
+  不在本组硬修。87 个 edgeRef 失败在 G3 收口前维持 run-fail 形态。
+- **改动位置**：`packages/core/src/api/edge-ref.ts`（lineage 解析）＋翻译侧 ordinal
+  记录语义（`packages/faijs-freecad/src/`）。
 
 ### H 组：sweep-transition 25（self-host sweep 缺口）
 
