@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# Keep this workflow STEP-ALIGNED with scripts/ci.ps1 (local Windows CI).
+# Both pipelines must run the same logical stages in the same order:
+#   lint -> typecheck -> build -> per-package tests (+stderr zero tolerance
+#   + test:install) -> guards -> demo e2e x2 -> doc-sync -> pack.
+# If you add/remove/reorder a step here, mirror it in ci.ps1 (and vice versa).
+# History: demo tests repeatedly failed on CI because this file lacked the
+# build step while ci.ps1 had it — demo consumes @faicad/* via workspace dist.
 jobs:
   build-and-test:
     strategy:
@@ -32,39 +39,99 @@ jobs:
       - name: Fetch test brepkit-wasm kernels
         run: node scripts/fetch-test-kernels.mjs
 
-      - run: npm run lint
+      # 1/9
+      - name: Lint
+        run: npm run lint
 
-      - run: npm run typecheck
+      # 2/9
+      - name: Typecheck (root + workspaces)
+        run: |
+          npm run typecheck
+          npm run typecheck --workspaces --if-present
 
-      - run: npx vitest run
+      # 3/9 — build every demo-required dist BEFORE running tests: demo is a
+      # workspace member consuming @faicad/* through each package's dist/
+      # (no src aliases), so a fresh checkout has nothing until this runs.
+      - name: Build (core → faijs-extra → sheetmetal)
+        run: npm run build
 
-      # 根 vitest projects 有意排除 draw / faijs-fasteners / faijs-gears（均较重或有
-      # 独立配置）；这里按包单独跑。faijs-gears 只跑轻量核心子集（API 面 + 齿廓数学 +
-      # 新增类纯数学 + 裸齿轮体积；全套 BREP parity >900s 不适合 CI，见 ci.ps1 注释）。
-      - name: Run faijs-draw tests
-        working-directory: packages/draw
-        run: npx vitest run
+      # 4/9 — per-package tests. faijs-gears only runs its lightweight core
+      # subset (full BREP parity suite >900s, never fit for CI). Any `stderr |`
+      # line in test output fails the job (zero tolerance, same as ci.ps1).
+      - name: Test workspaces (per package, stderr zero tolerance)
+        run: |
+          set -o pipefail
+          packages=(
+            @faicad/faijs
+            @faicad/faijs-sketch
+            @faicad/faijs-extra
+            @faicad/faijs-freecad
+            @faicad/sheetmetal
+            @faicad/faijs-cadquery
+            @faicad/faijs-gears
+            @faicad/faijs-fasteners
+            @faicad/faijs-draw
+            @faicad/faijs-tests
+            @faicad/faijs-demo
+          )
+          gears_subset="src/index.test.ts src/profile.test.ts src/new-gear-math.test.ts src/spur-gear-build.test.ts"
+          failed=0
+          for pkg in "${packages[@]}"; do
+            echo "::group::tests $pkg"
+            if [ "$pkg" = "@faicad/faijs-gears" ]; then
+              (cd packages/faijs-gears && npx vitest run $gears_subset) | tee -a vitest-ci.log
+            else
+              npm run test -w "$pkg" | tee -a vitest-ci.log
+            fi
+            rc=$?
+            echo "::endgroup::"
+            if [ $rc -ne 0 ]; then
+              echo "::error::tests failed in $pkg"
+              failed=1
+            fi
+          done
+          # Zero stderr tolerance: any test writing "stderr |" lines fails CI.
+          if grep -E '^stderr \|' vitest-ci.log; then
+            echo "::error::Tests produced stderr output — all test stderr must be resolved."
+            failed=1
+          fi
+          rm -f vitest-ci.log
+          exit $failed
 
-      - name: Run faijs-fasteners tests
-        working-directory: packages/faijs-fasteners
-        run: npx vitest run
+      # 4/9 (publish-state smoke)
+      - name: faijs-sketch test:install (publish-state smoke)
+        run: npm run test:install -w @faicad/faijs-sketch
 
-      - name: Run faijs-gears core subset tests
-        working-directory: packages/faijs-gears
-        run: npx vitest run src/index.test.ts src/profile.test.ts src/new-gear-math.test.ts src/spur-gear-build.test.ts
+      # 5/9
+      - name: Guards (ghost deps / workspace order / lockstep / cycles / platform imports / api surface / no-brepjs / lib language / no out-of-repo test reads)
+        run: |
+          node scripts/check-ghost-deps.mjs
+          node scripts/check-workspaces-order.mjs
+          node scripts/check-lockstep.mjs
+          npx madge --circular packages/core/src packages/faijs-extra/src
+          node scripts/check-platform-imports.mjs
+          node scripts/api-surface-snapshot.mjs
+          node scripts/check-core-no-brepjs.mjs
+          node scripts/check-lib-src-language.mjs
+          node scripts/check-test-fs-scope.mjs
 
-      - name: Install demo dependencies
+      # 6/9
+      - name: Demo e2e (dev server, workspace dist)
         working-directory: packages/demo
-        run: npm ci
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e
 
-      - name: Install Playwright browsers
-        working-directory: packages/demo
-        run: npx playwright install --with-deps chromium
-
-      - name: Run demo e2e tests
-        working-directory: packages/demo
-        run: npm run test:e2e
-
-      - name: Run demo preview e2e tests (CDN importmap)
+      # 7/9
+      - name: Demo e2e preview (CDN importmap)
         working-directory: packages/demo
         run: npm run test:e2e:preview
+
+      # 8/9
+      - name: Doc sync
+        run: npm run doc-sync
+
+      # 9/9
+      - name: npm pack (root packability)
+        run: npm pack

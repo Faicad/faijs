@@ -99,24 +99,8 @@ describe('browser umbrella must not contain brepkit', () => {
   })
 })
 
-describe('weapp worker host constraints (3d_editor side)', () => {
-  // This guard reads a file in the *sibling* 3d_editor checkout, which exists
-  // only in a developer's local workspace (faijs and 3d_editor side by side).
-  // CI checks out faijs alone, so the file is absent there and the guard has
-  // nothing to assert — skip instead of failing the suite.
-  const workerPath = path.resolve(
-    srcDir,
-    '../../../../3d_editor/packages/platform/src/weapp/faijs.worker.ts',
-  )
-  const workerSrc = existsSync(workerPath) ? readFileSync(workerPath, 'utf-8') : null
-
-  it.skipIf(workerSrc === null)('weapp worker must not import the browser umbrella', () => {
-    expect(workerSrc).not.toMatch(/from\s+['"]@faicad\/faijs(-core)?\/browser['"]/)
-  })
-
-  it.skipIf(workerSrc === null)('weapp worker imports brepkit symbols from the weapp entry, not deep paths', () => {
-    // After migration the worker should use '@faicad/faijs/weapp' (or faijs-core/weapp)
-    // for brepkit symbols; deep brepkit-kernel imports are the old leaky path.
-    expect(workerSrc).not.toMatch(/from\s+['"]@faicad\/faijs(-core)?\/brepkit-kernel\//)
-  })
-})
+// NOTE: the former "weapp worker host constraints" describe block read the
+// sibling 3d_editor checkout via a relative path — impossible on CI (faijs is
+// checked out alone) and forbidden by scripts/check-test-fs-scope.mjs. That
+// guard belongs to the 3d_editor repo's own test suite; do not reintroduce it
+// here.

@@ -185,6 +185,9 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     if ($LASTEXITCODE -ne 0) { return }
     # M5：库源码语言审计（可发布库包 src/ 必须 100% TS，禁止手写 JS 发布库）
     node scripts/check-lib-src-language.mjs
+    if ($LASTEXITCODE -ne 0) { return }
+    # 测试文件禁止读取仓库外路径（兄弟仓库/绝对路径在 CI 上必然 ENOENT，见 37076464640）
+    node scripts/check-test-fs-scope.mjs
 }
 
 Step -Label '6/9  demo e2e（dev server 模式，@faicad/* 走 workspace dist）' -Block {
