@@ -8,7 +8,7 @@
 
 Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。
 
-**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/faijs-extra`（`@faicad/faijs-extra` 编辑器扩展库，2026-09-24 D1 拆分：`fai_drill`/`fai_extrude`/`fai_split`/`group`/`assembly`/`copy`/`load`/`text`/`svgExtrude` 与 svg／文字预览辅助；`/editor-ops` 子入口只含 A 组、不触达 `three/examples`，供小程序 worker 使用）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包）。`packages/gear-lib-demo` 已于 2026-09-21 删除，其测试 fixture 收进 `packages/tests/faijs/compat-e2e/_support/gear-lib-demo/`。
+**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/faijs-extra`（`@faicad/faijs-extra` 编辑器扩展库，2026-09-24 D1 拆分：`fai_drill`/`fai_extrude`/`fai_split`/`group`/`assembly`/`copy`/`load`/`text`/`svgExtrude` 与 svg／文字预览辅助；`/editor-ops` 子入口只含 A 组、不触达 `three/examples`，供小程序 worker 使用）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包；`packages/demo` 例外——独立化后经 workspace 依赖消费各包 `dist/`，见下）。`packages/gear-lib-demo` 已于 2026-09-21 删除，其测试 fixture 收进 `packages/tests/faijs/compat-e2e/_support/gear-lib-demo/`。
 
 > 包架构再设计（2026-09-19）：原根门面 `@faicad/faijs`（仅注入 cad + `export *`）已删除，其公开名 `@faicad/faijs` 由 core 升格继承（D2-A）；`cad` 默认命名空间内置引擎（D1，`createRuntime` 自带注册，不违反 K5）。详见 `docs/plans/2026-09-19-npm-publish-plan.md`。
 
@@ -45,7 +45,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 | 命令 | 说明 |
 |---|---|
-| `npm run build` | 按序构建：`core` → 根门面（`tsc` 编译各包 src → dist；根门面 build 前 clean） |
+| `npm run build` | 按序构建：`core` → `faijs-draw` → `faijs-extra` → `sheetmetal`（`tsc` 编译各包 src → dist；demo e2e 消费这些包的 dist，见下） |
 | `npm run build -w <pkg>` | 单包构建，如 `npm run build -w @faicad/faijs` |
 | `npm run pack` | 构建（workspaces 顺序即依赖拓扑）+ 逐包 `npm pack`，tgz 落在各包目录。开关：`--only <pkg>`、`--no-build`、`--dry-run`、`--strict-lockstep` |
 | `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
@@ -82,7 +82,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **测试 stderr 零容忍**（CI 强制）：任何测试输出 `stderr |` 行即判失败。测试若故意触发错误，必须在测试内 spy `console.warn/error` 并断言；禁止全局静默 stderr。
 - **typecheck/lint 不覆盖测试**：各包 `tsc --noEmit` 的 include 含 `src/**/*.ts`（含同目录测试），但 `packages/tests` 的集成测试由 `npm run typecheck -w @faicad/faijs-tests` 单独覆盖——改动后手动跑 vitest 验证。
 - 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录，含原 `packages/stdlib` 迁入的 `api/*.test.ts`）、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。第三方库通道测试 fixture 在 `packages/tests/faijs/compat-e2e/_support/`。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
-- `packages/demo/` 是独立 vite 应用（dev 端口 8899；build 时 three/manifold-3d/occt-wasm 外链 jsdelivr CDN importmap，版本号与 package.json 手写同步）。demo 在 workspace 内通过 `resolve.alias` 直接消费根门面/引擎源码（M7 免打包，`vite.config.ts` 的 alias + `optimizeDeps.exclude` + `server.watch` 反选）；改 faijs 源码 → demo dev server HMR 即生效，**无需 npm pack**。wasm 经 `wasmAssets()` 插件（dev 中间件 `/wasm/*` + build 拷贝）。
+- `packages/demo/` 是独立 vite 应用（dev 端口 8899；build 时 three/manifold-3d/occt-wasm 外链 jsdelivr CDN importmap，版本号与 package.json 手写同步）。demo 作为 workspace 成员在 `package.json` 声明并安装 `@faicad/faijs` / `@faicad/faijs-extra` / `@faicad/sheetmetal` 依赖，经 workspace 链接解析到各包 `dist/`——**不读源码、不 alias 活源码**（改 faijs 源码不会即时 HMR，需先 `npm run build` 刷新 dist；CI 已在 demo e2e 前经 step 3 `npm run build` 产出全部 demo 所需 dist）。vite/vitest/tsconfig 均不再配置 `@faicad/*` 指向 src（vite 仅保留 `resolve.dedupe: ['occt-wasm']` + `optimizeDeps.exclude`）。wasm 经 `wasmAssets()` 插件（dev 中间件 `/wasm/*` + build 拷贝）。
 - 仓库文档双语配对（英文 `foo.md` + 中文 `foo.zh.md` + `foo.i18n.yaml`），见 [docs/i18n/README.md](docs/i18n/README.md)。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。commit message 用 conventional commits（英文）；代码注释用英文。
 
 ## 文档地图

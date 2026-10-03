@@ -91,24 +91,12 @@ function wasmAssets(): Plugin {
 
 export default defineConfig({
   resolve: {
-    // faijs 以 npm pack tarball 安装（demo/node_modules/@faicad/faijs），
+    // faijs 以 workspace 依赖安装（demo/node_modules/@faicad/faijs → core dist），
     // 其 dist 与 demo 各声明了一份 occt-wasm，强制解析到同一实例：
     // 避免产物中出现两份 wasm。
     // （manifold-3d 不再需要 dedupe：demo 不再直接 import 它，
     //  仅 faijs 经 loader 根裸导入，Workder/Inline 后端共用。）
     dedupe: ['occt-wasm'],
-    // M7：免打包联动——@faicad/faijs 解析到 core 活源码，不经 dist。
-    // 前缀匹配（@rollup/plugin-alias）：'@faicad/faijs/browser' → ../core/src/browser.ts
-    // （D2-A 后门面已折叠进 core，旧根 src/ 别名已移除）。
-    alias: [
-      // 编辑器扩展库（A/B 组 op + svg/文字预览辅助）——M7 活源码联动，同 faijs。
-      // 前缀匹配不吞并 `@faicad/faijs`（Vite 只匹配 find 本身或 find + '/'）。
-      { find: '@faicad/faijs-extra', replacement: resolve(__dirname, '../faijs-extra/src') },
-      { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
-      // sheetmetal：经 alias 落位活源码（dev 与 rollup build 一致生效）。
-      // 注：gear-lib-demo 已删除，'gear-demo' 示例改为真走 CDN（库不存在 → 显式报错）。
-      { find: '@faicad/sheetmetal', replacement: resolve(__dirname, '../sheetmetal/src/index.ts') },
-    ],
   },
   plugins: [cdnExternalPlugin(), wasmAssets()],
   // Worker 后端（csg-worker/sdf-worker）打包为 ES module worker。
@@ -126,9 +114,11 @@ export default defineConfig({
     esbuildOptions: {
       target: 'esnext',
     },
-    // 源码包不预打包（预打包会编译成冻结快照，改动不再生效 → M7 失效）；
-    // Emscripten glue 经 esbuild 预打包会损坏 wasm import 对象（brepjs 同款）。
-    exclude: ['@faicad/faijs/browser', 'occt-wasm', 'manifold-3d'],
+    // occt-wasm / manifold-3d 的 Emscripten glue 经 esbuild 预打包会损坏 wasm
+    // import 对象（brepjs 同款），必须排除。
+    // @faicad/* 现以 workspace 依赖（dist）安装，已是编译产物、不含 wasm glue，
+    // 不再需要排除（demo 已改走独立 dist 消费，不再 live-src 联动）。
+    exclude: ['occt-wasm', 'manifold-3d'],
   },
   build: {
     target: 'esnext',
@@ -140,10 +130,5 @@ export default defineConfig({
     // 避免占用常见端口（3000/5173 等）
     port: 8899,
     open: true,
-    // workspace 包是 node_modules 下的 symlink，Vite 默认忽略 node_modules；
-    // 必须显式反选才能对引擎源码改动触发 HMR（M7）。
-    watch: {
-      ignored: ['!**/node_modules/@faicad/**'],
-    },
   },
 })

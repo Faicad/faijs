@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 param(
     [Parameter(Position = 0, HelpMessage = '"all" to log full output to ci.log. Default: direct console output.')]
     [string]$Mode
@@ -69,12 +69,15 @@ Step -Label '2/9  npm run typecheck（根 + workspaces）' -Block {
     npm run typecheck --workspaces --if-present
 }
 
-Step -Label '3/9  npm run build（core → 门面）' -Block {
+Step -Label '3/9  npm run build（core → faijs-extra → sheetmetal）' -Block {
     # Ensure workspace junctions exist (npm workspaces may fail to create them on Windows)
     if (-not (Test-Path "node_modules/@faicad/faijs/package.json")) {
         Write-Host "    [ci] workspace junction missing — running npm install" -ForegroundColor Yellow
         npm install
     }
+    # demo 以「workspace 内消费 dist」独立化：dev/e2e 通过 workspace 链接解析 @faicad/* 到各包 dist/。
+    # 因此 demo e2e 前必须先把 demo 声明依赖的 @faicad/*（core/faijs-extra/sheetmetal）构建出 dist。
+    # 根 build 已覆盖它们；dist 在 git 上被忽略，fresh checkout 全靠此步产出。
     npm run build
 }
 
@@ -184,7 +187,7 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     node scripts/check-lib-src-language.mjs
 }
 
-Step -Label '6/9  demo e2e（dev server 模式，M7 链路）' -Block {
+Step -Label '6/9  demo e2e（dev server 模式，@faicad/* 走 workspace dist）' -Block {
     npm run test:e2e -w @faicad/faijs-demo
 }
 
