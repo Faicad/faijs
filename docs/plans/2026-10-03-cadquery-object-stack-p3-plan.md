@@ -1,7 +1,7 @@
 # P3 开发计划 —— Workplane 对象栈模型（faijs-cadquery）
 
 > 日期：2026-10-03
-> 状态：**实施中** —— P3-0 / P3-1 / P3-2 / P3-3 已完成（2026-10-03，见 §6.1「批次进度」），P3-4 起待做
+> 状态：**已完成** —— P3-0 / P3-1 / P3-2 / P3-3 / P3-4 全部落地（2026-10-03，见 §6.1「批次进度」）。载体仍保留 `shape` 派生视图（§3.1 的过渡垫片）；删除它是独立的机械批，未纳入 P3。
 > 范围：`packages/faijs-cadquery`（`src/workplane.ts` 载体模型 + `src/transpile.ts` + `src/index.ts` 导出面 + `tests/ref-harness/`）
 > 上游基准：CadQuery **2.8.0**（`cq.py` + `out/cache/v2.8.0/tests/`）
 > 配套文档：
@@ -126,6 +126,8 @@ stack 没命中 → 递归 parent（searchParents）
 | G9 | 子形去重按句柄 id 的**拓扑身份**（`kernel.isSame`）而非几何相等（`Shape.__eq__`） | `workplane.ts:selectKindHandles`（§3.3） | 上游按几何相等去重，两者不等价；faijs 无 `Shape.__eq__`，只能用 `isSame` |
 | G10 | `workplane.ts` 内**不得直接调** `getKernel().getSubShapes(h, kind)` —— 会抛 `Cannot read properties of undefined (reading 'OcctKernel')`；该 wasm glue 闭包引用的 `OcctKernel` 符号只有在 `shape-class.ts` 进入 import 图后才被钉住。kind 选择器必须复用 `shape-class.ts` 的 `solids/wiresOf/shells/compounds` | `workplane.ts:selectKindHandles`（探针实测） | 直接调会让所有 kind 选择器静默退化成「返回空」；复用 `shape-class` 路径 |
 | G11 | `baseShape`（基础实体，parent 链的替身）**必须随几何替换失效**：`clone(wp,{objects})` 若未显式给 `baseShape` 即清空。否则 `faces()` 记下的原始 box 会穿过 `cutBlind` 之后的下一次 `faces()`，让 `hole` 切错基准 | `workplane.ts:clone`（`parity-fixes` `>Z[0]` 用例实测） | 不清 ⇒ 体积少切一刀（误差恰等于该刀体积）；`workplane`/`rect` 不传 `objects` ⇒ base 跨它们保留 |
+| G12 | **parent 链是全链的**，不是「只在选择/平面切换点挂」——`cq.py:1312` 的 `newObject` **无条件** `ns.parent = self`（55 个方法调用它）。faijs 在 `clone()` 里 `out.parent = wp` 一处覆盖。composite op（`cboreHole`=`hole().cbore()`、`text`…）在链里留**中间节点**是上游本来的行为，`end(n)` 数的是 parent 级数不是「上一次公共 op」 | `workplane.ts:clone`（`p3-4-end-split-probe.py` + `cq.py:669/1312`） | 若只挂切换点，`.box(1,1,1).end().objects` 会抛错而非 = 0（§8.2）；引用环风险已排除（`borrowDeep` 对非 `Object.prototype` 受体直接返回，`compat-op.ts:87`） |
+| G13 | **`findSolid` 只搜当前栈、不走 parent 链**（上游默认 `searchParents=True`）——**登记为有意偏差**。faijs 的基础实体由 `baseSolid`/`baseShape` 承载（P3-3 机制），回填成 parent walk 是独立一批 | `workplane.ts:findSolid`（`object-stack.test.ts`「pushing a face does NOT make findSolid return the box」） | 若改成走 parent，`box.faces('>Z').findSolid()` 会从「抛错」变「返回 box」，翻掉已冻结断言 |
 
 ---
 
@@ -153,7 +155,7 @@ export interface Workplane {
 - 写点从 48 处降到 48 处（都要改，但都是机械替换），**读点 0 处改动**
 - `shape` 是纯 getter 派生 ⇒ 不存在两字段不同步的可能
 - 每批 PR 的 diff 面 = 写点 + 新 API + 测试，**可 review**
-- P3-4 收尾时删 `shape` 字段，那时是纯删除
+- 删 `shape` 字段（→ 140 读点机械改写）**未纳入 P3**：它零功能收益、纯回归风险，且 `shape` 是零成本派生视图。**P3-4 完成后本方案的 5 个批次全部落地，`shape` 仍作为 §3.1 的过渡垫片保留**；删除是独立一批（需全仓改写 + 跨子路径 assembly 鸭子读者一并处理）。
 
 **代价 / 必须防的坑**：
 - `shape` 变 getter 后，`Object.assign(Object.create(WP_PROTO), wp, overrides)`（`workplane.ts:423` `clone()`）会**把 getter 求值成数据属性**拷过去 —— 这是**想要的行为**（求值即派生），但必须确认 `Object.assign` 不会在 `overrides` 里再写 `shape`（会抛 getter-only 错）。故 `clone()` 需改为显式 `defineProperty` 或在 `overrides` 之后 `delete` 覆盖。**这是 P3-0 的第一个要写的测试。**
@@ -279,7 +281,7 @@ return clone(wp, { shape: fromHandle(sub[0]) })
 | **P3-1** | 栈读侧 API + 两处语义修正：`size`/`add`/`all`/`first`/`last`/`item`/`findSolid` | `workplane.ts` + `index.ts` + 新测试 | `size`/`add` 语义**变**（当前消费者 0，见 §6.2 决议） | P3-0 |
 | **P3-2** | kind 选择器多对象压栈（`wires/shells/solids/compounds`）+ 快/慢路径（§3.5） | 4 个 op + 新测试 | **变**（多对象才变） | P3-1 | ✅ 已完成（2026-10-03）
 | **P3-3** | `faces/edges/vertices` 多对象 + `selChain` 引擎升级为栈上逐对象求并集 | `workplane.ts` + core `cadquery-selectors`（`resolveSelection` 签名） | **变**（逐级收窄语义修正） | P3-2 | ✅ 已完成（2026-10-03）
-| **P3-4** | `end()` + `parent` 链 + `split` 多体入栈 + `partAt` 降级 shim + 464 mirror 全量 parity | `workplane.ts` + mirror 回归 | **变** | P3-3 |
+| **P3-4** | `end()` + `parent` 链 + `split` 多体入栈 + `partAt` 降级 shim + 464 mirror 全量 parity | `workplane.ts` + mirror 回归 | **变** | P3-3 | ✅ 已完成（2026-10-03）
 
 **P3-0 的第一个测试**（必须先写、必须先红后绿）：
 `clone()` 不得接受 `overrides.shape`；且 `Object.assign` 式克隆后 `shape` 仍是派生值。
@@ -369,6 +371,29 @@ return clone(wp, { shape: fromHandle(sub[0]) })
 2. **`baseShape` 会被陈旧传播（G11）**——`cutBlind` 等用 `clone(wp,{objects})` 替换几何时，`baseShape` 仍是从上游 `faces()` 带下来的**原始 box**；随后的 `faces(cutSolid,'>Z')` 便把 base 记成原始 box，`hole` 切错基准（体积正好少切一刀，误差 = 该刀体积）。修法集中在 `clone`：**只要覆写 `objects` 且未显式给 `baseShape`，就清空 `baseShape`**（几何被替换 ⇒ 旧基础失效）；`workplane`/`rect`/`circle`/`pushPoints` 不传 `objects` ⇒ base 跨它们保留。
 3. **`workplane()` 必须用「基础实体 + `faceSel`」而非被压入的单面**——`resolveFaceSelector(单面, '>Z[0]')` 无法复现**索引选择器**与多面选择语义（`slide_top` 的 `faces("-Y")[1]` 与 `parity-fixes` 的 `>Z[0]`/`>Z[-1]` 因此错）。改回旧路径后两条转绿，`slide_top` 体积精确回到 ref。
 
+**P3-4 ✅ 已完成（2026-10-03）**
+
+| 项 | 结果 |
+|---|---|
+| 净改动 | `workplane.ts`（新增 `parent` 字段 + `clone` 里 `out.parent = wp` + 新增 `end()` 导出 + `split` both-keep 改推 **2 个对象**（删 `parts` 字段）+ `partAt` 降级为 `item` shim + 删除 `eachpoint` 两条死分支 + 更新 `baseSolid`/`findSolid` 陈旧注释）、`index.ts`（新增 `end` 导出）、改写 `p1-workplane-ops.test.ts` 两条 split 断言、新增 `src/end-split-stack.test.ts`（8 用例） |
+| 包内单测 | **540 全绿 → 548 全绿**（46 文件，+8 = 新增 P3-4 冻结用例）：`end-split-stack.test.ts`（8） |
+| `tsc --noEmit` | 包内**零错**；全仓 `npm run typecheck` **零错** |
+| parity | 全量 **548 全绿**（含 464 mirror：`cq.val()` 几何逐位不变 —— P3-4 改的 `end`/`split`/`partAt` 在 mirror 里 **0 处使用**，见 §4） |
+| 变异测试 | **两条都做**：① `split` both-keep 退回旧「合成单 compound」载体 ⇒ **6 条红**；② `end` 忽略 `n`（恒爬 1 级）⇒ **2 条红**。还原即绿 |
+| 门禁 | `verify-export-jsdoc` / `check-ghost-deps`（881 文件）/ `check-lockstep` 全过 |
+| 探针 | `tests/ref-harness/p3-4-end-split-probe.py`（一次性，不入 CI） |
+| core | **未改** |
+
+**捕获推翻方案里的 1 个假设（先探针后实现再次兜住错实现）**：
+
+1. **方案 §8.2 的 `split` 后 `.item(0).faces().size() == 8` 是错的 ——** 对「4×4×4 box 对半切」，每个 half 是 **6 面**（`probe split_item0_faces == 6`）。方案里的 8 来自 `test_cadquery.py:2356-2358`，那用的是**带孔的** box（切口多出内外两圈面）。已按 probe 冻结（本批测试用 2×2×2，面数同样是 6）。
+
+**实施中厘清并固化的两点**：
+
+1. **§3.2 的「只在选择/平面切换点挂 `parent`」与 §8.2 的 `.box(1,1,1).end().objects == 0` 相互矛盾**：后者要求 `box` 也挂 parent。真值来自 `cq.py`：`newObject` **无条件** `ns.parent = self`（`cq.py:1312`），55 个方法调用它 ⇒ **parent 链是全链的**。裁定以 §8.2（验收判据）为准：在 `clone()`（唯一载体构造点）里 `out.parent = wp`，一处覆盖全部 op。§3.2 的「只挂切换点」表述作废。
+2. **composite op 在链里留中间节点是上游本来的行为，不是缺陷**：`cboreHole` 上游就是 `self.hole(...).cbore(...)`，`.end()` 因此返回中间 hole 工作面。faijs 的多 clone op（`text`/`cboreHole`/`cskHole`/`transformed`/`spline`…）同理。`end(n)` 数的是 **parent 链级数**，不是「上一次公共 op」，与上游一致。**引用环风险已排除** —— `borrowDeep` 对非 `Object.prototype` 受体直接返回（`compat-op.ts:87`），Workplane（proto 为 `WP_PROTO`）永不被逐字段遍历。
+3. **`findSolid` 仍只搜当前栈、不走 parent 链**（**登记为有意偏差**）：上游默认 `searchParents=True`，但 faijs 的基础实体由 `baseSolid`/`baseShape` 承载（P3-3 机制），改 `findSolid` 走 parent 会翻掉 `object-stack.test.ts` 已冻结的行为。回填 `baseSolid → parent walk` 是**独立一批**（P3-3 的 33 条回归已证明其风险），不在 P3 内。注释已同步，避免误导。
+
 ### 6.2 需实测才能定的两点 → **预置二分支处置**（不留「待定」）
 
 用户铁律：plan 必须自洽完备，需实测才定的点预置分支。
@@ -436,18 +461,18 @@ return clone(wp, { shape: fromHandle(sub[0]) })
 |---|---|
 | `Workplane().box(1,1,1).end().objects` 长度 = 0 | `test_cadquery.py:5005` |
 | `Workplane().box(1,1,1).box(2,2,1).end(2).objects` 长度 = 0 | `test_cadquery.py:5006` |
-| `split(keepTop,keepBottom)` 后 `.solids().size()` == 2，且 `.item(0).faces().size()` == `.item(1).faces().size()` == 8 | `test_cadquery.py:2356-2358` |
-| `.faces("+Z").vertices("<XY").size()` == 4（不是 8） | 逐级收窄的核心判据（需 probe 冻结确切值） |
+| `split(keepTop,keepBottom)` 后 `.solids().size()` == 2，且 `.item(0).faces().size()` == `.item(1).faces().size()`（**6**，不是方案原写的 8 —— 8 是带孔 box 的切口面数） | `p3-4-end-split-probe.py`（`test_cadquery.py:2356-2358` 用的是带孔 box） |
+| `.faces("+Z").vertices("<XY").size()` == **1**（不是 4；带**空** vertex 选择器才是 4） | `p3-3-progressive-probe.py`（方案原写的 4 是错的，P3-3 已纠正） |
 | `size()` == `len(objects)` | `cq.py:358` |
 | `add()` 追加而非替换 | `cq.py:387` |
 | `solids()` 多命中压 **1** 个 compound，`faces()` 多命中压 **N** 个 | G3 |
 
 ### 8.3 收尾卫生（与 P3 同批完成，不留到下一轮）
 
-- [ ] `workplane.ts:3842` 的 `getSubShapes(shapeHandle,'vertex')` 不可靠问题 —— P3-3 后 `vertices()` 走栈路径，该分支要么删要么修，**不得继续留 `makeVertex` 绕开的写法**
-- [ ] `workplane.ts:3666` `solids()` 注释里「cq-compat carrier keeps a single `.shape`」这类**陈述旧设计的注释**必须同步更新（否则变成误导性文档）
-- [ ] P3 涉及的 GOTCHA 全部落进 `src/*.test.ts` 的 `GOTCHA:` 注释（AGENTS.md「验证与踩坑留档铁律」第 2 条）
-- [ ] `MEMORY.md` 增一条「CQ 对象栈模型已落地 / 载体形态」的分层裁决（当前记忆里有「`workplane.ts` 是扁平单对象」这条，会变成过期信息）
+- [x] ~~`workplane.ts:3842` 的 `getSubShapes(shapeHandle,'vertex')` 不可靠问题~~ —— **P3-4 已删**：`eachpoint` 里 `vertexSel`/`faceSel` 两条单标记 fallback 分支经可达性分析确认**不可达**（`faces()`/`edges()`/`vertices()` 恒同时写 `selChain`；所有清标记处都连 `selChain` 一起清），连同其上的 `shapeHandle` 局部量一并删除，narrow 情况由上方 `selChain` 分支统一处理。
+- [x] ~~`solids()` 注释里陈述旧设计的注释~~ —— P3-2 已随 `selectKindHandles` 重写更新；P3-4 又更新了 `baseSolid`（「faijs 无 parent 链」）与 `findSolid`（「只搜当前栈」）两处陈旧注释为准确表述。
+- [x] P3 涉及的 GOTCHA 全部落进 `src/*.test.ts` 的 `GOTCHA:` 注释（G1–G13；P3-4 的 `end-split-stack.test.ts` 头部列了 3 条）。
+- [x] `MEMORY.md` 已更新「CQ 对象栈模型已落地 / 载体形态」裁决（P3-0…P3-4 全完、`parent` 全链、`findSolid` 有意不走 parent）。
 
 ---
 

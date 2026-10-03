@@ -39,6 +39,7 @@ import {
   workplane,
   faces,
   partAt,
+  size,
   fillet,
   edges,
   faceFromPoints,
@@ -144,7 +145,7 @@ describe('split parity (upstream Workplane.split)', () => {
     expect(volume(sp)).toBeCloseTo(4, 6)
   })
 
-  it('both kept → parts[0]/parts[1] via partAt, each vol 4 (upstream .all())', async () => {
+  it('both kept → two-object stack; partAt(0)/(1) pick each half (vol 4)', async () => {
     const b = await box(Workplane(), 2, 2, 2)
     const sp = await split(b, [0, 0, 0], [0, 0, 1], { keepTop: true, keepBottom: true })
     const top = partAt(sp, 0)
@@ -159,10 +160,14 @@ describe('split parity (upstream Workplane.split)', () => {
     expect(() => partAt(sp, 5)).toThrow(/out of range/)
   })
 
-  it('2×2×2 box split at z=0.5 keeps both halves → total volume 8', async () => {
+  it('2×2×2 box split at z=0.5 keeps both halves on the stack → total volume 8', async () => {
     const b = await box(Workplane(), 2, 2, 2)
     const sp = await split(b, [0, 0, 0.5], [0, 0, 1])
-    expect(volume(sp)).toBeCloseTo(8, 6)
+    // P3-4: both-keep pushes TWO objects (upstream `rv = [top, bottom];
+    // newObject(rv)`), so `.shape` is only the first half — the total volume is
+    // the sum over the stack (probe p3-4-end-split-probe.py: split_size == 2).
+    expect(size(sp)).toBe(2)
+    expect(volume(partAt(sp, 0)) + volume(partAt(sp, 1))).toBeCloseTo(8, 6)
   })
 
   it('split at an interior plane z=0.25 keeps both halves → total volume 8', async () => {
@@ -170,7 +175,8 @@ describe('split parity (upstream Workplane.split)', () => {
     // GOTCHA: L1 splitByPlane asserts solidCount=2 and REJECTS boundary
     // planes (a plane through a face leaves one side empty, got 1)
     const sp = await split(b, [0, 0, 0.25], [0, 0, 1])
-    expect(volume(sp)).toBeCloseTo(8, 6)
+    expect(size(sp)).toBe(2)
+    expect(volume(partAt(sp, 0)) + volume(partAt(sp, 1))).toBeCloseTo(8, 6)
   })
 
   it('split at a boundary plane throws (L1 solidCount=2 assertion)', async () => {

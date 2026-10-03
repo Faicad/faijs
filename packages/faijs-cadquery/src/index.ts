@@ -86,6 +86,7 @@ export {
   first,
   last,
   item,
+  end,
   findSolid,
   stackFilter,
   stackMap,

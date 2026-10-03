@@ -310,12 +310,6 @@ export interface Workplane {
    */
   pendingFaces?: ShapeHandle[]
   /**
-   * The two halves kept by a `split(keepTop, keepBottom)` (both-keep) —
-   * picked apart by `partAt(i)`, the flat-model stand-in for upstream
-   * `.all()` stack spreading.
-   */
-  parts?: (Shape | null)[]
-  /**
    * Raw kernel handles the carrier owns DIRECTLY (in addition to, and
    * independently of, the Shapes in `objects`). `dispose()` frees these.
    *
@@ -328,6 +322,31 @@ export interface Workplane {
    * two ownership paths disjoint.
    */
   ownedHandles?: number[]
+  /**
+   * P3-4: the workplane this one was derived from — the parent link upstream
+   * sets in `newObject` (`ns.parent = self`, `cq.py:1312`) on EVERY op.
+   * `end(n)` walks it (`cq.py:669`); it is also the chain upstream's
+   * `findSolid(searchParents=True)` climbs.
+   *
+   * Maintained in `clone()` (the single carrier-construction point): a clone's
+   * parent is ALWAYS its receiver — there is no opt-out. So
+   * `Workplane().box(1,1,1).end().objects` is `[]` — `end()` returns the empty
+   * root — and `box(1).box(2).end(2)` returns that same root (truth probe
+   * `p3-4-end-split-probe.py`, matching `test_cadquery.py:5005-5006`).
+   *
+   * Composite ops (text / cboreHole / cskHole / transformed / spline…) clone
+   * more than once, so their parent chain contains internal intermediates —
+   * exactly as upstream, where e.g. `cboreHole` delegates to `hole().cbore()`
+   * and leaves a hole workplane in the chain. `end(n)` therefore walks
+   * PARENT-LINK levels, not "previous public op" levels.
+   *
+   * This reference makes the chain non-collectable while a descendant is alive
+   * (a Workplane holds its full history). That is deliberate and bounded — a
+   * mirror chain is a few dozen clones at most. It does NOT leak kernel handles:
+   * `borrowDeep` skips non-`Object.prototype` receivers (`compat-op.ts:87`), so
+   * a Workplane (proto `WP_PROTO`) is never walked for its fields.
+   */
+  parent?: Workplane
 }
 
 /** Snapshot captured by 	ag(): plane frame + carried shape. */
@@ -519,6 +538,15 @@ function clone(wp: Workplane, overrides: Partial<Workplane>): Workplane {
   if ('objects' in overrides && !('baseShape' in overrides)) {
     out.baseShape = undefined
   }
+  // P3-4 parent link (see the `parent` field's JSDoc): the clone's parent is
+  // its RECEIVER — the single place the chain is extended, mirroring upstream
+  // `newObject`'s unconditional `ns.parent = self` (`cq.py:1312`). Note
+  // `Object.assign` above already copied `wp.parent` onto `out`; that grandparent
+  // is then overwritten here, which is what makes the chain advance by one per
+  // clone rather than skipping a level. Ops that build an intermediate clone and
+  // re-clone from it would otherwise leave an intermediate in the chain; that is
+  // upstream-faithful (composite ops do the same), so no op passes `parent`.
+  out.parent = wp
   out.shape = out.objects[0] ?? null
   return out
 }
@@ -551,11 +579,16 @@ export function dispose(wp: Workplane): void {
  * the selected faces (`cq.py:1312`) and the solid is recovered from the PARENT
  * chain via `findSolid()` (`cq.py:1219` fillet, `cq.py:3511` cutBlind).
  *
- * faijs has no parent chain until P3-4, so the pre-selection solid is carried on
- * `wp.baseShape` by the narrowing ops. This helper is that stand-in: it returns
- * `baseShape` when narrowing happened, else the stack head. For an un-narrowed
- * workplane it is IDENTITY (`baseShape` is unset ⇒ `wp.shape`), so every call
- * site that reads a base solid keeps its exact behaviour on the common path.
+ * P3-4 added the real `parent` chain (see the `parent` field), but `baseSolid`
+ * still carries the pre-selection solid on `wp.baseShape` — deliberately, not
+ * because the chain is missing. Backfilling `baseSolid` onto a parent-walk is a
+ * separate, independently-verifiable change: `faces('>Z')` must recover the box
+ * via `parent` instead of `baseShape`, which is exactly what P3-3's 33-regression
+ * fix proved is subtle (stale `baseShape`, index selectors, `eachpoint` base).
+ * Until that batch, this helper returns `baseShape` when narrowing happened,
+ * else the stack head. For an un-narrowed workplane it is IDENTITY
+ * (`baseShape` is unset ⇒ `wp.shape`), so every call site that reads a base
+ * solid keeps its exact behaviour on the common path.
  *
  * @param wp - Workplane
  * @returns the base solid, or null when there is none
@@ -4223,9 +4256,13 @@ export async function eachpoint(
   }
   const itemHandle = brepOf(asBrepShape(itemShape)) as unknown as BrepHandle
   const shape = wp.shape ? asBrepShape(wp.shape) : null
-  const shapeHandle = shape ? (brepOf(shape) as unknown as BrepHandle) : null
   type Pt = [number, number, number]
   let locs: Pt[] = []
+  // P3-4 §8.3: the legacy single-marker (`vertexSel` / `faceSel`) fallback
+  // branches were deleted here. `faces()`/`edges()`/`vertices()` now always
+  // push the selection AND record it in `selChain`, and every site that clears a
+  // marker clears `selChain` with it — so those branches were unreachable. The
+  // narrow case is handled by this branch over `wp.objects`.
   if (wp.selChain && wp.selChain.length > 0 && wp.objects.length > 0) {
     // P3-3: the narrowing chain has ALREADY been pushed onto the stack by
     // `faces`/`edges`/`vertices` (eager push). Place at the centre of EACH stack
@@ -4239,22 +4276,6 @@ export async function eachpoint(
       const h = brepOf(obj)
       if (h === undefined) continue
       const bb = bbox(h as unknown)
-      locs.push([(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2])
-    }
-  } else if (wp.vertexSel !== null && shapeHandle) {
-    const kernelAny = kernel as unknown as { getSubShapes: (h: BrepHandle, t: string) => BrepHandle[] }
-    for (const v of kernelAny.getSubShapes(shapeHandle, 'vertex')) {
-      const bb = (getKernel() as unknown as { getBoundingBox: (h: BrepHandle) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } }).getBoundingBox(v)
-      locs.push([(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2])
-    }
-  } else if (wp.faceSel !== null && shapeHandle) {
-    const kernelAny = kernel as unknown as { getSubShapes: (h: BrepHandle, t: string) => BrepHandle[] }
-    for (const f of kernelAny.getSubShapes(shapeHandle, 'face')) {
-      // GOTCHA (same as the P0-3 vertex note): kernel getCenterOfMass returns
-      // (0,0,0) for FACE handles — probe-verified on a box's six faces — so
-      // the placement point is the bbox centre (identical to COM for planar
-      // faces; a curved face with asymmetric mass would deviate).
-      const bb = (getKernel() as unknown as { getBoundingBox: (h: BrepHandle) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number } }).getBoundingBox(f)
       locs.push([(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2])
     }
   } else if ((wp.pts ?? []).length > 0) {
@@ -5312,6 +5333,38 @@ export function item(wp: Workplane, i: number): Workplane {
 }
 
 /**
+ * end — return the n-th ancestor of this workplane (upstream `Workplane.end`,
+ * `cq.py:669`).
+ *
+ * Walks the `parent` chain `clone()` maintains (one link per clone — see the
+ * `parent` field's JSDoc). `n` counts PARENT LINKS, not "previous public op":
+ * upstream's composite ops (`cboreHole` = `hole().cbore()`, `text`, …) insert
+ * intermediate links too, and faijs's multi-clone ops do the same.
+ *
+ * Frozen against CadQuery 2.8.0 (`p3-4-end-split-probe.py`):
+ *   - `Workplane().box(1,1,1).end().objects.length == 0`   — back to the empty root
+ *   - `….box(2,2,1).end(2).objects.length == 0`            — two links up = the root
+ *   - `….faces('>Z').end().objects.length == 1`            — the pre-selection box
+ *   - `end(n)` past the root throws `ValueError` upstream ⇒ throws here
+ *
+ * @param wp - Workplane to walk back from
+ * @param n - number of ancestors to climb (default 1, matching upstream)
+ * @returns the n-th ancestor workplane
+ * @throws when the chain runs out before `n` links (upstream raises `ValueError`)
+ */
+export function end(wp: Workplane, n = 1): Workplane {
+  let rv = wp
+  for (let i = 0; i < n; i++) {
+    const p = rv.parent
+    if (!p) {
+      throw new Error('[cq-compat] end: cannot end the chain — no parents left')
+    }
+    rv = p
+  }
+  return rv
+}
+
+/**
  * findSolid — the solid(s) of this workplane, gathered into ONE compound
  * (upstream `.findSolid()`, `cq.py:721` → `_findType((Solid,), …)`).
  *
@@ -5324,10 +5377,14 @@ export function item(wp: Workplane, i: number): Workplane {
  * (two-element stack, `val().ShapeType() == "Solid"`). So the two are strictly
  * different queries and neither can stand in for the other.
  *
- * The search also walks the PARENT chain upstream. faijs's P3-4 introduces
- * that chain; until then there is no parent, so only the current stack is
- * searched. Every current consumer of a base solid reads `wp.shape`, which is
- * the stack head — the same object `_findType` would find.
+ * GOTCHA (documented deviation): upstream's `findSolid` defaults to
+ * `searchParents=True` and climbs the parent chain (`cq.py:721`). faijs's P3-4
+ * parent chain exists (see the `parent` field) but this function searches ONLY
+ * the current stack — it deliberately does not walk parents. Frozen by
+ * `object-stack.test.ts` ("pushing a face does NOT make findSolid() return the
+ * box"): the face stays on the SAME stack, so the box is still found. Callers
+ * that need the pre-selection solid use `baseSolid(wp)` (the `baseShape`
+ * mechanism), not a parent walk.
  *
  * @param wp - Workplane
  * @returns a compound of every solid on the stack
@@ -6018,15 +6075,16 @@ export async function planarCap(
  * filtering is a consumer concern since the halves are returned via tags).
  *
  * L1 splitByPlane (Phase 1 probe A verified, solidCount=2); positive side =
- * the plane-normal side. Halves are fused-kept as a two-solid compound shape
- * (upstream returns a Workplane whose stack holds both halves).
+ * the plane-normal side. Upstream `split` returns a Workplane whose stack holds
+ * the kept half(ves) (`cq.py:258`): `keepTop && keepBottom` pushes BOTH,
+ * otherwise the single kept half.
  * @param wp - Workplane holding the solid to split
  * @param point - a point on the cutting plane, workplane-local 2D or world 3D
  * @param normal - plane normal (world); defaults to the workplane normal
  * @param opts - `{ keepTop?: boolean; keepBottom?: boolean }` (both default
- *   true; a single side returns just that half, both-kept stores the halves
- *   for {@link partAt} — the upstream `.all()` equivalent)
- * @returns Workplane with the split result (both halves) as .shape
+ *   true; a single side returns a one-object stack, both-kept returns a
+ *   two-object stack `[top, bottom]` — pick one with {@link partAt} / `.item(i)`)
+ * @returns Workplane carrying the kept half(ves) on its stack
  */
 export async function split(
   wp: Workplane,
@@ -6046,35 +6104,38 @@ export async function split(
         : wp.origin
   const n = normal ?? wp.normal
   const halves = k.splitByPlane(solid, { x: pW[0], y: pW[1], z: pW[2] }, { x: n[0], y: n[1], z: n[2] })
-  // keepTop/keepBottom select which half survives (upstream split kwargs);
-  // both-keep is the default and stores the two halves for partAt() — the
-  // flat-model stand-in for upstream `.all()` spreading the halves onto the
-  // stack ((lid, bottom) = ...split(keepTop=True, keepBottom=True).all()).
+  // keepTop/keepBottom select which half survives (upstream split kwargs).
+  // Both-kept pushes the two halves onto the stack in (top, bottom) order —
+  // upstream literally `rv = [top, bottom]; return self.newObject(rv)`. Frozen:
+  // `sp.size() == 2`, `sp.solids().size() == 2`, each half vol 4 for a 2³ box
+  // (probe p3-4-end-split-probe.py). The old faijs carrier fused them into one
+  // compound and stashed them in `parts`; that field is gone and `partAt` is
+  // now the `.item(i)` shim over this stack.
   const keepT = opts?.keepTop ?? true
   const keepB = opts?.keepBottom ?? true
   if (!keepT && !keepB) throw new Error('[cq-compat] split: keepTop and keepBottom are both false')
   if (keepT && !keepB) {
-    return clone(wp, { objects: [toShape(halves.positive)], parts: undefined })
+    return clone(wp, { objects: [toShape(halves.positive)] })
   }
   if (!keepT && keepB) {
-    return clone(wp, { objects: [toShape(halves.negative)], parts: undefined })
+    return clone(wp, { objects: [toShape(halves.negative)] })
   }
-  const comp = getKernel().makeCompound([halves.positive, halves.negative] as never)
-  return clone(wp, { objects: [toShape(comp)], parts: [toShape(halves.positive), toShape(halves.negative)] })
+  return clone(wp, { objects: [toShape(halves.positive), toShape(halves.negative)] })
 }
 
 /**
- * partAt — pick the i-th sub-solid kept by the preceding `split` (both halves
- * kept) as a standalone Workplane. Flat-model equivalent of upstream
- * `.all()` destructuring: `(lid, bottom) = wp.split(...).all()`.
- * @param wp - Workplane carrying `parts` (set by split with both halves kept)
- * @param i - part index (0 = top half, 1 = bottom half)
+ * partAt — compat shim for the old flat carrier's `split` halves. Upstream has
+ * no `partAt`: a both-kept `split` leaves TWO objects on the stack and you reach
+ * them with `.item(i)` (or destructure via `.all()`). Now that `split` pushes
+ * both halves directly (P3-4), this simply delegates to {@link item}; it is kept
+ * as a documented compat alias for existing faijs call sites.
+ * @param wp - Workplane (typically a both-kept `split` result)
+ * @param i - stack index (0 = top half, 1 = bottom half)
  * @returns Workplane carrying that half
+ * @throws when `i` is out of range (same guard as {@link item})
  */
 export function partAt(wp: Workplane, i: number): Workplane {
-  const parts = wp.parts ?? []
-  if (i < 0 || i >= parts.length) throw new Error(`[cq-compat] partAt: index ${i} out of range (${parts.length} parts)`)
-  return clone(wp, { objects: stackOf(parts[i]), parts: undefined, faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined, pts: [] })
+  return item(wp, i)
 }
 
 /**
