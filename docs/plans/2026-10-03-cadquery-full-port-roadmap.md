@@ -26,12 +26,12 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 489 ported / 153 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 **B2-3b** 后实读） |
-| **coverage**（上游测试函数级） | **305 = 201 PORTABLE / 41 PORTABLE-WITH-STUB / 55 BLOCKED** | `tests/coverage.json`（2026-10-03 **B0 重算后**实读：`portableNow 201` / `portableWithStub 41` / `blocked 55`） |
-| **镜像文件** | **501** 个 `.fai.js` + **21** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 **B2-3b** 后实测） |
-| **包内单测** | 578 全绿（52 文件） | 2026-10-04 B2-3b 实测 |
+| **manifest**（导出变量级） | **697 = 493 ported / 149 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 **B2-5** 后实读） |
+| **coverage**（上游测试函数级） | **305 = 211 PORTABLE / 41 PORTABLE-WITH-STUB / 45 BLOCKED** | `tests/coverage.json`（2026-10-04 **B2-5** 后重算实读：`portableNow 211` / `portableWithStub 41` / `blocked 45`） |
+| **镜像文件** | **505** 个 `.fai.js` + **21** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 **B2-5** 后实测） |
+| **包内单测** | 585 全绿（53 文件） | 2026-10-04 B2-5 实测 |
 
-⚠ **两个分母不同源，不可换算**：manifest 的 452/198/47 是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
+⚠ **两个分母不同源，不可换算**：manifest 的 493/149/55（合计 697）是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
 
 **coverage 已于 2026-10-03（B0-1/B0-4）重算并入库**：199/41/57 → **201/41/55**，只翻 3 条，逐条如下 ——
 
@@ -47,20 +47,23 @@
 
 ⚠ **旧文档的一处硬错误（勿再传播）**：它写「镜像文件 551 个 `.fai.js`」。**实测 464**（`find tests -name "*.fai.js" | wc -l`）。凡引用镜像计数以本文 §1 为准。
 
-**manifest 实测 blockedBy 分布（153 条，51 个 distinct，2026-10-04 **B2-3b 落地后**从 `manifest.json` 聚合）**：
+**manifest 实测 blockedBy 分布（149 条，50 个 distinct，2026-10-04 **B2-5 落地后**从 `manifest.json` 聚合）**：
 
 ```
 14 op:assembly-solve      11 getfixturevalue         9 kernel:fillet-chain-reapply
- 7 plane                   5 op:fuzzy-bool            5 kernel:sweep-multisection-pipe  5 interpPlate
- 5 remove                  5 raises                   4 op:extrude-until-face   4 kernel:boolean-near-coincident-bspline
- 4 op:prism-from-face      4 op:shape.offset          4 op:assembly-subshape-import  4 imprint
- 3 op:cutBlind.until-face  3 narrow:sphere-angles     3 kernel:sweep-aux-spine-mode  3 op:addCavity
- 3 filter                  3 op:text-spine            3 op:history-subshape     3 export
- 3 parametrize             2 op:shell                 2 parametricCurve         2 kernel:shell-outward-opening
- 2 project                 2 importBin                2 history:images           2 kernel:hollow-intersection-join
- 2 kernel:draft-existing-solid 2 __dir__
+ 7 plane                   5 interpPlate              5 kernel:sweep-multisection-pipe  5 op:fuzzy-bool
+ 5 raises                  5 remove                   4 imprint                        4 kernel:boolean-near-coincident-bspline
+ 4 op:assembly-subshape-import  4 op:extrude-until-face  4 op:prism-from-face            3 export
+ 3 filter                  3 kernel:sweep-aux-spine-mode  3 narrow:sphere-angles        3 op:addCavity
+ 3 op:cutBlind.until-face  3 op:history-subshape      3 op:text-spine                  3 parametrize
+ 2 __dir__                 2 history:images           2 importBin                      2 kernel:draft-existing-solid
+ 2 kernel:hollow-intersection-join  2 kernel:shell-outward-opening  2 op:shell           2 parametricCurve
+ 2 project
 …（其余 18 项各 1 条）
 ```
+
+> **B2-5 对分布的影响（2026-10-04）**：`op:shape.offset`(4) 标签 **整个退役**（退役后 0 条）—— free-function `offset(s, t, {cap,both,tol})` 已实现（`workplane.ts`，见 B2-5）。4 条 `test_offset__r{1,2,3,4}` 镜像全 **PASS**（volΔ ≤2.22e-14、comΔ ≤8.24e-18、bboxΔ 0、布尔 0/0，逐位一致）。顺带补 **free-function `plane(w, l)`**（`plane()` 无参的 ±1e60「无限平面」重载**仍不支持、显式报错**）—— 它是 r1 镜像的前置（r1 = `cq.plane(1,1)` 后 `offset`）。**注意**：`plane` 标签（7 条）**未翻转**，因为这 7 条的 `plane` 只是「最后一个未实现 op」，每条**另需** `replace`(4) / `history`(2) / assembly 命名(1)（见 §2.2 G-C3/G-C18/G-D 系列）。
+> ⇒ manifest 489/153/55 → **493/149/55**（ported +4、blocked −4），distinct 51 → **50**，blocked 总数 153 → **149**。coverage 函数级同步重算：**201/41/55 → 211/41/45**（+10 PORTABLE，见 §1 表；本次重算一次性消化 B1-13/B2-1/B2-2/B2-3b/B2-5 期间累积的未同步 —— 这几批当时未重跑 `analyze-coverage.py`）。
 
 > **B2-3b 对分布的影响（2026-10-04）**：`op:sweep.pipeshell`(4) 与 `op:sweep.multisection`(3) 两个标签 **整个退役**（退役后两者各 0 条，`op:sweep-*` 只剩 `op:sweep-sketch-sections`(1)，属 testSketch）。分三路：
 > ① **r6 / r8 真解锁**（blocked → ported）：二者原被判「需要 pipeShell 路径」，实测**单轮廓路径已能精确复现**——r8（无孔 face）= 线级 `sweep(rect, spline)`（volΔ 3e-12、topo f6/e12/v8）；r6（带孔 face）= 上游 `Solid.sweep(face, path)` 的展开 `sweep(outerWire) cut sweep(innerWire)`（`shapes.py:4638-4655`；volΔ 2e-12、topo f7/e15/v10）。
@@ -147,13 +150,13 @@
 | **G-C3** | `remove`（移除子形） | **5** | 2 |
 | **G-C4** | `project`（边→面投影） | **2** | 3 |
 | **G-C5** | `draft`（既有实体拔模，free function） | **2** | 3 |
-| **G-C6** | free-function `plane()` 构造器 | **6** | 2 |
+| **G-C6** | free-function `plane()` 构造器 —— **2026-10-04 B2-5 部分落地**：`plane(w, l)` 已实现（`workplane.ts`，= `face(rect(Workplane('XY'), w, l))`）；`plane()` **无参**的 ±1e60「无限平面」重载**明确不支持、显式报错**（内核无对应原语）。⚠ **manifest `plane` 标签 7 条一条未翻转**——该标签只是「最后一个未实现 op」，每条各自**另需** `replace`(4)/`history`(2)/assembly 命名(1)（r1 镜像已用上 `plane(w,l)`） | **6** | 2 |
 | **G-C7** | `prism` tilt（非法向挤出，1）+ from/to-face（4，见 G-F11） | **5** | 3 |
 | **G-C8** | `solid(...)` 内 void 缝合（4）+ `Solid.addCavity`（3） | **7→3** | 3 ✅ B2-2（solid 4 已解，addCavity 3 剩） |
 | **G-C9** | `sweep` pipeshell / multisection / ~~aux-spine~~ —— **2026-10-04 B2-3b 全量定性**：r6/r8 单轮廓已解锁（**portable**）；r5/r7 + special/arc/normalSweep 共 5 条是**多截面 pipe**（内核无多 `Add` 绑定）→ 移 B6-11；aux-spine 移 B6-10（内核 Auxiliary 模式 ≠ CadQuery `SetMode(aux, CV=True)`） | **0**（+3+5 内核） | 3 |
 | **G-C10** ✅ **已闭（B1-6, 2026-10-03）** | ~~`extrude` 的 `both=`（2）/ `combine="cut"`（1）/ `combine="s"`（2）~~ | ~~**5**~~ **0** | 2 |
 | **G-C11** | `extrude("next"/"last")` until-face（4）+ `cutBlind.until-face`（3）+ 索引选择器 `faces(">X[1]")` | **7** | 3 |
-| **G-C12** | `offset2D` multi-region（1）+ `shape.offset`（4） | **5** | 3 |
+| **G-C12** | ~~`shape.offset`（4）~~ ✅ **已关 2026-10-04（B2-5）**；剩 `offset2D` multi-region（1） | **5→1** | 3 |
 | **G-C13** | `parametricCurve`（2）+ `parametricSurface`（1） | **3** | 3 |
 | **G-C14** | ~~`cutEach`~~ ✅ **已关 2026-10-03（B1-8）** | **3→0** | 2 |
 | **G-C15** | `hollow`（closed / 带移除面） | **3** | 3 |
@@ -302,7 +305,7 @@
 | **B2-2** | **G-C8 solid voids** ✅ | 7→3 | 已落地 2026-10-04：`solid()` + `solidWithInner()` 实现 free-function solid（sew + boolean cut 内 void），12 变量镜像全 PASS；剩 3 条 `addCavity`（B4） |
 | **B2-3** | **G-C9 sweep 族**（pipeshell 4 / multisection 3 / aux-spine 3） —— ✅ **2026-10-04 B2-3b 收官：本仓可做项已清零**。① **r6 / r8 解锁**（单轮廓路径已够：r8 = `sweep(rect, spline)`；r6 = 上游 `Solid.sweep(face)` 的展开 `sweep(outer) cut sweep(inner)`，均 1e-12 级相符）；② **r5 / r7 / special / arc / normalSweep（5 条）改判内核依赖 B6-11**（多截面 pipe 无多 `Add` 绑定，实测 loft/单轮廓/per-section 三种近似全不符）；③ **circletorectSweep 按近重合布尔约定改判**（cand 几何精确到 1.13e-5，comparator 布尔退化）；④ aux-spine 已于 B2-3a 改判 B6-10（`sweep(auxSpine=…)` 现显式报错，`normal=` 已实现并单测锁定） | 10 → **0** | — |
 | **B2-4** | **G-C2 interpPlate** | 5 | 插值板（点云 → 曲面片） |
-| **B2-5** | **G-C12 offset**（offset2D multi-region 1 / shape.offset 4） | 5 | `MakeOffset2D` 多区域分裂语义 + `BRepOffset_MakeOffset` |
+| **B2-5** ✅ **已完成 2026-10-04** | **G-C12 offset**（~~offset2D multi-region 1~~ / ~~shape.offset 4~~）—— free-function `offset(s, t, {cap, both, tol})` 已实现（`workplane.ts`）：对栈上每个 **Face/Shell** 调内核 `thicken(h, t, tol)`；`opts.both` = `fuse(thicken(+t), thicken(−t))`；多元素包 `makeCompound`；`cap:false` 与「非 Face/Shell」显式报错。**关键实证（推翻 §7 旧记）**：内核 `thicken` 与上游 `Shape.offset(t)` **逐位等价** —— `plane(1,1)` vol 1 / `box.shells()` −0.25 → vol 0.875(f12) / `both` → vol 2(f10) / `moved` compound → vol 4(f20)，四条 ref 全复现。顺带补 free **`plane(w,l)`**（G-C6 部分落地，r1 的前置）。4 条镜像 `test_offset__r{1,2,3,4}` 全 **PASS**（volΔ ≤2.22e-14、comΔ ≤8.24e-18、bboxΔ 0、布尔 0/0）+ 7 单测 + 2 变异全绿。**剩 `offset2D` multi-region 1 条**（需 `MakeOffset2D` 多区域分裂语义，本批未做） | 5→**1** | ~~`MakeOffset2D` 多区域分裂语义 + `BRepOffset_MakeOffset`~~ **实际只需内核 `thicken`**（offset2D 残条才需 `MakeOffset2D`） |
 | **B2-6** | **G-C11 until-face 族**（extrude 4 / cutBlind 3 / 索引选择器） | 7 | `extrude("next"/"last")` + `faces(">X[1]")` 索引；**G-G1 的 ref 异常需重新推导** |
 | **B2-7** | **G-C23 shell / pendingWires** | 3 | `shell` 带移除面 + 多轮廓 pendingWires（上游构造 rect 内孔 = 10 面） |
 | **B2-8** | **G-C5 draft + G-C4 project + G-C18 History** | 6 | draft 既有实体 / 边→面投影 / History 子形状反查 |

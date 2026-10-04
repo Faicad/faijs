@@ -2,9 +2,9 @@
   "totalCasesInRefManifest": 305,
   "casesWithStep": 297,
   "casesWithoutStep": 8,
-  "portableNow": 201,
+  "portableNow": 211,
   "portableWithStub": 41,
-  "blocked": 55,
+  "blocked": 45,
   "blockedByTop": [
     [
       "getfixturevalue",
@@ -13,14 +13,6 @@
     [
       "remove",
       5
-    ],
-    [
-      "plane",
-      4
-    ],
-    [
-      "imprint",
-      4
     ],
     [
       "interpPlate",
@@ -63,10 +55,6 @@
       1
     ],
     [
-      "cutEach",
-      1
-    ],
-    [
       "parametricCurve",
       1
     ],
@@ -87,10 +75,6 @@
       1
     ],
     [
-      "solid",
-      1
-    ],
-    [
       "faceOn",
       1
     ],
@@ -105,6 +89,14 @@
     [
       "exportVTKJS",
       1
+    ],
+    [
+      "toJSON",
+      1
+    ],
+    [
+      "exportGLTF",
+      1
     ]
   ],
   "missingOpTop": [
@@ -118,14 +110,6 @@
     ],
     [
       "export",
-      4
-    ],
-    [
-      "plane",
-      4
-    ],
-    [
-      "imprint",
       4
     ],
     [
@@ -161,15 +145,11 @@
       1
     ],
     [
-      "cast",
-      1
-    ],
-    [
       "Shells",
       1
     ],
     [
-      "cutEach",
+      "cast",
       1
     ],
     [
@@ -189,10 +169,6 @@
       1
     ],
     [
-      "solid",
-      1
-    ],
-    [
       "faceOn",
       1
     ],
@@ -207,6 +183,14 @@
     [
       "exportVTKJS",
       1
+    ],
+    [
+      "toJSON",
+      1
+    ],
+    [
+      "exportGLTF",
+      1
     ]
   ],
   "dimensionCases": {
@@ -214,11 +198,11 @@
     "geometry-producing": 276,
     "plumbing": 15
   },
-  "valueBlindSpotCases": 41,
+  "valueBlindSpotCases": 43,
   "valueBlindSpotOpTop": [
     [
       "val",
-      16
+      17
     ],
     [
       "vals",
@@ -230,7 +214,7 @@
     ],
     [
       "Faces",
-      3
+      4
     ],
     [
       "all",
@@ -767,8 +751,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testCutEach": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "cutEach",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "cutEach",
@@ -2852,8 +2836,8 @@
     },
     "tests.test_shapes:::test_replace": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "plane",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "moved",
@@ -3106,8 +3090,8 @@
     },
     "tests.test_free_functions:::test_solid": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "solid",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "moved",
@@ -3254,8 +3238,8 @@
     },
     "tests.test_free_functions:::test_imprint": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "imprint",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "moved",
@@ -3276,8 +3260,8 @@
     },
     "tests.test_free_functions:::test_imprint_error": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "imprint",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "moved",
@@ -3551,8 +3535,8 @@
     },
     "tests.test_free_functions:::test_loft_vertex": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "plane",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "loft",
         "plane",
@@ -3610,8 +3594,8 @@
     },
     "tests.test_free_functions:::test_history_bool": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "imprint",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "cut",
@@ -3670,8 +3654,8 @@
     },
     "tests.test_free_functions:::test_history_offset": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "plane",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "plane",
         "offset",
@@ -5003,8 +4987,8 @@
     },
     "tests.test_assembly:::test_imprinting": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "imprint",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "imprint"
       ],
@@ -5150,8 +5134,8 @@
     },
     "tests.test_assembly:::test_name_geometries": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "plane",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "add",
         "addSubshape",
@@ -5441,6 +5425,23 @@
       ],
       "fellBack": false,
       "unverifiedValueOps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCutEach",
+      "ops": [
+        "box",
+        "cutEach",
+        "located"
+      ],
+      "vars": [
+        "w",
+        "w0",
+        "c"
+      ],
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "val"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCutThroughAll",
@@ -6933,6 +6934,23 @@
       "unverifiedValueOps": []
     },
     {
+      "case": "tests.test_shapes:::test_replace",
+      "ops": [
+        "box",
+        "moved",
+        "plane",
+        "replace"
+      ],
+      "vars": [
+        "b",
+        "f_top_split",
+        "br1",
+        "br2"
+      ],
+      "fellBack": false,
+      "unverifiedValueOps": []
+    },
+    {
       "case": "tests.test_shapes:::test_single_ent_selector",
       "ops": [
         "moved",
@@ -7106,6 +7124,34 @@
       ]
     },
     {
+      "case": "tests.test_free_functions:::test_solid",
+      "ops": [
+        "box",
+        "moved",
+        "sphere",
+        "solid",
+        "shells"
+      ],
+      "vars": [
+        "b",
+        "b_large",
+        "b_small",
+        "sphere1",
+        "sphere2",
+        "s1",
+        "s2",
+        "b1",
+        "s3",
+        "s4",
+        "s5",
+        "s6"
+      ],
+      "fellBack": false,
+      "unverifiedValueOps": [
+        "Faces"
+      ]
+    },
+    {
       "case": "tests.test_free_functions:::test_box",
       "ops": [
         "box"
@@ -7191,6 +7237,41 @@
         "b1",
         "b2",
         "b3"
+      ],
+      "fellBack": false,
+      "unverifiedValueOps": []
+    },
+    {
+      "case": "tests.test_free_functions:::test_imprint",
+      "ops": [
+        "box",
+        "moved",
+        "imprint"
+      ],
+      "vars": [
+        "b1",
+        "b2",
+        "b3",
+        "res",
+        "res_glue_full",
+        "res_glue_partial",
+        "b1_imp",
+        "b3_imp"
+      ],
+      "fellBack": false,
+      "unverifiedValueOps": []
+    },
+    {
+      "case": "tests.test_free_functions:::test_imprint_error",
+      "ops": [
+        "box",
+        "moved",
+        "imprint"
+      ],
+      "vars": [
+        "b1",
+        "b2",
+        "_"
       ],
       "fellBack": false,
       "unverifiedValueOps": []
@@ -7288,12 +7369,43 @@
       "unverifiedValueOps": []
     },
     {
+      "case": "tests.test_free_functions:::test_loft_vertex",
+      "ops": [
+        "loft",
+        "plane",
+        "vertex"
+      ],
+      "vars": [
+        "r2",
+        "r3",
+        "r4"
+      ],
+      "fellBack": false,
+      "unverifiedValueOps": []
+    },
+    {
       "case": "tests.test_free_functions:::test_check",
       "ops": [
         "box"
       ],
       "vars": [
         "s1"
+      ],
+      "fellBack": false,
+      "unverifiedValueOps": []
+    },
+    {
+      "case": "tests.test_free_functions:::test_history_bool",
+      "ops": [
+        "box",
+        "cut",
+        "imprint"
+      ],
+      "vars": [
+        "b1",
+        "b2",
+        "res",
+        "res2"
       ],
       "fellBack": false,
       "unverifiedValueOps": []
@@ -7332,6 +7444,19 @@
         "side"
       ],
       "fellBack": false,
+      "unverifiedValueOps": []
+    },
+    {
+      "case": "tests.test_free_functions:::test_history_offset",
+      "ops": [
+        "plane",
+        "offset",
+        "size"
+      ],
+      "vars": [
+        "sides"
+      ],
+      "fellBack": true,
       "unverifiedValueOps": []
     },
     {
@@ -7930,6 +8055,20 @@
       "unverifiedValueOps": []
     },
     {
+      "case": "tests.test_assembly:::test_imprinting",
+      "ops": [
+        "imprint"
+      ],
+      "vars": [
+        "touching_assy",
+        "disjoint_assy",
+        "r",
+        "s"
+      ],
+      "fellBack": false,
+      "unverifiedValueOps": []
+    },
+    {
       "case": "tests.test_assembly:::test_order_of_transform",
       "ops": [
         "sphere"
@@ -7973,6 +8112,22 @@
       "ops": [
         "add",
         "box"
+      ],
+      "vars": [
+        "assy"
+      ],
+      "fellBack": true,
+      "unverifiedValueOps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_name_geometries",
+      "ops": [
+        "add",
+        "addSubshape",
+        "box",
+        "save",
+        "plane",
+        "segment"
       ],
       "vars": [
         "assy"
@@ -8804,14 +8959,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testCutEach",
-      "blockedBy": "cutEach",
-      "missing": [
-        "cutEach"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testNoClean",
       "blockedBy": "interpPlate",
       "missing": [
@@ -8882,14 +9029,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_shapes:::test_replace",
-      "blockedBy": "plane",
-      "missing": [
-        "plane"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_shapes:::test_special",
       "blockedBy": "filter",
       "missing": [
@@ -8906,34 +9045,10 @@
       "deps": []
     },
     {
-      "case": "tests.test_free_functions:::test_solid",
-      "blockedBy": "solid",
-      "missing": [
-        "solid"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_free_functions:::test_faceOn",
       "blockedBy": "faceOn",
       "missing": [
         "faceOn"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_imprint",
-      "blockedBy": "imprint",
-      "missing": [
-        "imprint"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_imprint_error",
-      "blockedBy": "imprint",
-      "missing": [
-        "imprint"
       ],
       "deps": []
     },
@@ -8978,14 +9093,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_free_functions:::test_loft_vertex",
-      "blockedBy": "plane",
-      "missing": [
-        "plane"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_free_functions:::test_project",
       "blockedBy": "project",
       "missing": [
@@ -8998,22 +9105,6 @@
       "blockedBy": "importBrep",
       "missing": [
         "importBrep"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_history_bool",
-      "blockedBy": "imprint",
-      "missing": [
-        "imprint"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_history_offset",
-      "blockedBy": "plane",
-      "missing": [
-        "plane"
       ],
       "deps": []
     },
@@ -9147,14 +9238,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_assembly:::test_imprinting",
-      "blockedBy": "imprint",
-      "missing": [
-        "imprint"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_assembly:::test_assembly_remove_no_name_match",
       "blockedBy": "remove",
       "missing": [
@@ -9191,14 +9274,6 @@
       "blockedBy": "__dir__",
       "missing": [
         "__dir__"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_assembly:::test_name_geometries",
-      "blockedBy": "plane",
-      "missing": [
-        "plane"
       ],
       "deps": []
     }

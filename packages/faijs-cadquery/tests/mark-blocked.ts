@@ -74,14 +74,17 @@ const BY_KEY: Record<string, string> = {
   // -> face, so face-compound parts export. The four former
   // 'step-export:faces-compound' entries (test_single_ent_selector__fs,
   // test_constructors__c1/c2, test_extrude_face__c) are mirrored and passing.
-  // Shape-domain offset: brepjs-compat only projects makeOffset(face, offset) —
-  // no `face(wire)` construction, no shell/thick-solid inward offset
-  // (offset(shell, -0.25) -> hollow solid, ref vol 0.875), no both=/moved-
-  // compound semantics. All four test_offset vars need the full projection.
-  'tests.test_free_functions:::test_offset__r1': 'op:shape.offset',
-  'tests.test_free_functions:::test_offset__r2': 'op:shape.offset',
-  'tests.test_free_functions:::test_offset__r3': 'op:shape.offset',
-  'tests.test_free_functions:::test_offset__r4': 'op:shape.offset',
+  // Shape-domain offset — CLOSED 2026-10-04 (roadmap B2-5). The free functions
+  //   `plane(w,l)` (`shapes.py:6381`) and `offset(s,t,{cap,both})`
+  //   (`shapes.py:6969`) are now implemented in `src/workplane.ts`; all four
+  //   test_offset vars mirror and PASS (vol/bbox/com deltas <= 2e-14).
+  //   Kernel mapping: offset == `OcctKernel.thicken(shape,t,tol)` (documented as
+  //   "thicken a face/shell into a solid"), probe-verified against the 2.8.0
+  //   capture for the face (vol 1), shell-inward (vol 0.875) and both=True
+  //   (vol 2, fuse of +t/-t) shapes. See the `plane` / `offset` JSDoc.
+  //   The four BY_KEY entries were REMOVED so gen-manifest re-derives them as
+  //   `ported` (it preserves any prior blocked+manual:true annotation).
+  //   Do NOT re-add.
   // ---------------------------------------------------------------------------
   // Phase 2 stage K (batch 2) — verified unreproducible, 2026-09-10
   // ---------------------------------------------------------------------------

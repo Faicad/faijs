@@ -37,7 +37,7 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 // occt-wasm 的 OcctKernel 符号钉进 getSubShapes 闭包。本模块直接调
 // kernel.getSubShapes 会抛 "Cannot read properties of undefined (reading
 // 'OcctKernel')"（GOTCHA：见下方 selectKindHandles 注释），故必须复用本路径。
-import { solids as scSolids, wiresOf as scWiresOf, shells as scShells, compounds as scCompounds, makeCompound } from './shape-class'
+import { solids as scSolids, wiresOf as scWiresOf, shells as scShells, compounds as scCompounds, facesOf as scFacesOf, shapeTypeOf as scShapeTypeOf, makeCompound } from './shape-class'
 import type { CqShape } from './shape-class'
 // cq-compat owns its CadQuery-compatible text geometry (no faijs-extra dep):
 // glyph outlines → OCCT via core `textBlueprints`, aligned per CadQuery.
@@ -5286,6 +5286,30 @@ export async function face(wp: Workplane): Promise<Workplane> {
 }
 
 /**
+ * plane — upstream module-level `plane(w, l)` free function
+ * (cadquery 2.8.0 `occ_impl/shapes.py:6381`): a finite planar Face in the XY
+ * plane, centred on the origin (`BRepBuilderAPI_MakeFace(gp_Pln(O,+Z), -w/2, w/2,
+ * -l/2, l/2)`). Equivalent to `rect(w, l)` on a fresh XY workplane, materialised
+ * to a face — the shape `offset()`/`extrude()` consume.
+ *
+ * Upstream's no-argument overload (`plane()`, `shapes.py:6394`) builds a crude
+ * "infinite" face (±1e60) that OCCT does not support everywhere; no parity case
+ * needs it, so it fails loudly instead of emitting a fabricated extent.
+ *
+ * @param w - face width along X
+ * @param l - face height along Y
+ * @returns Promise<Workplane> whose shape is the face
+ */
+export async function plane(w?: number, l?: number): Promise<Workplane> {
+  if (w === undefined || l === undefined) {
+    throw new Error(
+      '[cq-compat] plane: plane() with no size (the ±1e60 "infinite" plane overload) is not supported',
+    )
+  }
+  return face(rect(Workplane('XY'), w, l))
+}
+
+/**
  * vertex — upstream module-level `vertex(x, y, z)` free function: a single
  * point shape. Used as a degenerate loft section (`loft(face, vertex(0,0,1))`)
  * and inside compounds.
@@ -5517,6 +5541,105 @@ export async function shell(wp: Workplane, thickness: number): Promise<Workplane
     shape = await cutShapes(outer, baseSolid(wp)!)
   }
   return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
+}
+
+/**
+ * offset — upstream module-level `offset(s, t, cap=True, both=False, tol=1e-6)`
+ * free function (cadquery 2.8.0 `occ_impl/shapes.py:6969`): offset or thicken
+ * FACES or SHELLS into a solid.
+ *
+ * Input contract is upstream `_get(s, ("Face","Shell"))` (`shapes.py:5065`): the
+ * stack object must be a Face or a Shell, or a Compound whose direct children are
+ * all Faces/Shells. Anything else raises — including a Solid, which upstream also
+ * rejects (`ShapeType` "Solid" is not in the requested tuple).
+ *
+ * The kernel call is `OcctKernel.thicken(shape, t, tol)` (documented as "thicken
+ * a face/shell into a solid (or grow a solid uniformly)"). Probe-verified against
+ * the captured CadQuery 2.8.0 ground truth for all four `test_offset` variables —
+ * volume, face count and bbox are exact in every case:
+ *   offset(plane(1,1), 1)          -> 1x1x1 solid, bb z[0,1]      (vol 1)
+ *   offset(box(1,1,1).shells(),-.25) -> 12-face hollow            (vol 0.875)
+ *   offset(plane(1,1), 1, both=True) -> fuse(+t,-t), bb z[-1,1]   (vol 2, 10 faces)
+ *
+ * `both=True` is the fuse of the +t and -t offsets (upstream `shapes.py:7009-7023`);
+ * upstream's `cap` flag has no kernel counterpart, so `cap=false` fails loudly
+ * rather than emitting an approximation.
+ *
+ * @param wp - Workplane whose stack object is a Face or a Shell
+ * @param t - offset distance (mm; the sign follows the face normal)
+ * @param opts - { cap?: boolean; both?: boolean; tol?: number }
+ * @returns Promise<Workplane> whose shape is the offset solid (or a Compound when
+ *   the input expanded to several faces/shells — upstream `_compound_or_shape`)
+ */
+export async function offset(
+  wp: Workplane,
+  t: number,
+  opts?: { cap?: boolean; both?: boolean; tol?: number },
+): Promise<Workplane> {
+  if (opts?.cap === false) {
+    throw new Error(
+      '[cq-compat] offset: cap=False is not supported (the kernel thicken primitive has no cap flag)',
+    )
+  }
+  if (wp.objects.length === 0) throw new Error('[cq-compat] offset: empty stack')
+  const tol = opts?.tol ?? 1e-6
+  const kernel = getKernel() as unknown as OcctKernel
+
+  const els: ShapeHandle[] = []
+  for (const obj of wp.objects) {
+    const h = brepOf(obj) as unknown as ShapeHandle | undefined
+    if (h === undefined) throw new Error('[cq-compat] offset: stack object is not BREP')
+    els.push(...faceOrShellHandles(h))
+  }
+
+  const results: Shape[] = []
+  for (const h of els) {
+    if (opts?.both) {
+      results.push(fromHandle(kernel.fuse(kernel.thicken(h, t, tol), kernel.thicken(h, -t, tol))))
+    } else {
+      results.push(fromHandle(kernel.thicken(h, t, tol)))
+    }
+  }
+
+  const shape = results.length === 1 ? results[0] : makeCompoundShape(results)
+  return clone(wp, { objects: [shape], faceSel: null, edgeSel: null, vertexSel: null, selChain: undefined })
+}
+
+/**
+ * Upstream `_get(s, ("Face","Shell"))` (`shapes.py:5065`): a Face/Shell yields
+ * itself; a Compound yields its DIRECT children, each of which must be a Face or
+ * a Shell (a Solid/Wire child makes upstream raise); anything else raises.
+ *
+ * faijs has no "direct children" accessor, and the recursion depth is exactly 1
+ * for every input upstream accepts — so the child set is rebuilt as
+ * `facesOf + shells`, guarded by a solid/wire/compound presence check that
+ * mirrors the upstream `ValueError` instead of silently descending.
+ */
+function faceOrShellHandles(h: ShapeHandle): ShapeHandle[] {
+  const t = scShapeTypeOf(h)
+  if (t === 'face' || t === 'shell') return [h]
+  if (t === 'compound') {
+    // A Solid child makes upstream raise (ShapeType "Solid" is not in the
+    // requested tuple). Wires are NOT checked: `getSubShapes(c,'wire')` descends
+    // into the children, so a compound of Faces legitimately reports the faces'
+    // boundary wires — only the solid case is a faithful "foreign child" signal.
+    let solids = 0
+    try {
+      solids = scSolids(h).length
+    } catch {
+      /* no nested solid */
+    }
+    if (solids > 0) {
+      throw new Error(
+        '[cq-compat] offset: compound child of unsupported type (required Face/Shell)',
+      )
+    }
+    return [
+      ...scFacesOf(h).map((f) => (f as CqShape).handle as ShapeHandle),
+      ...scShells(h).map((s) => (s as CqShape).handle as ShapeHandle),
+    ]
+  }
+  throw new Error(`[cq-compat] offset: required Face/Shell, encountered ${t}`)
 }
 
 /**

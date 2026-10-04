@@ -2463,28 +2463,24 @@
     "blockedBy": null
   },
   "tests.test_free_functions:::test_offset__r1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "op:shape.offset",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_offset__r2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "op:shape.offset",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_offset__r3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "op:shape.offset",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_offset__r4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "op:shape.offset",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_sweep__r3": {
     "status": "ported",

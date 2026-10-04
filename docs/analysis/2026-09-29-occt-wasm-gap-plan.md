@@ -18,7 +18,7 @@
 | `remove`/`replace`（`BRepTools_ReShape`） | 5+4+3 | ❌ 内核只有 `defeature`（语义不同，9-23 实测不得冒充）→ §4 |
 | `interpPlate` | 5 | ❌ 内核无 Plate 构造（OCCT 有 `GeomPlate` 包）→ §5 |
 | `narrow:sphere-angles` / 高椭圆 / chamfer-asym | 3+1+1 | ❌ 内核参数限制 → §6 |
-| `op:shape.offset`（3D 实体偏移） | 4 | ⚠️ 内核有 `thicken`/`shell`，与 CQ `Shape.offset` 语义差需逐条核对 → §7 |
+| ~~`op:shape.offset`（3D 实体偏移）~~ | ~~4~~ | ✅ **已关闭（2026-10-04 B2-5，faijs 侧）**：实测内核 `thicken` 与 CQ `Shape.offset(t)` **逐位等价**（原「9-22 实测语义不同」的记法**被一次性捕获推翻**），faijs 已实现 free-function `offset` → §7 |
 | `parametricCurve`/`parametricSurface`、`eachpoint`/`map`/`filter` | 4+~10 | C 层（解析器无 lambda）→ **非内核问题**，不属 occt-wasm 修改范围 |
 | `getfixturevalue`/`images`/`raises`/`finalize` | 11+8+6+6 | pytest/非几何/helper 语义 → **永久 block，非内核问题** |
 
@@ -154,11 +154,20 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 3. **非对称倒角**：`BRepFilletAPI_MakeChamfer::Add(dis1, dis2, edge, face)` 双距离重载——绑定 `chamfer2Dist(solid, edges, d1, d2, face)`。~40 行。
 - **验收**：`narrow:sphere-angles`/`narrow:chamfer-asym`/`ellipse-tall-axis` 相关 manifest 条清零。
 
-## 7. 3D 实体偏移 `op:shape.offset`（4 条）
+## 7. 3D 实体偏移 `op:shape.offset`（4 条）—— ✅ **已关闭（2026-10-04 B2-5，faijs 侧，无需改内核）**
 
-**现状**：内核 `thicken(shape, t, tol)` 均匀加厚 face/shell；CQ `Shape.offset(t)` 对 solid 是 `BRepOffset_MakeOffset`（Join=Intersection 内核级别），对 face/shell 产物是 open shell——9-22 实测语义不同。
+**结论（推翻本节原「语义不同」的判断）**：内核 `thicken(shape, t, tol)` 与上游 CQ `Shape.offset(t)` **逐位等价**，原「9-22 实测语义不同」的说法是**凭印象的错误记法**，已由一次性 CadQuery 2.8.0 捕获推翻：
 
-**修改方案**：与 §3 同源（同一 `BRepOffset_MakeOffset` 上下文），§3 的 `makeThickSolidByJoin(params)` 落地后，`shape.offset` 用 `joinType=Intersection + facesToRemove=[]` 即可复用同一入口。**不单独立项**。
+| case | ref（CQ 2.8.0 捕获） | faijs `offset`（内核 `thicken`） | Δ |
+|---|---|---|---|
+| `test_offset__r1`（`plane(1,1)`，t=1） | Solid vol 1，f6，bb z[0,1] | 同 | volΔ ≤2.2e-14 |
+| `test_offset__r2`（`box.shells()`，t=−0.25） | Solid vol 0.875，f12，bb z[−0.5,0.5] | 同 | 同 |
+| `test_offset__r3`（`plane(1,1)`，t=1，`both=True`） | Solid vol 2，f10，bb z[−1,1] | 同 | 同 |
+| `test_offset__r4`（`moved` compound 双面，t=1，`both=True`） | Compound vol 4，f20，bb xy[−0.5,5.5] | 同 | 同 |
+
+**落地**：free-function `offset(s, t, {cap, both, tol})`（`packages/faijs-cadquery/src/workplane.ts`）——逐 Face/Shell 调 `kernel.thicken`；`both` = `fuse(thicken(+t), thicken(−t))`；`cap:false` 显式报错（内核 `thicken` 无 cap 标志）；非 Face/Shell 显式报错。**`op:shape.offset` 标签 4 条全退役**，4 条镜像全 PASS。
+
+> **不属内核范围的残条**：`op:offset2D-multi-region`（1 条，`test_offset2D`）仍 blocked —— 它需要 `MakeOffset2D` 的**多区域分裂**语义（`Plane` 平面内偏移，非 3D 加厚），与本节无关；另 `test_offset2D` 还用到 `plane()` 无参重载（faijs 显式不支持）。
 
 ---
 
@@ -174,7 +183,7 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 
 1. §4 reshapeRemove/Replace（1 人日，解锁 remove 5 + replace 相关条目，API 简单）；
 2. §6.1 球角（0.5 人日，narrow:sphere-angles 3 条）；
-3. §3 makeThickSolidByJoin（1–2 人日，解锁 shell-outward-opening 2 + shell-intersection-join 1 + hollow 精度 2 + op:shape.offset 4 ≈ 9 条，含 §7 复用）；
+3. §3 makeThickSolidByJoin（1–2 人日，解锁 shell-outward-opening 2 + shell-intersection-join 1 + hollow 精度 2 ≈ 5 条；~~op:shape.offset 4~~ 已于 2026-10-04 B2-5 在 faijs 侧用 `thicken` 关闭，不再计入内核工作量）；
 4. §6.2 高椭圆（ellipse-tall-axis 1）/ §6.3 双距离倒角（chamfer-asym 1）（合计 ~1 人日）；
 5. §2b makePipeShell 多截面 `Add`（~30 行，解锁 `kernel:sweep-multisection-pipe` 5 条；API 简单、收益/成本比高）；
 6. §2 aux-spine 绑定验证（0.5 人日试探；2026-10-04 已实测 `sweepOriented` 的 Auxiliary 模式语义不符，需暴露 `CurvilinearEquivalence`，`kernel:sweep-aux-spine-mode` 3 条）；
