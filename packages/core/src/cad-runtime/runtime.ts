@@ -436,8 +436,8 @@ export class CadRuntime {
    *     built-in cad surface uses this since its ops already carry
    *     `DUAL_OP_META`).
    *   - omitted → inferred: `!hasDualOp(ns)`. Libraries that already declare
-   *     dual-ops (cad, gear-lib-demo's defineOp mocks) auto-lift `false`;
-   *     all-bare-function libraries (sheetmetal) auto-lift `true`.
+   *     dual-ops (cad, the test fixture gear-lib-demo's defineOp mocks) auto-lift `false`;
+   *     all-bare-function libraries (sheetmetal, faijs-gears, faijs-fasteners) auto-lift `true`.
    *
    * The engine's built-in L3 surface is registered without `autoLift` by the
    * facade: inferred `false` (all ops carry `DUAL_OP_META`).
