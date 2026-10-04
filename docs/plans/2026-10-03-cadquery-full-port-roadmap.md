@@ -26,10 +26,10 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 470 ported / 172 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 B1-13 后实读） |
+| **manifest**（导出变量级） | **697 = 476 ported / 166 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 B2-1 后实读） |
 | **coverage**（上游测试函数级） | **305 = 201 PORTABLE / 41 PORTABLE-WITH-STUB / 55 BLOCKED** | `tests/coverage.json`（2026-10-03 **B0 重算后**实读：`portableNow 201` / `portableWithStub 41` / `blocked 55`） |
-| **镜像文件** | **480** 个 `.fai.js` + **12** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-03 **B1-3a 后**实测） |
-| **包内单测** | 572 全绿（50 文件） | 2026-10-04 B1-13 实测 |
+| **镜像文件** | **488** 个 `.fai.js` + **12** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 **B2-1 后**实测） |
+| **包内单测** | 575 全绿（51 文件） | 2026-10-04 B2-1 实测 |
 
 ⚠ **两个分母不同源，不可换算**：manifest 的 452/198/47 是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
 
@@ -47,20 +47,20 @@
 
 ⚠ **旧文档的一处硬错误（勿再传播）**：它写「镜像文件 551 个 `.fai.js`」。**实测 464**（`find tests -name "*.fai.js" | wc -l`）。凡引用镜像计数以本文 §1 为准。
 
-**manifest 实测 blockedBy 分布（172 条，53 个 distinct，2026-10-04 **B1-13 落地后**从 `manifest.json` 聚合）**：
+**manifest 实测 blockedBy 分布（166 条，52 个 distinct，2026-10-04 **B2-1 落地后**从 `manifest.json` 聚合）**：
 
 ```
-14 op:assembly-solve      12 imprint                11 getfixturevalue         9 kernel:fillet-chain-reapply
+14 op:assembly-solve       6 imprint                11 getfixturevalue         9 kernel:fillet-chain-reapply
  8 solid                   7 plane                   5 op:fuzzy-bool            5 interpPlate
  5 remove                  5 raises                  4 op:extrude-until-face    4 op:solid-voids
  4 op:prism-from-face      4 op:shape.offset         4 op:sweep.pipeshell       4 op:assembly-subshape-import
  3 op:cutBlind.until-face  3 op:sweep.multisection    3 narrow:sphere-angles     3 op:sweep.aux-spine
  3 kernel:boolean-near-coincident-bspline 3 op:addCavity 3 filter            3 op:text-spine
- 3 op:history-subshape     3 export                  3 parametrize
+ 3 op:history-subshape     3 export                  3 parametrize             2 history:images
  2 op:shell                2 parametricCurve         2 kernel:shell-outward-opening 2 project
  2 importBin               2 kernel:hollow-intersection-join 2 kernel:draft-existing-solid 2 __dir__
- …（其余 16 项各 1 条）
- ```
+…（其余 16 项各 1 条）
+```
 
 > **B1-6 对分布的影响**：关掉 `op:extrude.both`(2) / `op:extrude.combine-s`(2) / `op:extrude.combine-cut`(1) 三个标签 ⇒ distinct 67→64、blocked 总数 198→193。
 
@@ -69,6 +69,8 @@
 > **B1-3a 对分布的影响**：关掉 `op:Solid.makeCone`(1) / `op:CQ`(1) / `op:polyline`(1，**陈旧标签** —— `Workplane.polyline` 早已存在，缺的只是镜像) ⇒ distinct 63→58、blocked 总数 190→185、ported 460→465（新增 `testCone__s` / `testCone__t` / `testIbeam__res` / `testBoundingBox__result` / `testFindSolid__s` 五条镜像）。`op:Workplane.plugin` 已于 2026-10-04 重分类为 **skipped**（out-of-scope，归 §2.3，类 VTK/GLTF）—— 非未来缺口（其底层 `eachpoint` lambda 仍由 G-C25 跟踪）。
 
 > **B1-13 对分布的影响（2026-10-04）**：关掉 `op:plane-toLocalCoords`(2) —— `Plane.toLocalCoords` / `Plane.mirrorInPlane` **早已实现并导出**（P2 落地），缺的只是两个 `.fai.js` 镜像 ⇒ 陈旧标签，同类 B1-3a。补 `TestCadObjects__testPlaneMethods__{local_box,mirror_box}` 两条镜像，`manifest` ported 468→470、blocked 174→172；**coverage 函数级不变**（`testPlaneMethods` 早已 PORTABLE）。两条均 **PASS**（volΔ=0、comΔ=0、topo f6/e12/v8 全中）。
+
+> **B2-1 对分布的影响（2026-10-04）**：free-function `imprint(*shapes)` 已实现（`workplane.ts`，调 `kernel.fuseAll` —— `BRepAlgoAPI_Fuse` 对非重叠实体与 `BOPAlgo_Builder` 等价：共面合并、不删除 cell）。补 6 条镜像（`test_imprint__{b1,b2,b3,res,res_glue_full,res_glue_partial}`），全 **PASS**（volΔ=0、comΔ=0、topo 全中）。`manifest` ported 470→476、blocked 172→166；`imprint` 标签 12→6（剩 4 条 `test_imprinting` assembly 级 + 2 条 `b1_imp`/`b3_imp` 需 `history:images` G-C18）。**关键发现**：ref STEP 的面计数（f12）与 CadQuery `.Faces()`（f11）不一致 —— STEP 导出保留内面，`.Faces()` 只数外面；cand STEP 同样保留内面，所以 topo 对比仍全中。
 
 > **B1-6 对分布的影响**：关掉 `op:extrude.both`(2) / `op:extrude.combine-s`(2) / `op:extrude.combine-cut`(1) 三个标签 ⇒ distinct 67→64、blocked 总数 198→193。
 
@@ -130,7 +132,7 @@
 
 | ID | 缺口 | 影响条数 | 难度 |
 |---|---|---|---|
-| **G-C1** | `imprint`（压印） | **12** | 3 |
+| **G-C1** | `imprint`（压印） | **12→6** | 3 ✅ B2-1 |
 | **G-C2** | `interpPlate`（插值板） | **5** | 3 |
 | **G-C3** | `remove`（移除子形） | **5** | 2 |
 | **G-C4** | `project`（边→面投影） | **2** | 3 |
@@ -285,7 +287,7 @@
 
 | 序 | 项 | 影响 | 动作要点 |
 |---|---|---|---|
-| **B2-1** | **G-C1 imprint** | 12 | 压印：base + tool 保留（`test_history_bool`）；依赖布尔 + 子形状分类 |
+| **B2-1** | **G-C1 imprint** ✅ | 12→6 | 已落地 2026-10-04：`fuseAll` 实现 free-function `imprint`，6 变量镜像全 PASS；剩 4 条 assembly-imprint（B5）+ 2 条 `history:images`（G-C18） |
 | **B2-2** | **G-C8 solid voids / addCavity** | 7 | `solidFromFaces` 加**内面反侧**处理（双 shell 内 void） |
 | **B2-3** | **G-C9 sweep 族**（pipeshell 4 / multisection 3 / aux-spine 3） | 10 | `MakePipeShell` multisection + 辅脊（binormal 旋转） |
 | **B2-4** | **G-C2 interpPlate** | 5 | 插值板（点云 → 曲面片） |

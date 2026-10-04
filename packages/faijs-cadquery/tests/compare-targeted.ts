@@ -63,6 +63,13 @@ const pairs: Array<[string, string]> = [
   // Plane.toLocalCoords / mirrorInPlane — stale-label unlock (2026-10-04)
   ['tests.test_cad_objects__TestCadObjects__testPlaneMethods__local_box', 'TestCadObjects__testPlaneMethods__local_box'],
   ['tests.test_cad_objects__TestCadObjects__testPlaneMethods__mirror_box', 'TestCadObjects__testPlaneMethods__mirror_box'],
+  // imprint — BOPAlgo_Builder via fuseAll (2026-10-04)
+  ['tests.test_free_functions___test_imprint__b1', 'test_imprint__b1'],
+  ['tests.test_free_functions___test_imprint__b2', 'test_imprint__b2'],
+  ['tests.test_free_functions___test_imprint__b3', 'test_imprint__b3'],
+  ['tests.test_free_functions___test_imprint__res', 'test_imprint__res'],
+  ['tests.test_free_functions___test_imprint__res_glue_full', 'test_imprint__res_glue_full'],
+  ['tests.test_free_functions___test_imprint__res_glue_partial', 'test_imprint__res_glue_partial'],
 ]
 
 async function main() {

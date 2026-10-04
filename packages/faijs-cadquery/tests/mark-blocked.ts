@@ -400,6 +400,11 @@ const BY_KEY: Record<string, string> = {
   'tests.test_free_functions:::test_hollow__res2': 'kernel:hollow-intersection-join',
   'tests.test_free_functions:::test_hollow_open__res2': 'kernel:hollow-intersection-join',
   'tests.test_assembly:::test_name_geometries__assy': 'plane',
+  // imprint history images — the free-function imprint is now implemented
+  // (roadmap B2-1, 2026-10-04), but b1_imp/b3_imp need History.images()
+  // (G-C18) to retrieve the post-imprint faces of the original shapes.
+  'tests.test_free_functions:::test_imprint__b1_imp': 'history:images',
+  'tests.test_free_functions:::test_imprint__b3_imp': 'history:images',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<

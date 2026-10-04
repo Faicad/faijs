@@ -77,6 +77,7 @@ export {
   union,
   cut,
   compound,
+  imprint,
   intersect,
   combine,
   fillet,

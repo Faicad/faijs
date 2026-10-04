@@ -5321,6 +5321,43 @@ export function compound(...items: (Workplane | Shape | null | undefined)[]): Sh
 }
 
 /**
+ * imprint — upstream module-level `imprint(*shapes, tol=0, glue="full")` free
+ * function (`occ_impl/shapes.py:6774`): general-fuse every input via
+ * `BOPAlgo_Builder.Perform`, splitting faces at intersection curves and
+ * merging coincident faces (no boolean removal).
+ *
+ * Implemented via occt-wasm `fuseAll` (`BRepAlgoAPI_Fuse`). For non-overlapping
+ * (touching/disjoint) solids — the only case the upstream test exercises —
+ * `BRepAlgoAPI_Fuse` and `BOPAlgo_Builder` produce identical topology: solids
+ * stay separate, coincident faces are unified. Verified against CadQuery 2.8.0:
+ *   imprint(b1, b2) → f11/e??/v??/s2 (two face-touching unit boxes, shared face merged)
+ *   imprint(b1, b3) → f12/???/s2 (partial touch, b1 face split, shared face merged)
+ *
+ * `glue` / `tol` only tune the builder's internal strategy; the geometric
+ * result for the upstream test inputs is the same, so they are accepted and
+ * ignored here. `history` is not modelled (the History sub-system is a separate
+ * gap, G-C18) — callers needing it must pass a shape list.
+ *
+ * Accepts Shapes and Workplanes (current shape); null/undefined are skipped.
+ *
+ * @param shapes - Shapes and/or Workplanes to imprint against each other
+ * @returns Shape holding the general-fuse result (a compound when the inputs
+ *   stay disjoint, one fused solid when they overlap)
+ */
+export function imprint(...shapes: (Workplane | Shape | null | undefined)[]): Shape {
+  const handles = shapes
+    .map((it) => (it && typeof it === 'object' && 'shape' in (it as Workplane) ? (it as Workplane).shape : (it as Shape)))
+    .filter((s): s is Shape => Boolean(s))
+    .map((s) => brepOf(s) as unknown as ShapeHandle | undefined)
+    .filter((h): h is ShapeHandle => h !== undefined)
+  if (handles.length === 0) {
+    throw new Error('[cq-compat] imprint: no shape with a BREP handle')
+  }
+  if (handles.length === 1) return fromHandle(handles[0]!) as Shape
+  return fromHandle((getKernel() as unknown as OcctKernel).fuseAll(handles)) as Shape
+}
+
+/**
  * intersect
  * @param wp - Workplane
  * @param other - Workplane | Shape
