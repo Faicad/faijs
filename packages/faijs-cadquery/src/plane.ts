@@ -15,6 +15,11 @@
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 
+import { brepOf, isShape } from '@faicad/faijs/shape'
+import { fromHandle } from '@faicad/faijs/sdk'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import type { Workplane } from './workplane'
+
 import { unwrapShape, wrapShape, type CqShape } from './shape-class'
 
 /** A plane frame: origin + right-handed orthonormal basis (xDir, yDir, normal). */
@@ -31,6 +36,48 @@ export interface CqPlane {
 
 function k(): OcctKernel {
   return getKernel() as unknown as OcctKernel
+}
+
+/**
+ * Resolve a plane-transform input to a raw occt handle.
+ *
+ * The unit tests feed an occt `CqShape` / bare `ShapeHandle` directly (so the
+ * function returns a `CqShape`, matching upstream's `Solid → Solid` shape). The
+ * `.fai.js` mirror runtime, however, only produces mesh-backed `Workplane`s
+ * (and `cq.val(wp)` returns a mesh `Shape`), never an occt `CqShape` — so the
+ * raw `unwrapShape` path would treat the mesh object as a handle and fail with
+ * "Invalid shape ID: 0". When a `Workplane` (or mesh `Shape`) is passed we
+ * recover its brep handle via `brepOf`, transform it, and return a mesh `Shape`
+ * (carrying the transformed handle) that the runtime can export. Both call
+ * styles keep their original return type, so existing tests are untouched.
+ */
+type PlaneTransformInput = CqShape | ShapeHandle | Workplane | Shape
+function resolveInputHandle(shape: PlaneTransformInput): { handle: ShapeHandle; fromWorkplane: boolean } {
+  if (shape && typeof shape === 'object') {
+    // Workplane: recover the brep handle from its current stack shape.
+    const maybeWp = shape as unknown as Workplane
+    if ('objects' in maybeWp && 'shape' in maybeWp) {
+      const src = maybeWp.shape
+      if (src !== undefined && src !== null) {
+        const h = brepOf(src)
+        if (h === undefined) {
+          throw new Error('[plane] transform: Workplane shape carries no brep handle (mesh-only?)')
+        }
+        return { handle: h as ShapeHandle, fromWorkplane: true }
+      }
+    }
+    // Bare core faijs Shape (e.g. the value returned by `cq.val(wp)`):
+    // recover its registered brep handle. `unwrapShape` would mistake the
+    // mesh object for a handle and fail with "Invalid shape ID: 0".
+    if (isShape(shape)) {
+      const h = brepOf(shape as Shape)
+      if (h === undefined) {
+        throw new Error('[plane] transform: shape carries no brep handle (mesh-only?)')
+      }
+      return { handle: h as ShapeHandle, fromWorkplane: true }
+    }
+  }
+  return { handle: unwrapShape(shape as CqShape | ShapeHandle), fromWorkplane: false }
 }
 
 function dot(a: [number, number, number], b: [number, number, number]): number {
@@ -78,10 +125,17 @@ function localToWorldMatrix(p: CqPlane): number[] {
  * @param shape - shape to transform (wrapper or bare handle)
  * @returns the transformed shape (same kind, owned)
  */
-export function toLocalCoords(plane: CqPlane, shape: CqShape | ShapeHandle): CqShape {
-  const s = wrapIfBare(shape)
-  const out = k().generalTransform(unwrapShape(s), worldToLocalMatrix(plane))
-  return wrapShape(s.kind, out)
+export function toLocalCoords(plane: CqPlane, shape: CqShape | ShapeHandle): CqShape
+/** Workplane / mesh-`Shape` form of {@link toLocalCoords}.
+ * @param plane - target plane frame
+ * @param shape - Workplane or mesh Shape to transform
+ * @returns the transformed mesh Shape
+ */
+export function toLocalCoords(plane: CqPlane, shape: Workplane | Shape): Shape
+export function toLocalCoords(plane: CqPlane, shape: PlaneTransformInput): CqShape | Shape {
+  const { handle, fromWorkplane } = resolveInputHandle(shape)
+  const out = k().generalTransform(handle, worldToLocalMatrix(plane))
+  return fromWorkplane ? fromHandle(out) : wrapShape('solid', out)
 }
 
 /**
@@ -91,10 +145,17 @@ export function toLocalCoords(plane: CqPlane, shape: CqShape | ShapeHandle): CqS
  * @param shape - shape expressed in the plane's local frame
  * @returns the transformed shape (same kind, owned)
  */
-export function toWorldCoords(plane: CqPlane, shape: CqShape | ShapeHandle): CqShape {
-  const s = wrapIfBare(shape)
-  const out = k().generalTransform(unwrapShape(s), localToWorldMatrix(plane))
-  return wrapShape(s.kind, out)
+export function toWorldCoords(plane: CqPlane, shape: CqShape | ShapeHandle): CqShape
+/** Workplane / mesh-`Shape` form of {@link toWorldCoords}.
+ * @param plane - source plane frame
+ * @param shape - Workplane or mesh Shape expressed in the plane's local frame
+ * @returns the transformed mesh Shape
+ */
+export function toWorldCoords(plane: CqPlane, shape: Workplane | Shape): Shape
+export function toWorldCoords(plane: CqPlane, shape: PlaneTransformInput): CqShape | Shape {
+  const { handle, fromWorkplane } = resolveInputHandle(shape)
+  const out = k().generalTransform(handle, localToWorldMatrix(plane))
+  return fromWorkplane ? fromHandle(out) : wrapShape('solid', out)
 }
 
 /**
@@ -109,14 +170,22 @@ export function toWorldCoords(plane: CqPlane, shape: CqShape | ShapeHandle): CqS
  * @param axis - which local axis to flip about ('X' default, 'Y')
  * @returns the mirrored shape (same kind, owned)
  */
+export function mirrorInPlane(plane: CqPlane, shape: CqShape | ShapeHandle, axis?: 'X' | 'Y'): CqShape
+/** Workplane / mesh-`Shape` form of {@link mirrorInPlane}.
+ * @param plane - mirror plane frame
+ * @param shape - Workplane or mesh Shape to mirror
+ * @param axis - which local axis to flip about ('X' default, 'Y')
+ * @returns the mirrored mesh Shape
+ */
+export function mirrorInPlane(plane: CqPlane, shape: Workplane | Shape, axis?: 'X' | 'Y'): Shape
 export function mirrorInPlane(
   plane: CqPlane,
-  shape: CqShape | ShapeHandle,
+  shape: PlaneTransformInput,
   axis: 'X' | 'Y' = 'X',
-): CqShape {
-  const s = wrapIfBare(shape)
-  const out = k().generalTransform(unwrapShape(s), reflectMatrix(plane, axis))
-  return wrapShape(s.kind, out)
+): CqShape | Shape {
+  const { handle, fromWorkplane } = resolveInputHandle(shape)
+  const out = k().generalTransform(handle, reflectMatrix(plane, axis))
+  return fromWorkplane ? fromHandle(out) : wrapShape('solid', out)
 }
 
 /**
@@ -176,9 +245,4 @@ export function mirrorInPlaneVec(
     m[4] * v[0] + m[5] * v[1] + m[6] * v[2] + m[7],
     m[8] * v[0] + m[9] * v[1] + m[10] * v[2] + m[11],
   ]
-}
-
-function wrapIfBare(s: CqShape | ShapeHandle): CqShape {
-  if (s && typeof s === 'object' && 'handle' in s) return s as CqShape
-  return wrapShape('solid', s as ShapeHandle)
 }

@@ -60,6 +60,9 @@ const pairs: Array<[string, string]> = [
   ['tests.test_free_functions___test_prism_taper__res4', 'test_prism_taper__res4'],
   ['tests.test_free_functions___test_history_sweep__res', 'test_history_sweep__res'],
   ['tests.test_cadquery__TestCadQuery__testMakeShellSolid__solid', 'TestCadQuery__testMakeShellSolid__solid'],
+  // Plane.toLocalCoords / mirrorInPlane — stale-label unlock (2026-10-04)
+  ['tests.test_cad_objects__TestCadObjects__testPlaneMethods__local_box', 'TestCadObjects__testPlaneMethods__local_box'],
+  ['tests.test_cad_objects__TestCadObjects__testPlaneMethods__mirror_box', 'TestCadObjects__testPlaneMethods__mirror_box'],
 ]
 
 async function main() {

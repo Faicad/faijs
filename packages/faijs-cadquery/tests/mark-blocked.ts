@@ -335,10 +335,13 @@ const BY_KEY: Record<string, string> = {
   // placed at each construction-rect vertex, then unioned) — eachpoint is a
   // known gap.
   'tests.test_cad_objects::TestCadObjects::testCompoundCenter__s': 'eachpoint',
-  // Plane.toLocalCoords / Plane.mirrorInPlane — arbitrary-plane coordinate
-  // transforms; only mirrorX/mirrorY (axis-aligned sketch mirror) exist.
-  'tests.test_cad_objects::TestCadObjects::testPlaneMethods__local_box': 'op:plane-toLocalCoords',
-  'tests.test_cad_objects::TestCadObjects::testPlaneMethods__mirror_box': 'op:plane-toLocalCoords',
+  // Plane.toLocalCoords / Plane.mirrorInPlane — UNLOCKED 2026-10-04. Both APIs
+  //   were already implemented (src/plane.ts) and exported (src/index.ts), with
+  //   mirrorInPlane probe-verified against cadquery 2.8.0. The two
+  //   testPlaneMethods vars were merely missing their .fai.js mirrors — a stale
+  //   label, same class as the B1-3a polyline/threePointArc/findSolid closures.
+  //   Mirrors written; gen-manifest now reports them ported. Removed from BY_KEY
+  //   so regeneration keeps them ported (do NOT re-add).
   // Shape operator overloads (faces(">Z") | faces("<Z") etc.) — operator
   // syntax unreachable in the .fai.js restricted subset.
   'tests.test_shapes:::test_set_ops__simple_box': 'op:shape-operator-overload',

@@ -45,6 +45,13 @@ function boxOff(): CqShape {
   return wrapShape('solid', h)
 }
 
+/** A box whose corner sits at the origin — CadQuery `Solid.makeBox(1,1,1)`
+ *  semantics (centre at (0.5,0.5,0.5)). Used to assert the flip axes of
+ *  mirrorInPlane, which an origin-centred box would hide. */
+function boxCorner(): CqShape {
+  return wrapShape('solid', kern().makeBox(1, 1, 1))
+}
+
 function bboxCentre(h: ShapeHandle): [number, number, number] {
   const bb = kern().getBoundingBox(h)
   return [(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2]
@@ -119,6 +126,17 @@ describe('Plane.mirrorInPlane parity (axis = reflect about that axis)', () => {
   it('Y/OFF axis=X — arbitrary normal frame', () => {
     const out = mirrorInPlane(Y, boxOff(), 'X')
     close(bboxCentre(unwrapShape(out)), [2, -3, -4], 'Y/OFF')
+  })
+  it('Y/ROOT axis=Y — x and y flip, z stays (matches testPlaneMethods __mirror_box)', () => {
+    // CadQuery Solid.makeBox(1,1,1): corner at origin, centre (0.5,0.5,0.5).
+    // mirrorInPlane(Y) reflects about the plane's Y axis → (x,y,z) -> (-x,-y,z).
+    const out = mirrorInPlane(Y, boxCorner(), 'Y')
+    close(bboxCentre(unwrapShape(out)), [-0.5, -0.5, 0.5], 'Y/ROOT/Y')
+  })
+  it('Y/ROOT axis=Y is an involution on a corner box (mirror twice → identity)', () => {
+    const once = mirrorInPlane(Y, boxCorner(), 'Y')
+    const twice = mirrorInPlane(Y, once, 'Y')
+    close(bboxCentre(unwrapShape(twice)), [0.5, 0.5, 0.5], 'Y/ROOT/Y involution')
   })
 })
 

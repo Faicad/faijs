@@ -26,10 +26,10 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 468 ported / 174 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 实读：plugin 1 + 可视化 7 已重分类 skipped） |
+| **manifest**（导出变量级） | **697 = 470 ported / 172 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 B1-13 后实读） |
 | **coverage**（上游测试函数级） | **305 = 201 PORTABLE / 41 PORTABLE-WITH-STUB / 55 BLOCKED** | `tests/coverage.json`（2026-10-03 **B0 重算后**实读：`portableNow 201` / `portableWithStub 41` / `blocked 55`） |
 | **镜像文件** | **480** 个 `.fai.js` + **12** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-03 **B1-3a 后**实测） |
-| **包内单测** | 548 全绿（46 文件） | P3-4 收官实测 |
+| **包内单测** | 572 全绿（50 文件） | 2026-10-04 B1-13 实测 |
 
 ⚠ **两个分母不同源，不可换算**：manifest 的 452/198/47 是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
 
@@ -47,21 +47,28 @@
 
 ⚠ **旧文档的一处硬错误（勿再传播）**：它写「镜像文件 551 个 `.fai.js`」。**实测 464**（`find tests -name "*.fai.js" | wc -l`）。凡引用镜像计数以本文 §1 为准。
 
-**manifest 实测 blockedBy 分布（182 条，57 个 distinct，2026-10-03 **B1-3a 落地后**从 `manifest.json` 聚合）**：
+**manifest 实测 blockedBy 分布（172 条，53 个 distinct，2026-10-04 **B1-13 落地后**从 `manifest.json` 聚合）**：
 
 ```
 14 op:assembly-solve      12 imprint                11 getfixturevalue         9 kernel:fillet-chain-reapply
- 8 solid                   7 plane                   5 export                  5 interpPlate
- 5 op:fuzzy-bool           5 raises                  5 remove                  4 op:assembly-subshape-import
- 4 op:extrude-until-face   4 op:prism-from-face      4 op:shape.offset         4 op:solid-voids
- 4 op:sweep.pipeshell      3 cutEach                 3 filter                  3 kernel:boolean-near-coincident-bspline
- 3 narrow:sphere-angles    3 op:addCavity            3 op:cutBlind.until-face  3 op:history-subshape
- 3 op:sweep.aux-spine      3 op:sweep.multisection   3 op:text-spine           3 parametrize
- 2 __dir__                 2 exportGLTF              2 exportVTKJS             2 importBin
- 2 kernel:draft-existing-solid 2 kernel:hollow-intersection-join 2 kernel:shell-outward-opening 2 op:plane-toLocalCoords
- 2 op:shell                2 parametricCurve         2 pending:mirror          2 project
- …（其余 21 项各 1 条）
+ 8 solid                   7 plane                   5 op:fuzzy-bool            5 interpPlate
+ 5 remove                  5 raises                  4 op:extrude-until-face    4 op:solid-voids
+ 4 op:prism-from-face      4 op:shape.offset         4 op:sweep.pipeshell       4 op:assembly-subshape-import
+ 3 op:cutBlind.until-face  3 op:sweep.multisection    3 narrow:sphere-angles     3 op:sweep.aux-spine
+ 3 kernel:boolean-near-coincident-bspline 3 op:addCavity 3 filter            3 op:text-spine
+ 3 op:history-subshape     3 export                  3 parametrize
+ 2 op:shell                2 parametricCurve         2 kernel:shell-outward-opening 2 project
+ 2 importBin               2 kernel:hollow-intersection-join 2 kernel:draft-existing-solid 2 __dir__
+ …（其余 16 项各 1 条）
  ```
+
+> **B1-6 对分布的影响**：关掉 `op:extrude.both`(2) / `op:extrude.combine-s`(2) / `op:extrude.combine-cut`(1) 三个标签 ⇒ distinct 67→64、blocked 总数 198→193。
+
+> **B1-7 对分布的影响**：关掉 `op:wedge-degenerate-top`(3) ⇒ distinct 64→63、blocked 总数 193→190、ported 457→460（新增 3 条 `testWedge*` 镜像）。**coverage 函数级不变**（`wedge` 早已 PORTABLE，见 §1 的两个分母不可换算）。
+
+> **B1-3a 对分布的影响**：关掉 `op:Solid.makeCone`(1) / `op:CQ`(1) / `op:polyline`(1，**陈旧标签** —— `Workplane.polyline` 早已存在，缺的只是镜像) ⇒ distinct 63→58、blocked 总数 190→185、ported 460→465（新增 `testCone__s` / `testCone__t` / `testIbeam__res` / `testBoundingBox__result` / `testFindSolid__s` 五条镜像）。`op:Workplane.plugin` 已于 2026-10-04 重分类为 **skipped**（out-of-scope，归 §2.3，类 VTK/GLTF）—— 非未来缺口（其底层 `eachpoint` lambda 仍由 G-C25 跟踪）。
+
+> **B1-13 对分布的影响（2026-10-04）**：关掉 `op:plane-toLocalCoords`(2) —— `Plane.toLocalCoords` / `Plane.mirrorInPlane` **早已实现并导出**（P2 落地），缺的只是两个 `.fai.js` 镜像 ⇒ 陈旧标签，同类 B1-3a。补 `TestCadObjects__testPlaneMethods__{local_box,mirror_box}` 两条镜像，`manifest` ported 468→470、blocked 174→172；**coverage 函数级不变**（`testPlaneMethods` 早已 PORTABLE）。两条均 **PASS**（volΔ=0、comΔ=0、topo f6/e12/v8 全中）。
 
 > **B1-6 对分布的影响**：关掉 `op:extrude.both`(2) / `op:extrude.combine-s`(2) / `op:extrude.combine-cut`(1) 三个标签 ⇒ distinct 67→64、blocked 总数 198→193。
 
@@ -268,6 +275,7 @@
 | **B1-10** ✅ **已判定 2026-10-03（结论=移 B6）** | **G-C26 narrow 参数**（chamfer-asym 1）—— ⚠ `sphere-angles`（3）已定性内核侧（`workplane.ts:1099`）；chamfer-asym **本日读源码定性也是内核侧**：上游 `BRepFilletAPI_MakeChamfer.Add(d1,d2,E,F)`（`occ_impl/shapes.py:4011-4022`），occt-wasm 只有 `chamfer(d)` / `chamferDistAngle(d,angle)`，**无双距离通道**（`workplane.ts:5312` 的显式抛错是正确终态）⇒ 整项移 **B6-9 / G-F11**，本批**无剩余** | 1→**0** | — |
 | **B1-11** | **G-B3 mirror transpile 映射** | — | `.all()/.end()/.val()/.vals()` 进 `transpile.ts`（即便当前 mirror 0 处，为双端完整） |
 | **B1-12** | **G-A2/G-A3 Shape 域 kind + `_collectProperty` 特例** | 2 | `Shells()/CompSolids()/Compounds()` + Solid→Compounds 特例 |
+| **B1-13** ✅ **已完成 2026-10-04** | **陈旧标签：`Plane.toLocalCoords` / `Plane.mirrorInPlane`** —— 两个 API 早已实现（`src/plane.ts`）并导出（`src/index.ts`），P2 已 probe 验证；`testPlaneMethods__{local_box,mirror_box}` 只是缺 `.fai.js` 镜像。补镜像 + `plane.ts` 加 Workplane/mesh-`Shape` 入参重载（`.fai.js` runtime 只产 mesh-backed Workplane，裸 handle 路径会 "Invalid shape ID: 0"）。2 条镜像 **PASS**（volΔ=0 / comΔ=0 / topo f6/e12/v8）；2 单测 + 变异（`boxCorner` 翻轴断言）全绿。 | **2→0** | — |
 
 **B1 验收**：每项配单测（先红后绿）+ 变异测试（回退即红）；镜像项 parity 逐位；门禁全过（§4）。
 
