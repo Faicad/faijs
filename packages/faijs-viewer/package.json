@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-viewer",
-  "version": "0.29.1",
+  "version": "0.29.2",
   "description": "Read + execute + tessellate a project .fai.zip for any third-party host. v1 API: openFaiZip(bytes, { wasm: { occtUrl, manifoldUrl, brepkitUrl } })",
   "keywords": [
     "faijs",
@@ -40,7 +40,7 @@
     "occt-wasm": "3.8.4"
   },
   "devDependencies": {
-    "@faicad/faijs": "link:../core",
+    "@faicad/faijs": "file:../core",
     "occt-wasm": "^3.8.4",
     "typescript": "*",
     "vitest": "*"

@@ -1,13 +1,13 @@
 {
-  "@faicad/faijs": "0.29.1",
-  "@faicad/cq-compat-compare": "0.29.1",
-  "@faicad/faijs-draw": "0.29.1",
-  "@faicad/faijs-cadquery": "0.29.1",
-  "@faicad/faijs-extra": "0.29.1",
-  "@faicad/faijs-fasteners": "0.29.1",
-  "@faicad/faijs-freecad": "0.29.1",
-  "@faicad/faijs-gears": "0.29.1",
-  "@faicad/faijs-viewer": "0.29.1",
-  "@faicad/sheetmetal": "0.29.1",
-  "@faicad/faijs-sketch": "0.29.1"
+  "@faicad/faijs": "0.29.2",
+  "@faicad/cq-compat-compare": "0.29.2",
+  "@faicad/faijs-draw": "0.29.2",
+  "@faicad/faijs-cadquery": "0.29.2",
+  "@faicad/faijs-extra": "0.29.2",
+  "@faicad/faijs-fasteners": "0.29.2",
+  "@faicad/faijs-freecad": "0.29.2",
+  "@faicad/faijs-gears": "0.29.2",
+  "@faicad/faijs-viewer": "0.29.2",
+  "@faicad/sheetmetal": "0.29.2",
+  "@faicad/faijs-sketch": "0.29.2"
 }
