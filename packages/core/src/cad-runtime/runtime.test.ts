@@ -821,7 +821,7 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
       box: (params: { size: number }) => solid(cubeMesh(params.size)),
     }, { autoLift: false })
     const code = [
-      "import * as mech from 'gear-lib-demo'",
+      "import * as mech from 'test-fixture-lib'",
       'const s1 = cad.box(20, 20, 20, { centered: true })',
       'const s2 = cad.box(20, 20, 20, { centered: true })',
       'const s3 = mech.box({ size: 20 })',
@@ -887,15 +887,15 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
     makeHeadstock: () => solid(cubeMesh(8)),
   } as unknown as LibNamespace
 
-  const GEAR_CODE = "import * as gear from 'gear-lib-demo'\nlet p = gear.makeHeadstock({ teeth: 8 })"
+  const GEAR_CODE = "import * as gear from 'test-fixture-lib'\nlet p = gear.makeHeadstock({ teeth: 8 })"
 
   it('已注册 binding + libLoader 存在 → autoLoadLibs 跳过，不覆盖宿主注入实例（loadLib 不被调用）', async () => {
     // 手动注入 gear（等价于宿主 registerLib 后来者不覆盖——autoLoadLibs 见 this.libs 已注册即跳过）
     const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => { throw new Error('Should not be called: gear already registered') },
-      listLibs: () => ['gear-lib-demo'],
+      listLibs: () => ['test-fixture-lib'],
     }), 'mesh')
-    runtime.registerLib('gear', gearNs, { packageName: 'gear-lib-demo', autoLift: false })
+    runtime.registerLib('gear', gearNs, { packageName: 'test-fixture-lib', autoLift: false })
     // 手动注册后 execute：装载跳过（不调用 loadLib——若调用将抛错 → failedAt 非空）
     const result = await runtime.execute(GEAR_CODE)
     expect(result.failedAt).toBeUndefined()
@@ -906,24 +906,24 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   it('未注册 + libLoader 可装载 → execute 后 gear.binding、packageName 自动存档，正常产出', async () => {
     const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
-      listLibs: () => ['gear-lib-demo'],
+      listLibs: () => ['test-fixture-lib'],
     }))
     const result = await runtime.execute(GEAR_CODE)
     expect(result.failedAt).toBeUndefined()
     expect(result.outputs.size).toBeGreaterThan(0)
     // 自动装载后 registerLib 已把 packageName 写入 specifierToBinding（第一部分 1.2 闭环）
     const specToBinding = (runtime as unknown as { specifierToBinding: Map<string, string> }).specifierToBinding
-    expect(specToBinding.get('gear-lib-demo')).toBe('gear')
+    expect(specToBinding.get('test-fixture-lib')).toBe('gear')
     runtime.dispose()
   })
 
   it('autoLiftFor 逐库覆盖：返回 false → 该库不被 compat 提升（原函数引用保留，等价 CLI autoLift=false）', async () => {
     const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
-      listLibs: () => ['gear-lib-demo'],
+      listLibs: () => ['test-fixture-lib'],
       options: {
         autoLift: true, // 全局提升开着，但 autoLiftFor 对该库关掉
-        autoLiftFor: (name) => (name === 'gear-lib-demo' ? false : undefined),
+        autoLiftFor: (name) => (name === 'test-fixture-lib' ? false : undefined),
       },
     }), 'mesh')
     const result = await runtime.execute(GEAR_CODE)
@@ -938,7 +938,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   it('autoLiftFor 返回 undefined → 回落到全局 autoLift=true（裸函数被 compatOp 提升，brep-only 契约生效）', async () => {
     const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
-      listLibs: () => ['gear-lib-demo'],
+      listLibs: () => ['test-fixture-lib'],
       options: {
         autoLift: true,
         autoLiftFor: () => undefined,
@@ -961,7 +961,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
     }))
     const result = await runtime.execute(GEAR_CODE)
     expect(result.failedAt).toBeDefined()
-    expect(result.failedAt!.message).toMatch(/import specifier "gear-lib-demo" cannot be auto-loaded/i)
+    expect(result.failedAt!.message).toMatch(/import specifier "test-fixture-lib" cannot be auto-loaded/i)
     expect(result.failedAt!.message).toMatch(/package not found/i)
     runtime.dispose()
   })
@@ -969,7 +969,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   it('check() 有 libLoader → 走 listLibs 校验（预检期不实际 loadLib），listLibs 含 specifier 则通过', () => {
     const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
-      listLibs: () => ['gear-lib-demo'],
+      listLibs: () => ['test-fixture-lib'],
     }))
     const res = runtime.check(GEAR_CODE)
     expect(res.errors.some((e) => /import specifier/.test(e.message))).toBe(false)
@@ -989,7 +989,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
 
   it('check() 无 libLoader → 走 specifierToBinding（第一部分 1.2 体系）校验', () => {
     const runtime = makeRuntime()
-    runtime.registerLib('gear', gearNs, { packageName: 'gear-lib-demo', autoLift: false })
+    runtime.registerLib('gear', gearNs, { packageName: 'test-fixture-lib', autoLift: false })
     const res = runtime.check(GEAR_CODE)
     expect(res.errors.some((e) => /import specifier/.test(e.message))).toBe(false)
     runtime.dispose()

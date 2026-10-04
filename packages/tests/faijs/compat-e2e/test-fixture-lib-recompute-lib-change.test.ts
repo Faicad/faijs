@@ -1,13 +1,13 @@
 /**
- * P26 e2e — gear-lib-demo §8.4 ⑤c, B2 library-version recompute.
+ * P26 e2e — test-fixture-lib §8.4 ⑤c, B2 library-version recompute.
  *
- * Split out of `gear-lib-demo-flow.test.ts`: each `execute` of the §8.4 script
- * costs ~7-10s, and a single vitest worker busy for ~60s trips birpc's
+ * Split out of `test-fixture-lib-flow.test.ts`: each `execute` of the §8.4
+ * script costs ~7-10s, and a single vitest worker busy for ~60s trips birpc's
  * hard-coded 60s `onTaskUpdate` RPC timeout — see `./gear-flow-fixture.js`.
  *
  *   ⑤c same binding, changed library implementation → full recompute.
  * ⑤a / ⑤b (statementKey stability, external-param change) live in
- * `gear-lib-demo-recompute.test.ts`.
+ * `test-fixture-lib-recompute.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -16,7 +16,7 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 import { LIB_OPTIONS, SCRIPT, bootGearRuntime, gearNs, gearV2 } from './gear-flow-fixture.js'
 import { yieldWorkerRpc } from '../_support/worker-yield.js'
 
-describe('P26 gear-lib-demo §8.4 ⑤c — same binding, changed library version recomputes in full (B2)', () => {
+describe('P26 test-fixture-lib §8.4 ⑤c — same binding, changed library version recomputes in full (B2)', () => {
   it('⑤c re-registering a changed library implementation recomputes all lib-bound statements', async () => {
     // T5: plan() deleted; verify recompute via update().
     const r = await bootGearRuntime('auto')

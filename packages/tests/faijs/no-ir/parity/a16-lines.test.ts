@@ -114,7 +114,7 @@ const SYNTHETIC: string[] = [
   // 三元折叠
   'const g = true\nlet part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.fai_drill(part0, { depth: g ? 5 : 0 })',
   // import + 命名空间调用
-  "import * as mech from 'gear-lib-demo'\n\nlet part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = mech.makeHeadstock(part0, { axis: 'x' })",
+  "import * as mech from 'test-fixture-lib'\n\nlet part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = mech.makeHeadstock(part0, { axis: 'x' })",
   // 容器代码
   'export default async (cad) => {\n  let part0 = cad.box(20, 20, 20, { centered: true })\n  return { shape: part0, name: \'demo\' }\n}',
   // 本机函数定义 + 本机调用（行号含函数行）

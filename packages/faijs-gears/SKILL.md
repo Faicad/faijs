@@ -153,4 +153,3 @@ Herringbone planetary gearset. Same params/outputs as `planetaryGearset`.
 - `BrepHandle` results are automatically adopted into faijs `Shape` at the library boundary (`autoLift: true`).
 - For multi-output functions (pairs, planetary), each named output becomes a separate product the host can export individually.
 - **BREP only** — mesh mode throws `E_MESH_UNSUPPORTED`.
-- The former `@faicad/gear-lib-demo` package was a test fixture and has been deleted. `@faicad/faijs-gears` is the real published gear library.

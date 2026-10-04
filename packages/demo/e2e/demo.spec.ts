@@ -188,9 +188,8 @@ test.describe('faijs demo', () => {
   })
 
   test('CDN 上没有的库 → 装载阶段显式报错（不静默、不回退）', async ({ page }) => {
-    // 该防回归原挂在已删除的 @faicad/gear-lib-demo 示例上；现在直接喂一段
-    // 引用不存在包的脚本，保证「本地映射未命中且 CDN 查不到必须报错」这条契约
-    // 仍有载体。
+    // 直接喂一段引用不存在包的脚本，保证「本地映射未命中且 CDN 查不到必须报错」这条契约
+    // 有载体。
     await page.goto('/')
     await waitForStatusOk(page)
 

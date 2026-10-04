@@ -1,8 +1,8 @@
 /**
- * P26 e2e — gear-lib-demo §8.4 ⑤, incremental recompute (part 1 of 2).
+ * P26 e2e — test-fixture-lib §8.4 ⑤, incremental recompute (part 1 of 2).
  *
- * Split out of `gear-lib-demo-flow.test.ts`: each `execute` of the §8.4 script
- * costs ~7-10s, and a single vitest worker busy for ~60s trips birpc's
+ * Split out of `test-fixture-lib-flow.test.ts`: each `execute` of the §8.4
+ * script costs ~7-10s, and a single vitest worker busy for ~60s trips birpc's
  * hard-coded 60s `onTaskUpdate` RPC timeout — see `./gear-flow-fixture.js`.
  *
  * Covered here (the two cache-invalidation sub-cases):
@@ -10,7 +10,7 @@
  *      recompute)
  *   ⑤b external-param change recomputes downstream; geometry changes
  * ⑤c (same binding, changed library implementation → full recompute) lives in
- * `gear-lib-demo-recompute-lib-change.test.ts`.
+ * `test-fixture-lib-recompute-lib-change.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -19,7 +19,7 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 import { LIB_OPTIONS, SCRIPT, bootGearRuntime, gearNs } from './gear-flow-fixture.js'
 import { yieldWorkerRpc } from '../_support/worker-yield.js'
 
-describe('P26 gear-lib-demo §8.4 ⑤ — incremental recompute (key stability, param change)', () => {
+describe('P26 test-fixture-lib §8.4 ⑤ — incremental recompute (key stability, param change)', () => {
   it('⑤a re-registering the same library keeps the statementKey (no spurious recompute)', async () => {
     const r = await bootGearRuntime('auto')
     try {

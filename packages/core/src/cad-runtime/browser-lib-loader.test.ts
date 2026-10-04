@@ -49,12 +49,12 @@ describe('createBrowserLibLoader — 装载通路', () => {
     const importModule = vi.fn(async () => ns())
     const loader = createBrowserLibLoader({
       cdnBase: CDN,
-      versions: { '@faicad/gear-lib-demo': '0.13.0' },
-      aliases: { 'gear-lib-demo': '@faicad/gear-lib-demo' },
+      versions: { '@faicad/test-fixture-lib': '0.13.0' },
+      aliases: { 'test-fixture-lib': '@faicad/test-fixture-lib' },
       importModule,
     })
-    await loader.loadLib('gear-lib-demo')
-    expect(importModule).toHaveBeenCalledWith(`${CDN}@faicad/gear-lib-demo@0.13.0/+esm`)
+    await loader.loadLib('test-fixture-lib')
+    expect(importModule).toHaveBeenCalledWith(`${CDN}@faicad/test-fixture-lib@0.13.0/+esm`)
   })
 
   it('白名单：按 resoved 包名校验，未列出 → reject（错误信息含原 specifier）', async () => {
@@ -92,12 +92,12 @@ describe('createBrowserLibLoader — 装载通路', () => {
 
   it('listLibs：返回别名键 ∪ libs ∪ versions 键的 specifier 集合', () => {
     const loader = createBrowserLibLoader({
-      aliases: { 'gear-lib-demo': '@faicad/gear-lib-demo' },
+      aliases: { 'test-fixture-lib': '@faicad/test-fixture-lib' },
       libs: ['@faicad/faijs'],
       versions: { '@faicad/sheetmetal': '0.13.0' },
     })
     expect(new Set(loader.listLibs())).toEqual(
-      new Set(['gear-lib-demo', '@faicad/faijs', '@faicad/sheetmetal']),
+      new Set(['test-fixture-lib', '@faicad/faijs', '@faicad/sheetmetal']),
     )
   })
 
@@ -120,14 +120,14 @@ describe('createBrowserLibLoader — 装载通路', () => {
 describe('createBrowserLibLoader — autoLiftFor / prefetchMeta', () => {
   it('autoLiftFor 读 meta（别名与全名两种写法都命中）', () => {
     const loader = createBrowserLibLoader({
-      aliases: { 'gear-lib-demo': '@faicad/gear-lib-demo' },
+      aliases: { 'test-fixture-lib': '@faicad/test-fixture-lib' },
       meta: {
-        '@faicad/gear-lib-demo': { autoLift: false },
+        '@faicad/test-fixture-lib': { autoLift: false },
         '@faicad/sheetmetal': { autoLift: true },
         '@faicad/other': {},
       },
     })
-    expect(loader.options?.autoLiftFor?.('gear-lib-demo')).toBe(false)
+    expect(loader.options?.autoLiftFor?.('test-fixture-lib')).toBe(false)
     expect(loader.options?.autoLiftFor?.('@faicad/sheetmetal')).toBe(true)
     // 未声明 → undefined（回落全局 / runtime 推断式），不是 false
     expect(loader.options?.autoLiftFor?.('@faicad/other')).toBeUndefined()

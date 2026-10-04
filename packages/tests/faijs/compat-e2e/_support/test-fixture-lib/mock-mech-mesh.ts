@@ -3,7 +3,7 @@
  *
  *
  * Simulates a third-party library module (the target of
- * `import * as mech from 'gear-lib-demo'`):
+ * `import * as mech from 'test-fixture-lib'`):
  * - carries `contractVersion` (= CONTRACT_VERSION, registerLib check passes);
  * - declares its implementation set via `defineOp({ naming: NAMING, mesh })` — the mesh-only
  *   legal form (D1: mesh mandatory; no brep slot, hasBrep === false).

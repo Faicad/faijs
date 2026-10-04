@@ -2,13 +2,10 @@
  * faijs-gears through the compat boundary — the guard for "the browser side
  * can consume a real published gear library".
  *
- * Why this file exists: `@faicad/gear-lib-demo` (the former demo-side gear
- * library) was deleted on 2026-09-21; the demo's `gear-demo` example now has to
- * run a real gear library. `@faicad/faijs-gears` is that library, and it is
- * **fully async** — every factory does `await getGearKernel()` and returns
- * `Promise<Result<BrepHandle, string>>`. That shape is what the compat bridge
- * must be able to adopt, so this file is the acceptance gate for both halves of
- * the switch:
+ * `@faicad/faijs-gears` is **fully async** — every factory does
+ * `await getGearKernel()` and returns `Promise<Result<BrepHandle, string>>`.
+ * That shape is what the compat bridge must be able to adopt, so this file is
+ * the acceptance gate for both halves of the switch:
  *
  *   ① the async product is adopted into a faijs Shape on the BREP chain
  *      (not a promise leaking out of the statement);

@@ -41,7 +41,7 @@ describe('normalizeModuleKey / isRelativeSpecifier', () => {
   it('裸 specifier 不算相对（libLoader 通道）', () => {
     expect(isRelativeSpecifier('./x')).toBe(true)
     expect(isRelativeSpecifier('../x')).toBe(true)
-    expect(isRelativeSpecifier('gear-lib-demo')).toBe(false)
+    expect(isRelativeSpecifier('test-fixture-lib')).toBe(false)
     expect(isRelativeSpecifier('@scope/pkg')).toBe(false)
   })
 })

@@ -10,7 +10,6 @@
   Publish scope (see docs/plans/2026-09-19-npm-publish-plan.md section 2):
     @faicad/faijs (core) -> @faicad/faijs-extra -> @faicad/faijs-cadquery
     -> @faicad/faijs-gears -> @faicad/faijs-fasteners -> @faicad/sheetmetal
-  (@faicad/gear-lib-demo excluded per Q2; the mini lathe sample project moved out of the repo.)
 
 .PARAMETER DryRun
   Only run checks/build/pack-assert; do NOT actually publish (recommended default;

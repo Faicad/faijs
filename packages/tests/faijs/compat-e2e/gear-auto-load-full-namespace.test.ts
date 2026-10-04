@@ -1,5 +1,5 @@
 /**
- * P 四（4.4）e2e — 真实 libLoader 自动装载 @faicad/gear-lib-demo 完整命名空间。
+ * P 四（4.4）e2e — 真实 libLoader 自动装载 test-fixture-lib 完整命名空间。
  *
  * 回归焦点（lib-id）：自动装载会把包的真实 exports 原样注册——其中包含一个
  * module-namespace 子对象 `mockBrep`。computeLibId 对任意导出值做 `String()`
@@ -12,7 +12,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import * as gearPkg from './_support/gear-lib-demo/index.js'
+import * as gearPkg from './_support/test-fixture-lib/index.js'
 import type { LibNamespace } from '@faicad/faijs/runtime-state'
 import type { LibLoader } from '@faicad/faijs/cad-runtime/ports'
 import { createEditorRuntime } from '../_support/editor-runtime'
@@ -20,18 +20,18 @@ import { createEditorRuntime } from '../_support/editor-runtime'
 /** 与浏览器 demo 等价的 libLoader：完整命名空间，不走手工投影。 */
 const loader: LibLoader = {
   loadLib: async () => gearPkg as unknown as LibNamespace,
-  listLibs: () => ['gear-lib-demo'],
+  listLibs: () => ['test-fixture-lib'],
   options: { autoLift: true },
 }
 
 const SCRIPT = [
-  "import * as gear from 'gear-lib-demo'",
+  "import * as gear from 'test-fixture-lib'",
   'let g1 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',
   'let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })',
   'let u1 = cad.union(g1, t1)',
 ].join('\n')
 
-describe('P四 4.4 autoLoadLibs with the full gear-lib-demo namespace', () => {
+describe('P四 4.4 autoLoadLibs with the full test-fixture-lib namespace', () => {
   let result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>
 
   beforeAll(async () => {

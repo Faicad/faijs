@@ -35,13 +35,13 @@ describe('extractMetadata: 行分类与表', () => {
   })
 
   it('import 行 → imports 表（namespace：localName/packageName）', () => {
-    const meta = extractMetadata("import * as mech from 'gear-lib-demo'\nlet p = cad.box(1, 2, 3)")
+    const meta = extractMetadata("import * as mech from 'test-fixture-lib'\nlet p = cad.box(1, 2, 3)")
     expect(meta.imports).toHaveLength(1)
     expect(meta.imports[0]).toMatchObject({
       kind: 'namespace',
       localName: 'mech',
-      specifier: 'gear-lib-demo',
-      packageName: 'gear-lib-demo',
+      specifier: 'test-fixture-lib',
+      packageName: 'test-fixture-lib',
     })
   })
 
@@ -193,14 +193,14 @@ describe('extractMetadata: HostArg 引用形态与 hasComputedArgs', () => {
 
   it('命名空间 import 调用：namespace + packageName', () => {
     const code = [
-      "import * as mech from 'gear-lib-demo'",
+      "import * as mech from 'test-fixture-lib'",
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       "let part1 = mech.makeHeadstock(part0, { axis: 'x' })",
     ].join('\n')
     const meta = extractMetadata(code)
     expect(meta.lines[1]).toMatchObject({
       namespace: 'mech',
-      packageName: 'gear-lib-demo',
+      packageName: 'test-fixture-lib',
       outputs: ['part1'],
     })
   })
@@ -396,7 +396,7 @@ describe('extractMetadata: 装配语句识别（P2-f4）', () => {
 
   it('第三方库命名空间 assembly 不标记（归属 cad 缺省命名空间）', () => {
     const code = [
-      "import * as mech from 'gear-lib-demo'",
+      "import * as mech from 'test-fixture-lib'",
       'let a = mech.assembly({ members: [1, 2], constraints: [] })',
     ].join('\n')
     const meta = extractMetadata(code)

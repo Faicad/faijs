@@ -3,7 +3,7 @@
  * assertions 1–4). Design: §7.4 C3 of the 2026-09-03 compat module-runtime plan.
  *
  * Scenario:
- *   import * as gear from 'gear-lib-demo'
+ *   import * as gear from 'test-fixture-lib'
  *   let part0 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
  *   let part1 = cad.box(48, 48, 8, { centered: true })
  *   let part2 = cad.union(part0, part1)
@@ -38,9 +38,9 @@ let result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>
 beforeAll(async () => {
   await registerOcctBrepEngine()
   runtime = createEditorRuntime(createNodePorts(), 'auto')
-  runtime.registerLib('gear', gear as never, { autoLift: true, packageName: 'gear-lib-demo' })
+  runtime.registerLib('gear', gear as never, { autoLift: true, packageName: 'test-fixture-lib' })
   result = await runtime.execute([
-    "import * as gear from 'gear-lib-demo'",
+    "import * as gear from 'test-fixture-lib'",
     'let part0 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',
     'let part1 = cad.box(48, 48, 8, { centered: true })',
     'let part2 = cad.union(part0, part1)',

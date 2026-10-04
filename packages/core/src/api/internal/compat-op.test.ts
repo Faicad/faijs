@@ -224,7 +224,7 @@ describe('§5 keep — 兼容 op 调用点声明（UI 层显示契约不改）',
   async function run(code: string): Promise<ExecutionResult> {
     const r = createEditorRuntime(ports(), 'auto')
     try {
-      r.registerLib('gear', ns, { autoLift: true, packageName: 'gear-lib-demo' })
+      r.registerLib('gear', ns, { autoLift: true, packageName: 'test-fixture-lib' })
       return await r.execute(code)
     } finally {
       r.dispose()
@@ -233,7 +233,7 @@ describe('§5 keep — 兼容 op 调用点声明（UI 层显示契约不改）',
 
   it('兼容 op 调用点 keep 保留几何终端；keepHidden 隐藏', async () => {
     const base = [
-      "import * as gear from 'gear-lib-demo'",
+      "import * as gear from 'test-fixture-lib'",
       'const part0 = cad.box(20, 20, 20, { centered: true })',
     ].join('\n')
 

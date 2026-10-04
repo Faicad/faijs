@@ -1,5 +1,5 @@
 /**
- * P26 e2e — gear-lib-demo through the compat boundary, §8.4 scenario.
+ * P26 e2e — test-fixture-lib through the compat boundary, §8.4 scenario.
  *
  * The §8.4 script lives in `./gear-flow-fixture.js` (shared verbatim with the
  * sibling recompute files), and the acceptance set is split across files so no
@@ -14,8 +14,8 @@
  *   ④ STEP export of the union carries ADVANCED_FACE (exact, not faceting)
  *   ⑥ mesh-mode invocation → E_MESH_UNSUPPORTED (no silent fallback)
  *   ⑦ repeated same-code executions keep the kernel arena bounded
- * ⑤ (incremental recompute policy) lives in `gear-lib-demo-recompute.test.ts`
- * and `gear-lib-demo-recompute-lib-change.test.ts`.
+ * ⑤ (incremental recompute policy) lives in `test-fixture-lib-recompute.test.ts`
+ * and `test-fixture-lib-recompute-lib-change.test.ts`.
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -46,7 +46,7 @@ function activeValue(part: string): unknown {
   return result.activeValues?.get(asPartName(part))
 }
 
-describe('P26 gear-lib-demo §8.4 — build, acceptance ①②③④⑥ and kernel arena ⑦', () => {
+describe('P26 test-fixture-lib §8.4 — build, acceptance ①②③④⑥ and kernel arena ⑦', () => {
   it('① g1 is a faijs Shape: hasBrep === true and a non-empty mesh payload', () => {
     expect(result.failedAt).toBeUndefined()
     const g1 = shapeOf('g1')
