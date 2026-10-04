@@ -457,9 +457,15 @@ export function fromFreeCadConstraints(cons: FcstdSketchCon[], geoms: SketchGeom
       pushUnmapped(index, c.type, 'reference-driven')
       return
     }
-    // Any ref to an axis (-1/-2) or external geometry (<= -3) cannot be
-    // expressed as a canonical own-geometry Ref.
-    if (c.refs.some((r) => r.geoId < 0)) {
+    // Any ref to an axis (-1/-2) or external geometry (<= -3, down to just
+    // above GeoUndef) cannot be expressed as a canonical own-geometry Ref.
+    // GOTCHA (2026-10-04, taperedballnose): old-format constraint triples pad
+    // unused slots with GeoUndef = -2000 (sketch-parse.ts skips them when
+    // building externalGeoIds for the same reason) — a real axis/external ref
+    // never reaches -2000. The `geoId < 0` check here therefore used to
+    // reject ~every constraint in such files (20 of 21 in the sample) as
+    // `external-or-axis-ref`, mass-gapping otherwise-clean sketches.
+    if (c.refs.some((r) => r.geoId < 0 && r.geoId !== -2000)) {
       pushUnmapped(index, c.type, 'external-or-axis-ref')
       return
     }
