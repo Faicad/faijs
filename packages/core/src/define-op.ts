@@ -240,6 +240,31 @@ function wrapByKeys(r: unknown, keys: string[], wrapOne: (v: unknown) => Shape):
   return out
 }
 
+/**
+ * 外观继承（设计文档 2026-10-05 v2 §6.1）：几何 op 返回新 Shape 时，默认继承
+ * 第一个携带外观的几何输入（`inputs.find(appearance !== undefined)`）；产物
+ * 已有外观则不动（后置 setColor 优先）。实现集中在产物包装点，避免每个 op
+ * 手写——mesh 与 brep 两条路径的产物都经此补齐。
+ */
+function inheritInputAppearance(out: Shape | Record<string, Shape>, inputs: Shape[]): void {
+  const src = inputs.find((i) => i.appearance !== undefined)
+  if (!src?.appearance) return
+  const setIfEmpty = (v: unknown): void => {
+    if (v !== null && typeof v === 'object' && 'positions' in v && !(v as Shape).appearance) {
+      ;(v as Shape).appearance = src.appearance
+    }
+  }
+  if (isShape(out)) {
+    setIfEmpty(out)
+    return
+  }
+  for (const k of Object.keys(out)) {
+    const v = out[k]
+    if (Array.isArray(v)) (v as unknown[]).forEach(setIfEmpty)
+    else setIfEmpty(v)
+  }
+}
+
 /** Human-readable op label for error messages (falls back when unnamed). */
 function opLabel(meta: DualOpMeta): string {
   return meta.name ?? '<anon>'
@@ -409,6 +434,7 @@ export function defineOp<A extends unknown[]>(
     if (path === 'brep') {
       const r = await runImpl(meta, decl.brep as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
       const out = meta.outputs ? wrapByKeys(r, meta.outputs, wrapBrepOne) : wrapBrepOne(r)
+      inheritInputAppearance(out, inputs)
       // 1.10 前置①：执行期把 hash 演化挂到血缘节点（kernel 类回走推进的数据源）。
       // 演化在几何算完那一刻可得（fromBrep → slot.faceEvolution），事后补挂不参与
       // N3 的内容比较（lineage.ts 设计如此）。无演化（identity/construct 等无历史
@@ -431,7 +457,9 @@ export function defineOp<A extends unknown[]>(
       return out
     }
     const m = await runImpl(meta, decl.mesh as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
-    return meta.outputs ? wrapByKeys(m, meta.outputs, wrapMeshOne) : wrapMeshOne(m)
+    const mOut = meta.outputs ? wrapByKeys(m, meta.outputs, wrapMeshOne) : wrapMeshOne(m)
+    inheritInputAppearance(mOut, inputs)
+    return mOut
     } finally {
       // 同语句去重标记不在 op 粒度清理——语句边界由 runtime-state.setCurrentStmt
       // 在锚点变化时重置；TS 库函数体内连续 op 调用共享锚点，嵌套调用正确跳过。

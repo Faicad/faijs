@@ -45,6 +45,26 @@ faijs 对外 API 全面采用 `Result` / `BrepError` 体系（`ok` / `err` / `is
 
 ---
 
+## 2.5 外观方法（Shape 实例方法，非 op）✅
+
+外观（颜色/材质/透明度）设置是 **Shape 实例方法**，不是 `cad.*` op。脚本写法：
+
+```js
+let box1 = cad.box(10, 10, 10)
+box1.setColor('#e53935')                    // hex: #rgb / #rrggbb / #rrggbbaa；或数组 [r,g,b] / [r,g,b,a]（sRGB 0–1）
+box1.setOpacity(0.5)                        // 透明度权威字段 0–1；#rrggbbaa / [r,g,b,a] 的 alpha 等价 opacity
+box1.setMaterial({ metalness: 0.8, roughness: 0.2, transmission: 1, ior: 1.5 })
+let a1 = box1.getAppearance()               // 读当前外观（可能 undefined）
+```
+
+- 方法集：`setAppearance(spec)` / `setColor(color)` / `setMaterial(spec)` / `setOpacity(opacity)` / `getAppearance()`。
+- 语义：原地合并 `{...cur, ...spec}`（`undefined` 字段保留旧值），返回 `this`；**脚本面一次一条 `setX` 语句**（解析器只识别单层成员调用，链式 `a.setColor(...).setMaterial(...)` 脚本面不支持；TS 库面可链式）。
+- 产物数据：`Shape.appearance`（`PbrAppearance`，JSON 可序列化）随 mesh/brep 双链路产物传递；几何 op 产物默认继承第一个携带外观的几何输入；编辑器渲染读 `shape.appearance`。
+- 颜色值内部归一为 sRGB 0–1 数组；CSS 颜色名不支持（P1）。
+- 注：旧 `return { shape, color, metalness, roughness }` 三字段通道已删除（死特性），`ScriptMetaIR.appearance` 不存在；return 对象未知 key 静默忽略。
+
+---
+
 ## 3. 创建类操作（无上游输入）
 
 ### 3.1 `box` ✅

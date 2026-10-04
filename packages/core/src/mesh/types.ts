@@ -12,8 +12,11 @@
  * P3+ 阶段 Shape 将变为 worker 内 Manifold 对象的句柄。
  */
 
+import type { PbrAppearance } from '../api/appearance'
+
 // ── 基础类型 ──
 
+/** 三维坐标 / RGB 颜色元组（分量 sRGB 0–1）。 */
 export type Vec3 = [number, number, number]
 
 /**
@@ -34,10 +37,22 @@ export type JsonValue =
  *
  * Shape is defined directly in mesh/types.ts rather than re-exported from
  * ops/types.ts; ops/types.ts imports it from here, removing the type cycle.
+ *
+ * 外观（PBR）：`appearance` 为可选数据字段（设计文档 2026-10-05 v2 §4.2），
+ * 双链路产物自解释、可序列化；外观设置是 Shape **方法**（非 op，见
+ * `api/appearance.ts` 的 `ShapeAppearanceMethods` / `attachAppearanceMethods`），
+ * 方法只挂载在产物构造点（solid/curve）返回的实例上，基础 Shape 保持纯数据
+ * 契约——因此本接口**不** extends 方法接口，`isMeshShape` 鸭子判定不受影响。
  */
 export interface Shape {
   positions: Float32Array
   indices: Uint32Array
+  /** 可选：形状级外观（mesh/brep 双链路产物自解释；worker 序列化保留字段、不保留方法）。 */
+  appearance?: PbrAppearance
+  /** Phase 2：面级外观分组 [三角形起始, 数量, 外观]；存在时优先于 appearance 作为未分组默认。 */
+  materialGroups?: Array<{ start: number; count: number; appearance: PbrAppearance }>
+  /** Phase 2：顶点颜色（3MF colorgroup / 面级 mesh 链），sRGB 0–1，长度 = positions 长度。 */
+  vertexColors?: Float32Array
 }
 
 /**

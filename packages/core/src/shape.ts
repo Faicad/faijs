@@ -11,6 +11,7 @@
  */
 
 import type { Shape } from './mesh/types'
+import { attachAppearanceMethods, type ShapeAppearanceMethods } from './api/appearance'
 import { getRuntimeState, registerFunctionBrep, nameOf, getCurrentStmt, type ShapeSlot } from './runtime-state'
 import { asStmtId } from './identity'
 import { runtimeLineage } from './topology/naming/lineage'
@@ -20,8 +21,14 @@ import { runtimeLineage } from './topology/naming/lineage'
 /** Discriminator for the concrete shape kinds. */
 export type ShapeKind = 'solid' | 'shape2d' | 'curve' | 'compound'
 
-/** A solid mesh shape produced by a constructor. */
-export interface SolidShape extends Shape {
+/**
+ * A solid mesh shape produced by a constructor.
+ *
+ * 运行时形态带外观方法（attachAppearanceMethods 在 solid()/curve() 挂载，
+ * 设计文档 2026-10-05 v2 §3.2/§4.2）：`box1.setColor(...)` 等成员调用走
+ * `asm1.solve()` 同款语句形态；方法不序列化，`appearance` 字段随产物传递。
+ */
+export interface SolidShape extends Shape, ShapeAppearanceMethods {
   kind: 'solid'
 }
 
@@ -38,7 +45,7 @@ export interface CompoundShape {
  * `fromBrepCurve()`）。执行链路照走 `solidToShape`（wire → 空 0/0 载荷，不抛），
  * 显示经 `wireframe`。
  */
-export interface CurveShape extends Shape {
+export interface CurveShape extends Shape, ShapeAppearanceMethods {
   kind: 'curve'
 }
 
@@ -52,9 +59,9 @@ export type StdShape = SolidShape | CompoundShape | CurveShape
  * @returns the created solid shape.
  */
 export function solid(mesh: Shape): SolidShape {
-  const s: SolidShape = { ...mesh, kind: 'solid' }
+  const s = { ...mesh, kind: 'solid' } as SolidShape
   getRuntimeState().created.add(s)
-  return s
+  return attachAppearanceMethods(s) as SolidShape
 }
 
 /**
@@ -67,9 +74,9 @@ export function solid(mesh: Shape): SolidShape {
  * @returns the created curve shape.
  */
 export function curve(mesh: Shape): CurveShape {
-  const s: CurveShape = { ...mesh, kind: 'curve' }
+  const s = { ...mesh, kind: 'curve' } as CurveShape
   getRuntimeState().created.add(s)
-  return s
+  return attachAppearanceMethods(s) as CurveShape
 }
 
 /**

@@ -1053,22 +1053,9 @@ function parseReturnStatement(
         if (prop.value?.type === 'Identifier') id = resolveVar(prop.value)
       } else if (key === 'name') {
         if (prop.value?.type === 'Literal') meta.name = prop.value.value as string
-      } else if (key === 'color') {
-        if (prop.value?.type === 'Literal') {
-          if (!meta.appearance) meta.appearance = {}
-          meta.appearance.color = prop.value.value as string
-        }
-      } else if (key === 'metalness') {
-        if (prop.value?.type === 'Literal') {
-          if (!meta.appearance) meta.appearance = {}
-          meta.appearance.metalness = prop.value.value as number
-        }
-      } else if (key === 'roughness') {
-        if (prop.value?.type === 'Literal') {
-          if (!meta.appearance) meta.appearance = {}
-          meta.appearance.roughness = prop.value.value as number
-        }
       }
+      // 其余 key（含旧死特性 color/metalness/roughness，2026-10-05 v2 已删除）
+      // 静默忽略：return 对象不是 op 参数，未知 key 不做参数校验（宽容语义）。
     }
     return { id, meta: Object.keys(meta).length > 0 ? meta : undefined }
   }

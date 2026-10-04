@@ -65,6 +65,10 @@ export { solid, isShape, isCompound } from '../shape'
 export { compound as structCompound } from '../shape'
 export type { ShapeSlot, SolidShape, CompoundShape, CurveShape, StdShape, ShapeKind } from '../shape'
 export type { Shape } from '../mesh/types'
+// PBR 外观规格（设计文档 2026-10-05 v2 §4.1）：类型供宿主/第三方消费；
+// 归一化/合并纯函数供编辑器映射（faijsAppearanceToHost）与导出复用。
+export type { PbrAppearance, PbrColor, PbrAlphaMode, MaterialSpec, ShapeAppearanceMethods } from './appearance'
+export { mergeAppearance, normalizeColor } from './appearance'
 
 // ── P23：brepjs 兼容面接线（§4.2 / B1 三源一致）──
 //

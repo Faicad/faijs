@@ -223,6 +223,29 @@ function renderDoc(locale: 'en' | 'zh'): string {
   lines.push('')
   lines.push('---')
   lines.push('')
+  // ── 外观方法（Shape 实例方法，非 op；PbrAppearance，plan 2026-10-05 P1）──
+  // 外观设置不是 cad.* op（无 mesh/brep 双实现、无引擎分派），作为脚本面 Shape
+  // 实例方法单列一节。改动须同步本生成器 + 重跑 gen-ops-api-inventory.ts（禁止手改 md）。
+  lines.push('## 2.5 外观方法（Shape 实例方法，非 op）✅')
+  lines.push('')
+  lines.push('外观（颜色/材质/透明度）设置是 **Shape 实例方法**，不是 `cad.*` op。脚本写法：')
+  lines.push('')
+  lines.push('```js')
+  lines.push('let box1 = cad.box(10, 10, 10)')
+  lines.push("box1.setColor('#e53935')                    // hex: #rgb / #rrggbb / #rrggbbaa；或数组 [r,g,b] / [r,g,b,a]（sRGB 0–1）")
+  lines.push('box1.setOpacity(0.5)                        // 透明度权威字段 0–1；#rrggbbaa / [r,g,b,a] 的 alpha 等价 opacity')
+  lines.push('box1.setMaterial({ metalness: 0.8, roughness: 0.2, transmission: 1, ior: 1.5 })')
+  lines.push('let a1 = box1.getAppearance()               // 读当前外观（可能 undefined）')
+  lines.push('```')
+  lines.push('')
+  lines.push('- 方法集：`setAppearance(spec)` / `setColor(color)` / `setMaterial(spec)` / `setOpacity(opacity)` / `getAppearance()`。')
+  lines.push('- 语义：原地合并 `{...cur, ...spec}`（`undefined` 字段保留旧值），返回 `this`；**脚本面一次一条 `setX` 语句**（解析器只识别单层成员调用，链式 `a.setColor(...).setMaterial(...)` 脚本面不支持；TS 库面可链式）。')
+  lines.push('- 产物数据：`Shape.appearance`（`PbrAppearance`，JSON 可序列化）随 mesh/brep 双链路产物传递；几何 op 产物默认继承第一个携带外观的几何输入；编辑器渲染读 `shape.appearance`。')
+  lines.push('- 颜色值内部归一为 sRGB 0–1 数组；CSS 颜色名不支持（P1）。')
+  lines.push('- 注：旧 `return { shape, color, metalness, roughness }` 三字段通道已删除（死特性），`ScriptMetaIR.appearance` 不存在；return 对象未知 key 静默忽略。')
+  lines.push('')
+  lines.push('---')
+  lines.push('')
   const section = new Map<string, number>([
     ['创建', 3],
     ['变换', 4],

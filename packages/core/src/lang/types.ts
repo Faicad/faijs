@@ -46,11 +46,14 @@ export interface ParamDef {
 // ── Part 脚本 ──
 
 /**
- * Scene-level model metadata (name and appearance) carried by a script.
+ * Scene-level model metadata (name) carried by a script.
+ *
+ * 外观不再经 meta 传递（2026-10-05 v2：`appearance` 死特性已删除）——
+ * 外观是 Shape 实例方法/字段（`box1.setColor(...)` → `shape.appearance`），
+ * 编辑器消费端读执行结果的 `shape.appearance`，而非脚本元数据。
  */
 export interface ScriptMetaIR {
   name?: string
-  appearance?: { color?: string; metalness?: number; roughness?: number }
 }
 
 /** 终端变量类型（keep-syntax 设计 §6：运行时登记，缺省 'shape'）。 */
