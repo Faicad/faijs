@@ -97,7 +97,7 @@ function optionVec(
 function prelude(input: Shape, tag: string): { kernel: BrepEngineApi; solid: BrepHandle; outStmt: string } {
   const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
-  if (!solid) throw new Error(`[stdlib/${tag}] input is not BREP`)
+  if (!solid) throw new Error(`[api/${tag}] input is not BREP`)
   return { kernel, solid, outStmt: String(getCurrentStmt()?.id ?? '') }
 }
 

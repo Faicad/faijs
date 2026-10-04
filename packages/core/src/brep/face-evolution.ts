@@ -301,7 +301,7 @@ export function scaleWithHashEvolution(
 }
 
 /**
- * 双输入布尔 + roleTable 合流组合封装（§3.4，stdlib boolean 链式调用用）。
+ * 双输入布尔 + roleTable 合流组合封装（§3.4，api boolean 链式调用用）。
  *
  * 一次 *WithHistory 内核调用同时产出：
  * - result：结果实体

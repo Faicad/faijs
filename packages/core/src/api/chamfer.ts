@@ -1,5 +1,5 @@
 /**
- * stdlib chamfer — chamfer 倒角库函数（BREP-only，directEdit 能力）
+ * api chamfer — chamfer 倒角库函数（BREP-only，directEdit 能力）
  *
  * 平台分层（2026-09-26 B 批降级）：**中立 op**（不再声明 `engines:['occt']`）。
  * equal 分支按引擎能力**静态定轨**（与 intersect 同构，读 `dispatchPath` 同源的能力集）：
@@ -40,7 +40,7 @@ import { OpError } from './internal/result-unwrap'
 import { meshKernelFailure, meshSolidEntry, meshSolidProduct, resolveMeshEdges } from './internal/mesh-solid-op'
 import { angleBetweenNormals, materialDihedralFromNormalAngle, chamferAngleFromDistances } from './chamfer-math'
 
-// ── 参数自校验（stdlib 被直接 import 时的防御层）──
+// ── 参数自校验（api 层被直接 import 时的防御层）──
 
 /**
  * Validate chamfer parameters: `edges` must be a non-empty array of EdgeTopoRef,
@@ -219,7 +219,7 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
   // L1 面：chamferDistAngle/枚举/命名（D12）。equal 分支经 face-evolution 走 occt 平台面。
   const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
-  if (!solid) throw new Error('[stdlib/chamfer] E_CHAMFER_NO_BREP: input is not BREP')
+  if (!solid) throw new Error('[api/chamfer] E_CHAMFER_NO_BREP: input is not BREP')
 
   const edges = (params.edges as unknown as EdgeTopoRef[] | undefined) ?? []
   const type = params.type as string
@@ -319,7 +319,7 @@ function chamferMeshSolid(input: Shape, params: Record<string, unknown>): Shape 
     throw new OpError(
       'chamfer',
       'E_MESH_SOLID_UNSUPPORTED',
-      '[stdlib/chamfer] twoDistances needs role-resolvable adjacent faces to decide which side ' +
+      '[api/chamfer] twoDistances needs role-resolvable adjacent faces to decide which side ' +
       'carries width1/width2; a mesh solid has no role layer — use type:"equal" or "distanceAngle"',
     )
   }

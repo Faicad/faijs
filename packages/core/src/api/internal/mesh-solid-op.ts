@@ -175,7 +175,7 @@ export function resolveMeshEdges(
       throw new OpError(
         opLabel,
         'E_TOPO_NOT_FOUND',
-        `[stdlib/${opLabel}] ${where} could not be resolved — approximate topology has no role layer, ` +
+        `[api/${opLabel}] ${where} could not be resolved — approximate topology has no role layer, ` +
         `so an edge is identified by geometry alone: ${cause instanceof Error ? cause.message : String(cause)}`,
         { cause },
       )
@@ -184,7 +184,7 @@ export function resolveMeshEdges(
       throw new OpError(
         opLabel,
         'E_TOPO_NOT_FOUND',
-        `[stdlib/${opLabel}] ${where} resolved without an edge handle`,
+        `[api/${opLabel}] ${where} resolved without an edge handle`,
       )
     }
     return resolved.handle as BrepHandle
@@ -215,7 +215,7 @@ function meshEdgeOrdinal(
     throw new OpError(
       opLabel,
       'E_TOPO_NOT_FOUND',
-      `[stdlib/${opLabel}] edge[${index}] ordinal ${ordinal} out of range [1, ${edges.length}] ` +
+      `[api/${opLabel}] edge[${index}] ordinal ${ordinal} out of range [1, ${edges.length}] ` +
       'on the mesh solid',
     )
   }
@@ -305,7 +305,7 @@ export function meshPatternProduct(
   try {
     copies = makeCopies()
     if (copies.length === 0) {
-      throw new OpError(opLabel, code, `[stdlib/${opLabel}] the kernel produced no copies`)
+      throw new OpError(opLabel, code, `[api/${opLabel}] the kernel produced no copies`)
     }
     const result: BrepHandle = entry.kernel.fuseAll(copies)
     return meshSolidProductWithBackend(entry.backend, result)
@@ -384,14 +384,14 @@ export function resolveMeshFaceHandle(
       throw new OpError(
         opLabel,
         'E_TOPO_NOT_FOUND',
-        `[stdlib/${opLabel}] face ordinal ${selector} out of range [1, ${faces.length}] on the mesh solid`,
+        `[api/${opLabel}] face ordinal ${selector} out of range [1, ${faces.length}] on the mesh solid`,
       )
     }
     return faces[selector - 1] as BrepHandle
   }
   const ctx = buildMeshFaceResolutionContext(kernel, on as object)
   if (!ctx) {
-    throw new OpError(opLabel, 'E_TOPO_NOT_FOUND', `[stdlib/${opLabel}] input has no mesh naming context`)
+    throw new OpError(opLabel, 'E_TOPO_NOT_FOUND', `[api/${opLabel}] input has no mesh naming context`)
   }
   let resolved: { handle?: unknown }
   try {
@@ -401,14 +401,14 @@ export function resolveMeshFaceHandle(
     throw new OpError(
       opLabel,
       code,
-      `[stdlib/${opLabel}] mesh face ref could not be resolved — approximate topology has no role layer, ` +
+      `[api/${opLabel}] mesh face ref could not be resolved — approximate topology has no role layer, ` +
       `so a face is identified by geometry alone (normal/center/area; use an ordinal when two faces are congruent): ` +
       `${cause instanceof Error ? cause.message : String(cause)}`,
       { cause },
     )
   }
   if (resolved.handle === undefined) {
-    throw new OpError(opLabel, 'E_TOPO_NOT_FOUND', `[stdlib/${opLabel}] mesh face ref resolved to no live handle`)
+    throw new OpError(opLabel, 'E_TOPO_NOT_FOUND', `[api/${opLabel}] mesh face ref resolved to no live handle`)
   }
   return resolved.handle as BrepHandle
 }
@@ -478,7 +478,7 @@ export function meshKernelFailure(
   return new OpError(
     opLabel,
     code,
-    `[stdlib/${opLabel}] ${context} — the mesh kernel refused: ${msg}`,
+    `[api/${opLabel}] ${context} — the mesh kernel refused: ${msg}`,
     { cause },
   )
 }

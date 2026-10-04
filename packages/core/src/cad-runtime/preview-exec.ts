@@ -2,13 +2,13 @@
  * preview-exec — 预览（dry-run）执行上下文
  *
  *
- * 供宿主「预览/干跑」直接调用 stdlib 库函数（drill/engrave/...）时使用的兼容上下文：
+ * 供宿主「预览/干跑」直接调用 api 库函数（drill/engrave/...）时使用的兼容上下文：
  * - mode 固定为 'mesh'：dispatchPath 静态判定走 mesh 路径（预览输入是 mesh Shape，非 BREP solid）。
  * - getSolid/setSolid 只读写恒等槽（identity slot），不写 ctx/output/params。
  * - 不持有持久 solidCache / statementCache，不产生任何副作用。
  *
  * 与正常执行（CadRuntime 主执行路径）的区别：预览 exec 是纯几何计算，
- * 结果与最终 commit 用同一 op（stdlib 库函数），保证「预览 == 执行结果」。
+ * 结果与最终 commit 用同一 op（api 库函数），保证「预览 == 执行结果」。
  */
 
 import type { BrepChainState } from '../brep/brep-chain'
@@ -18,8 +18,8 @@ import type { BrepHandle } from '../brep/engine/types'
 import { getSlot, ensureSlot } from '../shape'
 
 /**
- * 预览 exec：宿主直调 stdlib 的兼容上下文。
- * P5 起 stdlib 已不收 exec（库函数签名 = 源码形态），字段仅作兼容保留。
+ * 预览 exec：宿主直调 api 层 的兼容上下文。
+ * P5 起 api 层已不收 exec（库函数签名 = 源码形态），字段仅作兼容保留。
  */
 export interface PreviewExec {
   readonly mode: 'mesh'

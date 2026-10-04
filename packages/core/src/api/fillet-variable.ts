@@ -1,5 +1,5 @@
 /**
- * stdlib fillet-variable — 变半径圆角：单边起止半径（手写中立 op，Phase 5）
+ * api fillet-variable — 变半径圆角：单边起止半径（手写中立 op，Phase 5）
  *
  * 中立 op：L1 `filletVariable(solid, edge, startRadius, endRadius)` 在 occt 与
  * brepkit 两侧均有真实现（engine-method-map 实测 `dialect`）⇒ 走 `getBrepApi()`

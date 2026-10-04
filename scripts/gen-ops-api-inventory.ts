@@ -1,6 +1,6 @@
 /**
  * Generate docs/ops-api-inventory.md (+ .zh.md + .i18n.yaml) from the L3
- * API-surface exported-op JSDoc. The api layer (core/src/api, 原 stdlib) is the
+ * API-surface exported-op JSDoc. The api layer (core/src/api) is the
  * single source of truth for the faijs `.fai.js` coding API; this generator
  * projects each op's JSDoc (params, types, required/default, quality, group,
  * async, examples, notes) into the standing bilingual doc so it never silently
@@ -178,7 +178,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   if (locale === 'en') lines.push('English | [中文](ops-api-inventory.zh.md)')
   else lines.push('[English](ops-api-inventory.md) | 中文')
   lines.push('')
-  lines.push(`> 本手册由 \`scripts/gen-ops-api-inventory.ts\` 从 stdlib JSDoc 自动生成。**不要手改**——改 stdlib JSDoc 后运行生成器（或 CI 的 \`--check\` 会拦截不一致）。`)
+  lines.push(`> 本手册由 \`scripts/gen-ops-api-inventory.ts\` 从 api JSDoc 自动生成。**不要手改**——改 api JSDoc 后运行生成器（或 CI 的 \`--check\` 会拦截不一致）。`)
   lines.push('>')
   lines.push('> - ✅ = 此接口正确、可放心使用')
   lines.push('> - ⚠️ = 可用，但参数有已知缺陷')
@@ -187,7 +187,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   lines.push('>')
   lines.push('> 🚫 标记的 op 是 `../3d_editor` 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。')
   lines.push('>')
-  lines.push('> 相关文档：`docs/syntax-design.md`（语法与执行契约）、`docs/api-contract.md`（语句层内部契约）。')
+  lines.push('> 相关文档：`docs/language-design.md`（语言与执行契约）、`docs/api-contract.md`（语句层内部契约）。')
   lines.push('')
   lines.push('---')
   lines.push('')

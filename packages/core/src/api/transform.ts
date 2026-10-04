@@ -1,5 +1,5 @@
 /**
- * stdlib transform — 变换对象库函数（translate/rotate_euler/scale/scale3d）
+ * api transform — 变换对象库函数（translate/rotate_euler/scale/scale3d）
  *
  * 平台分层（narrowing plan Phase 5，D11 + 2026-09-28 D 批降级）：
  * - `translate` / `scale`：**中立 op**（不再声明 `engines:['occt']`）。BREP 路径按引擎
@@ -118,7 +118,7 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   // L1 面：translateBrep/rotateBrep/scaleBrep/identityHashEvolution 只用 L1（D12）。
   const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[stdlib/transform] input is not BREP')
+  if (!inputSolid) throw new Error('[api/transform] input is not BREP')
 
   // 静态双轨（无运行时 try-catch 回退——按引擎**声明**的能力集在执行前定轨）：
   // - occt（声明 *WithHistory）→ 权威历史路径（产内核面映射 + roleTable）。
@@ -236,13 +236,13 @@ export const translate = defineOp({
   name: 'translate',
   meshEngines: ['brepkit'],
   mesh: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/translate] no input geometry')
+    if (!input) throw new Error('[api/translate] no input geometry')
     assertTranslateParams(params)
     if (hasMeshSolid(input)) return transformMeshSolid('translate', input, params)
     return cad.translate(input, params.offset as Vec3)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/translate] no input geometry')
+    if (!input) throw new Error('[api/translate] no input geometry')
     assertTranslateParams(params)
     return transformBrep('translate', input, params)
   },
@@ -273,13 +273,13 @@ export const rotate_euler = defineOp({
   name: 'rotate_euler',
   meshEngines: ['brepkit'],
   mesh: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/rotate_euler] no input geometry')
+    if (!input) throw new Error('[api/rotate_euler] no input geometry')
     assertRotateParams(params)
     if (hasMeshSolid(input)) return transformMeshSolid('rotate_euler', input, params)
     return cad.rotate_euler(input, params.angles as Vec3, params.pivot as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/rotate_euler] no input geometry')
+    if (!input) throw new Error('[api/rotate_euler] no input geometry')
     assertRotateParams(params)
     return transformBrep('rotate_euler', input, params)
   },
@@ -310,13 +310,13 @@ export const scale = defineOp({
   name: 'scale',
   meshEngines: ['brepkit'],
   mesh: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/scale] no input geometry')
+    if (!input) throw new Error('[api/scale] no input geometry')
     assertScaleParams(params)
     if (hasMeshSolid(input)) return transformMeshSolid('scale', input, params)
     return cad.scale(input, params.factor as number, params.center as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/scale] no input geometry')
+    if (!input) throw new Error('[api/scale] no input geometry')
     assertScaleParams(params)
     return transformBrep('scale', input, params)
   },
@@ -349,13 +349,13 @@ export const scale3d = defineOp({
   name: 'scale3d',
   meshEngines: ['brepkit'],
   mesh: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/scale3d] no input geometry')
+    if (!input) throw new Error('[api/scale3d] no input geometry')
     assertScale3dParams(params)
     if (hasMeshSolid(input)) return transformMeshSolid('scale3d', input, params)
     return cad.scale3d(input, params.factor as Vec3, params.center as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/scale3d] no input geometry')
+    if (!input) throw new Error('[api/scale3d] no input geometry')
     assertScale3dParams(params)
     return transformBrep('scale3d', input, params)
   },

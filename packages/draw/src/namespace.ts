@@ -21,7 +21,7 @@
  *
  * @module
  */
-import { CONTRACT_VERSION, type StdlibNamespace } from '@faicad/faijs/runtime-state'
+import { CONTRACT_VERSION, type LibNamespace } from '@faicad/faijs/runtime-state'
 import { registerSymbolTableEntries, unregisterSymbolTableEntries } from '@faicad/faijs/symbol-table'
 import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import { draw } from './draw.js'
@@ -34,11 +34,11 @@ export const DRAW_OPS = ['draw'] as const
  *
  * @returns the draw namespace fragment.
  */
-export function createDrawNamespace(): StdlibNamespace {
+export function createDrawNamespace(): LibNamespace {
   return {
     contractVersion: CONTRACT_VERSION,
     draw,
-  } as unknown as StdlibNamespace
+  } as unknown as LibNamespace
 }
 
 /**
@@ -49,7 +49,7 @@ export function createDrawNamespace(): StdlibNamespace {
  * @param platform - the platform namespace (`createApiNamespace()`).
  * @returns the merged namespace to register as the host's `cad` library.
  */
-export function mergeDrawNamespace(platform: StdlibNamespace): StdlibNamespace {
+export function mergeDrawNamespace(platform: LibNamespace): LibNamespace {
   return { ...platform, ...createDrawNamespace() }
 }
 
@@ -58,7 +58,7 @@ export function mergeDrawNamespace(platform: StdlibNamespace): StdlibNamespace {
  *
  * @returns the namespace to hand to `registerLib('cad', …)`.
  */
-export function createDrawCadNamespace(): StdlibNamespace {
+export function createDrawCadNamespace(): LibNamespace {
   return mergeDrawNamespace(createApiNamespace())
 }
 

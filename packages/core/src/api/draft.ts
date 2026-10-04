@@ -1,5 +1,5 @@
 /**
- * stdlib draft — 拔模：对选定面施加拔模斜度（手写**平台** op，Phase 5）
+ * api draft — 拔模：对选定面施加拔模斜度（手写**平台** op，Phase 5）
  *
  * `engines: ['occt']` —— 但**不是平台依赖**（实现只经 L1 契约面 `getBrepApi()`，
  * 见下选面口径），而是**实证收窄**：brepkit 的 L1 `draft` 实测产出错误几何，

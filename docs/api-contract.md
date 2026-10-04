@@ -7,7 +7,7 @@ English | [中文](api-contract.zh.md)
 > **This document covers the standing interface contract only: it does not track development plans or defects, and it does not reference `docs/plans/` documents.**
 >
 > Related documents:
-> - `docs/syntax-design.md` — `.fai.js` syntax and incremental execution contract
+> - `docs/language-design.md` — `.fai.js` language and incremental execution contract
 > - `docs/ops-api-inventory.md` — API manual for writing `.fai.js` code (AI/user side, generated file)
 
 ---
@@ -61,7 +61,7 @@ The root package `@faicad/faijs` has **9 subpath exports** (the `exports` field 
 | `@faicad/faijs` | Facade: `export * from '@faicad/faijs'` plus a wrapped `createRuntime` | Unified host entry; **the package name must not change** |
 | `/browser` | Browser-safe surface (no node-host) | Preferred entry for hosts (3d_editor) |
 | `/sdk` | **Third-party library authoring surface**, zero heavy dependencies | The only entry a library author should depend on |
-| `/stdlib` | Geometry library namespace | `cad` must be injected by the caller |
+| `/api` | L3 library function namespace (platform ops) | `cad` is assembled and injected by `createRuntime` |
 | `/csg` | CSG / Manifold data exchange | Browser-safe |
 | `/sdf` | SDF runtime templates and types | Browser-safe |
 | `/node` | Node-only: `createNodePorts` / CLI / FsAssetResolver | Must not enter browser builds |
@@ -75,7 +75,7 @@ The engine package also exposes fine-grained subpaths (`@faicad/faijs/runtime-st
 
 - **Engine = parse + validate + schedule + bookkeep + resources; library = all geometry.**
 - **To decide where a function belongs, ask "is it a geometry algorithm?", not "who imports it today?"** If the engine currently calls a geometry function, that is a defect to clean up — not a reason to move the function into the engine.
-- **The engine has zero function knowledge**: parser / compile / runtime must not branch on function names or classify functions. The engine knows only one uniform concept, "library function", and function information can only be data (`StdlibNamespace`).
+- **The engine has zero function knowledge**: parser / compile / runtime must not branch on function names or classify functions. The engine knows only one uniform concept, "library function", and function information can only be data (`LibNamespace`).
 - faijs has exactly one responsibility: execute a script and produce a 3D model (`ExecutionResult`). The host has exactly two: generate a correct script, and call faijs to execute it.
 - 🔴 **All geometry changes must go through script statements**; the host only consumes `ExecutionResult` and must not re-derive terminal detection or implement its own DAG leaf filtering.
 
@@ -242,7 +242,7 @@ For each shape variable (compound variables included), take its "last writer P";
 ### 7.1 Factory and execution modes
 
 ```ts ignore-check
-createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, StdlibNamespace>): CadRuntime
+createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, LibNamespace>): CadRuntime
 export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 ```
 
@@ -250,7 +250,7 @@ export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 - `brep`: force BREP; anything unsupported raises (`BrepUnsupportedError` → `failedAt`) and **never switches automatically**.
 - `mesh`: every op takes the mesh path.
 
-**Facade vs engine**: core's `createRuntime` does **not** assemble `cad` (the engine has zero function knowledge); the root facade `src/index.ts` wraps it and injects `registerLib('cad', createInternalStdlib())`. Third-party libraries are always registered through `runtime.registerLib(binding, ns)`.
+**Facade vs engine**: core's `createRuntime` does **not** assemble `cad` (the engine has zero function knowledge); the root facade `src/index.ts` wraps it and injects `registerLib('cad', createApiNamespace())`. Third-party libraries are always registered through `runtime.registerLib(binding, ns)`.
 
 ### 7.2 `CadRuntime` API
 
@@ -324,7 +324,7 @@ export interface Backends {
   readonly config: { mode; brepEngineId?; brepCapabilities?; partTransform? }
   readonly kernel: { readonly brep: unknown | null; readonly csg?; readonly sdf? }
   readonly fonts; texture; assets; events
-  readonly cad?: StdlibNamespace
+  readonly cad?: LibNamespace
 }
 export const CONTRACT_VERSION = 1
 ```
@@ -520,7 +520,7 @@ Everything except `events` is optional — a Node test environment can supply on
 
 ---
 
-## 10. stdlib and Third-Party Libraries
+## 10. API Layer and Third-Party Libraries
 
 ### 10.1 Function catalog (`cad` namespace)
 
@@ -545,7 +545,7 @@ Beyond the handwritten set, `cad` also carries the **generated brepjs-compat pro
 
 > Note: "Feature" above is an internal faijs catalog category (ops modifying existing geometry), unrelated to the host-layer "feature" term — the generic CAD term implemented by one or more ops / function calls (see §2 R-9).
 
-**The complete parameter contract (defaults / required) is `docs/ops-api-inventory.md`** (generated from stdlib JSDoc; do not edit by hand).
+**The complete parameter contract (defaults / required) is `docs/ops-api-inventory.md`** (generated from api JSDoc; do not edit by hand).
 
 ### 10.2 Consumption semantics (declaration-driven)
 
@@ -666,15 +666,15 @@ PS: Re-printing text from the IR is debug-only, never part of a contract.
 
 ### 13.4 Generated file red lines
 
-- `docs/ops-api-inventory.md` is generated by `scripts/gen-ops-api-inventory.ts` from stdlib JSDoc — **do not edit by hand** (CI `--check` guards it).
-- `packages/core/src/mesh/api.d.ts` is generated by `packages/core/scripts/gen-api-dts.ts` from the stdlib function catalog — **do not edit by hand** (guard test `packages/core/src/api-dts-sync.test.ts`).
+- `docs/ops-api-inventory.md` is generated by `scripts/gen-ops-api-inventory.ts` from api JSDoc — **do not edit by hand** (CI `--check` guards it).
+- `packages/core/src/mesh/api.d.ts` is generated by `packages/core/scripts/gen-api-dts.ts` from the api function catalog — **do not edit by hand** (guard test `packages/core/src/api-dts-sync.test.ts`).
 
 ### 13.5 Compatibility
 
 - Control flow is forbidden at the top level (a language constraint), which keeps static rules such as terminal detection safe from AI-generated code; **control flow is allowed inside function bodies** (v1, §5).
 - Local function calls (bare-identifier callee) and runtime expressions (`ExprIR` in args) are new top-level capabilities; existing scripts without functions parse unchanged (zero regression), and parameter/literal expressions still fold as before.
 - A local function call is a DAG node like any other: `positional` / `args` / `outputs` participate in `consumes()` and terminal detection; only the body is opaque.
-- The function body is user source embedded into the compiled module — a documented exception to "user text never reaches the VM" (R-3), bounded by the acorn gate plus the whitelist (see `docs/syntax-design.md`).
+- The function body is user source embedded into the compiled module — a documented exception to "user text never reaches the VM" (R-3), bounded by the acorn gate plus the whitelist (see `docs/language-design.md`).
 - Legacy version-suffixed names are no longer produced and no longer parsed (the version suffix and the `grp_` prefix were both removed; compatibility parsing was removed, decision 2, see `lang/allocate-id.ts`).
 - Both the `export default async (cad) => {}` container and the flat format parse; flat code is automatically wrapped into a legal container.
 

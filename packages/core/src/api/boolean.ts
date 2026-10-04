@@ -1,5 +1,5 @@
 /**
- * stdlib boolean — 布尔库函数（union/subtract/intersect，多输入）
+ * api boolean — 布尔库函数（union/subtract/intersect，多输入）
  *
  *
  * dispatchPath 静态判定 brep/mesh，BREP 路径用 *WithHistory 收集面演化。
@@ -59,7 +59,7 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
     throw new OpError(
       `boolean/${operation}`,
       'E_BREP_UNSUPPORTED',
-      `[stdlib/boolean] ${operation}: input is not on the BREP chain (no OCCT handle) — ` +
+      `[api/boolean] ${operation}: input is not on the BREP chain (no OCCT handle) — ` +
       `non-solid geometry (wire/face/shell) cannot take part in a boolean. offenders: ${offenders.join(', ')}`,
     )
   }
@@ -91,7 +91,7 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
     throw new OpError(
       `boolean/${operation}`,
       'E_BREP_UNSUPPORTED',
-      `[stdlib/boolean] ${operation}: no solid input — wire/face/shell geometry cannot fuse (types: ${inputTypes.join(', ')})`,
+      `[api/boolean] ${operation}: no solid input — wire/face/shell geometry cannot fuse (types: ${inputTypes.join(', ')})`,
     )
   }
 
@@ -160,7 +160,7 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
             throw new OpError(
               `boolean/${operation}`,
               'E_OP_FAILED',
-              `[stdlib/boolean] ${operation}: kernel ${op} failed for inputs ` +
+              `[api/boolean] ${operation}: kernel ${op} failed for inputs ` +
               `${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`} — ${msg}`,
               { cause },
             )
@@ -179,7 +179,7 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
         throw new OpError(
           `boolean/${operation}`,
           'E_OP_FAILED',
-          `[stdlib/boolean] ${operation}: kernel ${op} failed for inputs ` +
+          `[api/boolean] ${operation}: kernel ${op} failed for inputs ` +
           `${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`} — ${msg}`,
           { cause },
         )
@@ -258,7 +258,7 @@ function booleanMeshPath(inputs: Shape[], operation: BooleanOperation): Shape | 
 async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promise<Shape> {
   if (inputs.length < 2) {
     if (inputs.length === 1) return inputs[0]
-    throw new Error('[stdlib/boolean] boolean needs at least 1 input')
+    throw new Error('[api/boolean] boolean needs at least 1 input')
   }
   if (operation === 'union') return cad.union(inputs[0], inputs[1], ...inputs.slice(2))
   if (operation === 'subtract') {

@@ -17,7 +17,7 @@
  * installSketchSolver(createNodePlanegcsSolver)
  * ```
  */
-import { CONTRACT_VERSION, type StdlibNamespace } from '@faicad/faijs/runtime-state'
+import { CONTRACT_VERSION, type LibNamespace } from '@faicad/faijs/runtime-state'
 import { registerSymbolTableEntries, unregisterSymbolTableEntries } from '@faicad/faijs/symbol-table'
 import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import { SKETCH_OP_NAME, sketch } from './op.js'
@@ -30,11 +30,11 @@ export const SKETCH_OPS = [SKETCH_OP_NAME] as const
  *
  * @returns the sketch namespace fragment.
  */
-export function createSketchNamespace(): StdlibNamespace {
+export function createSketchNamespace(): LibNamespace {
   return {
     contractVersion: CONTRACT_VERSION,
     sketch,
-  } as unknown as StdlibNamespace
+  } as unknown as LibNamespace
 }
 
 /**
@@ -45,7 +45,7 @@ export function createSketchNamespace(): StdlibNamespace {
  * @param platform - the platform namespace (`createApiNamespace()`).
  * @returns the merged namespace to register as the host's `cad` library.
  */
-export function mergeSketchNamespace(platform: StdlibNamespace): StdlibNamespace {
+export function mergeSketchNamespace(platform: LibNamespace): LibNamespace {
   return { ...platform, ...createSketchNamespace() }
 }
 
@@ -54,7 +54,7 @@ export function mergeSketchNamespace(platform: StdlibNamespace): StdlibNamespace
  *
  * @returns the namespace to hand to `registerLib('cad', …)`.
  */
-export function createSketchCadNamespace(): StdlibNamespace {
+export function createSketchCadNamespace(): LibNamespace {
   return mergeSketchNamespace(createApiNamespace())
 }
 

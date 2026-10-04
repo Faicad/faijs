@@ -9,7 +9,7 @@ import type { Provenance } from '../topology/naming/lineage'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
 /**
- * stdlib import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口）
+ * api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口）
  *
  * 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分：
  * - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`），

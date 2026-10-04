@@ -1,8 +1,8 @@
 /**
- * api.d.ts 生成脚本 — 从 stdlib 函数目录 + 签名生成 CadAPI 类型定义
+ * api.d.ts 生成脚本 — 从 api 函数目录 + 签名生成 CadAPI 类型定义
  *
  *
- * 输入：stdlib 函数目录（声明式数据，callee → 参数/返回形状，字段与真实 stdlib
+ * 输入：api 函数目录（声明式数据，callee → 参数/返回形状，字段与真实 api
  *       契约一致，原 SCHEMAS 数据迁移）—— 无 per-函数代码路径（SPECIAL_OPS /
  *       isAsync 名单死亡）。
  * 输出：src/mesh/api.d.ts（AI/UI 参考书，不参与任何语言机制）
@@ -18,7 +18,7 @@ import { collectRoleVocab } from './role-vocab'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const outputPath = resolve(__dirname, '..', 'src', 'mesh', 'api.d.ts')
 
-// ── 函数目录（声明式数据，均匀查表；字段 = 真实 stdlib 契约） ──
+// ── 函数目录（声明式数据，均匀查表；字段 = 真实 api 契约） ──
 
 interface ApiEntry {
   /** 位置 Shape 输入数（源码可见实参中位于 options 之前的 shape 数） */
@@ -248,7 +248,7 @@ function genEntry(callee: string, entry: ApiEntry): string {
   return lines.join('\n')
 }
 
-// ── 查询方法（mesh/query，非 stdlib；设计文档 §4.10 保留硬编码） ──
+// ── 查询方法（mesh/query，非 api；设计文档 §4.10 保留硬编码） ──
 
 const QUERY_METHODS = [
   `  boundingBox(shape: Shape): { min: [number, number, number]; max: [number, number, number] }`,
@@ -276,8 +276,8 @@ function generate(): string {
   lines.push(`/**`)
   lines.push(` * cad-core API 类型定义 — AI 建模时的提示词素材`)
   lines.push(` *`)
-  lines.push(` * ⚠️ 此文件由 scripts/gen-api-dts.ts 从 stdlib 函数目录生成，禁止手改。`)
-  lines.push(` * 修改 stdlib 函数签名/目录后运行：npx tsx scripts/gen-api-dts.ts`)
+  lines.push(` * ⚠️ 此文件由 scripts/gen-api-dts.ts 从 api 函数目录生成，禁止手改。`)
+  lines.push(` * 修改 api 函数签名/目录后运行：npx tsx scripts/gen-api-dts.ts`)
   lines.push(` */`)
   lines.push(``)
   lines.push(`import type { Shape } from './types'`)

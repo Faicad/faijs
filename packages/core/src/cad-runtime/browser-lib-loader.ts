@@ -27,7 +27,7 @@
  */
 
 import type { LibLoader } from './ports'
-import type { StdlibNamespace } from '../runtime-state'
+import type { LibNamespace } from '../runtime-state'
 
 /** 默认 CDN base（Q8 定稿：jsDelivr npm 镜像；ESM 取 `+esm`）。 */
 export const DEFAULT_CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
@@ -111,10 +111,10 @@ export function createBrowserLibLoader(opts: CreateBrowserLibLoaderOptions = {})
     return v ? `${cdnBase}${pkg}@${v}/+esm` : undefined
   }
 
-  const pending = new Map<string, Promise<StdlibNamespace>>()
+  const pending = new Map<string, Promise<LibNamespace>>()
 
   return {
-    loadLib: (name: string): Promise<StdlibNamespace> => {
+    loadLib: (name: string): Promise<LibNamespace> => {
       const pkg = pkgOf(name)
       if (allow && !allow.has(pkg)) {
         return Promise.reject(
@@ -124,7 +124,7 @@ export function createBrowserLibLoader(opts: CreateBrowserLibLoaderOptions = {})
       const cached = pending.get(pkg)
       if (cached) return cached
       const url = urlOf(pkg)
-      const job = importModule(url ?? pkg).then((mod) => mod as StdlibNamespace)
+      const job = importModule(url ?? pkg).then((mod) => mod as LibNamespace)
       pending.set(pkg, job)
       // 装载失败不留毒缓存：清掉后可重试（如网络恢复）。
       job.catch(() => pending.delete(pkg))

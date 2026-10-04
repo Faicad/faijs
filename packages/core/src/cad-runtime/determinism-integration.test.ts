@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { CadRuntime } from './runtime'
-import { CONTRACT_VERSION, type StdlibNamespace } from '../runtime-state'
+import { CONTRACT_VERSION, type LibNamespace } from '../runtime-state'
 import type { HostPorts, EventSink, LibLoader } from './ports'
 import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
@@ -30,7 +30,7 @@ function makeRuntime(determinism: 'off' | 'warn' | 'error', libLoader?: LibLoade
 /** 最小库装载器：loadSource 返回给定库源码，loadLib 返回最小可用命名空间。autoLift 关（裸函数不作 compatOp 提升，避免测试把 null 当几何）。 */
 function libLoaderWithSource(src: string): LibLoader {
   return {
-    loadLib: async () => (({ contractVersion: CONTRACT_VERSION, make: () => 42 }) as unknown as StdlibNamespace),
+    loadLib: async () => (({ contractVersion: CONTRACT_VERSION, make: () => 42 }) as unknown as LibNamespace),
     listLibs: () => ['@faicad/gear-demo'],
     loadSource: async () => src,
     options: { autoLift: false },

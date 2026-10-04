@@ -23,7 +23,7 @@
  */
 
 import { parse as acornParse } from 'acorn'
-import type { StdlibNamespace } from '../runtime-state'
+import type { LibNamespace } from '../runtime-state'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
@@ -69,8 +69,8 @@ function resolveExecBackend(choice: ExecBackendChoice): ExecBackend {
  * DirectExecutor 经 ns.<binding>.<callee>() 调用——引擎不区分函数来自哪个库。
  */
 export interface Namespaces {
-  readonly cad: StdlibNamespace
-  readonly [binding: string]: StdlibNamespace
+  readonly cad: LibNamespace
+  readonly [binding: string]: LibNamespace
 }
 
 // ── 结果类型 ──

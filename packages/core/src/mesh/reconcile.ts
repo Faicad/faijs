@@ -12,7 +12,7 @@
  *   3. 朝向统一（连通分量内面法向传播，翻转不一致者）
  *   4. 2-manifold 断言（每条边恰好被 2 个三角形共享；不满足即显式报错，不静默、不 try-catch 回退）
  *
- * 红线（AGENTS.md）：这是输入数据规整，不是运行时回退——调用方（stdlib 各 op 的
+ * 红线（AGENTS.md）：这是输入数据规整，不是运行时回退——调用方（api 各 op 的
  * mesh 路径）在 dispatchPath 静态判定为 'mesh' 之后、进入 manifold 之前调用。
  */
 

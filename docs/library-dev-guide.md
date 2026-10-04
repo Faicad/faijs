@@ -282,7 +282,7 @@ A neutral op (implementation uses only `getBrepApi()` L1 methods) must *not* wri
 
 ### 4.5 Library calls outside a statement position
 
-Three places where a library call behaves differently than §4.1 suggests. The local function ABI itself (injected namespace bindings, verbatim body) is specified in `docs/syntax-design.md` §6.2.
+Three places where a library call behaves differently than §4.1 suggests. The local function ABI itself (injected namespace bindings, verbatim body) is specified in `docs/language-design.md` §6.2.
 
 1. **A user function body cannot read top-level script variables.** Only parameters, namespace bindings and S4 safe globals resolve there; a top-level `const SUN_TEETH = 20` is invisible inside the body and fails with `SUN_TEETH is not defined`. Pass every value the body needs as an argument.
 2. **Op calls inside a body are not awaited.** `ns.fn(…)` there yields a `Promise`, and the engine inserts `await` at statement boundaries only (§4.2). A body that collects op results into an array hands on an array of pending promises, which the return classification admits as data records (§2.3) — the data is lost with no error. The VM backend (the default, `exec-backend.ts`) leaves them unawaited; the interpreter backend awaits each call during expression evaluation. Rely on neither: design data APIs so their results are consumed at statement level, or turn lifting off (§3.6) so the calls are synchronous.

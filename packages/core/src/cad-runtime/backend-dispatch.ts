@@ -5,11 +5,11 @@
  * 红线（AGENTS.md）：BREP 链是否可用，由静态规则在执行前判定，
  * **禁止运行时 try-catch 回退**。BREP 路径抛异常 = 设计缺陷或 bug，必须直接报错暴露。
  *
- * 本文件从 src/stdlib/internal/resolve-path.ts 迁移而来：判定是引擎的职责，
+ * 本文件从 src/api/internal/resolve-path.ts 迁移而来：判定是引擎的职责，
  * 不该由每个库函数各自调用。
  *
- * ⚠️ 分层例外：本文件位于 cad-runtime/ 但被 stdlib/ import。
- * 这是安全的——它只依赖 runtime-state / stdlib/shape / mesh/types，
+ * ⚠️ 分层例外：本文件位于 cad-runtime/ 但被 api/ import。
+ * 这是安全的——它只依赖 runtime-state / api/shape / mesh/types，
  * 不依赖 cad-runtime 的任何其他模块，因此不构成循环。
  * P4b（可选）把函数拆成 brep/mesh 双实现后，此依赖会自然消失。
  */

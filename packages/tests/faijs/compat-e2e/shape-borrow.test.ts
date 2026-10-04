@@ -23,12 +23,12 @@ import { createNodePorts } from '@faicad/faijs/node'
 import { asPartName } from '@faicad/faijs/identity'
 import { hasBrep, isShape } from '@faicad/faijs/shape'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
-import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
+import type { LibNamespace } from '@faicad/faijs/runtime-state'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as sheetPkg from '@faicad/sheetmetal'
 import { createEditorRuntime } from '../_support/editor-runtime'
 
-const sheetNs: StdlibNamespace = {
+const sheetNs: LibNamespace = {
   author: sheetPkg.author,
   solidOf: sheetPkg.solidOf,
   unfoldSolid: sheetPkg.unfoldSolid,

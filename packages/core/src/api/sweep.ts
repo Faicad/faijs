@@ -1,5 +1,5 @@
 /**
- * stdlib sweep — 扫掠：截面沿脊柱路径生成扫掠体（手写平台 op，Phase 4 → G5 core 直连）
+ * api sweep — 扫掠：截面沿脊柱路径生成扫掠体（手写平台 op，Phase 4 → G5 core 直连）
  *
  * @platform occt — 实现走 core 自有 `brep-mirror/sweepFns.ts#sweepBrep`
  * （occt-wasm simplePipe / sweepPipeShell；engine-method-map 里 `sweep` 为

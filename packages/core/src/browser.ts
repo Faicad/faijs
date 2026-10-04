@@ -227,7 +227,7 @@ export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
 export type { StepExportEntry } from './brep/export/step'
 export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
 
-// ── L3 API 面（P6/D1：原 packages/stdlib 迁入 core）──
+// ── L3 API 面（api/ 层）──
 export * from './api'
 // Vec3 双源消歧：env-agnostic（lang/types）与 api（mesh/types）均有 Vec3，
 // 显式 re-export 定为 lang 版（与收敛前 browser.ts 的具名导出一致）。

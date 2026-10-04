@@ -1,5 +1,5 @@
 /**
- * stdlib helix — 螺旋线（1D 曲线，平台 op engines:['occt']）
+ * api helix — 螺旋线（1D 曲线，平台 op engines:['occt']）
  *
  * @platform occt — 本文件 import occt-kernel：螺旋线用 `makeHelixWire` 构造
  * （occt-wasm 原生有，L1 无）。守卫 ① 要求平台 import 自证身份；调用方 op 声明

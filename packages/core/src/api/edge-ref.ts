@@ -1,5 +1,5 @@
 /**
- * stdlib edge-ref — 边引用查询：把「边序号」解析成 `EdgeTopoRef`（1 起）
+ * api edge-ref — 边引用查询：把「边序号」解析成 `EdgeTopoRef`（1 起）
  *
  * fillet / chamfer 的选边参数是 `EdgeTopoRef`（相邻两面的 role 对，见
  * `topology/naming`）；而外部格式（FCStd / STEP 编辑器 / 上游特征文件）通常只给

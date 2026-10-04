@@ -4,7 +4,7 @@ English | [中文](reproducibility-contract.zh.md)
 
 > Position: This document is the **determinism contract** of the `.fai.js` exchange format — what guarantees the same source produces the same geometry across time, geometry kernels, and JavaScript engines. It defines the precision bound for "same geometry", the boundary between geometry and non-geometry data, the set of non-deterministic sources, the static analysis that decides whether a non-deterministic value reaches geometry, and the responsibilities of the engine and host.
 >
-> Related: [`docs/api-contract.md`](api-contract.md) owns the interface contract (identity, statement model, execution, geometry dispatch); [`docs/syntax-design.md`](syntax-design.md) owns the syntax and incremental-execution contract. This document does not track development plans or defects and does not reference `docs/plans/` documents.
+> Related: [`docs/api-contract.md`](api-contract.md) owns the interface contract (identity, statement model, execution, geometry dispatch); [`docs/language-design.md`](language-design.md) owns the language and incremental-execution contract. This document does not track development plans or defects and does not reference `docs/plans/` documents.
 
 ---
 

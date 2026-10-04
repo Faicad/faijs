@@ -43,7 +43,7 @@ import { computeLiveShapes, lineConsumes, blockConsumes, type KeepView } from '.
 import { extractMetadata, type UiMetadata, type OpDimMap } from '../lang/metadata-extractor'
 import {
   configureBackends, CONTRACT_VERSION,
-  assertContractVersion, type StdlibNamespace,
+  assertContractVersion, type LibNamespace,
   type AssemblyKinematicsPose,
 } from '../runtime-state'
 import { admitCompatLib } from './admit-compat-lib'
@@ -405,7 +405,7 @@ export class CadRuntime {
   private determinismWarnings: string[] = []
 
   /** 宿主注册库（含 cad：由根门面 createRuntime 包装注入；注入编译产物 fn 的第二参 ns） */
-  private readonly libs: Record<string, StdlibNamespace>
+  private readonly libs: Record<string, LibNamespace>
   /** 库内容身份表 (binding → content hash)，增量 key 用（B2，§7.3） */
   private readonly libIds = new Map<string, string>()
   /** import specifier → binding 映射（registerLib 的 packageName 声明；check ①.5 校验 specifier） */
@@ -419,7 +419,7 @@ export class CadRuntime {
    * Register a library namespace. A version mismatch throws (no silent
    * degradation); afterwards compiled products may use the library via
    * `ns.<binding>.<callee>`. `cad` is registered the same way: the root facade
-   * injects it through registerLib('cad', createInternalStdlib(), { default: true }).
+   * injects it through registerLib('cad', createApiNamespace(), { default: true }).
    * @param binding - the namespace binding name.
    * @param ns - the namespace object to register.
    * @param options - `{ default: true }` declares this binding as the default
@@ -449,7 +449,7 @@ export class CadRuntime {
    *   `borrow: false` marks a faijs-native library (sheetmetal): compatOp must
    *   not borrow inputs into brepjs handle form (compat-op.ts CompatSpec.borrow).
    */
-  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean; autoLift?: boolean; packageName?: string; borrow?: boolean }): void {
+  registerLib(binding: string, ns: LibNamespace, options?: { default?: boolean; autoLift?: boolean; packageName?: string; borrow?: boolean }): void {
     assertContractVersion(ns as unknown as { contractVersion?: number })
     // B4: admit bare (non-dual-op) library functions through compatOp when
     // autoLift is true (or inferred true — the library has no dual-op).
@@ -462,7 +462,7 @@ export class CadRuntime {
     // admit-compat-lib.ts / docs/plans/2026-09-23-relax-lib-naming-design.md).
     const lift = options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>)
     const admitted = lift
-      ? (admitCompatLib(ns as unknown as Record<string, unknown>, { borrow: options?.borrow }) as StdlibNamespace)
+      ? (admitCompatLib(ns as unknown as Record<string, unknown>, { borrow: options?.borrow }) as LibNamespace)
       : ns
     this.libs[binding] = admitted
     this.libIds.set(binding, computeLibId(binding, ns as unknown as Record<string, unknown>))
@@ -519,7 +519,7 @@ export class CadRuntime {
   constructor(
     ports: HostPorts,
     mode: ExecutionMode = 'auto',
-    libs: Record<string, StdlibNamespace> = {},
+    libs: Record<string, LibNamespace> = {},
     options: CadRuntimeOptions = {},
   ) {
     this.ports = ports
@@ -547,7 +547,7 @@ export class CadRuntime {
       ...(options.execBackend !== undefined ? { execBackend: options.execBackend } : {}),
     })
 
-    // P2：装配全局 backends（stdlib 经 getBackends() 取资源）。
+    // P2：装配全局 backends（api 层经 getBackends() 取资源）。
     this.claimBackends()
   }
 
@@ -1207,7 +1207,7 @@ export class CadRuntime {
       if (isRelativeSpecifier(imp.specifier ?? '')) continue
       if (!imp.localName) continue
       if (this.libs[imp.localName]) continue  // 已注册（宿主注入或此前自动装载）→ 不覆盖
-      let ns: StdlibNamespace
+      let ns: LibNamespace
       try {
         ns = await this.ports.libLoader.loadLib(imp.packageName ?? imp.specifier ?? '')
       } catch (err) {
@@ -1814,6 +1814,6 @@ export class CadRuntime {
  * @param options - optional runtime options (e.g. `executor: 'direct' | 'module'`).
  * @returns a new CadRuntime.
  */
-export function createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, StdlibNamespace>, options?: CadRuntimeOptions): CadRuntime {
+export function createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, LibNamespace>, options?: CadRuntimeOptions): CadRuntime {
   return new CadRuntime(ports, mode, libs, options)
 }

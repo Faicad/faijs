@@ -44,7 +44,7 @@ export function discoverCadNamespaceFunctions(): string[] {
   const names: string[] = []
   for (const stmt of sf.statements) {
     if (!ts.isFunctionDeclaration(stmt) || stmt.name?.text !== 'createApiNamespace') continue
-    // 找 return { ... } 对象字面量（可能带 `as unknown as StdlibNamespace` 断言）
+    // 找 return { ... } 对象字面量（可能带 `as unknown as LibNamespace` 断言）
     const unwrapObject = (expr: ts.Expression): ts.ObjectLiteralExpression | undefined => {
       let cur: ts.Expression | undefined = expr
       while (cur) {

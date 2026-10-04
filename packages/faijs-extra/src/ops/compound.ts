@@ -1,8 +1,8 @@
 /**
- * stdlib compound — group/assembly 库函数（compound Shape + AssemblyBehavior）
+ * faijs-extra compound — group/assembly 库函数（compound Shape + AssemblyBehavior）
  *
  *
- * 从 src/ops/assemble.ts 迁出并改写为 stdlib 形态：
+ * 从 src/ops/assemble.ts 迁出并改写为 op 形态：
  * - `group(params)` → compound Shape（kind='compound'，children 为成员 Shape 引用）
  * - `assembly(params)` → compound Shape + AssemblyBehavior（约束列表 + solve 方法）
  * - 装配求解（P1 起）委派 api/assembly/（brepjs solverAdapter 内核）：
@@ -26,7 +26,7 @@ import type { SolverStyle } from '@faicad/faijs/api/assembly/solvers/types'
 
 // ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 keep() 显式声明，不再靠类型标注） ──
 
-/** Parameters for the `group` stdlib function: an optional name and ordered members. */
+/** Parameters for the `group` op function: an optional name and ordered members. */
 export interface GroupParams {
   name?: string
   /** Compound members: read-only references, never mutated by group/assembly. */
@@ -34,7 +34,7 @@ export interface GroupParams {
   memberNames?: string[]
 }
 
-/** Parameters for the `assembly` stdlib function: group params plus assembly constraints. */
+/** Parameters for the `assembly` op function: group params plus assembly constraints. */
 export interface AssemblyParams extends GroupParams {
   constraints?: AssemblyConstraint[]
   /** P3：运动副声明（可选；parent/child 必须是 members 里的名字）。 */
@@ -75,7 +75,7 @@ export type { AssemblySolveResult } from '@faicad/faijs/api/assembly/solve'
 // brepjs utils/quaternion.ts，输出经 api/assembly/pose.ts fromBrepjsQuat 重排。
 
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：
-// 引擎不得 import stdlib/compound；公共 API 经本 re-export 保持）。
+// 引擎不得 import api/compound；公共 API 经本 re-export 保持）。
 export { applyTransform } from '@faicad/faijs/mesh/rigid-transform'
 
 // ── AssemblyBehavior ──

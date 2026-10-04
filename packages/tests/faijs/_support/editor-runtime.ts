@@ -8,13 +8,13 @@
  */
 import { createRuntime as createRuntimeCore, type CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { ExecutionMode, HostPorts } from '@faicad/faijs/cad-runtime/ports'
-import type { StdlibNamespace } from '@faicad/faijs'
+import type { LibNamespace } from '@faicad/faijs'
 import {
   createEditorCadNamespace, installEditorMeshProviders, registerEditorSymbols,
 } from '@faicad/faijs-extra'
 
 /** Platform surface + editor ops: the `cad` namespace a host registers. */
-export function createApiNamespaceWithEditorOps(): StdlibNamespace {
+export function createApiNamespaceWithEditorOps(): LibNamespace {
   return createEditorCadNamespace()
 }
 

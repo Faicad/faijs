@@ -1,12 +1,10 @@
-# .fai.js Syntax Design
+# .fai.js Language Design
 
-English | [中文](syntax-design.zh.md)
+English | [中文](language-design.zh.md)
 
-> Position: this document is the **syntax contract** and **incremental execution contract** of `.fai.js` — what may be written, how it maps to `ScriptIR`, how generated code is named, how terminals are derived, and how the engine replays only what changed.
+> Position: this document is the **language contract** and **incremental execution contract** of `.fai.js` — what may be written, how the text is executed, how generated code is named, how terminals are derived, and how the engine replays only what changed.
 >
 > Related: [`docs/api-contract.md`](api-contract.md) owns the interface contract (identity, statement model, terminal detection, execution, geometry dispatch); [`docs/ops-api-inventory.md`](ops-api-inventory.md) is the generated API manual for writing `.fai.js` code.
->
-> §1 quotes the requirements from the Faijs language design notes kept outside this repository; the Chinese originals are quoted verbatim in the Chinese counterpart of this document.
 
 ---
 
@@ -18,25 +16,26 @@ English | [中文](syntax-design.zh.md)
 > - **R2** Support multiple backend engines — brep uses OCCT, mesh uses manifold — and keep engine switching possible.
 > - **R3** Support UI modeling (a click emits code) and AI modeling (text → source); this is the most important feature. Interactive running must work — UI and AI code alternate and stay compatible.
 > - **R4** The faijs engine parses and validates code, eliminating errors and security risks up front; execution is handed to the JavaScript VM.
-> - **R5** All geometry operations are implemented by the faijs language library; the engine embeds none.
+> - **R5** Geometry operations are handled by the geometry kernel; the engine embeds none — the host environment provides them via injection.
 > - **R6** faijs does not handle UI state, only geometry — the biggest difference from macro languages like FreeCAD macros.
 > - **R7** faijs supports UI recording and line-by-line incremental execution — the biggest difference from modeling languages like CadQuery and OpenSCAD.
-> - **R8** faijs is a general-purpose language, not an op language: an op is just a function — the long-term direction. A third-party library just writes functions; it needs no concept of op.
+> - **R8** faijs is a general-purpose language, not an op language: an op is just a function.
 > - **R9** faijs must be a normal language with a normal design; every design that breaks this must go, and today's implementation does not matter. One exception: the UI generates code automatically, so AI and UI code coexist.
 > - **R10** Control flow is forbidden — no `if` / `for` / `while`. Otherwise AI-generated code would break what the canvas shows and how the timeline displays.
 > - **R11** The UI layer is dumb and needs deterministic naming to generate and replay code, so UI-generated code uses `partN` (N an integer index). The rule constrains only UI-generated code — hand-written and AI code may use any name.
 > - **R12** In one sentence: DAG liveness, plus inputs declared as retained are not consumed. The survivors are what the canvas shows.
-> - **R13** The parser only does syntax analysis; it must never rewrite user code. `partN` naming is a UI concern, not the parser's.
+> - **R13** The same source code, re-executed under compliant environments with the geometry kernel and JS VM implementation switched, produces geometry equal within a given precision bound.
+
 
 ### 1.2 Hard constraints derived from them
 
 1. **Legal JS subset** — acorn parses any `.fai.js` file without error.
-2. **parse-then-compile** — text becomes `ScriptIR` first; the VM runs the module compiled from it, never the user's text. `eval` / `new Function` / dynamic `import()` are rejected at the parser.
+2. **parse-then-compile** — the parser performs syntax analysis and validation on the text and never executes it; `eval` / `new Function` / dynamic `import()` are rejected at the parser. Execution is environment-specific: on the web the text is hoisted first and then handed to the JavaScript VM; on the mini-program side faijs is interpreted. The faijs engine itself has no `ScriptIR`.
 3. **No control flow** — the single language-level prohibition (§2.1); it keeps the canvas set and one-timeline-node-per-line derivable.
 4. **Zero function knowledge** — no parser / compile / codegen / runtime branch depends on a function name; the machine-generated symbol table carries key existence only.
-5. **UI and AI converge on one `ScriptIR`** — the engine never distinguishes provenance; icons, colors and display names are host concerns.
+5. **UI and AI converge on the same source text** — the engine never distinguishes provenance; icons, colors and display names are host concerns.
 6. **Incremental execution is mandatory** — line-by-line recording and recomputation (§6.3).
-7. **Code is the single source of truth** — text is the source; `ScriptIR` is an internal representation compiled from it; `scriptIRToCode` / `statementIRToLine` are debug-only printers.
+7. **Code is the single source of truth** — text is the only source; `StatementSummary` (from `analyzeCode`) is just a flat projection of the text, for host display and orchestration. `formatCodeLine` is the host editor's pure-data → text printing tool. One operation per line is a flat-format (UI recording) convention, not a consequence of the projection.
 8. **Naming is a generating-side responsibility** — UI / AI / CLI call `derivePartName` when emitting code; the parser neither names nor renames.
 
 ---
@@ -121,9 +120,9 @@ Identifiers this project emits (codegen variable and parameter names, the fixed 
 
 ---
 
-## 3. Statement model ↔ `StatementIR` mapping
+## 3. Statement model ↔ `StatementSummary` mapping
 
-The field-level contract of `StatementIR` and `ScriptIR` belongs to [`docs/api-contract.md`](api-contract.md); this section owns the text ↔ IR mapping.
+The field-level contract of `StatementSummary` belongs to [`docs/api-contract.md`](api-contract.md); this section owns the text ↔ summary mapping.
 
 ### 3.1 Mapping rules
 
@@ -142,9 +141,9 @@ The field-level contract of `StatementIR` and `ScriptIR` belongs to [`docs/api-c
 | `let part3 = mech.makeHeadstock({ length:120 })` | `{ namespace:'mech', callee:'makeHeadstock', outputs:['part3'] }` |
 | `return [{ shape: part0 }, { shape: part2 }]` | `terminalShapes = [{ id:'part0' }, { id:'part2' }]` |
 
-### 3.2 IR is compiled from text
+### 3.2 The summary is a projection of the text
 
-Direction is one-way: text → `parseScript` → `ScriptIR` → `compileToModule` → VM (§6.1); `scriptIRToCode` / `statementIRToLine` are debug-only; the rules are mechanical: a declared name is reassigned bare (`part0 = …`), an undeclared one declared (`let part0 = …`), destructuring rendered as `const { front: a, back: b } = ns.callee(…)`, numbers printed with at most six decimals, no trailing zeros.
+Direction is one-way: text → `analyzeCode` → `StatementSummary` (a one-way projection for host display and orchestration, see §6.1); `formatCodeLine` is the host editor's tool for printing pure data (the `HostArg` surface) back to text (shared by `buildCode` / line reordering), not a source of text. The rules are mechanical: a declared name is reassigned bare (`part0 = …`), an undeclared one declared (`let part0 = …`), destructuring rendered as `const { front: a, back: b } = ns.callee(…)`, numbers printed with at most six decimals, no trailing zeros.
 
 ---
 
@@ -211,14 +210,15 @@ The decision chain behind this table — retention first, "no-assignment bare ca
 
 ```
 .fai.js text
-  → parseScript (acorn gate, zero function knowledge) → ScriptIR
-  → compileToModule → zero-import ESM (one { id, deps, fn } per statement)
-  → dynamic import() (Node: data: URL; browser: Blob URL)
-  → ModuleExecutor: persistent ctx, statements called in topological order
+  → acorn parse (security gate, zero function knowledge) → execution units
+    (per top-level statement: mechanical text transform — ctx hoisting + await)
+  → backend dispatch: vm backend (new Function; web / Node)
+                    | interpreter backend (AST walk; mini-program / strict CSP)
+  → shared persistent ctx, units run in source order
   → collectResult: outputs / terminals / compounds / brepSolids / topology
 ```
 
-Compilation consumes only the IR, so user text never reaches the VM. The output is import-free because neither a `data:` URL nor a Blob URL resolves a bare specifier — the loader's property, not a language rule.
+The per-unit text transform is mechanical and semantics-preserving (not IR compilation), and the shared `ctx` is the only persistent state. The vm backend is the only place in core allowed to use `new Function` (SDF compilation is the other exemption); constrained environments (WeChat mini-program, strict CSP) take the interpreter backend, executing directly on the retained acorn AST — no `new Function`, no `eval`, no dynamic `import()`. The two backends must keep observable semantics identical.
 
 ### 6.2 Uniform ABI
 

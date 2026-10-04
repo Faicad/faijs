@@ -4,7 +4,7 @@
 
 > 定位：本文档是 `.fai.js` 交换格式的**确定性契约** —— 约定同一份源码如何跨时间、跨几何内核、跨 JavaScript 引擎产出相同的几何。它定义"几何相同"的精度界、几何数据与非几何数据的边界、非确定源集合、判断非确定值是否到达几何的静态分析，以及引擎与宿主的责任。
 >
-> 相邻：[`docs/api-contract.zh.md`](api-contract.zh.md) 是接口契约（身份、语句模型、执行、几何分派）；[`docs/syntax-design.zh.md`](syntax-design.zh.md) 是语法与增量执行契约。本文档不追踪开发计划与缺陷，也不引用 `docs/plans/` 文档。
+> 相邻：[`docs/api-contract.zh.md`](api-contract.zh.md) 是接口契约（身份、语句模型、执行、几何分派）；[`docs/language-design.zh.md`](language-design.zh.md) 是语言与增量执行契约。本文档不追踪开发计划与缺陷，也不引用 `docs/plans/` 文档。
 
 ---
 

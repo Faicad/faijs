@@ -1,5 +1,5 @@
 /**
- * stdlib screw — 螺丝创建库函数（creator 函数，无输入）
+ * api screw — 螺丝创建库函数（creator 函数，无输入）
  *
  * 平台分层（narrowing plan Phase 5，D11）：**平台 op（occt）**——BREP 路径的
  * 螺纹经 `threadBrep`（brep-mirror/threadFns.ts）走 occt-only `loft`（D3）→
@@ -138,11 +138,11 @@ function makeHexPrismBrep(
 export function assertScrewParams(params: Record<string, unknown>): void {
   if (typeof params.system !== 'string' || typeof params.specIdx !== 'number') {
     throw new Error(
-      `[stdlib/screw] system (string) and specIdx (number) are required, got system=${JSON.stringify(params.system)}, specIdx=${JSON.stringify(params.specIdx)}`,
+      `[api/screw] system (string) and specIdx (number) are required, got system=${JSON.stringify(params.system)}, specIdx=${JSON.stringify(params.specIdx)}`,
     )
   }
   if (typeof params.length !== 'number' || !Number.isFinite(params.length)) {
-    throw new Error(`[stdlib/screw] length must be a finite number, got ${JSON.stringify(params.length)}`)
+    throw new Error(`[api/screw] length must be a finite number, got ${JSON.stringify(params.length)}`)
   }
 }
 

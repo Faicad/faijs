@@ -1,8 +1,8 @@
 /**
  * cad-core API 类型定义 — AI 建模时的提示词素材
  *
- * ⚠️ 此文件由 scripts/gen-api-dts.ts 从 stdlib 函数目录生成，禁止手改。
- * 修改 stdlib 函数签名/目录后运行：npx tsx scripts/gen-api-dts.ts
+ * ⚠️ 此文件由 scripts/gen-api-dts.ts 从 api 函数目录生成，禁止手改。
+ * 修改 api 函数签名/目录后运行：npx tsx scripts/gen-api-dts.ts
  */
 
 import type { Shape } from './types'

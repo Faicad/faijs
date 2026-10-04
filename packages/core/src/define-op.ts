@@ -86,7 +86,7 @@ export function isGeometryInput(v: unknown): v is Shape {
 /** Product of a mesh implementation: raw mesh data, a wrapped Shape, or (with `outputs`) a record of named products. */
 export type MeshProduct = MeshData | Shape | Record<string, MeshData | Shape>
 
-/** Mesh implementation: sync or async (stdlib mesh paths are often async); returns a mesh product. */
+/** Mesh implementation: sync or async (api mesh paths are often async); returns a mesh product. */
 export type MeshImpl<A extends unknown[]> = (...args: A) => MeshProduct | Promise<MeshProduct>
 
 /** BREP implementation result: a raw handle, or a handle plus face evolution. */
@@ -344,7 +344,7 @@ export function defineOp<A extends unknown[]>(
     retDim: decl.retDim,
   }
 
-  // Async wrapper: implementations may be sync or async (stdlib mesh paths are
+  // Async wrapper: implementations may be sync or async (api mesh paths are
   // often async, e.g. drill/engrave/boolean). The compiled .fai.js product always
   // awaits the call, so returning a Promise is transparent.
   const wrapped = async (...args: A): Promise<Shape | Record<string, Shape>> => {

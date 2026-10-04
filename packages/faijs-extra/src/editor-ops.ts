@@ -12,7 +12,7 @@
  * scripts, but must not bundle the svg/3D-text chain (plan §3.1 G3). The guard
  * `entry-boundary.test.ts` pins it.
  */
-import { CONTRACT_VERSION, type StdlibNamespace } from '@faicad/faijs/runtime-state'
+import { CONTRACT_VERSION, type LibNamespace } from '@faicad/faijs/runtime-state'
 import { registerSymbolTableEntries, unregisterSymbolTableEntries } from '@faicad/faijs/symbol-table'
 import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import { EDITOR_OPS } from './op-names'
@@ -28,7 +28,7 @@ import { load } from './ops/load'
  *
  * @returns the editor op namespace, ready to be spread over the platform surface.
  */
-export function createEditorOpsNamespace(): StdlibNamespace {
+export function createEditorOpsNamespace(): LibNamespace {
   return {
     contractVersion: CONTRACT_VERSION,
     fai_drill,
@@ -38,7 +38,7 @@ export function createEditorOpsNamespace(): StdlibNamespace {
     assembly,
     copy,
     load,
-  } as unknown as StdlibNamespace
+  } as unknown as LibNamespace
 }
 
 /**
@@ -46,7 +46,7 @@ export function createEditorOpsNamespace(): StdlibNamespace {
  * @param platform - the platform namespace (`createApiNamespace()`).
  * @returns the merged namespace to register as the host's `cad` library.
  */
-export function mergeEditorOpsNamespace(platform: StdlibNamespace): StdlibNamespace {
+export function mergeEditorOpsNamespace(platform: LibNamespace): LibNamespace {
   return { ...platform, ...createEditorOpsNamespace() }
 }
 
@@ -59,7 +59,7 @@ export function mergeEditorOpsNamespace(platform: StdlibNamespace): StdlibNamesp
  *
  * @returns the namespace to hand to `registerLib('cad', …)`.
  */
-export function createEditorOwnedCadNamespace(): StdlibNamespace {
+export function createEditorOwnedCadNamespace(): LibNamespace {
   return mergeEditorOpsNamespace(createApiNamespace())
 }
 

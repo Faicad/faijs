@@ -22,7 +22,7 @@ import { cliCheck, cliRun, cliView, parseArgs, selectExportableTerminals } from 
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 
-// P6/D1：CLI 测试注入 cad（L3 api/ 层，原 stdlib 取消）
+// CLI 测试注入 cad（L3 api/ 层）
 const CAD_LIBS = { cad: createApiNamespaceWithEditorOps() }
 
 beforeAll(async () => {

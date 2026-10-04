@@ -1,5 +1,5 @@
 /**
- * stdlib drill — 钻孔库函数
+ * faijs-extra drill — 钻孔库函数
  *
  *
  * dispatchPath 静态判定 brep/mesh。
@@ -28,7 +28,7 @@ import { assertPositiveNumber, assertNumber, assertVec3 } from '@faicad/faijs/ap
 import type { FaceTopoRef } from '@faicad/faijs/topology/naming'
 import { resolveFaceGeometry } from '@faicad/faijs/api/topo-resolve'
 
-// ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
+// ── per-op 参数自校验（Phase 2.2；op 被直接 import 时的防御层） ──
 
 /**
  * Validate drill parameters: `diameter` must be a positive number, `position`
@@ -166,9 +166,9 @@ function screwHoleBrep(
 /** BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。带 roleTable 传播。 */
 function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/drill] no OCCT kernel')
+  if (!kernel) throw new Error('[extra/drill] no OCCT kernel')
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[stdlib/drill] input is not BREP')
+  if (!inputSolid) throw new Error('[extra/drill] input is not BREP')
 
   const faceNormal = faceNormalFrom(input, params)
   const direction = resolveDirection(params, faceNormal)
@@ -266,12 +266,12 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
   */
 export const fai_drill = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/drill] no input geometry')
+    if (!input) throw new Error('[extra/drill] no input geometry')
     assertDrillParams(params)
     return drillMeshPath(input, params)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/drill] no input geometry')
+    if (!input) throw new Error('[extra/drill] no input geometry')
     assertDrillParams(params)
     return drillBrepPath(input, params)
   },

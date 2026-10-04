@@ -7,7 +7,7 @@
  * - face-evolution 工具函数正确性（cutWithHistoryBrep / fuseWithHistoryBrep / getFaceHashes）
  *
  * 说明：resolveGeomRef 测试块已删除——GeomRef 类型在语言正常化中退役（退役为 CallRefIR，
- * faceOrdinal/anchor 成为普通实参），拓扑语义由 stdlib/geom.ts 的 geomQuery 承担。
+ * faceOrdinal/anchor 成为普通实参），拓扑语义由 api/geom.ts 的 geomQuery 承担。
  *
  * Run: npx vitest run src/brep/face-evolution-impl.test.ts
  */

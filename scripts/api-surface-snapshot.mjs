@@ -11,10 +11,9 @@
  */
 import { writeFileSync } from 'node:fs'
 
-// core package.json exports 的**具体（可整体 import）键**（P6 起取消 ./stdlib
-// 子路径；D2-A 起 facade 折入 core；2026-09-20 的 ./fcstd 读层已于后续移除，
-// 2026-09-25 重拍基线对齐当前 28 键中可 import 的 18 个；通配键
-// ./api/*、./mesh/*、./brep/*、./topology/* 等不可整体 import，不列入）。
+// core package.json exports 的**具体（可整体 import）键**（D2-A 起 facade 折入 core；
+// 2026-09-20 的 ./fcstd 读层已于后续移除，2026-09-25 重拍基线对齐当前 28 键中可 import
+// 的 18 个；通配键 ./api/*、./mesh/*、./brep/*、./topology/* 等不可整体 import，不列入）。
 const SUBPATHS = [
   '.', './api', './api/brepjs-compat', './brepjs-compat',
   './sdk', './symbol-table', './csg', './sdf', './node', './browser',

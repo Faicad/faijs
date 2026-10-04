@@ -1,5 +1,5 @@
 /**
- * stdlib load — 加载库函数（统一 load 函数）
+ * faijs-extra load — 加载库函数（统一 load 函数）
  *
  * file 指定资产名（用户上传文件名，不含路径、含后缀），经宿主资产解析器按名解析；
  * 格式由 file 后缀白名单自判（不依赖宿主 format 参数），isCadFormat 静态判定 brep/mesh，
@@ -57,22 +57,22 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
     resolveByKey(key: string): Promise<{ bytes: ArrayBuffer }>
   } | undefined
   if (!assets) {
-    throw new OpError('load', 'E_OP_FAILED', '[stdlib/load] assets is required for load op')
+    throw new OpError('load', 'E_OP_FAILED', '[extra/load] assets is required for load op')
   }
 
   // P8：参数面收敛为 file（资产名，不含路径、含后缀）。key/path/url/format 三键已删除。
   const file = params.file
   if (typeof file !== 'string' || file === '') {
-    throw new OpError('load', 'E_ARGS_FORM', '[stdlib/load] load op requires a non-empty file (asset file name, no path)')
+    throw new OpError('load', 'E_ARGS_FORM', '[extra/load] load op requires a non-empty file (asset file name, no path)')
   }
   if (file.includes('/') || file.includes('\\')) {
-    throw new OpError('load', 'E_ARGS_FORM', `[stdlib/load] file must not contain path separators: ${JSON.stringify(file)}`)
+    throw new OpError('load', 'E_ARGS_FORM', `[extra/load] file must not contain path separators: ${JSON.stringify(file)}`)
   }
 
   // 格式自判：file 后缀白名单 → 归一化格式；未命中即报错（不猜格式）。
   const fmt = formatFromFile(file)
   if (!fmt) {
-    throw new OpError('load', 'E_ARGS_FORM', `[stdlib/load] unsupported file extension in: ${JSON.stringify(file)}`)
+    throw new OpError('load', 'E_ARGS_FORM', `[extra/load] unsupported file extension in: ${JSON.stringify(file)}`)
   }
 
   const buffer = (await assets.resolveByKey(file)).bytes
@@ -148,7 +148,7 @@ function buildMeshPart(shape: Shape, file: string): Shape {
     throw new OpError(
       'load',
       'E_MESH_SOLID_UNWELDABLE',
-      `E_MESH_SOLID_UNWELDABLE: [stdlib/load] ${JSON.stringify(file)} could not be normalized into a mesh solid` +
+      `E_MESH_SOLID_UNWELDABLE: [extra/load] ${JSON.stringify(file)} could not be normalized into a mesh solid` +
       `${part ? ` (part "${part}")` : ''}: ${reason}`,
       { cause: err },
     )
@@ -201,7 +201,7 @@ function assertFileMagic(fmt: string, buffer: ArrayBuffer, file: string): void {
     throw new OpError(
       'load',
       'E_ARGS_FORM',
-      `[stdlib/load] file ${JSON.stringify(file)} has .3mf extension but content is not a 3MF archive`,
+      `[extra/load] file ${JSON.stringify(file)} has .3mf extension but content is not a 3MF archive`,
     )
   }
 }
@@ -214,7 +214,7 @@ function buildImportOpts(unitParam: unknown): { unit: ValueWithUnits } | undefin
   if (typeof unitParam !== 'string' || unitParam === '') return undefined
   const spec = LENGTH_UNIT_VALUES[unitParam as UnitName]
   if (!spec) {
-    throw new OpError('load', 'E_ARGS_FORM', `[stdlib/load] unknown unit: ${JSON.stringify(unitParam)}`)
+    throw new OpError('load', 'E_ARGS_FORM', `[extra/load] unknown unit: ${JSON.stringify(unitParam)}`)
   }
   return { unit: spec }
 }

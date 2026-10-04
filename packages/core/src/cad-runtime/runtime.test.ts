@@ -27,7 +27,7 @@ import { getSolidBoundingBox } from '../brep/brep-utils'
 import { setKnurlTextureLoader } from '../mesh/knurl/textureLoader'
 import { union } from '../api'
 import { solid } from '../shape'
-import type { StdlibNamespace } from '../runtime-state'
+import type { LibNamespace } from '../runtime-state'
 import type { Shape } from '../mesh/types'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp, hasBrep, CONTRACT_VERSION } from '../sdk'
@@ -840,7 +840,7 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
   it('第三方库函数产物可与标准库产物混合 union（同为库函数）', async () => {
     // mesh 模式：两条路径都是纯 manifold 网格
     const runtime = makeRuntime('mesh')
-    const mechLib: StdlibNamespace = {
+    const mechLib: LibNamespace = {
       makeHeadstock: () => solid(cubeMesh(8)),
     }
     runtime.registerLib('mech', mechLib, { autoLift: false })
@@ -858,7 +858,7 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
   it('版本不匹配时 registerLib 抛错（不静默降级）', () => {
     const runtime = makeRuntime()
     const badLib = { contractVersion: 999, makeHeadstock: () => null }
-    expect(() => runtime.registerLib('mech', badLib as unknown as StdlibNamespace, { autoLift: false }))
+    expect(() => runtime.registerLib('mech', badLib as unknown as LibNamespace, { autoLift: false }))
       .toThrow(/contract version mismatch/)
   })
 
@@ -881,11 +881,11 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
     libLoader: loader,
   })
 
-  const gearNs: StdlibNamespace = {
+  const gearNs: LibNamespace = {
     // 2026-09-23：库命名声明通道已删除（fn.naming / faijs.naming）；裸函数默认接纳，
     // naming 固定默认 unmodeled（见 docs/plans/2026-09-23-relax-lib-naming-design.md）。
     makeHeadstock: () => solid(cubeMesh(8)),
-  } as unknown as StdlibNamespace
+  } as unknown as LibNamespace
 
   const GEAR_CODE = "import * as gear from 'gear-lib-demo'\nlet p = gear.makeHeadstock({ teeth: 8 })"
 
@@ -1007,7 +1007,7 @@ describe('V5.3: 第三方库声明实现集（defineOp，dispatchPath 静态判�
         brep: (shape: Shape) => shape,
         naming: { kind: 'unmodeled', reason: 'test' } as Provenance,
       }),
-    } as unknown as StdlibNamespace
+    } as unknown as LibNamespace
     runtime.registerLib('gearlib', gearLib)
 
     const code = [
@@ -1026,7 +1026,7 @@ describe('V5.3: 第三方库声明实现集（defineOp，dispatchPath 静态判�
     const meshLib = {
       contractVersion: CONTRACT_VERSION,
       knurl: defineOp({ mesh: (shape: Shape) => shape, naming: { kind: 'unmodeled', reason: 'test' } as Provenance }),
-    } as unknown as StdlibNamespace
+    } as unknown as LibNamespace
     runtime.registerLib('gearlib', meshLib)
     const code = [
       'const s1 = cad.box(20, 20, 20, { centered: true })',

@@ -1,5 +1,5 @@
 /**
- * stdlib pattern — linearPattern（手写覆盖生成投影，Phase 3: L3 `replica[k]` 角色表）
+ * api pattern — linearPattern（手写覆盖生成投影，Phase 3: L3 `replica[k]` 角色表）
  *
  * 生成投影是 brep-only compatOp，不带角色表；本文件手写 defineOp，BREP 路径
  * 用质心聚类把结果面按份数 k 分组、回投影到输入面角色，产出 `replica[k]/<inner>`。
@@ -31,7 +31,7 @@ function norm(v: Vec3): [number, number, number] {
 function linearPatternBrep(input: Shape, direction: Vec3, count: number, spacing: number): Shape {
   const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[stdlib/pattern] input is not BREP')
+  if (!inputSolid) throw new Error('[api/pattern] input is not BREP')
 
   // Phase 1.6：origin = 本次语句 StmtId。
   const outStmt = String(getCurrentStmt()?.id ?? '')

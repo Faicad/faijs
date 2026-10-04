@@ -13,13 +13,13 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import * as gearPkg from './_support/gear-lib-demo/index.js'
-import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
+import type { LibNamespace } from '@faicad/faijs/runtime-state'
 import type { LibLoader } from '@faicad/faijs/cad-runtime/ports'
 import { createEditorRuntime } from '../_support/editor-runtime'
 
 /** 与浏览器 demo 等价的 libLoader：完整命名空间，不走手工投影。 */
 const loader: LibLoader = {
-  loadLib: async () => gearPkg as unknown as StdlibNamespace,
+  loadLib: async () => gearPkg as unknown as LibNamespace,
   listLibs: () => ['gear-lib-demo'],
   options: { autoLift: true },
 }

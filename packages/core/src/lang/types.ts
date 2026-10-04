@@ -1,7 +1,7 @@
 /**
  * faijs 文本层类型定义 — 保留类型（L0 零依赖）
  *
- * 设计文档：docs/syntax-design.md §3.1
+ * 设计文档：docs/language-design.md §3.1
  *
  * 代码文本是唯一事实源。IR 已删除（T5），本文件只保留宿主消费的
  * 保留类型（ParamDef / TerminalShape / ScriptMetaIR / VarKind）和

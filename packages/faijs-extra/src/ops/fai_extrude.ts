@@ -1,5 +1,5 @@
 /**
- * stdlib extrude — 拉伸库函数
+ * faijs-extra extrude — 拉伸库函数
  *
  *
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
@@ -16,7 +16,7 @@ import { assertPositiveNumber } from '@faicad/faijs/api/assert'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
-// ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
+// ── per-op 参数自校验（Phase 2.2；op 被直接 import 时的防御层） ──
 
 /**
  * Validate extrude parameters: `length` must be a positive number.
@@ -29,9 +29,9 @@ export function assertExtrudeParams(params: Record<string, unknown>): void {
 /** BREP 路径：OCCT extrude + 三角化 + fromBrep 登记。 */
 function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/extrude] no OCCT kernel')
+  if (!kernel) throw new Error('[extra/extrude] no OCCT kernel')
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[stdlib/extrude] input is not BREP')
+  if (!inputSolid) throw new Error('[extra/extrude] input is not BREP')
 
   const normal = (params.normal as Vec3 | undefined) ?? [0, 0, 1]
   const planeDistance = (params.planeDistance as number | undefined) ?? 0
@@ -67,7 +67,7 @@ function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   */
 export const fai_extrude = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/extrude] no input geometry')
+    if (!input) throw new Error('[extra/extrude] no input geometry')
     assertExtrudeParams(params)
     return meshExtrude(input, {
       normal: (params.normal as Vec3 | undefined) ?? [0, 0, 1],
@@ -77,7 +77,7 @@ export const fai_extrude = defineOp({
     })
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/extrude] no input geometry')
+    if (!input) throw new Error('[extra/extrude] no input geometry')
     assertExtrudeParams(params)
     return extrudeBrepPath(input, params)
   },

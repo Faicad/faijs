@@ -9,19 +9,19 @@ Faicad CAD execution engine — a `faijs` language parser, BREP/mesh dual-path g
 - **L2 orchestration** (`src/cad-runtime/`): `CadRuntime` + `HostPorts`.
 - **L3 host** (`src/node-host/` / `src/browser-host/`).
 
-Units: millimeters, +Z up, angles in degrees. Contract docs: `docs/api-contract.md`, `docs/syntax-design.md`, `docs/fai-zip-format.md`.
+Units: millimeters, +Z up, angles in degrees. Contract docs: `docs/api-contract.md`, `docs/language-design.md`, `docs/fai-zip-format.md`.
 
 ## Entry points
 
 | Import | Contents |
 |---|---|
-| `@faicad/faijs` | Full API (L0–L3, incl. Node host); the built-in `cad` library ops are re-exported here (原 `@faicad/faijs/stdlib` merged into core) |
+| `@faicad/faijs` | Full API (L0–L3, incl. Node host); the built-in `cad` library ops are re-exported here |
 | `@faicad/faijs/browser` | Browser-safe subset (no `node:*`) |
 | `@faicad/faijs/node` | Node host entry |
 | `@faicad/faijs/sdk` | **Third-party library authoring surface** (zero heavy deps) |
-| `@faicad/faijs/symbol-table` | Standard-library symbol table plus the extension registry a host uses to register a library's function names |
+| `@faicad/faijs/symbol-table` | Symbol table of the built-in `cad` library plus the extension registry a host uses to register a library's function names |
 
-The editor extension library is a separate package:
+The editor extension library is a separate package — it is **not** a standard library and not part of the faijs core language: it groups the ops originally written for the 3d_editor application to satisfy that app's specific needs. Other applications should not depend on it:
 
 | Import | Contents |
 |---|---|

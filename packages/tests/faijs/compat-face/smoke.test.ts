@@ -51,7 +51,7 @@ describe('core facade smoke (post brepjsCompat)', () => {
   })
 
   it('box("x") rejects malformed args (E_OP_FAILED on TS face; E_ARGS_FORM is the cad-face code)', async () => {
-    // TS 面直调 defineOp：参数校验落在 stdlib 层，抛 E_OP_FAILED；cad 脚本面
+    // TS 面直调 defineOp：参数校验落在 api 层，抛 E_OP_FAILED；cad 脚本面
     // （arg-spec 生成）的 dual-form-args 校验才报 E_ARGS_FORM——两处都是
     // 同一条「畸形实参拒绝」红线，这里按面差异做宽松匹配。
     await expect(box('x' as never)).rejects.toThrow(/E_OP_FAILED|E_ARGS_FORM/)

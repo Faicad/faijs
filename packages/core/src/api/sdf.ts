@@ -1,5 +1,5 @@
 /**
- * stdlib sdf — SDF 库函数（mesh-only，创建类无输入）
+ * api sdf — SDF 库函数（mesh-only，创建类无输入）
  *
  *
  * sdf 无 BREP 实现（mesh-only）——dispatchPath 在 brep 模式下调用前抛错。
@@ -16,7 +16,7 @@ import type { Provenance } from '../topology/naming/lineage'
  */
 export function assertSdfParams(params: Record<string, unknown>): void {
   if (typeof params.code !== 'string' || params.code.trim() === '') {
-    throw new Error(`[stdlib/sdf] code must be a non-empty string, got ${JSON.stringify(params.code)}`)
+    throw new Error(`[api/sdf] code must be a non-empty string, got ${JSON.stringify(params.code)}`)
   }
 }
 

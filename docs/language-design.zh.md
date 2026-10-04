@@ -1,12 +1,10 @@
-# .fai.js 语法设计
+# .fai.js 语言设计
 
-[English](syntax-design.md) | 中文
+[English](language-design.md) | 中文
 
-> 定位：本文档是 `.fai.js` 的**语法契约**与**增量执行契约** —— 可以写什么、它如何映射为 `ScriptIR`、生成侧如何命名、终端如何推导、引擎如何只重算变化的部分。
+> 定位：本文档是 `.fai.js` 的**语言契约**与**增量执行契约** —— 可以写什么、文本如何被执行、生成侧如何命名、终端如何推导、引擎如何只重算变化的部分。
 >
 > 相邻：[`docs/api-contract.zh.md`](api-contract.zh.md) 是接口契约（身份、语句模型、终端判定、执行、几何分派）；[`docs/ops-api-inventory.zh.md`](ops-api-inventory.zh.md) 是写 `.fai.js` 代码用的生成式 API 手册。
->
-> §1 引用本仓库之外 `Faijs语言的思考.md` 里的需求原话；本文档的英文版给出对应的英文转述。
 
 ---
 
@@ -18,25 +16,26 @@
 > - **R2** 需要支持多个后端建模引擎，目前brep用occt，mesh用manifold。未来要支持引擎切换。
 > - **R3** 需要能同时支持UI建模与AI建模。这是最重要的特性。UI建模也就是用户点击UI的时候生成脚本代码。AI建模是让大模型直接根据文本等描述生成建模源代码。要支持交互式运行，也就是UI和AI代码要能够交替生成，互相兼容。
 > - **R4** faijs引擎负责代码的解析与校验，提前杜绝错误和安全风险。但是执行完全交给js虚拟机。
-> - **R5** 几何运算全部交给faijs语言库来实现，faijs引擎不内置。
+> - **R5** 几何运算交给几何内核处理，faijs引擎不内置，由环境宿主提供注入。
 > - **R6** faijs不处理UI状态，只处理几何。这是它和freecad宏之类的语言的最大区别。
 > - **R7** faijs可以UI录制，按行增量执行。这是它和cadquery、openscad之类3D建模语言最大的不同。
-> - **R8** faijs是通用语言，并不是一个什么op相关的语言。op就是函数，这是长期的方向。未来的第三方库，它就是写代码，实现function。不需要知道什么op这种概念。
+> - **R8** faijs是通用语言，并不是一个什么op相关的语言。op就是函数。
 > - **R9** 必需再次强调，faijs必需是正常的语言，必需正常的设计。所有不符合这个要求的设计，都要给我去掉，目前的代码如何实现的不重要。唯一的例外，faijs必需是UI能够自动生成代码，比如AI/UI生成的代码能够和谐共存。
 > - **R10** 规定faijs里不准出现控制流语句，也就是不能有if/for/while之类的语句。如此，canvas里如何决定显示哪些几何模型、timeline如何显示等需求不会被AI生成的代码破坏。
 > - **R11** 约定 **UI 生成的代码统一采用 `partN`（N 为整数序号）， AI生成的代码不需要遵守此规定。faijs变量名只要是合法的 JS 标识符即可，变量命名规则仅针对 UI 生成的代码，手写或AI生成的代码可以用任意合法的变量名。**
 > - **R12** canvas里如何决定显示哪些几何模型：目前是通过mesh dag的最终活跃性来自动推导的。是否沿用这个？最终还是采用这个方案，同时添加了keep语法，用户和库函数都可以设置keep/keepHidden来明确要求保留某个shape。
-> - **R13** parser 这是乱来，完全违规。parser 只应对代码进行语法分析，怎么可能改写用户提供的代码。partN 这种命名是 UI 层的事情，怎么可能跑到 parser 层里，完全乱来。还篡改用户代码，莫名其妙。
+> - **R13** 同一份源码，在符合要求的环境下, 切换（几何内核、 js vm实现）下重执行，产出的几何在一定的精度界内相等。
+
 
 ### 1.2 由原话推出的硬约束
 
 1. **合法 JS 子集** —— acorn 解析任意 `.fai.js` 文件均无错。
-2. **先解析后编译** —— 文本先变成 `ScriptIR`，VM 执行的是由它编译出来的模块，绝不是用户原文。`eval` / `new Function` / 动态 `import()` 在 parser 层即被拒绝。
+2. **先解析后编译** —— parser 对文本做语法分析与校验，绝不执行用户原文；`eval` / `new Function` / 动态 `import()` 在 parser 层即被拒绝。执行路径分环境：web 端先对文本做提升，然后交给 JS VM 执行；小程序端解释执行。faijs 引擎自身没有 `ScriptIR`。
 3. **无控制流** —— 唯一的语言级禁令（§2.1）；它保证 canvas 显示集合与"timeline 一行一节点"可推导。
 4. **引擎零函数知识** —— parser / compile / codegen / runtime 中没有任何按函数名分支的代码；函数信息只有机器生成的符号表，且只承载"键是否存在"。
-5. **UI 与 AI 收敛到同一份 `ScriptIR`** —— 引擎从不区分来源；图标、颜色、显示名都是宿主的职责。
+5. **UI 与 AI 收敛到同一份源码文本** —— 引擎从不区分来源；图标、颜色、显示名都是宿主的职责。
 6. **增量执行是强制项** —— 按行录制、按行增量重算（§6.3）。
-7. **代码是唯一事实** —— 文本是唯一事实源；`ScriptIR` 只是 parser 从文本编译出的内部表示，属内部细节，可随时变更。`scriptIRToCode` / `statementIRToLine` 只用于调试重打。一个操作一行是扁平格式（UI 录制）的约定，不是投影关系的推论。
+7. **代码是唯一事实** —— 文本是唯一事实源；`StatementSummary`（`analyzeCode`）只是文本的平铺投影，供宿主展示与编排。`formatCodeLine` 是宿主编辑器的纯数据 → 文本打印工具。一个操作一行是扁平格式（UI 录制）的约定，不是投影关系的推论。
 8. **命名是生成侧的职责** —— UI / AI / CLI 生成代码时调用 `derivePartName`；parser 既不命名也不改名。
 
 ---
@@ -124,9 +123,9 @@ function = function <name>(<param>, …) { <body> }             // body may cont
 
 ---
 
-## 3. 语句模型 ↔ `StatementIR` 映射
+## 3. 语句模型 ↔ `StatementSummary` 映射
 
-`StatementIR` 与 `ScriptIR` 的字段级契约属于 [`docs/api-contract.zh.md`](api-contract.zh.md)；本节负责文本 ↔ IR 的映射。
+`StatementSummary` 的字段级契约属于 [`docs/api-contract.zh.md`](api-contract.zh.md)；本节负责文本 ↔ 摘要的映射。
 
 ### 3.1 映射规则
 
@@ -145,9 +144,9 @@ function = function <name>(<param>, …) { <body> }             // body may cont
 | `let part3 = mech.makeHeadstock({ length:120 })` | `{ namespace:'mech', callee:'makeHeadstock', outputs:['part3'] }` —— 命名空间取自 import 说明符 |
 | `return [{ shape: part0 }, { shape: part2 }]` | `terminalShapes = [{ id:'part0' }, { id:'part2' }]` |
 
-### 3.2 IR 是文本的编译产物
+### 3.2 摘要是文本的投影
 
-方向只有一个：文本 → `parseScript` → `ScriptIR` → `compileToModule` → VM（§6.1）；`scriptIRToCode` / `statementIRToLine` / `formatCodeLine` 只是调试用的重打工具，不是文本的来源。打印规则是机械的：已声明的名字裸重赋值（`part0 = …`），未声明的则声明（`let part0 = …`），解构渲染为 `const { front: a, back: b } = ns.callee(…)`，数字最多六位小数且不保留尾随零。
+方向只有一个：文本 → `analyzeCode` → `StatementSummary`（单向投影，供宿主展示与编排，见 §6.1）；`formatCodeLine` 是宿主编辑器把纯数据（`HostArg` 面）重打回文本的工具（`buildCode` / 行重排共用），不是文本的来源。打印规则是机械的：已声明的名字裸重赋值（`part0 = …`），未声明的则声明（`let part0 = …`），解构渲染为 `const { front: a, back: b } = ns.callee(…)`，数字最多六位小数且不保留尾随零。
 
 ---
 
@@ -214,14 +213,15 @@ export function group(params) {
 
 ```
 .fai.js text
-  → parseScript (acorn gate, zero function knowledge) → ScriptIR
-  → compileToModule → zero-import ESM (one { id, deps, fn } per statement)
-  → dynamic import() (Node: data: URL; browser: Blob URL)
-  → ModuleExecutor: persistent ctx, statements called in topological order
+  → acorn parse (security gate, zero function knowledge) → execution units
+    (per top-level statement: mechanical text transform — ctx hoisting + await)
+  → backend dispatch: vm backend (new Function; web / Node)
+                    | interpreter backend (AST walk; mini-program / strict CSP)
+  → shared persistent ctx, units run in source order
   → collectResult: outputs / terminals / compounds / brepSolids / topology
 ```
 
-编译只消费 IR，因此用户文本永不进入 VM。产物不带 import，是因为 `data:` URL 与 Blob URL 都无法解析裸说明符 —— 这是加载机制的属性，不是语言规则。
+单元文本变换是机械、语义保持的（非 IR 编译），共享 `ctx` 是唯一持久状态。vm backend 是 core 中唯一允许 `new Function` 的位置（SDF 编译是另一处豁免）；受限环境（微信小程序、严格 CSP）走解释器后端，直接在保留的 acorn AST 上执行——无 `new Function`、无 `eval`、无动态 `import()`，两个后端必须保持可观察语义一致。
 
 ### 6.2 统一 ABI
 

@@ -4,7 +4,7 @@ English | [中文](fai-zip-format.zh.md)
 
 > Position: This document is the **normative specification** of the `.fai.zip` container format — the packaging format for a faijs model graph. It defines the archive rules, the member model (required, conditionally required, optional), the `manifest.json` schema, entry and module resolution, the data and asset members, the obligations of a conforming reader and writer, and the versioning policy. The format is implementation-independent: any third party may implement a reader or a writer against this document alone.
 >
-> Related: [`docs/api-contract.md`](api-contract.md) owns the interface contract (script API, host injection, execution); [`docs/syntax-design.md`](syntax-design.md) owns `.fai.js` syntax and the incremental execution contract; [`docs/reproducibility-contract.md`](reproducibility-contract.md) owns geometry determinism; [`docs/ops-api-inventory.md`](ops-api-inventory.md) is the op manual. This document does not track development plans or defects, and it does not reference `docs/plans/` documents.
+> Related: [`docs/api-contract.md`](api-contract.md) owns the interface contract (script API, host injection, execution); [`docs/language-design.md`](language-design.md) owns `.fai.js` language and the incremental execution contract; [`docs/reproducibility-contract.md`](reproducibility-contract.md) owns geometry determinism; [`docs/ops-api-inventory.md`](ops-api-inventory.md) is the op manual. This document does not track development plans or defects, and it does not reference `docs/plans/` documents.
 
 ## 1. Scope and conformance
 
@@ -103,7 +103,7 @@ A **module** is any `.fai.js` member under `model/`. The **module key** of a mem
 Rules:
 
 1. Every `models[].entry` MUST be a member under `model/` whose name ends with `.fai.js`.
-2. A relative import specifier inside a module resolves against the importing module's key: `./x.fai.js` and `../x.fai.js` are relative to the importer's directory, and a leading `/` names a key from the root of `model/`. Resolution normalizes `.` and `..` segments and yields a module key. Script text and import syntax are owned by [`docs/syntax-design.md`](syntax-design.md).
+2. A relative import specifier inside a module resolves against the importing module's key: `./x.fai.js` and `../x.fai.js` are relative to the importer's directory, and a leading `/` names a key from the root of `model/`. Resolution normalizes `.` and `..` segments and yields a module key. Script text and import syntax are owned by [`docs/language-design.md`](language-design.md).
 3. A specifier that yields no existing `.fai.js` member under `model/` MUST be reported as an error. A bare specifier — one not starting with `.`, `..`, or `/` — does not name a container member at all: it is a library reference, and libraries are outside this specification.
 4. Entry selection is static: the active model is `models[].id === active`, or `models[0]` when `active` is absent. A reader MUST NOT select an entry by file name pattern, member order, or timestamps.
 5. Executing a model MUST NOT require a member outside `model/**`, `files/**`, `assets/**`, and that model's own data member. Two models may share modules and assets; they MUST NOT share data members.

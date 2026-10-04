@@ -8,7 +8,7 @@
 
 Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。
 
-**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/faijs-extra`（`@faicad/faijs-extra` 编辑器扩展库，2026-09-24 D1 拆分：`fai_drill`/`fai_extrude`/`fai_split`/`group`/`assembly`/`copy`/`load`/`text`/`svgExtrude` 与 svg／文字预览辅助；`/editor-ops` 子入口只含 A 组、不触达 `three/examples`，供小程序 worker 使用）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包；`packages/demo` 例外——独立化后经 workspace 依赖消费各包 `dist/`，见下）。`packages/gear-lib-demo` 已于 2026-09-21 删除，其测试 fixture 收进 `packages/tests/faijs/compat-e2e/_support/gear-lib-demo/`。
+**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core）、`packages/faijs-extra`（`@faicad/faijs-extra` 编辑器扩展库，2026-09-24 D1 拆分：`fai_drill`/`fai_extrude`/`fai_split`/`group`/`assembly`/`copy`/`load`/`text`/`svgExtrude` 与 svg／文字预览辅助；`/editor-ops` 子入口只含 A 组、不触达 `three/examples`，供小程序 worker 使用。**它不是标准库、也不属于 faijs 语言核心库——原本只是为 3d_editor 应用提供的一组 op，其他应用原则上不应依赖**）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包；`packages/demo` 例外——独立化后经 workspace 依赖消费各包 `dist/`，见下）。`packages/gear-lib-demo` 已于 2026-09-21 删除，其测试 fixture 收进 `packages/tests/faijs/compat-e2e/_support/gear-lib-demo/`。
 
 > 包架构再设计（2026-09-19）：原根门面 `@faicad/faijs`（仅注入 cad + `export *`）已删除，其公开名 `@faicad/faijs` 由 core 升格继承（D2-A）；`cad` 默认命名空间内置引擎（D1，`createRuntime` 自带注册，不违反 K5）。详见 `docs/plans/2026-09-19-npm-publish-plan.md`。
 
@@ -67,7 +67,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 ## 架构（L0–L3 分层，全部位于 `packages/core/src/`）
 
 - **L0 文本层** `lang/`：parser（acorn，**先解析后编译，执行交给 JS 虚拟机**）、codegen、args-schema。`.fai.js` 是合法 JS 子集，语句 id 用 `sN`（StmtId），产出变量名用词法名（UI 自动生成代码采用 `partN` 形式，见 `lang/allocate-id.ts`）。
-- **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径 + `cad` API）、`boolean/`、`primitives/`、`sdf/`、`topology/`；**L3 API 库面在 `api/`（core 内，原 `packages/stdlib` 已取消）——库函数经 `@faicad/faijs/api` 导入，`cad` 命名空间经门面 `createRuntime` 注入**。
+- **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径 + `cad` API）、`boolean/`、`primitives/`、`sdf/`、`topology/`；**L3 API 库面在 `api/`（core 内）——库函数经 `@faicad/faijs/api` 导入，`cad` 命名空间经门面 `createRuntime` 注入**。
 - **L2 编排** `cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`node-host/`（fs）+ `browser-host/`（worker）。
 - **双链路执行**：每个 op 必支持 mesh（默认路径），可选支持 brep——库函数经 `defineOp` 声明实现集（`@faicad/faijs/sdk`），`cad-runtime/backend-dispatch.ts` 按静态规则分派，无运行时回退；BREP 链状态在 `brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
@@ -81,13 +81,13 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **`packages/core/src/mesh/api.d.ts` 是生成文件**：由 `packages/core/scripts/gen-api-dts.ts` 生成（内嵌函数目录），禁止手改；改 schema 后必须重跑 `npx tsx packages/core/scripts/gen-api-dts.ts`。
 - **测试 stderr 零容忍**（CI 强制）：任何测试输出 `stderr |` 行即判失败。测试若故意触发错误，必须在测试内 spy `console.warn/error` 并断言；禁止全局静默 stderr。
 - **typecheck/lint 不覆盖测试**：各包 `tsc --noEmit` 的 include 含 `src/**/*.ts`（含同目录测试），但 `packages/tests` 的集成测试由 `npm run typecheck -w @faicad/faijs-tests` 单独覆盖——改动后手动跑 vitest 验证。
-- 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录，含原 `packages/stdlib` 迁入的 `api/*.test.ts`）、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。第三方库通道测试 fixture 在 `packages/tests/faijs/compat-e2e/_support/`。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
+- 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录，含 `api/*.test.ts`）、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。第三方库通道测试 fixture 在 `packages/tests/faijs/compat-e2e/_support/`。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
 - 仓库文档双语配对（英文 `foo.md` + 中文 `foo.zh.md` + `foo.i18n.yaml`），见 [docs/i18n/README.md](docs/i18n/README.md)。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。commit message 用 conventional commits（英文）；代码注释用英文。
 
 ## 文档地图
 
 - `docs/AGENTS.md`：文档标准，改文档前必读。
-- `docs/api-contract.md`、`docs/syntax-design.md`、`docs/ops-api-inventory.md`（写 `.fai.js` 的 API 手册）、`docs/library-dev-guide.md`（第三方库开发手册）：有效契约，改行为前必读。
+- `docs/api-contract.md`、`docs/language-design.md`、`docs/ops-api-inventory.md`（写 `.fai.js` 的 API 手册）、`docs/library-dev-guide.md`（第三方库开发手册）：有效契约，改行为前必读。
 - `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。每月 1 号归档到 `yyyy-mm/` 文件夹。**严禁修改或引用已归档的 plans 子文件夹里的文件。**
 - `docs/analysis/`：技术分析文档。
 - `.agents/notes/`：决策记录（Agent Notes），见 [.agents/notes/README.md](.agents/notes/README.md)。
@@ -125,7 +125,7 @@ Brep链可以切换，没有回退。在链上增加一个brep不支持的操作
 - 非平凡变更必须在同一 PR 中新增或更新至少一份 Agent Note（见 [.agents/notes/README.md](.agents/notes/README.md)）。
 - 代码改动和文档更新在同一 PR 中完成——配置键、默认值、错误码的变更同步更新 README 和 JSDoc。
 - 运行 `npm run doc-sync` 检查文档规范（全部 12 项门禁）。
-- 文档放置规则：方案设计→`docs/plans/`；技术分析→`docs/analysis/`；决策记录→`.agents/notes/`；接口契约→`docs/api-contract.md`；语法契约→`docs/syntax-design.md`；API 手册→`docs/ops-api-inventory.md`；库开发手册→`docs/library-dev-guide.md`。
+- 文档放置规则：方案设计→`docs/plans/`；技术分析→`docs/analysis/`；决策记录→`.agents/notes/`；接口契约→`docs/api-contract.md`；语言契约→`docs/language-design.md`；API 手册→`docs/ops-api-inventory.md`；库开发手册→`docs/library-dev-guide.md`。
 - 一个事实一个家：每条规则只有一处权威归属，其他地方只链接不重复。
 - 记录当前状态，不写变更历史——变更历史放在 commit message 和 PR 中。
 - 双语配对：范围内文档必须配齐 `.md`（英文）、`.zh.md`（中文）、`.i18n.yaml`（一致性记录）。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。

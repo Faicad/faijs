@@ -32,7 +32,7 @@ import { hasBrep, isShape } from '@faicad/faijs/shape'
 import { dispatchPath } from '@faicad/faijs/cad-runtime/backend-dispatch'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
-import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
+import type { LibNamespace } from '@faicad/faijs/runtime-state'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as sheetPkg from '@faicad/sheetmetal'
 import { createEditorRuntime } from '../_support/editor-runtime'
@@ -41,7 +41,7 @@ import { createEditorRuntime } from '../_support/editor-runtime'
  * The registered library projection: the real @faicad/sheetmetal entry
  * functions consumable from a `.fai.js` script through `{ autoLift: true }`.
  */
-const sheetNs: StdlibNamespace = {
+const sheetNs: LibNamespace = {
   author: sheetPkg.author,
   hem: sheetPkg.hem,
   solidOf: sheetPkg.solidOf,
@@ -52,7 +52,7 @@ const sheetNs: StdlibNamespace = {
 /** A second library implementation (different `author` body) for the B2
  *  "new library version → full recompute" check — content-addressable libId
  *  difference only; the behavior is identical. */
-const sheetV2: StdlibNamespace = {
+const sheetV2: LibNamespace = {
   author: ((spec: unknown) =>
     sheetPkg.author(spec as Parameters<typeof sheetPkg.author>[0])) as (...args: any[]) => unknown,
   hem: sheetPkg.hem,

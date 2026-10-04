@@ -9,7 +9,7 @@
  *   - the kernel cause chained (`{ cause }`).
  *
  * GOTCHA (2026-09-23, Crank corpus): the old path threw OCCT's raw
- * `boolean operation failed` (or the bare `[stdlib/boolean] input is not
+ * `boolean operation failed` (or the bare `[api/boolean] input is not
  * BREP`) — no op name, no input names, no cause. Note the static dispatch
  * layer rejects handle-less inputs BEFORE the op body with its own
  * BrepUnsupportedError; the V-C8 wrapper covers the kernel-call site, which
@@ -70,7 +70,7 @@ describe('V-C8: boolean errors are op-named and explicit', () => {
       const opErr = e as OpError
       expect(opErr.op).toBe('boolean/union')
       expect(opErr.code).toBe('E_OP_FAILED')
-      expect(opErr.message).toMatch(/\[stdlib\/boolean\] union: kernel fuse failed/)
+      expect(opErr.message).toMatch(/\[api\/boolean\] union: kernel fuse failed/)
       expect(opErr.message).toMatch(/kernel fuse failed/)
       expect(opErr.message).toMatch(/boolean operation failed/)
       expect((opErr as { cause?: unknown }).cause).toBe(cause)
@@ -87,9 +87,9 @@ describe('V-C8: boolean errors are op-named and explicit', () => {
       expect.unreachable('must throw')
     } catch (e) {
       // Either the op-body OpError (V-C8) or the dispatch-layer guard — but
-      // never the old bare "[stdlib/boolean] input is not BREP" shape.
+      // never the old bare "[api/boolean] input is not BREP" shape.
       const msg = e instanceof Error ? e.message : String(e)
-      expect(msg).not.toBe('[stdlib/boolean] input is not BREP')
+      expect(msg).not.toBe('[api/boolean] input is not BREP')
       if (e instanceof OpError) {
         expect(e.op).toBe('boolean/union')
         expect(e.code).toBe('E_BREP_UNSUPPORTED')

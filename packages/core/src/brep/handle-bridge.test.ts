@@ -78,7 +78,7 @@ describe('handle-bridge: meshHandle / fromHandle with real OCCT kernel', () => {
     // 用 runtime 装配真实 backends（auto 模式 → kernel 存在），再建一个 box solid
     runtime = createEditorRuntime(createNodePorts(), 'auto')
     await runtime.execute('let part0 = cad.box({ width: 10, depth: 10, height: 10, centered: true })')
-    // 经 L3 api/ 层的 box（原 stdlib 已并入 core）
+    // 经 L3 api/ 层的 box
     const { box } = await import('@faicad/faijs/api')
     const shape = await box({ width: 10, depth: 10, height: 10, centered: true })
     // 从全局 slot 取回句柄

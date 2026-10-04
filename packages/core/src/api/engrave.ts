@@ -1,5 +1,5 @@
 /**
- * stdlib engrave — 雕刻库函数
+ * api engrave — 雕刻库函数
  *
  *
  * dispatchPath 静态判定 brep/mesh。
@@ -25,7 +25,7 @@ import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import { assertPositiveNumber } from './assert'
 
-// ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
+// ── per-op 参数自校验（Phase 2.2；api 层被直接 import 时的防御层） ──
 
 /**
  * Validate engrave parameters: at least one of `text` or `svg` must be
@@ -36,7 +36,7 @@ export function assertEngraveParams(params: Record<string, unknown>): void {
   const hasText = params.text !== undefined && params.text !== null && params.text !== ''
   const hasSvg = params.svg !== undefined && params.svg !== null
   if (!hasText && !hasSvg) {
-    throw new Error('[stdlib] engrave requires either "text" or "svg"')
+    throw new Error('[api/engrave] requires either "text" or "svg"')
   }
   if (params.depth !== undefined && params.depth !== null) {
     assertPositiveNumber(params.depth, 'engrave.depth')
@@ -98,7 +98,7 @@ function centerSolidAtOrigin(kernel: BrepEngineApi, solid: BrepHandle): BrepHand
 async function engraveBrepPath(input: Shape, params: Record<string, unknown>, svgText?: string): Promise<Shape> {
   const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[stdlib/engrave] input is not BREP')
+  if (!inputSolid) throw new Error('[api/engrave] input is not BREP')
 
   const depth = params.depth as number
   const mode = (params.mode as 'convex' | 'concave' | undefined) ?? 'concave'
@@ -116,7 +116,7 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, sv
       targetLongSide: (params.svgSize as number) ?? 20,
     })
   } else {
-    throw new Error('[stdlib/engrave] neither text nor svg provided')
+    throw new Error('[api/engrave] neither text nor svg provided')
   }
 
   // 2. 居中到原点
@@ -197,7 +197,7 @@ async function resolveEngraveSvg(params: Record<string, unknown>): Promise<strin
   */
 export const engrave = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/engrave] no input geometry')
+    if (!input) throw new Error('[api/engrave] no input geometry')
     assertEngraveParams(params)
     const svgText = await resolveEngraveSvg(params)
     // mesh 路径
@@ -219,7 +219,7 @@ export const engrave = defineOp({
     })
   },
   brep: async (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/engrave] no input geometry')
+    if (!input) throw new Error('[api/engrave] no input geometry')
     assertEngraveParams(params)
     const svgText = await resolveEngraveSvg(params)
     return engraveBrepPath(input, params, svgText)

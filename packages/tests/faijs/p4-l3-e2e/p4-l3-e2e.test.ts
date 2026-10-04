@@ -10,7 +10,7 @@
  *    与 terminals 推导。union 的输入按既有 R5 语义保留为 hidden 终端。
  * 2) C5 默认消费：无 keep/无声明的 operator 消费其 shape 输入 → 上游被吞、只剩末位终端。
  * 3) D2 元数据面：schema 随 defineOp 挂载，供工具链（codegen/UI 面板）取用；
- *    现网 stdlib 的 box/cylinder 已带 schema。
+ *    现网 api 的 box/cylinder 已带 schema。
  *
  * Run: npx vitest run faijs/p4-l3-e2e/p4-l3-e2e.test.ts
  */
@@ -21,8 +21,8 @@ import { createNodePorts } from '@faicad/faijs/node'
 import { createRuntime as coreCreateRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 import { DUAL_OP_META, CONTRACT_VERSION, defineOp } from '@faicad/faijs/sdk'
-import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
-import { box as stdlibBox, cylinder as stdlibCylinder, union as stdlibUnion } from '@faicad/faijs/api'
+import type { LibNamespace } from '@faicad/faijs/runtime-state'
+import { box as apiBox, cylinder as apiCylinder, union as apiUnion } from '@faicad/faijs/api'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
@@ -113,8 +113,8 @@ describe('P4· 宿主链路 end-to-end（.fai.js → execute → terminals → E
 })
 
 describe('C5 默认消费（无 keep、无声明）', () => {
-  function lib(ops: Record<string, unknown>): StdlibNamespace {
-    return { ...ops, contractVersion: CONTRACT_VERSION } as unknown as StdlibNamespace
+  function lib(ops: Record<string, unknown>): LibNamespace {
+    return { ...ops, contractVersion: CONTRACT_VERSION } as unknown as LibNamespace
   }
 
   it('无任何保留声明 → 上游被消费，只剩末位终端', async () => {
@@ -132,13 +132,13 @@ describe('C5 默认消费（无 keep、无声明）', () => {
 })
 
 describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
-  it('stdlib box/cylinder 携带 schema；union 有 capabilities 元数据', () => {
+  it('api box/cylinder 携带 schema；union 有 capabilities 元数据', () => {
     const metaOf = (fn: unknown): NonNullable<{ [DUAL_OP_META]?: { schema?: unknown } }[typeof DUAL_OP_META]> => {
       const meta = (fn as { [DUAL_OP_META]?: { schema?: unknown } })[DUAL_OP_META]
       expect(meta).toBeDefined()
       return meta!
     }
-    const boxMeta = metaOf(stdlibBox)
+    const boxMeta = metaOf(apiBox)
     // §4.1 新契约：box(width, depth, height, { at?, centered?, segments? })
     expect(boxMeta.schema).toEqual({
       width: 'number',
@@ -149,10 +149,10 @@ describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
       segments: 'number?',
     })
 
-    const cylMeta = metaOf(stdlibCylinder)
+    const cylMeta = metaOf(apiCylinder)
     expect(cylMeta.schema).toHaveProperty('radius')
 
-    const unionMeta = (stdlibUnion as { [DUAL_OP_META]?: { capabilities?: string[] } })[DUAL_OP_META]
+    const unionMeta = (apiUnion as { [DUAL_OP_META]?: { capabilities?: string[] } })[DUAL_OP_META]
     // Phase 1 真名化：union → 'fuseWithHistory'（BrepEvolutionKind 真名），不再是族级 'evolution'
     expect(unionMeta?.capabilities).toContain('fuseWithHistory')
   })

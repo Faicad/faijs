@@ -10,15 +10,15 @@
  * ```
  *
  * 本入口**零 heavy 运行时依赖**：只 re-export runtime-state（L0+ 零依赖锚点层）
- * 与 stdlib/shape（构造器 + 身份表，仅 type-import mesh 类型）。
+ * 与 api/shape（构造器 + 身份表，仅 type-import mesh 类型）。
  * 值导入闭包不含 three / occt-wasm / manifold / node:*——由守卫测试保证
  * （dist/sdk.js 静态 import 扫描）。
  *
  * 与主入口的关系：sdk 是主入口的**子集 + 极薄 re-export**，供库作者按需导入；
- * 主入口 / browser / stdlib 不受影响（additive）。
+ * 主入口 / browser / api 层不受影响（additive）。
  */
 
-// ── 构造器与身份表（stdlib/shape：类型化构造器 + BREP 句柄登记） ──
+// ── 构造器与身份表（api/shape：类型化构造器 + BREP 句柄登记） ──
 
 export {
   solid,
@@ -56,14 +56,14 @@ export {
 export type {
   Backends,
   RuntimeExecutionMode,
-  StdlibFn,
-  StdlibNamespace,
+  LibFn,
+  LibNamespace,
   ShapeSlot,
   KeepSink,
 } from './runtime-state'
 
 // ── BREP 桥接（B1：第三方库造 BREP 产物的三角化入口） ──
-// handle-bridge 只 import runtime-state / stdlib/shape / type-only mesh/types，
+// handle-bridge 只 import runtime-state / api/shape / type-only mesh/types，
 // 零 heavy 依赖——dist/sdk.js 守卫测试继续通过。
 
 export { getKernel, getBrepApi, meshHandle, fromHandle } from './brep/handle-bridge'
@@ -72,7 +72,7 @@ export { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engi
 export type { BrepEngineApi } from './brep/engine/primitives'
 
 // ── 双路径实现声明（D 面契约：mesh 必选、BREP 可选；几何函数专用） ──
-// define-op 只依赖 runtime-state / stdlib/shape / handle-bridge / backend-dispatch
+// define-op 只依赖 runtime-state / api/shape / handle-bridge / backend-dispatch
 // 与 type-only mesh、brep 类型——零 heavy 依赖，dist/sdk.js 守卫继续通过。
 // 第三方库作者用 defineOp 声明实现集合；dispatchPath 不再直接导出——
 // 分派由 defineOp 包装器内部调用（规则仍是引擎 backend-dispatch.ts 单点）。

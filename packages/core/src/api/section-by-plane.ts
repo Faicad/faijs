@@ -1,5 +1,5 @@
 /**
- * stdlib sectionByPlane — 平面截面：solid 与无限平面的精确交线（手写中立 op，Phase 6.2）
+ * api sectionByPlane — 平面截面：solid 与无限平面的精确交线（手写中立 op，Phase 6.2）
  *
  * 中立 op：L1 `sectionByPlane(shape, point, normal)` 在 occt 与 brepkit 两侧均有
  * 真实现 ⇒ 走 `getBrepApi()`（D12），不声明 engines。

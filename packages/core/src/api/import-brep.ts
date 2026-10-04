@@ -1,5 +1,5 @@
 /**
- * stdlib import_brep — 平台 BREP 资产导入 op（H11 / 方案 §4.1）
+ * api import_brep — 平台 BREP 资产导入 op（H11 / 方案 §4.1）
  *
  *
  * 与编辑器 `cad.load`（`api/load.ts`）的区别见方案 §4.5：

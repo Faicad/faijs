@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/fai-zip-format.md
-fai-zip-format.md: 76b4e50b45dcbeba3c0a565d1eb88d49a5b3e741
-fai-zip-format.zh.md: 95b362282f82bfe0d8f030a007454e1a9995e505
+fai-zip-format.md: ff8eddc4b8bcc3024e273e50bce6e743852e87a3
+fai-zip-format.zh.md: f03669a85cdadb46e4b0a24ea9b1de4ec3ffae7e

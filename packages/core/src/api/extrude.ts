@@ -1,5 +1,5 @@
 /**
- * stdlib extrude — `cad.extrude`（平台 parity op，BREP-only）
+ * api extrude — `cad.extrude`（平台 parity op，BREP-only）
  *
  * 归属（分层红线）：`cad.extrude` 是「面 → 棱柱」的**平台** op，FCStd Pad/Pocket
  * 链路与 TS 面共用它（docs/plans/2026-09-15-fcstd-to-faijs-port-plan.md M4.6：
@@ -458,7 +458,7 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
  * @throws {MeshUnsupportedError} on the mesh path when `upTo` is requested.
  */
 function extrudeMeshChain(input: Shape, params: unknown): Shape {
-  if (!input) throw new Error('[stdlib/extrude] no input geometry')
+  if (!input) throw new Error('[api/extrude] no input geometry')
   if (isCurveShape(input)) {
     throw new Error(
       'E_EXTRUDE_NEEDS_FACE: extrude requires a 2D face input, got a 1D curve (kind="curve")',
@@ -531,7 +531,7 @@ export const extrude = defineOp({
     return extrudeMeshChain(input, params)
   },
   brep: async (input: Shape, params: unknown): Promise<Shape> => {
-    if (!input) throw new Error('[stdlib/extrude] no input geometry')
+    if (!input) throw new Error('[api/extrude] no input geometry')
     // Phase 3 执行前预检：1D 曲线（wire / helix / sketch as:'wire'）不是面，不得落进
     // 内核深层才报「操作失败」——维度不符在调用内核前明确拒绝（1D 判别位 kind='curve'）。
     if (isCurveShape(input)) {
@@ -548,7 +548,7 @@ export const extrude = defineOp({
     if (o.upTo !== undefined) {
       const kernel = getBrepApi()
       const inputSolid = brepOf(input) as BrepHandle | undefined
-      if (!inputSolid) throw new Error('[stdlib/extrude] input is not BREP')
+      if (!inputSolid) throw new Error('[api/extrude] input is not BREP')
       const clipped = extrudeUpToSolid(kernel, inputSolid, o)
       // E3-b（2026-09-23，同 revolve 修法）：不能对投影产物再走一次 fromBrep——
       // 同语句 registeredStmtId 去重会吞掉第二次登记（part 键保持空表，下游
@@ -572,7 +572,7 @@ export const extrude = defineOp({
     if (getBackends().config.brepEngineId === 'brepkit') {
       const kernel = getBrepApi()
       const faceHandle = brepOf(input) as BrepHandle | undefined
-      if (!faceHandle) throw new Error('[stdlib/extrude] brepkit path: input is not BREP')
+      if (!faceHandle) throw new Error('[api/extrude] brepkit path: input is not BREP')
       const solid = kernel.extrude(faceHandle, v[0]!, v[1]!, v[2]!)
       result = fromBrep(solidToShape(kernel, solid), { solid })
     } else {

@@ -1,5 +1,5 @@
 /**
- * stdlib knurl — 滚花库函数（mesh-only）
+ * api knurl — 滚花库函数（mesh-only）
  *
  *
  * knurl 无 BREP 实现（mesh-only）——dispatchPath 在 brep 模式下调用前抛错。
@@ -44,7 +44,7 @@ export function assertKnurlParams(params: Record<string, unknown>): void {
   */
 export const knurl = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/knurl] no input geometry')
+    if (!input) throw new Error('[api/knurl] no input geometry')
     assertKnurlParams(params)
     // 断链时刻（用户点名场景）：BREP 建模的模型最后做滚花 → BREP 输入必须先归约为
     // 合法 2-manifold 网格再进 mesh 路径（reconcileBrepInputs 对 mesh 侧输入原样透传）

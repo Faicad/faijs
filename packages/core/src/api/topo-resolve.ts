@@ -3,7 +3,7 @@
  *
  * 与 core/topology/naming 的分工：
  * - naming（core）负责纯解析：给 ReactsContext + FaceTopoRef → ordinal/handle；
- * - 本模块（stdlib）是「活 Shape → React块(ResolutionContext)」的引擎胶水：
+ * - 本模块（api 层）是「活 Shape → React块(ResolutionContext)」的引擎胶水：
  *   从 Shape 身份槽读出运行期数据（BREP 活句柄 + RoleTable，或 setTopology 注入的
  *   面 hint 快照），并把解析结果还原成求解需要的几何（center/normal/surfaceType）。
  *

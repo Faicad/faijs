@@ -4,7 +4,7 @@
  * 需求锚点：引擎可切换、业务层不写死 occt、用第二引擎证明切换能力。
  *
  * 两段 describe 除「注册哪个引擎」外完全对称——同一段 faijs 脚本、
- * 同一个 runtime 执行路径（registry → ensureBrepChain → stdlib → brep ops）：
+ * 同一个 runtime 执行路径（registry → ensureBrepChain → api → brep ops）：
  * - occt 引擎：真实 STEP 导出（ADVANCED_FACE）
  * - brep-mock 引擎（内存模拟，仅切换验证用）：mock STEP 导出（brep-mock-engine 标记）
  *

@@ -1,5 +1,5 @@
 /**
- * stdlib copy — 深拷贝几何（方案 B：独立新对象，源不变）
+ * faijs-extra copy — 深拷贝几何（方案 B：独立新对象，源不变）
  *
  *
  * copy 是"共享读取"（克隆出新对象，源不变），与 drill/transform 的"独占改写"本质不同：
@@ -27,9 +27,9 @@ import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 /** BREP 路径：kernel.copy 深拷贝实体 + 恒等面演化 + 恒等 roleTable 传播 + fromBrep 一次登记。 */
 function copyBrep(input: Shape): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/copy] no OCCT kernel')
+  if (!kernel) throw new Error('[extra/copy] no OCCT kernel')
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[stdlib/copy] input is not BREP')
+  if (!inputSolid) throw new Error('[extra/copy] input is not BREP')
 
   const copiedSolid = kernel.copy(inputSolid)
 
@@ -72,7 +72,7 @@ function copyBrep(input: Shape): Shape {
   */
 export const copy = defineOp({
   mesh: (input: Shape) => {
-    if (!input) throw new Error('[stdlib/copy] no input geometry')
+    if (!input) throw new Error('[extra/copy] no input geometry')
     keep(input)
     // mesh 路径：深拷贝到新 TypedArray（改副本不影响源）
     return {
@@ -81,7 +81,7 @@ export const copy = defineOp({
     }
   },
   brep: (input: Shape) => {
-    if (!input) throw new Error('[stdlib/copy] no input geometry')
+    if (!input) throw new Error('[extra/copy] no input geometry')
     keep(input)
     return copyBrep(input)
   },

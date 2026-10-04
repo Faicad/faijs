@@ -2,15 +2,15 @@
  * Rigid transform application (engine-side, P6).
  *
  * Applies a face_mate assembly transform to mesh vertices (bake).
- * Math is identical to stdlib/compound.applyTransform and brep/brep-ops
+ * Math is identical to api/compound.applyTransform and brep/brep-ops
  * applyTransformBrep (p' = R·(p − pivot) + pivot + translation).
  *
  * Ownership (engine-library-contract.md §10.1): constraint solving lives in the
  * library (api/assembly); applying the solved transform to member geometry is
  * done by the engine during replay (F2: libraries must not query/mutate the DAG).
  * This module is the engine-side vertex transform — it must not depend on any
- * stdlib module (E-b: engine must not import stdlib/compound).
- * Public API is unchanged: stdlib/compound still re-exports applyTransform.
+ * api module (E-b: engine must not import api/compound).
+ * Public API is unchanged: api/compound still re-exports applyTransform.
  */
 
 import type { Shape } from './types'

@@ -1,5 +1,5 @@
 /**
- * stdlib assert — per-op 参数自校验测试（Phase 2.2）
+ * api assert — per-op 参数自校验测试（Phase 2.2）
  *
  * A 组 / B 组 op（fai_* / text / svgExtrude）的断言随 op 迁到
  * `@faicad/faijs-extra`，其测试在 `packages/faijs-extra/src/ops/assert.test.ts`。
@@ -16,7 +16,7 @@ import { assertScrewParams } from './screw'
 import { assertKnurlParams } from './knurl'
 import { assertNonZeroVec3 } from './assert'
 
-describe('stdlib per-op assert: 创建类', () => {
+describe('api per-op assert: 创建类', () => {
   it('box: width/depth/height 必填 > 0；旧 { size } 抛 E_ARGS_FORM（§4.1）', () => {
     expect(() => assertBoxParams({})).toThrow(/box\.width/)
     expect(() => assertBoxParams({ width: 1, depth: 2 })).toThrow(/box\.height/)
@@ -53,7 +53,7 @@ describe('stdlib per-op assert: 创建类', () => {
   })
 })
 
-describe('stdlib per-op assert: 特征类', () => {
+describe('api per-op assert: 特征类', () => {
   it('engrave: 至少 text 或 svg 之一；depth > 0', () => {
     expect(() => assertEngraveParams({})).toThrow(/text.*svg/)
     expect(() => assertEngraveParams({ text: 'A', depth: -1 })).toThrow(/engrave\.depth/)
@@ -62,7 +62,7 @@ describe('stdlib per-op assert: 特征类', () => {
   })
 })
 
-describe('stdlib per-op assert: 变换类', () => {
+describe('api per-op assert: 变换类', () => {
   it('translate: offset 必填 vec3', () => {
     expect(() => assertTranslateParams({})).toThrow(/translate\.offset/)
     expect(() => assertTranslateParams({ offset: [1, 2] })).toThrow(/translate\.offset/)
@@ -89,7 +89,7 @@ describe('stdlib per-op assert: 变换类', () => {
   })
 })
 
-describe('stdlib per-op assert: 阶段 4 补入的校验（§6.3）', () => {
+describe('api per-op assert: 阶段 4 补入的校验（§6.3）', () => {
   it('assertNonZeroVec3: 零向量报错', () => {
     expect(() => assertNonZeroVec3([0, 0, 0], 'split.normal')).toThrow(/non-zero/)
     expect(() => assertNonZeroVec3([0, 0, 1], 'split.normal')).not.toThrow()

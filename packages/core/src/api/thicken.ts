@@ -1,5 +1,5 @@
 /**
- * stdlib thicken — 加厚：把面（或壳）沿法向偏置成等厚实体（手写平台 op，Phase 4 → G5 core 直连）
+ * api thicken — 加厚：把面（或壳）沿法向偏置成等厚实体（手写平台 op，Phase 4 → G5 core 直连）
  *
  * @platform occt — 实现走 occt-wasm 原生 `thicken`（BRepOffsetAPI_MakeThickSolid；
  * engine-method-map 里 `thicken` 为 occt-only）⇒ 平台 op：defineOp 声明

@@ -16,7 +16,7 @@ answer to "移植哪些测试". This script produces that answer by static analy
      truth assertion are reported as blind spots instead of silently counting
      as covered.
 
-Only stdlib is needed. Uses the same CadQuery tag snapshot as `run-ref.py`.
+Only the api layer is needed. Uses the same CadQuery tag snapshot as `run-ref.py`.
 
 Usage:
     python tests/ref-harness/analyze-coverage.py [--json out.json] [--top 25]

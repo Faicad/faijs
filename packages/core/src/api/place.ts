@@ -1,5 +1,5 @@
 /**
- * stdlib place — 平台刚性放置 op（H11 / 方案 §4.3）
+ * api place — 平台刚性放置 op（H11 / 方案 §4.3）
  *
  *
  * 一个刚体变换：先绕局部原点按 `rotation`（四元数）旋转，再平移 `position`

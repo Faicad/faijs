@@ -14,7 +14,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
-import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult, LibLoader, StdlibNamespace } from '@faicad/faijs/browser'
+import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult, LibLoader, LibNamespace } from '@faicad/faijs/browser'
 // D1（2026-09-23）：编辑器扩展库（fai_* / group / assembly / copy / load / text /
 // svgExtrude）已从 @faicad/faijs 迁出，宿主负责把它合并进 `cad` 命名空间。
 import { createEditorCadNamespace, installEditorMeshProviders, registerEditorSymbols } from '@faicad/faijs-extra'
@@ -119,7 +119,7 @@ async function bindKernelToCdnFaijs(): Promise<void> {
 
 type FaijsPkg = { faijs?: { autoLift?: boolean } }
 /** 装载结果缓存（含 in-flight promise；CDN 每包只取一次，失败不留毒缓存可重试）。 */
-const libNsCache = new Map<string, Promise<StdlibNamespace>>()
+const libNsCache = new Map<string, Promise<LibNamespace>>()
 /** 逐库 autoLift 约定缓存（loadLib 时从 CDN package.json 抓取，autoLiftFor 同步读）。 */
 const libAutoLiftCache = new Map<string, boolean | undefined>()
 
@@ -151,7 +151,7 @@ const demoLibLoader: LibLoader = {
         const local = LOCAL_LIBS[name]
         if (local) {
           const mod = await local()
-          return mod as unknown as StdlibNamespace
+          return mod as unknown as LibNamespace
         }
         // CDN 兜底：未在本地 workspace 的 @faicad/* 库（含故意不存在的包——
         // 先探测版本，404 即报 "not found on npm registry"，不触碰 CDN 内核绑定）。
@@ -176,7 +176,7 @@ const demoLibLoader: LibLoader = {
         // 会把库包 peer 依赖（@faicad/faijs）内联成旧版实例（无 globalThis 内核
         // 注册表共享修复 → "kernel not initialized"）。精确版本首次打包即取最新。
         const mod = await import(/* @vite-ignore */ `${CDN_BASE}${name}@${probe.version}/+esm`)
-        return mod as unknown as StdlibNamespace
+        return mod as unknown as LibNamespace
       })()
       libNsCache.set(name, p)
       p.catch(() => libNsCache.delete(name))
@@ -575,10 +575,10 @@ async function runCode() {
 
     // 两条链路**串行**执行（不再并发）：
     // 引擎契约（2026-08-29-engine-library-contract.md §O7）把后端环境装配为
-    // **模块级单例**（stdlib 经 getBackends() 读取，runtime-state.ts），同一执行
+    // **模块级单例**（api 层经 getBackends() 读取，runtime-state.ts），同一执行
     // 环境里同时存在两个 CadRuntime（brep/mesh 不同 mode）时，后构造的 runtime
     // 会 overwrite 全局 backends → 先跑的 mesh 链读到 brep 配置而它的 BREP 链
-    // 尚未初始化 → `[stdlib/box] no OCCT kernel`。多实例并发在契约范围外。
+    // 尚未初始化 → `[api/box] no OCCT kernel`。多实例并发在契约范围外。
     // 顺序：先 mesh（只依赖 manifold，快），再等 OCCT 后 brep——视觉上仍保持
     // "mesh 视图先出模型、brep 视图随后补齐"，只是不再两条同时跑。
     const meshReport = await (async () => {

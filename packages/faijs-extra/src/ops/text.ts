@@ -1,5 +1,5 @@
 /**
- * stdlib text — 文字创建库函数（text）
+ * faijs-extra text — 文字创建库函数（text）
  *
  *
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
@@ -26,7 +26,7 @@ import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
  */
 export function assertTextParams(params: Record<string, unknown>): void {
   if (typeof params.text !== 'string' || params.text.trim() === '') {
-    throw new Error(`[stdlib/text] text must be a non-empty string, got ${JSON.stringify(params.text)}`)
+    throw new Error(`[extra/text] text must be a non-empty string, got ${JSON.stringify(params.text)}`)
   }
   assertPositiveNumber(params.size, 'text.size')
   assertPositiveNumber(params.depth, 'text.depth')
@@ -40,7 +40,7 @@ export function assertTextParams(params: Record<string, unknown>): void {
  */
 async function textBrep(params: Record<string, unknown>): Promise<Shape> {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/text] no OCCT kernel')
+  if (!kernel) throw new Error('[extra/text] no OCCT kernel')
 
   await ensureDefaultFont()
 

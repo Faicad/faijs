@@ -23,7 +23,7 @@ import { createRequire } from 'node:module'
 import { resolve, extname, dirname, join } from 'node:path'
 import { createRuntime } from '../cad-runtime/runtime'
 import type { CadRuntime } from '../cad-runtime/runtime'
-import type { StdlibNamespace } from '../runtime-state'
+import type { LibNamespace } from '../runtime-state'
 import type { ExecutionMode, HostPorts, LibLoader } from '../cad-runtime/ports'
 import { createNodePorts } from './index'
 import { createFsProjectLoader, findProjectRoot, projectKeyOf } from './fs-project-loader'
@@ -87,7 +87,7 @@ const cliPortsLibLoader: LibLoader = {
     if (!pkg.startsWith(CLI_SCOPED_PREFIX)) {
       throw new Error(`package "${name}" is not a scoped @faicad/ library`)
     }
-    return (await import(pkg)) as StdlibNamespace
+    return (await import(pkg)) as LibNamespace
   },
   listLibs: () => [...Object.keys(CLI_SHORT_NAMES), '@faicad/'],
   loadSource: async (name) => {
@@ -162,8 +162,8 @@ export interface CliRunOptions {
   fontsDir?: string
   /** Default font path used by the node ports. */
   defaultFontPath?: string
-  /** Host-injected library namespace (includes cad — the CLI entry faijs-cli.ts passes createInternalStdlib; core does not assemble it by default). */
-  libs?: Record<string, StdlibNamespace>
+  /** Host-injected library namespace (includes cad — the CLI entry faijs-cli.ts passes createApiNamespace; core does not assemble it by default). */
+  libs?: Record<string, LibNamespace>
   /**
    * 项目根（多文件 §4.5）：相对 import 的解析基准，moduleKey = 相对它的路径。
    * 缺省由入口文件向上找最近的 package.json。
@@ -214,7 +214,7 @@ export interface CliViewOptions {
   /** Default font path used by the node ports. */
   defaultFontPath?: string
   /** Host-injected library namespace (includes cad). */
-  libs?: Record<string, StdlibNamespace>
+  libs?: Record<string, LibNamespace>
   /** Project root for relative .fai.js imports. */
   projectRoot?: string
   /** Shape variable name to project; default resolves terminals like `run`. */
@@ -818,10 +818,10 @@ export function parseArgs(argv: string[]): {
  * CLI main entry point (called by scripts/faijs-cli.ts).
  *
  * @param argv - the raw process argument list
- * @param libs - host-injected library namespace (includes cad — faijs-cli.ts passes createInternalStdlib; core does not assemble it by default)
+ * @param libs - host-injected library namespace (includes cad — faijs-cli.ts passes createApiNamespace; core does not assemble it by default)
  * @returns the process exit code (0 on success, non-zero on failure)
  */
-export async function cliMain(argv: string[], libs?: Record<string, StdlibNamespace>): Promise<number> {
+export async function cliMain(argv: string[], libs?: Record<string, LibNamespace>): Promise<number> {
   const { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part, includeHidden } = parseArgs(argv)
 
   if (!command) {

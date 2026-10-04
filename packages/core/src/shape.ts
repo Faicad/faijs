@@ -1,5 +1,5 @@
 /**
- * stdlib shape — 类型化构造器 + 身份槽
+ * api shape — 类型化构造器 + 身份槽
  *
  *
  * 变更要点：
@@ -42,7 +42,7 @@ export interface CurveShape extends Shape {
   kind: 'curve'
 }
 
-/** A shape that the stdlib exports as a finished result. */
+/** A shape that the api layer exports as a finished result. */
 export type StdShape = SolidShape | CompoundShape | CurveShape
 
 /**

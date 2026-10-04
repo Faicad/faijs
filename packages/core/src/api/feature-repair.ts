@@ -1,5 +1,5 @@
 /**
- * stdlib feature-repair — L1 薄包装族（手写 op，Phase 5）
+ * api feature-repair — L1 薄包装族（手写 op，Phase 5）
  *
  * 六条 L1 已有动作的手写薄包装，全部走 `getBrepApi()`（D12）：
  * - `defeature(shape, faces)` — 移除特征面（孔/凸台等）

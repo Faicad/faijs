@@ -7,7 +7,7 @@
 > **本文档是长期有效的接口契约：不写开发计划、不记录缺陷，也不引用 `docs/plans/` 下的任何文档。**
 >
 > 关联文档：
-> - `docs/syntax-design.md` —— `.fai.js` 语法与增量执行契约
+> - `docs/language-design.md` —— `.fai.js` 语言与增量执行契约
 > - `docs/ops-api-inventory.md` —— 写 `.fai.js` 代码的 API 手册（AI／用户侧，生成文件）
 
 ---
@@ -61,7 +61,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 | `@faicad/faijs` | 门面：`export * from '@faicad/faijs'` + 包装后的 `createRuntime` | 宿主统一入口；**包名不可改** |
 | `/browser` | 浏览器安全面（不含 node-host） | 宿主（3d_editor）首选 |
 | `/sdk` | **第三方库开发面**，零 heavy 依赖 | 库作者唯一应依赖的入口 |
-| `/stdlib` | 几何库命名空间 | 需自行注入 `cad` |
+| `/api` | L3 库函数命名空间（平台 op） | `cad` 由 `createRuntime` 装配注入 |
 | `/csg` | CSG／Manifold 数据交换 | 浏览器安全 |
 | `/sdf` | SDF 运行模板与类型 | 浏览器安全 |
 | `/node` | Node 专用：`createNodePorts`／CLI／FsAssetResolver | 不得进浏览器构建 |
@@ -75,7 +75,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 - **引擎 = 解析 + 校验 + 调度 + 记账 + 资源；库 = 一切几何。**
 - **判别一个函数归谁，问的是"它是几何算法吗"，不是"现在谁在 import 它"。** 引擎当前调用了某个几何函数，那是待清理的病灶，不是把它迁进引擎的理由。
-- **引擎不按函数名特判（K5「引擎零函数知识」的准确含义）**：parser／compile／runtime 不得按函数名分支、不得区分函数类别；函数信息统一以 `defineOp` 元数据（均匀数据）承载，引擎里只有"库函数"这一均匀概念，函数信息只能是数据（`StdlibNamespace`）。
+- **引擎不按函数名特判（K5「引擎零函数知识」的准确含义）**：parser／compile／runtime 不得按函数名分支、不得区分函数类别；函数信息统一以 `defineOp` 元数据（均匀数据）承载，引擎里只有"库函数"这一均匀概念，函数信息只能是数据（`LibNamespace`）。
 - faijs 的职责只有一个：执行脚本，生成 3D 模型（`ExecutionResult`）。宿主的职责只有两个：生成正确的脚本、调用 faijs 执行。
 - 🔴 **所有几何变更必须走脚本语句**；宿主只消费 `ExecutionResult`，不得重复推导终端判定、不得自行实现 DAG 叶子过滤。
 
@@ -242,7 +242,7 @@ C3 是**零签名知识**的客观默认：返回非几何的函数不可能把�
 ### 7.1 工厂与执行模式
 
 ```ts ignore-check
-createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, StdlibNamespace>): CadRuntime
+createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, LibNamespace>): CadRuntime
 export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 ```
 
@@ -325,7 +325,7 @@ export interface Backends {
   readonly config: { mode; brepEngineId?; brepCapabilities?; partTransform? }
   readonly kernel: { readonly brep: unknown | null; readonly csg?; readonly sdf? }
   readonly fonts; texture; assets; events
-  readonly cad?: StdlibNamespace
+  readonly cad?: LibNamespace
 }
 export const CONTRACT_VERSION = 1
 ```
@@ -521,7 +521,7 @@ export interface HostPorts {
 
 ---
 
-## 10. stdlib 与第三方库
+## 10. API 层与第三方库
 
 ### 10.1 函数目录（`cad` 命名空间）
 
@@ -546,7 +546,7 @@ export interface HostPorts {
 
 > 注：表中"特征类"是 faijs 函数目录的内部类别名（对既有几何做修改的操作），与宿主层"特征（feature）"术语无关——后者是通用 CAD 术语，由 1 到多个 op／函数调用实现（见 §2 R-9）。
 
-**完整参数契约（默认值／必填）以 `docs/ops-api-inventory.md` 为准**（由 stdlib JSDoc 生成的产物，禁止手改）。
+**完整参数契约（默认值／必填）以 `docs/ops-api-inventory.md` 为准**（由 api JSDoc 生成的产物，禁止手改）。
 
 ### 10.2 消费语义（声明驱动）
 
@@ -667,15 +667,15 @@ PS：从 IR 重打文本只用于调试，不属于任何契约。
 
 ### 13.4 生成文件红线
 
-- `docs/ops-api-inventory.md` 由 `scripts/gen-ops-api-inventory.ts` 从 stdlib JSDoc 生成，**禁止手改**（CI `--check` 守卫）。
-- `packages/core/src/mesh/api.d.ts` 由 `packages/core/scripts/gen-api-dts.ts` 从 stdlib 函数目录生成，**禁止手改**（守卫测试 `packages/core/src/api-dts-sync.test.ts`）。
+- `docs/ops-api-inventory.md` 由 `scripts/gen-ops-api-inventory.ts` 从 api JSDoc 生成，**禁止手改**（CI `--check` 守卫）。
+- `packages/core/src/mesh/api.d.ts` 由 `packages/core/scripts/gen-api-dts.ts` 从 api 函数目录生成，**禁止手改**（守卫测试 `packages/core/src/api-dts-sync.test.ts`）。
 
 ### 13.5 兼容性
 
 - 顶层禁止控制流（语言约束），保证终端判定等静态规则不被 AI 代码破坏；**控制流允许出现在函数体内**（v1，§5）。
 - 本机函数调用（裸标识符 callee）与运行时表达式（参数里的 `ExprIR`）是新的顶层能力；不含函数的既有脚本解析不变（零回归），参数/字面量表达式依旧按原样折叠。
 - 本机函数调用与其它语句一样是 DAG 节点：`positional` / `args` / `outputs` 参与 `consumes()` 与终端判定，只有函数体不透明。
-- 函数体是嵌入编译产物的用户源码——对「用户文本不进 VM」（R-3）的已记录例外，边界是 acorn 闸门 + 白名单（见 `docs/syntax-design.md`）。
+- 函数体是嵌入编译产物的用户源码——对「用户文本不进 VM」（R-3）的已记录例外，边界是 acorn 闸门 + 白名单（见 `docs/language-design.md`）。
 - 旧版带版本后缀的命名不再产生、也不再解析（版本号语义与 `grp_` 前缀均已取消；旧名兼容解析已删除，决策 2，见 `lang/allocate-id.ts`）。
 - `export default async (cad) => {}` 容器与扁平格式均可解析；扁平代码自动封装为合法容器。
 

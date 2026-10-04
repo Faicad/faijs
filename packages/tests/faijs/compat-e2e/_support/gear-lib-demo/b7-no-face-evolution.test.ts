@@ -13,7 +13,7 @@
  * 引擎现状（实证）：faceEvolution 全库只有写入方（fromBrep 登记 / DirectExecutor
  * 同步到 faceEvolutionCache），**无引擎侧读取消费者**——拓扑构建走
  * `meshShapeCache` + `buildAssemblySelectorManifest`（src/brep/brep-topology.ts），
- * drill 按面选择走 `geomQuery`（src/stdlib/geom.ts）实时 `kernel.getSubShapes`，
+ * drill 按面选择走 `geomQuery`（src/api/geom.ts）实时 `kernel.getSubShapes`，
  * 都不依赖 faceEvolution。⇒ 缺失时不会崩溃、不会静默错误；面选择退化为
  * "无历史"（实时枚举当前面的 ordinal），几何精度不受影响。
  *

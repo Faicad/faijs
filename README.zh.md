@@ -9,19 +9,19 @@ Faicad CAD 执行引擎——`faijs` 语言 parser、BREP/mesh 双链路几何�
 - **L2 编排**（`src/cad-runtime/`）：`CadRuntime` + `HostPorts`。
 - **L3 宿主**（`src/node-host/` / `src/browser-host/`）。
 
-单位：毫米，+Z 向上，角度用度。契约文档：`docs/api-contract.md`、`docs/syntax-design.md`、`docs/fai-zip-format.md`。
+单位：毫米，+Z 向上，角度用度。契约文档：`docs/api-contract.md`、`docs/language-design.md`、`docs/fai-zip-format.md`。
 
 ## Entry points
 
 | Import | Contents |
 |---|---|
-| `@faicad/faijs` | 全量 API（L0–L3，含 Node host）；内置 `cad` 库 op 在此重导出（原 `@faicad/faijs/stdlib` 并入 core） |
+| `@faicad/faijs` | 全量 API（L0–L3，含 Node host）；内置 `cad` 库 op 在此重导出 |
 | `@faicad/faijs/browser` | 浏览器安全子集（无 `node:*`） |
 | `@faicade/faijs/node` | Node host 入口 |
 | `@faicad/faijs/sdk` | **第三方库开发面**（零重依赖） |
-| `@faicad/faijs/symbol-table` | 标准库符号表，以及宿主用来登记库函数名的扩展注册入口 |
+| `@faicad/faijs/symbol-table` | 内置 `cad` 库的符号表，以及宿主用来登记库函数名的扩展注册入口 |
 
-编辑器扩展库是独立包：
+编辑器扩展库是独立包——**它不是标准库，也不属于 faijs 语言核心库**：这些 op 原本为 3d_editor 应用编写、满足该应用的特定需求，其他应用原则上不应依赖它：
 
 | Import | 内容 |
 |---|---|

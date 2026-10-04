@@ -1,5 +1,5 @@
 /**
- * stdlib compound — 平台几何复合体 op（H11 / 方案 §4.2）
+ * api compound — 平台几何复合体 op（H11 / 方案 §4.2）
  *
  *
  * 与编辑器 `cad.group`（`api/compound.ts`）的区别：

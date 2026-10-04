@@ -1,5 +1,5 @@
 /**
- * stdlib face-ref — 面引用查询：把「面序号」解析成 `FaceTopoRef`（1 起）
+ * api face-ref — 面引用查询：把「面序号」解析成 `FaceTopoRef`（1 起）
  *
  * extrude 的 `upTo` 参数（拉伸到面，PadTest UpToFace 链路）需要指向
  * 「某个实体上第 N 张面」的引用。外部格式（FCStd 的 `UpToFace` LinkSub 等）

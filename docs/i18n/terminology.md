@@ -9,7 +9,7 @@
 | CadRuntime | CadRuntime | faijs runtime core class |
 | Agent Note | Agent Note | Repository-defined document type for decision records |
 | op | op | Geometry operation function in faijs language (deprecated term) |
-| stdlib | stdlib | faijs standard geometry library |
+| api layer | api 层 | L3 library function namespace in core |
 | monorepo | monorepo | Single repository with multiple packages |
 | HostPorts | HostPorts | Injection interface for csg/sdf/fonts/assets/events |
 | faijs | faijs | The CAD scripting language |

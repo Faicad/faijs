@@ -4,7 +4,7 @@
 
 > 定位：本文档是 `.fai.zip` 容器格式的**规范** —— faijs 模型图的打包格式。它定义归档规则、成员模型（必填、条件必填、可选）、`manifest.json` schema、入口与模块解析、数据成员与资产成员、合格读取方与写入方的义务，以及版本策略。格式与实现无关：任何第三方可以只依据本文档实现自己的读取方或写入方。
 >
-> 相邻：[`docs/api-contract.zh.md`](api-contract.zh.md) 是接口契约（脚本 API、宿主注入、执行）；[`docs/syntax-design.zh.md`](syntax-design.zh.md) 是 `.fai.js` 语法与增量执行契约；[`docs/reproducibility-contract.zh.md`](reproducibility-contract.zh.md) 是几何确定性契约；[`docs/ops-api-inventory.zh.md`](ops-api-inventory.zh.md) 是 op 手册。本文档不追踪开发计划与缺陷，也不引用 `docs/plans/` 文档。
+> 相邻：[`docs/api-contract.zh.md`](api-contract.zh.md) 是接口契约（脚本 API、宿主注入、执行）；[`docs/language-design.zh.md`](language-design.zh.md) 是 `.fai.js` 语言与增量执行契约；[`docs/reproducibility-contract.zh.md`](reproducibility-contract.zh.md) 是几何确定性契约；[`docs/ops-api-inventory.zh.md`](ops-api-inventory.zh.md) 是 op 手册。本文档不追踪开发计划与缺陷，也不引用 `docs/plans/` 文档。
 
 ## 1. 范围与合格性
 
@@ -103,7 +103,7 @@ manifest 是一个 UTF-8 JSON 对象：
 规则：
 
 1. 每个 `models[].entry` **必须**是 `model/` 下以 `.fai.js` 结尾的成员。
-2. 模块内的相对 import 说明符以引入方的 key 为基准解析：`./x.fai.js` 与 `../x.fai.js` 相对引入方所在目录，前导 `/` 表示从 `model/` 根开始的 key。解析会消解 `.` 与 `..` 段，得到一个模块 key。脚本文本与 import 语法由 [`docs/syntax-design.zh.md`](syntax-design.zh.md) 负责。
+2. 模块内的相对 import 说明符以引入方的 key 为基准解析：`./x.fai.js` 与 `../x.fai.js` 相对引入方所在目录，前导 `/` 表示从 `model/` 根开始的 key。解析会消解 `.` 与 `..` 段，得到一个模块 key。脚本文本与 import 语法由 [`docs/language-design.zh.md`](language-design.zh.md) 负责。
 3. 解析结果不是 `model/` 下真实存在的 `.fai.js` 成员时，**必须**报错。裸说明符（不以 `.`、`..` 或 `/` 开头）根本不指向容器成员：它是库引用，而库不属于本规范。
 4. 入口选择是静态的：激活模型是 `models[].id === active`，`active` 缺省时为 `models[0]`。读取方**不得**按文件名模式、成员顺序或时间戳选择入口。
 5. 执行一个模型**不得**需要 `model/**`、`files/**`、`assets/**` 与该模型自己的数据成员之外的东西。多个模型**可以**共用模块与资产，**不得**共用一个数据成员。

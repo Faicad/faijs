@@ -1,5 +1,5 @@
 /**
- * stdlib reconcile — 断链/混合时刻定向归约（P0-1b）
+ * api reconcile — 断链/混合时刻定向归约（P0-1b）
  *
  *
  * 用户纠正（2026-08-29）：brep→mesh 的归约不只在"mesh 与 brep 做布尔"的时刻发生，

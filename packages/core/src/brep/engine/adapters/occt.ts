@@ -3,7 +3,7 @@
  *
  * 本文件是「occt 引擎实现」的注册入口：把 `createOcctPrimitives()`（occt-kernel/
  * occt-primitives.ts，L1 契约 `BrepEngineApi` 的 occt 显式实现）注册进引擎注册表。
- * 业务层（runtime/brep ops/stdlib）只经注册表取引擎，不直接 import occt 初始化
+ * 业务层（runtime/brep ops/api）只经注册表取引擎，不直接 import occt 初始化
  * 函数——引擎本体可整体替换（换一个适配器即换引擎）。
  *
  * Phase 3（docs/plans/2026-09-24-brep-engine-api-narrowing-native-access.md）：

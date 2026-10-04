@@ -1,5 +1,5 @@
 /**
- * L3 API 面（api/）— faijs 库函数命名空间（替代原 packages/stdlib）
+ * L3 API 面（api/）— faijs 库函数命名空间
  *
  * 设计文档：docs/plans/2026-09-01-layered-api-architecture.md §D1/D2（P6 迁入 core）
  *
@@ -45,7 +45,7 @@ export { loft } from './loft'
 export { knurl } from './knurl'
 export { sdf } from './sdf'
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：
-// 引擎不得 import stdlib/compound；公共 API 经本 re-export 保持）。
+// 引擎不得 import api/compound；公共 API 经本 re-export 保持）。
 export { applyTransform } from '../mesh/rigid-transform'
 // P2-f3：装配子层全量导出（solvePreview/entityFromGeometry 等经此到门面）。
 // A/B 组 op（fai_* / group / assembly / copy / load / text / svgExtrude）已迁出

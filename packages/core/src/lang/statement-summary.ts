@@ -1,7 +1,7 @@
 /**
  * statement-summary — 语句平铺摘要（宿主展示/编排用，非 IR 类型）
  *
- * See docs/syntax-design.md §3 (statement model ↔ StatementSummary mapping).
+ * See docs/language-design.md §3 (statement model ↔ StatementSummary mapping).
  *
  * `analyzeCode(code)` 是宿主消费语句信息的唯一形态（IR 已删除）。摘要只含展示/编排所需的标量字段：
  * Timeline 一行一节点、场景树分组推导、FeatureTree 识别、编辑回填定位。

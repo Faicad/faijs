@@ -1,5 +1,5 @@
 /**
- * stdlib wire — 从点列构造 1D 曲线（折线 / 闭合轮廓 / 平滑样条）
+ * api wire — 从点列构造 1D 曲线（折线 / 闭合轮廓 / 平滑样条）
  *
  * 用途：脚本面造线能力（G-D 门控层，Phase 3）。下游 sweep / loft / twistExtrude /
  * complexExtrude / roof 等 11 个动作都需要 wire 输入；此前脚本面造不出 wire，这些动作

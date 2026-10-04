@@ -125,17 +125,29 @@ function inNodeEnv(): boolean {
  * `installSketchSolver`, because the planegcs wasm source differs between Node
  * and browser hosts. Node auto-loads the solver (its wasm ships in
  * `@salusoft89/planegcs`); a browser host self-hosts `planegcs.wasm` and passes
- * `opts.sketch.planegcsUrl`. Without any source, sketch ops fail with
- * `E_SKETCHC_NO_SOLVER` — surfaced through `OpenFaiResult.error`, never thrown.
+ * `opts.sketch.planegcsUrl`. The `E_SKETCH_NO_SOLVER` error is surfaced through
+ * `OpenFaiResult.error`, never thrown.
+ *
+ * The Node-only subpath (specified by `NODE_SKETCH_SOLVER_SPECIFIER`) imports
+ * `node:module` via `createRequire`, which a browser-targeted bundler cannot
+ * shim for a code-splitting worker/chunk. It is therefore never written as a
+ * literal in an `import()` here: `/* @vite-ignore *` plus an opaque specifier
+ * leaves resolution entirely to the runtime, so Vite/Rollup/webpack never
+ * bundle its node:* into a browser build. A Node host resolves it normally; a
+ * browser host never reaches that branch.
  */
+const NODE_SKETCH_SOLVER_SPECIFIER = '@faicad/faijs-sketch/node'
+
 async function ensureSketchSolver(opts: OpenFaiZipOptions): Promise<void> {
   if (inNodeEnv()) {
     // The /node subpath imports `node:module`, so it must never be statically
     // imported from a browser-targeted entry. Dynamic import keeps the browser
     // bundle free of `node:*`.
     try {
-      const nodeSolver = await import('@faicad/faijs-sketch/node')
-      installSketchSolver(nodeSolver.createNodePlanegcsSolver)
+      const nodeSolver = (await import(/* @vite-ignore */ NODE_SKETCH_SOLVER_SPECIFIER)) as {
+        createNodePlanegcsSolver: unknown
+      }
+      installSketchSolver(nodeSolver.createNodePlanegcsSolver as Parameters<typeof installSketchSolver>[0])
     } catch {
       // The solver package is not installed in this process — sketch models
       // will surface E_SKETCHC_NO_SOLVER. Core mesh-only containers are unaffected.

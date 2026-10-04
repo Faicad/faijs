@@ -18,7 +18,7 @@
 import { createRuntime as createRuntimeCore, CadRuntime } from '../cad-runtime/runtime'
 import type { CadRuntimeOptions } from '../cad-runtime/runtime'
 import type { ExecutionMode, HostPorts } from '../cad-runtime/ports'
-import type { StdlibNamespace } from '../runtime-state'
+import type { LibNamespace } from '../runtime-state'
 import {
   createEditorCadNamespace, registerEditorSymbols, installEditorMeshProviders,
 } from '@faicad/faijs-extra'
@@ -27,7 +27,7 @@ import {
  * The full `cad` namespace a host registers: platform surface + editor ops.
  * @returns the merged namespace.
  */
-export function createApiNamespaceWithEditorOps(): StdlibNamespace {
+export function createApiNamespaceWithEditorOps(): LibNamespace {
   return createEditorCadNamespace()
 }
 

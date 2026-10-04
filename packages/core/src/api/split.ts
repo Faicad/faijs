@@ -1,5 +1,5 @@
 /**
- * stdlib split — split（手写覆盖生成投影，Phase 3: L4 `splinter(#j)` 角色表）
+ * api split — split（手写覆盖生成投影，Phase 3: L4 `splinter(#j)` 角色表）
  *
  * @platform occt — 平台 op：内核原生 `split`（BRepAlgoAPI_Splitter）是 occt-only
  * （engine-method-map `split` → occt-only；L1 只有 `splitByPlane`）。本文件
@@ -34,7 +34,7 @@ function splitBrep(input: Shape, tools: Shape[]): Shape {
   // 平台面：原生 split（occt-only，D3）。
   const occtKernel = getOcctKernel()
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[stdlib/split] input is not BREP')
+  if (!inputSolid) throw new Error('[api/split] input is not BREP')
   const toolSolids = tools
     .map((t) => brepOf(t) as BrepHandle | undefined)
     .filter((s): s is BrepHandle => !!s)

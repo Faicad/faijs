@@ -1,9 +1,9 @@
 /**
- * stdlib assert — per-op 参数自校验助手（Phase 2.2）
+ * api assert — per-op 参数自校验助手（Phase 2.2）
  *
  *
  * 阶段 4 起（args-schema/SCHEMAS 已删除），参数校验全部由本模块的 assert 助手
- * 承担（各 stdlib 函数在 dispatchPath 之前调用）；非法即抛 Error（不静默）。
+ * 承担（各 api 函数在 dispatchPath 之前调用）；非法即抛 Error（不静默）。
  */
 
 /**
@@ -14,7 +14,7 @@
  */
 export function assertNumber(value: unknown, name: string): asserts value is number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new Error(`[stdlib] ${name} must be a finite number, got ${JSON.stringify(value)}`)
+    throw new Error(`[api] ${name} must be a finite number, got ${JSON.stringify(value)}`)
   }
 }
 
@@ -26,7 +26,7 @@ export function assertNumber(value: unknown, name: string): asserts value is num
 export function assertPositiveNumber(value: unknown, name: string): void {
   assertNumber(value, name)
   if (value <= 0) {
-    throw new Error(`[stdlib] ${name} must be > 0, got ${value}`)
+    throw new Error(`[api] ${name} must be > 0, got ${value}`)
   }
 }
 
@@ -38,7 +38,7 @@ export function assertPositiveNumber(value: unknown, name: string): void {
 export function assertNonNegativeNumber(value: unknown, name: string): void {
   assertNumber(value, name)
   if (value < 0) {
-    throw new Error(`[stdlib] ${name} must be >= 0, got ${value}`)
+    throw new Error(`[api] ${name} must be >= 0, got ${value}`)
   }
 }
 
@@ -53,7 +53,7 @@ export function assertVec3(value: unknown, name: string): void {
     value.length !== 3 ||
     value.some((n) => typeof n !== 'number' || !Number.isFinite(n))
   ) {
-    throw new Error(`[stdlib] ${name} must be a vec3 [x, y, z], got ${JSON.stringify(value)}`)
+    throw new Error(`[api] ${name} must be a vec3 [x, y, z], got ${JSON.stringify(value)}`)
   }
 }
 
@@ -67,7 +67,7 @@ export function assertNonZeroVec3(value: unknown, name: string): void {
   assertVec3(value, name)
   const v = value as [number, number, number]
   if (v[0] === 0 && v[1] === 0 && v[2] === 0) {
-    throw new Error(`[stdlib] ${name} must be a non-zero vec3, got ${JSON.stringify(value)}`)
+    throw new Error(`[api] ${name} must be a non-zero vec3, got ${JSON.stringify(value)}`)
   }
 }
 
@@ -93,6 +93,6 @@ export function assertNumberOrVec3(value: unknown, name: string): void {
  */
 export function assertOneOf(value: unknown, name: string, allowed: readonly string[]): void {
   if (value !== undefined && value !== null && !allowed.includes(value as string)) {
-    throw new Error(`[stdlib] ${name} must be one of ${allowed.join(' | ')}, got ${JSON.stringify(value)}`)
+    throw new Error(`[api] ${name} must be one of ${allowed.join(' | ')}, got ${JSON.stringify(value)}`)
   }
 }

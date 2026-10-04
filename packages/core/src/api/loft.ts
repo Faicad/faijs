@@ -1,5 +1,5 @@
 /**
- * stdlib loft — 放样：多个截面之间蒙皮生成体（手写平台 op，Phase 4 → G5 core 直连）
+ * api loft — 放样：多个截面之间蒙皮生成体（手写平台 op，Phase 4 → G5 core 直连）
  *
  * @platform occt — 实现走 core 直连 `occt-wasm loft` / `loftWithVertices`
  * （BRepOffsetAPI_ThruSections；engine-method-map 里 `loft` 为 occt-only）⇒ 平台 op：

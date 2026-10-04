@@ -1,5 +1,5 @@
 /**
- * stdlib split — 分割库函数（返回具名对象 { front, back }）
+ * faijs-extra split — 分割库函数（返回具名对象 { front, back }）
  *
  *
  * dispatchPath 静态判定 brep/mesh，双输出以具名对象返回（替代 outputCache 多输出写入）。
@@ -54,9 +54,9 @@ function worldToLocalVec3(
 /** BREP 路径：OCCT 平面/榫卯分割 + 分离位移。 */
 function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: Shape; back: Shape } {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/split] no OCCT kernel')
+  if (!kernel) throw new Error('[extra/split] no OCCT kernel')
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[stdlib/split] input is not BREP')
+  if (!inputSolid) throw new Error('[extra/split] input is not BREP')
 
   const cutMode = (params.cutMode as string) ?? 'plane'
   const normal = (params.normal as Vec3) ?? [0, 0, 1]
@@ -267,14 +267,14 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
   */
 export const fai_split = defineOp({
   mesh: (input: Shape, params: Record<string, unknown> = {}) => {
-    if (!input) throw new Error('[stdlib/split] no input geometry')
+    if (!input) throw new Error('[extra/split] no input geometry')
     if (params.normal !== undefined && params.normal !== null) {
       assertNonZeroVec3(params.normal, 'split.normal')
     }
     return splitMeshPath(input, params)
   },
   brep: (input: Shape, params: Record<string, unknown> = {}) => {
-    if (!input) throw new Error('[stdlib/split] no input geometry')
+    if (!input) throw new Error('[extra/split] no input geometry')
     if (params.normal !== undefined && params.normal !== null) {
       assertNonZeroVec3(params.normal, 'split.normal')
     }

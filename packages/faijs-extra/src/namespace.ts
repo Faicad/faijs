@@ -29,7 +29,7 @@
  * Existing `.fai.js` scripts are unaffected: op names, signatures and semantics
  * are unchanged.
  */
-import { CONTRACT_VERSION, type StdlibNamespace } from '@faicad/faijs/runtime-state'
+import { CONTRACT_VERSION, type LibNamespace } from '@faicad/faijs/runtime-state'
 import { registerSymbolTableEntries, unregisterSymbolTableEntries } from '@faicad/faijs/symbol-table'
 import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import { setEngraveDecorationProvider } from '@faicad/faijs/mesh/decoration-provider'
@@ -47,13 +47,13 @@ import { createEngraveDecorationProvider } from './mesh/engrave-decoration'
  *
  * @returns the editor namespace, ready to be spread over the platform surface.
  */
-export function createEditorNamespace(): StdlibNamespace {
+export function createEditorNamespace(): LibNamespace {
   return {
     ...createEditorOpsNamespace(),
     contractVersion: CONTRACT_VERSION,
     text,
     svgExtrude,
-  } as unknown as StdlibNamespace
+  } as unknown as LibNamespace
 }
 
 /**
@@ -65,7 +65,7 @@ export function createEditorNamespace(): StdlibNamespace {
  * @param platform - the platform namespace (`createApiNamespace()`).
  * @returns the merged namespace to register as the host's `cad` library.
  */
-export function mergeEditorNamespace(platform: StdlibNamespace): StdlibNamespace {
+export function mergeEditorNamespace(platform: LibNamespace): LibNamespace {
   return { ...platform, ...createEditorNamespace() }
 }
 
@@ -78,7 +78,7 @@ export function mergeEditorNamespace(platform: StdlibNamespace): StdlibNamespace
  *
  * @returns the namespace to hand to `registerLib('cad', …)`.
  */
-export function createEditorCadNamespace(): StdlibNamespace {
+export function createEditorCadNamespace(): LibNamespace {
   return mergeEditorNamespace(createApiNamespace())
 }
 

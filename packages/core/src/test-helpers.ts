@@ -12,15 +12,15 @@ import type { Shape } from './mesh/types'
 import type { BrepChainState } from './brep/brep-chain'
 import { createRuntime } from './cad-runtime/runtime'
 import { computeContentKey } from './cad-runtime/runtime'
-import type { StdlibNamespace } from './runtime-state'
+import type { LibNamespace } from './runtime-state'
 import type { HostPorts, ExecutionMode } from './cad-runtime/ports'
-// P6/D1：库函数已并入 core 的 api/ 层（原 packages/stdlib 已取消）。
+// 库函数位于 core 的 api/ 层。
 // D1（2026-09-23）：编辑器专属 op（fai_* / group / assembly / copy / load / text /
 // svgExtrude）已迁到 @faicad/faijs-extra，测试辅助经 test-support 装配同一份
 // 「平台面 ∪ 编辑器面」命名空间（test-support/ 不进 dist）。
 import { createApiNamespaceWithEditorOps, registerEditorExtensions } from './test-support/editor-ops'
 
-async function getCadLib(): Promise<StdlibNamespace> {
+async function getCadLib(): Promise<LibNamespace> {
   registerEditorExtensions()
   return createApiNamespaceWithEditorOps()
 }

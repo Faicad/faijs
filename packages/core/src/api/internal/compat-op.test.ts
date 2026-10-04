@@ -33,7 +33,7 @@ import type { Shape } from '../../mesh/types'
 import type { BrepHandle } from '../../brep/engine/types'
 import type { HostPorts } from '../../cad-runtime/ports'
 import type { ExecutionResult } from '../../cad-runtime/runtime'
-import type { StdlibNamespace } from '../../runtime-state'
+import type { LibNamespace } from '../../runtime-state'
 import type { Provenance } from '../../topology/naming/lineage'
 import { clone as vendoredClone } from '../generated/topology'
 import { registerOcctBrepEngine } from '../../brep/engine/adapters/occt'
@@ -165,7 +165,7 @@ describe('§4 outputs — 多产物（含数组字段）收养 + meta 可见', (
     try {
       r.registerLib(
         'out',
-        { contractVersion: CONTRACT_VERSION, planetary } as unknown as StdlibNamespace,
+        { contractVersion: CONTRACT_VERSION, planetary } as unknown as LibNamespace,
         { autoLift: true, packageName: 'out-lib' },
       )
       const res = await r.execute("import * as out from 'out-lib'\nconst a1 = out.planetary({ n: 1 })")
@@ -201,7 +201,7 @@ describe('§6 slotMap — positional boxing inherited via the spec', () => {
     try {
       r.registerLib(
         'sl',
-        { contractVersion: CONTRACT_VERSION, slotted: slotted as never } as unknown as StdlibNamespace,
+        { contractVersion: CONTRACT_VERSION, slotted: slotted as never } as unknown as LibNamespace,
         { autoLift: true, packageName: 'slot-lib' },
       )
       const res = await r.execute(
@@ -219,7 +219,7 @@ describe('§5 keep — 兼容 op 调用点声明（UI 层显示契约不改）',
   const ns = {
     contractVersion: CONTRACT_VERSION,
     dup: vendoredClone as unknown as (...a: unknown[]) => unknown,
-  } as unknown as StdlibNamespace
+  } as unknown as LibNamespace
 
   async function run(code: string): Promise<ExecutionResult> {
     const r = createEditorRuntime(ports(), 'auto')
@@ -258,7 +258,7 @@ describe('§3 admitCompatLib — bare fn 只认 fn.outputs（多产物契约名�
       return { ok: true, value: { a: await s(1), b: [await s(9), await s(9)] } }
     }
     ;(sorting as unknown as { outputs?: string[] }).outputs = ['a', 'b']
-    const ns = { contractVersion: CONTRACT_VERSION, sorting } as unknown as StdlibNamespace
+    const ns = { contractVersion: CONTRACT_VERSION, sorting } as unknown as LibNamespace
     const r = createEditorRuntime(ports(), 'auto')
     try {
       r.registerLib('srt', ns, { autoLift: true, packageName: 'sort-lib' })
@@ -285,7 +285,7 @@ describe('§7 async library fn — Promise<Result<…>> is awaited before unwrap
       const n = (params as { size: number }).size
       return { ok: true, value: await vendorBox(n, n, n) }
     }
-    const ns = { contractVersion: CONTRACT_VERSION, asyncBox } as unknown as StdlibNamespace
+    const ns = { contractVersion: CONTRACT_VERSION, asyncBox } as unknown as LibNamespace
     const r = createEditorRuntime(ports(), 'auto')
     try {
       r.registerLib('alib', ns, { autoLift: true, packageName: 'async-lib' })
@@ -304,7 +304,7 @@ describe('§7 async library fn — Promise<Result<…>> is awaited before unwrap
 
   it('async factory returning err → statement failure (not a raw throw)', async () => {
     const failing = async () => ({ ok: false, error: { code: 'E_GEAR', message: 'boom' } })
-    const ns = { contractVersion: CONTRACT_VERSION, failing } as unknown as StdlibNamespace
+    const ns = { contractVersion: CONTRACT_VERSION, failing } as unknown as LibNamespace
     const r = createEditorRuntime(ports(), 'auto')
     try {
       r.registerLib('flib', ns, { autoLift: true, packageName: 'fail-lib' })

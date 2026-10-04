@@ -1,5 +1,5 @@
 /**
- * stdlib primitives — 基本体创建库函数（box/sphere/cylinder/cone/wedge）
+ * api primitives — 基本体创建库函数（box/sphere/cylinder/cone/wedge）
  *
  *
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
@@ -19,7 +19,7 @@ import { asPartName } from '../identity'
 import { defineOp } from '../sdk'
 import { assertPositiveNumber, assertNonNegativeNumber } from './assert'
 
-// ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
+// ── per-op 参数自校验（Phase 2.2；api 层被直接 import 时的防御层） ──
 
 /**
  * Validate box parameters (brepjs contract, §4.1 A 决策): `width`, `depth` and

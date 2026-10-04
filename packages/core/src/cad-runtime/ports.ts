@@ -11,7 +11,7 @@
  */
 
 import type { PartName } from '../identity'
-import type { StdlibNamespace } from '../runtime-state'
+import type { LibNamespace } from '../runtime-state'
 
 // ── 共享类型 ──
 
@@ -186,7 +186,7 @@ export interface EventSink {
  */
 export interface LibLoader {
   /** 按 packageName 加载库模块，返回其导出命名空间对象（与 registerLib 的 ns 同形）。 */
-  loadLib(packageName: string): Promise<StdlibNamespace>
+  loadLib(packageName: string): Promise<LibNamespace>
   /** 列出当前可加载的 packageName（check 阶段同步校验 import specifier 用）。 */
   listLibs(): string[]
   /** 自动装载的注册选项；缺省由推断式决定（有 dual-op 的库不提升，全裸函数库自动提升，与手动注入一致）。 */
@@ -203,7 +203,7 @@ export interface LibLoader {
   }
   /**
    * 可选源码扫描钩子（§6.2 ②）：宿主返回库源码时走同一 SecurityScanner（A4，固定 strict）；
-   * 不提供或返回 undefined 则跳过。不改 loadLib 返回值——返回 StdlibNamespace，
+   * 不提供或返回 undefined 则跳过。不改 loadLib 返回值——返回 LibNamespace，
    * 往里挂 source 会被 admitCompatLib 当成导出值并污染命名空间。
    * @param packageName - the npm package name.
    * @returns the library source text if available, otherwise undefined.

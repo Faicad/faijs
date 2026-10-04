@@ -1,5 +1,5 @@
 /**
- * stdlib svgExtrude — SVG 挤出创建库函数（creator 函数，无输入）
+ * faijs-extra svgExtrude — SVG 挤出创建库函数（creator 函数，无输入）
  *
  *
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
@@ -26,7 +26,7 @@ import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
  */
 export function assertSvgExtrudeParams(params: Record<string, unknown>): void {
   if (params.svg === undefined || params.svg === null || params.svg === '') {
-    throw new Error(`[stdlib/svgExtrude] svg is required, got ${JSON.stringify(params.svg)}`)
+    throw new Error(`[extra/svgExtrude] svg is required, got ${JSON.stringify(params.svg)}`)
   }
   assertPositiveNumber(params.depth, 'svgExtrude.depth')
 }
@@ -34,7 +34,7 @@ export function assertSvgExtrudeParams(params: Record<string, unknown>): void {
 /** BREP 路径：SVG path 解析 → OCCT wire/face → extrude + fromBrep 登记。 */
 function svgExtrudeBrep(params: Record<string, unknown>, svgText: string): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/svgExtrude] no OCCT kernel')
+  if (!kernel) throw new Error('[extra/svgExtrude] no OCCT kernel')
 
   const solidHandle = svgToSolid(kernel, svgText, {
     depth: params.depth as number,

@@ -22,7 +22,7 @@
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
-import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
+import type { LibNamespace } from '@faicad/faijs/runtime-state'
 import * as mechPkg from './_support/gear-lib-demo/index.js'
 import { createEditorRuntime } from '../_support/editor-runtime'
 
@@ -47,14 +47,14 @@ export const SCRIPT = [
 ].join('\n')
 
 /** Registered library projection: the gear-lib-demo fixture entries (in-repo). */
-export const gearNs: StdlibNamespace = {
+export const gearNs: LibNamespace = {
   external: mechPkg.external,
   thread: mechPkg.thread,
   planetary: mechPkg.planetary,
 }
 
 /** Different `external` body for the B2 "new library version" check. */
-export const gearV2: StdlibNamespace = {
+export const gearV2: LibNamespace = {
   external: ((p: Parameters<typeof mechPkg.external>[0]) =>
     mechPkg.external(p)) as (...args: any[]) => unknown,
   thread: mechPkg.thread,

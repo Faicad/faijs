@@ -1,5 +1,5 @@
 /**
- * stdlib internal svg-asset-resolver — SVG 资产解析辅助函数
+ * api internal svg-asset-resolver — SVG 资产解析辅助函数
  *
  * 从 src/ops/svg-asset-resolver.ts 迁入（Phase 2.5 删除 src/ops/）。
  *

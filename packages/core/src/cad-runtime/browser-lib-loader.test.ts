@@ -8,9 +8,9 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { createBrowserLibLoader, DEFAULT_CDN_BASE } from './browser-lib-loader'
-import type { StdlibNamespace } from '../runtime-state'
+import type { LibNamespace } from '../runtime-state'
 
-const ns = (): StdlibNamespace => ({ fn: () => undefined }) as unknown as StdlibNamespace
+const ns = (): LibNamespace => ({ fn: () => undefined }) as unknown as LibNamespace
 
 const CDN = 'https://cdn.example.com/npm/'
 

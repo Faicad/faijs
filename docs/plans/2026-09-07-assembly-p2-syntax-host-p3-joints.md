@@ -4,7 +4,7 @@
 - 状态：**已落地（P2 与 P3 全部实施完成，2026-09-07）**
 - 范围：`packages/core/src/api/`（校验 + 预览入口 + 运动副）、`packages/core/src/lang/`（roundtrip 测试 + metadata）、`docs/`（契约同步）、`../3d_editor`（宿主适配，仅 P2）
 - 前置方案：[2026-09-06-faijs-assembly-constraints-brepjs.md](./2026-09-06-faijs-assembly-constraints-brepjs.md)（P0+P1 **已落地**，本文档以它的产出为基线）
-- 相关有效契约：[docs/api-contract.md](../api-contract.md)、[docs/ops-api-inventory.md](../ops-api-inventory.md) §6.1、[docs/syntax-design.md](../syntax-design.md)、[docs/library-dev-guide.md](../library-dev-guide.md)
+- 相关有效契约：[docs/api-contract.md](../api-contract.md)、[docs/ops-api-inventory.md](../ops-api-inventory.md) §6.1、[docs/language-design.md](../language-design.md)、[docs/library-dev-guide.md](../library-dev-guide.md)
 
 ---
 
@@ -43,7 +43,7 @@
 
 > 阶段 4 起（args-schema/SCHEMAS 已删除），参数校验全部由本模块的 assert 助手
 
-因此 P2 的参数校验落点是 **`api/assert.ts` 的 assert 助手**（库函数入口运行期校验），不是 lang 层。lang 层契约不变：**parser 对对象字面量参数不做校验**（`.fai.js` 里的 TopoRef/约束就是普通对象字面量），codegen 机械发射。详见 [docs/syntax-design.md](../syntax-design.md)。
+因此 P2 的参数校验落点是 **`api/assert.ts` 的 assert 助手**（库函数入口运行期校验），不是 lang 层。lang 层契约不变：**parser 对对象字面量参数不做校验**（`.fai.js` 里的 TopoRef/约束就是普通对象字面量），codegen 机械发射。详见 [docs/language-design.md](../language-design.md)。
 
 lang 层其它已核实事实：
 

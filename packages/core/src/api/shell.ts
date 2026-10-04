@@ -1,5 +1,5 @@
 /**
- * stdlib shell — 抽壳：按面移除生成等厚薄壁（手写中立 op，Phase 5）
+ * api shell — 抽壳：按面移除生成等厚薄壁（手写中立 op，Phase 5）
  *
  * 中立 op：L1 `shell(solid, facesToRemove, thickness, tolerance)` 在 occt 与
  * brepkit 两侧均有真实现（engine-method-map 实测 `dialect`）⇒ 走 `getBrepApi()`

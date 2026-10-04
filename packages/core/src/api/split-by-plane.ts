@@ -1,5 +1,5 @@
 /**
- * stdlib splitByPlane — 平面二分：把 solid 沿无限平面切成两半（手写中立 op，Phase 6.1）
+ * api splitByPlane — 平面二分：把 solid 沿无限平面切成两半（手写中立 op，Phase 6.1）
  *
  * 中立 op：L1 `splitByPlane(shape, point, normal)` 在 occt 与 brepkit 两侧均有
  * 真实现（occt-kernel/occt-primitives.ts / brepkit-kernel/brepkitKernel.ts）⇒

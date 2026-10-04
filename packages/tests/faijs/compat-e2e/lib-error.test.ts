@@ -22,16 +22,16 @@ import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { asPartName } from '@faicad/faijs/identity'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
-import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
+import type { LibNamespace } from '@faicad/faijs/runtime-state'
 import * as sheetPkg from '@faicad/sheetmetal'
 import { createEditorRuntime } from '../_support/editor-runtime'
 
-const boomNs: StdlibNamespace = {
+const boomNs: LibNamespace = {
   data: () => ({ ok: true, value: { n: 42 } }),
   boom: () => ({ ok: false, error: { code: 'E_TEST_BOOM', message: 'synthetic failure' } }),
 }
 
-const sheetNs: StdlibNamespace = {
+const sheetNs: LibNamespace = {
   author: sheetPkg.author,
   addCutout: sheetPkg.addCutout,
 }

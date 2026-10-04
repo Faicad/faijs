@@ -7,7 +7,7 @@
  * SDK bundle，违反 `src/sdk.test.ts` 的零 heavy 依赖守卫）。本文件在**新建的
  * 零依赖模块**中实现，直接调运行时注入的 `kernel.meshShape`。
  *
- * 依赖约束（硬性）：只允许 import `runtime-state`、`stdlib/shape`、type-only
+ * 依赖约束（硬性）：只允许 import `runtime-state`、`api/shape`、type-only
  * `mesh/types`——任何新增依赖必须保持 dist/sdk.js 零 heavy 依赖守卫通过。
  */
 

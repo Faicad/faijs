@@ -1,7 +1,7 @@
 /**
  * mesh — 纯数据几何 API 统一入口
  *
- * See docs/api-contract.md §1 (architecture layers) and §10 (stdlib function catalog).
+ * See docs/api-contract.md §1 (architecture layers) and §10 (api function catalog).
  *
  * 原则（§5.1）：
  * 1. 全部纯数据：输入输出是 Shape (ManifoldMeshData)，不碰 THREE 场景、不读 store

@@ -226,7 +226,7 @@ export type { BrowserFontProviderOptions } from './browser-host/browser-font-pro
 export { FetchAssetResolver } from './browser-host/fetch-asset-resolver'
 export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resolver'
 
-// ── L3 API 面（原 packages/stdlib 迁入，P6/D1）──
+// ── L3 API 面（api/ 层）──
 // P23 主导出切换（§4.2 / Q1）：`export * from './api'` 现在同时带来
 // ① faijs 特有 dual op（mesh+brep 双路径，D11 双形态归一）；
 // ② 生成脚本面 op（`api/generated/script-face.ts`，compatOp(projectBrepOp(…)) 包装的

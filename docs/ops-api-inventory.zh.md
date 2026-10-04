@@ -2,7 +2,7 @@
 
 [English](ops-api-inventory.md) | 中文
 
-> 本手册由 `scripts/gen-ops-api-inventory.ts` 从 stdlib JSDoc 自动生成。**不要手改**——改 stdlib JSDoc 后运行生成器（或 CI 的 `--check` 会拦截不一致）。
+> 本手册由 `scripts/gen-ops-api-inventory.ts` 从 api JSDoc 自动生成。**不要手改**——改 api JSDoc 后运行生成器（或 CI 的 `--check` 会拦截不一致）。
 >
 > - ✅ = 此接口正确、可放心使用
 > - ⚠️ = 可用，但参数有已知缺陷
@@ -11,7 +11,7 @@
 >
 > 🚫 标记的 op 是 `../3d_editor` 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。
 >
-> 相关文档：`docs/syntax-design.md`（语法与执行契约）、`docs/api-contract.md`（语句层内部契约）。
+> 相关文档：`docs/language-design.md`（语言与执行契约）、`docs/api-contract.md`（语句层内部契约）。
 
 ---
 
@@ -156,7 +156,7 @@ const a = await cad.import_brep({ asset: 'Array001.Shape' })
 
 ### 3.6 `import_step` ✅
 
-stdlib import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
+api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
 
 ```js
 const a = await cad.import_step({ path: 'D:/models/box.step' })

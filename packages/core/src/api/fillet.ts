@@ -1,5 +1,5 @@
 /**
- * stdlib fillet — fillet 圆角库函数（BREP-only，directEdit 能力）
+ * api fillet — fillet 圆角库函数（BREP-only，directEdit 能力）
  *
  * 平台分层（narrowing plan Phase 5，D11）：**中立 op**——`filletWithHistory` 是
  * L1 核心面（brepkit 亦实现），实现全程走 L1（getBrepApi，D12），不声明 engines；
@@ -34,7 +34,7 @@ import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext } from './topo-resolve'
 import { meshKernelFailure, meshSolidEntry, meshSolidProduct, resolveMeshEdges } from './internal/mesh-solid-op'
 
-// ── 参数自校验（stdlib 被直接 import 时的防御层）──
+// ── 参数自校验（api 层被直接 import 时的防御层）──
 
 /** 边选择器校验选项。 */
 export interface EdgeSelectorCheckOptions {

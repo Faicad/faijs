@@ -2,12 +2,12 @@
  * runtime-state — 全局运行时状态锚点（零依赖层）
  *
  *
- * 本模块位于 L0+（零运行时依赖），是 L3 API 面（core/src/api，原 stdlib）与
+ * 本模块位于 L0+（零运行时依赖），是 L3 API 面（core/src/api）与
  * cad-runtime（L2）之间唯一的共享状态。**放在这一层是为了避免循环依赖**：
  * api/ 不能 import cad-runtime（cad-runtime/api-namespace.ts 已经 import 了 api/）。
  *
  * 承载三类状态：
- * 1. Backends —— 宿主注入的环境资源（内核 / 端口 / 模式 / 标准库命名空间）
+ * 1. Backends —— 宿主注入的环境资源（内核 / 端口 / 模式 / 平台库命名空间）
  * 2. 当前执行语句 —— keep() 归属用（引擎在语句 fn 之前设置）
  * 3. Shape 身份表 —— 构造器登记（isShape 依据）与 Shape→PartName 反查
  *
@@ -100,8 +100,8 @@ export interface Backends {
   readonly texture: unknown
   readonly assets: unknown
   readonly events: unknown
-  /** faijs 自带标准库命名空间（引擎不区分它与第三方库——都是库函数；P5 起由宿主注入，core 不默认装配） */
-  readonly cad?: StdlibNamespace
+  /** faijs 平台库命名空间（引擎不区分它与第三方库——都是库函数；由宿主注入，core 不默认装配） */
+  readonly cad?: LibNamespace
 }
 
 /**
@@ -115,11 +115,11 @@ export interface Backends {
 export const CONTRACT_VERSION = 3
 
 /** 库函数签名（引擎视角：任意参数的普通函数，信息均匀化，不按名字分支）。 */
-export type StdlibFn = (...args: any[]) => unknown
+export type LibFn = (...args: any[]) => unknown
 
-/** 库命名空间：函数名 → 库函数（faijs 自带标准库与第三方库同构）。 */
-export interface StdlibNamespace {
-  [name: string]: StdlibFn
+/** 库命名空间：函数名 → 库函数（faijs 平台库与第三方库同构）。 */
+export interface LibNamespace {
+  [name: string]: LibFn
 }
 
 /**

@@ -4,7 +4,7 @@
  *
  * 库函数签名 = .fai.js 源码形态（无隐式参数）；本文件无任何 per-函数逻辑。
  *
- * 归属（monorepo P5/E-a-1）：本文件随 stdlib 出包，是 faijs 默认标准库
+ * 归属（monorepo P5/E-a-1）：本文件随 core 出包，是 faijs 默认库函数
  * （cad 命名空间）的装配点。K5（引擎零函数知识）的准确含义是：parser / compile /
  * runtime 不按函数名分支、不区分函数类别，函数信息统一以 defineOp 元数据（均匀数据）
  * 承载。把 cad 这套库数据内置进引擎，与第三方库走完全相同的 registerLib 路径，
@@ -61,10 +61,10 @@ import { place } from './place'
 import { scriptFaceOps } from './generated/script-face'
 import { revolve } from './revolve'
 import { CONTRACT_VERSION } from '../runtime-state'
-import type { StdlibNamespace } from '../runtime-state'
+import type { LibNamespace } from '../runtime-state'
 
 /**
- * Assemble stdlib functions into the cad namespace.
+ * Assemble api functions into the cad namespace.
  *
  * P23（§4.2 ②，B1 三源一致）：cad 面 = faijs 特有 dual op（下方字面量）+
  * 生成脚本面 op（`scriptFaceOps`——`api/generated/script-face.ts` 按 arg-spec
@@ -72,12 +72,12 @@ import type { StdlibNamespace } from '../runtime-state'
  * brep-only 语句级 op）。`check()` 符号表（`gen-symbol-table.ts`）与
  * `api/index.ts` 导出面同源于同一份清单。
  *
- * @returns the assembled StdlibNamespace ready for runtime injection.
+ * @returns the assembled LibNamespace ready for runtime injection.
  */
-export function createApiNamespace(): StdlibNamespace {
+export function createApiNamespace(): LibNamespace {
   // D-4 strict assembly check: the cad namespace now exports dual-op functions
   // (defineOp), so registerLib requires a matching contractVersion. Cast is
-  // needed because StdlibNamespace is an index-signature type.
+  // needed because LibNamespace is an index-signature type.
   return {
     contractVersion: CONTRACT_VERSION,
     box, sphere, cylinder, cone, wedge,
@@ -124,5 +124,5 @@ export function createApiNamespace(): StdlibNamespace {
     mirrorJoin,
     mirror,
     clone,
-  } as unknown as StdlibNamespace
+  } as unknown as LibNamespace
 }

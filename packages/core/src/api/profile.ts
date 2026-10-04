@@ -1,5 +1,5 @@
 /**
- * stdlib profile — 从 2D 轮廓构面（creator 函数，无输入，brep-only）。
+ * api profile — 从 2D 轮廓构面（creator 函数，无输入，brep-only）。
  *
  * 用途：faijs 此前没有「从 2D 轮廓构造 planar face」的能力，导致草图轮廓无法喂给
  * extrude/revolve。本 op 接收 2D 轮廓（线段 + 圆弧），在 z=0 平面用 OCCT 构面：

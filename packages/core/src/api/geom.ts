@@ -1,5 +1,5 @@
 /**
- * stdlib geom — $geom 查询函数族（有形签名）
+ * api geom — $geom 查询函数族（有形签名）
  *
  *
  * `cad.<feature>(of, anchor?, ordinal?)`：

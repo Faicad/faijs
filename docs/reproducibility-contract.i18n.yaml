@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/reproducibility-contract.md
-reproducibility-contract.md: a4ad39244ece46d8cb0299099920139f59b930a7
-reproducibility-contract.zh.md: 2dae6518ca51fb99148af0bf50d0f42ca361ccaf
+reproducibility-contract.md: a00f53bc47ada7be3dd360642b5f5fcb422588da
+reproducibility-contract.zh.md: 3963f3ae6738a2f27c0a6de9e7ffb293fee50271
