@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/2026-10-03-fai-zip-viewer-sdk-implemented.md
-2026-10-03-fai-zip-viewer-sdk-implemented.md: c6efb069fe0af8310d6c7df7e506bcd4874a1193
-2026-10-03-fai-zip-viewer-sdk-implemented.zh.md: e3b9064784ba5909d6e32423294c5424b204d036
+2026-10-03-fai-zip-viewer-sdk-implemented.md: ff7176af9fe8d681e95fa67c88b166d0ef3043b5
+2026-10-03-fai-zip-viewer-sdk-implemented.zh.md: fd6488ba83e8567f5daf78a3ec3d75502264eb1c

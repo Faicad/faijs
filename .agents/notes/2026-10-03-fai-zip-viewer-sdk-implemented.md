@@ -16,7 +16,7 @@ was no single package a consumer could depend on.
 Ship a new independent workspace package `@faicad/faijs-viewer` that owns the whole
 viewing chain. A third party depends on exactly one package and calls the v1 entry:
 
-```ts
+```ts ignore-check
 openFaiZip(bytes, { wasm: { occtUrl, manifoldUrl, brepkitUrl } })
 ```
 

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-28-sketch-ellipse-entry-reopen.zh.md)
+
 ## Problem
 
 The canonical sketch schema reserved `point` / `ellipse` / `bspline`, and

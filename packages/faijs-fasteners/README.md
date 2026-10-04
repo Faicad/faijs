@@ -1,5 +1,7 @@
 # @faicad/faijs-fasteners
 
+English | [中文](README.zh.md)
+
 Standard fasteners and hardware for faijs: threads, nuts, screws, washers, bearings, sprockets, chains, and fastener holes.
 
 ## Origin

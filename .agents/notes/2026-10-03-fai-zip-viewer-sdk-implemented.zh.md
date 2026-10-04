@@ -15,7 +15,7 @@ Status: implemented
 新增独立 workspace 包 `@faicad/faijs-viewer`，拥有完整查看链路。第三方只需依赖这一个包，
 调用 v1 入口：
 
-```ts
+```ts ignore-check
 openFaiZip(bytes, { wasm: { occtUrl, manifoldUrl, brepkitUrl } })
 ```
 

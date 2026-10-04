@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-29-rotate-euler-angles-deg-gotcha.zh.md)
+
 ## Problem
 
 `cad.rotate_euler` 的契约参数名是 `angles`（度值，XYZ 序），但仓库内 4 处

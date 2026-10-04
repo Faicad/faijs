@@ -2,7 +2,7 @@
 
 Status: implemented
 
-English | [中文](2026-10-02-gears-kernel-migration.zh.md)
+[English](2026-10-02-gears-kernel-migration.md) | 中文
 
 ## Problem
 
