@@ -29,7 +29,7 @@
 | **manifest**（导出变量级） | **697 = 488 ported / 154 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 B2-2 后实读） |
 | **coverage**（上游测试函数级） | **305 = 201 PORTABLE / 41 PORTABLE-WITH-STUB / 55 BLOCKED** | `tests/coverage.json`（2026-10-03 **B0 重算后**实读：`portableNow 201` / `portableWithStub 41` / `blocked 55`） |
 | **镜像文件** | **500** 个 `.fai.js` + **15** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 **B2-3a** 后实测） |
-| **包内单测** | 575 全绿（51 文件） | 2026-10-04 B2-2 实测 |
+| **包内单测** | 578 全绿（52 文件） | 2026-10-04 B2-3a 实测 |
 
 ⚠ **两个分母不同源，不可换算**：manifest 的 452/198/47 是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
 
