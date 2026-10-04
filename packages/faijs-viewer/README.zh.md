@@ -4,7 +4,7 @@
 
 任何第三方宿主打开并渲染 `.fai.zip` 三维文档的参考方式。viewer 读取容器，通过 `@faicad/faijs` 执行 active（或指定的）model，返回与宿主无关的三角化 mesh 数据——返回值不依赖 THREE、DOM 或任何 GL 库。
 
-本包**不**依赖 `@faicad/faijs-extra` 或 `sheetmetal`。其运行时依赖是家族 peer 包 `@faicad/faijs`、`@faicad/faijs-sketch` 和 `@faicad/faijs-draw`，由宿主提供。它就是"第三方只需要一个 **viewer** 包就能查看 `.fai.zip`"的参考 SDK。
+本包**不**依赖 `sheetmetal` 或 `cq-compat`。预置库——`@faicad/faijs`、`@faicad/faijs-sketch` 和 `@faicad/faijs-extra`——是家族 peer 包，由宿主提供；第三方 faijs 库（如 `@faicad/faijs-gears`）在执行期按需装载（见 [动态库加载](#dynamic-library-loading)）。它就是"第三方只需要一个 **viewer** 包就能查看 `.fai.zip`"的参考 SDK。
 
 ## v1 API
 
@@ -20,6 +20,8 @@ const result = await openFaiZip(bytes, {
   // modelId?: string                      // pick a model; default is manifest.active, else models[0]
   // mode?: 'auto' | 'brep' | 'mesh'       // default 'auto' (static BREP/mesh dispatch)
   // sketch?: { planegcsUrl: '...' }       // browser-only: constraint-solver wasm URL (see below)
+  // libs?: { allow: ['@faicad/faijs-gears'], versions: { '@faicad/faijs-gears': '0.29.2' } }
+  //                                       // dynamic third-party libraries (see below)
 })
 
 // result.meshes — structured mesh data; the host does the actual rendering.
@@ -38,7 +40,7 @@ for (const mesh of result.meshes) {
 | 字节无效 / 执行失败 / 无可见几何 | 返回 `result.error`，`code ∈ { E_CONTAINER, E_EXECUTION, E_NO_GEOMETRY }` |
 | 成功 | 返回结构化 `meshes` |
 
-真实 FreeCAD 转换产物会调用 `cad.sketch` / `cad.draw`；viewer 把 sketch + draw 命名空间合入默认 `cad` binding，并由约束求解器支撑（见下）。
+真实 FreeCAD 转换产物会调用 `cad.sketch` 和编辑器扩展 op（`cad.fai_*`、`cad.group`、`cad.text`、…）；viewer 把 sketch + faijs-extra 命名空间合入默认 `cad` binding，并由约束求解器支撑 sketch（见下）。`@faicad/faijs-draw` 已弃用且刻意不合并——`cad.draw` 调用按未知 callee 失败。
 
 ## `cad.sketch` 与约束求解器
 
@@ -48,6 +50,30 @@ for (const mesh of result.meshes) {
 - **浏览器** — 自托管 `planegcs.wasm` 并传入 URL：`openFaiZip(bytes, { wasm, sketch: { planegcsUrl: 'https://your-cdn/planegcs.wasm' } })`。不给 URL 则不安装求解器；`cad.sketch` op 以 `E_SKETCHC_NO_SOLVER` 失败，经 `result.error` 上报。
 
 注意：转换产物的 sketch 输入必须符合 sketch op 的契约（`shapes` 或 `geoms`）。产出 `cad.sketch({ contours: [...] })` 的转换器当前不被接受，会以 `E_SKETCHC_NO_GEOMS` 失败——该问题在 faijs 家族跟踪，不属本 viewer 包。
+
+## <a id="dynamic-library-loading"></a>动态库加载
+
+`.fai.zip` 的 model 可能 `import` 任意第三方 faijs 库——这个集合无法预先知道。引擎本来就在执行期按需装载命名空间 import（`autoLoadLibsFromImports` → `HostPorts.libLoader`），本 viewer 替你构建这个 loader：
+
+- **浏览器宿主** — 从 jsDelivr CDN 动态 `import()`（给了 `libs.versions` 则走版本 pin 的 `+esm` 直链）；
+- **Node 宿主** — 从已安装包 `import(pkg)`，默认限 `@faicad/` scoped 库，除非给了 `libs.allow`。
+
+通过 `OpenFaiZipOptions.libs` 配置：
+
+```ts ignore-check
+const result = await openFaiZip(bytes, {
+  wasm,
+  libs: {
+    allow: ['@faicad/faijs-gears'],                        // whitelist (a .fai.zip is untrusted input — production hosts should set this)
+    versions: { '@faicad/faijs-gears': '0.29.2' },          // pin to the host engine's version line
+    // aliases?: { gears: '@faicad/faijs-gears' },          // script specifier → npm package name
+    // cdnBase?: 'https://cdn.jsdelivr.net/npm/',            // browser CDN base
+    // enabled?: true,                                      // false disables dynamic loading entirely
+  },
+})
+```
+
+预置库（core、sketch、faijs-extra——合入 `cad`）从不经过 loader。装载或版本校验失败统一结构化返回 `E_EXECUTION` 到 `result.error`，绝不抛穿。`contractVersion` 与宿主引擎不匹配的库会被显式拒绝——请把 `libs.versions` pin 到与宿主运行的 `@faicad/faijs` 相同版本线。
 
 ## 三个 wasm url 全部必填，且必须自托管
 
@@ -71,5 +97,6 @@ for (const mesh of result.meshes) {
 
 ## 依赖
 
-- peer `@faicad/faijs`、`@faicad/faijs-sketch`、`@faicad/faijs-draw` —— 运行时依赖（三个家族包都由宿主提供）。
+- 预置 peer `@faicad/faijs`、`@faicad/faijs-sketch`、`@faicad/faijs-extra` —— 合入默认 `cad` binding（三个家族包都由宿主提供）。
+- peer `three` —— 由 faijs-extra 的 B 组 op（`cad.text` / `cad.svgExtrude` mesh 路径）携带；返回值不触碰它。
 - peer `occt-wasm` —— 仅浏览器路径（`bindBrowserWasm`）懒加载；Node 测试从不加载。

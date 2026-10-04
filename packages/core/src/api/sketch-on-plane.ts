@@ -41,7 +41,7 @@ export interface PlaneSpec {
 export interface SketchOnPlaneParams {
   /**
    * Contour source: segment loops (`{segments: […]}`) or already-drawn contours
-   * (a `cad.draw` product, or an array of them). The drawn form is what makes the
+   * (a `Blueprint`, or an array of them). The drawn form is what makes the
    * "draw → place → extrude" pipeline real — see {@link DrawnContours}.
    */
   contours: ProfileLoop[] | DrawnContours
@@ -68,7 +68,7 @@ export function resolvePlane(planeSpec: PlaneSpec, fallbackOrigin: Vec3Input = [
 /**
  * Build a 3D Shape (planar face, or outer-loop wire when `as:'wire'`) from a set
  * of classified `Blueprint` contours on a plane. This is the shared placement
- * core for every 2D profile source (`cad.profile` / `cad.draw` / sketch): it
+ * core for every 2D profile source (`cad.profile` / a drawn contour / sketch): it
  * organises the closed contours (holes vs islands), assembles edge wires on the
  * plane via the geometry2d bridge, and wraps them as a BREP face — ready to be
  * extruded along the plane normal.
@@ -127,10 +127,10 @@ export function buildShapeFromBlueprints(
  */
 export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPlaneParams): Shape {
   const plane = resolvePlane(params.plane)
-  // 2026-09-28：段环数据与「已绘制轮廓」（`cad.draw` 产物）在此归一。少了这一步，
-  // 计划 A4 的「draw → sketchOnPlane → extrude」就断了 —— `cad.draw` 的 Blueprint
-  // 没有 OCCT 句柄，实测喂 `cad.extrude` 报 `argument carries no BREP handle`、
-  // 喂 `cad.sweep` 报 `INVALID_SHAPE_ID`，全仓没有第二个能把它变成 Shape 的通道。
+  // 2026-09-28：段环数据与「已绘制轮廓」（`Blueprint`）在此归一。少了这一步，
+  // 「draw → sketchOnPlane → extrude」就断了 —— 已绘制轮廓没有 OCCT 句柄，
+  // 实测喂 `cad.extrude` 报 `argument carries no BREP handle`、喂 `cad.sweep`
+  // 报 `INVALID_SHAPE_ID`，全仓没有第二个能把它变成 Shape 的通道。
   const blueprints = toContourBlueprints(params.contours)
   return buildShapeFromBlueprints(kernel, plane, blueprints, params.as ?? 'face')
 }
@@ -143,7 +143,7 @@ export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPl
  * @qual ok
  * @name sketchOnPlane
  * @returns Shape on the target plane (face, or a wire curve when `as:'wire'`).
- * @param params.contours - ordered 2D contours (same shape as `cad.profile`: segment loops, or a `cad.draw` product).type:any required:true
+ * @param params.contours - ordered 2D contours (same shape as `cad.profile`: segment loops, or a drawn `Blueprint`).type:any required:true
  * @param params.plane - named plane (`'XY'` / `'XZ'`…) or `{ origin, normal, xAxis }`.type:any required:true
  * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
  */

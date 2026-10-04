@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/faijs-viewer/README.md
-README.md: 9a33cc32a1fe3a64b434b3efdfe29ca0e295b6f7
-README.zh.md: 710f4afdae81fa6b17df2206bfba5ecbdb91ea41
+README.md: 3ccc96a92a8c48c3d9fabc6e709166dcada26b73
+README.zh.md: d35e4fd11c3776230282e2e3900e1a56ba923b18

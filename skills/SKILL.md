@@ -43,7 +43,7 @@ The following packages provide capabilities usable in `.fai.js` scripts. Each li
 | Package | Skill File | Import Specifier | Description |
 |---------|----------|------------------|-------------|
 | **@faicad/faijs-sketch** | [sketch.md](sketch.md) | (merged into `cad`) | `cad.sketch` — constraint-based sketching with planegcs solver. Merged into `cad` namespace. |
-| **@faicad/faijs-draw** | [draw.md](draw.md) | (merged into `cad`) | `cad.draw` — fluent 2D drawing DSL for contour creation. Merged into `cad` namespace. |
+
 | **@faicad/sheetmetal** | [sheetmetal.md](sheetmetal.md) | `@faicad/sheetmetal` or short name `sheetmetal` | Sheet-metal authoring, unfold, flat patterns, bend relief, cutouts, nesting, DXF export. |
 | **@faicad/faijs-gears** | [faijs-gears.md](faijs-gears.md) | `@faicad/faijs-gears` or short name `faijs-gears` | Gear generation: spur, herringbone, ring, bevel, worm, rack, planetary gearsets. |
 | **@faicad/faijs-fasteners** | [faijs-fasteners.md](faijs-fasteners.md) | `@faicad/faijs-fasteners` or short name `faijs-fasteners` | Fasteners: threads, nuts, screws, washers, bearings, sprockets, chain, holes. |

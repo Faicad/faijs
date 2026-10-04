@@ -2,7 +2,6 @@
   "imports": {
     "@faicad/faijs": "https://cdn.jsdelivr.net/npm/@faicad/faijs/+esm",
     "@faicad/cq-compat-compare": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-compare/+esm",
-    "@faicad/faijs-draw": "https://cdn.jsdelivr.net/npm/@faicad/faijs-draw/+esm",
     "@faicad/faijs-cadquery": "https://cdn.jsdelivr.net/npm/@faicad/faijs-cadquery/+esm",
     "@faicad/faijs-extra": "https://cdn.jsdelivr.net/npm/@faicad/faijs-extra/+esm",
     "@faicad/faijs-fasteners": "https://cdn.jsdelivr.net/npm/@faicad/faijs-fasteners/+esm",

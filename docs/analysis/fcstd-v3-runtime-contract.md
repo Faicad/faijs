@@ -5,34 +5,32 @@
 
 ## 1. 背景事实
 
-FCStd 转换产物的脚本会调用以下 op，它们**不在** core 的 `createApiNamespace()` 平台面里：
+FCStd 转换产物的脚本会调用以下 op：
 
-- `cad.sketch` —— 由 `@faicad/faijs-sketch` 提供（参数化草图，含 82.5% 语料文件）；
-- `cad.draw` —— 由 `@faicad/faijs-draw` 提供（Draft 图纸重建）。
+- `cad.sketch` —— 由 `@faicad/faijs-sketch` 提供（参数化草图，含 82.5% 语料文件），**不在** core 的 `createApiNamespace()` 平台面里；
+- `cad.sketchOnPlane` / `cad.profile` / `cad.extrude` / `cad.sweep` 等 —— 由 core 平台面直接提供。Draft 图纸重建（`Part::Part2DObjectPython`）以 `ProfileLoop` 数据经 `cad.sketchOnPlane` 落地，不再使用 `cad.draw`。
 
-这是既定的库拆分契约：core 只带平台面，库 op 由宿主决定是否合并。宿主漏合并时，产物能通过
+库拆分契约只涉及 `cad.sketch`：core 只带平台面，库 op 由宿主决定是否合并。宿主漏合并时，产物能通过
 `cliCheck` 之外的转换检查、却在运行时报 `__ns.cad.sketch is not a function`。静态防线是
 `cliCheck` 的 unknown-op 守卫（symbol 阶段报错）——宿主装配完成后应先 `check` 再 `run`。
 
 ## 2. 契约要求（缺一即 run 失败）
 
 1. **合并库命名空间**：宿主注册的 `cad` lib 必须在 `createApiNamespace()` 之上合并
-   sketch 与 draw 两个库面：
+   sketch 库面：
 
    ```ts
    import { createApiNamespace } from '@faicad/faijs'
    import { mergeSketchNamespace, registerSketchSymbols, installSketchSolver } from '@faicad/faijs-sketch'
    import { createNodePlanegcsSolver } from '@faicad/faijs-sketch/node'
-   import { mergeDrawNamespace, registerDrawSymbols } from '@faicad/faijs-draw'
 
-   const cad = mergeDrawNamespace(mergeSketchNamespace(createApiNamespace()))
+   const cad = mergeSketchNamespace(createApiNamespace())
    rt.registerLib('cad', cad, { default: true })
    registerSketchSymbols()
-   registerDrawSymbols()
    installSketchSolver(createNodePlanegcsSolver)   // Node；浏览器端用浏览器 solver
    ```
 
-   两个 `merge*Namespace` 均为纯函数（无注册副作用）；`register*Symbols` 把 op 名登记进
+   `mergeSketchNamespace` 为纯函数（无注册副作用）；`registerSketchSymbols` 把 op 名登记进
    symbol table（静态分析可见）；`installSketchSolver` 注入 planegcs 求解器（参数化草图
    运行时重解依赖它，缺了报 solver 缺失类错误）。
 

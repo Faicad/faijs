@@ -139,7 +139,7 @@ export interface CliCheckOptions {
   fontsDir?: string
   /**
    * Extra cad-namespace entries the host merges at run time (`cad.sketch`
-   * from @faicad/faijs-sketch, `cad.draw` from @faicad/faijs-draw).
+   * from @faicad/faijs-sketch).
    *
    * I-group (2026-10-03): the unknown-op guard compares the script's callees
    * against `symbolTableNames()`, which knows only the STATIC table. A host
@@ -261,7 +261,7 @@ export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckRes
   // D11 (2026-09-28): unknown-op guard. check() is syntax+reference only — an
   // op the cad namespace doesn't have used to pass `check` clean and die at
   // runtime (e.g. `cad.sketch is not a function` when a host forgets to merge
-  // the sketch/draw libraries). Compare the script's callees against the
+  // the sketch library). Compare the script's callees against the
   // symbol-table union view (platform + registered library entries) and fail
   // the check on any unknown callee.
   if (result.ok && result.script) {

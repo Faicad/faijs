@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 The reference way for **any third-party host** to open and render a project `.fai.zip` 3D document. The viewer reads the container, executes the active (or requested) model through `@faicad/faijs`, and returns host-agnostic tessellated mesh data — no THREE, no DOM, and no GL library required on the return value.
 
-This package does **not** depend on `@faicad/faijs-extra` or `sheetmetal`. Its runtime dependencies are the family peers `@faicad/faijs`, `@faicad/faijs-sketch` and `@faicad/faijs-draw`, which the host provides. It is the reference SDK for "a third party needs only one **viewer** package to view a `.fai.zip`".
+This package does **not** depend on `sheetmetal` or `cq-compat`. Its preset libraries — `@faicad/faijs`, `@faicad/faijs-sketch` and `@faicad/faijs-extra` — are family peers the host provides, and third-party faijs libraries (e.g. `@faicad/faijs-gears`) are loaded on demand at execution time (see [Dynamic library loading](#dynamic-library-loading)). It is the reference SDK for "a third party needs only one **viewer** package to view a `.fai.zip`".
 
 ## v1 API
 
@@ -20,6 +20,8 @@ const result = await openFaiZip(bytes, {
   // modelId?: string                      // pick a model; default is manifest.active, else models[0]
   // mode?: 'auto' | 'brep' | 'mesh'       // default 'auto' (static BREP/mesh dispatch)
   // sketch?: { planegcsUrl: '...' }       // browser-only: constraint-solver wasm URL (see below)
+  // libs?: { allow: ['@faicad/faijs-gears'], versions: { '@faicad/faijs-gears': '0.29.2' } }
+  //                                       // dynamic third-party libraries (see below)
 })
 
 // result.meshes — structured mesh data; the host does the actual rendering.
@@ -38,7 +40,7 @@ Three outcomes:
 | invalid bytes / execution failure / no visible geometry | returns `result.error`, `code ∈ { E_CONTAINER, E_EXECUTION, E_NO_GEOMETRY }` |
 | success | returns structured `meshes` |
 
-Real FreeCAD-converted containers call `cad.sketch` / `cad.draw`; the viewer merges the sketch + draw namespaces into the default `cad` binding and backs them with a constraint solver (see below).
+Real FreeCAD-converted containers call `cad.sketch` and the editor-extension ops (`cad.fai_*`, `cad.group`, `cad.text`, …); the viewer merges the sketch + faijs-extra namespaces into the default `cad` binding and backs sketch with a constraint solver (see below). `@faicad/faijs-draw` is deprecated and deliberately not merged — a `cad.draw` call fails as an unknown callee.
 
 ## `cad.sketch` and the constraint solver
 
@@ -48,6 +50,30 @@ Real FreeCAD-converted containers call `cad.sketch` / `cad.draw`; the viewer mer
 - **Browser** — self-host `planegcs.wasm` and pass its URL: `openFaiZip(bytes, { wasm, sketch: { planegcsUrl: 'https://your-cdn/planegcs.wasm' } })`. Without a URL the solver is not installed; a `cad.sketch` op fails with `E_SKETCHC_NO_SOLVER`, reported through `result.error`.
 
 Note: the converted sketch input must follow the sketch op's contract (`shapes` or `geoms`). A converter that emits `cad.sketch({ contours: [...] })` is not currently accepted and fails with `E_SKETCHC_NO_GEOMS` — tracked in the faijs family, not this viewer package.
+
+## Dynamic library loading
+
+A `.fai.zip` model may `import` any third-party faijs library — the set cannot be known in advance. The engine already loads namespace imports lazily at execute time (`autoLoadLibsFromImports` → `HostPorts.libLoader`), and this viewer builds that loader for you:
+
+- **browser host** — dynamic `import()` from the jsDelivr CDN (version-pinned `+esm` direct links when `libs.versions` is provided);
+- **Node host** — `import(pkg)` from installed packages, defaulting to `@faicad/`-scoped libraries unless `libs.allow` is given.
+
+Configure it through `OpenFaiZipOptions.libs`:
+
+```ts ignore-check
+const result = await openFaiZip(bytes, {
+  wasm,
+  libs: {
+    allow: ['@faicad/faijs-gears'],                        // whitelist (a .fai.zip is untrusted input — production hosts should set this)
+    versions: { '@faicad/faijs-gears': '0.29.2' },          // pin to the host engine's version line
+    // aliases?: { gears: '@faicad/faijs-gears' },          // script specifier → npm package name
+    // cdnBase?: 'https://cdn.jsdelivr.net/npm/',            // browser CDN base
+    // enabled?: true,                                      // false disables dynamic loading entirely
+  },
+})
+```
+
+Preset libraries (core, sketch, faijs-extra — merged into `cad`) never pass through the loader. Loading or version-verification failures surface as structured `E_EXECUTION` on `result.error`, never a throw. A library whose `contractVersion` does not match the host engine is rejected loudly — keep `libs.versions` pinned to the same version line as `@faicad/faijs` the host runs.
 
 ## All three wasm urls are required, and they must be self-hosted
 
@@ -71,5 +97,6 @@ In a Node/worker runner the three urls are still validated (v1 contract), but th
 
 ## Dependencies
 
-- peers `@faicad/faijs`, `@faicad/faijs-sketch`, `@faicad/faijs-draw` — the runtime dependencies (a host provides all three family packages).
+- preset peers `@faicad/faijs`, `@faicad/faijs-sketch`, `@faicad/faijs-extra` — merged into the default `cad` binding (a host provides all three family packages).
+- peer `three` — carried by faijs-extra's B-group ops (`cad.text` / `cad.svgExtrude` mesh path); not touched by the return value.
 - peer `occt-wasm` — lazily imported only by the browser path (`bindBrowserWasm`); never loaded in Node tests.

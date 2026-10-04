@@ -177,18 +177,18 @@ describe('cad.sketchOnPlane placement e2e (E2, occt)', () => {
 })
 
 /**
- * 2026-09-28 — `contours` accepts a DRAWN contour (`cad.draw`'s product), not
+ * 2026-09-28 — `contours` accepts a DRAWN contour (a pure-data `Blueprint`), not
  * only segment-loop data.
  *
- * Why this is not a nicety: the plan's Draft chain is "draw → `sketchOnPlane` →
- * `extrude`", and `cad.draw` yields a pure-data `Blueprint` with NO OCCT handle.
+ * Why this is not a nicety: the Draft chain is "draw → `sketchOnPlane` →
+ * `extrude`", and a drawn contour is a pure-data `Blueprint` with NO OCCT handle.
  * Without this acceptance there is no op in the whole repo that can turn a drawn
  * contour into a Shape — measured: `cad.extrude(drawn, dir)` fails with
  * `E_BREP_INPUT: argument carries no BREP handle`, `cad.sweep(drawn, …)` with
  * `INVALID_SHAPE_ID`.
  */
-describe('drawn-contour acceptance (a `cad.draw` product as `contours`)', () => {
-  /** One closed contour as the pen produces it (exactly what `cad.draw` returns). */
+describe('drawn-contour acceptance (a drawn `Blueprint` as `contours`)', () => {
+  /** One closed contour as the pen produces it (a pure-data `Blueprint`). */
   function drawnSquare(w = 20, h = 10): Blueprint {
     const pen = new BaseSketcher2d()
     pen.polyline([[0, 0], [w, 0], [w, h], [0, h], [0, 0]])

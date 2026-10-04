@@ -93,14 +93,14 @@ export interface ProfileLoop {
 }
 
 /**
- * A 2D contour that is already DRAWN — i.e. `cad.draw`'s product (a
- * `Blueprint`), or an array of them (one per contour).
+ * A 2D contour that is already DRAWN — a pure-data `Blueprint`, or an array of
+ * them (one per contour).
  *
- * Why the 2D entries accept this: `cad.draw` returns a pure-data contour with no
- * OCCT handle, and without this path NO op can turn it into a Shape. Measured
- * 2026-09-28 — feeding a `cad.draw` product straight to `cad.extrude` fails with
+ * Why the 2D entries accept this: a drawn contour carries no OCCT handle, and
+ * without this path NO op can turn it into a Shape. Measured 2026-09-28 —
+ * feeding a drawn `Blueprint` straight to `cad.extrude` fails with
  * `E_BREP_INPUT: argument carries no BREP handle`, and to `cad.sweep` with
- * `INVALID_SHAPE_ID`. The plan's "draw → `sketchOnPlane` → `extrude`" pipeline
+ * `INVALID_SHAPE_ID`. The "draw → `sketchOnPlane` → `extrude`" pipeline
  * therefore needs this bridge; `cad.profile` takes it too, because both entries
  * share {@link toContourBlueprints} and a split acceptance rule would be a trap.
  */
@@ -110,7 +110,7 @@ export type DrawnContours = Blueprint | Blueprint[]
 export interface ProfileParams {
   /**
    * 轮廓来源，两种等价形态：段环数据（`{segments: […]}`）或已绘制轮廓
-   * （`cad.draw` 产物 / 其数组）。
+   * （`Blueprint` / 其数组）。
    */
   contours: ProfileLoop[] | DrawnContours
   /**
@@ -210,7 +210,7 @@ export function assertProfileParams(params: Record<string, unknown>): void {
  * （7 面、volume 0）。多岛产物 = compound（每岛一面、各带自己的孔），下游
  * `cad.extrude` 对 compound 输入逐面挤出（kernel MakePrism 收复合形状）。
  *
- * @param params - 轮廓来源（段环数据或 `cad.draw` 产物）与产物形态。
+ * @param params - 轮廓来源（段环数据或已绘制轮廓）与产物形态。
  * @returns Shape（单岛为 face；多岛为 face 的 compound；`as:'wire'` 为 1D 曲线）。
  */
 export function buildProfileShape(params: ProfileParams): Shape {
@@ -222,7 +222,7 @@ export function buildProfileShape(params: ProfileParams): Shape {
   // `profile-multi-island.test.ts` 断言一致；多岛 → 多个顶层，岛+孔 →
   // CompoundBlueprint（[0]=外环，[1..]=孔）。
   //
-  // 2026-09-28：段环数据与「已绘制轮廓」（`cad.draw` 产物）在此归一 —— 两条
+  // 2026-09-28：段环数据与「已绘制轮廓」（`Blueprint`）在此归一 —— 两条
   // 来源只差一次 `toContourBlueprints`，下游分类/构面完全共享。
   const organised = organiseBlueprints(toContourBlueprints(params.contours))
 
@@ -349,7 +349,7 @@ function blueprintArea(entry: Blueprint | CompoundBlueprint): number {
  * @qual ok
  * @name profile
  * @returns Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
- * @param params.contours - 有序 2D 轮廓（线段/圆弧；外环 + 孔），或已绘制轮廓（`cad.draw` 产物：单个 Blueprint 或其数组）。type:ProfileLoop[]|Blueprint|Blueprint[] required:true
+ * @param params.contours - 有序 2D 轮廓（线段/圆弧；外环 + 孔），或已绘制轮廓（单个 Blueprint 或其数组）。type:ProfileLoop[]|Blueprint|Blueprint[] required:true
  * @param params.as - 产物形态：'face'（默认）构面；'wire' 只交外环 wire（1D 曲线）。type:'face'|'wire' required:false
  * @example
  * const f = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }] })

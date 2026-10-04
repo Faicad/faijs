@@ -34,8 +34,13 @@ openFaiZip(bytes, { wasm: { occtUrl, manifoldUrl, brepkitUrl } })
 - No runtime dependency on `@faicad/faijs-extra` / `sheetmetal`; the only runtime
   dependency is `@faicad/faijs` (peer), plus `occt-wasm` (peer, lazily imported
   only for browser `OcctKernel` init).
-- v1 does **not** bundle wasm assets; the README gives the self-hosting recipe for
-  the three wasm files.
+- v1 does **not** bundle wasm assets; the caller passes the three engine wasm
+  URLs, and the 3d_viewer_electron consumer supplies **official jsDelivr CDN
+  URLs** for occt-wasm@3.8.4, manifold-3d@3.5.1, brepkit-wasm@3.4.18 and
+  @salusoft89/planegcs@1.2.0. No faijs wasm is packaged into the installer
+  (electron-builder `files` exclusions strip the SDK-emitted
+  `out/renderer/assets/{occt-wasm,manifold,planegcs}-*.wasm` and the
+  `node_modules/.../*.wasm` copies).
 - The existing occt-import-js kernel stays in the viewer products; the two kernels
   coexist rather than merge (per the plan decision).
 
@@ -90,7 +95,10 @@ containers** that call `cad.sketch` / `cad.draw`, not just pure core ops like
   through `OpenFaiZipResult.error`.
 - declares `@faicad/faijs-sketch` + `@faicad/faijs-draw` as **peers** alongside
   `@faicad/faijs` (the "one package" contract is preserved: the host provides all
-  three family packages). The electron consumer file-links them.
+  three family packages). The 3d_viewer_electron consumer depends on the four
+  family packages from the **published npm registry** (`@faicad/faijs@^0.29.0`,
+  `faijs-draw`, `faijs-sketch`, `faijs-viewer`), never on the faijs source tree
+  (no `file:` / workspace links). `@faicad/faijs-viewer@0.29.2` is published.
 
 Verified: `openFaiZip` renders a synthetic `cad.sketch{rect}+extrude` container
 (5/5 viewer tests pass); the electron's real `loadFormat('fai')` path now opens

@@ -154,7 +154,7 @@ describe('BaseSketcher2d.polyline (batched emission)', () => {
     pen.polyline([[0, 0], [10, 0], [10, 10]])
     // `movePointerTo` cannot lift the pen once a curve exists, so a pen with a
     // run in flight cannot start a far-away contour. Draft drawings carry many
-    // disjoint loops (measured up to 61 in one object) ⇒ one `cad.draw` per loop.
+    // disjoint loops (measured up to 61 in one object) ⇒ one pen session per loop.
     expect(() => pen.polyline([[100, 100], [110, 100]])).toThrow(/one pen per contour/)
   })
 

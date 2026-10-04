@@ -183,7 +183,7 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `contours` | `ProfileLoop[]|Blueprint|Blueprint[]` | ✅ | — | 有序 2D 轮廓（线段/圆弧；外环 + 孔），或已绘制轮廓（`cad.draw` 产物：单个 Blueprint 或其数组） |
+| `contours` | `ProfileLoop[]|Blueprint|Blueprint[]` | ✅ | — | 有序 2D 轮廓（线段/圆弧；外环 + 孔），或已绘制轮廓（单个 Blueprint 或其数组） |
 | `as` | `'face'|'wire'` |  | ）构面；'wire' 只交外环 wire（1D 曲线）。type:'face'|'wire' required:false | 产物形态：'face'（ |
 
 **同步**。Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
@@ -267,7 +267,7 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `contours` | `any` | ✅ | — | ordered 2D contours (same shape as `cad.profile`: segment loops, or a `cad.draw` product). |
+| `contours` | `any` | ✅ | — | ordered 2D contours (same shape as `cad.profile`: segment loops, or a drawn `Blueprint`). |
 | `plane` | `any` | ✅ | — | named plane (`'XY'` / `'XZ'`…) or `{ origin, normal, xAxis }`. |
 | `as` | `string` |  | — | `'face'` (default) or `'wire'` (outer loop only). |
 

@@ -29,7 +29,11 @@ openFaiZip(bytes, { wasm: { occtUrl, manifoldUrl, brepkitUrl } })
   （过滤 `hidden`）作为结构化 `FaiViewerMesh` 数组返回。
 - 不依赖 `@faicad/faijs-extra` / `sheetmetal`；唯一运行时依赖是 `@faicad/faijs`（peer），
   外加 `occt-wasm`（peer，仅在浏览器 `OcctKernel` 初始化时懒加载）。
-- v1 不内置 wasm 资产；README 给出三个 wasm 文件的自托管指引。
+- v1 不内置 wasm 资产；调用方传入三个引擎 wasm URL；3d_viewer_electron 消费方提供
+  **官方 jsDelivr CDN URL**（occt-wasm@3.8.4、manifold-3d@3.5.1、brepkit-wasm@3.4.18、
+  @salusoft89/planegcs@1.2.0），安装包不打包任何 faijs wasm（electron-builder
+  `files` 排除项剔除 SDK 发射的 `out/renderer/assets/{occt-wasm,manifold,planegcs}-*.wasm`
+  及 `node_modules/.../*.wasm` 副本）。
 - viewer 产品保留原 occt-import-js 内核；两套内核并存而非合并（按计划决策执行）。
 
 ## Alternatives considered
@@ -73,7 +77,9 @@ FreeCAD 转换容器**，而不只是 `cad.box` 这类纯 core op。`openFaiZip`
   经 `OpenFaiZipResult.error` 返回。
 - 把 `@faicad/faijs-sketch` + `@faicad/faijs-draw` 声明为 **peer**（与
   `@faicad/faijs` 并列），保持「只依赖一个包」契约（宿主提供全部三个家族包）；
-  electron 消费方以 file 链接方式提供它们。
+  3d_viewer_electron 消费方依赖 **已发布 npm 包**（`@faicad/faijs@^0.29.0`、
+  `faijs-draw`、`faijs-sketch`、`faijs-viewer`），不依赖 faijs 源码树（无
+  `file:` / workspace 链接）；`@faicad/faijs-viewer@0.29.2` 已发布。
 
 已验证：`openFaiZip` 可渲染合成 `cad.sketch{rect}+extrude` 容器（viewer 测试
 5/5 通过）；electron 的真实 `loadFormat('fai')` 路径现在能打开并渲染 fcstd-port

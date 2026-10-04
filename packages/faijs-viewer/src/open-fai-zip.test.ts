@@ -126,3 +126,101 @@ describe('openFaiZip (e2e, node + local engines)', () => {
     }
   })
 })
+
+// ── preset faijs-extra surface (draw removed) + dynamic third-party libraries ──
+
+/** A single-model container whose active script imports `@faicad/faijs-gears`. */
+function makeGearsContainer(): Uint8Array {
+  const entryPath = 'model/gear.fai.js'
+  const { bytes } = writeContainer({
+    models: [{ id: 'gear', entry: entryPath }],
+    active: 'gear',
+    modules: {
+      [entryPath]: [
+        "import * as gears from '@faicad/faijs-gears'",
+        'let g = gears.spurGear({ module: 2, teeth_number: 12, width: 8 })',
+      ].join('\n'),
+    },
+    dataMembers: {},
+    files: {},
+    assets: {},
+  })
+  return bytes
+}
+
+describe('openFaiZip — preset faijs-extra surface (draw removed)', () => {
+  it('executes an editor-op model (cad.copy) without any import statement', async () => {
+    const entryPath = 'model/copy.fai.js'
+    const { bytes } = writeContainer({
+      models: [{ id: 'copy', entry: entryPath }],
+      active: 'copy',
+      modules: { [entryPath]: 'let a = cad.box(10, 20, 30)\nlet b = cad.copy(a)\n' },
+      dataMembers: {},
+      files: {},
+      assets: {},
+    })
+
+    const result = await openFaiZip(bytes, { wasm: WASM })
+    expect(result.error).toBeUndefined()
+    expect(result.meshes.length).toBeGreaterThan(0)
+  })
+
+  it('recognises the B-group creator cad.text (its param validation runs)', async () => {
+    const entryPath = 'model/text-ref.fai.js'
+    const { bytes } = writeContainer({
+      models: [{ id: 'text', entry: entryPath }],
+      active: 'text',
+      modules: { [entryPath]: "let t = cad.text({ text: '', size: 1, depth: 1 })\n" },
+      dataMembers: {},
+      files: {},
+      assets: {},
+    })
+
+    const result = await openFaiZip(bytes, { wasm: WASM })
+    // An unknown callee would surface as "not a function"; reaching the
+    // library's own parameter validation proves the symbol was registered.
+    expect(result.error?.code).toBe('E_EXECUTION')
+    expect(result.error?.message).toMatch(/\[extra\/text\]/)
+  })
+
+  it('fails a cad.draw call as an unknown callee (draw no longer preset)', async () => {
+    const entryPath = 'model/draw.fai.js'
+    const { bytes } = writeContainer({
+      models: [{ id: 'draw', entry: entryPath }],
+      active: 'draw',
+      modules: { [entryPath]: 'cad.draw("dummy")\n' },
+      dataMembers: {},
+      files: {},
+      assets: {},
+    })
+
+    const result = await openFaiZip(bytes, { wasm: WASM })
+    expect(result.error?.code).toBe('E_EXECUTION')
+    expect(result.error?.message).toMatch(/cad\.draw/)
+  })
+})
+
+describe('openFaiZip — dynamic third-party libraries (libs)', () => {
+  it('rejects a library outside the whitelist as a structured E_EXECUTION', async () => {
+    const bytes = makeGearsContainer()
+    const result = await openFaiZip(bytes, { wasm: WASM, libs: { allow: [] } })
+    expect(result.error?.code).toBe('E_EXECUTION')
+    expect(result.error?.message).toMatch(/whitelist/)
+  })
+
+  it('fails with an unbound namespace when libs.enabled === false', async () => {
+    const bytes = makeGearsContainer()
+    const result = await openFaiZip(bytes, { wasm: WASM, libs: { enabled: false } })
+    expect(result.error?.code).toBe('E_EXECUTION')
+  })
+
+  it('loads an allowed installed library on demand and tessellates its output', async () => {
+    const bytes = makeGearsContainer()
+    const result = await openFaiZip(bytes, {
+      wasm: WASM,
+      libs: { allow: ['@faicad/faijs-gears'] },
+    })
+    expect(result.error).toBeUndefined()
+    expect(result.meshes.length).toBeGreaterThan(0)
+  })
+})

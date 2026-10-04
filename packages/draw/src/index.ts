@@ -1,6 +1,15 @@
 /**
  * @facade/faijs-draw — the 2D drawing DSL over core's pure `geometry2d` base.
  *
+ * ⚠️ DEPRECATED — THIS PACKAGE WILL BE REMOVED.
+ *
+ * `cad.draw` has no remaining emitter: the FCStd Draft pipeline re-emits
+ * drawings as `ProfileLoop` data and places them with `cad.sketchOnPlane`
+ * (see `packages/faijs-freecad/src/draft-draw.ts` and `codegen.ts`). New code
+ * should use `cad.sketchOnPlane` / `cad.profile` / `cad.sketch` instead of
+ * introducing any new `cad.draw` call site. The package is kept only until its
+ * last consumer is migrated and is `private` (no longer published).
+ *
  * Provides the fluent `cad.draw` scripting entry and the primitive contour
  * factories that feed core's placement pipeline (`sketchOnPlane`) into 3D.
  *

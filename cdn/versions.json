@@ -1,7 +1,6 @@
 {
   "@faicad/faijs": "0.29.2",
   "@faicad/cq-compat-compare": "0.29.2",
-  "@faicad/faijs-draw": "0.29.2",
   "@faicad/faijs-cadquery": "0.29.2",
   "@faicad/faijs-extra": "0.29.2",
   "@faicad/faijs-fasteners": "0.29.2",

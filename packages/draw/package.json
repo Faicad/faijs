@@ -1,7 +1,8 @@
 {
   "name": "@faicad/faijs-draw",
   "version": "0.29.2",
-  "description": "faijs 2D drawing DSL - cad.draw fluent scripting over the core geometry2d pure base",
+  "private": true,
+  "description": "DEPRECATED — this package will be removed. faijs 2D drawing DSL (cad.draw fluent scripting); superseded by cad.sketchOnPlane / cad.profile.",
   "keywords": [
     "faijs",
     "cad",

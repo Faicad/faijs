@@ -52,8 +52,8 @@ export function isOnCurve(c: Curve2dObj, pt: readonly [number, number], tol = 1e
 
 /**
  * A planar 2D profile = an ordered sequence of 2D curves.
- * Shared base for `cad.profile`, `cad.draw` and (solved) `cad.sketch` outputs on
- * their way to `sketchOnPlane`/`sketchOnFace`.
+ * Shared base for `cad.profile`, drawn contours and (solved) `cad.sketch` outputs
+ * on their way to `sketchOnPlane`/`sketchOnFace`.
  */
 export class Blueprint {
   /** Ordered 2D curve segments composing this blueprint. */

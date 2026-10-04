@@ -22,9 +22,10 @@ import { createBrowserPorts, createRuntime, isMeshShape } from '@faicad/faijs/br
 import type { AssetResolver, ExecutionResult } from '@faicad/faijs'
 import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import { mergeSketchNamespace, installSketchSolver, registerSketchSymbols } from '@faicad/faijs-sketch'
-import { mergeDrawNamespace, registerDrawSymbols } from '@faicad/faijs-draw'
+import { mergeEditorNamespace, registerEditorSymbols } from '@faicad/faijs-extra'
 import { openContainer, type OpenContainerResult } from '@faicad/faijs/io/fai-zip'
 import { installEngine } from './engine'
+import { createViewerLibLoader } from './libs'
 import type { FaiViewerMesh, FaiViewerError, OpenFaiZipOptions, OpenFaiResult, FaiZipViewerErrorCode } from './types'
 
 /** Error codes emitted by this module (a strict subset of the public union). */
@@ -193,21 +194,31 @@ export async function openFaiZip(bytes: Uint8Array, opts: OpenFaiZipOptions): Pr
   }
 
   // 3. Host ports: archive asset authorisation + the container module loader.
-  //    The loader already enumerates/reads the `model/**` module graph.
+  //    The loader already enumerates/reads the `model/**` module graph. The
+  //    library loader (dynamic side) serves namespace imports of third-party
+  //    faijs packages (`@faicad/faijs-gears`, `@faicad/sheetmetal`, …) — the
+  //    engine calls it lazily at execute time, only for libraries a model
+  //    actually imports. `libs.enabled === false` omits it, so unregistered
+  //    library imports fail as unbound namespaces.
+  const libLoader = await createViewerLibLoader(opts?.libs)
   const ports = await createBrowserPorts({
     assets: containerAssetResolver(container.assets),
     projectLoader: container.loader,
+    ...(libLoader ? { libLoader } : {}),
   })
 
   // 4. Assemble a runtime bound to those ports, then execute the active model.
   const runtime = createRuntime(ports, opts?.mode ?? 'auto')
-  // Real FreeCAD-converted containers call `cad.sketch` / `cad.draw`, which
-  // live in the sketch and draw libraries rather than core. Re-register the
-  // default `cad` binding with those merged in so such models execute. The
-  // symbol-table entries are also registered so static analysis recognises them.
+  // Real converted containers call `cad.sketch` and editor-extension ops
+  // (`cad.fai_drill` / `cad.group` / `cad.text` / …), which live in the sketch
+  // and faijs-extra libraries rather than core. Re-register the default `cad`
+  // binding with those merged in so such models execute without any import
+  // statement. The symbol-table entries are also registered so static analysis
+  // recognises them. (`@faicad/faijs-draw` is deprecated and deliberately not
+  // merged: a `cad.draw` call fails as an unknown callee.)
   registerSketchSymbols()
-  registerDrawSymbols()
-  runtime.registerLib('cad', mergeDrawNamespace(mergeSketchNamespace(createApiNamespace())), { default: true })
+  registerEditorSymbols()
+  runtime.registerLib('cad', mergeEditorNamespace(mergeSketchNamespace(createApiNamespace())), { default: true })
   const entryKey = container.activeModel.entry.slice('model/'.length)
   const entrySource = await container.loader.readSource(entryKey)
   const result = await runtime.execute(entrySource, { entryKey })
