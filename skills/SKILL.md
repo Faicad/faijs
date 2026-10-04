@@ -9,7 +9,6 @@ faijs is a CAD execution engine: a JavaScript-based language (`.fai.js`) for par
 ## Script Structure
 
 A `.fai.js` file is valid JavaScript with specific conventions:
-- Statements are numbered (`s1`, `s2`, ...) — the engine tracks them for incremental re-execution.
 - **Variable names must be descriptive and meaningful** (e.g., `bottom_leg`, `gear_hub`, `mounting_plate`). The `part0`, `part1`, ... pattern is only a UI-layer auto-generation convention — AI agents writing scripts must choose names that reflect the part's role in the design.
 - The `cad` namespace is the default library, always available.
 - Additional libraries are imported via `import * as <binding> from '<specifier>'`.
