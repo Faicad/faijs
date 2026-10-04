@@ -6481,6 +6481,61 @@ export function solidWithInner(
   return fromHandle(result) as Shape
 }
 
+/**
+ * addCavity — upstream `Solid.addCavity(*shells)` (`occ_impl/shapes.py:4740`):
+ * add one or more cavities (an inner void shell) to a solid.
+ *
+ * Upstream builds a `BRepBuilderAPI_MakeSolid(self)` and `Add`s each cavity's
+ * `outerShell()` as an inner shell, then runs `ShapeFix_Solid`. The kernel
+ * exposes neither a multi-shell `MakeSolid.Add` nor `ShapeFix_Solid` — only
+ * `makeSolid(singleShell)` — so this uses the equivalent boolean cut
+ * (outer − cavity₁ − cavity₂ …). That reproduces the upstream face/edge/vertex
+ * counts and volume exactly when the cavity is enclosed, which is the shape
+ * `test_addCavity` exercises (ref vol 7, f12/e24/v16/s1, `Shells()` == 2). A
+ * non-enclosed cavity has no meaning under upstream `MakeSolid.Add` either, so
+ * it is rejected loudly here rather than silently yielding cut semantics.
+ *
+ * @param wp - Workplane whose shape is the outer solid
+ * @param cavities - Workplanes or Shapes holding the cavity solids
+ * @returns Promise<Workplane> whose shape is the solid with internal voids
+ */
+export async function addCavity(
+  wp: Workplane,
+  ...cavities: (Workplane | Shape)[]
+): Promise<Workplane> {
+  const k = getKernel() as unknown as OcctKernel
+  const kcut = k as unknown as {
+    cut: (a: ShapeHandle, b: ShapeHandle) => ShapeHandle
+    getBoundingBox: (s: ShapeHandle) => { xmin: number; ymin: number; zmin: number; xmax: number; ymax: number; zmax: number }
+  }
+  const solidHandleOf = (x: Workplane | Shape, what: string): ShapeHandle => {
+    const s =
+      typeof x === 'object' && x !== null && 'objects' in (x as Workplane)
+        ? baseSolid(x as Workplane) ?? (x as Workplane).shape
+        : (x as Shape)
+    const h = s ? (brepOf(s) as unknown as ShapeHandle | undefined) : undefined
+    if (h === undefined) throw new Error(`[cq-compat] addCavity: ${what} is not BREP`)
+    return h
+  }
+  const outerH = solidHandleOf(wp, 'outer solid')
+  const ob = kcut.getBoundingBox(outerH)
+  const tol = 1e-6
+  let result = outerH
+  for (const cav of cavities) {
+    const cavH = solidHandleOf(cav, 'cavity')
+    const cb = kcut.getBoundingBox(cavH)
+    if (
+      cb.xmin < ob.xmin - tol || cb.xmax > ob.xmax + tol ||
+      cb.ymin < ob.ymin - tol || cb.ymax > ob.ymax + tol ||
+      cb.zmin < ob.zmin - tol || cb.zmax > ob.zmax + tol
+    ) {
+      throw new Error('[cq-compat] addCavity: cavity is not enclosed by the outer solid')
+    }
+    result = kcut.cut(result, cavH)
+  }
+  return clone(wp, { objects: [fromHandle(result) as Shape] })
+}
+
 /** Endpoints of a curve edge (parameter-space — B-spline edges carry no
  * explicit vertices, so `curveParameters` + `curvePointAtParam` is the only
  * reliable endpoint path; the vertex fallback covers degenerate edges). */

@@ -81,6 +81,7 @@ export {
   imprint,
   solid,
   solidWithInner,
+  addCavity,
   intersect,
   combine,
   fillet,

@@ -400,10 +400,10 @@ const BY_KEY: Record<string, string> = {
   // Shape operator overloads (faces(">Z") | faces("<Z") etc.) — operator
   // syntax unreachable in the .fai.js restricted subset.
   'tests.test_shapes:::test_set_ops__simple_box': 'op:shape-operator-overload',
-  // Solid.addCavity — solid with an internal void (2 shells); not implemented.
-  'tests.test_shapes:::test_addCavity__b1': 'op:addCavity',
-  'tests.test_shapes:::test_addCavity__b2': 'op:addCavity',
-  'tests.test_shapes:::test_addCavity__br': 'op:addCavity',
+  // Solid.addCavity — CLOSED 2026-10-04 (roadmap B2-7): free-function addCavity
+  // implemented in workplane.ts via the equivalent boolean cut (outer − cavity);
+  // the kernel has no multi-shell MakeSolid.Add / ShapeFix_Solid. All 3 mirrors
+  // PASS; removed from BY_KEY so regeneration keeps them ported (do NOT re-add).
   // History sub-shape reflection.
   'tests.test_free_functions:::test_history_extrude__sides': 'op:history-subshape',
   'tests.test_free_functions:::test_history_loft__side': 'op:history-subshape',

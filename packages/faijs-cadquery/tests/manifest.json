@@ -1793,42 +1793,39 @@
     "blockedBy": "remove"
   },
   "tests.test_shapes:::test_addCavity__b1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "op:addCavity",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_shapes:::test_addCavity__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "op:addCavity",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_shapes:::test_addCavity__br": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "op:addCavity",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_shapes:::test_replace__b": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "plane"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_replace__f_top_split": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "plane"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_replace__br1": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "plane"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_replace__br2": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "plane"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_single_ent_selector__bs": {
     "status": "ported",
@@ -2630,7 +2627,7 @@
   "tests.test_free_functions:::test_history_offset__sides": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_history_offset",
-    "blockedBy": "plane"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_selectors::TestCQSelectors::testAll__c": {
     "status": "ported",
@@ -3534,22 +3531,22 @@
   "tests.test_assembly:::test_imprinting__touching_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_imprinting",
-    "blockedBy": "imprint"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_imprinting__disjoint_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_imprinting",
-    "blockedBy": "imprint"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_imprinting__r": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_imprinting",
-    "blockedBy": "imprint"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_imprinting__s": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_imprinting",
-    "blockedBy": "imprint"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_assembly:::test_order_of_transform__marker": {
     "status": "ported",
