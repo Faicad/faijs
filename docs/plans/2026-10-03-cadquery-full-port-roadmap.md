@@ -28,7 +28,7 @@
 |---|---|---|
 | **manifest**（导出变量级） | **697 = 488 ported / 154 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 B2-2 后实读） |
 | **coverage**（上游测试函数级） | **305 = 201 PORTABLE / 41 PORTABLE-WITH-STUB / 55 BLOCKED** | `tests/coverage.json`（2026-10-03 **B0 重算后**实读：`portableNow 201` / `portableWithStub 41` / `blocked 55`） |
-| **镜像文件** | **500** 个 `.fai.js` + **12** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 **B2-2 后**实测） |
+| **镜像文件** | **500** 个 `.fai.js` + **15** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 **B2-3a** 后实测） |
 | **包内单测** | 575 全绿（51 文件） | 2026-10-04 B2-2 实测 |
 
 ⚠ **两个分母不同源，不可换算**：manifest 的 452/198/47 是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
@@ -47,20 +47,22 @@
 
 ⚠ **旧文档的一处硬错误（勿再传播）**：它写「镜像文件 551 个 `.fai.js`」。**实测 464**（`find tests -name "*.fai.js" | wc -l`）。凡引用镜像计数以本文 §1 为准。
 
-**manifest 实测 blockedBy 分布（154 条，50 个 distinct，2026-10-04 **B2-2 落地后**从 `manifest.json` 聚合）**：
+**manifest 实测 blockedBy 分布（154 条，52 个 distinct，2026-10-04 **B2-3a 落地后**从 `manifest.json` 聚合）**：
 
 ```
 14 op:assembly-solve      11 getfixturevalue         9 kernel:fillet-chain-reapply
  7 plane                   5 op:fuzzy-bool            5 interpPlate            5 remove
  5 raises                  4 op:extrude-until-face    4 op:prism-from-face      4 op:shape.offset
  4 op:sweep.pipeshell      4 op:assembly-subshape-import  4 imprint            3 op:cutBlind.until-face
- 3 op:sweep.multisection    3 narrow:sphere-angles     3 op:sweep.aux-spine     3 kernel:boolean-near-coincident-bspline
+ 3 op:sweep.multisection   3 narrow:sphere-angles     3 kernel:sweep-aux-spine-mode  3 kernel:boolean-near-coincident-bspline
  3 op:addCavity            3 filter                   3 op:text-spine          3 op:history-subshape
  3 export                  3 parametrize             2 op:shell               2 parametricCurve
  2 kernel:shell-outward-opening 2 project            2 importBin              2 history:images
  2 kernel:hollow-intersection-join 2 kernel:draft-existing-solid 2 __dir__
 …（其余 18 项各 1 条）
 ```
+
+> **B2-3a 对分布的影响（2026-10-04）**：`op:sweep.aux-spine`(3) → **`kernel:sweep-aux-spine-mode`**(3)。**这三条不是「解锁」而是重新定性** —— op 已实现（`sweepOriented` 的 Auxiliary 通道 + `splineWire3D`），但该内核模式与 CadQuery 的 `SetMode(aux, CurvilinearEquivalence=True)`（`occ_impl/shapes.py:4587`）不等价（实测：kernel 17759.16 vs ref 20218.35），且偏离不可检测（仅在导引线重参数化是恒等时偶然相符，如 `test_sweep_aux` 的长度 1 导引线）。故 `sweep(auxSpine=…)` **改为显式报错**（不再静默返回畸变几何）。`normal=`（SweepMode.FixedUp）**已实现并 1e-6 级相符**（vol 3.14159175 / f3/e3/v2），但无独立镜像（上游 `testSweep` 的 `normal=` 变量不是最终 `result`）。manifest 计数不变（488/154/55）、coverage 函数级不变；distinct 50→52 是本节口径按实测更正（原记 50 为陈旧值）。
 
 > **B1-6 对分布的影响**：关掉 `op:extrude.both`(2) / `op:extrude.combine-s`(2) / `op:extrude.combine-cut`(1) 三个标签 ⇒ distinct 67→64、blocked 总数 198→193。
 
@@ -142,7 +144,7 @@
 | **G-C6** | free-function `plane()` 构造器 | **6** | 2 |
 | **G-C7** | `prism` tilt（非法向挤出，1）+ from/to-face（4，见 G-F11） | **5** | 3 |
 | **G-C8** | `solid(...)` 内 void 缝合（4）+ `Solid.addCavity`（3） | **7→3** | 3 ✅ B2-2（solid 4 已解，addCavity 3 剩） |
-| **G-C9** | `sweep` pipeshell（4）/ multisection（3）/ aux-spine（3） | **10** | 3 |
+| **G-C9** | `sweep` pipeshell（4）/ multisection（3）/ ~~aux-spine（3）~~ → **aux-spine 移 B6**（内核 `sweepOriented` 的 Auxiliary 模式 ≠ CadQuery `SetMode(aux, CV=True)`，见 §1 B2-3a 注 / B6-10） | **7**（+3 内核） | 3 |
 | **G-C10** ✅ **已闭（B1-6, 2026-10-03）** | ~~`extrude` 的 `both=`（2）/ `combine="cut"`（1）/ `combine="s"`（2）~~ | ~~**5**~~ **0** | 2 |
 | **G-C11** | `extrude("next"/"last")` until-face（4）+ `cutBlind.until-face`（3）+ 索引选择器 `faces(">X[1]")` | **7** | 3 |
 | **G-C12** | `offset2D` multi-region（1）+ `shape.offset`（4） | **5** | 3 |
@@ -291,7 +293,7 @@
 |---|---|---|---|
 | **B2-1** | **G-C1 imprint** ✅ | 12→6 | 已落地 2026-10-04：`fuseAll` 实现 free-function `imprint`，6 变量镜像全 PASS；剩 4 条 assembly-imprint（B5）+ 2 条 `history:images`（G-C18） |
 | **B2-2** | **G-C8 solid voids** ✅ | 7→3 | 已落地 2026-10-04：`solid()` + `solidWithInner()` 实现 free-function solid（sew + boolean cut 内 void），12 变量镜像全 PASS；剩 3 条 `addCavity`（B4） |
-| **B2-3** | **G-C9 sweep 族**（pipeshell 4 / multisection 3 / aux-spine 3） | 10 | `MakePipeShell` multisection + 辅脊（binormal 旋转） |
+| **B2-3** | **G-C9 sweep 族**（pipeshell 4 / multisection 3 / aux-spine 3） | 10 | `MakePipeShell` multisection + 辅脊（binormal 旋转）。**aux-spine 子项 2026-10-04 实测改判为内核依赖（B6-10）**：`sweepOriented` 已接好但 Auxiliary 模式语义不符，`sweep(auxSpine=…)` 现显式报错；`normal=`（FixedUp）已实现并单测锁定。**剩余本仓可做 = pipeshell(4) + multisection(3) = 7** |
 | **B2-4** | **G-C2 interpPlate** | 5 | 插值板（点云 → 曲面片） |
 | **B2-5** | **G-C12 offset**（offset2D multi-region 1 / shape.offset 4） | 5 | `MakeOffset2D` 多区域分裂语义 + `BRepOffset_MakeOffset` |
 | **B2-6** | **G-C11 until-face 族**（extrude 4 / cutBlind 3 / 索引选择器） | 7 | `extrude("next"/"last")` + `faces(">X[1]")` 索引；**G-G1 的 ref 异常需重新推导** |
@@ -361,6 +363,7 @@
 | **B6-7** | **G-F8 step-export-wire-fidelity** | 1 | STEP writer 保真 |
 | **B6-8** | **G-F6 crash-polygon-cutThruAll** | 1 | 崩溃根因 |
 | **B6-9** | **G-F11 chamfer 双距离**（`narrow:chamfer-asym`）—— 2026-10-03 从 B1-10 移入（定性见 G-F11） | 1 | `BRepFilletAPI_MakeChamfer::Add(d1,d2,E,F)` + edge→face map |
+| **B6-10** | **sweep 辅脊（`kernel:sweep-aux-spine-mode`）** —— 2026-10-04 从 B2-3 移入：CadQuery 用 `BRepOffsetAPI_MakePipeShell::SetMode(aux, CurvilinearEquivalence=True)`（`occ_impl/shapes.py:4587`），而 `sweepOriented(mode=Auxiliary)` 不等价（实测 17759.16 vs ref 20218.35；OCP 的 CV=False 20500.44 / default 20500.46 / Frenet 19295.97 均不符）。`sweep(auxSpine=…)` 已改显式报错。 | 3 | 在辅助脊模式下暴露 `CurvilinearEquivalence` 标志（或按 OCCT 语义重写该模式） |
 
 > 内核跟踪文档：`docs/analysis/2026-09-29-occt-wasm-gap-plan.md`（§10.1 fillet-chain / §10.4 prism-from-face）。**本表逐项对应过去，不再是「已定性、不排期」。**
 

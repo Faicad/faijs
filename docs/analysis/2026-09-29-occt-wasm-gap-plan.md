@@ -36,14 +36,26 @@
 
 ---
 
-## 2. aux-spine 单 profile（3 条，半解锁）
+## 2. aux-spine 单 profile（3 条）—— **2026-10-04 实测定性：内核语义缺口，非 faijs 侧**
 
-**现状**：`sweepOriented(profile, spine, mode, up?, auxSpine?)` 绑定已存在；`SweepMode.Auxiliary = 3` 要求传 `auxSpine`。探针实测：mode 3 不传 auxSpine 抛 `Invalid shape ID: 0`（预期），**传 auxSpine 的组合未验证成功**——cq-compat 侧无 auxSpine 的 Workplane 级 API 面（上游 `Workplane.sweep(path, auxSweep?)` 传第二个 Workplane）。
+**结论（推翻本节的「可先试，不必改 C++」假设）**：faijs 侧 API 已按原方案补齐（`sweep(wp, path, { auxSpine })` → `sweepOriented(profile, spine, 3, up, auxWire)`；句柄封送正常，无 `Invalid shape ID`），`normal=`（mode 2 FixedUp）已实现并单测锁定。但 **`SweepMode.Auxiliary` 与 CadQuery 的用法不等价**，必须改内核才可能对齐：
 
-**修改方案（可先试，不必改 C++）**：
-1. faijs 侧先补 API：`sweep(wp, path, { auxSpine: Workplane })` → `sweepOriented(profile, spine, SweepMode.Auxiliary, undefined, auxWire)`；
-2. 若绑定层已正确透传（大概率），直接解锁 3 条；若 `up`/`auxSpine` 的 Vec3/句柄转换有 bug（`Invalid shape ID` 提示句柄桥问题），修 occt-wasm 的 `src/index.ts` 中 `sweepOriented` 的参数封送：确认 auxSpine 的 `ShapeHandle` id 正确传到 embind 层（对照 `sweep(profile, spine)` 的封送代码）。
-3. **验收**：上游 `test_sweep_aux_spine` 镜像 PASS。
+- CadQuery 走 `BRepOffsetAPI_MakePipeShell::SetMode(aux, CurvilinearEquivalence=True)`（`cadquery/occ_impl/shapes.py:4587`）。
+- 同一组线（path 长 102.50、aux 长 105.23；端点/切向/长度已逐位比对一致）实测：
+
+| 实现 | vol |
+|---|---|
+| OCR `SetMode(aux, True)` | **20218.347** ← = ref（CadQuery 2.8.0） |
+| OCP `SetMode(aux, False)` | 20500.445 |
+| OCP default / Fixed（`sweepOriented` mode 0） | 20500.455 |
+| OCP Frenet | 19295.966 |
+| **occt-wasm `sweepOriented(..., 3, up, aux)`** | **17759.157**（Δ 12.2 %） |
+
+  即内核的 Auxiliary 模式既不等于 CV=True 也不等于 CV=False。它**仅在导引线重参数化是恒等时偶然相符**（例：`test_sweep_aux` 的 path/aux 都是长度 1），故不可依赖。
+
+**已落地处置**：`sweep(auxSpine=…)` **显式报错**（`workplane.ts`，报错串含 `kernel:sweep-aux-spine-mode`），不再静默返回畸变几何（同 core `draft` 的 neutral-plane 拒绝范式）。三条镜像转为 `.fai.js.blocked`（证据见 `tests/mark-blocked.ts`）。长度 1 的 aux 几何（ref vol 0.9991567936618069 / f6/e12/v8）由 `src/sweep-oriented.test.ts` 直接断言捕获真值（绕过 comparator；该用例即使几何正确也因布尔近重合探针无法评级）。
+
+**要解锁需补的绑定**：在辅助脊模式下暴露 `CurvilinearEquivalence` 标志（或按 OCCT 语义重写该模式）。**验收**：`TestCadQuery::testSweep__result`（ref vol 20218.347254736764）。对应路线图 B6-10 / G-C9。
 
 ## 3. shell 外扩（MakeThickSolidByJoin 完整参数）（4 条：shell-outward 2 + intersection-join 1 + hollow 1）
 
@@ -170,7 +182,7 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 |---|---|---|
 | `op:sweep.pipeshell` | 4 | pipeShell 变体（isFrenet/mode 组合）仍缺 |
 | `op:sweep.multisection` | 3 | 多截面已解锁主流（镜像 24/24 绿），此 3 条是剩余变体（带孔/特殊截面） |
-| `op:sweep.aux-spine` | 3 | §2 |
+| `kernel:sweep-aux-spine-mode` | 3 | §2（2026-10-04 由 `op:sweep.aux-spine` 改名：op 已实现，缺口在内核模式语义） |
 | `op:sweep-hole-section` | 1 | 带孔截面 sweep（需公开的带孔面构造） |
 | `op:sweep-sketch-sections` | 1 | testSketch r6：spline 帧放置 + sketch 截面 sweep |
 

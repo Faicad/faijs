@@ -118,6 +118,7 @@ export {
   split,
   section,
   sweep,
+  splineWire3D,
   offset2D,
   mirrorX,
   mirrorY,

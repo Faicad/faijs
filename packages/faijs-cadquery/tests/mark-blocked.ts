@@ -122,10 +122,28 @@ const BY_KEY: Record<string, string> = {
   'tests.test_cadquery::TestCadQuery::testMultisectionSweep__specialSweep': 'op:sweep.multisection',
   'tests.test_cadquery::TestCadQuery::testMultisectionSweep__arcSweep': 'op:sweep.multisection',
   'tests.test_cadquery::TestCadQuery::testMultisectionSweep__normalSweep': 'op:sweep.multisection',
-  // Spline-path sweep with auxiliary spine (binormal rotation): kernel's
-  // sweepPipeShell legacy path silently drops the auxiliary spine, so no
-  // equivalent geometry is reachable.
-  'tests.test_cadquery::TestCadQuery::testSweep__result': 'op:sweep.aux-spine',
+  // Auxiliary-spine sweep — RECLASSIFIED 2026-10-04 (was op:sweep.aux-spine).
+  //   The op is now IMPLEMENTED: the kernel exposes `sweepOriented` with a
+  //   SweepMode.Auxiliary (3) channel, and `sweep(…, {auxSpine})` is wired to it.
+  //   But that kernel mode is NOT equivalent to the OCP call CadQuery makes,
+  //   `BRepOffsetAPI_MakePipeShell::SetMode(aux, CurvilinearEquivalence=True)`
+  //   (occ_impl/shapes.py:4587). Measured on TestCadQuery::testSweep's aux case
+  //   (path 102.50 long, guide 105.23):
+  //     kernel sweepOriented(...,3,up,aux) -> vol 17759.157  (12.2 % off ref)
+  //     OCP SetMode(aux, True)             -> vol 20218.347  (== ref)
+  //     OCP SetMode(aux, False)            -> vol 20500.445
+  //     OCP default / Fixed                -> vol 20500.455
+  //     OCP Frenet                         -> vol 19295.966
+  //   The kernel mode only coincides with CadQuery when the guide's
+  //   reparametrisation is a no-op (equal-length guides, e.g. test_sweep_aux's
+  //   length-1 guide, which DOES match the ref: volΔ 4.3e-6, topo f6/e12/v8), so
+  //   it cannot be relied on. `sweep(auxSpine=…)` therefore REJECTS LOUDLY
+  //   (workplane.ts) rather than returning divergent geometry — same rule as the
+  //   `draft` neutral-plane rejection. `normal=` (SweepMode.FixedUp) IS
+  //   parity-verified and stays implemented.
+  //   Kernel binding needed to lift: expose CurvilinearEquivalence on the
+  //   auxiliary-spine mode (roadmap G-C9 / B6).
+  'tests.test_cadquery::TestCadQuery::testSweep__result': 'kernel:sweep-aux-spine-mode',
   // test_sweep r5-r8 use the free-function sweep() over faces/inner wires with
   // B-spline spines: needs the pipeShell path (profile placed BY the spine),
   // not reproducible via as-is-section lofts.
@@ -133,9 +151,9 @@ const BY_KEY: Record<string, string> = {
   'tests.test_free_functions:::test_sweep__r6': 'op:sweep.pipeshell',
   'tests.test_free_functions:::test_sweep__r7': 'op:sweep.pipeshell',
   'tests.test_free_functions:::test_sweep__r8': 'op:sweep.pipeshell',
-  // Auxiliary-spine sweep: kernel legacy path drops the auxiliary spine.
-  'tests.test_free_functions:::test_sweep_aux__r1': 'op:sweep.aux-spine',
-  'tests.test_free_functions:::test_sweep_aux__r2': 'op:sweep.aux-spine',
+  // see the block above (kernel:sweep-aux-spine-mode)
+  'tests.test_free_functions:::test_sweep_aux__r1': 'kernel:sweep-aux-spine-mode',
+  'tests.test_free_functions:::test_sweep_aux__r2': 'kernel:sweep-aux-spine-mode',
   // ---------------------------------------------------------------------------
   // Gear-extension ops E1–E4 parity (2026-09-11) — the mirrors run and produce
   // candidate STEPs, but the SOLID-oriented comparator cannot grade them. Each

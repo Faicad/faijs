@@ -1,0 +1,27 @@
+// source: test_cadquery.py::TestCadQuery::testSweep (var result — the auxSpine branch)
+// pts1 = [(0,0),(20,100)]   path  = Workplane("YZ").spline(pts1, tangents=[(0,1,0),(0,1,0)])
+// pts2 = [(0,20,0),(20,0,100)] aux = Workplane("XY").spline(pts2, tangents=[(0,0,1),(0,0,1)])
+// result = Workplane("XY").rect(10,20).sweep(path, auxSpine=aux)
+//   Probing the two workplane splines gives the world wires below (the plane
+//   transforms fold into the endpoints): path (0,0,0)->(0,20,100), aux
+//   (0,20,0)->(20,0,100), both with end tangents (0,0,1).
+// ref (cadquery 2.8.0, probed): vol 20218.347254736764, 6 faces, 12 edges, 8 verts.
+//
+// BLOCKED (kernel:sweep-aux-spine-mode — see tests/mark-blocked.ts):
+// CadQuery applies the guide via SetMode(aux, CurvilinearEquivalence=True)
+// (occ_impl/shapes.py:4587). The kernel's SweepMode.Auxiliary (3) is NOT
+// equivalent, and here the difference is MATERIAL (path 102.50 long, guide 105.23):
+//   kernel sweepOriented(...,3,up,aux) -> vol 17759.157   (Δ 12.2 % vs ref)
+//   OCP SetMode(aux, True)            -> vol 20218.347   (= ref)
+//   OCP SetMode(aux, False)           -> vol 20500.445
+//   OCP default / Fixed               -> vol 20500.455
+//   OCP Frenet                        -> vol 19295.966
+// so `sweep(auxSpine=…)` now rejects loudly rather than returning 12%-wrong
+// geometry. Lifting this needs the kernel to expose OCCT's
+// CurvilinearEquivalence flag on the auxiliary-spine mode (roadmap G-C9 / B6).
+import * as cq from '@faicad/faijs-cadquery'
+let p = cq.rect(cq.Workplane('XY'), 10, 20)
+let path = cq.splineWire3D([[0, 0, 0], [0, 20, 100]], [[0, 0, 1], [0, 0, 1]])
+let aux = cq.splineWire3D([[0, 20, 0], [20, 0, 100]], [[0, 0, 1], [0, 0, 1]])
+let r = await cq.sweep(p, path, { auxSpine: aux })
+let result = cq.val(r)

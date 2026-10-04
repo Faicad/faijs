@@ -1240,7 +1240,7 @@
   "tests.test_cadquery::TestCadQuery::testSweep__result": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSweep",
-    "blockedBy": "op:sweep.aux-spine",
+    "blockedBy": "kernel:sweep-aux-spine-mode",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testSweep__box": {
@@ -2522,13 +2522,13 @@
   "tests.test_free_functions:::test_sweep_aux__r1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep_aux",
-    "blockedBy": "op:sweep.aux-spine",
+    "blockedBy": "kernel:sweep-aux-spine-mode",
     "manual": true
   },
   "tests.test_free_functions:::test_sweep_aux__r2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep_aux",
-    "blockedBy": "op:sweep.aux-spine",
+    "blockedBy": "kernel:sweep-aux-spine-mode",
     "manual": true
   },
   "tests.test_free_functions:::test_loft__r4": {

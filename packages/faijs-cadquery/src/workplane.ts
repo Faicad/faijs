@@ -6611,6 +6611,32 @@ export async function section(wp: Workplane, height = 0, normal?: [number, numbe
 }
 
 /**
+ * splineWire3D — create a 3D spline wire from points with optional end tangents.
+ * Uses the kernel's `interpolatePoints` / `interpolatePointsWithTangents` to
+ * build a B-spline edge, wraps it in a wire, and returns a Workplane with that
+ * wire as `objects[0]` (so `sweep` can consume it as a spine).
+ * @param points - 3D points [x, y, z][]
+ * @param tangents - optional [startTangent, endTangent], each [x, y, z]
+ * @returns Workplane with the 3D spline wire as its shape
+ */
+export function splineWire3D(
+  points: [number, number, number][],
+  tangents?: [[number, number, number], [number, number, number]],
+): Workplane {
+  const k = getKernel() as unknown as OcctKernel & {
+    interpolatePoints: (pts: { x: number; y: number; z: number }[], periodic?: boolean) => ShapeHandle
+    interpolatePointsWithTangents: (pts: { x: number; y: number; z: number }[], start: { x: number; y: number; z: number }, end: { x: number; y: number; z: number }) => ShapeHandle
+    makeWire: (edges: ShapeHandle[]) => ShapeHandle
+  }
+  const pts3d = points.map((p) => vec3(p))
+  const edge = tangents
+    ? k.interpolatePointsWithTangents(pts3d as never, vec3(tangents[0]) as never, vec3(tangents[1]) as never)
+    : k.interpolatePoints(pts3d as never, false)
+  const wire = k.makeWire([edge])
+  return clone(makeWorkplane('XY'), { objects: [toShape(wire)] })
+}
+
+/**
  * sweep — CadQuery `Workplane.sweep(path, multisection=…)` parity.
  *
  * Single section → raw-kernel `sweep` (BRepOffsetAPI_MakePipe). Multiple
@@ -6620,8 +6646,12 @@ export async function section(wp: Workplane, height = 0, normal?: [number, numbe
  * @param wp - Workplane holding the pending profile(s)
  * @param path - spine: a wire() result or a Workplane with .shape
  * @param opts - multisection: additional section wires (each swept by
- *        pipeShell and fused); isFrenet/smooth pass through to pipeShell
+ *        pipeShell and fused); isFrenet/smooth pass through to pipeShell;
+ *        normal: fixed up/binormal direction → kernel SweepMode.FixedUp
  * @returns Workplane with the swept solid
+ * @remarks `auxSpine` is rejected with a descriptive error: the kernel's
+ * auxiliary-guide sweep mode is not equivalent to CadQuery's
+ * `SetMode(auxSpine, CurvilinearEquivalence=True)` (kernel:sweep-aux-spine-mode).
  * @remarks GOTCHA (probe-verified): the profile must be PERPENDICULAR to the
  * spine at the origin (e.g. YZ-plane profile for an X-aligned spine) — a
  * profile coplanar with the spine is squashed into a degenerate flat pipe
@@ -6630,7 +6660,13 @@ export async function section(wp: Workplane, height = 0, normal?: [number, numbe
 export async function sweep(
   wp: Workplane,
   path: Workplane,
-  opts?: { multisection?: Workplane[]; isFrenet?: boolean; smooth?: boolean },
+  opts?: {
+    multisection?: Workplane[]
+    isFrenet?: boolean
+    smooth?: boolean
+    auxSpine?: Workplane
+    normal?: [number, number, number]
+  },
 ): Promise<Workplane>
 /**
  * sweep — CadQuery `Workplane.sweep(path, transition)` parity: the string-form
@@ -6649,7 +6685,13 @@ export async function sweep(
   wp: Workplane,
   path: Workplane,
   optsOrTransition?:
-    | { multisection?: Workplane[]; isFrenet?: boolean; smooth?: boolean }
+    | {
+        multisection?: Workplane[]
+        isFrenet?: boolean
+        smooth?: boolean
+        auxSpine?: Workplane
+        normal?: [number, number, number]
+      }
     | 'transformed'
     | 'round'
     | 'right',
@@ -6659,6 +6701,8 @@ export async function sweep(
     isFrenet?: boolean
     smooth?: boolean
     transition?: 'transformed' | 'round' | 'right'
+    auxSpine?: Workplane
+    normal?: [number, number, number]
   } =
     typeof optsOrTransition === 'string'
       ? { transition: optsOrTransition }
@@ -6675,6 +6719,7 @@ export async function sweep(
   const k = getKernel() as unknown as OcctKernel & {
     sweepPipeShell: (profile: ShapeHandle, spine: ShapeHandle, freenet?: boolean, smooth?: boolean) => ShapeHandle
     sweep: (profile: ShapeHandle, spine: ShapeHandle, transitionMode?: number) => ShapeHandle
+    sweepOriented: (profile: ShapeHandle, spine: ShapeHandle, mode?: number, up?: { x: number; y: number; z: number }) => ShapeHandle
     sewAndSolidify: (faces: ShapeHandle[], tolerance?: number) => ShapeHandle
     makeFace: (wire: ShapeHandle) => ShapeHandle
     makeWire: (edges: ShapeHandle[]) => ShapeHandle
@@ -6683,11 +6728,34 @@ export async function sweep(
   // Workplane.sweep(transition='transformed'|'round'|'right') but the raw
   // kernel sweep (BRepOffsetAPI_MakePipe) has no transition parameter —
   // corner handling is fixed by the kernel. Documented, not silently ignored.
-  void opts
+  void opts.transition
+  // auxSpine: REJECTED LOUDLY — the kernel's SweepMode.Auxiliary (3) is NOT
+  // equivalent to the OCP call CadQuery makes, `SetMode(auxSpine,
+  // CurvilinearEquivalence=True)` (occ_impl/shapes.py:4587). Measured on the
+  // upstream testSweep aux case (rect(10,20) along a 102.5-long YZ spline with a
+  // 105.2-long aux guide): the kernel returns vol 17759.16 vs CadQuery 2.8.0's
+  // 20218.35; OCP with CV=False (20500.44), default/Fixed (20500.46) and Frenet
+  // (19295.97) match neither. The kernel mode only coincides with CadQuery when
+  // the guide's reparametrisation is a no-op (equal-length straight guides, e.g.
+  // the 1-long guide of test_sweep_aux, which does match), so it cannot be
+  // relied on. Silently returning divergent geometry is not acceptable (same rule
+  // as core's `draft` neutral-plane rejection); a fixed up direction via `normal`
+  // is available instead. Kernel gap tracked as `kernel:sweep-aux-spine-mode`
+  // (roadmap G-C9 / B6). Mirrors: tests/**/test_sweep_aux__r{1,2}.fai.js.blocked
+  // and TestCadQuery__testSweep__result.fai.js.blocked.
+  if (opts.auxSpine) {
+    throw new Error(
+      '[cq-compat] sweep: auxSpine is not supported — the kernel auxiliary-guide ' +
+        'sweep mode is not equivalent to CadQuery SetMode(auxSpine, ' +
+        'CurvilinearEquivalence=True) (kernel:sweep-aux-spine-mode); pass `normal` ' +
+        'for a fixed up direction instead',
+    )
+  }
   const multisection = (opts.multisection ?? []).filter((w) => (w.pendingWires ?? []).length > 0 || w.shape)
   const isFrenet = opts.isFrenet ?? false
   const smooth = opts.smooth ?? true
   const isMulti = all.length > 1 || multisection.length > 0
+  const normalVec = opts.normal
   let result: Shape | null = null
   for (const g of groupPendingWires(all)) {
     const outer = await buildProfileWire(wp, g.outer)
@@ -6701,6 +6769,15 @@ export async function sweep(
       for (const endWire of capEnds) faces.push(k.makeFace(endWire as never))
       const capped = k.sewAndSolidify(faces as never, 1e-6)
       solid = toShape(capped) as Shape
+    } else if (normalVec) {
+      // normal= → SweepMode.FixedUp (2): the profile keeps a constant up/binormal
+      // while travelling the spine. Parity-verified against the upstream `normal=`
+      // form (circle r=0.5 along an XZ spline: vol 3.14159175, f3/e3/v2). The
+      // kernel implements FixedUp faithfully — mode 0 (Fixed) matches OCP's
+      // default to the digit, so the orientation modes it does model are sound.
+      const up = { x: normalVec[0], y: normalVec[1], z: normalVec[2] }
+      const swept = k.sweepOriented(outer as never, spine as never, 2, up)
+      solid = toShape(swept) as Shape
     } else {
       const swept = k.sweep(outer as never, spine as never)
       solid = toShape(swept) as Shape
