@@ -1,6 +1,6 @@
 # @faicad/faijs (core) — Platform `cad.*` Namespace
 
-> The built-in `cad` namespace, always available in `.fai.js` scripts. No import needed — the host registers it via `createRuntime()`.
+> The built-in `cad` namespace, always available in `.fai.js` scripts. No import needed.
 
 ## Primitives (Creators, no input)
 
@@ -93,7 +93,7 @@ Imports a frozen BREP asset from the container `assets/` directory.
 
 ### `import_step(opts)`
 Imports a STEP file from a local path.
-- **Parameters** (object): `path` (absolute local path, resolved by host).
+- **Parameters** (object): `path` (absolute local path).
 - **Async**. Returns `Promise<Shape>`.
 - **BREP only**.
 

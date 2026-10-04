@@ -1,18 +1,8 @@
 # @faicad/faijs-gears — Gear Generation Library
 
-> A third-party library for generating gear geometry: spur, herringbone, ring, bevel, worm, rack, and planetary gearsets. Ported from CadQuery's cq_gears. Registered via `registerLib` and called from `.fai.js` scripts.
+> A third-party library for generating gear geometry: spur, herringbone, ring, bevel, worm, rack, and planetary gearsets. Ported from CadQuery's cq_gears. Called from `.fai.js` scripts.
 
-## How to Make This Available
-
-The host registers the library:
-```ts
-import * as gearPkg from '@faicad/faijs-gears'
-
-rt.registerLib('gears', gearPkg, {
-  autoLift: true,
-  packageName: '@faicad/faijs-gears',
-})
-```
+## Usage
 
 In `.fai.js`:
 ```js
@@ -150,6 +140,6 @@ Herringbone planetary gearset. Same params/outputs as `planetaryGearset`.
 
 - All functions return `Promise<Result<T>>`. In `.fai.js` scripts, `err` is unwrapped at the statement boundary → statement failure.
 - **Parameter names follow the Python cq_gears convention verbatim** — snake_case, matching the original `cq_gears` Python class `__init__` signatures (e.g., `teeth_number`, not `teeth`; `module`, not `moduleSize`; `width`, not `thickness`).
-- `BrepHandle` results are automatically adopted into faijs `Shape` at the library boundary (`autoLift: true`).
-- For multi-output functions (pairs, planetary), each named output becomes a separate product the host can export individually.
+- `BrepHandle` results are automatically adopted into faijs `Shape` at the library boundary.
+- For multi-output functions (pairs, planetary), each named output becomes a separate product.
 - **BREP only** — mesh mode throws `E_MESH_UNSUPPORTED`.

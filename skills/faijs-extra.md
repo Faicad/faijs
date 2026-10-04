@@ -1,19 +1,6 @@
 # @faicad/faijs-extra — Editor Extension Ops
 
-> Editor extension ops merged into the `cad.*` namespace by the host. These ops are **not** in the platform surface — the host must call `createEditorCadNamespace()` (or `mergeEditorNamespace()`) and register the result as the `cad` library.
-
-## How to Make These Available
-
-The host assembles the namespace:
-```ts
-import { createEditorCadNamespace, registerEditorSymbols, installEditorMeshProviders } from '@faicad/faijs-extra'
-
-rt.registerLib('cad', createEditorCadNamespace(), { default: true })
-registerEditorSymbols()
-installEditorMeshProviders()
-```
-
-Once merged, these ops are called as `cad.<opName>(...)` in `.fai.js` scripts — no import needed.
+> Editor extension ops merged into the `cad.*` namespace. Once merged, these ops are called as `cad.<opName>(...)` in `.fai.js` scripts — no import needed.
 
 ## A-Group: Editor Ops (three basic API only)
 
@@ -52,13 +39,13 @@ Deep-copies geometry (independent new object, source unchanged).
 - **Example**: `let copy_of_base = cad.copy(base_plate)`
 
 ### `load(opts)`
-Loads a geometry asset from the host asset library (file import Feature).
+Loads a geometry asset from the asset library (file import Feature).
 - **Parameters** (object): `file` (asset file name with extension, no path), `unit` (unit hint for STL).
 - **Async**. Returns `Shape`.
 - Format auto-detected from file extension: stl/3mf → mesh path; step/stp/stpz/brep → BREP path.
 - **Example**: `let imported_mesh = cad.load({ file: 'box.stl' })`
 
-## B-Group: SVG / 3D Text Creators (carry three/examples chain)
+## B-Group: SVG / 3D Text Creators
 
 ### `text(opts)`
 Creates 3D text geometry from a string.
@@ -72,11 +59,3 @@ Extrudes a 2D SVG profile into a 3D part.
 - **Parameters** (object): `svg` (asset key or inline SVG text, required), `depth` (must use unit literals, required), `targetLongSide` (must use unit literals, default 20 * MM).
 - **Async**. Returns `Shape`.
 - **Example**: `let logo = cad.svgExtrude({ svg: 'logo.svg', depth: 5 * MM })`
-
-## Preview Helpers (not ops — for host-side preview only)
-
-These are NOT `.fai.js` script ops. They are host-side helpers for interactive preview (ghost rendering / overlay), not for geometry production:
-- `svgToExtrudedGeometry` / `parseSvgShapes` / `extrudeShapes`
-- `createTextGeometry` / `getOpentypeFont` / `opentypePathToGeometry`
-- `createMixedTextGeometry`
-- `createEngraveDecorationProvider`

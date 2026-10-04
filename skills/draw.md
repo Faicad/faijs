@@ -1,18 +1,6 @@
 # @faicad/faijs-draw — 2D Drawing DSL
 
-> Provides `cad.draw` — a fluent 2D drawing DSL for creating closed contours (Blueprints) that feed into core's placement pipeline (`cad.sketchOnPlane`, `cad.profile`). The host merges this into the `cad` namespace.
-
-## How to Make This Available
-
-The host assembles the namespace:
-```ts
-import { createDrawCadNamespace, registerDrawSymbols } from '@faicad/faijs-draw'
-
-rt.registerLib('cad', createDrawCadNamespace(), { default: true })
-registerDrawSymbols()
-```
-
-Once merged, `cad.draw` is available in `.fai.js` scripts.
+> Provides `cad.draw` — a fluent 2D drawing DSL for creating closed contours (Blueprints) that feed into core's placement pipeline (`cad.sketchOnPlane`, `cad.profile`). Merged into the `cad` namespace.
 
 ## `cad.draw(session)`
 
@@ -77,12 +65,3 @@ let bp2 = cad.draw.rectangle(30, 20)
 let face2 = cad.sketchOnPlane({ contours: bp2, plane: 'XY' })
 let solid2 = cad.extrude(face2, 5 * MM)
 ```
-
-### Additional 2D Operations
-
-The package also provides 2D boolean and offset operations (available as TS exports, not as `cad.*` ops):
-- `booleanUnion2d`, `booleanIntersect2d`, `booleanDifference2d` — 2D boolean ops
-- `offsetOutline2d`, `offsetPolygonLoops2d` — 2D offset
-- `chamfer2d`, `fillet2d` — 2D corner operations
-- `contourToSvgPath`, `svgPathToContours` — SVG path conversion
-- `pointInContour`, `segmentIntersection` — 2D queries

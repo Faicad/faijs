@@ -1,22 +1,8 @@
 # @faicad/sheetmetal — Sheet-Metal CAD Domain
 
-> A third-party library for sheet-metal authoring, unfolding, flat pattern generation, bend relief, cutouts, nesting, and DXF export. Registered via `registerLib` and called from `.fai.js` scripts with the host-assigned binding name.
+> A third-party library for sheet-metal authoring, unfolding, flat pattern generation, bend relief, cutouts, nesting, and DXF export. Called from `.fai.js` scripts.
 
-## How to Make This Available
-
-The host registers the library:
-```ts
-import * as sheetPkg from '@faicad/sheetmetal'
-
-rt.registerLib('sheet', {
-  author: sheetPkg.author,
-  hem: sheetPkg.hem,
-  solidOf: sheetPkg.solidOf,
-  unfold: sheetPkg.unfold,
-  report: sheetPkg.report,
-  // ... select the functions you want to expose
-}, { autoLift: true, borrow: false, packageName: '@faicad/sheetmetal' })
-```
+## Usage
 
 In `.fai.js`:
 ```js
@@ -25,8 +11,6 @@ import * as sheet from '@faicad/sheetmetal'
 let base_panel = sheet.author({ thickness: 2, base: { length: 100, width: 60 }, flanges: [] })
 let solid = sheet.solidOf(base_panel)
 ```
-
-> **Note**: The import specifier (`'@faicad/sheetmetal'`) must match the `packageName` declared in `registerLib`. The binding name (`sheet`) must match the `registerLib` key. The host may use a custom specifier (e.g., `'sheet-lib'`) as long as it matches the declared `packageName`.
 
 ## Authoring (Folded Part Construction)
 
@@ -194,19 +178,3 @@ Emits one fabrication-ready DXF for a single nested sheet.
 Emits an annotated multi-layer DXF string for a flat pattern.
 - **Parameters** (`DxfOptions`): layers, precision, units.
 - **Sync**. Returns `Result<string>`.
-
-## Fluent Facade (TS API)
-
-For TS-side usage (not `.fai.js` script ops), a fluent builder is available:
-```ts
-import { sheetMetal, fromSolid } from '@faicad/sheetmetal'
-
-// Author + operate + unfold in a chain
-const result = await sheetMetal({ length: 100, width: 60 }, 2)
-  .flange({ id: 'f1', length: 40, angleDeg: 90, side: 'xmax', rule: { innerRadius: 2, kFactor: 0.44 } })
-  .hole('base', 15, 15, 4)
-  .unfold()
-
-// Unfold a foreign solid
-const flat = fromSolid(importedSolid).kFactor(0.44).unfold()
-```

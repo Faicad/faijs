@@ -1,21 +1,8 @@
 # @faicad/faijs-cadquery — CadQuery API Compatibility Layer
 
-> A third-party library providing CadQuery 2.8.0 API compatibility for faijs. Implements Workplane, Sketch, Shape class model, object selectors, and assembly solver. Registered via `registerLib` and called from `.fai.js` scripts.
+> A third-party library providing CadQuery 2.8.0 API compatibility for faijs. Implements Workplane, Sketch, Shape class model, object selectors, and assembly solver. Called from `.fai.js` scripts.
 
-## How to Make This Available
-
-The host registers the library:
-```ts
-import * as cqPkg from '@faicad/faijs-cadquery'
-
-rt.registerLib('cq', {
-  Workplane: cqPkg.Workplane,
-  box: cqPkg.box,
-  circle: cqPkg.circle,
-  extrude: cqPkg.extrude,
-  // ... select the functions you want to expose
-}, { autoLift: false, packageName: '@faicad/faijs-cadquery' })
-```
+## Usage
 
 In `.fai.js`:
 ```js
@@ -225,13 +212,11 @@ import * as asm from '@faicad/faijs-cadquery/assembly'
 - `faceRef(...)` / `pointRef(...)` / `axisRef(...)` — reference helpers
 - `Color(r, g, b)` — color for assembly members
 - Assembly object methods: `.solve()` → solved assembly, `.toCompound()` → compound shape
-- `save(assembly, path)` — save assembly to STEP (Node only)
 - `importStep(path)` — import STEP file
 - `load(path)` — load assembly
 
 ## Notes
 
-- This library uses `autoLift: false` (declared in `package.json` `faijs.autoLift`). All functions already carry dual-op metadata.
 - All Workplane methods return a new Workplane (immutable updates). In `.fai.js` scripts, async operations are handled at the statement boundary — no explicit `await` is needed in the script.
 - The Workplane carrier hides geometry in a `.shape` slot — use `cq.val(wp)` to extract.
 - **BREP only** — mesh mode throws `E_MESH_UNSUPPORTED`.

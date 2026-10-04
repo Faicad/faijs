@@ -4,7 +4,7 @@
 
 ## What is faijs?
 
-faijs is a CAD execution engine: a JavaScript-based language (`.fai.js`) for parametric 3D modeling with dual BREP (OCCT) and mesh (manifold) geometry backends. Scripts use a `cad.*` namespace for platform operations, and can `import` additional host-injected libraries for domain-specific capabilities (sheet metal, gears, fasteners, CadQuery compatibility, etc.).
+faijs is a CAD execution engine: a JavaScript-based language (`.fai.js`) for parametric 3D modeling with dual BREP (OCCT) and mesh (manifold) geometry backends. Scripts use a `cad.*` namespace for platform operations, and can `import` additional libraries for domain-specific capabilities (sheet metal, gears, fasteners, CadQuery compatibility, etc.).
 
 ## Script Structure
 
@@ -12,7 +12,7 @@ A `.fai.js` file is valid JavaScript with specific conventions:
 - Statements are numbered (`s1`, `s2`, ...) — the engine tracks them for incremental re-execution.
 - **Variable names must be descriptive and meaningful** (e.g., `bottom_leg`, `gear_hub`, `mounting_plate`). The `part0`, `part1`, ... pattern is only a UI-layer auto-generation convention — AI agents writing scripts must choose names that reflect the part's role in the design.
 - The `cad` namespace is the default library, always available.
-- Additional libraries are imported via `import * as <binding> from '<specifier>'`. The **binding** name (the `* as X` part) must match the key the host used in `registerLib(X, ...)`. The **specifier** (the `'...'` part) identifies the package — it is validated against the host's registered `packageName` or loaded via the host's `libLoader`. The binding name and specifier do not need to be the same.
+- Additional libraries are imported via `import * as <binding> from '<specifier>'`.
 - **Units must be explicitly provided** using unit literal expressions. +Z is up. See the Unit System section below.
 
 ```js
@@ -25,32 +25,30 @@ let rounded = cad.fillet(assembled, { edges: [cad.edgeRef(assembled, 1)], radius
 
 ## Available Libraries
 
-The following packages provide host-injected capabilities usable in `.fai.js` scripts. Each link below leads to a detailed SKILL.md for that package.
+The following packages provide capabilities usable in `.fai.js` scripts. Each link below leads to a detailed skill file for that package.
 
 ### Platform (built-in `cad` namespace)
 
-| Package | SKILL.md | Description |
+| Package | Skill File | Description |
 |---------|----------|-------------|
-| **@faicad/faijs** (core) | [packages/core/SKILL.md](packages/core/SKILL.md) | The platform `cad.*` namespace: primitives (box, sphere, cylinder, cone, wedge), boolean ops (union, subtract, intersect, cut), feature ops (extrude, fillet, chamfer, shell, draft, sweep, loft, revolve, etc.), pattern ops, transform ops, query ops, and more. Always available — no import needed. |
+| **@faicad/faijs** (core) | [core.md](core.md) | The platform `cad.*` namespace: primitives (box, sphere, cylinder, cone, wedge), boolean ops (union, subtract, intersect, cut), feature ops (extrude, fillet, chamfer, shell, draft, sweep, loft, revolve, etc.), pattern ops, transform ops, query ops, and more. Always available — no import needed. |
 
-### Editor Extension Library (host-merged into `cad` namespace)
+### Editor Extension Library (merged into `cad` namespace)
 
-| Package | SKILL.md | Description |
+| Package | Skill File | Description |
 |---------|----------|-------------|
-| **@faicad/faijs-extra** | [packages/faijs-extra/SKILL.md](packages/faijs-extra/SKILL.md) | Editor ops merged into `cad.*`: `fai_drill`, `fai_extrude`, `fai_split`, `group`, `assembly`, `copy`, `load`, `text`, `svgExtrude`. Host must merge these into the `cad` namespace before use. |
+| **@faicad/faijs-extra** | [faijs-extra.md](faijs-extra.md) | Editor ops merged into `cad.*`: `fai_drill`, `fai_extrude`, `fai_split`, `group`, `assembly`, `copy`, `load`, `text`, `svgExtrude`. |
 
 ### Domain Libraries (imported via `import * as <binding> from '<specifier>'`)
 
-| Package | SKILL.md | Import Specifier | Description |
+| Package | Skill File | Import Specifier | Description |
 |---------|----------|------------------|-------------|
-| **@faicad/faijs-sketch** | [packages/sketch/SKILL.md](packages/sketch/SKILL.md) | (merged into `cad`) | `cad.sketch` — constraint-based sketching with planegcs solver. Host merges into `cad` namespace. |
-| **@faicad/faijs-draw** | [packages/draw/SKILL.md](packages/draw/SKILL.md) | (merged into `cad`) | `cad.draw` — fluent 2D drawing DSL for contour creation. Host merges into `cad` namespace. |
-| **@faicad/sheetmetal** | [packages/sheetmetal/SKILL.md](packages/sheetmetal/SKILL.md) | `@faicad/sheetmetal` or short name `sheetmetal` | Sheet-metal authoring, unfold, flat patterns, bend relief, cutouts, nesting, DXF export. |
-| **@faicad/faijs-gears** | [packages/faijs-gears/SKILL.md](packages/faijs-gears/SKILL.md) | `@faicad/faijs-gears` or short name `faijs-gears` | Gear generation: spur, herringbone, ring, bevel, worm, rack, planetary gearsets. |
-| **@faicad/faijs-fasteners** | [packages/faijs-fasteners/SKILL.md](packages/faijs-fasteners/SKILL.md) | `@faicad/faijs-fasteners` or short name `faijs-fasteners` | Fasteners: threads, nuts, screws, washers, bearings, sprockets, chain, holes. |
-| **@faicad/faijs-cadquery** | [packages/faijs-cadquery/SKILL.md](packages/faijs-cadquery/SKILL.md) | `@faicad/faijs-cadquery` or short name `faijs-cadquery` | CadQuery API compatibility: Workplane, Sketch, Shape, selectors, assembly. |
-
-> **Note on import specifiers**: The host's `libLoader` determines how specifiers are resolved. In the Node CLI, short names (e.g., `sheetmetal`) are normalized to scoped package names (e.g., `@faicad/sheetmetal`) before dynamic `import()`. In browser hosts, specifiers may be resolved via importmap or CDN pinning. The host may also use a custom specifier (e.g., `'sheet-lib'`) as long as `registerLib` declares a matching `packageName`.
+| **@faicad/faijs-sketch** | [sketch.md](sketch.md) | (merged into `cad`) | `cad.sketch` — constraint-based sketching with planegcs solver. Merged into `cad` namespace. |
+| **@faicad/faijs-draw** | [draw.md](draw.md) | (merged into `cad`) | `cad.draw` — fluent 2D drawing DSL for contour creation. Merged into `cad` namespace. |
+| **@faicad/sheetmetal** | [sheetmetal.md](sheetmetal.md) | `@faicad/sheetmetal` or short name `sheetmetal` | Sheet-metal authoring, unfold, flat patterns, bend relief, cutouts, nesting, DXF export. |
+| **@faicad/faijs-gears** | [faijs-gears.md](faijs-gears.md) | `@faicad/faijs-gears` or short name `faijs-gears` | Gear generation: spur, herringbone, ring, bevel, worm, rack, planetary gearsets. |
+| **@faicad/faijs-fasteners** | [faijs-fasteners.md](faijs-fasteners.md) | `@faicad/faijs-fasteners` or short name `faijs-fasteners` | Fasteners: threads, nuts, screws, washers, bearings, sprockets, chain, holes. |
+| **@faicad/faijs-cadquery** | [faijs-cadquery.md](faijs-cadquery.md) | `@faicad/faijs-cadquery` or short name `faijs-cadquery` | CadQuery API compatibility: Workplane, Sketch, Shape, selectors, assembly. |
 
 ## Key Concepts
 
@@ -104,4 +102,4 @@ Assembly:     jointTrajectory / inverseKinematics / mechanismDOF
 Query:        bboxCenter / bboxMin / bboxMax / faceNormal / faceRef / edgeRef / viewCamera / projectView / projectSheet
 ```
 
-For full details on each op, see [packages/core/SKILL.md](packages/core/SKILL.md).
+For full details on each op, see [core.md](core.md).

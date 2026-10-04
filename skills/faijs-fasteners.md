@@ -1,20 +1,8 @@
 # @faicad/faijs-fasteners — Fastener Generation Library
 
-> A third-party library for generating fastener geometry: threads, nuts, screws, washers, bearings, sprockets, chain, and hole series. Ported from cq_warehouse (upstream 0.8.0). Registered via `registerLib` and called from `.fai.js` scripts.
+> A third-party library for generating fastener geometry: threads, nuts, screws, washers, bearings, sprockets, chain, and hole series. Ported from cq_warehouse (upstream 0.8.0). Called from `.fai.js` scripts.
 
-## How to Make This Available
-
-The host registers the library:
-```ts
-import * as fastPkg from '@faicad/faijs-fasteners'
-
-rt.registerLib('fast', {
-  isoThread: fastPkg.isoThread,
-  hexNut: fastPkg.hexNut,
-  buildScrew: fastPkg.buildScrew,
-  // ... select the functions you want to expose
-}, { autoLift: true, packageName: '@faicad/faijs-fasteners' })
-```
+## Usage
 
 In `.fai.js`:
 ```js

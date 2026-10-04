@@ -1,21 +1,6 @@
 # @faicad/faijs-sketch — Constraint-Based Sketch Op
 
-> Provides `cad.sketch` — a constraint-based sketch op that solves 2D geometry with the planegcs solver and produces a face or wire. The host merges this into the `cad` namespace.
-
-## How to Make This Available
-
-The host assembles the namespace:
-```ts
-import { createSketchCadNamespace, registerSketchSymbols, installSketchSolver } from '@faicad/faijs-sketch'
-import { createNodePlanegcsSolver } from '@faicad/faijs-sketch/node'  // Node host
-// or: browser host injects wasm bytes through HostPorts.assets
-
-rt.registerLib('cad', createSketchCadNamespace(), { default: true })
-registerSketchSymbols()
-installSketchSolver(createNodePlanegcsSolver)
-```
-
-Once merged, the op is called as `cad.sketch(...)` in `.fai.js` scripts.
+> Provides `cad.sketch` — a constraint-based sketch op that solves 2D geometry with the planegcs solver and produces a face or wire. Merged into the `cad` namespace.
 
 ## `sketch(opts)`
 
@@ -84,6 +69,5 @@ let top_face = cad.sketch({
 ### Notes
 
 - **Exactly one** of `shapes` / `geoms` must be provided (not both).
-- The planegcs solver is host-injected (wasm source differs between Node and browser).
-- Non-`solved` outcomes (under-constrained, redundant, conflicting) still produce geometry — diagnostics are routed to the host via `setSketchDiagnosticSink`.
+- Non-`solved` outcomes (under-constrained, redundant, conflicting) still produce geometry.
 - The produced face/wire can be consumed by `cad.extrude`, `cad.sweep`, `cad.revolve`, etc.
