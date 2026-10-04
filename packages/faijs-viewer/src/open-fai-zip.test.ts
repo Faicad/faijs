@@ -201,11 +201,25 @@ describe('openFaiZip — preset faijs-extra surface (draw removed)', () => {
 })
 
 describe('openFaiZip — dynamic third-party libraries (libs)', () => {
-  it('rejects a library outside the whitelist as a structured E_EXECUTION', async () => {
-    const bytes = makeGearsContainer()
-    const result = await openFaiZip(bytes, { wasm: WASM, libs: { allow: [] } })
+  it('rejects a non-@faicad library as a structured E_EXECUTION', async () => {
+    const entryPath = 'model/stranger.fai.js'
+    const { bytes } = writeContainer({
+      models: [{ id: 'stranger', entry: entryPath }],
+      active: 'stranger',
+      modules: {
+        [entryPath]: [
+          "import * as x from '@suspicious/not-faicad'",
+          'let a = cad.box(10, 20, 30)',
+        ].join('\n'),
+      },
+      dataMembers: {},
+      files: {},
+      assets: {},
+    })
+
+    const result = await openFaiZip(bytes, { wasm: WASM })
     expect(result.error?.code).toBe('E_EXECUTION')
-    expect(result.error?.message).toMatch(/whitelist/)
+    expect(result.error?.message).toMatch(/scoped @faicad/)
   })
 
   it('fails with an unbound namespace when libs.enabled === false', async () => {
@@ -214,12 +228,9 @@ describe('openFaiZip — dynamic third-party libraries (libs)', () => {
     expect(result.error?.code).toBe('E_EXECUTION')
   })
 
-  it('loads an allowed installed library on demand and tessellates its output', async () => {
+  it('loads an installed @faicad library by default (no whitelist needed) and tessellates its output', async () => {
     const bytes = makeGearsContainer()
-    const result = await openFaiZip(bytes, {
-      wasm: WASM,
-      libs: { allow: ['@faicad/faijs-gears'] },
-    })
+    const result = await openFaiZip(bytes, { wasm: WASM })
     expect(result.error).toBeUndefined()
     expect(result.meshes.length).toBeGreaterThan(0)
   })

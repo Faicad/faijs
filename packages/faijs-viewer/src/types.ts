@@ -69,11 +69,6 @@ export interface FaiViewerLibsOptions {
    * `registerLib` rejects a library whose `contractVersion` does not match.
    */
   versions?: Record<string, string>
-  /**
-   * Whitelist of npm package names the loader may load. Omitted = unrestricted.
-   * A `.fai.zip` is untrusted input, so production hosts should provide this.
-   */
-  allow?: string[]
   /** Aliases mapping script specifiers to npm package names (`gears` → `@faicad/faijs-gears`). */
   aliases?: Record<string, string>
   /**

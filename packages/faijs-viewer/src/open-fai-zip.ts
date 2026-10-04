@@ -164,7 +164,13 @@ async function ensureSketchSolver(opts: OpenFaiZipOptions): Promise<void> {
     const { createPlanegcsSolver } = await import('@faicad/faijs-sketch')
     installSketchSolver(async () => createPlanegcsSolver({ wasmBytes }))
   } catch (e) {
-    throw new Error(`[faijs-viewer] planegcs solver init failed: ${String(e)}`)
+    // Degrade, mirroring the Node branch: an unreachable solver (offline CDN,
+    // network policy, …) must not sink every `.fai.zip` open — models that
+    // never call `cad.sketch` load fine, and models that do surface a
+    // structured `E_SKETCHC_NO_SOLVER` at execution. Previously this threw
+    // `[faijs-viewer] planegcs solver init failed: …`, failing even pure
+    // `cad.box` containers when the solver URL could not be fetched.
+    console.warn(`[faijs-viewer] planegcs solver unavailable, sketch models will fail: ${String(e)}`)
   }
 }
 

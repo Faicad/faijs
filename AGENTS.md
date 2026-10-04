@@ -91,6 +91,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。每月 1 号归档到 `yyyy-mm/` 文件夹。**严禁修改或引用已归档的 plans 子文件夹里的文件。**
 - `docs/analysis/`：技术分析文档。
 - `.agents/notes/`：决策记录（Agent Notes），见 [.agents/notes/README.md](.agents/notes/README.md)。
+- `.agents/skills/faijs-npm-publish/SKILL.md`：npm 发布说明，**发布 npm 时必读**（含 `publish-all.ps1` 流程、环境识别戒律、版本号升级流程）。
 - `docs/i18n/`：双语配对约定与翻译规则。
 
 

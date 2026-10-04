@@ -12,9 +12,15 @@
  * - a browser host gets `createBrowserLibLoader` (jsDelivr CDN dynamic
  *   `import()`, version-pinned `+esm` links when `versions` is provided);
  * - a Node host gets an internal whitelisted `import(pkg)` loader mirroring
- *   core's CLI loader semantics: scoped-`@faicad/` default guard, short-name
- *   aliases, `loadSource` for determinism scanning, per-library
- *   `faijs.autoLift` from each package's own `package.json`.
+ *   core's CLI loader semantics: per-library `faijs.autoLift` from each
+ *   package's own `package.json`, plus `loadSource` for determinism scanning.
+ *
+ * **Access policy (user-decided, 2026-10-04):** every `@faicad/*` package is
+ * allowed by default — no whitelist is required. Non-`@faicad/*` packages are
+ * rejected (defence against look-alike stranger packages from an untrusted
+ * `.fai.zip`). The Node branch enforces the scoped prefix directly; the
+ * browser branch wraps core's loader (whose `libs` option, when omitted,
+ * would otherwise allow everything) with the same check.
  *
  * The Node branches touch `node:` builtins, so they are reached only through
  * dynamic `import(/* @vite-ignore *​/)` calls behind an `inNodeEnv()` guard —
@@ -32,9 +38,19 @@ function inNodeEnv(): boolean {
   return typeof window === 'undefined' || typeof window.addEventListener !== 'function'
 }
 
-/** Default scoped prefix: without an explicit whitelist, the Node loader only
- * loads `@faicad/` packages (defence against look-alike stranger packages). */
-const NODE_SCOPED_PREFIX = '@faicad/'
+/** Allowed scoped prefix: every `@faicad/` package loads without a whitelist. */
+const SCOPED_PREFIX = '@faicad/'
+
+/**
+ * Access policy shared by both branches: every `@faicad/*` package is allowed
+ * by default; anything else is rejected. (User-decided 2026-10-04: no
+ * whitelist parameter — all `@faicad` packages load without configuration.)
+ */
+function assertScoped(pkg: string, name: string): void {
+  if (!pkg.startsWith(SCOPED_PREFIX)) {
+    throw new Error(`package "${name}" is not a scoped @faicad/ library`)
+  }
+}
 
 /**
  * Build the Node library loader.
@@ -53,7 +69,6 @@ async function createNodeLibLoader(opts: FaiViewerLibsOptions): Promise<LibLoade
   const requireNode = createRequire(import.meta.url)
 
   const aliases: Record<string, string> = { ...(opts.aliases ?? {}) }
-  const allow = opts.allow ? new Set(opts.allow) : undefined
 
   /** specifier → npm package name. */
   const pkgOf = (name: string): string => aliases[name] ?? name
@@ -114,17 +129,11 @@ async function createNodeLibLoader(opts: FaiViewerLibsOptions): Promise<LibLoade
   return {
     loadLib: async (name: string) => {
       const pkg = pkgOf(name)
-      if (allow) {
-        if (!allow.has(pkg)) {
-          throw new Error(`package "${pkg}" (from specifier "${name}") is not in the viewer library whitelist`)
-        }
-      } else if (!pkg.startsWith(NODE_SCOPED_PREFIX)) {
-        throw new Error(`package "${name}" is not a scoped @faicad/ library`)
-      }
+      assertScoped(pkg, name)
       return (await import(pkg)) as LibNamespace
     },
 
-    listLibs: () => [...Object.keys(aliases), ...(opts.allow ?? [])],
+    listLibs: () => [...Object.keys(aliases), '@faicad/'],
 
     loadSource: async (name: string) => {
       const pkg = pkgOf(name)
@@ -169,11 +178,23 @@ async function createNodeLibLoader(opts: FaiViewerLibsOptions): Promise<LibLoade
 export async function createViewerLibLoader(opts: FaiViewerLibsOptions | undefined): Promise<LibLoader | undefined> {
   if (opts?.enabled === false) return undefined
   if (inNodeEnv()) return createNodeLibLoader(opts ?? {})
-  return createBrowserLibLoader({
+  const inner = createBrowserLibLoader({
     cdnBase: opts?.cdnBase,
     versions: opts?.versions,
-    libs: opts?.allow,
     aliases: opts?.aliases,
     importModule: opts?.importModule,
   })
+  // Wrap core's loader with the shared access policy: core's `libs` option,
+  // when omitted, allows ANY package — an untrusted `.fai.zip` must not reach
+  // that. Every `@faicad/*` package loads by default; anything else is
+  // rejected before any CDN import.
+  const { loadLib, ...rest } = inner
+  return {
+    ...rest,
+    loadLib: async (name: string) => {
+      const pkg = opts?.aliases?.[name] ?? name
+      assertScoped(pkg, name)
+      return loadLib(name)
+    },
+  }
 }
