@@ -26,9 +26,9 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 506 ported / 136 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 晚实读，`3d6640ab` 之后） |
+| **manifest**（导出变量级） | **697 = 521 ported / 121 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 晚 **N1 落地后**实读，见 §10.4） |
 | **coverage**（上游测试函数级） | **297 = 214 PORTABLE / 41 PORTABLE-WITH-STUB / 42 BLOCKED**（全集 305，`casesWithStep=297`、8 条无 STEP） | `tests/coverage.json`（2026-10-04 `32c95cbb` 加 `hollow` 别名后重算实读：较 B2-7 的 211/41/45 再翻 3 条，正是 `hollow` 三例） |
-| **镜像文件** | **518** 个 `.fai.js` + **21** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 晚实测） |
+| **镜像文件** | **533** 个 `.fai.js` + **22** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 晚 **N1 +15 镜像 / +1 blocked** 后实测） |
 | **包内单测** | 598 全绿（55 文件） | 2026-10-04 `32c95cbb` 后实测 |
 | **全量 parity** | **458 PASS + 16 PASS-NT / 650 ref cases = 72.92%**，FAIL **21**、ERROR 0、BLOCKED 155 | `out/report.json`（2026-10-04 20:18 产物，实读） |
 
@@ -566,7 +566,7 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 
 | 类 | 条数 | 内容 | 归属 |
 |---|---|---|---|
-| **A · 写镜像即解锁（零新几何 / 零框架改动）** | **21** | getfixturevalue 11 / raises 5 / parametrize 3 / `__dir__` 2（其中 3 条需 export→importStep 内存往返通道） | 新增 **N1** |
+| **A · 写镜像即解锁（零新几何 / 零框架改动）** | **21 → 剩 6** | getfixturevalue 11 / raises 5 / parametrize 3 / `__dir__` 2 —— **N1 已吃掉 15 条**；剩余 5 条全是往返产物（`assy_i`×2 + roundtrip×3），另 1 条（`box_and_vertex`）改判为 `op:vertex-shape` 新 API 缺口 | 新增 **N1** ✅ 已完成 |
 | **B · 本仓可做（需新几何或参数通道）** | **62** | text-spine 3 / draft 2 / prism-tilt 1 / until-face 7 / shell+pendingWires 3 / history-subshape 3 / project 3 / export 3 / importBin 2 / 零散值面 + 其余待逐项定性 | B2 / B4 |
 | **C · `.fai.js` 语法长线（core `lang/`）** | **5** | filter 的 `__cf`/`__cs`(2) + `op:shape-operator-overload`(1) + `eachpoint`(1) + `narrow:cutEach` lambda(1) | G-C25 / G-C19 |
 | **D · 内核依赖** | **48** | `op:assembly-solve` 14（子系统）/ `kernel:fillet-chain-reapply` 9 / `op:fuzzy-bool` 5 / `kernel:sweep-multisection-pipe` 5 / `remove` 5 / interpPlate 5 / 近重合布尔 4 / prism-from-face 4 / `op:assembly-subshape-import` 4 / sweep-aux-spine 3 / `narrow:sphere-angles` 3 等 | B5 / B6 |
@@ -579,14 +579,34 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 
 | 序 | 项 | 条数 | 为什么排这个位置 | 前置 / 风险 |
 |---|---|---|---|---|
-| **N1** | **harness A 组：内联 fixture 镜像** —— 先做**不含往返**的 18 条（`test_assy_root_name`、`test_leaf_node_count`、三条 raises 的 `nested_assy`、`test_colors_assy{0,1}` 的 `assy`、`test_colors_fused_assy`、`test_PointInPlane_param__box_and_vertex`、`test_constraint_validation`/`test_single_unary_constraint` 的 `simple_assy2`、`test_special_methods`/`test_subshape_access` 的 `subshape_assy`） | **18** | 零新几何、零框架改动、条数最多；全部有 ref；镜像先例已有 87 条（assembly 子路径装载正常） | 需逐条读 `test_assembly.py` 的 `@pytest.fixture` 源码内联；**注意 §B0-6 双终端纪律**（裸 Shape 内联、禁嵌套 `await`） |
+| **N1** ✅ **已完成 2026-10-04**（15/16 条 ported） | **harness A 组：内联 fixture 镜像** —— 只做**不含往返**的 16 条 | **16→15** | 零新几何、零框架改动、条数最多；全部有 ref；镜像先例已有 87 条 | 见下方 §10.4.1 执行记录：`test_PointInPlane_param__box_and_vertex` 需 `cq.vertex` 新 API，撤出并标 `op:vertex-shape` |
 | **N2** | **`filter` 陈旧标签 `test_special__c`** | **1** | 纯 `compound(box,box,box)`，一行镜像 | 无 |
 | **N3** | **`text-spine`（r7/r8/r9）** | **3** | 基础 `text` 已 ported ⇒ 只补沿曲线排字的参数通道 | 需先一次性 Python 捕获字符沿 spine 的放置语义（§7 纪律） |
 | **N4** | **`draft`（res1/res2）** | **2** | 内核原语已在，只差多面循环 + 中性面语义 | **风险中等**：`test_draft` 的 `fside` 是 4 个侧面，内核 `draft` 单面；若「多次单面 Build」≠「一次多面 Build」，则回退 B6-4 并写明理由 |
 
 **N1 之后再看的两项**（需先决策或更长）：
-- **往返通道**（3 条：`test_assembly_step_import_roundtrip__{assy_orig,assy}` + `test_step_export_loc__o`）：先在 cq 层打通 `exportStep` 字符串 → `importStep` 的内存往返（内核两侧都有），再写镜像。
+- **往返通道**（**5** 条：`test_assembly_step_import_roundtrip__{assy_orig,assy}` + `test_step_export_loc__o` + `test_colors_assy{0,1}__assy_i`）：先在 cq 层打通 `exportStep` 字符串 → `importStep` 的内存往返（内核两侧都有），再写镜像。⚠ **`assy_i` 2 条是 N1 执行时才认清的**：它们名义上属 `getfixturevalue` 类，但 ref 捕获的是「`assy.load(stepfile)` 的往返产物」，与 `assy` 逐位同体积 ⇒ 写同形镜像必然 PASS 却**完全不验证往返**（与 `importBin` 同款陷阱），故与下面 3 条合并同类。
 - **`importBin`（2）**：先拍板 B1-1 ④ 的处置（**保持 blocked** vs **镜像 + `reason` 标注 `pass-nt:no-roundtrip-channel`**），因为 ref 的 b/r 体积相同，写同形 box 就能 PASS 但**不验证往返**。
+
+#### 10.4.1 N1 执行记录（2026-10-04 晚，实测）
+
+**取证方法（可复现，防回归）**：parametrize 用例的 ref 只记 `(var, volume)`，而同一个测试函数有多个候选 fixture ⇒ **不能靠猜，必须体积反查**。一次性探针 `PYTHONPATH=out/cache/v2.8.0/tests python` 直接 import `test_assembly.py` 的 fixture（`getattr(fn, '__wrapped__')()`）并打 `toCompound().Volume()`，与 ref manifest 逐位比对定案：
+
+| 用例（ref vol） | 命中 fixture | 反查结果 |
+|---|---|---|
+| `test_assy_root_name__assy`（3.000000000000001） | **nested_assy**（simple_assy=9.0 ✗） | 参数组合取**最后一个** |
+| `test_leaf_node_count__assy`（0.9999999999999998） | **empty_top_assy** | 同上 |
+| `test_colors_assy{0,1}__assy`（1124.9999999999998） | **multi_subshape_assy**（`chassis0`=160221 ✗、`subshape`=1196.35 ✗） | 同上 |
+| `test_colors_fused_assy__assy`（160221.22533307946） | **chassis0_assy** | 同上 |
+| `test_step_export_loc__assy`（1.9999999999999991） | **boxes9_assy** | 同上 |
+| `test_PointInPlane_param__box_and_vertex`（6.0） | box_and_vertex | 唯一候选 |
+
+**两条踩坑（已写进镜像注释，防回归）**：
+
+1. **GOTCHA · `box()` 是角点式不是居中式**：`test_assembly.py:21` 从 `cadquery.occ_impl.shapes` import 的 `box`（== `Solid.makeBox`）角点在原点，而 faijs `cq.box()` 居中 ⇒ `boxes9_assy` 镜像若按「中心 (0,10,0)/(1,10,0)」写会 `comΔ=0.5、bboxΔ=0.5` FAIL；真值中心是 **(0,10,0.5)/(1,10,0.5)**（`test_step_export_loc__assy.fai.js` 注释已留档）。
+2. **GOTCHA · `raises` 5 条被 `manual:true` 钉住**：`gen-manifest.ts:98` 的保留逻辑会跳过一切 `manual:true` 的 blocked 条目 ⇒ 只写镜像**不会**翻状态，必须先从 `manifest.json` 删掉这 5 条的 `manual` 字段再重跑 gen-manifest（第一次重跑只翻了 10 条，就是这个原因）。
+
+**结果**：15 条镜像全部 `run-cand` 导出成功、`compare-one` **14 PASS + 1 PASS-NT**（`test_colors_fused_assy`：volΔ 7.45e-13 / comΔ 2.64e-13 / bboxΔ 0，仅拓扑 f24/e30/v18 vs f18/e18/v12 —— 6 个圆柱 ref 侧各多 1 seam 面，几何数值全中）。manifest **506→521 ported、136→121 blocked**；镜像 **518→533**（+15）、`.blocked` **21→22**（+1）；包内单测 **598 全绿 / 55 文件**、零 stderr。
 
 ### 10.5 待决策 / 未解决（如实列出）
 
@@ -595,3 +615,4 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 3. **`project`（3）** 仍卡 `text`：只有先做完 **N3** 才能回头判它是否真解锁。
 4. **`remove`（5）** 的 `defeature` 近似**未验证**：本轮只读到内核有 `defeature`，没跑 parity，不能当结论用。
 5. **`plane`（2）/ `export`（3）/ `history:images`（2）/ `importBin`** 等窄语义项未逐条定性，仍在 B 组 62 条余量里。
+6. **`op:vertex-shape`（1，N1 撤出项）**：`test_PointInPlane_param__box_and_vertex` 的 ref 是 `box(1,2,3)` **加一个 solve 后位于 `(2.5, 0, 1.51)` 的独立 Vertex**（实测 bbox `(-0.5,-1,-1.5)..(2.5,1,1.51)`）。vertex 零体积零质量但**撑大 bbox** ⇒ 只写 box 会 `cut: boolean operation failed`（comparator 直接抛错，不是 FAIL）。faijs 的 `makeVertex` 只在内核适配层（`workplane.ts:1253`），**没有 `cq.vertex` 导出 ⇒ `.fai.js` 里造不出独立顶点**。已标 `manual:true` 的 `blocked`、镜像存为 `.fai.js.blocked`。解锁需暴露 `cq.vertex(x,y,z)`（类 B1 小粒度 op，难度 2）。
