@@ -28,15 +28,14 @@
   "files": [
     "dist"
   ],
-  "dependencies": {},
   "peerDependencies": {
     "@faicad/faijs": "^0.29.0",
-    "occt-wasm": "^3.8.0"
+    "occt-wasm": "^5.3.2"
   },
   "devDependencies": {
     "@faicad/cq-compat-compare": "file:../cq-compat-compare",
-    "tsx": "^4.23.12",
     "@faicad/faijs": "file:../core",
+    "tsx": "^4.23.15",
     "typescript": "*",
     "vitest": "*"
   },

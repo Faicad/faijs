@@ -30,10 +30,9 @@
   "faijs": {
     "autoLift": false
   },
-  "dependencies": {},
   "peerDependencies": {
     "@faicad/faijs": "^0.29.0",
-    "occt-wasm": "^3.8.0"
+    "occt-wasm": "^5.3.2"
   },
   "devDependencies": {
     "@faicad/faijs": "file:../core",

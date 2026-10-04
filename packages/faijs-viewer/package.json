@@ -45,8 +45,8 @@
     "@faicad/faijs-extra": "file:../faijs-extra",
     "@faicad/faijs-gears": "file:../faijs-gears",
     "@types/three": "^0.184.1",
-    "occt-wasm": "^3.8.4",
-    "three": "^0.184.0",
+    "occt-wasm": "^5.3.2",
+    "three": "^0.186.1",
     "typescript": "*",
     "vitest": "*"
   },
