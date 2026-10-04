@@ -174,6 +174,32 @@
   不表达「faijs 正确」——truth 侧修好后这两者会一致，测试仍绿。
 - **后续**：8 个帧问题待修（修法未定，见上）；185 个 `B==A` 与 34 个 neither 需另起根因分析。
 
+### 1.4 全量重转复测（2026-10-04，K 组 top3 修复落地后）
+
+- **stage1 漏斗（3201 全量重转实测，state/progress.json）**：ok 3049 / gap 151 / failed 1。
+  - failed 1（`pocket text 30cm`，cli-no-json exit 1）与旧基线同形态，真实崩溃非工具残留。
+  - 数字自洽：3103 − 68（ok→gap）+ 14（gap→ok）= 3049；98 − 14 + 68 − 1（gap→failed）= 151。
+- **逐文件对账（vs git HEAD 基线报告）**：
+  - **ok→gap 68 = 63 个 sweep-transition 显式 gap + 5 个 `mirrored-plane-ref-unsupported`**。
+    前者是 H 组判据的预期级联（基线里 stage1 ok + stage2 run-fail，现在按 plan 前移为
+    stage1 gap，**不是回归**）；后者是 Mirrored 分支把基线里被 python-baked 静默吞掉的
+    真缺口如实化（door-sealing×2、Inserto tapa lboxx、CrankShaft、Profile 20-4040）。
+  - **gap→ok 14** = K 组三修复的转化（FCBL_table / RND_455 / endstop / cherry-mx 等）。
+- **14 个新产品 stage2 实测（rebased-sweep）**：**9/14 RUN-OK 产 STEP**；5 个失败 =
+  3 个 edgeRef（G 组域：no role lineage ×2、EdgeTopoRef ×1）+ 2 个 sketch
+  （E_SKETCHC_NO_CONTOUR / E_SKETCHC_CONFLICTING，K 残余）。
+- **F 组 6 个 kernel-fuse 取点复测**：1/6 转 RUN-OK（3.5_RPi_tft）；FCBL 仍在下一层
+  fuse 失败（`union(fwd,rev)` 共享基面）；FAULHABER 已移到 chamfer edgeRef；2×
+  Beam-coupling 抛 `wireframe: BRepAdaptor_Curve::No geometry`。
+- **stage2 全量 run-sweep 未刷新**：OCCT wasm 子进程反复崩 0xC0000142（桌面堆耗尽），
+  每 290s 窗口仅推进 ~20 文件；`--limit` 分片 + 断点续跑可行但需数小时。state 里
+  run-fail 324 / timeout 45 / ok 2762 为部分刷新后的混合口径（一轮 20 个已重判）。
+  **旧 run-fail 容器未变，重跑多数是重复烧时间**——真正待跑的是下轮代码变更后的差量。
+- **本轮工具修复（fcstd-port 侧）**：`verifyProduct` 的 disposition 白名单补入
+  `skipped-empty`（此前它拒绝 K 组新 disposition，把 2143 个重转误判 failed）；
+  batch-convert 消费 `node_modules/@faicad/faijs-freecad/dist` 的坑再次确认——
+  **src 修复后必须重建 dist 并同步**，faijs 工作树直转验证不算数。
+
 ### I 组延伸：profile 混入 terminal compound（2026-10-03 已修，影响 727/3131 语料）
 
 - **取点**：`Mechanical Parts/cable-chain-links/cable-chain-link-25_5x16x12_5mm.fcstd`
