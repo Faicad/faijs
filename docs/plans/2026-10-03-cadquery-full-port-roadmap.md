@@ -26,10 +26,42 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 496 ported / 146 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 **B2-7 addCavity** 后实读） |
-| **coverage**（上游测试函数级） | **305 = 211 PORTABLE / 41 PORTABLE-WITH-STUB / 45 BLOCKED** | `tests/coverage.json`（2026-10-04 **B2-5** 后重算实读：`portableNow 211` / `portableWithStub 41` / `blocked 45`；B2-7 重算无变化） |
-| **镜像文件** | **508** 个 `.fai.js` + **21** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 **B2-7** 后实测） |
-| **包内单测** | 589 全绿（54 文件） | 2026-10-04 B2-7 实测 |
+| **manifest**（导出变量级） | **697 = 506 ported / 136 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 晚实读，`3d6640ab` 之后） |
+| **coverage**（上游测试函数级） | **297 = 214 PORTABLE / 41 PORTABLE-WITH-STUB / 42 BLOCKED**（全集 305，`casesWithStep=297`、8 条无 STEP） | `tests/coverage.json`（2026-10-04 `32c95cbb` 加 `hollow` 别名后重算实读：较 B2-7 的 211/41/45 再翻 3 条，正是 `hollow` 三例） |
+| **镜像文件** | **518** 个 `.fai.js` + **21** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 晚实测） |
+| **包内单测** | 598 全绿（55 文件） | 2026-10-04 `32c95cbb` 后实测 |
+| **全量 parity** | **458 PASS + 16 PASS-NT / 650 ref cases = 72.92%**，FAIL **21**、ERROR 0、BLOCKED 155 | `out/report.json`（2026-10-04 20:18 产物，实读） |
+
+### 1.1 关键实证：**136 条 blocked 全部有 ref STEP**（2026-10-04 晚交叉）
+
+交叉脚本（`manifest.json` × `out/ref/manifest.json`，按 `source` + `var` 配对 `e.file`）：
+
+```
+blocked 136 / 有 ref STEP 136 / 无 ref 0
+ported  506 / 506
+skipped  55 / 8        ← 判别有区分度：skipped 绝大多数无 ref
+```
+
+**意义**：这 136 条每一条解锁都能产生真实 parity 信号（**不像 B1-1 的 `importBin` 那样「无 ref ⇒ 净收益 0」**）。本轮起，「解锁条数」可直接当「parity 增量」读，无需再折算。
+
+> **判别可信度反证**：同一脚本对 `skipped` 只命中 8/55（其余是「ref 无该 case」或「var 不在 ref 集」），说明「全命中」不是脚本恒真造成的假象。
+
+**manifest 实测 blockedBy 分布（136 条，47 个 distinct，2026-10-04 晚实读）**：
+
+```
+14 op:assembly-solve      11 getfixturevalue          9 kernel:fillet-chain-reapply
+ 5 op:fuzzy-bool           5 kernel:sweep-multisection-pipe   5 interpPlate        5 remove
+ 5 raises                  4 op:extrude-until-face            4 kernel:boolean-near-coincident-bspline
+ 4 op:prism-from-face      4 op:assembly-subshape-import      3 op:cutBlind.until-face
+ 3 narrow:sphere-angles    3 kernel:sweep-aux-spine-mode      3 filter             3 op:text-spine
+ 3 op:history-subshape     3 export                           3 parametrize        2 op:shell
+ 2 parametricCurve         2 kernel:shell-outward-opening     2 project            2 importBin
+ 2 history:images          2 kernel:hollow-intersection-join  2 kernel:draft-existing-solid
+ 2 plane                   2 __dir__
+…（其余 17 项各 1 条）
+```
+
+> `pending:mirror` **归零**（`3d6640ab` 收口）；`hollow` 标签 **归零**（`32c95cbb`）。
 
 ⚠ **两个分母不同源，不可换算**：manifest 的 496/146/55（合计 697）是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
 
@@ -47,7 +79,9 @@
 
 ⚠ **旧文档的一处硬错误（勿再传播）**：它写「镜像文件 551 个 `.fai.js`」。**实测 464**（`find tests -name "*.fai.js" | wc -l`）。凡引用镜像计数以本文 §1 为准。
 
-**manifest 实测 blockedBy 分布（146 条，48 个 distinct，2026-10-04 **B2-7 addCavity 落地后**从 `manifest.json` 聚合）**：
+> **本节（82–94 行的旧分布）已被 §1.1 取代**（旧值 146 条 / 48 distinct / 含 `pending:mirror` 10 条，是 B2-7 落地时的快照）。以下 B2-7 / B2-5 / B2-3b 各段保留为**历史轨迹**，读当前状态一律以 §1.1 为准。
+
+<details><summary>旧分布快照（B2-7 落地时，已过时）</summary>
 
 ```
 14 op:assembly-solve      11 getfixturevalue         10 pending:mirror            9 kernel:fillet-chain-reapply
@@ -60,6 +94,8 @@
  2 parametricCurve         2 plane                    2 project
 …（其余 17 项各 1 条）
 ```
+
+</details>
 
 > **B2-7（addCavity）对分布的影响（2026-10-04）**：`op:addCavity`(3) 标签 **整个退役**—— free-function `addCavity(s, …cavities)` 已实现（`workplane.ts`，内核无多 shell `MakeSolid.Add`/`ShapeFix_Solid`，用等价布尔 cut 外−腔实现）。3 条 `test_addCavity__{b1,b2,br}` 镜像全 **PASS**（br = vol 7、f12/e24/v16、2 shells，与上游 ref 逐位一致）。
 > ⇒ manifest 493/149/55 → **496/146/55**（ported +3、blocked −3），distinct 50 → **48**。
@@ -149,12 +185,12 @@
 | ID | 缺口 | 影响条数 | 难度 |
 |---|---|---|---|
 | **G-C1** | `imprint`（压印） | **12→6** | 3 ✅ B2-1 |
-| **G-C2** | `interpPlate`（插值板） | **5** | 3 |
-| **G-C3** | `remove`（移除子形） | **5** | 2 |
+| **G-C2** | `interpPlate`（插值板）—— ⚠ **2026-10-04 晚改判：内核依赖**。上游实现是 `Face.makeNSidedSurface(edges, pts, degree, nbPtsOnCur, nbIter, ...)`（`cq.py:3878-3945`，底层 OCCT `BRepFill_Filling`/`BRepOffsetAPI_MakeFilling`）；内核 `index.d.ts` 全量方法面**无 filling / makeNSidedSurface** 任一条（已有 `bsplineSurface` 是**控制点**式、非插值，语义不同，不可冒充）⇒ 难度 3 → **5，移 B6-12** | **5** | **5**（原判 3 错） |
+| **G-C3** | `remove`（移除子形）—— 上游 `Shape.remove` 用 `BRepTools_ReShape.Remove`（`occ_impl/shapes.py:1892`），内核**无** `ReShape`。⚠ **2026-10-04 晚新发现**：内核**有** `defeature(shape, faces, tolerance)`（`BRepAlgoAPI_Defeaturation`，移除面并**填补**）⇒ 语义与「删除子形不填补」不同，**只能当近似候选**，必须跑 parity 判（体积/拓扑是否逐位）。**另**：`Assembly.remove(name)` **早已实现**（`assembly/assembly.ts:626`，含「no member named」抛错）⇒ 那 3 条 assembly remove 是**陈旧标签**，只需镜像 | **5** | 2→**3（需 parity 判）** |
 | **G-C4** | `project`（边→面投影） | **2** | 3 |
-| **G-C5** | `draft`（既有实体拔模，free function） | **2** | 3 |
+| **G-C5** | `draft`（既有实体拔模，free function）—— ⚠ **2026-10-04 晚改判：本仓可试，非内核依赖**。上游 free `draft(ctx, base, faces, angle[, dir])`（`occ_impl/shapes.py:7794/7826`）用 `BRepOffsetAPI_DraftAngle`，逐面 `Add(face, n_dir, angle, base_pln)` 后**一次** `Build()`；**内核已有 `draft(shape, face, angleRad, direction)`**（`index.d.ts:156`）⇒ 标签 `kernel:draft-existing-solid` **陈旧**。两个语义差需实测：① 上游**多面**一次 Build（`test_draft` 的 `fside = face("|X or |Y")` 是 4 个侧面），内核**单面**；② 上游有 **`base_pln` 中性面**（= base face 的 `toPln()`），内核**无该参数** | **2** | 3（原判 B6-4 内核依赖，**撤回**） |
 | **G-C6** | free-function `plane()` 构造器 —— **2026-10-04 B2-5 部分落地**：`plane(w, l)` 已实现（`workplane.ts`，= `face(rect(Workplane('XY'), w, l))`）；`plane()` **无参**的 ±1e60「无限平面」重载**明确不支持、显式报错**（内核无对应原语）。⚠ **manifest `plane` 标签 7 条一条未翻转**——该标签只是「最后一个未实现 op」，每条各自**另需** `replace`(4)/`history`(2)/assembly 命名(1)（r1 镜像已用上 `plane(w,l)`） | **6** | 2 |
-| **G-C7** | `prism` tilt（非法向挤出，1）+ from/to-face（4，见 G-F11） | **5** | 3 |
+| **G-C7** | `prism` —— ⚠ **2026-10-04 晚拆分**：① **`op:prism-tilt`（1 条，`test_prism__res3`）本仓可试**：上游是 `prism(box, None, c, box.face("<Z"), (0,0.1,1), False)`（斜向减材），内核 `extrude(shape, dx, dy, dz)` **本就接受任意方向向量**（`index.d.ts:119-124`，注释明示 `BRepPrimAPI_MakePrism`）⇒ 斜拉伸 + boolean cut 可近似，判据是 `faces == 6+1`；② **`op:prism-from-face`（4 条）确为内核依赖**：`BRepFeat_MakePrism` 的 `thruAll` / from-to 面深度模式，内核无（`extrude.ts:286` 明示）⇒ 留 B5-4 / G-F10 | **5** = 1 可做 + 4 内核 | 3 / 5 |
 | **G-C8** | `solid(...)` 内 void 缝合（4）+ `Solid.addCavity`（3） | **7→0 ✅** | 3 ✅ B2-2（solid 4）+ B2-7（addCavity 3，等价布尔 cut，内核无多 shell `MakeSolid.Add`） |
 | **G-C9** | `sweep` pipeshell / multisection / ~~aux-spine~~ —— **2026-10-04 B2-3b 全量定性**：r6/r8 单轮廓已解锁（**portable**）；r5/r7 + special/arc/normalSweep 共 5 条是**多截面 pipe**（内核无多 `Add` 绑定）→ 移 B6-11；aux-spine 移 B6-10（内核 Auxiliary 模式 ≠ CadQuery `SetMode(aux, CV=True)`） | **0**（+3+5 内核） | 3 |
 | **G-C10** ✅ **已闭（B1-6, 2026-10-03）** | ~~`extrude` 的 `both=`（2）/ `combine="cut"`（1）/ `combine="s"`（2）~~ | ~~**5**~~ **0** | 2 |
@@ -163,16 +199,16 @@
 | **G-C13** | `parametricCurve`（2）+ `parametricSurface`（1） | **3** | 3 |
 | **G-C14** | ~~`cutEach`~~ ✅ **已关 2026-10-03（B1-8）** | **3→0** | 2 |
 | **G-C15** | `hollow`（closed / 带移除面） | **3** | 3 |
-| **G-C16** | `text` spine 重载（3）+ `faceOn`（1） | **4** | 3 |
+| **G-C16** | `text` spine 重载（3）+ `faceOn`（1）—— ⚠ **2026-10-04 晚实测：基础 `text` 已通**。`test_text__{r1..r5,c}` 全是 **ported**（parity 环境字体链路可用）⇒ `op:text-spine`（`r7` 沿曲线排字 / `r8` planar / `r9` projected）**不是字体缺口，只是参数通道未打通**，本仓可做（难度 3）。注：`TestCadQuery::testText__obj1/obj3` 的两条 FAIL（volΔ 8.13 / 13.17）是**另一回事**——`font="Sans"` 走 OCC 系统字体 ≠ 引擎 OpenSans，属既有 class-D 几何不符 | **4** | 3 |
 | **G-C17** ✅ **已关 2026-10-03（B1-7）** | `wedge` 退化顶面（`op:wedge-degenerate-top`）—— `xmin==xmax && zmin==zmax` 时底环 → 顶点 loft（`loftWithVertices`） | **3→0** | — |
 | **G-C18** | `History` 子形状反查（`op.generated/first/last`） | **3** | 3 |
 | **G-C19** | Shape **运算符重载**（`faces(">Z") \| faces("<Z")`）—— ⚠ **2026-10-03 实测订正**：JS 无运算符重载，`.fai.js` 是 JS 子集 ⇒ 需要 core `lang/` 语法层扩展（非本仓单独立项）；且 `test_set_ops` **只断言 `.size()`**（非几何），parity 本就无法验证它 ⇒ **保持 blocked，不写 stub 镜像**（与 `importBin` 的几何锚点 stub 同样处理：不冒充 ported） | **1** | 4（core） |
 | **G-C20** | 零散 free：~~`Solid.makeCone`~~ / ~~`CQ()` 包装~~ / ~~`Workplane.polyline`（陈旧标签）~~（**三项已关 2026-10-03 B1-3a**）/ `Workplane.plugin`（CadQuery 1.x 遗留，`Workplane.plugin` 方法 2.x 已移除；明确不支持，归 §2.3 排除，类 VTK/GLTF）/ free `threePointArc`（待判） | **5→1** | 2 |
-| **G-C21** | IO：`importBrep`（5）/ `importBin`（2）/ `export`（native BREP + STL 变体；**VRML/GLTF/VTK.js 归 §2.3 排除**） | **12** | 2 |
+| **G-C21** | IO：`importBrep`（0 条实际 blocked）/ `importBin`（2）/ `export`（3；**VRML/GLTF/VTK.js 归 §2.3 排除**）—— ⚠ **2026-10-04 晚订正**：B1-1 写的「内核只有 `loadCached`（读）、**没有 BREP 字节写出通道**」**已过时**——`index.d.ts:308/310` 现有 **`toBREPBinary(shape): Uint8Array`** 与 **`fromBREPBinary(data): Uint8Array`**，双向都在。真障碍改为「`.fai.js` 无文件 IO + 无字节字面量通道」（需在 cq 层暴露字符串/数组往返，或内核补一条 base64 形态）。另 `importBrep` 在 manifest 里实测 **0 条**（`test_export` 那条已被 `export` 标签吸收） | **5** | 2→**3** |
 | **G-C22** | `sweep-sketch-sections`（1）+ `extrude-taper-sketch`（1） | **2** | 3 |
 | **G-C23** | `shell`（`op:shell` 2）+ `pendingWires` 多轮廓（1） | **3** | 3 |
-| **G-C24** | `CombinedCenter`（1）/ `filter`（3）/ `matrixOfInertia`（1）/ `cast`（1）/ `largestDimension`（1）/ `consolidateWires` | **8** | 2 |
-| **G-C25** | `eachpoint` **lambda 形态**（对象形态已实现；`.fai.js` 无函数字面量需语法支持）—— **2026-10-03 归并**（plugin 已于 2026-10-04 移出，归 §2.3 排除）：`op:eachpoint`（`testCompoundCenter__s`）、`narrow:cutEach` 的 lambda 形态、`narrow:filter`（`test_special`）**三条同源**——都要「函数字面量」，同属 `.fai.js` 语法扩展长线 | **3** | 4 |
+| **G-C24** | `CombinedCenter`（1）/ `matrixOfInertia`（1）/ `cast`（1）/ `largestDimension`（1）/ `consolidateWires` —— ⚠ **2026-10-04 晚**：`matrixOfInertia` 有内核原语 **`getInertia(shape): number[]`**（`index.d.ts:341`）⇒ 本仓可做；**`filter`（3）已改判为 lambda 语法依赖，从本条移出**（见 G-C25） | **8→5**（filter 3 移出） | 2 |
+| **G-C25** | **`.fai.js` 函数字面量长线**（原「`eachpoint` lambda 形态」）—— **2026-10-04 晚归并扩员**：`op:eachpoint`（`testCompoundCenter__s`）、`narrow:cutEach` 的 lambda 形态、`filter` 的 **`__cf` / `__cs`** 四条同源。⚠ **实证**：上游 `test_shapes.py:398` 是 `c.filter(lambda x: x.Volume() <= 1)`、`:401` 是 `c.sort(lambda x: -x.Volume())`，`Shape.filter` **只有 callable 一个签名** ⇒ 无 lambda 就写不出镜像。**但 `filter` 标签的 3 条要拆**：`test_special__c` = 纯 `compound(box,box,box)` 构造，**不含 lambda**、属**陈旧标签**（写镜像即解锁，1 条）；`__cf` / `__cs` 才是真语法依赖（2 条）。⇒ 本条影响 **1（eachpoint）+ 1（cutEach）+ 2（cf/cs）= 4** | **4** | 4（core `lang/`） |
 | **G-C26** | `narrow:sphere-angles`（3）+ `narrow:chamfer-asym`（1）：参数未打通（faijs 侧，待判定） | **4** | 2 |
 | **G-C27** | **Assembly 子路径导入被自动装载成根包命名空间**（`test_toCompound__assy1` / `__c3`）：镜像 specifier 正确（`@faicad/faijs-cadquery/assembly`），但 core `lang/metadata-extractor.ts:145` 的 `derivePackageName()` **丢掉子路径**（`@faicad/faijs-cadquery/assembly` → `@faicad/faijs-cadquery`）；`runtime.autoLoadLibsFromImports`（`cad-runtime/runtime.ts:1212`）遂 `loadLib(packageName)` 装载**根包** ⇒ 运行时 `cqa.constraint is not a function`（root 不导出 assembly API）。**根因在 core，改 core 需授权**；**非「陈旧 dist」**——`dist/assembly/index.js` 确实导出 `constraint` 且是新鲜产物（B0 期间误判，2026-10-03 实测证伪）。 | **2** | 3 |
 
@@ -188,20 +224,28 @@
 
 #### 类 E · harness / 镜像框架（难度 3–4）
 
+> ⚠ **2026-10-04 晚整类改判（本轮最重要的发现）**：G-E1–E4 共 **21 条**（11+3+2+1… 实测 21 = getfixturevalue 11 / parametrize 3 / raises 5 / `__dir__` 2）此前被当成「要实现 pytest 机制才能解锁」，**这是误判**。
+> **根因**：ref harness 导出的是**变量几何**，不是**断言行为**。证据：
+> ① 现有镜像范式自述——`tests/test_assembly/test_PointInPlane_3_parts__cylinder.fai.js:2-3` 注释：*"the constraint/solve assertions are not STEP-observable; the harness exports the cylinder itself"*；
+> ② `test_save_raises` / `test_duplicate_name` / `test_empty_solve` 三条 `raises` 用例的 ref 条目（实读 `out/ref/manifest.json`）**只有 `nested_assy` 一个变量、vol 3.000000000000001**——就是 fixture 本身，`pytest.raises` 分支**根本没进 ref**；
+> ③ 21 条**全部无镜像**（逐条 `existsSync` 核查：`MIRROR`/`BLOCKED` 标记均为空）⇒ 是空白区，不是「机制缺失」。
+> **结论**：这 21 条里不需要文件 IO / XCAF 反射的部分，等价于「把 fixture 源码内联进 `.fai.js`」，**零框架改动**。真正需要新机制的是 `pytest.raises` 断言本身——而它**不产生 ref**，所以永远不需要实现。
+
 | ID | 缺口 | 影响 | 难度 |
 |---|---|---|---|
-| **G-E1** | `getfixturevalue`（pytest fixture 反射） | **11** | 4 |
-| **G-E2** | `parametrize` | **3** | 3 |
-| **G-E3** | `__dir__`（反射式用例） | **2** | 3 |
+| **G-E1** | `getfixturevalue`（pytest fixture 反射）—— **改判：内联 fixture 写镜像即可**（`request.getfixturevalue(name)` 的 name 指向 `test_assembly.py` 顶部的 `@pytest.fixture`，如 `simple_assy`/`nested_assy`/`boxes8_assy`/`subshape_assy`）。**例外**：`test_assembly_step_import_roundtrip__{assy_orig,assy}` 与 `test_step_export_loc__o` 需 export→importStep **往返**，`.fai.js` 无文件 IO ⇒ 需 cq 层内存往返通道（`exportStep` 字符串 → `importStep`，内核两者都有） | **11**（其中 3 条需往返通道） | **2**（原判 4） |
+| **G-E2** | `parametrize` —— **改判**：`test_save`/`test_export` 的 `nested_assy`、`test_PointInPlane_param` 的 `box_and_vertex` 都是 parametrize 的**某一组实参**，镜像写死该组即可（parametrize 只是展开器） | **3** | **2**（原判 3） |
+| **G-E3** | `__dir__`（反射式用例）—— `test_special_methods` / `test_subshape_access` 的 ref 只有 `subshape_assy`（vol 1196.35）⇒ **内联 fixture 即解锁**，`__dir__` 断言不进 ref | **2** | **2**（原判 3） |
 | **G-E4** | `fixture` 机制 | **1** | 4 |
-| **G-E5** | `pending:mirror` 残量 + 镜像框架 `compare-targeted` 对 compound 的读取（双终端残留已由 **B0-6 收口**：畸形产物 0 + 守卫测试） | **2** | 2 |
+| **G-E5** | `pending:mirror` 残量 ✅ **已归零**（`3d6640ab`）；镜像框架 `compare-targeted` 对 compound 的读取（双终端残留已由 **B0-6 收口**：畸形产物 0 + 守卫测试） | **0** | 2 |
+| **G-E6** 🆕 | `raises`（5）—— **改判**：ref 只捕获 fixture 变量（见上方 ②）⇒ **写 fixture 镜像即可解锁，错误路径断言永不进 parity**。含 `test_save_raises` / `test_duplicate_name` / `test_empty_solve`（均 `nested_assy`）、`test_constraint_validation` / `test_single_unary_constraint`（均 `simple_assy2`） | **5** | **2** |
 
 #### 类 F · 内核依赖（需先扩 occt-wasm 绑定；难度 5，但**都是项目**）
 
 | ID | 缺口 | 影响 | 需补的绑定 |
 |---|---|---|---|
 | **G-F1** | `shell` 外向开口（2）+ shell 交并（1） | 3 | `MakeThickSolidByJoin` intersection-join offset |
-| **G-F2** | `draft` 既有实体拔模 | 2 | `BRepOffsetAPI_DraftAngle` 对已有 solid |
+| ~~**G-F2**~~ | ~~`draft` 既有实体拔模~~ ⚠ **2026-10-04 晚撤回**：内核**已有** `draft(shape, face, angleRad, direction)`（`index.d.ts:156`），本仓可试 ⇒ 从内核依赖移回 **G-C5 / B2**。残留语义差（多面一次 Build、中性面 `base_pln`）需在 parity 里判，不是绑定缺口 | ~~2~~ **0** | ~~`BRepOffsetAPI_DraftAngle` 对已有 solid~~ 已有 |
 | **G-F3** | `loft` 共面截面 | 1 | `BRepOffsetAPI_ThruSections` 参数（C2/一致性检查） |
 | **G-F4** | 近重合 B-spline 布尔（扭曲体 cut/union；**+ circletorectSweep 多截面 sweep 的直纹/平滑过渡面**） | **4** | 布尔容差通道 / 稳健化 |
 | **G-F5** | 高椭圆（major<minor 拒绝） | 1 | `gp_Elips` 参数构造 / 轴重定向 |
@@ -212,6 +256,8 @@
 | **G-F10** | `prism` from/to-face | 4 | `BRepFeat_MakePrism`（~80 行绑定） |
 | **G-F11** | `chamfer` **非对称双距离**（`narrow:chamfer-asym`，`testChamferAsymmetrical__cube`）—— 2026-10-03 实测定性：上游走 `BRepFilletAPI_MakeChamfer.Add(d1, d2, edge, face)`（`occ_impl/shapes.py:4011-4022`，逐 edge 配 edge→face 映射表），occt-wasm 只暴露 `chamfer(distance)` 与 `chamferDistAngle(distance, angleDeg)`，**没有双距离通道** ⇒ 属内核绑定缺口，不是 faijs 侧参数没打通 | 1 | `BRepFilletAPI_MakeChamfer::Add(d1,d2,E,F)` + edge→face map |
 | **G-F12** | **多截面 pipe shell**（`kernel:sweep-multisection-pipe`）—— 2026-10-04 B2-3b 定性：上游 `Solid.sweep_multi`（`occ_impl/shapes.py:4682`）建**一个** `BRepOffsetAPI_MakePipeShell(spine)` 后**每截面 `Add(section, False, False)` 一次**；occt-wasm 只暴露**单轮廓**包装 `sweepPipeShell(profile, spine, freenet?, smooth?)`（`index.d.ts:169`），无多 `Add` 绑定（`sweepWithLaw` 是轮廓缩放另一机制，`loft` 不跟随 spine）。实测 loft / 单轮廓 / per-section-fuse 三种近似全不符（见 §1 B2-3b 注） | **5** | 暴露多截面 `Add`（`BRepOffsetAPI_MakePipeShell::Add` × N + `Build`/`MakeSolid`） |
+| **G-F13** 🆕 | **`interpPlate`**（5 条，`G-C2` 于 2026-10-04 晚移入）—— 上游 `Face.makeNSidedSurface(edges, pts, degree, nbPtsOnCur, nbIter, anisotropy, tol2d/3d/Ang/Curv, maxDeg, maxSegments)`（`cq.py:3878-3945`），底层是 OCCT **`BRepFill_Filling` / `BRepOffsetAPI_MakeFilling`**（N 边域面填充）。内核方法面**无** filling 类原语；已有 `bsplineSurface(controlPoints, rows, cols)` 是**控制点近似**、非**过点插值**，语义不同不可冒充 | **5** | `BRepOffsetAPI_MakeFilling`（或 `BRepFill_Filling`）+ N 边约束构造 |
+| **G-F14** 🆕 | **`remove`（5）的 `BRepTools_ReShape`**（`G-C3`）—— 上游 `Shape.remove(*subshape)` = `BRepTools_ReShape.Remove` 后 `Apply`（`occ_impl/shapes.py:1892`），内核**无** `ReShape`。**近似通道**：内核有 `defeature(shape, faces, tolerance)`（`index.d.ts:452`，`BRepAlgoAPI_Defeaturation`，移除面**并填补**）⇒ 与「删除子形不填补」语义不同，**必须 parity 判**；不通过就只能等 `ReShape` 绑定 | **5** | `BRepTools_ReShape`（`Remove` / `Replace` / `Apply`） |
 
 #### 类 G · ref 侧异常（**不是 faijs 缺口**，但需重新推导镜像）
 
@@ -282,7 +328,7 @@
 
 | 序 | 项 | 影响 | 动作要点 |
 |---|---|---|---|
-| **B1-1** ⚠ **2026-10-03 二次订正（无 ref ⇒ 不进 parity）** | ~~**G-C21 IO 通道**~~：① `out/ref/` 里**没有** `test_bin_import_export` 的参考 STEP（实测 `ls out/ref \| grep -i bin_import` = 0 条）⇒ 这 2 条**永远无法配对**，补镜像也不产生 parity 信号；② 真阻塞是内核只暴露 `loadCached(brepString)`（读）而**没有 BREP 字节写出通道**（occt-wasm 只 `exportStep`/`exportStl`），且 `.fai.js` 无文件 IO ⇒ 端到端 importBin 需要内核补「写出」绑定；③ `importBrep` 标签实测 0、`export` 5 条归 B5/§2.3（同前）⇒ **净收益 0，本项降为「内核依赖 + 无 ref」，从 B1 移出**（保留 `importBin` 标签） | **2→0（不进 parity）** | 内核 `BRepTools` 写出绑定 |
+| **B1-1** ⚠⚠ **2026-10-04 晚二次订正（前两次判定均错，以本节为准）** | **G-C21 `importBin`（2）** —— ① **`out/ref/` 里确实有** ref：`tests.test_shapes___test_bin_import_export__{b,r}.step` 两条都在（`out/ref/manifest.json` 实读：b/r 均 `type: Solid`、**vol 0.9999999999999998 完全相同**）；旧记「`ls out/ref \| grep -i bin_import` = 0 条」**不成立**（§1.1 交叉亦证 blocked 136/136 全有 ref）。② **内核通道已在**：`index.d.ts:308/310` 有 `toBREPBinary(shape): Uint8Array` / `fromBREPBinary(data)`，旧记「只有 `loadCached`（读）、没有写出通道」**亦过时**。③ **真障碍只剩** `.fai.js` 无文件 IO / 无字节字面量通道。④ ⚠ **语义陷阱**：ref 的 `b`（原始）与 `r`（往返后）**体积逐位相同** ⇒ 写「两个同形 box」就能 PASS，但**完全不验证往返**。按 G-C19 同一原则（**不冒充 ported**），处置待定：要么 (a) 保持 blocked 等真通道，要么 (b) 补镜像并在 manifest `reason` 写明 `pass-nt:no-roundtrip-channel`。**本轮不擅自选** | **2** | cq 层暴露内存往返（`exportStep` 字符串 → `importStep`） |
 | **B1-2** | **G-C24 零散值面**（filter 3 / CombinedCenter 1 / matrixOfInertia 1 / cast 1 / largestDimension 1 / consolidateWires） | 8 | 多为 Shape 域小函数 + Workplane 镜像 |
 | **B1-3** ✅ **B1-3a 已完成 2026-10-03** | **G-C20 零散 free**（Solid.makeCone / CQ / Workplane.plugin / free threePointArc / free polyline）—— **B1-3a**：① `solidMakeCone(radius1, radius2, height)`（走内核 `makeCone`，因 core `cad.cone` 断言 `radiusBottom>0`、拒绝上游允许的「底半径=0」；`radius1` 是**底**半径，ref 质心 z=1.5 是判据）+ ② `CQ`（上游 `CQ = Workplane` 别名，`cq.py:4565`，`CQ(s)` = 以 s 为栈的 XY workplane，`parent=null`）⇒ `testCone__s` / `__t` 双 PASS；③ `op:polyline` 是**陈旧标签**（`Workplane.polyline` 早已存在，缺的是镜像）⇒ 补 `testIbeam__res`，**PASS-NT**（几何逐位一致 vol 5800 / 布尔差 0，镜像轴上有未愈合接缝：cand f15/e39/v26 vs ref f14/e36/v24）；④ `op:threePointArc` **同为陈旧标签** ⇒ 补 `testBoundingBox__result`（25 步摊平链），**PASS**（vol 13234.9225135，topo f26/e72/v48 全中）；⑤ `op:findSolid` **亦是陈旧标签**（P3 起已导出）⇒ 补 `testFindSolid__s`，**PASS**（两未合立方体的 compound，vol 2 / f12/e24/v16/s2）。7 单测 + 3 变异全绿。**剩余 1 项**：free `threePointArc`（待判）；`Workplane.plugin` 明确不支持、已归 §2.3 排除（类 VTK/GLTF），非未来缺口 | 5→**1** | 自由函数构造器 + 类式包装 |
 | **B1-4** | **G-C3 remove** ⚠ **内核依赖**：上游 `Shape.remove` 用 `BRepTools_ReShape`（faijs 内核未暴露）⇒ 移 **B6**（或用 `getSubShapes + sew/compound` 近似后跑 parity；`test_remove` 需 `innerShells()`） | 5 | 见 B6 |
@@ -307,15 +353,17 @@
 | **B2-1** | **G-C1 imprint** ✅ | 12→6 | 已落地 2026-10-04：`fuseAll` 实现 free-function `imprint`，6 变量镜像全 PASS；剩 4 条 assembly-imprint（B5）+ 2 条 `history:images`（G-C18） |
 | **B2-2** | **G-C8 solid voids** ✅ | 7→0 | 已落地 2026-10-04：`solid()` + `solidWithInner()` 实现 free-function solid（sew + boolean cut 内 void），12 变量镜像全 PASS（B2-2）；`addCavity` 3 条由 **B2-7** 收官（等价布尔 cut，ref vol 7 / f12 / 2 shells 逐位复现） |
 | **B2-3** | **G-C9 sweep 族**（pipeshell 4 / multisection 3 / aux-spine 3） —— ✅ **2026-10-04 B2-3b 收官：本仓可做项已清零**。① **r6 / r8 解锁**（单轮廓路径已够：r8 = `sweep(rect, spline)`；r6 = 上游 `Solid.sweep(face)` 的展开 `sweep(outer) cut sweep(inner)`，均 1e-12 级相符）；② **r5 / r7 / special / arc / normalSweep（5 条）改判内核依赖 B6-11**（多截面 pipe 无多 `Add` 绑定，实测 loft/单轮廓/per-section 三种近似全不符）；③ **circletorectSweep 按近重合布尔约定改判**（cand 几何精确到 1.13e-5，comparator 布尔退化）；④ aux-spine 已于 B2-3a 改判 B6-10（`sweep(auxSpine=…)` 现显式报错，`normal=` 已实现并单测锁定） | 10 → **0** | — |
-| **B2-4** | **G-C2 interpPlate** | 5 | 插值板（点云 → 曲面片） |
+| ~~**B2-4**~~ ⚠ **2026-10-04 晚改判：移 B6-13** | ~~**G-C2 interpPlate**（插值板）~~ —— 上游是 `Face.makeNSidedSurface`（OCCT `BRepFill_Filling` / `BRepOffsetAPI_MakeFilling` 的 N 边域面填充），内核方法面**无** filling 类原语 ⇒ **不是「内核已有原语、需新组合」，是真内核依赖**。见 **G-F13** | **5** | 内核 `BRepOffsetAPI_MakeFilling` |
 | **B2-5** ✅ **已完成 2026-10-04** | **G-C12 offset**（~~offset2D multi-region 1~~ / ~~shape.offset 4~~）—— free-function `offset(s, t, {cap, both, tol})` 已实现（`workplane.ts`）：对栈上每个 **Face/Shell** 调内核 `thicken(h, t, tol)`；`opts.both` = `fuse(thicken(+t), thicken(−t))`；多元素包 `makeCompound`；`cap:false` 与「非 Face/Shell」显式报错。**关键实证（推翻 §7 旧记）**：内核 `thicken` 与上游 `Shape.offset(t)` **逐位等价** —— `plane(1,1)` vol 1 / `box.shells()` −0.25 → vol 0.875(f12) / `both` → vol 2(f10) / `moved` compound → vol 4(f20)，四条 ref 全复现。顺带补 free **`plane(w,l)`**（G-C6 部分落地，r1 的前置）。4 条镜像 `test_offset__r{1,2,3,4}` 全 **PASS**（volΔ ≤2.22e-14、comΔ ≤8.24e-18、bboxΔ 0、布尔 0/0）+ 7 单测 + 2 变异全绿。**剩 `offset2D` multi-region 1 条**（需 `MakeOffset2D` 多区域分裂语义，本批未做） | 5→**1** | ~~`MakeOffset2D` 多区域分裂语义 + `BRepOffset_MakeOffset`~~ **实际只需内核 `thicken`**（offset2D 残条才需 `MakeOffset2D`） |
 | **B2-6** | **G-C11 until-face 族**（extrude 4 / cutBlind 3 / 索引选择器） | 7 | `extrude("next"/"last")` + `faces(">X[1]")` 索引；**G-G1 的 ref 异常需重新推导** |
 | **B2-7** | **G-C23 shell / pendingWires** | 3 | `shell` 带移除面 + 多轮廓 pendingWires（上游构造 rect 内孔 = 10 面） |
-| **B2-8** | **G-C5 draft + G-C4 project + G-C18 History** | 6 | draft 既有实体 / 边→面投影 / History 子形状反查 |
+| **B2-8** | **G-C5 draft + G-C4 project + G-C18 History** —— ⚠ **2026-10-04 晚**：`draft` **从内核依赖撤回本批**（内核已有 `draft(shape, face, angleRad, direction)`，见 G-C5 / G-F2 撤回注）；`project` 卡 `text`（见 next-op-unlock §9.3）；`History` 仍是 G-C18 | 6 | draft 既有实体（多面一次 Build + 中性面 `base_pln` 待 parity 判）/ 边→面投影 / History 子形状反查 |
 | **B2-9** | **G-C13 parametricCurve / parametricSurface** | 3 | 参数曲线/曲面构造 |
-| **B2-10** | **G-C16 text-spine + faceOn** | 4 | 沿 spine 排字 + 球面刻字 |
+| **B2-10** | **G-C16 text-spine + faceOn** —— ⚠ **2026-10-04 晚**：基础 `text` 已 ported（`test_text__{r1..r5,c}`）⇒ `op:text-spine`（r7/r8/r9）**只是参数通道**，本仓可做（见 G-C16） | 4 | 沿 spine 排字 + 球面刻字 |
 | **B2-11** | **G-C15 hollow + G-C22 sweep-sketch-sections / extrude-taper-sketch** | 5 | hollow 闭合/带移除面；sketch 截面 sweep（xDir 全帧） |
 | **B2-12** | **G-C7 prism tilt**（from-face 见 B5/内核） | 1 | 非法向方向挤出 |
+| **B2-13** 🆕 | **G-C24 零散值面**：`matrixOfInertia`（内核 `getInertia` 已有）/ `CombinedCenter` / `cast` / `largestDimension` / `consolidateWires`；**`filter` 已拆出**（`__c` 是纯 compound ⇒ B2-14；`__cf`/`__cs` 是 lambda ⇒ G-C25 长线） | **5→4** | Shape 域小函数 + 镜像 |
+| **B2-14** 🆕 | **`filter` 陈旧标签 `test_special__c`**（纯 `compound(box,box,box)`，不含 lambda） | **1** | 写镜像即解锁 |
 
 > **每项开工前先一次性 Python 捕获**（§7）：`imprint`/`sweep`/`offset` 的语义细节极易凭印象写错（P3 三次踩中）。
 
@@ -341,10 +389,10 @@
 
 | 序 | 项 | 影响 | 动作要点 |
 |---|---|---|---|
-| **B4-1** | **G-E2 parametrize** | 3 | 镜像框架支持参数化用例展开 |
-| **B4-2** | **G-E3 `__dir__`** | 2 | 反射式用例 |
-| **B4-3** | **G-D4 `raises`** | 5 | harness 支持 `pytest.raises` 错误路径断言（spy `console.*` 满足 stderr 零容忍） |
-| **B4-4** | **G-E1 getfixturevalue** | 11 | pytest fixture 反射（杠杆最高） |
+| **B4-1** | **G-E2 parametrize** —— ⚠ **改判**：parametrize 只是**实参展开器**，镜像写死某一组实参即可 ⇒ 无需框架改动 | 3 | ~~镜像框架支持参数化用例展开~~ **不需要** |
+| **B4-2** | **G-E3 `__dir__`** —— ⚠ **改判**：ref 只有 `subshape_assy`（vol 1196.35），`__dir__` 断言不进 ref ⇒ 内联 fixture 即解锁 | 2 | ~~反射式用例~~ **不需要** |
+| **B4-3** | ~~**G-D4 `raises`**~~ ⚠ **改判为 G-E6：不需要实现** —— ref 只捕获 fixture 变量（三条 `raises` 用例的 ref 都是 `nested_assy` vol 3.0）⇒ `pytest.raises` **永不进 parity**，实现它零收益 | ~~5~~ **0（改判）** | 见 G-E6 |
+| **B4-4** | **G-E1 getfixturevalue**（杠杆最高）—— ⚠ **改判**：主体是「内联 fixture 写镜像」（难度 2）；**仅** 3 条（`test_assembly_step_import_roundtrip__{assy_orig,assy}` + `test_step_export_loc__o`）需 export→importStep **内存往返通道**，这才是框架/harness 活 | 11 | 内联 fixture（8 条）+ 往返通道（3 条） |
 | **B4-5** | **G-E4 fixture** | 1 | fixture 机制 |
 | **B4-6** | **G-E5 镜像框架残留** | 2 | compound 读取 / targeted（双终端已随 B0-6 收口） |
 
@@ -370,7 +418,7 @@
 | **B6-1** | **G-F7 fillet-chain-reapply** | 9 | fillet 接受 fillet 产出（TopoDS::Solid 接受面） |
 | **B6-2** | **G-F1 + G-F9 shell/offset intersection-join** | 5 | `MakeThickSolidByJoin` intersection-join offset |
 | **B6-3** | **G-F4 boolean-near-coincident-bspline** | 3 | 布尔容差/稳健化 |
-| **B6-4** | **G-F2 draft-existing-solid** | 2 | `BRepOffsetAPI_DraftAngle` 对已有 solid |
+| ~~**B6-4**~~ ⚠ **2026-10-04 晚撤回** | ~~**G-F2 draft-existing-solid**~~ —— 内核**已有** `draft(shape, face, angleRad, direction)`（`index.d.ts:156`）⇒ 不是绑定缺口，移回 **G-C5 / B2-8** | ~~2~~ **0** | ~~`BRepOffsetAPI_DraftAngle` 对已有 solid~~ 已存在 |
 | **B6-5** | **G-F5 ellipse-tall-axis** | 1 | `gp_Elips` 参数构造 |
 | **B6-6** | **G-F3 loft-coplanar-sections** | 1 | `ThruSections` 参数 |
 | **B6-7** | **G-F8 step-export-wire-fidelity** | 1 | STEP writer 保真 |
@@ -378,6 +426,10 @@
 | **B6-9** | **G-F11 chamfer 双距离**（`narrow:chamfer-asym`）—— 2026-10-03 从 B1-10 移入（定性见 G-F11） | 1 | `BRepFilletAPI_MakeChamfer::Add(d1,d2,E,F)` + edge→face map |
 | **B6-10** | **sweep 辅脊（`kernel:sweep-aux-spine-mode`）** —— 2026-10-04 从 B2-3 移入：CadQuery 用 `BRepOffsetAPI_MakePipeShell::SetMode(aux, CurvilinearEquivalence=True)`（`occ_impl/shapes.py:4587`），而 `sweepOriented(mode=Auxiliary)` 不等价（实测 17759.16 vs ref 20218.35；OCP 的 CV=False 20500.44 / default 20500.46 / Frenet 19295.97 均不符）。`sweep(auxSpine=…)` 已改显式报错。 | 3 | 在辅助脊模式下暴露 `CurvilinearEquivalence` 标志（或按 OCCT 语义重写该模式） |
 | **B6-11** | **多截面 pipe shell（`kernel:sweep-multisection-pipe`）** —— 2026-10-04 从 B2-3 移入（B2-3b）：`r5` / `r7` / `TestCadQuery::testMultisectionSweep__{specialSweep,arcSweep,normalSweep}`。上游 `Solid.sweep_multi`（`occ_impl/shapes.py:4682`）与 free `sweep(sections, path)` 都建**一个** `BRepOffsetAPI_MakePipeShell(spine)` 然后每截面 `Add(section, False, False)` 一次（后者见 `shapes.py:7127`+`7249`）。occt-wasm 只暴露单轮廓 `sweepPipeShell(profile, spine, freenet?, smooth?)`（`index.d.ts:169`）⇒ **无多 `Add` 绑定**。实测三种近似全不符：specialSweep loft[c@-10,c@0,r@10] 65.73（Δ5.3%）/ 单轮廓 62.83（Δ0.65%，且 3 face vs ref 7）/ sweep(rect) 80.00（Δ28%）；r5 单轮廓 vol 对得上（Δ8.8e-6）但 **bb z[-0.008,1.400] vs ref [0,1]**（单轮廓端盖垂直于 spine，多截面在给定截面平面封盖 ⇒ 不同实体）。arcSweep（弧脊）与 r7（两不同截面）连 loft 都无法近似。**内核依赖、本仓不做绕行**：`sweep(multisection=…)` 现状是 per-section pipeShell + fuse 的近似，仅在「同形截面 + 直线脊」时等价（那 3 条已用 loft 镜像精确命中）。 | 5 | 暴露多截面 `Add`（`BRepOffsetAPI_MakePipeShell`：N×`Add` + `Build` + `MakeSolid`） |
+
+| **B6-12** 🆕 | **`interpPlate`（G-F13）** —— 2026-10-04 晚从 B2-4 移入：上游 `Face.makeNSidedSurface`（`cq.py:3878-3945`）= OCCT `BRepFill_Filling` / `BRepOffsetAPI_MakeFilling` 的 N 边域面填充（过点插值 + 厚度）。内核方法面无 filling 原语；`bsplineSurface` 是控制点近似、语义不同，不可冒充 | **5** | `BRepOffsetAPI_MakeFilling` + N 边约束 |
+| **B6-13** 🆕 | **`remove` 的 `BRepTools_ReShape`（G-F14）** —— 2026-10-04 晚定性：上游 `Shape.remove(*subshape)` = `ReShape.Remove` + `Apply`（`occ_impl/shapes.py:1892`），内核无。`defeature`（移除面**并填补**）是**近似**通道，先 parity 判；不过则等 `ReShape` | **5** | `BRepTools_ReShape`（`Remove`/`Replace`/`Apply`） |
+| **B6-14** 🆕 | **BREP 字节通道进 `.fai.js`**（G-C21 / B1-1）—— 内核 `toBREPBinary`/`fromBREPBinary` **已存在**（`index.d.ts:308/310`），缺的是 `.fai.js` 侧的字节/字符串字面量通道（或 cq 层内存往返）。**前置决策**：先定 `importBin` 2 条要不要「不验证往返」的镜像（B1-1 ④） | **2** | cq 层 `exportStep`→`importStep` 内存往返 |
 
 > 内核跟踪文档：`docs/analysis/2026-09-29-occt-wasm-gap-plan.md`（§10.1 fillet-chain / §10.4 prism-from-face）。**本表逐项对应过去，不再是「已定性、不排期」。**
 
@@ -472,3 +524,74 @@ node_modules/vitest/vitest.mjs run   # 在 packages/faijs-cadquery 下
   - `docs/plans/2026-10-03-cadquery-object-stack-p3-plan.md` —— P3 五批（已完成，本文体例来源）
   - `docs/analysis/2026-09-29-occt-wasm-gap-plan.md` —— §10.1 fillet-chain / §10.4 prism-from-face（B6 逐项对应）
   - `packages/faijs-cadquery/tests/coverage.json` / `manifest.json` / `mark-blocked.ts` —— §1 计数、§2.2 明细
+
+---
+
+## 10. 2026-10-04 晚调研：缺口重分级（**本轮结论入口**）
+
+> 起因：next-op-unlock §9 报告「`hollow`/`prism`/`project` 的薄包装前提全部落空、quick-win backlog 已空」。本轮不做实现，**只做全量重分级**：把 136 条 blocked 逐条对上「内核能力面」与「上游源码」，给出新的可执行序列。
+> 方法：全部是只读取证（manifest/coverage/ref manifest 交叉 + `node_modules/occt-wasm/dist/index.d.ts` 全量方法面 + 上游 `cadquery/` 源码 + `out/cache/v2.8.0/tests/`）。
+
+### 10.1 复现命令
+
+```bash
+# ① blocked × 有 ref STEP 交叉（结论：136/136 全有 ref；skipped 只 8/55 有 ⇒ 判别有区分度）
+node -e "const m=require('./tests/manifest.json'),rm=require('./out/ref/manifest.json');
+const w=new Map();for(const[c,es]of Object.entries(rm))for(const e of es)if(e.file){w.has(c)||w.set(c,new Set());w.get(c).add(e.var)}
+let tot=0,has=0;for(const[k,v]of Object.entries(m)){if(v.status!=='blocked')continue;tot++;
+const s=v.source;if(w.has(s)&&w.get(s).has(k.slice(s.length+2)))has++}console.log(tot,has)"
+
+# ② 内核能力面（判定「是否内核依赖」的唯一依据）
+grep -n "^    [a-zA-Z_][a-zA-Z0-9_]*(" node_modules/occt-wasm/dist/index.d.ts
+
+# ③ 上游语义（OCP 侧；Git Bash 的 python 无 OCP，必须用 cadquery-env 解释器）
+cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|def draft\|def remove\|def interpPlate" --include=*.py .
+```
+
+### 10.2 七条实证订正（**推翻此前的错误判定**）
+
+| # | 项 | 旧判定 | 本轮实测 | 证据 |
+|---|---|---|---|---|
+| 1 | **draft（2）** | 内核依赖 B6-4 | **本仓可试** | 内核 `index.d.ts:156` 已有 `draft(shape, face, angleRad, direction)`；上游 `occ_impl/shapes.py:7794/7826` 用 `BRepOffsetAPI_DraftAngle`。残留差：上游**多面一次 Build**（`test_draft` 的 `face("\|X or \|Y")` = 4 面）、有 **`base_pln` 中性面**；内核单面、无该参数 |
+| 2 | **prism（5）** | 全内核依赖 | **拆：1 可做 + 4 内核** | `op:prism-tilt`（`test_prism__res3`）用内核 `extrude(shape,dx,dy,dz)` 方向向量（`index.d.ts:119-124`，注释明示 `BRepPrimAPI_MakePrism`）+ 布尔即可；`op:prism-from-face`（4）才是 `BRepFeat_MakePrism` 的 thruAll/from-to，内核无 |
+| 3 | **text-spine（3）** | 卡字体缺口 | **只是参数通道** | `test_text__{r1..r5,c}` 全部 **ported** ⇒ parity 环境字体链路可用；r7/r8/r9 是沿曲线排字的重载未打通 |
+| 4 | **interpPlate（5）** | 「内核已有原语、需新组合」难度 3 | **真内核依赖，难度 5** | 上游 `Face.makeNSidedSurface`（`cq.py:3878-3945`）= OCCT `BRepFill_Filling`/`BRepOffsetAPI_MakeFilling`；内核方法面**无 filling**。`bsplineSurface` 是控制点近似、非过点插值，不可冒充 |
+| 5 | **filter（3）** | op 缺口 | **拆：1 陈旧 + 2 语法长线** | 上游 `test_shapes.py:398/401` 是 `c.filter(lambda …)` / `c.sort(lambda …)`，`Shape.filter` 只有 callable 签名。`test_special__c` = 纯 `compound(box,box,box)` **不含 lambda** ⇒ 写镜像即解锁；`__cf`/`__cs` 归 G-C25 |
+| 6 | **importBin（2）** | 「无 ref + 内核无写出通道 ⇒ 净收益 0」 | **两处都错** | ref 两条都在（`tests.test_shapes___test_bin_import_export__{b,r}.step`，vol 均 0.9999999999999998）；内核 `index.d.ts:308/310` 有 `toBREPBinary`/`fromBREPBinary`。真障碍只剩 `.fai.js` 无字节通道 |
+| 7 | **harness 类（21）** | 需实现 pytest 机制（难度 3–4） | **主体 = 内联 fixture 写镜像（难度 2）** | ① 现有镜像自述：`tests/test_assembly/test_PointInPlane_3_parts__cylinder.fai.js:2-3` *"assertions are not STEP-observable; the harness exports the cylinder itself"*；② 三条 `raises` 用例的 ref **只有 `nested_assy`、vol 3.0**（错误分支根本没进 ref）；③ 21 条**全部无镜像**（逐条 `existsSync` 核查为空） |
+
+> **第 7 条是本轮最重要的结论**：ref harness 导出的是**变量几何**，不是**断言行为**。所以 `pytest.raises` / `getfixturevalue` / `parametrize` / `__dir__` **永远不需要实现**——它们都不产生 ref。此前把它们当成「harness 增强项目」（B4，难度 3–4）是**方向性误判**。
+
+### 10.3 136 条的四分类（按本轮口径粗分）
+
+| 类 | 条数 | 内容 | 归属 |
+|---|---|---|---|
+| **A · 写镜像即解锁（零新几何 / 零框架改动）** | **21** | getfixturevalue 11 / raises 5 / parametrize 3 / `__dir__` 2（其中 3 条需 export→importStep 内存往返通道） | 新增 **N1** |
+| **B · 本仓可做（需新几何或参数通道）** | **62** | text-spine 3 / draft 2 / prism-tilt 1 / until-face 7 / shell+pendingWires 3 / history-subshape 3 / project 3 / export 3 / importBin 2 / 零散值面 + 其余待逐项定性 | B2 / B4 |
+| **C · `.fai.js` 语法长线（core `lang/`）** | **5** | filter 的 `__cf`/`__cs`(2) + `op:shape-operator-overload`(1) + `eachpoint`(1) + `narrow:cutEach` lambda(1) | G-C25 / G-C19 |
+| **D · 内核依赖** | **48** | `op:assembly-solve` 14（子系统）/ `kernel:fillet-chain-reapply` 9 / `op:fuzzy-bool` 5 / `kernel:sweep-multisection-pipe` 5 / `remove` 5 / interpPlate 5 / 近重合布尔 4 / prism-from-face 4 / `op:assembly-subshape-import` 4 / sweep-aux-spine 3 / `narrow:sphere-angles` 3 等 | B5 / B6 |
+
+> B 组 62 是「未逐项定性」的余量，**不是「都容易」**；只有下表的 N1–N4 是本轮已取证、可直接开工的。
+
+### 10.4 下一步推荐序列（**建议执行顺序**）
+
+按「已取证程度 × 条数 ÷ 风险」排序。**一次只做一个**，每步独立提交、独立回归（§6 配方照搬 next-op-unlock §6）。
+
+| 序 | 项 | 条数 | 为什么排这个位置 | 前置 / 风险 |
+|---|---|---|---|---|
+| **N1** | **harness A 组：内联 fixture 镜像** —— 先做**不含往返**的 18 条（`test_assy_root_name`、`test_leaf_node_count`、三条 raises 的 `nested_assy`、`test_colors_assy{0,1}` 的 `assy`、`test_colors_fused_assy`、`test_PointInPlane_param__box_and_vertex`、`test_constraint_validation`/`test_single_unary_constraint` 的 `simple_assy2`、`test_special_methods`/`test_subshape_access` 的 `subshape_assy`） | **18** | 零新几何、零框架改动、条数最多；全部有 ref；镜像先例已有 87 条（assembly 子路径装载正常） | 需逐条读 `test_assembly.py` 的 `@pytest.fixture` 源码内联；**注意 §B0-6 双终端纪律**（裸 Shape 内联、禁嵌套 `await`） |
+| **N2** | **`filter` 陈旧标签 `test_special__c`** | **1** | 纯 `compound(box,box,box)`，一行镜像 | 无 |
+| **N3** | **`text-spine`（r7/r8/r9）** | **3** | 基础 `text` 已 ported ⇒ 只补沿曲线排字的参数通道 | 需先一次性 Python 捕获字符沿 spine 的放置语义（§7 纪律） |
+| **N4** | **`draft`（res1/res2）** | **2** | 内核原语已在，只差多面循环 + 中性面语义 | **风险中等**：`test_draft` 的 `fside` 是 4 个侧面，内核 `draft` 单面；若「多次单面 Build」≠「一次多面 Build」，则回退 B6-4 并写明理由 |
+
+**N1 之后再看的两项**（需先决策或更长）：
+- **往返通道**（3 条：`test_assembly_step_import_roundtrip__{assy_orig,assy}` + `test_step_export_loc__o`）：先在 cq 层打通 `exportStep` 字符串 → `importStep` 的内存往返（内核两侧都有），再写镜像。
+- **`importBin`（2）**：先拍板 B1-1 ④ 的处置（**保持 blocked** vs **镜像 + `reason` 标注 `pass-nt:no-roundtrip-channel`**），因为 ref 的 b/r 体积相同，写同形 box 就能 PASS 但**不验证往返**。
+
+### 10.5 待决策 / 未解决（如实列出）
+
+1. **`importBin` 的处置**（B1-1 ④）：两个选项各有代价，本轮**不擅自选**——写镜像会制造「假 PASS」（comparator 只看几何，与 `testTwistExtrudeCombine__r` 的假 FAIL 同源）。
+2. **`op:fuzzy-bool`（5）/ `kernel:fillet-chain-reapply`（9）/ `op:assembly-solve`（14）** 本轮**未取证**（未读源码/未 probe），仍按 B6 / B5 排期——它们是 D 组里条数最多的三项，合计 28 条，值得单独立项调研。
+3. **`project`（3）** 仍卡 `text`：只有先做完 **N3** 才能回头判它是否真解锁。
+4. **`remove`（5）** 的 `defeature` 近似**未验证**：本轮只读到内核有 `defeature`，没跑 parity，不能当结论用。
+5. **`plane`（2）/ `export`（3）/ `history:images`（2）/ `importBin`** 等窄语义项未逐条定性，仍在 B 组 62 条余量里。

@@ -102,8 +102,20 @@
 ## 10. 修正后的结论与下一步建议
 
 - **quick-win backlog 已空**：原 §5 的 P1–P3「薄包装解锁」前提全部落空。剩余真实缺口是**内核级**（`prism` → `BRepFeat_MakePrism`）或**与其他缺口纠缠**（`project` → `text`），均非单 op 薄包装。
-- 真正可独立推进的方向（需另行规划，超出本计划「加一行导出」量级，每个都是正式任务）：
-  1. **内核加 `makePrism` 原语** → 解锁 `prism`(2) + 潜在更多 `BRepFeat` 类 op（`draft`/`thruAll` 拉伸等）；
-  2. **攻 `text`/`makeText` 缺口** → 解锁 `project`(2) + `testText` 系列；
-  3. `remove`(5) 的 `Shape.remove` 缺口（G-C3，分析器保守保留）；`importBrep`(2) 通用 BREP 导入；`interpPlate`(3) 待读 `func.py` 定语义。
-- 建议：将本计划从「薄包装清单」升级为「内核/纠缠缺口清单」，下一轮从 (1) 或 (2) 选一个作为正式任务（均超出「加一行导出」量级，需用户拍板范围与优先级）。
+- ~~(3) `remove` / `importBrep` / `interpPlate` 待读源码定语义~~ ⇒ **已由路线图 §10 全量重分级取代，见 §11。**
+- ~~(2) 建议：将本计划从「薄包装清单」升级为「内核/纠缠缺口清单」，下一轮从 (1) 或 (2) 选一个作为正式任务（均超出「加一行导出」量级，需用户拍板范围与优先级）。~~ ⇒ **已由路线图 §10.4 的 N1–N4 序列取代。**
+
+## 11. 后续（2026-10-04 晚）：本计划已被路线图 §10 收编
+
+本计划 §9/§10 的结论「quick-win backlog 已空」**只是「薄包装」视角的结论，不是全局结论**。2026-10-04 晚做了全量重分级（136 条 blocked 逐条对内核能力面 + 上游源码），结果写在权威路线图：
+
+**`docs/plans/2026-10-03-cadquery-full-port-roadmap.md` §10**
+
+关键修正（本计划的悲观结论被推翻的部分）：
+
+- **「backlog 已空」不成立**：重分级后仍有 **A 组 21 条「写镜像即解锁」**（harness 类），其中 18 条**零新几何、零框架改动**。根因是 ref harness 导出的是**变量几何**而非**断言行为** ⇒ `pytest.raises` / `getfixturevalue` / `parametrize` / `__dir__` **永远不需要实现**（证据：三条 `raises` 用例的 ref 只有 `nested_assy`、vol 3.0）。
+- **本计划 §9.2 的 `prism` 判定需拆分**：`op:prism-tilt`（1 条）**本仓可做**（内核 `extrude` 本就接受方向向量），只有 `op:prism-from-face`（4 条）是 `BRepFeat_MakePrism` 内核缺口。
+- **本计划 §9.3 的 `project` 卡 `text` 有了出口**：`text` 基础形态**已 ported**（`test_text__{r1..r5,c}`）⇒ `op:text-spine` 只是参数通道，路线图排为 **N3**，做完它才能回头判 `project`。
+- **新增可执行序列**：路线图 §10.4 的 **N1（18 条 harness 镜像）→ N2（`test_special__c`）→ N3（text-spine 3）→ N4（draft 2）**。
+
+> 本文保留为**历史轨迹**（记录 hollow/prism/project 三例的取证过程与「薄包装前提落空」的教训）；**读当前状态、取下一步任务一律走路线图 §10**。
