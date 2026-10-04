@@ -79,3 +79,31 @@
 
 - 每 op 完成后：manifest `blocked` 计数器下降 == 该 op 解锁用例数；新镜像全部 `PASS` vs ref（`volΔ=0`、拓扑逐位一致）；包内 vitest 零回归；dist 重建通过。
 - 全量 parity 的 FAIL 不必归零（现 ~21 条为基线，含 1 条 `testTwistExtrudeCombine__r` 既有「镜像已 `.blocked` 但 `out/cand` 留旧件」假 FAIL），判零回归用 **PASS/FAIL 集合 diff**，不是 `FAIL==0`。
+
+## 9. 修订（2026-10-04 续：执行验证推翻 P1–P3 前提）
+
+执行 P1–P3 后发现本计划 §3–§5 对 `hollow`/`prism`/`project` 的「薄包装即可解锁」前提**全部错误**，逐一订正：
+
+### 9.1 `hollow`（P1 已做，0 新解锁）
+- 已加 `export { shell as hollow }`（commit `32c95cbb`），`cq.hollow` 可调用。
+- 但 3 个 `hollow` 用例**此前已被处理**：其镜像用 `cq.shell` 复现几何（`test_free_functions/test_hollow__res1.fai.js:9` 即 `cq.shell(b0, -0.1)`），`res2` 是手动标记的 `kernel:hollow-intersection-join`（内核限制，非 op 缺口，见 gen-manifest 的 `manual:true` 保留逻辑）。故加别名仅 API 完备性，**不解锁任何 pending:mirror**——manifest 仍 `506/136/55`、`git diff` 为空已证实。
+
+### 9.2 `prism`（P2 不可做 —— 内核缺口）
+- 上游 `prism` 不是 `Workplane.prism(dir, length)`，而是 **`cadquery.func.prism`**（自由函数），签名 `prism(ctx, base, faces, t, [dir], [angle], additive)`。
+- 它基于 OCCT **`BRepFeat_MakePrism`**（`cadquery/occ_impl/shapes.py:7689` / `7748` 的 `multidispatch` 两重载）做特征级加/减棱柱，支持 `angle`(taper)、`thruAll`、`from/to` 面深度；测试断言**精确面数**（"6+2" / "6+4" / "6+1" / "6+2*3"）即该特征构造器的干净拓扑。
+- **occt-wasm 未暴露 `BRepFeat_MakePrism`**——`packages/core/src/api/extrude.ts:286` 明示（up-to 拉伸已用「长拉伸 → 与目标面半空间盒求交」绕行）。
+- 结论：`prism` 是**内核级缺口**，非 `extrude` 包装。按分类学铁律留 `blocked`，**不写脆弱假实现**。真解锁须在内核加 `makePrism`/`BRepFeat_MakePrism` 原语（路线图级内核任务，超出本计划「薄包装」范围）。
+
+### 9.3 `project`（P3 op 可做，但用例被 text 缺口卡死）
+- `Shape.project(target, dir)` 基于内核 `projectEdges`，**真实 occt 内核已实现**（`packages/core/dist/occt-kernel/occt-primitives.js:335` 委托 `k.projectEdges`），故 `project` op 本身可封装导出。
+- 但 2 个 `project` 用例（`test_project` × 2，分别 `TestCadQuery` 与 `test_free_functions`）都调用 `Compound.makeText("T"/"O", 5, 0)`（文本几何），而 `text`/`makeText` 是已知独立缺口（路线图 class-D 几何不符、`testText` 等 FAIL）；不先解锁 `text` 写不出这两用例的镜像。
+- 结论：实现 `project` op 本身 = API 完备性，**净解锁 0 用例**（与 `hollow` 同性质）。若要解锁须先攻 `text` 缺口。
+
+## 10. 修正后的结论与下一步建议
+
+- **quick-win backlog 已空**：原 §5 的 P1–P3「薄包装解锁」前提全部落空。剩余真实缺口是**内核级**（`prism` → `BRepFeat_MakePrism`）或**与其他缺口纠缠**（`project` → `text`），均非单 op 薄包装。
+- 真正可独立推进的方向（需另行规划，超出本计划「加一行导出」量级，每个都是正式任务）：
+  1. **内核加 `makePrism` 原语** → 解锁 `prism`(2) + 潜在更多 `BRepFeat` 类 op（`draft`/`thruAll` 拉伸等）；
+  2. **攻 `text`/`makeText` 缺口** → 解锁 `project`(2) + `testText` 系列；
+  3. `remove`(5) 的 `Shape.remove` 缺口（G-C3，分析器保守保留）；`importBrep`(2) 通用 BREP 导入；`interpPlate`(3) 待读 `func.py` 定语义。
+- 建议：将本计划从「薄包装清单」升级为「内核/纠缠缺口清单」，下一轮从 (1) 或 (2) 选一个作为正式任务（均超出「加一行导出」量级，需用户拍板范围与优先级）。
