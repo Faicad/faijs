@@ -1,0 +1,24 @@
+// source: test_free_functions.py::test_sweep (var r5)
+// w1 = rect(1, 1);  w2 = w1.moved(Location(0, 0, 1))
+// p2 = spline((w1.Center(), w2.Center()), ((-0.5, 0, 1), (0.5, 0, 1)))
+// r5 = sweep((w1, w2), p2, cap=True)      # TWO sections, B-spline spine
+// ref (cadquery 2.8.0): vol 0.913416 | 6 faces | bb x[-0.530,0.500] y[-0.5,0.5] z[0,1]
+//
+// BLOCKED (kernel:sweep-multisection-pipe — see tests/mark-blocked.ts): upstream
+// `sweep(sections, path)` builds ONE `BRepOffsetAPI_MakePipeShell(spine)` and
+// calls `builder.Add(section, False, False)` once per section (shapes.py:4719,
+// `Solid.sweep_multi`). occt-wasm exposes only the SINGLE-profile wrapper
+// `sweepPipeShell(profile, spine, freenet?, smooth?)` (index.d.ts:169) — there is
+// no multi-`Add` builder. Measured on this case: the closest single-profile
+// construction (`sweep(rect@z0, p2)`) gives vol 0.913424 (Δ 8.8e-6 relative, i.e.
+// numerically close) but bb z ∈ [-0.008, 1.400] vs the ref's [0, 1]: with one
+// profile the kernel generates end caps PERPENDICULAR to the spine, while the
+// multi-section pipe caps at the given sections' planes. The two are different
+// solids. Requires the kernel to expose multi-section `Add` (roadmap B2-3 / B6).
+import * as cq from '@faicad/faijs-cadquery'
+let w0 = cq.Workplane('XY')
+let w1 = cq.rect(w0, 1, 1)
+let w2 = cq.rect(await cq.workplane(w1, { offset: 1 }), 1, 1)
+let p2 = cq.splineWire3D([[0, 0, 0], [0, 0, 1]], [[-0.5, 0, 1], [0.5, 0, 1]])
+let r5 = await cq.sweep(w1, p2, { multisection: [w2] })
+let result = cq.val(r5)

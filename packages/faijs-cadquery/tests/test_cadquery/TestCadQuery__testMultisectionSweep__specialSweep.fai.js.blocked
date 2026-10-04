@@ -1,0 +1,26 @@
+// source: test_cadquery.py::TestCadQuery::testMultisectionSweep (var specialSweep)
+// path = Workplane("XZ").moveTo(-10, 0).lineTo(10, 0)          # straight X line
+// specialSweep = (Workplane("YZ").circle(1.0)                  # section A at x=0
+//     .workplane(offset=10.0).rect(2.0, 2.0)                   # section B at x=10
+//     .sweep(path, multisection=True))
+// ref (cadquery 2.8.0): vol 62.425600 | area 137.6606 | 7 faces | bb x[-10,10] y,z[-1,1]
+//
+// BLOCKED (kernel:sweep-multisection-pipe, reclassified from op:sweep.multisection
+// 2026-10-04 — see tests/mark-blocked.ts): upstream builds ONE MakePipeShell and
+// calls `Add` once per section (shapes.py:4682, `Solid.sweep_multi`). occt-wasm
+// exposes only the single-profile `sweepPipeShell` wrapper (index.d.ts:169) — no
+// multi-`Add` binding. Measured on this case; every available composition is wrong:
+//   loft[c@x=-10, c@x=0, r@x=10]  -> vol 65.733851 (Δ 5.3 %)    ← "extend then loft"
+//   sweep(circle@x=0, line)       -> vol 62.831853 (Δ 0.65 %), 3 faces  ← single profile
+//   sweep(rect@x=10, line)        -> vol 80.000000 (Δ 28 %)
+// The ref also sweeps the first section BACKWARD over the spine's uncovered head
+// (x∈[-10,0]) and its 7 faces / 15 edges carry the section-boundary splits a
+// single profile cannot produce. Requires the kernel to expose multi-section
+// `Add` (roadmap B2-3 / B6).
+import * as cq from '@faicad/faijs-cadquery'
+let path = cq.lineTo(cq.moveTo(cq.Workplane('XZ'), -10, 0), 10, 0)
+let s0 = cq.circle(cq.Workplane('YZ'), 1)
+let s1 = cq.rect(await cq.workplane(s0, { offset: 10 }), 2, 2)
+// 2 pending wires == 2 sections (upstream `multisection=True`)
+let specialSweep = await cq.sweep(s1, path)
+let result = cq.val(specialSweep)

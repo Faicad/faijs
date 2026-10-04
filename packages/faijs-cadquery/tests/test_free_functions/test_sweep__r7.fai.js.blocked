@@ -1,0 +1,27 @@
+// source: test_free_functions.py::test_sweep (var r7)
+// f1 = face(rect(1, 1), circle(0.25))
+// f2 = face(rect(2, 1), ellipse(0.9, 0.45)).moved(x=2, z=2, ry=90)
+// p3 = spline((f1.Center(), f2.Center()), ((0, 0, 1), (1, 0, 0)))
+// r7 = sweep((f1, f2), p3)                # TWO face sections, B-spline spine
+// ref (cadquery 2.8.0): vol 2.695798 | area 27.5250 | 7 faces | bb x[-0.527,2] y[-0.5,0.5] z[0,3]
+//
+// BLOCKED (kernel:sweep-multisection-pipe — see tests/mark-blocked.ts): the two
+// sections differ (rect 1x1 + Ø0.5 hole → rect 2x1 + two ellipses, rotated 90°
+// about Y and moved to the spine end), so this is a true multi-section pipe:
+// upstream `Solid.sweep_multi` (shapes.py:4682) builds ONE MakePipeShell and
+// calls `Add` once per section. occt-wasm only exposes the single-profile
+// `sweepPipeShell(profile, spine, …)` wrapper (index.d.ts:169) — there is no
+// multi-`Add` binding, and a `loft` cannot substitute (it does not follow the
+// B-spline spine). Requires the kernel to expose multi-section `Add`
+// (roadmap B2-3 / B6).
+//
+// NOTE: the SINGLE-section sibling r6 (f1 alone, same spine) IS reproducible and
+// passes — see tests/test_free_functions/test_sweep__r6.fai.js.
+import * as cq from '@faicad/faijs-cadquery'
+let f1 = await cq.face(cq.circle(cq.rect(cq.Workplane('XY'), 1, 1), 0.25))
+let f2 = await cq.face(cq.ellipse(cq.rect(cq.Workplane('XY'), 2, 1), 0.9, 0.45))
+// upstream `.moved(x=2, z=2, ry=90)` on the face (placement to the spine end)
+let f2m = await cq.moved(f2, cq.Location([2, 0, 2, 0, 90, 0]))
+let p3 = cq.splineWire3D([[0, 0, 0], [2, 0, 2]], [[0, 0, 1], [1, 0, 0]])
+let r7 = await cq.sweep(f1, p3, { multisection: [f2m] })
+let result = cq.val(r7)

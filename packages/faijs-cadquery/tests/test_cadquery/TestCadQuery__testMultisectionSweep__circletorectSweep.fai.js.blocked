@@ -1,0 +1,36 @@
+// source: test_cadquery.py::TestCadQuery::testMultisectionSweep (var circletorectSweep)
+// circletorectSweep = Workplane("YZ").workplane(offset=-10).circle(1)
+//   .workplane(offset=7).rect(2,2).workplane(offset=6).rect(2,2)
+//   .workplane(offset=7).circle(1).sweep(path, multisection=True)
+// Straight spine along X; sections at x=-10,-3,3,10 as-is, so the multisection
+// sweep equals a smooth loft through the four sections.
+// ref (cadquery 2.8.0): vol 75.51717828365719 | area 155.8390 | f7/e15/v10
+//
+// BLOCKED (kernel:boolean-near-coincident-bspline — see tests/mark-blocked.ts).
+// The candidate geometry is correct: measured against the ref, volΔ 1.13e-5
+// relative (75.518031 vs 75.517178), com/bbox/topo all match (f7/e15/v10) and
+// all seven face areas agree to 1e-5. The comparator cannot grade it because its
+// boolean cross-check degenerates on these near-coincident B-spline surfaces:
+//   cut(ref, cand) = 75.517178 (= the whole ref)   common(ref, cand) = 0
+//   cut(cand, ref) = 75.518031 (= the whole cand)  fuse(ref, cand)   = -2.1e-4
+// Both solids are individually healthy — each cuts correctly against an external
+// half-box (common 36.739 / 36.7395, cut 38.778 / 38.7785) — and the boolean is
+// normal once the near-coincidence is broken (scale cand by 0.98 -> cut 4.44).
+// Same class as the three existing `kernel:boolean-near-coincident-bspline`
+// entries (twistExtrude family); no in-repo fix (roadmap B6-3).
+//
+// NOTE: the two sibling multisection cases (defaultSweep / recttocircleSweep)
+// use the identical straight-spine loft and DO pass; only this one trips the
+// kernel boolean.
+import * as cq from '@faicad/faijs-cadquery'
+let w0 = cq.Workplane('YZ')
+let w1 = await cq.workplane(w0, { offset: -10 })
+let w2 = cq.circle(w1, 1)
+let w3 = await cq.workplane(w2, { offset: 7 })
+let w4 = cq.rect(w3, 2, 2)
+let w5 = await cq.workplane(w4, { offset: 6 })
+let w6 = cq.rect(w5, 2, 2)
+let w7 = await cq.workplane(w6, { offset: 7 })
+let w8 = cq.circle(w7, 1)
+let circletorectSweep = await cq.loft(w8)
+let result = cq.val(circletorectSweep)

@@ -26,10 +26,10 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 488 ported / 154 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 B2-2 后实读） |
+| **manifest**（导出变量级） | **697 = 489 ported / 153 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 **B2-3b** 后实读） |
 | **coverage**（上游测试函数级） | **305 = 201 PORTABLE / 41 PORTABLE-WITH-STUB / 55 BLOCKED** | `tests/coverage.json`（2026-10-03 **B0 重算后**实读：`portableNow 201` / `portableWithStub 41` / `blocked 55`） |
-| **镜像文件** | **500** 个 `.fai.js` + **15** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 **B2-3a** 后实测） |
-| **包内单测** | 578 全绿（52 文件） | 2026-10-04 B2-3a 实测 |
+| **镜像文件** | **501** 个 `.fai.js` + **21** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 **B2-3b** 后实测） |
+| **包内单测** | 578 全绿（52 文件） | 2026-10-04 B2-3b 实测 |
 
 ⚠ **两个分母不同源，不可换算**：manifest 的 452/198/47 是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
 
@@ -47,20 +47,26 @@
 
 ⚠ **旧文档的一处硬错误（勿再传播）**：它写「镜像文件 551 个 `.fai.js`」。**实测 464**（`find tests -name "*.fai.js" | wc -l`）。凡引用镜像计数以本文 §1 为准。
 
-**manifest 实测 blockedBy 分布（154 条，52 个 distinct，2026-10-04 **B2-3a 落地后**从 `manifest.json` 聚合）**：
+**manifest 实测 blockedBy 分布（153 条，51 个 distinct，2026-10-04 **B2-3b 落地后**从 `manifest.json` 聚合）**：
 
 ```
 14 op:assembly-solve      11 getfixturevalue         9 kernel:fillet-chain-reapply
- 7 plane                   5 op:fuzzy-bool            5 interpPlate            5 remove
- 5 raises                  4 op:extrude-until-face    4 op:prism-from-face      4 op:shape.offset
- 4 op:sweep.pipeshell      4 op:assembly-subshape-import  4 imprint            3 op:cutBlind.until-face
- 3 op:sweep.multisection   3 narrow:sphere-angles     3 kernel:sweep-aux-spine-mode  3 kernel:boolean-near-coincident-bspline
- 3 op:addCavity            3 filter                   3 op:text-spine          3 op:history-subshape
- 3 export                  3 parametrize             2 op:shell               2 parametricCurve
- 2 kernel:shell-outward-opening 2 project            2 importBin              2 history:images
- 2 kernel:hollow-intersection-join 2 kernel:draft-existing-solid 2 __dir__
+ 7 plane                   5 op:fuzzy-bool            5 kernel:sweep-multisection-pipe  5 interpPlate
+ 5 remove                  5 raises                   4 op:extrude-until-face   4 kernel:boolean-near-coincident-bspline
+ 4 op:prism-from-face      4 op:shape.offset          4 op:assembly-subshape-import  4 imprint
+ 3 op:cutBlind.until-face  3 narrow:sphere-angles     3 kernel:sweep-aux-spine-mode  3 op:addCavity
+ 3 filter                  3 op:text-spine            3 op:history-subshape     3 export
+ 3 parametrize             2 op:shell                 2 parametricCurve         2 kernel:shell-outward-opening
+ 2 project                 2 importBin                2 history:images           2 kernel:hollow-intersection-join
+ 2 kernel:draft-existing-solid 2 __dir__
 …（其余 18 项各 1 条）
 ```
+
+> **B2-3b 对分布的影响（2026-10-04）**：`op:sweep.pipeshell`(4) 与 `op:sweep.multisection`(3) 两个标签 **整个退役**（退役后两者各 0 条，`op:sweep-*` 只剩 `op:sweep-sketch-sections`(1)，属 testSketch）。分三路：
+> ① **r6 / r8 真解锁**（blocked → ported）：二者原被判「需要 pipeShell 路径」，实测**单轮廓路径已能精确复现**——r8（无孔 face）= 线级 `sweep(rect, spline)`（volΔ 3e-12、topo f6/e12/v8）；r6（带孔 face）= 上游 `Solid.sweep(face, path)` 的展开 `sweep(outerWire) cut sweep(innerWire)`（`shapes.py:4638-4655`；volΔ 2e-12、topo f7/e15/v10）。
+> ② **r5 / r7 / specialSweep / arcSweep / normalSweep（5 条）→ `kernel:sweep-multisection-pipe`**：多截面 pipe 需要「一次 `MakePipeShell` + 每截面一次 `Add`」（`Solid.sweep_multi`，`shapes.py:4682`），而 occt-wasm **只暴露单轮廓** `sweepPipeShell(profile, spine, …)`（`index.d.ts:169`），无多 `Add` 绑定；`sweepWithLaw` 是「轮廓缩放」另一机制、`loft` 不跟随 spine。实测三条近似全不符（见 §3 B2-3 / mark-blocked.ts）。
+> ③ **circletorectSweep（ported → blocked，`kernel:boolean-near-coincident-bspline`）**：cand 几何精确（volΔ 1.13e-5 相对、7 个面面积均在 1e-5 内、topo f7/e15/v10 全中），但 comparator 的布尔交叉检验在近重合 B 样条面上退化（`cut(ref,cand)` = 整个 ref、`common`=0、`fuse`=-2.1e-4）；两个实体各自与外部半盒布尔正常（36.7390/36.7395），把近重合破开（cand 缩放 0.98）后布尔即恢复（4.44）。同 twistExtrude 三条既有条目一类。
+> ⇒ manifest 488/154/55 → **489/153/55**（ported +1、blocked −1），distinct 52 → **51**，blocked 总数 154 → **153**。coverage 函数级不变（`test_sweep` / `testMultisectionSweep` 静态分析早已是 PORTABLE / PORTABLE-WITH-STUB，`blockedBy: null`）。
 
 > **B2-3a 对分布的影响（2026-10-04）**：`op:sweep.aux-spine`(3) → **`kernel:sweep-aux-spine-mode`**(3)。**这三条不是「解锁」而是重新定性** —— op 已实现（`sweepOriented` 的 Auxiliary 通道 + `splineWire3D`），但该内核模式与 CadQuery 的 `SetMode(aux, CurvilinearEquivalence=True)`（`occ_impl/shapes.py:4587`）不等价（实测：kernel 17759.16 vs ref 20218.35），且偏离不可检测（仅在导引线重参数化是恒等时偶然相符，如 `test_sweep_aux` 的长度 1 导引线）。故 `sweep(auxSpine=…)` **改为显式报错**（不再静默返回畸变几何）。`normal=`（SweepMode.FixedUp）**已实现并 1e-6 级相符**（vol 3.14159175 / f3/e3/v2），但无独立镜像（上游 `testSweep` 的 `normal=` 变量不是最终 `result`）。manifest 计数不变（488/154/55）、coverage 函数级不变；distinct 50→52 是本节口径按实测更正（原记 50 为陈旧值）。
 
@@ -144,7 +150,7 @@
 | **G-C6** | free-function `plane()` 构造器 | **6** | 2 |
 | **G-C7** | `prism` tilt（非法向挤出，1）+ from/to-face（4，见 G-F11） | **5** | 3 |
 | **G-C8** | `solid(...)` 内 void 缝合（4）+ `Solid.addCavity`（3） | **7→3** | 3 ✅ B2-2（solid 4 已解，addCavity 3 剩） |
-| **G-C9** | `sweep` pipeshell（4）/ multisection（3）/ ~~aux-spine（3）~~ → **aux-spine 移 B6**（内核 `sweepOriented` 的 Auxiliary 模式 ≠ CadQuery `SetMode(aux, CV=True)`，见 §1 B2-3a 注 / B6-10） | **7**（+3 内核） | 3 |
+| **G-C9** | `sweep` pipeshell / multisection / ~~aux-spine~~ —— **2026-10-04 B2-3b 全量定性**：r6/r8 单轮廓已解锁（**portable**）；r5/r7 + special/arc/normalSweep 共 5 条是**多截面 pipe**（内核无多 `Add` 绑定）→ 移 B6-11；aux-spine 移 B6-10（内核 Auxiliary 模式 ≠ CadQuery `SetMode(aux, CV=True)`） | **0**（+3+5 内核） | 3 |
 | **G-C10** ✅ **已闭（B1-6, 2026-10-03）** | ~~`extrude` 的 `both=`（2）/ `combine="cut"`（1）/ `combine="s"`（2）~~ | ~~**5**~~ **0** | 2 |
 | **G-C11** | `extrude("next"/"last")` until-face（4）+ `cutBlind.until-face`（3）+ 索引选择器 `faces(">X[1]")` | **7** | 3 |
 | **G-C12** | `offset2D` multi-region（1）+ `shape.offset`（4） | **5** | 3 |
@@ -191,7 +197,7 @@
 | **G-F1** | `shell` 外向开口（2）+ shell 交并（1） | 3 | `MakeThickSolidByJoin` intersection-join offset |
 | **G-F2** | `draft` 既有实体拔模 | 2 | `BRepOffsetAPI_DraftAngle` 对已有 solid |
 | **G-F3** | `loft` 共面截面 | 1 | `BRepOffsetAPI_ThruSections` 参数（C2/一致性检查） |
-| **G-F4** | 近重合 B-spline 布尔（扭曲体 cut/union） | 3 | 布尔容差通道 / 稳健化 |
+| **G-F4** | 近重合 B-spline 布尔（扭曲体 cut/union；**+ circletorectSweep 多截面 sweep 的直纹/平滑过渡面**） | **4** | 布尔容差通道 / 稳健化 |
 | **G-F5** | 高椭圆（major<minor 拒绝） | 1 | `gp_Elips` 参数构造 / 轴重定向 |
 | **G-F6** | 多边形 cutThruAll 崩溃 | 1 | `makePolygonPrismAt` 崩溃根因 |
 | **G-F7** | fillet 对 fillet 产出再 fillet 被拒 | **9** | kernel fillet 的 TopoDS 接受面 |
@@ -199,6 +205,7 @@
 | **G-F9** | `hollow(t>0)` 精度（arc-join vs intersection-join） | 2 | 同 G-F1 |
 | **G-F10** | `prism` from/to-face | 4 | `BRepFeat_MakePrism`（~80 行绑定） |
 | **G-F11** | `chamfer` **非对称双距离**（`narrow:chamfer-asym`，`testChamferAsymmetrical__cube`）—— 2026-10-03 实测定性：上游走 `BRepFilletAPI_MakeChamfer.Add(d1, d2, edge, face)`（`occ_impl/shapes.py:4011-4022`，逐 edge 配 edge→face 映射表），occt-wasm 只暴露 `chamfer(distance)` 与 `chamferDistAngle(distance, angleDeg)`，**没有双距离通道** ⇒ 属内核绑定缺口，不是 faijs 侧参数没打通 | 1 | `BRepFilletAPI_MakeChamfer::Add(d1,d2,E,F)` + edge→face map |
+| **G-F12** | **多截面 pipe shell**（`kernel:sweep-multisection-pipe`）—— 2026-10-04 B2-3b 定性：上游 `Solid.sweep_multi`（`occ_impl/shapes.py:4682`）建**一个** `BRepOffsetAPI_MakePipeShell(spine)` 后**每截面 `Add(section, False, False)` 一次**；occt-wasm 只暴露**单轮廓**包装 `sweepPipeShell(profile, spine, freenet?, smooth?)`（`index.d.ts:169`），无多 `Add` 绑定（`sweepWithLaw` 是轮廓缩放另一机制，`loft` 不跟随 spine）。实测 loft / 单轮廓 / per-section-fuse 三种近似全不符（见 §1 B2-3b 注） | **5** | 暴露多截面 `Add`（`BRepOffsetAPI_MakePipeShell::Add` × N + `Build`/`MakeSolid`） |
 
 #### 类 G · ref 侧异常（**不是 faijs 缺口**，但需重新推导镜像）
 
@@ -293,7 +300,7 @@
 |---|---|---|---|
 | **B2-1** | **G-C1 imprint** ✅ | 12→6 | 已落地 2026-10-04：`fuseAll` 实现 free-function `imprint`，6 变量镜像全 PASS；剩 4 条 assembly-imprint（B5）+ 2 条 `history:images`（G-C18） |
 | **B2-2** | **G-C8 solid voids** ✅ | 7→3 | 已落地 2026-10-04：`solid()` + `solidWithInner()` 实现 free-function solid（sew + boolean cut 内 void），12 变量镜像全 PASS；剩 3 条 `addCavity`（B4） |
-| **B2-3** | **G-C9 sweep 族**（pipeshell 4 / multisection 3 / aux-spine 3） | 10 | `MakePipeShell` multisection + 辅脊（binormal 旋转）。**aux-spine 子项 2026-10-04 实测改判为内核依赖（B6-10）**：`sweepOriented` 已接好但 Auxiliary 模式语义不符，`sweep(auxSpine=…)` 现显式报错；`normal=`（FixedUp）已实现并单测锁定。**剩余本仓可做 = pipeshell(4) + multisection(3) = 7** |
+| **B2-3** | **G-C9 sweep 族**（pipeshell 4 / multisection 3 / aux-spine 3） —— ✅ **2026-10-04 B2-3b 收官：本仓可做项已清零**。① **r6 / r8 解锁**（单轮廓路径已够：r8 = `sweep(rect, spline)`；r6 = 上游 `Solid.sweep(face)` 的展开 `sweep(outer) cut sweep(inner)`，均 1e-12 级相符）；② **r5 / r7 / special / arc / normalSweep（5 条）改判内核依赖 B6-11**（多截面 pipe 无多 `Add` 绑定，实测 loft/单轮廓/per-section 三种近似全不符）；③ **circletorectSweep 按近重合布尔约定改判**（cand 几何精确到 1.13e-5，comparator 布尔退化）；④ aux-spine 已于 B2-3a 改判 B6-10（`sweep(auxSpine=…)` 现显式报错，`normal=` 已实现并单测锁定） | 10 → **0** | — |
 | **B2-4** | **G-C2 interpPlate** | 5 | 插值板（点云 → 曲面片） |
 | **B2-5** | **G-C12 offset**（offset2D multi-region 1 / shape.offset 4） | 5 | `MakeOffset2D` 多区域分裂语义 + `BRepOffset_MakeOffset` |
 | **B2-6** | **G-C11 until-face 族**（extrude 4 / cutBlind 3 / 索引选择器） | 7 | `extrude("next"/"last")` + `faces(">X[1]")` 索引；**G-G1 的 ref 异常需重新推导** |
@@ -364,6 +371,7 @@
 | **B6-8** | **G-F6 crash-polygon-cutThruAll** | 1 | 崩溃根因 |
 | **B6-9** | **G-F11 chamfer 双距离**（`narrow:chamfer-asym`）—— 2026-10-03 从 B1-10 移入（定性见 G-F11） | 1 | `BRepFilletAPI_MakeChamfer::Add(d1,d2,E,F)` + edge→face map |
 | **B6-10** | **sweep 辅脊（`kernel:sweep-aux-spine-mode`）** —— 2026-10-04 从 B2-3 移入：CadQuery 用 `BRepOffsetAPI_MakePipeShell::SetMode(aux, CurvilinearEquivalence=True)`（`occ_impl/shapes.py:4587`），而 `sweepOriented(mode=Auxiliary)` 不等价（实测 17759.16 vs ref 20218.35；OCP 的 CV=False 20500.44 / default 20500.46 / Frenet 19295.97 均不符）。`sweep(auxSpine=…)` 已改显式报错。 | 3 | 在辅助脊模式下暴露 `CurvilinearEquivalence` 标志（或按 OCCT 语义重写该模式） |
+| **B6-11** | **多截面 pipe shell（`kernel:sweep-multisection-pipe`）** —— 2026-10-04 从 B2-3 移入（B2-3b）：`r5` / `r7` / `TestCadQuery::testMultisectionSweep__{specialSweep,arcSweep,normalSweep}`。上游 `Solid.sweep_multi`（`occ_impl/shapes.py:4682`）与 free `sweep(sections, path)` 都建**一个** `BRepOffsetAPI_MakePipeShell(spine)` 然后每截面 `Add(section, False, False)` 一次（后者见 `shapes.py:7127`+`7249`）。occt-wasm 只暴露单轮廓 `sweepPipeShell(profile, spine, freenet?, smooth?)`（`index.d.ts:169`）⇒ **无多 `Add` 绑定**。实测三种近似全不符：specialSweep loft[c@-10,c@0,r@10] 65.73（Δ5.3%）/ 单轮廓 62.83（Δ0.65%，且 3 face vs ref 7）/ sweep(rect) 80.00（Δ28%）；r5 单轮廓 vol 对得上（Δ8.8e-6）但 **bb z[-0.008,1.400] vs ref [0,1]**（单轮廓端盖垂直于 spine，多截面在给定截面平面封盖 ⇒ 不同实体）。arcSweep（弧脊）与 r7（两不同截面）连 loft 都无法近似。**内核依赖、本仓不做绕行**：`sweep(multisection=…)` 现状是 per-section pipeShell + fuse 的近似，仅在「同形截面 + 直线脊」时等价（那 3 条已用 loft 镜像精确命中）。 | 5 | 暴露多截面 `Add`（`BRepOffsetAPI_MakePipeShell`：N×`Add` + `Build` + `MakeSolid`） |
 
 > 内核跟踪文档：`docs/analysis/2026-09-29-occt-wasm-gap-plan.md`（§10.1 fillet-chain / §10.4 prism-from-face）。**本表逐项对应过去，不再是「已定性、不排期」。**
 

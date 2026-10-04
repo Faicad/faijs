@@ -112,16 +112,43 @@ const BY_KEY: Record<string, string> = {
   // parameters"); every rotation entry point re-approximates the curve.
   'tests.test_selectors::TestCQSelectors::testEdgeTypesFilter__c': 'kernel:ellipse-tall-axis',
   // ---------------------------------------------------------------------------
-  // Phase 2 stage K (batch 3) — sweep family, 2026-09-11
+  // Sweep family — RECLASSIFIED 2026-10-04 (roadmap B2-3 completion)
   // ---------------------------------------------------------------------------
-  // Multisection sweep along a NON-line path or with path-relative placement:
-  // needs real MakePipeShell multisection (kernel only offers single-profile
-  // sweep / loft-style multisection). specialSweep's ref additionally relies on
-  // B-spline extrapolation beyond the section span (ref bbox exceeds the
-  // sections' span by ~1.09 on each side).
-  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__specialSweep': 'op:sweep.multisection',
-  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__arcSweep': 'op:sweep.multisection',
-  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__normalSweep': 'op:sweep.multisection',
+  // Multi-section pipe shell. Upstream's multisection sweep AND the free
+  // `sweep(sections, path)` both build ONE `BRepOffsetAPI_MakePipeShell(spine)`
+  // and call `builder.Add(section, False, False)` once per section
+  // (occ_impl/shapes.py:4682 `Solid.sweep_multi`). occt-wasm exposes ONLY the
+  // single-profile wrapper `sweepPipeShell(profile, spine, freenet?, smooth?)`
+  // (index.d.ts:169) — no multi-`Add` binding. `sweepWithLaw` is a different
+  // mechanism (profile scaling, not section interpolation) and `loft` does not
+  // follow a spine. Measured 2026-10-04, every composition is wrong:
+  //   specialSweep (2 sections, straight spine, ref vol 62.4256):
+  //     loft[c@-10,c@0,r@10] 65.7339 (Δ5.3%) | sweep(circle) 62.8319 (Δ0.65%, 3f)
+  //     | sweep(rect) 80.0000 (Δ28%)
+  //   r5 (2 identical rect sections + B-spline spine, ref vol 0.913416):
+  //     sweep(rect, p2) gives vol 0.913424 (Δ8.8e-6) but bb z[-0.008,1.400] vs
+  //     ref [0,1] — a single profile caps PERPENDICULAR to the spine, while the
+  //     multi-section pipe caps at the sections' planes. Different solids.
+  //   arcSweep (4 sections on a curved spine) / r7 (2 differing face sections):
+  //     a straight-section loft cannot follow the spine at all.
+  //   normalSweep (2 sections + normal=(0,1,1)): only the multi-section half is
+  //     missing — the single-profile FixedUp path is parity-verified.
+  // => relabelled from `op:sweep.multisection` / `op:sweep.pipeshell` (both of
+  //    which claimed an in-repo op was missing) to a KERNEL binding gap.
+  //    Kernel work: expose multi-section `Add` (roadmap B2-3 / B6).
+  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__specialSweep': 'kernel:sweep-multisection-pipe',
+  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__arcSweep': 'kernel:sweep-multisection-pipe',
+  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__normalSweep': 'kernel:sweep-multisection-pipe',
+  // circletorectSweep uses the SAME straight-spine loft as its two PASSING
+  //   siblings (defaultSweep / recttocircleSweep). The geometry is exact
+  //   (volΔ 1.13e-5 relative, all 7 face areas within 1e-5, topo f7/e15/v10)
+  //   but the comparator's boolean cross-check degenerates on the
+  //   near-coincident B-spline surfaces (cut(ref,cand) = the whole ref,
+  //   common = 0, fuse = -2.1e-4) while each solid cuts correctly against an
+  //   external half-box (common 36.7390 / 36.7395) and the boolean returns to
+  //   normal once the near-coincidence is broken (scale cand by 0.98 -> 4.44).
+  //   Same class as the twistExtrude entries below; no in-repo fix (B6-3).
+  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__circletorectSweep': 'kernel:boolean-near-coincident-bspline',
   // Auxiliary-spine sweep — RECLASSIFIED 2026-10-04 (was op:sweep.aux-spine).
   //   The op is now IMPLEMENTED: the kernel exposes `sweepOriented` with a
   //   SweepMode.Auxiliary (3) channel, and `sweep(…, {auxSpine})` is wired to it.
@@ -144,13 +171,20 @@ const BY_KEY: Record<string, string> = {
   //   Kernel binding needed to lift: expose CurvilinearEquivalence on the
   //   auxiliary-spine mode (roadmap G-C9 / B6).
   'tests.test_cadquery::TestCadQuery::testSweep__result': 'kernel:sweep-aux-spine-mode',
-  // test_sweep r5-r8 use the free-function sweep() over faces/inner wires with
-  // B-spline spines: needs the pipeShell path (profile placed BY the spine),
-  // not reproducible via as-is-section lofts.
-  'tests.test_free_functions:::test_sweep__r5': 'op:sweep.pipeshell',
-  'tests.test_free_functions:::test_sweep__r6': 'op:sweep.pipeshell',
-  'tests.test_free_functions:::test_sweep__r7': 'op:sweep.pipeshell',
-  'tests.test_free_functions:::test_sweep__r8': 'op:sweep.pipeshell',
+  // CLOSED 2026-10-04 (roadmap B2-3): test_sweep r6/r8 were mislabelled
+  //   `op:sweep.pipeshell` — the SINGLE-profile path already reproduces them.
+  //   r8 (plain face, no hole) = a wire-level `sweep(rect, spline)`, an exact
+  //   hit (volΔ 3e-12, topo f6/e12/v8). r6 (face with an inner wire) = upstream
+  //   `Solid.sweep(face, path)`, which expands to `sweep(face.outerWire(),
+  //   face.innerWires(), path)` + `rv.cut(*inner_shapes)` (shapes.py:4638-4655)
+  //   — expressed as `sweep(outer) cut sweep(inner)`; verified exact
+  //   (volΔ 2e-12, topo f7/e15/v10). Both BY_KEY entries were REMOVED and their
+  //   manifest.json entries cleared so gen-manifest re-derives them as `ported`
+  //   (it preserves any prior blocked+manual:true annotation). Do NOT re-add.
+  // r5 / r7 stay blocked — they are true multi-section pipes (see the
+  // `kernel:sweep-multisection-pipe` block above).
+  'tests.test_free_functions:::test_sweep__r5': 'kernel:sweep-multisection-pipe',
+  'tests.test_free_functions:::test_sweep__r7': 'kernel:sweep-multisection-pipe',
   // see the block above (kernel:sweep-aux-spine-mode)
   'tests.test_free_functions:::test_sweep_aux__r1': 'kernel:sweep-aux-spine-mode',
   'tests.test_free_functions:::test_sweep_aux__r2': 'kernel:sweep-aux-spine-mode',

@@ -824,26 +824,27 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__circletorectSweep": {
-    "status": "ported",
+    "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": null
+    "blockedBy": "kernel:boolean-near-coincident-bspline",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__specialSweep": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": "op:sweep.multisection",
+    "blockedBy": "kernel:sweep-multisection-pipe",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__arcSweep": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": "op:sweep.multisection",
+    "blockedBy": "kernel:sweep-multisection-pipe",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__normalSweep": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": "op:sweep.multisection",
+    "blockedBy": "kernel:sweep-multisection-pipe",
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testNestedCircle__s": {
@@ -2498,26 +2499,24 @@
   "tests.test_free_functions:::test_sweep__r5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "op:sweep.pipeshell",
+    "blockedBy": "kernel:sweep-multisection-pipe",
     "manual": true
   },
   "tests.test_free_functions:::test_sweep__r6": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "op:sweep.pipeshell",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_sweep__r7": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "op:sweep.pipeshell",
+    "blockedBy": "kernel:sweep-multisection-pipe",
     "manual": true
   },
   "tests.test_free_functions:::test_sweep__r8": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "op:sweep.pipeshell",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_sweep_aux__r1": {
     "status": "blocked",

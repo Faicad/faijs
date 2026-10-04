@@ -12,8 +12,8 @@
 
 | 缺口 | 原条数 | 处置 |
 |---|---|---|
-| sweep 多截面（`op:sweep.multisection` 3 + pipeshell 4 + aux-spine 3） | 10 | ✅ **已解锁**：`sweepPipeShell`（MakePipeShell）+ 端盖 `sewAndSolidify`（探针实测 valid solid）；cq-compat `sweep` 已扩 `multisection` 选项，镜像 24/24 绿 |
-| aux-spine（`SweepMode.Auxiliary`） | 3 | ⚠️ 半解锁：内核绑定存在（`sweepOriented(profile, spine, 3, up?, auxSpine?)`），但**单 profile + auxSpine 组合未探通**（mode 3 抛 `Invalid shape ID: 0`）→ 见 §2 |
+| sweep 多截面（`op:sweep.multisection` 3 + pipeshell 4 + aux-spine 3） | 10 | ⚠️ **2026-10-04 B2-3b 重新定性（推翻本行原「已解锁 / 镜像 24/24 绿」的说法）**：多截面 pipe **并未解锁** —— 内核仅有单轮廓 `sweepPipeShell`，无多 `Add` 绑定 ⇒ 5 条（r5/r7/special/arc/normal）移内核 §2b / B6-11；`test_sweep__r6`/`__r8` 是单轮廓、已精确解锁（ported）；aux-spine 3 条移内核 §2 / B6-10；`circletorectSweep` 归近重合布尔 §10.1。原「24/24 绿」口径是「同形截面 + 直线脊」子集，不是多截面能力 |
+| aux-spine（`SweepMode.Auxiliary`） | 3 | ❌ **内核语义缺口（2026-10-04 定性，推翻「半解锁」）**：绑定与句柄封送都正常（`sweepOriented(profile, spine, 3, up, auxSpine)`），无 `Invalid shape ID`，但该模式的几何**与 CadQuery `SetMode(aux, CurvilinearEquivalence=True)` 不等价**（实测 17759.16 vs ref 20218.35）→ 见 §2 / B6-10 |
 | shell 外扩 / intersection join | 2+2 | ❌ 需内核增强 → §3 |
 | `remove`/`replace`（`BRepTools_ReShape`） | 5+4+3 | ❌ 内核只有 `defeature`（语义不同，9-23 实测不得冒充）→ §4 |
 | `interpPlate` | 5 | ❌ 内核无 Plate 构造（OCCT 有 `GeomPlate` 包）→ §5 |
@@ -56,6 +56,32 @@
 **已落地处置**：`sweep(auxSpine=…)` **显式报错**（`workplane.ts`，报错串含 `kernel:sweep-aux-spine-mode`），不再静默返回畸变几何（同 core `draft` 的 neutral-plane 拒绝范式）。三条镜像转为 `.fai.js.blocked`（证据见 `tests/mark-blocked.ts`）。长度 1 的 aux 几何（ref vol 0.9991567936618069 / f6/e12/v8）由 `src/sweep-oriented.test.ts` 直接断言捕获真值（绕过 comparator；该用例即使几何正确也因布尔近重合探针无法评级）。
 
 **要解锁需补的绑定**：在辅助脊模式下暴露 `CurvilinearEquivalence` 标志（或按 OCCT 语义重写该模式）。**验收**：`TestCadQuery::testSweep__result`（ref vol 20218.347254736764）。对应路线图 B6-10 / G-C9。
+
+## 2b. 多截面 pipe shell（5 条）—— **2026-10-04 实测定性：内核绑定缺口**
+
+**结论**：CadQuery 的多截面 sweep 与 free-function `sweep(sections, path)` 都建**一个** `BRepOffsetAPI_MakePipeShell(spine)`，然后**每个截面 `Add(section, False, False)` 一次**，最后 `Build()` + `MakeSolid()`：
+
+- `Solid.sweep_multi`（`cadquery/occ_impl/shapes.py:4682`）—— `Workplane.sweep(path, multisection=True)` 的落点（`cq.py:3860`）。
+- free `sweep(s, path)`（`shapes.py:7127` / `7249`）—— face 轮廓展开为 `Solid.sweep(outerWire, innerWires, path)`（`shapes.py:4638-4655`）：**逐线建 pipe 后 `rv.cut(*inner_shapes)`**。⚠ 后者**不是**多截面缺口：单轮廓 pipe 就能复现（见下「已解锁」）。
+
+而 occt-wasm 只暴露**单轮廓**包装 `sweepPipeShell(profile, spine, freenet?, smooth?)`（`dist/index.d.ts:169`；raw 绑定同为单 `profileId`，`raw-types.d.ts:153`）。旁路都不等价：`sweepWithLaw(profile, spine, law)` 是**轮廓缩放律**（`SetLaw`）不是截面插值；`loft(wires, isSolid, ruled)` 不跟随 spine；`sweep(wire, spine, transitionMode)` 也是单轮廓。
+
+**实测（2026-10-04，三条近似全不符）**：
+
+| case | ref | 最接近的构造 | 结果 |
+|---|---|---|---|
+| `specialSweep`（2 截面，直线脊） | vol 62.425600，f7/e15/v10 | `loft[c@x=-10, c@x=0, r@x=10]` | 65.733851（Δ 5.3 %） |
+| | | `sweep(circle@x=0, line)` | 62.831853（Δ 0.65 %，**只有 3 face**） |
+| | | `sweep(rect@x=10, line)` | 80.000000（Δ 28 %） |
+| `test_sweep__r5`（2 个同形 rect，B 样条脊） | vol 0.913416，bb z[0,1] | `sweep(rect@z0, p2)` | vol 0.913424（Δ 8.8e-6，**数值巧合**）但 **bb z[-0.008,1.400]** |
+| `arcSweep`（4 截面，弧脊） | vol 114.061557 | 任何 loft / 单轮廓 | 不适用（loft 不跟弧脊） |
+| `test_sweep__r7`（2 个不同 face 截面） | vol 2.695798 | 同上 | 不适用 |
+
+> r5 那一行是判据关键：单轮廓与多截面的**体积**可以数值巧合地接近，但**端盖平面**不同 —— 单轮廓的端盖垂直于 spine（bb 沿切线方向伸出），多截面在**给定截面的平面**封盖。两者是不同实体。
+
+**已解锁（同一批，非内核缺口）**：`test_sweep__r6` / `__r8` 是**单轮廓** face sweep，原判 `op:sweep.pipeshell` 属陈旧标签。r8 = 线级 `sweep(rect, spline)`（volΔ 3e-12）；r6 = 上游 `Solid.sweep(face)` 的展开 `sweep(outerWire) cut sweep(innerWire)`（volΔ 2e-12）。`defaultSweep` / `recttocircleSweep` / `circletorectSweep` 三条是「同形截面 + 直线脊」，`loft` 精确等价（前两条 PASS；第三条几何精确但 comparator 布尔在近重合面上退化 ⇒ 归 §10 的 `kernel:boolean-near-coincident-bspline`）。
+
+**要解锁需补的绑定**：暴露多截面 `Add`（`BRepOffsetAPI_MakePipeShell` 的 N×`Add(section, translate=false, rotate=false)` + `Build` + `MakeSolid`），约 30 行。**验收**：`test_sweep__r5`（ref vol 0.913416，bb z[0,1]）与 `testMultisectionSweep__specialSweep`（ref vol 62.425600）。对应路线图 B6-11 / G-C9。
 
 ## 3. shell 外扩（MakeThickSolidByJoin 完整参数）（4 条：shell-outward 2 + intersection-join 1 + hollow 1）
 
@@ -150,8 +176,9 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 2. §6.1 球角（0.5 人日，narrow:sphere-angles 3 条）；
 3. §3 makeThickSolidByJoin（1–2 人日，解锁 shell-outward-opening 2 + shell-intersection-join 1 + hollow 精度 2 + op:shape.offset 4 ≈ 9 条，含 §7 复用）；
 4. §6.2 高椭圆（ellipse-tall-axis 1）/ §6.3 双距离倒角（chamfer-asym 1）（合计 ~1 人日）；
-5. §2 aux-spine 绑定验证（0.5 人日试探，op:sweep.aux-spine 3 条）；
-6. §5 GeomPlate（2–3 人日，interpPlate 5 条，最后做）。
+5. §2b makePipeShell 多截面 `Add`（~30 行，解锁 `kernel:sweep-multisection-pipe` 5 条；API 简单、收益/成本比高）；
+6. §2 aux-spine 绑定验证（0.5 人日试探；2026-10-04 已实测 `sweepOriented` 的 Auxiliary 模式语义不符，需暴露 `CurvilinearEquivalence`，`kernel:sweep-aux-spine-mode` 3 条）；
+7. §5 GeomPlate（2–3 人日，interpPlate 5 条，最后做）。
 
 ---
 
@@ -159,11 +186,12 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 
 > 数据源：`packages/faijs-cadquery/tests/manifest.json`（449 ported / 201 blocked / 47 skipped）。下列条目均以当前 blockedBy 精确重列，替代 §0 的原始估计。
 
-### 10.1 `kernel:*` 直接登记（13 条）
+### 10.1 `kernel:*` 直接登记（11 个标签 / 31 条，2026-10-04 B2-3b 后实读）
 
 | blockedBy | 条数 | 状态与方案归属 |
 |---|---|---|
-| `kernel:boolean-near-coincident-bspline` | 3 | testTwistExtrude__r / testTwistExtrudeCombine__r（comparator 探针失败）/ **testTwistExtrudeCombineCut__cut（2026-10-01 新实证：90° 扭曲工具体 cut 进盒体，内核布尔 >300 s 挂死——BooleanOp 本体缺陷，不止 comparator）**。方案：occt-wasm 侧核查 BOPAlgo fuzzy/区间处理，或提供可中断/限时布尔。无独立小节（原 E4）。 |
+| `kernel:sweep-multisection-pipe` | 5 | **§2b**（2026-10-04 新增：多截面 pipe 无多 `Add` 绑定；含 r5/r7/special/arc/normal） |
+| `kernel:boolean-near-coincident-bspline` | 4 | testTwistExtrude__r / testTwistExtrudeCombine__r（comparator 探针失败）/ **testTwistExtrudeCombineCut__cut（2026-10-01 新实证：90° 扭曲工具体 cut 进盒体，内核布尔 >300 s 挂死——BooleanOp 本体缺陷，不止 comparator）** / **testMultisectionSweep__circletorectSweep（2026-10-04：cand 是「同形截面+直线脊」的精确 loft，volΔ 1.13e-5、7 个面面积均在 1e-5 内、topo f7/e15/v10 全中；`cut(ref,cand)` 返回整个 ref、`common`=0、`fuse`=-2.1e-4；两实体各自与外部半盒布尔正常〔36.7390/36.7395〕，近重合破开〔cand 缩放 0.98〕后布尔恢复〔4.44〕）**。方案：occt-wasm 侧核查 BOPAlgo fuzzy/区间处理，或提供可中断/限时布尔。无独立小节（原 E4）。 |
 | `kernel:fillet-chain-reapply` | 9 | **2026-10-01 新发现**：内核 fillet 拒绝对「fillet 产出」再 fillet——`fillet: operation failed`（8 条顶棱）或 `fillet: TopoDS::Solid`（单边、内核层探针），而输入仍是 1-solid TopoDS（getSubShapes('solid')==1）。testEnclosure 整链（|Z r10 → #Z r2 两次 fillet）被挡：op:split-all 的 faijs 侧缺口（split keepTop/keepBottom + partAt）已关闭，剩余纯内核问题。GOTCHA 已钉进 `p1-workplane-ops.test.ts`。方案：occt-wasm 侧核查 fillet wrapper 的句柄生命周期/类型封送（输入 shape 是否在二次调用间被降级）。 |
 | `kernel:shell-outward-opening` | 2 | §3 |
 | `kernel:draft-existing-solid` | 2 | test_draft__res1/res2 + test_free_functions test_draft —— 既有实体拔模（BRepOffsetAPI_DraftAngle 全参面），§0 未单列；需在 occt-wasm 暴露 `BRepOffsetAPI_MakeDraft`/`DraftAngle` 完整入口（face + angle + direction），~40 行。 |
@@ -176,15 +204,15 @@ OcctKernel::interpPlate(boundaryCurves: ShapeHandle[], points: double[], nPts,
 
 `test_hollow__res2` / `test_hollow_open__res2`：上游 MakeThickSolidByJoin Intersection join（锐外角）vs 内核 arc-join（圆角），unit box `0.698/0.565` vs `0.728/0.584`。§3 的 `makeThickSolidByJoin(params)` 落地即解锁。
 
-### 10.3 sweep 残量（9 条，§0 已解锁的部分之外）
+### 10.3 sweep 残量（9 条，2026-10-04 B2-3b 后实读）
 
 | blockedBy | 条数 | 说明 |
 |---|---|---|
-| `op:sweep.pipeshell` | 4 | pipeShell 变体（isFrenet/mode 组合）仍缺 |
-| `op:sweep.multisection` | 3 | 多截面已解锁主流（镜像 24/24 绿），此 3 条是剩余变体（带孔/特殊截面） |
+| `kernel:sweep-multisection-pipe` | 5 | §2b（2026-10-04 由 `op:sweep.pipeshell`(4) + `op:sweep.multisection`(3) 归并而来：其中 `test_sweep__r6`/`__r8` 单轮廓即可复现 ⇒ 已解锁转 ported；`r5`/`r7`/`specialSweep`/`arcSweep`/`normalSweep` 是真多截面缺口） |
 | `kernel:sweep-aux-spine-mode` | 3 | §2（2026-10-04 由 `op:sweep.aux-spine` 改名：op 已实现，缺口在内核模式语义） |
-| `op:sweep-hole-section` | 1 | 带孔截面 sweep（需公开的带孔面构造） |
 | `op:sweep-sketch-sections` | 1 | testSketch r6：spline 帧放置 + sketch 截面 sweep |
+
+> `op:sweep.pipeshell`(4) / `op:sweep.multisection`(3) 两个标签 **2026-10-04 退役**；`circletorectSweep` 从 `op:sweep.multisection` 改判 `kernel:boolean-near-coincident-bspline`（§10.1 同类，非 sweep 缺口）。
 
 ### 10.4 内核/新 op 类（2026-09-30 ~ 10-01 镜像攻坚后新浮出）
 
