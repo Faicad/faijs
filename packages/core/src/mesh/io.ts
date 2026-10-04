@@ -143,6 +143,10 @@ export async function importFile(
     const shape: Shape = {
       positions: first.positions as Float32Array,
       indices: first.indices as Uint32Array,
+      // P2（方案 §5 3MF 行）：对象级 baseColor → appearance.color（sRGB 原值，
+      // 宽容兼容：无 baseColor 不带 appearance）。colorgroup（vertexColors）与
+      // 逐三角形材质属 Phase 2（materialGroups / vertexColors），P2 不映射。
+      ...(first.baseColor ? { appearance: { color: [first.baseColor[0], first.baseColor[1], first.baseColor[2]] } } : {}),
     }
     return { shape, unit: archive.unit, multiPartCount }
   }

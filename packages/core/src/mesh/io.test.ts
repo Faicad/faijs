@@ -134,6 +134,57 @@ describe('importFile 3MF unit conversion (D5)', () => {
   })
 })
 
+/** A 3MF whose single object references a basematerials base (object-level color). */
+function coloredModelXml(unit: string, size: number, hex: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="${unit}" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+  <resources>
+    <basematerials id="100"><base name="color" displaycolor="${hex}"/></basematerials>
+    <object id="1" type="model" pid="100">
+      <mesh>
+        <vertices>
+          <vertex x="0" y="0" z="0"/>
+          <vertex x="${size}" y="0" z="0"/>
+          <vertex x="0" y="${size}" z="0"/>
+          <vertex x="0" y="0" z="${size}"/>
+        </vertices>
+        <triangles>
+          <triangle v1="0" v2="1" v3="2"/>
+          <triangle v1="0" v2="2" v3="3"/>
+        </triangles>
+      </mesh>
+    </object>
+  </resources>
+  <build>
+    <item objectid="1" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>
+  </build>
+</model>`
+}
+
+function coloredThreemfBytes(hex: string, size = 10): ArrayBuffer {
+  const xml = coloredModelXml('millimeter', size, hex)
+  const zip = zipSync({ '3D/3dmodel.model': strToU8(xml) })
+  return zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength) as ArrayBuffer
+}
+
+describe('importFile 3MF object color → shape.appearance (P2, plan §5 3MF row)', () => {
+  it('maps basematerials displaycolor (#RRGGBB) to appearance.color in sRGB 0–1', async () => {
+    const { shape } = await importFile(coloredThreemfBytes('#ff0000'), '3mf')
+    expect(shape.appearance?.color).toEqual([1, 0, 0])
+  })
+
+  it('omits appearance when the object carries no basematerials color', async () => {
+    const { shape } = await importFile(threemfBytes('millimeter', 10), '3mf')
+    expect(shape.appearance).toBeUndefined()
+  })
+
+  it('tolerates non-#RRGGBB displaycolor gracefully (no appearance, no throw)', async () => {
+    // 宽容兼容外部数据：displaycolor 非 6 位 hex 时 baseColor 缺省 → 不挂外观、不抛错。
+    const { shape } = await importFile(coloredThreemfBytes('invalid'), '3mf')
+    expect(shape.appearance).toBeUndefined()
+  })
+})
+
 describe('importFile real fixture (cube334.3mf)', () => {
   let buf: ArrayBuffer
   beforeAll(() => {

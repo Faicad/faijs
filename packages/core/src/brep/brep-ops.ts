@@ -23,6 +23,7 @@ import * as THREE from 'three'
 import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
 import { getOcctKernel, type ShapeHandle } from '../occt-kernel/occtKernel'
+import { getSolidColorsOrdered } from '../occt-kernel/stepColorParser'
 import type { Shape, Vec3 } from '../mesh/types'
 import type { BrepChainState } from './brep-chain'
 import type { PartName } from '../identity'
@@ -741,6 +742,28 @@ export function extrudeBrep(
 // ─── STEP/BREP 导入操作 ───
 
 /**
+ * 单零件导入的 STEP 颜色挂载（P2，方案 §5 STEP 行）。
+ *
+ * `getSolidColorsOrdered`（stepColorParser）把 STYLED_ITEM → COLOUR_RGB 引用链
+ * 解析为按 MANIFOLD_SOLID_BREP 文件序的颜色数组；该序与 OCCT
+ * `getSubShapes(compound,'solid')` 一致（stepColorParser 注释），因此取 `[0]`
+ * 即「loadBrep 单零件收敛取第一个 solid」的颜色，语义对齐。
+ *
+ * 宽容兼容外部数据：BREP（CASCADE Topology 文本）无颜色概念直接跳过；STEP
+ * 文本无 `STYLED_ITEM` 早退（零额外开销）；引用链缺失/未知预定义色返回 null，
+ * 一律不挂外观、不抛错（AGENTS.md 全局铁律：不得以内部严格性拒收正常文件）。
+ */
+function applyFirstStepColor(shape: Shape, buffer: ArrayBuffer): Shape {
+  const head = new TextDecoder('utf-8').decode(buffer.slice(0, 64))
+  if (head.includes('CASCADE Topology')) return shape
+  const text = new TextDecoder('utf-8').decode(buffer)
+  if (!text.includes('STYLED_ITEM')) return shape
+  const c0 = getSolidColorsOrdered(text)[0]
+  if (c0) shape.appearance = { color: [c0[0], c0[1], c0[2]] }
+  return shape
+}
+
+/**
  * BREP-native STEP 导入：使用 OCCT kernel.importStep 导入 STEP 文件为精确实体。
  *
  * 与 mesh 路径（cad-core/io.ts importFile → loadFormat → meshes）对照：
@@ -800,7 +823,7 @@ export function loadBrep(
     // failed"），调用方必须自己保证它只流向变换/聚合。
     if (opts?.allowNonSolid && hasAnyTopology(kernel, top)) {
       const shape = solidToShape(kernel, top, undefined, brepChain, stmtId)
-      return { solid: top, shape }
+      return { solid: top, shape: applyFirstStepColor(shape, buffer) }
     }
     kernel.release(top)
     throw new Error(
@@ -815,7 +838,7 @@ export function loadBrep(
     const realSolid = solids[0]
     kernel.release(top) // 释放 Compound 包裹，realSolid 独立持有
     const shape = solidToShape(kernel, realSolid, undefined, brepChain, stmtId)
-    return { solid: realSolid, shape }
+    return { solid: realSolid, shape: applyFirstStepColor(shape, buffer) }
   }
 
   // 多 solid（§5.4 单零件收敛）：只支持单零件 —— 降级取**第一个** solid，
@@ -835,7 +858,7 @@ export function loadBrep(
   }
   kernel.release(top) // 释放 Compound 包裹，first 独立持有（同单 solid 模式）
   const shape = solidToShape(kernel, first, undefined, brepChain, stmtId)
-  return { solid: first, shape, multiSolidCount: solids.length }
+  return { solid: first, shape: applyFirstStepColor(shape, buffer), multiSolidCount: solids.length }
 }
 
 /** Sub-shape kinds that make an imported shape "addressable but not a solid". */
