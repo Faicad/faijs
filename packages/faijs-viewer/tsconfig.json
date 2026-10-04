@@ -25,7 +25,10 @@
     "paths": {
       "@faicad/faijs": ["../core/src/index.ts"],
       "@faicad/faijs/browser": ["../core/src/browser.ts"],
-      "@faicad/faijs/*": ["../core/src/*"]
+      "@faicad/faijs/*": ["../core/src/*"],
+      "@faicad/faijs-sketch": ["../sketch/src/index.ts"],
+      "@faicad/faijs-sketch/node": ["../sketch/src/node.ts"],
+      "@faicad/faijs-draw": ["../draw/src/index.ts"]
     }
   },
   "include": [

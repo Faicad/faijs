@@ -301,7 +301,7 @@ export const GEAR_SPLINE_FACE_STRATEGIES: readonly GearSplineFaceStrategy[] = [
  * Per the measured table in the faijs-gears spike: S2's area relative
  * deviation is 5.6e-7 / max sample-point distance 2.6e-6 mm — about three
  * orders of magnitude better than S1/S3. See
- * `docs/analysis/2026-09-08-faijs-gears-spike.md`.
+ * `docs/analysis/2026-09-08-fai-cq-gears-spike.md`.
  */
 export const DEFAULT_GEAR_SPLINE_FACE_STRATEGY: GearSplineFaceStrategy = 'row-approx-loft'
 

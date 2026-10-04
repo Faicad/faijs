@@ -161,10 +161,10 @@ test.describe('faijs demo', () => {
     }
   })
 
-  test('gear-demo：真齿轮库 faijs-gears 出 brep 几何（走 CDN）', async ({ page }) => {
-    // `@faicad/faijs-gears` 现从 jsDelivr CDN 加载（0.13.2 起已修复 cq-compat
-    // 依赖解析，+esm 不再 404）；它的工厂全是 async（await getGearKernel），
-    // 走 compat 边界收养为 faijs Shape。
+  test('gear-demo：真齿轮库 faijs-gears 出 brep 几何（本地 workspace 装载）', async ({ page }) => {
+    // `@faicad/faijs-gears` 现从 demo 本地 workspace 装载（与主 bundle 共享同一
+    // faijs 实例，CI 测当前仓库版本、不依赖外部 npm 发布）；它的工厂全是 async
+    // （await getGearKernel），走 compat 边界收养为 faijs Shape。
     await page.goto('/')
     await waitForStatusOk(page)
 
@@ -189,7 +189,8 @@ test.describe('faijs demo', () => {
 
   test('CDN 上没有的库 → 装载阶段显式报错（不静默、不回退）', async ({ page }) => {
     // 该防回归原挂在已删除的 @faicad/gear-lib-demo 示例上；现在直接喂一段
-    // 引用不存在包的脚本，保证「CDN 查不到必须报错」这条契约仍有载体。
+    // 引用不存在包的脚本，保证「本地映射未命中且 CDN 查不到必须报错」这条契约
+    // 仍有载体。
     await page.goto('/')
     await waitForStatusOk(page)
 

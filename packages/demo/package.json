@@ -13,7 +13,9 @@
   },
   "dependencies": {
     "@faicad/faijs": "^0.29.0",
+    "@faicad/faijs-cadquery": "^0.29.0",
     "@faicad/faijs-extra": "^0.29.0",
+    "@faicad/faijs-gears": "^0.29.0",
     "@faicad/sheetmetal": "^0.29.0",
     "manifold-3d": "^3.5.1",
     "occt-wasm": "^3.8.0",

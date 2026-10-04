@@ -17,8 +17,12 @@
     "paths": {
       "@faicad/faijs": ["../core/dist/index.d.ts"],
       "@faicad/faijs/*": ["../core/dist/*"],
+      "@faicad/faijs-cadquery": ["../faijs-cadquery/dist/index.d.ts"],
+      "@faicad/faijs-cadquery/*": ["../faijs-cadquery/dist/*"],
       "@faicad/faijs-extra": ["../faijs-extra/dist/index.d.ts"],
       "@faicad/faijs-extra/*": ["../faijs-extra/dist/*"],
+      "@faicad/faijs-gears": ["../faijs-gears/dist/index.d.ts"],
+      "@faicad/faijs-gears/*": ["../faijs-gears/dist/*"],
       "@faicad/sheetmetal": ["../sheetmetal/dist/index.d.ts"],
       "@faicad/sheetmetal/*": ["../sheetmetal/dist/*"]
     }

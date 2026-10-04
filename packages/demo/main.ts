@@ -43,6 +43,51 @@ type CdnFaijsBindings = {
   setManifoldWasmUrl: (url: string) => void
 }
 let cdnFaijsBound = false
+
+// ── 最新版本探测（主源 npm registry → 降级 jsDelivr data API） ──
+// 版本探测必须拿**精确版本**（jsDelivr 对 latest 的 +esm/package.json 都有 CDN 缓存，
+// 见下方 GOTCHA）。主源 npm registry 权威无缓存；但 registry.npmjs.org 在部分
+// 网络（如大陆）不可达/超时，此时降级到 jsDelivr 的 data API（同一 CDN 基础设施、
+// 大陆网络可达、返回 JSON 无打包缓存），保证 CDN 装载不因 registry 单点不可达而全挂。
+// 包不存在（两源都 404）→ 抛 "not found on npm registry"；两源都不可达 → 返回
+// undefined（调用方回退无版本 URL，保持旧行为可自愈）。
+type LatestProbe = { version: string; autoLift?: boolean }
+async function probeLatestVersion(name: string): Promise<LatestProbe | undefined> {
+  // fetch 带超时：registry/数据源不可达时立即降级（浏览器默认无超时，挂起会
+  // 吃掉测试/用户等待窗口；大陆网络对 registry.npmjs.org 常为 TCP 层超时）。
+  const withTimeout = (url: string, ms: number) =>
+    fetch(url, { signal: AbortSignal.timeout(ms) })
+  try {
+    const regRes = await withTimeout(`https://registry.npmjs.org/${name}/latest`, 8000)
+    if (regRes.ok) {
+      const pj = (await regRes.json()) as FaijsPkg & { version?: string }
+      if (pj.version) return { version: pj.version, autoLift: pj.faijs?.autoLift }
+    } else if (regRes.status === 404) {
+      throw new Error(`package "${name}" not found on npm registry`)
+    }
+    // 其他 HTTP 错误（5xx 等）→ 降级
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('not found on npm registry')) throw err
+    // 网络不可达/超时（TypeError: Failed to fetch）→ 降级
+  }
+  try {
+    const dataRes = await withTimeout(
+      `https://data.jsdelivr.com/v1/packages/npm/${name}/resolved?specifier=latest`,
+      8000,
+    )
+    if (dataRes.ok) {
+      const { version } = (await dataRes.json()) as { version?: string }
+      if (version) return { version, autoLift: undefined }
+    } else if (dataRes.status === 404) {
+      throw new Error(`package "${name}" not found on npm registry`)
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('not found on npm registry')) throw err
+    // 两源都不可达 → undefined（调用方回退无版本 URL）
+  }
+  return undefined
+}
+
 async function bindKernelToCdnFaijs(): Promise<void> {
   if (cdnFaijsBound) return
   cdnFaijsBound = true // 单飞：并发装载只绑一次；失败允许重试
@@ -51,15 +96,12 @@ async function bindKernelToCdnFaijs(): Promise<void> {
   // 0.14.1 的构建。而 CDN 上的库包（faijs-gears / cq-compat）在其 +esm 里把 peer
   // `@faicad/faijs` 内联成**精确版本**（实测 0.16.0），于是 demo 会绑到一份、库包用另一份
   // → 两份 faijs 实例 → 后端内核注册表不共享（正是本函数存在的理由）。
-  // 因此与库装载同口径：先查 npm registry 的 /latest 文档（无 CDN 缓存、带 CORS 头），
-  // 再用**精确版本** URL 装载；probe 失败时回退到无版本 URL（保持旧行为可自愈）。
+  // 因此与库装载同口径：先探测精确版本，再用**精确版本** URL 装载；探测失败时回退到
+  // 无版本 URL（保持旧行为可自愈）。
   let faijsUrl = `${CDN_BASE}@faicad/faijs/+esm`
   try {
-    const regRes = await fetch('https://registry.npmjs.org/@faicad/faijs/latest')
-    if (regRes.ok) {
-      const { version } = (await regRes.json()) as { version?: string }
-      if (version) faijsUrl = `${CDN_BASE}@faicad/faijs@${version}/+esm`
-    }
+    const probe = await probeLatestVersion('@faicad/faijs')
+    if (probe) faijsUrl = `${CDN_BASE}@faicad/faijs@${probe.version}/+esm`
     const cdnFaijs = (await import(/* @vite-ignore */ faijsUrl)) as unknown as CdnFaijsBindings
     cdnFaijs.setOcctWasmInitFn(initOcct)
     cdnFaijs.setManifoldWasmUrl(
@@ -81,6 +123,17 @@ const libNsCache = new Map<string, Promise<StdlibNamespace>>()
 /** 逐库 autoLift 约定缓存（loadLib 时从 CDN package.json 抓取，autoLiftFor 同步读）。 */
 const libAutoLiftCache = new Map<string, boolean | undefined>()
 
+// ── 本地库优先装载表（monorepo 自洽，CI 测当前仓库版本） ──
+// demo 是 monorepo workspace 包，以下库在本地 node_modules 就有当前仓库版本
+// （hoisted dist）。静态 import 由 vite 解析，且与 demo 主 bundle 的 @faicad/faijs
+// 是**同一实例**（peer 依赖解析到同一份）——内核注册表天然共享，不需要 CDN bind，
+// 也不依赖外部 npm 发布。未列出的 @faicad/* 仍走 CDN 兜底（如故意不存在的包）。
+const LOCAL_LIBS: Record<string, () => Promise<unknown>> = {
+  '@faicad/faijs-gears': () => import('@faicad/faijs-gears'),
+  '@faicad/faijs-cadquery': () => import('@faicad/faijs-cadquery'),
+  '@faicad/sheetmetal': () => import('@faicad/sheetmetal'),
+}
+
 const demoLibLoader: LibLoader = {
   loadLib: (name) => {
     if (!name.startsWith(DEMO_SCOPED_PREFIX)) {
@@ -91,28 +144,38 @@ const demoLibLoader: LibLoader = {
     let p = libNsCache.get(name)
     if (!p) {
       p = (async () => {
-        // CDN 库包的 peer 依赖解析到 CDN 上另一份 faijs 实例，必须先把内核挂点
-        // 绑过去（否则 CDN 份跑 BREP op 报 kernel not initialized）。
-        await bindKernelToCdnFaijs()
+        // 本地优先：demo 是 monorepo workspace 包，以下库在本地 node_modules 就有
+        // 当前仓库版本（dist），静态 import 由 vite 解析到与主 bundle 同一份 faijs
+        // 实例——内核注册表天然共享，无需 CDN bind。CI 因此测的是仓库当前版本，
+        // 不依赖外部 npm 发布（发布滞后/缺失不影响 demo e2e）。
+        const local = LOCAL_LIBS[name]
+        if (local) {
+          const mod = await local()
+          return mod as unknown as StdlibNamespace
+        }
+        // CDN 兜底：未在本地 workspace 的 @faicad/* 库（含故意不存在的包——
+        // 先探测版本，404 即报 "not found on npm registry"，不触碰 CDN 内核绑定）。
         // 版本探测不能用 jsDelivr 的无版本 package.json：该 URL 有 CDN 缓存，
         // 新版发布后仍返回旧版本（实测发布 0.13.1 后仍回 0.13.0），导致 loader
         // "精确" pin 到旧版 bundle（其内联 peer faijs@0.13.0，无内核注册表共享
-        // 修复）。改查 npm registry 的 /latest 文档（无 CDN 缓存，带 CORS 头）。
-        const regRes = await fetch(`https://registry.npmjs.org/${name}/latest`)
-        if (!regRes.ok) {
-          if (regRes.status === 404) {
-            throw new Error(`package "${name}" not found on npm registry`)
-          }
-          throw new Error(`npm registry probe for "${name}" failed: HTTP ${regRes.status}`)
+        // 修复）。probeLatestVersion 主源查 npm registry 的 /latest 文档（无 CDN
+        // 缓存，带 CORS 头），registry 不可达时降级 jsDelivr data API（同一 CDN
+        // 基础设施、大陆网络可达），两源都 404 才报 not found。
+        const probe = await probeLatestVersion(name)
+        if (!probe) {
+          throw new Error(
+            `npm registry probe for "${name}" failed: both npm registry and jsDelivr data API unreachable`,
+          )
         }
-        const pj = (await regRes.json()) as FaijsPkg & { version?: string }
-        libAutoLiftCache.set(name, pj.faijs?.autoLift)
+        libAutoLiftCache.set(name, probe.autoLift)
+        // 包存在：CDN 库包的 peer 依赖解析到 CDN 上另一份 faijs 实例，必须先把
+        // 内核挂点绑过去（否则 CDN 份跑 BREP op 报 kernel not initialized）。
+        await bindKernelToCdnFaijs()
         // 用精确版本 URL 动态 import（@vite-ignore：真 CDN 运行时加载）。
         // 不能用不带版本的 latest URL：jsDelivr 对 latest 的 +esm 打包有缓存，
         // 会把库包 peer 依赖（@faicad/faijs）内联成旧版实例（无 globalThis 内核
         // 注册表共享修复 → "kernel not initialized"）。精确版本首次打包即取最新。
-        const version = pj.version ?? 'latest'
-        const mod = await import(/* @vite-ignore */ `${CDN_BASE}${name}@${version}/+esm`)
+        const mod = await import(/* @vite-ignore */ `${CDN_BASE}${name}@${probe.version}/+esm`)
         return mod as unknown as StdlibNamespace
       })()
       libNsCache.set(name, p)
@@ -571,7 +634,11 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.appendChild(a)
   a.click()
   a.remove()
-  URL.revokeObjectURL(url)
+  // 延迟 revoke：a.click() 触发的是异步下载，立即 revokeObjectURL 会让 Chromium
+  // 在下载完成前就取消（e2e 实测 download.path 抛 "canceled"，headless 下必现，
+  // 二进制 STL 尤甚——文件越大下载越慢，越容易被 revoke 打断）。延迟到下载
+  // 完成窗口之后（10s）再释放 object URL，既保证下载不被取消，也不长期泄漏。
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
 // 合并多个终端 shape 的三角化数据为单一 mesh（顶点去重不做，直接拼接）

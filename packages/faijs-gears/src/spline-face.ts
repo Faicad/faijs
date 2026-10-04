@@ -45,7 +45,7 @@ export type DeviationStats = GearDeviationStats
  *
  * 依据 `spline-face.test.ts` 的实测表：S2 的面积相对偏差 5.6e-7 / 采样点最大距离
  * 2.6e-6 mm，比 S1、S3 好约 3 个数量级。详见
- * `docs/analysis/2026-09-08-faijs-gears-spike.md`。
+ * `docs/analysis/2026-09-08-fai-cq-gears-spike.md`。
  */
 export const DEFAULT_SPLINE_FACE_STRATEGY = DEFAULT_GEAR_SPLINE_FACE_STRATEGY
 
