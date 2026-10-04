@@ -26,9 +26,9 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 521 ported / 121 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 晚 **N1 落地后**实读，见 §10.4） |
+| **manifest**（导出变量级） | **697 = 522 ported / 120 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 晚 **N1 + N2 落地后**实读，见 §10.4） |
 | **coverage**（上游测试函数级） | **297 = 214 PORTABLE / 41 PORTABLE-WITH-STUB / 42 BLOCKED**（全集 305，`casesWithStep=297`、8 条无 STEP） | `tests/coverage.json`（2026-10-04 `32c95cbb` 加 `hollow` 别名后重算实读：较 B2-7 的 211/41/45 再翻 3 条，正是 `hollow` 三例） |
-| **镜像文件** | **533** 个 `.fai.js` + **22** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 晚 **N1 +15 镜像 / +1 blocked** 后实测） |
+| **镜像文件** | **534** 个 `.fai.js` + **22** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 晚 **N1 +15 / +1 blocked，N2 +1** 后实测） |
 | **包内单测** | 598 全绿（55 文件） | 2026-10-04 `32c95cbb` 后实测 |
 | **全量 parity** | **458 PASS + 16 PASS-NT / 650 ref cases = 72.92%**，FAIL **21**、ERROR 0、BLOCKED 155 | `out/report.json`（2026-10-04 20:18 产物，实读） |
 
@@ -566,9 +566,9 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 
 | 类 | 条数 | 内容 | 归属 |
 |---|---|---|---|
-| **A · 写镜像即解锁（零新几何 / 零框架改动）** | **21 → 剩 6** | getfixturevalue 11 / raises 5 / parametrize 3 / `__dir__` 2 —— **N1 已吃掉 15 条**；剩余 5 条全是往返产物（`assy_i`×2 + roundtrip×3），另 1 条（`box_and_vertex`）改判为 `op:vertex-shape` 新 API 缺口 | 新增 **N1** ✅ 已完成 |
-| **B · 本仓可做（需新几何或参数通道）** | **62** | text-spine 3 / draft 2 / prism-tilt 1 / until-face 7 / shell+pendingWires 3 / history-subshape 3 / project 3 / export 3 / importBin 2 / 零散值面 + 其余待逐项定性 | B2 / B4 |
-| **C · `.fai.js` 语法长线（core `lang/`）** | **5** | filter 的 `__cf`/`__cs`(2) + `op:shape-operator-overload`(1) + `eachpoint`(1) + `narrow:cutEach` lambda(1) | G-C25 / G-C19 |
+| **A · 写镜像即解锁（零新几何 / 零框架改动）** | **21 → 剩 5；另加 cf/cs 2 条改判 ⇒ 7** | getfixturevalue 11 / raises 5 / parametrize 3 / `__dir__` 2 —— **N1 已吃掉 15 条**；剩余 5 条全是往返产物（`assy_i`×2 + roundtrip×3），另 1 条（`box_and_vertex`）改判为 `op:vertex-shape` 新 API 缺口。**N2 实测又把 `filter` 的 `__cf`/`__cs` 从 C 组改判进本组**（几何是「已有几何的选择/排序」，无需 lambda 即可忠实复现，见 §10.4.2）—— 待拍板是否写 | 新增 **N1** ✅ 已完成 |
+| **B · 本仓可做（需新几何或参数通道）** | **62 → 59** | text-spine 3 / draft 2 / prism-tilt 1 / until-face 7 / shell+pendingWires 3 / history-subshape 3 / project 3 / export 3 / importBin 2 / 零散值面 + 其余待逐项定性 —— **N2 吃掉 `test_special__c` 1 条**；`filter` 的 `__cf`/`__cs` 实测改判出本组（§10.4.2） | B2 / B4 |
+| **C · `.fai.js` 语法长线（core `lang/`）** | **5 → 3** | ~~filter 的 `__cf`/`__cs`(2)~~ **N2 实测改判出本组**（见 §10.4.2）；余 `op:shape-operator-overload`(1) + `eachpoint`(1) + `narrow:cutEach` lambda(1) | G-C25 / G-C19 |
 | **D · 内核依赖** | **48** | `op:assembly-solve` 14（子系统）/ `kernel:fillet-chain-reapply` 9 / `op:fuzzy-bool` 5 / `kernel:sweep-multisection-pipe` 5 / `remove` 5 / interpPlate 5 / 近重合布尔 4 / prism-from-face 4 / `op:assembly-subshape-import` 4 / sweep-aux-spine 3 / `narrow:sphere-angles` 3 等 | B5 / B6 |
 
 > B 组 62 是「未逐项定性」的余量，**不是「都容易」**；只有下表的 N1–N4 是本轮已取证、可直接开工的。
@@ -580,7 +580,7 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 | 序 | 项 | 条数 | 为什么排这个位置 | 前置 / 风险 |
 |---|---|---|---|---|
 | **N1** ✅ **已完成 2026-10-04**（15/16 条 ported） | **harness A 组：内联 fixture 镜像** —— 只做**不含往返**的 16 条 | **16→15** | 零新几何、零框架改动、条数最多；全部有 ref；镜像先例已有 87 条 | 见下方 §10.4.1 执行记录：`test_PointInPlane_param__box_and_vertex` 需 `cq.vertex` 新 API，撤出并标 `op:vertex-shape` |
-| **N2** | **`filter` 陈旧标签 `test_special__c`** | **1** | 纯 `compound(box,box,box)`，一行镜像 | 无 |
+| **N2** ✅ **已完成 2026-10-04**（1/1） | **`filter` 陈旧标签 `test_special__c`** | **1** | 纯 `compound(box,box,box)`，一行镜像；`compare-one` **逐位 PASS**（volΔ/comΔ/bboxΔ 全 0、topo f18/e36/v24 一致） | 无 |
 | **N3** | **`text-spine`（r7/r8/r9）** | **3** | 基础 `text` 已 ported ⇒ 只补沿曲线排字的参数通道 | 需先一次性 Python 捕获字符沿 spine 的放置语义（§7 纪律） |
 | **N4** | **`draft`（res1/res2）** | **2** | 内核原语已在，只差多面循环 + 中性面语义 | **风险中等**：`test_draft` 的 `fside` 是 4 个侧面，内核 `draft` 单面；若「多次单面 Build」≠「一次多面 Build」，则回退 B6-4 并写明理由 |
 
@@ -607,6 +607,24 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 2. **GOTCHA · `raises` 5 条被 `manual:true` 钉住**：`gen-manifest.ts:98` 的保留逻辑会跳过一切 `manual:true` 的 blocked 条目 ⇒ 只写镜像**不会**翻状态，必须先从 `manifest.json` 删掉这 5 条的 `manual` 字段再重跑 gen-manifest（第一次重跑只翻了 10 条，就是这个原因）。
 
 **结果**：15 条镜像全部 `run-cand` 导出成功、`compare-one` **14 PASS + 1 PASS-NT**（`test_colors_fused_assy`：volΔ 7.45e-13 / comΔ 2.64e-13 / bboxΔ 0，仅拓扑 f24/e30/v18 vs f18/e18/v12 —— 6 个圆柱 ref 侧各多 1 seam 面，几何数值全中）。manifest **506→521 ported、136→121 blocked**；镜像 **518→533**（+15）、`.blocked` **21→22**（+1）；包内单测 **598 全绿 / 55 文件**、零 stderr。
+
+#### 10.4.2 N2 执行记录（2026-10-04 晚，实测）
+
+**交付**：`tests/test_shapes/test_special__c.fai.js`（1 条）。`compare-one` **逐位 PASS** —— volΔ `0.00e+0` / comΔ `0.00e+0` / bboxΔ `0.00e+0`，topo `f18/e36/v24` 两侧一致。manifest **521→522 ported、121→120 blocked**；镜像 **533→534**。
+
+**GOTCHA（与 N1 的 `boxes9` 同源，第二次踩中）**：`test_shapes.py:1` 的 `box` 同样来自 `cadquery.occ_impl.shapes`（== `Solid.makeBox`），**xy 居中、底面 z=0**，不是三轴居中。faijs `cq.box()` 默认居中 ⇒ 必须显式 `{ centered: [true, true, false] }`。真值 com z = `(1·0.5 + 8·1 + 27·1.5)/36 = 49/36 = 1.36111`、bbox z`[0,3]`（若写成三轴居中则 com z=0、bbox z`[-1.5,1.5]`，直接 FAIL）。已写进镜像注释防回归。
+
+**★ 实测推翻「`filter` 3 条必需 lambda」的旧判定**（本轮一次性 Python 探针，源 `out/cache/v2.8.0/tests/test_shapes.py:390-402`）：
+
+| 变量 | 上游表达式 | 实测几何 | 能否无 lambda 复现 |
+|---|---|---|---|
+| `c` | `compound(box(1,1,1), box(2,2,2), box(3,3,3))` | vol 36、com z 1.36111、bb `(-1.5,-1.5,0)→(1.5,1.5,3)`、f18/e36/v24 | ✅ **已写**（N2） |
+| `cf` | `c.filter(lambda x: x.Volume() <= 1)` | Compound 含 **1** solid = box(1,1,1)、vol `0.9999999999999998`、bb `(-0.5,-0.5,0)→(0.5,0.5,1)`、f6/e12/v8 | ✅ 直接写 `box(1,1,1)` 即可 |
+| `cs` | `c.sort(lambda x: -x.Volume())` | 同三 solid、顺序 `[27, 8, 1]`、**vol 35.99999999999999**、bb 与 `c` 相同、f18/e36/v24 | ✅ 直接按反序 compound 即可 |
+
+⇒ `cf`/`cs` 的几何只是「对已有几何做选择 / 排序」，**不需要 lambda 就能忠实复现**，与 N1 的内联 fixture 完全同类 ⇒ 从 **C 组（语法长线）改判进 A 组（写镜像即解锁）**。旧判定「`Shape.filter` 只有 callable 签名 ⇒ 无 lambda 就写不出镜像」错在把「**表达式不可直译**」当成了「**几何不可复现**」——而 ref harness 只导出变量几何（§10 方法论），镜像只需复现几何。
+
+**待拍板（未擅自写 `cf`/`cs`）**：这两条写镜像必然 PASS 且几何忠实（不是假 PASS），但**不验证 `filter`/`sort` 的能力本身**。是否与 `importBin` / 往返类 7 条一并决策后同批写入，待用户定。
 
 ### 10.5 待决策 / 未解决（如实列出）
 
