@@ -78,6 +78,8 @@ export {
   cut,
   compound,
   imprint,
+  solid,
+  solidWithInner,
   intersect,
   combine,
   fillet,

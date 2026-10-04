@@ -2001,68 +2001,64 @@
     "blockedBy": "remove"
   },
   "tests.test_free_functions:::test_solid__b": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__b_large": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__b_small": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__sphere1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__sphere2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__s1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__s2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__b1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "solid"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__s3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "op:solid-voids",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__s4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "op:solid-voids",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__s5": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "op:solid-voids",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_solid__s6": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "op:solid-voids",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_faceOn__f2": {
     "status": "blocked",

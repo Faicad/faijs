@@ -6234,6 +6234,130 @@ export async function solidFromFaces(
   return clone(wp, { objects: [fromHandle(result)], pendingWires: [] })
 }
 
+/**
+ * Collect face/sub-shape handles from a Workplane (its `objects` stack) or a
+ * bare Shape. Returns the BREP handle of each non-null entry.
+ */
+function collectHandles(input: Workplane | Shape | null | undefined): ShapeHandle[] {
+  if (!input) return []
+  if (typeof input === 'object' && 'objects' in (input as Workplane)) {
+    return (input as Workplane).objects
+      .map((s) => brepOf(s) as unknown as ShapeHandle | undefined)
+      .filter((h): h is ShapeHandle => h !== undefined)
+  }
+  const h = brepOf(input as Shape) as unknown as ShapeHandle | undefined
+  return h !== undefined ? [h] : []
+}
+
+/**
+ * solid — upstream free-function `solid(*shapes, tol=1e-6)` overload 1
+ * (`occ_impl/shapes.py:6137`): build a solid from faces/shells. When the
+ * inputs contain both outer and inner faces (disconnected shells), the
+ * largest-volume shell is the outer boundary and the rest are voids —
+ * implemented via boolean cut (outer − inner₁ − inner₂ …), which preserves
+ * all faces (outer + inner with reversed orientation as void boundaries).
+ *
+ * Accepts Workplanes (face stack extracted from `.objects`) and/or Shapes.
+ * Returns a Shape holding the resulting solid.
+ *
+ * @param inputs - Workplanes and/or Shapes carrying faces/shells
+ * @returns Solid Shape
+ */
+export function solid(...inputs: (Workplane | Shape | null | undefined)[]): Shape {
+  const handles = inputs.flatMap(collectHandles)
+  if (handles.length === 0) throw new Error('[cq-compat] solid: no face/shape with a BREP handle')
+  const k = getKernel() as unknown as OcctKernel
+  const sewed = k.sew(handles, 1e-6)
+  // Single shell or solid — wrap directly.
+  if (k.isShell(sewed) || k.isSolid(sewed)) {
+    return fromHandle(k.makeSolid(sewed)) as Shape
+  }
+  // Compound of shells — extract, create solids, boolean cut outer by inner.
+  const shells = k.getSubShapes(sewed, 'shell')
+  if (shells.length <= 1) {
+    return fromHandle(k.makeSolid(sewed)) as Shape
+  }
+  const solids = shells.map((sh) => k.makeSolid(sh))
+  // Find the outer solid (largest absolute volume).
+  const k2 = k as unknown as { getVolume: (s: ShapeHandle) => number; cut: (a: ShapeHandle, b: ShapeHandle) => ShapeHandle }
+  let outerIdx = 0
+  let maxVol = 0
+  for (let i = 0; i < solids.length; i++) {
+    const v = Math.abs(k2.getVolume(solids[i]!))
+    if (v > maxVol) { maxVol = v; outerIdx = i }
+  }
+  let result = solids[outerIdx]!
+  for (let i = 0; i < solids.length; i++) {
+    if (i === outerIdx) continue
+    result = k2.cut(result, solids[i]!)
+  }
+  return fromHandle(result) as Shape
+}
+
+/**
+ * solidWithInner — upstream free-function `solid(s, inner=…)` overload 2
+ * (`occ_impl/shapes.py:6170`): build a solid from outer faces with explicit
+ * inner void faces. Uses boolean cut (outer − inner₁ − inner₂ …) which
+ * preserves all faces matching the upstream `BRepBuilderAPI_MakeSolid` topology.
+ *
+ * @param outer - Workplane or Shape carrying the outer boundary faces
+ * @param inner - Workplanes/Shapes carrying the inner void faces
+ * @returns Solid Shape with voids
+ */
+export function solidWithInner(
+  outer: Workplane | Shape,
+  inner: (Workplane | Shape | null | undefined)[],
+): Shape {
+  const k = getKernel() as unknown as OcctKernel
+  const outerHandles = collectHandles(outer)
+  if (outerHandles.length === 0) throw new Error('[cq-compat] solidWithInner: no outer face')
+  const outerShell = k.sew(outerHandles, 1e-6)
+  let result = k.makeSolid(outerShell)
+  const k2 = k as unknown as {
+    cut: (a: ShapeHandle, b: ShapeHandle) => ShapeHandle
+    isSolid: (s: ShapeHandle) => boolean
+    isShell: (s: ShapeHandle) => boolean
+    getShapeType: (s: ShapeHandle) => string
+  }
+  for (const innerInput of inner) {
+    // Prefer the Workplane's .shape (the solid itself) over re-sewing faces —
+    // sewing a single sphere face yields a Face, not a Shell, and makeSolid
+    // can't wrap it. Using the original solid handle directly is both simpler
+    // and more robust.
+    let innerSolid: ShapeHandle | null = null
+    if (typeof innerInput === 'object' && innerInput && 'shape' in (innerInput as Workplane)) {
+      const wp = innerInput as Workplane
+      // baseShape preserves the original solid before face selection;
+      // shape becomes the first selected face (clone sets shape=objects[0]).
+      const solidShape = wp.baseShape ?? wp.shape
+      if (solidShape) {
+        const h = brepOf(solidShape) as unknown as ShapeHandle | undefined
+        if (h !== undefined) innerSolid = h
+      }
+    } else if (innerInput) {
+      const h = brepOf(innerInput as Shape) as unknown as ShapeHandle | undefined
+      if (h !== undefined) innerSolid = h
+    }
+    if (innerSolid && k2.isSolid(innerSolid)) {
+      result = k2.cut(result, innerSolid)
+      continue
+    }
+    // Fallback: sew face handles and wrap in a solid.
+    const innerHandles = collectHandles(innerInput)
+    if (innerHandles.length === 0) continue
+    const innerSewed = k.sew(innerHandles, 1e-6)
+    if (k2.isShell(innerSewed) || k2.isSolid(innerSewed)) {
+      result = k2.cut(result, k.makeSolid(innerSewed))
+    } else {
+      const innerShells = k.getSubShapes(innerSewed, 'shell')
+      for (const sh of innerShells) {
+        result = k2.cut(result, k.makeSolid(sh))
+      }
+    }
+  }
+  return fromHandle(result) as Shape
+}
+
 /** Endpoints of a curve edge (parameter-space — B-spline edges carry no
  * explicit vertices, so `curveParameters` + `curvePointAtParam` is the only
  * reliable endpoint path; the vertex fallback covers degenerate edges). */

@@ -380,13 +380,8 @@ const BY_KEY: Record<string, string> = {
   // a from-face subtractive prism — operator + from-face path.
   'tests.test_free_functions:::test_prism_taper__res3': 'op:prism-from-face',
   'tests.test_free_functions:::test_prism_taper__res5': 'op:prism-from-face',
-  // solid(...) with INTERNAL VOIDS: outer faces + inner faces sewn into a
-  // solid with voids (2 cubic voids / 2 spherical voids). solidFromFaces
-  // exists but has no inner-void orientation handling.
-  'tests.test_free_functions:::test_solid__s3': 'op:solid-voids',
-  'tests.test_free_functions:::test_solid__s4': 'op:solid-voids',
-  'tests.test_free_functions:::test_solid__s5': 'op:solid-voids',
-  'tests.test_free_functions:::test_solid__s6': 'op:solid-voids',
+  // CLOSED 2026-10-04 (roadmap B2-2): solid() free function + solidWithInner()
+  // implemented via boolean cut. All 12 test_solid variables now ported.
   // B0-5 data hygiene: these three carried a full prose sentence as `blockedBy`
   // (written by an earlier script revision, then orphaned when their BY_KEY
   // entries were dropped — gen-manifest preserves `manual: true` annotations, so

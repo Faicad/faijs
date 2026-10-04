@@ -70,6 +70,19 @@ const pairs: Array<[string, string]> = [
   ['tests.test_free_functions___test_imprint__res', 'test_imprint__res'],
   ['tests.test_free_functions___test_imprint__res_glue_full', 'test_imprint__res_glue_full'],
   ['tests.test_free_functions___test_imprint__res_glue_partial', 'test_imprint__res_glue_partial'],
+  // solid + solid-voids — free-function solid via boolean cut (2026-10-04)
+  ['tests.test_free_functions___test_solid__b', 'test_solid__b'],
+  ['tests.test_free_functions___test_solid__b_large', 'test_solid__b_large'],
+  ['tests.test_free_functions___test_solid__b_small', 'test_solid__b_small'],
+  ['tests.test_free_functions___test_solid__sphere1', 'test_solid__sphere1'],
+  ['tests.test_free_functions___test_solid__sphere2', 'test_solid__sphere2'],
+  ['tests.test_free_functions___test_solid__b1', 'test_solid__b1'],
+  ['tests.test_free_functions___test_solid__s1', 'test_solid__s1'],
+  ['tests.test_free_functions___test_solid__s2', 'test_solid__s2'],
+  ['tests.test_free_functions___test_solid__s3', 'test_solid__s3'],
+  ['tests.test_free_functions___test_solid__s4', 'test_solid__s4'],
+  ['tests.test_free_functions___test_solid__s5', 'test_solid__s5'],
+  ['tests.test_free_functions___test_solid__s6', 'test_solid__s6'],
 ]
 
 async function main() {
