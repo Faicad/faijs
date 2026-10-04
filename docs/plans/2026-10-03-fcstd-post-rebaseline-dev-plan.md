@@ -191,10 +191,13 @@
 - **F 组 6 个 kernel-fuse 取点复测**：1/6 转 RUN-OK（3.5_RPi_tft）；FCBL 仍在下一层
   fuse 失败（`union(fwd,rev)` 共享基面）；FAULHABER 已移到 chamfer edgeRef；2×
   Beam-coupling 抛 `wireframe: BRepAdaptor_Curve::No geometry`。
-- **stage2 全量 run-sweep 未刷新**：OCCT wasm 子进程反复崩 0xC0000142（桌面堆耗尽），
-  每 290s 窗口仅推进 ~20 文件；`--limit` 分片 + 断点续跑可行但需数小时。state 里
-  run-fail 324 / timeout 45 / ok 2762 为部分刷新后的混合口径（一轮 20 个已重判）。
-  **旧 run-fail 容器未变，重跑多数是重复烧时间**——真正待跑的是下轮代码变更后的差量。
+- **stage2 run-fail 桶已全量重判（2026-10-04，排除式分片对新容器重判 332 条）**：
+  终态 **ok 2772 / timeout 46 / run-fail 318**（325 个旧 run-fail 中 7 个转 ok，1 个旧 ok 变 timeout）。
+  run-fail 余量构成：**sketch 110 / edgeRef(G3) 105 / fillet-kernel 39 / sweep-transition 26 /
+  other 31 / kernel-boolean 7**——头两类（G 组 + sketch 求解）占 2/3，是下一批修复的靶心。
+  - 14 个 K 组新产品入 state：14/14，其中 **8 个 run ok**。
+  - timeout 桶 46 未重跑：实测其中 0 个存在 stage1 类别变动（输入同类别，重跑信息量低，
+    且每个需烧 120s）——留待机器资源恢复后补跑。
 - **本轮工具修复（fcstd-port 侧）**：`verifyProduct` 的 disposition 白名单补入
   `skipped-empty`（此前它拒绝 K 组新 disposition，把 2143 个重转误判 failed）；
   batch-convert 消费 `node_modules/@faicad/faijs-freecad/dist` 的坑再次确认——
