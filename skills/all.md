@@ -22,33 +22,6 @@ let assembled = cad.union(base_plate, shaft)
 let rounded = cad.fillet(assembled, { edges: [cad.edgeRef(assembled, 1)], radius: 2 * MM })
 ```
 
-## Available Libraries
-
-The following packages provide capabilities usable in `.fai.js` scripts. Each link below leads to a detailed skill file for that package.
-
-### Platform (built-in `cad` namespace)
-
-| Package | Skill File | Description |
-|---------|----------|-------------|
-| **@faicad/faijs** (core) | [core.md](#faicadfaijs-core-platform-cad-namespace) | The platform `cad.*` namespace: primitives (box, sphere, cylinder, cone, wedge), boolean ops (union, subtract, intersect, cut), feature ops (extrude, fillet, chamfer, shell, draft, sweep, loft, revolve, etc.), pattern ops, transform ops, query ops, and more. Always available — no import needed. |
-
-### Editor Extension Library (merged into `cad` namespace)
-
-| Package | Skill File | Description |
-|---------|----------|-------------|
-| **@faicad/faijs-extra** | [faijs-extra.md](#faicadfaijs-extra-editor-extension-ops) | Editor ops merged into `cad.*`: `fai_drill`, `fai_extrude`, `fai_split`, `group`, `assembly`, `copy`, `load`, `text`, `svgExtrude`. |
-
-### Domain Libraries (imported via `import * as <binding> from '<specifier>'`)
-
-| Package | Skill File | Import Specifier | Description |
-|---------|----------|------------------|-------------|
-| **@faicad/faijs-sketch** | [sketch.md](#faicadfaijs-sketch-constraint-based-sketch-op) | (merged into `cad`) | `cad.sketch` — constraint-based sketching with planegcs solver. Merged into `cad` namespace. |
-| **@faicad/faijs-draw** | [draw.md](draw.md) | (merged into `cad`) | `cad.draw` — fluent 2D drawing DSL for contour creation. Merged into `cad` namespace. |
-| **@faicad/sheetmetal** | [sheetmetal.md](#faicadsheetmetal-sheet-metal-cad-domain) | `@faicad/sheetmetal` or short name `sheetmetal` | Sheet-metal authoring, unfold, flat patterns, bend relief, cutouts, nesting, DXF export. |
-| **@faicad/faijs-gears** | [faijs-gears.md](#faicadfaijs-gears-gear-generation-library) | `@faicad/faijs-gears` or short name `faijs-gears` | Gear generation: spur, herringbone, ring, bevel, worm, rack, planetary gearsets. |
-| **@faicad/faijs-fasteners** | [faijs-fasteners.md](#faicadfaijs-fasteners-fastener-generation-library) | `@faicad/faijs-fasteners` or short name `faijs-fasteners` | Fasteners: threads, nuts, screws, washers, bearings, sprockets, chain, holes. |
-| **@faicad/faijs-cadquery** | [faijs-cadquery.md](faijs-cadquery.md) | `@faicad/faijs-cadquery` or short name `faijs-cadquery` | CadQuery API compatibility: Workplane, Sketch, Shape, selectors, assembly. |
-
 ## Key Concepts
 
 ### Dual-Channel Execution
@@ -84,29 +57,7 @@ Faces and edges are referenced by **role-based topology identity** (`cad.faceRef
 - Compound expressions are supported: `10 * MM + 2 * MM` evaluates to `12`.
 - Unit constants are reserved — you cannot shadow them with `let INCH = ...` or use them as parameter names.
 
-## Quick Reference: Platform `cad.*` Ops
-
-```
-Primitives:   box / sphere / cylinder / cone / wedge / helix / wire / profile / screw / sdf
-Sketch:       sketchOnPlane / sketchOnFace / punchHole
-Import:       import_brep / import_step / asset
-Boolean:      union / subtract / intersect / cut
-Feature:      extrude / revolve / sweep / loft / fillet / filletVariable / chamfer / shell / draft / thicken / engrave / knurl
-Pattern:      linearPattern / circularPattern / gridPattern / rectangularPattern / mirror / mirrorJoin / clone
-Split:        split / splitByPlane / sectionByPlane
-Transform:    place
-Repair:       defeature / reverseShape / unifySameDomain / sew / sewAndSolidify / removeHolesFromFace
-Structure:    compound
-Assembly:     jointTrajectory / inverseKinematics / mechanismDOF
-Query:        bboxCenter / bboxMin / bboxMax / faceNormal / faceRef / edgeRef / viewCamera / projectView / projectSheet
-```
-
-For full details on each op, see [core.md](#faicadfaijs-core-platform-cad-namespace).
-
-
 ---
-
-# @faicad/faijs (core) — Platform `cad.*` Namespace
 
 ## Primitives (Creators, no input)
 
@@ -448,10 +399,7 @@ Projects a shape to a multi-view SVG sheet.
 - **Sync**. Returns SVG string.
 - **BREP input required**.
 
-
 ---
-
-# @faicad/faijs-extra — Editor Extension Ops
 
 ## A-Group: Editor Ops
 
@@ -688,10 +636,7 @@ Extrudes a 2D SVG profile into a 3D part.
 - **Async**. Returns `Shape`.
 - **Example**: `let logo = cad.svgExtrude({ svg: 'logo.svg', depth: 5 * MM, targetLongSide: 20 * MM })`
 
-
 ---
-
-# @faicad/faijs-sketch — Constraint-Based Sketch Op
 
 ## `sketch(opts)`
 
@@ -763,10 +708,7 @@ let top_face = cad.sketch({
 - Non-`solved` outcomes (under-constrained, redundant, conflicting) still produce geometry.
 - The produced face/wire can be consumed by `cad.extrude`, `cad.sweep`, `cad.revolve`, etc.
 
-
 ---
-
-# @faicad/sheetmetal — Sheet-Metal CAD Domain
 
 ## Usage
 
@@ -945,10 +887,7 @@ Emits an annotated multi-layer DXF string for a flat pattern.
 - **Parameters** (`DxfOptions`): layers, precision, units.
 - **Sync**. Returns `Result<string>`.
 
-
 ---
-
-# @faicad/faijs-gears — Gear Generation Library
 
 ## Usage
 
@@ -1092,10 +1031,7 @@ Herringbone planetary gearset. Same params/outputs as `planetaryGearset`.
 - For multi-output functions (pairs, planetary), each named output becomes a separate product.
 - **BREP only** — mesh mode throws `E_MESH_UNSUPPORTED`.
 
-
 ---
-
-# @faicad/faijs-fasteners — Fastener Generation Library
 
 ## Usage
 
