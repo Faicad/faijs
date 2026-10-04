@@ -1154,6 +1154,7 @@
     "punchSolidOf",
     "quatRotate",
     "quaternionToMatrix3",
+    "readFileArrayBuffer",
     "reconstructSolidFromMesh",
     "rectangularPattern",
     "registerBrepEngine",
