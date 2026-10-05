@@ -9,7 +9,6 @@ import type { Shape } from '../mesh/types'
 import { clampNRad } from '../mesh/types'
 import { cad } from '../mesh'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
-import { solidToShape } from '../brep/brep-ops'
 import { getCurrentStmt } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
@@ -18,6 +17,10 @@ import type { Provenance } from '../topology/naming/lineage'
 import { asPartName } from '../identity'
 import { defineOp } from '../sdk'
 import { assertPositiveNumber, assertNonNegativeNumber } from './assert'
+import type { BrepMeshResult, BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
+import { DEFAULT_LINEAR_DEFLECTION } from '../tolerance'
+import { mm } from '../units'
 
 // ── per-op 参数自校验（Phase 2.2；api 层被直接 import 时的防御层） ──
 
@@ -109,10 +112,112 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
   // 改名/复用，StmtId 全局唯一，保证多个同类型 primitive 不撞 origin。
   const origin = String(getCurrentStmt()?.id ?? op)
   const roles = assignRoles(kernel, result.solid, op)
+  const segments = clampNRad((params.nRad ?? params.segments) as number)
+  // P4 面级：brep 链基本体也挂契约序 faceRanges（编辑器默认 brep 链——
+  // setFaceColor 必须可用）。box 的 OCCT 面枚举序（实测 0=−X,1=+Y,…）与契约
+  // （+X/−X/+Y/−Y/+Z/−Z）不一致，按面法线重排 indices；cylinder/cone 的
+  // OCCT 序与契约一致（实测锁定：cylinder 0=侧面,1=顶,2=底；cone radiusTop=0
+  // 0=侧面,1=底），直接透传。
+  const { shape, faceRanges } = brepPrimitiveMesh(kernel, result.solid, op, segments)
+  if (faceRanges) shape.faceRanges = faceRanges
   return fromBrep(
-    solidToShape(kernel, result.solid, clampNRad((params.nRad ?? params.segments) as number)),
+    shape,
     { solid: result.solid, roleTable: new Map([[asPartName(origin), roles]]) },
   )
+}
+
+/** 面法线主轴向：用该面非退化三角形的法线和定轴与符号（OCCT 统一 outward 绕向）。 */
+function faceNormalAxis(
+  mesh: BrepMeshResult,
+  triStart: number,
+  triCount: number,
+): { axis: 0 | 1 | 2; sign: 1 | -1 } | null {
+  let sx = 0
+  let sy = 0
+  let sz = 0
+  for (let t = 0; t < triCount; t++) {
+    const i0 = mesh.indices[(triStart + t) * 3]
+    const i1 = mesh.indices[(triStart + t) * 3 + 1]
+    const i2 = mesh.indices[(triStart + t) * 3 + 2]
+    const p0x = mesh.positions[i0 * 3]; const p0y = mesh.positions[i0 * 3 + 1]; const p0z = mesh.positions[i0 * 3 + 2]
+    const p1x = mesh.positions[i1 * 3]; const p1y = mesh.positions[i1 * 3 + 1]; const p1z = mesh.positions[i1 * 3 + 2]
+    const p2x = mesh.positions[i2 * 3]; const p2y = mesh.positions[i2 * 3 + 1]; const p2z = mesh.positions[i2 * 3 + 2]
+    const ux = p1x - p0x; const uy = p1y - p0y; const uz = p1z - p0z
+    const vx = p2x - p0x; const vy = p2y - p0y; const vz = p2z - p0z
+    const nx = uy * vz - uz * vy
+    const ny = uz * vx - ux * vz
+    const nz = ux * vy - uy * vx
+    const len = Math.hypot(nx, ny, nz)
+    if (!Number.isFinite(len) || len < 1e-12) continue
+    sx += nx; sy += ny; sz += nz
+  }
+  const ax = Math.abs(sx); const ay = Math.abs(sy); const az = Math.abs(sz)
+  if (!Number.isFinite(ax + ay + az) || ax + ay + az < 1e-12) return null
+  if (ax >= ay && ax >= az) return { axis: 0, sign: sx > 0 ? 1 : -1 }
+  if (ay >= ax && ay >= az) return { axis: 1, sign: sy > 0 ? 1 : -1 }
+  return { axis: 2, sign: sz > 0 ? 1 : -1 }
+}
+
+/**
+ * 三角化基本体并附 P4 契约序 faceRanges。
+ * faceGroups 三元组 = [triStart, triCount, faceHash]，前两元是索引单位
+ * （brep-ops.ts 注释）→ 三角形单位 = 索引/3。
+ * - box：6 面 → 按面法线重排 indices 到契约序（0=+X,1=−X,2=+Y,3=−Y,4=+Z,5=−Z）。
+ * - cylinder/cone：OCCT 枚举序与契约一致（探针实测锁定），直接透传，不重排。
+ * - wedge/sphere 及其它：无契约，不挂 faceRanges（setFaceColor 抛 E_FACE_UNAVAILABLE）。
+ */
+function brepPrimitiveMesh(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  op: string,
+  segments: number,
+): { shape: Shape; faceRanges?: Shape['faceRanges'] } {
+  const angularDeflection = (2 * Math.PI) / Math.max(3, segments)
+  const mesh = kernel.meshShape(solid, {
+    linearDeflection: DEFAULT_LINEAR_DEFLECTION.as(mm),
+    angularDeflection,
+  })
+  const shape: Shape = {
+    positions: new Float32Array(mesh.positions),
+    indices: new Uint32Array(mesh.indices),
+  }
+  const fg = mesh.faceGroups
+  if (!fg) return { shape }
+  const faces: Array<{ triStart: number; triCount: number }> = []
+  for (let f = 0; f < fg.length / 3; f++) {
+    faces.push({ triStart: fg[f * 3] / 3, triCount: fg[f * 3 + 1] / 3 })
+  }
+  if (op === 'box' && faces.length === 6) {
+    // 契约序重排：每面判向 → 契约 idx（+X=0,−X=1,+Y=2,−Y=3,+Z=4,−Z=5）
+    const byContract: Array<(typeof faces)[number] | undefined> = new Array(6).fill(undefined)
+    for (const f of faces) {
+      const na = faceNormalAxis(mesh, f.triStart, f.triCount)
+      if (!na) return { shape }
+      const idx = na.axis === 0 ? (na.sign > 0 ? 0 : 1) : na.axis === 1 ? (na.sign > 0 ? 2 : 3) : (na.sign > 0 ? 4 : 5)
+      if (byContract[idx] !== undefined) return { shape } // 法线判向歧义 → 不挂
+      byContract[idx] = f
+    }
+    if (byContract.some((f) => f === undefined)) return { shape }
+    const newIndices = new Uint32Array(mesh.indices.length)
+    const faceRanges: NonNullable<Shape['faceRanges']> = []
+    let outTri = 0
+    for (let c = 0; c < 6; c++) {
+      const f = byContract[c]!
+      faceRanges.push({ start: outTri, count: f.triCount })
+      for (let t = 0; t < f.triCount; t++) {
+        newIndices[(outTri + t) * 3] = mesh.indices[(f.triStart + t) * 3]
+        newIndices[(outTri + t) * 3 + 1] = mesh.indices[(f.triStart + t) * 3 + 1]
+        newIndices[(outTri + t) * 3 + 2] = mesh.indices[(f.triStart + t) * 3 + 2]
+      }
+      outTri += f.triCount
+    }
+    return { shape: { ...shape, indices: newIndices }, faceRanges }
+  }
+  if ((op === 'cylinder' || op === 'cone') && faces.length >= 2) {
+    // OCCT 枚举序 = P4a 契约序（探针实测）：0=侧面, 1=顶, 2=底（cone 无顶盖时 0=侧面,1=底）
+    return { shape, faceRanges: faces.map((f) => ({ start: f.triStart, count: f.triCount })) }
+  }
+  return { shape }
 }
 
 /**
