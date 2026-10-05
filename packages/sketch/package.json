@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-sketch",
-  "version": "0.29.5",
+  "version": "0.29.6",
   "description": "faijs sketch & constraint capability library - canonical model, planegcs solving, contour extraction and face construction",
   "keywords": [
     "faijs",
