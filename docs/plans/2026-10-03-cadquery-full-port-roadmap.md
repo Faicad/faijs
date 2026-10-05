@@ -26,11 +26,11 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 524 ported / 118 blocked / 55 skipped** | `tests/manifest.json`（2026-10-05 **N3 落地后**实读，见 §10.4.3） |
+| **manifest**（导出变量级） | **697 = 524 ported / 118 blocked / 55 skipped** | `tests/manifest.json`（2026-10-05 **N4 落地后**实读，**状态与 N3 逐位相同** —— r7/r8 几何已忠实但钉 `blocked`，见 §10.4.4） |
 | **coverage**（上游测试函数级） | **297 = 214 PORTABLE / 41 PORTABLE-WITH-STUB / 42 BLOCKED**（全集 305，`casesWithStep=297`、8 条无 STEP） | `tests/coverage.json`（2026-10-05 N3 后重跑确认**无变化** —— 见下方「刻意保留的假阴性」） |
-| **镜像文件** | **536** 个 `.fai.js` + **22** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-05 **N3 +2** 后实测） |
-| **包内单测** | **616** 全绿（**57** 文件） | 2026-10-05 N3 后实测（N2 基线 598/55 + `shape-children.probe` 5 + `shape-filter` 13） |
-| **全量 parity** | **458 PASS + 16 PASS-NT / 650 ref cases = 72.92%**，FAIL **21**、ERROR 0、BLOCKED 155 | `out/report.json`（2026-10-04 20:18 产物；**N3 未重跑全量 sweep**，其 2 条新镜像经 `compare-one` 单独验证逐位 PASS） |
+| **镜像文件** | **538** 个 `.fai.js` + **22** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-05 **N4 +2** 后实测 —— r7/r8 落地，见 §10.4.4） |
+| **包内单测** | **635** 全绿（**58** 文件，零 stderr） | 2026-10-05 N4 后实测（N3 基线 616/57 + 新文件 `src/text-spine.test.ts` 19 条） |
+| **全量 parity** | **458 PASS + 16 PASS-NT / 650 ref cases = 72.92%**，FAIL **21**、ERROR 0、BLOCKED 155 | `out/report.json`（2026-10-04 20:18 产物；**N3 / N4 均未重跑全量 sweep** —— N3 的 2 条经 `compare-one` 逐位 PASS，N4 的 r7/r8 经 `compare-one` 判 FAIL 但已定性为「comparator 开壳度量不成立」，见 §10.4.4） |
 
 ### 1.1 关键实证：**136 条 blocked 全部有 ref STEP**（2026-10-04 晚交叉）
 
@@ -46,22 +46,22 @@ skipped  55 / 8        ← 判别有区分度：skipped 绝大多数无 ref
 
 > **判别可信度反证**：同一脚本对 `skipped` 只命中 8/55（其余是「ref 无该 case」或「var 不在 ref 集」），说明「全命中」不是脚本恒真造成的假象。
 
-**manifest 实测 blockedBy 分布（118 条，44 个 distinct，2026-10-05 **N3 落地后**实读）**：
+**manifest 实测 blockedBy 分布（118 条，44 个 distinct，2026-10-05 **N4 落地后**实读）**：
 
 ```
-14 op:assembly-solve             9 kernel:fillet-chain-reapply        5 getfixturevalue
- 5 interpPlate                   5 kernel:sweep-multisection-pipe     5 op:fuzzy-bool
- 5 remove                        4 kernel:boolean-near-coincident-bspline
- 4 op:assembly-subshape-import   4 op:extrude-until-face              4 op:prism-from-face
- 3 export                        3 kernel:sweep-aux-spine-mode        3 narrow:sphere-angles
- 3 op:cutBlind.until-face        3 op:history-subshape                3 op:text-spine
- 2 history:images                2 importBin                          2 kernel:draft-existing-solid
- 2 kernel:hollow-intersection-join  2 kernel:shell-outward-opening     2 op:shell
+14 op:assembly-solve             9 kernel:fillet-chain-reapply        5 op:fuzzy-bool
+ 5 getfixturevalue               5 interpPlate                        5 kernel:sweep-multisection-pipe
+ 5 remove                        4 op:assembly-subshape-import         4 op:extrude-until-face
+ 4 kernel:boolean-near-coincident-bspline  4 op:prism-from-face         3 export
+ 3 kernel:sweep-aux-spine-mode   3 narrow:sphere-angles                3 op:cutBlind.until-face
+ 3 op:history-subshape           2 comparator:open-shell-volume        2 history:images
+ 2 importBin                     2 kernel:draft-existing-solid         2 kernel:hollow-intersection-join
+ 2 kernel:shell-outward-opening  2 op:project                         2 op:shell
  2 parametricCurve               2 plane                              2 project
-…（其余 18 项各 1 条）
+…（其余 17 项各 1 条）
 ```
 
-> `pending:mirror` **归零**（`3d6640ab` 收口）；`hollow` 标签 **归零**（`32c95cbb`）；**`filter` 标签归零**（2026-10-05 N3 —— `__cf`/`__cs` 两条镜像落地，全 manifest 已无该标签）。
+> `pending:mirror` **归零**（`3d6640ab` 收口）；`hollow` 标签 **归零**（`32c95cbb`）；**`filter` 标签归零**（2026-10-05 N3 —— `__cf`/`__cs` 两条镜像落地）；**`op:text-spine` 标签归零**（2026-10-05 N4 —— r7/r8 几何已忠实，改判 `comparator:open-shell-volume`；r9 改判 `op:project`，见 §10.4.4）。**`comparator:open-shell-volume`（2）是本轮新增标签**：它不是「等实现」，而是「comparator 在该几何上无法评级」的编码（同 `kernel:boolean-near-coincident-bspline` 的性质，见 §10.4.4）。
 
 ⚠ **刻意保留的假阴性（N3 新增，勿"修"）**：`tests.test_shapes::test_special` 在 `coverage.json` 里仍是 `category: BLOCKED` / `blockedBy: filter`，尽管它的 `__cf` / `__cs` 镜像已逐位 PASS。原因不是遗漏：op universe 是**扁平名字集**，而 `filter` / `sort` 在上游有**三个接收者**（`Shape` `shapes.py:1928/1932`、`Workplane` `cq.py:4460/4490`、`Sketch` `sketch.py`），faijs 只实现了前两个 ⇒ 把名字加进 `CQ_COMPAT_EXTRA` 会把 `Sketch.filter` 案例误判为 portable。按该文件的既有规则（`:86-92` 的 `remove` 同例）**歧义名保持 "missing"**；理由已写进 `analyze-coverage.py` 的 `CQ_COMPAT_EXTRA` 注释。**manifest（由镜像文件存在性驱动）才是「已移植哪些」的准确记录。**
 
@@ -573,7 +573,7 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 | **C · `.fai.js` 语法长线（core `lang/`）** | **5 → 1** | 只剩 `op:shape-operator-overload`(1)（JS 无运算符重载）。~~filter 的 `__cf`/`__cs`(2)~~ **两次订正**：先错判为语法长线，再实证 λ **本就可用**（只要不把 `cq` 引用写进箭头体），最终 **N3 已实现并解锁**（§10.4.3）。`eachpoint`/`cutEach` 的 λ 形态同为 **op 缺口（B 组）**、非语法问题，故本组**不再含它们** | G-C25 / G-C19 |
 | **D · 内核依赖** | **48** | `op:assembly-solve` 14（子系统）/ `kernel:fillet-chain-reapply` 9 / `op:fuzzy-bool` 5 / `kernel:sweep-multisection-pipe` 5 / `remove` 5 / interpPlate 5 / 近重合布尔 4 / prism-from-face 4 / `op:assembly-subshape-import` 4 / sweep-aux-spine 3 / `narrow:sphere-angles` 3 等 | B5 / B6 |
 
-> B 组 62 是「未逐项定性」的余量，**不是「都容易」**；只有下表的 N1–N4 是本轮已取证、可直接开工的。
+> B 组 62 是「未逐项定性」的余量，**不是「都容易」**；只有下表的 N1–N5 是本轮已取证、可直接开工的。
 
 ### 10.4 下一步推荐序列（**建议执行顺序**）
 
@@ -584,7 +584,7 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 | **N1** ✅ **已完成 2026-10-04**（15/16 条 ported） | **harness A 组：内联 fixture 镜像** —— 只做**不含往返**的 16 条 | **16→15** | 零新几何、零框架改动、条数最多；全部有 ref；镜像先例已有 87 条 | 见下方 §10.4.1 执行记录：`test_PointInPlane_param__box_and_vertex` 需 `cq.vertex` 新 API，撤出并标 `op:vertex-shape` |
 | **N2** ✅ **已完成 2026-10-04**（1/1） | **`filter` 陈旧标签 `test_special__c`** | **1** | 纯 `compound(box,box,box)`，一行镜像；`compare-one` **逐位 PASS**（volΔ/comΔ/bboxΔ 全 0、topo f18/e36/v24 一致） | 无 |
 | **N3** ✅ **已完成 2026-10-05**（2/2，另 +2 单测文件） | **Shape 级 λ：`filter` / `sort`**（`test_special__cf` / `__cs`）—— 落成 `filterByPredicate` / `sortByKey`（详见 §10.4.3） | **2** | 用户拍板**带后缀命名**，正好避开「三接收者重名」这个歧义陷阱；零内核改动、零 `.fai.js` 语法改动 | 执行中发现两条 DSL 硬约束，见 §10.4.3 —— **箭头体看不到 `cq` 命名空间**、**DSL `function` 恒为 async ⇒ op 必须 await 回调** |
-| **N4**（原 N3，编号后移） | **`text-spine`（r7/r8/r9）** | **3** | 基础 `text` 已 ported ⇒ 只补沿曲线排字的参数通道 | 需先一次性 Python 捕获字符沿 spine 的放置语义（§7 纪律） |
+| **N4** ✅ **已完成 2026-10-05**（3 条全部定性：2 条落地 `blocked` / 1 条改判内核缺口） | **`text-spine`（r7/r8/r9）** —— 落成 `locationAtFrame` / `textOnSpine`（详见 §10.4.4） | **3** | 基础 `text` 已 ported ⇒ 只补沿曲线排字的参数通道；执行中**发现并修复了一个既有字形朝向 bug**（`reverseWire`），价值超出本项 | 见 §10.4.4：r7/r8 几何已独立验证（bbox 5.5e-13、逐面法向逐位、面积 1e-15）但 comparator 开壳度量不成立 ⇒ 钉 `blockedBy: comparator:open-shell-volume`；r9 根因是 `Face.project`（`BRepProj_Projection`）内核无绑定 ⇒ 改判 `op:project` |
 | **N5**（原 N4，编号后移） | **`draft`（res1/res2）** | **2** | 内核原语已在，只差多面循环 + 中性面语义 | **风险中等**：`test_draft` 的 `fside` 是 4 个侧面，内核 `draft` 单面；若「多次单面 Build」≠「一次多面 Build」，则回退 B6-4 并写明理由 |
 
 **N1 之后再看的两项**（需先决策或更长）：
@@ -648,11 +648,49 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 
 **顺带发现的既有隐患（本轮未处置，留给用户拍板）**：`stackFilter` / `stackMap` / `stackApply`（`workplane.ts` 的 Workplane 接收者族）**签名是同步回调**，同样会被「DSL `function` 恒 async」击穿 —— `stackFilter` 会把 Promise 当真值全保留、`stackMap` 会把 Promise 存进对象栈。parity corpus 里没有镜像调用过它们（`test_map_apply_filter_sort__w` 的镜像只复现几何），所以至今是**静默缺陷**。修法同本轮（改 async + await 回调）但会改公开 API 行为，属另一议题。
 
+#### 10.4.4 N4 执行记录（2026-10-05，实测）
+
+**交付**：
+- `src/spine-frame.ts`（新）：`locationAtFrame(edge, d): Affine34` —— 复刻上游 `Wire.locationAt`（`occ_impl/shapes.py:2472`）的 `GeomFill_Frenet.D0` + `gp_Ax3(pnt, tangent, normal)` ⇒ 帧矩阵 `M = [normal | binormal | tangent]`（列），`T(p) = M·p + pnt`；`eulerExtrinsicXYZ(rx,ry,rz)` = `R = Rz·Ry·Rx`（上游 `gp_Quaternion::SetEulerAngles(gp_Extrinsic_XYZ)`，**与 `THREE.Euler('XYZ')` 的 `Rx·Ry·Rz` 不同**）；`composeAffine34(frame, rot, offset)` = `p ↦ M·R·(p−t) + pnt`。
+- `src/workplane.ts`：`textOnSpine(txt, fontsize, spine, opts?)` —— 逐字形 `pos = (bb.xmin+bb.xmax)/2`，`d = pos/L`，`frame = locationAtFrame(spine, d)`，`transform(glyph, composeAffine34(frame, rot, {x:pos,y:0,z:0}))`；`planar:true` ⇒ `rot = eulerExtrinsicXYZ(-90,-90,0)`（上游 `moved(rx=-90, ry=-90)`）。
+- `src/index.ts`：导出 `textOnSpine`。
+- `src/text-solid.ts`：新增 `reverseWire`（**字形朝向修复**，见下）。
+- 镜像：`tests/test_free_functions/test_text__r7.fai.js`、`__r8.fai.js`。
+- 测试：`src/text-spine.test.ts`（新文件，19 条）。
+- 捕获脚本（不入 CI）：`tests/ref-harness/text-spine-probe.py`（摆字真值）、`text-flat-edges-probe.py`（逐面 edge 数/周长/类型）、`step-face-probe.py`（读 ref/cand STEP 逐面 area/normal/center）。
+
+**★ 帧精度根因：Simpson 步长因子写成了 `h/3`（自洽的 2× 陷阱）**。复合 Simpson 的 `h` 是**单个子区间宽度**，每步应为 `(h/6)(f(a)+4f(mid)+f(b))`；写成 `h/3` 会让**整张弧长表放大 2×**。钉死证据：glyph0 要求 |param| = `0.0767578`，实测 `0.038379` —— **恰为精确的一半**。危险之处在于这个 bug **自洽**：反演落在「一半弧长」处仍是**曲线上的点**、帧仍**正交**，只有 `d` 的中间值会暴露 ⇒ 已把「四分之一跨度」断言写进 `text-spine.test.ts`（`h/6` 修后帧矩阵 12 位命中）。
+
+**★ 字形朝向不忠实（本轮最大发现，价值超出本项）**。`surfaceNormal(face, uvBounds 中心)` 实测我们的字形平面法向 **(0,0,−1)**，而上游是 **(0,0,+1)**；两处独立证据确认 **+Z 是可验证契约**：① ref STEP 的逐面法向；② 上游断言 `tests/test_free_functions.py:566-568`（`r8.faces("<<X").normalAt() ≈ Vector(0,0,1)`）。根因：`textBlueprints`（core）按 opentype.js 的每条 `M/L/Q/C` 建 contour，`makeFace` 得 **−Z** 法向。**为什么长期没被发现**：基础 `text` 用例（r1）字形落在 **z=0 平面**，而开壳的 `getVolume` 实为 `BRepVolumeProperties` = `∮ x·n dA` ⇒ 平面上恒为 **0**，把法向错误**完全掩盖**。r7/r8 一离开原点立刻暴露（r7 从 `volΔ 212%` → 修后 `11.6%`）。**修法 = `reverseWire`**：反转 wire 的边序并逐边 `reverseShape`，再 `makeWire` ⇒ 得到「正确定向」（不是翻转面定向标志，故 `extrude` 仍向外）。修后 r7/r8/r1 的 cand 逐面世界法向与 ref **逐位相同**。
+
+**★ 字形面积分歧的定性：faijs 精确、OCC 近似**（三条正交证据，**不是靠放宽容差处置**）。ref 侧 OCC `Font_BRepTextBuilder` 把 22 段轮廓合并为 **2 条 BSPLINE + 2 条 LINE（共 4 边/字形）**，我们保留 22 边：
+
+| 证据 | ref（OCC） | 我们（faijs） | 判读 |
+|---|---|---|---|
+| **周长**（分段无关） | C = `3.5314658431787027` | C = `3.5314658431657961` | 相对差 **3.7e-12** ⇒ 同一曲线、两种表示 |
+| **Green 定理面积**（3 点 Gauss 对 ≤5 次多项式**精确**） | C = `0.14919636062170202`（偏高 1.4e-4）、Q = 偏高 5.6e-5 | C = `0.14921736717224116`、Q = `0.19879515965779621`（与解析**一致到 1e-15**） | **ref 是近似** |
+| **总面积** | 捕获 `0.3480026696998122` | 解析 `0.34801252683003731` | 相对差 **2.83e-5** |
+
+`getSurfaceArea` 本身精确（半径 5 圆盘测 `25π`，误差 −1.4e-14）、`makeBezierEdge` 与控制点精确一致（三次 t=0.5 = 解析值）⇒ 差异 **100% 落在 OCC 合并 22 段的容差上**。⇒ `text-spine.test.ts` 把**解析真值**（`exactContourAreas` 读 opentype path）钉进断言，**不追逐 ref 的近似值**。
+
+**r7/r8 parity FAIL 的定性（不改 `ported`）**。`compare-one` 实测：
+```
+FAIL test_text__r7  volΔ%=1.16e+1  comΔ=1.61e-1  bboxΔ=5.52e-13 | ref f2/e12/v12 vs cand f2/e49/v49
+FAIL test_text__r8  volΔ%=0.00e+0  comΔ=4.98e+0  bboxΔ=3.59e-13 | ref f2/e12/v12 vs cand f2/e49/v49
+```
+原始度量（occt-wasm）：r7 `REF vol=0.003036936696537975` / `CAND vol=0.003388861288015331`；r8 `REF vol=0` `com=(0,0,0)` / `CAND vol=2.07e-19` `com=(−4.976…, 0.00402…, …)`。几何本身已独立验证（bbox 差 5.5e-13、逐面法向逐位、面积 1e-15），**FAIL 的根因是 comparator 在开壳 2D 面上不成立**：`compareStepFiles` 的 `hasMass` 闸门（`cq-compat-compare/src/step-compare.ts:142`）在 `faces>0` 时放行 ⇒ 开壳几何进了 volume/COM/boolean 分支，而这三个量在开壳上全是 `∮x·n dA`：r7 平面偏离原点 ⇒ 大数相消把 2.8e-5 的轮廓差放大成 11.6%；r8 `volA=0` 而 `volB=2.07e-19` ⇒ `comA=(0,0,0)` 对实数 com ⇒ comΔ=4.98（**噪声**）。⚠ `volPct = |volA−volB|/volA`（不是相对 avg）⇒ 200% + 12% ≈ 212% 正是**法向反向的签名**。⇒ **钉 `blockedBy: comparator:open-shell-volume`**（`manual:true`，穿透 regen），与 `kernel:boolean-near-coincident-bspline` 同类——「等实现」之外的第三类标签：**「comparator 无法评级」**。**拒绝改 `ported`**：那会与 parity「FAIL」自相矛盾，且 pin 是唯一能穿透 regen 的编码。
+
+**r9 改判 `op:project`**。上游 `text(txt,size,spine,base)`（`shapes.py:6805`）= `f.project(base, f.normalAt())` = OCCT **`BRepProj_Projection`** ⇒ 内核无绑定（只有点投影 `projectPointOnFace` / `projectPointOnEdge` + HLR `projectEdges`）⇒ 真内核依赖（B6），**非 text-spine 参数通道**。`mark-blocked.ts` 已改标签并留档。
+
+**顺带修复 5 条陈标签（`mark-blocked.ts` 重跑时暴露的沉默回归）**：`test_assembly` 的 5 条 `raises` 用例（`test_duplicate_name__nested_assy` / `test_empty_solve__nested_assy` / `test_constraint_validation__simple_assy2` / `test_single_unary_constraint__simple_assy2` / `test_save_raises__nested_assy`）镜像均已在 HEAD 且 manifest 标 `ported`，但 `mark-blocked.ts` 的 `BY_KEY` 里仍留有它们的**陈标签** ⇒ 任一次重跑都会把 `ported` 覆盖回 `blocked`。已从 `BY_KEY` 撤出（附注释说明「latent silent regression」）。**manifest 最终 diff（vs HEAD）：仅 3 处 `blockedBy`，状态零变动**（`524/118/55`）。
+
+> **零回归对照**（与 N3 后 `out/report.json` 逐条比较）：`c`=PASS、`r1..r5`=PASS-NT、obj1/obj3 本就 FAIL（`volΔ 8.132779094606823` / `13.165667214142005`，重测 `8.13` / `13.2` 一致）⇒ **17 个重导出镜像全部与基线一致**。`textOnSpine` 在 CLI（`faijs.autoLift:false`）下真跑通过（内核级 `transform`，不经 `cad.*` 提升）。包内 vitest **635 全绿 / 58 文件、零 stderr**（269.85s）。
+
 ### 10.5 待决策 / 未解决（如实列出）
 
 1. **`importBin` 的处置**（B1-1 ④）：两个选项各有代价，本轮**不擅自选**——写镜像会制造「假 PASS」（comparator 只看几何，与 `testTwistExtrudeCombine__r` 的假 FAIL 同源）。
 2. **`op:fuzzy-bool`（5）/ `kernel:fillet-chain-reapply`（9）/ `op:assembly-solve`（14）** 本轮**未取证**（未读源码/未 probe），仍按 B6 / B5 排期——它们是 D 组里条数最多的三项，合计 28 条，值得单独立项调研。
-3. **`project`（3）** 仍卡 `text`：只有先做完 **N3** 才能回头判它是否真解锁。
+3. **`op:project`（2，N4 新增标签）** —— **方向被反转**：`text` 的 r9 用例（上游 `text(txt, size, spine, base)` = `f.project(base, f.normalAt())`）根因就是 **`Face.project`（OCCT `BRepProj_Projection`）内核无绑定**（内核只有点投影 `projectPointOnFace` / `projectPointOnEdge` 与 HLR `projectEdges`）。⇒ 不是「`project` 卡 `text`」，而是「**r9 卡 `project`**」。同标签的另一条是 `test_project__res`（同为 `Face.project`）。**另注**：较早的 `project`（2：`test_project__res_ex` / `__res_o_ex`）标签**未在 N4 逐条定性**，仍在 B 组余量里，勿与 `op:project` 混算。
 4. **`remove`（5）** 的 `defeature` 近似**未验证**：本轮只读到内核有 `defeature`，没跑 parity，不能当结论用。
 5. **`plane`（2）/ `export`（3）/ `history:images`（2）/ `importBin`** 等窄语义项未逐条定性，仍在 B 组 62 条余量里。
 6. **`op:vertex-shape`（1，N1 撤出项）**：`test_PointInPlane_param__box_and_vertex` 的 ref 是 `box(1,2,3)` **加一个 solve 后位于 `(2.5, 0, 1.51)` 的独立 Vertex**（实测 bbox `(-0.5,-1,-1.5)..(2.5,1,1.51)`）。vertex 零体积零质量但**撑大 bbox** ⇒ 只写 box 会 `cut: boolean operation failed`（comparator 直接抛错，不是 FAIL）。faijs 的 `makeVertex` 只在内核适配层（`workplane.ts:1253`），**没有 `cq.vertex` 导出 ⇒ `.fai.js` 里造不出独立顶点**。已标 `manual:true` 的 `blocked`、镜像存为 `.fai.js.blocked`。解锁需暴露 `cq.vertex(x,y,z)`（类 B1 小粒度 op，难度 2）。
