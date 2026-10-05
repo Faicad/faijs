@@ -54,7 +54,7 @@ jobs:
       # pretest builds (cq-compat-compare) resolve
       # @faicad/faijs-sketch via node_modules -> dist. A fresh checkout has
       # nothing until this runs.
-      - name: Build (core → draw → sketch → extra → sheetmetal)
+      - name: Build (core → draw → sketch → extra → viewer → sheetmetal → gears)
         run: npm run build
 
       # 4/9 — per-package tests. faijs-gears only runs its lightweight core

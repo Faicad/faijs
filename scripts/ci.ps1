@@ -69,14 +69,14 @@ Step -Label '2/9  npm run typecheck（根 + workspaces）' -Block {
     npm run typecheck --workspaces --if-present
 }
 
-Step -Label '3/9  npm run build（core → draw → sketch → extra → sheetmetal）' -Block {
+Step -Label '3/9  npm run build（core → draw → sketch → extra → viewer → sheetmetal → gears）' -Block {
     # Ensure workspace junctions exist (npm workspaces may fail to create them on Windows)
     if (-not (Test-Path "node_modules/@faicad/faijs/package.json")) {
         Write-Host "    [ci] workspace junction missing — running npm install" -ForegroundColor Yellow
         npm install
     }
     # demo 以「workspace 内消费 dist」独立化：dev/e2e 通过 workspace 链接解析 @faicad/* 到各包 dist/。
-    # 因此 demo e2e 前必须先把 demo 声明依赖的 @faicad/*（core/faijs-extra/sheetmetal）构建出 dist。
+    # 因此 demo e2e 前必须先把 demo 声明依赖的 @faicad/*（core/faijs-extra/sheetmetal/faijs-gears）构建出 dist。
     # faijs-sketch 也在链上：cq-compat-compare 的 pretest 构建经 node_modules 解析
     # @faicad/faijs-sketch → dist，fresh checkout 无此步则 TS2307。
     # 根 build 已覆盖它们；dist 在 git 上被忽略，fresh checkout 全靠此步产出。
