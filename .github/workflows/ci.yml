@@ -51,7 +51,7 @@ jobs:
 
       # 3/9 — build every dist needed before tests: demo consumes @faicad/*
       # through each package's dist/ (no src aliases), and per-package
-      # pretest builds (faijs-cadquery, cq-compat-compare) resolve
+      # pretest builds (cq-compat-compare) resolve
       # @faicad/faijs-sketch via node_modules -> dist. A fresh checkout has
       # nothing until this runs.
       - name: Build (core → draw → sketch → extra → sheetmetal)
@@ -67,9 +67,7 @@ jobs:
             @faicad/faijs
             @faicad/faijs-sketch
             @faicad/faijs-extra
-            @faicad/faijs-freecad
             @faicad/sheetmetal
-            @faicad/faijs-cadquery
             @faicad/faijs-gears
             @faicad/faijs-fasteners
             @faicad/faijs-draw
