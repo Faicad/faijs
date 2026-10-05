@@ -113,6 +113,9 @@ export type FcstdSketchGeom =
       minorRadius: number
       /** rotation of major axis, radians */
       angleXU: number
+      /** partial-ellipse arc bounds (ArcOfEllipse); absent on a full ellipse */
+      startAngle?: number
+      endAngle?: number
       /** first focus (computed) */
       fx1: number
       fy1: number
