@@ -10,31 +10,33 @@
 
 > 既然规范里description，那么我们的设置备注就不用要setNote, 用setDescription这样的。此外，faijs/ts语言里，整个开源社区，是用哪种风格，比如setName, set_name? 我们要保持一致。
 
+> ModelMeta更改为FileMeta，这样是否更好？model其实更偏单个零件
+
 需求拆解（本文档的验收锚点）：
 
 1. faijs 模型**能给零件/Shape 设置名称和描述**，写法与颜色/材质一致（`box1.setName(...)` / `box1.setDescription(...)` 成员调用形态，PBR 外观方案 §3.3 同款执行机制）。
 2. **盘点 3MF/STEP 格式规范的全部说明性字段**（名称、描述、料号、作者、版权等），明确**到零件**与**到整体**的分类。
-3. **两类字段都要支持**：到零件的随 Shape 走（`Shape.meta`），到整体的随模型/文件走（`ModelMeta`，导入导出不丢）。
+3. **两类字段都要支持**：到零件的随 Shape 走（`Shape.meta`），到整体的随模型/文件走（`FileMeta`，导入导出不丢）。
 4. 外部 STEP/3MF 导入导出**按已有格式规范字段承载**（3MF `<object name>`/`partnumber`/`metadatagroup`/model `<metadata>`；STEP `PRODUCT`/header/`PRODUCT_IDENTIFICATION`/UDA），不发明私有字段。
 5. **备注字段与方法命名**：字段叫 `description`（与 3MF/STEP 规范字段名一致，不叫 note）；方法名 `setDescription`。
 6. **命名风格**：camelCase（`setName`/`setDescription`）——faijs 是 TS/JS 生态（`.fai.js` 为合法 JS 子集），社区标准与既有先例一致（§2.5）。
 
 ## 1. 背景与目标
 
-PBR 外观方案（同日 v2）已建立「外观设置 = Shape 实例方法 + `Shape.appearance` 数据字段」的闭环：方法非 op、成员调用语法、跨 worker JSON 传递、导入导出按规范字段往返。**名称/备注是同一类需求**（零件级说明性元数据），但承载对象不止 Shape——3MF/STEP 规范里还有**文档/整体级**说明性字段（标题、作者、版权、许可证等），这些不属于任何单个零件，需要独立的 `ModelMeta` 承载。
+PBR 外观方案（同日 v2）已建立「外观设置 = Shape 实例方法 + `Shape.appearance` 数据字段」的闭环：方法非 op、成员调用语法、跨 worker JSON 传递、导入导出按规范字段往返。**名称/备注是同一类需求**（零件级说明性元数据），但承载对象不止 Shape——3MF/STEP 规范里还有**文档/整体级**说明性字段（标题、作者、版权、许可证等），这些不属于任何单个零件，需要独立的 `FileMeta` 承载。
 
 目标：
 
 - 零件级：`Shape.meta`（name/description/partNumber/自定义键值），方法设置，导入导出不丢。
-- 整体级：`ModelMeta`（title/designer/description/copyright/licenseTerms/…），随模型文件导入导出不丢（编辑器项目级；脚本设置整体级作为 Phase 2，见 §12 ①）。
+- 整体级：`FileMeta`（title/designer/description/copyright/licenseTerms/…），随模型文件导入导出不丢（编辑器项目级；脚本设置整体级作为 Phase 2，见 §12 ①）。
 - 两种字段都按规范位置落盘：读入时从规范位置提取，写出时写回规范位置。
 
 ## 2. 设计原则
 
 1. **延续外观方案的全部既定约束**：方法**不是 op**（不进 `defineOp`/`api-namespace`/args-schema）；写法是 `box1.setX(...)` 成员调用（复用 `asm1.solve()` 的 `classifyOpCall` receiver 机制，脚本面一次一条 setX 语句，链式不支持）；数据字段 JSON 可序列化、随 Shape 走 mesh/brep 双链路；`api/meta.ts` 零依赖（不 import THREE/occt/store），mesh/types 与 meta 类型环为 type-only。
-2. **零件级 vs 整体级分开**：零件级挂 `Shape.meta`（方法设置）；整体级挂模型（`ModelMeta`，导入结果 / 导出选项；**不挂 Shape**——整体不是零件，`box1.setTitle` 无意义）。
+2. **零件级 vs 整体级分开**：零件级挂 `Shape.meta`（方法设置）；整体级挂文件（`FileMeta`，导入结果 / 导出选项；**不挂 Shape**——整体不是零件，`box1.setTitle` 无意义）。
 3. **继承语义与外观一致**：op 产物构造点默认继承 `input.meta`（合并，undefined 不覆盖）；需要新名的产物（组合/变换后）由用户显式 `setName` 覆盖。理由：与 `appearance` 同一包装点、行为可预期；名称是显式声明，继承只是保底。
-4. **宽容读取、按规范写**：外部文件未知 metadata 键**读入保留**（`meta.metadata`/`ModelMeta` 兜底），不因不识名而丢弃；写出时**只写规范位置**（3MF metadatagroup 需 vendor 命名空间前缀、STEP 无对应位置的字段不发明实体）。
+4. **宽容读取、按规范写**：外部文件未知 metadata 键**读入保留**（`meta.metadata`/`FileMeta` 兜底），不因不识名而丢弃；写出时**只写规范位置**（3MF metadatagroup 需 vendor 命名空间前缀、STEP 无对应位置的字段不发明实体）。
 5. **纯增量**：本方案不改动现有字段与语义（与 PBR 方案的破坏性变更不同——`Shape.meta` 是新字段，`ExportEntry.name` 既有语义不动，仅扩展 description/partNumber）。
 
 ### 2.5 命名风格：camelCase（依据）
@@ -129,11 +131,13 @@ export interface ShapeMeta {
 }
 ```
 
-### 4.2 `ModelMeta`（整体级，`packages/core/src/api/meta.ts`）
+### 4.2 `FileMeta`（整体级，`packages/core/src/api/meta.ts`）
+
+命名说明：不叫 `ModelMeta`——faijs/CAD 直觉里 "model" 偏单个零件（那是 `ShapeMeta` 的活）；本类型承载**整个交换文件/项目**的元数据，故用 `FileMeta`（3MF 规范的 `<model>` 根元素即整个文档，STEP 对应 P21 header——两者都是"文件级"，见 §3）。
 
 ```ts
 /** 整体/文档级说明性元数据 —— 导入结果 / 导出选项，不挂 Shape。 */
-export interface ModelMeta {
+export interface FileMeta {
   title?: string            // 3MF Title / STEP FILE_NAME.name
   description?: string      // 3MF Description / STEP FILE_DESCRIPTION.description
   designer?: string         // 3MF Designer / STEP FILE_NAME.originator
@@ -189,16 +193,16 @@ export interface ShapeMetaMethods {
 
 P2 增量：
 
-| 源 | → Shape/ModelMeta |
+| 源 | → Shape/FileMeta |
 |---|---|
 | `<object name>` | `Shape.meta.name`（既有字段贯通到 meta） |
 | `<object partnumber>` | `Shape.meta.partNumber` |
 | `<object><metadatagroup><metadata name="ns:key">` | `Shape.meta.metadata['ns:key']`（保留原始键含前缀） |
-| `<model><metadata name="Title">` 等标准名 | `ModelMeta.title/designer/description/copyright/licenseTerms/rating/creationDate/modificationDate/application` |
-| `<model><metadata name="vendor:xxx">` | `ModelMeta.metadata['vendor:xxx']` |
+| `<model><metadata name="Title">` 等标准名 | `FileMeta.title/designer/description/copyright/licenseTerms/rating/creationDate/modificationDate/application` |
+| `<model><metadata name="vendor:xxx">` | `FileMeta.metadata['vendor:xxx']` |
 | `<build><item partnumber>`/`<item metadatagroup>` | 装配实例层（编辑器 ModelGroup 实例），Phase 2 |
 
-`parseThreemf` 返回值扩展：`{ objects, modelMeta? }`；`io.ts` 组装 Shape 时把 meta 挂到 `shape.meta`（`mesh/io.ts` 的 `shape: Shape` 构造点）。
+`parseThreemf` 返回值扩展：`{ objects, fileMeta? }`；`io.ts` 组装 Shape 时把 meta 挂到 `shape.meta`（`mesh/io.ts` 的 `shape: Shape` 构造点）。
 
 ### 5.2 STEP 读（`occt-kernel` + `api/import-step.ts`）
 
@@ -206,12 +210,12 @@ P2 增量：
 
 P2 增量：
 
-| 源 | → Shape/ModelMeta |
+| 源 | → Shape/FileMeta |
 |---|---|
 | XCAF label name（= PRODUCT.name） | `Shape.meta.name` |
 | `PRODUCT.description`（XCAF 读不到时从 P21 文本解析：`PRODUCT\(` 第二参） | `Shape.meta.description`（解析器与 `stepColorParser.ts` 同族：文本正则提取 PRODUCT 实体参数；无则跳过） |
-| header `FILE_NAME`（name/timestamp/author/organization/preprocessor/originator） | `ModelMeta.title/creationDate/author/organization/application/designer` |
-| header `FILE_DESCRIPTION` | `ModelMeta.description` |
+| header `FILE_NAME`（name/timestamp/author/organization/preprocessor/originator） | `FileMeta.title/creationDate/author/organization/application/designer` |
+| header `FILE_DESCRIPTION` | `FileMeta.description` |
 | `PRODUCT_IDENTIFICATION`（若解析到） | `Shape.meta.partNumber`（Phase 2，先 UDA 后标准实体均可） |
 | UDA（`GENERAL_PROPERTY`+`PROPERTY_DEFINITION`+值，product 级） | `Shape.meta.metadata`（Phase 2） |
 
@@ -223,14 +227,14 @@ P2 增量：
 
 P3 增量：
 
-| Shape.meta / ModelMeta | → 3MF |
+| Shape.meta / FileMeta | → 3MF |
 |---|---|
 | `meta.name` | `<object name>`（既有） |
 | `meta.partNumber` | `<object partnumber>` |
 | `meta.description` | `<object><metadatagroup><metadata name="faijs:description">`（faijs 命名空间前缀；规范要求自定义名必须带前缀） |
 | `meta.metadata['ns:key']` | `<metadatagroup><metadata name="ns:key">`（键已带前缀直接写；不带前缀的补 `faijs:` 前缀） |
-| `ModelMeta.title/designer/…` | `<model>` 下 `<metadata name="Title">` 等标准名（XML 顺序在 `<resources>` 前；`preserve="1"`） |
-| `ModelMeta.metadata` | `<model>` 下 `<metadata name="ns:key">` |
+| `FileMeta.title/designer/…` | `<model>` 下 `<metadata name="Title">` 等标准名（XML 顺序在 `<resources>` 前；`preserve="1"`） |
+| `FileMeta.metadata` | `<model>` 下 `<metadata name="ns:key">` |
 
 XML 细节：`<model>` 需声明 faijs 命名空间 `xmlns:faijs="http://schemas.faicad.dev/3mf/2026/10"`；同对象同键不重复。
 
@@ -240,13 +244,13 @@ XML 细节：`<model>` 需声明 faijs 命名空间 `xmlns:faijs="http://schemas
 
 P3 增量：
 
-| Shape.meta / ModelMeta | → STEP |
+| Shape.meta / FileMeta | → STEP |
 |---|---|
 | `meta.name` | PRODUCT.name（既有） |
 | `meta.description` | PRODUCT.description（`exportStepFromSolids` 写 label 名时**同参带 description**——需内核支持；不支持则 UDA 描述性属性回退，见下） |
 | `meta.partNumber` | `PRODUCT_IDENTIFICATION`（内核/模板支持时）或 UDA（`GENERAL_PROPERTY('','partnumber',$)` + `PROPERTY_DEFINITION` + `DESCRIPTION_REPRESENTATION_ITEM('', value)` + `PROPERTY_DEFINITION_REPRESENTATION`，CAx-IF 图 8 形态） |
 | `meta.metadata` | 每个键一个 UDA（`GENERAL_PROPERTY('','key',$)`…，值用 DESCRIPTION_REPRESENTATION_ITEM） |
-| `ModelMeta.title/description/…` | P21 header 重写（`exportModel` 已有 SI_UNIT 声明重写的先例——同样对 `FILE_NAME(...)`/`FILE_DESCRIPTION(...)` 行做文本替换；无对应位置的字段（copyright/licenseTerms/rating/modificationDate）**不写**（STEP 无标准位置，不发明） |
+| `FileMeta.title/description/…` | P21 header 重写（`exportModel` 已有 SI_UNIT 声明重写的先例——同样对 `FILE_NAME(...)`/`FILE_DESCRIPTION(...)` 行做文本替换；无对应位置的字段（copyright/licenseTerms/rating/modificationDate）**不写**（STEP 无标准位置，不发明） |
 
 ## 7. 编辑器对接（3d_editor）
 
@@ -254,13 +258,13 @@ P3 增量：
 - **store**：`partMeta: Record<scopedId, ShapeMeta>`（原值，脚本/导入写）+ 用户编辑覆盖（属性面板编辑后写 override，类似 materialOriginals/overrides 结构；P1 可先只做原值 + 只读显示）。
 - **executeScript**：createPart 透传 `metaOverride: shape.meta`（与 materialGroupsOverride 同通道）。
 - **显示名**：ModelGroup 显示 `meta.name ?? 现有 partName 派生`（return key / scopedId fallback 不动）。
-- **导入**：formatLoaders 从 `shape.meta` / `modelMeta` 写 partMeta / modelMeta 到 store；导出从 store 收集。
-- **undo**：`partMeta`/`modelMeta` 加入 excludedFields（运行时重写、不撤销、不落盘），与 `materialGroups` 同款。
+- **导入**：formatLoaders 从 `shape.meta` / `fileMeta` 写 partMeta / fileMeta 到 store；导出从 store 收集。
+- **undo**：`partMeta`/`fileMeta` 加入 excludedFields（运行时重写、不撤销、不落盘），与 `materialGroups` 同款。
 - **属性面板**（Phase 2）：类似 MaterialEditor 的 MetaEditor（改 name/description/partNumber/自定义键值）。
 
 ## 8. 破坏性变更清单
 
-**无**（纯增量）：`Shape.meta`/`ModelMeta` 为新字段；`ExportEntry.name` 既有语义不动（扩展 description/partNumber 为可选新字段）；`ThreemfObject.name` 贯通到 meta 但既有消费方（编辑器显示名）行为不变（meta.name 与既有 name 同值）。
+**无**（纯增量）：`Shape.meta`/`FileMeta` 为新字段；`ExportEntry.name` 既有语义不动（扩展 description/partNumber 为可选新字段）；`ThreemfObject.name` 贯通到 meta 但既有消费方（编辑器显示名）行为不变（meta.name 与既有 name 同值）。
 
 ## 9. 测试与验收
 
@@ -277,9 +281,9 @@ P3 增量：
 
 | 阶段 | 内容 | 交付 |
 |---|---|---|
-| **P1 最小闭环** | `api/meta.ts`（ShapeMeta/ModelMeta/mergeMeta/ShapeMetaMethods/attachMetaMethods）+ `Shape.meta` + 产物构造点继承 meta + 复用成员调用语句机制 + 编辑器协议 `WireGeometry.meta` + createPart 透传 + ModelGroup 显示名（meta.name 优先） | 「`box1.setName('…').setDescription('…')` 在编辑器正确显示」闭环 |
-| **P2 导入** | 3MF（object name/partnumber/metadatagroup、model metadata）→ Shape.meta/ModelMeta；STEP（PRODUCT name/description、header）→ Shape.meta/ModelMeta；formatLoaders 写 store | 导入即所见（名称/描述/整体字段） |
-| **P3 导出** | 3MF 写 `<object partnumber>`/metadatagroup/`<metadata>`（含 faijs:description 前缀）；STEP 写 PRODUCT.description + header 重写 + partNumber（UDA/标准实体）；编辑器导出对话框传 modelMeta | 导出不丢名称/描述/整体字段 |
+| **P1 最小闭环** | `api/meta.ts`（ShapeMeta/FileMeta/mergeMeta/ShapeMetaMethods/attachMetaMethods）+ `Shape.meta` + 产物构造点继承 meta + 复用成员调用语句机制 + 编辑器协议 `WireGeometry.meta` + createPart 透传 + ModelGroup 显示名（meta.name 优先） | 「`box1.setName('…').setDescription('…')` 在编辑器正确显示」闭环 |
+| **P2 导入** | 3MF（object name/partnumber/metadatagroup、model metadata）→ Shape.meta/FileMeta；STEP（PRODUCT name/description、header）→ Shape.meta/FileMeta；formatLoaders 写 store | 导入即所见（名称/描述/整体字段） |
+| **P3 导出** | 3MF 写 `<object partnumber>`/metadatagroup/`<metadata>`（含 faijs:description 前缀）；STEP 写 PRODUCT.description + header 重写 + partNumber（UDA/标准实体）；编辑器导出对话框传 fileMeta | 导出不丢名称/描述/整体字段 |
 | **P4 可选** | STEP UDA 通用键值读写（metadata 映射）；3MF vendor metadata 全键保留；装配实例级（item partnumber/metadatagroup）；脚本级 `cad.setMeta`（整体级脚本 API） | 自定义键值/实例级完整闭环 |
 
 依赖：P1 依赖 PBR 外观方案的方法挂载机制（`attachAppearanceMethods` 的 shape.ts 包装点），P1–P3 均为增量实现、可独立停。
