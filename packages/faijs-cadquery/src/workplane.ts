@@ -5350,12 +5350,16 @@ export function compound(...items: (Workplane | Shape | null | undefined)[]): Sh
  * `BOPAlgo_Builder.Perform`, splitting faces at intersection curves and
  * merging coincident faces (no boolean removal).
  *
- * Implemented via occt-wasm `fuseAll` (`BRepAlgoAPI_Fuse`). For non-overlapping
- * (touching/disjoint) solids — the only case the upstream test exercises —
- * `BRepAlgoAPI_Fuse` and `BOPAlgo_Builder` produce identical topology: solids
- * stay separate, coincident faces are unified. Verified against CadQuery 2.8.0:
- *   imprint(b1, b2) → f11/e??/v??/s2 (two face-touching unit boxes, shared face merged)
- *   imprint(b1, b3) → f12/???/s2 (partial touch, b1 face split, shared face merged)
+ * Implemented via occt-wasm `fuseAll` (`BRepAlgoAPI_Fuse`).
+ *
+ * GOTCHA (occt-wasm 5.6.0, 2026-10-05): on 3.8.4 `fuseAll` matched
+ * `BOPAlgo_Builder`'s topology for touching/disjoint solids (they stayed as
+ * separate solids with coincident faces unified). On 5.6.0 `BRepAlgoAPI_Fuse`
+ * GLUES touching solids into a single solid, so `imprint` of two face-touching
+ * boxes returns 1 solid (was 2). The volume is unaffected; only the solids/face
+ * count deviates from CadQuery 2.8.0. Recovering exact parity needs an upstream
+ * `BOPAlgo_Builder`(keep-cells) binding that 5.6.0 does not expose → recorded as
+ * an Agent Note gap, not implemented this round.
  *
  * `glue` / `tol` only tune the builder's internal strategy; the geometric
  * result for the upstream test inputs is the same, so they are accepted and

@@ -9,7 +9,7 @@
  * 往 `BrepEngineApi` 里写一个运行时不存在的方法，tsc**不会**报错。
  * 本文件就是这个缺口的补丁：逐个断言存在性，并对 4 个变换类做**真调用**。
  *
- * 事实（2026-09-22 实测，occt-wasm@3.8.4）：
+ * 事实（2026-09-22 实测，occt-wasm@5.6.0）：
  * - 内核运行时暴露 **12 个** `*WithHistory`（`node_modules/occt-wasm/dist/index.d.ts:458-472`）；
  * - faijs 此前只绑定 5 个（`fillet/chamfer/cut/fuse/intersect`），Phase 0.1 补齐另 7 个；
  * - 刚体变换的权威映射是 **1:1 全覆盖**（`coveredInputs === 面数`、`deleted=[]`、`generated=0`）。
@@ -32,7 +32,7 @@ beforeAll(async () => {
   kernel = getKernel()
 }, 120000)
 
-/** occt-wasm@3.8.4 暴露的全部 `*WithHistory`（dist/index.d.ts:458-472，共 12 个）。 */
+/** occt-wasm@5.6.0 暴露的全部 `*WithHistory`（dist/index.d.ts:458-472，共 12 个）。 */
 const ALL_WITH_HISTORY = [
   // 原绑定的 5 个
   'fuseWithHistory',

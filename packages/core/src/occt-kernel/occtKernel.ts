@@ -106,7 +106,7 @@ export function setOcctWasmInitFn(fn: (() => Promise<OcctKernel>) | null): void 
 /**
  * Resolve the occt-wasm WASM file path (linker-agnostic).
  *
- * Walks the package exports (occt-wasm@3.8.4 exports "./dist/occt-wasm.wasm"),
+ * Walks the package exports (occt-wasm@5.6.0 exports "./dist/occt-wasm.wasm"),
  * independent of cwd / hoisting / pnpm|npm linker (verified pattern C).
  * Replaces the old 4-level `..` path guessing + process.cwd() fallback.
  *

@@ -99,7 +99,7 @@ beforeAll(async () => {
   kernel = getKernel()
 }, 120000)
 
-/** occt-wasm@3.8.4 暴露的全部 `*WithHistory`（dist/index.d.ts:458-472）。 */
+/** occt-wasm@5.6.0 暴露的全部 `*WithHistory`（dist/index.d.ts:458-472）。 */
 const ALL_WITH_HISTORY = [
   'fuseWithHistory',
   'cutWithHistory',

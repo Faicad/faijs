@@ -25,7 +25,7 @@ export const OCCT_BREP_ENGINE_ID = 'occt'
 /**
  * OCCT 实际提供的 `*WithHistory` 核函数名（Phase 0.2：逐核函数如实声明）。
  *
- * 12 个全部由 `occt-wasm@3.8.4` 提供（`dist/index.d.ts` 的 `*WithHistory` 声明）。
+ * 12 个全部由 `occt-wasm@5.6.0` 提供（`dist/index.d.ts` 的 `*WithHistory` 声明）。
  * L1 契约只含前三员 + filletWithHistory（双方都有对齐实现）；其余 8 个是 occt
  * 平台面能力（brepkit 无对应 API），存在性由本能力表如实声明，op 侧用
  * `engines: ['occt']`（Phase 5 D11）表达平台归属。

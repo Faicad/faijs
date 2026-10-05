@@ -33,7 +33,7 @@
   "dependencies": {},
   "peerDependencies": {
     "@faicad/faijs": "^0.29.0",
-    "occt-wasm": "^3.8.0"
+    "occt-wasm": "^5.6.0"
   },
   "devDependencies": {
     "@faicad/faijs": "file:../core",

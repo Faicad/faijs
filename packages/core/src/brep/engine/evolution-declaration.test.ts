@@ -28,7 +28,7 @@ import { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './adapters/occt'
 import type { BrepEvolutionKind } from './types'
 
 
-/** OCCT（occt-wasm@3.8.4）实际提供的 12 个 `*WithHistory`，与 BrepEngineApi 声明一一对应。 */
+/** OCCT（occt-wasm@5.6.0）实际提供的 12 个 `*WithHistory`，与 BrepEngineApi 声明一一对应。 */
 const OCCT_EXPECTED: readonly BrepEvolutionKind[] = [
   'fuseWithHistory',
   'cutWithHistory',

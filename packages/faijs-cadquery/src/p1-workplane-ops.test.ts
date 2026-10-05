@@ -92,19 +92,20 @@ describe('edges("#Z") parity (upstream DirectionMinMaxSelector)', () => {
     expect(volume(f)).toBeLessThan(1000)
   })
 
-  it('#Z on an already-filleted box selects the top rim (8 edges incl. arcs)', async () => {
-    // GOTCHA (probed 2026-10-01): the kernel fillet REJECTS re-filleting the
-    // fillet OUTPUT — "fillet: operation failed" (8 top-rim edges) or
-    // "fillet: TopoDS::Solid" (single edge, kernel-level probe) — even though
-    // the input is still a 1-solid TopoDS (getSubShapes 'solid' == 1).
-    // Selector-side #Z resolution is correct (8 edges); the blocker is
-    // kernel-side (blocks the testEnclosure op:split-all chain), so this test
-    // pins the failure propagating (fail-loud, no silent no-op).
-    // NOTE: the first fillet must be geometrically feasible (2r < box width) —
-    // an r=10 fillet on a 10-wide box fails with the same message.
+  it('#Z on an already-filleted box selects the top rim and re-fillets (5.6.0 fix)', async () => {
+    // 3.8.4 GOTCHA (probed 2026-10-01): the kernel fillet REJECTED re-filleting
+    // the fillet OUTPUT — "fillet: operation failed" / "fillet: TopoDS::Solid" —
+    // even though the input is still a 1-solid TopoDS. Selector-side #Z was
+    // correct (8 edges); the blocker was kernel-side, and the old test pinned
+    // the rejection (fail-loud) instead of allowing a silent no-op.
+    // occt-wasm 5.6.0 FIXED the kernel gap: re-filleting a fillet output now
+    // SUCCEEDS. So the parity contract flips to: #Z selects the top rim and the
+    // second fillet resolves to a valid, smoothly smaller solid (not a no-op).
     const b = await box(Workplane(), 20, 20, 10)
     const f1 = await fillet(await edges(b, '|Z'), 5)
-    await expect(fillet(await edges(f1, '#Z'), 2)).rejects.toThrow(/TopoDS::Solid|operation failed/)
+    const f2 = await fillet(await edges(f1, '#Z'), 2)
+    expect(volume(f2)).toBeGreaterThan(0)
+    expect(volume(f2)).toBeLessThan(volume(f1))
   })
 })
 

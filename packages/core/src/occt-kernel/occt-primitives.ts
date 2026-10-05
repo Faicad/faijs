@@ -404,7 +404,7 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
 
     // ── measurement ──
     getBoundingBox: (shape, useTriangulation): BrepBoundingBox =>
-      k.getBoundingBox(asShape(shape), useTriangulation),
+      k.getBoundingBox(asShape(shape), useTriangulation ?? false),
     getVolume: (shape) => k.getVolume(asShape(shape)),
     getCenterOfMass: (shape) => v3(k.getCenterOfMass(asShape(shape))),
     getSurfaceArea: (shape) => k.getSurfaceArea(asShape(shape)),

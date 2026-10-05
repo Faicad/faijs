@@ -94,6 +94,6 @@
     "vitest": "^4.1.11"
   },
   "overrides": {
-    "occt-wasm": "3.8.4"
+    "occt-wasm": "5.6.0"
   }
 }
