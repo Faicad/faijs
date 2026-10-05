@@ -78,6 +78,33 @@ let u = cad.union(box1, box2)
 return { shape: u }
 `
 
+/** 面级：box1.setFaceColor([3], ...) 成员调用 → materialGroups（面 3 = −Y，tri 6..7）。 */
+const FACE_COLOR = `let box1 = cad.box(10, 10, 10)
+box1.setFaceColor([3], '#e53935')
+return { shape: box1 }
+`
+
+/** 面级材质：多个面一次设置 + 面级与整体外观互不影响。 */
+const FACE_MATERIAL = `let box1 = cad.box(10, 10, 10)
+box1.setFaceColor([0], '#ff0000')
+box1.setFaceMaterial([1, 2], { metalness: 0.8, roughness: 0.2 })
+return { shape: box1 }
+`
+
+/** 面级越界：face index 6 超出 box 的 0..5 → E_FACE_INDEX，执行失败。 */
+const FACE_OUT_OF_RANGE = `let box1 = cad.box(10, 10, 10)
+box1.setFaceColor([6], '#ff0000')
+return { shape: box1 }
+`
+
+/** 面级不可用：union 布尔产物无面结构 → E_FACE_UNAVAILABLE，执行失败。 */
+const FACE_UNAVAILABLE = `let box1 = cad.box(10, 10, 10)
+let box2 = cad.box(5, 5, 5)
+let u = cad.union(box1, box2)
+u.setFaceColor([0], '#ff0000')
+return { shape: u }
+`
+
 const cadNs = createApiNamespaceWithEditorOps()
 
 function moduleRuntime(): CadRuntime {
@@ -163,5 +190,41 @@ describe('A: PBR 外观（.fai.js 端到端）', () => {
     const m = track(moduleRuntime())
     const r = await m.execute(UNION_FIRST)
     expect(expectAppearance(outputOf(r, 'u'))).toEqual({ color: [0xe5 / 255, 0x39 / 255, 0x35 / 255] })
+  })
+
+  it('A8：box1.setFaceColor([3], ...) 成员调用 → materialGroups（面 3 = −Y, tri 6..7）', async () => {
+    const m = track(moduleRuntime())
+    const r = await m.execute(FACE_COLOR)
+    const s = outputOf(r, 'box1')
+    expect(s.materialGroups).toEqual([
+      { start: 6, count: 2, appearance: { color: [0xe5 / 255, 0x39 / 255, 0x35 / 255] } },
+    ])
+    // 面级不影响整体外观
+    expect(s.appearance).toBeUndefined()
+  })
+
+  it('A9：面级 + 整体外观并存；面级多个面各自分组、按 start 排序', async () => {
+    const m = track(moduleRuntime())
+    const r = await m.execute(FACE_MATERIAL)
+    const s = outputOf(r, 'box1')
+    expect(s.materialGroups).toEqual([
+      { start: 0, count: 2, appearance: { color: [1, 0, 0] } },
+      { start: 2, count: 4, appearance: { metalness: 0.8, roughness: 0.2 } },
+    ])
+    expect(s.appearance).toBeUndefined()
+  })
+
+  it('A10：面序号越界 → 执行失败（E_FACE_INDEX）', async () => {
+    const m = track(moduleRuntime())
+    const r = await m.execute(FACE_OUT_OF_RANGE)
+    expect(r.failedAt).toBeDefined()
+    expect(JSON.stringify(r.failedAt)).toMatch(/E_FACE_INDEX/)
+  })
+
+  it('A11：无面结构（union 布尔产物）setFaceColor → 执行失败（E_FACE_UNAVAILABLE）', async () => {
+    const m = track(moduleRuntime())
+    const r = await m.execute(FACE_UNAVAILABLE)
+    expect(r.failedAt).toBeDefined()
+    expect(JSON.stringify(r.failedAt)).toMatch(/E_FACE_UNAVAILABLE/)
   })
 })

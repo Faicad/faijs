@@ -53,6 +53,14 @@ export interface Shape {
   materialGroups?: Array<{ start: number; count: number; appearance: PbrAppearance }>
   /** Phase 2：顶点颜色（3MF colorgroup / 面级 mesh 链），sRGB 0–1，长度 = positions 长度。 */
   vertexColors?: Float32Array
+  /**
+   * 面结构元数据：面序号 → 三角形区间 [start, count)（start/count 为三角形索引，
+   * 对应 positions/indices 焊接后的三角形序列）。仅参数化 primitives 构造时记录
+   * （面结构构造时已知、三角形顺序固定）；manifold 布尔/组合/导入后无 CAD 面
+   * 概念，本字段不存在。`setFaceColor`/`setFaceMaterial` 依赖本字段把面序号映射
+   * 到三角形区间并写入 materialGroups。
+   */
+  faceRanges?: Array<{ start: number; count: number }>
 }
 
 /**

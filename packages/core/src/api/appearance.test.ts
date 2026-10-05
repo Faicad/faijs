@@ -15,13 +15,24 @@ import {
 } from './appearance'
 import type { Shape } from '../mesh/types'
 
-function fakeShape(appearance?: PbrAppearance): Shape {
+function fakeShape(appearance?: PbrAppearance, faceRanges?: Shape['faceRanges']): Shape {
   return {
     positions: new Float32Array(9),
     indices: new Uint32Array(3),
     appearance,
+    faceRanges,
   }
 }
+
+/** 模拟 box 的 6 面 × 2 三角形区间（与 mesh/primitives.ts box 面序契约一致）。 */
+const boxFaceRanges: Shape['faceRanges'] = [
+  { start: 0, count: 2 },
+  { start: 2, count: 2 },
+  { start: 4, count: 2 },
+  { start: 6, count: 2 },
+  { start: 8, count: 2 },
+  { start: 10, count: 2 },
+]
 
 describe('normalizeColor', () => {
   it('hex #rgb → sRGB 0–1（无 alpha）', () => {
@@ -123,5 +134,73 @@ describe('attachAppearanceMethods（Shape 方法）', () => {
     const s = attachAppearanceMethods(fakeShape({ metalness: 0.9 }))
     s.setColor('#ff0000')
     expect(s.appearance).toEqual({ metalness: 0.9, color: [1, 0, 0] })
+  })
+})
+
+describe('mergeFaceAppearance（面级）', () => {
+  it('setFaceColor 单个面 → materialGroups 正确区间 + 外观', () => {
+    const s = attachAppearanceMethods(fakeShape(undefined, boxFaceRanges))
+    s.setFaceColor([3], '#e53935') // 面 3 = −Y
+    expect(s.materialGroups).toEqual([{ start: 6, count: 2, appearance: { color: [0xe5 / 255, 0x39 / 255, 0x35 / 255] } }])
+  })
+
+  it('多个面一次设置 → 按 start 排序的多个分组', () => {
+    const s = attachAppearanceMethods(fakeShape(undefined, boxFaceRanges))
+    s.setFaceColor([5, 1], '#ff0000') // 面 5 (−Z) 在面 1 (−X) 之后 → 排序
+    expect(s.materialGroups).toEqual([
+      { start: 2, count: 2, appearance: { color: [1, 0, 0] } },
+      { start: 10, count: 2, appearance: { color: [1, 0, 0] } },
+    ])
+  })
+
+  it('相邻面同外观 → 合并为一个分组', () => {
+    const s = attachAppearanceMethods(fakeShape(undefined, boxFaceRanges))
+    s.setFaceColor([0], '#00ff00').setFaceColor([1], '#00ff00')
+    expect(s.materialGroups).toEqual([{ start: 0, count: 4, appearance: { color: [0, 1, 0] } }])
+  })
+
+  it('同一面重复设置 → 外观合并（spec 未设置字段保留旧值）', () => {
+    const s = attachAppearanceMethods(fakeShape(undefined, boxFaceRanges))
+    s.setFaceColor([2], '#ff0000').setFaceMaterial([2], { metalness: 0.8 })
+    expect(s.materialGroups).toEqual([
+      { start: 4, count: 2, appearance: { color: [1, 0, 0], metalness: 0.8 } },
+    ])
+  })
+
+  it('已合并分组的部分区间再设置 → 拆分保留两侧', () => {
+    const s = attachAppearanceMethods(fakeShape(undefined, boxFaceRanges))
+    s.setFaceColor([0, 1], '#ff0000') // 合并 {0,4}
+    s.setFaceColor([0], '#0000ff') // 拆分：{0,2} 蓝 + {2,4} 红
+    expect(s.materialGroups).toEqual([
+      { start: 0, count: 2, appearance: { color: [0, 0, 1] } },
+      { start: 2, count: 2, appearance: { color: [1, 0, 0] } },
+    ])
+  })
+
+  it('setFaceColor 携带 alpha → 归一为 opacity（权威字段）', () => {
+    const s = attachAppearanceMethods(fakeShape(undefined, boxFaceRanges))
+    s.setFaceColor([0], '#ff000080')
+    expect(s.materialGroups).toEqual([
+      { start: 0, count: 2, appearance: { color: [1, 0, 0], opacity: 0x80 / 255 } },
+    ])
+  })
+
+  it('无面结构（布尔/组合/导入）→ 抛 E_FACE_UNAVAILABLE', () => {
+    const s = attachAppearanceMethods(fakeShape())
+    expect(() => s.setFaceColor([0], '#ff0000')).toThrow(/E_FACE_UNAVAILABLE/)
+    expect(() => s.setFaceMaterial([0], { metalness: 1 })).toThrow(/E_FACE_UNAVAILABLE/)
+  })
+
+  it('面序号越界 / 非整数 → 抛 E_FACE_INDEX', () => {
+    const s = attachAppearanceMethods(fakeShape(undefined, boxFaceRanges))
+    expect(() => s.setFaceColor([6], '#ff0000')).toThrow(/E_FACE_INDEX.*out of range/)
+    expect(() => s.setFaceColor([-1], '#ff0000')).toThrow(/E_FACE_INDEX/)
+    expect(() => s.setFaceColor([1.5], '#ff0000')).toThrow(/E_FACE_INDEX/)
+  })
+
+  it('返回 this 可链式；materialGroups 与 appearance 互不影响', () => {
+    const s = attachAppearanceMethods(fakeShape(undefined, boxFaceRanges))
+    expect(s.setFaceColor([0], '#ff0000')).toBe(s)
+    expect(s.appearance).toBeUndefined()
   })
 })

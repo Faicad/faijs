@@ -102,6 +102,14 @@ export interface ShapeAppearanceMethods {
   setOpacity(opacity: number): this
   /** 读取当前外观（可能 undefined）。 */
   getAppearance(): Readonly<PbrAppearance> | undefined
+  /**
+   * 面级设色：把 faceIds 指定的面（面序号契约见 `Shape.faceRanges`，参数化
+   * primitives 才有）写入 `materialGroups`。无面结构（布尔/组合/导入产物）抛
+   * `E_FACE_UNAVAILABLE`；面序号越界抛 `E_FACE_INDEX`。
+   */
+  setFaceColor(faces: number[], color: PbrColor): this
+  /** 面级材质：等价 setFaceColor 的 material 版本。 */
+  setFaceMaterial(faces: number[], spec: MaterialSpec): this
 }
 
 // ── 归一化 ──
@@ -170,6 +178,103 @@ export function mergeAppearance(cur: PbrAppearance | undefined, spec: PbrAppeara
   return { ...(cur ?? {}), ...clean } as PbrAppearance
 }
 
+/** 两外观等价判定（字段级深比较；undefined 视同空对象）。 */
+function sameAppearance(a: PbrAppearance | undefined, b: PbrAppearance | undefined): boolean {
+  const ka = Object.keys(a ?? {}).filter((k) => (a as Record<string, unknown>)[k] !== undefined).sort()
+  const kb = Object.keys(b ?? {}).filter((k) => (b as Record<string, unknown>)[k] !== undefined).sort()
+  if (ka.length !== kb.length) return false
+  for (const k of ka) {
+    const va = (a as Record<string, unknown>)[k]
+    const vb = (b as Record<string, unknown>)[k]
+    if (Array.isArray(va) || Array.isArray(vb)) {
+      if (!Array.isArray(va) || !Array.isArray(vb) || va.length !== vb.length) return false
+      for (let i = 0; i < va.length; i++) if (va[i] !== vb[i]) return false
+    } else if (va !== vb) {
+      return false
+    }
+  }
+  return true
+}
+
+// ── 面级外观 ──
+
+/** 面区间跨度（内部表示，end 为开区间上界）。 */
+interface FaceSpan {
+  start: number
+  end: number
+  appearance: PbrAppearance | undefined
+}
+
+/**
+ * 把 faceIds 指定的面（面序号 → `Shape.faceRanges` 三角形区间）合并进
+ * `shape.materialGroups`。多次设置同一面 → 外观合并（spec 未设置字段保留旧值）；
+ * 不同面同外观 → 相邻区间合并为一个分组。输出按三角形起始排序。
+ *
+ * 无面结构（`faceRanges` 缺失——布尔/组合/导入产物）抛 `E_FACE_UNAVAILABLE`；
+ * 面序号越界/非整数抛 `E_FACE_INDEX`。
+ * @param shape 目标 Shape（必须携带 faceRanges）
+ * @param faceIds 面序号列表（PbrAppearance 面序契约见 mesh/primitives.ts 各构造点注释）
+ * @param spec 待合并到目标面的外观字段
+ */
+export function mergeFaceAppearance(shape: Shape, faceIds: number[], spec: PbrAppearance): void {
+  const ranges = shape.faceRanges
+  if (!ranges || ranges.length === 0) {
+    throw new Error(
+      '[faijs/appearance] E_FACE_UNAVAILABLE: shape has no face structure — ' +
+      'face-level methods only apply to parameterized primitives (box/cylinder/cone); ' +
+      'boolean/combined/imported shapes have no CAD faces',
+    )
+  }
+  const targets: Array<{ start: number; count: number }> = []
+  for (const id of faceIds) {
+    if (!Number.isInteger(id) || id < 0 || id >= ranges.length) {
+      throw new Error(
+        `[faijs/appearance] E_FACE_INDEX: face index ${id} out of range 0..${ranges.length - 1}`,
+      )
+    }
+    targets.push(ranges[id])
+  }
+
+  const spans: FaceSpan[] = []
+  for (const g of shape.materialGroups ?? []) {
+    spans.push({ start: g.start, end: g.start + g.count, appearance: g.appearance })
+  }
+  // 每个目标区间与现有 spans 求并：重叠部分 mergeAppearance，保留两侧未覆盖段。
+  for (const t of targets) {
+    const ts = t.start
+    const te = t.start + t.count
+    let applied = false
+    for (const h of spans) {
+      const is = Math.max(ts, h.start)
+      const ie = Math.min(te, h.end)
+      if (is >= ie) continue
+      applied = true
+      const left = h.start < is ? { start: h.start, end: is, appearance: h.appearance } : null
+      const right = ie < h.end ? { start: ie, end: h.end, appearance: h.appearance } : null
+      const merged: FaceSpan = { start: is, end: ie, appearance: mergeAppearance(h.appearance, spec) }
+      const idx = spans.indexOf(h)
+      spans.splice(idx, 1, ...(left ? [left] : []), merged, ...(right ? [right] : []))
+    }
+    if (!applied) spans.push({ start: ts, end: te, appearance: spec })
+  }
+  // 归一化：按 start 排序 + 相邻同外观合并。
+  spans.sort((a, b) => a.start - b.start)
+  const out: FaceSpan[] = []
+  for (const s of spans) {
+    const last = out[out.length - 1]
+    if (last && last.end === s.start && sameAppearance(last.appearance, s.appearance)) {
+      last.end = s.end
+    } else {
+      out.push({ ...s })
+    }
+  }
+  shape.materialGroups = out.map((s) => ({
+    start: s.start,
+    count: s.end - s.start,
+    appearance: s.appearance ?? {},
+  }))
+}
+
 // ── Shape 方法挂载 ──
 
 /**
@@ -210,6 +315,17 @@ export function attachAppearanceMethods(shape: Shape): Shape & ShapeAppearanceMe
   }
   s.getAppearance = function getAppearance(this: Shape) {
     return this.appearance
+  }
+  s.setFaceColor = function setFaceColor(this: Shape & ShapeAppearanceMethods, faces: number[], color: PbrColor) {
+    const { rgb, alpha } = normalizeColor(color)
+    const spec: PbrAppearance = { color: rgb }
+    if (alpha !== undefined) spec.opacity = alpha
+    mergeFaceAppearance(this, faces, spec)
+    return this
+  }
+  s.setFaceMaterial = function setFaceMaterial(this: Shape & ShapeAppearanceMethods, faces: number[], spec: MaterialSpec) {
+    mergeFaceAppearance(this, faces, spec as PbrAppearance)
+    return this
   }
   return s
 }

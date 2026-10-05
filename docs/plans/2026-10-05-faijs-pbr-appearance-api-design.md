@@ -209,10 +209,12 @@ export interface Shape {
 - brep 链产物（网格化后）：同样构造为 Shape 实例 → 方法行为一致。
 - 因此**无需**为外观设置声明 mesh/brep 双实现（§3.4 边界表）；几何 op 链（`cad.box` → `cad.extrude` → …）照常按静态规则分派，外观随 shape 引用一路携带（op 返回新 Shape 时，实现需继承输入的 `appearance`——**这是实施要点**：所有几何 op 的产物构造默认继承 `input.appearance`，除非被覆盖；实现集中在产物包装点，避免每个 op 手写）。
 
-### 6.2 Phase 2 面级（mesh 链需要内核配合）
+### 6.2 Phase 2 面级（mesh 链实测评估：无需内核配合，2026-10-05 修正）
 
-- brep 链：XCAF label 级颜色天然支持（面序号 → label `setColor`），无需内核改动。
-- mesh 链：需要「brep 面序号 → 三角形分组」的稳定映射——网格化阶段为每个面记录三角形区间（`materialGroups`），或按面拆分几何。这是本方案**唯一需要内核配合**的项，故排 Phase 2，实施前单独评估。
+- **实测修正**（P4 评估）：mesh 链 primitives（`mesh/primitives.ts` box/sphere/cylinder/cone/wedge）**直接用 THREE.BufferGeometry 参数化构造**（非 manifold 三角化）——面结构在构造时已知、三角形顺序固定（实测 `BoxGeometry` 12 三角形 = 6 面 × 2，序 = +X/−X/+Y/−Y/+Z/−Z），可在构造点记录「面序号 → 三角形区间」（`Shape.faceRanges`）。**因此面级映射无需内核改动**，v2 此前「mesh 链需要内核配合」的预判作废。
+- 边界（文档化）：**manifold 布尔/组合/导入后无 CAD 面概念**——`faceRanges` 只存在于参数化 primitives 构造产物；经过 `union/cut/intersect` 或导入的 Shape 无面信息，`setFaceColor` 对它们抛 `E_FACE_UNAVAILABLE`（明确报错，不静默）。`materialGroups` 仍是三角形区间语义（对任意 mesh 可手工构造，编辑器按区间渲染）。
+- brep 链：XCAF label 级颜色天然支持（面序号 → label `setColor`，P3 已确认写侧 `exportStepFromSolids` 通道）——brep 面级作为 P4 二期（需要 brep 链面序号稳定性评估，见 §12 ⑦）。
+- 3MF colorgroup：读侧已有（`threemf-loader` vertexColors 展开为独立三角形布局）；写侧 P4 补齐（`export-model` 写 `<colorgroup>` + 对象 `pid` 引用）。
 
 ### 6.3 worker / 序列化边界
 

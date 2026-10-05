@@ -21,9 +21,11 @@ import { clampNRad } from './types'
 
 // ── 内部工具 ──
 
-/** THREE.BufferGeometry → Shape (ManifoldMeshData) */
-function geoToShape(geo: THREE.BufferGeometry): Shape {
-  return geoToManifoldMesh(geo)
+/** THREE.BufferGeometry → Shape (ManifoldMeshData)；可选携带面结构元数据。 */
+function geoToShape(geo: THREE.BufferGeometry, faceRanges?: Shape['faceRanges']): Shape {
+  const shape = geoToManifoldMesh(geo) as Shape
+  if (faceRanges !== undefined) shape.faceRanges = faceRanges
+  return shape
 }
 
 // ── 创建 API ──
@@ -61,7 +63,18 @@ export function box(params: BoxParams): Shape {
     tz = height / 2
   }
   if (tx !== 0 || ty !== 0 || tz !== 0) geo.translate(tx, ty, tz)
-  return geoToShape(geo)
+  // 面结构（P4 面级）：BoxGeometry 12 三角形 = 6 面 × 2，顺序固定
+  // (+X, −X, +Y, −Y, +Z, −Z)；geoToManifoldMesh 焊接顶点保三角形序，故面序契约成立。
+  // 面序号契约（setFaceColor 的 faceIds 即此序号）：0=+X, 1=−X, 2=+Y, 3=−Y, 4=+Z, 5=−Z。
+  const faceRanges: Shape['faceRanges'] = [
+    { start: 0, count: 2 },
+    { start: 2, count: 2 },
+    { start: 4, count: 2 },
+    { start: 6, count: 2 },
+    { start: 8, count: 2 },
+    { start: 10, count: 2 },
+  ]
+  return geoToShape(geo, faceRanges)
 }
 
 /**
@@ -100,7 +113,14 @@ export function cylinder(params: CylinderParams): Shape {
   const baseY = params.at?.[1] ?? 0
   const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
   geo.translate(baseX, baseY, baseZ + params.height / 2)
-  return geoToShape(geo)
+  // 面结构（P4 面级）：CylinderGeometry 三角形布局稳定——侧面 2*segs（tri 0..2segs-1）、
+  // 顶盖 segs、底盖 segs。面序号契约：0=侧面, 1=顶, 2=底。
+  const faceRanges: Shape['faceRanges'] = [
+    { start: 0, count: 2 * segs },
+    { start: 2 * segs, count: segs },
+    { start: 3 * segs, count: segs },
+  ]
+  return geoToShape(geo, faceRanges)
 }
 
 /**
@@ -144,7 +164,22 @@ export function cone(params: ConeParams): Shape {
   const baseY = params.at?.[1] ?? 0
   const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
   resultGeo.translate(baseX, baseY, baseZ + params.height / 2)
-  return geoToShape(resultGeo)
+  // 面结构（P4 面级）：radiusTop=0 的 ConeGeometry 只有 2 面——侧面（segs 个
+  // 三角扇）+ 底盖（segs 个）；radiusTop>0 的圆台 CylinderGeometry 3 面
+  // （侧面 2*segs、顶、底，同 cylinder 布局）。面序号契约：0=侧面, 1=底
+  // （尖锥）；0=侧面, 1=顶, 2=底（圆台）。
+  const faceRanges: Shape['faceRanges'] =
+    params.radiusTop === 0
+      ? [
+          { start: 0, count: segs },
+          { start: segs, count: segs },
+        ]
+      : [
+          { start: 0, count: 2 * segs },
+          { start: 2 * segs, count: segs },
+          { start: 3 * segs, count: segs },
+        ]
+  return geoToShape(resultGeo, faceRanges)
 }
 
 /**
