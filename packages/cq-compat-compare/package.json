@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@faicad/faijs": "file:../core",
+    "@faicad/faijs-cadquery": "^0.29.0",
     "typescript": "*",
     "vitest": "*"
   },

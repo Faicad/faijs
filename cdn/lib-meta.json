@@ -1,8 +1,5 @@
 {
   "@faicad/cq-compat-compare": {
     "autoLift": false
-  },
-  "@faicad/faijs-cadquery": {
-    "autoLift": false
   }
 }

@@ -77,25 +77,23 @@ Step -Label '3/9  npm run build（core → draw → sketch → extra → sheetme
     }
     # demo 以「workspace 内消费 dist」独立化：dev/e2e 通过 workspace 链接解析 @faicad/* 到各包 dist/。
     # 因此 demo e2e 前必须先把 demo 声明依赖的 @faicad/*（core/faijs-extra/sheetmetal）构建出 dist。
-    # faijs-sketch 也在链上：faijs-cadquery / cq-compat-compare 的 pretest 构建经 node_modules 解析
+    # faijs-sketch 也在链上：cq-compat-compare 的 pretest 构建经 node_modules 解析
     # @faicad/faijs-sketch → dist，fresh checkout 无此步则 TS2307。
     # 根 build 已覆盖它们；dist 在 git 上被忽略，fresh checkout 全靠此步产出。
     npm run build
 }
 
-Write-Host "==> 4/9  test workspaces（每包独立硬预算；默认 5 分钟，faijs-cadquery 15 分钟）"
+Write-Host "==> 4/9  test workspaces（每包独立硬预算；默认 5 分钟）"
 $start3 = Get-Date
 $tmpVitest = [System.IO.Path]::GetTempFileName()
 # 硬看门狗: vitest 的 per-test testTimeout 无法中断同步原生死锁(事件循环被阻塞时
 # 其计时器同样被冻结, 见 p23-cad-face)。每个测试工作区单跑, 外层套进程级看门狗:
 # 任一处完不成 5 分钟预算即杀进程树并判失败, CI 绝不被一个死循环测试永久挂起。
 $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS } else { 300000 } # 5 分钟
-# 单包预算覆盖：faijs-cadquery 的 BREP/parity-smoke 套件单跑约 389s（+pretest build），
-# 5 分钟预算必然被看门狗误杀导致结果不可信（见 docs/plans/2026-09-28-cq-compat-remaining-cadquery-support-plan.md §1.2）。900s 留足 build + 抖动余量。
+# 单包预算覆盖：
 # faijs-gears / faijs-fasteners 同为 BREP parity 大套件（gears 全套 >900s，CI 只跑其
 # 轻量子集，见下方 $gearsSubset 注释；fasteners 全量实测 139s，600s 留足慢机余量）。
 $testBudgetOverrides = @{
-  '@faicad/faijs-cadquery'   = 900000
   '@faicad/faijs-fasteners'  = 600000
 }
 # faijs-gears 全套 BREP parity 测试 >900s（features.test.ts 单文件 240s+），历史上从未
@@ -103,7 +101,7 @@ $testBudgetOverrides = @{
 # （profile，1e-9 级最灵敏信号）、新增 5 类纯数学装配量（new-gear-math）、裸齿轮实体体积
 # 对比（spur-gear-build）。实测 3.86s / 159 passed。完整套件仍可 `npm test -w @faicad/faijs-gears` 单独跑。
 $gearsSubset = 'src/index.test.ts src/profile.test.ts src/new-gear-math.test.ts src/spur-gear-build.test.ts'
-$testPackages = @('@faicad/faijs','@faicad/faijs-sketch','@faicad/faijs-extra','@faicad/faijs-freecad','@faicad/sheetmetal','@faicad/faijs-cadquery','@faicad/faijs-gears','@faicad/faijs-fasteners','@faicad/faijs-draw','@faicad/faijs-tests','@faicad/faijs-demo')
+$testPackages = @('@faicad/faijs','@faicad/faijs-sketch','@faicad/faijs-extra','@faicad/sheetmetal','@faicad/faijs-gears','@faicad/faijs-fasteners','@faicad/faijs-draw','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
     $pkgBudget = if ($env:FAIJS_TEST_BUDGET_MS) { $testBudgetMs } elseif ($testBudgetOverrides.ContainsKey($pkg)) { $testBudgetOverrides[$pkg] } else { $testBudgetMs }

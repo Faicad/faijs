@@ -20,8 +20,9 @@ export default defineConfig({
       'packages/sheetmetal',
       'packages/demo',
       'packages/tests',
-      // 注意：不包含 packages/faijs-cadquery 与 packages/faijs-gears —— 两者较重，
-      // 用户明确要求根目录测试忽略它们（各包仍可单独 `npm test -w <pkg>` 运行）。
+      // 注意：不包含 packages/faijs-gears —— 较重，
+      // 用户明确要求根目录测试忽略它（各包仍可单独 `npm test -w <pkg>` 运行）。
+      // faijs-cadquery 与 faijs-freecad 已拆分为独立仓库（2026-10-05），不再在此列。
     ],
     testTimeout: 300000,
     hookTimeout: 300000,

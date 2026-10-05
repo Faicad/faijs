@@ -8,7 +8,7 @@
   -> npm view verification -> emit a publish record.
 
   Publish scope (see docs/plans/2026-09-19-npm-publish-plan.md section 2):
-    @faicad/faijs (core) -> @faicad/faijs-extra -> @faicad/faijs-cadquery
+    @faicad/faijs (core) -> @faicad/faijs-extra -> @faicad/cq-compat-compare
     -> @faicad/faijs-gears -> @faicad/faijs-fasteners -> @faicad/sheetmetal
 
 .PARAMETER DryRun
@@ -70,20 +70,21 @@ function Run-Npm {
   finally { Pop-Location }
 }
 
-# Publishable packages in topological order. @faicad/cq-compat-compare is a
-# dev-only internal test tool and stays out of the publish list;
-# @faicad/cq-compat-sketch was merged into @faicad/faijs-cadquery (and its assembly
-# layer with it, 2026-10-02) and is deliberately withheld. The family
-# publishes under ONE lockstep version (step 1 below): a package that needs a
-# different version line cannot live in this list.
+# Publishable packages in topological order. @faicad/cq-compat-compare is
+# published (2026-10-05) so that the standalone faijs-cadquery repo can depend
+# on it via registry. @faicad/faijs-cadquery and @faicad/faijs-freecad have been
+# split into standalone repos (2026-10-05) and are no longer published from
+# this monorepo. @faicad/cq-compat-sketch was merged into @faicad/faijs-cadquery
+# (and its assembly layer with it, 2026-10-02) and is deliberately withheld.
+# The family publishes under ONE lockstep version (step 1 below): a package
+# that needs a different version line cannot live in this list.
 $Packages = @(
   @{ Name = '@faicad/faijs';           Path = 'packages/core' },
   @{ Name = '@faicad/faijs-sketch';    Path = 'packages/sketch' },
   @{ Name = '@faicad/faijs-extra';     Path = 'packages/faijs-extra' },
   @{ Name = '@faicad/faijs-draw';      Path = 'packages/draw' },
   @{ Name = '@faicad/faijs-viewer';   Path = 'packages/faijs-viewer' },
-  @{ Name = '@faicad/faijs-freecad';  Path = 'packages/faijs-freecad' },
-  @{ Name = '@faicad/faijs-cadquery';        Path = 'packages/faijs-cadquery' },
+  @{ Name = '@faicad/cq-compat-compare'; Path = 'packages/cq-compat-compare' },
   @{ Name = '@faicad/faijs-gears';     Path = 'packages/faijs-gears' },
   @{ Name = '@faicad/faijs-fasteners'; Path = 'packages/faijs-fasteners' },
   @{ Name = '@faicad/sheetmetal';       Path = 'packages/sheetmetal' }

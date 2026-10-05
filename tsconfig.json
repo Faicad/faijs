@@ -30,8 +30,6 @@
       "@faicad/faijs-sketch": ["./packages/sketch/src/index.ts"],
       "@faicad/faijs-sketch/*": ["./packages/sketch/src/*"],
 
-      "@faicad/faijs-cadquery": ["./packages/faijs-cadquery/src/index.ts"],
-      "@faicad/faijs-cadquery/*": ["./packages/faijs-cadquery/src/*"],
       "@faicad/faijs-viewer": ["./packages/faijs-viewer/src/index.ts"],
       "@faicad/cq-compat-compare": ["./packages/cq-compat-compare/src/index.ts"]
     }

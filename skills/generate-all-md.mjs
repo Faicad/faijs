@@ -21,7 +21,7 @@
  *   6. faijs-gears.md body (gear generation)
  *   7. faijs-fasteners.md body (fastener generation)
  *
- * draw.md and faijs-cadquery.md are EXCLUDED.
+ * draw.md, faijs-cadquery.md, and faijs-freecad.md are EXCLUDED.
  *
  * De-duplication:
  *   - SKILL.md: "Available Libraries" table and "Quick Reference" section are
@@ -118,7 +118,7 @@ function processSkillMd(content) {
   // Remove any remaining external file links like [text](core.md)
   let result = kept.join('\n')
   // Remove links to .md files that are embedded (convert to plain text)
-  for (const file of ['core.md', 'faijs-extra.md', 'sketch.md', 'sheetmetal.md', 'faijs-gears.md', 'faijs-fasteners.md', 'draw.md', 'faijs-cadquery.md']) {
+  for (const file of ['core.md', 'faijs-extra.md', 'sketch.md', 'sheetmetal.md', 'faijs-gears.md', 'faijs-fasteners.md', 'draw.md', 'faijs-cadquery.md', 'faijs-freecad.md']) {
     // [text](file) → text
     result = result.replaceAll(new RegExp(`\\[([^\\]]+)\\]\\(${file.replace('.', '\\.')}\\)`, 'g'), '$1')
   }
