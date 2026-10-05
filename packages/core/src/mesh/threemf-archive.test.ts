@@ -299,3 +299,50 @@ describe('guessStlUnit — moved-up volume heuristic', () => {
 function strFromU8Checked(u8: Uint8Array): string {
   return new TextDecoder().decode(u8)
 }
+
+describe('parseThreemf — 零件/整体级元数据（meta 设计文档 §5.1）', () => {
+  it('对象级 name/partnumber/metadatagroup → object.meta', async () => {
+    const arch = await parseThreemf(fabricate('Gearbox v1', 'Faicad', 'P-42'))
+    const o = arch.objects[0]
+    expect(o.name).toBe('InputPart') // 既有 name 贯通
+    expect(o.meta).toEqual({
+      name: 'InputPart',
+      partNumber: 'GB-001',
+      metadata: { 'fa:source': 'designed' },
+    })
+  })
+
+  it('model 级 well-known + vendor metadata → fileMeta', async () => {
+    const arch = await parseThreemf(fabricate('Gearbox v1', 'Faicad', 'P-42'))
+    expect(arch.fileMeta).toBeDefined()
+    expect(arch.fileMeta!.title).toBe('Gearbox v1')
+    expect(arch.fileMeta!.designer).toBe('Faicad')
+    expect(arch.fileMeta!.metadata).toEqual({ 'vendor:project': 'P-42' })
+  })
+})
+
+/** 参数化构造带元数据的 3MF 二进制。 */
+function fabricate(title: string, designer: string, vendorValue: string): ArrayBuffer {
+  const model = `<?xml version="1.0"?>
+<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+  <metadata name="Title">${title}</metadata>
+  <metadata name="Designer">${designer}</metadata>
+  <metadata name="vendor:project" value="${vendorValue}"/>
+  <resources>
+    <object id="1" name="InputPart" partnumber="GB-001" type="model">
+      <metadatagroup>
+        <metadata name="fa:source">designed</metadata>
+      </metadatagroup>
+      <mesh><vertices>
+        <vertex x="0" y="0" z="0"/><vertex x="10" y="0" z="0"/>
+        <vertex x="0" y="10" z="0"/><vertex x="0" y="0" z="10"/>
+      </vertices><triangles>
+        <triangle v1="0" v2="1" v3="2"/><triangle v1="0" v2="2" v3="3"/>
+      </triangles></mesh>
+    </object>
+  </resources>
+  <build><item objectid="1" transform="1 0 0 0 1 0 0 0 1 0 0 0"/></build>
+</model>`
+  const zip = zipSync({ '3D/3dmodel.model': strToU8(model) })
+  return zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength) as ArrayBuffer
+}

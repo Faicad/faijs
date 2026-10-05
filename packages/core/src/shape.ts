@@ -12,6 +12,7 @@
 
 import type { Shape } from './mesh/types'
 import { attachAppearanceMethods, type ShapeAppearanceMethods } from './api/appearance'
+import { attachMetaMethods, type ShapeMetaMethods } from './api/meta'
 import { getRuntimeState, registerFunctionBrep, nameOf, getCurrentStmt, type ShapeSlot } from './runtime-state'
 import { asStmtId } from './identity'
 import { runtimeLineage } from './topology/naming/lineage'
@@ -28,7 +29,7 @@ export type ShapeKind = 'solid' | 'shape2d' | 'curve' | 'compound'
  * 设计文档 2026-10-05 v2 §3.2/§4.2）：`box1.setColor(...)` 等成员调用走
  * `asm1.solve()` 同款语句形态；方法不序列化，`appearance` 字段随产物传递。
  */
-export interface SolidShape extends Shape, ShapeAppearanceMethods {
+export interface SolidShape extends Shape, ShapeAppearanceMethods, ShapeMetaMethods {
   kind: 'solid'
 }
 
@@ -45,7 +46,7 @@ export interface CompoundShape {
  * `fromBrepCurve()`）。执行链路照走 `solidToShape`（wire → 空 0/0 载荷，不抛），
  * 显示经 `wireframe`。
  */
-export interface CurveShape extends Shape, ShapeAppearanceMethods {
+export interface CurveShape extends Shape, ShapeAppearanceMethods, ShapeMetaMethods {
   kind: 'curve'
 }
 
@@ -61,7 +62,7 @@ export type StdShape = SolidShape | CompoundShape | CurveShape
 export function solid(mesh: Shape): SolidShape {
   const s = { ...mesh, kind: 'solid' } as SolidShape
   getRuntimeState().created.add(s)
-  return attachAppearanceMethods(s) as SolidShape
+  return attachMetaMethods(attachAppearanceMethods(s)) as SolidShape
 }
 
 /**
@@ -76,7 +77,7 @@ export function solid(mesh: Shape): SolidShape {
 export function curve(mesh: Shape): CurveShape {
   const s = { ...mesh, kind: 'curve' } as CurveShape
   getRuntimeState().created.add(s)
-  return attachAppearanceMethods(s) as CurveShape
+  return attachMetaMethods(attachAppearanceMethods(s)) as CurveShape
 }
 
 /**

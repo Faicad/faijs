@@ -7,6 +7,20 @@ import { fromBrep } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepEngineApi } from '../brep/engine/primitives'
+import { parseStepPartMeta } from '../step/stepMetaParser'
+import type { ShapeMeta } from './meta'
+
+/** 尽力把 ArrayBuffer 当 UTF-8 文本解出；非文本（如 .brp 二进制）返回 undefined。 */
+function decodeStepText(buffer: ArrayBuffer): string | undefined {
+  if (!(buffer?.byteLength)) return undefined
+  try {
+    const s = new TextDecoder('utf-8', { fatal: false }).decode(buffer)
+    // STEP 是纯文本 ISO-10303-21；首段要出现 `ISO-10303-21;` 才算。
+    return s.includes('ISO-10303-21') ? s : undefined
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口）
@@ -70,6 +84,17 @@ export async function importStepImpl(params: Record<string, unknown>): Promise<S
   const { solid: solidHandle, shape } = loadBrep(
     kernel, buffer, undefined, undefined, { allowNonSolid: true },
   )
+  // P2（设计文档 2026-10-05-meta §5.2 读）：从 STEP (P21) 文本捞伙伴级描述/属性
+  // 挂 `shape.meta`（name 已由 OCCT label 提供，description/UDA 由纯文本补充）。
+  // 非文本/非 STEP 内容跳过，绝不抛。
+  const stepText = decodeStepText(buffer)
+  if (stepText && shape.meta == null) {
+    const partMeta = parseStepPartMeta(stepText)
+    const shapeMeta: ShapeMeta = { ...(shape.meta ?? {}) }
+    if (partMeta.description) shapeMeta.description = partMeta.description
+    if (partMeta.metadata && Object.keys(partMeta.metadata).length > 0) shapeMeta.metadata = partMeta.metadata
+    if (Object.keys(shapeMeta).length > 0) shape.meta = shapeMeta
+  }
   // E3（H12）：链根建 roleTable——导入文件的面没有语义名，按枚举序命名
   // imported:<i>（同一文件重复导入，枚举序稳定，role 名跨次导入保持一致）。
   const stmtId = String(getCurrentStmt()?.id ?? '')

@@ -196,3 +196,47 @@ ENDSEC;`
     expect(detectStepUnit(lines.join('\n'))).toBe('mm')
   })
 })
+
+describe('3MF 导出元数据（设计文档 2026-10-05-meta §6.1 3MF 行）', () => {
+  it('零件 meta → <object partnumber> + <metadatagroup>', async () => {
+    const buf = exportModelSync(
+      [
+        {
+          ...quadEntry(10, 'GearHousing'),
+          meta: {
+            name: 'GearHousing',
+            partNumber: 'GB-001',
+            description: 'input housing',
+            metadata: { 'fa:source': 'designed' },
+          },
+        },
+      ],
+      '3mf',
+    )
+    const xml = new TextDecoder().decode(readZipEntries(new Uint8Array(buf)).get('3D/3dmodel.model')!)
+    expect(xml).toContain('partnumber="GB-001"')
+    expect(xml).toContain('<metadata name="faijs:description">input housing</metadata>')
+    // 带前缀键（fa:source）原样写出；不带前缀的补 faijs: 前缀。
+    expect(xml).toContain('<metadata name="fa:source">designed</metadata>')
+    // 导出→导入往返：meta 完全还原。
+    const imported = await importFile(buf, '3mf')
+    expect(imported.shape.meta).toEqual({
+      name: 'GearHousing',
+      partNumber: 'GB-001',
+      description: 'input housing',
+      metadata: { 'fa:source': 'designed' },
+    })
+  })
+
+  it('fileMeta → <model> 级 well-known <metadata> + vendor 键', () => {
+    const buf = exportModelSync([quadEntry(10)], '3mf', {
+      fileMeta: { title: 'Gearbox v1', designer: 'Faicad', metadata: { 'vendor:project': 'P-42' } },
+    })
+    const xml = new TextDecoder().decode(readZipEntries(new Uint8Array(buf)).get('3D/3dmodel.model')!)
+    expect(xml).toContain('<metadata name="Title">Gearbox v1</metadata>')
+    expect(xml).toContain('<metadata name="Designer">Faicad</metadata>')
+    expect(xml).toContain('<metadata name="vendor:project">P-42</metadata>')
+    // faijs 命名空间前缀已声明（自定义 vendor 名默认带前缀，此处 vendor:project 自带）。
+    expect(xml).toMatch(/xmlns:faijs="http:\/\/schemas\.faicad\.dev\/3mf\/2026\/10"/)
+  })
+})

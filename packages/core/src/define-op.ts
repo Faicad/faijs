@@ -265,6 +265,32 @@ function inheritInputAppearance(out: Shape | Record<string, Shape>, inputs: Shap
   }
 }
 
+/**
+ * 元数据继承（设计文档 2026-10-05-meta §2 ③）：几何 op 返回新 Shape 时，默认
+ * 继承第一个携带 meta 的几何输入（`inputs.find(meta !== undefined)`），对象引用
+ * 共享；产物已有 meta 则不动（后置 setName 优先）。实现集中在产物包装点，mesh
+ * 与 brep 两条路径的产物都经此补齐。名称是显式声明，继承只是保底——需要新名的
+ * 产物（组合/变换后）由用户显式 `setName` 覆盖。
+ */
+function inheritInputMeta(out: Shape | Record<string, Shape>, inputs: Shape[]): void {
+  const src = inputs.find((i) => i.meta !== undefined)
+  if (!src?.meta) return
+  const setIfEmpty = (v: unknown): void => {
+    if (v !== null && typeof v === 'object' && 'positions' in v && !(v as Shape).meta) {
+      ;(v as Shape).meta = src.meta
+    }
+  }
+  if (isShape(out)) {
+    setIfEmpty(out)
+    return
+  }
+  for (const k of Object.keys(out)) {
+    const v = out[k]
+    if (Array.isArray(v)) (v as unknown[]).forEach(setIfEmpty)
+    else setIfEmpty(v)
+  }
+}
+
 /** Human-readable op label for error messages (falls back when unnamed). */
 function opLabel(meta: DualOpMeta): string {
   return meta.name ?? '<anon>'
@@ -435,6 +461,7 @@ export function defineOp<A extends unknown[]>(
       const r = await runImpl(meta, decl.brep as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
       const out = meta.outputs ? wrapByKeys(r, meta.outputs, wrapBrepOne) : wrapBrepOne(r)
       inheritInputAppearance(out, inputs)
+      inheritInputMeta(out, inputs)
       // 1.10 前置①：执行期把 hash 演化挂到血缘节点（kernel 类回走推进的数据源）。
       // 演化在几何算完那一刻可得（fromBrep → slot.faceEvolution），事后补挂不参与
       // N3 的内容比较（lineage.ts 设计如此）。无演化（identity/construct 等无历史
@@ -459,6 +486,7 @@ export function defineOp<A extends unknown[]>(
     const m = await runImpl(meta, decl.mesh as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
     const mOut = meta.outputs ? wrapByKeys(m, meta.outputs, wrapMeshOne) : wrapMeshOne(m)
     inheritInputAppearance(mOut, inputs)
+    inheritInputMeta(mOut, inputs)
     return mOut
     } finally {
       // 同语句去重标记不在 op 粒度清理——语句边界由 runtime-state.setCurrentStmt

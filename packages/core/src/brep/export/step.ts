@@ -17,6 +17,8 @@ import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
 import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
 import { getOcctKernel, type ShapeHandle } from '../../occt-kernel/occtKernel'
+import type { FileMeta } from '../../api/meta'
+import { rewriteStepHeader, fileMetaHasHeaderFields } from './step-meta-header'
 
 /** STEP 导出条目：一个 part（精确 BREP 形状或三角网格，二选一）。 */
 export interface StepExportEntry {
@@ -50,12 +52,16 @@ function srgbToLinear(c: number): number {
  *
  * @param kernel  OCCT kernel (must match the one that created the solids)
  * @param entries parts to export; each becomes its own XCAF label
+ * @param fileMeta optional file-level metadata; mapped to the P21 header
+ *                 (`FILE_NAME`/`FILE_DESCRIPTION`) via text rewrite
+ *                 (`rewriteStepHeader`). No effect on geometry/DATA entities.
  * @returns STEP file content as ArrayBuffer
  * @throws if entries is empty, or a mesh entry fails to reconstruct
  */
 export function exportStepFromSolids(
   kernel: BrepEngineApi,
   entries: StepExportEntry[],
+  fileMeta?: FileMeta,
 ): ArrayBuffer {
   if (entries.length === 0) {
     throw new Error('No exportable geometry')
@@ -122,7 +128,12 @@ export function exportStepFromSolids(
 
     // 3. 导出（每个 label 一个独立 PRODUCT，保留名称/颜色）
     const stepText = doc.exportSTEP()
-    return new TextEncoder().encode(stepText).buffer
+    // 文件级 meta → P21 header 重写（title/creationDate/createor/author/org/
+    // application/description）。无 header 字段时不重写。文本层只改声明不碰几何。
+    const out = fileMeta && fileMetaHasHeaderFields(fileMeta)
+      ? rewriteStepHeader(stepText, fileMeta)
+      : stepText
+    return new TextEncoder().encode(out).buffer
   } finally {
     // 4. 释放顺序：先关文档，再释放本函数创建的句柄
     doc.close()

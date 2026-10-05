@@ -23,6 +23,7 @@ import {
 import type { Shape } from '../mesh/types'
 import { exportStepFromSolids } from '../brep/export/step'
 import type { StepExportEntry } from '../brep/export/step'
+import type { FileMeta } from '../api/meta'
 import type {
   ShapeHandle,
   OcctKernel,
@@ -207,15 +208,18 @@ export function releaseSolid(solid: ShapeHandle): void {
  * Hosts no longer need to operate the OCCT kernel directly.
  *
  * @param entries - parts to export; each becomes its own independent entity
+ * @param fileMeta - optional file-level metadata; mapped to the P21 header
+ *                   (`rewriteStepHeader`). No effect on geometry/DATA entities.
  * @returns STEP file content as ArrayBuffer
  */
 export async function exportStepFromSolidsHighLevel(
   entries: StepExportEntry[],
+  fileMeta?: FileMeta,
 ): Promise<ArrayBuffer> {
   // step.ts consumes the L1 contract — pass the adapter, not the raw kernel
   // (no cross-layer assertion; narrowing plan §Phase 3).
   const primitives = await createOcctPrimitives()
-  return exportStepFromSolids(primitives, entries)
+  return exportStepFromSolids(primitives, entries, fileMeta)
 }
 
 // ── 管理函数 ──

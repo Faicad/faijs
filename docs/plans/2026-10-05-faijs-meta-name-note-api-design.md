@@ -1,6 +1,6 @@
 # 2026-10-05 faijs 零件名称/备注（说明性元数据）API 设计
 
-状态：方案（未实施）
+状态：已落地
 作者：MainAgent（会话调研结论 + 用户 2026-10-05 需求重写）
 替代：无（新主题；延续 PBR 外观方案的方法模式，见 [2026-10-05-faijs-pbr-appearance-api-design.md](./2026-10-05-faijs-pbr-appearance-api-design.md)）
 
@@ -250,7 +250,7 @@ P3 增量：
 | `meta.description` | PRODUCT.description（`exportStepFromSolids` 写 label 名时**同参带 description**——需内核支持；不支持则 UDA 描述性属性回退，见下） |
 | `meta.partNumber` | `PRODUCT_IDENTIFICATION`（内核/模板支持时）或 UDA（`GENERAL_PROPERTY('','partnumber',$)` + `PROPERTY_DEFINITION` + `DESCRIPTION_REPRESENTATION_ITEM('', value)` + `PROPERTY_DEFINITION_REPRESENTATION`，CAx-IF 图 8 形态） |
 | `meta.metadata` | 每个键一个 UDA（`GENERAL_PROPERTY('','key',$)`…，值用 DESCRIPTION_REPRESENTATION_ITEM） |
-| `FileMeta.title/description/…` | P21 header 重写（`exportModel` 已有 SI_UNIT 声明重写的先例——同样对 `FILE_NAME(...)`/`FILE_DESCRIPTION(...)` 行做文本替换；无对应位置的字段（copyright/licenseTerms/rating/modificationDate）**不写**（STEP 无标准位置，不发明） |
+| `FileMeta.title/description/…` | P21 header 重写（`exportModel` 已有 SI_UNIT 声明重写的先例——同样对 `FILE_NAME(...)`/`FILE_DESCRIPTION(...)` 行做文本替换；无对应位置的字段（copyright/licenseTerms/rating/modificationDate）**不写**（STEP 无标准位置，不发明）。**已落地**：`rewriteStepHeader`（`brep/export/step-meta-header.ts`，别名 `rewriteFileMetaHeader`）将 `title/description/designer→originator/author/creationDate→time_stamp/organization/application→preprocessor` 映射到 `FILE_NAME`/`FILE_DESCRIPTION`；`exportModel`/`exportModelSync` 的 STEP 分支在 SI_UNIT 改写后追加调用，**且** `exportStepFromSolids`/`exportStepFromSolidsHighLevel` 新增可选 `fileMeta` 入参（宿主 worker STEP 路径经此写 header）；`step-export.test.ts` 往返断言 |
 
 ## 7. 编辑器对接（3d_editor）
 
@@ -259,6 +259,7 @@ P3 增量：
 - **executeScript**：createPart 透传 `metaOverride: shape.meta`（与 materialGroupsOverride 同通道）。
 - **显示名**：ModelGroup 显示 `meta.name ?? 现有 partName 派生`（return key / scopedId fallback 不动）。
 - **导入**：formatLoaders 从 `shape.meta` / `fileMeta` 写 partMeta / fileMeta 到 store；导出从 store 收集。
+- **导出**：STL/3MF 经 `exportModel` 传 `fileMeta`（桌面）；STEP 经 worker `exportSolids` 的 `export` 指令新增 `fileMeta` 字段 → `exportStepFromSolidsHighLevel` 写 P21 header（web/electron；weapp brepkit 逐实体通道不写 header）。
 - **undo**：`partMeta`/`fileMeta` 加入 excludedFields（运行时重写、不撤销、不落盘），与 `materialGroups` 同款。
 - **属性面板**（Phase 2）：类似 MaterialEditor 的 MetaEditor（改 name/description/partNumber/自定义键值）。
 
@@ -291,10 +292,10 @@ P3 增量：
 ## 11. 未决问题（实施阶段实测确认）
 
 1. 整体级脚本 API：`cad.setMeta({...})` 需要 lang 对 `cad` 命名空间全局方法调用的支持（PBR 方案未涉及 cad 全局方法）。**P1 决策：整体级不提供脚本 API**——导入结果/导出选项承载（编辑器项目级字段 + 文件往返）；脚本设置整体级作为 P4（实测 lang 支持后再定形态）。
-2. STEP 写 PRODUCT.description：`exportStepFromSolids` 走 XCAF label（`doc.addShape(shape, { name, color })`）——description 是否进 XCAF label 待实测（occt-wasm 写侧）；不支持则回落 UDA 描述性属性（CAx-IF 图 8 形态，需内核写 UDA 能力）。
+2. STEP 写 PRODUCT.description：`exportStepFromSolids` 走 XCAF label（`doc.addShape(shape, { name, color })`）——description 是否进 XCAF label 待实测（occt-wasm 写侧）；不支持则回落 UDA 描述性属性（CAx-IF 图 8 形态，需内核写 UDA 能力）。**实测结论（本实施轮）**：occt-wasm XCAF 写侧仅有 name/color 标签通道，PRODUCT.description/partNumber 无标准 label 位——写侧保持未落地（待实测），不做文本级实体手术（红线）。
 3. STEP 读 PRODUCT.description：XCAF label 是否有 description 通道；无则 P21 文本正则解析（`PRODUCT\(('[^']*'),\s*('[^']*')`）——解析器与 stepColorParser 同族、宽容失败（解析不到跳过）。
 4. 3MF `faijs:description` 命名空间：`http://schemas.faicad.dev/3mf/2026/10` 是否作为长期规范（vs 复用 3MF Consortium 预留命名空间）——实施前确认。
-5. STEP partNumber 实体：AP214/AP242 的 `PRODUCT_IDENTIFICATION` 读写是否被 occt 内核暴露；不暴露则一律 UDA。
+5. STEP partNumber 实体：AP214/AP242 的 `PRODUCT_IDENTIFICATION` 读写是否被 occt 内核暴露；不暴露则一律 UDA。**实测结论（本实施轮）**：occt-wasm XCAF 写侧未暴露该实体，partNumber 写保持未落地（待实测），不作协议私有字段发明。
 6. `ShapeMeta.metadata` 键的 3MF 前缀规范：非带前缀键写出时补 `faijs:`（跨工具链兼容性）；读回时保留原始键（含前缀）——往返键名一致性（写 `faijs:description` 读回 `faijs:description`）需测试钉住。
 7. 装配实例级（3MF item partnumber/metadatagroup、STEP NAUO 属性）：3d_editor 装配/组件模型是否已有实例级 meta 槽位——P4 前先盘点 scene-kernel 的 assembly/component 数据结构。
 

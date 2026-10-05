@@ -27,6 +27,7 @@
  */
 import { readZipEntries } from '../io/zip'
 import { UNIT_SCALE, type UnitName } from '../units'
+import type { ShapeMeta, FileMeta } from '../api/meta'
 
 /** Map a 3MF unit string to a faijs length unit name. */
 function threemfUnitToFaijs(unit: string): UnitName | null {
@@ -67,6 +68,12 @@ interface ObjectComponent {
 interface ObjectMeshMeta {
   id: number
   name?: string
+  /** `<object><metadatagroup><metadata name="faijs:description">` 提升的描述。 */
+  description?: string
+  /** `<object partnumber>`（料号，规范要求编辑/派生尽量保留）。 */
+  partNumber?: string
+  /** `<object><metadatagroup><metadata name>`（键含命名空间前缀）。 */
+  metadata?: Record<string, string>
   /** Object-level `pid` (applies to every triangle without its own `pid`). */
   pid?: string
   /** Object-level `pindex` (default base/color index when a triangle omits p1..p3). */
@@ -174,6 +181,13 @@ export interface ThreemfObject {
    * single `baseColor`.
    */
   materialGroups?: Array<{ start: number; count: number; color: [number, number, number] }>
+  /**
+   * 零件级说明性元数据（设计文档 2026-10-05-meta §5.1）：`name` 来自
+   * `<object name>`；`partNumber` 来自 `<object partnumber>`；`metadata` 来自
+   * `<object><metadatagroup><metadata name>…`（键保留命名空间前缀）。组件实例
+   * （component 容器）只带对所引用对象的 meta 拷贝。
+   */
+  meta?: ShapeMeta
 }
 
 /** Structured 3MF parse result. */
@@ -184,6 +198,8 @@ export interface ThreemfArchive {
   objects: ThreemfObject[]
   /** Every non-model archive entry (key → raw bytes) for downstream consumers. */
   extraEntries: Map<string, Uint8Array>
+  /** 整体级元数据（设计文档 2026-10-meta 表中的 3MF model context；`<model><metadata>`）。 */
+  fileMeta?: FileMeta
 }
 
 /** Detect triangle-level material attributes (fast-3mf port). */
@@ -319,8 +335,40 @@ function scanResources(
     const objPid = /(?:^|\s)pid="([^"]*)"/.exec(attrs)?.[1]
     const objPindexRaw = /(?:^|\s)pindex="([^"]*)"/.exec(attrs)?.[1]
     const objPindex = objPindexRaw !== undefined && objPindexRaw !== '' ? Number(objPindexRaw) : undefined
+    // 料号（`<object partnumber>`）。
+    const partNumber = /(?:^|\s)partnumber="([^"]*)"/.exec(attrs)?.[1]
+    // 对象级 `<metadatagroup><metadata name="ns:key">…`（vendor 前缀键，值取 text 或 name）。
+    // faijs 写出的 `faijs:description` 提升为对象级 `description`（§6.1 写回 §5.1 读，
+    // 保证 description 往返不落进自定义键）；其余键保留原始名进 metadata。
+    const metadata: Record<string, string> = {}
+    let objectDescription: string | undefined
+    const mgRe = /<metadatagroup[^>]*>([\s\S]*?)<\/metadatagroup>/g
+    let mgm: RegExpExecArray | null
+    while ((mgm = mgRe.exec(body)) !== null) {
+      const mdRe = /<metadata\s+([^>]*?)(?:\/>|>([\s\S]*?)<\/metadata>)/g
+      let mdm: RegExpExecArray | null
+      while ((mdm = mdRe.exec(mgm[1])) !== null) {
+        const key = /(?:^|\s)name="([^"]*)"/.exec(mdm[1])?.[1]
+        if (key === undefined) continue
+        const text = mdm[2] !== undefined ? /(?:^|\s)value="([^"]*)"/.exec(mdm[1])?.[1] : undefined
+        const val =
+          text ??
+          (mdm[2] !== undefined ? mdm[2].replace(/<[^>]*>/g, '').trim() : undefined)
+        if (val === undefined) continue
+        if (key === 'faijs:description') objectDescription = val
+        else metadata[key] = val
+      }
+    }
 
-    let meta: ObjectMeshMeta = { id, name, pid: objPid, pindex: objPindex }
+    let meta: ObjectMeshMeta = {
+      id,
+      name,
+      description: objectDescription,
+      partNumber,
+      metadata,
+      pid: objPid,
+      pindex: objPindex,
+    }
 
     // mesh: vertices + triangles (fast-3mf port — strict regex scan with a
     // loose attribute-order fallback; missing sub-sections are tolerated and
@@ -456,10 +504,64 @@ function scanResources(
   }
 }
 
+/** 3MF Core well-known model-level metadata names → FileMeta 字段映射。 */
+type FileMetaStringKey = Exclude<keyof FileMeta, 'metadata'>
+const MODEL_METADATA_FIELD: Record<string, FileMetaStringKey> = {
+  Title: 'title',
+  Designer: 'designer',
+  Description: 'description',
+  Copyright: 'copyright',
+  LicenseTerms: 'licenseTerms',
+  Rating: 'rating',
+  CreationDate: 'creationDate',
+  ModificationDate: 'modificationDate',
+  Application: 'application',
+}
+
+/**
+ * Parse `FileMeta` from the root model document's direct `<metadata>` children
+ * (3MF Core model context). Well-known names (Title/Designer/…) map onto the
+ * FileMeta fields; any other (vendor-namespaced) name is kept verbatim in
+ * `FileMeta.metadata` (key preserves its namespace prefix). Value = text
+ * content or a `value` attribute; empties are skipped.
+ */
+function parseModelMetadata(rootDoc: string): FileMeta | undefined {
+  // 仅取 `<model …>` 到 `<resources>`/`<build>` 之前的前导区段——模型级元数据
+  // 是 `<model>` 的直接子级，排在 `<resources>` 之前；避免把对象级/metadatagroup
+  // 里的同名 `<metadata>` 误收进 fileMeta。
+  const modelStart = rootDoc.indexOf('<model')
+  if (modelStart < 0) return undefined
+  const resAt = rootDoc.indexOf('<resources>', modelStart)
+  const buildAt = rootDoc.indexOf('<build', modelStart)
+  const endCandidates = [resAt, buildAt].filter((i) => i >= 0)
+  const sectionEnd = endCandidates.length > 0 ? Math.min(...endCandidates) : rootDoc.length
+  const section = rootDoc.slice(modelStart, sectionEnd)
+
+  const meta: FileMeta = {}
+  let custom: Record<string, string> | undefined
+  const mdRe = /<metadata\s+([^>]*?)(?:\/>|>([\s\S]*?)<\/metadata>)/g
+  let mdm: RegExpExecArray | null
+  while ((mdm = mdRe.exec(section)) !== null) {
+    const attrs = mdm[1]
+    const name = /(?:^|\s)name="([^"]*)"/.exec(attrs)?.[1]
+    if (name === undefined) continue
+    const valAttr = /(?:^|\s)value="([^"]*)"/.exec(attrs)?.[1]
+    const val = valAttr ?? (mdm[2] !== undefined ? mdm[2].replace(/<[^>]*>/g, '').trim() : '')
+    if (val === '') continue
+    const field = MODEL_METADATA_FIELD[name]
+    if (field) {
+      meta[field] = val
+    } else {
+      custom = custom ?? {}
+      custom[name] = val
+    }
+  }
+  if (custom && Object.keys(custom).length > 0) meta.metadata = custom
+  return Object.keys(meta).length > 0 ? meta : undefined
+}
+
 /**
  * Parse the 3MF model XML documents (root + sub-models) into archive objects.
- *
- * Bambu exports are multi-file: `3D/3dmodel.model` holds only thin `<object>`
  * skeletons (component containers) plus the `<build>`, while the actual mesh
  * geometry lives in per-object files `3D/Objects/object_*.model` referenced
  * through `p:path` (production extension) — which we ignore in favor of
@@ -473,6 +575,7 @@ function scanResources(
 function parseModelXml(docTexts: string[]): {
   unitName: UnitName
   objects: ThreemfObject[]
+  fileMeta?: FileMeta
 } {
   // Last document = root model (caller appends it last).
   const rootDoc = docTexts[docTexts.length - 1]
@@ -483,6 +586,10 @@ function parseModelXml(docTexts: string[]): {
     throw new Error(`[mesh/threemf] unsupported <model unit>: ${JSON.stringify(unit)}`)
   }
   const scale = UNIT_SCALE[unitName]
+
+  // 整体级元数据（`<model>` 直接子级 `<metadata>`；well-known 名映射到
+  // FileMeta 字段，vendor 前缀名兜底进 FileMeta.metadata）。
+  const fileMeta = parseModelMetadata(rootDoc)
 
   // resources → material libraries (basematerials / colorgroup) + objects,
   // merged across every model document (sub-models first, root last).
@@ -538,6 +645,17 @@ function parseModelXml(docTexts: string[]): {
    * when every triangle references the same base index (multi-base objects
    * fall back to the default material, matching the host contract).
    */
+  /** 组装零件级 meta（仅当至少一个字段存在）。
+   *  组件容器（component 引用）沿 ref 链透传同一 meta 对象引用。 */
+  function srcMeta(src: ObjectMeshMeta): ShapeMeta | undefined {
+    const meta: ShapeMeta = {}
+    if (src.name !== undefined && src.name !== '') meta.name = src.name
+    if (src.description !== undefined && src.description !== '') meta.description = src.description
+    if (src.partNumber !== undefined && src.partNumber !== '') meta.partNumber = src.partNumber
+    if (src.metadata && Object.keys(src.metadata).length > 0) meta.metadata = src.metadata
+    return Object.keys(meta).length > 0 ? meta : undefined
+  }
+
   function materializeMesh(src: ObjectMeshMeta, mat?: readonly number[]): ThreemfObject {
     const positions = src.positions!
     const indices = src.indices!
@@ -590,6 +708,7 @@ function parseModelXml(docTexts: string[]): {
         positions: mat ? bakeTransform(outPos, mat) : outPos,
         indices: outIdx,
         vertexColors: outCol,
+        ...(srcMeta(src) ? { meta: srcMeta(src) } : {}),
       }
     }
 
@@ -677,6 +796,7 @@ function parseModelXml(docTexts: string[]): {
         indices,
         baseColor: baseColor ?? undefined,
         ...(!singleFull && groups.length > 0 ? { materialGroups: groups } : {}),
+        ...(srcMeta(src) ? { meta: srcMeta(src) } : {}),
       }
     }
 
@@ -685,6 +805,7 @@ function parseModelXml(docTexts: string[]): {
       name: src.name,
       positions: mat ? bakeTransform(positions, mat) : positions,
       indices,
+      ...(srcMeta(src) ? { meta: srcMeta(src) } : {}),
     }
   }
 
@@ -724,7 +845,7 @@ function parseModelXml(docTexts: string[]): {
   if (out.length === 0) {
     throw new Error('[mesh/threemf] no buildable geometry found in 3dmodel.model')
   }
-  return { unitName, objects: out }
+  return { unitName, objects: out, ...(fileMeta ? { fileMeta } : {}) }
 }
 
 /**
@@ -771,5 +892,5 @@ export async function parseThreemf(buffer: ArrayBuffer): Promise<ThreemfArchive>
     extraEntries.set(k, v)
   }
 
-  return { unit: parsed.unitName, objects: parsed.objects, extraEntries }
+  return { unit: parsed.unitName, objects: parsed.objects, extraEntries, ...(parsed.fileMeta ? { fileMeta: parsed.fileMeta } : {}) }
 }

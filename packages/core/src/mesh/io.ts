@@ -23,6 +23,7 @@ import { parseThreemf } from './threemf-loader'
 import { mm, type UnitName, type ValueWithUnits } from '../units'
 import type { Shape } from './types'
 import type { PbrAppearance } from '../api/appearance'
+import type { FileMeta } from '../api/meta'
 
 /** Result of a unit-aware file import. */
 export interface ImportFileResult {
@@ -39,6 +40,11 @@ export interface ImportFileResult {
    * single-part; the file was downgraded to its first part — §5.4).
    */
   multiPartCount?: number
+  /**
+   * 整体级元数据（文件级；方案 §5.1 3MF `<model><metadata>`）。STL/STEP 视实现
+   * 是否解析；无声明则省略。仅随导入结果上抛，不挂 Shape。
+   */
+  fileMeta?: FileMeta
 }
 
 /** SI prefixes that may precede .METRE. in a STEP SI_UNIT, → faijs UnitName. */
@@ -160,8 +166,16 @@ export async function importFile(
             })),
           }
         : {}),
+      // 零件级元数据（方案 §5.1 3MF 行）：对象 name/partnumber/metadatagroup → meta。
+      ...(first.meta ? { meta: first.meta } : {}),
     }
-    return { shape, unit: archive.unit, multiPartCount }
+    return {
+      shape,
+      unit: archive.unit,
+      multiPartCount,
+      // 整体级元数据（`<model><metadata>`）随导入结果上抛（方案 §5.1）。
+      ...(archive.fileMeta ? { fileMeta: archive.fileMeta } : {}),
+    }
   }
 
   if (fmt === 'stl') {

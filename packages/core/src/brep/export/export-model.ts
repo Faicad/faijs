@@ -23,6 +23,7 @@ import { getBrepApi } from '../handle-bridge'
 import { exportStepFromSolids, type StepExportEntry } from './step'
 import { detectStepUnit, STEP_UNIT_SCAN_PREFIX } from '../../mesh/io'
 import type { PbrAppearance } from '../../api/appearance'
+import type { ShapeMeta, FileMeta } from '../../api/meta'
 
 /** 导出条目：一个 part 的几何来源。精确 BREP 与三角网格二选一，solid 优先。 */
 export interface ExportEntry {
@@ -39,6 +40,11 @@ export interface ExportEntry {
    * start/count 为**三角形索引**区间，appearance.color 为该组基色。
    */
   materialGroups?: Array<{ start: number; count: number; appearance: PbrAppearance }>
+  /**
+   * 零件级说明性元数据（设计文档 2026-10-05-meta §6.1）：写 3MF
+   * `<object name/partnumber>` + `<metadatagroup>`；STEP 走 PRODUCT name（既有）。
+   */
+  meta?: ShapeMeta
 }
 
 /** Output formats supported by the unified {@link exportModel} entry. */
@@ -56,6 +62,8 @@ export interface ExportOptions {
   unit?: UnitName
   /** 3MF 打印配置（可选，原样进 model 层）。 */
   printConfig?: unknown
+  /** 整体级元数据（设计文档 2026-10-05-meta §6.1）：3MF 写 `<model>` 级 `<metadata>`。 */
+  fileMeta?: FileMeta
 }
 
 /** UnitName → 3MF <model unit> 枚举全名（唯一真源；yard 无对应值）。 */
@@ -138,6 +146,160 @@ function rewriteStepUnitEntities(stepText: string, unit: UnitName): string {
   return out
 }
 
+/**
+ * STEP 文件级元数据 → P21 header 重写（`FILE_NAME`/`FILE_DESCRIPTION`）。
+ *
+ * 设计文档 2026-10-05-meta §6.2 第 6 步：`exportModel` 已有 SI_UNIT 声明重写的
+ * 先例——同样只对 header 里 FILE_NAME(...)/FILE_DESCRIPTION(...) 行做文本替换，
+ * 绝不碰 DATA 段几何实体（红线 §10.3 3a：文本层只改声明/元数据，坐标不动）。
+ *
+ * FILE_NAME(name, time_stamp, author, organization, preprocessor_version, ...)
+ * FILE_DESCRIPTION(description_list, implementation_level)
+ * 映射（§3.3）：title→name, creationDate→time_stamp, author|designer→author 列表,
+ * organization→organization, application→preprocessor, description→description。
+ * 无对应的字段（copyright/licenseTerms/rating/modificationDate）**不写**（§5.3 头：
+ * STEP 无标准位置，不发明）。
+ *
+ * 宽容失败：找不到 FILE_NAME/FILE_DESCRIPTION 行则留空（P21 头由内核写出，形态
+ * 已知为 `FILE_DESCRIPTION(('Open CASCADE Model'),'2;1');` 一行，但在字符串内）。
+ *
+ * @param stepText 内核产出的 STEP 全文（ISO-10303-21）。
+ * @param fileMeta 目标文件级元数据。
+ * @returns 改写后的 STEP 文本。
+ */
+export function rewriteFileMetaHeader(stepText: string, fileMeta: FileMeta): string {
+  let out = stepText
+
+  const title = fileMeta.title && fileMeta.title.length > 0 ? fileMeta.title : undefined
+  const ts = fileMeta.creationDate && fileMeta.creationDate.length > 0
+    ? fileMeta.creationDate
+    : (fileMeta.modificationDate && fileMeta.modificationDate.length > 0 ? fileMeta.modificationDate : undefined)
+  const authorList = fileMeta.author && fileMeta.author.length > 0 ? [fileMeta.author] : []
+  const org = fileMeta.organization && fileMeta.organization.length > 0 ? fileMeta.organization : undefined
+  const preproc = fileMeta.application && fileMeta.application.length > 0 ? fileMeta.application : undefined
+  const designer = fileMeta.designer && fileMeta.designer.length > 0 ? fileMeta.designer : undefined
+  const desc = fileMeta.description && fileMeta.description.length > 0 ? fileMeta.description : undefined
+
+  // 1) FILE_NAME（用平衡括号/引号感知的枚举，整块替换 —— 逐参安全，不依赖行结构）。
+  const fn = matchEntity(out, 'FILE_NAME')
+  if (fn) {
+    const params = splitP21Params(fn.inner)
+    const next: string[] = []
+    if (title !== undefined || ts !== undefined || authorList.length > 0 || org !== undefined || preproc !== undefined || designer !== undefined) {
+      next.push(stepStr(title ?? paramStr(params[0]) ?? 'STEP File'))
+      next.push(stepStr(ts ?? paramStr(params[1]) ?? ''))
+      next.push(authorList.length > 0 ? p21List(authorList) : (params[2] ?? "('')"))
+      next.push(org !== undefined ? p21List([org]) : (params[3] ?? "('')"))
+      // 保留内核写出的后续参数原样（preprocessor_version / originating_system /
+      // authorisation）——FILE_NAME 可带 6..7 参，不丢既有值。
+      next.push(preproc !== undefined ? stepStr(preproc) : (params[4] ?? ''))
+      next.push(designer !== undefined ? stepStr(designer) : (params[5] ?? ''))
+      for (let i = 6; i < params.length; i++) next.push(params[i])
+      // 末尾空参保留则拼 ',' 会使整行以 ',' 结尾 → 过滤空的尾部。
+      while (next.length > 0 && next[next.length - 1] === '') next.pop()
+      out = splice(out, fn.start, fn.end, `FILE_NAME(${next.join(',')})`)
+    }
+  }
+
+  // 2) FILE_DESCRIPTION(description_list, implementation_level)：替换描述列表。
+  const fd = matchEntity(out, 'FILE_DESCRIPTION')
+  if (fd) {
+    const params = splitP21Params(fd.inner)
+    if (desc !== undefined && params.length > 0) {
+      const impl = params[params.length - 1]
+      out = splice(out, fd.start, fd.end, `FILE_DESCRIPTION((${stepStr(desc)}),${impl})`)
+    }
+  }
+
+  return out
+}
+
+/** [start, end) 区间替换为 replacement（end 为闭合括号后一位，仍保留其后的 `;`）。 */
+function splice(s: string, start: number, end: number, replacement: string): string {
+  return s.slice(0, start) + replacement + s.slice(end)
+}
+
+/** FileMeta 是否含可映射到 STEP header 的字段（避免对无 header 字段的 fileMeta 做无谓解码重写）。 */
+function fileMetaHasHeaderFields(f: FileMeta): boolean {
+  return !!(f.title || f.description || f.designer || f.author || f.organization || f.application
+    || f.creationDate || f.modificationDate)
+}
+
+/**
+ * 在文本中定位 `NAME(` … 匹配的 `)` （引号忽略、内层括号计入）并返回
+ * `{ start, end, inner }`；找不到返回 null。start/end 是 `NAME(` 起始/闭合 `)` 之后
+ * 一位的偏移，供调用方做字符串拼接替换（不做正则整行匹配——行内可含 `;` 等字符）。
+ */
+function matchEntity(text: string, name: string): { start: number; end: number; inner: string } | null {
+  const re = new RegExp(`${name}\\s*\\(`)
+  const m = re.exec(text)
+  if (!m) return null
+  const start = m.index
+  const head = m.index + m[0].length
+  let depth = 1
+  let i = head
+  for (; i < text.length && depth > 0; i++) {
+    const c = text[i]
+    if (c === `'`) {
+      // 跳过字符串字面量（含 ISO10303-21 双引号转义）
+      i++
+      while (i < text.length) {
+        if (text[i] === `'` && text[i + 1] === `'`) { i += 2; continue }
+        if (text[i] === `'`) break
+        i++
+      }
+    } else if (c === '(') depth++
+    else if (c === ')') depth--
+  }
+  return { start, end: i - 1, inner: text.slice(head, i - 1) }
+}
+
+/** 把一层参数（逗号分隔，忽略括号与字符串内的逗号）拆分（trim，原样保留字面量）。 */
+function splitP21Params(inner: string): string[] {
+  const out: string[] = []
+  let cur = ''
+  let depth = 0
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i]
+    if (c === `'`) {
+      // 字符串字面量：整体吸收（含 ISO10303-21 转义 ''），不拆其内逗号/括号。
+      const start = i
+      i++
+      while (i < inner.length) {
+        if (inner[i] === `'` && inner[i + 1] === `'`) { i += 2; continue }
+        if (inner[i] === `'`) { i++; break }
+        i++
+      }
+      cur += inner.slice(start, i)
+      i-- // for 循环还会 +1，落到字符串结束引号后一个字符
+      continue
+    }
+    if (c === '(') depth++
+    else if (c === ')') depth--
+    if (c === ',' && depth === 0) { out.push(cur.trim()); cur = '' }
+    else cur += c
+  }
+  if (cur.trim() !== '') out.push(cur.trim())
+  return out
+}
+
+/** 单个 P21 字符串字面量的未转义内容（剥离包裹引号与 '' 转义）。 */
+function paramStr(p: string | undefined): string | undefined {
+  if (p === undefined) return undefined
+  const m = /^'((?:[^']|'')*)'$/.exec(p.trim())
+  return m ? m[1].replace(/''/g, `'`) : undefined
+}
+
+/** 单个 P21 字符串字面量（已转义）。 */
+function stepStr(v: string): string {
+  return `'${v.replace(/'/g, "''")}'`
+}
+
+/** P21 列表字面量：(['a','b']) → `('a','b')`。 */
+function p21List(items: string[]): string {
+  return `(${items.map(stepStr).join(',')})`
+}
+
 /** 3MF写出：最小 ZIP 容器（deflate），落 3D/3dmodel.model + [Content_Types].xml + _rels。 */
 function build3mfBuffer(modelXml: string): ArrayBuffer {
   const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
@@ -154,7 +316,7 @@ function build3mfBuffer(modelXml: string): ArrayBuffer {
 }
 
 /** 组 3MF <model> XML：单位声明与坐标由同一 scale 变量产出（同源，§10.3 规则 3）。 */
-function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number, printConfig?: unknown): string {
+function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number, printConfig?: unknown, fileMeta?: FileMeta): string {
   const unitAttr = UNIT_NAME_TO_3MF[unit]
   if (!unitAttr) {
     // 调用方（exportModel）保证 unit 已成对回落；直接到这里 = 内部错误。
@@ -200,11 +362,59 @@ function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number,
     if (e.color) {
       mats.push(`<basematerials id="${i + 1}"><base name="${xmlAttr(e.name ?? 'p' + i)}" displaycolor="${hexColor(e.color)}"/></basematerials>`)
     }
-    objs.push(`<object id="${i + 1}" type="model" name="${xmlAttr(e.name ?? `part${i + 1}`)}"${e.color ? ` pid="${i + 1}" pindex="0"` : ''}><mesh><vertices>${verts.join('')}</vertices><triangles>${tris.join('')}</triangles></mesh></object>`)
+    // 零件级元数据（设计文档 2026-10-05-meta §6.1）：partnumber 属性 +
+    // `<metadatagroup><metadata>`（3MF 自定义标签须带命名空间前缀；faijs
+    // 无前缀键一律补 `faijs:` 前缀，跨工具链兼容）。description 3MF 无对象级
+    // 标准位 → 写 `faijs:description`（规范允许 vendor 前缀名）。
+    const partnumberAttr = e.meta?.partNumber ? ` partnumber="${xmlAttr(e.meta.partNumber)}"` : ''
+    const metadatas: string[] = []
+    const meta = e.meta
+    if (meta) {
+      const metaPairs: Array<[string, string]> = []
+      if (meta.description !== undefined && meta.description !== '') metaPairs.push(['faijs:description', meta.description])
+      if (meta.metadata) {
+        for (const [k, v] of Object.entries(meta.metadata)) {
+          metaPairs.push([k.includes(':') ? k : `faijs:${k}`, v])
+        }
+      }
+      // 同键不重复（首见保留）。
+      const seen = new Set<string>()
+      for (const [k, v] of metaPairs) {
+        if (seen.has(k)) continue
+        seen.add(k)
+        metadatas.push(`<metadata name="${xmlAttr(k)}">${xmlAttr(v)}</metadata>`)
+      }
+    }
+    const metadatagroup = metadatas.length > 0 ? `<metadatagroup>${metadatas.join('')}</metadatagroup>` : ''
+    objs.push(`<object id="${i + 1}" type="model" name="${xmlAttr(e.name ?? `part${i + 1}`)}"${partnumberAttr}${e.color ? ` pid="${i + 1}" pindex="0"` : ''}>${metadatagroup}<mesh><vertices>${verts.join('')}</vertices><triangles>${tris.join('')}</triangles></mesh></object>`)
     items.push(`<item objectid="${i + 1}"/>`)
   })
+  // 整体级元数据（`<model>` 直接子级 `<metadata>`）：well-known 名经映射写标准
+  // 3MF 名，vendor 名写 `faijs:` 前缀。排在 `<resources>` 之前（3MF Core）。
+  const modelMetas: string[] = []
+  if (fileMeta) {
+    const wellKnown: Array<[Exclude<keyof FileMeta, 'metadata'>, string]> = [
+      ['title', 'Title'],
+      ['designer', 'Designer'],
+      ['description', 'Description'],
+      ['copyright', 'Copyright'],
+      ['licenseTerms', 'LicenseTerms'],
+      ['rating', 'Rating'],
+      ['creationDate', 'CreationDate'],
+      ['modificationDate', 'ModificationDate'],
+      ['application', 'Application'],
+    ]
+    for (const [field, name] of wellKnown) {
+      if (fileMeta[field] !== undefined) modelMetas.push(`<metadata name="${name}">${xmlAttr(String(fileMeta[field]))}</metadata>`)
+    }
+    if (fileMeta.metadata) {
+      for (const [k, v] of Object.entries(fileMeta.metadata)) {
+        modelMetas.push(`<metadata name="${xmlAttr(k.includes(':') ? k : `faijs:${k}`)}">${xmlAttr(v)}</metadata>`)
+      }
+    }
+  }
   const pc = printConfig ? `<metadata name="printConfig">${xmlAttr(String(printConfig))}</metadata>` : ''
-  return `<model unit="${unitAttr}" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">${pc}<resources>${mats.join('')}${objs.join('')}</resources><build>${items.join('')}</build></model>`
+  return `<model unit="${unitAttr}" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:faijs="http://schemas.faicad.dev/3mf/2026/10">${pc}${modelMetas.join('')}<resources>${mats.join('')}${objs.join('')}</resources><build>${items.join('')}</build></model>`
 }
 
 function xmlAttr(s: string): string {
@@ -273,19 +483,22 @@ export function exportModelSync(
         ...(e.color ? { color: [...e.color] as [number, number, number] } : {}),
       }
     })
-    let buffer = exportStepFromSolids(kernel, stepEntries)
+    const buffer = exportStepFromSolids(kernel, stepEntries)
     for (const h of ownedHandles) {
       try { kernel.release(h) } catch { /* already released */ }
     }
-    if (unit !== 'mm') {
-      const text = new TextDecoder().decode(new Uint8Array(buffer))
-      buffer = new TextEncoder().encode(rewriteStepUnitEntities(text, unit)).buffer
+    // 文本层只替换 header 声明/元数据（红线：绝不文本级改坐标——坐标已在几何层缩放）。
+    const applyTextRewrites = (buf: ArrayBuffer): ArrayBuffer => {
+      let text = new TextDecoder().decode(new Uint8Array(buf))
+      if (unit !== 'mm') text = rewriteStepUnitEntities(text, unit)
+      if (opts?.fileMeta && fileMetaHasHeaderFields(opts.fileMeta)) text = rewriteFileMetaHeader(text, opts.fileMeta)
+      return new TextEncoder().encode(text).buffer
     }
-    return buffer
+    return applyTextRewrites(buffer)
   }
 
   if (format === '3mf') {
-    return build3mfBuffer(build3mfModelXml(entries, unit, scale, opts?.printConfig))
+    return build3mfBuffer(build3mfModelXml(entries, unit, scale, opts?.printConfig, opts?.fileMeta))
   }
 
   throw new Error(`[export] unsupported format: ${format}`)
@@ -365,21 +578,19 @@ export async function exportModel(
         ...(e.color ? { color: [...e.color] as [number, number, number] } : {}),
       }
     })
-    let buffer = exportStepFromSolids(kernel, stepEntries)
+    const buffer = exportStepFromSolids(kernel, stepEntries)
     for (const h of ownedHandles) {
       try { kernel.release(h) } catch { /* already released */ }
     }
-    // 文本层只替换单位实体（红线：绝不文本级改坐标——坐标已在几何层缩放）。
-    if (unit !== 'mm') {
-      const text = new TextDecoder().decode(new Uint8Array(buffer))
-      const rewritten = rewriteStepUnitEntities(text, unit)
-      buffer = new TextEncoder().encode(rewritten).buffer
-    }
-    return buffer
+    // 文本层只替换 header 声明/元数据（红线：绝不文本级改坐标——坐标已在几何层缩放）。
+    let text = new TextDecoder().decode(new Uint8Array(buffer))
+    if (unit !== 'mm') text = rewriteStepUnitEntities(text, unit)
+    if (opts?.fileMeta && fileMetaHasHeaderFields(opts.fileMeta)) text = rewriteFileMetaHeader(text, opts.fileMeta)
+    return new TextEncoder().encode(text).buffer
   }
 
   if (format === '3mf') {
-    return build3mfBuffer(build3mfModelXml(entries, unit, scale, opts?.printConfig))
+    return build3mfBuffer(build3mfModelXml(entries, unit, scale, opts?.printConfig, opts?.fileMeta))
   }
 
   throw new Error(`[export] unsupported format: ${format}`)

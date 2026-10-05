@@ -13,6 +13,7 @@
  */
 
 import type { PbrAppearance } from '../api/appearance'
+import type { ShapeMeta } from '../api/meta'
 
 // ── 基础类型 ──
 
@@ -53,6 +54,14 @@ export interface Shape {
   materialGroups?: Array<{ start: number; count: number; appearance: PbrAppearance }>
   /** Phase 2：顶点颜色（3MF colorgroup / 面级 mesh 链），sRGB 0–1，长度 = positions 长度。 */
   vertexColors?: Float32Array
+  /**
+   * 零件级说明性元数据（设计文档 2026-10-05-meta §4.3）：名称/描述/料号/自定义
+   * 键值，随 Shape 走 mesh/brep 双链路、JSON 可序列化。设置方法是 Shape 实例
+   * 方法（非 op，见 `api/meta.ts` 的 `ShapeMetaMethods` / `attachMetaMethods`），
+   * 方法只挂载在产物构造点（solid/curve）返回的实例上，基础 Shape 保持纯数据
+   * 契约——因此本接口**不** extends 方法接口，`isMeshShape` 鸭子判定不受影响。
+   */
+  meta?: ShapeMeta
   /**
    * 面结构元数据：面序号 → 三角形区间 [start, count)（start/count 为三角形索引，
    * 对应 positions/indices 焊接后的三角形序列）。仅参数化 primitives 构造时记录

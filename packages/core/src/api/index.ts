@@ -69,6 +69,10 @@ export type { Shape } from '../mesh/types'
 // 归一化/合并纯函数供编辑器映射（faijsAppearanceToHost）与导出复用。
 export type { PbrAppearance, PbrColor, PbrAlphaMode, MaterialSpec, ShapeAppearanceMethods } from './appearance'
 export { mergeAppearance, normalizeColor } from './appearance'
+// 零件/文件级说明性元数据（设计文档 2026-10-05-meta）：类型供宿主/第三方消费；
+// 合并纯函数供编辑器映射与导出复用。
+export type { ShapeMeta, FileMeta, ShapeMetaMethods } from './meta'
+export { mergeMeta } from './meta'
 
 // ── P23：brepjs 兼容面接线（§4.2 / B1 三源一致）──
 //
