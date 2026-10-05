@@ -122,6 +122,18 @@ export function refToFreeCad(ref: Ref, tagIndex: Map<string, number>, geoms: Ske
       throw new SketchProjectionError('E_SKETCHC_BAD_REF', `unknown tag "${ref.tag}"`)
     }
     geoId = found
+  } else if (ref.index === -1 || ref.index === -2) {
+    // AXIS ANCHORS (IRON RULE patch, 2026-10-04): canonical Refs may carry the
+    // X axis (-1) / Y axis (-2) verbatim so FCStd axis refs round-trip through
+    // canonical. The planegcs backend resolves them (`pt()`: -1 → root point,
+    // -2 → VAxis point); anything else negative stays invalid.
+    geoId = ref.index
+  } else if (ref.index <= -3 && ref.index > -2000) {
+    // EXTERNAL ANCHORS (IRON RULE patch, 2026-10-04): canonical Refs may carry
+    // the external-geometry geoId verbatim; the emitted `cad.sketch` carries
+    // the resolved fixed polylines as its `external` param and the backend
+    // (`pt()` + `externalLines`) resolves every ref statically.
+    geoId = ref.index
   } else {
     if (!Number.isInteger(ref.index) || ref.index < 0 || ref.index >= geoms.length) {
       throw new SketchProjectionError('E_SKETCHC_BAD_REF', `index ${ref.index} out of range [0, ${geoms.length})`)
@@ -457,18 +469,19 @@ export function fromFreeCadConstraints(cons: FcstdSketchCon[], geoms: SketchGeom
       pushUnmapped(index, c.type, 'reference-driven')
       return
     }
-    // Any ref to an axis (-1/-2) or external geometry (<= -3, down to just
-    // above GeoUndef) cannot be expressed as a canonical own-geometry Ref.
+    // External geometry refs (geoId <= -3, down to just above GeoUndef) ride
+    // into canonical as negative Ref indices verbatim — the converter resolves
+    // the referenced external geometry to fixed polylines at convert time and
+    // the emitted `cad.sketch` carries them as its `external` param, so the
+    // planegcs backend (`pt()` + `externalLines`) resolves every ref
+    // statically (IRON RULE patch, 2026-10-04: no run-time attempt — a ref the
+    // converter could NOT resolve never enters sketchInputs).
     // GOTCHA (2026-10-04, taperedballnose): old-format constraint triples pad
     // unused slots with GeoUndef = -2000 (sketch-parse.ts skips them when
     // building externalGeoIds for the same reason) — a real axis/external ref
-    // never reaches -2000. The `geoId < 0` check here therefore used to
+    // never reaches -2000. The old `geoId < 0` blanket check here used to
     // reject ~every constraint in such files (20 of 21 in the sample) as
     // `external-or-axis-ref`, mass-gapping otherwise-clean sketches.
-    if (c.refs.some((r) => r.geoId < 0 && r.geoId !== -2000)) {
-      pushUnmapped(index, c.type, 'external-or-axis-ref')
-      return
-    }
     // Ref-count guard (see REFS_REQUIRED) — runs BEFORE any ref dereference so
     // an under-specified constraint is recorded rather than thrown out of the
     // whole projection. Types the switch does not handle (InternalAlignment,
@@ -487,10 +500,26 @@ export function fromFreeCadConstraints(cons: FcstdSketchCon[], geoms: SketchGeom
         break
       }
       case ConstraintType.Horizontal:
-        constraints.push({ kind: 'horizontal', of: ref(c.refs[0]!) })
+        // GOTCHA (IRON RULE patch, 2026-10-04, Chair Sketch255): FreeCAD's
+        // Horizontal has a TWO-POINT form (refs[1] may be an external point):
+        // "these two points are level". The canonical `horizontal` kind only
+        // takes one line ref — projecting the 2-ref form to it SILENTLY DROPPED
+        // the second point and changed the constraint set (solver DoF mismatch
+        // → E_SKETCHC_CONFLICTING at run time). Static equivalent instead:
+        // two points level ⟺ distanceY(a, b, 0).
+        if (c.refs.length >= 2 && c.refs[1]!.pos !== PointPos.none && c.refs[1]!.geoId !== c.refs[0]!.geoId) {
+          constraints.push({ kind: 'distanceY', a: ref(c.refs[0]!), b: ref(c.refs[1]!), value: 0 })
+        } else {
+          constraints.push({ kind: 'horizontal', of: ref(c.refs[0]!) })
+        }
         break
       case ConstraintType.Vertical:
-        constraints.push({ kind: 'vertical', of: ref(c.refs[0]!) })
+        // symmetric case to Horizontal: two points aligned ⟺ distanceX(a, b, 0)
+        if (c.refs.length >= 2 && c.refs[1]!.pos !== PointPos.none && c.refs[1]!.geoId !== c.refs[0]!.geoId) {
+          constraints.push({ kind: 'distanceX', a: ref(c.refs[0]!), b: ref(c.refs[1]!), value: 0 })
+        } else {
+          constraints.push({ kind: 'vertical', of: ref(c.refs[0]!) })
+        }
         break
       case ConstraintType.Parallel: {
         const [a, b] = two()

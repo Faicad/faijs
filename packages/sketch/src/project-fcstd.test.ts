@@ -109,7 +109,7 @@ describe('fromFreeCadConstraints — forward mapping coverage', () => {
 })
 
 describe('fromFreeCadConstraints — unmapped ledger', () => {
-  it('GOTCHA: geoId -1 (HAxis/RtPnt) / -2 (VAxis) refs cannot become canonical Refs → unmapped with reason external-or-axis-ref', () => {
+  it('GOTCHA (UPDATED 2026-10-04): axis refs (-1/-2) DO project now — old behavior (unmapped external-or-axis-ref) was the mass-gap bug', () => {
     // typical FreeCAD pattern: anchor the first line start onto the origin via the axes
     const cons: FcstdSketchCon[] = [
       con(0, ConstraintType.Coincident, [{ geoId: 0, pos: 1 }, { geoId: -1, pos: 1 }]),
@@ -117,17 +117,37 @@ describe('fromFreeCadConstraints — unmapped ledger', () => {
       con(2, ConstraintType.PointOnObject, [{ geoId: 0, pos: 1 }, { geoId: -2, pos: 0 }]),
     ]
     const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
-    expect(constraints).toEqual([])
-    expect(unmapped.map((u) => [u.index, u.reason])).toEqual([
-      [0, 'external-or-axis-ref'], [1, 'external-or-axis-ref'], [2, 'external-or-axis-ref'],
-    ])
-    expect(unmapped[0]!.typeName).toBe('Coincident')
+    expect(unmapped).toEqual([])
+    // the axis anchors ride into canonical as negative Ref indices verbatim
+    expect(constraints[0]).toMatchObject({ kind: 'coincident', b: { index: -1 } })
+    expect(constraints[2]).toMatchObject({ kind: 'pointOnObject', on: { index: -2 } })
   })
 
-  it('GOTCHA: geoId <= -3 (external geometry) refs are unmapped, not silently dropped', () => {
+  it('GOTCHA: axis-anchor Refs round-trip through toFreeCadConstraints (canonical → FCStd)', () => {
+    const geoms: SketchGeom[] = [{ kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }]
+    const constraints: SketchConstraint[] = [
+      { kind: 'coincident', a: { index: 0, at: 'start' }, b: { index: -1 } },
+      { kind: 'distanceY', a: { index: 0, at: 'end' }, b: { index: -2 }, value: 7 },
+    ]
+    const fwd = toFreeCadConstraints(constraints, geoms)
+    expect(fwd.constraints).toHaveLength(2)
+    expect(fwd.constraints[0]).toMatchObject({ type: ConstraintType.Coincident, refs: [{ geoId: 0, pos: 1 }, { geoId: -1, pos: 0 }] })
+    expect(fwd.constraints[1]).toMatchObject({ type: ConstraintType.DistanceY, refs: [expect.objectContaining({ geoId: 0 }), { geoId: -2 }] })
+    // and projecting them back reproduces the same canonical anchors
+    const back = fromFreeCadConstraints(fwd.constraints, geoms)
+    expect(back.unmapped).toEqual([])
+    expect(back.constraints[0]).toMatchObject({ kind: 'coincident', b: { index: -1 } })
+    expect(back.constraints[1]).toMatchObject({ kind: 'distanceY', b: { index: -2 }, value: 7 })
+  })
+
+  it('GOTCHA (UPDATED 2026-10-04): external refs (<= -3) DO project now — resolution is the converter\'s static job (external param), not the projection\'s', () => {
     const cons = [con(0, ConstraintType.Coincident, [{ geoId: 0, pos: 1 }, { geoId: -3, pos: 2 }])]
-    const { unmapped } = fromFreeCadConstraints(cons, [])
-    expect(unmapped).toEqual([expect.objectContaining({ index: 0, reason: 'external-or-axis-ref' })])
+    const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
+    expect(unmapped).toEqual([])
+    // the external geoId rides into canonical verbatim; the emitted
+    // `cad.sketch` carries the resolved fixed polylines as its `external`
+    // param and the backend pins them as fixed points (static resolution).
+    expect(constraints[0]).toMatchObject({ kind: 'coincident', b: { index: -3 } })
   })
 
   it('non-driving (reference) constraints are ledgered as reference-driven', () => {
