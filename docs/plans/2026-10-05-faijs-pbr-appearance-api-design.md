@@ -213,7 +213,7 @@ export interface Shape {
 
 - **实测修正**（P4 评估）：mesh 链 primitives（`mesh/primitives.ts` box/sphere/cylinder/cone/wedge）**直接用 THREE.BufferGeometry 参数化构造**（非 manifold 三角化）——面结构在构造时已知、三角形顺序固定（实测 `BoxGeometry` 12 三角形 = 6 面 × 2，序 = +X/−X/+Y/−Y/+Z/−Z），可在构造点记录「面序号 → 三角形区间」（`Shape.faceRanges`）。**因此面级映射无需内核改动**，v2 此前「mesh 链需要内核配合」的预判作废。
 - 边界（文档化）：**manifold 布尔/组合/导入后无 CAD 面概念**——`faceRanges` 只存在于参数化 primitives 构造产物；经过 `union/cut/intersect` 或导入的 Shape 无面信息，`setFaceColor` 对它们抛 `E_FACE_UNAVAILABLE`（明确报错，不静默）。`materialGroups` 仍是三角形区间语义（对任意 mesh 可手工构造，编辑器按区间渲染）。
-- brep 链：XCAF label 级颜色天然支持（面序号 → label `setColor`，P3 已确认写侧 `exportStepFromSolids` 通道）——brep 面级作为 P4 二期（需要 brep 链面序号稳定性评估，见 §12 ⑦）。
+- brep 链：**P4c 已实现**——OCCT `meshShape` 返回 `BrepMeshResult.faceGroups`（`[triStart, triCount, faceHash]`，索引单位），`api/primitives.ts` `brepPrimitiveMesh` 从中生成契约序 `faceRanges`。**实测锁定**：OCCT box 面枚举序 = 0=−X,1=+Y,…（与契约 +X/−X/+Y/−Y/+Z/−Z 不一致）→ box 按面法线重排 indices 到契约序（6 面 × 2 三角形 = 12，与 mesh 链一致）；OCCT cylinder/cone 枚举序与契约**一致**（cylinder 0=侧面,1=顶,2=底；cone radiusTop=0 0=侧面,1=底）→ 直接透传。编辑器（desktop/web/weapp worker 均 brep/auto→brep 链）由此支持面级。**限制**：编辑器单测环境的 brep 引擎是 `brep_mock`（无 faceGroups）——setFaceColor e2e 需真 occt（faijs-tests B1–B3 覆盖），编辑器 E4 直测 createPart 通道；布尔/组合产物仍无 faceRanges（E_FACE_UNAVAILABLE 保持）。
 - 3MF colorgroup：读侧已有（`threemf-loader` vertexColors 展开为独立三角形布局）；写侧 P4 补齐（`export-model` 写 `<colorgroup>` + 对象 `pid` 引用）。
 
 ### 6.3 worker / 序列化边界
@@ -280,7 +280,7 @@ export interface Shape {
 | **P1 最小闭环** ✅ | `PbrAppearance` 类型 + Shape 方法（setAppearance/setColor/setMaterial/setOpacity/getAppearance）+ `Shape.appearance` + 产物构造点继承外观 + 复用成员调用语句机制（asm.solve 先例，§3.3.1）+ 删除 `ScriptMetaIR.appearance`（§9 清单 1–4）+ 编辑器 `faijsAppearanceToHost` + originals/overrides 语义修正 | 「颜色/透明度/基础 PBR 在编辑器正确渲染」闭环 + 破坏性变更落地。**验证**：faijs core typecheck/lint 全绿、core 单测 2956、faijs-tests 571（含 appearance e2e 7 个）；3d_editor test:unit 2822、改动文件 eslint 干净；worker 协议补 `appearance` 过线（protocol.ts，web/weapp/electron 三端共用）。已知缺口：3d_editor typecheck:desktop 3 处 faijs 0.29.1→0.29.3 升级存量漂移（weapp/sketch-host），非 P1 引入，见 Agent Note 2026-10-05-pbr-appearance-shape-methods |
 | **P2 导入修复** ✅ | STEP/3MF 导入颜色 → `materialOriginals`（按 §5 规范映射）；STEP 丢色修复（formatLoaders STEP 分支消费 `shape.appearance`，设 MeshStandardMaterial + 记录 faijsAppearance；3MF buildGroupFromArchive 记录 baseColor）；ModelGroup 导入循环写 originals | 导入即所见。**验证**：faijs `mesh/io.test.ts` +3、新 `brep/load-appearance.test.ts` 3（cq-assembly-two-parts→green）；3d_editor formatLoaders 10 + faijs-appearance 8 + 全量 2824 |
 | **P3 导出** ✅ | STEP 颜色（XCAF 写侧 `exportStepFromSolids` 已带 color，step-export.test 已有断言）；3MF `basematerials` 修复（**存量 bug**：① faijs `build3mfModelXml` 把 basematerials 内联在 `<object>` 内，parseThreemf 只读 `<resources>` → 改为 resources 内声明 + object `pid/pindex` 引用；② 3d_editor `meshToExportEntry` 用 `...(extractPartColor(mesh) ?? {})` spread 数组成数字键、`color` 字段从未进 entry → 改为显式 `color` 字段）；glTF 路径**定稿**：编辑器 `THREE.GLTFExporter`（§12 ⑥，从渲染 MeshPhysicalMaterial 导出，PBR 子集 baseColorFactor/metallicFactor/roughnessFactor/alphaMode 天然正确；坐标烘焙 mm→米 + Z-up→Y-up；`.glb` 二进制单文件；ExportDialog 加 .glb 项，单位固定米） | 导出不丢颜色。**验证**：faijs export-model.test +2（basematerials 规范位置/无颜色省略）；3d_editor index.test +4（GLB 单位+坐标轴、PBR 子集、alphaMode、3MF 红往返）；全量 2828 |
-| **P4 面级 + 顶点色** | `setFaceColor`/`setFaceMaterial` + mesh 面序分组（内核网格化配合）+ `vertexColors`/`materialGroups` + 3MF colorgroup/逐三角形读写 | 多材质/贴图 |
+| **P4 面级 + 顶点色** ✅ | `setFaceColor`/`setFaceMaterial` + `Shape.faceRanges`（mesh 链 primitives 构造点记录，P4a）+ 3MF 逐三角形 `materialGroups` 读写（P4b）+ **brep 链面级**（P4c：`api/primitives.ts` `brepPrimitiveMesh` 从 OCCT `faceGroups` 生成契约序 faceRanges——box 按面法线重排 indices、cylinder/cone OCCT 枚举序与契约一致直接透传）+ 编辑器接线（material store `materialGroups` 通道 + ModelGroup geometry.groups 多材质渲染 + 3MF 多 base 导入 `userData.faijsMaterialGroups` + 导出 `meshToExportEntry` 带 `materialGroups`） | 多材质/面级在编辑器正确渲染并 3MF 往返不丢色。**验证**：faijs core 单测 24→2973（brep 面级 B1–B3 在 faijs-tests 真 occt 下）；3d_editor 全量 2835（E4 通道直测 + 3MF 多 base 导入/导出往返） |
 
 依赖标注：P4 依赖内核网格化改动，独立评估；P1–P3 均为增量实现、可独立停。
 
@@ -292,6 +292,7 @@ export interface Shape {
 4. 3MF Bambu 扩展（`parseBambu3mfFromEntries`）是否有自定义透明度通道——决定 P3 3MF 是否可带 alpha（默认按 Core 规范不带）。
 5. ✅ 已定案：return 未知 key **静默忽略**（宽容语义；return 对象非 op 参数不做校验）——写入 `metadata-extractor.ts` 解析注释；`ops-api-inventory.md` 无 return 语义章节，无需另写。
 6. ✅ 已定稿（P3 实测）：glTF 导出路径 = **编辑器 `THREE.GLTFExporter`**——从渲染 `MeshPhysicalMaterial` 导出（与所见一致，PBR 子集天然符合）；产物验证：GLB JSON 的 `pbrMetallicRoughness.baseColorFactor/metallicFactor/roughnessFactor`、`alphaMode: BLEND`、坐标 mm→米 + Z-up→Y-up（BoxGeometry 50×30×20 → ±0.025/±0.01/±0.015）均正确。内核 `XAFDocument.exportGLTF()` 不采用（编辑器路径零内核依赖、材质参数全）。
+7. ✅ 已解决（P4c 实测）：brep 链面级——OCCT `faceGroups` 存在且稳定（box 6 面 × 2 三角形、cylinder 3 面、cone 2/3 面）；box 枚举序与契约不一致 → 面法线重排（`api/primitives.ts` `brepPrimitiveMesh`，实测 B1 锁定 tri 0..1 = +X）；cylinder/cone 序一致直接透传。编辑器生产链（真 brepkit/occt）面级可用；单测环境 `brep_mock` 无 faceGroups（B1–B3 由 faijs-tests 真 occt 覆盖）。
 
 ## 13. 相关文档
 
