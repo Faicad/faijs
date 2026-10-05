@@ -26,11 +26,11 @@
 
 | 口径 | 数字 | 来源（实测） |
 |---|---|---|
-| **manifest**（导出变量级） | **697 = 522 ported / 120 blocked / 55 skipped** | `tests/manifest.json`（2026-10-04 晚 **N1 + N2 落地后**实读，见 §10.4） |
-| **coverage**（上游测试函数级） | **297 = 214 PORTABLE / 41 PORTABLE-WITH-STUB / 42 BLOCKED**（全集 305，`casesWithStep=297`、8 条无 STEP） | `tests/coverage.json`（2026-10-04 `32c95cbb` 加 `hollow` 别名后重算实读：较 B2-7 的 211/41/45 再翻 3 条，正是 `hollow` 三例） |
-| **镜像文件** | **534** 个 `.fai.js` + **22** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-04 晚 **N1 +15 / +1 blocked，N2 +1** 后实测） |
-| **包内单测** | 598 全绿（55 文件） | 2026-10-04 `32c95cbb` 后实测 |
-| **全量 parity** | **458 PASS + 16 PASS-NT / 650 ref cases = 72.92%**，FAIL **21**、ERROR 0、BLOCKED 155 | `out/report.json`（2026-10-04 20:18 产物，实读） |
+| **manifest**（导出变量级） | **697 = 524 ported / 118 blocked / 55 skipped** | `tests/manifest.json`（2026-10-05 **N3 落地后**实读，见 §10.4.3） |
+| **coverage**（上游测试函数级） | **297 = 214 PORTABLE / 41 PORTABLE-WITH-STUB / 42 BLOCKED**（全集 305，`casesWithStep=297`、8 条无 STEP） | `tests/coverage.json`（2026-10-05 N3 后重跑确认**无变化** —— 见下方「刻意保留的假阴性」） |
+| **镜像文件** | **536** 个 `.fai.js` + **22** 个 `.fai.js.blocked` | `find tests -name "*.fai.js"`（2026-10-05 **N3 +2** 后实测） |
+| **包内单测** | **616** 全绿（**57** 文件） | 2026-10-05 N3 后实测（N2 基线 598/55 + `shape-children.probe` 5 + `shape-filter` 13） |
+| **全量 parity** | **458 PASS + 16 PASS-NT / 650 ref cases = 72.92%**，FAIL **21**、ERROR 0、BLOCKED 155 | `out/report.json`（2026-10-04 20:18 产物；**N3 未重跑全量 sweep**，其 2 条新镜像经 `compare-one` 单独验证逐位 PASS） |
 
 ### 1.1 关键实证：**136 条 blocked 全部有 ref STEP**（2026-10-04 晚交叉）
 
@@ -46,22 +46,24 @@ skipped  55 / 8        ← 判别有区分度：skipped 绝大多数无 ref
 
 > **判别可信度反证**：同一脚本对 `skipped` 只命中 8/55（其余是「ref 无该 case」或「var 不在 ref 集」），说明「全命中」不是脚本恒真造成的假象。
 
-**manifest 实测 blockedBy 分布（136 条，47 个 distinct，2026-10-04 晚实读）**：
+**manifest 实测 blockedBy 分布（118 条，44 个 distinct，2026-10-05 **N3 落地后**实读）**：
 
 ```
-14 op:assembly-solve      11 getfixturevalue          9 kernel:fillet-chain-reapply
- 5 op:fuzzy-bool           5 kernel:sweep-multisection-pipe   5 interpPlate        5 remove
- 5 raises                  4 op:extrude-until-face            4 kernel:boolean-near-coincident-bspline
- 4 op:prism-from-face      4 op:assembly-subshape-import      3 op:cutBlind.until-face
- 3 narrow:sphere-angles    3 kernel:sweep-aux-spine-mode      3 filter             3 op:text-spine
- 3 op:history-subshape     3 export                           3 parametrize        2 op:shell
- 2 parametricCurve         2 kernel:shell-outward-opening     2 project            2 importBin
- 2 history:images          2 kernel:hollow-intersection-join  2 kernel:draft-existing-solid
- 2 plane                   2 __dir__
-…（其余 17 项各 1 条）
+14 op:assembly-solve             9 kernel:fillet-chain-reapply        5 getfixturevalue
+ 5 interpPlate                   5 kernel:sweep-multisection-pipe     5 op:fuzzy-bool
+ 5 remove                        4 kernel:boolean-near-coincident-bspline
+ 4 op:assembly-subshape-import   4 op:extrude-until-face              4 op:prism-from-face
+ 3 export                        3 kernel:sweep-aux-spine-mode        3 narrow:sphere-angles
+ 3 op:cutBlind.until-face        3 op:history-subshape                3 op:text-spine
+ 2 history:images                2 importBin                          2 kernel:draft-existing-solid
+ 2 kernel:hollow-intersection-join  2 kernel:shell-outward-opening     2 op:shell
+ 2 parametricCurve               2 plane                              2 project
+…（其余 18 项各 1 条）
 ```
 
-> `pending:mirror` **归零**（`3d6640ab` 收口）；`hollow` 标签 **归零**（`32c95cbb`）。
+> `pending:mirror` **归零**（`3d6640ab` 收口）；`hollow` 标签 **归零**（`32c95cbb`）；**`filter` 标签归零**（2026-10-05 N3 —— `__cf`/`__cs` 两条镜像落地，全 manifest 已无该标签）。
+
+⚠ **刻意保留的假阴性（N3 新增，勿"修"）**：`tests.test_shapes::test_special` 在 `coverage.json` 里仍是 `category: BLOCKED` / `blockedBy: filter`，尽管它的 `__cf` / `__cs` 镜像已逐位 PASS。原因不是遗漏：op universe 是**扁平名字集**，而 `filter` / `sort` 在上游有**三个接收者**（`Shape` `shapes.py:1928/1932`、`Workplane` `cq.py:4460/4490`、`Sketch` `sketch.py`），faijs 只实现了前两个 ⇒ 把名字加进 `CQ_COMPAT_EXTRA` 会把 `Sketch.filter` 案例误判为 portable。按该文件的既有规则（`:86-92` 的 `remove` 同例）**歧义名保持 "missing"**；理由已写进 `analyze-coverage.py` 的 `CQ_COMPAT_EXTRA` 注释。**manifest（由镜像文件存在性驱动）才是「已移植哪些」的准确记录。**
 
 ⚠ **两个分母不同源，不可换算**：manifest 的 496/146/55（合计 697）是「上游用例全集（变量级）」；coverage 的 305 是「ref manifest 里有 STEP 产物的子集」。
 
@@ -207,8 +209,8 @@ skipped  55 / 8        ← 判别有区分度：skipped 绝大多数无 ref
 | **G-C21** | IO：`importBrep`（0 条实际 blocked）/ `importBin`（2）/ `export`（3；**VRML/GLTF/VTK.js 归 §2.3 排除**）—— ⚠ **2026-10-04 晚订正**：B1-1 写的「内核只有 `loadCached`（读）、**没有 BREP 字节写出通道**」**已过时**——`index.d.ts:308/310` 现有 **`toBREPBinary(shape): Uint8Array`** 与 **`fromBREPBinary(data): Uint8Array`**，双向都在。真障碍改为「`.fai.js` 无文件 IO + 无字节字面量通道」（需在 cq 层暴露字符串/数组往返，或内核补一条 base64 形态）。另 `importBrep` 在 manifest 里实测 **0 条**（`test_export` 那条已被 `export` 标签吸收） | **5** | 2→**3** |
 | **G-C22** | `sweep-sketch-sections`（1）+ `extrude-taper-sketch`（1） | **2** | 3 |
 | **G-C23** | `shell`（`op:shell` 2）+ `pendingWires` 多轮廓（1） | **3** | 3 |
-| **G-C24** | `CombinedCenter`（1）/ `matrixOfInertia`（1）/ `cast`（1）/ `largestDimension`（1）/ `consolidateWires` —— ⚠ **2026-10-04 晚**：`matrixOfInertia` 有内核原语 **`getInertia(shape): number[]`**（`index.d.ts:341`）⇒ 本仓可做；**`filter`（3）已改判为 lambda 语法依赖，从本条移出**（见 G-C25） | **8→5**（filter 3 移出） | 2 |
-| **G-C25** | **`.fai.js` 函数字面量长线**（原「`eachpoint` lambda 形态」）—— **2026-10-04 晚归并扩员**：`op:eachpoint`（`testCompoundCenter__s`）、`narrow:cutEach` 的 lambda 形态、`filter` 的 **`__cf` / `__cs`** 四条同源。⚠ **实证**：上游 `test_shapes.py:398` 是 `c.filter(lambda x: x.Volume() <= 1)`、`:401` 是 `c.sort(lambda x: -x.Volume())`，`Shape.filter` **只有 callable 一个签名** ⇒ 无 lambda 就写不出镜像。**但 `filter` 标签的 3 条要拆**：`test_special__c` = 纯 `compound(box,box,box)` 构造，**不含 lambda**、属**陈旧标签**（写镜像即解锁，1 条）；`__cf` / `__cs` 才是真语法依赖（2 条）。⇒ 本条影响 **1（eachpoint）+ 1（cutEach）+ 2（cf/cs）= 4** | **4** | 4（core `lang/`） |
+| **G-C24** | `CombinedCenter`（1）/ `matrixOfInertia`（1）/ `cast`（1）/ `largestDimension`（1）/ `consolidateWires` —— ⚠ **2026-10-04 晚**：`matrixOfInertia` 有内核原语 **`getInertia(shape): number[]`**（`index.d.ts:341`）⇒ 本仓可做；**`filter`（3）已彻底移出**：`__c` 走 N2、`__cf`/`__cs` 走 **N3**（已实现 `filterByPredicate`/`sortByKey`，§10.4.3） | **8→5** | 2 |
+| **G-C25** | **λ 操作用例（原「`.fai.js` 函数字面量长线」—— 该定性已被实证推翻）**。`filter` 的 `__cf`/`__cs` 与 `narrow:cutEach` 的 λ 形态**均已落地/消解**；**仅剩 `op:eachpoint`（`testCompoundCenter__s`，1 条）**：`eachpoint` 现只接受 item（`Workplane | Shape`），不接受上游 `Location → Shape` 回调。⚠ **关键订正**：这不是语法缺口 —— λ 本就可用（只需避开箭头体引用 `cq`，见 §10.4.3），且 `eachpoint(it)` / `cutEach(it)` 的对象形态早已实现 ⇒ 纯 **op 缺口（B 组，难度 2–3）** | **4→1** | **2–3**（op 实现，非 core `lang/`） |
 | **G-C26** | `narrow:sphere-angles`（3）+ `narrow:chamfer-asym`（1）：参数未打通（faijs 侧，待判定） | **4** | 2 |
 | **G-C27** | **Assembly 子路径导入被自动装载成根包命名空间**（`test_toCompound__assy1` / `__c3`）：镜像 specifier 正确（`@faicad/faijs-cadquery/assembly`），但 core `lang/metadata-extractor.ts:145` 的 `derivePackageName()` **丢掉子路径**（`@faicad/faijs-cadquery/assembly` → `@faicad/faijs-cadquery`）；`runtime.autoLoadLibsFromImports`（`cad-runtime/runtime.ts:1212`）遂 `loadLib(packageName)` 装载**根包** ⇒ 运行时 `cqa.constraint is not a function`（root 不导出 assembly API）。**根因在 core，改 core 需授权**；**非「陈旧 dist」**——`dist/assembly/index.js` 确实导出 `constraint` 且是新鲜产物（B0 期间误判，2026-10-03 实测证伪）。 | **2** | 3 |
 
@@ -272,7 +274,7 @@ skipped  55 / 8        ← 判别有区分度：skipped 绝大多数无 ref
 | 项 | 影响 | 理由 |
 |---|---|---|
 | `GLTF` / `VTK.js` / `VRML` 可视化导出器 | manifest **7** 条：VTK.js 3（`test_vtkjs_export` / `test_save_vtkjs` / `test_export_vtkjs`）、glTF 3（`test_save_gltf__nested_assy_sphere` / `test_exportGLTF__nested_assy_sphere` / `test_save_gltf_boxes2`）、VRML 1（`test_vrml_export`） | 它们是上游 **Assembly 的可视化发布导出器**，是「看图」出口而非建模能力。faijs 侧 UI 预览走**更轻量**的幽灵渲染/叠加层，不依赖导出几何。内核也**并非做不到**（`occt-wasm` 有 `XAFDocument.exportGLTF()`），**不做的理由是「没有需求」**。 |
-| `Workplane.plugin` / CadQuery 插件模式（类方法猴补 + `eachpoint` lambda） | manifest 1 条（`testCylinderPlugin__s`） | CadQuery 1.x 遗留 API（`Workplane.plugin` 方法在 2.x 已彻底移除）。上游 `testCylinderPlugin` 仅演示「给 `Workplane` 类动态挂自定义方法、内部调 `eachpoint`」的扩展模式——并非独立建模能力。faijs 不提供类猴补/函数字面量通道（`.fai.js` 是 JS 子集、无 lambda），且此模式无需求 ⇒ **明确不支持，非未来缺口**。底层 `eachpoint` lambda 能力仍由 G-C25 / `testCompoundCenter__s` 跟踪。 |
+| `Workplane.plugin` / CadQuery 插件模式（类方法猴补 + `eachpoint` lambda） | manifest 1 条（`testCylinderPlugin__s`） | CadQuery 1.x 遗留 API（`Workplane.plugin` 方法在 2.x 已彻底移除）。上游 `testCylinderPlugin` 仅演示「给 `Workplane` 类动态挂自定义方法、内部调 `eachpoint`」的扩展模式——并非独立建模能力。faijs 不提供类猴补通道（`.fai.js` 无法给类动态挂方法），且此模式无需求 ⇒ **明确不支持，非未来缺口**。⚠ 顺带订正一句话：旧文写「`.fai.js` 是 JS 子集、无 lambda」**不准确** —— λ 可用（见 §10.4.3），本项不支持的是**类猴补**这一扩展模式，与 λ 无关。底层 `eachpoint` 回调能力仍由 G-C25 / `testCompoundCenter__s` 跟踪。 |
 
 > **边界说明**：`export`（blockedBy=`export` 现剩 3 条：`native_export` / `save_stl_formats` / `export_errors`）里含 **native/BREP** 与 **STL 变体** —— 这两类是**建模数据出口，不是 UI 层**，**保留为待办**（见 G-C21）。其中的 **VRML/GLTF/VTK.js 共 7 条**已重分类为 `skipped`，归本条排除。
 
@@ -362,7 +364,7 @@ skipped  55 / 8        ← 判别有区分度：skipped 绝大多数无 ref
 | **B2-10** | **G-C16 text-spine + faceOn** —— ⚠ **2026-10-04 晚**：基础 `text` 已 ported（`test_text__{r1..r5,c}`）⇒ `op:text-spine`（r7/r8/r9）**只是参数通道**，本仓可做（见 G-C16） | 4 | 沿 spine 排字 + 球面刻字 |
 | **B2-11** | **G-C15 hollow + G-C22 sweep-sketch-sections / extrude-taper-sketch** | 5 | hollow 闭合/带移除面；sketch 截面 sweep（xDir 全帧） |
 | **B2-12** | **G-C7 prism tilt**（from-face 见 B5/内核） | 1 | 非法向方向挤出 |
-| **B2-13** 🆕 | **G-C24 零散值面**：`matrixOfInertia`（内核 `getInertia` 已有）/ `CombinedCenter` / `cast` / `largestDimension` / `consolidateWires`；**`filter` 已拆出**（`__c` 是纯 compound ⇒ B2-14；`__cf`/`__cs` 是 lambda ⇒ G-C25 长线） | **5→4** | Shape 域小函数 + 镜像 |
+| **B2-13** 🆕 | **G-C24 零散值面**：`matrixOfInertia`（内核 `getInertia` 已有）/ `CombinedCenter` / `cast` / `largestDimension` / `consolidateWires`；**`filter` 三条已全部移出**（`__c` 于 N2、`__cf`/`__cs` 于 **N3** 落地，见 §10.4.3） | **5**（`filter` 已不在本条） | Shape 域小函数 + 镜像 |
 | **B2-14** 🆕 | **`filter` 陈旧标签 `test_special__c`**（纯 `compound(box,box,box)`，不含 lambda） | **1** | 写镜像即解锁 |
 
 > **每项开工前先一次性 Python 捕获**（§7）：`imprint`/`sweep`/`offset` 的语义细节极易凭印象写错（P3 三次踩中）。
@@ -379,7 +381,7 @@ skipped  55 / 8        ← 判别有区分度：skipped 绝大多数无 ref
 | **B3-4** | **G-B5 + G-B6 Sketch.push / `_selection` 语义** | 3 | push 留 `Location`（依赖 B3-3）；`_selection` 就地可变审计 |
 | **B3-5** | **G-B8 `add(Workplane)` extend 整个源栈** | 3 | 对齐 `cq.py:387` 的 `extend(obj.objects)` |
 | **B3-6** | **G-B4 删除 `shape` 派生字段** | 4 | 48 写点 + 140 源码读点 + 跨子路径 assembly 鸭子读者 + 49 测试读点；**机械改写 + 全量 parity 兜底** |
-| **B3-7** | **G-C25 eachpoint lambda 形态** | 4 | `.fai.js` 无函数字面量 ⇒ 需 `.fai.js` 子集语法扩展（上游 lambda 形态） |
+| **B3-7** | **G-C25 `eachpoint` 回调形态**（仅剩 1 条：`testCompoundCenter__s`） | 1 | ⚠ **订正**：不是语法扩展 —— λ 可用（避开箭头体引用 `cq` 即可）；形状是「`eachpoint` 接受 `Location → Shape` 回调」这一 **op 缺口**，难度 2–3，仍在 B 组 |
 
 > B3 的每一项都是**独立批**，因为它们各自会翻动冻结断言或跨子路径消费者。**零功能收益的清理（G-B4）排在功能之后**。
 
@@ -556,7 +558,7 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 | 2 | **prism（5）** | 全内核依赖 | **拆：1 可做 + 4 内核** | `op:prism-tilt`（`test_prism__res3`）用内核 `extrude(shape,dx,dy,dz)` 方向向量（`index.d.ts:119-124`，注释明示 `BRepPrimAPI_MakePrism`）+ 布尔即可；`op:prism-from-face`（4）才是 `BRepFeat_MakePrism` 的 thruAll/from-to，内核无 |
 | 3 | **text-spine（3）** | 卡字体缺口 | **只是参数通道** | `test_text__{r1..r5,c}` 全部 **ported** ⇒ parity 环境字体链路可用；r7/r8/r9 是沿曲线排字的重载未打通 |
 | 4 | **interpPlate（5）** | 「内核已有原语、需新组合」难度 3 | **真内核依赖，难度 5** | 上游 `Face.makeNSidedSurface`（`cq.py:3878-3945`）= OCCT `BRepFill_Filling`/`BRepOffsetAPI_MakeFilling`；内核方法面**无 filling**。`bsplineSurface` 是控制点近似、非过点插值，不可冒充 |
-| 5 | **filter（3）** | op 缺口 | **拆：1 陈旧 + 2 语法长线** | 上游 `test_shapes.py:398/401` 是 `c.filter(lambda …)` / `c.sort(lambda …)`，`Shape.filter` 只有 callable 签名。`test_special__c` = 纯 `compound(box,box,box)` **不含 lambda** ⇒ 写镜像即解锁；`__cf`/`__cs` 归 G-C25 |
+| 5 | **filter（3）** | op 缺口 | **✅ 全部已解锁** | 三条各自落地：`__c`（纯 `compound(box,box,box)`，陈旧标签）→ N2；`__cf`/`__cs` → **N3** 实现 `filterByPredicate` / `sortByKey`（§10.4.3）。**旧判定「`Shape.filter` 只有 callable 签名 ⇒ 无 lambda 就写不出镜像」两处都错**：λ 可用，且几何可由现有 op 复现 |
 | 6 | **importBin（2）** | 「无 ref + 内核无写出通道 ⇒ 净收益 0」 | **两处都错** | ref 两条都在（`tests.test_shapes___test_bin_import_export__{b,r}.step`，vol 均 0.9999999999999998）；内核 `index.d.ts:308/310` 有 `toBREPBinary`/`fromBREPBinary`。真障碍只剩 `.fai.js` 无字节通道 |
 | 7 | **harness 类（21）** | 需实现 pytest 机制（难度 3–4） | **主体 = 内联 fixture 写镜像（难度 2）** | ① 现有镜像自述：`tests/test_assembly/test_PointInPlane_3_parts__cylinder.fai.js:2-3` *"assertions are not STEP-observable; the harness exports the cylinder itself"*；② 三条 `raises` 用例的 ref **只有 `nested_assy`、vol 3.0**（错误分支根本没进 ref）；③ 21 条**全部无镜像**（逐条 `existsSync` 核查为空） |
 
@@ -568,7 +570,7 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 |---|---|---|---|
 | **A · 写镜像即解锁（零新几何 / 零框架改动）** | **21 → 剩 5；另加 cf/cs 2 条改判 ⇒ 7** | getfixturevalue 11 / raises 5 / parametrize 3 / `__dir__` 2 —— **N1 已吃掉 15 条**；剩余 5 条全是往返产物（`assy_i`×2 + roundtrip×3），另 1 条（`box_and_vertex`）改判为 `op:vertex-shape` 新 API 缺口。**N2 实测又把 `filter` 的 `__cf`/`__cs` 从 C 组改判进本组**（几何是「已有几何的选择/排序」，无需 lambda 即可忠实复现，见 §10.4.2）—— 待拍板是否写 | 新增 **N1** ✅ 已完成 |
 | **B · 本仓可做（需新几何或参数通道）** | **62 → 59** | text-spine 3 / draft 2 / prism-tilt 1 / until-face 7 / shell+pendingWires 3 / history-subshape 3 / project 3 / export 3 / importBin 2 / 零散值面 + 其余待逐项定性 —— **N2 吃掉 `test_special__c` 1 条**；`filter` 的 `__cf`/`__cs` 实测改判出本组（§10.4.2） | B2 / B4 |
-| **C · `.fai.js` 语法长线（core `lang/`）** | **5 → 3** | ~~filter 的 `__cf`/`__cs`(2)~~ **N2 实测改判出本组**（见 §10.4.2）；余 `op:shape-operator-overload`(1) + `eachpoint`(1) + `narrow:cutEach` lambda(1) | G-C25 / G-C19 |
+| **C · `.fai.js` 语法长线（core `lang/`）** | **5 → 1** | 只剩 `op:shape-operator-overload`(1)（JS 无运算符重载）。~~filter 的 `__cf`/`__cs`(2)~~ **两次订正**：先错判为语法长线，再实证 λ **本就可用**（只要不把 `cq` 引用写进箭头体），最终 **N3 已实现并解锁**（§10.4.3）。`eachpoint`/`cutEach` 的 λ 形态同为 **op 缺口（B 组）**、非语法问题，故本组**不再含它们** | G-C25 / G-C19 |
 | **D · 内核依赖** | **48** | `op:assembly-solve` 14（子系统）/ `kernel:fillet-chain-reapply` 9 / `op:fuzzy-bool` 5 / `kernel:sweep-multisection-pipe` 5 / `remove` 5 / interpPlate 5 / 近重合布尔 4 / prism-from-face 4 / `op:assembly-subshape-import` 4 / sweep-aux-spine 3 / `narrow:sphere-angles` 3 等 | B5 / B6 |
 
 > B 组 62 是「未逐项定性」的余量，**不是「都容易」**；只有下表的 N1–N4 是本轮已取证、可直接开工的。
@@ -581,8 +583,9 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 |---|---|---|---|---|
 | **N1** ✅ **已完成 2026-10-04**（15/16 条 ported） | **harness A 组：内联 fixture 镜像** —— 只做**不含往返**的 16 条 | **16→15** | 零新几何、零框架改动、条数最多；全部有 ref；镜像先例已有 87 条 | 见下方 §10.4.1 执行记录：`test_PointInPlane_param__box_and_vertex` 需 `cq.vertex` 新 API，撤出并标 `op:vertex-shape` |
 | **N2** ✅ **已完成 2026-10-04**（1/1） | **`filter` 陈旧标签 `test_special__c`** | **1** | 纯 `compound(box,box,box)`，一行镜像；`compare-one` **逐位 PASS**（volΔ/comΔ/bboxΔ 全 0、topo f18/e36/v24 一致） | 无 |
-| **N3** | **`text-spine`（r7/r8/r9）** | **3** | 基础 `text` 已 ported ⇒ 只补沿曲线排字的参数通道 | 需先一次性 Python 捕获字符沿 spine 的放置语义（§7 纪律） |
-| **N4** | **`draft`（res1/res2）** | **2** | 内核原语已在，只差多面循环 + 中性面语义 | **风险中等**：`test_draft` 的 `fside` 是 4 个侧面，内核 `draft` 单面；若「多次单面 Build」≠「一次多面 Build」，则回退 B6-4 并写明理由 |
+| **N3** ✅ **已完成 2026-10-05**（2/2，另 +2 单测文件） | **Shape 级 λ：`filter` / `sort`**（`test_special__cf` / `__cs`）—— 落成 `filterByPredicate` / `sortByKey`（详见 §10.4.3） | **2** | 用户拍板**带后缀命名**，正好避开「三接收者重名」这个歧义陷阱；零内核改动、零 `.fai.js` 语法改动 | 执行中发现两条 DSL 硬约束，见 §10.4.3 —— **箭头体看不到 `cq` 命名空间**、**DSL `function` 恒为 async ⇒ op 必须 await 回调** |
+| **N4**（原 N3，编号后移） | **`text-spine`（r7/r8/r9）** | **3** | 基础 `text` 已 ported ⇒ 只补沿曲线排字的参数通道 | 需先一次性 Python 捕获字符沿 spine 的放置语义（§7 纪律） |
+| **N5**（原 N4，编号后移） | **`draft`（res1/res2）** | **2** | 内核原语已在，只差多面循环 + 中性面语义 | **风险中等**：`test_draft` 的 `fside` 是 4 个侧面，内核 `draft` 单面；若「多次单面 Build」≠「一次多面 Build」，则回退 B6-4 并写明理由 |
 
 **N1 之后再看的两项**（需先决策或更长）：
 - **往返通道**（**5** 条：`test_assembly_step_import_roundtrip__{assy_orig,assy}` + `test_step_export_loc__o` + `test_colors_assy{0,1}__assy_i`）：先在 cq 层打通 `exportStep` 字符串 → `importStep` 的内存往返（内核两侧都有），再写镜像。⚠ **`assy_i` 2 条是 N1 执行时才认清的**：它们名义上属 `getfixturevalue` 类，但 ref 捕获的是「`assy.load(stepfile)` 的往返产物」，与 `assy` 逐位同体积 ⇒ 写同形镜像必然 PASS 却**完全不验证往返**（与 `importBin` 同款陷阱），故与下面 3 条合并同类。
@@ -624,7 +627,26 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 
 ⇒ `cf`/`cs` 的几何只是「对已有几何做选择 / 排序」，**不需要 lambda 就能忠实复现**，与 N1 的内联 fixture 完全同类 ⇒ 从 **C 组（语法长线）改判进 A 组（写镜像即解锁）**。旧判定「`Shape.filter` 只有 callable 签名 ⇒ 无 lambda 就写不出镜像」错在把「**表达式不可直译**」当成了「**几何不可复现**」——而 ref harness 只导出变量几何（§10 方法论），镜像只需复现几何。
 
-**待拍板（未擅自写 `cf`/`cs`）**：这两条写镜像必然 PASS 且几何忠实（不是假 PASS），但**不验证 `filter`/`sort` 的能力本身**。是否与 `importBin` / 往返类 7 条一并决策后同批写入，待用户定。
+**原「待拍板（未擅自写 `cf`/`cs`）」已在 N3 拍板并落地**：用户选择**带后缀命名**（`filterByPredicate` / `sortByKey`）——这同时解掉了「`filter`/`sort` 是上游**三接收者重名**」这个歧义问题（见 §10.4.3）。两条镜像**都用真 op 调用**（不是手搓几何）：`__cf` 走 `await cq.filterByPredicate(c, isSmall)`、`__cs` 走 `await cq.sortByKey(c, byVolumeDesc)`，`compare-one` 两条**逐位 PASS**。
+
+> **`cs` 的诚实边界**：comparator 对顺序零敏感（`compare.ts:117-129` 的 5 个量全与顺序无关）⇒ `cs` 的 PASS **不能证明 sort 排对了**。顺序真值（子形状体积 `[27, 8, 1]`，一次性 CadQuery 2.8.0 捕获）**钉在 `src/shape-filter.test.ts`**，不靠 parity。
+
+#### 10.4.3 N3 执行记录（2026-10-05，实测）
+
+**交付**：`filterByPredicate` / `sortByKey`（`src/workplane.ts`）+ `childrenOf`（`src/shape-class.ts`，内部导出、不进 `index.ts` 公开面）+ `index.ts` 两个新导出；两条镜像 `tests/test_shapes/test_special__{cf,cs}.fai.js`；两个新测试文件 `src/shape-children.probe.test.ts`（5 条内核探针）、`src/shape-filter.test.ts`（13 条）。**结果**：manifest **522→524 ported / 120→118 blocked**；镜像 **534→536**；包内单测 **598→616 全绿 / 57 文件、零 stderr**；`compare-one` 两条**逐位 PASS**（volΔ/comΔ/bboxΔ 全 0；`__cf` topo f6/e12/v8 与 ref 一致）。
+
+**为什么用带后缀命名（不只是避撞名）**：`filter` / `sort` 在上游各有**三个接收者** —— `Shape`（`occ_impl/shapes.py:1928/1932`）、`Workplane`（`cq.py:4460/4490`）、`Sketch`（`sketch.py`）。faijs 已把 `sort` 给了 faijs 特有的 pending-wire 排序、把 Workplane 接收者给了 `stackFilter` / `sortStack`。若裸用上游名：① `analyze-coverage.py:575` 的 op universe 是**扁平名字集**，会把 `Sketch.filter` 案例误判 portable（正是该文件 `:86-92` 为 `remove` 写下的陷阱）；② 调用点接收者仍不可辨。**所以后缀名是「歧义接收者的正确处置」，不是命名洁癖。**
+
+**两条新认清的 DSL 硬约束（已写成防回归测试）**：
+
+| 约束 | 证据 | 后果 |
+|---|---|---|
+| **箭头函数体内看不到 `cq` 命名空间** | `let pick = (x) => cq.volumeOf(x) <= 1` → `cq is not defined`。`transformVariable` 只做 ctx/declared 名提升（`core/src/cad-runtime/direct-executor.ts:1287` 的 `hoistText`），**不重写命名空间**；而 `function` 声明体会被注入 `const cq = __ns.cq`（同文件 `:1010`） | 镜像的 λ **必须写成 `function` 声明**，不能写箭头（`shape-filter.test.ts` 已把「错法 + 对法」两侧都钉住） |
+| **DSL 里的 `function` 恒为 async** | `transformFunction` 生成 `__ctx.name = async function name(…)`（同文件 `:1012`） | λ 返回的是 **Promise**，而 Promise 恒真 ⇒ 朴素的 `Array.prototype.filter` 会**保留全部子形状**（实测 vol 36 而非 1）。⇒ **op 必须 `await` 回调**；`filterByPredicate` / `sortByKey` 因此是 async |
+
+**同时确认的两处内核语义**（`src/shape-children.probe.test.ts` 留档）：`iterShapes` **精确等于 `TopoDS_Iterator`** —— 直接子节点、不递归（嵌套 compound 返回内层 compound 本身），且**没有叶子特例**（对 solid 返回它的 **shell**，不是空、也不是自身）；空 compound **无 bbox**（`boundingBoxOf` 会抛 `getBoundingBox: shape has no geometry`，但体积 0 可读）。⇒ `filterByPredicate` 对空结果返回**空 compound**（vol 0），与上游 `compound(*[])` 一致，**不是 null**。
+
+**顺带发现的既有隐患（本轮未处置，留给用户拍板）**：`stackFilter` / `stackMap` / `stackApply`（`workplane.ts` 的 Workplane 接收者族）**签名是同步回调**，同样会被「DSL `function` 恒 async」击穿 —— `stackFilter` 会把 Promise 当真值全保留、`stackMap` 会把 Promise 存进对象栈。parity corpus 里没有镜像调用过它们（`test_map_apply_filter_sort__w` 的镜像只复现几何），所以至今是**静默缺陷**。修法同本轮（改 async + await 回调）但会改公开 API 行为，属另一议题。
 
 ### 10.5 待决策 / 未解决（如实列出）
 
@@ -634,3 +656,5 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 4. **`remove`（5）** 的 `defeature` 近似**未验证**：本轮只读到内核有 `defeature`，没跑 parity，不能当结论用。
 5. **`plane`（2）/ `export`（3）/ `history:images`（2）/ `importBin`** 等窄语义项未逐条定性，仍在 B 组 62 条余量里。
 6. **`op:vertex-shape`（1，N1 撤出项）**：`test_PointInPlane_param__box_and_vertex` 的 ref 是 `box(1,2,3)` **加一个 solve 后位于 `(2.5, 0, 1.51)` 的独立 Vertex**（实测 bbox `(-0.5,-1,-1.5)..(2.5,1,1.51)`）。vertex 零体积零质量但**撑大 bbox** ⇒ 只写 box 会 `cut: boolean operation failed`（comparator 直接抛错，不是 FAIL）。faijs 的 `makeVertex` 只在内核适配层（`workplane.ts:1253`），**没有 `cq.vertex` 导出 ⇒ `.fai.js` 里造不出独立顶点**。已标 `manual:true` 的 `blocked`、镜像存为 `.fai.js.blocked`。解锁需暴露 `cq.vertex(x,y,z)`（类 B1 小粒度 op，难度 2）。
+7. **🆕 `stack*` 族的同类隐患（N3 顺带发现，未处置）**：`stackFilter` / `stackMap` / `stackApply` 的回调签名是**同步**的，会被「DSL `function` 恒为 async」（§10.4.3）击穿 —— `stackFilter` 把 Promise 当真值**全保留**、`stackMap` 把 Promise 存进对象栈、`stackApply` 收到 Promise。parity corpus 无镜像调用过它们，故至今**静默**。修法与 N3 相同（改 async + await 回调）但会改公开 API 行为，属独立议题，**本轮未动**。
+8. **🆕 死脚本 `scripts/gen-faijs-cadquery-jsdoc.ts`（未处置）**：该脚本会**原地重写** `packages/faijs-cadquery/src/workplane.ts` 的 JSDoc，却**未被 `package.json` / `lefthook.yml` / `ci.ps1` / `ci.sh` 任一处引用** ⇒ 按「只认真实门禁」的规则它是死脚本，**不当约束、不运行**。建议单独决定：删除、或接入门禁并明确其与 `verify-export-jsdoc` 的分工。
