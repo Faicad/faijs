@@ -46,22 +46,22 @@ skipped  55 / 8        ← 判别有区分度：skipped 绝大多数无 ref
 
 > **判别可信度反证**：同一脚本对 `skipped` 只命中 8/55（其余是「ref 无该 case」或「var 不在 ref 集」），说明「全命中」不是脚本恒真造成的假象。
 
-**manifest 实测 blockedBy 分布（116 条，43 个 distinct，2026-10-05 **N5 落地后**实读）**：
+**manifest 实测 blockedBy 分布（114 条，44 个 distinct，2026-10-05 **N7 落地后**实读；N6/N7 各纠正若干，见 §10.4.6 / §10.4.7）**：
 
 ```
 14 op:assembly-solve             9 kernel:fillet-chain-reapply        5 op:fuzzy-bool
  5 getfixturevalue               5 interpPlate                        5 kernel:sweep-multisection-pipe
- 5 remove                        4 op:assembly-subshape-import         4 op:extrude-until-face
+ 2 remove                        4 op:assembly-subshape-import         4 op:extrude-until-face
  4 kernel:boolean-near-coincident-bspline  4 op:prism-from-face         3 export
  3 kernel:sweep-aux-spine-mode   3 narrow:sphere-angles                3 op:cutBlind.until-face
  3 op:history-subshape           2 comparator:open-shell-volume        2 history:images
  2 importBin                     2 kernel:hollow-intersection-join     2 kernel:shell-outward-opening
  2 op:project                    2 op:shell                           2 parametricCurve
  2 plane                         2 project
-…（其余 17 项各 1 条）
+…（其余 18 项各 1 条）
 ```
 
-> `pending:mirror` **归零**（`3d6640ab` 收口）；`hollow` 标签 **归零**（`32c95cbb`）；**`filter` 标签归零**（2026-10-05 N3）；**`op:text-spine` 标签归零**（2026-10-05 N4 —— r7/r8 改判 `comparator:open-shell-volume`；r9 改判 `op:project`）；**`kernel:draft-existing-solid` 标签归零**（2026-10-05 N5 —— 内核 `draft` 早已存在，标签陈旧；`test_draft__res1/res2` 逐位 PASS 转 `ported`，见 §10.4.5）。**`comparator:open-shell-volume`（2）是 N4 新增标签**：它不是「等实现」，而是「comparator 在该几何上无法评级」的编码（同 `kernel:boolean-near-coincident-bspline` 的性质，见 §10.4.4）。
+> `pending:mirror` **归零**（`3d6640ab` 收口）；`hollow` 标签 **归零**（`32c95cbb`）；**`filter` 标签归零**（2026-10-05 N3）；**`op:text-spine` 标签归零**（2026-10-05 N4 —— r7/r8 改判 `comparator:open-shell-volume`；r9 改判 `op:project`）；**`kernel:draft-existing-solid` 标签归零**（2026-10-05 N5 —— 内核 `draft` 早已存在，标签陈旧；`test_draft__res1/res2` 逐位 PASS 转 `ported`，见 §10.4.5）。**`comparator:open-shell-volume`（2）是 N4 新增标签**：它不是「等实现」，而是「comparator 在该几何上无法评级」的编码（同 `kernel:boolean-near-coincident-bspline` 的性质，见 §10.4.4）。；**`remove` 标签 5→2**（2026-10-05 N7 —— 逐变量核构造后纠正：2 条误标改 ported、1 条错标改 `op:shell-sew`，见 §10.4.7）。**`comparator:vertex-degenerate-compound`（1，N6）/ `op:shell-sew`（1，N7）为新增标签**。
 
 ⚠ **刻意保留的假阴性（N3 新增，勿"修"）**：`tests.test_shapes::test_special` 在 `coverage.json` 里仍是 `category: BLOCKED` / `blockedBy: filter`，尽管它的 `__cf` / `__cs` 镜像已逐位 PASS。原因不是遗漏：op universe 是**扁平名字集**，而 `filter` / `sort` 在上游有**三个接收者**（`Shape` `shapes.py:1928/1932`、`Workplane` `cq.py:4460/4490`、`Sketch` `sketch.py`），faijs 只实现了前两个 ⇒ 把名字加进 `CQ_COMPAT_EXTRA` 会把 `Sketch.filter` 案例误判为 portable。按该文件的既有规则（`:86-92` 的 `remove` 同例）**歧义名保持 "missing"**；理由已写进 `analyze-coverage.py` 的 `CQ_COMPAT_EXTRA` 注释。**manifest（由镜像文件存在性驱动）才是「已移植哪些」的准确记录。**
 
@@ -735,12 +735,36 @@ compare-one  PASS res2 | volΔ%=0.00e+0 comΔ=0.00e+0 bboxΔ=0.00e+0 | ref f6/e1
 - 判「某 case 能否 parity」前先问「它是否含孤立顶点复合体」——是则 comparator 必崩，归 `comparator:vertex-degenerate-compound`，勿判 ported。
 - faijs STEP 导出**丢弃孤立顶点**（框架能力缺口，非 cadquery 包问题）；若需保留需修 core 的 brepSolids/export 路径（本项未做，留给独立立项）。
 
+#### 10.4.7 N7 执行记录（2026-10-05，实测 = 标签纠错 + 2 条解锁）
+
+**目标**：§10.5 旧列 `remove`（5）按**源测试名批量打**标签，过度泛化。取上游 `test_remove` / `test_sewing` 源码逐变量核构造。
+
+**上游真值（v2.8.0 实测）**：
+- `test_remove`：`b = box(2,2,2) - box(1,1,1).moved(z=0.5)`（vol 7 挖腔盒，**纯 cut**）；`br = b.remove(*b.innerShells())`（vol 8 实心盒，去内腔壳）。
+- `test_sewing`：`b = box(1,1,1)`（vol 1 纯盒）；`sh = b.remove(ftop)`（vol 0.8 开壳）；`res3 = shell(...)`（vol 7 Compound，需 `shell` 缝合）。
+
+**结论（逐项）**：
+
+| case | 旧标签 | 真需 | 处置 |
+|---|---|---|---|
+| `test_remove__b`（vol 7） | `remove` | 无（纯 cut） | **ported**（镜像=已 ported 的 `test_shells__s` 同构） |
+| `test_sewing__b`（vol 1） | `remove` | 无（纯盒） | **ported** |
+| `test_sewing__res3`（vol 7） | `remove` | `shell` 缝合 | 改标 **`op:shell-sew`**（内核 `sew`/`sewAndSolidify` 原语存在，faijs 未封装） |
+| `test_remove__br`（vol 8） | `remove` | `remove`/`defeature` | 保留 `remove`（内核 `defeature` 存在，待 N8） |
+| `test_sewing__sh`（vol 0.8） | `remove` | `remove` + 开壳 | 保留 `remove`（开壳 comparator 无法评级，同 `comparator:open-shell-volume`） |
+
+**parity 验证**：`run-cand` 导出两条 cand → `compare-one` **均逐位 PASS**（volΔ/comΔ/bboxΔ 全 0；`test_remove__b` topo f12/e24/v16、`test_sewing__b` f6/e12/v8）。
+
+**manifest 净变化**：526→**528** ported / 116→**114** blocked / 55 skipped（`res3` 仅改标签仍 blocked）。新增 2 映射文件；`remove` 真实待办由 5 缩为 2。
+
+**★ 可复用判据（写入记忆）**：`mark-blocked.ts` 按**源测试名**批量打 `blockedBy` 会把「源测试里用过某 op」泛化到该测试**每个被测变量**。判 blocked 前须按**每个变量逐一核构造** —— 很多变量只是源测试的「前置 / plain 几何」，根本不需要那个 op（与 N6 孤立顶点同源的「标签过度泛化」）。
+
 ### 10.5 待决策 / 未解决（如实列出）
 
 1. **`importBin` 的处置**（B1-1 ④）：两个选项各有代价，本轮**不擅自选**——写镜像会制造「假 PASS」（comparator 只看几何，与 `testTwistExtrudeCombine__r` 的假 FAIL 同源）。
 2. **`op:fuzzy-bool`（5）/ `kernel:fillet-chain-reapply`（9）/ `op:assembly-solve`（14）** 本轮**未取证**（未读源码/未 probe），仍按 B6 / B5 排期——它们是 D 组里条数最多的三项，合计 28 条，值得单独立项调研。
 3. **`op:project`（2，N4 新增标签）** —— **方向被反转**：`text` 的 r9 用例（上游 `text(txt, size, spine, base)` = `f.project(base, f.normalAt())`）根因就是 **`Face.project`（OCCT `BRepProj_Projection`）内核无绑定**（内核只有点投影 `projectPointOnFace` / `projectPointOnEdge` 与 HLR `projectEdges`）。⇒ 不是「`project` 卡 `text`」，而是「**r9 卡 `project`**」。同标签的另一条是 `test_project__res`（同为 `Face.project`）。**另注**：较早的 `project`（2：`test_project__res_ex` / `__res_o_ex`）标签**未在 N4 逐条定性**，仍在 B 组余量里，勿与 `op:project` 混算。
-4. **`remove`（5）** 的 `defeature` 近似**未验证**：本轮只读到内核有 `defeature`，没跑 parity，不能当结论用。
+4. **`remove`（5 → 2，N7 已纠正，§10.4.7）**：原「5 条待 `defeature`」是按**源测试名批量打**的，逐变量核构造后只剩 2 条真需 `remove`/`defeature`（`test_remove__br` = 去内腔壳得实心盒 vol 8；`test_sewing__sh` = 去顶面得开壳 vol 0.8，且开壳 comparator 无法评级）。其余 3 条：`test_remove__b`/`test_sewing__b` 只是 box/cut（**误标**，已改判 ported + parity 逐位 PASS）；`test_sewing__res3` 需 `shell` 缝合（**错标**，内核 `sew`/`sewAndSolidify` 原语存在但 faijs 未封装 ⇒ 改标 `op:shell-sew`）。⇒ `remove` 真实待办缩到 2，且内核 `defeature` 原语已确认存在（§度量学根因 #3），`test_remove__br` 可做 N8；`op:shell-sew`（res3）内核有 `sew` 原语、待封装 op。
 5. **`plane`（2）/ `export`（3）/ `history:images`（2）/ `importBin`** 等窄语义项未逐条定性，仍在 B 组 62 条余量里。
 6. ~~`op:vertex-shape`（1，N1 撤出项）~~ **✅ 2026-10-05 已误判（N6，§10.4.6）**：`test_PointInPlane_param__box_and_vertex` 旧判「缺 `cq.vertex` 导出」是**误判** —— `cq.vertex(x,y,z)` 早已在 `workplane.ts:5528` / `index.ts:62` 导出。真阻断是 **comparator 对「实体+孤立顶点」复合体布尔必崩**（`cut`/`fuse` 即使 ref-vs-ref 也 `BOOLEAN_FAILED`）+ faijs STEP 导出**丢弃孤立顶点**。已改判 `comparator:vertex-degenerate-compound` + `manual:true`、镜像保留并注释。⇒ **此条不再是待解锁项，是 comparator 局限**（同 `comparator:open-shell-volume`）。
 7. **🆕 `stack*` 族的同类隐患（N3 顺带发现，未处置）**：`stackFilter` / `stackMap` / `stackApply` 的回调签名是**同步**的，会被「DSL `function` 恒为 async」（§10.4.3）击穿 —— `stackFilter` 把 Promise 当真值**全保留**、`stackMap` 把 Promise 存进对象栈、`stackApply` 收到 Promise。parity corpus 无镜像调用过它们，故至今**静默**。修法与 N3 相同（改 async + await 回调）但会改公开 API 行为，属独立议题，**本轮未动**。
