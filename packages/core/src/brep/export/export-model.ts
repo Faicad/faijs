@@ -22,6 +22,7 @@ import type { BrepEngineApi } from '../engine/primitives'
 import { getBrepApi } from '../handle-bridge'
 import { exportStepFromSolids, type StepExportEntry } from './step'
 import { detectStepUnit, STEP_UNIT_SCAN_PREFIX } from '../../mesh/io'
+import type { PbrAppearance } from '../../api/appearance'
 
 /** 导出条目：一个 part 的几何来源。精确 BREP 与三角网格二选一，solid 优先。 */
 export interface ExportEntry {
@@ -33,6 +34,11 @@ export interface ExportEntry {
   name?: string
   /** sRGB 0..1 颜色（STEP 走 XCAF COLOUR_RGB，3MF 走 basematerials）。 */
   color?: readonly [number, number, number]
+  /**
+   * 逐三角形材质分组（P4，3MF 走多 basematerials + `<triangle pid p1..p3>`）：
+   * start/count 为**三角形索引**区间，appearance.color 为该组基色。
+   */
+  materialGroups?: Array<{ start: number; count: number; appearance: PbrAppearance }>
 }
 
 /** Output formats supported by the unified {@link exportModel} entry. */
@@ -157,6 +163,7 @@ function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number,
   const objs: string[] = []
   const mats: string[] = []
   const items: string[] = []
+  let nextMatId = entries.length + 1
   entries.forEach((e, i) => {
     if (!e.mesh) return
     const pos = scalePositions(e.mesh.positions, scale)
@@ -164,9 +171,28 @@ function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number,
     for (let v = 0; v < pos.length; v += 3) {
       verts.push(`<vertex x="${pos[v]}" y="${pos[v + 1]}" z="${pos[v + 2]}"/>`)
     }
+    // P4（3MF Core 逐三角形材质）：materialGroups（appearance.color）→ 每组
+    // 一个独立 basematerials 资源（id 与对象 id 错开，P3 曾与对象共用 id、
+    // 违反 resources 内 id 唯一），分组三角形用 `<triangle pid p1..p3>` 引用。
+    const groupPids: number[] = []
+    const groups = (e.materialGroups ?? []).filter((g) => g.appearance?.color)
+    for (const g of groups) {
+      groupPids.push(nextMatId)
+      mats.push(
+        `<basematerials id="${nextMatId}"><base name="${xmlAttr(`${e.name ?? `part${i + 1}`}_g${groupPids.length}`)}" displaycolor="${hexColor(g.appearance.color!)}"/></basematerials>`,
+      )
+      nextMatId++
+    }
     const tris: string[] = []
-    for (let t = 0; t < e.mesh.indices.length; t += 3) {
-      tris.push(`<triangle v1="${e.mesh.indices[t]}" v2="${e.mesh.indices[t + 1]}" v3="${e.mesh.indices[t + 2]}"/>`)
+    const triCount = e.mesh.indices.length / 3
+    let gi = 0
+    for (let t = 0; t < triCount; t++) {
+      while (gi < groups.length && t >= groups[gi].start + groups[gi].count) gi++
+      const inGroup = gi < groups.length && t >= groups[gi].start
+      const matAttr = inGroup ? ` pid="${groupPids[gi]}" p1="0" p2="0" p3="0"` : ''
+      tris.push(
+        `<triangle v1="${e.mesh.indices[t * 3]}" v2="${e.mesh.indices[t * 3 + 1]}" v3="${e.mesh.indices[t * 3 + 2]}"${matAttr}/>`,
+      )
     }
     // P3（v2 §8 3MF 行，Core 规范）：basematerials 必须声明在 <resources>，
     // object 用 pid/pindex 引用——此前内联在 <object> 内的写法解析器（

@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { exportModelSync, readDeclaredUnit, UNIT_NAME_TO_3MF, type ExportEntry } from './export-model'
 import { UNIT_SCALE } from '../../units'
-import { detectStepUnit } from '../../mesh/io'
+import { detectStepUnit, importFile } from '../../mesh/io'
 import { readZipEntries } from '../../io/zip'
 
 /** Two-triangle quad spanning [0, size] on X/Y (z=0), base-unit coordinates. */
@@ -87,6 +87,77 @@ describe('exportModel — 3MF basematerials (P3, v2 §8 3MF row, Core spec)', ()
     const xml = new TextDecoder().decode(model)
     expect(xml).not.toContain('basematerials')
     expect(xml).toMatch(/<object id="1" type="model" name="part1"><mesh>/)
+  })
+
+  it('materialGroups → 独立 basematerials（id 与对象错开）+ 三角形 pid 引用（P4）', () => {
+    const entry: ExportEntry = {
+      ...quadEntry(10, 'two-tone'),
+      materialGroups: [
+        { start: 0, count: 1, appearance: { color: [1, 0, 0] } },
+        { start: 1, count: 1, appearance: { color: [0, 0, 1] } },
+      ],
+    }
+    const buf = exportModelSync([entry], '3mf', { unit: 'mm' })
+    const xml = new TextDecoder().decode(readZipEntries(new Uint8Array(buf)).get('3D/3dmodel.model')!)
+    // 两个 basematerials 资源（id=2,3，从 entries.length+1 起，与对象 id=1 错开）。
+    expect(xml).toMatch(/<basematerials id="2"><base name="two-tone_g1" displaycolor="#ff0000"\/><\/basematerials>/)
+    expect(xml).toMatch(/<basematerials id="3"><base name="two-tone_g2" displaycolor="#0000ff"\/><\/basematerials>/)
+    // 三角形按区间引用：tri0 → pid 2，tri1 → pid 3；对象本身无对象级 pid（未分组三角形无材质）。
+    expect(xml).toMatch(/<triangle v1="0" v2="1" v3="2" pid="2" p1="0" p2="0" p3="0"\/>/)
+    expect(xml).toMatch(/<triangle v1="3" v2="4" v3="5" pid="3" p1="0" p2="0" p3="0"\/>/)
+    expect(xml).toMatch(/<object id="1" type="model" name="two-tone"><mesh>/)
+  })
+
+  it('materialGroups 无 color 的组跳过（3MF 只支持 displaycolor）', () => {
+    const entry: ExportEntry = {
+      ...quadEntry(10, 'metal-only'),
+      materialGroups: [{ start: 0, count: 2, appearance: { metalness: 0.9 } }],
+    }
+    const buf = exportModelSync([entry], '3mf', { unit: 'mm' })
+    const xml = new TextDecoder().decode(readZipEntries(new Uint8Array(buf)).get('3D/3dmodel.model')!)
+    expect(xml).not.toContain('basematerials')
+    expect(xml).not.toMatch(/pid="/)
+  })
+
+  it('对象级 color 与 materialGroups 并存：对象 pid + 分组三角形 pid 各自生效', () => {
+    const entry: ExportEntry = {
+      ...quadEntry(10, 'mixed', [0, 1, 0]),
+      materialGroups: [{ start: 0, count: 1, appearance: { color: [1, 0, 0] } }],
+    }
+    const buf = exportModelSync([entry], '3mf', { unit: 'mm' })
+    const xml = new TextDecoder().decode(readZipEntries(new Uint8Array(buf)).get('3D/3dmodel.model')!)
+    expect(xml).toMatch(/<basematerials id="1"><base name="mixed" displaycolor="#00ff00"\/><\/basematerials>/)
+    expect(xml).toMatch(/<basematerials id="2"><base name="mixed_g1" displaycolor="#ff0000"\/><\/basematerials>/)
+    expect(xml).toMatch(/<object id="1" type="model" name="mixed" pid="1" pindex="0"><mesh>/)
+    expect(xml).toMatch(/<triangle v1="0" v2="1" v3="2" pid="2" p1="0" p2="0" p3="0"\/>/)
+    expect(xml).toMatch(/<triangle v1="3" v2="4" v3="5"\/>/)
+  })
+
+  it('往返：materialGroups → 3MF → 读回（导入→导出→导入颜色不丢，P4）', async () => {
+    const entry: ExportEntry = {
+      ...quadEntry(10, 'two-tone'),
+      materialGroups: [
+        { start: 0, count: 1, appearance: { color: [1, 0, 0] } },
+        { start: 1, count: 1, appearance: { color: [0, 0, 1] } },
+      ],
+    }
+    const buf = exportModelSync([entry], '3mf', { unit: 'mm' })
+    const res = await importFile(buf, '3mf')
+    const s = res.shape
+    expect(s.materialGroups).toEqual([
+      { start: 0, count: 1, appearance: { color: [1, 0, 0] } },
+      { start: 1, count: 1, appearance: { color: [0, 0, 1] } },
+    ])
+    // 未分组三角形（对象无 pid）不误归到第一个材质色。
+    expect(s.appearance).toBeUndefined()
+  })
+
+  it('往返：单色对象仍走 baseColor（对象级 pid + 三角形无 pid，P3 兼容）', async () => {
+    const buf = exportModelSync([quadEntry(10, 'red-part', [1, 0, 0])], '3mf', { unit: 'mm' })
+    const res = await importFile(buf, '3mf')
+    const s = res.shape
+    expect(s.appearance).toEqual({ color: [1, 0, 0] })
+    expect(s.materialGroups).toBeUndefined()
   })
 })
 

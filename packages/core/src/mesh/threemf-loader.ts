@@ -165,6 +165,15 @@ export interface ThreemfObject {
    * `positions.length`.
    */
   vertexColors?: Float32Array
+  /**
+   * Per-triangle base-material groups (P4, 3MF Core `<triangle pid p1..p3>`
+   * with p1=p2=p3 referencing a `<basematerials>` base): maximal runs of
+   * consecutive triangles sharing one base index, each with that base's
+   * display color. Triangles with mixed p1/p2/p3 (vertex-attribute
+   * interpolation) are skipped. Multi-base objects surface here instead of a
+   * single `baseColor`.
+   */
+  materialGroups?: Array<{ start: number; count: number; color: [number, number, number] }>
 }
 
 /** Structured 3MF parse result. */
@@ -588,21 +597,86 @@ function parseModelXml(docTexts: string[]): {
     if (bases && bases.length > 0) {
       const idx0 = src.triProps ? (src.triProps[0]?.p1 ?? src.pindex ?? 0) : (src.pindex ?? 0)
       let same = true
+      let refKey = ''
       if (src.triProps) {
-        for (let t = 1; t < src.triProps.length; t++) {
-          if ((src.triProps[t]?.p1 ?? src.pindex ?? 0) !== idx0) { same = false; break }
+        for (const tp of src.triProps) {
+          const effPid = tp.pid ?? src.pid
+          const key = effPid !== undefined ? `${effPid}:${tp.p1 ?? src.pindex ?? 0}` : ''
+          if (refKey === '') refKey = key
+          else if (key !== refKey) {
+            same = false
+            break
+          }
         }
+      } else {
+        refKey = pid !== undefined ? `${pid}:${src.pindex ?? 0}` : ''
       }
       const base = bases[idx0]
-      const baseColor = same && base?.displaycolor
+      // baseColor 只对「全部三角形同一 (pid, base)」的对象设置（P2 单色便捷
+      // 字段）；无材质三角形或混合 pid/base 的对象 → undefined（走 materialGroups）。
+      const baseColor = same && refKey !== '' && base?.displaycolor
         ? hexToRgb(base.displaycolor.slice(0, 7))
         : undefined
+      // P4（3MF Core 逐三角形材质）：p1=p2=p3 的三角形按（有效 pid, base 索引）
+      // 分组成 materialGroups（连续三角形区间 + 该 base 的 displaycolor）；
+      // 无材质（对象与三角形均无 pid）、混合 p1/p2/p3（顶点属性插值）跳过。
+      // 同色对象仍走 baseColor 便捷字段（P2 兼容）；多 base 对象在
+      // materialGroups 表达（baseColor undefined）。
+      const groups: Array<{ start: number; count: number; color: [number, number, number] }> = []
+      const triProps = src.triProps
+      const triCount = triProps?.length ?? indices.length / 3
+      if (triProps) {
+        let runStart = -1
+        let runKey = ''
+        let runColor: [number, number, number] | undefined
+        const flush = (end: number): void => {
+          if (runStart >= 0 && runColor) {
+            groups.push({ start: runStart, count: end - runStart, color: runColor })
+          }
+          runStart = -1
+          runKey = ''
+          runColor = undefined
+        }
+        for (let t = 0; t < triCount; t++) {
+          const tp: TriMaterialProps | undefined = triProps[t]
+          let key = ''
+          let color: [number, number, number] | undefined
+          if (tp) {
+            const effPid = tp.pid ?? src.pid
+            if (effPid !== undefined) {
+              const bases = basematerialsById.get(effPid)
+              const bi = tp.p1 ?? src.pindex ?? 0
+              if (bases && bi >= 0 && bi < bases.length && tp.p1 === tp.p2 && tp.p2 === tp.p3) {
+                const c = bases[bi]?.displaycolor
+                if (c) {
+                  key = `${effPid}:${bi}`
+                  const rgb = hexToRgb(c.slice(0, 7))
+                  if (rgb) color = [rgb[0], rgb[1], rgb[2]]
+                }
+              }
+            }
+          }
+          if (key !== '' && key === runKey) continue
+          flush(t)
+          if (key !== '') {
+            runStart = t
+            runKey = key
+            runColor = color
+          }
+        }
+        flush(triCount)
+      }
+      // 单一分组且覆盖全部三角形 = 单色对象 → 走 baseColor（P2 便捷字段），
+      // 不挂 materialGroups（避免冗余双表达）；仅部分覆盖或多组才用 materialGroups。
+      const singleFull =
+        groups.length === 1 && groups[0].start === 0 && groups[0].count === triCount
       return {
         id: src.id,
         name: src.name,
         positions: mat ? bakeTransform(positions, mat) : positions,
         indices,
         baseColor: baseColor ?? undefined,
+        ...(!singleFull && groups.length > 0 ? { materialGroups: groups } : {}),
       }
     }
 

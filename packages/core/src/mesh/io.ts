@@ -22,6 +22,7 @@ import { parseStl } from './stl-loader'
 import { parseThreemf } from './threemf-loader'
 import { mm, type UnitName, type ValueWithUnits } from '../units'
 import type { Shape } from './types'
+import type { PbrAppearance } from '../api/appearance'
 
 /** Result of a unit-aware file import. */
 export interface ImportFileResult {
@@ -147,6 +148,18 @@ export async function importFile(
       // 宽容兼容：无 baseColor 不带 appearance）。colorgroup（vertexColors）与
       // 逐三角形材质属 Phase 2（materialGroups / vertexColors），P2 不映射。
       ...(first.baseColor ? { appearance: { color: [first.baseColor[0], first.baseColor[1], first.baseColor[2]] } } : {}),
+      // P4（方案 §5 3MF 行）：逐三角形 basematerials（p1=p2=p3）→ materialGroups
+      // （三角形区间 + appearance.color）；无则不带。vertexColors（colorgroup）
+      // 由上层（编辑器导入路径）消费，io 单零件收敛不展开为材质分组。
+      ...(first.materialGroups && first.materialGroups.length > 0
+        ? {
+            materialGroups: first.materialGroups.map((g) => ({
+              start: g.start,
+              count: g.count,
+              appearance: { color: [g.color[0], g.color[1], g.color[2]] } as PbrAppearance,
+            })),
+          }
+        : {}),
     }
     return { shape, unit: archive.unit, multiPartCount }
   }
