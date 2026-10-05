@@ -719,6 +719,22 @@ compare-one  PASS res2 | volΔ%=0.00e+0 comΔ=0.00e+0 bboxΔ=0.00e+0 | ref f6/e1
 
 **结果**：manifest **524→526 ported / 118→116 blocked**（全量 diff 确认**仅 2 条**变化，无其他状态误翻）；镜像 **538→540**；`kernel:draft-existing-solid` 标签**归零**；`compare-one` 两条**逐位 PASS**。包内单测见 §1 口径（零 stderr）。
 
+#### 10.4.6 N6 执行记录（2026-10-05，实测 = 一次**纠错**，非解锁）
+
+**目标**：`test_PointInPlane_param__box_and_vertex`（§10.5 旧列 `op:vertex-shape`，1 条，N1 撤出项）。
+
+**执行 + 实测推翻旧判定的两步**：
+1. 写镜像 `cq.compound(cq.box(1,2,3), cq.vertex(2.5,0,1.51))`（`cq.vertex` 已在 `workplane.ts:5528` / `index.ts:62` 导出 —— §10.5 的「无 `cq.vertex` 导出」**已过时**，op 缺口不存在）。
+2. `run-cand` 导出 cand → `compare-one` 崩在布尔阶段；绕过布尔直接读度量发现：
+   - **cand 丢失顶点**：ref v=9（box 8 + 顶点 1）、bbox 含顶点 `(2.5,0,1.51)`；cand v=8、bbox 仅 box。探针确认 `kernel.exportStep` 本身**保留**顶点（ref 往返仍 v=9），故丢失发生在 faijs 的 **brepSolids / STEP 导出路径只保留 solid**，孤立顶点被丢弃（同 `mark-blocked.ts:104` 的 `test_loft_to_vertex__c`）。
+   - **comparator 对「实体+孤立顶点」复合体布尔必崩**：`kernel.cut(ref,ref)` 与 `kernel.fuse(ref,ref)` **双双 `BOOLEAN_FAILED`** —— 与几何是否相符无关（ref 自比也崩）。`compareStepFiles` / `compareAssemblyFiles` 均在此类复合体上抛错。
+
+**结论**：该例是 **comparator 无法评级**的「实体+孤立顶点」复合体（同 `comparator:open-shell-volume` 一类），**不是 ported、也不是 op 缺口**。改回 `blocked` + `blockedBy: comparator:vertex-degenerate-compound` + `manual:true`（穿透 regen）；忠实镜像（box+vertex）保留并注释根因。manifest **净零变化**：527→526 ported / 115→116 blocked（即回到 N5 后 526/116 基线）。
+
+**★ 两条可复用判据（写入 §10.5 第 6 条 + 记忆）**：
+- 判「某 case 能否 parity」前先问「它是否含孤立顶点复合体」——是则 comparator 必崩，归 `comparator:vertex-degenerate-compound`，勿判 ported。
+- faijs STEP 导出**丢弃孤立顶点**（框架能力缺口，非 cadquery 包问题）；若需保留需修 core 的 brepSolids/export 路径（本项未做，留给独立立项）。
+
 ### 10.5 待决策 / 未解决（如实列出）
 
 1. **`importBin` 的处置**（B1-1 ④）：两个选项各有代价，本轮**不擅自选**——写镜像会制造「假 PASS」（comparator 只看几何，与 `testTwistExtrudeCombine__r` 的假 FAIL 同源）。
@@ -726,6 +742,6 @@ compare-one  PASS res2 | volΔ%=0.00e+0 comΔ=0.00e+0 bboxΔ=0.00e+0 | ref f6/e1
 3. **`op:project`（2，N4 新增标签）** —— **方向被反转**：`text` 的 r9 用例（上游 `text(txt, size, spine, base)` = `f.project(base, f.normalAt())`）根因就是 **`Face.project`（OCCT `BRepProj_Projection`）内核无绑定**（内核只有点投影 `projectPointOnFace` / `projectPointOnEdge` 与 HLR `projectEdges`）。⇒ 不是「`project` 卡 `text`」，而是「**r9 卡 `project`**」。同标签的另一条是 `test_project__res`（同为 `Face.project`）。**另注**：较早的 `project`（2：`test_project__res_ex` / `__res_o_ex`）标签**未在 N4 逐条定性**，仍在 B 组余量里，勿与 `op:project` 混算。
 4. **`remove`（5）** 的 `defeature` 近似**未验证**：本轮只读到内核有 `defeature`，没跑 parity，不能当结论用。
 5. **`plane`（2）/ `export`（3）/ `history:images`（2）/ `importBin`** 等窄语义项未逐条定性，仍在 B 组 62 条余量里。
-6. **`op:vertex-shape`（1，N1 撤出项）**：`test_PointInPlane_param__box_and_vertex` 的 ref 是 `box(1,2,3)` **加一个 solve 后位于 `(2.5, 0, 1.51)` 的独立 Vertex**（实测 bbox `(-0.5,-1,-1.5)..(2.5,1,1.51)`）。vertex 零体积零质量但**撑大 bbox** ⇒ 只写 box 会 `cut: boolean operation failed`（comparator 直接抛错，不是 FAIL）。faijs 的 `makeVertex` 只在内核适配层（`workplane.ts:1253`），**没有 `cq.vertex` 导出 ⇒ `.fai.js` 里造不出独立顶点**。已标 `manual:true` 的 `blocked`、镜像存为 `.fai.js.blocked`。解锁需暴露 `cq.vertex(x,y,z)`（类 B1 小粒度 op，难度 2）。
+6. ~~`op:vertex-shape`（1，N1 撤出项）~~ **✅ 2026-10-05 已误判（N6，§10.4.6）**：`test_PointInPlane_param__box_and_vertex` 旧判「缺 `cq.vertex` 导出」是**误判** —— `cq.vertex(x,y,z)` 早已在 `workplane.ts:5528` / `index.ts:62` 导出。真阻断是 **comparator 对「实体+孤立顶点」复合体布尔必崩**（`cut`/`fuse` 即使 ref-vs-ref 也 `BOOLEAN_FAILED`）+ faijs STEP 导出**丢弃孤立顶点**。已改判 `comparator:vertex-degenerate-compound` + `manual:true`、镜像保留并注释。⇒ **此条不再是待解锁项，是 comparator 局限**（同 `comparator:open-shell-volume`）。
 7. **🆕 `stack*` 族的同类隐患（N3 顺带发现，未处置）**：`stackFilter` / `stackMap` / `stackApply` 的回调签名是**同步**的，会被「DSL `function` 恒为 async」（§10.4.3）击穿 —— `stackFilter` 把 Promise 当真值**全保留**、`stackMap` 把 Promise 存进对象栈、`stackApply` 收到 Promise。parity corpus 无镜像调用过它们，故至今**静默**。修法与 N3 相同（改 async + await 回调）但会改公开 API 行为，属独立议题，**本轮未动**。
 8. **🆕 死脚本 `scripts/gen-faijs-cadquery-jsdoc.ts`（未处置）**：该脚本会**原地重写** `packages/faijs-cadquery/src/workplane.ts` 的 JSDoc，却**未被 `package.json` / `lefthook.yml` / `ci.ps1` / `ci.sh` 任一处引用** ⇒ 按「只认真实门禁」的规则它是死脚本，**不当约束、不运行**。建议单独决定：删除、或接入门禁并明确其与 `verify-export-jsdoc` 的分工。
