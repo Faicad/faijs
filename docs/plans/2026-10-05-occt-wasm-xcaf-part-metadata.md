@@ -1,6 +1,6 @@
 # 方案：让 occt-wasm 在 STEP 导入/导出时保存与设置部件级描述(description)与零件号(partNumber)
 
-状态：方案（未实施）
+状态：搁置（occt-wasm 内核开发暂停；依赖该能力的相关测试已 skip，恢复开发后按原 §7 清单推进）
 
 ## 0. 用户原话
 

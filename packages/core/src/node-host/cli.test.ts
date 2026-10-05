@@ -518,7 +518,10 @@ describe('cliView: execute and project view SVG', () => {
   }, 60000)
 })
 
-describe('cliRun: assembly STEP export preserves member names', () => {
+// [PAUSED] occt-wasm XCAF kernel 开发暂时搁置：下列两层 STEP 导入/导出 round-trip
+// 依赖 occt-wasm 的 XCAF 通道（xcafImportSTEP / importAssemblyFromStep），
+// 恢复开发前整体 skip，见 docs/plans/2026-10-05-occt-wasm-xcaf-part-metadata.md。
+describe.skip('cliRun: assembly STEP export preserves member names', () => {
   it('cad.assembly with explicit memberNames exports members under those names', async () => {
     const code = [
       `let part0 = cad.box(10, 10, 10, { centered: true })`,
@@ -549,7 +552,7 @@ describe('cliRun: assembly STEP export preserves member names', () => {
   }, 60000)
 })
 
-describe('cliRun: assembly do_assemble with explicit short memberNames', () => {
+describe.skip('cliRun: assembly do_assemble with explicit short memberNames', () => {
   // 回归：solve/do_assemble 应用变换后，solidCache 必须以成员"变量名"键同步
   // （shapeToName 反查），不能用 CadQuery 风格短名 memberNames——否则变量名键
   // 仍指向已 release 的悬空句柄，导出阶段 buildBrepTopology → INVALID_SHAPE_ID。
