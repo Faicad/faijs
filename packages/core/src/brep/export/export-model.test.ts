@@ -9,9 +9,10 @@ import { describe, expect, it } from 'vitest'
 import { exportModelSync, readDeclaredUnit, UNIT_NAME_TO_3MF, type ExportEntry } from './export-model'
 import { UNIT_SCALE } from '../../units'
 import { detectStepUnit } from '../../mesh/io'
+import { readZipEntries } from '../../io/zip'
 
 /** Two-triangle quad spanning [0, size] on X/Y (z=0), base-unit coordinates. */
-function quadEntry(size: number, name?: string): ExportEntry {
+function quadEntry(size: number, name?: string, color?: readonly [number, number, number]): ExportEntry {
   return {
     mesh: {
       positions: new Float32Array([
@@ -21,6 +22,7 @@ function quadEntry(size: number, name?: string): ExportEntry {
       indices: new Uint32Array([0, 1, 2, 3, 4, 5]),
     },
     ...(name ? { name } : {}),
+    ...(color ? { color } : {}),
   }
 }
 
@@ -63,6 +65,28 @@ describe('UNIT_NAME_TO_3MF', () => {
     expect(UNIT_NAME_TO_3MF.yard).toBeUndefined()
     expect(UNIT_NAME_TO_3MF.mm).toBe('millimeter')
     expect(UNIT_NAME_TO_3MF.inch).toBe('inch')
+  })
+})
+
+describe('exportModel — 3MF basematerials (P3, v2 §8 3MF row, Core spec)', () => {
+  it('writes basematerials inside <resources> and references pid/pindex from the object', () => {
+    const buf = exportModelSync([quadEntry(10, 'red-part', [1, 0, 0])], '3mf', { unit: 'mm' })
+    const model = readZipEntries(new Uint8Array(buf)).get('3D/3dmodel.model')
+    expect(model).toBeDefined()
+    const xml = new TextDecoder().decode(model)
+    // Core 规范：basematerials 声明在 <resources>，object 用 pid/pindex 引用。
+    // （此前内联在 <object> 内的写法 parseThreemf 不识别 → 导入→导出→导入丢色。）
+    expect(xml).toMatch(/<resources><basematerials id="1"><base name="red-part" displaycolor="#ff0000"\/><\/basematerials><object id="1" type="model" name="red-part" pid="1" pindex="0"><mesh>/)
+    expect(xml).not.toMatch(/<object[^>]*><basematerials/)
+  })
+
+  it('omits basematerials and pid/pindex when the entry has no color', () => {
+    const buf = exportModelSync([quadEntry(10)], '3mf', { unit: 'mm' })
+    const model = readZipEntries(new Uint8Array(buf)).get('3D/3dmodel.model')
+    expect(model).toBeDefined()
+    const xml = new TextDecoder().decode(model)
+    expect(xml).not.toContain('basematerials')
+    expect(xml).toMatch(/<object id="1" type="model" name="part1"><mesh>/)
   })
 })
 

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-05-pbr-appearance-shape-methods.md
-2026-10-05-pbr-appearance-shape-methods.md: 272d4b15eedb69e210fe84d3f98814db1cd370fa
-2026-10-05-pbr-appearance-shape-methods.zh.md: 0f0df2c431b32a05532a248c7bfa654b7d568286
+2026-10-05-pbr-appearance-shape-methods.md: c6dbd2eb729e58e3fcefb28fb075b23793316c39
+2026-10-05-pbr-appearance-shape-methods.zh.md: db2e78567dd43b3a58477f19d67083023fb3e914

@@ -155,6 +155,7 @@ function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number,
     throw new Error(`[export/3mf] unit ${unit} has no 3MF enum value`)
   }
   const objs: string[] = []
+  const mats: string[] = []
   const items: string[] = []
   entries.forEach((e, i) => {
     if (!e.mesh) return
@@ -167,14 +168,17 @@ function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number,
     for (let t = 0; t < e.mesh.indices.length; t += 3) {
       tris.push(`<triangle v1="${e.mesh.indices[t]}" v2="${e.mesh.indices[t + 1]}" v3="${e.mesh.indices[t + 2]}"/>`)
     }
-    const colorXml = e.color
-      ? `<basematerials><base name="${e.name ?? 'p' + i}" displaycolor="${hexColor(e.color)}"/></basematerials>`
-      : ''
-    objs.push(`<object id="${i + 1}" type="model" name="${xmlAttr(e.name ?? `part${i + 1}`)}">${colorXml}<mesh><vertices>${verts.join('')}</vertices><triangles>${tris.join('')}</triangles></mesh></object>`)
+    // P3（v2 §8 3MF 行，Core 规范）：basematerials 必须声明在 <resources>，
+    // object 用 pid/pindex 引用——此前内联在 <object> 内的写法解析器（
+    // parseThreemf 只读 resources）不识别，导入→导出→导入颜色丢失。
+    if (e.color) {
+      mats.push(`<basematerials id="${i + 1}"><base name="${xmlAttr(e.name ?? 'p' + i)}" displaycolor="${hexColor(e.color)}"/></basematerials>`)
+    }
+    objs.push(`<object id="${i + 1}" type="model" name="${xmlAttr(e.name ?? `part${i + 1}`)}"${e.color ? ` pid="${i + 1}" pindex="0"` : ''}><mesh><vertices>${verts.join('')}</vertices><triangles>${tris.join('')}</triangles></mesh></object>`)
     items.push(`<item objectid="${i + 1}"/>`)
   })
   const pc = printConfig ? `<metadata name="printConfig">${xmlAttr(String(printConfig))}</metadata>` : ''
-  return `<model unit="${unitAttr}" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">${pc}<resources>${objs.join('')}</resources><build>${items.join('')}</build></model>`
+  return `<model unit="${unitAttr}" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">${pc}<resources>${mats.join('')}${objs.join('')}</resources><build>${items.join('')}</build></model>`
 }
 
 function xmlAttr(s: string): string {
@@ -183,7 +187,7 @@ function xmlAttr(s: string): string {
 
 function hexColor(c: readonly [number, number, number]): string {
   const h = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0')
-  return `#${h(c[0])}${h(c[1])}${h(c[2])}FF`
+  return `#${h(c[0])}${h(c[1])}${h(c[2])}`
 }
 
 /**

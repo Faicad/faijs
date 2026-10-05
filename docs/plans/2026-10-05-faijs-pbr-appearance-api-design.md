@@ -271,13 +271,13 @@ export interface Shape {
 3. 设置外观的语句**不是 op**（不在 `cad.` 命名空间、不进 op 体系）。
 4. STEP/3MF 导入导出按各自规范不丢颜色、不写规范外字段。
 
-## 11. 分阶段实施（P1 已落地，2026-10-05）
+## 11. 分阶段实施（P1–P3 已落地，2026-10-05）
 
 | 阶段 | 内容 | 交付 |
 |---|---|---|
 | **P1 最小闭环** ✅ | `PbrAppearance` 类型 + Shape 方法（setAppearance/setColor/setMaterial/setOpacity/getAppearance）+ `Shape.appearance` + 产物构造点继承外观 + 复用成员调用语句机制（asm.solve 先例，§3.3.1）+ 删除 `ScriptMetaIR.appearance`（§9 清单 1–4）+ 编辑器 `faijsAppearanceToHost` + originals/overrides 语义修正 | 「颜色/透明度/基础 PBR 在编辑器正确渲染」闭环 + 破坏性变更落地。**验证**：faijs core typecheck/lint 全绿、core 单测 2956、faijs-tests 571（含 appearance e2e 7 个）；3d_editor test:unit 2822、改动文件 eslint 干净；worker 协议补 `appearance` 过线（protocol.ts，web/weapp/electron 三端共用）。已知缺口：3d_editor typecheck:desktop 3 处 faijs 0.29.1→0.29.3 升级存量漂移（weapp/sketch-host），非 P1 引入，见 Agent Note 2026-10-05-pbr-appearance-shape-methods |
-| **P2 导入修复** | STEP/3MF 导入颜色 → `materialOriginals`（按 §5 规范映射）；STEP 丢色修复 | 导入即所见 |
-| **P3 导出** | STEP 颜色、3MF `basematerials`、glTF PBR 子集（§8 路径二选一） | 导出不丢颜色 |
+| **P2 导入修复** ✅ | STEP/3MF 导入颜色 → `materialOriginals`（按 §5 规范映射）；STEP 丢色修复（formatLoaders STEP 分支消费 `shape.appearance`，设 MeshStandardMaterial + 记录 faijsAppearance；3MF buildGroupFromArchive 记录 baseColor）；ModelGroup 导入循环写 originals | 导入即所见。**验证**：faijs `mesh/io.test.ts` +3、新 `brep/load-appearance.test.ts` 3（cq-assembly-two-parts→green）；3d_editor formatLoaders 10 + faijs-appearance 8 + 全量 2824 |
+| **P3 导出** ✅ | STEP 颜色（XCAF 写侧 `exportStepFromSolids` 已带 color，step-export.test 已有断言）；3MF `basematerials` 修复（**存量 bug**：① faijs `build3mfModelXml` 把 basematerials 内联在 `<object>` 内，parseThreemf 只读 `<resources>` → 改为 resources 内声明 + object `pid/pindex` 引用；② 3d_editor `meshToExportEntry` 用 `...(extractPartColor(mesh) ?? {})` spread 数组成数字键、`color` 字段从未进 entry → 改为显式 `color` 字段）；glTF 路径**定稿**：编辑器 `THREE.GLTFExporter`（§12 ⑥，从渲染 MeshPhysicalMaterial 导出，PBR 子集 baseColorFactor/metallicFactor/roughnessFactor/alphaMode 天然正确；坐标烘焙 mm→米 + Z-up→Y-up；`.glb` 二进制单文件；ExportDialog 加 .glb 项，单位固定米） | 导出不丢颜色。**验证**：faijs export-model.test +2（basematerials 规范位置/无颜色省略）；3d_editor index.test +4（GLB 单位+坐标轴、PBR 子集、alphaMode、3MF 红往返）；全量 2828 |
 | **P4 面级 + 顶点色** | `setFaceColor`/`setFaceMaterial` + mesh 面序分组（内核网格化配合）+ `vertexColors`/`materialGroups` + 3MF colorgroup/逐三角形读写 | 多材质/贴图 |
 
 依赖标注：P4 依赖内核网格化改动，独立评估；P1–P3 均为增量实现、可独立停。
@@ -285,11 +285,11 @@ export interface Shape {
 ## 12. 未决问题（实施阶段实测确认）
 
 1. ✅ 已解决：外观方法调用走 `classifyOpCall` receiver 分支，`set*` 为 `hasAssignment=false` 无输出语句，与 `solve` 一致（§3.3.1 + e2e A1 实测）。**额外发现**：脚本面链式 `a.setX(...).setY(...)` 不支持（解析器只认单层 receiver），已写入 §3.3.1 实施注记。
-2. `occt-wasm` XCAF **写侧** API 面（`setColor` 等）是否与读取侧对称暴露——决定 P3 STEP/glTF 写路径形态。
+2. ✅ 已解决（P3 实测）：`occt-wasm` XCAF **写侧**对称暴露——faijs `exportStepFromSolids` 带 `color` 写 XCAF 颜色，`step-export.test.ts`「color is preserved on the exported label」断言通过；3d_editor 经 `exportSolids`（worker 协议）把 `extractPartColor` 传入，STEP 导出颜色通。
 3. ✅ 已解决：`materialOriginals` 生产写入方缺失——P1 新增 `setMaterialOriginals`（单零件增量）并由 createPart 写脚本/导入原值；overrides 仅剩用户编辑（handle-material-api）与 fai_split 派生。
 4. 3MF Bambu 扩展（`parseBambu3mfFromEntries`）是否有自定义透明度通道——决定 P3 3MF 是否可带 alpha（默认按 Core 规范不带）。
 5. ✅ 已定案：return 未知 key **静默忽略**（宽容语义；return 对象非 op 参数不做校验）——写入 `metadata-extractor.ts` 解析注释；`ops-api-inventory.md` 无 return 语义章节，无需另写。
-6. glTF 导出路径二选一（编辑器 `GLTFExporter` vs 内核 `XAFDocument.exportGLTF()`）：按 P3 实测产物（顶点色保留度、材质参数、坐标轴）定稿。
+6. ✅ 已定稿（P3 实测）：glTF 导出路径 = **编辑器 `THREE.GLTFExporter`**——从渲染 `MeshPhysicalMaterial` 导出（与所见一致，PBR 子集天然符合）；产物验证：GLB JSON 的 `pbrMetallicRoughness.baseColorFactor/metallicFactor/roughnessFactor`、`alphaMode: BLEND`、坐标 mm→米 + Z-up→Y-up（BoxGeometry 50×30×20 → ±0.025/±0.01/±0.015）均正确。内核 `XAFDocument.exportGLTF()` 不采用（编辑器路径零内核依赖、材质参数全）。
 
 ## 13. 相关文档
 
