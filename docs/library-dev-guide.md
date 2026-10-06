@@ -162,6 +162,70 @@ The Host (a Node host or browser worker) assembles the engine and makes librarie
 2. Registers libraries with `runtime.registerLib(binding, ns, { autoLift: true })`.
 3. Provides the `cad` namespace (built-in ops) and hosts the value store.
 
+### 3.1.1 Assembling the engine — kernel, BREP engine, and backends
+
+`createRuntime(ports, mode)` creates a *runtime instance*; it does **not** by itself provide a geometry kernel. A usable Host must additionally initialize the OCCT wasm kernel, register the BREP engine, and push the backend configuration into the global runtime state. Without these, bare calls to the ① TS-compat face (`box`, `union`, …) and script-face booleans fail.
+
+A complete, copy-pasteable bootstrap:
+
+```ts
+import { createRuntime, createNodePorts, initOcctWasm } from '@faicad/faijs/node'
+import { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from '@faicad/faijs/brep/engine/adapters/occt'
+import { getBrepEngine, getActiveBrepEngineId } from '@faicad/faijs/brep/engine/registry'
+import { configureBackends, CONTRACT_VERSION } from '@faicad/faijs/runtime-state'
+
+// One-time Host bootstrap. Call once at startup, before any geometry op.
+// Order matters: kernel -> engine registration -> backend config.
+export async function assembleHost(): Promise<void> {
+  // 1. Boot the OCCT wasm kernel.
+  await initOcctWasm()
+
+  // 2. Register the OCCT BREP engine into the engine registry.
+  await registerOcctBrepEngine()
+
+  // 3. Read the registered engine back and push the full backend config.
+  const eng = await getBrepEngine(OCCT_BREP_ENGINE_ID)
+  configureBackends({
+    contractVersion: CONTRACT_VERSION,
+    config: {
+      mode: 'brep',
+      brepEngineId: getActiveBrepEngineId() ?? OCCT_BREP_ENGINE_ID,
+      // capabilities MUST travel with mode/brepEngineId (see pitfall 2 below).
+      brepCapabilities: eng.capabilities,
+    },
+    kernel: { brep: eng.primitives, csg: undefined, sdf: undefined },
+    fonts: undefined,
+    texture: undefined,
+    assets: undefined,
+    events: undefined,
+    cad: undefined,
+  })
+}
+```
+
+After `assembleHost()`, create a runtime for script execution (② script face) or call the ① TS-compat flat functions directly — the ① face needs no runtime once the kernel/engine/backends are configured:
+
+```ts
+import * as F from '@faicad/faijs'
+import { createRuntime, createNodePorts } from '@faicad/faijs/node'
+import * as gear from 'my-gear-lib'
+
+// ② script face: run .fai.js
+const runtime = createRuntime(createNodePorts(), 'auto')
+runtime.registerLib('gear', gear, { autoLift: true })
+await runtime.execute('let g = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })')
+
+// ① TS-compat face: bare function calls (no runtime needed after assembleHost())
+const a = await F.box(10, 10, 10)
+const b = await F.union(a, await F.translate(a, [5, 0, 0]))
+```
+
+#### Three pitfalls (observed empirically)
+
+1. **`createRuntime` without `registerOcctBrepEngine` → `[faijs/bridge] BREP engine API not available: BREP operations require an initialized engine`.** Script-face calls get a kernel via the brep chain automatically, but bare ①-face calls do not. Always run `assembleHost()` first.
+2. **`configureBackends` missing `config.brepCapabilities` → `E_BREP_UNSUPPORTED: current engine lacks capability 'fuseWithHistory' (brepEngineId=<none>)`.** The `config` field is a *getter* at `runtime.ts`; copying a snippet that only sets `config: { mode: 'brep' }` (e.g. from a test that only uses `directEdit`) leaves `brepCapabilities` `undefined`, and the first boolean op fails. Always pass `brepCapabilities` together with `mode` and `brepEngineId`.
+3. **`defineOp`-wrapped functions return `Promise<Shape>`, not `Result`.** The ①-face ops (`box`, `union`, `volume`, …) are `defineOp` wrappers; calling them yields a `Shape` (or a promise of one), **not** a `Result`. Testing such a value with `isErr(x)` gives a false positive — `isErr` checks `ok === false`, but a `Shape` has no `ok` field. Only values *you* return from your own library functions carry a `Result`.
+
 ### 3.2 Registering a library
 
 ```ts ignore-check

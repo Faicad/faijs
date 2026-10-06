@@ -162,6 +162,70 @@ Host（Node 宿主或浏览器 worker）装配引擎并让库可被调用：
 2. 用 `runtime.registerLib(binding, ns, { autoLift: true })` 注册库。
 3. 提供 `cad` 命名空间（内置 op）与值存储。
 
+### 3.1.1 装配引擎——内核、BREP 引擎与 backends
+
+`createRuntime(ports, mode)` 创建的是**运行时实例**，它**本身并不提供几何内核**。一个可用的 Host 还必须在之外：初始化 OCCT wasm 内核、注册 BREP 引擎、并把后端配置推入全局运行时状态。缺了这些，裸调 ① TS 兼容面（`box`、`union` …）与脚本面的布尔运算都会失败。
+
+一个完整、可复制的引导函数：
+
+```ts
+import { createRuntime, createNodePorts, initOcctWasm } from '@faicad/faijs/node'
+import { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from '@faicad/faijs/brep/engine/adapters/occt'
+import { getBrepEngine, getActiveBrepEngineId } from '@faicad/faijs/brep/engine/registry'
+import { configureBackends, CONTRACT_VERSION } from '@faicad/faijs/runtime-state'
+
+// One-time Host bootstrap. Call once at startup, before any geometry op.
+// Order matters: kernel -> engine registration -> backend config.
+export async function assembleHost(): Promise<void> {
+  // 1. Boot the OCCT wasm kernel.
+  await initOcctWasm()
+
+  // 2. Register the OCCT BREP engine into the engine registry.
+  await registerOcctBrepEngine()
+
+  // 3. Read the registered engine back and push the full backend config.
+  const eng = await getBrepEngine(OCCT_BREP_ENGINE_ID)
+  configureBackends({
+    contractVersion: CONTRACT_VERSION,
+    config: {
+      mode: 'brep',
+      brepEngineId: getActiveBrepEngineId() ?? OCCT_BREP_ENGINE_ID,
+      // capabilities MUST travel with mode/brepEngineId (see pitfall 2 below).
+      brepCapabilities: eng.capabilities,
+    },
+    kernel: { brep: eng.primitives, csg: undefined, sdf: undefined },
+    fonts: undefined,
+    texture: undefined,
+    assets: undefined,
+    events: undefined,
+    cad: undefined,
+  })
+}
+```
+
+`assembleHost()` 之后，要么为脚本执行创建运行时（② 脚本面），要么直接裸调 ① TS 兼容面的扁平函数——① 面一旦内核/引擎/后端配好就不需要运行时：
+
+```ts
+import * as F from '@faicad/faijs'
+import { createRuntime, createNodePorts } from '@faicad/faijs/node'
+import * as gear from 'my-gear-lib'
+
+// ② script face: run .fai.js
+const runtime = createRuntime(createNodePorts(), 'auto')
+runtime.registerLib('gear', gear, { autoLift: true })
+await runtime.execute('let g = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })')
+
+// ① TS-compat face: bare function calls (no runtime needed after assembleHost())
+const a = await F.box(10, 10, 10)
+const b = await F.union(a, await F.translate(a, [5, 0, 0]))
+```
+
+#### 三个必踩的坑（均为实测）
+
+1. **只 `createRuntime` 不 `registerOcctBrepEngine` → `[faijs/bridge] BREP engine API not available: BREP operations require an initialized engine`**。——脚本面走 `runtime.execute` 时 brepChain 会自带内核，但裸调 ① 面不会。务必先跑 `assembleHost()`。
+2. **`configureBackends` 漏 `config.brepCapabilities` → `E_BREP_UNSUPPORTED: current engine lacks capability 'fuseWithHistory' (brepEngineId=<none>)`**。——`runtime.ts` 里 `config` 是个 **getter**；照抄只设 `config: { mode: 'brep' }` 的片段（比如某个只用 `directEdit` 的测试）会漏掉它，第一个布尔 op 就报错。务必把 `brepCapabilities` 与 `mode`、`brepEngineId` 一并传入。
+3. **`defineOp` 包装的函数返回 `Promise<Shape>`，不是 `Result`。**——① 面的 op（`box`、`union`、`volume` …）都是 `defineOp` 包装；调用它们得到的是 `Shape`（或它的 Promise），**不是** `Result`。用 `isErr(x)` 判定这种值会得到假阳性——`isErr` 的判据是 `ok === false`，而 `Shape` 上没有 `ok` 字段。只有**你自己**从库函数返回的值才带 `Result`。
+
 ### 3.2 注册库
 
 ```ts ignore-check
