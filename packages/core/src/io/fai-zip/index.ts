@@ -18,6 +18,7 @@ export {
   listModules,
   openContainer,
   readAssetEntries,
+  readContainerMember,
   readDataMember,
   readManifest,
   readModule,

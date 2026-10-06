@@ -290,6 +290,29 @@ export function readDataMember(bytes: Uint8Array, memberPath: string): string {
 }
 
 /**
+ * Read one producer-defined member (spec §3) by its container path.
+ *
+ * Members outside the table — `mapping.json`, `freecad/**`, `ui/**`, or any
+ * other producer-defined path — are optional and opaque to the reader. Unlike
+ * `readDataMember` (which is constrained to `data/` and is JSON by contract),
+ * this function returns the raw bytes of any safe relative member path and
+ * reports absence with `undefined` rather than an error: a missing optional
+ * member is the normal shape of a conforming container (§8), never a defect.
+ *
+ * @param bytes the .fai.zip archive bytes
+ * @param memberPath the safe relative member path to read (e.g. `ui/state.json`)
+ * @returns the member bytes, or `undefined` when the member does not exist
+ * @throws for an empty/unsafe path (assertSafeMemberPath)
+ */
+export function readContainerMember(bytes: Uint8Array, memberPath: string): Uint8Array | undefined {
+  if (typeof memberPath !== 'string' || memberPath === '') {
+    throw new Error('[fai-zip] readContainerMember: memberPath must be a non-empty string')
+  }
+  assertSafeMemberPath(memberPath, 'readContainerMember path')
+  return unzipMembers(bytes).get(memberPath)
+}
+
+/**
  * Collect the payload bytes of a container.
  * Keys are unique across `files/**` and `assets/**` together (spec §7.1);
  * a duplicate key is an error rather than a pick.

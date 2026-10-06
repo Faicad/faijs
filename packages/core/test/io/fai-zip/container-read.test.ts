@@ -24,6 +24,7 @@ import {
   listModules,
   readModule,
   readDataMember,
+  readContainerMember,
   readAssetEntries,
   openContainer,
 } from '../../../src/io/fai-zip/container-read.js'
@@ -218,6 +219,61 @@ describe('readDataMember — model data JSON', () => {
       extraMembers: { 'data/plate.json': 'not json {' },
     })
     expect(() => readDataMember(bad, 'data/plate.json')).toThrow(/not valid JSON/)
+  })
+})
+
+describe('readContainerMember — producer-defined optional members (§3)', () => {
+  const WITH_UI = buildContainer({
+    extraMembers: {
+      'ui/state.json': '{"version":1,"sceneTree":{"box.step:o1":{"expanded":false}}}',
+      'mapping.json': '{"objects":[]}',
+    },
+  })
+
+  it('returns the raw bytes of an existing member path', () => {
+    const body = readContainerMember(WITH_UI, 'ui/state.json')
+    expect(body).toBeDefined()
+    expect(new TextDecoder().decode(body)).toBe('{"version":1,"sceneTree":{"box.step:o1":{"expanded":false}}}')
+  })
+
+  it('returns undefined for a missing member — absence is normal, not an error', () => {
+    expect(readContainerMember(WITH_UI, 'ui/nope.json')).toBeUndefined()
+    expect(readContainerMember(WITH_UI, 'custom-stuff/whatever.txt')).toBeUndefined()
+  })
+
+  it('reads non-JSON producer members as-is (opaque bytes)', () => {
+    const zip = buildContainer({ extraMembers: { 'freecad/Document.xml': '<Document/>' } })
+    const body = readContainerMember(zip, 'freecad/Document.xml')
+    expect(new TextDecoder().decode(body)).toBe('<Document/>')
+  })
+
+  it('throws for an empty or unsafe member path', () => {
+    expect(() => readContainerMember(WITH_UI, '')).toThrow(/memberPath must be a non-empty string/)
+    expect(() => readContainerMember(WITH_UI, '../ui/state.json')).toThrow(/unsafe member path/)
+    expect(() => readContainerMember(WITH_UI, '/ui/state.json')).toThrow(/unsafe member path/)
+    expect(() => readContainerMember(WITH_UI, 'a\\b')).toThrow(/unsafe member path/)
+  })
+
+  it('does not disturb data/ members or asset keys', () => {
+    const zip = buildContainer({
+      models: [{ id: 'plate', entry: 'model/plate.fai.js', data: 'data/plate.json' }],
+      extraMembers: {
+        'data/plate.json': '{"loadedFiles":[]}',
+        'ui/state.json': '{"version":1}',
+        'files/plate.step': 'stl-bytes',
+      },
+    })
+    expect(readDataMember(zip, 'data/plate.json')).toBe('{"loadedFiles":[]}')
+    const { files } = readAssetEntries(zip)
+    expect(files).toEqual({ plate: strToU8('stl-bytes') })
+    expect(readContainerMember(zip, 'ui/state.json')).toBeDefined()
+  })
+
+  it('openContainer ignores ui/ members — they are not decision inputs', () => {
+    const { loader, files, assets } = openContainer(WITH_UI)
+    expect(loader.listModules()).toEqual(['plate.fai.js'])
+    expect(files).toEqual({})
+    expect(assets).toEqual({})
   })
 })
 
