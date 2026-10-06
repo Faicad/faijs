@@ -104,6 +104,41 @@ describe('P0-1: unitRanges + endLine', () => {
   })
 })
 
+// ── M6: 语句分隔契约（钉住「; 与换行等价」的实测结论） ──
+//
+// GOTCHA: 曾有下游把「一行里用 `;` 分隔多条语句」误判成「首条之后被静默截断」，
+// 进而推断 `.fai.js` 是「换行分隔」语言。实测（0.29.5 / 0.29.6 一致）不成立：
+// 语句切分由 acorn 完成，`;` 与换行在语法层等价。真正会抛错的是「单行无分隔符」，
+// 那是正确的 JS 行为，不是静默截断。本组钉住该契约，防止误判卷土重来。
+
+describe('M6: 语句分隔契约（; ≡ 换行）', () => {
+  const ex = new DirectExecutor({ namespaces: { cad: createApiNamespaceWithEditorOps() } })
+
+  it('单行分号分隔 → 三条 unit，与换行版条数一致', () => {
+    const oneLine = 'let a = cad.box(1,1,1); let b = cad.box(2,2,2); let c = cad.box(3,3,3)'
+    const multiLine = 'let a = cad.box(1,1,1)\nlet b = cad.box(2,2,2)\nlet c = cad.box(3,3,3)'
+    const a = ex.unitRanges(oneLine)
+    const b = ex.unitRanges(multiLine)
+    expect(a.ranges).toHaveLength(3)
+    expect(b.ranges).toHaveLength(3)
+    // 分号版三条同处第 1 行；换行版逐行递进——单位数不受分隔符种类影响。
+    expect(a.ranges).toEqual([
+      { lineNo: 1, endLine: 1 },
+      { lineNo: 1, endLine: 1 },
+      { lineNo: 1, endLine: 1 },
+    ])
+    expect(b.ranges).toEqual([
+      { lineNo: 1, endLine: 1 },
+      { lineNo: 2, endLine: 2 },
+      { lineNo: 3, endLine: 3 },
+    ])
+  })
+
+  it('单行无分隔符 → SyntaxError（正确 JS 行为，非静默截断）', () => {
+    expect(() => ex.unitRanges('let a = cad.box(1,1,1) let b = cad.box(2,2,2)')).toThrow(/Unexpected token/)
+  })
+})
+
 // ── P0-2: replayFrom ──
 
 describe('P0-2: replayFrom', () => {
