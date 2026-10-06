@@ -38,7 +38,7 @@
 | C0/C1 | **R1** | keep 声明胜出（行内 keep 表 + 函数体 KeepRegistry）→ 不消费 |
 | C4 | **R2** | 无赋值裸调用不消费（修改类经 inplaceWrites 走 producer 精确化） |
 | C3 | **R3** | 有赋值但输出全非几何（纯数据/测量语句）→ 不消费输入 |
-| — | **R4** | 嵌套 call-ref 内引用 = 只读查询，不消费（原 C5 内的 inCallRef 分支，升为显式规则） |
+| — | **R4** | 嵌套 call-ref 内引用 = 只读查询，不消费（原 C5 内的 inCallRef 分支，升为显式规则）。**2026-10-06 复核后保留**：① 出处为本就是「选择器查询」语义（`2026-08-27-faijs-language-normalization-design.md:295`——`faceCenter(part2)` 不吃掉 part2）；② 语料实测（3,136 产品）：嵌套引用 1,684 处全部为同变量选择器（edgeRef/faceRef/vertexRef 挑选被加工对象自身的子元素），跨变量仅 2 处（`cad.extrude` + 跨变量 `faceRef`，删 inCallRef 会误杀）；③ **嵌套位置产生新 shape 的调用（`cad.drill(cad.box())` 形态）在语料中出现 0 次**——用户提议的删除场景当前不存在。结论：保留 R4；若未来语法放开嵌套 shape 生产调用，须同步把「嵌套位置产生几何 = 消费」补为 R4 的例外分支（届时以最小单测落判据） |
 | C5 | **R5** | 默认消费：positional/args 顶层 VarRef/ExprRef 引用 → 消费 |
 | — | **R6**（块单元） | 自由 JS 块词法级外部 shape 名引用 → 保守判消费 |
 
