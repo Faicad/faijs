@@ -676,7 +676,14 @@ export class PlanegcsSolver implements SketchSolver {
         const p = pt(r[0]!);
         if (p && r[1]!.pos === PointPos.none) {
           const onGeoId = r[1]!.geoId;
-          if (ctx.lines.has(onGeoId)) {
+          if (onGeoId === -1 || onGeoId === -2) {
+            // AXIS ref (IRON RULE patch, 2026-10-04): the wrapper already
+            // registers the H/V axis lines as L-1/L-2 (fixed primitives), so
+            // point-on-axis resolves statically — silently dropping it here
+            // (the old behavior, ctx.lines has no negative keys) would
+            // release the constraint's DoF with no failure record.
+            out.push({ type: 'point_on_line_pl', id, p_id: p, l_id: `L${onGeoId}` });
+          } else if (ctx.lines.has(onGeoId)) {
             out.push({ type: 'point_on_line_pl', id, p_id: p, l_id: `L${onGeoId}` });
           } else if (ctx.externalLines.has(onGeoId)) {
             // M6.3: point-on-external-edge → point_on_line against the fixed line
@@ -694,7 +701,15 @@ export class PlanegcsSolver implements SketchSolver {
         const p1 = pt(r[0]!);
         const p2 = pt(r[1]!);
         if (p1 && p2) {
-          if (r.length >= 3 && r[2]!.pos === PointPos.none && ctx.lines.has(r[2]!.geoId)) {
+          if (r.length >= 3 && r[2]!.pos === PointPos.none &&
+              (ctx.lines.has(r[2]!.geoId) || r[2]!.geoId === -1 || r[2]!.geoId === -2)) {
+            // GOTCHA (IRON RULE patch, 2026-10-04, Chair Sketch022): a
+            // symmetric-ABOUT-AXIS ref (geoId -1/-2) must resolve to the
+            // mirror LINE L-1/L-2. ctx.lines has no negative keys, so the old
+            // code fell through to p3 = pt(axis point) — compiling
+            // "symmetric about the axis LINE" into "symmetric about the
+            // origin POINT", a different constraint that conflicts with the
+            // rest of the set (E_SKETCHC_CONFLICTING).
             out.push({ type: 'p2p_symmetric_ppl', id, p1_id: p1, p2_id: p2, l_id: `L${r[2]!.geoId}` });
           } else {
             const p3 = pt(r[2]!);

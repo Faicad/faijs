@@ -35,7 +35,7 @@ import type { Shape } from '../mesh/types'
 import type { CompoundShape } from '../shape'
 import { ensureSlot } from '../shape'
 import { brepOf } from '../shape'
-import type { BrepHandle } from '../brep/engine/types'
+import type { BrepHandle, BrepSubShapeType } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asPartName } from '../identity'
 import { symbolTableNames } from '../lang/symbol-table'
@@ -384,6 +384,80 @@ export function selectExportableTerminals<T extends { hidden?: boolean }>(
   return { exportable, hiddenCount }
 }
 
+/** 判据取 shapeType/getSubShapes 的最小接口面（用真 kernel 时即 BrepEngineApi 的这两个方法）。 */
+export interface ShapeTypeProbe {
+  shapeType(shape: BrepHandle): string
+  getSubShapes(shape: BrepHandle, type: BrepSubShapeType): BrepHandle[]
+}
+
+/**
+ * 终端 BREP 句柄是否「可落成零件」——即含至少一个三维实体。
+ *
+ * **为什么需要它**：终端集合（`live-shapes.ts`）只回答「谁该被看见」，未消费的 2D 草图
+ * 同样是顶层未消费变量 ⇒ 也是终端 ⇒ 会走到导出层落一个 `.step`。而 2D 面片（实测厚度
+ * 2e-07、solids=0）一旦落盘，`fcstd-port` 的 `parity-judge.py merge_parts` 会把它的 area
+ * 加进真实件（5.04e+06 vs 5.50e+06 ⇒ ~91% 误差），parity 必 FAIL。所以「谁该被看见」与
+ * 「什么能落成零件」是两件事：本判据只管后者，不去动终端集合。
+ *
+ * **判决表**（实测标定，2026-10-06，见 `docs/plans/2026-10-06-step-export-excludes-2d-terminals-plan.md`）：
+ * | shapeType | 判决 | 依据 |
+ * |---|---|---|
+ * | `SOLID` / `COMPSOLID` | 导出 | 真零件 |
+ * | `COMPOUND` | 含 ≥1 solid → 导出；否则跳过 | 装配体是 compound；`getSubShapes` 递归取子实体 |
+ * | `SHELL` | 含 ≥1 solid → 导出；否则跳过 | 旧栈基线 9/9 真实件皆 solid/compound；实测 8 个游离草图中 5 个顶层恰是 SHELL |
+ * | `FACE`/`WIRE`/`EDGE`/`VERTEX` | 跳过 | 无实体的 2D 片面 / 1D 线框 |
+ * | 其它（`SHAPE` 枚举兜底、空串） | 导出 | 保守，零回归 |
+ * | 无句柄（纯 mesh 终端） | 导出 | mesh 零件导出 STEP 是既有能力，不借本批收紧 |
+ *
+ * **`SHELL` 的裁决**：方案 §3 初稿把 shell 判为「导出（保留现状）」，理由是"面模型是合法
+ * 产物的先例存在"。但 2026-10-06 的 E-1 探针推翻了该前提：
+ * ① 旧栈 parity 基线（A 组 9 个真实件）顶层全为 `SOLID`/`COMPOUND`、`solids ≥ 1`，无一面模型；
+ * ② 新栈多出的 8 个游离草图中 **5 个顶层就是 `SHELL`** ⇒ 按初稿判决**根本拦不住**，方案失效；
+ * ③ `cli.ts` 改动前 0 处 shell 逻辑，不存在需要兼容的既有行为。
+ * ⇒ 改判为 **`SHELL` 且无子实体 → 跳过**。若日后语料真出现「合法的 2D 面模型产物」需求，
+ * 应由脚本侧或显式开关承接，而不是让导出层无法区分草图与零件（登记于相邻缺陷 D-2）。
+ *
+ * 实现上不分层递归：内核 `getSubShapes`（OCCT `TopExp_Explorer` 语义）对任意嵌套深度的
+ * compound **一次即可取到全部子实体**（E-1 探针：顶层 COMPOUND 的草图也能数出 solids=0）。
+ * 探针抛错 → **保守放行**（宁可多导一个，不可误删真零件）。
+ *
+ * @param shape - 终端 BREP 句柄（无句柄传 undefined）
+ * @param probe - shapeType/getSubShapes 提供者（生产用 `brepSolids` 条目的 kernel；测试可注入假 kernel）
+ * @returns 该句柄是否含至少一个实体（可落成零件）
+ */
+export function isExportableSolid(shape: BrepHandle | undefined, probe: ShapeTypeProbe | undefined): boolean {
+  // 无 BREP 句柄（纯 mesh 终端）→ 导出（既有能力，零回归）。
+  if (!shape || !probe) return true
+  let type: string
+  try {
+    type = probe.shapeType(shape).toUpperCase()
+  } catch {
+    // 探针抛错（异常句柄）→ 保守放行。
+    return true
+  }
+  switch (type) {
+    case 'SOLID':
+    case 'COMPSOLID':
+      return true
+    case 'COMPOUND':
+    case 'SHELL':
+      // 无实体的 compound / shell = 2D 面片（游离草图）。`getSubShapes('solid')` 递归取子实体。
+      try {
+        return probe.getSubShapes(shape, 'solid').length > 0
+      } catch {
+        return true
+      }
+    case 'FACE':
+    case 'WIRE':
+    case 'EDGE':
+    case 'VERTEX':
+      return false
+    default:
+      // 枚举兜底（'SHAPE' / 空串 / 未知方言）→ 保守导出。
+      return true
+  }
+}
+
 /** Export an executed result to `outPath` (shared body of cliRun's export path). */
 async function exportExecutionResult(
   outPath: string,
@@ -405,7 +479,33 @@ async function exportExecutionResult(
     }
   }
 
-  if (exportable.length === 0) {
+  // ── 二维终端过滤（G0-D）──：终端集合回答「谁该被看见」，导出层回答「什么能落成零件」。
+  // 未消费的 2D 草图同样是顶层未消费变量 ⇒ 也是终端，但落成 `.step` 会污染 parity 的 area。
+  // 过滤后**不得**回退到「最后一个 output」，否则等于把刚剔除的草图从后门写回去。
+  const skipped2d: string[] = []
+  let solidExportable = exportable
+  if (!includeHidden) {
+    solidExportable = []
+    for (const t of exportable) {
+      const entry = execResult.brepSolids?.get(t.id)
+      if (isExportableSolid(entry?.solid, entry?.kernel)) {
+        solidExportable.push(t)
+      } else {
+        skipped2d.push(String(t.meta?.name ?? t.id))
+      }
+    }
+    if (solidExportable.length === 0 && exportable.length > 0) {
+      return {
+        ok: false,
+        error:
+          `All ${exportable.length} live terminal(s) are 2D (no solid) — nothing to export as a 3D part` +
+          (skipped2d.length > 0 ? ` (skipped: ${skipped2d.join(', ')})` : ''),
+      }
+    }
+  }
+  const solidInfos = skipped2d.length > 0 ? [`Skipped ${skipped2d.length} 2D terminal(s): ${skipped2d.join(', ')}`] : []
+
+  if (solidExportable.length === 0) {
     // No terminals — use last output
     const outputNames = [...execResult.outputs.keys()]
     if (outputNames.length === 0) {
@@ -417,12 +517,13 @@ async function exportExecutionResult(
       return { ok: false, error: `No output for part "${lastPartName}"` }
     }
     const solidEntry = execResult.brepSolids?.get(asPartName(lastPartName))
-    return writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
+    const r = writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
+    return solidInfos.length > 0 ? { ...r, infos: [...(r.infos ?? []), ...solidInfos] } : r
   }
 
   // Single terminal
-  if (exportable.length === 1) {
-    const terminal = exportable[0]
+  if (solidExportable.length === 1) {
+    const terminal = solidExportable[0]
     const shape = execResult.outputs.get(terminal.id)
     if (!shape) {
       return { ok: false, error: `No output for terminal "${terminal.id}"` }
@@ -430,27 +531,32 @@ async function exportExecutionResult(
     // Assembly (compound with behavior) → expand members with colors
     if (!('positions' in shape) || !('indices' in shape)) {
       const asmResult = writeAssemblyStep(outPath, ext, shape as CompoundShape, execResult, hiddenTerminals)
-      if (asmResult) return asmResult
+      if (asmResult) {
+        return solidInfos.length > 0 ? { ...asmResult, infos: [...(asmResult.infos ?? []), ...solidInfos] } : asmResult
+      }
     }
     const solidEntry = execResult.brepSolids?.get(terminal.id)
-    return writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
+    const r = writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
+    return solidInfos.length > 0 ? { ...r, infos: [...(r.infos ?? []), ...solidInfos] } : r
   }
 
   // Multiple terminals — write each to a separate file
   // First, check if any terminal is a compound (assembly) — export it as a single STEP
-  for (let i = 0; i < exportable.length; i++) {
-    const terminal = exportable[i]
+  for (let i = 0; i < solidExportable.length; i++) {
+    const terminal = solidExportable[i]
     const shape = execResult.outputs.get(terminal.id)
     if (!shape) continue
     if (!('positions' in shape) || !('indices' in shape)) {
       // Compound terminal — try assembly STEP export
       const asmResult = writeAssemblyStep(outPath, ext, shape as CompoundShape, execResult, hiddenTerminals)
-      if (asmResult) return asmResult
+      if (asmResult) {
+        return solidInfos.length > 0 ? { ...asmResult, infos: [...(asmResult.infos ?? []), ...solidInfos] } : asmResult
+      }
     }
   }
   // Then export non-compound terminals
-  for (let i = 0; i < exportable.length; i++) {
-    const terminal = exportable[i]
+  for (let i = 0; i < solidExportable.length; i++) {
+    const terminal = solidExportable[i]
     const shape = execResult.outputs.get(terminal.id)
     if (!shape) continue
     if (!('positions' in shape) || !('indices' in shape)) continue // skip compounds
@@ -463,7 +569,7 @@ async function exportExecutionResult(
     if (!result.ok) return result
   }
 
-  return { ok: true, outputFormat: ext }
+  return { ok: true, outputFormat: ext, ...(solidInfos.length > 0 ? { infos: solidInfos } : {}) }
 }
 
 /**
@@ -730,6 +836,8 @@ function writeAssemblyStep(
       // 隐藏终端（keep/keepHidden 保留的源几何）不得借这条兜底路径落盘——
       // 与主导出路径同一判据（includeHidden 时 hiddenTerminals 传 undefined，不过滤）。
       if (hiddenTerminals?.has(String(key))) continue
+      // 同一 3D 判据：兜底路径直接遍历全体 brepSolids，2D 草图句柄同样会进这里（G0-D I-4）。
+      if (!isExportableSolid(solidEntry.solid, solidEntry.kernel)) continue
       if (!kernel) kernel = solidEntry.kernel
       entries.push({
         solid: solidEntry.solid,

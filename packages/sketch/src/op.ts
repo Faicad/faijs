@@ -13,7 +13,7 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 import type { SketchConstraint, SketchGeom, SolveOutcome } from './canonical.js'
 import { sketchFaces } from './faces.js'
 import { expandShapes, type SketchShape } from './shapes.js'
-import type { SketchSolver } from './solver.js'
+import type { SketchSolver, ExternalFixedSeg } from './solver.js'
 
 /** The op name `cad.sketch`. */
 export const SKETCH_OP_NAME = 'sketch' as const
@@ -73,6 +73,14 @@ export interface SketchParams {
    * no post-hoc `cad.place` needed).
    */
   plane?: string | { origin: [number, number, number]; normal: [number, number, number]; xAxis?: [number, number, number] }
+  /**
+   * Fixed external geometry the constraints may reference (IRON RULE patch,
+   * 2026-10-04): each entry is the converter-resolved polyline of one external
+   * geoId (geoId <= -3), pinned as fixed solver points so external refs
+   * resolve STATICALLY — a ref with no matching entry here is an unresolvable
+   * constraint, not a run-time guess.
+   */
+  external?: ExternalFixedSeg[]
 }
 
 /**
@@ -164,6 +172,7 @@ export const sketch = defineOp({
       solver,
       as: p.as,
       plane: p.plane,
+      external: p.external,
       expectHoles: (expansion?.subtractRanges.length ?? 0) > 0,
       onDiagnostic: (outcome) => {
         if (outcome.status !== 'solved') diagnosticSink?.(outcome)

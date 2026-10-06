@@ -18,7 +18,7 @@ import { readFileSync, existsSync, rmSync, mkdirSync, writeFileSync } from 'node
 import { resolve, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { cliCheck, cliRun, cliView, parseArgs, selectExportableTerminals } from '../../src/node-host/cli'
+import { cliCheck, cliRun, cliView, parseArgs, selectExportableTerminals, isExportableSolid } from '../../src/node-host/cli'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '@faicad/faijs/brep/text/fontTestHelper'
 
@@ -379,6 +379,174 @@ describe('selectExportableTerminals: 导出层隐藏终端判据（单一事实�
     expect(exportable).toEqual([])
     expect(hiddenCount).toBe(0)
   })
+})
+
+describe('isExportableSolid: 导出层三维实体判据（G0-D，2026-10-06）', () => {
+  // 假 kernel：用 shapeType stub 注入，不需要起真实 OCCT（方案 §5-1）。
+  // `solids` 决定 getSubShapes(h,'solid') 的返回长度，支持 compound 递归用例。
+  type Fake = { type: string; solids?: number; children?: Fake[] }
+  const fakeKernel = (graph: Map<object, Fake>) => ({
+    shapeType: (h: unknown) => {
+      const n = graph.get(h as object)
+      if (!n) throw new Error('unknown handle')
+      return n.type
+    },
+    getSubShapes: (h: unknown) => {
+      const n = graph.get(h as object)!
+      if (n.children) return n.children.map((c) => c as unknown)
+      return Array.from({ length: n.solids ?? 0 }, (_, i) => ({ child: `${n.type}#${i}` }))
+    },
+  })
+  const probe = (spec: Fake) => {
+    const graph = new Map<object, Fake>()
+    const root = {}
+    graph.set(root, spec)
+    return { handle: root as never, kernel: fakeKernel(graph) as never }
+  }
+
+  // ── §5-1 判决矩阵表驱动 ──
+  const matrix: Array<[string, boolean]> = [
+    ['SOLID', true],
+    ['COMPSOLID', true],
+    ['FACE', false],
+    ['WIRE', false],
+    ['EDGE', false],
+    ['VERTEX', false],
+    ['SHAPE', true], // 枚举兜底 → 保守导出
+  ]
+  it.each(matrix)('shapeType=%s → 导出=%s', (type, expected) => {
+    const { handle, kernel } = probe({ type })
+    expect(isExportableSolid(handle, kernel)).toBe(expected)
+  })
+
+  // ── §5-2 compound：含 solid → 导出；仅 faces → 跳过；嵌套含 solid → 导出 ──
+  it('COMPOUND 含 solid → 导出', () => {
+    const { handle, kernel } = probe({ type: 'COMPOUND', solids: 2 })
+    expect(isExportableSolid(handle, kernel)).toBe(true)
+  })
+
+  it('COMPOUND 仅含 faces（solids=0）→ 跳过', () => {
+    const { handle, kernel } = probe({ type: 'COMPOUND', solids: 0 })
+    expect(isExportableSolid(handle, kernel)).toBe(false)
+  })
+
+  it('嵌套 compound 含 solid → 导出（内核 getSubShapes 递归语义）', () => {
+    // 顶层 COMPOUND 自身无直接 solid 子节点，但其 children 是含 solid 的 compound。
+    // 内核 `TopExp_Explorer` 语义下 getSubShapes(h,'solid') 一次即可取到全部孙代实体。
+    const leaf = { type: 'COMPOUND', solids: 3 }
+    const mid = { type: 'COMPOUND', children: [leaf] }
+    const graph = new Map<object, Fake>()
+    const root = {}
+    graph.set(root, { type: 'COMPOUND', children: [mid] })
+    graph.set(mid, mid)
+    graph.set(leaf, leaf)
+    // 真内核递归：根 getSubShapes('solid') 直接返回孙代实体 → 用 leaf.solids 模拟。
+    const kernel = {
+      shapeType: (h: unknown) => graph.get(h as object)!.type,
+      getSubShapes: (h: unknown) => {
+        const n = graph.get(h as object)!
+        if (n.children) {
+          // 递归展开到叶子：模拟 TopExp_Explorer 的一步到位。
+          const out: unknown[] = []
+          const walk = (x: Fake) => {
+            if (x.children) x.children.forEach(walk)
+            else for (let i = 0; i < (x.solids ?? 0); i++) out.push({})
+          }
+          walk(n)
+          return out
+        }
+        return Array.from({ length: n.solids ?? 0 }, (_, i) => ({ child: i }))
+      },
+    }
+    expect(isExportableSolid(root as never, kernel as never)).toBe(true)
+  })
+
+  it('SHELL 无子实体 → 跳过（实测游离草图形态，E-1 探针 5/8 命中）', () => {
+    const { handle, kernel } = probe({ type: 'SHELL', solids: 0 })
+    expect(isExportableSolid(handle, kernel)).toBe(false)
+  })
+
+  it('SHELL 含子实体 → 导出（保守，防内核方言差异）', () => {
+    const { handle, kernel } = probe({ type: 'SHELL', solids: 1 })
+    expect(isExportableSolid(handle, kernel)).toBe(true)
+  })
+
+  // ── §5-3 无 BREP 句柄的 mesh 终端 → 导出（零回归钉子） ──
+  it('无句柄（纯 mesh 终端）→ 导出', () => {
+    expect(isExportableSolid(undefined, undefined)).toBe(true)
+    expect(isExportableSolid(undefined, fakeKernel(new Map()) as never)).toBe(true)
+  })
+
+  it('探针抛错（异常句柄）→ 保守导出', () => {
+    const kernel = {
+      shapeType: () => {
+        throw new Error('boom')
+      },
+      getSubShapes: () => [],
+    }
+    expect(isExportableSolid({} as never, kernel as never)).toBe(true)
+  })
+})
+
+describe('cliRun: 2D 终端（游离草图）不落盘 —— G0-D', () => {
+  // `cad.profile` 只声明 brep 实现、产出面/壳句柄（无 solid），是 core 侧现成的 2D 产物。
+  // 与 FCStd 转换器产出的 `cad.sketch` 游离草图同族：都是「顶层未消费变量 ⇒ 终端，但不含实体」。
+  const TRI = `{ contours: [{ segments: [
+    { kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
+    { kind: 'line', x1: 10, y1: 0, x2: 10, y2: 10 },
+    { kind: 'line', x1: 10, y1: 10, x2: 0, y2: 0 },
+  ] }] }`
+
+  it('§5-4 混合脚本（1 个 2D + 1 个实体）→ 只落实体那份，文件名不含 2D 名', async () => {
+    const tmpFile = resolve(TMP_DIR, 'g0d-mixed.fai.js')
+    writeFileSync(
+      tmpFile,
+      `let Section = cad.profile(${TRI})\nlet Body = cad.box(20, 20, 20, { centered: true })`,
+    )
+    const outPath = resolve(TMP_DIR, 'g0d-mixed.step')
+
+    const result = await cliRun(tmpFile, outPath, { mode: 'brep', libs: CAD_LIBS })
+
+    expect(result.ok, result.error ?? '').toBe(true)
+    // 过滤后只剩 1 个可导出终端（Body）→ 走单终端分支，直接写 outPath（无索引后缀）。
+    expect(existsSync(outPath)).toBe(true)
+    // 2D 的 Section 不得落盘（无论原名还是任一索引位）。
+    for (const suffix of ['Section', '0_Section', '1_Section']) {
+      expect(existsSync(`${outPath}_${suffix}.step`)).toBe(false)
+    }
+    // 报告里明确列出被跳过的 2D 终端（I-5）。
+    expect(result.infos?.join(' ')).toMatch(/Skipped 1 2D terminal.*Section/)
+  }, 60000)
+
+  it('§5-5 全 2D 脚本 → 明确报错，且不回退到 last output', async () => {
+    const tmpFile = resolve(TMP_DIR, 'g0d-all2d.fai.js')
+    // 两个游离 2D —— 顶层未消费变量都是终端，但都不含实体。
+    writeFileSync(
+      tmpFile,
+      `let SecA = cad.profile(${TRI})\nlet SecB = cad.profile(${TRI})`,
+    )
+    const outPath = resolve(TMP_DIR, 'g0d-all2d.step')
+
+    const result = await cliRun(tmpFile, outPath, { mode: 'brep', libs: CAD_LIBS })
+
+    // 关键回归守卫：修复前这里会从后门用「最后一个 output」（= SecB）写出 STEP，污染 parity。
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/2D/)
+    expect(existsSync(outPath)).toBe(false)
+    expect(existsSync(`${outPath}_0_SecA.step`)).toBe(false)
+    expect(existsSync(`${outPath}_1_SecB.step`)).toBe(false)
+  }, 60000)
+
+  it('§5-6 hidden 语义不受干扰（2D 过滤不改变 hidden 行为）', async () => {
+    // box-boolean 的 hidden 源（part0/part1）在 2D 过滤前后都应被同一套 hidden 判据剔除。
+    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.fai.js')
+    const outPath = resolve(TMP_DIR, 'g0d-hidden.step')
+    const result = await cliRun(filePath, outPath, { mode: 'brep', libs: CAD_LIBS })
+    expect(result.ok).toBe(true)
+    expect(existsSync(outPath)).toBe(true)
+    expect(existsSync(`${outPath}_0_part0.step`)).toBe(false)
+    expect(existsSync(`${outPath}_1_part1.step`)).toBe(false)
+  }, 60000)
 })
 
 describe('cliView: execute and project view SVG', () => {
