@@ -25,6 +25,8 @@ export interface ImportPart {
   color?: [number, number, number]
   /** 3MF `<object id>`（Bambu 视图变换查表键）。 */
   objectId?: string
+  /** Bambu part id（`objectId:partId` 查 importTransforms 键；经父 object components 关联）。 */
+  partId?: string
   /** Bambu 盘号（多盘分组依据）。 */
   plateId?: number
   /** Bambu 挤出机序号（1 起）。 */
@@ -45,7 +47,9 @@ export interface ImportAssemblyNode {
 }
 
 /** Bambu 显示视图数据（仅 3MF）：多盘布局 / print·assembly·import 视图 delta。
- *  显示通道删除后宿主不再解析 3mf archive，视图数据必须由 faijs 结果承载。 */
+ *  显示通道删除后宿主不再解析 3mf archive，视图数据必须由 faijs 结果承载。
+ *  字段覆盖宿主（ModelGroup view delta / 多盘布局 / 挤出机材质）的完整消费面，
+ *  宿主经 `bambuViewsToMetadata` 重建 Bambu3mfMetadata 时无需再回读 archive。 */
 export interface ImportBambuViews {
   /** 盘号列表（升序、去重）。 */
   plates: number[]
@@ -53,6 +57,20 @@ export interface ImportBambuViews {
   assembleTransforms?: Record<string, { transform: number[]; offset: [number, number, number] }>
   /** per-part 导入位姿（键 = `objectId:partId`）。 */
   importTransforms?: Record<string, { matrix: number[]; sourceOffset: [number, number, number] }>
+  /** `<build>` 打印视图 item 表（print 布局位姿判定用）。 */
+  buildItems?: Array<{ objectId: string; transform: number[] | null }>
+  /** 挤出机颜色表（下标 = extruder-1，材质继承用）。 */
+  filamentColors?: string[]
+  filamentTypes?: string[]
+  /** per-part 身份表（序 = ImportModel.parts = compound.children；view delta 键匹配用）。 */
+  parts?: Array<{
+    partIndex: number
+    objectId: string
+    partId: string
+    name: string
+    extruder: number
+    plateId: number
+  }>
 }
 
 /** 一次文件导入的完整结构产物。 */

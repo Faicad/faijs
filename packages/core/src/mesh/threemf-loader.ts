@@ -150,8 +150,19 @@ function parseTransformAttr(raw: string | null): readonly number[] | null {
 
 /** One parsed 3MF object instance: triangle soup in mm base (unit-scaled). */
 export interface ThreemfObject {
-  /** The `<object id>` this instance instantiates. */
+  /** The `<object id>` this instance instantiates (leaf object id). */
   id: number
+  /**
+   * P4 Bambu：实例所属的最上层 build-item 父对象 id（组件容器逐层展开时保留
+   * 顶层父）。非 Bambu / resources 直出实例为 undefined。宿主据此把叶子
+   * object 关联到 model_settings.config 的 Bambu 对象（objectId 同源）。
+   */
+  parentObjectId?: number
+  /**
+   * P4 Bambu：父对象 `<components>` 中的 1-based 序号（父对象多子时区分）。
+   * 与 Bambu part 序号同源（Bambu 导出惯例：component 序 ↔ part 序）。
+   */
+  componentIndex?: number
   /** The object's `<object name>` (Bambu exports a human label here). */
   name?: string
   positions: Float32Array
@@ -198,6 +209,8 @@ export interface ThreemfArchive {
   objects: ThreemfObject[]
   /** Every non-model archive entry (key → raw bytes) for downstream consumers. */
   extraEntries: Map<string, Uint8Array>
+  /** P4：根 model 文档（3D/3dmodel.model）XML——Bambu 层解析 build/组件结构用。 */
+  modelXml?: string
   /** 整体级元数据（设计文档 2026-10-meta 表中的 3MF model context；`<model><metadata>`）。 */
   fileMeta?: FileMeta
 }
@@ -615,13 +628,16 @@ function parseModelXml(docTexts: string[]): {
     src: ObjectMeshMeta,
     mat: readonly number[] | undefined,
     path: Set<number>,
+    parentObjectId?: number,
+    componentIndex?: number,
   ): ThreemfObject[] {
     if (src.positions && src.indices) {
-      return [materializeMesh(src, mat)]
+      return [materializeMesh(src, mat, parentObjectId, componentIndex)]
     }
     if (src.components && src.components.length > 0) {
       const out: ThreemfObject[] = []
-      for (const comp of src.components) {
+      for (let i = 0; i < src.components.length; i++) {
+        const comp = src.components[i]
         if (path.has(comp.objectId)) continue
         const ref = byObjectId.get(comp.objectId)
         if (!ref) continue
@@ -630,7 +646,11 @@ function parseModelXml(docTexts: string[]): {
           : mat
         const nextPath = new Set(path)
         nextPath.add(comp.objectId)
-        out.push(...materialize(ref, next, nextPath))
+        // P4：把 build-item 的父对象 id 与组件序号透传到每个叶子实例——
+        // 嵌套组件逐层展开时沿用同一父（父 identity 属于 build item）。
+        const leafParentId = parentObjectId ?? src.id
+        const leafCompIndex = componentIndex ?? i + 1
+        out.push(...materialize(ref, next, nextPath, leafParentId, leafCompIndex))
       }
       return out
     }
@@ -656,7 +676,12 @@ function parseModelXml(docTexts: string[]): {
     return Object.keys(meta).length > 0 ? meta : undefined
   }
 
-  function materializeMesh(src: ObjectMeshMeta, mat?: readonly number[]): ThreemfObject {
+  function materializeMesh(
+    src: ObjectMeshMeta,
+    mat?: readonly number[],
+    parentObjectId?: number,
+    componentIndex?: number,
+  ): ThreemfObject {
     const positions = src.positions!
     const indices = src.indices!
     let pid: string | undefined
@@ -708,6 +733,7 @@ function parseModelXml(docTexts: string[]): {
         positions: mat ? bakeTransform(outPos, mat) : outPos,
         indices: outIdx,
         vertexColors: outCol,
+        ...(parentObjectId !== undefined ? { parentObjectId, componentIndex: componentIndex ?? 1 } : {}),
         ...(srcMeta(src) ? { meta: srcMeta(src) } : {}),
       }
     }
@@ -796,6 +822,7 @@ function parseModelXml(docTexts: string[]): {
         indices,
         baseColor: baseColor ?? undefined,
         ...(!singleFull && groups.length > 0 ? { materialGroups: groups } : {}),
+        ...(parentObjectId !== undefined ? { parentObjectId, componentIndex: componentIndex ?? 1 } : {}),
         ...(srcMeta(src) ? { meta: srcMeta(src) } : {}),
       }
     }
@@ -805,6 +832,7 @@ function parseModelXml(docTexts: string[]): {
       name: src.name,
       positions: mat ? bakeTransform(positions, mat) : positions,
       indices,
+      ...(parentObjectId !== undefined ? { parentObjectId, componentIndex: componentIndex ?? 1 } : {}),
       ...(srcMeta(src) ? { meta: srcMeta(src) } : {}),
     }
   }
@@ -832,7 +860,8 @@ function parseModelXml(docTexts: string[]): {
     // malformed transforms are IGNORED (identity) — never bake NaN into
     // geometry (mirrors the host's fast-3mf tolerance contract).
     const tokens = parseTransformAttr(/\btransform="([^"]*)"/.exec(attrs)?.[1] ?? null)
-    out.push(...materialize(src, tokens ?? undefined, new Set([objId])))
+    // parentObjectId=objId；componentIndex 留给 materialize 按组件序推导（undefined）。
+    out.push(...materialize(src, tokens ?? undefined, new Set([objId]), objId, undefined))
   }
   if (itemCount === 0) {
     // No build items: emit every `<resources>` object directly (¶ the empty
@@ -892,5 +921,13 @@ export async function parseThreemf(buffer: ArrayBuffer): Promise<ThreemfArchive>
     extraEntries.set(k, v)
   }
 
-  return { unit: parsed.unitName, objects: parsed.objects, extraEntries, ...(parsed.fileMeta ? { fileMeta: parsed.fileMeta } : {}) }
+  return {
+    unit: parsed.unitName,
+    objects: parsed.objects,
+    extraEntries,
+    // P4：根 model XML（Bambu 层解析 build items / 父对象 components 需要；
+    // 根 model 不在 extraEntries——extraEntries 只收非 model 条目）。
+    ...(rootKey ? { modelXml: new TextDecoder().decode(entries.get(rootKey)!) } : {}),
+    ...(parsed.fileMeta ? { fileMeta: parsed.fileMeta } : {}),
+  }
 }

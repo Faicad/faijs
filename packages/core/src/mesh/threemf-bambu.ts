@@ -110,7 +110,15 @@ export interface Bambu3mfMetadata {
   filamentColors: string[]
   filamentTypes: string[]
   objects: Map<string, BambuObjectMeta>
+  /** 打印单元表（序 = build items × 父对象 components = 叶子实例序）。 */
   parts: BambuPartMeta[]
+  /**
+   * P4：叶子实例（3MF `<object id>`，含子文件内局部 id）→ Bambu 身份。
+   * 键 = `${父objectId}:${componentIndex}`（ThreemfObject.parentObjectId/
+   * componentIndex 同源）；3MF object id 与 model_settings id 两套编号，
+   * 必须经父对象 components 关联。
+   */
+  leafParts: Map<string, BambuPartMeta>
   plates: Map<number, BambuPlateInfo>
   modelMeta?: BambuModelMeta
   metadataEntries: Array<{ name: string; value: string }>
@@ -194,10 +202,14 @@ export function extractThumbnailBytes(
  *
  * @param extraEntries - the 3MF entry table excluding the geometry model shared
  *   with `parseThreemf` (project_settings / model_settings configs + thumbnails).
+ * @param modelXml - P4：根 model 文档（3D/3dmodel.model）XML；3MF 标准把
+ *   `<build>` 放在 `<resources>` 前，必须全量解析。缺省时回退到
+ *   extraEntries 里查找（兼容旧调用方）。
  * @returns the resolved `Bambu3mfMetadata`.
  */
 export function parseBambu3mfFromEntries(
   extraEntries: Map<string, Uint8Array>,
+  modelXml?: string,
 ): Bambu3mfMetadata {
   const decoder = new TextDecoder()
 
@@ -208,6 +220,8 @@ export function parseBambu3mfFromEntries(
   const objectParts = new Map<string, { partId: string; name: string; extruder: number }[]>()
   const assembleTransforms = new Map<string, AssembleItemTransform>()
   const importTransforms = new Map<string, PartImportTransform>()
+  // P4：父对象（model_settings id）→ 3MF components 子 id 列表（打印单元关联）。
+  const parentComponents = new Map<string, number[]>()
 
   // ---- 1. project_settings.config (JSON) ----
   let bedSize: BambuPlateSize | undefined
@@ -375,43 +389,86 @@ export function parseBambu3mfFromEntries(
   }
 
   // ---- 3. Model-level metadata + build items from 3D/3dmodel.model ----
+  // P4：根 model XML 由 parseThreemf 经 ThreemfArchive.modelXml 直传（根 model
+  // 不在 extraEntries）；`<build>` 可能位于 `<resources>` 之前（3MF 标准顺序），
+  // 故 buildItems 全量解析整个 modelXml，不再只查 resources 之后的 tail。
   const thumbnailBytes = extractThumbnailBytes(extraEntries)
   let modelMeta: BambuModelMeta | undefined
   let metadataEntries: Array<{ name: string; value: string }> = []
   let buildItems: BuildItem[] = []
 
-  const modelFile = [...extraEntries.keys()].find(
-    f => f.endsWith('/3dmodel.model') || f === '3D/3dmodel.model',
-  )
+  const modelFile = modelXml ?? (() => {
+    const f = [...extraEntries.keys()].find(
+      k => k.endsWith('/3dmodel.model') || k === '3D/3dmodel.model',
+    )
+    return f ? decoder.decode(extraEntries.get(f)!) : undefined
+  })()
   if (modelFile) {
-    const modelXml = decoder.decode(extraEntries.get(modelFile)!)
-    const resourcesStart = modelXml.indexOf('<resources>')
-    const resourcesEnd = modelXml.indexOf('</resources>')
-    const head = resourcesStart >= 0 ? modelXml.slice(0, resourcesStart) : modelXml
-    const tail = resourcesEnd >= 0 ? modelXml.slice(resourcesEnd) : ''
-    const parsedHead = parseModelMeta(head)
-    const parsedTail = parseModelMeta(tail)
+    const parsedHead = parseModelMeta(modelFile)
+    const parsedTail = parseModelMeta(modelFile)
     modelMeta = { ...parsedHead.modelMeta, ...parsedTail.modelMeta }
     metadataEntries = [...parsedHead.metadataEntries, ...parsedTail.metadataEntries]
-    buildItems = parse3mfBuild(tail)
+    buildItems = parse3mfBuild(modelFile)
+    // P4：父对象 components（父 object id → 子 id 列表）——build item 引用父
+    // 对象，实际网格在子（叶子）里；打印单元 = 父 × components。
+    const parentObjRe = /<object\b[^>]*\bid="(\d+)"[^>]*>([\s\S]*?)<\/object>/gi
+    let pom: RegExpExecArray | null
+    while ((pom = parentObjRe.exec(modelFile)) !== null) {
+      const body = pom[2]
+      if (!body.includes('<components>')) continue
+      const childIds: number[] = []
+      const compRe = /<component\b[^>]*\bobjectid="(\d+)"/g
+      let cm: RegExpExecArray | null
+      while ((cm = compRe.exec(body)) !== null) {
+        const cid = Number(cm[1])
+        if (Number.isFinite(cid)) childIds.push(cid)
+      }
+      if (childIds.length > 0) parentComponents.set(pom[1], childIds)
+    }
   }
 
-  // ---- 4. Ordered flat parts list ----
+  // ---- 4. 打印单元表（build items × 父对象 components 展开） ----
+  // P4 修正：3MF `<object id>`（叶子实例，含子文件内局部 id）与
+  // model_settings.config 的 `<object id>`（父对象）是两套编号。关联必须走
+  // 父对象 `<components>`（component objectid = 叶子 id）；每个父对象的每个
+  // component = 一个可打印单元（part）。Bambu 导出惯例：component 序 ↔
+  // 父对象 part 列表序（partId 同源）。
+  // 表序 = build item 序 × components 序 = parseThreemf 叶子实例序（meshIndex
+  // 契约：ModelGroup 按 meshIndex 取 parts[i] 做 view delta / 多盘布局）。
   const parts: BambuPartMeta[] = []
+  const leafParts = new Map<string, BambuPartMeta>()
   let partIndex = 0
   for (const item of buildItems) {
     const oid = item.objectId
     const objMeta = objects.get(oid)
     const partList = objectParts.get(oid) ?? []
-    for (const p of partList) {
+    const compIds = parentComponents.get(oid) ?? []
+    if (compIds.length === 0) {
+      // 父对象无 components（单网格对象）：1 个打印单元，partId 取第一个 part。
+      const p = partList[0]
       parts.push({
         partIndex: partIndex++,
         objectId: oid,
-        partId: p.partId,
-        name: stripExtension(p.name),
-        extruder: p.extruder,
+        partId: p?.partId ?? '0',
+        name: stripExtension(p?.name ?? objMeta?.name ?? ''),
+        extruder: p?.extruder ?? objMeta?.extruder ?? 1,
         plateId: objMeta?.plateId ?? 0,
       })
+      leafParts.set(`${oid}:1`, parts[parts.length - 1])
+      continue
+    }
+    for (let ci = 0; ci < compIds.length; ci++) {
+      const p = partList[ci]
+      const meta: BambuPartMeta = {
+        partIndex: partIndex++,
+        objectId: oid,
+        partId: p?.partId ?? String(ci + 1),
+        name: stripExtension(p?.name ?? objMeta?.name ?? ''),
+        extruder: p?.extruder ?? objMeta?.extruder ?? 1,
+        plateId: objMeta?.plateId ?? 0,
+      }
+      parts.push(meta)
+      leafParts.set(`${oid}:${ci + 1}`, meta)
     }
   }
 
@@ -427,6 +484,7 @@ export function parseBambu3mfFromEntries(
     assembleTransforms: assembleTransforms.size > 0 ? assembleTransforms : undefined,
     importTransforms: importTransforms.size > 0 ? importTransforms : undefined,
     buildItems: buildItems.length > 0 ? buildItems : undefined,
+    leafParts,
   }
 }
 
@@ -436,5 +494,5 @@ export function parseBambu3mfFromEntries(
  * @returns the resolved `Bambu3mfMetadata`.
  */
 export function parseBambu3mfFromArchive(archive: ThreemfArchive): Bambu3mfMetadata {
-  return parseBambu3mfFromEntries(archive.extraEntries)
+  return parseBambu3mfFromEntries(archive.extraEntries, archive.modelXml)
 }

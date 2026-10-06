@@ -162,7 +162,9 @@ export async function importFile(
       throw new Error('[mesh/io] 3MF contains no objects')
     }
     // Bambu 元数据（盘号/挤出机/视图变换）：有 Bambu 配置才产生内容，普通 3MF 返回空表。
-    const bambu = parseBambu3mfFromEntries(archive.extraEntries)
+    // P4：根 model XML 直传（3MF `<build>` 在 resources 前；id 两套编号经父
+    // object components 关联——leafParts 表承载）。
+    const bambu = parseBambu3mfFromEntries(archive.extraEntries, archive.modelXml)
     const parts = archive.objects.map(threemfObjectToShape)
     const multiPartCount = parts.length > 1 ? parts.length : undefined
     const importModel: ImportModel = {
@@ -175,13 +177,18 @@ export async function importFile(
         }
         if (obj.baseColor) part.color = [obj.baseColor[0], obj.baseColor[1], obj.baseColor[2]]
         if (obj.meta) part.meta = obj.meta
-        // Bambu 身份：`<object id>`（数字）→ Bambu objects 表（键为字符串 objectId）
-        const bm = bambu.objects.get(String(obj.id))
+        // Bambu 身份：3MF `<object id>`（叶子实例）与 Bambu objects 表（键为
+        // model_settings 父对象 id）是两套编号——经父 object components 关联
+        // （ThreemfObject.parentObjectId/componentIndex → bambu.leafParts）。
+        const bm = obj.parentObjectId !== undefined
+          ? bambu.leafParts.get(`${obj.parentObjectId}:${obj.componentIndex ?? 1}`)
+          : undefined
         if (bm) {
           part.objectId = bm.objectId
           if (bm.plateId > 0) part.plateId = bm.plateId
           // Bambu extruder 1-based（默认 1）：显式登记文件声明值
           part.extruder = bm.extruder
+          part.partId = bm.partId
         }
         return part
       }),
@@ -277,6 +284,25 @@ function buildBambuViews(
     views.importTransforms = Object.fromEntries(
       [...bambu.importTransforms].map(([k, v]) => [k, { matrix: v.matrix, sourceOffset: v.sourceOffset }]),
     )
+  }
+  // P4：完整消费面随结果回传——宿主重建 Bambu3mfMetadata 不再回读 archive。
+  if (bambu.buildItems) {
+    views.buildItems = bambu.buildItems.map((b) => ({
+      objectId: b.objectId,
+      transform: b.transform ?? null,
+    }))
+  }
+  if (bambu.filamentColors.length > 0) views.filamentColors = bambu.filamentColors
+  if (bambu.filamentTypes.length > 0) views.filamentTypes = bambu.filamentTypes
+  if (bambu.parts.length > 0) {
+    views.parts = bambu.parts.map((p) => ({
+      partIndex: p.partIndex,
+      objectId: p.objectId,
+      partId: p.partId,
+      name: p.name,
+      extruder: p.extruder,
+      plateId: p.plateId,
+    }))
   }
   return views
 }
