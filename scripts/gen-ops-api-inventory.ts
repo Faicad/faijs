@@ -14,6 +14,9 @@
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { collectRoleVocab } from '../packages/core/scripts/role-vocab'
+import { ARG_SPEC, type ArgSpecEntry } from '../packages/core/src/api/surface/arg-spec'
+import { SCRIPT_FACE_OPS } from '../packages/core/src/api/generated/script-face-manifest'
+import SYMBOL_TABLE from '../packages/core/src/lang/symbol-table.generated'
 
 const root = resolve(import.meta.dirname, '..')
 const API_SRC = join(root, 'packages/core/src/api')
@@ -62,6 +65,23 @@ const QUAL_LABEL: Record<Op['qual'], string> = {
   ok: '✅',
   warn: '⚠️',
   error: '❌',
+}
+
+/**
+ * 一个逐 op 手册章节。手写版 op（api/ JSDoc 契约）与派生版 op
+ * （`api/surface/arg-spec.ts`）统一成同一形状，由分组循环统一编号。
+ *
+ * `body` 不含 `###` 标题行——编号由渲染循环给出，章节顺序才可能被校验。
+ */
+interface Chapter {
+  name: string
+  group: string
+  qual: Op['qual']
+  deprecated?: string
+  /** 品质状态表里的一句话说明（手写版取首条 `@note`，退化为描述）。 */
+  qualNote?: string
+  /** 章节正文行（不含标题）。 */
+  body: string[]
 }
 
 /** Strip the file-level license/header block and split into op-level JSDoc blocks. */
@@ -151,25 +171,326 @@ function parseParam(raw: string): Param | null {
   return { name, type, required, default: def, desc }
 }
 
-const GROUP_ORDER = ['创建', '变换', '特征', '结构', '查询']
+/**
+ * 手册分节顺序。**必须覆盖 op 声明的全部 `@group` 值**——不在本表里的分组会被
+ * 静默丢弃（B1 的根因：`修复` 组 6 个 op 曾因此整组从手册消失）。`collectChapters`
+ * 会断言这一点。
+ */
+const GROUP_ORDER = ['创建', '变换', '特征', '修复', '结构', '查询']
 
-function renderDoc(locale: 'en' | 'zh'): string {
-  // 递归收集 api/ 下全部源码（含子目录模块，如 api/view/）——P25 视图投影三件套
-  const files: string[] = []
-  const walk = (dir: string): void => {
-    for (const ent of readdirSync(dir, { withFileTypes: true })) {
-      const p = join(dir, ent.name)
-      if (ent.isDirectory()) walk(p)
-      else if (ent.name.endsWith('.ts') && !ent.name.endsWith('.test.ts')) files.push(p)
+/** 分节标题里的序号（渲染成 `## ${n}. ${group}类操作`）。 */
+const GROUP_SECTION: Record<string, number> = {
+  创建: 3,
+  变换: 4,
+  特征: 5,
+  修复: 6,
+  结构: 7,
+  查询: 8,
+}
+
+const GROUP_SUFFIX: Record<string, string> = {
+  创建: '（无上游输入）',
+  // 结构组不再一律「无几何输出」：`cad.compound` 是持 OCCT 句柄的几何复合体，
+  // 而 `group`/`assembly` 仍是结构壳。标题按两者共有的性质写。
+  结构: '（结构 / 聚合）',
+  查询: '（几何 / 资产引用 / 装配查询）',
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// B1：arg-spec 派生章节
+//
+// 脚本面 op 分两代落地：
+//   ① 手写 op —— `api/**/*.ts` 里带 `@group` 的 JSDoc 契约（`collectOps` 收）；
+//   ② 生成 op —— 由 `api/surface/arg-spec.ts` 投影（`compatOp(projectBrepOp(...))`
+//      或 core 自有实现），**生成文件禁手改，因此不带 `@group`**。
+// ② 曾整类缺席手册（38 个符号无逐 op 章节，含 `applyMatrix`——与 OpenSCAD
+// `multmatrix` 逐字对应的任意仿射变换）。本段把 ② 补上：从 arg-spec 取
+// `args` / `params` / `queryParams` / `capabilities` / `engines` / `reason`
+// 现算章节，与 `script-face-manifest.ts` 同源，从根上不再有手工滞后。
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 派生 op 的语义分组——**唯一人工维护点**（B1）。
+ *
+ * 生成文件不带 `@group`，arg-spec 的 `module`（topology / operations / …）是
+ * *代码分片*不是语义分组（`topology` 同时含构造、变换与查询），故分组必须显式
+ * 声明。新增脚本面 op 若不出现在本表，`collectChapters()` 直接报错——漏归类
+ * 不可能再变成静默缺章。
+ */
+const DERIVED_GROUP: Record<string, string> = {
+  // 创建类：无上游几何输入，整件构造
+  torus: '创建',
+  makeBaseBox: '创建',
+  ellipsoid: '创建',
+  convexHull: '创建',
+  thread: '创建',
+  // 变换类：整件变换 / 定位
+  rotate: '变换',
+  applyMatrix: '变换',
+  locate: '变换',
+  offset: '变换',
+  // 特征类：输入几何 → 新几何
+  fuse: '特征',
+  complexExtrude: '特征',
+  twistExtrude: '特征',
+  roof: '特征',
+  drill: '特征',
+  pocket: '特征',
+  boss: '特征',
+  // 修复类：整件/子面修复与简化
+  heal: '修复',
+  simplify: '修复',
+  autoHeal: '修复',
+  fixShape: '修复',
+  healSolid: '修复',
+  fixSelfIntersection: '修复',
+  // 查询类：返回纯数据（非 Shape）
+  inspectMassProps: '查询',
+  area: '查询',
+  length: '查询',
+  volume: '查询',
+  centerOfMass: '查询',
+  isValid: '查询',
+  isSameShape: '查询',
+}
+
+/** arg-spec `args` 人读串解析出的一个形参。 */
+interface DerivedArg {
+  name: string
+  type: string
+  required: boolean
+}
+
+/**
+ * 从 arg-spec 的 `args` 人读串里抽出形参。串形态**不统一**（历史原因）：
+ *   `(majorRadius: number, options?: TorusOptions)`（torus）
+ *   `fuse(a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>`（fuse）
+ *   `complexExtrude(wire: Shape, center: Vec3, profile?: ExtrusionProfile): Shape`
+ * 故取**第一对括号**并按顶层逗号切分（忽略 `{}` / `<>` 内的逗号）。解析结果与
+ * `entry.params` 不符时返回空表——宁可少一列类型，不编造形参。
+ */
+function parseArgsLine(entry: ArgSpecEntry): DerivedArg[] {
+  const raw = entry.args ?? ''
+  const open = raw.indexOf('(')
+  if (open < 0) return []
+  let depth = 0
+  let close = -1
+  for (let i = open; i < raw.length; i++) {
+    if (raw[i] === '(') depth++
+    else if (raw[i] === ')') {
+      depth--
+      if (depth === 0) {
+        close = i
+        break
+      }
     }
   }
-  walk(API_SRC)
-  const allOps: Op[] = []
-  for (const f of files) allOps.push(...collectOps(f))
-  const grouped = new Map<string, Op[]>()
-  for (const op of allOps) {
-    if (!grouped.has(op.group)) grouped.set(op.group, [])
-    grouped.get(op.group)!.push(op)
+  if (close < 0) return []
+  const inner = raw.slice(open + 1, close)
+  if (!inner.trim()) return []
+
+  const items: string[] = []
+  let buf = ''
+  let nest = 0
+  for (const ch of inner) {
+    if ('({[<'.includes(ch)) nest++
+    else if (')}]>'.includes(ch)) nest--
+    if (ch === ',' && nest === 0) {
+      items.push(buf)
+      buf = ''
+    } else buf += ch
+  }
+  items.push(buf)
+
+  const parsed: DerivedArg[] = []
+  for (const item of items) {
+    const m = /^\s*(\w+)\s*(\?)?\s*:\s*([\s\S]+?)\s*$/.exec(item)
+    if (!m) return []
+    parsed.push({ name: m[1], type: m[3], required: m[2] !== '?' })
+  }
+  // 与机器参数名表对不上 → 串形态超出解析能力，退回「只列参数名」
+  const expected = entry.params
+  if (expected && JSON.stringify(parsed.map((p) => p.name)) !== JSON.stringify(expected)) return []
+  return parsed
+}
+
+/**
+ * 形参在 op 里的角色。几何位的权威声明是 `geometryArgs` /
+ * `geometryCollectionArgs`；`kind: 'faijs'` 的原生库函数（`area` / `volume` …）
+ * 没有这两列，按形参类型 `Shape*` 兜底推断。
+ */
+function argRole(entry: ArgSpecEntry, index: number, type: string): string {
+  if ((entry.geometryCollectionArgs ?? []).includes(index)) return '几何输入（Shape 数组）'
+  if ((entry.geometryArgs ?? []).includes(index)) return '几何输入（Shape）'
+  if (/^Shape\b/.test(type)) return type.endsWith('[]') ? '几何输入（Shape 数组）' : '几何输入（Shape）'
+  return '数值 / 选项参数'
+}
+
+/** arg-spec 派生 op 的返回值说明（`brep-op` 产出几何，`query` / `faijs` 产出纯数据）。 */
+function derivedReturns(entry: ArgSpecEntry): string {
+  if (entry.kind === 'brep-op') {
+    const unwrap = '脚本面语句边界 unwrap `Result`，err → 语句失败'
+    if (entry.outputs?.length) {
+      return `多产物对象（\`${entry.outputs.join('` / `')}\` 为 Shape 包装位，同对象其余键如诊断原样透传；${unwrap}）。`
+    }
+    return `Shape 几何产物（${unwrap}）。`
+  }
+  const arrow = (entry.args ?? '').match(/->\s*([\s\S]+)$/)
+  const ret = entry.returnType ?? arrow?.[1]?.trim()
+  return ret ? `${ret} —— 纯数据结果（非 Shape）。` : '纯数据结果（非 Shape）。'
+}
+
+/** 由一条 arg-spec 条目渲染出逐 op 章节。 */
+function chapterFromArgSpec(entry: ArgSpecEntry): Chapter | null {
+  const group = DERIVED_GROUP[entry.name]
+  if (!group) return null
+  const manifest = SCRIPT_FACE_OPS.find((op) => op.name === entry.name)
+  const derivedArgs = parseArgsLine(entry)
+  const queryParam = new Map((entry.queryParams ?? []).map((p) => [p.name, p]))
+
+  const body: string[] = []
+  if (entry.reason) {
+    body.push(entry.reason, '')
+  }
+  body.push('```js')
+  body.push(entry.args ?? `${entry.name}(…)`)
+  body.push('```', '')
+  body.push('| 参数 | 类型 | 必填 | 说明 |')
+  body.push('|---|---|---|---|')
+  const nameList = derivedArgs.length > 0 ? derivedArgs.map((p) => p.name) : entry.params ?? []
+  if (nameList.length === 0) {
+    body.push('| — | — | — | 无参数 |')
+  }
+  nameList.forEach((name, i) => {
+    const arg = derivedArgs[i]
+    const type = arg?.type ?? queryParam.get(name)?.type ?? '—'
+    const required = arg ? arg.required : queryParam.get(name) ? !queryParam.get(name)!.optional : true
+    const desc = queryParam.get(name)?.docs ?? argRole(entry, i, type)
+    body.push(`| \`${name}\` | \`${type}\` | ${required ? '✅' : ''} | ${desc} |`)
+  })
+  body.push('')
+  body.push(`**${entry.kind === 'brep-op' ? '异步' : '同步'}**。${derivedReturns(entry)}`)
+  body.push('')
+  const notes: string[] = []
+  if (entry.manualNote) notes.push(entry.manualNote)
+  notes.push(
+    `自动派生自 \`api/surface/arg-spec.ts\`（module \`${entry.module ?? 'topology'}\`）——生成 op 无手写 JSDoc 契约。`,
+  )
+  if (manifest?.engines?.length) notes.push(`**平台限定**：仅 \`${manifest.engines.join('` / `')}\` 引擎（缺能力时执行前静态报错，不回退）。`)
+  if (entry.capabilities?.length) notes.push(`内核能力依赖：${entry.capabilities.map((c) => `\`${c}\``).join('、')}。`)
+  if (entry.source) notes.push(`实现：\`${entry.source}\`。`)
+  if (manifest?.paramDims && Object.keys(manifest.paramDims).length > 0) {
+    notes.push(`参数量纲：${Object.entries(manifest.paramDims).map(([k, v]) => `\`${k}\`→\`${v}\``).join('、')}。`)
+  }
+  if (manifest?.retDim) notes.push(`返回量纲：\`${manifest.retDim}\`。`)
+  body.push(notes.map((n) => `> ${n}`).join('\n>\n'))
+  body.push('')
+
+  return { name: entry.name, group, qual: 'ok', body }
+}
+
+/** 手写 op（`collectOps` 产物）→ 章节。 */
+function chapterFromOp(op: Op): Chapter {
+  const body: string[] = []
+  if (op.desc) body.push(op.desc, '')
+  if (op.deprecated) body.push(`> 🚫 **已废弃（deprecated）**：${op.deprecated}`, '')
+  for (const ex of op.example) {
+    body.push('```js')
+    for (const exLine of ex.split('\n')) body.push(exLine)
+    body.push('```', '')
+  }
+  body.push('| 参数 | 类型 | 必填 | 默认 | 说明 |')
+  body.push('|---|---|---|---|---|')
+  for (const p of op.params) {
+    body.push(`| \`${p.name}\` | \`${p.type}\` | ${p.required ? '✅' : ''} | ${p.default ?? '—'} | ${p.desc} |`)
+  }
+  body.push('')
+  body.push(`**${op.async ? '异步' : '同步'}**。${op.returns ?? ''}`)
+  body.push('')
+  if (op.note && op.note.length) {
+    body.push(op.note.map((n) => `> ${n}`).join('\n>\n'))
+    body.push('')
+  }
+  return { name: op.name, group: op.group, qual: op.qual, deprecated: op.deprecated, qualNote: op.note?.[0] ?? op.desc, body }
+}
+
+/** 递归收集 api/ 下全部源码（含子目录模块，如 api/view/）。 */
+function walkApiSources(dir: string, files: string[]): void {
+  for (const ent of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, ent.name)
+    if (ent.isDirectory()) walkApiSources(p, files)
+    else if (ent.name.endsWith('.ts') && !ent.name.endsWith('.test.ts')) files.push(p)
+  }
+}
+
+/**
+ * 全部逐 op 章节 = 手写 JSDoc 契约 ∪ arg-spec 派生，去重后按 `GROUP_ORDER` 分节。
+ *
+ * 两条断言把 B1 那类缺陷钉死：
+ *   ① 手写 op 的每个 `@group` 必须在 `GROUP_ORDER` 里（否则整组静默消失）；
+ *   ② 章节名集合必须**恰好等于** `lang/symbol-table.generated.ts` 的键集
+ *      （符号表 = `cad` 命名空间可调用键集，即脚本面真实 op 全集）。
+ */
+function collectChapters(): Chapter[] {
+  const files: string[] = []
+  walkApiSources(API_SRC, files)
+  const handwritten = files.flatMap((f) => collectOps(f)).map(chapterFromOp)
+
+  const covered = new Set(handwritten.map((c) => c.name))
+  const derived: Chapter[] = []
+  for (const op of SCRIPT_FACE_OPS) {
+    if (covered.has(op.name)) continue
+    const entry = ARG_SPEC.find((e) => e.name === op.name)
+    if (!entry) {
+      throw new Error(
+        `gen-ops-api-inventory: 脚本面 op '${op.name}' 既无手写 @group JSDoc，也不在 api/surface/arg-spec.ts —— 手册无法覆盖它。`,
+      )
+    }
+    const chapter = chapterFromArgSpec(entry)
+    if (!chapter) {
+      throw new Error(
+        `gen-ops-api-inventory: 脚本面 op '${op.name}' 未在 DERIVED_GROUP 中归类 —— 给它一个语义分组（创建/变换/特征/修复/结构/查询）。`,
+      )
+    }
+    derived.push(chapter)
+    covered.add(op.name)
+  }
+
+  const chapters = [...handwritten, ...derived]
+
+  // ① 分组表必须覆盖 op 声明的全部 @group（漏一个 = 整组从手册消失）
+  const unknownGroups = [...new Set(chapters.map((c) => c.group))].filter((g) => !GROUP_ORDER.includes(g))
+  if (unknownGroups.length > 0) {
+    throw new Error(
+      `gen-ops-api-inventory: @group 值 ${unknownGroups.join('、')} 不在 GROUP_ORDER 中 —— 该组会被静默丢弃。请补进 GROUP_ORDER / GROUP_SECTION。`,
+    )
+  }
+
+  // ② 章节符号集必须恰好等于符号表键集（双向：无缺章、无幽灵章）
+  const symbolKeys = new Set(Object.keys(SYMBOL_TABLE))
+  const chapterNames = new Set(chapters.map((c) => c.name))
+  const missing = [...symbolKeys].filter((k) => !chapterNames.has(k)).sort()
+  const ghosts = [...chapterNames].filter((k) => !symbolKeys.has(k)).sort()
+  if (missing.length > 0 || ghosts.length > 0) {
+    const parts: string[] = []
+    if (missing.length > 0) parts.push(`缺失 ${missing.length} 章：${missing.join('、')}`)
+    if (ghosts.length > 0) parts.push(`手册有而符号表无 ${ghosts.length} 个：${ghosts.join('、')}`)
+    throw new Error(
+      `gen-ops-api-inventory: 逐 op 章节符号集 ≠ 符号表键集（${chapterNames.size} vs ${symbolKeys.size}）—— ${parts.join('；')}。`,
+    )
+  }
+
+  return chapters
+}
+
+/** 逐 op 章节全集（模块级只算一次；生成与 `--check` 共用同一份）。 */
+const CHAPTERS = collectChapters()
+
+function renderDoc(locale: 'en' | 'zh'): string {
+  const grouped = new Map<string, Chapter[]>()
+  for (const chapter of CHAPTERS) {
+    if (!grouped.has(chapter.group)) grouped.set(chapter.group, [])
+    grouped.get(chapter.group)!.push(chapter)
   }
   for (const list of grouped.values()) list.sort((a, b) => a.name.localeCompare(b.name))
   const lines: string[] = []
@@ -178,7 +499,9 @@ function renderDoc(locale: 'en' | 'zh'): string {
   if (locale === 'en') lines.push('English | [中文](ops-api-inventory.zh.md)')
   else lines.push('[English](ops-api-inventory.md) | 中文')
   lines.push('')
-  lines.push(`> 本手册由 \`scripts/gen-ops-api-inventory.ts\` 从 api JSDoc 自动生成。**不要手改**——改 api JSDoc 后运行生成器（或 CI 的 \`--check\` 会拦截不一致）。`)
+  lines.push(`> 本手册由 \`scripts/gen-ops-api-inventory.ts\` 自动生成。**不要手改**——改 api JSDoc 后运行生成器（或 CI 的 \`--check\` 会拦截不一致）。`)
+  lines.push('>')
+  lines.push('> 逐 op 章节有两个来源：**手写 op** 取 \`api/**/*.ts\` 的 \`@group\` JSDoc 契约；**生成 op** 取 \`api/surface/arg-spec.ts\`（与其派生的 \`script-face-manifest.ts\` 同源），章节里以「自动派生」标出。生成器会断言章节符号集 == \`lang/symbol-table.generated.ts\` 键集，缺章即失败。')
   lines.push('>')
   lines.push('> - ✅ = 此接口正确、可放心使用')
   lines.push('> - ⚠️ = 可用，但参数有已知缺陷')
@@ -204,7 +527,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   lines.push('')
   lines.push('**参数双形态（D11）**：① TS 面与 ② 脚本面是同一批函数，位置 / 对象两种形态都可用。明显可区分的参数用单名（如 `box`），人类看来不明显的用两个名字（如 `rotate_euler`）。')
   lines.push('')
-  lines.push('> 下方 § 3–§ 7 的逐 op 手册仅覆盖 ② 脚本面（`cad.*` 函数）。① TS 兼容面的符号清单见 `packages/core/src/api/compat/index.ts`；③ 库边界面的使用方法见 `docs/library-dev-guide.md`。')
+  lines.push('> 下方 § 3–§ 8 的逐 op 手册仅覆盖 ② 脚本面（`cad.*` 函数）。① TS 兼容面的符号清单见 `packages/core/src/api/compat/index.ts`；③ 库边界面的使用方法见 `docs/library-dev-guide.md`。')
   lines.push('')
   lines.push('---')
   lines.push('')
@@ -246,63 +569,24 @@ function renderDoc(locale: 'en' | 'zh'): string {
   lines.push('')
   lines.push('---')
   lines.push('')
-  const section = new Map<string, number>([
-    ['创建', 3],
-    ['变换', 4],
-    ['特征', 5],
-    ['结构', 6],
-    ['查询', 7],
-  ])
-  const sectionSuffix: Record<string, string> = {
-    创建: '（无上游输入）',
-    // 结构组不再一律「无几何输出」：`cad.compound` 是持 OCCT 句柄的几何复合体，
-    // 而 `group`/`assembly` 仍是结构壳。标题按两者共有的性质写。
-    结构: '（结构 / 聚合）',
-    查询: '（几何 / 资产引用查询）',
-  }
   for (const group of GROUP_ORDER) {
     const ops = grouped.get(group)
     if (!ops) continue
-    const num = section.get(group)
-    lines.push(`## ${num}. ${group}类操作${sectionSuffix[group] ?? '（inputs ≥ 1）'}`)
+    const num = GROUP_SECTION[group]
+    lines.push(`## ${num}. ${group}类操作${GROUP_SUFFIX[group] ?? '（inputs ≥ 1）'}`)
     lines.push('')
     for (let i = 0; i < ops.length; i++) {
-      const op = ops[i]
-      lines.push(`### ${num}.${i + 1} \`${op.name}\` ${QUAL_LABEL[op.qual]}${op.deprecated ? ' 🚫' : ''}`)
+      const chapter = ops[i]
+      lines.push(`### ${num}.${i + 1} \`${chapter.name}\` ${QUAL_LABEL[chapter.qual]}${chapter.deprecated ? ' 🚫' : ''}`)
       lines.push('')
-      if (op.desc) {
-        lines.push(op.desc)
-        lines.push('')
-      }
-      if (op.deprecated) {
-        lines.push(`> 🚫 **已废弃（deprecated）**：${op.deprecated}`)
-        lines.push('')
-      }
-      for (const ex of op.example) {
-        lines.push('```js')
-        for (const exLine of ex.split('\n')) lines.push(exLine)
-        lines.push('```')
-        lines.push('')
-      }
-      lines.push('| 参数 | 类型 | 必填 | 默认 | 说明 |')
-      lines.push('|---|---|---|---|---|')
-      for (const p of op.params) {
-        lines.push(`| \`${p.name}\` | \`${p.type}\` | ${p.required ? '✅' : ''} | ${p.default ?? '—'} | ${p.desc} |`)
-      }
-      lines.push('')
-      lines.push(`**${op.async ? '异步' : '同步'}**。${op.returns ?? ''}`)
-      lines.push('')
-      if (op.note && op.note.length) {
-        lines.push(op.note.map((n) => `> ${n}`).join('\n>\n'))
-        lines.push('')
-      }
+      lines.push(...chapter.body)
     }
     lines.push('---')
     lines.push('')
   }
 
     // ── BREP 能力声明节（Phase 4：来自 Phase 0 能力映射表 capability-map.json） ──
-  lines.push('## 8. BREP 能力声明（compat op → 内核方法真名）')
+  lines.push('## 9. BREP 能力声明（compat op → 内核方法真名）')
   lines.push('')
   lines.push('来自 `packages/core/src/api/surface/capability-map.json`（Phase 0 生成，36 compat op、64 个唯一内核方法）；能力名三层结构、静态前置判定与报错形态见 `docs/api-contract.md` §7.9 / §8.1；引擎侧可执行性由各适配器的 `capabilities.methods` / `evolution` 声明决定（缺能力执行前静态报错，不伪造）。')
   lines.push('')
@@ -316,35 +600,36 @@ function renderDoc(locale: 'en' | 'zh'): string {
   lines.push('')
 
 // 接口品质状态（从各 op 的 @qual 派生，替换手写状态表）
-  const bad = allOps.filter((op) => op.qual === 'error' || op.qual === 'warn')
+  const bad = CHAPTERS.filter((c) => c.qual === 'error' || c.qual === 'warn')
   if (bad.length > 0) {
-    lines.push('## 9. 接口品质状态（自动派生自 @qual）')
+    lines.push('## 10. 接口品质状态（自动派生自 @qual）')
     lines.push('')
     lines.push('| op | 品质 | 说明 |')
     lines.push('|---|---|---|')
-    for (const op of bad) {
-      lines.push(`| \`${op.name}\` | ${QUAL_LABEL[op.qual]} | ${op.note?.[0] ?? op.desc} |`)
+    for (const chapter of bad) {
+      lines.push(`| \`${chapter.name}\` | ${QUAL_LABEL[chapter.qual]} | ${chapter.qualNote ?? ''} |`)
     }
     lines.push('')
-    const err = allOps.filter((op) => op.qual === 'error')
-    if (err.length) lines.push('**禁止使用**：' + err.map((op) => `\`${op.name}\``).join('、') + '。')
+    const err = CHAPTERS.filter((c) => c.qual === 'error')
+    if (err.length) lines.push('**禁止使用**：' + err.map((c) => `\`${c.name}\``).join('、') + '。')
     lines.push('')
     lines.push('---')
     lines.push('')
   }
 
   // 写给 AI 的速查（自动派生自分组 / 同步性 / 品质）
-  lines.push('## 10. 写给 AI 的速查（一句话总结每个可用 op）')
+  lines.push('## 11. 写给 AI 的速查（一句话总结每个可用 op）')
   lines.push('')
   lines.push('```')
-  lines.push('创建: ' + allOps.filter((o) => o.group === '创建' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
-  lines.push('变换: ' + allOps.filter((o) => o.group === '变换' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
-  lines.push('特征: ' + allOps.filter((o) => o.group === '特征' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
-  lines.push('结构: ' + allOps.filter((o) => o.group === '结构' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
-  lines.push('查询: ' + allOps.filter((o) => o.group === '查询' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
-  const errNames = allOps.filter((o) => o.qual === 'error').map((o) => o.name)
+  for (const group of GROUP_ORDER) {
+    const names = CHAPTERS.filter((c) => c.group === group && c.qual !== 'error' && !c.deprecated)
+      .map((c) => c.name)
+      .sort((a, b) => a.localeCompare(b))
+    lines.push(`${group}: ${names.join(' / ')}`)
+  }
+  const errNames = CHAPTERS.filter((c) => c.qual === 'error').map((c) => c.name)
   if (errNames.length) lines.push('禁止: ' + errNames.join('、'))
-  const depNames = allOps.filter((o) => o.deprecated).map((o) => o.name)
+  const depNames = CHAPTERS.filter((c) => c.deprecated).map((c) => c.name)
   if (depNames.length) lines.push('废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: ' + depNames.join('、'))
   lines.push('```')
   lines.push('')
@@ -360,7 +645,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   }
   lines.push('---')
   lines.push('')
-  lines.push('## 11. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）')
+  lines.push('## 12. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）')
   lines.push('')
   lines.push('BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**自己新造的面**声明的 role 词汇（`RoleName` 线格式）；继承来的面沿用其产生 op 的 role。`vocab` 中的 `<i>` / `<j>` / `[k]` 为序号占位。**改一个 op 的词汇 = breaking change**（会破坏存量 `.fai.js` 引用），需版本化。')
   lines.push('')

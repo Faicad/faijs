@@ -155,6 +155,15 @@ export interface ArgSpecEntry {
   paramDims?: Record<string, import('../../units').DimName>
   /** P26 (unit-system D8): 返回值量纲声明（函数调用结果携带的量纲）。 */
   retDim?: import('../../units').DimName
+  /**
+   * B1：手册直达注解——`scripts/gen-ops-api-inventory.ts` 会把这句话原样渲染成
+   * 派生章节里的一条注解。
+   *
+   * 生成 op 的 JSDoc 由本文件生成（`api/generated/*.ts` 禁手改），`reason` 又只
+   * 解释「为什么这样投影」；于是**读者最容易误判的语义**（如 `applyMatrix` 的
+   * 矩阵序约定）在手册里无处安放。需要时写这里，别写进生成文件。
+   */
+  manualNote?: string
 }
 
 /**
@@ -562,6 +571,7 @@ selfhost: true,
     kind: 'faijs',
     module: 'measurement',
     args: '(shape: Shape) -> number(面积 mm²)',
+    manualNote: '**中立 op**：直连 L1 测量面，无引擎绑定，occt / brepkit 上同一份 `.fai.js` 都跑。返回纯数字，不产 Shape；需要体积+面积+质心一次取回且接受 occt 独占时用 `cad.inspectMassProps`。',
     scriptFace: true,
   },
   {
@@ -570,6 +580,7 @@ selfhost: true,
     kind: 'faijs',
     module: 'measurement',
     args: '(shape: Shape) -> number(长度 mm)',
+    manualNote: '**中立 op**：直连 L1 测量面，无引擎绑定，occt / brepkit 上同一份 `.fai.js` 都跑（线/边长度）。返回纯数字，不产 Shape。',
     scriptFace: true,
   },
   {
@@ -578,6 +589,7 @@ selfhost: true,
     kind: 'faijs',
     module: 'measurement',
     args: '(shape: Shape) -> number(体积 mm³)',
+    manualNote: '**中立 op**：直连 L1 测量面，无引擎绑定，occt / brepkit 上同一份 `.fai.js` 都跑。返回纯数字，不产 Shape；需要体积+面积+质心一次取回且接受 occt 独占时用 `cad.inspectMassProps`。',
     scriptFace: true,
   },
   {
@@ -3126,6 +3138,7 @@ selfhost: true,
     geometryArgs: [0], returnsResult: true,
     args: 'applyMatrix(shape: Shape, matrix: unknown): Shape',
     reason: 'faijs 用 applyTransform（不同名），整件矩阵变换 → brep-op',
+    manualNote: '**任意仿射变换就是这样做的**——等价 OpenSCAD `multmatrix`：`matrix` 是**行主序 4×4**（四个 `[x,y,z,w]` 行组成的数组，底行必须 `[0,0,0,1]`，否则报错），如绕 Z 转 90° 的 `cad.applyMatrix(b, [[0,-1,0,0],[1,0,0,0],[0,0,1,0],[0,0,0,1]])`；也可给结构形态 `{ linear: 9 个数（行主序）, translation: [tx,ty,tz] }`。线性部分行列式 ≈ 0（不可逆）报错；正交等长行（旋转 + 等比缩放）走仿射快路径，其余走通用变换。下游常误判「faijs 不具备任意仿射能力」，实为本 op 此前未进手册所致。',
     params: ['shape', 'matrix'], formClass: 'A',
     scriptFace: true,
     naming: { kind: 'identity' },

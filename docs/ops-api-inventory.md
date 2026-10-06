@@ -2,7 +2,9 @@
 
 English | [中文](ops-api-inventory.zh.md)
 
-> 本手册由 `scripts/gen-ops-api-inventory.ts` 从 api JSDoc 自动生成。**不要手改**——改 api JSDoc 后运行生成器（或 CI 的 `--check` 会拦截不一致）。
+> 本手册由 `scripts/gen-ops-api-inventory.ts` 自动生成。**不要手改**——改 api JSDoc 后运行生成器（或 CI 的 `--check` 会拦截不一致）。
+>
+> 逐 op 章节有两个来源：**手写 op** 取 `api/**/*.ts` 的 `@group` JSDoc 契约；**生成 op** 取 `api/surface/arg-spec.ts`（与其派生的 `script-face-manifest.ts` 同源），章节里以「自动派生」标出。生成器会断言章节符号集 == `lang/symbol-table.generated.ts` 键集，缺章即失败。
 >
 > - ✅ = 此接口正确、可放心使用
 > - ⚠️ = 可用，但参数有已知缺陷
@@ -27,7 +29,7 @@ faijs 的 API 分三个面，消费者和形态各不同：
 
 **参数双形态（D11）**：① TS 面与 ② 脚本面是同一批函数，位置 / 对象两种形态都可用。明显可区分的参数用单名（如 `box`），人类看来不明显的用两个名字（如 `rotate_euler`）。
 
-> 下方 § 3–§ 7 的逐 op 手册仅覆盖 ② 脚本面（`cad.*` 函数）。① TS 兼容面的符号清单见 `packages/core/src/api/compat/index.ts`；③ 库边界面的使用方法见 `docs/library-dev-guide.md`。
+> 下方 § 3–§ 8 的逐 op 手册仅覆盖 ② 脚本面（`cad.*` 函数）。① TS 兼容面的符号清单见 `packages/core/src/api/compat/index.ts`；③ 库边界面的使用方法见 `docs/library-dev-guide.md`。
 
 ---
 
@@ -114,7 +116,27 @@ const c = cad.cone(10, 0, 30, { centered: true, at: [0, 0, 20], segments: 64 })
 
 **同步**。Shape 圆锥体几何，可作为后续 op 的输入。
 
-### 3.3 `cylinder` ✅
+### 3.3 `convexHull` ✅
+
+点集构造 → Result(Solid)，单产物，brep-op
+
+```js
+convexHull(points: Vec3[]): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `points` | `Vec3[]` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `operations`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`hullFromPoints`。
+>
+> 实现：`brep-mirror/hullFns.ts#convexHullBrep`。
+
+### 3.4 `cylinder` ✅
 
 创建圆柱体（brepjs 契约，§4.3 A 决策）。 锚点：`at` 是**底面轴心**（BASE 语义，默认 [0,0,0]，底面在原点、+Z 延伸）；`centered:true` 指底面落到 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
 
@@ -136,7 +158,30 @@ const c = cad.cylinder(5, 40, { centered: true, at: [0, 0, 20], segments: 64 })
 
 **同步**。Shape 圆柱体几何，可作为后续 op 的输入。
 
-### 3.4 `helix` ✅
+### 3.5 `ellipsoid` ✅
+
+纯数值整件构造（rx/ry/rz → ValidSolid），brep-op
+
+```js
+ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `rx` | `number` | ✅ | 数值 / 选项参数 |
+| `ry` | `number` | ✅ | 数值 / 选项参数 |
+| `rz` | `number` | ✅ | 数值 / 选项参数 |
+| `options` | `EllipsoidOptions` |  | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`makeEllipsoid`、`translate`。
+>
+> 实现：`brep-mirror/primitiveFns.ts#ellipsoidBrep`。
+
+### 3.6 `helix` ✅
 
 构造螺旋线（1D 曲线）。
 
@@ -156,7 +201,7 @@ const h = cad.helix({ radius: 5, pitch: 2, turns: 3 })
 
 > 平台 op：仅 occt 引擎（原生 makeHelixWire）。非 occt 引擎执行前报错；brep_mock 不拦截。
 
-### 3.5 `import_brep` ✅
+### 3.7 `import_brep` ✅
 
 平台 BREP 资产导入：把容器 `assets/` 里的冻结 BREP 载体装成持 OCCT 句柄的 Shape。 `asset` = 资产名（去扩展名，沿用 `FsAssetResolver` 的 `key = basename(file)` 规则）， 由宿主资产解析器按 key 解析（与 `cad.load` 同套解析器）。
 
@@ -174,7 +219,7 @@ const a = await cad.import_brep({ asset: 'Array001.Shape' })
 >
 > 这是**平台**资产导入 op。编辑器 `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流 + 画布语句位置语义），平台侧不要复用它（C7）。
 
-### 3.6 `import_step` ✅
+### 3.8 `import_step` ✅
 
 api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
 
@@ -192,7 +237,27 @@ const a = await cad.import_step({ path: 'D:/models/box.step' })
 >
 > 非实体一等（C6）：wire/face/shell 一律可导入。需要实体的 op（布尔、up-to 目标面）在**使用点**报错。
 
-### 3.7 `profile` ✅
+### 3.9 `makeBaseBox` ✅
+
+```js
+(xLength: number, yLength: number, zLength: number) -> Shape3D
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `xLength` | `number` | ✅ | 数值 / 选项参数 |
+| `yLength` | `number` | ✅ | 数值 / 选项参数 |
+| `zLength` | `number` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `sketching`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`makeRectangle`、`extrude`。
+>
+> 实现：`brep-mirror/primitiveFns.ts#makeBaseBoxBrep`。
+
+### 3.10 `profile` ✅
 
 从 2D 轮廓构造平面（creator，无输入）。仅 BREP 可用。
 
@@ -208,7 +273,7 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 
 **同步**。Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
 
-### 3.8 `punchHole` ✅
+### 3.11 `punchHole` ✅
 
 `cad.punchHole`: cut a face-placed 2D profile out of a solid.
 
@@ -223,7 +288,7 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 
 **同步**。Shape with the profile punched out of `on`.
 
-### 3.9 `screw` ✅
+### 3.12 `screw` ✅
 
 生成螺丝零件（螺纹 + 头型）。
 
@@ -248,7 +313,7 @@ const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', leng
 >
 > pitchCustom 执行层已支持（makeScrew/threadBrep 均读取），codegen 曾不序列化（TODO）；当前已机械输出。
 
-### 3.10 `sdf` ⚠️
+### 3.13 `sdf` ⚠️
 
 用 SDF（符号距离场）函数生成网格体（mesh-only）。
 
@@ -267,7 +332,7 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 > SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。
 
-### 3.11 `sketchOnFace` ✅
+### 3.14 `sketchOnFace` ✅
 
 `cad.sketchOnFace`: place 2D contours on a face of a solid and construct a Shape. **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：`on` 是网格实体 时，轮廓按面自己的**平面框**铺放（原点 = 面包围盒中心、法向 = 面法向），产物是一张 网格链面，可直接交给 `cad.extrude` 拉伸。该分支只接受平面面、只接受默认 `scaleMode`（`'bounds'`/`'native'` 相对 UV 域定义，网格链上没有 UV 域）、只接受 `as:'face'`、且只接受单个轮廓岛——每一条越界都以 `E_MESH_SOLID_UNSUPPORTED` 说明原因。
 
@@ -281,7 +346,7 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 **同步**。Shape on the target face (face, or a wire curve when `as:'wire'`).
 
-### 3.12 `sketchOnPlane` ✅
+### 3.15 `sketchOnPlane` ✅
 
 `cad.sketchOnPlane`: place 2D contours on a plane and construct a Shape.
 
@@ -293,7 +358,7 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 **同步**。Shape on the target plane (face, or a wire curve when `as:'wire'`).
 
-### 3.13 `sphere` ✅
+### 3.16 `sphere` ✅
 
 创建球体。
 
@@ -312,7 +377,47 @@ const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
 
 **同步**。Shape 球体几何，可作为后续 op 的输入。
 
-### 3.14 `wedge` ✅
+### 3.17 `thread` ✅
+
+仅参数构造 → Result(Shape3D)，单产物，brep-op
+
+```js
+thread(options: ThreadOptions): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `options` | `ThreadOptions` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `operations`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`brep-mirror/threadFns.ts#threadBrepOp`。
+
+### 3.18 `torus` ✅
+
+```js
+(majorRadius: number, minorRadius: number, options?: TorusOptions)
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `majorRadius` | `number` | ✅ | 数值 / 选项参数 |
+| `minorRadius` | `number` | ✅ | 数值 / 选项参数 |
+| `options` | `TorusOptions` |  | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`dispose`、`makeTorus`。
+>
+> 实现：`brep-mirror/primitiveFns.ts#torusBrep`。
+
+### 3.19 `wedge` ✅
 
 创建楔形体。唯一契约是 width/height/angle/length（width/height/angle 为正数，length 沿切割方向）， 旧文档的 size 形态已废弃，传 { size } 会抛错。
 
@@ -331,7 +436,7 @@ const w = cad.wedge({ width: 30, height: 20, angle: 45, length: 10 })
 
 > 曾与 UI 面板的 `size` 形态并存并写入文档，但断言层确认唯一合法契约是 width/height/angle/length；传 `{ size }` 直接抛错。已按真源收敛。
 
-### 3.15 `wire` ✅
+### 3.20 `wire` ✅
 
 从点列构造 1D 曲线（折线 / 闭合轮廓 / 平滑样条）。
 
@@ -352,7 +457,72 @@ const w = cad.wire([[0,0,0],[10,0,0],[10,10,0]], { closed: true })
 
 ## 4. 变换类操作（inputs ≥ 1）
 
-### 4.1 `place` ✅
+### 4.1 `applyMatrix` ✅
+
+faijs 用 applyTransform（不同名），整件矩阵变换 → brep-op
+
+```js
+applyMatrix(shape: Shape, matrix: unknown): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+| `matrix` | `unknown` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> **任意仿射变换就是这样做的**——等价 OpenSCAD `multmatrix`：`matrix` 是**行主序 4×4**（四个 `[x,y,z,w]` 行组成的数组，底行必须 `[0,0,0,1]`，否则报错），如绕 Z 转 90° 的 `cad.applyMatrix(b, [[0,-1,0,0],[1,0,0,0],[0,0,1,0],[0,0,0,1]])`；也可给结构形态 `{ linear: 9 个数（行主序）, translation: [tx,ty,tz] }`。线性部分行列式 ≈ 0（不可逆）报错；正交等长行（旋转 + 等比缩放）走仿射快路径，其余走通用变换。下游常误判「faijs 不具备任意仿射能力」，实为本 op 此前未进手册所致。
+>
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`transform`、`generalTransform`。
+>
+> 实现：`brep-mirror/topologyFns.ts#applyMatrixBrep`。
+
+### 4.2 `locate` ✅
+
+faijs 无同名，整件定位变换 → brep-op
+
+```js
+locate(shape: Shape, placement: unknown): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+| `placement` | `unknown` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`composeTransform`、`dispose`、`hashCode`、`locate`。
+>
+> 实现：`brep-mirror/topologyFns.ts#locateBrep`。
+
+### 4.3 `offset` ✅
+
+faijs 无同名偏置 → brep-op
+
+```js
+offset(shape: Shape, distance: number): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+| `distance` | `number` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`brep-mirror/topologyFns.ts#offsetBrep`。
+
+### 4.4 `place` ✅
 
 刚性放置几何体：旋转（四元数，绕局部原点）后平移。两者皆可缺省 = 恒等。
 
@@ -367,7 +537,29 @@ const p = cad.place(part0, { rotation: [0, 0, Math.sin(Math.PI/4), Math.cos(Math
 
 **同步**。Shape 放置后的几何（持 OCCT 句柄，可继续变换/导出）。
 
-### 4.2 `rotate_euler` ✅ 🚫
+### 4.5 `rotate` ✅
+
+faijs rotate 已更名 rotate_euler（faijs 面只导出 rotate_euler），上游轴角 rotate 空出 → brep-op 进脚本面（§5.1 D-ROTATE / §4.7）。⚠️ cad.rotate 是 brep-only（compatOp 契约：mesh 模式/断链抛错，从不回退），3d_editor UI 不得暴露；将来暴露前必须先补 mesh 实现。
+
+```js
+rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+| `angle` | `number` | ✅ | 数值 / 选项参数 |
+| `options` | `{ at?, axis? }` |  | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`transform`。
+>
+> 实现：`brep-mirror/topologyFns.ts#rotateBrep`。
+
+### 4.6 `rotate_euler` ✅ 🚫
 
 绕轴旋转几何体。angles 为欧拉角（度，XYZ 顺序）。
 
@@ -385,7 +577,7 @@ const p3 = cad.rotate_euler(part0, { angles: [0, 0, 45], pivot: [0,0,0] })
 
 **同步**。Shape 旋转后的几何。
 
-### 4.3 `scale` ✅ 🚫
+### 4.7 `scale` ✅ 🚫
 
 等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认 原点（与 vendored `scale(shape, factor, { center? })` 一致），`center` 可选。
 
@@ -403,7 +595,7 @@ const p5 = cad.scale(part0, { factor: 2, center: [10, 0, 0] })
 
 **同步**。Shape 缩放后的几何。
 
-### 4.4 `scale3d` ✅ 🚫
+### 4.8 `scale3d` ✅ 🚫
 
 非等比缩放几何体（faijs 语义，§1.4.4 裁决 2）。factor 定死 vec3 — 等比缩放请用 `scale(p, s)`，`scale3d(p, [x,y,z])` 才可非等比。`center` 为不动点（默认原点）。
 
@@ -421,7 +613,7 @@ const p5 = cad.scale3d(part0, [2, 1, 1], { center: [10, 0, 0] })
 
 **同步**。Shape 缩放后的几何。
 
-### 4.5 `translate` ✅ 🚫
+### 4.9 `translate` ✅ 🚫
 
 平移几何体。
 
@@ -441,7 +633,28 @@ const p1 = cad.translate(part0, { offset: [10, 0, 0] })
 
 ## 5. 特征类操作（inputs ≥ 1）
 
-### 5.1 `chamfer` ✅
+### 5.1 `boss` ✅
+
+Shapeable<Shape3D> → Result<T>，brep-op
+
+```js
+boss(shape: Shape, options: BossOptions): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+| `options` | `BossOptions` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `operations`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`getSubShapes`、`surfaceCenterOfMass`、`uvBounds`、`surfaceNormal`、`makeFace`、`translate`、`extrude`、`fuse`。
+>
+> 实现：`brep-mirror/compoundFns.ts#bossBrep`。
+
+### 5.2 `chamfer` ✅
 
 在几何体上倒角（等距 / 双距 / 距角）。
 
@@ -463,7 +676,7 @@ const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
 
 > BREP 输入走完整三形态；**网格实体**输入只支持 `equal` / `distanceAngle` （`twoDistances` 需要 role 可解析的邻面，近似拓扑没有 role）。 `width1` 沿 faces[0] 侧、`width2` 沿 faces[1] 侧（BREP 路径）。
 
-### 5.2 `circularPattern` ✅
+### 5.3 `circularPattern` ✅
 
 环形阵列：绕 axis 均分 fullAngle（度，缺省 360）复制 count 份（含原位置）。
 
@@ -482,7 +695,7 @@ const p = await cad.circularPattern(part0, [0, 0, 1], 6)
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[k]/<inner>`。
 
-### 5.3 `clone` ✅
+### 5.4 `clone` ✅
 
 深拷贝句柄：返回独立副本（源保留）。
 
@@ -497,7 +710,30 @@ const p = await cad.clone(part0)
 
 > BREP-only。keep 语义：不消费输入（薄 override 委托生成 op，行为不变）。
 
-### 5.4 `cut` ✅
+### 5.5 `complexExtrude` ✅
+
+wire → Result(Shape3D)，brep-op
+
+```js
+complexExtrude(wire: Shape, center: Vec3, normal: Vec3, profile?: ExtrusionProfile): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `wire` | `Shape` | ✅ | 几何输入（Shape） |
+| `center` | `Vec3` | ✅ | 数值 / 选项参数 |
+| `normal` | `Vec3` | ✅ | 数值 / 选项参数 |
+| `profile` | `ExtrusionProfile` |  | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `operations`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`brep-mirror/sweepFns.ts#complexExtrudeBrep`。
+
+### 5.6 `cut` ✅
 
 Boolean cut (subtract): remove `tool` from `base`. Same semantics as {@link subtract} but with the brepjs-compatible `(base, tool, options?)` signature. Overrides the generated projection (compatOp) to do roleTable propagation (Phase 3: L2 requires wall:<i> to survive cut).
 
@@ -512,7 +748,7 @@ const b = await cad.cut(part0, part1)
 
 **异步**。Shape base minus tool.
 
-### 5.5 `draft` ✅
+### 5.7 `draft` ✅
 
 拔模：对选定面施加拔模斜度（铸造/注塑出模角）。
 
@@ -531,7 +767,28 @@ const d = await cad.draft(part0, { faces: [cad.faceRef(part0, 3)], angleDeg: 3 }
 
 > **occt-only**（`engines: ['occt']`；实证收窄，非平台依赖——见文件头实证： brepkit 破坏对称性且部分 ordinal 静默无操作）。`neutral`（中性点）**只支持 原点**：occt-wasm 原生 `draft(shape, face, angleRad, direction)` 没有 neutral 形参，传非原点中性点会显式报错（不静默产出错几何）；brepkit 已被静态拒绝， 故非原点 `neutral` 当前**没有任何可用引擎**——需要该语义时请改用 `pull` + 面上一点建模。仅 BREP 可用（mesh 输入执行前报错）。
 
-### 5.6 `engrave` ✅
+### 5.8 `drill` ✅
+
+Shapeable<Shape3D> → Result<T>，brep-op
+
+```js
+drill(shape: Shape, options: DrillOptions): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+| `options` | `DrillOptions` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `operations`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`makeCylinder`、`located`、`getBoundingBox`、`cut`。
+>
+> 实现：`brep-mirror/compoundFns.ts#drillBrep`。
+
+### 5.9 `engrave` ✅
 
 在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
 
@@ -554,7 +811,7 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 
 > 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照。
 
-### 5.7 `extrude` ✅
+### 5.10 `extrude` ✅
 
 沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （vendored extrude 为唯一引擎），up-to 模式走半空间组合。 **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：输入是 `cad.sketchOnFace` 在网格实体识别面上铺出的网格链面时，本 op 沿同一份方向语义 拉伸出**一个新的网格零件**。网格链上不支持 `upTo` （需精度链求交裁切）——会以 `E_MESH_SOLID_UNSUPPORTED` 明确拒绝，不静默当定长拉伸。
 
@@ -576,7 +833,7 @@ const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.8 `fillet` ✅
+### 5.11 `fillet` ✅
 
 在几何体上做圆角（等半径）。 两条路径都以 `meshEngines: ['brepkit']` 之外的事实为界：BREP 输入走 `filletWithHistory`（带面演化与 roleTable 传播）；**网格实体**输入走网格后端 （近似拓扑无 role，边按几何或序号解析，无面演化）。非 BREP 的**裸网格**输入仍抛 `E_MESH_SOLID_UNSUPPORTED`——裸网格没有近似拓扑，没有边可选。
 
@@ -594,7 +851,7 @@ const q = await cad.fillet(meshPart, { edges: [3], radius: 1 })
 
 > `radius` 为正数（mm）。BREP 路径圆角后 roleTable 经 filletWithHistory 传播， 后续特征仍可按 role 选面/选边；网格实体路径没有 role 层，边只能按几何或 序号（近似拓扑 `edges` 数组下标 + 1）指认。
 
-### 5.9 `filletVariable` ✅
+### 5.12 `filletVariable` ✅
 
 变半径圆角：对单条边施加从起点到终点的线性变半径圆角。
 
@@ -612,7 +869,27 @@ const v = await cad.filletVariable(part0, partEdges[0], 1, 4)
 
 > 中立 op：L1 filletVariable 两引擎同实现。`r1 == r2` 时与 cad.fillet 等半径 结果等价。vendored 的 per-edge 回调变半径（variableFillet）不上脚本面。 仅 BREP 可用。
 
-### 5.10 `gridPattern` ✅
+### 5.13 `fuse` ✅
+
+```js
+(a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `a` | `Shape3D` | ✅ | 几何输入（Shape） |
+| `b` | `Shape3D` | ✅ | 几何输入（Shape） |
+| `options` | `BooleanOptions` |  | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`brep-mirror/booleanFns.ts#fuseBrep`。
+
+### 5.14 `gridPattern` ✅
 
 二维栅格阵列：沿 directionX × directionY 复制 countX×countY 份（含原位置）。
 
@@ -633,7 +910,7 @@ const p = await cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[ix_iy]/<inner>`。
 
-### 5.11 `intersect` ✅
+### 5.15 `intersect` ✅
 
 布尔交集：所有输入的重叠部分。
 
@@ -647,7 +924,7 @@ const c = await cad.intersect(part0, part1)
 
 **异步**。Shape 所有输入的交集。
 
-### 5.12 `knurl` ⚠️
+### 5.16 `knurl` ⚠️
 
 施加滚花（顶点位移，非布尔）。mesh-only。
 
@@ -670,7 +947,7 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.13 `linearPattern` ✅
+### 5.17 `linearPattern` ✅
 
 线性阵列：沿 direction 复制 count 份（含原位置）。
 
@@ -688,7 +965,7 @@ const p = await cad.linearPattern(part0, [1, 0, 0], 3, 20)
 
 > BREP 输入走质心聚类回投，结果面按份数 k 回投影到输入面角色，产出 `replica[k]/<inner>`（Phase 3 L3 抗重放词汇）；**网格实体**输入走网格后端， 阵列后融合为一个新的网格零件，近似拓扑没有 role 层故不产 replica 命名。 裸网格输入仍抛 `E_MESH_UNSUPPORTED`。
 
-### 5.14 `loft` ✅
+### 5.18 `loft` ✅
 
 放样：按给定顺序在截面之间蒙皮生成体。
 
@@ -717,7 +994,7 @@ const body = await cad.loft([bottom, top])
 
 > 平台 op：仅 occt 引擎（BRepOffsetAPI_ThruSections）。截面可为 wire 或面 （面取其外环），至少 2 个；`startPoint` / `endPoint` 可做退化到点的蒙皮。 非 occt 引擎执行前报错；brep_mock 不拦截。不做 `loftAll`（数组产物）。
 
-### 5.15 `mirror` ✅
+### 5.19 `mirror` ✅
 
 镜像：返回镜像后的新 Shape（源保留）。
 
@@ -733,7 +1010,7 @@ const p = await cad.mirror(part0, { normal: [1, 0, 0] })
 
 > BREP-only。keep 语义：不消费输入（薄 override 委托生成 op，行为不变）。
 
-### 5.16 `mirrorJoin` ✅
+### 5.20 `mirrorJoin` ✅
 
 镜像并融合：原物（replica[0]）+ 沿平面镜像（replica[1]）fuse 成一体。
 
@@ -749,7 +1026,28 @@ const p = await cad.mirrorJoin(part0, { normal: [1, 0, 0] })
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[0|1]/<inner>`。
 
-### 5.17 `rectangularPattern` ✅
+### 5.21 `pocket` ✅
+
+Shapeable<Shape3D> → Result<T>，brep-op
+
+```js
+pocket(shape: Shape, options: PocketOptions): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+| `options` | `PocketOptions` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `operations`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`getSubShapes`、`surfaceCenterOfMass`、`uvBounds`、`surfaceNormal`、`makeFace`、`translate`、`extrude`、`cut`。
+>
+> 实现：`brep-mirror/compoundFns.ts#pocketBrep`。
+
+### 5.22 `rectangularPattern` ✅
 
 矩形阵列：按 options（xDir/xCount/xSpacing/yDir/yCount/ySpacing）复制并 fuse。
 
@@ -765,7 +1063,7 @@ const p = await cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpaci
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[ix_iy]/<inner>`。
 
-### 5.18 `revolve` ✅
+### 5.23 `revolve` ✅
 
 旋转成形：把平面轮廓绕轴旋转（兼容生成投影签名）。
 
@@ -780,7 +1078,28 @@ const p1 = await cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.2
 
 **异步**。Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
 
-### 5.19 `sectionByPlane` ✅
+### 5.24 `roof` ✅
+
+wire → Result(ValidSolid)→solid，brep-op
+
+```js
+roof(wire: Shape, options?: RoofOptions): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `wire` | `Shape` | ✅ | 几何输入（Shape） |
+| `options` | `RoofOptions` |  | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `operations`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`buildTriFace`、`dispose`、`fixShape`、`isValid`、`sew`、`sewAndSolidify`。
+>
+> 实现：`brep-mirror/roofFns.ts#roofBrep`。
+
+### 5.25 `sectionByPlane` ✅
 
 求实体与无限平面的精确截面线（1D 曲线，可继续建模/导出 STEP）。
 
@@ -797,7 +1116,7 @@ const sec = await cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
 
 > 中立 op：L1 sectionByPlane 两引擎同实现。产物是 1D 曲线（kind:'curve'， 全部交线收拢为一个 compound）；平面不与体相交时显式报错。
 
-### 5.20 `shell` ✅
+### 5.26 `shell` ✅
 
 抽壳：移除指定面并把余下面偏置成等厚薄壁。
 
@@ -816,7 +1135,7 @@ const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
 
 > 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。 精度链按 role 线路选面（`cad.faceRef`）；网格链按序号或几何选面——网格零件 没有 role 层，序号是唯一无歧义的指认方式。
 
-### 5.21 `split` ✅
+### 5.27 `split` ✅
 
 用工具几何切分目标几何（BRepAlgoAPI_Splitter），返回所有碎片组成的几何。
 
@@ -832,7 +1151,7 @@ const pieces = await cad.split(part0, [part1])
 
 > BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面 片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。平台 op：仅 occt 引擎（原生 split）。
 
-### 5.22 `splitByPlane` ✅
+### 5.28 `splitByPlane` ✅
 
 沿无限平面把实体切成两半，返回法向正/负两半（具名产物）。
 
@@ -849,7 +1168,7 @@ const { positive, negative } = await cad.splitByPlane(part0, { point: [0,0,5], n
 
 > 中立 op：L1 splitByPlane 两引擎同实现。产物是具名两半 `{ positive, negative }`（不是数组）；法向正侧 = positive。
 
-### 5.23 `subtract` ✅
+### 5.29 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -863,7 +1182,7 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.24 `sweep` ✅
+### 5.30 `sweep` ✅
 
 扫掠：截面沿脊柱路径生成扫掠体。
 
@@ -888,7 +1207,7 @@ const body = await cad.sweep(section, path)
 
 > 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。截面接受 wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错； brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。
 
-### 5.25 `thicken` ✅
+### 5.31 `thicken` ✅
 
 加厚：把面（或壳）沿法向偏置成等厚实体。
 
@@ -910,7 +1229,30 @@ const solid = await cad.thicken(face, 2)
 
 > 平台 op：仅 occt 引擎（BRepOffset）。输入为面/壳 Shape（如 cad.profile 产物）； 正厚度沿法向、负厚度反向。非 occt 引擎执行前报错；brep_mock 不拦截。
 
-### 5.26 `union` ✅
+### 5.32 `twistExtrude` ✅
+
+wire → Result(Shape3D)，brep-op
+
+```js
+twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `wire` | `Shape` | ✅ | 几何输入（Shape） |
+| `angleDegrees` | `number` | ✅ | 数值 / 选项参数 |
+| `center` | `Vec3` | ✅ | 数值 / 选项参数 |
+| `normal` | `Vec3` | ✅ | 数值 / 选项参数 |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `operations`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`brep-mirror/sweepFns.ts#twistExtrudeBrep`。
+
+### 5.33 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -926,9 +1268,228 @@ const a = await cad.union(part0, part1)
 
 ---
 
-## 6. 结构类操作（结构 / 聚合）
+## 6. 修复类操作（inputs ≥ 1）
 
-### 6.1 `compound` ✅
+### 6.1 `autoHeal` ✅
+
+整件自动修复（Result<Shape>），brep-op
+
+```js
+autoHeal(shape: Shape, options?: AutoHealOptions): { shape: Shape, report }
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+| `options` | `AutoHealOptions` |  | 数值 / 选项参数 |
+
+**异步**。多产物对象（`shape` 为 Shape 包装位，同对象其余键如诊断原样透传；脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`brep-mirror/healingFns.ts#autoHealBrep`。
+
+### 6.2 `defeature` ✅
+
+移除特征面（孔/凸台等），恢复基础形状。
+
+```js
+const base = await cad.defeature(part0, [cad.faceRef(part0, 5)])
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `faces` | `FaceTopoRef[]` | ✅ | — | 要移除的面（FaceTopoRef[]，cad.faceRef 产物） |
+
+**异步**。Shape 移除特征后的几何。
+
+> 中立 op：L1 defeature 两引擎同实现。仅 BREP 可用。
+
+### 6.3 `fixSelfIntersection` ✅
+
+```js
+fixSelfIntersection(shape: Shape): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`brep-mirror/healingFns.ts#fixSelfIntersectionBrep`。
+
+### 6.4 `fixShape` ✅
+
+整件修复（Result<Shape>），brep-op
+
+```js
+fixShape(shape: Shape): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`fixShape`。
+>
+> 实现：`brep-mirror/healingFns.ts#fixShapeBrep`。
+
+### 6.5 `heal` ✅
+
+faijs 无同名整件修复 → brep-op
+
+```js
+heal(shape: Shape): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`brep-mirror/healingFns.ts#healBrep`。
+
+### 6.6 `healSolid` ✅
+
+Solid 修复（Result<ValidSolid>），brep-op
+
+```js
+healSolid(solid: Shape): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `solid` | `Shape` | ✅ | 几何输入（Shape） |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> 内核能力依赖：`healSolid`。
+>
+> 实现：`brep-mirror/healingFns.ts#healSolidBrep`。
+
+### 6.7 `removeHolesFromFace` ✅
+
+移除面（或实体某面）上的孔。
+
+```js
+const plain = await cad.removeHolesFromFace(faceWithHoles)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `face` | `Shape` | ✅ | — | 含孔的面几何 |
+
+**异步**。Shape 去孔后的面。
+
+> 中立 op：L1 removeHolesFromFace 两引擎同实现。入参为含孔的面 Shape （L1 形参是面句柄；借入输入 Shape 的 BREP 槽位句柄）。
+
+### 6.8 `reverseShape` ✅
+
+反转壳体朝向（内表面 ↔ 外表面）。
+
+```js
+const flipped = await cad.reverseShape(sh)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+
+**异步**。Shape 朝向反转后的几何。
+
+> **occt-only**（`engines: ['occt']`，实证收窄）：brepkit 实测在 op 级抛 `invalid solid handle: index N is out of bounds`（非输入侧失败）， 故由静态门在执行前拒绝而非等到运行时。产物 `getVolume` 返回**有向**体积 （朝向反转 ⇒ 符号翻转）。仅 BREP 可用。
+
+### 6.9 `sew` ✅
+
+缝合：把一组面/壳沿公共边缝成一张壳。
+
+```js
+const shellShape = await cad.sew([f1, f2, f3], { tolerance: 1e-5 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `shapes` | `Shape[]` | ✅ | — | 面/壳集合 |
+| `tolerance` | `number` |  | — | 缝合容差（mm） |
+
+**异步**。Shape 缝合后的壳。
+
+> 中立 op：L1 sew 两引擎同实现。产物是壳（不保证闭合）；要实体用 sewAndSolidify。
+
+### 6.10 `sewAndSolidify` ✅
+
+缝合并固化为实体：缝合后若闭合则生成 solid。
+
+```js
+const solid = await cad.sewAndSolidify([f1, f2, f3, f4, f5, f6])
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `shapes` | `Shape[]` | ✅ | — | 面/壳集合 |
+| `tolerance` | `number` |  | — | 缝合容差（mm） |
+
+**异步**。Shape 缝合固化后的实体。
+
+> 中立 op：L1 sewAndSolidify 两引擎同实现。仅 BREP 可用。
+
+### 6.11 `simplify` ✅
+
+faijs 无同名整件简化 → brep-op
+
+```js
+simplify(shape: Shape): Shape
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+
+**异步**。Shape 几何产物（脚本面语句边界 unwrap `Result`，err → 语句失败）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`brep-mirror/healingFns.ts#simplifyBrep`。
+
+### 6.12 `unifySameDomain` ✅
+
+合并同域面/边（去除被分割成多片的冗余细分）。
+
+```js
+const merged = await cad.unifySameDomain(part0)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+
+**异步**。Shape 合并后的几何。
+
+> 中立 op：L1 unifySameDomain 两引擎同实现。仅 BREP 可用。
+
+---
+
+## 7. 结构类操作（结构 / 聚合）
+
+### 7.1 `compound` ✅
 
 `cad.compound({ members, name? })` → 几何复合体 Shape（持 OCCT 句柄）。
 
@@ -947,9 +1508,27 @@ const c = cad.compound({ members: [part0, part1] })
 
 ---
 
-## 7. 查询类操作（几何 / 资产引用查询）
+## 8. 查询类操作（几何 / 资产引用 / 装配查询）
 
-### 7.1 `asset` ✅
+### 8.1 `area` ✅
+
+```js
+(shape: Shape) -> number(面积 mm²)
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+
+**同步**。number(面积 mm²) —— 纯数据结果（非 Shape）。
+
+> **中立 op**：直连 L1 测量面，无引擎绑定，occt / brepkit 上同一份 `.fai.js` 都跑。返回纯数字，不产 Shape；需要体积+面积+质心一次取回且接受 occt 独占时用 `cad.inspectMassProps`。
+>
+> 自动派生自 `api/surface/arg-spec.ts`（module `measurement`）——生成 op 无手写 JSDoc 契约。
+>
+> 实现：`measurement/index.js#area`。
+
+### 8.2 `asset` ✅
 
 查询资产 key 内容为 UTF-8 字符串（SVG 等文本资产）。嵌套调用，供 text/svg 类 op 作资产引用。
 
@@ -963,7 +1542,7 @@ const svg = await cad.asset('logo_cfg')
 
 **异步**。Promise<string> 资产内容字符串（UTF-8 解码）。`cad.asset('cfg')` 返回 SVG 等文本资产，可作 svgExtrude/engrave 的 svg 参数。
 
-### 7.2 `bboxCenter` ✅
+### 8.3 `bboxCenter` ✅
 
 查询几何包围盒中心。
 
@@ -977,7 +1556,7 @@ const c = cad.bboxCenter(part0)
 
 **同步**。Vec3 包围盒中心 [x,y,z]。交互式可编辑（参数量引用）。
 
-### 7.3 `bboxMax` ✅
+### 8.4 `bboxMax` ✅
 
 查询几何包围盒最大角点。
 
@@ -991,7 +1570,7 @@ const mx = cad.bboxMax(part0)
 
 **同步**。Vec3 包围盒最大角点 [x,y,z]。
 
-### 7.4 `bboxMin` ✅
+### 8.5 `bboxMin` ✅
 
 查询几何包围盒最小角点。
 
@@ -1005,7 +1584,23 @@ const mn = cad.bboxMin(part0)
 
 **同步**。Vec3 包围盒最小角点 [x,y,z]。
 
-### 7.5 `edgeRef` ✅
+### 8.6 `centerOfMass` ✅
+
+```js
+(shape: Shape) -> BrepVec3(质心 mm)
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+
+**同步**。BrepVec3(质心 mm) —— 纯数据结果（非 Shape）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `measurement`）——生成 op 无手写 JSDoc 契约。
+>
+> 实现：`measurement/index.js#centerOfMass`。
+
+### 8.7 `edgeRef` ✅
 
 查询几何体第 N 条边的 `EdgeTopoRef`，供 `cad.fillet` / `cad.chamfer` 的 `edges` 使用： `cad.fillet(base, { edges: [cad.edgeRef(base, 17)], radius: 2 })`。 定不了案（无 BREP / 序号越界 / 邻面不足两面 / 邻面无 role 血统）抛 `TopoRefError`。
 
@@ -1022,7 +1617,7 @@ const part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 1)], radius: 2 })
 
 > 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `EdgeN` 同序（`getSubShapes(solid,'edge')` 用 TopExp::MapShapes + IndexedMap 枚举）。
 
-### 7.6 `faceNormal` ✅
+### 8.8 `faceNormal` ✅
 
 查询面上某点（锚点）的法向。
 
@@ -1038,7 +1633,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 **同步**。Vec3 面上锚点处的法向 [x,y,z]。
 
-### 7.7 `faceRef` ✅
+### 8.9 `faceRef` ✅
 
 查询几何体第 N 张面的 `FaceTopoRef`，供 `cad.extrude` 的 `upTo` 等参数使用： `cad.extrude(part0, { upTo: cad.faceRef(part0, 3) })`。 定不了案（无 BREP / 序号越界 / 面无 role 血统）抛 `TopoRefError`。
 
@@ -1055,7 +1650,118 @@ const part1 = cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
 
 > 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `FaceN` 同序（`getSubShapes(solid,'face')` 用 TopExp::MapShapes + IndexedMap 枚举）。
 
-### 7.8 `projectSheet` ✅
+### 8.10 `inspectMassProps` ✅
+
+occt 独占诊断（绕轴惯性矩/主轴，中立面没有）→ inspect* 命名进脚本面（§7 待裁决 4）
+
+```js
+(shape: Shape) -> { volume, area, centerOfMass }（core selfhost）
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 目标实体（体积/质心/惯量/主轴） |
+
+**同步**。{ volume: number; area: number; centerOfMass: { x: number; y: number; z: number } } —— 纯数据结果（非 Shape）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `measurement`）——生成 op 无手写 JSDoc 契约。
+>
+> **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
+>
+> 实现：`measurement/measureFns.js#measureVolumeProps`。
+
+### 8.11 `inverseKinematics` ✅
+
+`cad.inverseKinematics({ joints, endEffector, target, options? })` — damped-least-squares IK：求使末端到达 target 的关节值。关节范围在每个迭代 clamp；不可达目标返回 converged:false 与最优配置。纯函数，无副作用。
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `p` | `InverseKinematicsParams` | ✅ | — | IK 查询参数 |
+
+**同步**。IKResult 关节值 + 收敛诊断（converged / iterations / error）。
+
+> 纯函数：输入输出都是纯数据，不产 Shape、不依赖引擎；装配面契约见 `docs/api-contract.md` §12。
+
+### 8.12 `isSameShape` ✅
+
+两整件同构比较（纯数据），query
+
+```js
+isSameShape(a: Shape, b: Shape): boolean（core selfhost）
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `a` | `Shape` | ✅ | 第一个被比较形状 |
+| `b` | `Shape` | ✅ | 第二个被比较形状 |
+
+**同步**。boolean —— 纯数据结果（非 Shape）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> 实现：`core:brep-mirror#isSameShape`。
+
+### 8.13 `isValid` ✅
+
+整件合法性检查（Shape → boolean 纯数据），query
+
+```js
+isValid(shape: Shape): boolean（core selfhost）
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+
+**同步**。boolean —— 纯数据结果（非 Shape）。
+
+> 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
+>
+> 实现：`core:brep-mirror#isValid`。
+
+### 8.14 `jointTrajectory` ✅
+
+`cad.jointTrajectory({ joints, from, to, steps })` — 关节空间直线路径采样。 产出 steps+1 个采样（含两端点）；joints 缺省值在两端取存储值。 无 endEffector 参数（关节空间插值，不追踪端点）。
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `p` | `JointTrajectoryParams` | ✅ | — | 轨迹查询参数 |
+
+**同步**。FaijsTrajectorySample[] 采样序列（steps+1 个，含两端点）。
+
+> 纯函数：输入输出都是纯数据，不产 Shape、不依赖引擎；装配面契约见 `docs/api-contract.md` §12。
+
+### 8.15 `length` ✅
+
+```js
+(shape: Shape) -> number(长度 mm)
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+
+**同步**。number(长度 mm) —— 纯数据结果（非 Shape）。
+
+> **中立 op**：直连 L1 测量面，无引擎绑定，occt / brepkit 上同一份 `.fai.js` 都跑（线/边长度）。返回纯数字，不产 Shape。
+>
+> 自动派生自 `api/surface/arg-spec.ts`（module `measurement`）——生成 op 无手写 JSDoc 契约。
+>
+> 实现：`measurement/index.js#length`。
+
+### 8.16 `mechanismDOF` ✅
+
+`cad.mechanismDOF({ joints })` — 开链机构自由度 = 各 joint DOF 数之和 （revolute/prismatic 各 1；串联两 revolute = 2）。纯函数，无副作用。
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `p` | `MechanismDOFParams` | ✅ | — | 自由度查询参数 |
+
+**同步**。number 机构总自由度。
+
+> 纯函数：输入输出都是纯数据，不产 Shape、不依赖引擎；装配面契约见 `docs/api-contract.md` §12。
+
+### 8.17 `projectSheet` ✅
 
 多视图投影图纸 → 组合 SVG 字符串（纯数据，不消费/修改 shape）。
 
@@ -1076,7 +1782,7 @@ const sheet = cad.projectSheet(part0, [{ view: 'front', label: '主视图' }], {
 
 **同步**。SVG 字符串（嵌套 <svg x y width height viewBox preserveAspectRatio> + <text> 标签）。空列表返回空 SVG 不抛错。
 
-### 7.9 `projectView` ✅
+### 8.18 `projectView` ✅
 
 单视图投影 → SVG 线稿字符串（纯数据，不消费/修改 shape；规则 1 下裸调用不消费输入）。
 
@@ -1098,7 +1804,7 @@ const svg = cad.projectView(part0, 'iso', { strokeWidth: 1, dash: '4,4', hiddenO
 
 **同步**。SVG 字符串（<svg viewBox="…"> + 可见实线 <path> + 隐藏虚线 <path>）。裸调用 cad.projectView(part0, 'front') 不消费 part0（规则 1），part 仍留在 canvas。
 
-### 7.10 `viewCamera` ✅
+### 8.19 `viewCamera` ✅
 
 解析视图规格为投影相机（纯数据，无 Shape 输入；不消费任何几何）。
 
@@ -1113,9 +1819,27 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 
 **同步**。{ direction, xAxis? } 归一化方向向量（iso = (1,-1,1)/√3，与 FreeCAD/OCCT 惯例一致）。未知视图名抛错；零方向向量抛错。用于 3d_editor 侧三轴相机渲染（mesh/SDF 形状的截图通道）。
 
+### 8.20 `volume` ✅
+
+```js
+(shape: Shape) -> number(体积 mm³)
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `shape` | `Shape` | ✅ | 几何输入（Shape） |
+
+**同步**。number(体积 mm³) —— 纯数据结果（非 Shape）。
+
+> **中立 op**：直连 L1 测量面，无引擎绑定，occt / brepkit 上同一份 `.fai.js` 都跑。返回纯数字，不产 Shape；需要体积+面积+质心一次取回且接受 occt 独占时用 `cad.inspectMassProps`。
+>
+> 自动派生自 `api/surface/arg-spec.ts`（module `measurement`）——生成 op 无手写 JSDoc 契约。
+>
+> 实现：`measurement/index.js#volume`。
+
 ---
 
-## 8. BREP 能力声明（compat op → 内核方法真名）
+## 9. BREP 能力声明（compat op → 内核方法真名）
 
 来自 `packages/core/src/api/surface/capability-map.json`（Phase 0 生成，36 compat op、64 个唯一内核方法）；能力名三层结构、静态前置判定与报错形态见 `docs/api-contract.md` §7.9 / §8.1；引擎侧可执行性由各适配器的 `capabilities.methods` / `evolution` 声明决定（缺能力执行前静态报错，不伪造）。
 
@@ -1159,7 +1883,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 
 ---
 
-## 9. 接口品质状态（自动派生自 @qual）
+## 10. 接口品质状态（自动派生自 @qual）
 
 | op | 品质 | 说明 |
 |---|---|---|
@@ -1169,20 +1893,21 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 
 ---
 
-## 10. 写给 AI 的速查（一句话总结每个可用 op）
+## 11. 写给 AI 的速查（一句话总结每个可用 op）
 
 ```
-创建: helix / import_brep / import_step / box / sphere / cylinder / cone / wedge / profile / punchHole / screw / sdf / sketchOnFace / sketchOnPlane / wire
-变换: place
-特征: union / cut / subtract / intersect / chamfer / draft / engrave / extrude / filletVariable / fillet / knurl / loft / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / revolve / sectionByPlane / shell / splitByPlane / split / sweep / thicken
+创建: box / cone / convexHull / cylinder / ellipsoid / helix / import_brep / import_step / makeBaseBox / profile / punchHole / screw / sdf / sketchOnFace / sketchOnPlane / sphere / thread / torus / wedge / wire
+变换: applyMatrix / locate / offset / place / rotate
+特征: boss / chamfer / circularPattern / clone / complexExtrude / cut / draft / drill / engrave / extrude / fillet / filletVariable / fuse / gridPattern / intersect / knurl / linearPattern / loft / mirror / mirrorJoin / pocket / rectangularPattern / revolve / roof / sectionByPlane / shell / split / splitByPlane / subtract / sweep / thicken / twistExtrude / union
+修复: autoHeal / defeature / fixSelfIntersection / fixShape / heal / healSolid / removeHolesFromFace / reverseShape / sew / sewAndSolidify / simplify / unifySameDomain
 结构: compound
-查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
+查询: area / asset / bboxCenter / bboxMax / bboxMin / centerOfMass / edgeRef / faceNormal / faceRef / inspectMassProps / inverseKinematics / isSameShape / isValid / jointTrajectory / length / mechanismDOF / projectSheet / projectView / viewCamera / volume
 废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: translate、rotate_euler、scale、scale3d
 ```
 
 ---
 
-## 11. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）
+## 12. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）
 
 BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**自己新造的面**声明的 role 词汇（`RoleName` 线格式）；继承来的面沿用其产生 op 的 role。`vocab` 中的 `<i>` / `<j>` / `[k]` 为序号占位。**改一个 op 的词汇 = breaking change**（会破坏存量 `.fai.js` 引用），需版本化。
 

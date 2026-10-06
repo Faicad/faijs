@@ -306,8 +306,14 @@ export interface FaijsTrajectorySample {
  * 产出 steps+1 个采样（含两端点）；joints 缺省值在两端取存储值。
  * 无 endEffector 参数（关节空间插值，不追踪端点）。
  *
- * @param p - trajectory query parameters.
- * @returns the sampled trajectory (poses with faijs-order quaternions).
+ * @group 查询
+ * @inputs 0
+ * @async false
+ * @qual ok
+ * @name jointTrajectory
+ * @note 纯函数：输入输出都是纯数据，不产 Shape、不依赖引擎；装配面契约见 `docs/api-contract.md` §12。
+ * @returns FaijsTrajectorySample[] 采样序列（steps+1 个，含两端点）。
+ * @param p - 轨迹查询参数。type:JointTrajectoryParams required:true
  */
 export function jointTrajectory(p: JointTrajectoryParams): FaijsTrajectorySample[] {
   const memberNames = specMemberNames(p.joints)
@@ -350,8 +356,14 @@ export interface IKResult {
  * damped-least-squares IK：求使末端到达 target 的关节值。关节范围在每个迭代
  * clamp；不可达目标返回 converged:false 与最优配置。纯函数，无副作用。
  *
- * @param p - IK query parameters.
- * @returns the solved joint values plus convergence diagnostics.
+ * @group 查询
+ * @inputs 0
+ * @async false
+ * @qual ok
+ * @name inverseKinematics
+ * @note 纯函数：输入输出都是纯数据，不产 Shape、不依赖引擎；装配面契约见 `docs/api-contract.md` §12。
+ * @returns IKResult 关节值 + 收敛诊断（converged / iterations / error）。
+ * @param p - IK 查询参数。type:InverseKinematicsParams required:true
  */
 export function inverseKinematics(p: InverseKinematicsParams): IKResult {
   const memberNames = specMemberNames(p.joints)
@@ -378,8 +390,14 @@ export interface MechanismDOFParams {
  * `cad.mechanismDOF({ joints })` — 开链机构自由度 = 各 joint DOF 数之和
  * （revolute/prismatic 各 1；串联两 revolute = 2）。纯函数，无副作用。
  *
- * @param p - DOF query parameters.
- * @returns the mechanism's total degree of freedom.
+ * @group 查询
+ * @inputs 0
+ * @async false
+ * @qual ok
+ * @name mechanismDOF
+ * @note 纯函数：输入输出都是纯数据，不产 Shape、不依赖引擎；装配面契约见 `docs/api-contract.md` §12。
+ * @returns number 机构总自由度。
+ * @param p - 自由度查询参数。type:MechanismDOFParams required:true
  */
 export function mechanismDOF(p: MechanismDOFParams): number {
   const memberNames = specMemberNames(p.joints)
