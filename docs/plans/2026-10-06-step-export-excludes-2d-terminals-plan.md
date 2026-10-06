@@ -3,8 +3,22 @@
 - 日期：2026-10-06
 - 归属：`packages/core`（导出层）+ `fcstd-port`（验证）
 - 触发：faijs-freecad 独立仓 `docs/plans/2026-10-05-freecad-post-occt56-plan.md` 的 **G0-D / R10**
-- 状态：**方案（未实施，待批准）**
+- 状态：**已实施（E-2 完成、E-1 探针改判 `SHELL`；E-3 V-1 通过；E-4 待跑）**
 - 范围纪律：**本方案只解决「2D 终端被单独导出」这一个问题**。相邻缺陷在 §8 留档并单独立项，不在本批改。
+
+---
+
+## 0. 实施纪要（2026-10-06 追加，含对 §3 的实测改判）
+
+- **E-1 探针结果推翻 §3 的 `SHELL` 判决**：8 个游离 sketch 中 **5 个顶层 shapeType = `SHELL`**（pin-header ×2、M24、45x45 ×2），3 个 = `COMPOUND`（含 0 solid）。§3 原把 shell 判为「导出（保留现状）」⇒ 只能拦 3/8。
+  改判依据：① 旧栈 A 组 9/9 真实件顶层全 `SOLID`/`COMPOUND` 且 `solids≥1`，语料无「合法 2D 面模型」；② 改前 `cli.ts` **0 处** shell 逻辑，无既有行为要兼容；③ §9-R2 预案本就约定「若为 shell 立即回 §3 改判决」。
+  ⇒ **最终判决：`SHELL` 且无子实体 → 跳过**（与 `COMPOUND` 同款：`getSubShapes(h,'solid').length > 0` 才导出）。
+- **不再递归分层**：内核 `getSubShapes`（OCCT `TopExp_Explorer` 语义）对任意嵌套深度一次取全部子实体；`compsolid` 不在 L1 `BrepSubShapeType` 联合里，无法直接查子形状。故 `COMPOUND`/`SHELL` 分支各一次 `getSubShapes('solid')` 即足。
+- **判据可注入**：`isExportableSolid(shape, probe)` 的 `probe` 参数（`{shapeType, getSubShapes}`）使 §5 判决矩阵可用假 kernel 测，零 OCCT 启动。
+- **I-1…I-6 全部落地**（`packages/core/src/node-host/cli.ts`）：判据 + `selectExportableTerminals` 之后过滤 + 封 last-output 后门 + `writeAssemblyStep` 兜底同判据 + `infos` 报告。
+- **§5 变异验证通过**：判决反写 ⇒ 8 用例变红（矩阵 6 + §5-4 + §5-5）。
+- **E-3 V-1 通过**：3 样本产物集合 == 旧 A 组，4 对同名 STEP 六位有效数字全等。
+- **E-4 未执行**（V-2 60 样本 / V-3 全量）。
 
 ---
 
@@ -73,13 +87,13 @@
 | shapeType | 判决 | 理由 |
 |---|---|---|
 | `solid` / `compsolid` | **导出** | 真零件 |
-| `shell` | **导出（保留现状）** | 面模型是合法产物的先例存在；改动会引入新回归。见 §9-R2 复看触发条件 |
+| `shell` | **含子实体 → 导出；否则跳过**（E-1 改判，见 §0） | 原「保留现状」被实测推翻：5/8 游离草图顶层即是 shell |
 | `face` / `wire` / `edge` / `vertex` | **跳过** | 本次目标：无实体的 2D 片面 / 1D 线框 |
 | `compound` | **递归**：含 ≥1 solid/compsolid → 导出；仅 face/wire/edge/vertex → 跳过 | Sliding_door 的 sketch 实测 `faces=3` ⇒ 很可能是 compound-of-faces，**不递归就会漏判** |
 | `shape`（枚举兜底） | **导出** | 保守，零回归 |
 | **无 BREP 句柄**（纯 mesh 终端） | **导出** | mesh 零件导出 STEP 是既有能力（`d1a88d00`），不借本批收紧。见 §9-R3 |
 
-递归用 `getSubShapes(h, 'solid')`（+`compsolid`），一层展开不足时先取 `getSubShapes(h, 'compound')` 再判，深度上限 3，超限保守放行。
+实现上不分层递归：内核 `getSubShapes(h,'solid')`（OCCT `TopExp_Explorer` 语义）对任意嵌套深度**一次取全**子实体（`compsolid` 不在 L1 `BrepSubShapeType` 联合里，不能直接查）。探针抛错 → 保守放行。
 
 ---
 
@@ -166,11 +180,9 @@ e2e `packages/tests/` 或 fixtures：`.fai.js` fixture（一个游离 `cad.sketc
 
 | 批 | 内容 | 验收 |
 |---|---|---|
-| **E-1** | shapeType 探针：确认 Sliding_door / pin-header / M24 三个 sketch 的真实 `shapeType`（face？compound-of-faces？shell？） | 一张三行表；若为 `shell` 立即回 §3 改判决 |
-| **E-2** | I-1…I-6 实施 + §5 单测（含变异） | `tsc` / `eslint` / core 单测绿 |
-| **E-3** | 重打 core tgz → fcstd-port 重装 → V-1（3 样本） | 产物集合 == A 组；几何全等 |
-| **E-4** | V-2（60 样本差分）+ V-3（全量） | PASS 集合 ⊇ 旧基线；无新增 area FAIL |
-
-**回滚**：改动集中在 `packages/core/src/node-host/cli.ts` 一个文件，回滚 = `git revert` 单个提交，无数据迁移成本。
+| **E-1** | shapeType 探针：确认 Sliding_door / pin-header / M24 三个 sketch 的真实 `shapeType`（face？compound-of-faces？shell？） | ✅ **已完成**：Sliding_door=`COMPOUND`(3 shells)；其余 5 个 `SHELL` ⇒ 已按预案回 §3 改判决（见 §0） |
+| **E-2** | I-1…I-6 实施 + §5 单测（含变异） | ✅ **已完成**：`cli.test.ts` 55/55、tsc 0 错、eslint/ghost-deps/lockstep 全绿；变异 8 用例变红 |
+| **E-3** | 重打 core tgz → fcstd-port 重装 → V-1（3 样本） | ✅ **已完成**：产物集合 == A 组；4 对同名 STEP 六位有效数字全等 |
+| **E-4** | V-2（60 样本差分）+ V-3（全量） | ⏳ **未执行** |
 
 **实施前置批准**：本改动位于 `packages/core`（非本议题所属的两个独立仓），按既有铁律，动手前须用户确认一次。
