@@ -15,7 +15,7 @@
  */
 
 import { getBackends, getCurrentStmt, BrepUnsupportedError, MeshUnsupportedError } from '../runtime-state'
-import { hasBrep, hasMeshFace, hasMeshSolid } from '../shape'
+import { hasBrep, hasMeshFace, hasMeshSolid, isCompoundLike } from '../shape'
 import type { BrepEngineId, BrepEvolutionKind, BrepMethodKind } from '../brep/engine/types'
 import type { Shape } from '../mesh/types'
 
@@ -249,6 +249,16 @@ export function dispatchPath(
 }
 
 /**
+ * P2（2026-10-06-step-3mf-multipart-import-plan.md §7）：多零件 load 的输出是
+ * compound——输入「在 BREP 链上」判定对其展开：children 全部有 OCCT 句柄才
+ * 算链上（消费 op 按 partIndex 解包出的目标成员才是真正被操作的对象）。
+ * 空 children / 混合链按不在链上处理（静态判定，不运行时回退）。
+ */
+function allInputsOnBrepChain(inputs: Shape[]): boolean {
+  return inputs.every((s) => (isCompoundLike(s) ? s.children.length > 0 && s.children.every(hasBrep) : hasBrep(s)))
+}
+
+/**
  * The path decision itself (mode → engine identity → capability → chain).
  *
  * Split out of `dispatchPath` so the mesh-solid gate can run *after* the path is
@@ -313,7 +323,7 @@ function decidePath(
     if (!impls.brep) {
       throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: function has no BREP implementation', currentStmt)
     }
-    if (!inputs.every(hasBrep)) {
+    if (!allInputsOnBrepChain(inputs)) {
       throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: input is not BREP', currentStmt)
     }
     // 能力路由：brep 模式缺能力 → 明确报错，不静默回退
@@ -337,7 +347,7 @@ function decidePath(
     return 'mesh'
   }
 
-  if (impls.brep && inputs.every(hasBrep)) return 'brep'
+  if (impls.brep && allInputsOnBrepChain(inputs)) return 'brep'
   if (!impls.mesh) {
     throw new MeshUnsupportedError(
       'E_MESH_UNSUPPORTED: input is not BREP and function has no mesh implementation',

@@ -327,10 +327,27 @@ export async function importAssemblyFromStep(
     for (let i = 0; i < rootTags.length; i++) {
       nodes.push(walkLabel(kernel, doc, rootTags[i], `o${i}`, solidColors, cursor))
     }
+    // P2 修复（2026-10-06）：文档关闭前把全部 leaf shapeHandle 提升为独立副本。
+    // getLabelInfo 返回的句柄生命周期绑定 XCAF 文档（doc.close() 释放文档资源），
+    // 直接返回会让调用方拿到悬空句柄——BOP（common/cut 等）在 worker 环境内存
+    // 复用后访问悬空句柄挂死（node 内存不复用侥幸通过；e2e/worker 必现）。
+    // BRepBuilderAPI_Copy 深拷贝独立于文档，release 原句柄后副本生命周期由调用方
+    // 掌控（releaseAssemblyTree / 各消费方的 release 路径）。
+    for (const n of nodes) liftShapesFromDocument(kernel, n)
     return nodes
   } finally {
     doc.close()
   }
+}
+
+/** 递归把节点树中所有 leaf shapeHandle 从文档句柄提升为独立副本（P2，2026-10-06）。 */
+function liftShapesFromDocument(kernel: OcctKernel, node: AssemblyPartNode): void {
+  if (node.shapeHandle) {
+    const copied = kernel.copy(node.shapeHandle)
+    kernel.release(node.shapeHandle)
+    node.shapeHandle = copied
+  }
+  for (const child of node.children) liftShapesFromDocument(kernel, child)
 }
 
 /** Walk-context: tracks the current position in the solidColors array across

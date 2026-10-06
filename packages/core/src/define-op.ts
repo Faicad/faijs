@@ -36,7 +36,7 @@ import {
   nameOf,
 } from './runtime-state'
 import { asStmtId, type PartName } from './identity'
-import { isShape, solid, fromBrep, getSlot } from './shape'
+import { isShape, solid, fromBrep, getSlot, type CompoundShape } from './shape'
 import { isMeshShape } from './mesh/types'
 import { fromHandle, meshHandle, isOcctHandle } from './brep/handle-bridge'
 import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
@@ -84,7 +84,7 @@ export function isGeometryInput(v: unknown): v is Shape {
  */
 
 /** Product of a mesh implementation: raw mesh data, a wrapped Shape, or (with `outputs`) a record of named products. */
-export type MeshProduct = MeshData | Shape | Record<string, MeshData | Shape>
+export type MeshProduct = MeshData | Shape | CompoundShape | Record<string, MeshData | Shape | CompoundShape>
 
 /** Mesh implementation: sync or async (api mesh paths are often async); returns a mesh product. */
 export type MeshImpl<A extends unknown[]> = (...args: A) => MeshProduct | Promise<MeshProduct>
@@ -100,7 +100,8 @@ export type BrepProduct =
   | BrepHandle
   | BrepResult
   | Shape
-  | Record<string, BrepHandle | BrepResult | Shape>
+  | CompoundShape
+  | Record<string, BrepHandle | BrepResult | Shape | CompoundShape>
   | ResultLike
 
 /** BREP implementation: sync or async; returns a brep product. */

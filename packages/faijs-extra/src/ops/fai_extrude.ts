@@ -9,7 +9,7 @@ import type { Shape, Vec3 } from '@faicad/faijs/mesh/types'
 import { extrude as meshExtrude } from '../mesh/fai_extrude'
 import { extrudeBrep, solidToShape } from '@faicad/faijs/brep/brep-ops'
 import { getBackends } from '@faicad/faijs/runtime-state'
-import { fromBrep, brepOf } from '@faicad/faijs/shape'
+import { fromBrep, brepOf, resolveCompoundMember, replaceCompoundMember } from '@faicad/faijs/shape'
 import { defineOp } from '@faicad/faijs/sdk'
 import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
 import { assertPositiveNumber } from '@faicad/faijs/api/assert'
@@ -69,17 +69,23 @@ export const fai_extrude = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[extra/extrude] no input geometry')
     assertExtrudeParams(params)
-    return meshExtrude(input, {
+    // P2：多零件 load 的输入是 compound——按 partIndex 取目标成员，
+    // 结果替换回原 compound（其余 children 原样保留）。
+    const target = resolveCompoundMember(input, params.partIndex, 'fai_extrude')
+    const result = await meshExtrude(target, {
       normal: (params.normal as Vec3 | undefined) ?? [0, 0, 1],
       planeDistance: (params.planeDistance as number | undefined) ?? 0,
       length: params.length as number,
       mode: params.mode as 'centered' | 'forward' | 'backward' | undefined,
     })
+    return replaceCompoundMember(input, params.partIndex, result)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[extra/extrude] no input geometry')
     assertExtrudeParams(params)
-    return extrudeBrepPath(input, params)
+    const target = resolveCompoundMember(input, params.partIndex, 'fai_extrude')
+    const result = extrudeBrepPath(target, params)
+    return replaceCompoundMember(input, params.partIndex, result)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } } as Provenance,
   paramDims: { length: 'length', planeDistance: 'length' },

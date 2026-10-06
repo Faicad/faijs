@@ -349,7 +349,9 @@ export class CadRuntime {
   private statementCache = new Map<PartName, {
     statementKey: string
     outputContentKey: string
-    output: Shape
+    // P2：多零件 load 的输出是 CompoundShape（无 mesh）——整体缓存，
+    // 宿主经 getCachedOutput 取回 compound 逐 part 渲染。
+    output: Shape | CompoundShape
   }>()
 
   /** 场景代码累积（三接口收敛：append 只传新行，faijs 累积全文使 id 按位置稳定 + DAG/keep 分析可见全场景）。 */
@@ -1027,6 +1029,17 @@ export class CadRuntime {
             : `direct:nomesh:${String(name)}`,
           output: shape,
         })
+      } else if (isCompoundLike(v)) {
+        // P2（2026-10-06-step-3mf-multipart-import-plan.md §7）：多零件 load 的
+        // 输出是 compound（无 positions/indices）——必须整体缓存，否则宿主经
+        // `getCachedOutput` 指令取不到多零件几何（探针实测：返回 undefined →
+        // "load produced no geometry"）。content key 退化为占位（compound 无
+        // 单一网格可哈希）。
+        this.statementCache.set(name, {
+          statementKey: `direct:${String(name)}`,
+          outputContentKey: `direct:compound:${String(name)}`,
+          output: v as CompoundShape,
+        })
       }
     }
     // T3-cond：DAG 叶子终端判定换 computeLiveShapes（§4.4）——输入换源：
@@ -1337,7 +1350,7 @@ export class CadRuntime {
    * @param partName - the part name to look up.
    * @returns the cached shape, or undefined.
    */
-  getCachedOutput(partName: PartName): Shape | undefined {
+  getCachedOutput(partName: PartName): Shape | CompoundShape | undefined {
     return this.statementCache.get(partName)?.output
   }
 
@@ -1349,7 +1362,7 @@ export class CadRuntime {
    */
   getStatementCacheEntry(
     partName: PartName,
-  ): { statementKey: string; outputContentKey: string; output: Shape } | undefined {
+  ): { statementKey: string; outputContentKey: string; output: Shape | CompoundShape } | undefined {
     return this.statementCache.get(partName)
   }
 
@@ -1363,7 +1376,7 @@ export class CadRuntime {
   writeToStatementCache(
     partName: PartName,
     _stmt: unknown,
-    output: Shape,
+    output: Shape | CompoundShape,
     outputContentKey: string,
   ): void {
     this.statementCache.set(partName, {

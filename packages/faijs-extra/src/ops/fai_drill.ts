@@ -19,7 +19,7 @@ import { threadBrep } from '@faicad/faijs/api/brep-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm } from '@faicad/faijs/primitives/screw/screw-db'
 import * as THREE from 'three'
 import { getBackends, getCurrentStmt } from '@faicad/faijs/runtime-state'
-import { fromBrep, brepOf, inputRoleTable } from '@faicad/faijs/shape'
+import { fromBrep, brepOf, inputRoleTable, resolveCompoundMember, replaceCompoundMember } from '@faicad/faijs/shape'
 import { defineOp } from '@faicad/faijs/sdk'
 import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
@@ -268,12 +268,18 @@ export const fai_drill = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[extra/drill] no input geometry')
     assertDrillParams(params)
-    return drillMeshPath(input, params)
+    // P2：多零件 load 的输入是 compound——按 partIndex 取目标成员，
+    // 结果替换回原 compound（其余 children 原样保留）。
+    const target = resolveCompoundMember(input, params.partIndex, 'fai_drill')
+    const result = await drillMeshPath(target, params)
+    return replaceCompoundMember(input, params.partIndex, result)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[extra/drill] no input geometry')
     assertDrillParams(params)
-    return drillBrepPath(input, params)
+    const target = resolveCompoundMember(input, params.partIndex, 'fai_drill')
+    const result = drillBrepPath(target, params)
+    return replaceCompoundMember(input, params.partIndex, result)
   },
   paramDims: { diameter: 'length', depth: 'length', tolerance: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,

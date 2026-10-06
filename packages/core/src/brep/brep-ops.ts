@@ -512,9 +512,23 @@ export function splitBrep(
   kernel.release(localBox)
 
   try {
-    const front = kernel.common(solid, halfSpaceBox)
+    // P2（2026-10-06）：规避 occt-wasm 在 Chrome worker 下 common 对"平面退化 BOP"
+    // 挂死（common(solid, 半边盒) 不稳定；cut 稳定——drill 打孔 cut 在 worker 正常）。
+    // 差集对偶：back（负侧）= solid - 正盒；front（正侧）= solid - 负盒。
+    // 数学等价于 common/cut（盒覆盖 solid 全尺寸，边界同为切割平面），node 探针验证
+    // 三角化结果与原实现一致。common 保留在 node/非 worker 环境的回退不可行——
+    // 静态行为应一致，故统一走两 cut。
     const back = kernel.cut(solid, halfSpaceBox)
+    // 负盒：local 系 z ∈ [-halfSize, 0]，同 finalMatrix（平面沿 -normal 方向扩展）
+    const localBoxNeg = kernel.makeBoxFromCorners(
+      { x: -halfSize, y: -halfSize, z: -halfSize },
+      { x: halfSize, y: halfSize, z: 0 },
+    )
+    const negBox = kernel.transform(localBoxNeg, matrixToArray(finalMatrix))
+    kernel.release(localBoxNeg)
+    const front = kernel.cut(solid, negBox)
     kernel.release(halfSpaceBox)
+    kernel.release(negBox)
     return { front, back }
   } catch (err) {
     kernel.release(halfSpaceBox)

@@ -8,10 +8,10 @@
 
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { CompoundShape } from '@faicad/faijs/shape'
-import type { ImportModel } from '@faicad/faijs/mesh/import-model'
+import type { ImportModel, ImportAssemblyNode } from '@faicad/faijs/mesh/import-model'
 import { importFile, detectStepUnit } from '@faicad/faijs/mesh/io'
 import { isCadFormat } from '@faicad/faijs/brep/brep-chain'
-import { loadBrepAssembly } from '@faicad/faijs/brep/brep-ops'
+import { loadBrepAssembly, type LoadBrepAssemblyPart } from '@faicad/faijs/brep/brep-ops'
 import { OpError } from '@faicad/faijs/api/internal/result-unwrap'
 import {
   getBackends, BrepUnsupportedError, getCurrentStmt,
@@ -113,7 +113,28 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
   // （children 序 = parts.index），单零件返回单一 Shape（行为与现状一致）。
   // **不再接收/使用 partIndex**（取件点唯一，宿主不再拆）。
   // 红线：不做任何缩放——OCCT 读入已折算到基准，按声明再 scale = 双重换算。
-  const { parts: brepParts, assembly } = await loadBrepAssembly(kernel!, buffer)
+  // P2（2026-10-06）：文件级缓存（内容 SHA-256）——execute 全量重放时同一文件
+  // 只解析一次。worker 环境下重复 XCAF 解析累积 OCCT 资源、约第 6 次后 BOP 挂死
+  // （node 不现），缓存是根治；同时省去重复解析/三角化成本。
+  const hash = await contentHash(buffer)
+  let brepParts: LoadBrepAssemblyPart[]
+  let assembly: ImportAssemblyNode | undefined
+  if (hash) {
+    const cached = loadCache.get(hash)
+    if (cached) {
+      brepParts = cached.parts
+      assembly = cached.assembly
+    } else {
+      const r = await loadBrepAssembly(kernel!, buffer)
+      brepParts = r.parts
+      assembly = r.assembly
+      loadCache.set(hash, { parts: brepParts, assembly })
+    }
+  } else {
+    const r = await loadBrepAssembly(kernel!, buffer)
+    brepParts = r.parts
+    assembly = r.assembly
+  }
   // BREP 路径的声明单位：走文本探测（元数据；不参与几何运算）。
   const declared = detectStepUnit(new TextDecoder().decode(new Uint8Array(buffer)))
   registerDetectedUnit(declared)
@@ -182,6 +203,31 @@ function buildMeshPart(shape: Shape, file: string): Shape {
     { positions: result.mesh.positions, indices: result.mesh.indices },
     { meshSolid: result.solid },
   )
+}
+
+/**
+ * 文件级解析缓存（P2，2026-10-06）：按文件内容 SHA-256 缓存解析产物。
+ *
+ * 背景：execute 全量重放时同一文件会被反复解析（e2e 重放序列 3 次 execute × 2 条
+ * load 语句 = 6 次 XCAF 解析）。occt-wasm 在 Web Worker 环境下每次 XCAF 解析都会
+ * 累积 OCCT 资源，约第 6 次解析后 BOP（common/cut）整体挂死（node 环境不复现，
+ * 内存充足）。缓存命中后同一文件全量重放只解析一次，既根治 worker BOP 挂死，
+ * 也消除重复解析/三角化的成本。
+ *
+ * 缓存 key = 内容 SHA-256（不按文件名——同名文件内容可不同，内容指纹才可靠）。
+ * 缓存持有解析产物（compound 的 BREP solid 句柄等），与 statementCache 同生命周期
+ * （runtime 级；worker 重建时模块重载自然清空）。缓存只是优化：digest 计算失败时
+ * 跳过缓存（功能等价，不静默降级语义）。
+ */
+const loadCache = new Map<string, { parts: LoadBrepAssemblyPart[]; assembly?: ImportAssemblyNode }>()
+
+async function contentHash(buffer: ArrayBuffer): Promise<string | null> {
+  try {
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer)
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return null // 无 WebCrypto（罕见环境）：跳过缓存，功能等价
+  }
 }
 
 /**

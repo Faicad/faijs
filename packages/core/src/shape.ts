@@ -360,6 +360,48 @@ export function isCompoundLike(v: unknown): v is CompoundShape {
 }
 
 /**
+ * P2（2026-10-06-step-3mf-multipart-import-plan.md）：多零件 load 的输出是
+ * compound（children 匿名，无独立变量名）——单零件消费 op（fai_extrude /
+ * fai_drill 等）以 `params.partIndex` 指定目标成员。入参是普通 Shape 时原样
+ * 返回（partIndex 被忽略，保持既有行为）；越界或空 children 抛清晰错误。
+ *
+ * @param input - 消费 op 的输入（多零件为 CompoundShape；普通 Shape 原样返回）
+ * @param partIndex - 目标成员下标（0 起，对应 load 返回 compound.children 序；
+ *   非 number 视为 0，与单零件行为一致）
+ * @param callee - op 名（错误消息定位用）
+ * @returns 目标成员 Shape（compound 的 children 是匿名几何，可直接接特征链）
+ */
+export function resolveCompoundMember(input: Shape, partIndex: unknown, callee: string): Shape {
+  if (!isCompoundLike(input)) return input
+  const idx = typeof partIndex === 'number' ? partIndex : 0
+  const child = input.children[idx]
+  if (!child) {
+    throw new Error(
+      `[${callee}] compound has no member at partIndex=${idx} (children=${input.children.length})`,
+    )
+  }
+  return child
+}
+
+/**
+ * P2：消费 op（extrude/drill）作用于 compound 的目标成员后，把结果替换回
+ * 原 compound（其余 children 原样保留）——多零件结构不因单成员修改而坍缩成
+ * 单一 Shape。入参非 compound 时原样返回 replacement（单零件行为不变）。
+ *
+ * @param input - 消费 op 的输入（多零件为 CompoundShape；普通 Shape 时直接返回 replacement）
+ * @param partIndex - 被替换成员下标（0 起；非 number 视为 0，与单零件行为一致）
+ * @param replacement - 目标成员的新 Shape（op 结果）
+ * @returns 替换后的 compound（其余 children 原样）或 replacement（入参非 compound 时）
+ */
+export function replaceCompoundMember(input: Shape, partIndex: unknown, replacement: Shape): Shape | CompoundShape {
+  if (!isCompoundLike(input)) return replacement
+  const idx = typeof partIndex === 'number' ? partIndex : 0
+  const children = input.children.slice()
+  children[idx] = replacement
+  return compound(children)
+}
+
+/**
  * 1D 曲线判定（1D 判别位，Phase 3）：`kind === 'curve'`。
  *
  * 面消费 op（extrude / revolve / sweep 等）用它做**执行前**输入维度预检——
