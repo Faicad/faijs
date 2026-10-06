@@ -121,6 +121,17 @@ function = function <name>(<param>, …) { <body> }             // body may cont
 
 本项目产出的标识符（codegen 的变量名与参数名、固定词汇 `cad`、函数名、参数名）不得是 JavaScript（含严格模式与模块保留字）、Python 3、C11 或 Java 的保留字。AI 与手写代码可以用任意合法的 JS 标识符。
 
+### 2.7 内置全局
+
+有一组裸标识符**不需要任何 `import`** —— 它们在脚本作用域之外解析，直接书写即为预期用法（`cad.box(Math.max(w, 20), 1, 1)`、`cad.box(10 * INCH, 1, 1)`）。名单固定，其中两组在求值方式上不同：
+
+| 分组 | 名字 | 求值语义 |
+|---|---|---|
+| 单位常量 | `MM` `CM` `METER` `MICRON` `INCH` `FOOT` `YARD` `DEGREE` `RADIAN` `GRAM` `KILOGRAM` `SECOND` | 静态折叠为其基准单位数值（`10 * INCH` → `254`）；折叠值绝不回写源码。它们是保留名：脚本既不能声明也不能赋值（`SEC_RESERVED_ASSIGN`）。 |
+| JS 语言全局 | `Math` `Number` `String` `Boolean` `Array` `Object` `JSON` `Date` `Map` `Set` `Promise` `Symbol` `RegExp` `Error` `Infinity` `NaN` `undefined` `parseInt` `parseFloat` `isNaN` `isFinite` `console` | 原文保留，由运行时从 `globalThis` 解析；两个执行后端（VM 与解释器）一致。脚本里同名声明会遮蔽该全局。 |
+
+权威名单在 `lang/security-scanner.ts`（`S4_SAFE_GLOBALS`，`isSafeGlobalIdent()` 是唯一判定入口），并经 `@faicad/faijs/script-globals` 子路径在运行时对外暴露 —— 编辑器据此提供补全与实时校验，无需读 faijs 源码。不在该名单且脚本未声明的名字会被拒：静态门禁报 `SEC_FREE_IDENT`，提取期报 `E_REFERENCE`。
+
 ---
 
 ## 3. 语句模型 ↔ `StatementSummary` 映射

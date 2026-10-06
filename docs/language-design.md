@@ -118,6 +118,17 @@ Positional arguments are first-class: every argument position accepts the full e
 
 Identifiers this project emits (codegen variable and parameter names, the fixed vocabulary `cad`, function names, argument names) must not be reserved in JavaScript (strict mode and module reserved words included), Python 3, C11 or Java. AI and hand-written code may use any legal JS identifier.
 
+### 2.7 Built-in globals
+
+A set of bare identifiers is available **without any `import`** — they resolve outside the script scope, and writing them directly is the intended usage (`cad.box(Math.max(w, 20), 1, 1)`, `cad.box(10 * INCH, 1, 1)`). The set is fixed, and its two groups differ in how they evaluate:
+
+| Group | Names | Evaluation semantics |
+|---|---|---|
+| Unit constants | `MM` `CM` `METER` `MICRON` `INCH` `FOOT` `YARD` `DEGREE` `RADIAN` `GRAM` `KILOGRAM` `SECOND` | Folded statically to their base-unit number (`10 * INCH` → `254`); the folded value is never written back to source. They are reserved: a script may neither declare nor assign to them (`SEC_RESERVED_ASSIGN`). |
+| JS language globals | `Math` `Number` `String` `Boolean` `Array` `Object` `JSON` `Date` `Map` `Set` `Promise` `Symbol` `RegExp` `Error` `Infinity` `NaN` `undefined` `parseInt` `parseFloat` `isNaN` `isFinite` `console` | Kept verbatim and resolved at runtime from `globalThis`; both execution backends (VM and interpreter) agree. A script declaration of the same name shadows the global. |
+
+The authoritative list lives in `lang/security-scanner.ts` (`S4_SAFE_GLOBALS`, with `isSafeGlobalIdent()` as the single admission point) and is exposed at runtime through the `@faicad/faijs/script-globals` subpath, so editors can drive completion and live validation without reading faijs source. A name outside this set that the script has not declared is rejected — `SEC_FREE_IDENT` at the static gate, `E_REFERENCE` at extraction.
+
 ---
 
 ## 3. Statement model ↔ `StatementSummary` mapping

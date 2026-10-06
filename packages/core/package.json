@@ -70,6 +70,10 @@
                                             "types":  "./dist/runtime-state.d.ts",
                                             "default":  "./dist/runtime-state.js"
                                         },
+                    "./script-globals":  {
+                                             "types":  "./dist/script-globals.d.ts",
+                                             "default":  "./dist/script-globals.js"
+                                         },
                     "./identity":  {
                                        "types":  "./dist/identity.d.ts",
                                        "default":  "./dist/identity.js"
