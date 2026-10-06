@@ -159,7 +159,7 @@ e2e `packages/tests/` 或 fixtures：`.fai.js` fixture（一个游离 `cad.sketc
 | ID | 缺陷 | 证据 | 为什么析出 |
 |---|---|---|---|
 | **D-1** | `Fillet` 已被 `cad.mirror(Fillet, ...)` 消费，却仍是终端并被导出 | Sliding_door `:25` vs `:26`；**新旧栈都有**（10-03 也有 `0_Fillet`）⇒ **不是本轮引入** | 与本议题无关，但它同样污染 parity 的 area/bbox，须单独测量后立项 |
-| **D-2** | "已被消费的中间特征成为终端" 这一族是否普遍 | **已测量（2026-10-06，fcstd-port `tools/_d2-consumed-census.mjs` + `_d2-pollution.py`）**：全量 3,136 产品中 **866（27.6%）** 存在「被消费 ∧ 仍是 compound 成员」形态；多终端受影响产品 **19/20** 的 merged area 超 truth **1.37×–3.67×**（双重计数签名）。测量报告 `fcstd-port/out/d2-measure-report.md`（out 不入库，数字以本行 + fcstd-port `7858dc2` 提交的工具可复现）。**立项建议**：与 G0-D 同属导出面选择问题，修复方向 = 「已被下游消费的特征不再作为导出根」，归属待核实（疑似本仓 `codegen.ts` 的 roots 过滤语义） |
+| **D-2** | "已被消费的中间特征成为终端" 这一族是否普遍 | **已测量并更正（2026-10-06 v2，fcstd-port `tools/_d2-consumed-census.mjs` + 旧栈 STEP 文件名交叉）**：初版静态判定（866/27.6%）作废——它把 compound 对成员的组装误判为消费、且未剥离行尾注释。**更正后：全量 3,136 产品中 25（0.8%）** 确认「被消费 ∧ 非 compound 成员 ∧ 实际导出为独立终端」；有 truth 的 20 个里 **19 个** merged area 超 truth **1.37×–17.3×**（双重计数签名，`arduino-mega` 17.3×）。测量报告 `fcstd-port/out/d2-measure-report.md`（v2）。**立项建议**：量级小但确凿；根因在 core 消费判定（`live-shapes.ts` C0–C5）对特定形态（`__pos`/`__neg` 拆分变量、import_brep 链等）漏判，属 core 议题 |
 | **D-3** | `run-sweep` 缺 `--steps-dir` 批次隔离 | §7 | fcstd-port 侧工具改进，不影响 core |
 
 ---
