@@ -35,7 +35,7 @@
 import type { Shape, Vec3 } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { getBrepApi } from '../brep/handle-bridge'
-import { getCurrentStmt, keep } from '../runtime-state'
+import { getCurrentStmt, keep, keepHidden } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
@@ -148,7 +148,7 @@ function reflectAcrossPlane(p: BrepVec3, o: BrepVec3, n: Vec3): BrepVec3 {
 export const circularPattern = defineOp({
   meshEngines: ['brepkit'],
   mesh(input: Shape, axis: Vec3, count: number, fullAngle: number = 360, center: Vec3 = [0, 0, 0]) {
-    keep(input)
+    keepHidden(input)
     const entry = meshSolidBasicEntry(input, 'circularPattern')
     const u = norm(axis)
     const step = fullAngle / count
@@ -159,7 +159,7 @@ export const circularPattern = defineOp({
     )
   },
   brep(input: Shape, axis: Vec3, count: number, fullAngle: number = 360, center: Vec3 = [0, 0, 0]) {
-    keep(input)
+    keepHidden(input)
     const { kernel, solid, outStmt } = prelude(input, 'circularPattern')
     const u = norm(axis)
     const step = fullAngle / count
@@ -230,7 +230,7 @@ export const gridPattern = defineOp({
     spacingX: number,
     spacingY: number,
   ) {
-    keep(input)
+    keepHidden(input)
     const entry = meshSolidBasicEntry(input, 'gridPattern')
     const dx = norm(directionX)
     const dy = norm(directionY)
@@ -263,7 +263,7 @@ export const gridPattern = defineOp({
     spacingX: number,
     spacingY: number,
   ) {
-    keep(input)
+    keepHidden(input)
     const { kernel, solid, outStmt } = prelude(input, 'gridPattern')
     const dx = norm(directionX)
     const dy = norm(directionY)
@@ -338,7 +338,7 @@ interface RectangularPatternOptions {
 export const rectangularPattern = defineOp({
   meshEngines: ['brepkit'],
   mesh(input: Shape, options: RectangularPatternOptions) {
-    keep(input)
+    keepHidden(input)
     const entry = meshSolidBasicEntry(input, 'rectangularPattern')
     const { xDir, xCount, xSpacing, yDir, yCount, ySpacing } = options
     const dx = norm(xDir)
@@ -362,7 +362,7 @@ export const rectangularPattern = defineOp({
     })
   },
   brep(input: Shape, options: RectangularPatternOptions) {
-    keep(input)
+    keepHidden(input)
     const { kernel, solid, outStmt } = prelude(input, 'rectangularPattern')
     const { xDir, xCount, xSpacing, yDir, yCount, ySpacing } = options
     const dx = norm(xDir)

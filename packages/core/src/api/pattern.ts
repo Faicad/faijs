@@ -11,7 +11,7 @@
 
 import type { Shape, Vec3 } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
-import { getCurrentStmt, keep } from '../runtime-state'
+import { getCurrentStmt, keepHidden } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
@@ -105,14 +105,14 @@ function linearPatternMeshSolid(input: Shape, direction: Vec3, count: number, sp
 export const linearPattern = defineOp({
   meshEngines: ['brepkit'],
   mesh(input: Shape, direction: Vec3, count: number, spacing: number) {
-    keep(input)
+    keepHidden(input)
     // 裸网格输入由 `meshSolidBasicEntry` 如实拒绝（近似链没有 role 层，也没有句柄）——
     // 这里不复刻一遍判定，失败面只有一处。
     return linearPatternMeshSolid(input, direction, count, spacing)
   },
   brep(input: Shape, direction: Vec3, count: number, spacing: number) {
     // copy-like keep semantics: replicate ops preserve their source shape.
-    keep(input)
+    keepHidden(input)
     return linearPatternBrep(input, direction, count, spacing)
   },
   // Phase 1（Brep 引擎可切换重构）：能力前置判定——linearPattern 需要内核的
