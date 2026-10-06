@@ -1,0 +1,20 @@
+{
+  "l1Missing": [
+    "bevelGear",
+    "bevelGearPair",
+    "crossedGearPair",
+    "crossedHelicalGear",
+    "herringboneGear",
+    "herringbonePlanetaryGearset",
+    "herringboneRackGear",
+    "herringboneRingGear",
+    "hyperbolicGear",
+    "hyperbolicGearPair",
+    "planetaryGearset",
+    "rackGear",
+    "ringGear",
+    "spurGear",
+    "worm"
+  ],
+  "l2Missing": []
+}

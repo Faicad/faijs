@@ -1,0 +1,87 @@
+{
+  "l1Missing": [
+    "assembly",
+    "copy",
+    "createMixedTextGeometry",
+    "createTextGeometry",
+    "dovetailSplit",
+    "dowelSplit",
+    "drill",
+    "editorCad",
+    "extrudeShapes",
+    "getOpentypeFont",
+    "group",
+    "installEditorMeshProviders",
+    "isEditorOp",
+    "mergeEditorNamespace",
+    "mergeEditorOpsNamespace",
+    "meshExtrude",
+    "meshSvgExtrude",
+    "meshText",
+    "opentypePathToGeometry",
+    "parseSvgShapes",
+    "svgToExtrudedGeometry",
+    "tenonSplit",
+    "uninstallEditorMeshProviders"
+  ],
+  "l2Missing": [
+    {
+      "name": "fai_drill",
+      "missing": [
+        "depth",
+        "diameter",
+        "direction",
+        "face",
+        "faceNormal",
+        "holeType",
+        "position",
+        "screwHead",
+        "screwSpecIdx",
+        "screwSystem",
+        "screwThread",
+        "tolerance"
+      ]
+    },
+    {
+      "name": "fai_extrude",
+      "missing": [
+        "mode",
+        "normal",
+        "planeDistance",
+        "space"
+      ]
+    },
+    {
+      "name": "fai_split",
+      "missing": [
+        "applyExplode",
+        "bbCenter",
+        "bboxSize",
+        "cutMode",
+        "dowelDiameter",
+        "dowelDiameterTolerance",
+        "dowelHeight",
+        "dowelHeightTolerance",
+        "grooveDepth",
+        "grooveDepthTolerance",
+        "grooveFlapsAngle",
+        "grooveWidth",
+        "grooveWidthTolerance",
+        "inPlaneAngle",
+        "normal",
+        "offset",
+        "selectedSections",
+        "tenonHeight",
+        "tenonHeightTolerance",
+        "tenonSideLength",
+        "tenonSideLengthTolerance"
+      ]
+    },
+    {
+      "name": "text",
+      "missing": [
+        "font"
+      ]
+    }
+  ]
+}

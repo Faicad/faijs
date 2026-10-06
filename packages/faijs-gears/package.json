@@ -1,51 +1,54 @@
 {
-  "name": "@faicad/faijs-gears",
-  "version": "0.29.6",
-  "type": "module",
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://gitcode.com/Faicad/faijs.git"
-  },
-  "description": "CadQuery gear extensions (spur, bevel, worm, rack, planetary) ported to faijs",
-  "keywords": [
-    "cad",
-    "faijs",
-    "cadquery",
-    "gear",
-    "spur",
-    "bevel",
-    "worm"
-  ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "dependencies": {},
-  "peerDependencies": {
-    "@faicad/faijs": "^0.29.0",
-    "occt-wasm": "^5.6.0"
-  },
-  "devDependencies": {
-    "@faicad/cq-compat-compare": "file:../cq-compat-compare",
-    "tsx": "^4.23.12",
-    "@faicad/faijs": "file:../core",
-    "typescript": "*",
-    "vitest": "*"
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:spike": "vitest run src/profile.test.ts",
-    "lint": "eslint src",
-    "gen-reference": "pwsh -NoProfile scripts/gen-reference.ps1"
-  }
+    "name":  "@faicad/faijs-gears",
+    "version":  "0.29.6",
+    "type":  "module",
+    "license":  "Apache-2.0",
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://gitcode.com/Faicad/faijs.git"
+                   },
+    "description":  "CadQuery gear extensions (spur, bevel, worm, rack, planetary) ported to faijs",
+    "keywords":  [
+                     "cad",
+                     "faijs",
+                     "cadquery",
+                     "gear",
+                     "spur",
+                     "bevel",
+                     "worm"
+                 ],
+    "main":  "./dist/index.js",
+    "types":  "./dist/index.d.ts",
+    "exports":  {
+                    ".":  {
+                              "types":  "./dist/index.d.ts",
+                              "default":  "./dist/index.js"
+                          }
+                },
+    "files":  [
+                  "dist"
+              ],
+    "dependencies":  {
+
+                     },
+    "peerDependencies":  {
+                             "@faicad/faijs":  "^0.29.0",
+                             "occt-wasm":  "^5.6.0"
+                         },
+    "devDependencies":  {
+                            "@faicad/cq-compat-compare":  "file:../cq-compat-compare",
+                            "tsx":  "^4.23.12",
+                            "@faicad/faijs":  "file:../core",
+                            "typescript":  "*",
+                            "vitest":  "*"
+                        },
+    "scripts":  {
+                    "build":  "tsc -p tsconfig.build.json \u0026\u0026 node ../../scripts/fix-import-extensions.mjs dist",
+                    "typecheck":  "tsc --noEmit",
+                    "test":  "vitest run",
+                    "test:spike":  "vitest run src/profile.test.ts",
+                    "lint":  "eslint src",
+                    "gen-reference":  "pwsh -NoProfile scripts/gen-reference.ps1",
+                    "check:api-coverage":  "npx tsx ../../scripts/check-api-test-coverage.ts --package=."
+                }
 }

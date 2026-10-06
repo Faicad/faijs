@@ -1,45 +1,48 @@
 {
-  "name": "@faicad/sheetmetal",
-  "version": "0.29.6",
-  "description": "Sheet-metal CAD domain for faijs - flange authoring, fold/unfold flat patterns (ported from brepjs-sheetmetal)",
-  "keywords": [
-    "sheet-metal",
-    "cad",
-    "faijs",
-    "unfold",
-    "flat-pattern",
-    "bend-allowance"
-  ],
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://gitcode.com/Faicad/faijs.git"
-  },
-  "type": "module",
-  "sideEffects": false,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "dependencies": {},
-  "peerDependencies": {
-    "@faicad/faijs": "^0.29.0"
-  },
-  "devDependencies": {
-    "typescript": "*",
-    "vitest": "*"
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "lint": "eslint src"
-  }
+    "name":  "@faicad/sheetmetal",
+    "version":  "0.29.6",
+    "description":  "Sheet-metal CAD domain for faijs - flange authoring, fold/unfold flat patterns (ported from brepjs-sheetmetal)",
+    "keywords":  [
+                     "sheet-metal",
+                     "cad",
+                     "faijs",
+                     "unfold",
+                     "flat-pattern",
+                     "bend-allowance"
+                 ],
+    "license":  "Apache-2.0",
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://gitcode.com/Faicad/faijs.git"
+                   },
+    "type":  "module",
+    "sideEffects":  false,
+    "main":  "./dist/index.js",
+    "types":  "./dist/index.d.ts",
+    "exports":  {
+                    ".":  {
+                              "types":  "./dist/index.d.ts",
+                              "default":  "./dist/index.js"
+                          }
+                },
+    "files":  [
+                  "dist"
+              ],
+    "dependencies":  {
+
+                     },
+    "peerDependencies":  {
+                             "@faicad/faijs":  "^0.29.0"
+                         },
+    "devDependencies":  {
+                            "typescript":  "*",
+                            "vitest":  "*"
+                        },
+    "scripts":  {
+                    "build":  "tsc -p tsconfig.build.json \u0026\u0026 node ../../scripts/fix-import-extensions.mjs dist",
+                    "typecheck":  "tsc --noEmit",
+                    "test":  "vitest run",
+                    "lint":  "eslint src",
+                    "check:api-coverage":  "npx tsx ../../scripts/check-api-test-coverage.ts --package=."
+                }
 }

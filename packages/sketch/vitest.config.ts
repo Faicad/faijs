@@ -12,7 +12,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     // install-smoke is a publish-state test with its own config (`test:install`).
-    include: ['src/**/*.test.ts'],
+    include: ['test/**/*.test.ts'],
     exclude: ['src/install-smoke.test.ts', 'node_modules/**'],
     testTimeout: 300000,
     hookTimeout: 300000,

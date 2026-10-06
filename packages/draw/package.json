@@ -1,46 +1,47 @@
 {
-  "name": "@faicad/faijs-draw",
-  "version": "0.29.2",
-  "private": true,
-  "description": "DEPRECATED — this package will be removed. faijs 2D drawing DSL (cad.draw fluent scripting); superseded by cad.sketchOnPlane / cad.profile.",
-  "keywords": [
-    "faijs",
-    "cad",
-    "draw",
-    "2d",
-    "geometry"
-  ],
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://gitcode.com/Faicad/faijs.git"
-  },
-  "type": "module",
-  "sideEffects": false,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "NOTICE",
-    "LICENSE"
-  ],
-  "peerDependencies": {
-    "@faicad/faijs": "^0.29.0"
-  },
-  "devDependencies": {
-    "typescript": "*",
-    "vitest": "*"
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "lint": "eslint src"
-  }
+    "name":  "@faicad/faijs-draw",
+    "version":  "0.29.2",
+    "private":  true,
+    "description":  "DEPRECATED 鈥?this package will be removed. faijs 2D drawing DSL (cad.draw fluent scripting); superseded by cad.sketchOnPlane / cad.profile.",
+    "keywords":  [
+                     "faijs",
+                     "cad",
+                     "draw",
+                     "2d",
+                     "geometry"
+                 ],
+    "license":  "Apache-2.0",
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://gitcode.com/Faicad/faijs.git"
+                   },
+    "type":  "module",
+    "sideEffects":  false,
+    "main":  "./dist/index.js",
+    "types":  "./dist/index.d.ts",
+    "exports":  {
+                    ".":  {
+                              "types":  "./dist/index.d.ts",
+                              "default":  "./dist/index.js"
+                          }
+                },
+    "files":  [
+                  "dist",
+                  "NOTICE",
+                  "LICENSE"
+              ],
+    "peerDependencies":  {
+                             "@faicad/faijs":  "^0.29.0"
+                         },
+    "devDependencies":  {
+                            "typescript":  "*",
+                            "vitest":  "*"
+                        },
+    "scripts":  {
+                    "build":  "tsc -p tsconfig.build.json \u0026\u0026 node ../../scripts/fix-import-extensions.mjs dist",
+                    "typecheck":  "tsc --noEmit",
+                    "test":  "vitest run",
+                    "lint":  "eslint src",
+                    "check:api-coverage":  "npx tsx ../../scripts/check-api-test-coverage.ts --package=."
+                }
 }

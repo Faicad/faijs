@@ -20,6 +20,9 @@ dist-ssr
 *.tgz
 *.test-output.*
 
+# API test coverage gate intermediate manifest
+api-manifest.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,0 +1,44 @@
+{
+  "l1Missing": [
+    "CONSTRAINT_NAMES",
+    "GeoId",
+    "PlanegcsSolver",
+    "PointPos",
+    "SKETCH_OPS",
+    "SKETCH_OP_NAME",
+    "SUPPORTED_CONSTRAINT_TYPES",
+    "allConstraintsSupported",
+    "anchorPoints",
+    "arcPoints",
+    "atFromCadQuery",
+    "atFromFreeCad",
+    "atToCadQuery",
+    "atToFreeCad",
+    "bsplineToSegments",
+    "buildTagIndex",
+    "classifySketch",
+    "createSketchCadNamespace",
+    "createSketchNamespace",
+    "evalBSpline",
+    "maxPointDistance",
+    "mergeSketchNamespace",
+    "refToFreeCad",
+    "refsOfConstraint",
+    "registerSketchSymbols",
+    "sampleBSpline",
+    "setSketchDiagnosticSink",
+    "shapeFromSolved",
+    "unregisterSketchSymbols"
+  ],
+  "l2Missing": [
+    {
+      "name": "sketch",
+      "missing": [
+        "as",
+        "constraints",
+        "geoms",
+        "plane"
+      ]
+    }
+  ]
+}

@@ -14,7 +14,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['test/**/*.test.ts'],
     // parsing + occt/manifold wasm init on first execution is slow.
     testTimeout: 300000,
     hookTimeout: 300000,

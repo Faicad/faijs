@@ -63,6 +63,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 | `npx tsx packages/core/scripts/faijs-cli.ts run <f.fai.js> --out x.stl\|step [--mode auto\|brep\|mesh]` | 执行并导出；STEP 需要 BREP 链存活 |
 | `npm run doc-sync` | 文档规范全量检查（12 项门禁：链接、换行、预算、Agent Note、双语、类型等价、Mermaid、JSDoc、ts 编译、引用、归档） |
 | `npm run archive-plans` | 归档上月 docs/plans/ 文档到 yyyy-mm/ 文件夹（每月 1 号运行） |
+| `npx tsx scripts/check-api-test-coverage.ts --package=<dir>` | API 测试覆盖门禁：基于源码 AST，检查每包导出 API 是否被本包 `test/` 引用（L1），且每个参数是否在调用点被覆盖（L2）。不依赖 build。各包可经 `npm run check:api-coverage -w <pkg>` 单独运行。已知缺口由各包 `api-coverage-baseline.json` 暂放过（防退化），`--generate-baseline` 刷新 baseline |
 
 ## 架构（L0–L3 分层，全部位于 `packages/core/src/`）
 
@@ -80,8 +81,9 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 - **`packages/core/src/mesh/api.d.ts` 是生成文件**：由 `packages/core/scripts/gen-api-dts.ts` 生成（内嵌函数目录），禁止手改；改 schema 后必须重跑 `npx tsx packages/core/scripts/gen-api-dts.ts`。
 - **测试 stderr 零容忍**（CI 强制）：任何测试输出 `stderr |` 行即判失败。测试若故意触发错误，必须在测试内 spy `console.warn/error` 并断言；禁止全局静默 stderr。
-- **typecheck/lint 不覆盖测试**：各包 `tsc --noEmit` 的 include 含 `src/**/*.ts`（含同目录测试），但 `packages/tests` 的集成测试由 `npm run typecheck -w @faicad/faijs-tests` 单独覆盖——改动后手动跑 vitest 验证。
-- 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录，含 `api/*.test.ts`）、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。第三方库通道测试 fixture 在 `packages/tests/faijs/compat-e2e/_support/`。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
+- **typecheck/lint 覆盖测试**：各包 `tsc --noEmit` 的 include 含 `src/**/*.ts` + `test/**/*.ts`；`packages/tests` 的集成测试由 `npm run typecheck -w @faicad/faijs-tests` 单独覆盖——改动后手动跑 vitest 验证。
+- 测试分布：各包 `test/**/*.test.ts(x)`（与 `src/` 平级、独立目录，不再与源码同目录）、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。第三方库通道测试 fixture 在 `packages/tests/faijs/compat-e2e/_support/`。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
+- **API 测试覆盖门禁**（CI 强制）：每个可发布包的导出 API 必须被本包 `test/` 引用（L1），且每个参数必须在调用点被覆盖（L2）。由 `scripts/check-api-test-coverage.ts` 基于源码 AST 判定，不依赖 build。新增导出 API 或新参数未测试 → CI 失败。
 - 仓库文档双语配对（英文 `foo.md` + 中文 `foo.zh.md` + `foo.i18n.yaml`），见 [docs/i18n/README.md](docs/i18n/README.md)。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。commit message 用 conventional commits（英文）；代码注释用英文。
 
 ## 文档地图

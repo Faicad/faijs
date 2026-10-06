@@ -18,9 +18,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "src/test/",
-    "src/test-support/",
-    "src/test-helpers.ts",
+    "test/",
     "src/brep/text/fontTestHelper.ts",
     "**/*.test.ts",
     "**/*.test-d.ts"

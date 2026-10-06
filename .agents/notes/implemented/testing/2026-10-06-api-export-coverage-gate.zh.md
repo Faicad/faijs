@@ -1,27 +1,68 @@
-# Agent Note: API 导出覆盖门禁
+# Agent Note: API 测试覆盖门禁（基于源码，分包运行）
 
-Status: implemented
+状态：已实现
 
-English | [中文](2026-10-06-api-export-coverage-gate.md)
+[English](2026-10-06-api-export-coverage-gate.md) | 中文
 
 ## 问题
 
-`@faicad/faijs`、其 `./api` 子路径以及 `@faicad/faijs-extra` 的公开 API 面随每一个功能而增长，但没有任何机制性保证每个导出都被测试引用。一个没有任何测试引用的导出函数会悄然腐化：它被发布、被记录，却从未被验证。这项工作由两条需求决定：每个导出 API——以及这些 API 的每个已记录参数——都必须有测试；任何没有测试的 API 都必须让 CI 失败，这样新导出就不可能未经验证就落地。
+旧门禁（`packages/core/scripts/check-api-coverage.ts`）有三个设计缺陷：
+
+1. **读 `dist` 而非源码**：导出面从编译后的 JS 加载，需要先 build 才能运行门禁，且 dist/src 可能不同步。
+2. **跨包反向依赖**：core 的脚本扫描 `faijs-extra`、`sketch`、`draw`——core 不应该知道这些包的存在。
+3. **Token 匹配，非参数覆盖**：门禁只检查函数名是否作为词边界 token 出现在测试源码中，无法判断参数是否被实际测过。
 
 ## 决策
 
-两个部分共同交付这一保证。第一部分是 `packages/core/scripts/check-api-coverage.ts`，一个覆盖门禁：读取 `@faicad/faijs`、`@faicad/faijs/api` 和 `@faicad/faijs-extra` 编译后的 `dist`，枚举每个导出的函数名，并跨 `packages/{core,tests,faijs-extra,sketch,draw}/src` 下的测试源码（`*.test.ts`、`*.fai.js` 和 `_support.ts`）按词边界 token 匹配每个名字。任何未覆盖的导出都会打印列表并让脚本非零退出。第二部分是 CI 接线：`scripts/ci.ps1` 在守卫步骤中、`check-tsconfig-paths.mjs` 之后立即运行该门禁，因此缺失测试会让 CI 变红。
+新门禁（`scripts/check-api-test-coverage.ts`）替代旧门禁。基于源码、分包运行，执行两级检查：
 
-随后补齐缺失的测试覆盖直到门禁变绿：纯装配辅助项（`resolveFaceGeometryOfRef`、`resolveSolverEntity`、`lowerStructuralConstraint`）、拓扑解析器（`facesForQualifier`、`buildSelectorRuntimeData`、`buildSelectorRuntimeMaps`）、由假流形构造器驱动的布尔/流形切分（`dovetailBooleanSplit`、`dowelOrTenonBooleanSplit`）、对 SDF 内联路径的掩码 `Manifold` 演练，以及基于 OCCT 的 BREP 高层操作演练。
+- **L1（函数覆盖）**：包 `package.json` `exports` 中的每个值导出（函数、op、类、const）必须在该包的 `test/` 文件或 `.fai.js` fixture 中被名字引用。
+- **L2（参数覆盖）**：对于 op，每个 schema/JSDoc 声明的参数必须作为属性名出现在测试中的调用点。对于非 op 函数，只检查选项容器参数的属性（位置参数如 `shape`/`part` 仅由 L1 验证）。
+
+门禁使用 TypeScript Compiler API 解析源文件（非 `dist`），因此无需 build 即可运行。每个包运行自己的门禁；core 不扫描其他包。
 
 ## 覆盖方法
 
-许多新增测试按名字引用 API 并断言其接线（纯集散、假体或快照形状），而非完整的几何数值。当前门禁按函数名 token 匹配，因此接受这一点；它是正确性网，而非数值对齐套件。详细的数值校验保留在既有的 BREP/mesh 对齐套件中。门禁读取的是 `dist`，因此它必须在构建之后运行。
+### 导出面提取（P2）
+
+1. 读取 `package.json` `exports`，将每个具体键映射到其源码 `.ts` 文件（dist 镜像 src）。
+2. 从入口构建 `ts.Program`，用 `checker.getExportsOfModule` 获取所有导出符号。
+3. 通过 `resolveSymbol`（别名解析）跟随 re-export 链。
+4. 对于 op（`defineOp`/`compatOp`），按优先级从以下来源提取参数：
+   - `schema` 字段键（最可靠）
+   - JSDoc `@param` 标签（处理点号名如 `@param params.depth`）
+   - `paramDims` 键（部分但可靠）
+5. 对于非 op 函数，从 TS 签名提取；只有选项容器参数（`options`、`params` 等）的属性在 L2 检查。
+
+### L1/L2 门禁（P3）
+
+- 将测试文件和 `.fai.js` fixture 解析为 AST。
+- 收集所有标识符（L1）和调用点对象字面量属性名（L2）。
+- 对任何缺口输出 `API — missing [params]` 并非零退出。
+
+### Baseline 机制（P4 过渡）
+
+初始缺口很大（全包 244 L1 + 58 L2）。每包的 baseline 文件（`api-coverage-baseline.json`）记录已知缺口。门禁只对**不在** baseline 中的新缺口失败——这防止退化，同时允许 P4 增量关闭缺口。
+
+- `--generate-baseline`：将当前缺口写入 baseline 文件。
+- 当 baseline 中的缺口被新测试关闭后，下次 `--generate-baseline` 时自动移除。
+- 当所有缺口关闭后，baseline 文件可删除；门禁会打印提醒。
+- baseline 文件被 git 追踪，保证团队一致性。
+
+## 测试目录迁移（P1）
+
+所有 `*.test.ts(x)` 文件从 `src/` 迁移到各包的 `test/` 目录。配置更新：`vitest.config.ts` 包含 `test/`，`tsconfig.build.json` 排除 `test/`。一次性迁移脚本（`migrate-tests-to-test-dir.mjs`、`fix-*.mjs`）使用后删除。
 
 ## 考虑过的替代方案
 
-解析真实导出引用的符号级门禁因可靠性原因被拒绝：在此 monorepo 中，符号表的令牌解析难以应对多样化的模块风格，而 token 匹配以更少的复杂度获得相同结论。手工强制覆盖也被拒绝，因为需求是任何缺口都会让 CI 失败，这只能由机制性守卫来交付。
+- **运行时 `dist` 扫描**（旧方案）：已否决——耦合 build，dist/src 漂移风险。
+- **从 core 跨包扫描**（旧方案）：已否决——创建反向依赖，违反分包自治。
+- **仅 token 匹配**（旧方案）：已否决——无法验证参数覆盖，这是用户明确要求。
 
 ## 后果
 
-新增的函数一旦有了参数，仍需要一个引用该函数的测试；在它可以被合并之前，门禁会标记新的名字。没有改动任何生产 `src` 文件；每一处改动都是测试文件或门禁本身。版本号未触碰 （唯一的写入端是 `set-version.mjs`）。门禁为绿，且核心测试套件以无 `stderr` 的方式全部通过。
+- 新导出无测试时 CI 立即失败。
+- 现有 op 新增参数时 CI 失败，直到有测试覆盖。
+- 门禁无需 `npm run build` 即可运行（基于源码）。
+- 每个包拥有自己的覆盖检查（`check:api-coverage` script 在各 `package.json` 中）。
+- 旧 `packages/core/scripts/check-api-coverage.ts` 和 `list-exports.ts` 已删除。

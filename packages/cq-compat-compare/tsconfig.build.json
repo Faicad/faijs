@@ -12,5 +12,5 @@
     "paths": {}
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts"]
+  "exclude": ["node_modules", "dist", "test/", "**/*.test.ts", "**/*.test-d.ts"]
 }

@@ -1,4 +1,4 @@
-# Agent Note: API export coverage gate
+# Agent Note: API test coverage gate (source-based, per-package)
 
 Status: implemented
 
@@ -6,22 +6,63 @@ English | [中文](2026-10-06-api-export-coverage-gate.zh.md)
 
 ## Problem
 
-The public API surface of `@faicad/faijs`, its `./api` subpath, and `@faicad/faijs-extra` grows with every feature, but there was no mechanical guarantee that each export is exercised by a test. An exported function that no test references can rot silently: it shipped, was documented, and went unverified. Two requirements governed this work: every exported API, and every documented parameter of those APIs, must have a test; and any API without a test must fail CI, so a new export cannot land unverified.
+The previous coverage gate (`packages/core/scripts/check-api-coverage.ts`) had three design flaws:
+
+1. **Read `dist` instead of source**: the export surface was loaded from compiled JS, requiring a build before the gate could run and risking dist/src drift.
+2. **Cross-package reverse dependency**: the core package's script scanned `faijs-extra`, `sketch`, and `draw` — packages that core should not know about.
+3. **Token matching, not parameter coverage**: the gate checked only that a function name appeared as a word-boundary token in test source. It could not tell whether any parameter was actually exercised.
 
 ## Decision
 
-Two pieces deliver the guarantee. The first is `packages/core/scripts/check-api-coverage.ts`, a coverage gate that reads the compiled `dist` for `@faicad/faijs`, `@faicad/faijs/api`, and `@faicad/faijs-extra`, enumerates every exported function name, and token-matches each name as a word-boundary token across the test sources under `packages/{core,tests,faijs-extra,sketch,draw}/src` (`*.test.ts`, `*.fai.js`, and `_support.ts`). Any uncovered export prints a list and the script exits non-zero. The second is the CI wiring: `scripts/ci.ps1` runs the gate inside the guard step, immediately after `check-tsconfig-paths.mjs`, so a missing test turns CI red.
+A new gate (`scripts/check-api-test-coverage.ts`) replaces the old one. It is source-based, per-package, and enforces two levels:
 
-The missing test coverage was then written until the gate is green: pure assembly helpers (`resolveFaceGeometryOfRef`, `resolveSolverEntity`, `lowerStructuralConstraint`), topology resolvers (`facesForQualifier`, `buildSelectorRuntimeData`, `buildSelectorRuntimeMaps`), boolean and manifold splits (`dovetailBooleanSplit`, `dowelOrTenonBooleanSplit`) driven by faked manifold constructors, a masked-`Manifold` exercise of the SDF inline path, and OCCT-backed exercises for the BREP high-level ops.
+- **L1 (function coverage)**: every value export (function, op, class, const) from the package's `package.json` `exports` must be referenced by name in the package's `test/` files or `.fai.js` fixtures.
+- **L2 (parameter coverage)**: for ops, every schema/JSDoc-declared parameter must appear as a property name at a call site in tests. For non-op functions, only option-container parameter properties are checked (positional params like `shape`/`part` are verified by L1 only).
+
+The gate uses the TypeScript Compiler API to parse source files (not `dist`), so it runs without a build. Each package runs its own gate; core does not scan other packages.
 
 ## Coverage method
 
-Many of the newly added tests reference an API by name and assert its wiring (pure orchestration with fakes, or snapshot shapes) rather than full geometric numerics. The current gate matches on the function-name token, so it accepts that; it is a correctness net, not a numerical-parity suite. Detailed numeric validation stays in the existing BREP/mesh parity suites. The gate reads `dist`, so it must run after a build.
+### Export surface extraction (P2)
+
+1. Read `package.json` `exports`, map each concrete key to its source `.ts` file (dist mirrors src).
+2. Build a `ts.Program` from the entry points; use `checker.getExportsOfModule` to get all exported symbols.
+3. Follow re-export chains via `resolveSymbol` (alias resolution).
+4. For ops (`defineOp`/`compatOp`), extract parameters from (in priority order):
+   - `schema` field keys (most reliable)
+   - JSDoc `@param` tags (handles dotted names like `@param params.depth`)
+   - `paramDims` keys (partial but reliable)
+5. For non-op functions, extract from TS signature; only option-container params (`options`, `params`, etc.) have their properties checked at L2.
+
+### L1/L2 gate (P3)
+
+- Parse test files and `.fai.js` fixtures as AST.
+- Collect all identifiers (L1) and call-site object-literal property names (L2).
+- Report `API — missing [params]` for any gap; exit non-zero.
+
+### Baseline mechanism (P4 transition)
+
+The initial gap was large (244 L1 + 58 L2 across all packages). A baseline file (`api-coverage-baseline.json` per package) records known gaps. The gate only fails on gaps **not** in the baseline — this prevents regression while allowing P4 to close gaps incrementally.
+
+- `--generate-baseline`: writes the current gaps as the baseline file.
+- When a baseline gap is closed by a new test, it is automatically removed from the next `--generate-baseline` run.
+- When all gaps are closed, the baseline file can be deleted; the gate prints a reminder.
+- The baseline file is tracked in git for team consistency.
+
+## Test directory migration (P1)
+
+All `*.test.ts(x)` files migrated from `src/` to `test/` per package. Configuration updated: `vitest.config.ts` includes `test/`, `tsconfig.build.json` excludes it. One-time migration scripts (`migrate-tests-to-test-dir.mjs`, `fix-*.mjs`) deleted after use.
 
 ## Alternatives considered
 
-A symbol-based gate that resolves actual export references was rejected for reliability: token-resolution of a symbol table resists the wide spread of module styles in this monorepo, while a token match reads the same for less complexity. Enforcing coverage by hand was rejected because the requirement is that a gap fails CI, which only a mechanical guard can deliver.
+- **Runtime `dist` scanning** (old approach): rejected — couples gate to build, dist/src drift risk.
+- **Cross-package scanning from core** (old approach): rejected — creates reverse dependency, violates package autonomy.
+- **Token matching only** (old approach): rejected — cannot verify parameter coverage, the user's explicit requirement.
 
 ## Consequences
 
-A newly added export that gains a parameter still needs a test referencing the function; the gate flags the new name before it can be merged. No production `src` files were edited; every change is a test file or the gate itself. Version numbers were not touched (the single writing port is `set-version.mjs`). The gate is green and the core test suite passes with no `stderr`.
+- New exports without tests fail CI immediately.
+- New parameters on existing ops fail CI until a test exercises them.
+- The gate runs without `npm run build` (source-based).
+- Each package owns its own coverage (`check:api-coverage` script in each `package.json`).
+- Old `packages/core/scripts/check-api-coverage.ts` and `list-exports.ts` deleted.

@@ -59,6 +59,12 @@ node scripts/api-surface-snapshot.mjs
 # core-decouple wrapup §4.1：brepjs 归零守卫（包名/路径零依赖）
 node scripts/check-core-no-brepjs.mjs
 
+# API 测试覆盖门禁：每个可发布包的导出 API 必须被本包测试引用（L1），
+# 且每个参数必须在调用点被覆盖（L2）。基于源码 AST，不依赖 build。
+for pkg in core faijs-extra sheetmetal sketch draw faijs-gears faijs-fasteners faijs-viewer; do
+  npx tsx scripts/check-api-test-coverage.ts --package="$pkg"
+done
+
 echo "==> 6/9  demo e2e（dev server 模式，M7 链路）"
 cd "$ROOT"
 npx playwright install chromium

@@ -1,0 +1,38 @@
+{
+  "l1Missing": [
+    "ACME_PITCH",
+    "INCH",
+    "METRIC_TRAPEZOIDAL_SIZES",
+    "bearingSizes",
+    "bearingTypes",
+    "buildNut",
+    "contractVersion",
+    "domedCapNut",
+    "evalArithmetic",
+    "evaluateCell",
+    "fastenerHole",
+    "hexNutWithFlange",
+    "internalThreadSolid",
+    "metricStrToFloat",
+    "placeSprocket",
+    "screwSizes",
+    "screwTypes",
+    "sprocketCircumference",
+    "sprocketPitchRadius",
+    "squareNut",
+    "unchamferedHexagonNut",
+    "washerSizes",
+    "washerTypes"
+  ],
+  "l2Missing": [
+    {
+      "name": "makeLink",
+      "missing": [
+        "chainPitch",
+        "linkPlateThickness",
+        "rollerDiameter",
+        "rollerLength"
+      ]
+    }
+  ]
+}

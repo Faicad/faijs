@@ -1,0 +1,43 @@
+{
+  "l1Missing": [
+    "ALUMINUM_GAUGES",
+    "DEFAULT_K_FACTOR",
+    "ForeignSolidHandle",
+    "MATERIALS",
+    "ROOT_FLAT_ID",
+    "STEEL_GAUGES",
+    "SheetMetalBuilder",
+    "SheetMetalError",
+    "SheetMetalPartHandle",
+    "addBendTable",
+    "addForm",
+    "baseEdgeRef",
+    "bendTable",
+    "buildFeatureGraph",
+    "contourFlange",
+    "developed",
+    "featureTree",
+    "foldFlat",
+    "foldPart",
+    "fromPart",
+    "getMaterial",
+    "loftedFlange",
+    "miter",
+    "multiPatternToDXF",
+    "pointInPolygon",
+    "polygonBounds",
+    "relieveCorner",
+    "resolveAllowance",
+    "signedArea",
+    "unfoldPart",
+    "unfoldSolid"
+  ],
+  "l2Missing": [
+    {
+      "name": "patternToFlatInput",
+      "missing": [
+        "material"
+      ]
+    }
+  ]
+}

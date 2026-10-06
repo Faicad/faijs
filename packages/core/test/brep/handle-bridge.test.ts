@@ -1,0 +1,111 @@
+/**
+ * handle-bridge 不变量测试（B1）
+ *
+ *
+ * 四条不变量：
+ * 1. `getKernel()` 在 mesh 模式（kernel 为 null）抛错，不返回 null
+ * 2. `fromHandle(h)` 产出的 Shape 满足 `hasBrep(shape) === true`
+ * 3. `dist/sdk.js` 静态 import 扫描仍然零 heavy 依赖（src/sdk.test.ts 守卫，独立验证）
+ * 4. `meshHandle` 默认参数与内置 op 一致：linearDeflection = 0.1、segments = 32
+ *
+ * Run: npx vitest run src/brep/handle-bridge.test.ts
+ */
+
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { getKernel, meshHandle, fromHandle, isOcctHandle } from '../../src/brep/handle-bridge'
+import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
+import { hasBrep } from '../../src/shape'
+import { configureBackends } from '../../src/runtime-state'
+import { createNodePorts } from '../../src/node-host'
+import { createRuntime } from '@faicad/faijs'
+import { createEditorRuntime } from '../support/editor-ops'
+
+describe('handle-bridge: getKernel', () => {
+  it('throws when kernel is not available (mesh mode / not initialized)', () => {
+    // 显式装配 mesh 模式（kernel.brep = null）→ getKernel 必须抛错，不静默返回 null
+    configureBackends({
+      contractVersion: 1,
+      config: { mode: 'mesh' },
+      kernel: { brep: null, csg: undefined, sdf: undefined },
+      fonts: undefined,
+      texture: undefined,
+      assets: undefined,
+      events: undefined,
+      cad: {} as never,
+    })
+    expect(() => getKernel()).toThrow(/OCCT kernel not available/)
+  })
+})
+
+describe('handle-bridge: OCC handle identity contract (isOcctHandle)', () => {
+  it('discriminates __occtWasm-tagged handles from plain data records', () => {
+    expect(isOcctHandle({ __occtWasm: true, type: 'solid', id: 1 })).toBe(true)
+    expect(isOcctHandle({ partId: 1 })).toBe(false)
+    expect(isOcctHandle(42)).toBe(false)
+    expect(isOcctHandle(null)).toBe(false)
+  })
+
+  it('fromHandle/meshHandle reject plain data records at the boundary (E_BAD_HANDLE), not at kernel depth', () => {
+    // 断言在 getKernel 之前执行；配 fake kernel 让合法路径（number / 标记对象）真实跑通
+    configureBackends({
+      contractVersion: 1,
+      config: { mode: 'auto' },
+      kernel: {
+        brep: { meshShape: () => ({ positions: [0, 0, 0], indices: [0] }) },
+        csg: undefined,
+        sdf: undefined,
+      },
+      fonts: undefined,
+      texture: undefined,
+      assets: undefined,
+      events: undefined,
+      cad: {} as never,
+    })
+    expect(() => meshHandle({ partId: 1 })).toThrow(/E_BAD_HANDLE/)
+    expect(() => fromHandle({ partId: 1 })).toThrow(/E_BAD_HANDLE/)
+    expect(() => meshHandle(42)).not.toThrow()
+    expect(() => meshHandle({ __occtWasm: true, type: 'solid', id: 1 })).not.toThrow()
+  })
+})
+
+describe('handle-bridge: meshHandle / fromHandle with real OCCT kernel', () => {
+  let runtime: ReturnType<typeof createRuntime>
+  let solidHandle: unknown
+
+  beforeAll(async () => {
+    // 宿主装配：注册 OCCT BREP 引擎（runtime 从注册表取引擎）
+    await registerOcctBrepEngine()
+    // 用 runtime 装配真实 backends（auto 模式 → kernel 存在），再建一个 box solid
+    runtime = createEditorRuntime(createNodePorts(), 'auto')
+    await runtime.execute('let part0 = cad.box({ width: 10, depth: 10, height: 10, centered: true })')
+    // 经 L3 api/ 层的 box
+    const { box } = await import('@faicad/faijs/api')
+    const shape = await box({ width: 10, depth: 10, height: 10, centered: true })
+    // 从全局 slot 取回句柄
+    const { brepOf } = await import('../../src/shape')
+    solidHandle = brepOf(shape)
+    expect(solidHandle).toBeDefined()
+  }, 120000)
+
+  afterAll(async () => {
+    runtime?.dispose?.()
+  })
+
+  it('meshHandle triangulates a real OCCT handle with default 0.1 / 32 params', () => {
+    const shape = meshHandle(solidHandle!)
+    expect(shape.positions.length).toBeGreaterThan(0)
+    expect(shape.indices.length).toBeGreaterThan(0)
+    // 默认 32 段：立方体 6 面 × 2 三角 → 12 三角形
+    expect(shape.indices.length / 3).toBe(12)
+  })
+
+  it('meshHandle accepts explicit segments', () => {
+    const shape = meshHandle(solidHandle!, { segments: 4 })
+    expect(shape.indices.length / 3).toBe(12) // 立方体面数不随分段变化
+  })
+
+  it('fromHandle registers the BREP slot (hasBrep === true)', () => {
+    const shape = fromHandle(solidHandle!)
+    expect(hasBrep(shape)).toBe(true)
+  })
+})

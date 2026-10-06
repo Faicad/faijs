@@ -1,0 +1,531 @@
+{
+  "l1Missing": [
+    "AMBIGUITY_THRESHOLD",
+    "AXIS_THRESHOLD",
+    "BREPKIT_MESH_ENGINE_ID",
+    "BREP_ENGINE_IDS",
+    "BlueprintSketcher",
+    "Blueprints",
+    "CURRENT",
+    "CliEventSink",
+    "DEFAULT_SDF_TEMPLATE",
+    "DEG2RAD",
+    "DEGREE",
+    "FsAssetResolver",
+    "ImportVersionError",
+    "LENGTH",
+    "ModuleResolverError",
+    "NRAD_DEFAULT",
+    "RAD2DEG",
+    "SCRIPT_UNIT_CONSTANTS",
+    "SCRIPT_UNIT_NAMES",
+    "SCRIPT_UNIT_TO_NAME",
+    "TEMPERATURE",
+    "UnresolvedImportError",
+    "ValueWithUnits",
+    "WorkerCsgBackend",
+    "WorkerSdfBackend",
+    "YARD",
+    "addPoints",
+    "andThen",
+    "applyTransformBrep",
+    "assertSatisfies",
+    "boundsOf",
+    "buildMeshSolidTopology",
+    "buildSelectorManifest",
+    "centerOf",
+    "chainBoolean",
+    "cliMain",
+    "complexExtrude",
+    "containsCjk",
+    "containsPoint",
+    "convertSvgEllipseParams",
+    "createBBox2d",
+    "createNamedPlane",
+    "createPlane",
+    "curve",
+    "decodeMemberText",
+    "describeMeshSolid",
+    "disposeOcct",
+    "distance2d",
+    "encodeMemberText",
+    "ensureBrepkitDefaultEngine",
+    "ensureBrepkitMeshBackend",
+    "ensureDefaultFont",
+    "ensureOcctKernel",
+    "enterFunctionBrep",
+    "exitFunctionBrep",
+    "exportModel",
+    "fmtNum",
+    "foot",
+    "fromBrepCurve",
+    "fromMeshFace",
+    "fromMeshSolid",
+    "getEngraveDecorationProvider",
+    "hasDualOp",
+    "heightOf",
+    "helix",
+    "importBrepToMesh",
+    "importStepMultiPart",
+    "initBrepkitWasm",
+    "inputRoleTable",
+    "isBBoxOut",
+    "isBrepkitInitialized",
+    "isCjkChar",
+    "isErr",
+    "isHostExprRef",
+    "isMeshEngineRegistered",
+    "isOnCurve",
+    "kernelError",
+    "loadSystemCjkFont",
+    "lowerEntities",
+    "makeBSpline2d",
+    "makeEllipseArcFromCenter",
+    "mergeBBox",
+    "meshFaceOf",
+    "meshSolidOf",
+    "meshToManifold",
+    "nameOfShapes",
+    "normalize2d",
+    "outsidePointOf",
+    "parseVersion",
+    "polarAngle2d",
+    "polarToCartesian",
+    "propagateAllOrigins",
+    "punchHole",
+    "reconstructSolidFromMesh",
+    "registerFunctionBrep",
+    "registerSymbolTableEntries",
+    "releaseShape",
+    "roof",
+    "runSdfMain",
+    "samePoint",
+    "satisfies",
+    "setEngraveDecorationProvider",
+    "sketchOnPlane",
+    "splitVersionRange",
+    "symbolTableNames",
+    "takeFunctionBrepDomain",
+    "twistExtrude",
+    "unregisterSymbolTableEntries",
+    "unwrapOr",
+    "validationError",
+    "vecAdd",
+    "vecCross",
+    "vecDot",
+    "vecLength",
+    "vecNormalize",
+    "vecScale",
+    "vecSub",
+    "widthOf"
+  ],
+  "l2Missing": [
+    {
+      "name": "applyDisplacement",
+      "missing": [
+        "bottomAngleLimit",
+        "capAngle",
+        "cylinderCenterX",
+        "cylinderCenterY",
+        "cylinderRadius",
+        "mappingBlend",
+        "mappingMode",
+        "offsetU",
+        "offsetV",
+        "rotation",
+        "scaleU",
+        "scaleV",
+        "seamBandWidth",
+        "textureAspectU",
+        "textureAspectV",
+        "topAngleLimit"
+      ]
+    },
+    {
+      "name": "applyKnurlDisplacement",
+      "missing": [
+        "bottomAngleLimit",
+        "faceWeights",
+        "invertDisplacement",
+        "mappingBlend",
+        "mappingMode",
+        "offsetU",
+        "offsetV",
+        "refineLength",
+        "rotation",
+        "scaleU",
+        "scaleV",
+        "seamBandWidth",
+        "textureHeight",
+        "topAngleLimit"
+      ]
+    },
+    {
+      "name": "assertSecure",
+      "missing": [
+        "defaultNs",
+        "nsNames"
+      ]
+    },
+    {
+      "name": "box",
+      "missing": [
+        "segments"
+      ]
+    },
+    {
+      "name": "buildAssemblySelectorManifest",
+      "missing": [
+        "cadPath",
+        "stepHash"
+      ]
+    },
+    {
+      "name": "buildPunchHole",
+      "missing": [
+        "draftAngle",
+        "height",
+        "scaleMode"
+      ]
+    },
+    {
+      "name": "buildSelectorRuntime",
+      "missing": [
+        "transform"
+      ]
+    },
+    {
+      "name": "buildSelectorRuntimeData",
+      "missing": [
+        "transform"
+      ]
+    },
+    {
+      "name": "buildSketchOnFaceWith",
+      "missing": [
+        "as",
+        "scaleMode"
+      ]
+    },
+    {
+      "name": "buildSketchOnPlaneWith",
+      "missing": [
+        "as"
+      ]
+    },
+    {
+      "name": "CadRuntime",
+      "missing": [
+        "determinism",
+        "execBackend",
+        "security"
+      ]
+    },
+    {
+      "name": "chamfer",
+      "missing": [
+        "angle",
+        "edges",
+        "type",
+        "width",
+        "width1",
+        "width2"
+      ]
+    },
+    {
+      "name": "compound",
+      "missing": [
+        "name"
+      ]
+    },
+    {
+      "name": "computeEffectiveDeflection",
+      "missing": [
+        "getBoundingBox"
+      ]
+    },
+    {
+      "name": "computeUV",
+      "missing": [
+        "capAngle",
+        "cylinderCenterX",
+        "cylinderCenterY",
+        "cylinderRadius",
+        "offsetU",
+        "offsetV",
+        "rotation",
+        "scaleU",
+        "scaleV",
+        "seamBandWidth",
+        "textureAspectU",
+        "textureAspectV"
+      ]
+    },
+    {
+      "name": "cone",
+      "missing": [
+        "at",
+        "segments"
+      ]
+    },
+    {
+      "name": "cut",
+      "missing": [
+        "base",
+        "tool"
+      ]
+    },
+    {
+      "name": "cylinder",
+      "missing": [
+        "segments"
+      ]
+    },
+    {
+      "name": "defeature",
+      "missing": [
+        "faces"
+      ]
+    },
+    {
+      "name": "draft",
+      "missing": [
+        "angleDeg",
+        "faces",
+        "neutral",
+        "pull"
+      ]
+    },
+    {
+      "name": "edgeRowToHint",
+      "missing": [
+        "axis"
+      ]
+    },
+    {
+      "name": "engrave",
+      "missing": [
+        "faceCenter",
+        "faceNormal",
+        "mode",
+        "svg",
+        "svgSize"
+      ]
+    },
+    {
+      "name": "extrude",
+      "missing": [
+        "baseFeature",
+        "length",
+        "mode",
+        "normal",
+        "offset",
+        "upTo"
+      ]
+    },
+    {
+      "name": "faceRowToHint",
+      "missing": [
+        "axis"
+      ]
+    },
+    {
+      "name": "filletVariable",
+      "missing": [
+        "edge",
+        "r1",
+        "r2"
+      ]
+    },
+    {
+      "name": "knurl",
+      "missing": [
+        "faceCenter",
+        "faceNormal",
+        "knurlInvertDisplacement",
+        "knurlMappingMode",
+        "knurlRefineLength",
+        "knurlScaleU",
+        "knurlScaleV",
+        "knurlTextureHeight"
+      ]
+    },
+    {
+      "name": "loft",
+      "missing": [
+        "opts",
+        "sections"
+      ]
+    },
+    {
+      "name": "profile",
+      "missing": [
+        "as",
+        "contours"
+      ]
+    },
+    {
+      "name": "projectSheet",
+      "missing": [
+        "dash",
+        "height",
+        "hiddenOpacity",
+        "labelFontSize",
+        "margin",
+        "padding",
+        "strokeWidth",
+        "width"
+      ]
+    },
+    {
+      "name": "punchSolidOf",
+      "missing": [
+        "draftAngle",
+        "height",
+        "scaleMode"
+      ]
+    },
+    {
+      "name": "readZipEntries",
+      "missing": [
+        "maxEntries"
+      ]
+    },
+    {
+      "name": "readZipEntriesAsync",
+      "missing": [
+        "maxEntries",
+        "maxTotalBytes"
+      ]
+    },
+    {
+      "name": "removeHolesFromFace",
+      "missing": [
+        "face"
+      ]
+    },
+    {
+      "name": "resolveImports",
+      "missing": [
+        "baseURL",
+        "importer",
+        "imports",
+        "reservedPrefixes",
+        "scopes",
+        "slices"
+      ]
+    },
+    {
+      "name": "scale",
+      "missing": [
+        "center",
+        "factor"
+      ]
+    },
+    {
+      "name": "scale3d",
+      "missing": [
+        "center"
+      ]
+    },
+    {
+      "name": "scanAst",
+      "missing": [
+        "defaultNs",
+        "nsNames"
+      ]
+    },
+    {
+      "name": "scanSource",
+      "missing": [
+        "defaultNs",
+        "nsNames"
+      ]
+    },
+    {
+      "name": "screw",
+      "missing": [
+        "nRad",
+        "pitchCustom"
+      ]
+    },
+    {
+      "name": "sew",
+      "missing": [
+        "tolerance"
+      ]
+    },
+    {
+      "name": "sewAndSolidify",
+      "missing": [
+        "tolerance"
+      ]
+    },
+    {
+      "name": "shell",
+      "missing": [
+        "openFaces",
+        "thickness",
+        "tolerance"
+      ]
+    },
+    {
+      "name": "sketchOnFace",
+      "missing": [
+        "as",
+        "scaleMode"
+      ]
+    },
+    {
+      "name": "sphere",
+      "missing": [
+        "at",
+        "segments"
+      ]
+    },
+    {
+      "name": "split",
+      "missing": [
+        "tools"
+      ]
+    },
+    {
+      "name": "sweep",
+      "missing": [
+        "opts",
+        "profile",
+        "spine"
+      ]
+    },
+    {
+      "name": "thicken",
+      "missing": [
+        "thickness"
+      ]
+    },
+    {
+      "name": "union",
+      "missing": [
+        "shapes"
+      ]
+    },
+    {
+      "name": "unitEquals",
+      "missing": [
+        "current",
+        "current",
+        "temperature",
+        "temperature"
+      ]
+    },
+    {
+      "name": "wire",
+      "missing": [
+        "closed",
+        "degree",
+        "points",
+        "smooth"
+      ]
+    }
+  ]
+}
