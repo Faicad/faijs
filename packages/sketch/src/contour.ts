@@ -154,13 +154,22 @@ export function extractContours(geoms: FcstdSketchGeom[]): Contour[] {
 
   // circles are self-closed contours (construction circles excluded: they are
   // reference geometry, not profile holes/outer rings)
+  // GOTCHA (2026-10-06, HC-SR04 Sketch008 / G6-1 NO_CONTOUR bucket): the
+  // radius field name differs on the two sides of the projection boundary —
+  // `radius` on the Fcstd canonical model (project.ts:170) vs `r` on the
+  // canonical constraint model (canonical.ts:42). Accept BOTH: a circle
+  // stored with the other spelling was silently dropped here (undefined > 0
+  // is false) and the sketch reported E_SKETCHC_NO_CONTOUR even though the
+  // loop topology discriminator (sketch-loop-topology.ts) accepted it via
+  // its own `g.r` check.
   for (const g of geoms) {
-    if (g.kind === 'circle' && g.radius > 0 && !g.construction) {
+    const radius = g.kind === 'circle' ? (g.radius ?? (g as { r?: number }).r) : undefined;
+    if (g.kind === 'circle' && radius !== undefined && radius > 0 && !g.construction) {
       contours.push({
         segments: [{
-          kind: 'arc', cx: g.cx, cy: g.cy, radius: g.radius,
+          kind: 'arc', cx: g.cx, cy: g.cy, radius,
           startAngle: 0, endAngle: Math.PI * 2, ccw: true,
-          x1: g.cx + g.radius, y1: g.cy, x2: g.cx + g.radius, y2: g.cy,
+          x1: g.cx + radius, y1: g.cy, x2: g.cx + radius, y2: g.cy,
         }],
         closed: true,
       });
