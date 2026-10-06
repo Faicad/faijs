@@ -45,6 +45,7 @@
     "set-version": "node scripts/set-version.mjs",
     "pack": "node scripts/pack.mjs",
     "check-lockstep": "node scripts/check-lockstep.mjs",
+    "check-dist-sync": "node scripts/check-dist-sync.mjs",
     "gen-ops-api-inventory": "npx tsx scripts/gen-ops-api-inventory.ts",
     "check-ops-api-inventory": "npx tsx scripts/gen-ops-api-inventory.ts --check",
     "check-api-coverage": "npx tsx packages/core/scripts/check-api-coverage.ts",

@@ -50,12 +50,15 @@ if [ -n "$unexpected_stderr" ]; then
   exit 1
 fi
 
-echo "==> 5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面"
+echo "==> 5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / dist 脱节"
 node scripts/check-ghost-deps.mjs
 node scripts/check-workspaces-order.mjs
 node scripts/check-lockstep.mjs
 npx madge --circular packages/core/src
 node scripts/api-surface-snapshot.mjs
+# A5 / M4：dist 是构建产物（gitignored），可能落后于 src。构建后比对 src 符号表与
+# dist 符号表键集，脱节则拦截 publish。fresh checkout / 未构建环境无 dist 时跳过。
+node scripts/check-dist-sync.mjs
 # core-decouple wrapup §4.1：brepjs 归零守卫（包名/路径零依赖）
 node scripts/check-core-no-brepjs.mjs
 

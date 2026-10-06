@@ -18,6 +18,10 @@ This file defines the documentation standard for the faijs repository. Read this
 
 Each rule has exactly one authoritative home. Other locations link, never duplicate. If a fact changes, update the authoritative source — do not add a changelog entry.
 
+## Build artifacts are generated, not authoritative
+
+`packages/core/dist/**` is a build output (`npm run build`), gitignored, and never the source of truth. Generated *source* files — `packages/core/src/lang/symbol-table.generated.ts` and `packages/core/src/api/generated/**` — are tracked and ARE authoritative; they are produced by generators (`scripts/gen-symbol-table.ts`, `packages/core/scripts/gen-l3-surface.ts`) that you must re-run after changing their inputs (`npm run gen:surface`, `npm run gen-ops-api-inventory`). Never enumerate ops or capabilities from a built `dist` — it can lag `src` by any number of symbols (v1 勘误 M4 就是这么踩的：读 dist 比源码少一整批 op，误判 faijs 缺能力). `scripts/check-dist-sync.mjs` guards this after every build in CI (it fails when the built symbol table drifts from the source one); run `npm run build` before trusting any built artifact, and rebuild before publishing.
+
 ## Record current state, not history
 
 Documentation describes the current state of the system. Change history lives in commit messages and PRs. Do not write "previously we did X, now we do Y" — just describe Y.

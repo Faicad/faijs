@@ -165,7 +165,7 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / 平台 import 隔离 / API 测试覆盖' -Block {
+Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / 平台 import 隔离 / API 测试覆盖 / dist 脱节' -Block {
     node scripts/check-ghost-deps.mjs
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
@@ -179,6 +179,10 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     if ($LASTEXITCODE -ne 0) { return }
     # 导出面：10 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
     node scripts/api-surface-snapshot.mjs
+    if ($LASTEXITCODE -ne 0) { return }
+    # A5 / M4：dist 是构建产物（gitignored），可能落后于 src。构建后比对 src 符号表与
+    # dist 符号表键集，脱节则拦截 publish。fresh checkout / 未构建环境无 dist 时跳过。
+    node scripts/check-dist-sync.mjs
     if ($LASTEXITCODE -ne 0) { return }
     # core-decouple wrapup §4.1：brepjs 归零守卫（包名/路径零依赖）
     node scripts/check-core-no-brepjs.mjs
