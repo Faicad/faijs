@@ -345,14 +345,13 @@ importModels?: Map<PartName, ImportModel>
 |---|---|---|
 | P0 | faijs 契约：`ImportModel`（含 `exportable` + `bambuViews`）+ STEP 装配导入 + 3MF 全对象 + `ExecutionResult.importModels` + load 多零件返回 compound | **已实施（2026-10-06 晚）**：faijs 单测全绿、单零件零回归（§5.7） |
 | P1 | 3d_editor 单一通道：删除显示通道自解析，渲染改消费执行结果 G0 | **代码完成 + 静态验证全绿**（lint/typecheck/单测 204 文件 2880 用例/组件 48 文件 494 用例/build 全绿，faijs 0.30.1）；e2e 回归 **10 过 4 败**：3 个为旧有失败复现（drill-hole:504、snapshot.cylinder-engraving:19、undo-drill-flow:421，见 `../3d_editor/docs/plans/2026-10-06-ci-failure-classification.md`）；**drill-hole:819 疑 P1 引入**（面板打开后钻点击落空，toast「请在模型表面点击钻孔位置」，钻前 mesh 正常 36 顶点——相机适配/拾取时序待查，列 P2/专项）。**T7 回归正面信号**：cylinder-face-selection:230（box_boss.step BREP 圆柱面 overlay）通过 |
-| P2 | 3d_editor 批量建 part（innerId/PartInfo/场景树） | 场景树 N 个 part、G0 几何一致 |
-| P3 | STEP 装配层级场景树展开（`buildFileTreeFromPartInfos` 按 `assembly` 构树） | 多级场景树 |
-| P4 | Bambu 多盘布局 + 视图切换端到端验证 | R2/R3 验收 |
-| P5 | 显示/导出判别位消费（`exportable`）+ 与草图方案合流验证 | R5 验收 |
-| P6 | 文档同步（`docs/ops-api-inventory.md` load 契约、`docs/api-contract.md`）+ Agent Note | 契约留档 |
+| P2 | 3d_editor 批量建 part（innerId/PartInfo/场景树） | **已实施（faijs c4ca759 0.30.3 / 3d_editor 667d535a）**：worker↔host `resolveAsset` 竞态 → `WorkerAssetResolver` 按 key 缓存 Promise；`splitBrep` worker 挂死 → 两 cut 对偶；XCAF 派生句柄悬空 → `liftShapesFromDocument` leaf shapeHandle `kernel.copy()` 深拷贝；worker 累积 XCAF 解析后 BOP 挂死 → `load.ts` 模块级 `loadCache`。`executeScript.createPartsFromResult` 按 importModels 批量建 part（innerId `o<index+1>`、part.color→materialOriginals、writePartMetaOriginals）+ `maybeCommitImportChildWriteback` 重放写回 child G0。验证：explosion-strict-separation 75/111 转绿 |
+| P3 | STEP 装配层级场景树展开（`buildFileTreeFromPartInfos` 按 `assembly` 构树） | **已实施（3d_editor 43273f23）**：`LoadedFileModel.assembly` + store `updateFileAssembly` + `buildAssemblyTree`（container id=`${fileId}:asm-<n>` 确定性递增；leaf partIndex 越界抛错）；装配容器 `expanded:true`（导入后零件立即可见）；recordLoadFromRef 幂等路径补 `_commitLoadSideEffects`（assembly/bambuMetadata 写回 file 壳）；ModelGroup 树构造 deps 补 `bambuMetadata, assembly`。验证：buildFileSceneTree 单测 4 用例 + assembly-coincide 转绿（STEP 导出→重导入 2 零件） |
+| P4 | Bambu 多盘布局 + 视图切换端到端验证 | **已实施（faijs fa39f6d 0.30.5 / 3d_editor 43273f23）**：faijs 侧 `ThreemfObject.parentObjectId/componentIndex`、`ThreemfArchive.modelXml`、buildItems 全量解析（parse3mfBuild 不再 tail 切片）、`parentComponents` Map、parts 按 build×components 展开打印单元、`leafParts: Map<'父id:componentIndex', BambuPartMeta>`、io.ts 用 leafParts 关联并写 `objectId/plateId/extruder/partId`；3d_editor 侧 adapter 迁 `lib/bambu-3mf`（arch-guard 豁免目录）、`ScriptEngine._commitLoadSideEffects` 写回 `updateFileAssembly/updateFileBambuMetadata`、ModelGroup 多盘分组。验证：`multipart-3mf-plates.spec.ts`（Plate 1/2 分组 + 21 零件 + 视图切换）、faijs `threemf-bambu-identity.test.ts`（buildItems 19/leafParts 21/两盘/父对象 partId 映射） |
+| P5 | 显示/导出判别位消费（`exportable`）+ 与草图方案合流验证 | **已实施（3d_editor 待提交）**：`PartInfo.exportable` 透传（scene-mutator/executeScript，仅 false 显式写）；导出收集 `collectSceneMeshes`/`collectFileMeshes` 按 `PartInfo.exportable === false` 剔除仅显示几何（草图合流方置位）。草图方案完整设计由另一 agent 负责（§2.4），本契约保证数据位与消费边界存在 |
+| P6 | 文档同步（`docs/ops-api-inventory.md` load 契约、`docs/api-contract.md`）+ Agent Note | **本文档同步**（§10 实施记录 + §5 契约现状） |
 
 ## 11. 风险与待确认项
-
 | 编号 | 事项 | 处理 |
 |---|---|---|
 | T0 | `importAssemblyFromStep` 内部用 `initOcctWasm()` 单例，而 `loadBrep` 用注入的 `BrepEngineApi`；两者返回的 `ShapeHandle` 是否可互通（决定 §5.3 能否复用 XCAF 树） | **实现前先写句柄互通探针**，结论保留为可重复测试（「验证留档」铁律）；若不通，改用注入 kernel 的等价装配 API |
@@ -366,3 +365,17 @@ importModels?: Map<PartName, ImportModel>
 | T8 | 与草图方案的边界：`ImportPart.exportable` 的判别时机（加载时静态判别 vs 运行时标记）需与另一 agent 方案对齐 | P5 合流时确认，本契约只保证数据位存在 |
 
 **待确认（推荐默认）**：§5.2 多零件返回 `CompoundShape`（而非新增独立 op）为本方案推荐——理由是复用现有 `outputs: Map<PartName, Shape | CompoundShape>` 与 `isCompoundLike` 消费面，宿主改动最小；若用户希望语言层显式区分「导入的装配」与建模 `group`，可改为新增 `TypeKind: 'import'` 判别字段，成本为一次类型扩展。
+
+---
+
+## Agent Note（P0–P5 落地后，供后续 agent 续作）
+
+**现状（2026-10-06 晚，faijs 0.30.5 / 3d_editor 43273f23）**：
+
+1. **单一加载通道已收口**：3d_editor 打开任意 3d 文件 = 记录一行 `cad.load({ file })` → worker 执行 faijs → 宿主只消费 `ExecutionResult`（outputs/importModels/assembly/bambuViews/topology/detectedUnits）。`formatLoaders.ts` 降纯元数据、`loaderResultCache.ts`/`useFileLoader.ts` 已退役。**新增任何导入路径前先确认是否违反 R0 红线**。
+2. **多零件契约**：STEP/3MF 多零件 `cad.load` 返回 `CompoundShape`，身份/结构在 `ExecutionResult.importModels`（`ImportModel.parts/assembly/bambuViews`）。零件序 = 文件声明序；`compound.children` 是匿名几何（不进 `compounds` 字段）。
+3. **装配层级（P3）**：`ImportModel.assembly`（XCAF DFS 序）→ 3d_editor `buildAssemblyTree` 构多级场景树；装配容器 id=`${fileId}:asm-<n>` 且 **expanded:true**（导入后零件必须立即可见——折叠会让 e2e 场景树断言与 UX 双双失败，2026-10-06 踩过）。
+4. **Bambu 多盘（P4）**：3MF 的 `<build>` 位于 `<resources>` 之前时必须全量解析（`parse3mfBuild(modelXml)`，禁止 tail 切片）；`<object id>`（叶子）与 `model_settings.config` 的 `<object id>`（父对象）是**两套编号**，关联必须走 `parentComponents` → `leafParts`（键 `父id:componentIndex`），禁止 `bambu.objects.get(String(obj.id))`。vise.3mf = 21 零件 / 2 盘（fixture 与 identity 测试已锁定）。
+5. **显示/导出判别（P5）**：`ImportPart.exportable` 默认 true；草图等仅显示几何置 false。3d_editor 导出收集（`collectSceneMeshes`/`collectFileMeshes`）按 `PartInfo.exportable === false` 过滤。草图方案完整设计由另一 agent 负责，本契约只保证数据位与消费边界。
+6. **版本流程**：faijs 改动后必须 `npm run verify-export-jsdoc` → `npm run set-version -- <新版本>` → `npm run pack` → 3d_editor `npm run update-faijs`。**禁止手改任何 package.json 的 faijs 版本段**。
+7. **已知遗留（bug 队列，勿与多零件通道混淆）**：step-cube5 extrude（:161/:206）在 Chrome worker 挂死——faijs node 探针证实几何与 BREP 链全部正常（splitBrep 113ms/extrudeBrep 42ms），是 **occt-wasm 5.6.0 在 worker 对 STEP-XCAF 派生实体的 BOP 挂死**（环境级，node 不复现），与多零件导入通道无关。快照×4、撤销×3、BREP 面高亮×1 归历史功能 bug。

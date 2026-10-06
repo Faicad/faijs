@@ -644,6 +644,17 @@ The library has two entries with different dependency closures. The root and `./
 - **Kinematic solve ≠ constraint solve** (merge semantics): `solveAssemblyAndKinematics` runs the constraint solve first, then `solveKinematics`; per-member joint poses **override** the constraint solution for the same member names (each override recorded in a warning, D-P3-1). Kinematic results do not feed the `converged` / `dof` statistics.
 - **Consumption channel**: after `asm.solve()` (R0, void) on an assembly that has joints, the engine writes per-member poses into `ExecutionResult.kinematics: Map<PartName, { position, rotation }>` (`rotation` in faijs `[x,y,z,w]`) from **both** executors (module & direct, locked by J12). There is **no** `asm.kinematics()` method. The `cad.*` query surface exposes pure side-effect-free functions (no receiver): `cad.jointTrajectory`, `cad.inverseKinematics`, `cad.mechanismDOF` (P3 spec §3.2).
 
+### 12.1 Multi-part file import (`cad.load`)
+
+`cad.load({ file })` is the single import entry (editor-owned op, `@faicad/faijs-extra`). For a multi-part file it returns a **`CompoundShape`** (`children` order = file declaration order); single-part files return a plain `Shape` unchanged (zero regression). The structure side of the import travels on `ExecutionResult.importModels: Map<PartName, ImportModel>`:
+
+- `ImportModel.parts: ImportPart[]` — identity table (`index` = `compound.children` index, `name`, `color`, `objectId`/`partId`/`plateId`/`extruder` for Bambu 3MF, `exportable` for display-only geometry such as sketches — default `true`).
+- `ImportModel.assembly?: ImportAssemblyNode` — STEP XCAF hierarchy (`partIndex` leaves, DFS order aligned with `parts`).
+- `ImportModel.bambuViews?` — Bambu 3MF plates / assemble·import transforms / buildItems / filament colors (host no longer re-parses the 3MF archive).
+- Multi-part `compound.children` are **anonymous geometry** (no variable names), so they do **not** enter `ExecutionResult.compounds` (that field is for named member variables); part identity lives in `importModels`, geometry in `outputs.get(terminal).children`.
+
+Full design: `docs/plans/2026-10-06-step-3mf-multipart-import-plan.md` (§5). Implementation status: P0–P5 implemented (faijs 0.30.5).
+
 ---
 
 ## 13. Invariants and Versioning
