@@ -20,6 +20,9 @@
  */
 
 import { parse as acornParse } from 'acorn'
+// A4 (2026-10-06): SAFE_CONTAINERS / SAFE_FUNCTIONS are derived from the S4
+// admission list — single source of truth for script-face globals.
+import { S4_SAFE_GLOBALS } from './security-scanner'
 
 // ── types ──
 
@@ -96,22 +99,32 @@ const SOURCE_IDENTS = new Set<string>(['Date', 'crypto', 'getRandomValues', 'per
  * Safe containers: member calls on these neither violate nor introduce taint;
  * taint only propagates through their arguments (pure/observable-only globals).
  *
- * A4 (2026-10-06) cross-reference: this list answers "does a member call on this
- * global propagate taint" — a DIFFERENT question from `S4_SAFE_GLOBALS` in
- * `security-scanner.ts` ("is this bare identifier admitted without import").
- * Neither is a superset of the other (this has Intl/Reflect; that has Date/
- * Infinity/NaN/undefined). Do not derive either list from the other.
+ * A4 (2026-10-06, user decision): DERIVED from `S4_SAFE_GLOBALS`
+ * (security-scanner.ts) instead of hand-maintained. The script face can only
+ * name identifiers admitted by the S4 gate, so any container not in S4 is
+ * unreachable dead weight — the former hand-copied entries `Intl` / `Reflect`
+ * (and the encodeURI family in SAFE_FUNCTIONS) were exactly that, and are gone.
+ * Excluded here: bare non-deterministic sources (Date / crypto / performance —
+ * they are handled by SOURCE_MEMBERS / SOURCE_IDENTS above). Unit constants
+ * (MM, INCH, …) are inert numeric values; keeping them is harmless.
  */
-const SAFE_CONTAINERS = new Set<string>([
-  'console', 'Math', 'JSON', 'Number', 'String', 'Boolean', 'Object', 'Array',
-  'Map', 'Set', 'Symbol', 'RegExp', 'Promise', 'Error', 'Intl', 'Reflect',
-])
+const SAFE_CONTAINERS: ReadonlySet<string> = new Set(
+  [...S4_SAFE_GLOBALS].filter((name) => !SOURCE_IDENTS.has(name)),
+)
 
-/** Safe top-level functions (pure/known, not geometry). */
-const SAFE_FUNCTIONS = new Set<string>([
-  'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'String', 'Number', 'Boolean',
-  'encodeURI', 'encodeURIComponent', 'decodeURI', 'decodeURIComponent',
-])
+/**
+ * Safe top-level functions (pure/known, not geometry). Also derived from
+ * `S4_SAFE_GLOBALS`: every name here must be S4-admitted (guard test
+ * `test/lang/determinism-scanner.test.ts` enforces both derivations).
+ * The former `encodeURI` / `encodeURIComponent` / `decodeURI` /
+ * `decodeURIComponent` entries were unreachable in scripts (not in S4) —
+ * URL construction is host/IO territory, not geometry-script territory.
+ */
+const SAFE_FUNCTIONS: ReadonlySet<string> = new Set(
+  ['parseInt', 'parseFloat', 'isNaN', 'isFinite', 'String', 'Number', 'Boolean'].filter((name) =>
+    S4_SAFE_GLOBALS.has(name),
+  ),
+)
 
 // ── scope ──
 

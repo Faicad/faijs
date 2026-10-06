@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { scanDeterminism } from '../../src/lang/determinism-scanner'
+import { S4_SAFE_GLOBALS } from '../../src/lang/security-scanner'
 
 function scan(code: string, opts: Parameters<typeof scanDeterminism>[1] = {}) {
   return scanDeterminism(code, opts)
@@ -117,5 +118,46 @@ describe('determinism-scanner: strict parse (library source contract)', () => {
 
   it('non-strict: parse failure stays silent ok (main script path owns syntax diagnostics)', () => {
     expect(scan('export function make(n: number): number { return n }').ok).toBe(true)
+  })
+})
+// ── A4 (2026-10-06, user decision): SAFE_CONTAINERS / SAFE_FUNCTIONS are
+// DERIVED from S4_SAFE_GLOBALS — these guards keep the derivation honest. ──
+describe('determinism-scanner: A4 derivation guards (single source of truth)', () => {
+  // GOTCHA: SAFE_CONTAINERS is not hand-written — it is
+  // `S4_SAFE_GLOBALS minus non-deterministic sources`. If someone adds a new
+  // S4 global, member calls on it must be clean WITHOUT touching this scanner.
+  it('every S4 safe global accepts member calls cleanly (derived container set)', () => {
+    const fail: string[] = []
+    for (const name of S4_SAFE_GLOBALS) {
+      // Member call flows nowhere — must not violate, must not taint.
+      const r = scan(`console.log(${name}.foo(1))`)
+      if (!r.ok) fail.push(name)
+    }
+    expect(fail).toEqual([])
+  })
+
+  it('non-deterministic sources are excluded from the derived container set', () => {
+    // Date/crypto/performance are S4-invisible (never admitted) and remain
+    // taint sources via SOURCE_IDENTS / SOURCE_MEMBERS — e.g. `new Date()`
+    // flows into geometry → violation.
+    const r = scan('const d = new Date()\nlet part0 = cad.box(d.getTime(), 10, 10)')
+    expect(r.ok).toBe(false)
+  })
+
+  it('dead entries removed: Intl/Reflect/encodeURI are NOT script-admissible (S4)', () => {
+    // These used to sit in hand-copied SAFE lists but are unreachable in
+    // scripts — the S4 gate rejects the bare identifier first (SEC_FREE_IDENT).
+    // The derivation makes that structural: none of them may reappear in S4
+    // without a separate policy decision.
+    for (const name of ['Intl', 'Reflect', 'encodeURI', 'encodeURIComponent']) {
+      expect(S4_SAFE_GLOBALS.has(name), name).toBe(false)
+    }
+  })
+
+  it('derived SAFE_FUNCTIONS ⊆ S4_SAFE_GLOBALS (behavioral: parsed as clean calls)', () => {
+    for (const fn of ['parseInt', 'parseFloat', 'isNaN', 'isFinite', 'String', 'Number', 'Boolean']) {
+      expect(S4_SAFE_GLOBALS.has(fn), fn).toBe(true)
+      expect(scan(`console.log(${fn}("1"))`).ok).toBe(true)
+    }
   })
 })
