@@ -123,7 +123,7 @@ compileToModule 把每条语句编译为独立 fn，动机是三条，全部服�
 - **变量名获取**：JS 词法作用域不可枚举（`const part5 = ...` 的 LHS 在浏览器拿不到）。三条路径：a) 标识符作用域提升（浏览器主路径，§4.2）；b) 宿主自报 outputs（3d_editor 生成代码时已知）；c) Node `vm.runInNewContext` sandbox 枚举（node-host/CLI）。
 - **UI 能力本质是行级的**：timeline 每行一节点、参数编辑每行参数、增量每行 id、DAG 每行消费关系。全局性来自逐行累积（符号表/消费表），不需要全局 IR。
 - **timeline 现状（2026-09-06 核实）**：`analyzeCode` 只对语句行（`script.statements`，即 op 行）生成 StatementSummary；import 行不进 statementIndex（仅用于推导 packageName）；**参数行也不进 statementIndex**（parser 把 `const X = <literal>` 收进 ScriptIR.params、不进 statements，参数值经宿主 `parseParamsFromCode` + `ExecuteOptions.params` 注入）。timeline 节点 = 每行一条摘要，字段：id/callee/namespace/packageName/receiver/positional/args/outputs/refs/hasAssignment/hasComputedArgs/line（`statement-summary.ts:88-104`）。
-- **terminals 现状（2026-09-06 核实）**：终端判定完全由 faijs 负责（`terminal-dag.ts` 的 DAG 叶子算法；消费判定是 keep 驱动 C0/C3/C5——**无 op 静态 consumes 声明**，该机制曾于 P4 引入、因违反"对外约定只有 keep/keepHidden"红线已于 2026-09-06 提交 f72c0d8 删除）；3d_editor **直接信任 `result.terminals`**（"faijs runtime 已按 DAG 叶子算法产出 terminals，宿主直接信任 result.terminals，不重复实现 DAG 过滤"，`executeScript.ts`），用 `TerminalShape.id`（PartName）反查摘要 → 创建场景零件 → 提交几何。本方案对 terminals 形态零改动（§4.4）。
+- **terminals 现状（2026-09-06 核实）**：终端判定完全由 faijs 负责（`terminal-dag.ts` 的 DAG 叶子算法；消费判定是 keep 驱动 R1/R3/R5——**无 op 静态 consumes 声明**，该机制曾于 P4 引入、因违反"对外约定只有 keep/keepHidden"红线已于 2026-09-06 提交 f72c0d8 删除）；3d_editor **直接信任 `result.terminals`**（"faijs runtime 已按 DAG 叶子算法产出 terminals，宿主直接信任 result.terminals，不重复实现 DAG 过滤"，`executeScript.ts`），用 `TerminalShape.id`（PartName）反查摘要 → 创建场景零件 → 提交几何。本方案对 terminals 形态零改动（§4.4）。
 
 ---
 
@@ -155,7 +155,7 @@ flowchart LR
 |---|---|---|
 | `MetadataExtractor` | `lang/metadata-extractor.ts` | 源码 → `UiMetadata`（行摘要 + 参数表 + import 表 + 函数表 + 块结构 + refs + keep）；替代 parseScript 的 UI 职责与 statement-summary/code-to-args 的输入侧 |
 | `DirectExecutor` | `cad-runtime/direct-executor.ts` | 源码直通 JS VM：import 轻 transform + 标识符作用域提升 + 逐单元执行 + 错误行号；替代 compileToModule + ModuleExecutor 的执行路径 |
-| `computeLiveShapes` | `cad-runtime/live-shapes.ts` | 存活判定（候选 = ctx shape 键 + keep 驱动 consumes 的 StatementSummary 适配，C0/C3/C5 原样、行内 keep 查表）；产出 `TerminalShape[]` 与现状兼容；替代 terminal-dag |
+| `computeLiveShapes` | `cad-runtime/live-shapes.ts` | 存活判定（候选 = ctx shape 键 + keep 驱动 consumes 的 StatementSummary 适配，R1/R3/R5 原样、行内 keep 查表）；产出 `TerminalShape[]` 与现状兼容；替代 terminal-dag |
 | `ModuleRegistry` | `cad-runtime/module-registry.ts` | 多文件装载（projectLoader 接入 + 模块导出面） |
 | `SyntaxGate`（可选） | `lang/syntax-gate.ts` | check() 用：acorn parse 纯语法门禁（不做语义提取）；可从 MetadataExtractor 内建 |
 | 保留：`formatCodeLine` / `host-arg.ts` / `derive-part-name` | `lang/codegen.ts` 等（原样） | 行打印、HostArg 守卫、命名 |
@@ -293,19 +293,19 @@ class DirectExecutor {
 
 ### 4.3 消费判定与候选收集（keep 驱动，红线：无 consume 类接口）
 
-**红线（用户既定，自包含）**：本项目对外约定只有 `keep` / `keepHidden`（2026-09-06 提交 f72c0d8 的 consume audit 已删除全部 consume 类接口；任何 consume 类自创接口一律禁止）。早期草案中的 `OpRecorder`/`OpRecord`（Proxy 包装 `ctx.cad` 记录执行时消费）是 consume 思想的运行时变体，违反红线，**已删除**。终端判定的消费判定**复用现状 keep 驱动 `consumes()`（C0/C3/C5 短路）**，输入从 StatementIR 换成 StatementSummary（lines 面原样，§4.1），行内 keep 判定从"扫 args"换"查 `metadata.keep` 表"（提取器已把 args 中的 keep/keepHidden 键结构化），逻辑零改动：
+**红线（用户既定，自包含）**：本项目对外约定只有 `keep` / `keepHidden`（2026-09-06 提交 f72c0d8 的 consume audit 已删除全部 consume 类接口；任何 consume 类自创接口一律禁止）。早期草案中的 `OpRecorder`/`OpRecord`（Proxy 包装 `ctx.cad` 记录执行时消费）是 consume 思想的运行时变体，违反红线，**已删除**。终端判定的消费判定**复用现状 keep 驱动 `consumes()`（R1/R3/R5 短路）**，输入从 StatementIR 换成 StatementSummary（lines 面原样，§4.1），行内 keep 判定从"扫 args"换"查 `metadata.keep` 表"（提取器已把 args 中的 keep/keepHidden 键结构化），逻辑零改动：
 
 ```
-C0/C1：v ∈ keepOf(lineNo, keepRegistry).kept（行内 keep 查 metadata.keep 表；函数体 exec.keep 登记经 keepRegistry）→ 不消费
-C3   ：line 有赋值且 outputs 全部非几何（不在 shapeVarNames）→ 不消费任何输入
-C5   ：默认消费——line 的 positional/args 中 VarRef 引用扫描（嵌套调用内只读不消费；receiver 不消费）
+R1：v ∈ keepOf(lineNo, keepRegistry).kept（行内 keep 查 metadata.keep 表；函数体 exec.keep 登记经 keepRegistry）→ 不消费
+R3   ：line 有赋值且 outputs 全部非几何（不在 shapeVarNames）→ 不消费任何输入
+R5   ：默认消费——line 的 positional/args 中 VarRef 引用扫描（嵌套调用内只读不消费（R4）；receiver 不消费）
 ```
 
 **候选收集（运行时，与现状 `allShapeVarNames` 同源）**：执行后遍历共享 ctx 键，结构判定 `isShapeLike`/`isCompoundLike` 即为存活候选——"收集所有 shape，最后存活的就是 UI 上显示的"。块单元执行前后 ctx diff（新增 shape 键 = 块内产出）补充进候选。
 
 **消费检查起点锚点（producerIdx）**：候选名 v 的"最后写者"由 **ctx 天然给出**（JS 赋值覆盖，键值即最后写的结果），**不需要静态找最后写者**；但消费检查必须从"v 最后一次出现在行级 outputs（或块单元产出）的行号 + 1"开始——ctx 值不带行号，锚点必须从行级元数据反查。起点之前的消费不算（对被覆盖旧值的消费）：如 `part5=box; part6=union(part5,part5); part5=box(20)`，第 2 行消费的是旧 part5，第 3 行重写后 part5 应正常显示；若从第 0 行扫起会被误判为消费而错误隐藏（terminal-dag.ts:157-171 的 `for i = producerIdx+1` 原样搬入）。
 
-**块单元（自由 JS）的外部变量消费**：块在 timeline 上是只读节点（R8），但**消费判定**对块源码文本做词法级变量名引用扫描（与 C5 的 VarRef 扫描同精神，非语义分析），发现外部 shape 名 → 保守判为消费。这只影响自由 JS 场景；扁平行式代码与现状逐位等价（A-14 锁定）。
+**块单元（自由 JS）的外部变量消费**：块在 timeline 上是只读节点（R8），但**消费判定**对块源码文本做词法级变量名引用扫描（与 R5 的 VarRef 扫描同精神，非语义分析），发现外部 shape 名 → 保守判为消费。这只影响自由 JS 场景；扁平行式代码与现状逐位等价（A-14 锁定）。
 
 **块单元产出（blockOutputs）**：块内声明/产生的 shape 不在 `lines` 里（块整体是只读节点），其 `producerIdx` 锚点由**执行时登记**给出——DirectExecutor 执行块单元前后对共享 ctx 做 diff，新增的 shape 键登记为 `blockOutputs: Map<shapeName, 块起始行号>`；`computeLiveShapes` 对这类候选用块起始行作 producerIdx（否则会误走"无生产者 → 直接终端"分支，跳过消费检查，块产出被后续行消费时漏判）。
 
@@ -320,18 +320,18 @@ C5   ：默认消费——line 的 positional/args 中 VarRef 引用扫描（嵌
 | 语句序列 | `script.statements`（parseScript 语义层 → `StatementIR[]`） | `metadata.lines`（MetadataExtractor → `StatementSummary[]`，与现状 analyzeCode 逐字相等） | **变**：取消 IR 的直接落点（唯一核心变化） |
 | 候选集合 | 运行时 ctx 键 + `isShapeLike`/`isCompoundLike` 结构判定（`allShapeVarNames`，runtime.ts:983-990） | 同左，同源 | **不变** |
 | lastProducer 查找 | 单次遍历 `StatementIR.outputs` + Map 覆盖写（terminal-dag.ts:142-150） | 单次遍历 `StatementSummary.outputs` + Map 覆盖写（§4.4 算法第 1 步） | 算法逐字不变，输入字段换 |
-| 消费判定 `consumes()` | C0/C1 `resolveKeep(StatementIR, view.internalKeep)` → C3 outputs 全非几何 → C5 扫 `StatementIR.positional/args`（VarRefIR/ExprIR.refs；CallRefIR 内只读） | C0/C1 `keepOf(lineNo, keepRegistry)`（查 metadata.keep 表）→ C3 同 → C5 扫 StatementSummary 的 HostArg 引用形态 | 逻辑零改动，输入形态换 |
+| 消费判定 `consumes()` | R1 `resolveKeep(StatementIR, view.internalKeep)` → R3 outputs 全非几何 → R5 扫 `StatementIR.positional/args`（VarRefIR/ExprIR.refs；CallRefIR 内只读） | R1 `keepOf(lineNo, keepRegistry)`（查 metadata.keep 表）→ R3 同 → R5 扫 StatementSummary 的 HostArg 引用形态 | 逻辑零改动，输入形态换 |
 | 函数体 keep 登记 | `ModuleExecutor.internalKeep`（执行期登记，经 runtime view 注入） | `DirectExecutor` 持 `KeepRegistry`（执行期登记） | 机制等价，宿主换 |
 | hidden（D2） | 按语句顺序"最后一次保留声明胜出" | 同左 | **不变** |
 | 显式 return | `script.terminalShapes` 非空优先 | `metadata.terminalShapes` 非空优先 | 输入源换 |
 | 产出 | `TerminalShape[]`（computeLeafTerminals） | `TerminalShape[]`（computeLiveShapes），形态逐字段兼容 | **不变** |
 | 自由 JS 块 | 不支持（循环/条件语法被禁或不识别） | 块单元整块执行 + 词法级消费扫描 + ctx diff 补候选 | 新增场景（扩展，不是替换） |
 
-> 结论：**活跃性判断的算法实施前后不变，变的是两个输入源**——① 语句序列从 `ScriptIR` 换成行级元数据（`StatementSummary`，这是"取消 IR"的落点）；② 行内 keep 判定从"扫 StatementIR.args"换"查 metadata.keep 表"、函数体 keep 登记宿主从 `ModuleExecutor` 换成 `DirectExecutor/KeepRegistry`。候选、lastProducer、consumes（C0/C3/C5）、hidden、显式 return、`TerminalShape` 产出全部原样；自由 JS 块是新增场景。这就是 A-14/A-16/A-17 对拍测试锁定的等价性边界。
+> 结论：**活跃性判断的算法实施前后不变，变的是两个输入源**——① 语句序列从 `ScriptIR` 换成行级元数据（`StatementSummary`，这是"取消 IR"的落点）；② 行内 keep 判定从"扫 StatementIR.args"换"查 metadata.keep 表"、函数体 keep 登记宿主从 `ModuleExecutor` 换成 `DirectExecutor/KeepRegistry`。候选、lastProducer、consumes（R1/R3/R5）、hidden、显式 return、`TerminalShape` 产出全部原样；自由 JS 块是新增场景。这就是 A-14/A-16/A-17 对拍测试锁定的等价性边界。
 
 ```
 候选   = ctx 中 Shape 类型键（变量名来自作用域提升器 / 宿主自报 / vm sandbox / 块 ctx diff；与现状 allShapeVarNames 同源；ctx 值天然是最后写者）
-消费   = keep 驱动 consumes() 判定（C0/C3/C5 原样，输入换 StatementSummary；行内 keep 查 metadata.keep 表；**检查起点 = producerIdx+1**，producerIdx 由行级元数据反查最后一次 outputs 含该名的行号，§4.3；块单元词法级引用扫描）
+消费   = keep 驱动 consumes() 判定（R1/R3/R5 原样，输入换 StatementSummary；行内 keep 查 metadata.keep 表；**检查起点 = producerIdx+1**，producerIdx 由行级元数据反查最后一次 outputs 含该名的行号，§4.3；块单元词法级引用扫描）
 保留   = metadata.keep（行级 keep/keepHidden 提取）+ exec.keep 运行时登记（DirectExecutor 持 KeepRegistry，替代 ModuleExecutor.internalKeep）
        优先级与 hidden 三态完全沿用 lang/keep.ts（调用点 > 函数体；最后一次保留声明胜出）
 显式   = metadata.terminalShapes（显式 return 终端，优先）
@@ -372,7 +372,7 @@ computeLiveShapes(metadata, ctx, keepRegistry, blockOutputs, shapeVarNames):
       continue                                # 解析完整 accumulatedCode，producer 行在列
     consumed = false
     for i in range(producerIdx+1, len(lines)):# 起点 = 最后一次赋值之后（锚点，§4.3）
-      if consumes(lines[i], v, metadata.keep, keepRegistry, shapeVarNames):  # C0/C1→C3→C5 短路
+      if consumes(lines[i], v, metadata.keep, keepRegistry, shapeVarNames):  # R1→R3→R5 短路
         consumed = true; break
     if not consumed and blockConsumes(blocks, v, producerIdx):
       consumed = true                          # 块单元词法级引用扫描（§4.3，自由 JS 新增场景）
@@ -395,7 +395,7 @@ blockConsumes(blocks, v, producerIdx):
 1. **字段兼容**：`ExecutionResult.terminals` 与 `TerminalShape { id, meta?, kind?, hidden? }` 结构不变 → 3d_editor 的 `createPartForTerminal` / `writeScriptStore` 零改动。
 2. **行为等价**：对现有 `.fai.js` fixture（无控制流、扁平行式），静态 DAG 叶子 == 动态存活集合。用**黄金数据对比测试**锁定（验收 A-14）：实施时先双路径对照（新路径 vs 现状 computeLeafTerminals），删除旧路径后转为快照断言。
 3. **keep 语义不变**：`lang/keep.ts` 的 `parseUserKeep` / `resolveKeep` / `withoutKeepDirectives` / `validateKeepDirectives` 逻辑原样；行内 keep 提取输入从 StatementIR.args 换 metadata.keep 表（提取器从行 args 的 HostArg 中扫 keep/keepHidden 键，等价于现状 parseUserKeep 的扫描）。
-4. **消费判定同源**：新方案与现状使用**同一个** keep 驱动 `consumes()`（C0/C3/C5），无新接口；差异仅在输入形态（StatementIR → StatementSummary + metadata.keep 表）与块单元的词法级扫描（自由 JS 新增场景），扁平行式代码两者等价。
+4. **消费判定同源**：新方案与现状使用**同一个** keep 驱动 `consumes()`（R1/R3/R5），无新接口；差异仅在输入形态（StatementIR → StatementSummary + metadata.keep 表）与块单元的词法级扫描（自由 JS 新增场景），扁平行式代码两者等价。
 5. **显式 return 保留**：AI 手写 `.fai.js`（`return { shape }` 形态）场景，liveShapes = 显式列表，语义与现状一致。
 
 **三消费方**：① UI 显示（`ExecutionResult.terminals` → 3d_editor 创建场景零件，现状路径不变）；② 模块导出面（`FaiModuleExports.liveShapes`，§4.5）；③ 跨文件引用校验（`bp ∈ A.liveShapes`，不在 → `failedAt`）。
@@ -475,7 +475,7 @@ interface FaiModuleExports {
 - `lang/metadata-extractor.ts`（+ `metadata-extractor.test.ts`）：元数据提取器，UiMetadata（lines = StatementSummary[] 原样 + params/imports/functions/blocks/keep/refs/meta/terminalShapes 各表）/ 行分派 / 块配对 / 符号表。
 - `lang/syntax-gate.ts`（可选，并入 metadata-extractor 亦可）：`check()` 的 acorn 纯语法门禁。
 - `cad-runtime/direct-executor.ts`（+ `direct-executor.test.ts`）：源码直通执行（import 轻 transform / 作用域提升 / 逐单元执行 / append / 错误行号）。
-- `cad-runtime/live-shapes.ts`（+ `live-shapes.test.ts`）：computeLiveShapes + keep 驱动 consumes 的 StatementSummary 适配（C0/C3/C5，行内 keep 查 metadata.keep 表，无新接口）。
+- `cad-runtime/live-shapes.ts`（+ `live-shapes.test.ts`）：computeLiveShapes + keep 驱动 consumes 的 StatementSummary 适配（R1/R3/R5，行内 keep 查 metadata.keep 表，无新接口）。
 - `cad-runtime/module-registry.ts`（+ `module-registry.test.ts`）：ProjectLoader 接入 + FaiModuleExports。
 - `packages/tests/faijs/no-ir/`（集成测试目录）：`parity/`（对拍测试：A-16/A-17/A-14，删除 IR 的前置门禁）、golden-terminals、多文件、循环块、libLoader 回归。
 

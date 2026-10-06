@@ -1,7 +1,7 @@
 /**
  * live-shapes — 无 IR 存活判定测试（P3）
  *
- * 覆盖：C0/C3/C5 消费判定、keep 驱动、hidden 最后一次保留胜出、块词法级扫描、
+ * 覆盖：R1/R3/R5 消费判定、keep 驱动、hidden 最后一次保留胜出、块词法级扫描、
  * 无生产者 → 直接终端。与 computeLiveShapes 行为对齐（A-14 对拍见
  * packages/tests/faijs/no-ir/parity/a14-live-shapes.test.ts）。
  */
@@ -47,13 +47,13 @@ describe('computeLiveShapes: 消费判定', () => {
     expect(names).toEqual(['part2'])
   })
 
-  it('C0/C1 机制锚点：subtract 输入被消费；boolean op 的 keepHidden 使其保留为隐藏终端', () => {
+  it('R1 机制锚点：subtract 输入被消费；boolean op 的 keepHidden 使其保留为隐藏终端', () => {
     // FCStd port「中间 feature var 泄漏为 terminal」（如 TS35 solids 1vsN）的根因锚点。
     // 两层事实必须同时成立，缺一就会误判根因：
     //   1）消费扫描本身正确——无 keep 时 `subtract(part0, part1)` 的 positional var-ref
     //      被 lineConsumes 识别为消费 → 仅 part2 终端（＝下面的第一个断言）。
     //   2）真运行时 `cad.subtract` 函数体调用 `keepHidden(...inputs)`（`api/boolean.ts`，
-    //      R5 语义：布尔源保留但隐藏）→ 登记落到 subtract 调用行（行号键）→ C0/C1 短路
+    //      R5 语义：布尔源保留但隐藏）→ 登记落到 subtract 调用行（行号键）→ R1 短路
     //      「不消费」→ part0/part1 作为 hidden terminal 存活（＝下面的第二个断言，也是
     //      runtime.test.ts「box+sphere+subtract → 3 终端」的成因）。
     // 结论：1vsN 不是 computeLiveShapes/lineConsumes 漏判（计划 B4 假设），是 op 内建 keep。
@@ -83,7 +83,7 @@ describe('computeLiveShapes: 消费判定', () => {
     expect(names).toEqual(['part0'])
   })
 
-  it('被 keep 声明的输入不被消费（行内 keep → C0）', () => {
+  it('被 keep 声明的输入不被消费（行内 keep → R1）', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.union(part0, { keep: [part0] })',
@@ -109,8 +109,8 @@ describe('computeLiveShapes: 消费判定', () => {
     expect(part0?.hidden).toBe(true)
   })
 
-  it('C3：赋值但输出非几何（测量/查询）→ 不消费输入', () => {
-    // 模拟第三方测量函数：输出是数值（非 shape）——C3 短路
+  it('R3：赋值但输出非几何（测量/查询）→ 不消费输入', () => {
+    // 模拟第三方测量函数：输出是数值（非 shape）——R3 短路
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
     ].join('\n')
@@ -121,12 +121,12 @@ describe('computeLiveShapes: 消费判定', () => {
       callee: 'measureVolume',
       positional: [{ kind: 'var-ref', name: 'part0' }],
       args: {},
-      outputs: [] as never, // 手写构造：非 shape 输出走 C3（outputs 为空且非几何）
+      outputs: [] as never, // 手写构造：非 shape 输出走 R3（outputs 为空且非几何）
       hasAssignment: true,
       hasComputedArgs: false,
       line: 2,
     }
-    // shapeVarNames 只有 part0；measureLine outputs=[] → C3 不成立（outputs.length===0）。
+    // shapeVarNames 只有 part0；measureLine outputs=[] → R3 不成立（outputs.length===0）。
     // 这里覆盖「输出为数值名」场景：
     const numericOut = { ...measureLine, outputs: ['measured'] as never }
     const terminals = computeLiveShapes({
@@ -183,8 +183,8 @@ describe('computeLiveShapes: 消费判定', () => {
   })
 })
 
-describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（C4）', () => {
-  it('C4：只读裸调用（projectView）不消费输入 → 输入仍终端', () => {
+describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（R2）', () => {
+  it('R2：只读裸调用（projectView）不消费输入 → 输入仍终端', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'cad.projectView(part0, "front")',
@@ -192,7 +192,7 @@ describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（C4）', () =>
     expect(liveShapeNames(code)).toEqual(['part0'])
   })
 
-  it('C4：修改类裸调用（fai_drill）本身不消费 → 输入仍终端（写回由 inplaceWrites 登记）', () => {
+  it('R2：修改类裸调用（fai_drill）本身不消费 → 输入仍终端（写回由 inplaceWrites 登记）', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'cad.fai_drill(part0, { diameter: 3 })',
@@ -200,7 +200,7 @@ describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（C4）', () =>
     expect(liveShapeNames(code)).toEqual(['part0'])
   })
 
-  it('C4：多行裸调用都不消费（自赋值与只读一视同仁）', () => {
+  it('R2：多行裸调用都不消费（自赋值与只读一视同仁）', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'cad.projectView(part0, "front")',
@@ -209,7 +209,7 @@ describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（C4）', () =>
     expect(liveShapeNames(code)).toEqual(['part0'])
   })
 
-  it('C4 不破坏 C5：赋值语句（const/重赋值）仍按原规则消费', () => {
+  it('R2 不破坏 R5：赋值语句（const/重赋值）仍按原规则消费', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.subtract(part0, { keep: [] })',

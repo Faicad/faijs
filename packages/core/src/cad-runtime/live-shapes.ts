@@ -11,7 +11,7 @@
  *
  * 候选集合 = ctx 中 shape/compound 键（与现状 allShapeVarNames 同源）；
  * lastProducer 由行级 outputs 反查（ctx 值天然是最后写者）；
- * 消费判定 = keep 驱动 consumes（C0/C3/C5 短路）；
+ * 消费判定 = keep 驱动 consumes（R1/R3/R5 短路）；
  * 自由 JS 块做词法级引用扫描。
  *
  * 产出 TerminalShape[]，与已删除的 computeLeafTerminals 逐字段兼容（A-14 对拍）。
@@ -60,12 +60,12 @@ export interface LiveShapesInput {
 }
 
 /**
- * 判定 statement 是否消费变量 v（keep 驱动，C0 → C3 → C5 短路）。
+ * 判定 statement 是否消费变量 v（keep 驱动，R1 → R3 → R5 短路）。
  * 输入是 StatementSummary（HostArg 引用形态）。
  * @param line - 消费检查目标语句（行级摘要）。
  * @param v - 被检查的候选 shape/compound 变量。
  * @param keep - keep 来源视图（行内 + 函数体登记）。
- * @param shapeVarNames - 存活候选名集合（C3 非几何输出判定用）。
+ * @param shapeVarNames - 存活候选名集合（R3 非几何输出判定用）。
  * @returns true 表示该语句消费 v（v 不得作为终端存活）。
  */
 export function lineConsumes(
@@ -74,18 +74,18 @@ export function lineConsumes(
   keep: KeepView,
   shapeVarNames: Set<PartName>,
 ): boolean {
-  // C0/C1：keep 声明胜出——被声明的变量不被本语句消费
+  // R1：keep 声明胜出——被声明的变量不被本语句消费
   const fnKeep = keep.functionBody(line.line)
   if (fnKeep && fnKeep.kept.has(v)) return false
   const lineKeep = keep.lineEntries(line.line)
   if (lineKeep?.some((e) => e.target === String(v))) return false
 
-  // C4（P25 §3.7 规则 1）：无赋值裸调用默认不消费——无论自赋值还是只读，
+  // R2（原 C4，P25 §3.7 规则 1）：无赋值裸调用默认不消费——无论自赋值还是只读，
   // 没有赋值绑定的语句不构成对输入的消费。覆盖 projectView(part)/fai_drill(part0)/
   // volume(part) 等裸调用；修改类裸调用的写回经 inplaceWrites 登记（producer 精确化）。
   if (!line.hasAssignment) return false
 
-  // C3：本语句有赋值且所有输出都是非几何 → 纯数据/测量/查询语句，不消费任何输入
+  // R3（原 C3）：本语句有赋值且所有输出都是非几何 → 纯数据/测量/查询语句，不消费任何输入
   if (
     line.hasAssignment &&
     line.outputs.length > 0 &&
@@ -95,8 +95,8 @@ export function lineConsumes(
     return false
   }
 
-  // C5：默认消费——positional 顶层 var-ref / expr-ref refs；嵌套 call-ref 内只读。
-  // receiver 不消费（成员方法调用对 compound 的消费经 C5 扫描其 args）。
+  // R5（原 C5）：默认消费——positional 顶层 var-ref / expr-ref refs；嵌套 call-ref 内只读（R4）。
+  // receiver 不消费（成员方法调用对 compound 的消费经 R5 扫描其 args）。
   let consumed = false
   const scan = (value: HostArg, inCallRef: boolean): void => {
     if (consumed) return

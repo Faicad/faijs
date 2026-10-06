@@ -4,7 +4,7 @@
  * consume-input — 复制类 op 不消费输入 shape（与 copy 同级）
  *
  * 背景：faijs 的"消费"模型由函数体 keep 声明驱动（live-shapes.ts lineConsumes
- * C5 默认消费短路）。copy 通过 `keep(input)` 让输入保留为存活终端；复制类 op
+ * R5 默认消费短路）。copy 通过 `keep(input)` 让输入保留为存活终端；复制类 op
  * （pattern / mirror / clone 等）同样声明 keep(input) ——
  * 本测试保证：全部 8 个脚本面复制类 op 执行后输入变量仍出现在 result.terminals，
  * 结果本身也是终端。（transformCopy 已摘出脚本面：arg-spec skip，见方案 §2.1 修订。）
