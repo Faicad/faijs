@@ -110,6 +110,20 @@ describe('importFile — STL unit scale (D5)', () => {
     const { shape } = await importFile(stl, 'stl', { unit: mm })
     expect(maxX(shape.positions)).toBeCloseTo(10, 5)
   })
+
+  it('no opts.unit → heuristic guess (unified §6.1/§8: historical host behaviour moved into faijs)', async () => {
+    // 0.1-unit cube → volume 0.001 → guessStlUnit 'm' → ×1000（历史 3d_editor 行为）
+    const stl = asciiStl(0.1)
+    const { shape } = await importFile(stl, 'stl')
+    expect(maxX(shape.positions)).toBeCloseTo(100, 3)
+  })
+
+  it('no opts.unit → heuristic guess keeps mm-sized files unchanged', async () => {
+    // 10-unit cube → volume 1000 → guessStlUnit 'mm' → ×1
+    const stl = asciiStl(10)
+    const { shape } = await importFile(stl, 'stl')
+    expect(maxX(shape.positions)).toBeCloseTo(10, 5)
+  })
 })
 
 describe('importFile 3MF unit conversion (D5)', () => {
@@ -203,21 +217,39 @@ describe('importFile real fixture (cube334.3mf)', () => {
   })
 })
 
-describe('importFile 3MF single-part take-first (§5.4 single-part convergence)', () => {
-  it('single object → no multiPartCount and the full mesh', async () => {
-    const { shape, multiPartCount } = await importFile(multiThreemfBytes(1, 10), '3mf')
+describe('importFile 3MF multi-part (P0 §5.4: all objects returned)', () => {
+  it('single object → parts length 1, shape = the only part, no multiPartCount', async () => {
+    const { shape, parts, multiPartCount } = await importFile(multiThreemfBytes(1, 10), '3mf')
     expect(multiPartCount).toBeUndefined()
+    expect(parts).toHaveLength(1)
+    expect(parts[0]).toBe(shape)
     // 第一个（唯一）对象：x 方向覆盖 [0, 10]
     expect(maxX(shape.positions)).toBeCloseTo(10, 3)
   })
 
-  it('multi-object → only FIRST object geometry + multiPartCount = N', async () => {
-    const { shape, multiPartCount } = await importFile(multiThreemfBytes(3, 10), '3mf')
+  it('multi-object → parts = all objects in declaration order; shape = parts[0]', async () => {
+    const { shape, parts, multiPartCount } = await importFile(multiThreemfBytes(3, 10), '3mf')
+    expect(parts).toHaveLength(3)
+    expect(parts[0]).toBe(shape)
     expect(multiPartCount).toBe(3)
-    // 只保留第一个物体（x ∈ [0,10]），不合并第二/第三个物体
-    expect(maxX(shape.positions)).toBeCloseTo(10, 3)
-    // 位置数量 = 4 顶点 × 3 分量（单个 object 的 mesh）
-    expect(shape.positions.length).toBe(12)
+    // 声明序：object 1 x∈[0,10]、object 2 x∈[10,20]、object 3 x∈[20,30]
+    expect(maxX(parts[0].positions)).toBeCloseTo(10, 3)
+    expect(maxX(parts[1].positions)).toBeCloseTo(20, 3)
+    expect(maxX(parts[2].positions)).toBeCloseTo(30, 3)
+    // 每个 object 的 mesh：4 顶点 × 3 分量
+    for (const p of parts) expect(p.positions.length).toBe(12)
+  })
+
+  it('multi-object → importModel.parts 携带身份（index/name 回退 imported:N）', async () => {
+    const { importModel } = await importFile(multiThreemfBytes(2, 10), '3mf')
+    expect(importModel).toBeDefined()
+    expect(importModel!.format).toBe('3mf')
+    expect(importModel!.parts).toHaveLength(2)
+    expect(importModel!.parts.map((p) => p.index)).toEqual([0, 1])
+    expect(importModel!.parts.map((p) => p.name)).toEqual(['imported:0', 'imported:1'])
+    // 无颜色/无 Bambu 元数据：字段省略
+    expect(importModel!.parts[0].color).toBeUndefined()
+    expect(importModel!.bambuViews).toBeUndefined()
   })
 })
 

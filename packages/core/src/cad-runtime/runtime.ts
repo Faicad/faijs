@@ -32,6 +32,7 @@ import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
 import { buildSolidTopologyRuntime } from '../brep/brep-topology'
 import type { SolidTopologyResult } from '../brep/brep-topology'
+import type { ImportModel } from '../mesh/import-model'
 import { buildTopologyFromMesh } from '../brep/brep-topology'
 import type { BrepMeshResult } from '../brep/engine/types'
 import { asPartName, type PartName, type StmtId } from '../identity'
@@ -185,6 +186,13 @@ export interface ExecutionResult {
    * 零件数（≥2）。宿主据此弹「该文件包含 N 个零件，当前仅加载第一个」警告。
    */
   multiPartCounts?: Map<PartName, number>
+  /**
+   * 导入模型结构（方案 2026-10-06-step-3mf-multipart-import-plan.md §5.5）—
+   * 每个执行了 `cad.load` 的 part 的 ImportModel（零件身份表 + 装配层级 +
+   * Bambu 视图）。单/多零件均登记（单零件 parts 长度 1）。宿主据此批量建
+   * part / 消费装配结构，不再自行解析文件。
+   */
+  importModels?: Map<PartName, ImportModel>
 }
 
 /**
@@ -1094,6 +1102,7 @@ export class CadRuntime {
       kinematics: de.kinematicsSnapshot.size > 0 ? de.kinematicsSnapshot : undefined,
       detectedUnits: de.detectedUnitsSnapshot.size > 0 ? de.detectedUnitsSnapshot : undefined,
       multiPartCounts: de.multiPartCountSnapshot.size > 0 ? de.multiPartCountSnapshot : undefined,
+      importModels: de.importModelsSnapshot.size > 0 ? de.importModelsSnapshot : undefined,
       changed: deChanged ? deChanged.map(asPartName) : undefined,
       activeValues: activeValues.size > 0 ? activeValues : undefined,
     }

@@ -6,7 +6,10 @@
  * 坐标永远以 faijs 基准长度单位（mm）存储 — Shape 不贴 unit 标签（D3）。
  *
  * 单位换算边界（unit-system §5.2）：
- * - STL 无单位元数据 → 由 `opts.unit` 显式声明，缺省 mm，不做启发式猜测。
+ * - STL 无单位元数据 → 由 `opts.unit` 显式声明优先；未声明时 faijs 按历史
+ *   host 行为做启发式猜测（`guessStlUnit`，unified 方案 §6.1/§8 —— 3d_editor
+ *   迁移回归的单位断言依赖此行为）。猜测收敛在 faijs 内（红线 R0：宿主不
+ *   自实现单位换算），G0 = 折算后坐标，渲染 = 拓扑 = G0。
  * - 3MF `<model unit>` 由解析器读取并换算（micron/mm/cm/inch/foot/meter）。
  *
  * 返回契约（unit-system §10.6）：`importFile` 返回 `{ shape, unit }` — `unit`
@@ -19,15 +22,24 @@
 import * as THREE from 'three'
 import { geoToManifoldMesh } from '../boolean/geo-convert'
 import { parseStl } from './stl-loader'
-import { parseThreemf } from './threemf-loader'
-import { mm, type UnitName, type ValueWithUnits } from '../units'
+import { parseThreemf, type ThreemfObject } from './threemf-loader'
+import { parseBambu3mfFromEntries } from './threemf-bambu'
+import { mm, unitScale, type UnitName, type ValueWithUnits } from '../units'
+import { guessStlUnit } from './stl-unit'
 import type { Shape } from './types'
 import type { PbrAppearance } from '../api/appearance'
 import type { FileMeta } from '../api/meta'
+import type { ImportModel } from './import-model'
 
 /** Result of a unit-aware file import. */
 export interface ImportFileResult {
   shape: Shape
+  /**
+   * All parts the file declared, in declaration order (3MF `<build><item>` 序 /
+   * STL 单零件)。`shape` is `parts[0]`（单零件兼容，过渡期）。
+   * P0（2026-10-06-step-3mf-multipart-import-plan.md §5.4）：多对象 3MF 不再折叠。
+   */
+  parts: Shape[]
   /**
    * The unit the file itself declares (3MF `<model unit>`, STEP unit entities).
    * null for declaration-less formats (STL) — the caller's opts.unit decided.
@@ -36,8 +48,7 @@ export interface ImportFileResult {
   /**
    * Total parts the single file declared (e.g. 3MF `<build>` object count),
    * present only when > 1. Single-part mesh (STL, single-object 3MF) omits it.
-   * When set, `shape` is only the FIRST part's geometry (feijs `load` op is
-   * single-part; the file was downgraded to its first part — §5.4).
+   * 保留为 `parts.length`（>1 时）；多零件不再折叠后该字段仅供旧宿主判断。
    */
   multiPartCount?: number
   /**
@@ -45,6 +56,11 @@ export interface ImportFileResult {
    * 是否解析；无声明则省略。仅随导入结果上抛，不挂 Shape。
    */
   fileMeta?: FileMeta
+  /**
+   * 本次导入的结构数据（P0 §5.1）：零件身份表 + Bambu 视图（3MF 分支填充）。
+   * 单/多零件均登记（单零件 parts 长度 1）。
+   */
+  importModel?: ImportModel
 }
 
 /** SI prefixes that may precede .METRE. in a STEP SI_UNIT, → faijs UnitName. */
@@ -139,58 +155,128 @@ export async function importFile(
 
   if (fmt === '3mf' || fmt === 'threemf') {
     const archive = await parseThreemf(buffer)
-    // §5.4 单零件收敛：只取**第一个**对象实例（declaration order — `<build><item>`
-    // 序，见 threemf-loader）构造成单一 part；多对象文件记 multiPartCount 供上层
-    // 登记"多零件降级"警告。坐标已在 parseThreemf 里折算为 faijs 基准单位。
-    const first = archive.objects[0]
-    if (!first) {
+    // P0（方案 §5.4）：不再折叠——返回全部 `<build><item>` 对象（declaration order，
+    // 坐标已在 parseThreemf 里折算为 faijs 基准单位）。`shape` 保留为 parts[0]
+    // （单零件兼容，过渡期）。
+    if (archive.objects.length === 0) {
       throw new Error('[mesh/io] 3MF contains no objects')
     }
-    const multiPartCount = archive.objects.length > 1 ? archive.objects.length : undefined
-    const shape: Shape = {
-      positions: first.positions as Float32Array,
-      indices: first.indices as Uint32Array,
-      // P2（方案 §5 3MF 行）：对象级 baseColor → appearance.color（sRGB 原值，
-      // 宽容兼容：无 baseColor 不带 appearance）。colorgroup（vertexColors）与
-      // 逐三角形材质属 Phase 2（materialGroups / vertexColors），P2 不映射。
-      ...(first.baseColor ? { appearance: { color: [first.baseColor[0], first.baseColor[1], first.baseColor[2]] } } : {}),
-      // P4（方案 §5 3MF 行）：逐三角形 basematerials（p1=p2=p3）→ materialGroups
-      // （三角形区间 + appearance.color）；无则不带。vertexColors（colorgroup）
-      // 由上层（编辑器导入路径）消费，io 单零件收敛不展开为材质分组。
-      ...(first.materialGroups && first.materialGroups.length > 0
-        ? {
-            materialGroups: first.materialGroups.map((g) => ({
-              start: g.start,
-              count: g.count,
-              appearance: { color: [g.color[0], g.color[1], g.color[2]] } as PbrAppearance,
-            })),
-          }
-        : {}),
-      // 零件级元数据（方案 §5.1 3MF 行）：对象 name/partnumber/metadatagroup → meta。
-      ...(first.meta ? { meta: first.meta } : {}),
+    // Bambu 元数据（盘号/挤出机/视图变换）：有 Bambu 配置才产生内容，普通 3MF 返回空表。
+    const bambu = parseBambu3mfFromEntries(archive.extraEntries)
+    const parts = archive.objects.map(threemfObjectToShape)
+    const multiPartCount = parts.length > 1 ? parts.length : undefined
+    const importModel: ImportModel = {
+      format: '3mf',
+      unit: archive.unit,
+      parts: archive.objects.map((obj, i) => {
+        const part: ImportModel['parts'][number] = {
+          index: i,
+          name: obj.name ?? `imported:${i}`,
+        }
+        if (obj.baseColor) part.color = [obj.baseColor[0], obj.baseColor[1], obj.baseColor[2]]
+        if (obj.meta) part.meta = obj.meta
+        // Bambu 身份：`<object id>`（数字）→ Bambu objects 表（键为字符串 objectId）
+        const bm = bambu.objects.get(String(obj.id))
+        if (bm) {
+          part.objectId = bm.objectId
+          if (bm.plateId > 0) part.plateId = bm.plateId
+          // Bambu extruder 1-based（默认 1）：显式登记文件声明值
+          part.extruder = bm.extruder
+        }
+        return part
+      }),
+      ...(archive.fileMeta ? { fileMeta: archive.fileMeta } : {}),
     }
+    const bambuViews = buildBambuViews(bambu)
+    if (bambuViews) importModel.bambuViews = bambuViews
     return {
-      shape,
+      shape: parts[0],
+      parts,
       unit: archive.unit,
       multiPartCount,
+      importModel,
       // 整体级元数据（`<model><metadata>`）随导入结果上抛（方案 §5.1）。
       ...(archive.fileMeta ? { fileMeta: archive.fileMeta } : {}),
     }
   }
 
   if (fmt === 'stl') {
-    const scale = (opts?.unit ?? mm).as(mm)
     const geo = parseStl(buffer)
+    // STL 无单位声明：opts.unit 显式声明优先；未声明时做启发式猜测
+    // （guessStlUnit —— 历史 host 行为，unified §6.1/§8 迁移基线）。猜测与
+    // 折算都在 faijs 内完成（红线 R0），G0 即基准值，宿主不再二次换算。
+    let scale = 1
+    const declared = opts?.unit
+    if (declared) {
+      scale = declared.as(mm)
+    } else {
+      geo.computeBoundingBox()
+      const bb = geo.boundingBox
+      if (bb) {
+        const guessed = guessStlUnit({
+          min: [bb.min.x, bb.min.y, bb.min.z],
+          max: [bb.max.x, bb.max.y, bb.max.z],
+        })
+        scale = unitScale(guessed)
+      }
+    }
     if (scale !== 1) {
       const attr = geo.getAttribute('position') as THREE.BufferAttribute
       const arr = attr.array as Float32Array
       for (let i = 0; i < arr.length; i++) arr[i] *= scale
     }
-    return { shape: geoToManifoldMesh(geo), unit: null }
+    const shape = geoToManifoldMesh(geo)
+    return { shape, parts: [shape], unit: null }
   }
 
   // STEP goes through the BREP chain (loadBrep → OCCT, which normalizes to the
   // base unit on read). The mesh io path has no kernel-independent STEP parser
   // and must not fake one — a missing path is an error, not a fallback.
   throw new Error(`[mesh/io] unsupported format: ${fmt}`)
+}
+
+/** 单个 3MF `<build><item>` 对象 → Shape（P0：逐对象构造，替换原"只取第一个"收敛）。 */
+function threemfObjectToShape(obj: ThreemfObject): Shape {
+  return {
+    positions: obj.positions as Float32Array,
+    indices: obj.indices as Uint32Array,
+    // P2（方案 §5 3MF 行）：对象级 baseColor → appearance.color（sRGB 原值，
+    // 宽容兼容：无 baseColor 不带 appearance）。colorgroup（vertexColors）与
+    // 逐三角形材质属 Phase 2（materialGroups / vertexColors），P2 不映射。
+    ...(obj.baseColor ? { appearance: { color: [obj.baseColor[0], obj.baseColor[1], obj.baseColor[2]] } } : {}),
+    // P4（方案 §5 3MF 行）：逐三角形 basematerials（p1=p2=p3）→ materialGroups
+    // （三角形区间 + appearance.color）；无则不带。vertexColors（colorgroup）
+    // 由上层（编辑器导入路径）消费，io 单零件收敛不展开为材质分组。
+    ...(obj.materialGroups && obj.materialGroups.length > 0
+      ? {
+          materialGroups: obj.materialGroups.map((g) => ({
+            start: g.start,
+            count: g.count,
+            appearance: { color: [g.color[0], g.color[1], g.color[2]] } as PbrAppearance,
+          })),
+        }
+      : {}),
+    // 零件级元数据（方案 §5.1 3MF 行）：对象 name/partnumber/metadatagroup → meta。
+    ...(obj.meta ? { meta: obj.meta } : {}),
+  }
+}
+
+/** Bambu 显示视图数据 → ImportModel.bambuViews（无任何 Bambu 结构时省略）。 */
+function buildBambuViews(
+  bambu: import('./threemf-bambu').Bambu3mfMetadata,
+): ImportModel['bambuViews'] | undefined {
+  const plates = [...bambu.plates.keys()].sort((a, b) => a - b)
+  if (plates.length === 0 && !bambu.assembleTransforms && !bambu.importTransforms) return undefined
+  const views: NonNullable<ImportModel['bambuViews']> = { plates }
+  if (bambu.assembleTransforms) {
+    views.assembleTransforms = Object.fromEntries(
+      [...bambu.assembleTransforms].map(([k, v]) => [k, { transform: v.transform, offset: v.offset }]),
+    )
+  }
+  if (bambu.importTransforms) {
+    views.importTransforms = Object.fromEntries(
+      [...bambu.importTransforms].map(([k, v]) => [k, { matrix: v.matrix, sourceOffset: v.sourceOffset }]),
+    )
+  }
+  return views
 }

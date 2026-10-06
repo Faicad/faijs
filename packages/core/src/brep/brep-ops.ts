@@ -22,9 +22,16 @@
 import * as THREE from 'three'
 import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
-import { getOcctKernel, type ShapeHandle } from '../occt-kernel/occtKernel'
+import {
+  getOcctKernel,
+  importAssemblyFromStep,
+  collectLeafParts,
+  type ShapeHandle,
+  type AssemblyPartNode,
+} from '../occt-kernel/occtKernel'
 import { getSolidColorsOrdered } from '../occt-kernel/stepColorParser'
 import type { Shape, Vec3 } from '../mesh/types'
+import type { ImportAssemblyNode } from '../mesh/import-model'
 import type { BrepChainState } from './brep-chain'
 import type { PartName } from '../identity'
 import { getSolidBoundingBox } from './brep-utils'
@@ -877,6 +884,124 @@ const NON_SOLID_KINDS = ['vertex', 'edge', 'wire', 'face', 'shell'] as const
  */
 function hasAnyTopology(kernel: BrepEngineApi, top: BrepHandle): boolean {
   return NON_SOLID_KINDS.some((kind) => kernel.getSubShapes(top, kind).length > 0)
+}
+
+// ─── 多零件 STEP 装配导入（P0，方案 2026-10-06-step-3mf-multipart-import-plan.md §5.3）───
+
+/** 多零件 STEP 导入中的一个零件（几何 + solid 句柄 + 身份）。 */
+export interface LoadBrepAssemblyPart {
+  /** 零件序号（0 起，DFS 声明序）。 */
+  index: number
+  /** 零件名（XCAF label；无则回退 `imported:<index>`）。 */
+  name: string
+  /** 显示色 sRGB 0..1，无则 null。 */
+  color: [number, number, number] | null
+  /** 三角化显示 mesh。 */
+  shape: Shape
+  /** OCCT solid 句柄（已烘 location；生命周期归 brepChain，调用方经 fromBrep 绑定）。 */
+  solid: BrepHandle
+}
+
+/**
+ * BREP-native 多零件 STEP 导入（XCAF 装配树 → 逐零件 Shape + 装配层级）。
+ *
+ * 与 `loadBrep`（单零件收敛，§5.4 旧行为）对照：loadBrepAssembly 走
+ * `importAssemblyFromStep`（XCAF），返回**全部**叶零件（DFS 声明序）与装配树。
+ *
+ * - 装配树叶子 = 零件；合成节点（syntheticGroup：单一产品含多 MANIFOLD_SOLID_BREP）
+ *   如实表达为中间节点；
+ * - 无装配结构的单叶文件 → 1 个零件、无 assembly（行为与现状单零件一致）；
+ * - 句柄互通（T0）：`importAssemblyFromStep` 内部用 initOcctWasm() 全局单例内核，
+ *   与注入的 `BrepEngineApi`（createOcctPrimitives 包装同一单例）句柄数值互通——
+ *   探针见 test/brep/load-brep-assembly.test.ts；
+ * - 释放：装配节点句柄已由 walkLabel 释放，叶句柄随返回 parts 交给调用方
+ *   （fromBrep 绑定后归 brepChain 管理，不在此释放）。
+ *
+ * @param kernel - the initialized OCCT kernel (L1 contract face).
+ * @param buffer - the raw STEP file bytes (text-encoded ArrayBuffer; stpz
+ *   unzipping is the caller's job — faijs never unzips implicitly).
+ * @returns 全部零件 + 装配层级（多叶时）+ 叶数（>1 时）。
+ */
+export async function loadBrepAssembly(
+  kernel: BrepEngineApi,
+  buffer: ArrayBuffer,
+): Promise<{ parts: LoadBrepAssemblyPart[]; assembly?: ImportAssemblyNode; multiSolidCount?: number }> {
+  const nodes = await importAssemblyFromStep(buffer)
+  const leaves = collectLeafParts(nodes)
+
+  // DFS 声明序：leaf 序 = parts 序 = ImportModel.parts.index。
+  // 实体校验（与 load op「要求导入物含实体」契约一致）：leaf 必须持有实体
+  // （自身是 solid，或 label 内含 solid）；空 label / wireframe 零件跳过，
+  // 全部跳过则报错（不静默回退）。parts 下标保持连续（0..N-1）。
+  const leafIndex = new Map<AssemblyPartNode, number>()
+  const parts: LoadBrepAssemblyPart[] = []
+  for (const leaf of leaves) {
+    if (!leaf.shapeHandle || !leafHasSolid(kernel, leaf.shapeHandle)) continue
+    const idx = parts.length
+    leafIndex.set(leaf, idx)
+    const h = leaf.shapeHandle as unknown as BrepHandle
+    parts.push({
+      index: idx,
+      name: leaf.name || `imported:${idx}`,
+      color: leaf.color,
+      shape: solidToShape(kernel, h),
+      solid: h,
+    })
+  }
+
+  // 无叶零件（空/异常/纯 wireframe 文件）→ 报错暴露（不静默回退）。
+  if (parts.length === 0) {
+    throw new Error('[loadBrepAssembly] imported STEP contains no solid leaf parts')
+  }
+
+  const assembly = toImportAssemblyNode(nodes, leafIndex)
+  return {
+    parts,
+    ...(assembly ? { assembly } : {}),
+    ...(parts.length > 1 ? { multiSolidCount: parts.length } : {}),
+  }
+}
+
+/**
+ * leaf 是否持有实体（loadBrepAssembly 实体校验）：自身是 solid（syntheticGroup
+ * 拆出的单个 solid 句柄），或 label compound 内含 solid。getSubShapes 的引用
+ * 句柄须立即 release（walkLabel 只释放了它自己取的副本）。
+ */
+function leafHasSolid(kernel: BrepEngineApi, h: ShapeHandle): boolean {
+  const bh = h as unknown as BrepHandle
+  if (kernel.isSolid(bh)) return true
+  const solids = kernel.getSubShapes(bh, 'solid')
+  const n = solids.length
+  for (const s of solids) kernel.release(s)
+  return n > 0
+}
+
+/**
+ * XCAF 装配树 → ImportAssemblyNode（DFS 序与 parts 一致）。
+ *
+ * - 单根且根为叶（无装配结构）→ undefined（单零件路径，与现状一致）；
+ * - 单根装配 → 该根；
+ * - 多根 → 合成虚拟根 `{ name: 'imported' }`（确定性结构名，非零件身份）。
+ */
+function toImportAssemblyNode(
+  nodes: AssemblyPartNode[],
+  leafIndex: Map<AssemblyPartNode, number>,
+): ImportAssemblyNode | undefined {
+  if (nodes.length === 0) return undefined
+  const convert = (node: AssemblyPartNode): ImportAssemblyNode => {
+    if (node.children.length === 0) {
+      const idx = leafIndex.get(node)
+      return { name: node.name, ...(idx !== undefined ? { partIndex: idx } : {}) }
+    }
+    return { name: node.name, children: node.children.map(convert) }
+  }
+  if (nodes.length === 1) {
+    const root = convert(nodes[0])
+    // 单根且根为叶（无装配结构）→ 不表达装配层级
+    if (root.partIndex !== undefined) return undefined
+    return root
+  }
+  return { name: 'imported', children: nodes.map(convert) }
 }
 
 // ─── 辅助函数 ───

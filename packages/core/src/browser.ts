@@ -221,13 +221,19 @@ export {
   translateBrep, rotateBrep, scaleBrep, applyTransformBrep,
   fuseBrep, cutBrep, commonBrep,
   drillBrep, splitBrep, extrudeBrep,
-  loadBrep, matrixToArray,
+  loadBrep, loadBrepAssembly, matrixToArray,
+  type LoadBrepAssemblyPart,
 } from './brep/brep-ops'
 export { getSolidBoundingBox } from './brep/brep-utils'
 export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
 export type { StepExportEntry } from './brep/export/step'
 export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
+
+// ── 导入模型结构（P0，方案 2026-10-06-step-3mf-multipart-import-plan.md §5.1）──
+export type {
+  ImportModel, ImportPart, ImportAssemblyNode, ImportBambuViews,
+} from './mesh/import-model'
 
 // ── L3 API 面（api/ 层）──
 export * from './api'

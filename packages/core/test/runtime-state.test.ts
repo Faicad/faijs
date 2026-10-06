@@ -8,9 +8,11 @@ import {
   setPendingMeshSolid, takePendingMeshSolids,
   setPendingMeshTopology, takePendingMeshTopologies,
   setPendingAssemblyKinematics, takePendingAssemblyKinematics,
+  setPendingImportModel, takePendingImportModels,
   type Backends, type ExecutionAnchor,
 } from '../src/runtime-state'
 import { asPartName } from '../src/identity'
+import type { ImportModel } from '../src/mesh/import-model'
 
 function fakeBackends(): Backends {
   return {
@@ -146,6 +148,17 @@ describe('pending detected units / multi-part counts / mesh solid / topology', (
     expect(takePendingMeshTopologies().get('p' as never)).toEqual({ faces: 6 })
     expect(takePendingMeshSolids().size).toBe(0)
     expect(takePendingMeshTopologies().size).toBe(0)
+  })
+
+  it('import models round-trip per part and clear on take (P0 multi-part contract)', () => {
+    const model: ImportModel = {
+      format: 'step',
+      unit: 'mm',
+      parts: [{ index: 0, name: 'part-a' }, { index: 1, name: 'part-b' }],
+    }
+    setPendingImportModel('a' as never, model)
+    expect(takePendingImportModels().get('a' as never)).toBe(model)
+    expect(takePendingImportModels().size).toBe(0)
   })
 
   it('assembly kinematics store and consume exactly once', () => {

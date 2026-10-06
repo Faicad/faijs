@@ -15,6 +15,7 @@
  */
 
 import type { PartName, StmtId } from './identity'
+import type { ImportModel } from './mesh/import-model'
 
 /**
  * Lightweight execution anchor — carries only the fields consumed by
@@ -600,6 +601,37 @@ export function setPendingMultiPartCount(partName: PartName, partCount: number):
 export function takePendingMultiPartCounts(): MultiPartCounts {
   const out = new Map(pendingMultiPartCounts)
   pendingMultiPartCounts.clear()
+  return out
+}
+
+// ── 导入模型结构登记（方案 2026-10-06-step-3mf-multipart-import-plan.md §5.5）──
+// 与 pendingDetectedUnits 同模式：`cad.load` op 在解析文件后把 ImportModel（零件
+// 身份表 + 装配层级 + Bambu 视图）登记到这里；引擎在语句执行后取走并按 part 名
+// 放进 ExecutionResult.importModels（宿主据此批量建 part / 消费装配结构）。单/多
+// 零件均登记（单零件 parts 长度 1），宿主有统一消费入口，不必分叉。
+
+const pendingImportModels = new Map<PartName, ImportModel>()
+
+/**
+ * Register a part's import model (called from the load op body; the geometry
+ * lives in the returned Shape / CompoundShape.children, this is structure only).
+ *
+ * @param partName - the variable name the loaded shape will be bound to.
+ * @param model - the import model (parts + optional assembly / bambu views).
+ */
+export function setPendingImportModel(partName: PartName, model: ImportModel): void {
+  pendingImportModels.set(partName, model)
+}
+
+/**
+ * Take all pending import models and clear them (engine, after each statement;
+ * consumed exactly once).
+ *
+ * @returns a fresh Map of part name → import model, copied from the pending store.
+ */
+export function takePendingImportModels(): Map<PartName, ImportModel> {
+  const out = new Map(pendingImportModels)
+  pendingImportModels.clear()
   return out
 }
 

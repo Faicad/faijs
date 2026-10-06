@@ -106,15 +106,25 @@ describe('cad.load file 参数面 + 后缀自判（P8 §4.2/§4.3）— mesh 路
     expect(result.outputs.get(asPartName('a'))).toBeDefined()
   })
 
-  it('多对象 3MF：折叠取第一个 + multiPartCounts = N（无 format 参数）', async () => {
+  it('多对象 3MF → CompoundShape（children = 声明序）+ importModels（P0 契约）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'multi.3mf': threemfBytes(3, 10) }), 'mesh')
     const result = await runtime.execute('let a = await cad.load({ file: \'multi.3mf\' })')
     expect(result.failedAt).toBeUndefined()
-    expect(result.multiPartCounts).toBeDefined()
-    expect(result.multiPartCounts!.get(asPartName('a'))).toBe(3)
-    // 只含第一个零件（4 顶点）
+    // 多零件不再折叠：multiPartCounts 不再登记
+    expect(result.multiPartCounts).toBeUndefined()
+    // 返回 CompoundShape：children = 3 个零件（声明序）
     const entry = result.outputs.get(asPartName('a'))
-    expect((entry as { positions: ArrayLike<number> }).positions.length).toBe(4 * 3)
+    expect(entry).toBeDefined()
+    expect((entry as { kind?: string }).kind).toBe('compound')
+    const children = (entry as { children: ArrayLike<{ positions: ArrayLike<number> }> }).children
+    expect(children).toHaveLength(3)
+    // importModels 登记零件身份（index 与 children 一一对应）
+    expect(result.importModels).toBeDefined()
+    const model = result.importModels!.get(asPartName('a'))
+    expect(model).toBeDefined()
+    expect(model!.format).toBe('3mf')
+    expect(model!.parts).toHaveLength(3)
+    expect(model!.parts.map((p) => p.index)).toEqual([0, 1, 2])
   })
 
   it('STL：unit 参数保留（R17 固化进语句行）', async () => {
@@ -146,10 +156,37 @@ describe('cad.load file 参数面 — BREP 路径', () => {
 
   it('STEP：file 后缀 .step → BREP 路径成功（无 format/path）', async () => {
     await registerOcctBrepEngine()
-    const runtime = createEditorRuntime(portsFor({ 'test-model.step': stepBuf }), 'brep')
-    const result = await runtime.execute('let a = await cad.load({ file: \'test-model.step\' })')
+    // 单 solid 文件（P0 后多 solid 走 compound，见下方多零件用例）
+    const singleStepBuf = toArrayBuffer(
+      readFileSync(new URL('../../../fixtures/data/box_boss.step', import.meta.url)),
+    )
+    const runtime = createEditorRuntime(portsFor({ 'box_boss.step': singleStepBuf }), 'brep')
+    const result = await runtime.execute('let a = await cad.load({ file: \'box_boss.step\' })')
     expect(result.failedAt).toBeUndefined()
     const solidEntry = result.brepSolids?.get(asPartName('a'))
     expect(solidEntry, 'BREP load lands in brepSolids').toBeDefined()
+  })
+
+  it('多 solid STEP → CompoundShape（children = 声明序）+ importModels（P0 契约）', async () => {
+    await registerOcctBrepEngine()
+    const runtime = createEditorRuntime(portsFor({ 'test-model.step': stepBuf }), 'brep')
+    const result = await runtime.execute('let a = await cad.load({ file: \'test-model.step\' })')
+    expect(result.failedAt).toBeUndefined()
+    // 多零件不再折叠：multiPartCounts 不再登记
+    expect(result.multiPartCounts).toBeUndefined()
+    // 返回 CompoundShape：children = 全部零件（2 个 solid）
+    const entry = result.outputs.get(asPartName('a'))
+    expect(entry).toBeDefined()
+    expect((entry as { kind?: string }).kind).toBe('compound')
+    const children = (entry as { children: ArrayLike<unknown> }).children
+    expect(children).toHaveLength(2)
+    // importModels 登记零件身份 + 装配结构
+    expect(result.importModels).toBeDefined()
+    const model = result.importModels!.get(asPartName('a'))
+    expect(model).toBeDefined()
+    expect(model!.format).toBe('step')
+    expect(model!.parts).toHaveLength(2)
+    expect(model!.parts.map((p) => p.index)).toEqual([0, 1])
+    expect(model!.parts.every((p) => p.name.length > 0)).toBe(true)
   })
 })

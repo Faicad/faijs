@@ -27,7 +27,8 @@ import type { LibNamespace } from '../runtime-state'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
-import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, takePendingDetectedUnits, takePendingMultiPartCounts, takePendingMeshSolids, takePendingMeshTopologies, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
+import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, takePendingDetectedUnits, takePendingMultiPartCounts, takePendingMeshSolids, takePendingMeshTopologies, takePendingImportModels, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
+import type { ImportModel } from '../mesh/import-model'
 import { getBrepApi } from '../brep/handle-bridge'
 import { runtimeLineage } from '../topology/naming/lineage'
 import { ExecutionLimitError } from './execution-limit-error'
@@ -204,6 +205,8 @@ export class DirectExecutor {
   private meshSolidOut = new Map<PartName, unknown>()
   /** 近似拓扑数据（load op 登记，PartName → SelectorRuntimeData），collectDirectResult 消费。 */
   private meshTopologyOut = new Map<PartName, unknown>()
+  /** 导入模型结构（load op 登记，PartName → ImportModel，方案 2026-10-06 §5.5），collectDirectResult 消费。 */
+  private importModelsOut = new Map<PartName, ImportModel>()
   /** 执行后端（静态选定；缺省 vm） */
   private readonly execBackend: ExecBackend
 
@@ -230,6 +233,11 @@ export class DirectExecutor {
   /** 近似拓扑数据快照（load op 登记；PartName → SelectorRuntimeData）。 */
   get meshTopologySnapshot(): Map<PartName, unknown> {
     return this.meshTopologyOut
+  }
+
+  /** 导入模型结构快照（load op 登记；PartName → ImportModel）。 */
+  get importModelsSnapshot(): Map<PartName, ImportModel> {
+    return this.importModelsOut
   }
 
   constructor(options: DirectExecutorOptions) {
@@ -723,6 +731,10 @@ export class DirectExecutor {
       }
       for (const [part, data] of takePendingMeshTopologies()) {
         this.meshTopologyOut.set(part, data)
+      }
+      // 导入模型结构（load op 登记，方案 2026-10-06 §5.5）按本语句收编。
+      for (const [part, model] of takePendingImportModels()) {
+        this.importModelsOut.set(part, model)
       }
     }
   }

@@ -7,16 +7,18 @@
  */
 
 import type { Shape } from '@faicad/faijs/mesh/types'
+import type { CompoundShape } from '@faicad/faijs/shape'
+import type { ImportModel } from '@faicad/faijs/mesh/import-model'
 import { importFile, detectStepUnit } from '@faicad/faijs/mesh/io'
 import { isCadFormat } from '@faicad/faijs/brep/brep-chain'
-import { loadBrep } from '@faicad/faijs/brep/brep-ops'
+import { loadBrepAssembly } from '@faicad/faijs/brep/brep-ops'
 import { OpError } from '@faicad/faijs/api/internal/result-unwrap'
 import {
   getBackends, BrepUnsupportedError, getCurrentStmt,
-  setPendingDetectedUnit, setPendingMultiPartCount,
+  setPendingDetectedUnit, setPendingImportModel,
   setPendingMeshSolid, setPendingMeshTopology,
 } from '@faicad/faijs/runtime-state'
-import { solid, fromBrep, fromMeshSolid } from '@faicad/faijs/shape'
+import { solid, compound, fromBrep, fromMeshSolid } from '@faicad/faijs/shape'
 import { mm, centimeter, meter, micron, inch, foot, yard, type UnitName, type ValueWithUnits } from '@faicad/faijs/units'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 // 只取**类型**：后端实现的运行时依赖（内核、拓扑构建器）留在 core，不进扩展库。
@@ -46,13 +48,13 @@ import type { MeshSolidBackend } from '@faicad/faijs/brep/mesh-solid'
  * @note 格式由 `file` 后缀白名单自判：stl/3mf → mesh 路径；step/stp/stpz/brep → BREP 路径。宿主不再传 `format`。
  * @note 后缀白名单未命中 → 报错（不猜格式）；3MF 后缀会做 zip 魔数 sanity（后缀与内容明显不符时报错）。
  * @note 本 op 要求导入物含实体（历史契约）。非实体（wire/face/shell）的导入是平台 `cad.import_brep` 的一等能力，不由本 op 承担。
- * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——`file` 读的是应用侧资产库（按用户上传文件名注册），产物语句位置与命名都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。多零件文件按 §5.4 单零件收敛——只取第一个（不再有 `partIndex` 概念）。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——`file` 读的是应用侧资产库（按用户上传文件名注册），产物语句位置与命名都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。P0（2026-10-06-step-3mf-multipart-import-plan.md §5.4）起多零件文件不再单零件收敛——全量以 compound + `ExecutionResult.importModels` 返回；宿主按 `importModel.parts` 身份批量建 part（P1）。
  * @example
  * const p = await cad.load({ file: 'box.stl' })
  * const p = await cad.load({ file: 'box.3mf' })
  * const p = await cad.load({ file: 'model.step' })
  */
-export async function load(params: Record<string, unknown>): Promise<Shape> {
+export async function load(params: Record<string, unknown>): Promise<Shape | CompoundShape> {
   const assets = getBackends().assets as {
     resolveByKey(key: string): Promise<{ bytes: ArrayBuffer }>
   } | undefined
@@ -88,34 +90,50 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
     throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: load op has no BREP implementation for this source')
   }
 
-  // mesh 路径：importFile 返回 { shape, unit, multiPartCount? } — unit 是文件自己
-  // 声明的单位（元数据；坐标已是基准值）。STL 无声明 → unit=null，opts.unit 决定刻度。
-  // 多零件 mesh（多 object 3MF）在 importFile 内部已降级取第一个（§5.4 单零件收敛），
-  // 这里据 multiPartCount 登记"多零件降级" pending → 宿主弹警告（§5.4:166）。
+  // mesh 路径：importFile 返回 { shape, parts, unit, importModel? } — unit 是文件
+  // 自己声明的单位（元数据；坐标已是基准值）。STL 无声明 → unit=null，opts.unit
+  // 决定刻度。P0（方案 §5.4）：多零件 mesh（多 object 3MF）不再折叠——
+  // 全量 parts 以 compound 返回 + importModel 登记；单零件保持现状（buildMeshPart）。
   if (!useBrep) {
     const opts = buildImportOpts(params.unit)
-    const { shape, unit, multiPartCount } = await importFile(buffer, fmt, opts)
+    const { shape, parts, unit, importModel } = await importFile(buffer, fmt, opts)
     registerDetectedUnit(unit)
-    if (multiPartCount !== undefined) registerMultiPartDegradation(multiPartCount)
+    if (importModel) registerImportModel(importModel)
+    if (parts.length > 1) {
+      // 多零件：compound 全量返回（children 序 = parts.index = importModel.parts.index）。
+      // 多零件的网格实体/近似拓扑登记属 P2（宿主按 compound.children 建 part 时处理）。
+      return compound(parts)
+    }
     return buildMeshPart(shape, file)
   }
 
   // BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）
-  // P2：brepChain（meshShapeCache）归引擎侧，loadBrep 不再传。
-  // §5.4 单零件收敛：多 solid 文件（多零件 STEP）在 loadBrep 内部已降级取第一个
-  // 零件（单一 Shape）并回传 multiSolidCount；此处登记"多零件降级" pending → 宿主
-  // 据零件数弹警告（§5.4:166）。**不再接收/使用 partIndex**（取件点唯一，宿主不再拆）。
+  // P2：brepChain（meshShapeCache）归引擎侧，loadBrepAssembly 不传。
+  // P0（方案 §5.3）：多 solid 文件经 XCAF 装配树全量导入——多零件返回 compound
+  // （children 序 = parts.index），单零件返回单一 Shape（行为与现状一致）。
+  // **不再接收/使用 partIndex**（取件点唯一，宿主不再拆）。
   // 红线：不做任何缩放——OCCT 读入已折算到基准，按声明再 scale = 双重换算。
-  const { solid: solidHandle, shape, multiSolidCount } = loadBrep(
-    kernel!, buffer,
-  )
-  if (multiSolidCount !== undefined) {
-    registerMultiPartDegradation(multiSolidCount)
-  }
+  const { parts: brepParts, assembly } = await loadBrepAssembly(kernel!, buffer)
   // BREP 路径的声明单位：走文本探测（元数据；不参与几何运算）。
   const declared = detectStepUnit(new TextDecoder().decode(new Uint8Array(buffer)))
   registerDetectedUnit(declared)
-  return fromBrep(shape, { solid: solidHandle })
+  const importModel: ImportModel = {
+    format: 'step',
+    unit: declared,
+    parts: brepParts.map((p) => ({
+      index: p.index,
+      name: p.name,
+      ...(p.color ? { color: p.color } : {}),
+    })),
+    ...(assembly ? { assembly } : {}),
+  }
+  registerImportModel(importModel)
+  if (brepParts.length === 1) {
+    const p = brepParts[0]
+    return fromBrep(p.shape, { solid: p.solid })
+  }
+  // 多零件：每个 child 带自己的 BREP solid（宿主经 brepOf(child) 读取）。
+  return compound(brepParts.map((p) => fromBrep(p.shape, { solid: p.solid })))
 }
 
 /**
@@ -228,17 +246,16 @@ function registerDetectedUnit(unit: UnitName | null): void {
 }
 
 /**
- * Register a "multi-part downgrade" for the current statement's output part
- * (fileid-container-and-nesting §5.4): a multi-part file ($partCount>=2) was
- * loaded and only its first part is used. The engine takes this pending value
- * into ExecutionResult.multiPartCounts so the host can toast
- * 「该文件包含 N 个零件，当前仅加载第一个」.
+ * Register the current statement's output part's import model (P0，方案
+ * 2026-10-06-step-3mf-multipart-import-plan.md §5.5): the structure data
+ * (parts identity table + STEP assembly + Bambu views) of a `cad.load`.
+ * 单/多零件均登记（单零件 parts 长度 1）。引擎在语句执行后收编进
+ * ExecutionResult.importModels，宿主据此批量建 part，不再自行解析文件。
  */
-function registerMultiPartDegradation(partCount: number): void {
-  if (partCount < 2) return
+function registerImportModel(model: ImportModel): void {
   const stmt = getCurrentStmt()
   const part = stmt?.outputs[0]
-  if (part) setPendingMultiPartCount(part, partCount)
+  if (part) setPendingImportModel(part, model)
 }
 
 /** UnitName → base-scaled ValueWithUnits (length dims only; load is a length-domain op). */
