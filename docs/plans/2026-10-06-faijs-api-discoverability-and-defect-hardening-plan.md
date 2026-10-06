@@ -77,6 +77,21 @@
 
 动作：把 `./mesh` 的内部命名空间改名（如 `meshOps` / `brepOps`），或改为仅在 `@faicad/faijs/mesh` 子路径导出、不再占用 `cad` 这个名字；README 顶部放三面对照表，写明每一面的消费者、形态与入口。
 
+> **状态：已搁置（2026-10-06，用户决定「mesh 的问题先放下，先解决其它问题」）。**
+> 本节保留 B3 的完整判据与验收，但具体实施路线（见下方 A/B/C 取舍）待用户拍板后再动 `index.ts` / `mesh`。实施顺序表 §6 第 5 行已同步标注为「已搁置」。
+
+#### B3 路线取舍（A/B/C，待拍板）
+
+计划 §6 第 5 行的验收是「主导出不再有名为 `cad` 的 BREP 命名空间；README 有三面对照表」。改名与移出两种处置都能达成该验收，因此取舍权在用户：
+
+- **A. 改名 `meshOps`，仍在主导出**：改 `mesh/index.ts` 里的那个 `const` + `index.ts` / `browser.ts` 两行 re-export + 内部 8 处 `import`（约 11 行）。
+  代价：下游 `import { cad }` 编译失败、需改名；`./mesh` 子路径下仍叫 `meshOps`。
+- **B. 从主导出移除，只留 `@faicad/faijs/mesh`**：删两行 re-export 即可（子路径已存在，无需新增配置）。
+  代价：主导出少一个符号——而「写 `import { cad }` 直接编译报错」正是想堵住的那个坑。注意子路径 `@faicad/faijs/mesh` 下它仍叫 `cad`，计划只要求主导出干净。
+- **C. A+B**：最彻底，破坏面最大。
+
+当前（2026-10-06）B3 处于搁置态，尚未选定 A/B/C 任一；解除搁置后按所选路线实施，并补 README 三面对照表。
+
 ### B4 Host 装配无完整可复制示例（P1）
 
 判据（三个必踩的坑，下游实测）：只 `createRuntime` 不 `registerOcctBrepEngine` → `[faijs/bridge] BREP engine API not available`；`configureBackends` 漏 `config.brepCapabilities` → `E_BREP_UNSUPPORTED: current engine lacks capability 'fuseWithHistory' (brepEngineId=<none>)`；`defineOp` 包装的函数直接返回 `Promise<Shape>` 而非 `Result`，用 `isErr()` 判定会得到假阳性（`isErr` 的判据是 `ok === false`，而 `Shape` 上没有 `ok` 字段）。
@@ -130,7 +145,7 @@ M6 的实测方式：`new DirectExecutor({ namespaces: { cad: createApiNamespace
 | 2 | B2 手册示例失效 | P0 | `docs/library-dev-guide.md` + `.zh.md` | 示例改为位置参数形态；`verify-translation-pairing` 通过；手工跑通示例脚本 |
 | 3 | A2 内置全局清单文档化 + 导出 | P0 | `docs/language-design.md` + `.zh.md`、导出面 | 文档含完整名单与两类语义；清单可从运行时查询 |
 | 4 | B1 手册补 38 个逐 op 章节 | P0 | `docs/ops-api-inventory.md` + `.zh.md` | 逐 op 章节符号集 == 符号表键集（加一条文档覆盖守卫） |
-| 5 | B3 `cad` 内部命名空间改名 | P0 | `packages/core/src/index.ts`、README | 主导出不再有名为 `cad` 的 BREP 命名空间；README 有三面对照表 |
+| 5 | B3 `cad` 内部命名空间改名 | P0（**已搁置**，待 A/B/C 拍板） | `packages/core/src/index.ts`、`browser.ts`、`mesh/index.ts`、README | 主导出不再有名为 `cad` 的 BREP 命名空间；README 有三面对照表（路线见 §4 B3 下方 A/B/C） |
 | 6 | A5 `dist` 脱节告警 | P0 | `scripts/`、`docs/AGENTS.md` | 生成物与源码键集不一致时守卫失败 |
 | 7 | A3 `E_REFERENCE` 文案区分 | P1 | `packages/core/src/lang/metadata-extractor.ts` | 安全全局被漏放行时给出独立错误码与文案；真未知标识符仍为 `E_REFERENCE` |
 | 8 | B4 装配示例补全 | P1 | `docs/library-dev-guide.md` + `.zh.md` | 手册中的装配函数可原样复制运行 |
