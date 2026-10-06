@@ -264,3 +264,141 @@ describe('script-globals: 端到端求值（mesh；两种执行后端）', () =>
     })
   }
 })
+
+// ── A1：六处判定点 · 全集驱动不变量 ──────────────────────────────────────────
+//
+// `5e556070` 把「裸标识符是否免 import」收口到 `isSafeGlobalIdent()` 后，判定点仍有
+// 六处（metadata-extractor ×3、direct-executor ×2、code-to-args ×1）。上面的用例只
+// 硬编码了 `Math` / `Number` / `MM` 几个名字——名单新增一项时，漏抄的判定点不会被发现。
+//
+// 本组把「六处判定与 S4 白名单一致」变成**持续不变量**：遍历 `S4_SAFE_GLOBALS` 全集
+// 驱动每个判定点，并保留反向断言（名单外标识符在对应语义下仍按未知处理）。
+// 新增安全全局后本组自动覆盖，无需改测试。
+//
+// 判据映射（对应 security-scanner.ts `isSafeGlobalIdent` docstring 的「六处」）：
+//  1. metadata-extractor.collectExprIdentifiers  —— 表达式位置
+//  2. metadata-extractor.parseValueExpr         —— 裸全局作对象属性值
+//  3. metadata-extractor.parsePositionalArgs    —— 裸全局作位置实参
+//  4. direct-executor.collectRefs               —— append 前缀校验（missingPrefixVar）
+//  5. direct-executor.transformArg / emitCall   —— 发射保持裸名（不得写成 __ctx.<name>）
+//  6. code-to-args.extractIdentifiers           —— 单行提取哨兵不得造幻影参数
+
+describe('script-globals: 六处判定点 · 全集驱动不变量（A1）', () => {
+  const GLOBALS: readonly string[] = [...S4_SAFE_GLOBALS]
+  /** 名单外的代表性标识符（反向断言用）。 */
+  const UNKNOWN = ['zzz', 'nope', 'helper'] as const
+
+  it('全集非空且都是字符串（守卫自身有效）', () => {
+    expect(GLOBALS.length).toBeGreaterThan(0)
+    expect(GLOBALS.every((n) => typeof n === 'string' && n.length > 0)).toBe(true)
+  })
+
+  it('判定点 1：collectExprIdentifiers —— 表达式位置放行全集', () => {
+    const failed: string[] = []
+    for (const name of GLOBALS) {
+      try {
+        extractMetadata(`let p = cad.box(${name} + 0, 1, 1)`)
+      } catch (e) {
+        failed.push(`${name}: ${(e as Error).message}`)
+      }
+    }
+    expect(failed).toEqual([])
+  })
+
+  it('判定点 2：parseValueExpr —— 裸全局作对象属性值放行全集', () => {
+    const failed: string[] = []
+    for (const name of GLOBALS) {
+      try {
+        extractMetadata(`let p = cad.box(1, 1, 1, { center: ${name} })`)
+      } catch (e) {
+        failed.push(`${name}: ${(e as Error).message}`)
+      }
+    }
+    expect(failed).toEqual([])
+  })
+
+  it('判定点 3：parsePositionalArgs —— 裸全局作位置实参放行全集', () => {
+    const failed: string[] = []
+    for (const name of GLOBALS) {
+      try {
+        extractMetadata(`let p = cad.box(${name}, 1, 1)`)
+      } catch (e) {
+        failed.push(`${name}: ${(e as Error).message}`)
+      }
+    }
+    expect(failed).toEqual([])
+  })
+
+  it('判定点 4：direct-executor.collectRefs —— 全集不得被误报为缺失引用', () => {
+    const de = new DirectExecutor({ namespaces: { cad: createApiNamespaceWithEditorOps() } })
+    const failed: string[] = []
+    for (const name of GLOBALS) {
+      const missing = de.missingPrefixVar(`let p1 = cad.box(${name}, 1, 1)`)
+      if (missing !== undefined) failed.push(`${name}: ${JSON.stringify(missing)}`)
+    }
+    expect(failed).toEqual([])
+  })
+
+  it('判定点 5：transformArg / emitCall —— 全集发射保持裸名（不得写成 __ctx.<name>）', () => {
+    const de = new DirectExecutor({ namespaces: { cad: createApiNamespaceWithEditorOps() } })
+    // TS `private` 在运行时抹除；守卫测试白盒取发射文本（无公开只读入口）。
+    const internals = de as unknown as {
+      parseAndTransform(code: string): Array<{ body: string }>
+    }
+    const emitted = (code: string): string =>
+      internals.parseAndTransform(code).map((u) => u.body).join('\n')
+
+    const failed: string[] = []
+    for (const name of GLOBALS) {
+      const body = emitted(`let p1 = cad.box(${name}, 1, 1)`)
+      if (body.includes(`__ctx.${name}`)) failed.push(`${name}: emitted __ctx.${name}`)
+    }
+    expect(failed).toEqual([])
+
+    // 全局**函数**必须以裸名调用，否则运行时 `__ctx.Number is not a function`。
+    const callable = ['Number', 'String', 'Boolean', 'parseInt', 'parseFloat', 'isNaN', 'isFinite']
+    const callFailed: string[] = []
+    for (const name of callable) {
+      const body = emitted(`let p1 = cad.box(${name}("7"), 1, 1)`)
+      if (body.includes(`__ctx.${name}`)) callFailed.push(`${name}: emitted __ctx.${name}`)
+    }
+    expect(callFailed).toEqual([])
+  })
+
+  it('判定点 6：code-to-args.extractIdentifiers —— 全集不得造幻影参数', () => {
+    const failed: string[] = []
+    for (const name of GLOBALS) {
+      const a = codeToArgs(`let p = cad.box(${name}, 1, 1)`)
+      const slot = a.positional[0] as { kind?: string; params?: string[] } | number | undefined
+      // 单位常量折叠为数字（无 params 可言）；其余全局为引用形态，params 必须为空。
+      if (slot !== null && typeof slot === 'object' && Array.isArray(slot.params) && slot.params.includes(name)) {
+        failed.push(`${name}: phantom param in ${JSON.stringify(slot)}`)
+      }
+    }
+    expect(failed).toEqual([])
+  })
+
+  it('反向断言：名单外标识符在六处仍按「未知」处理', () => {
+    for (const name of UNKNOWN) {
+      // 1 表达式位置 → E_REFERENCE
+      expect(() => extractMetadata(`let p = cad.box(${name} + 0, 1, 1)`), name).toThrow()
+      // 2 对象属性值 → E_REFERENCE
+      expect(() => extractMetadata(`let p = cad.box(1, 1, 1, { center: ${name} })`), name).toThrow()
+      // 3 位置实参 → E_REFERENCE
+      expect(() => extractMetadata(`let p = cad.box(${name}, 1, 1)`), name).toThrow()
+      // 4 append 前缀校验 → 报缺失引用
+      const de = new DirectExecutor({ namespaces: { cad: createApiNamespaceWithEditorOps() } })
+      expect(de.missingPrefixVar(`let p1 = cad.box(${name}, 1, 1)`), name).toEqual({ unitLine: 1, varName: name })
+      // 6 单行提取 → 必须被前置哨兵声明（未知名当参数，测出的是「未知」而非「全局」）
+      const a = codeToArgs(`let p = cad.box(${name}, 1, 1)`)
+      expect(a.positional[0], name).toMatchObject({ kind: 'var-ref', name })
+    }
+  })
+
+  it('反向断言：isSafeGlobalIdent 对名单外标识符返回 false', () => {
+    for (const name of UNKNOWN) {
+      expect(S4_SAFE_GLOBALS.has(name), name).toBe(false)
+      expect(isSafeGlobalIdent(name), name).toBe(false)
+    }
+  })
+})
