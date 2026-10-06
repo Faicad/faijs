@@ -439,7 +439,7 @@ interface MirrorJoinOptions {
 export const mirrorJoin = defineOp({
   meshEngines: ['brepkit'],
   mesh(input: Shape, options?: MirrorJoinOptions) {
-    keep(input)
+    keepHidden(input)
     const entry = meshSolidBasicEntry(input, 'mirrorJoin')
     const n = norm(optionVec(options?.normal, [1, 0, 0]))
     const o = toBrepVec(optionVec(options?.at, [0, 0, 0]))
@@ -459,7 +459,7 @@ export const mirrorJoin = defineOp({
     }
   },
   brep(input: Shape, options?: MirrorJoinOptions) {
-    keep(input)
+    keepHidden(input)
     const { kernel, solid, outStmt } = prelude(input, 'mirrorJoin')
     const n = norm(options?.normal ?? [1, 0, 0])
     const o = toBrepVec(options?.at ?? [0, 0, 0])
