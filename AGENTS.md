@@ -68,7 +68,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 ## 架构（L0–L3 分层，全部位于 `packages/core/src/`）
 
 - **L0 文本层** `lang/`：parser（acorn，**先解析后编译，执行交给 JS 虚拟机**）、codegen、args-schema。`.fai.js` 是合法 JS 子集，语句 id 用 `sN`（StmtId），产出变量名用词法名（UI 自动生成代码采用 `partN` 形式，见 `lang/allocate-id.ts`）。
-- **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径 + `cad` API）、`boolean/`、`primitives/`、`sdf/`、`topology/`；**L3 API 库面在 `api/`（core 内）——库函数经 `@faicad/faijs/api` 导入，`cad` 命名空间经门面 `createRuntime` 注入**。
+- **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径，按模块具名导出，**无任何聚合门面**）、`boolean/`、`primitives/`、`sdf/`、`topology/`；**L3 API 库面在 `api/`（core 内）——库函数经 `@faicad/faijs/api` 导入，`cad` 命名空间经门面 `createRuntime` 注入**。
 - **L2 编排** `cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`node-host/`（fs）+ `browser-host/`（worker）。
 - **双链路执行**：每个 op 必支持 mesh（默认路径），可选支持 brep——库函数经 `defineOp` 声明实现集（`@faicad/faijs/sdk`），`cad-runtime/backend-dispatch.ts` 按静态规则分派，无运行时回退；BREP 链状态在 `brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
@@ -76,6 +76,33 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **错误体系 = Result 原生**：对外 API 全面采用 `Result`/`BrepError` 体系（`ok`/`err`/`isOk`/`isErr`/`map`/`andThen`/`unwrap`）。TS 兼容面 Result 原样返回；cad 脚本面语句边界自动 unwrap（err → `ExecutionResult.failedAt`，存量 `.fai.js` 零修改）；库边界面经 `compatOp` 边界 unwrap。
 - **引擎定位（与 brepjs 不同）**：faijs 的引擎切换和 brepjs 项目不同。在 brepjs 项目中，occt 和 manifold 都是实现相同接口的引擎，mesh 的用途是预览。本项目中则明确区分 mesh 引擎与 brep 引擎，且 mesh 是正式数据，不是预览，定位完全不同——比如 sdf 模型，只能以 mesh 表示。至于 UI 层预览，完全可以采用更轻量级的方式实现（如幽灵渲染/叠加层），不应依赖"先用 mesh 拆解重建几何来充当预览"。
 - 入口：根门面 `@faicad/faijs`（`src/index.ts` 等 10 个 exports 子路径，薄 re-export + `createRuntime` 包装注入 cad）；引擎入口在 `packages/core/src/index.ts` / `browser.ts`（不含 node-host）/ `node.ts` / `csg.ts` / `sdf.ts` / `sdk.ts`。浏览器构建里静态 import node-host 会 404——Node 专用代码一律从 `@faicad/faijs/node` 导入。
+
+## 库开发者 vs 脚本开发者：两套 API 面，禁止混用
+
+faijs 同时服务两类人，他们看到的是**不同的 API 面**。混为一谈在本仓已经造成过一次真实事故（B3）：把内核实现的聚合对象当成 faijs 的公开 API 去 `import`。先确认自己在哪一侧，再决定能 import 什么。
+
+### 一、脚本开发者（写 `.fai.js` 模型的人）
+
+- **只面对一样东西：`cad` 命名空间**（`cad.box(...)`、`cad.union(a, b)`、`cad.engrave(...)`）。它由宿主在运行时经 `registerLib('cad', namespace, { default: true })` 注入；脚本面可见的 op 名以 `lang/symbol-table.generated.ts` 为权威清单。
+- **`cad.<op>` 是语言/运行时契约，不是模块路径**：它解析到 `api/` 里的 op 定义对象（`defineOp({ mesh, brep })`），再由 `cad-runtime/backend-dispatch.ts` 按静态规则分派到 mesh 或 brep 实现。
+- **不受本仓文件组织变化影响**：op 名、签名、语义不变，存量 `.fai.js` 一律无需改写。
+- 编辑器专用 op（`fai_drill` / `fai_extrude` / `fai_split` / `group` / `assembly` / `copy` / `load` / `text` / `svgExtrude`）由 `@faicad/faijs-extra` 装配进同一个 `cad` 命名空间——脚本开发者只需知道它们可用，不需要知道包结构。
+
+### 二、库开发者（写 TS：核心、扩展库、宿主、下游工具的人）
+
+- **面对具名模块，不存在「一个大而全的对象」**。一律从具体子路径导入：
+  - API / sdk：`@faicad/faijs/api`、`@faicad/faijs/sdk`（`defineOp` / `compatOp`）
+  - 几何内核：`@faicad/faijs/mesh/{primitives,transform,boolean,engrave,query,io}`、`@faicad/faijs/brep/*`、`@faicad/faijs/primitives/*`
+  - 运行时 / 解析：`@faicad/faijs/runtime-state`、`@faicad/faijs/symbol-table`、`@faicad/faijs/identity`、`@faicad/faijs/shape`、`@faicad/faijs/api/api-namespace`
+- **⛔ 禁止把 `packages/core/src/mesh/` 的内核门面当公开 API。** 该目录**不提供**任何 `cad` / `meshCad` 形状的聚合对象（2026-10-06 B3 补正已整体删除）。要 `box` 就 `import { box } from '@faicad/faijs/mesh/primitives'`；找不到「什么都有的那个对象」是**预期行为**，不是缺 API。
+- **需要用「脚本面那套 op 对象」时，拿命名空间本身**：平台面 `createApiNamespace()`（`@faicad/faijs/api/api-namespace`）、编辑器面 `createEditorCadNamespace()`（`@faicad/faijs-extra`）。core 内部就是这么做的（见 `api/cadquery-selectors/face.ts`）。
+- **命名纪律**：`cad` 这个名字只属于脚本面。库层面再出现 `cad` / `xxxCad` 形状的聚合对象，一律视为设计缺陷。
+- 用自己的库扩展 faijs（写 op、做下游库）另见 `docs/library-dev-guide.md`。
+
+### 三、一句话判据
+
+- 你的代码**被 `.fai.js` 调用** → 你写 op（`defineOp`），归脚本面。
+- 你的代码**由 TS 直接 import** → 你只能用具体模块，永远不要把内核门面当 API。
 
 ## 必须知道的约定
 

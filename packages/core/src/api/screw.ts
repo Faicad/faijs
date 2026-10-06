@@ -9,7 +9,8 @@
  */
 
 import type { Shape } from '../mesh/types'
-import { cad } from '../mesh'
+// B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
+import * as meshPrimitives from '../mesh/primitives'
 import { solidToShape } from '../brep/brep-ops'
 import { threadBrep } from './brep-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '../primitives/screw/screw-db'
@@ -170,7 +171,7 @@ export function assertScrewParams(params: Record<string, unknown>): void {
 export const screw = defineOp({
   mesh: async (params: Record<string, unknown>) => {
     assertScrewParams(params)
-    return cad.screw({
+    return meshPrimitives.screw({
       system: params.system as 'metric' | 'imperial',
       specIdx: params.specIdx as number,
       thread: params.thread as 'coarse' | 'fine' | 'custom' | 'none',

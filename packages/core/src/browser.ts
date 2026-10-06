@@ -179,7 +179,9 @@ export type { PrimitiveToBrepResult, PrimitiveParams } from './primitives/brep-p
 // ═══════════════════════════════════════════════════════════
 
 // 预览 API（D 类——宿主用这些做交互预览，不提交几何）
-export { cad } from './mesh'
+// B3 correction (2026-10-06): no `cad` / `meshCad` aggregate is exported from the library
+// face; `cad` belongs to the script face (host-injected ops) — TS consumers import
+// per-module from `@faicad/faijs/mesh/*`.
 export { deriveNormals } from './boolean/deriveNormals'
 export { computeSection, buildExtrudedProfile } from './boolean/cross-section'
 export { buildExtrudeParts, makeWorldPlane } from './boolean/extrude-helpers'

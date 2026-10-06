@@ -6,7 +6,8 @@
  * part-brep-lost 事件由引擎统一发（P4，库不再 emit）。
  */
 
-import { cad } from '../mesh'
+// B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
+import * as meshPrimitives from '../mesh/primitives'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 
@@ -39,7 +40,7 @@ export function assertSdfParams(params: Record<string, unknown>): void {
 export const sdf = defineOp({
   mesh: async (params: Record<string, unknown>) => {
     assertSdfParams(params)
-    return cad.sdf({
+    return meshPrimitives.sdf({
       code: params.code as string,
       box: params.box as [[number, number, number], [number, number, number]] | undefined,
       resolution: params.resolution as number | undefined,

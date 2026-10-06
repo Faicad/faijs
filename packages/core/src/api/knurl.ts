@@ -7,7 +7,9 @@
  */
 
 import type { Shape, Vec3 } from '../mesh/types'
-import { cad } from '../mesh'
+// B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
+import * as meshEngrave from '../mesh/engrave'
+import * as meshQuery from '../mesh/query'
 import { reconcileBrepInputs } from './reconcile'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
@@ -49,9 +51,9 @@ export const knurl = defineOp({
     // 断链时刻（用户点名场景）：BREP 建模的模型最后做滚花 → BREP 输入必须先归约为
     // 合法 2-manifold 网格再进 mesh 路径（reconcileBrepInputs 对 mesh 侧输入原样透传）
     const [meshInput] = reconcileBrepInputs([input])
-    return cad.knurl(meshInput, {
+    return meshEngrave.knurl(meshInput, {
       face: {
-        center: (params.faceCenter as Vec3 | undefined) ?? cad.bboxCenter(meshInput),
+        center: (params.faceCenter as Vec3 | undefined) ?? meshQuery.bboxCenter(meshInput),
         normal: (params.faceNormal as Vec3 | undefined) ?? [0, 0, 1],
       },
       knurlTextureHeight: (params.knurlTextureHeight as number | undefined) ?? 0.5,

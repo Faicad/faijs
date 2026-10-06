@@ -63,10 +63,10 @@ export {
 export { createMixedTextGeometry } from './extras/text-cjk'
 export { createEngraveDecorationProvider } from './mesh/engrave-decoration'
 
-// ── mesh 实现聚合（编辑器侧脚本面/预览共用的实现入口）──
-export { editorCad } from './mesh'
+// ── mesh implementations (editor script face / previews; exported per module, no aggregate) ──
 export {
-  splitWithParams, dovetailSplit, dowelSplit, tenonSplit, computeBasisFromNormal,
+  split as meshSplit, splitWithParams, dovetailSplit, dowelSplit, tenonSplit,
+  computeBasisFromNormal,
 } from './mesh/fai_split'
 export { drill } from './mesh/fai_drill'
 export { extrude as meshExtrude } from './mesh/fai_extrude'

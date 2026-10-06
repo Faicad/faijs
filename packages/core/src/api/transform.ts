@@ -24,7 +24,8 @@
  */
 
 import type { Shape, Vec3 } from '../mesh/types'
-import { cad } from '../mesh'
+// B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
+import * as meshTransform from '../mesh/transform'
 import { translateBrep, rotateBrep, scaleBrep, solidToShape } from '../brep/brep-ops'
 import {
   identityEvolution,
@@ -239,7 +240,7 @@ export const translate = defineOp({
     if (!input) throw new Error('[api/translate] no input geometry')
     assertTranslateParams(params)
     if (hasMeshSolid(input)) return transformMeshSolid('translate', input, params)
-    return cad.translate(input, params.offset as Vec3)
+    return meshTransform.translate(input, params.offset as Vec3)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[api/translate] no input geometry')
@@ -276,7 +277,7 @@ export const rotate_euler = defineOp({
     if (!input) throw new Error('[api/rotate_euler] no input geometry')
     assertRotateParams(params)
     if (hasMeshSolid(input)) return transformMeshSolid('rotate_euler', input, params)
-    return cad.rotate_euler(input, params.angles as Vec3, params.pivot as Vec3 | undefined)
+    return meshTransform.rotate_euler(input, params.angles as Vec3, params.pivot as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[api/rotate_euler] no input geometry')
@@ -313,7 +314,7 @@ export const scale = defineOp({
     if (!input) throw new Error('[api/scale] no input geometry')
     assertScaleParams(params)
     if (hasMeshSolid(input)) return transformMeshSolid('scale', input, params)
-    return cad.scale(input, params.factor as number, params.center as Vec3 | undefined)
+    return meshTransform.scale(input, params.factor as number, params.center as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[api/scale] no input geometry')
@@ -352,7 +353,7 @@ export const scale3d = defineOp({
     if (!input) throw new Error('[api/scale3d] no input geometry')
     assertScale3dParams(params)
     if (hasMeshSolid(input)) return transformMeshSolid('scale3d', input, params)
-    return cad.scale3d(input, params.factor as Vec3, params.center as Vec3 | undefined)
+    return meshTransform.scale3d(input, params.factor as Vec3, params.center as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[api/scale3d] no input geometry')

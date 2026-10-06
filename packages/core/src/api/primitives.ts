@@ -7,7 +7,8 @@
 
 import type { Shape } from '../mesh/types'
 import { clampNRad } from '../mesh/types'
-import { cad } from '../mesh'
+// B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
+import * as meshPrimitives from '../mesh/primitives'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
 import { getCurrentStmt } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
@@ -247,7 +248,7 @@ export const box = defineOp({
   name: 'box',
   mesh: (params: Record<string, unknown>) => {
     assertBoxParams(params)
-    return cad.box(params as never)
+    return meshPrimitives.box(params as never)
   },
   brep: (params: Record<string, unknown>) => {
     assertBoxParams(params)
@@ -290,7 +291,7 @@ export const sphere = defineOp({
   name: 'sphere',
   mesh: (params: Record<string, unknown>) => {
     assertSphereParams(params)
-    return cad.sphere(centerParams(params) as never)
+    return meshPrimitives.sphere(centerParams(params) as never)
   },
   brep: (params: Record<string, unknown>) => {
     assertSphereParams(params)
@@ -340,7 +341,7 @@ export const cylinder = defineOp({
   name: 'cylinder',
   mesh: (params: Record<string, unknown>) => {
     assertCylinderParams(params)
-    return cad.cylinder(params as never)
+    return meshPrimitives.cylinder(params as never)
   },
   brep: (params: Record<string, unknown>) => {
     assertCylinderParams(params)
@@ -381,7 +382,7 @@ export const cone = defineOp({
   name: 'cone',
   mesh: (params: Record<string, unknown>) => {
     assertConeParams(params)
-    return cad.cone(params as never)
+    return meshPrimitives.cone(params as never)
   },
   brep: (params: Record<string, unknown>) => {
     assertConeParams(params)
@@ -423,7 +424,7 @@ export const wedge = defineOp({
   name: 'wedge',
   mesh: (params: Record<string, unknown>) => {
     assertWedgeParams(params)
-    return cad.wedge(params as never)
+    return meshPrimitives.wedge(params as never)
   },
   brep: (params: Record<string, unknown>) => {
     assertWedgeParams(params)

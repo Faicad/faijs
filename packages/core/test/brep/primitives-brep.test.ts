@@ -9,7 +9,7 @@
  * 3. 包围盒尺寸与参数一致
  * 4. center 偏移正确
  * 5. Vec3 size（box）正确映射
- * 6. 与 mesh 路径（cad.box 等）的等价性对比（外形一致，三角数可不同）
+ * 6. 与 mesh 路径（meshPrimitives.box 等）的等价性对比（外形一致，三角数可不同）
  *
  * 运行：npx vitest run src/brep/primitives-brep.test.ts
  */
@@ -32,7 +32,8 @@ console.log = (...args: unknown[]) => {
 import { describe, it, expect, beforeAll } from 'vitest'
 import { getKernel } from '../../src/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
-import { cad } from '../../src/mesh/index'
+import * as meshPrimitives from '../../src/mesh/primitives'
+import * as brepPrimitives from '../../src/brep/primitives-brep'
 import type { Shape } from '../../src/mesh/types'
 import { primitiveToBrepSolid, brepSolidToStep } from '../../src/primitives/brep-primitives'
 import type { BrepEngineApi } from '../../src/brep/engine/primitives'
@@ -76,7 +77,7 @@ function shapeBoundingBox(s: Shape): { min: [number, number, number]; max: [numb
 
 describe('BREP primitives: basic validity', () => {
   it('boxBrep: returns valid Shape with positions and indices', async () => {
-    const s = await cad.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
+    const s = await brepPrimitives.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
     expect(s.positions).toBeInstanceOf(Float32Array)
     expect(s.indices).toBeInstanceOf(Uint32Array)
     expect(shapeVertexCount(s)).toBeGreaterThan(0)
@@ -84,25 +85,25 @@ describe('BREP primitives: basic validity', () => {
   })
 
   it('sphereBrep: returns valid Shape', async () => {
-    const s = await cad.sphereBrep({ radius: 10 })
+    const s = await brepPrimitives.sphereBrep({ radius: 10 })
     expect(shapeVertexCount(s)).toBeGreaterThan(0)
     expect(shapeTriangleCount(s)).toBeGreaterThan(0)
   })
 
   it('cylinderBrep: returns valid Shape', async () => {
-    const s = await cad.cylinderBrep({ radius: 10, height: 20 })
+    const s = await brepPrimitives.cylinderBrep({ radius: 10, height: 20 })
     expect(shapeVertexCount(s)).toBeGreaterThan(0)
     expect(shapeTriangleCount(s)).toBeGreaterThan(0)
   })
 
   it('coneBrep: returns valid Shape', async () => {
-    const s = await cad.coneBrep({ radiusBottom: 10, radiusTop: 0, height: 20 })
+    const s = await brepPrimitives.coneBrep({ radiusBottom: 10, radiusTop: 0, height: 20 })
     expect(shapeVertexCount(s)).toBeGreaterThan(0)
     expect(shapeTriangleCount(s)).toBeGreaterThan(0)
   })
 
   it('wedgeBrep: returns valid Shape', async () => {
-    const s = await cad.wedgeBrep({ width: 20, height: 10, angle: 60, length: 50 })
+    const s = await brepPrimitives.wedgeBrep({ width: 20, height: 10, angle: 60, length: 50 })
     expect(shapeVertexCount(s)).toBeGreaterThan(0)
     expect(shapeTriangleCount(s)).toBeGreaterThan(0)
   })
@@ -112,7 +113,7 @@ describe('BREP primitives: basic validity', () => {
 
 describe('BREP primitives: bounding box dimensions', () => {
   it('boxBrep: 20×20×20 cube', async () => {
-    const s = await cad.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
+    const s = await brepPrimitives.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
     const bb = shapeBoundingBox(s)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(20, 1)
     expect(bb.max[1] - bb.min[1]).toBeCloseTo(20, 1)
@@ -120,7 +121,7 @@ describe('BREP primitives: bounding box dimensions', () => {
   })
 
   it('boxBrep: Vec3 size [10, 20, 30]', async () => {
-    const s = await cad.boxBrep({ width: 10, depth: 20, height: 30, centered: true })
+    const s = await brepPrimitives.boxBrep({ width: 10, depth: 20, height: 30, centered: true })
     const bb = shapeBoundingBox(s)
     const dims = [bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]].sort((a, b) => a - b)
     expect(dims[0]).toBeCloseTo(10, 1)
@@ -129,7 +130,7 @@ describe('BREP primitives: bounding box dimensions', () => {
   })
 
   it('sphereBrep: radius 10 → diameter 20', async () => {
-    const s = await cad.sphereBrep({ radius: 10 })
+    const s = await brepPrimitives.sphereBrep({ radius: 10 })
     const bb = shapeBoundingBox(s)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(20, 1)
     expect(bb.max[1] - bb.min[1]).toBeCloseTo(20, 1)
@@ -137,7 +138,7 @@ describe('BREP primitives: bounding box dimensions', () => {
   })
 
   it('cylinderBrep: radius 10, height 20', async () => {
-    const s = await cad.cylinderBrep({ radius: 10, height: 20 })
+    const s = await brepPrimitives.cylinderBrep({ radius: 10, height: 20 })
     const bb = shapeBoundingBox(s)
     // 圆柱沿 Z 轴，X/Y 直径 = 20，Z 高度 = 20
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(20, 1)
@@ -146,7 +147,7 @@ describe('BREP primitives: bounding box dimensions', () => {
   })
 
   it('cylinderBrep: radius 5, height 30 (non-cubic)', async () => {
-    const s = await cad.cylinderBrep({ radius: 5, height: 30 })
+    const s = await brepPrimitives.cylinderBrep({ radius: 5, height: 30 })
     const bb = shapeBoundingBox(s)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(10, 1) // diameter
     expect(bb.max[1] - bb.min[1]).toBeCloseTo(10, 1) // diameter
@@ -154,7 +155,7 @@ describe('BREP primitives: bounding box dimensions', () => {
   })
 
   it('coneBrep: radiusBottom 10, radiusTop 0, height 20', async () => {
-    const s = await cad.coneBrep({ radiusBottom: 10, radiusTop: 0, height: 20 })
+    const s = await brepPrimitives.coneBrep({ radiusBottom: 10, radiusTop: 0, height: 20 })
     const bb = shapeBoundingBox(s)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(20, 1) // base diameter
     expect(bb.max[1] - bb.min[1]).toBeCloseTo(20, 1) // base diameter
@@ -162,7 +163,7 @@ describe('BREP primitives: bounding box dimensions', () => {
   })
 
   it('coneBrep: truncated cone (radiusBottom 10, radiusTop 5, height 15)', async () => {
-    const s = await cad.coneBrep({ radiusBottom: 10, radiusTop: 5, height: 15 })
+    const s = await brepPrimitives.coneBrep({ radiusBottom: 10, radiusTop: 5, height: 15 })
     const bb = shapeBoundingBox(s)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(20, 1) // base diameter
     expect(bb.max[1] - bb.min[1]).toBeCloseTo(20, 1)
@@ -170,7 +171,7 @@ describe('BREP primitives: bounding box dimensions', () => {
   })
 
   it('wedgeBrep: extrude length 50, width 20, height 10', async () => {
-    const s = await cad.wedgeBrep({ width: 20, height: 10, angle: 60, length: 50 })
+    const s = await brepPrimitives.wedgeBrep({ width: 20, height: 10, angle: 60, length: 50 })
     const bb = shapeBoundingBox(s)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(50, 0) // extrude length
     expect(bb.max[1] - bb.min[1]).toBeCloseTo(20, 0) // width
@@ -182,21 +183,21 @@ describe('BREP primitives: bounding box dimensions', () => {
 
 describe('BREP primitives: center offset', () => {
   it('boxBrep: center [100, 0, 0] shifts bbox', async () => {
-    const s = await cad.boxBrep({ width: 10, depth: 10, height: 10, centered: true, at: [100, 0, 0] })
+    const s = await brepPrimitives.boxBrep({ width: 10, depth: 10, height: 10, centered: true, at: [100, 0, 0] })
     const bb = shapeBoundingBox(s)
     expect(bb.min[0]).toBeCloseTo(95, 1)
     expect(bb.max[0]).toBeCloseTo(105, 1)
   })
 
   it('sphereBrep: center [0, 50, 0] shifts bbox', async () => {
-    const s = await cad.sphereBrep({ radius: 10, center: [0, 50, 0] })
+    const s = await brepPrimitives.sphereBrep({ radius: 10, center: [0, 50, 0] })
     const bb = shapeBoundingBox(s)
     expect(bb.min[1]).toBeCloseTo(40, 1)
     expect(bb.max[1]).toBeCloseTo(60, 1)
   })
 
   it('cylinderBrep: at [0, 0, 100] centered shifts bbox', async () => {
-    const s = await cad.cylinderBrep({ radius: 5, height: 10, centered: true, at: [0, 0, 100] })
+    const s = await brepPrimitives.cylinderBrep({ radius: 5, height: 10, centered: true, at: [0, 0, 100] })
     const bb = shapeBoundingBox(s)
     expect(bb.min[2]).toBeCloseTo(95, 1)
     expect(bb.max[2]).toBeCloseTo(105, 1)
@@ -207,7 +208,7 @@ describe('BREP primitives: center offset', () => {
 
 describe('BREP primitives: centered at origin by default', () => {
   it('boxBrep: centered at origin', async () => {
-    const s = await cad.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
+    const s = await brepPrimitives.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
     const bb = shapeBoundingBox(s)
     expect(bb.min[0]).toBeCloseTo(-10, 1)
     expect(bb.max[0]).toBeCloseTo(10, 1)
@@ -216,14 +217,14 @@ describe('BREP primitives: centered at origin by default', () => {
   })
 
   it('cylinderBrep: centered at origin', async () => {
-    const s = await cad.cylinderBrep({ radius: 10, height: 20, centered: true })
+    const s = await brepPrimitives.cylinderBrep({ radius: 10, height: 20, centered: true })
     const bb = shapeBoundingBox(s)
     expect(bb.min[2]).toBeCloseTo(-10, 1)
     expect(bb.max[2]).toBeCloseTo(10, 1)
   })
 
   it('coneBrep: centered at origin', async () => {
-    const s = await cad.coneBrep({ radiusBottom: 10, radiusTop: 0, height: 20, centered: true })
+    const s = await brepPrimitives.coneBrep({ radiusBottom: 10, radiusTop: 0, height: 20, centered: true })
     const bb = shapeBoundingBox(s)
     expect(bb.min[2]).toBeCloseTo(-10, 1)
     expect(bb.max[2]).toBeCloseTo(10, 1)
@@ -284,8 +285,8 @@ describe('BREP primitives: STEP export has precise surfaces', () => {
 
 describe('BREP vs mesh: geometry equivalence', () => {
   it('box: BREP and mesh have same bounding box', async () => {
-    const brepShape = await cad.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
-    const meshShape = cad.box({ width: 20, depth: 20, height: 20, centered: true })
+    const brepShape = await brepPrimitives.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
+    const meshShape = meshPrimitives.box({ width: 20, depth: 20, height: 20, centered: true })
     const brepBB = shapeBoundingBox(brepShape)
     const meshBB = shapeBoundingBox(meshShape)
 
@@ -295,8 +296,8 @@ describe('BREP vs mesh: geometry equivalence', () => {
   })
 
   it('cylinder: BREP and mesh have same bounding box', async () => {
-    const brepShape = await cad.cylinderBrep({ radius: 10, height: 20 })
-    const meshShape = cad.cylinder({ radius: 10, height: 20 })
+    const brepShape = await brepPrimitives.cylinderBrep({ radius: 10, height: 20 })
+    const meshShape = meshPrimitives.cylinder({ radius: 10, height: 20 })
     const brepBB = shapeBoundingBox(brepShape)
     const meshBB = shapeBoundingBox(meshShape)
 
@@ -305,8 +306,8 @@ describe('BREP vs mesh: geometry equivalence', () => {
   })
 
   it('wedge: BREP and mesh have same bounding box', async () => {
-    const brepShape = await cad.wedgeBrep({ width: 20, height: 10, angle: 60, length: 50 })
-    const meshShape = cad.wedge({ width: 20, height: 10, angle: 60, length: 50 })
+    const brepShape = await brepPrimitives.wedgeBrep({ width: 20, height: 10, angle: 60, length: 50 })
+    const meshShape = meshPrimitives.wedge({ width: 20, height: 10, angle: 60, length: 50 })
     const brepBB = shapeBoundingBox(brepShape)
     const meshBB = shapeBoundingBox(meshShape)
 

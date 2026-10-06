@@ -10,7 +10,8 @@
  */
 
 import type { Shape, Vec3 } from '../mesh/types'
-import { cad } from '../mesh'
+// B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
+import * as meshQuery from '../mesh/query'
 import { getBrepApi } from '../brep/handle-bridge'
 import { brepOf } from '../shape'
 import type { BrepHandle } from '../brep/engine/types'
@@ -56,7 +57,7 @@ function geomQuery(
   if (!anchor) {
     throw new Error('[GeomRef] faceNormal requires anchor or faceOrdinal')
   }
-  const face = cad.faceAt(of, { point: anchor })
+  const face = meshQuery.faceAt(of, { point: anchor })
   if (!face) {
     throw new Error(`[GeomRef] faceAt failed for anchor at ${anchor}`)
   }
@@ -94,7 +95,7 @@ export function faceNormal(of: Shape, anchor?: Vec3, ordinal?: number): Vec3 {
  * const c = cad.bboxCenter(part0)
   */
 export function bboxCenter(of: Shape): Vec3 {
-  return cad.bboxCenter(of)
+  return meshQuery.bboxCenter(of)
 }
 
 /**
@@ -110,7 +111,7 @@ export function bboxCenter(of: Shape): Vec3 {
  * const mn = cad.bboxMin(part0)
   */
 export function bboxMin(of: Shape): Vec3 {
-  return cad.boundingBox(of).min
+  return meshQuery.boundingBox(of).min
 }
 
 /**
@@ -126,5 +127,5 @@ export function bboxMin(of: Shape): Vec3 {
  * const mx = cad.bboxMax(part0)
   */
 export function bboxMax(of: Shape): Vec3 {
-  return cad.boundingBox(of).max
+  return meshQuery.boundingBox(of).max
 }

@@ -15,8 +15,10 @@ import * as THREE from 'three'
 import {
   computeBasisFromNormal,
   computePlaneBasis,
+  split,
   splitWithParams,
 } from '../../src/mesh/fai_split'
+import { meshSplit } from '../../src/index'
 import { geoToManifoldMesh } from '@faicad/faijs/boolean/csg-backend'
 import type { Shape } from '@faicad/faijs/mesh/types'
 
@@ -215,5 +217,14 @@ describe('splitWithParams — real box split through the manifold backend', () =
     expect(res.front.indices.length).toBeGreaterThan(0)
     expect(res.back.indices.length).toBeGreaterThan(0)
     expect(res.frontExplodeOffset).toBe(0)
+  })
+})
+
+describe('package entry re-export', () => {
+  // B3 correction (2026-10-06): the editor-side mesh aggregate (`editorCad`) is gone;
+  // single implementations are re-exported from the package entry by name. Pin the
+  // alias to the same function so entry and implementation cannot drift apart.
+  it('meshSplit is the same function as mesh/fai_split.split', () => {
+    expect(meshSplit).toBe(split)
   })
 })

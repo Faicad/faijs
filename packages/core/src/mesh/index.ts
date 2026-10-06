@@ -1,5 +1,5 @@
 /**
- * mesh — 纯数据几何 API 统一入口
+ * mesh — 纯数据几何内核（按模块组织的实现层）
  *
  * See docs/api-contract.md §1 (architecture layers) and §10 (api function catalog).
  *
@@ -9,88 +9,26 @@
  * 3. 同步签名、异步执行：API 签名同步（或 async）；worker 边界由 ScriptEngine 处理
  * 4. 坐标系：右手系 +Z 向上、毫米、角度用度
  *
- * P1 阶段：mesh 是对现有纯函数的薄包装层，行为完全不变。
- * P3+ 阶段：mesh 将由 ScriptEngine 驱动，在 worker 中执行。
- */
-
-import * as primitives from './primitives'
-import * as brepPrimitives from '../brep/primitives-brep'
-import * as brepOps from '../brep'
-import * as booleanOps from './boolean'
-import * as engraveOps from './engrave'
-import * as transformOps from './transform'
-import * as queryOps from './query'
-import * as ioOps from './io'
-
-// ── 统一 cad API 对象 ──
-
-/**
- * Unified `cad` API object aggregating the pure-data mesh operations: mesh and
- * BREP primitives, transforms, booleans, engrave/knurl, geometry queries, file
- * IO, and BREP feature operations.
+ * ⚠️ B3 补正（2026-10-06，用户决定）：本文件**不再导出任何聚合对象**。
  *
- * D1（2026-09-23 扩展库拆分）：`text` / `svgExtrude` / `fai_*` 键已随
- * `@faicad/faijs-extra` 迁出——它们的实现在扩展库的 mesh 面（`editorCad`）。
+ * 此前这里有一个把 primitives / brep / transform / boolean / engrave / query / io
+ * 全量聚合进来的对象（曾名 `cad`，B3 一度改名 `meshCad`）。它把内核实现包装成一个
+ * 「形似平台 API」的门面，使下游（含本仓测试）能 `import { cad } from '../mesh'`
+ * 把内核当成 faijs 的公开 API——这正是要根除的混淆。改名只是换了张皮，因此聚合
+ * 对象已整体删除，不再以任何名字存在。
+ *
+ * 要哪一层的实现，就从对应模块具名导入：
+ * - `mesh/primitives`   box / sphere / cylinder / cone / wedge / screw / sdf
+ * - `mesh/transform`    translate / rotate_euler / scale / scale3d / transformMatrix
+ * - `mesh/boolean`      union / subtract / intersect
+ * - `mesh/engrave`      engrave / knurl
+ * - `mesh/query`        boundingBox / bboxCenter / volume / faceAt
+ * - `mesh/io`           importFile / detectStepUnit
+ * - `brep`、`brep/primitives-brep`  BREP（OCCT）路径
+ *
+ * 注意：脚本面的 `cad`（宿主经 `registerLib('cad', …)` 注入的 op 命名空间）与这一层
+ * 是两回事——它不在这里，也不该被这里 import。见 AGENTS.md「库开发者 vs 脚本开发者」。
  */
-export const cad = {
-  // 创建（mesh 路径）
-  box: primitives.box,
-  sphere: primitives.sphere,
-  cylinder: primitives.cylinder,
-  cone: primitives.cone,
-  wedge: primitives.wedge,
-  screw: primitives.screw,
-  sdf: primitives.sdf,
-
-  // 创建（BREP 路径 — OCCT 精确实体三角化）
-  boxBrep: brepPrimitives.boxBrep,
-  sphereBrep: brepPrimitives.sphereBrep,
-  cylinderBrep: brepPrimitives.cylinderBrep,
-  coneBrep: brepPrimitives.coneBrep,
-  wedgeBrep: brepPrimitives.wedgeBrep,
-
-  // 变换
-  translate: transformOps.translate,
-  rotate_euler: transformOps.rotate_euler,
-  scale: transformOps.scale,
-  scale3d: transformOps.scale3d,
-  transformMatrix: transformOps.transformMatrix,
-
-  // 布尔
-  union: booleanOps.union,
-  subtract: booleanOps.subtract,
-  intersect: booleanOps.intersect,
-
-  // 分割
-  // `fai_*` 键（编辑器消费面）已随扩展库迁出：@faicad/faijs-extra 的 mesh 面
-  // 经 `mesh/fai_split.ts` / `mesh/fai_drill.ts` / `mesh/fai_extrude.ts` 提供。
-
-  // 雕刻
-  engrave: engraveOps.engrave,
-  knurl: engraveOps.knurl,
-
-  // 查询
-  boundingBox: queryOps.boundingBox,
-  bboxCenter: queryOps.bboxCenter,
-  volume: queryOps.volume,
-  faceAt: queryOps.faceAt,
-
-  // IO
-  load: ioOps.importFile,
-
-  // BREP 特征操作（Phase 2 — OCCT 精确实体运算）
-  translateBrep: brepOps.translateBrep,
-  rotateBrep: brepOps.rotateBrep,
-  scaleBrep: brepOps.scaleBrep,
-  fuseBrep: brepOps.fuseBrep,
-  cutBrep: brepOps.cutBrep,
-  commonBrep: brepOps.commonBrep,
-  drillBrep: brepOps.drillBrep,
-  splitBrep: brepOps.splitBrep,
-  extrudeBrep: brepOps.extrudeBrep,
-  loadBrep: brepOps.loadBrep,
-  solidToShape: brepOps.solidToShape,
-}
 
 // ── 类型导出 ──
 

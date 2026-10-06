@@ -9,7 +9,8 @@
  */
 
 import type { Shape } from '../mesh/types'
-import { cad } from '../mesh'
+// B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
+import * as meshBoolean from '../mesh/boolean'
 import { solidToShape } from '../brep/brep-ops'
 import {
   booleanWithRoleTable,
@@ -260,14 +261,14 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
     if (inputs.length === 1) return inputs[0]
     throw new Error('[api/boolean] boolean needs at least 1 input')
   }
-  if (operation === 'union') return cad.union(inputs[0], inputs[1], ...inputs.slice(2))
+  if (operation === 'union') return meshBoolean.union(inputs[0], inputs[1], ...inputs.slice(2))
   if (operation === 'subtract') {
-    let result = await cad.subtract(inputs[0], inputs[1])
-    for (let i = 2; i < inputs.length; i++) result = await cad.subtract(result, inputs[i])
+    let result = await meshBoolean.subtract(inputs[0], inputs[1])
+    for (let i = 2; i < inputs.length; i++) result = await meshBoolean.subtract(result, inputs[i])
     return result
   }
-  let result = await cad.intersect(inputs[0], inputs[1])
-  for (let i = 2; i < inputs.length; i++) result = await cad.intersect(result, inputs[i])
+  let result = await meshBoolean.intersect(inputs[0], inputs[1])
+  for (let i = 2; i < inputs.length; i++) result = await meshBoolean.intersect(result, inputs[i])
   return result
 }
 

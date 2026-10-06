@@ -10,7 +10,8 @@ import type { Shape, Vec3 } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { AssetResolver } from '../cad-runtime/ports'
-import { cad } from '../mesh'
+// B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
+import * as meshEngrave from '../mesh/engrave'
 import { parseSvgNaturalSize } from '../primitives/parse-svg-size'
 import { textToSolid } from '../brep/text/text-to-solid'
 import { svgToSolid } from '../brep/svg/svg-to-solid'
@@ -206,7 +207,7 @@ export const engrave = defineOp({
     const { naturalWidth, naturalHeight } = svgText ? parseSvgNaturalSize(svgText) : { naturalWidth: 0, naturalHeight: 0 }
     const hasText = !!(params.text as string | undefined)
 
-    return cad.engrave(input, {
+    return meshEngrave.engrave(input, {
       mode: (params.mode as 'convex' | 'concave' | undefined) ?? 'concave',
       depth: params.depth as number,
       face: { center: faceCenter, normal: faceNormal },

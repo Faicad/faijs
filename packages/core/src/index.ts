@@ -40,7 +40,9 @@ export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
 export type { StepExportEntry } from './brep/export/step'
 
 // ── L1 Mesh ──
-export { cad } from './mesh'
+// B3 correction (2026-10-06): no `cad` / `meshCad` aggregate is exported from the library
+// face. `cad` belongs to the script face (host-injected ops); TS consumers import
+// per-module from `@faicad/faijs/mesh/*`.
 // 宿主注入的 mesh 装饰几何（cad.engrave 的文字/SVG 几何链在 @faicad/faijs-extra）
 export { setEngraveDecorationProvider, getEngraveDecorationProvider } from './mesh/decoration-provider'
 export type { EngraveDecorationProvider, EngraveDecorationParams } from './mesh/decoration-provider'
