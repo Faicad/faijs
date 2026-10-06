@@ -48,8 +48,7 @@
 
 | 批 | 内容 | 验收判据 |
 |---|---|---|
-| **E-1** | 根因最小复现：core 侧单测，用 Sliding_door 形态（`import_brep` 声明 + `mirror` 消费）构造 StatementSummary 断言 `lineConsumes` 返回值，定位 R2/R4/R5 哪层漏 | 复现测试变红，且能指出具体规则层 |
-| **E-2** | 修复消费判定（按 E-1 结论），回归 `live-shapes.test.ts` 全绿 | 25 样本的形态单测全过；**静态判据**：消费判定是纯静态语法分析，无运行期试探 |
+| **E-1** | 根因最小复现：core 侧单测，用 Sliding_door 形态（`import_brep` 声明 + `mirror` 消费）构造 StatementSummary 断言 `lineConsumes` 返回值，定位 R2/R4/R5 哪层漏 | ✅ **已完成（2026-10-06）**。`packages/core/test/cad-runtime/live-shapes.test.ts` 新增 7 个复现用例（mirror/circularPattern/linearPattern/place × import_brep + fillet 链 + compound 并存 + R5 扫描锚点）**全部通过** ⇒ **漏判不在 R1–R6 扫描层**——`lineConsumes`/`computeLiveShapes` 对泄漏形态判定正确。**真正根因：op 内建 keep**。replicate 族 op 函数体显式声明 `keep(input)`（`api/replicate.ts:151/162/…/507` mirror；`:148` circularPattern；`api/pattern.ts:108/:115` linearPattern，注释明言 "copy-like keep semantics: replicate ops preserve their source shape"）⇒ 执行期经 KeepRegistry 登记到调用行 ⇒ **R1 短路「不消费」** ⇒ 源 shape 存活为（隐藏）终端。这与 boolean `keepHidden`（既有 C0/C1 机制锚点用例，TS35 solids 1vsN 的根因）**同族同机制**——是刻意设计，非扫描缺陷。fcstd 侧 D-1 双重导出是「replicate 保留源」语义与「assembly 已含变换后副本」的转换产物叠加的结果 ⇒ **修复方向修正**：不是改 `lineConsumes`，而是二选一：(a) fcstd 转换侧（本仓 codegen）在发射 mirror/pattern 后不再让源变量成为 assembly 之外的独立终端；(b) core 侧 replicate 族 keep 语义改为 keepHidden(false) 之外的第三态或由宿主决定。**E-2 待重新定题**（见 §4a） |
 | **E-3** | 重编号（§3 表）单独 commit：代码注释 + 方案文档 + 测试名 | grep 无残留 C0/C2/C3/C4/C5 提法（docs+src） |
 | **E-4** | 25 样本探针复测（fcstd-port `_d2-probe-terminals.mts`，单样本级） | 每样本导出面不再含被消费变量；assembly 不变 |
 | **E-5** | 全量 parity 复跑 | **须用户批准**（不自动跑）；判据：PASS 集合只增不减、area 类 FAIL 显著下降 |

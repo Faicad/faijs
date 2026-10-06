@@ -247,4 +247,77 @@ describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（C4）', () =>
     // 即使外部误传了不存在的行号登记，也不影响（找不到 line 时忽略）
     expect(liveShapeNames(code, undefined, new Map([[99, 'part0']]))).toEqual(['part0'])
   })
+
+  // E-1 最小复现（D-1 泄漏，2026-10-06）：fcstd 语料 25 产品实测——
+  // `let X = cad.import_brep(...)`（资产声明）随后被 mirror/pattern 的
+  // positional 首参消费，X 却仍是终端（ Leakage 见 fcstd-port out/d2-anatomy.txt）。
+  // 用例按泄漏形态逐 op 构造；哪条断言红，漏判就在哪一层。
+  describe('E-1 repro: D-1 泄漏形态（import_brep/extrude + 修饰型 op 消费）', () => {
+    it('mirror 消费 import_brep 声明 → 仅 mirroring 终端（Sliding_door 形态）', () => {
+      const code = [
+        'let part0 = cad.import_brep({ asset: "PartShape" })',
+        'let mir = cad.mirror(part0, { normal: [0, 1, 0], at: [0, 150, 0] })',
+      ].join('\n')
+      expect(liveShapeNames(code)).toEqual(['mir'])
+    })
+
+    it('circularPattern 消费 import_brep 声明 → 仅 pattern 终端（45x45/Futaba 形态，泄漏最多样本族）', () => {
+      const code = [
+        'let part0 = cad.import_brep({ asset: "PartShape" })',
+        'let pat = cad.circularPattern(part0, [1, 0, 0], 4, 360)',
+      ].join('\n')
+      expect(liveShapeNames(code)).toEqual(['pat'])
+    })
+
+    it('linearPattern 消费 import_brep 声明 → 仅 pattern 终端（arduino-mega 形态）', () => {
+      const code = [
+        'let part0 = cad.import_brep({ asset: "PartShape" })',
+        'let pat = cad.linearPattern(part0, [1, 0, 0], 18, 2.54)',
+      ].join('\n')
+      expect(liveShapeNames(code)).toEqual(['pat'])
+    })
+
+    it('place 消费 import_brep 声明 → 仅 placed 终端（pin-header 形态）', () => {
+      const code = [
+        'let part0 = cad.import_brep({ asset: "PartShape" })',
+        'let placed = cad.place(part0, { rotation: [0, 0, 0, 1], position: [1, 2, 3] })',
+      ].join('\n')
+      expect(liveShapeNames(code)).toEqual(['placed'])
+    })
+
+    it('mirror 消费 fillet/extrude 声明 → 仅 mirroring 终端（fillet 2 / extrude 4 样本形态）', () => {
+      const code = [
+        'let base = cad.box(20, 20, 20, { centered: true })',
+        'let fil = cad.fillet(base, { edges: [cad.edgeRef(base, 0)], radius: 2 })',
+        'let mir = cad.mirror(fil, { normal: [0, 1, 0], at: [0, 0, 0] })',
+      ].join('\n')
+      expect(liveShapeNames(code)).toEqual(['mir'])
+    })
+
+    it('compound 组装 + 修饰型消费并存 → 被消费变量不因 compound 成员身份而免判（pololu 形态）', () => {
+      const code = [
+        'let part0 = cad.import_brep({ asset: "PartShape" })',
+        'let pat = cad.linearPattern(part0, [1, 0, 0], 8, 2.54)',
+        'let other = cad.import_brep({ asset: "PartShape2" })',
+        'let assembly = cad.compound({ members: [other, pat] })',
+      ].join('\n')
+      // part0 被 pattern 消费 → 不终端；compound members 组装不是消费，
+      // other/pat 经 assembly 导出 → 终端 = other? 否——compound 成员不单列，
+      // computeLiveShapes 的候选不含 compound 自身时 members 即终端。
+      const names = liveShapeNames(code)
+      expect(names).not.toContain('part0')
+    })
+
+    it('R5 锚点：mirror 首参 VarRef 是 positional 顶层引用（被消费的机制依据）', () => {
+      // 直接断言 lineConsumes 的扫描行为——若此用例红而上面绿，
+      // 说明漏判不在扫描层，而在 lines 提取/keep 表等上游。
+      const meta = extractMetadata([
+        'let part0 = cad.import_brep({ asset: "A" })',
+        'let mir = cad.mirror(part0, { normal: [0, 1, 0], at: [0, 0, 0] })',
+      ].join('\n'))
+      const mir = meta.lines.find((l) => l.callee?.endsWith('mirror'))!
+      expect(mir).toBeDefined()
+      expect(mir.positional.some((a) => a.kind === 'var-ref' && (a as { name: string }).name === 'part0')).toBe(true)
+    })
+  })
 })
