@@ -40,7 +40,7 @@ import { SCRIPT_UNIT_NAMES } from '../units'
 import { CadRuntime } from '../cad-runtime/runtime'
 import { DirectExecutor } from '../cad-runtime/direct-executor'
 import type { HostPorts } from '../cad-runtime/ports'
-import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
+import { createApiNamespaceWithEditorOps } from '../../test/support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as unknown as HostPorts
