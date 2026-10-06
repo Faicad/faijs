@@ -236,6 +236,14 @@ export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resol
 //    常量组合器（§5.2），顶层平铺不变。
 export * from './api'
 export { createApiNamespace } from './api/api-namespace'
+// B5 (2026-10-06): unit constants re-exported from the main entry. In the script
+// face they are import-free globals (S4_SAFE_GLOBALS subset); TS consumers now
+// get the same names here instead of hunting for the /units subpath.
+export {
+  MM, CM, M, MICRON, INCH, FOOT, YARD,
+  DEGREE, RADIAN,
+  SCRIPT_UNIT_NAMES,
+} from './units'
 // Vec3 双源消歧：env-agnostic（lang/types）与 api（mesh/types）均有 Vec3，
 // 显式 re-export 定为 lang 版（与收敛前 index.ts 的具名导出一致）。
 export type { Vec3 } from './lang/types'

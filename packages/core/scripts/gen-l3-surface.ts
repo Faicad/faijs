@@ -343,7 +343,7 @@ function renderImports(entries: ArgSpecEntry[]): string[] {
 }
 
 function renderModuleHeader(module: string, count: number, skipped: number): string {
-  return `/**\n * generated/${module}.ts — 生成文件，勿手改。\n * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。\n * ${module} 模块：${count} 个投影符号${skipped > 0 ? `；另有 ${skipped} 个 skip 登记` : ''}。\n */\n`
+  return `/**\n * generated/${module}.ts — 生成文件，勿手改。\n * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。\n * ${module} 模块：${count} 个投影符号${skipped > 0 ? `；另有 ${skipped} 个 skip 登记` : ''}。\n * A6（2026-10-06）口径指认：本文件是 brepjs 投影面的**增量**清单；脚本面全集的\n * 权威来源是 generated/script-face.ts + gen-symbol-table 产物\n * lang/symbol-table.generated.ts（cad 脚本面 95 op）。两个清单回答不同问题，\n * 互不为超集——禁止用本文件的名字反推脚本面能力。\n */\n`
 }
 
 /**

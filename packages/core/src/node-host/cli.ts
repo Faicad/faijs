@@ -115,8 +115,12 @@ const cliPortsLibLoader: LibLoader = {
   },
 }
 
-/** 注入 libLoader 到 node ports（CLI 宿主白名单装载）。 */
-function withCliLibLoader(ports: HostPorts): HostPorts {
+/**
+ * 注入 libLoader 到 node ports（CLI 宿主白名单装载）。Exported for executeScript (B6).
+ * @param ports - Node host ports to augment with the CLI lib loader.
+ * @returns The augmented ports (`libLoader` set to the CLI scoped-package loader).
+ */
+export function withCliLibLoader(ports: HostPorts): HostPorts {
   return { ...ports, libLoader: cliPortsLibLoader }
 }
 

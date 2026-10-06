@@ -120,6 +120,11 @@ const c = cad.cone(10, 0, 30, { centered: true, at: [0, 0, 20], segments: 64 })
 
 点集构造 → Result(Solid)，单产物，brep-op
 
+> ⚠️ **`convexHull` ≠ OpenSCAD 的 `hull`**（B7，2026-10-06）：本 op 只收**点集**
+> （`Vec3[]`，喂 Shape 会报 `points.map is not a function`）；OpenSCAD 的
+> `hull()` 收**任意子节点**（2D/3D shape）做凸包。两者不可互相替代。若未来要支持
+> 「对 shape 求凸包」的语义，应另起新名（如 `hullOfShapes`），不改变 `convexHull` 的既有语义。
+
 ```js
 convexHull(points: Vec3[]): Shape
 ```

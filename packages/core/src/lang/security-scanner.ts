@@ -142,6 +142,13 @@ const S3_MEMBERS = new Set<string>([
  * S4 安全全局白名单（固定清单，strict 与 balanced 相同）。
  * 不在此名单且不在已声明/knownNames 中的标识符 → SEC_FREE_IDENT 拒绝。
  * 导出供解释器后端（cad-runtime/interp/env.ts）做同序解析。
+ *
+ * A4（2026-10-06）口径指认：本清单回答「这个裸标识符是否被**安全门禁**允许
+ * （免 import）」。它不是 `lang/determinism-scanner.ts` 里 SAFE_CONTAINERS /
+ * SAFE_FUNCTIONS 的超集或子集——那边回答的是另一个问题（成员调用是否传播
+ * 污点，含 Intl / Reflect / encodeURI 等本名单不放行的名字）。禁止用对方的
+ * 名字反推本清单语义；扩边（放行 Intl / Reflect / URI 编解码）属安全面策略
+ * 决定，须先拍板再改。
  */
 export const S4_SAFE_GLOBALS = new Set<string>([
   'Math', 'Number', 'String', 'Boolean', 'Array', 'Object', 'JSON', 'Date',

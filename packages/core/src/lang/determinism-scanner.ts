@@ -95,6 +95,12 @@ const SOURCE_IDENTS = new Set<string>(['Date', 'crypto', 'getRandomValues', 'per
 /**
  * Safe containers: member calls on these neither violate nor introduce taint;
  * taint only propagates through their arguments (pure/observable-only globals).
+ *
+ * A4 (2026-10-06) cross-reference: this list answers "does a member call on this
+ * global propagate taint" — a DIFFERENT question from `S4_SAFE_GLOBALS` in
+ * `security-scanner.ts` ("is this bare identifier admitted without import").
+ * Neither is a superset of the other (this has Intl/Reflect; that has Date/
+ * Infinity/NaN/undefined). Do not derive either list from the other.
  */
 const SAFE_CONTAINERS = new Set<string>([
   'console', 'Math', 'JSON', 'Number', 'String', 'Boolean', 'Object', 'Array',

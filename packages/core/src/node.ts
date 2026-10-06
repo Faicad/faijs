@@ -27,6 +27,10 @@ export { readFileArrayBuffer } from './io/bytes-node'
 export { CliEventSink } from './node-host/cli-event-sink'
 export { cliCheck, cliRun, cliMain, parseArgs } from './node-host/cli'
 export type { CliCheckResult, CliRunResult, CliRunOptions } from './node-host/cli'
+// B6 (2026-10-06): first-class "code string → outputs" execution API — host
+// assembly (node ports + libLoader + OCCT BREP engine) is done internally.
+export { executeScript } from './node-host/execute-script'
+export type { ExecuteScriptOptions, ExecuteScriptResult } from './node-host/execute-script'
 
 // ── TopoRef 命名层（§3.7/§3.8：命名属于核心公共能力，随 browser/node 走）──
 export * from './topology/naming'

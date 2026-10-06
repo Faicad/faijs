@@ -16,6 +16,11 @@
  *   type    : `export type { … } from '<vendored>'` re-export
  *   skip    : 登记跳过（divergence：语义 faijs 面无法表达 / 已由 faijs 既有 op 覆盖），带 reason
  *
+ * A6（2026-10-06）口径指认：本表 + 生成的 generated/*.ts 是 brepjs 投影面的
+ * **增量**清单；cad 脚本面的**全集**清单权威来源是 generated/script-face.ts
+ * （scriptFace: true 条目）与 lang/symbol-table.generated.ts（95 op）。两个清单
+ * 回答不同问题、互不为超集——禁止互相反推。
+ *
  * 双形态（E2）：同名符号由生成器注入 `normalizeArgs` 判别器（faijs 对象形态 ↔ brepjs
  * 位置形态），适配表给 faijs 形参映射；本文件首批样本聚焦「faijs 无同名」的纯新增符号，
  * 双形态条目随 §5.1 同名处置逐批加入（P14 分批）。
