@@ -12,7 +12,7 @@
  *
  * ```
  * cad.box(10 * MM, 1, 1)     → 放行（MM 在 SCRIPT_UNIT_NAMES 里）
- * cad.box(Math.PI, 1, 1)     → 抛 E_REFERENCE: unknown identifier "Math"   ← 缺陷
+ * cad.box(Math.PI, 1, 1)     → 放行（Math 在 S4_SAFE_GLOBALS 里；曾因判定点漏放行走 E_REFERENCE，已修复）
  * ```
  *
  * 后果：`Math.max(x, 20)`、`JSON.parse(...)`、`{ center: Math.PI > 3 }` 只要出现在

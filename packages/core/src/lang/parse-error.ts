@@ -24,6 +24,10 @@ export type ParseErrorCode =
   | 'E_ARG'
   /** 安全门禁违规（SecurityScanner 命中：危险标识符 / 危险语法 / 自由标识符等） */
   | 'E_SECURITY'
+  /** 免 import 安全全局（S4_SAFE_GLOBALS）被某判定点漏放行——应放行却误判为未知（A3）。
+   *  与 E_REFERENCE 区分：真未知标识符仍是 E_REFERENCE；此码说明「这是 faijs 判定点缺陷，
+   *  不是你的代码问题」，把错误引向正确方向（见统一入口 S4_SAFE_GLOBALS / 计划 A1）。 */
+  | 'E_GLOBAL_NOT_ADMITTED'
   /** P6/D8: 有量纲位收到裸数字字面量（dimension pass） */
   | 'E_DIM_BARE_NUMBER'
   /** P6/D8: 可判定量纲的两侧量纲不一致（dimension pass） */

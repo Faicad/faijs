@@ -198,6 +198,34 @@ function looseEq(a: unknown, b: unknown): boolean {
   return x === y
 }
 
+/**
+ * 引用解析失败时的错误分类（A3）：裸标识符既非参数也非已声明变量。
+ *
+ * - 若它是免 import 安全全局（`isSafeGlobalIdent`，即 `S4_SAFE_GLOBALS` 成员），给出独立错误码
+ *   `E_GLOBAL_NOT_ADMITTED` 与诚实文案，指明「这是 faijs 的判定点缺陷，不是你的代码问题」，
+ *   并指向统一入口（`S4_SAFE_GLOBALS` / 计划 A1）——错误信息不再把调用方引向「这语言没有 Math」
+ *   的相反结论。
+ * - 真未知标识符仍给 `E_REFERENCE`，语义不变。
+ *
+ * 各判定点（collectExprIdentifiers / parseValueExpr / shorthand / 位置实参）已优先放行安全全局；
+ * 本函数是其兜底：若某个判定点漏放行，错误也必须是诚实的，而非误导性的「unknown identifier」。
+ *
+ * @param name 被拒绝的裸标识符名。
+ * @param line 行号。
+ * @param where 出错位置描述（拼进 E_REFERENCE 文案；安全全局分支忽略）。
+ * @returns 永不返回（总是抛 ParseError）。
+ */
+export function throwReferenceError(name: string, line: number, where: string): never {
+  if (isSafeGlobalIdent(name)) {
+    throw new ParseError(
+      `"${name}" 是免 import 安全全局（见统一入口 S4_SAFE_GLOBALS / 计划 A1），但本判定点未放行它——这是 faijs 判定点的缺陷，不是你的代码问题`,
+      line,
+      'E_GLOBAL_NOT_ADMITTED',
+    )
+  }
+  throw new ParseError(`unknown identifier "${name}" ${where}`, line, 'E_REFERENCE')
+}
+
 function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
   switch (node.type) {
     case 'Literal':
@@ -411,7 +439,7 @@ export function collectExprIdentifiers(
       } else if (opts?.lenient === true) {
         // lenient：未知标识符跳过（ArgSource 记录路径，保证提取不抛新错）
       } else {
-        throw new ParseError(`unknown identifier "${name}" in expression`, line, 'E_REFERENCE')
+        throw throwReferenceError(name, line, 'in expression')
       }
       return
     }
@@ -762,11 +790,7 @@ function parseValueExpr(node: ASTNode, ctx: ValueParseCtx, path: string | null):
         ctx.symbols.declared.add(name)
         return { kind: 'var-ref', name } as unknown as HostArg
       }
-      throw new ParseError(
-        `unknown identifier "${name}" in args value (not a declared param or variable)`,
-        line,
-        'E_REFERENCE',
-      )
+      throw throwReferenceError(name, line, 'in args value (not a declared param or variable)')
     }
 
     case 'ArrayExpression': {
@@ -886,16 +910,16 @@ function parseObjectValue(node: ASTNode, ctx: ValueParseCtx, path: string | null
       if (ctx.symbols.paramNames.has(name)) {
         obj[key] = { kind: 'param-ref', name } as unknown as HostArg
         slotParams = [name]
+      } else if (isSafeGlobalIdent(name)) {
+        // 与 longhand `{ q: Math }`（parseValueExpr → parseGlobalIdentArg）一致：免 import 安全全局放行，
+        // 不再误报 E_REFERENCE / E_GLOBAL_NOT_ADMITTED（A3：同值 Math 在 longhand 已放行）。
+        obj[key] = parseGlobalIdentArg(name, prop.key, ctx) as unknown as HostArg
       } else if (ctx.looseVars) {
         ctx.symbols.declared.add(name)
         obj[key] = { kind: 'var-ref', name } as unknown as HostArg
         slotRefs = [name]
       } else {
-        throw new ParseError(
-          `unknown shorthand identifier "${key}" (not a declared param)`,
-          line,
-          'E_REFERENCE',
-        )
+        throw throwReferenceError(name, line, 'in shorthand object key (not a declared param)')
       }
       // P0-B：shorthand 槽（以属性名 == 变量名作 text，path = <base>.<key>，isExpression=false）
       if (path !== null) {
@@ -952,7 +976,7 @@ function parsePositionalArgs(
         out.push({ kind: 'var-ref', name } as unknown as HostArg)
         continue
       }
-      throw new ParseError(`unknown variable "${name}" in inputs`, lineOf(argNode), 'E_REFERENCE')
+      throw throwReferenceError(name, lineOf(argNode), 'in inputs')
     }
     if (argNode.type === 'SpreadElement') {
       recordArgSource(argNode.argument, ctx, slotPath)

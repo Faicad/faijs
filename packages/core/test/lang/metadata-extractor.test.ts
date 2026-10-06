@@ -7,9 +7,11 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { extractMetadata } from '../../src/lang/metadata-extractor'
+import { extractMetadata, throwReferenceError } from '../../src/lang/metadata-extractor'
 import { analyzeCode } from '../../src/lang/statement-summary'
 import { asStmtId } from '../../src/identity'
+import { ParseError } from '../../src/lang/parse-error'
+import { S4_SAFE_GLOBALS } from '../../src/lang/security-scanner'
 
 describe('extractMetadata: 行分类与表', () => {
   it('扁平 op 行 → lines；参数行 → params（不进 lines）', () => {
@@ -404,5 +406,53 @@ describe('extractMetadata: 装配语句识别（P2-f4）', () => {
     expect(l.namespace).toBe('mech')
     expect(l.isAssembly).toBeUndefined()
     expect(l.assembly).toBeUndefined()
+  })
+})
+
+describe('A3: 引用错误分类诚实化（E_GLOBAL_NOT_ADMITTED vs E_REFERENCE）', () => {
+  it('安全全局被某判定点漏放行 → E_GLOBAL_NOT_ADMITTED（诚实文案，不误导为「语言没有该全局」）', () => {
+    for (const name of ['Math', 'JSON', 'Number', 'Infinity', 'undefined'] as const) {
+      let err: ParseError | undefined
+      try {
+        throwReferenceError(name, 7, 'in test')
+      } catch (e) {
+        err = e as ParseError
+      }
+      expect(err, `${name} 必须抛 ParseError`).toBeInstanceOf(ParseError)
+      expect(err!.code, `${name} 必须是 E_GLOBAL_NOT_ADMITTED`).toBe('E_GLOBAL_NOT_ADMITTED')
+      expect(err!.message).toContain('免 import 安全全局')
+      expect(err!.message).toContain('S4_SAFE_GLOBALS')
+    }
+  })
+
+  it('真未知标识符 → 仍是 E_REFERENCE（语义不变）', () => {
+    let err: ParseError | undefined
+    try {
+      throwReferenceError('totally_unknown_xyz', 3, 'in test')
+    } catch (e) {
+      err = e as ParseError
+    }
+    expect(err).toBeInstanceOf(ParseError)
+    expect(err!.code).toBe('E_REFERENCE')
+    expect(err!.message).toContain('unknown identifier')
+  })
+
+  it('分类逻辑对 S4_SAFE_GLOBALS 全集自洽：每个成员都给 E_GLOBAL_NOT_ADMITTED', () => {
+    const mismatched: string[] = []
+    for (const name of S4_SAFE_GLOBALS) {
+      try {
+        throwReferenceError(name, 1, 'in test')
+      } catch (e) {
+        if ((e as ParseError).code !== 'E_GLOBAL_NOT_ADMITTED') mismatched.push(name)
+      }
+    }
+    expect(mismatched).toEqual([])
+  })
+
+  it('集成：shorthand 对象键里的免 import 安全全局被放行（修复「{ Math } 报 E_REFERENCE」）', () => {
+    // 曾经 `{ Math }` 在提取阶段抛 E_REFERENCE "unknown shorthand identifier" —— 与 longhand
+    // `{ q: Math }` 放行形态矛盾，且文案误导为「Math 不认识」。现与 longhand 一致放行。
+    expect(() => extractMetadata('let p = { Math }')).not.toThrow()
+    expect(() => extractMetadata('let p = cad.box(1, 1, 1, { center: Math.PI > 3 })')).not.toThrow()
   })
 })
