@@ -165,7 +165,7 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / P1 移植树 / 平台 import 隔离' -Block {
+Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / 平台 import 隔离 / API 测试覆盖' -Block {
     node scripts/check-ghost-deps.mjs
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
@@ -191,6 +191,9 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     if ($LASTEXITCODE -ne 0) { return }
     # tsconfig paths 完整性：@faicad/* import 必须有显式映射，否则本地静默退回旧 dist、CI fresh checkout 报 TS2307
     node scripts/check-tsconfig-paths.mjs
+    if ($LASTEXITCODE -ne 0) { return }
+    # API 测试覆盖门禁：@faicad/faijs/@faicad/faijs-extra 每个导出函数必须被测试引用过（缺测即失败）
+    npx tsx packages/core/scripts/check-api-coverage.ts
 }
 
 Step -Label '6/9  demo e2e（dev server 模式，@faicad/* 走 workspace dist）' -Block {

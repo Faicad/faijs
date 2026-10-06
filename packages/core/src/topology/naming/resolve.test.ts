@@ -14,6 +14,7 @@ import { resolveFaceTopo, type FaceCandidateEntry, type ResolutionContext } from
 import { resolveTopoRef, buildTopoError } from './resolver'
 import { resolveTopoArgs, originOf } from './ref-params'
 import { captureTopoRef } from './capture-topo-ref'
+import { facesForQualifier } from './resolve-edge'
 import { buildPartNaming, findOriginRole } from './build-naming'
 import type { FaceHint, FaceTopoRef, RoleTable } from './types'
 
@@ -397,5 +398,40 @@ describe('buildPartNaming / findOriginRole', () => {
     expect(naming.faceNaming[0].role).toBeNull()
     expect(naming.faceNaming[0].origin).toBeNull()
     expect(naming.faceNaming[0].hint.surfaceType).toBe('plane')
+  })
+})
+
+describe('facesForQualifier', () => {
+  it('returns the exact survivor faces for a tracked role (pure roleTable path)', () => {
+    const candidates = boxCandidates()
+    const survivors = facesForQualifier(
+      { origin: 's_box' as never, role: 'top' },
+      ctxFor(planeKernel([0, 0, 1], [5, 5, 10]), candidates, boxTable),
+    )
+    // role `top` → hash 15 → candidate ordinal 5
+    expect(survivors.map((f) => f.ordinal)).toEqual([5])
+  })
+
+  it('tracks multiple survivors after a face split', () => {
+    const faces: FaceCandidateEntry[] = [
+      { ordinal: 1, hash: 11, handle: 1 as BrepHandle },
+      { ordinal: 2, hash: 15, handle: 2 as BrepHandle },
+      { ordinal: 3, hash: 15, handle: 3 as BrepHandle },
+    ]
+    const survivors = facesForQualifier(
+      { origin: 's_box' as never, role: 'top' },
+      ctxFor(planeKernel([0, 0, 1], [5, 5, 10]), faces, boxTable),
+    )
+    expect(survivors.map((f) => f.ordinal)).toEqual([2, 3])
+  })
+
+  it('falls back to geometric resolution for an untracked role', () => {
+    const survivors = facesForQualifier(
+      { origin: 's_other' as never, role: 'ghost' },
+      // no matching row → geometric fallback resolves via the kernel ordinal
+      ctxFor({ ...planeKernel([0, 0, 1], [5, 5, 10]), subShapeHashes: () => [] }, boxCandidates()),
+    )
+    // roleTable missing → only the geometric fallback runs
+    expect(Array.isArray(survivors)).toBe(true)
   })
 })

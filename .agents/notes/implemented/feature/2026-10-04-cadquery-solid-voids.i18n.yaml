@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-04-cadquery-solid-voids.md
+2026-10-04-cadquery-solid-voids.md: a2a3a3da0ad314230cfb042cabbff0bbcb78f7b4
+2026-10-04-cadquery-solid-voids.zh.md: 9cf311c6b0c1ee1cb991792944e8b95e6a8d3148

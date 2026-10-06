@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-04-cadquery-imprint-fuseAll.md
+2026-10-04-cadquery-imprint-fuseAll.md: 465add5bf9f234facb176cf0a4bb3093917b98dc
+2026-10-04-cadquery-imprint-fuseAll.zh.md: b5bc6cde97c0370b84ff26d7066c8cb7efa81515

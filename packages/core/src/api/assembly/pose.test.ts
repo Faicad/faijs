@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   fromBrepjsQuat, toBrepjsQuat, poseToAssemblyTransform, quaternionToMatrix3,
+  jointPoseToAssemblyTransform, isIdentityPose, entityOrigin,
   type SolverPose, type BrepjsQuat,
 } from './pose'
 import { quatRotate } from './solvers/quat'
@@ -95,5 +96,32 @@ describe('T2: pivot 换算（§4.3b）', () => {
       expect(t.quaternion).toEqual(fromBrepjsQuat(rotation))
       expect(t.rotationMatrix).toEqual(quaternionToMatrix3(fromBrepjsQuat(rotation)))
     }
+  })
+})
+
+describe('jointPoseToAssemblyTransform / isIdentityPose / entityOrigin', () => {
+  it('jointPoseToAssemblyTransform maps FK pose to zero-pivot faijs transform', () => {
+    const t = jointPoseToAssemblyTransform(
+      { position: [10, 20, 30], rotation: [1, 0, 0, 0] }, // brepjs [w,x,y,z] identity
+      2,
+    )
+    expect(t.index).toBe(2)
+    expect(t.pivot).toEqual([0, 0, 0])
+    expect(t.translation).toEqual([10, 20, 30])
+    expect(t.quaternion).toEqual([0, 0, 0, 1])
+  })
+
+  it('isIdentityPose: true only for zero position and identity brepjs rotation', () => {
+    expect(isIdentityPose({ position: [0, 0, 0], rotation: [1, 0, 0, 0] })).toBe(true)
+    expect(isIdentityPose({ position: [1, 0, 0], rotation: [1, 0, 0, 0] })).toBe(false)
+    expect(isIdentityPose({ position: [0, 0, 0], rotation: [0.5, 0.5, 0.5, 0.5] })).toBe(false)
+  })
+
+  it('entityOrigin returns a copy of the solver entity origin', () => {
+    const e = { origin: [3, 4, 5] } as never
+    const o = entityOrigin(e)
+    expect(o).toEqual([3, 4, 5])
+    o[0] = 99 // mutating the copy must not leak back
+    expect((e as { origin: number[] }).origin[0]).toBe(3)
   })
 })
