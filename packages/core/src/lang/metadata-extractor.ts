@@ -23,7 +23,7 @@ import type { HostArg, HostCallRef, HostRef } from './host-arg'
 import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef } from './host-arg'
 import { ParseError } from './parse-error'
 import { fnv1a32 } from './fnv-hash'
-import { assertSecure, type SecurityPolicy } from './security-scanner'
+import { assertSecure, isSafeGlobalIdent, type SecurityPolicy } from './security-scanner'
 import type { DimName } from '../units'
 import { SCRIPT_UNIT_NAMES, UNIT_DIM, UNIT_SCALE, SCRIPT_UNIT_TO_NAME } from '../units'
 
@@ -120,9 +120,13 @@ export interface UiMetadata {
    */
   argSources: ArgSource[]
   /**
-   * 本脚本内可被表达式引用的名字（词法序去重）：
-   * paramNames ∪ declared ∪ nsBindings ∪ localFnParams。
+   * 本脚本内可被表达式引用的名字（词典序去重）：
+   * paramNames ∪ declared ∪ nsBindings ∪ localFnParams ∪ 单位常量。
    * `validateExpression` / `editArgSource` 用它做 E_REFERENCE 判定。
+   *
+   * 注意：S4 免 import 安全全局（Math / JSON / Number / console / Infinity / …）**不**入此表——
+   * 它们不属于脚本作用域，`collectExprIdentifiers` 已借 `isSafeGlobalIdent` 无条件放行；
+   * 列进来反而会让宿主把它们当成脚本变量（联想/重命名都会误伤）。
    */
   names: string[]
 }
@@ -358,7 +362,8 @@ export function isExprWhitelist(node: ASTNode): boolean {
 }
 
 /**
- * 递归收集表达式引用：参数 → params；已声明变量 → refs；未知 → E_REFERENCE。
+ * 递归收集表达式引用：参数 → params；已声明变量 → refs；
+ * 免 import 安全全局/单位常量 → 只放行、不记入（见下方分支注释）；未知 → E_REFERENCE。
  *
  * opts（可选扩展；缺省时行为与历史完全一致）：
  * - `lenient: true`：未知标识符不抛错（静默跳过）——ArgSource 记录路径用，
@@ -396,6 +401,13 @@ export function collectExprIdentifiers(
         // P6/D7: unit constants (MM, INCH, DEGREE, …) are global read-only constants.
         // Treat as a known reference — do not throw E_REFERENCE.
         refs.add(name)
+      } else if (isSafeGlobalIdent(name)) {
+        // 2026-10-06 修复：先前的白名单只内联了单位常量，漏掉 S4_SAFE_GLOBALS 的其余
+        // 免 import 安全全局（Math / JSON / Number / console / Infinity / undefined / …），
+        // 导致 `cad.box(Math.max(x, 20), 1, 1)` 在提取阶段就抛 E_REFERENCE —— 与 S4 门禁
+        // 「Math 合法」直接矛盾，整个脚本连执行都进不去。
+        // 这里只判定「合法」，**不**记入 params/refs：它们是 JS 全局，不是脚本作用域变量，
+        // 记入会让宿主依赖分析（summary.refs / ArgSource.refs）产生幻影依赖。
       } else if (opts?.lenient === true) {
         // lenient：未知标识符跳过（ArgSource 记录路径，保证提取不抛新错）
       } else {
@@ -652,6 +664,41 @@ function recordArgSource(node: ASTNode, ctx: ValueParseCtx, path: string): void 
   })
 }
 
+/**
+ * 裸全局标识符实参解析（单位常量 + S4 免 import 安全全局）。
+ *
+ * 分别收口 `parseValueExpr` 与 `parsePositionalArgs` 的 Identifier 分支：两者此前
+ * 都把「不在 paramNames/declared 里」的裸标识符直接判为未声明变量（E_REFERENCE），
+ * 于是连 `cad.box(MM, 1, 1)` 这种合法写法也被拒。
+ *
+ * 返回 undefined 表示「不是全局名字」，交由调用方按变量引用/报错处理。
+ *
+ * 单位常量（MM/INCH/DEGREE/…）走静态折叠（与 `10 * MM` 同一路径，得折叠字面量 +
+ * computed 标记，源文本不回写，见 P7/D10.4）；其余安全全局（Math/JSON/console/
+ * Infinity/…）保留原文交给运行时求值（expr-ref），两个执行后端都能从 globalThis 解析。
+ * @param name 标识符名（须已判定为全局名字）。
+ * @param node 该标识符的 AST 节点（取源码区间做 expr-ref 文本）。
+ * @param ctx 值解析上下文（符号表 / computed 累积 / 源文本）。
+ * @returns 对应的 HostArg。
+ */
+function parseGlobalIdentArg(name: string, node: ASTNode, ctx: ValueParseCtx): HostArg | undefined {
+  if (!isSafeGlobalIdent(name)) return undefined
+  if (SCRIPT_UNIT_NAMES.has(name)) {
+    const r = tryFoldConstExpr(node, ctx.symbols)
+    if (r.ok) {
+      ctx.computed.value = true
+      return r.value as HostArg
+    }
+  }
+  ctx.computed.value = true
+  return {
+    kind: 'expr-ref',
+    text: ctx.sourceText.slice(node.start, node.end),
+    refs: [],
+    params: [],
+  } as unknown as HostArg
+}
+
 function parseValueExpr(node: ASTNode, ctx: ValueParseCtx, path: string | null): HostArg {
   if (!node) throw new ParseError('missing value expression', 1, 'E_VALUE')
   const line = lineOf(node)
@@ -709,6 +756,8 @@ function parseValueExpr(node: ASTNode, ctx: ValueParseCtx, path: string | null):
       if (ctx.symbols.declared.has(name)) {
         return { kind: 'var-ref', name } as unknown as HostArg
       }
+      const globalArg = parseGlobalIdentArg(name, node, ctx)
+      if (globalArg !== undefined) return globalArg
       if (ctx.looseVars) {
         ctx.symbols.declared.add(name)
         return { kind: 'var-ref', name } as unknown as HostArg
@@ -891,6 +940,11 @@ function parsePositionalArgs(
       const name = argNode.name
       if (ctx.symbols.declared.has(name)) {
         out.push({ kind: 'var-ref', name } as unknown as HostArg)
+        continue
+      }
+      const globalArg = parseGlobalIdentArg(name, argNode, ctx)
+      if (globalArg !== undefined) {
+        out.push(globalArg)
         continue
       }
       if (ctx.looseVars) {
@@ -1505,6 +1559,8 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
   // P0-B：名称集合 = 参数 ∪ 已声明变量 ∪ 命名空间绑定 ∪ 本地函数名 ∪ 单位常量（字典序去重）。
   // 宿主把「参数表达式」中的未知标识符当作参数名（期望名）处理时用它做联想。
   // P6/D7：单位常量名（MM, INCH, DEGREE, …）加入 knownNames，使表达式实时校验通过。
+  // 2026-10-06：其余 S4 安全全局（Math / JSON / console / …）不入此表——引用合法性由
+  // collectExprIdentifiers + isSafeGlobalIdent 判定，与 knownNames 无关（见 names 字段注释）。
   const names = [
     ...new Set([
       ...symbols.paramNames,

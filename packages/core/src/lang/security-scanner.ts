@@ -160,6 +160,29 @@ export const S4_SAFE_GLOBALS = new Set<string>([
 ])
 
 /**
+ * 裸标识符是否命中「免 import 的安全全局」——`Math` / `JSON` / `Number` /
+ * `console` / `Infinity` / `NaN` / `undefined` / `parseInt` / … 以及单位常量
+ * `MM` / `INCH` / `DEGREE` / …（单位常量是 S4_SAFE_GLOBALS 的子集）。
+ *
+ * ⚠️ 这是**唯一**判定入口。该知识历史上散落在六处，其中四处只内联了单位常量表
+ * （`SCRIPT_UNIT_NAMES`）而漏掉 `S4_SAFE_GLOBALS`，于是同一份代码在安全门禁放行、
+ * 在提取层却抛 `E_REFERENCE`（2026-10-06 修复 `cad.box(Math.max(x, 20), 1, 1)`
+ * 整脚本不可执行）：
+ *   - `lang/security-scanner.ts`（S4 门禁）           → 完整
+ *   - `cad-runtime/interp/env.ts`（解释器后端）        → 完整
+ *   - `lang/metadata-extractor.ts`（提取/校验 ×3 处）  → 漏 → 已改调本函数
+ *   - `cad-runtime/direct-executor.ts`（前缀校验/发射） → 漏 → 已改调本函数
+ *   - `lang/code-to-args.ts`（单行提取哨兵）           → 漏 → 已改调本函数
+ *
+ * 新增判定点请一律调用本函数，**不要**再复制名单。
+ * @param name 待判定的裸标识符名。
+ * @returns 是免 import 安全全局 → true。
+ */
+export function isSafeGlobalIdent(name: string): boolean {
+  return S4_SAFE_GLOBALS.has(name)
+}
+
+/**
  * P6/D7: Reserved unit constant names — cannot be used as declaration names
  * (let/const/var/param/function) or assignment targets.
  * This is a subset of S4_SAFE_GLOBALS (the unit constants only, not Math/Number/etc).

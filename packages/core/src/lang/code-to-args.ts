@@ -22,6 +22,7 @@
 import type { HostArg } from './host-arg'
 import { extractMetadata, type OpDimMap } from './metadata-extractor'
 import { isHostRef } from './host-arg'
+import { isSafeGlobalIdent } from './security-scanner'
 import { SCRIPT_UNIT_NAMES, UNIT_SCALE, UNIT_DIM, SCRIPT_UNIT_TO_NAME } from '../units'
 import type { DimName, UnitName } from '../units'
 
@@ -51,7 +52,18 @@ function extractIdentifiers(line: string, namespaces?: Set<string>): string[] {
     // P7/D10.4: unit constants (MM, INCH, DEGREE, …) must NOT be pre-declared
     // as sentinel parameters (`let INCH = 0`), because that would shadow the
     // real global value and cause `10 * INCH` to fold to 0.
-    if (NON_DECL.has(id) || declared.has(id) || namespaces?.has(id) || SCRIPT_UNIT_NAMES.has(id)) continue
+    // 2026-10-06：其余免 import 安全全局（Math / JSON / Number / console / …）同理。
+    // 它们不是脚本参数，前置 `let Math = 0` 会让提取结果带上幻影参数引用
+    // （`cad.box(Math.PI, …)` → expr-ref params:['Math']），宿主会据此误判依赖。
+    if (
+      NON_DECL.has(id) ||
+      declared.has(id) ||
+      namespaces?.has(id) ||
+      SCRIPT_UNIT_NAMES.has(id) ||
+      isSafeGlobalIdent(id)
+    ) {
+      continue
+    }
     ids.add(id)
   }
   return [...ids]

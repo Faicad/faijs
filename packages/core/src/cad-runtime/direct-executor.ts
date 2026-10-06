@@ -31,7 +31,7 @@ import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransf
 import { getBrepApi } from '../brep/handle-bridge'
 import { runtimeLineage } from '../topology/naming/lineage'
 import { ExecutionLimitError } from './execution-limit-error'
-import { assertSecure, type SecurityPolicy } from '../lang/security-scanner'
+import { assertSecure, isSafeGlobalIdent, type SecurityPolicy } from '../lang/security-scanner'
 import { getSlot, ensureSlot, brepOf, isShape } from '../shape'
 import { isMeshShape, type Shape } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
@@ -41,7 +41,6 @@ import { applyTransformBrep } from '../brep/brep-ops'
 import type { TransformedUnit, ExecBackend, ExecBackendChoice } from './exec-backend'
 import { VmBackend } from './exec-backends/vm-backend'
 import { InterpBackend } from './exec-backends/interp-backend'
-import { SCRIPT_UNIT_NAMES } from '../units'
 
 type ASTNode = any
 
@@ -1135,6 +1134,11 @@ export class DirectExecutor {
     } else if (callee?.type === 'Identifier') {
       if (declared.has(callee.name) || this.hasCtxFn(callee.name)) {
         head = `await __ctx.${callee.name}`
+      } else if (isSafeGlobalIdent(callee.name)) {
+        // 2026-10-06：免 import 安全全局**函数**（Number / parseInt / parseFloat /
+        // isNaN / isFinite / String / Boolean / …）从 globalThis 解析，必须保持裸名调用。
+        // 否则会发射成 `await __ctx.Number(...)` → 运行时 "`__ctx.Number` is not a function"。
+        head = `await ${callee.name}`
       } else {
         // 本机函数尚未在 declared（append 前缀场景由调用方校验）→ 仍按 ctx 函数调用
         head = `await __ctx.${callee.name}`
@@ -1234,9 +1238,12 @@ export class DirectExecutor {
       case 'Literal':
         return JSON.stringify(node.value)
       case 'Identifier':
-        // P6/D7: unit constants (MM, INCH, DEGREE, …) are global read-only
-        // constants — emit as bare identifiers so they resolve from globalThis.
-        if (SCRIPT_UNIT_NAMES.has(node.name)) return node.name
+        // P6/D7 + 2026-10-06：免 import 安全全局（单位常量 MM / INCH / DEGREE / … 以及
+        // Math / JSON / Number / Infinity / …）从 globalThis 解析，保持裸名发射；否则会被
+        // 写成 `__ctx.Math`（undefined），求值结果静默变错。
+        // 已声明变量优先提升为 __ctx.<name>，使同名遮蔽（如 `let Math = 5`）仍按用户变量解析。
+        if (declared.has(node.name)) return `__ctx.${node.name}`
+        if (isSafeGlobalIdent(node.name)) return node.name
         return `__ctx.${node.name}`
       case 'CallExpression':
         return this.emitCall(node, code, declared, lineNo)
@@ -1337,7 +1344,12 @@ export class DirectExecutor {
     const walk = (n: ASTNode): void => {
       if (!n || typeof n !== 'object') return
       if (n.type === 'Identifier') {
-        if (!['undefined', 'NaN', 'Infinity'].includes(n.name)) refs.add(n.name)
+        // 2026-10-06：免 import 安全全局（Math / JSON / console / Infinity / undefined /
+        // NaN / parseInt / … 以及单位常量 MM / INCH / …）由 globalThis 提供，不是 ctx 变量。
+        // 原先只硬编码排除了 undefined/NaN/Infinity，导致 `cad.box(Math.PI, 1, 1)` 与
+        // `cad.box(console, 1, 1)`（以及单位常量 `cad.box(MM, 1, 1)`）在 append 前缀校验里
+        // 被误报为「缺失引用」→ AppendPrefixError。这里统一走 isSafeGlobalIdent。
+        if (!isSafeGlobalIdent(n.name)) refs.add(n.name)
         return
       }
       if (n.type === 'MemberExpression') {

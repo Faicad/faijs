@@ -6,7 +6,8 @@
  * - stmtId+path 无匹配 → E_SLOT_NOT_FOUND；
  * - 偏移量为防御性不变量（编辑每次对当前 code 重新提取，编辑总是落在当前文本）；
  * - 新文本语法错 → E_SYNTAX；引用未声明 → E_REFERENCE；非白名单 → E_VALUE；
- * - 原脚本含坏表达式（如 Math.max）→ E_PARSE（整体不可编辑信号）；
+ * - 原脚本含坏表达式（如参数槽内引用未声明标识符）→ E_PARSE（整体不可编辑信号）；
+ * - 参数槽内的 S4 免 import 安全全局（Math / JSON / …）不算坏表达式（2026-10-06 修复）；
  * - 连续两次编辑同一槽，第二次基于第一次结果重新提取。
  */
 
@@ -96,9 +97,23 @@ describe('editArgSource: 拒绝路径', () => {
     expect(r.error.kind).toBe('E_VALUE')
   })
 
-  it('原脚本坏表达式（参数槽内 Math.max 未声明）→ E_PARSE（整体不可编辑降级）', () => {
-    // Math.max 出现在 op 参数槽内 → 提取即抛（UI 与执行同源）；编辑面对整体 E_PARSE
-    const bad = 'const x = 20\nlet p = cad.box(Math.max(x, 20), 1, 1)'
+  it('参数槽内 Math.max：可提取、可编辑（2026-10-06 修复）', () => {
+    // 修复前：collectExprIdentifiers 的白名单只有单位常量、漏了 S4_SAFE_GLOBALS，
+    // 于是 Math 被判未声明 → 提取即抛 E_REFERENCE，整个脚本连执行都进不去，
+    // 与 security-scanner 明确放行 Math.* / JSON.parse / new Date() 的判定直接矛盾。
+    const code = 'const x = 20\nlet p = cad.box(Math.max(x, 20), 1, 1)'
+    const meta = extractMetadata(code)
+    const slot = meta.argSources.find((s) => s.path === 'positional[0]')
+    expect(slot?.text).toBe('Math.max(x, 20)')
+    const r = editArgSource(code, slot!.stmtId, slot!.path, 'Math.max(x, 30)')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value).toBe('const x = 20\nlet p = cad.box(Math.max(x, 30), 1, 1)')
+  })
+
+  it('原脚本真坏表达式（参数槽内未声明标识符）→ E_PARSE（整体不可编辑降级）', () => {
+    // 参数槽内引用未声明标识符 → 提取即抛（UI 与执行同源）；编辑面对整体 E_PARSE
+    const bad = 'const x = 20\nlet p = cad.box(zzz(x, 20), 1, 1)'
     const r = editArgSource(bad, asStmtId('s1'), 'rhs', '30')
     expect(r.ok).toBe(false)
     if (r.ok) return
