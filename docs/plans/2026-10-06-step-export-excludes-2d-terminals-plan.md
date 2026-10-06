@@ -3,7 +3,7 @@
 - 日期：2026-10-06
 - 归属：`packages/core`（导出层）+ `fcstd-port`（验证）
 - 触发：faijs-freecad 独立仓 `docs/plans/2026-10-05-freecad-post-occt56-plan.md` 的 **G0-D / R10**
-- 状态：**已实施（E-2 完成、E-1 探针改判 `SHELL`；E-3 V-1 通过；E-4 待跑）**
+- 状态：**已实施（E-2 完成、E-1 探针改判 `SHELL`；E-3 V-1 通过；E-4 V-2 通过（2026-10-06），V-3 待跑）**
 - 范围纪律：**本方案只解决「2D 终端被单独导出」这一个问题**。相邻缺陷在 §8 留档并单独立项，不在本批改。
 
 ---
@@ -183,6 +183,6 @@ e2e `packages/tests/` 或 fixtures：`.fai.js` fixture（一个游离 `cad.sketc
 | **E-1** | shapeType 探针：确认 Sliding_door / pin-header / M24 三个 sketch 的真实 `shapeType`（face？compound-of-faces？shell？） | ✅ **已完成**：Sliding_door=`COMPOUND`(3 shells)；其余 5 个 `SHELL` ⇒ 已按预案回 §3 改判决（见 §0） |
 | **E-2** | I-1…I-6 实施 + §5 单测（含变异） | ✅ **已完成**：`cli.test.ts` 55/55、tsc 0 错、eslint/ghost-deps/lockstep 全绿；变异 8 用例变红 |
 | **E-3** | 重打 core tgz → fcstd-port 重装 → V-1（3 样本） | ✅ **已完成**：产物集合 == A 组；4 对同名 STEP 六位有效数字全等 |
-| **E-4** | V-2（60 样本差分）+ V-3（全量） | ⏳ **未执行** |
+| **E-4** | V-2（60 样本差分）+ V-3（全量） | **V-2 ✅ 通过（2026-10-06）**：60 样本（随机 seed 20261006，排除 Sprocket，清单 `fcstd-port/out/e4-v2-picks.json`）新栈重跑 60/60 ok；与旧栈基线差分（`fcstd-port/tools/_e4-v2-diff.py`，容差 1e-5）**newOnly=0 / legacyOnly=0 / sharedOk=61 / hardFail=0** —— 实体数全等、volume/bbox 相对差 <1e-5。摘要 `fcstd-port/out/e4-v2-summary.md`。**V-3 未执行** |
 
 **实施前置批准**：本改动位于 `packages/core`（非本议题所属的两个独立仓），按既有铁律，动手前须用户确认一次。
