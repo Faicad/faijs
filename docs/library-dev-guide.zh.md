@@ -294,7 +294,7 @@ parser 顶层调用实参是完整表达式（`lang/parser.ts`）——**`.fai.j
 ```js
 import * as gear from 'my-gear-lib'
 let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })
-let b0 = cad.box({ size: [30, 30, 5] })
+let b0 = cad.box(30, 30, 5)
 let u1 = cad.union(g1, b0)
 ```
 
