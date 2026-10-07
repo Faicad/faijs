@@ -44,16 +44,35 @@ function segEnds(g: FcstdSketchGeom): [ContourSeg, { x: number; y: number }, { x
         { x: g.x1, y: g.y1 },
         { x: g.x2, y: g.y2 },
       ];
-    case 'arc':
+    case 'arc': {
+      // GOTCHA (2026-10-06, G6-2b / HC-SR04 Sketch001): the arc radius/angle
+      // fields ALSO differ across the projection boundary — FCStd form
+      // (`radius`/`startAngle`/`endAngle`, carries x1/y1/x2/y2) vs canonical
+      // form (`r`/`a0`/`a1`+`ccw`, NO endpoint fields). The original code read
+      // only the FCStd spelling, so codegen-emitted arcs produced
+      // `undefined` endpoints (NaN joins) and the sketch reported
+      // E_SKETCHC_NO_CONTOUR although the convert-time loop discriminator
+      // (sketch-loop-topology.ts, its own `g.r`/`g.a0` reads) had accepted
+      // it. Accept both spellings; compute endpoints from the center/radius/
+      // angles when the stored endpoint fields are absent.
+      const radius = g.radius ?? (g as { r?: number }).r;
+      const startAngle = g.startAngle ?? (g as { a0?: number }).a0;
+      const endAngle = g.endAngle ?? (g as { a1?: number }).a1;
+      if (radius === undefined || startAngle === undefined || endAngle === undefined) return undefined;
+      const x1 = g.x1 ?? g.cx + radius * Math.cos(startAngle);
+      const y1 = g.y1 ?? g.cy + radius * Math.sin(startAngle);
+      const x2 = g.x2 ?? g.cx + radius * Math.cos(endAngle);
+      const y2 = g.y2 ?? g.cy + radius * Math.sin(endAngle);
       return [
         {
-          kind: 'arc', cx: g.cx, cy: g.cy, radius: g.radius,
-          startAngle: g.startAngle, endAngle: g.endAngle, ccw: true,
-          x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
+          kind: 'arc', cx: g.cx, cy: g.cy, radius,
+          startAngle, endAngle, ccw: true,
+          x1, y1, x2, y2,
         },
-        { x: g.x1, y: g.y1 },
-        { x: g.x2, y: g.y2 },
+        { x: x1, y: y1 },
+        { x: x2, y: y2 },
       ];
+    }
     case 'bspline': {
       // P4: flatten the spline into a sampled polyline. Only the FIRST
       // sub-segment is returned here so the pool gets exactly one entry per
