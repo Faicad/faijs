@@ -18,10 +18,12 @@
 
 import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
-import type { SelectorRuntime, SelectorBundle, SelectorManifest } from '../topology/types'
+import type { SelectorRuntime, SelectorBundle, SelectorManifest, SelectorBuffers } from '../topology/types'
+import type { Shape } from '../mesh/types'
 import { computeEffectiveDeflection } from './effective-deflection'
-import { buildAssemblySelectorManifest } from '../occt-kernel/topologyExt'
+import { buildAssemblySelectorManifest, type PartTopologyInput } from '../occt-kernel/topologyExt'
 import { buildSelectorRuntime } from '../topology/build-selector-runtime'
+import { brepOf } from '../shape'
 import { DEFAULT_LINEAR_DEFLECTION } from '../tolerance'
 import { mm } from '../units'
 
@@ -120,4 +122,51 @@ export function buildSolidTopologyRuntime(
       indices: mesh.indices.slice(),
     },
   }
+}
+
+/**
+ * 多零件 compound（多 solid STEP）的合并 BREP 拓扑构建。
+ *
+ * load op 对多零件文件返回 compound，每个 child 带自己的 BREP solid
+ * （fromBrep(shape, {solid})；装配变换后经 brepOf(child) 读回最新句柄）。
+ * compound 终端没有单一 solidCache 键，buildBrepTopology 必然 miss → 多零件
+ * 文件导入后无拓扑（面拾取/装配 overlay 缺失，assembly-dropdown 回归根因）。
+ *
+ * 这里按 buildAssemblySelectorManifest 的多零件数组输入合并构建：每个成员
+ * 独立 meshShape（与 buildSolidTopologyRuntime 同参，确定性输出）得到含
+ * faceGroups 的 BrepMeshResult，labelPath 取 `o{index+1}`（与
+ * ImportModel.parts.index 一一对应），产出 occurrence-aware SelectorRuntime
+ * （occurrenceIdByRowIndex 覆盖全部成员），与 STEP 文件导入路径同源。
+ *
+ * @param kernel  OCCT 内核
+ * @param children compound 的 child 数组（声明序 = importModel.parts.index）
+ * @returns 合并后的 SelectorRuntime；任一成员无 BREP solid / 无 kernel 时返回 undefined
+ */
+export function buildCompoundTopologyRuntime(
+  kernel: BrepEngineApi,
+  children: Shape[],
+): SelectorRuntime | undefined {
+  if (!kernel || children.length === 0) return undefined
+  const DISPLAY_ANGULAR_DEFLECTION = (2 * Math.PI) / 32
+  const inputs: PartTopologyInput[] = []
+  for (let i = 0; i < children.length; i++) {
+    const solid = brepOf(children[i]) as BrepHandle | undefined
+    if (!solid) return undefined
+    const eff = computeEffectiveDeflection(kernel, solid, {
+      linearDeflection: DEFAULT_LINEAR_DEFLECTION.as(mm),
+      angularDeflection: DISPLAY_ANGULAR_DEFLECTION,
+      relative: false,
+    })
+    const mesh: BrepMeshResult = kernel.meshShape(solid, {
+      linearDeflection: eff.linearDeflection,
+      angularDeflection: eff.angularDeflection,
+    })
+    inputs.push({ labelPath: `o${i + 1}`, shapeHandle: solid, meshWithGroups: mesh })
+  }
+  const result = buildAssemblySelectorManifest(kernel, inputs)
+  const bundle: SelectorBundle = {
+    manifest: result.manifest as unknown as SelectorManifest,
+    buffers: result.buffers as unknown as SelectorBuffers,
+  }
+  return buildSelectorRuntime(bundle, { scale: 1 })
 }

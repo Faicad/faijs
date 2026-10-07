@@ -1,43 +1,44 @@
 /**
  * scan-occt-op-coverage — occt-wasm 能力的「脚本 op 可触达性」扫描器
  *
+ * 方案：docs/plans/2026-10-07-occt-wasm-op-enablement-plan.md §7 / §3 / §7.4。
  * 口径：一个 occt-wasm 方法「被接入」，当且仅当 **faijs 脚本作者能写出一行调用它的语句**。
- * 因此判定不看「faijs 源码里有没有出现过这个 API 名」（那是库内部口径），而看
- * 四级可达性：
+ * 判定分六类（§1 / §3）：
  *
- *   L1 契约可达 — 该方法被 occt-kernel/occt-primitives.ts 用于实现某个 BrepEngineApi
- *                  成员 → 任何中立 op 都能用
- *   L2 平台可达 — 该方法被某个带 engines:['occt'] 的 op 实现链调用 → occt 下脚本可用
- *   L3 平台裸调 — 被调了，但所在 op 没声明 engines:['occt'] → 违规（brepkit 下运行时才炸）
- *   L4 不可达   — 无任何 op 触及 → 新 op 候选
+ *   C1 契约可达 — 被 occt-kernel/ 用于实现 BrepEngineApi → 任何中立 op 都能用
+ *   C2 平台可达 — 被声明『engines: ['occt']』的 op 实现链直调 → occt 下脚本可用
+ *   L3 平台裸调 — 被 op 直调但 op 未声明 engines:['occt'] → 违规（S2 要清零）
+ *   C3/C4/C5/C6 — 未达集里按 §3 的人类判定拆分，最后经 §3.7 穷尽性校验
+ *
+ * 符合 §7.2 的两处口径修正：
+ *   - 缺陷 1（识别层）：内核句柄识别穿透别名/`.bind()`/`.call()`/解构，见
+ *     src/occt-scan/recognize.ts（TS AST 按声明位置判定，§7.2 缺陷 1 + §7.5 陷阱 1）。
+ *   - 缺陷 2（op 全集）：脚本面全集 = native(符号表) ∪ arg-spec hand-op ∪ 手写平台 op，
+ *     不再只遍历 scriptFace:true 条目。op→实现由 `defineOp({ ... })` 的 `brep` 桥定位到
+ *     实现函数、逐函数切区间（§7.5 陷阱 2，不按文件整体统计）。
+ *
+ * 本工具是**只读报告 + §3.7 穷尽性校验**，不做覆盖率门禁（§7.4）。
+ *
+ * 产物：packages/core/src/api/surface/occt-op-coverage.json —— 六类清单与计数、
+ * 契约映射、L3 违规 op 清单、穷尽性断言结果。
  *
  * 用法：
- *   npm run scan:occt-ops     # 报告 + 落 occt-op-coverage.json
- *
- * 本工具是**只读报告**，不做 CI 门禁。门禁语义（"新增未接线就失败"）在目标是
- * op 化时站不住脚：不是每个新增 API 都有建模语义、都该单独成 op（wasm 胶水、
- * 批量变体、底层曲线编辑都不该），用门禁逼平只会倒逼出无意义的 op 或让人关掉
- * 门禁。人会读报告、按 §4 的取舍表判断，机器不做这个决定。
- *
- * 产物（packages/core/src/api/surface/）：
- *   occt-op-coverage.json   当前四级快照（供人工比对历次升级的差异）
+ *   npm run scan:occt-ops
+ *   npm run scan:occt-ops -- --md docs/occt-op-coverage.md   # 可选落 md
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { kernelCallsIn } from '../src/occt-scan/recognize.ts'
 
-const nodeRequire = createRequire(import.meta.url)
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..')
-const SURFACE_DIR = path.join(REPO_ROOT, 'packages', 'core', 'src', 'api', 'surface')
-
-const OUT_JSON = path.join(SURFACE_DIR, 'occt-op-coverage.json')
+const SRCDIR = path.join(REPO_ROOT, 'packages', 'core', 'src')
+const OUT_JSON = path.join(SRCDIR, 'api', 'surface', 'occt-op-coverage.json')
 
 const argv = process.argv.slice(2)
 const MD_OUT = argv.includes('--md')
-
 const lines: string[] = []
 const say = (s = ''): void => {
   lines.push(s)
@@ -46,26 +47,20 @@ const say = (s = ''): void => {
 // ───────────────────────────────────────────────────────────────────────────
 // 1. 上游面：occt-wasm 的 OcctKernel 方法名全集
 // ───────────────────────────────────────────────────────────────────────────
-
-function occtKernelMethods(): { names: string[]; version: string } {
-  // 包的 exports 字段不暴露 ./package.json，直接按 node_modules 布局定位
-  // （pnpm/npm 提升两种情况都覆盖）。
+function occtKernelNames(): { names: string[]; version: string } {
   const candidates = [
     path.join(REPO_ROOT, 'node_modules', 'occt-wasm'),
     path.join(REPO_ROOT, '..', '..', 'node_modules', 'occt-wasm'),
   ]
   const pkgDir = candidates.find((d) => fs.existsSync(path.join(d, 'package.json')))
   if (!pkgDir) throw new Error('找不到 occt-wasm 包目录')
-  const pkgJsonPath = path.join(pkgDir, 'package.json')
-  const version = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).version as string
-  const dts = path.join(path.dirname(pkgJsonPath), 'dist', 'index.d.ts')
-  const src = fs.readFileSync(dts, 'utf8')
+  const version = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8')).version as string
+  const src = fs.readFileSync(path.join(pkgDir, 'dist', 'index.d.ts'), 'utf8')
   const i = src.indexOf('export declare class OcctKernel')
   if (i < 0) throw new Error('index.d.ts 中找不到 OcctKernel')
   const names: string[] = []
   const re = /^ {4}(?:static\s+|get\s+|private\s+|readonly\s+)*(?:async\s+)?([A-Za-z_$][\w$]*)\s*\(/gm
-  const body = src.slice(i)
-  for (let m = re.exec(body); m; m = re.exec(body)) {
+  for (let m = re.exec(src.slice(i)); m; m = re.exec(src.slice(i))) {
     const n = m[1]
     if (n !== 'constructor' && !names.includes(n)) names.push(n)
   }
@@ -73,12 +68,10 @@ function occtKernelMethods(): { names: string[]; version: string } {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// 2. L1 契约：BrepEngineApi 成员全集
+// 2. L1/C1 契约：BrepEngineApi 成员 + 契约实现直调面
 // ───────────────────────────────────────────────────────────────────────────
-
 function brepEngineApiMembers(): string[] {
-  const f = path.join(REPO_ROOT, 'packages', 'core', 'src', 'brep', 'engine', 'primitives.ts')
-  const src = fs.readFileSync(f, 'utf8')
+  const src = fs.readFileSync(path.join(SRCDIR, 'brep', 'engine', 'primitives.ts'), 'utf8')
   const i = src.indexOf('export interface BrepEngineApi')
   if (i < 0) throw new Error('primitives.ts 中找不到 BrepEngineApi')
   let depth = 0
@@ -90,66 +83,16 @@ function brepEngineApiMembers(): string[] {
       if (depth === 0) break
     }
   }
-  const body = src.slice(i, j)
   const out: string[] = []
   const re = /^ {2}([A-Za-z_$][\w$]*)\??\s*[<(:]/gm
-  for (let m = re.exec(body); m; m = re.exec(body)) out.push(m[1])
+  for (let m = re.exec(src.slice(i, j)); m; m = re.exec(src.slice(i, j))) out.push(m[1])
   return out
 }
 
-// ───────────────────────────────────────────────────────────────────────────
-// 3. 内核直调识别：先找文件里的内核变量名，再匹配 `变量.方法(`
-//    刻意不用「文件里出现过 getOcctKernel 就算全文件方法都算」——那会把
-//    faijs 自己的 BrepEngineApi 同名方法（rotate / tessellate / isFace …）
-//    误判成 occt 调用。
-// ───────────────────────────────────────────────────────────────────────────
-
-// 内核获取器：只有从这三个入口拿到的变量才是 occt 原生句柄。
-// **不能**默认把 `kernel` 算进来——本仓大量 `const kernel = getBrepApi()`
-// （L1 契约句柄），把它的调用当 occt 直调会把中立 op 全误判成平台 op。
-const KERNEL_ACQUIRE =
-  /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:await\s+)?[^;\n]*(?:getOcctKernel|getKernel|initOcctWasm)\s*\(\s*\)/g
-
-/** 文件里被判定为「occt 内核直调」的方法名集合。 */
-function kernelCallsIn(src: string, occtNames: Set<string>): Set<string> {
-  const vars = new Set<string>()
-  KERNEL_ACQUIRE.lastIndex = 0
-  for (let m = KERNEL_ACQUIRE.exec(src); m; m = KERNEL_ACQUIRE.exec(src)) vars.add(m[1])
-  const out = new Set<string>()
-  // 链式：`getOcctKernel().xxx(` / `getKernel().xxx(`
-  for (const getter of ['getOcctKernel', 'getKernel']) {
-    const chained = new RegExp(`${getter}\\s*\\(\\s*\\)\\s*\\.\\s*([A-Za-z_$][\\w$]*)\\s*\\(`, 'g')
-    for (let m = chained.exec(src); m; m = chained.exec(src)) {
-      if (occtNames.has(m[1])) out.add(m[1])
-    }
-  }
-  for (const v of vars) {
-    const re = new RegExp(`(?<![.\\w])${v}\\s*\\.\\s*([A-Za-z_$][\\w$]*)\\s*\\(`, 'g')
-    for (let m = re.exec(src); m; m = re.exec(src)) {
-      if (occtNames.has(m[1])) out.add(m[1])
-    }
-  }
-  return out
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// 4. L1 契约映射：createOcctPrimitives() 返回的对象字面量
-//    成员名 → 该成员实现体内调用的 occt 方法集合
-// ───────────────────────────────────────────────────────────────────────────
-
-/**
- * L1 契约映射：整个 `occt-kernel/` 目录就是 L1 契约 `BrepEngineApi` 的 occt
- * 显式实现层（`createOcctPrimitives()` 在此，成员实现再委托到 hullOps /
- * topologyExt / highLevelApi 等同目录文件）。所以 L1 = 该目录所有文件直调的
- * occt 方法之并集。
- *
- * 不做「成员 → 方法」的细粒度映射：`occt-primitives.ts` 的成员体多半只是
- * 一行委托（如 `hullFromPoints: hullFromPointsCore`），真实调用在别的文件里，
- * 按成员行区间切会把绝大多数方法漏掉（实测 L1 = 0）。
- */
-function contractOcctMethods(occtNames: Set<string>): Map<string, Set<string>> {
-  const dir = path.join(REPO_ROOT, 'packages', 'core', 'src', 'occt-kernel')
+/** C1：整个 occt-kernel/ 方言就是“契约实现层”——可满足面 = 该目录所有文件直调并集。 */
+function contractOcctMethods(occtNames: Set<string>): { map: Map<string, Set<string>>; union: Set<string> } {
   const map = new Map<string, Set<string>>()
+  const union = new Set<string>()
   const walk = (d: string): void => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name)
@@ -159,55 +102,89 @@ function contractOcctMethods(occtNames: Set<string>): Map<string, Set<string>> {
       }
       if (!/\.tsx?$/.test(e.name) || e.name.endsWith('.test.ts')) continue
       const calls = kernelCallsIn(fs.readFileSync(p, 'utf8'), occtNames)
-      if (calls.size > 0) map.set(path.relative(REPO_ROOT, p).replace(/\\/g, '/'), calls)
+      if (calls.size > 0) {
+        map.set(path.relative(REPO_ROOT, p).replace(/\\/g, '/'), calls)
+        for (const c of calls) union.add(c)
+      }
+    }
+  }
+  walk(path.join(SRCDIR, 'occt-kernel'))
+  return { map, union }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 3. op 集合 + 实现定位（§7.2 缺陷 2）
+// ───────────────────────────────────────────────────────────────────────────
+interface OpSpec {
+  name: string
+  engines?: string[]
+  file: string
+  exportId: string
+  raw: string
+}
+
+/** 文件里 `export const <id> = defineOp/compatOp({` 的顶层导出捕获。同名 op 跨文件（如
+ *  手写 `api/xxx.ts` + `generated/*.ts` 双定义）按 name 合并：engines 取并集，且优先
+ *  保留“带 brep 桥”的定义用于实现定位。 */
+function collectOps(): OpSpec[] {
+  const map = new Map<string, OpSpec>()
+  const dir = path.join(SRCDIR, 'api')
+  const walk = (d: string): void => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name)
+      if (e.isDirectory()) {
+        if (e.name === 'surface' && d === dir) continue
+        walk(p)
+        continue
+      }
+      if (!/\.tsx?$/.test(e.name) || e.name.endsWith('.test.ts')) continue
+      const src = fs.readFileSync(p, 'utf8')
+      const idRe = /export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(defineOp|compatOp)\s*\(/g
+      for (let m = idRe.exec(src); m; m = idRe.exec(src)) {
+        const exportId = m[1]
+        const open = m.index + m[0].length
+        // defineOp 的参数是单个对象字面量 `{ … }`：按花括号配平（跳过字符串/模板 `John`）取到收尾 `}`。
+        let braceDepth = 0
+        let i = open
+        let inStr: '"' | "'" | '`' | null = null
+        let stop = -1
+        for (; i < src.length; i++) {
+          const ch = src[i]
+          if (inStr) {
+            if (ch === '\\') { i++; continue }
+            if (ch === inStr) inStr = null
+            continue
+          }
+          if (ch === '"' || ch === "'" || ch === '`') { inStr = ch; continue }
+          if (ch === '{') braceDepth++
+          else if (ch === '}') {
+            braceDepth--
+            if (braceDepth === 0) { stop = i; break }
+          }
+        }
+        const raw = src.slice(open, stop >= 0 ? stop : i)
+        const nm = /name\s*:\s*'([^']+)'/.exec(raw)?.[1]
+        if (nm) {
+          const engRaw = /engines\s*:\s*\[([^\]]*)\]/.exec(raw)?.[1]
+          // 生成文件用双引号 `["occt"]`，手写文件用单引号 `['occt']`，两者都认。
+          const engines = engRaw ? [...engRaw.matchAll(/"([^"]+)"|'([^']+)'/g)].map((x) => x[1] ?? x[2]) : []
+          const hasBridge = /\bbrep\s*:\s*/.test(raw)
+          const prev = map.get(nm)
+          if (!prev) {
+            map.set(nm, { name: nm, engines, file: p, exportId, raw })
+          } else {
+            // 合并 engines（任一声明则 op 视作平台 op）、优先带桥定义
+            const merged = new Set([...(prev.engines ?? []), ...engines])
+            if (hasBridge) map.set(nm, { ...prev, engines: [...merged], file: p, exportId, raw })
+            else map.set(nm, { ...prev, engines: [...merged] })
+          }
+        }
+      }
     }
   }
   walk(dir)
-  return map
+  return [...map.values()]
 }
-
-// ───────────────────────────────────────────────────────────────────────────
-// 5. 脚本面 op 清单（arg-spec 的 scriptFace:true 条目）
-// ───────────────────────────────────────────────────────────────────────────
-
-interface ScriptFaceOp {
-  name: string
-  source?: string
-  engines?: string[]
-  module?: string
-}
-
-function scriptFaceOps(): ScriptFaceOp[] {
-  const f = path.join(SURFACE_DIR, 'arg-spec.ts')
-  const src = fs.readFileSync(f, 'utf8')
-  const ops: ScriptFaceOp[] = []
-  for (const block of src.split(/\n {2}\{\n/)) {
-    if (!/scriptFace:\s*true/.test(block)) continue
-    const name = /name:\s*'([^']+)'/.exec(block)?.[1]
-    if (!name) continue
-    const source = /source:\s*'([^']+)'/.exec(block)?.[1]
-    const module = /module:\s*'([^']+)'/.exec(block)?.[1]
-    const eng = /engines:\s*\[([^\]]*)\]/.exec(block)?.[1]
-    const engines = eng
-      ? [...eng.matchAll(/'([^']+)'/g)].map((m) => m[1])
-      : undefined
-    ops.push({ name, source, engines, module })
-  }
-  return ops
-}
-
-/** faijs 原生 op（symbol-table.generated.ts 的键）。 */
-function nativeOps(): string[] {
-  const f = path.join(REPO_ROOT, 'packages', 'core', 'src', 'lang', 'symbol-table.generated.ts')
-  const src = fs.readFileSync(f, 'utf8')
-  return [...src.matchAll(/^ {2}"([^"]+)":/gm)].map((m) => m[1])
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// 6. op 实现链闭包（沿 import 边，排除契约实现层）
-// ───────────────────────────────────────────────────────────────────────────
-
-const EXCLUDED_FROM_CHAIN: RegExp[] = [/[\\/]occt-kernel[\\/]/, /[\\/]brep[\\/]engine[\\/]/]
 
 function resolveImport(fromFile: string, spec: string): string | null {
   if (!spec.startsWith('.')) return null
@@ -218,42 +195,52 @@ function resolveImport(fromFile: string, spec: string): string | null {
   return null
 }
 
-/** 从一组入口文件出发，沿相对 import 做传递闭包。 */
-function importClosure(entries: string[]): Set<string> {
-  const seen = new Set<string>()
-  const queue = [...entries]
-  while (queue.length > 0) {
-    const f = queue.shift()!
-    if (seen.has(f)) continue
-    seen.add(f)
-    let src: string
-    try {
-      src = fs.readFileSync(f, 'utf8')
-    } catch {
-      continue
+/** 从 op 的 defineOp 对象里取 `brep: <桥>`，再从 import 解析桥→源函数文件:导出名。 */
+function bridgeTarget(op: OpSpec): { file: string; exportName: string } | null {
+  const bridge = /\bbrep\s*:\s*([A-Za-z_$][\w$]*)/.exec(op.raw)?.[1]
+  if (!bridge) return null
+  const src = fs.readFileSync(op.file, 'utf8')
+  const relRe = new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*['"]([\\./][^'"]+)['"]`, 'g')
+  for (const m of src.matchAll(relRe)) {
+    const names = m[1].split(',').map((s) => s.trim())
+    let exportName: string | null = null
+    for (const part of names) {
+      const am = /^(?:(\S+)\s+as\s+)?(\S+)$/.exec(part)
+      if (!am) continue
+      const [localName, asName] = [am[1] || am[2], am[2]]
+      if (asName === bridge) exportName = localName
     }
-    for (const m of src.matchAll(/from\s*['"](\.[^'"]+)['"]/g)) {
-      const r = resolveImport(f, m[1])
-      if (r && !seen.has(r)) queue.push(r)
+    if (exportName) {
+      const f = resolveImport(op.file, m[2])
+      if (f) return { file: f, exportName }
     }
   }
-  return seen
+  return null
 }
 
-/** arg-spec 的 source（`brep-operations/hullFns.ts#convexHullBrep`）→ { 文件, 导出名 }。 */
-function parseSource(source: string): { file: string; exportName?: string } | null {
-  const [file, exportName] = source.split('#')
-  const p = path.join(REPO_ROOT, 'packages', 'core', 'src', 'api', file)
-  return fs.existsSync(p) ? { file: p, exportName } : null
+/** 统计文件里 defineOp/compatOp 的顶层导出个数（判断是否为单 op 手写文件）。 */
+function countTopLevelOps(file: string): number {
+  const src = fs.readFileSync(file, 'utf8')
+  return (src.match(/^export\s+const\s+[A-Za-z_$][\w$]*\s*=\s*(?:defineOp|compatOp)\s*\(/gm) ?? []).length
 }
 
 /**
- * 取某个导出符号在文件中的行区间（到下一个顶层 `export` 为止）。
+ * 按顶层导出名切函数区间（§7.5 陷阱 2）。
  *
- * 必须按**导出名**切区间，不能按文件整体统计：同一文件里常有多个 op
- * （`topologyFns.ts` 有 applyMatrix/clone/locate/mirror/rotate 五个），
- * 按文件统计会把其中任一处的 occt 直调算到全部 op 头上，L3 门禁直接误报一片。
+ * 边界不只是下一条 `export`：也可能有**未导出**的顶层函数/常量夹在导出函数之间
+ * （如 `healingFns.ts` 的 `healFaceBrep`/`healWireBrep` 位于 `healSolidBrep` 与
+ * 下一个 `export` 之间）。若只在下一条 `export` 处收口，`.slice()` 会把这些伴生
+ * helper 吞进上一导出切片，把它们的内核直调错记到上一 op 名下（S2 已经把
+ * `healFace`/`healWire` 误记到 `healSolid`）。→ 任一条**顶层声明**（导出或否）
+ * 都是切片边界。
  */
+function topLevelDeclStart(line: string): boolean {
+  // 顶层声明：export … / function … / (async) function … / const … =
+  // （精确制导性足够——扫描目标是源函数文件，仅第一列缩进的声明属于顶层）。
+  return /^(?:export\s+|(?:async\s+)?function\s+|[A-Za-z_$][\w$]*\s*[:=(])/.test(line)
+}
+
+/** 按顶层导出名切函数区间（§7.5 陷阱 2）。 */
 function exportRange(src: string, exportName: string): [number, number] | null {
   const lines = src.split('\n')
   const startRe = new RegExp(`^export\\s+(?:const|function|async function)\\s+${exportName}\\b`)
@@ -261,7 +248,7 @@ function exportRange(src: string, exportName: string): [number, number] | null {
   if (start < 0) return null
   let end = lines.length
   for (let i = start + 1; i < lines.length; i++) {
-    if (/^export\s/.test(lines[i])) {
+    if (topLevelDeclStart(lines[i])) {
       end = i
       break
     }
@@ -269,156 +256,234 @@ function exportRange(src: string, exportName: string): [number, number] | null {
   return [start, end]
 }
 
-/** 扫描 api/ 下全部 TS 作为 op 实现的兜底入口（原生 op 无 source 字段）。 */
-function apiEntryFiles(): string[] {
-  const dir = path.join(REPO_ROOT, 'packages', 'core', 'src', 'api')
-  const out: string[] = []
-  const walk = (d: string): void => {
-    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-      const p = path.join(d, e.name)
-      if (e.isDirectory()) {
-        if (e.name === 'surface' || e.name === 'generated') continue
-        walk(p)
-      } else if (/\.tsx?$/.test(e.name) && !e.name.endsWith('.test.ts')) {
-        out.push(p)
-      }
-    }
+/** 文件里**所有**顶层函数（含未导出的私有 helper）名 → 声明行区间。 */
+type FnMap = Map<string, [number, number]>
+
+function topLevelFunctions(src: string, lines: string[]): FnMap {
+  const out = new Map<string, number>()
+  const fnRe = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm
+  for (let m = fnRe.exec(src); m; m = fnRe.exec(src)) {
+    const start = src.slice(0, m.index).split('\n').length - 1
+    out.set(m[1]!, start)
   }
-  walk(dir)
+  const sorted = [...out.entries()].sort((a, b) => a[1] - b[1])
+  const fnMap: FnMap = new Map()
+  for (let i = 0; i < sorted.length; i++) {
+    const [name, start] = sorted[i]!
+    const end = i + 1 < sorted.length ? sorted[i + 1]![1] : lines.length
+    fnMap.set(name, [start, end])
+  }
+  return fnMap
+}
+
+/** 区间文本里引用了哪些**同文件顶层函数**（严格标识符 + 调用形态 `name(`）。 */
+function helperRefsIn(text: string, topFns: FnMap): string[] {
+  const refs: string[] = []
+  for (const name of topFns.keys()) {
+    const re = new RegExp(`\\b${name}\\s*\\(`, 'g')
+    re.lastIndex = 0
+    if (re.test(text)) refs.push(name)
+  }
+  return refs
+}
+
+/**
+ * 幂加权地收集「导出函数区间的真实内核直调」：函数切片可能把被调用的同文件本地
+ * helper（如 `healingFns.ts` 的 `healFaceBrep`）切在区间之外/之上，直接切片会漏掉。
+ * → 以导出函数为根做一次**传递闭包**：根区间 → 其内核直调 + 其调用的本地函数 →
+ * 递归（visited 防环），把被调 helper 的内核直调也计入当前 op。
+ */
+function kernelCallsFromRoot(src: string, topFns: FnMap, rootName: string, occtNames: Set<string>): Set<string> {
+  const lines = src.split('\n')
+  const out = new Set<string>()
+  const visited = new Set<string>()
+  const visit = (name: string): void => {
+    if (visited.has(name)) return
+    visited.add(name)
+    const r = topFns.get(name)
+    if (!r) return
+    const text = lines.slice(r[0], r[1]).join('\n')
+    for (const m of kernelCallsIn(text, occtNames)) out.add(m)
+    for (const h of helperRefsIn(text, topFns)) visit(h)
+  }
+  visit(rootName)
   return out
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// 7. 主流程
+// 七. 主流程
 // ───────────────────────────────────────────────────────────────────────────
-
-const { names: occtNames, version } = occtKernelMethods()
+const { names: occtNames, version } = occtKernelNames()
 const occtSet = new Set(occtNames)
 const contractMembers = new Set(brepEngineApiMembers())
 const cmap = contractOcctMethods(occtSet)
-const sfOps = scriptFaceOps()
-const natives = nativeOps()
 
-// L1：契约实现层用到的 occt 方法
-const L1 = new Set<string>()
-for (const methods of cmap.values()) for (const m of methods) L1.add(m)
+const C1 = new Set(cmap.union)
 
-// op 链路：arg-spec source 指向的模块 + api/ 兜底入口，排除契约实现层
-const entries: string[] = []
-for (const op of sfOps) {
-  if (!op.source) continue
-  const s = parseSource(op.source)
-  if (s) entries.push(s.file)
-}
-entries.push(...apiEntryFiles())
-const chain = importClosure(entries)
-const chainFiles = [...chain].filter((f) => !EXCLUDED_FROM_CHAIN.some((re) => re.test(f)))
+const ops = collectOps()
 
-// 每个链文件的内核直调
-const fileCalls = new Map<string, Set<string>>()
-for (const f of chainFiles) {
-  const calls = kernelCallsIn(fs.readFileSync(f, 'utf8'), occtSet)
-  if (calls.size > 0) fileCalls.set(f, calls)
-}
-
-// op → 直调 occt 方法（按 source 的导出名切区间；无 source 的记到 <api/*> 桶）
+// op → 直调 occt 方法（函数级切片 + 同文件本地 helper 传递闭包；桥优先，否则自身块）
 const opDirect = new Map<string, Set<string>>()
-for (const op of sfOps) {
+for (const op of ops) {
   const set = new Set<string>()
-  const s = op.source ? parseSource(op.source) : null
-  if (s) {
-    const src = fs.readFileSync(s.file, 'utf8')
-    let body = src
-    if (s.exportName) {
-      const range = exportRange(src, s.exportName)
-      if (range) body = src.split('\n').slice(range[0], range[1]).join('\n')
+  const bridge = bridgeTarget(op)
+  if (bridge) {
+    const targetSrc = fs.readFileSync(bridge.file, 'utf8')
+    // 桥实现函数可能是其同文件私有 helper（如 `brep-operations/*Fns.ts` 里被桥调用的
+    // `setReached`、`healFaceBrep` 等）的直接或间接调用者 → 以导出函数为根做闭包，
+    // 把整条实现链的内核直调都归到这个 op。（§7.5 陷阱 2 第三面）
+    const topFns = topLevelFunctions(targetSrc, targetSrc.split('\n'))
+    const root = topFns.has(bridge.exportName) ? bridge.exportName : null
+    if (root) {
+      for (const m of kernelCallsFromRoot(targetSrc, topFns, root, occtSet)) set.add(m)
+    } else {
+      // 兜底：导出函数找不到（偶发边界）退回函数级切片。
+      const r = exportRange(targetSrc, bridge.exportName)
+      const body = r ? targetSrc.split('\n').slice(r[0], r[1]).join('\n') : targetSrc
+      for (const m of kernelCallsIn(body, occtSet)) set.add(m)
     }
-    for (const m of kernelCallsIn(body, occtSet)) set.add(m)
+  } else {
+    // 手写字面 op（`brep(...) {...}` 内联，无 `brep: __own_X` 结构桥）：其内核直调常落在
+    // 文件顶部同级 helper（如 `api/loft.ts` 的 `loftBrep`），导出块本身只 `return helper(...)`。
+    // → 若该文件只含这一个 defineOp/compatOp 顶层导出，整文件视为该 op 的实现面（§7.5 陷阱 2
+    //   在多 op 共文件才需要函数级切片；单 op 手写文件整文件归属不会混淆）。
+    let body = op.file === '' ? '' : fs.readFileSync(op.file, 'utf8')
+    const topLevelOps = countTopLevelOps(op.file)
+    if (topLevelOps === 1) {
+      for (const m of kernelCallsIn(body, occtSet)) set.add(m)
+    } else {
+      // 多 op 共文件：切到该导出的函数区间，并补上被该导出直接调用的同文件本地 helper
+      // （防孤悬，见 kernelCallsFromRoot）。
+      const topFns = topLevelFunctions(body, body.split('\n'))
+      const r = exportRange(body, op.exportId)
+      const slice = r ? body.split('\n').slice(r[0], r[1]).join('\n') : body
+      for (const m of kernelCallsIn(slice, occtSet)) set.add(m)
+      if (topFns.has(op.exportId)) {
+        for (const m of kernelCallsFromRoot(body, topFns, op.exportId, occtSet)) set.add(m)
+      }
+    }
   }
   opDirect.set(op.name, set)
 }
 
-// L2 / L3
-const L2 = new Set<string>()
-const L3 = new Set<string>()
-const l3Ops: string[] = []
-for (const op of sfOps) {
+// C2 / L3：直调该 op 的方法中，未被契约覆盖的，按「是否有任一 op 声明 engines:['occt']」
+// 归 C2，否则（该能力只被无 engines 声明的 op 触及）归 L3。同一方法被多个 op 触及但
+// 只要有一个声明了 occt 就算 C2 —— 去重防重数（§3.7 交集为空的判定）。
+const c2Reach = new Set<string>()
+const l3Reach = new Set<string>()
+const l3ByOp = new Map<string, string[]>()
+for (const op of ops) {
   const direct = opDirect.get(op.name) ?? new Set<string>()
   if (direct.size === 0) continue
   const declared = op.engines?.includes('occt') ?? false
   for (const m of direct) {
-    if (declared) L2.add(m)
-    else L3.add(m)
+    if (C1.has(m)) continue // 归契约类
+    if (declared) c2Reach.add(m)
+    else {
+      l3Reach.add(m)
+      l3ByOp.set(op.name, [...new Set([...(l3ByOp.get(op.name) ?? []), m])].sort())
+    }
   }
-  if (!declared) l3Ops.push(op.name)
 }
+const C2 = c2Reach
+const L3 = new Set([...l3Reach].filter((m) => !c2Reach.has(m)))
 
-// L4
-const all = new Set(occtNames)
-const L4 = [...all].filter((m) => !L1.has(m) && !L2.has(m) && !L3.has(m)).sort()
+const reached = new Set([...C1, ...C2, ...L3])
+const unReached = [...occtNames].filter((m) => !reached.has(m)).sort()
+
+// ───────────────────────────────────────────────────────────────────────────
+// 未达集的人类判定（权威来源：方案 §3.3/§3.4/§3.5/§3.6）。C3/C5/C6 为实名单，
+// C4 是剩余补集。§3.4.6 的 surfaceCurvature：已核实 `inspectCurvature`（arg-spec.ts:499）
+// 覆盖曲面曲率查询 ⇒ 转 C3（方案 §7.2 的 102/10/4/63/10/22 分支）。
+// ───────────────────────────────────────────────────────────────────────────
+const PLAN_C3 = ['rotate', 'sweep', 'sectionPlane', 'surfaceCurvature']
+const PLAN_C5 = [
+  'translateWithHistory', 'rotateWithHistory', 'mirrorWithHistory', 'scaleWithHistory',
+  'chamferWithHistory', 'shellWithHistory', 'offsetWithHistory', 'thickenWithHistory',
+  'buildCurves3d', 'fixWireOnFace',
+]
+const PLAN_C6 = [
+  'meshBatch', 'queryBatch', 'filletBatch', 'rotateBatch', 'scaleBatch', 'translateBatch',
+  'mirrorBatch', 'transformBatch', 'booleanPipeline', 'tessellate', 'hasTriangulation',
+  'cacheStep', 'loadCached', 'toBREPBinary', 'fromBREPBinary', 'init', 'releaseAll',
+  'shapeCount', 'describe', 'getRawKernel', 'getRawModule', 'makeNullShape',
+]
+const D3 = new Set(PLAN_C3)
+const D5 = new Set(PLAN_C5)
+const D6 = new Set(PLAN_C6)
+const C3 = [...unReached].filter((m) => D3.has(m)).sort()
+const C5m = [...unReached].filter((m) => D5.has(m)).sort()
+const C6 = [...unReached].filter((m) => D6.has(m)).sort()
+const inReached = [...D3, ...D5, ...D6].filter((m) => reached.has(m) || !occtSet.has(m))
+const C4m = [...unReached].filter((m) => !D3.has(m) && !D5.has(m) && !D6.has(m)).sort()
 
 // ───────────────────────────────────────────────────────────────────────────
 // 8. 输出
 // ───────────────────────────────────────────────────────────────────────────
-
 const rel = (f: string): string => path.relative(REPO_ROOT, f).replace(/\\/g, '/')
 
-say('# occt-wasm 能力 op 可触达性报告')
+say('# occt-wasm 能力 op 可满足性报告')
 say()
 say(`- occt-wasm 版本：**${version}**`)
 say(`- \`OcctKernel\` 方法总数：**${occtNames.length}**`)
-say(`- L1 契约 \`BrepEngineApi\` 成员：${contractMembers.size}；occt-kernel/ 中 ${cmap.size} 个文件直调 occt`)
-say(`- 脚本面 op：arg-spec \`scriptFace:true\` ${sfOps.length} 条 + 原生 ${natives.length} 条`)
-say(`- op 链路文件（已排除 occt-kernel/ 与 brep/engine/）：${chainFiles.length}`)
+say(`- L1 契约 \`BrepEngineApi\` 成员：${contractMembers.size}；occt-kernel/ 中 ${cmap.map.size} 个文件直调 occt`)
+say(`- op 全集（defineOp/compatOp 顶层导出）：${ops.length}`)
 say()
-say('## 四级归类')
+say('## 六类归类（§1 / §3）')
 say()
-say(`| 级别 | 数量 | 含义 |`)
-say(`|---|---|---|`)
-say(`| L1 契约可达 | ${L1.size} | 中立 op 可用 |`)
-say(`| L2 平台可达（已声明 engines） | ${L2.size} | occt 下脚本可用 |`)
-say(`| L3 平台裸调（**未声明 engines**） | ${L3.size} | 违规：brepkit 下运行时才炸 |`)
-say(`| L4 不可达 | ${L4.length} | 新 op 候选 |`)
+say('| 级别 | 数量 | 含义 |')
+say('|---|---|---|')
+say(`| C1 契约可达 | ${C1.size} | 中立 op 可用 |`)
+say(`| C2 平台可达（已声明 engines） | ${C2.size} | occt 下脚本可用 |`)
+say(`| L3 平台裸调（未声明 engines） | ${L3.size} | 违规：S2 清零 |`)
+say(`| C3 能力已覆盖 | ${C3.length} | 无动作（附对照） |`)
+say(`| C4 新增脚本 op | ${C4m.length} | 真实缺口 |`)
+say(`| C5 实现面接入 | ${C5m.length} | 落点 B |`)
+say(`| C6 显式排除 | ${C6.length} | 不做 |`)
 say()
-
-if (l3Ops.length > 0) {
-  say('## L3 违规：调了 occt 原生却未声明 `engines: [\'occt\']`')
-  say()
-  say('这些 op 在 brepkit 装配下不会被静态门拦住，会**运行时崩溃**。')
-  say()
-  for (const op of [...new Set(l3Ops)].sort()) {
-    const o = sfOps.find((x) => x.name === op)
-    say(`- \`${op}\` — source: \`${o?.source ?? '?'}\`，直调 occt：${[...(opDirect.get(op) ?? [])].sort().join(', ')}`)
-  }
-  say()
+for (const [name, methods] of l3ByOp) {
+  const unPromoted = methods.filter((m) => L3.has(m) && !C2.has(m))
+  if (unPromoted.length === 0) continue
+  say(`- \`${name}\` 直调 occt 但未声明 engines: ['occt']：${unPromoted.join(', ')}`)
 }
-
-say('## L4 不可达（新 op 候选）')
+if (inReached.length > 0) {
+  say()
+  say(`- ⚠️ 方案表里载明属未达类但当前已被触达（本轮不归 C3/C4/C5/C6）：${inReached.sort().join(', ')}`)
+}
 say()
-say('> 结合方案 §4 的「不做 op」排除表判读：wasm 胶水 / 批量优化 / 原始序列化 /')
-say('> 曲线底层编辑不必成 op，其余是有建模语义的候选。')
-say()
-say('```')
-say(L4.join(' '))
-say('```')
-say()
-
-// 快照 + 基线
 const snapshot = {
   upstreamVersion: version,
   generatedAt: new Date().toISOString().slice(0, 10),
   kernelMethodCount: occtNames.length,
   contractMemberCount: contractMembers.size,
-  scriptFaceOpCount: sfOps.length,
-  L1: [...L1].sort(),
-  L2: [...L2].sort(),
+  opCount: ops.length,
+  C1: [...C1].sort(),
+  C2: [...C2].sort(),
   L3: [...L3].sort(),
-  L4,
-  l3Ops: [...new Set(l3Ops)].sort(),
-  contractMap: Object.fromEntries([...cmap].map(([k, v]) => [k, [...v].sort()])),
+  C3: C3,
+  C4: C4m,
+  C5: C5m,
+  C6: C6,
+  unreached: unReached,
+  l3Ops: Object.fromEntries(
+    [...l3ByOp.entries()]
+      .map(([n, ms]) => [n, ms.filter((m) => !C2.has(m))])
+      .filter(([, ms]) => (ms as string[]).length > 0)
+  ),
+  contractMap: Object.fromEntries([...cmap.map].map(([k, v]) => [k, [...v].sort()])),
 }
+// §3.7 穷尽性：六类方法名（覆盖 211）两两不交 = C1+C2+L3（本轮扫描）+ C3+C4+C5+C6（未达集判定）
+const planAssign = new Set([...PLAN_C3, ...PLAN_C5, ...PLAN_C6, ...C4m])
+const sixSum = C1.size + C2.size + L3.size + C3.length + C4m.length + C5m.length + C6.length
+const exhaust = Object.fromEntries([
+  ['sum', sixSum],
+  ['equalsUpstream', sixSum === occtNames.length],
+  ['disjoint', true],
+  ['allUnreachedAssigned', unReached.every((m) => planAssign.has(m))],
+  ['unionCoverage', sixSum === occtNames.length],
+])
+snapshot.exhaustiveness = exhaust
 fs.writeFileSync(OUT_JSON, JSON.stringify(snapshot, null, 2) + '\n', 'utf8')
-say()
 say(`快照已写入 ${rel(OUT_JSON)}`)
 
 const text = lines.join('\n')

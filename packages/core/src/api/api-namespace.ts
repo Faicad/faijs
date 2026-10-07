@@ -33,6 +33,7 @@ import { sketchOnFace } from './sketch-on-face'
 import { punchHole } from './punch-hole'
 import { wire } from './wire'
 import { helix } from './helix'
+import { surface } from './surface'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
@@ -94,6 +95,8 @@ export function createApiNamespace(): LibNamespace {
     // arg-spec 里 sweep 保留 brep-op（引擎记录）/ loft 为 skip，两者均不投脚本面，
     // 所以这里不是 override 而是唯一实现（同 extrude / revolve 口径）。
     sweep, loft,
+    // S3（occt-wasm op 接入）：控制点阵 → B 样条面（平台 op engines:['occt']）。
+    surface,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
     faceRef,

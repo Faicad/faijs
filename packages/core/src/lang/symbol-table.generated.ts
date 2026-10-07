@@ -45,6 +45,7 @@ export default {
   "revolve": {},
   "sweep": {},
   "loft": {},
+  "surface": {},
   "faceNormal": {},
   "bboxCenter": {},
   "bboxMin": {},

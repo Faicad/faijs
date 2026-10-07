@@ -169,6 +169,7 @@ export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'split', kind: 'subdivide' as CadRoleVocab['kind'], vocab: [], note: "每输入面 → 若干片：splinter(<原 role>)#j 由框架生成" },
   { op: 'splitByPlane', kind: 'subdivide' as CadRoleVocab['kind'], vocab: [], note: "每输入面 → 若干片：splinter(<原 role>)#j 由框架生成" },
   { op: 'subtract', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:subtract:<i>'] },
+  { op: 'surface', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "bspline-surface face vocabulary not defined", vocab: [] },
   { op: 'sweep', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "swept-body face vocabulary not defined", vocab: [] },
   { op: 'thicken', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "thickened-body face vocabulary not defined", vocab: [] },
   { op: 'thread', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:thread:<i>'] },

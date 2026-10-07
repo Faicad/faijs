@@ -40,6 +40,8 @@ export { helix } from './helix'
 export { split } from './split'
 export { sweep } from './sweep'
 export { loft } from './loft'
+// S3（occt-wasm op 接入）：控制点阵 → B 样条面（平台 op engines:['occt']）。
+export { surface, type SurfaceOptions } from './surface'
 export { knurl } from './knurl'
 export { sdf } from './sdf'
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：

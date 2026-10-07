@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { extractMetadata } from '../../src/lang/metadata-extractor'
+import { isHostVarRef } from '../../src/lang/host-arg'
 import { computeLiveShapes, keepViewFromMetadata, type LiveShapesInput, type KeepRegistration } from '../../src/cad-runtime/live-shapes'
 import { asPartName, type PartName } from '../../src/identity'
 import type { StatementSummary } from '../../src/lang/statement-summary'
@@ -317,7 +318,7 @@ describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（R2）', () =>
       ].join('\n'))
       const mir = meta.lines.find((l) => l.callee?.endsWith('mirror'))!
       expect(mir).toBeDefined()
-      expect(mir.positional.some((a) => a.kind === 'var-ref' && (a as { name: string }).name === 'part0')).toBe(true)
+      expect(mir.positional.some((a) => isHostVarRef(a) && a.name === 'part0')).toBe(true)
     })
   })
 })

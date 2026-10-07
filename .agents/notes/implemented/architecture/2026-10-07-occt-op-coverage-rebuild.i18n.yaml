@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-07-occt-op-coverage-rebuild.md
+2026-10-07-occt-op-coverage-rebuild.md: 0f7cb0eff1891097bfac5ac6e0b56576ed22f814
+2026-10-07-occt-op-coverage-rebuild.zh.md: a857d6c5ae9effab539734e4483bbba149e37bba

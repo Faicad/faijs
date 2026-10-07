@@ -550,6 +550,8 @@ JSON 落 `packages/core/src/api/surface/occt-op-coverage.json`，字段：`upstr
 
 **S1 必须先做**：现有数字因识别层与 op 全集两处缺陷而不可信（F19/F20），在此之上排期会把工作量算错。
 
+**S1/S2 状态**：S1 完成，扫描器改用 TS-AST 识别（`occt-scan/recognize.ts`）+ 全量 op 采集，并把归属从「文件级」精确到「函数区间 + 同文件顶层 helper 的传递闭包」。修复后六类 = C1 102 / C2 10 / L3 0 / C3 4 / C4 63 / C5 10 / C6 22（和 211，穷尽且互斥），复现 §3 处置分支。**S2 的 `healSolid → healFace/healWire` 实为 §7.5 陷阱 2 的归属伪阳性**：`healSolidBrep` 走 L1 契约（引擎中立，无需 `engines` 声明），occt 的 `healFace`/`healWire` 由已声明 `engines:['occt']` 的 `heal` op 触达（C2），`getShapeType` 是契约成员（C1）。因此 **L3 = 0 由扫描器修正达成**，`healSolid` 不做任何声明改动（保持双引擎中立，不破坏 brepkit parity）。回归测试 `test/occt-scan/coverage-baseline.test.ts` 锁定该基线不变量。
+
 ---
 
 ## 9. 验收

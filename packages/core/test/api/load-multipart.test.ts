@@ -19,6 +19,7 @@ import type { HostPorts } from '../../src/cad-runtime/ports'
 import { createEditorRuntime } from '../support/editor-ops'
 import { zipSync, strToU8 } from 'fflate'
 import { asPartName } from '../../src/identity'
+import { buildSelectorRuntimeMaps } from '../../src/topology/build-selector-runtime'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 
@@ -144,5 +145,51 @@ describe('cad.load multi-solid STEP multi-part contract (P0) — BREP', () => {
     expect(model!.format).toBe('step')
     expect(model!.parts).toHaveLength(2)
     expect(model!.parts.every((p) => p.name.length > 0)).toBe(true)
+    // 多零件 compound 终端必须产出合并 BREP 拓扑（buildCompoundTopologyRuntime）：
+    // 成员各带独立 BREP solid、无单一 solidCache 键，若缺此路径则本终端无拓扑
+    // （面拾取/装配 overlay 缺失——assembly-dropdown 回归根因）。
+    const topo = result.topology?.get(asPartName('a'))
+    expect(topo).toBeDefined()
+    expect(topo!.source).toBe('brep')
+    const rt = buildSelectorRuntimeMaps(topo!.data)
+    // occurrence 覆盖全部成员（o1..oN，与 ImportModel.parts.index 一一对应）
+    const occs = new Set(rt.occurrenceIdByRowIndex.values())
+    expect(occs.size).toBe(2)
+    expect(occs.has('o1')).toBe(true)
+    expect(occs.has('o2')).toBe(true)
+  })
+
+  it('multi-solid STEP 与单零件文件同载：各自终端都有 BREP 拓扑', async () => {
+    await registerOcctBrepEngine()
+    const stepBuf = toArrayBuffer(
+      readFileSync(new URL('../../../fixtures/data/test-model.step', import.meta.url)),
+    )
+    const boxBuf = toArrayBuffer(
+      readFileSync(new URL('../../../fixtures/data/box_boss.step', import.meta.url)),
+    )
+    const assets: HostPorts['assets'] = {
+      resolveByKey: async (key: string) => ({
+        bytes: key === 'box_boss.step' ? boxBuf : stepBuf,
+      }),
+      resolveFile: async (key: string) => (key === 'box_boss.step' ? boxBuf : stepBuf),
+      resolveUrl: async (key: string) => (key === 'box_boss.step' ? boxBuf : stepBuf),
+    }
+    const runtime = createEditorRuntime({ events: { emit: () => undefined }, assets } as unknown as HostPorts, 'brep')
+    // 复刻宿主 recordLoadFromRef 的多文件同载场景：单零件 + 多零件先后 load，
+    // 各自终端都必须有 BREP 拓扑（dropdown 回归中 cube5 零件因缺拓扑而无 overlay）。
+    let result = await runtime.execute(`let part0 = await cad.load({ file: 'box_boss.step' })`)
+    expect(result.failedAt).toBeUndefined()
+    expect(result.topology?.get(asPartName('part0'))).toBeDefined()
+    result = await runtime.execute(
+      `let part0 = await cad.load({ file: 'box_boss.step' })\nlet part1 = await cad.load({ file: 'test-model.step' })`,
+    )
+    expect(result.failedAt).toBeUndefined()
+    const topo1 = result.topology?.get(asPartName('part1'))
+    expect(topo1).toBeDefined()
+    expect(topo1!.source).toBe('brep')
+    const rt1 = buildSelectorRuntimeMaps(topo1!.data)
+    expect(new Set(rt1.occurrenceIdByRowIndex.values()).size).toBe(2)
+    // 单零件文件拓扑不受影响
+    expect(result.topology?.get(asPartName('part0'))).toBeDefined()
   })
 })

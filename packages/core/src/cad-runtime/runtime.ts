@@ -30,7 +30,7 @@ import type { SecurityPolicy } from '../lang/security-scanner'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
-import { buildSolidTopologyRuntime } from '../brep/brep-topology'
+import { buildSolidTopologyRuntime, buildCompoundTopologyRuntime } from '../brep/brep-topology'
 import type { SolidTopologyResult } from '../brep/brep-topology'
 import type { ImportModel } from '../mesh/import-model'
 import { buildTopologyFromMesh } from '../brep/brep-topology'
@@ -1078,13 +1078,24 @@ export class CadRuntime {
     if (topoMode !== 'off') {
       const buildFor = (partName: PartName): void => {
         if (topology.has(partName)) return
+        const v = de.getCtxVar(String(partName))
+        // 多零件 load（compound）：成员各带 BREP solid（fromBrep(shape,{solid})，
+        // 装配变换经 brepOf(child) 读回），但 compound 终端无单一 solidCache 键
+        // ——buildBrepTopology 必 miss。按成员合并构建 occurrence-aware 拓扑，
+        // 否则多 solid STEP 导入后该终端无拓扑 → 宿主面拾取/装配 overlay 缺失
+        // （assembly-dropdown 多文件回归）。
+        if (isCompoundLike(v)) {
+          const rt = this.buildCompoundBrepTopology(v as CompoundShape)
+          if (rt) topology.set(partName, { partName, source: 'brep', data: runtimeToData(rt) })
+          return
+        }
         const rt = this.buildBrepTopology(partName)
         if (rt) topology.set(partName, { partName, source: 'brep', data: runtimeToData(rt) })
       }
       if (topoMode === 'brep') {
         for (const name of shapeVarNames) {
           const v = de.getCtxVar(String(name))
-          if (isShapeLike(v)) buildFor(name)
+          if (isShapeLike(v) || isCompoundLike(v)) buildFor(name)
         }
       } else {
         for (const t of terminals) buildFor(t.id)
@@ -1504,6 +1515,20 @@ export class CadRuntime {
     // 无缓存（非执行链路径，如 STEP 导入后直接构建拓扑）→ 执行完整构建（含 meshShape 三角化）
     const result: SolidTopologyResult = buildSolidTopologyRuntime(brepChain.kernel, solid)
     return result.runtime
+  }
+
+  /**
+   * 多零件 compound 终端的合并 BREP 拓扑（见 buildCompoundTopologyRuntime）。
+   *
+   * 读 compound 的**当前** children（装配变换已把新 solid 写回 child 槽位，
+   * brepOf(child) 返回最新句柄——比 buildBrepTopology 读持久 solidCache 更不
+   * 会陈旧），按声明序合并为单个 occurrence-aware runtime。
+   */
+  private buildCompoundBrepTopology(v: CompoundShape): SelectorRuntime | null {
+    if (!this.brepChain?.kernel) return null
+    const children = (v.children ?? []) as Shape[]
+    if (children.length === 0) return null
+    return buildCompoundTopologyRuntime(this.brepChain.kernel, children) ?? null
   }
 
   // ── 公开：dryRun 校验 ──

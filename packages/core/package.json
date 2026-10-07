@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.30.6",
+  "version": "0.30.7",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -183,6 +183,7 @@
     "lint": "eslint src",
     "gen:capability-map": "tsx scripts/gen-capability-map.ts",
     "gen:brepkit-surface": "tsx scripts/gen-brepkit-surface.ts",
+    "scan:occt-ops": "tsx scripts/scan-occt-op-coverage.ts",
     "check:api-coverage": "npx tsx ../../scripts/check-api-test-coverage.ts --package=."
   }
 }
