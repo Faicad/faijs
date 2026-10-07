@@ -49,6 +49,23 @@ import {
 // 直调 occt 原生 toSVG/toMultiviewSVG/toPNG/toMultiviewPNG（不在 L1 契约，方案 §3.4.7 校正注）；
 // 字符串/Uint8Array 返回，走 export-brep / shape-type 同口径。
 import { toSVG, toMultiviewSVG, toPNG, toMultiviewPNG } from './view-export'
+// S4（occt-wasm op 接入）：曲线与草图构造族（平台 op engines:['occt']，方案 §3.4.1）。
+// 直调 occt 原生 makeEdge/makeCircleArc/makeEllipseEdge/makeEllipseArc/makeTangentArc/
+// approximatePoints/interpolatePointsWithTangents/curveDegreeElevate/curveKnotInsert/
+// curveKnotRemove/curveIsPeriodic（不在 L1 契约）；curveIsPeriodic 布尔返回，普通函数。
+import {
+  edge, circleArc, ellipseEdge, ellipseArc, tangentArc,
+  approximatePoints, interpolateWithTangents,
+  curveDegreeElevate, curveKnotInsert, curveKnotRemove, curveIsPeriodic,
+} from './curve-sketch'
+// S4（occt-wasm op 接入）：曲面与面构造族（平台 op engines:['occt']，方案 §3.4.2）。
+// 直调 occt 原生 makeFaceOnSurface/makeNonPlanarFace/makeSolid/reverseSurfaceU/outerWire
+// （不在 L1 契约；bsplineSurface 已由 S3 的 surface op 覆盖）。
+import { faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire } from './surface-face'
+// S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
+// 直调 occt 原生 draftPrism/pipe（不在 L1 契约；offsetWire2D/buildSolidFromFaces/
+// halfSpace 已由 S3 落地）。
+import { draftPrism, pipe } from './solid-offset'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
@@ -127,6 +144,14 @@ export function createApiNamespace(): LibNamespace {
     isEdge, isFace, isShell, isVertex, isWire, isCompound, isCompSolid, isEqual,
     // S4（occt-wasm op 接入）：视图与导出族（平台 op engines:['occt']，字符串/Uint8Array 返回）。
     toSVG, toMultiviewSVG, toPNG, toMultiviewPNG,
+    // S4（occt-wasm op 接入）：曲线与草图构造族（平台 op engines:['occt']，方案 §3.4.1）。
+    edge, circleArc, ellipseEdge, ellipseArc, tangentArc,
+    approximatePoints, interpolateWithTangents,
+    curveDegreeElevate, curveKnotInsert, curveKnotRemove, curveIsPeriodic,
+    // S4（occt-wasm op 接入）：曲面与面构造族（平台 op engines:['occt']，方案 §3.4.2）。
+    faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire,
+    // S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
+    draftPrism, pipe,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
     faceRef,

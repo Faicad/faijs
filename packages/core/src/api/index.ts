@@ -57,6 +57,16 @@ export { exportBrep } from './export-brep'
 export { isEdge, isFace, isShell, isVertex, isWire, isCompSolid, isEqual } from './shape-type'
 // S4 视图与导出族（平台 op engines:['occt']，字符串/Uint8Array 返回）：平铺到 TS 桶。
 export { toSVG, toMultiviewSVG, toPNG, toMultiviewPNG } from './view-export'
+// S4（occt-wasm op 接入）：曲线与草图构造族（平台 op engines:['occt']，方案 §3.4.1）。
+export {
+  edge, circleArc, ellipseEdge, ellipseArc, tangentArc,
+  approximatePoints, interpolateWithTangents,
+  curveDegreeElevate, curveKnotInsert, curveKnotRemove, curveIsPeriodic,
+} from './curve-sketch'
+// S4（occt-wasm op 接入）：曲面与面构造族（平台 op engines:['occt']，方案 §3.4.2）。
+export { faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire } from './surface-face'
+// S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
+export { draftPrism, pipe } from './solid-offset'
 export { knurl } from './knurl'
 export { sdf } from './sdf'
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：

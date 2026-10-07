@@ -360,6 +360,14 @@ for (const op of ops) {
       for (const m of kernelCallsIn(slice, occtSet)) set.add(m)
       if (topFns.has(op.exportId)) {
         for (const m of kernelCallsFromRoot(body, topFns, op.exportId, occtSet)) set.add(m)
+      } else {
+        // defineOp 形态（`export const X = defineOp({ brep(...) { return helper(...) } })`）：
+        // op.exportId 不是 function 声明，topFns 不含它 → 从切片里找同文件顶层 helper，
+        // 对每个 helper 做传递闭包（S4 curve-sketch/surface-face/solid-offset 的形态：
+        // brep 体委托给同文件 `XBrep` 私有函数，内核直调落在 helper 里）。
+        for (const helper of helperRefsIn(slice, topFns)) {
+          for (const m of kernelCallsFromRoot(body, topFns, helper, occtSet)) set.add(m)
+        }
       }
     }
   }
@@ -400,6 +408,9 @@ const PLAN_C2_EXTRA = [
   // S4 视图与导出族（平台 op engines:['occt']，普通函数形态，返回字符串/Uint8Array，
   // 不在 defineOp 全集口径内）：直调 occt 原生 toSVG/toMultiviewSVG/toPNG/toMultiviewPNG。
   'toSVG', 'toMultiviewSVG', 'toPNG', 'toMultiviewPNG',
+  // S4 曲线草图族（方案 §3.4.1）：curveIsPeriodic 返回布尔，普通函数形态
+  // （api/curve-sketch/index.ts，与 shape-type 同口径），直调 occt 原生 curveIsPeriodic。
+  'curveIsPeriodic',
 ]
 const C2 = new Set<string>([...c2Reach, ...PLAN_C2_EXTRA])
 const L3 = new Set([...l3Reach].filter((m) => !c2Reach.has(m)))
