@@ -337,16 +337,22 @@ function checkPoints(op: string, points: Vec3[]): void {
   for (const p of points) toVec3(p, op, 'point')
 }
 
+/** 点集 [x,y,z][] → occt {x,y,z}[]（occt-wasm Vec3 是对象接口，非数组）。 */
+function toVec3Array(op: string, points: Vec3[]): { x: number; y: number; z: number }[] {
+  return points.map((p) => toVec3(p, op, 'point'))
+}
+
 /** BREP 路径：occt 原生 approximatePoints（逼近曲线；tolerance 缺省 = 原生 1e-3）。 */
 function approximatePointsBrep(points: Vec3[], tolerance?: number): Shape {
   checkPoints('APPROXIMATEPOINTS', points)
   if (tolerance !== undefined && (typeof tolerance !== 'number' || !(tolerance > 0))) {
     throw new Error('E_APPROXIMATEPOINTS_BAD_TOLERANCE: tolerance must be a positive number')
   }
+  const pts = toVec3Array('approximatePoints', points)
   const handle = (
     tolerance === undefined
-      ? getOcctKernel().approximatePoints(points as never)
-      : getOcctKernel().approximatePoints(points as never, tolerance)
+      ? getOcctKernel().approximatePoints(pts as never)
+      : getOcctKernel().approximatePoints(pts as never, tolerance)
   ) as unknown as BrepHandle
   return adoptCurve(handle)
 }
@@ -385,8 +391,9 @@ function interpolateWithTangentsBrep(points: Vec3[], startTangent: Vec3, endTang
   checkPoints('INTERPOLATEWITHTANGENTS', points)
   const st = toNonZeroVec3(startTangent, 'interpolateWithTangents', 'startTangent')
   const et = toNonZeroVec3(endTangent, 'interpolateWithTangents', 'endTangent')
+  const pts = toVec3Array('interpolateWithTangents', points)
   const handle = getOcctKernel().interpolatePointsWithTangents(
-    points as never, st as never, et as never,
+    pts as never, st as never, et as never,
   ) as unknown as BrepHandle
   return adoptCurve(handle)
 }
