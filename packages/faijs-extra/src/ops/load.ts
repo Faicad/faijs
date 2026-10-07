@@ -11,7 +11,9 @@ import type { CompoundShape } from '@faicad/faijs/shape'
 import type { ImportModel, ImportAssemblyNode } from '@faicad/faijs/mesh/import-model'
 import { importFile, detectStepUnit } from '@faicad/faijs/mesh/io'
 import { isCadFormat } from '@faicad/faijs/brep/brep-chain'
-import { loadBrepAssembly, type LoadBrepAssemblyPart } from '@faicad/faijs/brep/brep-ops'
+import { loadBrepAssembly, solidToShape, type LoadBrepAssemblyPart } from '@faicad/faijs/brep/brep-ops'
+import { importBrepToMesh } from '@faicad/faijs'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import { OpError } from '@faicad/faijs/api/internal/result-unwrap'
 import {
   getBackends, BrepUnsupportedError, getCurrentStmt,
@@ -19,7 +21,7 @@ import {
   setPendingMeshSolid, setPendingMeshTopology,
 } from '@faicad/faijs/runtime-state'
 import { solid, compound, fromBrep, fromMeshSolid } from '@faicad/faijs/shape'
-import { mm, centimeter, meter, micron, inch, foot, yard, type UnitName, type ValueWithUnits } from '@faicad/faijs/units'
+import { UNIT_DIM, type UnitName } from '@faicad/faijs/units'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 // 只取**类型**：后端实现的运行时依赖（内核、拓扑构建器）留在 core，不进扩展库。
 import type { MeshSolidBackend } from '@faicad/faijs/brep/mesh-solid'
@@ -91,8 +93,8 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
   }
 
   // mesh 路径：importFile 返回 { shape, parts, unit, importModel? } — unit 是文件
-  // 自己声明的单位（元数据；坐标已是基准值）。STL 无声明 → unit=null，opts.unit
-  // 决定刻度。P0（方案 §5.4）：多零件 mesh（多 object 3MF）不再折叠——
+  // 源单位（必然有值；faijs 单一真源；元数据；坐标已是基准值）。STL 取 opts.unit
+  // 或 guessStlUnit 猜测。P0（方案 §5.4）：多零件 mesh（多 object 3MF）不再折叠——
   // 全量 parts 以 compound 返回 + importModel 登记；单零件保持现状（buildMeshPart）。
   if (!useBrep) {
     const opts = buildImportOpts(params.unit)
@@ -119,7 +121,14 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
   const hash = await contentHash(buffer)
   let brepParts: LoadBrepAssemblyPart[]
   let assembly: ImportAssemblyNode | undefined
-  if (hash) {
+  if (fmt === 'brep') {
+    // CASCADE BREP 文本（单 solid，无装配树）：XCAF（STEPCAFControl_Reader）
+    // 读不了 BREP 语法——唯一读取实现是 kernel.fromBREP（importBrepToMesh）。
+    // 产物与 STEP 单零件同构（fromBrep + solid 句柄，句柄归 brepChain 管理）。
+    const imported = await importBrepToMesh(new TextDecoder().decode(new Uint8Array(buffer)))
+    const handle = imported.shapeHandle as unknown as BrepHandle
+    brepParts = [{ index: 0, name: file, shape: solidToShape(kernel!, handle), solid: handle, color: null }]
+  } else if (hash) {
     const cached = loadCache.get(hash)
     if (cached) {
       brepParts = cached.parts
@@ -135,11 +144,13 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
     brepParts = r.parts
     assembly = r.assembly
   }
-  // BREP 路径的声明单位：走文本探测（元数据；不参与几何运算）。
+  // BREP 路径的源单位：走文本探测（元数据；不参与几何运算）。
+  // STEP/BREP 无单位声明 → 探测返回 null → fallback 'mm'（与 OCCT 约定一致）。
+  // unit 必然有值（faijs 单一真源），registerDetectedUnit 总是登记。
   const declared = detectStepUnit(new TextDecoder().decode(new Uint8Array(buffer)))
-  registerDetectedUnit(declared)
+  registerDetectedUnit(declared ?? 'mm')
   const importModel: ImportModel = {
-    format: 'step',
+    format: fmt === 'brep' ? 'brep' : 'step',
     unit: declared,
     parts: brepParts.map((p) => ({
       index: p.index,
@@ -271,21 +282,19 @@ function assertFileMagic(fmt: string, buffer: ArrayBuffer, file: string): void {
 }
 
 /**
- * params.unit（UnitName 字符串，固化在脚本行里）→ importFile 的 ValueWithUnits。
+ * params.unit（UnitName 字符串，固化在脚本行里）→ importFile 的 opts.unit。
  * 只对无声明格式（STL）有意义；能声明的格式引擎自己读。
  */
-function buildImportOpts(unitParam: unknown): { unit: ValueWithUnits } | undefined {
+function buildImportOpts(unitParam: unknown): { unit: UnitName } | undefined {
   if (typeof unitParam !== 'string' || unitParam === '') return undefined
-  const spec = LENGTH_UNIT_VALUES[unitParam as UnitName]
-  if (!spec) {
-    throw new OpError('load', 'E_ARGS_FORM', `[extra/load] unknown unit: ${JSON.stringify(unitParam)}`)
+  if (UNIT_DIM[unitParam as UnitName] !== 'length') {
+    throw new OpError('load', 'E_ARGS_FORM', `[extra/load] unknown or non-length unit: ${JSON.stringify(unitParam)}`)
   }
-  return { unit: spec }
+  return { unit: unitParam as UnitName }
 }
 
-/** Register the file's declared unit for the current statement's output part. */
-function registerDetectedUnit(unit: UnitName | null): void {
-  if (!unit) return
+/** Register the file's source unit for the current statement's output part. */
+function registerDetectedUnit(unit: UnitName): void {
   const stmt = getCurrentStmt()
   const part = stmt?.outputs[0]
   if (part) setPendingDetectedUnit(part, unit)
@@ -302,15 +311,4 @@ function registerImportModel(model: ImportModel): void {
   const stmt = getCurrentStmt()
   const part = stmt?.outputs[0]
   if (part) setPendingImportModel(part, model)
-}
-
-/** UnitName → base-scaled ValueWithUnits (length dims only; load is a length-domain op). */
-const LENGTH_UNIT_VALUES: Partial<Record<UnitName, ValueWithUnits>> = {
-  mm,
-  cm: centimeter,
-  m: meter,
-  micron,
-  inch,
-  foot,
-  yard,
 }

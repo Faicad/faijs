@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { zipSync, strToU8 } from 'fflate'
 import { importFile } from '../../src/mesh/io'
-import { inch, mm } from '../../src/units'
+
 
 // ── in-memory 3MF builders ────────────────────────────────────────────────
 
@@ -101,28 +101,32 @@ describe('importFile — STL unit scale (D5)', () => {
 
   it('opts.unit = inch scales coordinates ×25.4', async () => {
     const stl = asciiStl(10)
-    const { shape } = await importFile(stl, 'stl', { unit: inch })
+    const { shape, unit } = await importFile(stl, 'stl', { unit: 'inch' })
     expect(maxX(shape.positions)).toBeCloseTo(254, 5)
+    expect(unit).toBe('inch')
   })
 
   it('opts.unit = mm keeps coordinates unchanged', async () => {
     const stl = asciiStl(10)
-    const { shape } = await importFile(stl, 'stl', { unit: mm })
+    const { shape, unit } = await importFile(stl, 'stl', { unit: 'mm' })
     expect(maxX(shape.positions)).toBeCloseTo(10, 5)
+    expect(unit).toBe('mm')
   })
 
   it('no opts.unit → heuristic guess (unified §6.1/§8: historical host behaviour moved into faijs)', async () => {
     // 0.1-unit cube → volume 0.001 → guessStlUnit 'm' → ×1000（历史 3d_editor 行为）
     const stl = asciiStl(0.1)
-    const { shape } = await importFile(stl, 'stl')
+    const { shape, unit } = await importFile(stl, 'stl')
     expect(maxX(shape.positions)).toBeCloseTo(100, 3)
+    expect(unit).toBe('m')
   })
 
   it('no opts.unit → heuristic guess keeps mm-sized files unchanged', async () => {
     // 10-unit cube → volume 1000 → guessStlUnit 'mm' → ×1
     const stl = asciiStl(10)
-    const { shape } = await importFile(stl, 'stl')
+    const { shape, unit } = await importFile(stl, 'stl')
     expect(maxX(shape.positions)).toBeCloseTo(10, 5)
+    expect(unit).toBe('mm')
   })
 })
 

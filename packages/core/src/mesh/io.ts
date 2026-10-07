@@ -13,10 +13,10 @@
  * - 3MF `<model unit>` 由解析器读取并换算（micron/mm/cm/inch/foot/meter）。
  *
  * 返回契约（unit-system §10.6）：`importFile` 返回 `{ shape, unit }` — `unit`
- * 是文件**自己声明的单位**（3MF `<model unit>`、STEP 单位实体），无声明格式
- * （STL）为 null（此时 `opts.unit` 决定刻度）。坐标恒为基准值 — `unit` 只作
- * 元数据（sourceUnit 记录、导出目标判定），绝不参与几何缩放（读入折算已由
- * 内核/解析器完成，二次缩放 = 双重换算）。
+ * 是文件源单位（必然有值；faijs 是单一真源）：3MF/STEP 取文件声明（STEP 无声明
+ * → 'mm'，与 OCCT 一致），STL 取 opts.unit 或 guessStlUnit 启发式猜测。坐标恒
+ * 为基准值 — `unit` 只作元数据（sourceUnit 记录、导出目标判定），绝不参与几何
+ * 缩放（读入折算已由内核/解析器完成，二次缩放 = 双重换算）。
  */
 
 import * as THREE from 'three'
@@ -24,7 +24,7 @@ import { geoToManifoldMesh } from '../boolean/geo-convert'
 import { parseStl } from './stl-loader'
 import { parseThreemf, type ThreemfObject } from './threemf-loader'
 import { parseBambu3mfFromEntries } from './threemf-bambu'
-import { mm, unitScale, type UnitName, type ValueWithUnits } from '../units'
+import { unitScale, type UnitName } from '../units'
 import { guessStlUnit } from './stl-unit'
 import type { Shape } from './types'
 import type { PbrAppearance } from '../api/appearance'
@@ -41,10 +41,12 @@ export interface ImportFileResult {
    */
   parts: Shape[]
   /**
-   * The unit the file itself declares (3MF `<model unit>`, STEP unit entities).
-   * null for declaration-less formats (STL) — the caller's opts.unit decided.
+   * The file's source unit (always present; faijs is the single source of truth).
+   * 3MF/STEP: the file's declared unit (STEP 无声明 → 'mm', 与 OCCT 一致).
+   * STL: opts.unit if declared, else the guessStlUnit heuristic result.
+   * Metadata only — coordinates are already in the faijs base unit (mm).
    */
-  unit: UnitName | null
+  unit: UnitName
   /**
    * Total parts the single file declared (e.g. 3MF `<build>` object count),
    * present only when > 1. Single-part mesh (STL, single-object 3MF) omits it.
@@ -141,15 +143,16 @@ export function detectStepUnit(stepText: string): UnitName | null {
  *   unzipping is the caller's job — faijs never unzips implicitly).
  * @param format - format identifier such as 'stl', '3mf'/'threemf' or 'step'
  *   (defaults to 'stl').
- * @param opts - optional settings; `unit` declares the source unit for
- *   formats without unit metadata (e.g. STL). Defaults to mm.
- * @returns the shape with base-unit coordinates plus the file's own declared
- *   unit (`unit`, metadata only; null when the format has no declaration).
+ * @param opts - optional settings; `unit` (a UnitName string) declares the
+ *   source unit for formats without unit metadata (e.g. STL). Defaults to
+ *   the guessStlUnit heuristic when omitted.
+ * @returns the shape with base-unit coordinates plus the file's source unit
+ *   (`unit`, metadata only; always present — faijs is the single source of truth).
  */
 export async function importFile(
   buffer: ArrayBuffer,
   format?: string,
-  opts?: { unit?: ValueWithUnits },
+  opts?: { unit?: UnitName },
 ): Promise<ImportFileResult> {
   const fmt = (format ?? 'stl').toLowerCase()
 
@@ -212,19 +215,22 @@ export async function importFile(
     // STL 无单位声明：opts.unit 显式声明优先；未声明时做启发式猜测
     // （guessStlUnit —— 历史 host 行为，unified §6.1/§8 迁移基线）。猜测与
     // 折算都在 faijs 内完成（红线 R0），G0 即基准值，宿主不再二次换算。
+    // unit 字段回传源单位（声明值或猜测值），供宿主记录 sourceUnit 元数据。
     let scale = 1
+    let sourceUnit: UnitName = 'mm'
     const declared = opts?.unit
     if (declared) {
-      scale = declared.as(mm)
+      sourceUnit = declared
+      scale = unitScale(declared)
     } else {
       geo.computeBoundingBox()
       const bb = geo.boundingBox
       if (bb) {
-        const guessed = guessStlUnit({
+        sourceUnit = guessStlUnit({
           min: [bb.min.x, bb.min.y, bb.min.z],
           max: [bb.max.x, bb.max.y, bb.max.z],
         })
-        scale = unitScale(guessed)
+        scale = unitScale(sourceUnit)
       }
     }
     if (scale !== 1) {
@@ -233,7 +239,7 @@ export async function importFile(
       for (let i = 0; i < arr.length; i++) arr[i] *= scale
     }
     const shape = geoToManifoldMesh(geo)
-    return { shape, parts: [shape], unit: null }
+    return { shape, parts: [shape], unit: sourceUnit }
   }
 
   // STEP goes through the BREP chain (loadBrep → OCCT, which normalizes to the
