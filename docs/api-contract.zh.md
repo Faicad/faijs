@@ -393,7 +393,7 @@ BREP 引擎在**装配期**切换（非运行时）：宿主经 `registerBrepEng
 
 ### 7.10 compat op 内核获取
 
-compat op（原 brepjs 投影的第一方 `brep-mirror` 重实现）经共享的 `getBrepApi()` 桥（§8.2）取内核——原**装配期适配器注入**机制（`injectCurrentBrepEngineAsKernel()` / `wrapBrepEngineApi()` / vendored 内核注册表）已随 brepjs vendor 树一并删除（2026-09-25 core-decouple）；历史上的三层包装保留在下方供参考。
+compat op（原 brepjs 投影的第一方 `brep-operations` 重实现）经共享的 `getBrepApi()` 桥（§8.2）取内核——原**装配期适配器注入**机制（`injectCurrentBrepEngineAsKernel()` / `wrapBrepEngineApi()` / vendored 内核注册表）已随 brepjs vendor 树一并删除（2026-09-25 core-decouple）；历史上的三层包装保留在下方供参考。
 
 `wrapBrepEngineApi()` 的三层包装（2026-09-23 收敛，历史）：
 
@@ -542,7 +542,7 @@ export interface HostPorts {
 | 装配求解 | `jointTrajectory` `inverseKinematics` `mechanismDOF` |
 | 资产 | `asset` |
 
-除手写集合外，`cad` 还承载**生成的 brepjs 兼容投影**（`fuse`、`torus`、`viewCamera`、`projectView`、`shell`、`offset` 等），由 `compatOp(projectBrepOp(…))` 构造；它们的归属地是 `docs/ops-api-inventory.md`。
+除手写集合外，`cad` 还承载**生成的第一方 BREP op**（`fuse`、`torus`、`viewCamera`、`projectView`、`shell`、`offset` 等），由 `defineOp({ brep: __own_* })` 直连构造；它们的归属地是 `docs/ops-api-inventory.md`。
 
 > 注：表中"特征类"是 faijs 函数目录的内部类别名（对既有几何做修改的操作），与宿主层"特征（feature）"术语无关——后者是通用 CAD 术语，由 1 到多个 op／函数调用实现（见 §2 R-9）。
 

@@ -392,7 +392,7 @@ Every library op declares the concrete names it needs (`capabilities: ['cut']`);
 
 ### 7.10 Compat op kernel acquisition
 
-Compat ops (first-party `brep-mirror` reimplementations of the former brepjs projections) get their kernel via the **shared `getBrepApi()` bridge** (§8.2) — the former assembly-time adapter-injection machinery (`injectCurrentBrepEngineAsKernel()` / `wrapBrepEngineApi()` / the vendored kernel registry) was removed together with the brepjs vendor tree (2026-09-25 core-decouple); the historical three wrapper layers are kept below for reference.
+Compat ops (first-party `brep-operations` reimplementations of the former brepjs projections) get their kernel via the **shared `getBrepApi()` bridge** (§8.2) — the former assembly-time adapter-injection machinery (`injectCurrentBrepEngineAsKernel()` / `wrapBrepEngineApi()` / the vendored kernel registry) was removed together with the brepjs vendor tree (2026-09-25 core-decouple); the historical three wrapper layers are kept below for reference.
 
 The three former `wrapBrepEngineApi()` wrapper layers (2026-09-23 convergence, historical):
 
@@ -541,7 +541,7 @@ Everything except `events` is optional — a Node test environment can supply on
 | Assembly solving | `jointTrajectory` `inverseKinematics` `mechanismDOF` |
 | Asset | `asset` |
 
-Beyond the handwritten set, `cad` also carries the **generated brepjs-compat projection** (`fuse`, `torus`, `viewCamera`, `projectView`, `shell`, `offset`, …) built by `compatOp(projectBrepOp(…))`; `docs/ops-api-inventory.md` is its home.
+Beyond the handwritten set, `cad` also carries the **generated first-party BREP ops** (`fuse`, `torus`, `viewCamera`, `projectView`, `shell`, `offset`, …) built by `defineOp({ brep: __own_* })` direct wiring; `docs/ops-api-inventory.md` is its home.
 
 > Note: "Feature" above is an internal faijs catalog category (ops modifying existing geometry), unrelated to the host-layer "feature" term — the generic CAD term implemented by one or more ops / function calls (see §2 R-9).
 
