@@ -147,6 +147,8 @@ Producers that want a container to be useful without executing it may add these 
 | `export/<modelId>.<ext>` | Exported artifact of one model (STEP, STL, 3MF, ...) |
 | `cache/<modelId>/**` | Execution cache of one model |
 
+Producers MAY add their own namespaces beyond this table (host-viewer UI state, editor preferences, ...). This specification does NOT register them: their member paths and contents are the producer's own contract, and a reader MUST ignore them under §9.2. A producer MUST only write members that every other application can safely ignore — ignoring them MUST leave the geometry and identity of every model unchanged (§8.1 obligation 3). Data another application would need to reconstruct the models correctly MUST NOT be hidden in a private namespace; it belongs in declared members (`models[].entry`, `models[].data`, `files/**`, `assets/**`).
+
 Obligations:
 
 1. A reader MAY use a member of these namespaces and MUST NOT require one.
