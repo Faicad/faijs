@@ -14,14 +14,11 @@
  *   - adapter construction: a brepjs-shaped bridge feeding the brep impl — the
  *     three bridging steps that cannot be shared (all reuse shared
  *     infrastructure, §3.2):
- *       1. borrowDeep — inward borrow: deep walk, any faijs Shape →
- *          borrowBrepjsShape view (zero-copy; library-private handles pass
- *          through untouched);
- *       2. call + unwrap — callBrepjs through the shared unwrapResult
+ *       1. call + unwrap — callBrepjs through the shared unwrapResult
  *          (`err` throws an OpError carrying the op name + BrepError code);
  *          async library fns are awaited first, so `Promise<Result<…>>` —
  *          the shape every kernel-awaiting library returns — unwraps too;
- *       3. adoptOut — outward adoption: top-level handle / `outputs`-declared
+ *       2. adoptOut — outward adoption: top-level handle / `outputs`-declared
  *          fields (single handle or handle array) → adoptEntity
  *          (unregister finalizer + fromHandle).
  *
@@ -48,7 +45,7 @@ import {
   type BrepProduct,
 } from '../../define-op'
 import { isShape } from '../../shape'
-import { borrowBrepjsShape, adoptEntity, callBrepjs } from './l3-bridge'
+import { adoptEntity, callBrepjs } from './l3-bridge'
 import { unwrapResult } from './result-unwrap'
 import type { Shape } from '../../mesh/types'
 
@@ -56,38 +53,7 @@ import type { Shape } from '../../mesh/types'
 export interface CompatSpec extends Omit<DualOpOptions, 'mesh' | 'brep'> {
   /** Op name (error messages + metadata; required, unlike defineOp's optional name). */
   name: string
-  /**
-   * 是否按 brepjs 句柄形态借入输入（默认 true）。
-   *
-   * faijs 化库（内部直接消费 core Shape 与 core op，如 sheetmetal）必须传
-   * `borrow: false`：borrowDeep 会把嵌套的 faijs Shape 替换成 brepjs 形态的
-   * `BorrowedShapeHandle`，而 core op 只认带 BREP 槽的 Shape，替换后库内部
-   * 布尔/拓扑调用会报「input is not on the BREP chain」。真 brepjs 形态的库
-   * （消费 ShapeHandle 对象）保持默认 true。
-   */
-  borrow?: boolean
-}
 
-const MAX_WALK_DEPTH = 4
-
-/**
- * Inward bridging step: deep walk with faijs Shapes replaced by borrowed
- * brepjs views (zero-copy); everything else passes through.
- * Class instances are not traversed (defensive); library-private handles
- * pass through (§4.3.4 of the design).
- *
- * @param v - the value to borrow from (plain object, array, or primitive).
- * @param depth - current traversal depth (guard against deep recursion).
- * @returns the value with faijs Shapes replaced by borrowed views.
- */
-export function borrowDeep(v: unknown, depth: number): unknown {
-  if (depth > MAX_WALK_DEPTH || v === null || typeof v !== 'object') return v
-  if (isShape(v)) return borrowBrepjsShape(v)
-  if (Array.isArray(v)) return v.map((x) => borrowDeep(x, depth + 1))
-  if (Object.getPrototypeOf(v) !== Object.prototype) return v
-  const out: Record<string, unknown> = {}
-  for (const [k, x] of Object.entries(v)) out[k] = borrowDeep(x, depth + 1)
-  return out
 }
 
 /**
@@ -168,10 +134,8 @@ function readSegmentsFromArgs(args: unknown[]): number | undefined {
  */
 function buildAdapter(fn: (...args: unknown[]) => unknown, spec: CompatSpec): BrepImpl<unknown[]> {
   return async (...args: unknown[]): Promise<BrepProduct> => {
-    // borrow: false（faijs 化库）时输入原样直传——嵌套的 core Shape 保留其
-    // BREP 槽，库内部调 core op 才能取到 OCCT 句柄（否则报 input not on the
-    // BREP chain）。默认 true 保持 brepjs 形态库的借入语义。
-    const effective = spec.borrow === false ? args : args.map((a) => borrowDeep(a, 0))
+    // faijs-native 库消费 core Shape：输入原样直传，保留 BREP 槽。
+    const effective = args
     // Async library fns are supported: a library that awaits its kernel (every
     // `@faicad/faijs-gears` factory does — `await getGearKernel()`) returns
     // `Promise<Result<…>>`, and the shared unwrap is a sync leaf that only

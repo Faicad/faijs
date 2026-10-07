@@ -9,12 +9,11 @@ import { fromHandle } from '../../sdk'
 import { isShape } from '../../shape'
 import type { Shape } from '../../mesh/types'
 
-// ── compatOp 提升边界归一（GOTCHA：borrowDeep 把实参 Shape 换成借用视图）──
+// ── compatOp 提升边界归一（GOTCHA：compatOp 提升后实参形态可能变化）──
 //
 // 当 cq-compat 命名空间被 registerLib 提升（无 dual-op → autoLift=true）时，
-// 每个裸导出函数的实参先经 borrowDeep：faijs Shape → 借用 brepjs 视图
-// `{ wrapped, disposed, delete, onDispose }`（`isShape=false`、`brepOf=undefined`）。
-// 直接调用（测试进程内）拿到的则是真实 Shape。两个形态都必须能消费：
+// 每个裸导出函数的实参经 compatOp 适配器传入。直接调用（测试进程内）拿到的
+// 则是真实 Shape。两个形态都必须能消费：
 //
 //   asBrepShape(v) —
 //   - 真实 Shape → 原样返回；

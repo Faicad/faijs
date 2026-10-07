@@ -79,7 +79,7 @@ let result: Awaited<ReturnType<CadRuntime['execute']>>
 beforeAll(async () => {
   await registerOcctBrepEngine()
   runtime = createEditorRuntime(createNodePorts(), 'auto')
-  runtime.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
+  runtime.registerLib('sheet', sheetNs, { autoLift: true })
   result = await runtime.execute(SCRIPT)
 }, 180000)
 
@@ -151,11 +151,11 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
       //     no spurious recompute for an unchanged lib content).
       const r = createEditorRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
+        r.registerLib('sheet', sheetNs, { autoLift: true })
         await r.execute(SCRIPT)
         const s1Key0 = r.getStatementCacheEntry(asPartName('s1'))?.statementKey
         expect(s1Key0).toBeDefined()
-        r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
+        r.registerLib('sheet', sheetNs, { autoLift: true })
         await r.execute(SCRIPT)
         const s1Key1 = r.getStatementCacheEntry(asPartName('s1'))?.statementKey
         expect(s1Key1).toBe(s1Key0)
@@ -168,7 +168,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
       // T5: plan() deleted; use update() to verify recompute happens.
       const r = createEditorRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
+        r.registerLib('sheet', sheetNs, { autoLift: true })
         const r1 = await r.execute(SCRIPT)
         expect(r1.failedAt).toBeUndefined()
         const changed = SCRIPT.replace('{ thickness: 2', '{ thickness: 3')
@@ -202,10 +202,10 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
       // T5: plan() deleted; verify recompute via update().
       const r = createEditorRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
+        r.registerLib('sheet', sheetNs, { autoLift: true })
         const r1 = await r.execute(SCRIPT)
         expect(r1.failedAt).toBeUndefined()
-        r.registerLib('sheet', sheetV2, { autoLift: true, borrow: false })
+        r.registerLib('sheet', sheetV2, { autoLift: true })
         const r2 = await r.update(SCRIPT, SCRIPT)
         expect(r2.failedAt).toBeUndefined()
         // Re-registering a changed lib and re-running should produce results
@@ -220,7 +220,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
   it('⑥ mesh mode hits E_MESH_UNSUPPORTED when invoking the sheet library (no silent fallback)', async () => {
     const r = createEditorRuntime(createNodePorts(), 'mesh')
     try {
-      r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
+      r.registerLib('sheet', sheetNs, { autoLift: true })
       const res = await r.execute(SCRIPT)
       expect(res.failedAt).toBeDefined()
       expect(res.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED|not supported|mesh/i)

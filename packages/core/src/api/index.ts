@@ -77,7 +77,7 @@ export { mergeMeta } from './meta'
 // ── P23：brepjs 兼容面接线（§4.2 / B1 三源一致）──
 //
 // ① 生成脚本面 op（与 api-namespace 的 cad 面同源：api/generated/script-face.ts）。
-//    这批 op 经 `compatOp(projectBrepOp(…))` 包装，faijs 形态（Shape 进 / Shape 出、
+//    这批 op 经 `defineOp({ brep: __own_* })` 直连 core 自有实现，faijs 形态（Shape 进 / Shape 出、
 //    布尔双形态、brep-only），TS 侧与 `.fai.js` 侧同语义。
 export * from './generated/script-face'
 // P25: compat extrude/revolve (brep-only, face→prism / face→lathe) share one

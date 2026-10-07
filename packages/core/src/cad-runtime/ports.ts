@@ -195,9 +195,9 @@ export interface LibLoader {
     /**
      * 按 packageName 的逐库 `autoLift` 覆盖（优先于 `options.autoLift`）。
      * 返回 `undefined` 时回落到全局选项 / 推断式。用于别名库：如 cq-compat 在
-     * 浏览器 host 被全局 autoLift 提升后，compat 边界的 borrowDeep 会把实参里的
-     * faijs Shape 替换成 brepjs 借用视图，破坏其内部「以 Shape 受众」的借面逻辑
-     * （原 CLI 即按 autoLift=false 运行）。逐库关掉提升恢复 CLI 等价行为。
+     * 浏览器 host 被全局 autoLift 提升后，compat 边界会改变实参形态，破坏其
+     * 内部「以 Shape 受众」的借面逻辑（原 CLI 即按 autoLift=false 运行）。
+     * 逐库关掉提升恢复 CLI 等价行为。
      */
     autoLiftFor?: (packageName: string) => boolean | undefined
   }

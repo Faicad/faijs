@@ -7,8 +7,7 @@
  * CadQuery `until=` 同族语义，因此落在**本 op**；`fai_extrude`（`fai_` 前缀的
  * faijs 扩展 op，与 fai_drill / fai_split 同族）不得承载它。
  *
- * 为什么是手写 op 而不是继续用生成投影：生成投影
- * `compatOp(projectBrepOp('extrude', ['face','height'], 'A', brepjsExtrude))`
+ * 为什么是手写 op 而不是继续用生成投影：生成投影（compatOp 包装的 brepjs-shaped 函数）
  * 有两个硬约束——
  * ① 参数表只有位置形参；D11 归一化只在「单 plain-object 形态」下按 params 表
  *    映射（api/internal/dual-form-args.ts），`(face, { upTo })` 属位置形态 →

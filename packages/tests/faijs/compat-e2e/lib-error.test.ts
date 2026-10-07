@@ -77,7 +77,7 @@ describe('P0 — library err becomes a statement failure, not an uncaught throw'
     // T5: direct-mode outputs contains all written values including non-Shape compat data.
     const r = createEditorRuntime(createNodePorts(), 'auto')
     try {
-      r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
+      r.registerLib('sheet', sheetNs, { autoLift: true })
       const res = await r.execute(SHEET_SCRIPT)
       expect(res.failedAt).toBeDefined()
       expect(res.failedAt!.message).toContain('UNKNOWN_REGION')

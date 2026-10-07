@@ -10,10 +10,10 @@
  *   （`{ wrapped, disposed, delete, onDispose }`），其 `wrapped` 运行时也是
  *   同一 occt-wasm 实例的 shape 句柄 —— D10 单实例保证两者共享同一 wasm，
  *   句柄空间一致，**零拷贝互操作**。brepjs 子包删除后（裁决 9），本文件
- *   自带最小实现：borrow 视图 / 句柄类型视图 / disposal 解除（no-op）。
+ *   自带最小实现：句柄类型视图 / disposal 解除（no-op）。
  *
  * 因此投影一个库函数只需三件事：
- *   1. faijs Shape → 库输入：`createBorrowedHandle(brepOf(s))`（借入，不转移所有权）；
+ *   1. faijs Shape → 库输入：原样直传（faijs-native 库消费 core Shape）；
  *   2. 调库函数（Result 语义由各 op 处理：`ok` 取值 / `err` 抛错）；
  *   3. 库产物 → faijs Shape：取 `.wrapped`（owned handle）→ `fromHandle()`
  *      （meshHandle + 身份槽登记，所有权转入 faijs）。
@@ -24,16 +24,14 @@
  */
 
 import type { Shape } from '../../mesh/types'
-import { brepOf } from '../../shape'
-import { fromHandle, getBrepApi } from '../../brep/handle-bridge'
+import { fromHandle } from '../../brep/handle-bridge'
 import type { BrepHandle } from '../../brep/engine/types'
 import { getBackends } from '../../runtime-state'
 import { OpError } from './result-unwrap'
 
 // ── brepjs 借用面最小自有化（core-decouple wrapup §4.3）──────────────────────
-// 原实现：@faicad/faijs-brepjs/core/disposal.js（createBorrowedHandle /
-// unregisterFromCleanup / ShapeHandle）与 kernel/occtWasm/helpers.js
-// （handle / isOcctWasmHandle）。brepjs 子包删除后按同语义内联。
+// 原实现：@faicad/faijs-brepjs/core/disposal.js（unregisterFromCleanup /
+// ShapeHandle）。brepjs 子包删除后按同语义内联。
 
 /** 库侧消费的 shape 句柄视图（borrowed：不拥有、不释放）。 */
 export interface BorrowedShapeHandle {
@@ -49,92 +47,9 @@ export interface BorrowedShapeHandle {
   onDispose(callback: () => void): void
 }
 
-/** occt-wasm 句柄对象视图（type + id，delete no-op）。 */
-export interface OcctWasmHandleView {
-  __occtWasm: true
-  type: string
-  id: number
-  delete(): void
-  HashCode(upperBound: number): number
-  IsNull(): boolean
-}
-
-const noopFn = (): void => {}
-
-/** Build an opaque kernel handle for an arena-allocated WASM shape. */
-function occtWasmHandleView(type: string, id: number): OcctWasmHandleView {
-  return {
-    __occtWasm: true,
-    type,
-    id,
-    delete: noopFn,
-    HashCode(upperBound: number) {
-      return id % upperBound
-    },
-    IsNull() {
-      return false
-    },
-  }
-}
-
-function isOcctWasmHandle(shape: unknown): shape is OcctWasmHandleView {
-  return typeof shape === 'object' && shape !== null && (shape as OcctWasmHandleView).__occtWasm === true
-}
-
-/** Borrow view：不转移所有权、dispose 为 no-op（与 brepjs createBorrowedHandle 同语义）。 */
-function createBorrowedHandle(ocShape: unknown): BorrowedShapeHandle {
-  return {
-    get wrapped() {
-      return ocShape
-    },
-    get disposed() {
-      return false
-    },
-    [Symbol.dispose]: noopFn,
-    delete: noopFn,
-    // Intentionally a no-op: a borrowed view never disposes, so a callback would
-    // never fire. Tie dependent lifetimes to the owning parent's handle instead.
-    onDispose: noopFn,
-  }
-}
-
 /** brepjs 的 finalizer registry 已随子包删除——解除登记为 no-op。 */
 function unregisterFromCleanup(_deletable: object): void {
   // no-op（原 brepjs core/disposal.ts#unregisterFromCleanup；registry 已不存在）
-}
-
-/**
- * Borrow a faijs Shape's OCCT handle as a library-side shape handle.
- *
- * No ownership transfer: the borrowed view is a no-op-dispose wrapper of the
- * same occt-wasm shape, valid while the faijs Shape owns it. Pass the result to
- * compatOp-projected functions that take `Shapeable<T>` / `AnyShape`.
- *
- * `brepOf` is a numeric arena id at runtime (occt-wasm's own `ShapeHandle` is a
- * branded number), but library code consumes shapes as *objects* (the
- * shapeTypeCache WeakMap key, `isOcctWasmHandle` discriminant, direct
- * `shape.type` reads) — a raw number crashes there ("Invalid value used as weak
- * map key"). The id is therefore wrapped into a structurally valid
- * `OcctWasmHandleView`: the type is queried from the bound occt kernel through
- * `getOcctKernel().getShapeType`, and the `delete` is a no-op (non-owning view —
- * the arena slot and its ownership are untouched).
- *
- * @param s - the faijs Shape whose brep slot is borrowed.
- * @returns a library-side ShapeHandle view of the same occt shape.
- * @throws when the Shape has no live BREP slot (mesh-only input on a brep op).
- */
-export function borrowBrepjsShape(s: Shape): BorrowedShapeHandle {
-  const solid = brepOf(s) as BrepHandle | undefined
-  if (solid === undefined) {
-    throw new Error(
-      '[faijs/l3-bridge] E_BREP_ONLY_INPUT: operation requires a BREP-backed shape ' +
-        '(mesh-only input cannot run on the brep path)',
-    )
-  }
-  const kernelShape = isOcctWasmHandle(solid)
-    ? solid
-    : occtWasmHandleView(getBrepApi().shapeType(solid as never), solid as number)
-  return createBorrowedHandle(kernelShape)
 }
 
 /**

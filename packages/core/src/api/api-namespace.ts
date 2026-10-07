@@ -68,7 +68,7 @@ import type { LibNamespace } from '../runtime-state'
  *
  * P23（§4.2 ②，B1 三源一致）：cad 面 = faijs 特有 dual op（下方字面量）+
  * 生成脚本面 op（`scriptFaceOps`——`api/generated/script-face.ts` 按 arg-spec
- * 的 `scriptFace: true` 条目生成，经 `compatOp(projectBrepOp(…))` 包装的
+ * 的 `scriptFace: true` 条目生成，`defineOp({ brep: __own_* })` 直连的
  * brep-only 语句级 op）。`check()` 符号表（`gen-symbol-table.ts`）与
  * `api/index.ts` 导出面同源于同一份清单。
  *
