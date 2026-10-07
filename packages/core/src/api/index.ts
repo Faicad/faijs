@@ -55,6 +55,8 @@ export { exportBrep } from './export-brep'
 // 仅平铺不与 ../shape 既有 TS 守卫同名者；`isCompound` 与 ../shape#isCompound 同名，
 // 只在 cad 脚本面（api-namespace）暴露，避免本桶重复导出。
 export { isEdge, isFace, isShell, isVertex, isWire, isCompSolid, isEqual } from './shape-type'
+// S4 视图与导出族（平台 op engines:['occt']，字符串/Uint8Array 返回）：平铺到 TS 桶。
+export { toSVG, toMultiviewSVG, toPNG, toMultiviewPNG } from './view-export'
 export { knurl } from './knurl'
 export { sdf } from './sdf'
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：

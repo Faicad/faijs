@@ -45,6 +45,10 @@ import { exportBrep } from './export-brep'
 import {
   isEdge, isFace, isShell, isVertex, isWire, isCompound, isCompSolid, isEqual,
 } from './shape-type'
+// S4（occt-wasm op 接入）：视图与导出族（平台 op engines:['occt']，普通函数形态）。
+// 直调 occt 原生 toSVG/toMultiviewSVG/toPNG/toMultiviewPNG（不在 L1 契约，方案 §3.4.7 校正注）；
+// 字符串/Uint8Array 返回，走 export-brep / shape-type 同口径。
+import { toSVG, toMultiviewSVG, toPNG, toMultiviewPNG } from './view-export'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
@@ -121,6 +125,8 @@ export function createApiNamespace(): LibNamespace {
     exportBrep,
     // S4（occt-wasm op 接入）：类型判定谓词族（平台 op engines:['occt']，布尔返回）。
     isEdge, isFace, isShell, isVertex, isWire, isCompound, isCompSolid, isEqual,
+    // S4（occt-wasm op 接入）：视图与导出族（平台 op engines:['occt']，字符串/Uint8Array 返回）。
+    toSVG, toMultiviewSVG, toPNG, toMultiviewPNG,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
     faceRef,

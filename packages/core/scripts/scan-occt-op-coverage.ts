@@ -397,6 +397,9 @@ for (const op of ops) {
 const PLAN_C2_EXTRA = [
   'toBREP',
   'isEdge', 'isFace', 'isShell', 'isVertex', 'isWire', 'isCompound', 'isCompSolid', 'isEqual',
+  // S4 视图与导出族（平台 op engines:['occt']，普通函数形态，返回字符串/Uint8Array，
+  // 不在 defineOp 全集口径内）：直调 occt 原生 toSVG/toMultiviewSVG/toPNG/toMultiviewPNG。
+  'toSVG', 'toMultiviewSVG', 'toPNG', 'toMultiviewPNG',
 ]
 const C2 = new Set<string>([...c2Reach, ...PLAN_C2_EXTRA])
 const L3 = new Set([...l3Reach].filter((m) => !c2Reach.has(m)))

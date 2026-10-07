@@ -1,7 +1,7 @@
 # occt-wasm 5.6 能力接入方案（脚本 op 化 + 实现面接入）
 
 > 日期：2026-10-07
-> 状态：**S1–S3 已实现**（commit `7e20393` 等）；S4+ 接手续做。本方案随实测持续校正，凡与源码冲突处以实测为准。
+> 状态：**S1–S3 已实现**（commit `7e20393` 等）；**S4 类型判定族已落地**（commit `7e13583`，8 个 occt 平台谓词 isEdge/isFace/isShell/isVertex/isWire/isCompound/isCompSolid/isEqual，C4 64→44、C2 10→25，sum=211 全绿）；**S4 其余族（§3.4.1 曲线草图 / §3.4.2 曲面面 / §3.4.4 实体偏置 / §3.4.6 测量查询剩余 / §3.4.7 视图 / §3.4.9 对齐）续做**。本方案随实测持续校正，凡与源码冲突处以实测为准。
 > 方案出处：DeepSeek-V4.1-Flash + WorkBuddy
 > 事实基线：全部**技术结论**来自当前源码实测，唯一来源为 `node_modules/occt-wasm@5.6.0` 的 `dist/*.d.ts`（与本机 `occt-wasm` 源码仓）、本仓 `packages/core/src` 与 `packages/faijs-extra/src` 的具体文件行号。
 
@@ -124,9 +124,9 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | 类 | 计数 |
 |---|---|
 | C1 契约可达 | **102** |
-| C2 平台 op 已触达 | **25** |
+| C2 平台 op 已触达 | **29** |
 | C3 能力已由现 op 覆盖 | **6** |
-| C4 新增脚本 op | **44** |
+| C4 新增脚本 op | **40** |
 | C5 实现面接入 | **10** |
 | C6 显式排除 | **24** |
 | **合计** | **211** ✓ |
@@ -146,7 +146,7 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 
 > **口径提醒**：C1 的 102 与契约成员数 F3 的 102 **数值相同纯属巧合**——C1 的元素是 occt **方法名**（L1 快照 100 项 + `linearPattern`/`circularPattern` 两项漏检），F3 的元素是 `BrepEngineApi` **成员**。两个集合元素不同，**禁止互相反推**。C1–C6 六类的元素一律是 `OcctKernel` 的方法名。
 
-### 3.2 C2 — 平台 op 已触达（25）
+### 3.2 C2 — 平台 op 已触达（29）
 
 已存在于脚本面、且声明 `engines:['occt']` 的 op 直调。**动作：确认声明齐全（其中 4 项为扫描器漏检，须由修正后的扫描器复现）。**
 
@@ -175,6 +175,17 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | `isCompound` | `isCompound` | 同上 | `isCompound` 与 `../shape#isCompound`（TS 守卫）同名，仅在 cad 脚本面暴露，不平铺到 `api/index.ts` 桶 |
 | `isCompSolid` | `isCompSolid` | 同上 | 同上 |
 | `isEqual` | `isEqual` | 同上 | occt `IsEqual` 语义（同 TShape+Location/Orientation）；几何相同但独立构造返回 false，区别于 `isSame` |
+
+> **S4 落地（2026-10-07，续类型判定族之后）：视图与导出族 4 项**（`toSVG` / `toMultiviewSVG` / `toPNG` / `toMultiviewPNG`），occt 平台 op（普通函数形态 + `assertEngineFor('<op>',['occt'])` 引擎守卫，与 `api/export-brep.ts` / `api/shape-type` 同口径；不能走 `defineOp`，因其返回字符串 / Uint8Array 而非 Shape）。实现见 `api/view-export/index.ts`，注册见 `api/api-namespace.ts`，扫描器 `PLAN_C2_EXTRA` 已补 4 方法名（`collectOps` 看不见普通函数）。测试固化于 `test/api/occt-s4b-view-export.test.ts`（6 用例全绿：SVG 含 `<svg`、PNG 头 89 50 4E 47、非 occt 引擎抛 `E_BREP_UNSUPPORTED`、mesh-only 抛 `E_SHAPE_TYPE_NO_BREP`）。
+
+| 方法 | 触达它的 op | 证据 | 备注 |
+|---|---|---|---|
+| `toSVG` | `toSVG` | `api/view-export/index.ts` | occt 原生 `toSVG`（HLR→SVG 单命名视图），`engines:['occt']` |
+| `toMultiviewSVG` | `toMultiviewSVG` | 同上 | occt 原生 `toMultiviewSVG`（多视图图纸） |
+| `toPNG` | `toPNG` | 同上 | occt 原生 `toPNG`（PNG 字节，异步 CompressionStream 压缩） |
+| `toMultiviewPNG` | `toMultiviewPNG` | 同上 | occt 原生 `toMultiviewPNG`（多视图 PNG 字节，异步） |
+
+> **§3.4.7 校正注（2026-10-07 接手）**：本族 `toSVG` / `toMultiviewSVG` 原 S3 初稿标为「中立（扩 projectView / projectSheet）」，但实测 L1 契约 `BrepEngineApi` 无 `projectView` / `toSVG` 等渲染成员（L1 仅含 STEP/STL 导入导出），故这 4 个导出**不能走中立路径**，必须声明 `engines:['occt']` 直调 occt 原生。判定从「中立」更正为「occt 平台 op」，落点不变（仍为脚本面新符号）。`exportStl` 仍属 C3（能力已由现 op 覆盖，见 §3.3），`toBREP` 已随 S3 落地为 `exportBrep`（C2）。
 
 ### 3.3 C3 — 能力已由现 op 覆盖（3）
 

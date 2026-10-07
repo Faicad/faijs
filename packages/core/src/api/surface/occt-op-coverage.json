@@ -133,7 +133,11 @@
     "sweepFull",
     "sweepPipeShell",
     "thicken",
-    "toBREP"
+    "toBREP",
+    "toMultiviewPNG",
+    "toMultiviewSVG",
+    "toPNG",
+    "toSVG"
   ],
   "L3": [],
   "C3": [
@@ -183,10 +187,6 @@
     "subShapeCount",
     "sweepAdvanced",
     "sweepOriented",
-    "toMultiviewPNG",
-    "toMultiviewSVG",
-    "toPNG",
-    "toSVG",
     "uvFromPoint",
     "vertexPosition"
   ],
@@ -303,10 +303,6 @@
     "tessellate",
     "thickenWithHistory",
     "toBREPBinary",
-    "toMultiviewPNG",
-    "toMultiviewSVG",
-    "toPNG",
-    "toSVG",
     "transformBatch",
     "translateBatch",
     "translateWithHistory",
