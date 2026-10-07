@@ -7,13 +7,13 @@
  *       api/surface/upstream-surface.json（brepjs 基线清单，用于校验符号存在）
  * 产物：api/generated/<module>.ts（按模块分片；从 PROJECTED_MODULES 逐个生成）
  *
- * 产物形态（对齐 §5.2 / E5 分类表）：
- *   kind 'type'   → `export type { X } from '<vendored rel>'`（re-export）
- *   kind 'pure'   → `export { x } from '<vendored rel>'`（直接 re-export，不进 defineOp）
- *   kind 'brep-op'→ defineOp({ brep: (...args) => 借入→调 vendored→Result 翻转→adopt })
- *   kind 'query'  → 普通导出函数（faijs Shape 借入 → 调 vendored → 返回纯数据；
- *                   返回非 Shape，不进 defineOp——先例 = api/geom.ts）
+ * 产物形态（selfhost 化后，2026-10-07 清理 vendored 死分支）：
+ *   kind 'brep-op'→ defineOp({ brep: __own_* })——直连 core 自有实现（api/brep-mirror/）
+ *   kind 'query'  → 普通导出函数（getBrepApi().* 直连引擎，SELFHOST_QUERY_EXPR；
+ *                   返回纯数据，不进 defineOp——先例 = api/geom.ts）
+ *   kind 'faijs'  → re-export 自手写 api/ 模块（P25 自研符号）
  *   kind 'skip'   → 仅登记（不生成，divergence：语义 faijs 面无法表达）
+ *   （历史 kind 'type' / 'pure' 已无条目，出现即抛错）
  *
  * 运行：npx tsx packages/core/scripts/gen-l3-surface.ts [module...]（缺省 = all）
  */
@@ -27,7 +27,6 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const SURFACE_JSON = path.resolve(__dirname, '..', 'src', 'api', 'surface', 'upstream-surface.json')
-const VENDORED_ROOT_REL = '@faicad/faijs-brepjs/' // emitted import specifier prefix
 const OUT_DIR = path.resolve(__dirname, '..', 'src', 'api', 'generated')
 
 /** 已登记分片的模块名（写产物 + 机制测试遍历对象）。 */
@@ -57,37 +56,10 @@ function parseSource(source: string): { file: string; exportName: string } {
   return { file: source.slice(0, by), exportName: source.slice(by + 1) }
 }
 
-function vendoredImportSpec(file: string): string {
-  // api/generated/<module>.ts -> ../../vendored/brepjs/<file>
-  return `${VENDORED_ROOT_REL}${file}`
-}
-
 /** 条目所属模块（缺省 topology，P13 兼容）。 */
 const moduleOf = (e: ArgSpecEntry): string => e.module ?? 'topology'
 
-const BUILTIN_TYPES = new Set(['number', 'string', 'boolean', 'bigint', 'symbol', 'undefined', 'null', 'object', 'void', 'unknown', 'any', 'never'])
-
-/** query 返回值根类型名（用于 `import type`）；内置/空则返回 undefined。 */
-function returnTypeImport(e: ArgSpecEntry): string | undefined {
-  if (e.kind !== 'query' || !e.returnType) return undefined
-  const rt = e.returnType.replace(/\[\]$/, '') // T[] → T
-  if (BUILTIN_TYPES.has(rt)) return undefined
-  // §5.5 第 2 条：selfhost query 的 returnType 为 core 内联对象字面量（无 vendored type import）
-  if (rt.startsWith('{')) return undefined
-  return rt
-}
-
 // ── per-kind 渲染 ──
-
-function renderType(entry: ArgSpecEntry): string {
-  const { file, exportName } = parseSource(entry.source)
-  return `export type { ${exportName} } from '${vendoredImportSpec(file)}'`
-}
-
-function renderPure(entry: ArgSpecEntry): string {
-  const { file, exportName } = parseSource(entry.source)
-  return `export { ${exportName} } from '${vendoredImportSpec(file)}'`
-}
 
 /**
  * faijs 自研符号（P25，kind 'faijs'）：手写实现模块（api/view/）re-export 进 L3 面。
@@ -104,20 +76,12 @@ function renderFaijs(entry: ArgSpecEntry): string {
 }
 
 /**
- * brep-op 模板（P23 起）：`compatOp(projectBrepOp(…), spec)` 一行/符号（§4.3.2）。
- *
- * P14 之前是「逐 op 展开 defineOp」；P23 改为走 P21 的双形态投影包装
- * （{@link projectBrepOp}：单内核断言 + D11 对象形态→位置形态归一 + callBrepjs），
- * 再由 {@link compatOp} 套上语句边界六步契约（静态分派门 → 借入 → Result
- * unwrap → 收养）。每符号一行，机制只有一份（§4.2）。
- *
- * Phase 3（core-decouple plan §5.4）：`selfhost: true` 条目改走自有化分支——
- * `defineOp({ brep: __own_<exportName>, … })` 直连 core 自有实现（api/brep-mirror/），
- * 无 vendored import、无 compatOp/projectBrepOp 桥（D11 归一在自有实现内部完成）。
+ * brep-op 模板：`defineOp({ brep: __own_<exportName>, … })` 直连 core 自有实现
+ * （api/brep-mirror/）。全部 brep-op 条目均为 selfhost（arg-spec 无非 selfhost 条目）；
+ * D11 归一在自有实现内部完成。
  */
 function renderBrepOp(entry: ArgSpecEntry): string {
   const { exportName } = parseSource(entry.source)
-  const formClass = entry.formClass ?? 'A'
   // Phase 2.2 guard: brep-op + scriptFace=true requires naming declaration.
   if (entry.scriptFace === true && !entry.naming) {
     throw new Error(
@@ -131,38 +95,23 @@ function renderBrepOp(entry: ArgSpecEntry): string {
   const outputsLit = entry.outputs?.length ? `, outputs: ${JSON.stringify(entry.outputs)}` : ''
   const schemaLit = entry.schema ? `, schema: ${JSON.stringify(entry.schema)}` : ''
   const slotMapLit = entry.slotMap ? `, slotMap: ${JSON.stringify(entry.slotMap)}` : ''
-  // P26 (unit-system D8): dimension declarations thread into both the selfhost
-  // defineOp and the compatOp spec so the static dimension stage can read them.
+  // P26 (unit-system D8): dimension declarations thread into the selfhost defineOp
+  // so the static dimension stage can read them.
   const paramDimsLit = entry.paramDims ? `, paramDims: ${JSON.stringify(entry.paramDims)}` : ''
   const retDimLit = entry.retDim ? `, retDim: ${JSON.stringify(entry.retDim)}` : ''
 
-  if (entry.selfhost === true) {
-    const ownName = `__own_${exportName}`
-    return [
-      `/**`,
-      ` * ${entry.name} — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。`,
-      ` * ${entry.args ?? ''}`,
-      ` * 桥接：defineOp({ brep: ${ownName} })——core 直连 occt 引擎（§5.4 selfhost），`,
-      ` * D11 归一在自有实现内部完成（api/brep-mirror/）。`,
-      ` */`,
-      `export const ${entry.name} = defineOp({`,
-      `  brep: ${ownName},`,
-      `  name: '${entry.name}'${namingLit}${capsLit}${enginesLit}${outputsLit}${schemaLit}${slotMapLit}${paramDimsLit}${retDimLit},`,
-      `})`,
-    ].join('\n')
-  }
-
-  const vendoredName = `__vendored_${exportName}`
+  const ownName = `__own_${exportName}`
   return [
     `/**`,
-    ` * ${entry.name} — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。`,
+    ` * ${entry.name} — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。`,
     ` * ${entry.args ?? ''}`,
-    ` * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。`,
+    ` * 桥接：defineOp({ brep: ${ownName} })——core 直连 occt 引擎（§5.4 selfhost），`,
+    ` * D11 归一在自有实现内部完成（api/brep-mirror/）。`,
     ` */`,
-    `export const ${entry.name} = compatOp(`,
-    `  projectBrepOp('${entry.name}', ${JSON.stringify(entry.params ?? [])}, '${formClass}', ${vendoredName}),`,
-    `  { name: '${entry.name}'${namingLit}${capsLit}${enginesLit}${paramDimsLit}${retDimLit} },`,
-    `)`,
+    `export const ${entry.name} = defineOp({`,
+    `  brep: ${ownName},`,
+    `  name: '${entry.name}'${namingLit}${capsLit}${enginesLit}${outputsLit}${schemaLit}${slotMapLit}${paramDimsLit}${retDimLit},`,
+    `})`,
   ].join('\n')
 }
 
@@ -185,15 +134,11 @@ const SELFHOST_QUERY_EXPR: Record<string, string> = {
 
 /**
  * query 模板：普通导出函数（先例 api/geom.ts——查询返回纯数据，不进 defineOp）。
- * arguments 由 queryParams 描述（缺省单参 shape）。geometryArgs 索引的 faijs Shape 借入
- * brepjs handle；geometryCollectionArgs 索引是 Shape 数组，逐元素借入；其余数值/选项原样透传。
+ * arguments 由 queryParams 描述（缺省单参 shape）。全部 query 条目均为 selfhost——
+ * `getBrepApi().*` 直连 occt 引擎（SELFHOST_QUERY_EXPR），无 vendored 借入/调用。
  * 返回类型必须显式标注 + `@returns`（export-JSDoc 门禁）。
- *
- * §5.5 第 2 条：`selfhost: true` 条目改走自有化分支——`getBrepApi().*` 直连 occt 引擎，
- * 无 vendored 借入/调用（L1 测量面：volume/area/length/centerOfMass）。
  */
 function renderQuery(entry: ArgSpecEntry): string {
-  const { exportName } = parseSource(entry.source)
   if (!entry.returnType) {
     throw new Error(`[gen-l3-surface] query '${entry.name}' 缺少 returnType（export-JSDoc 门禁要求显式返回标注）`)
   }
@@ -208,135 +153,64 @@ function renderQuery(entry: ArgSpecEntry): string {
     return `${p.name}${p.optional ? '?' : ''}: ${type}`
   })
 
-  // §5.5 第 2 条：selfhost query —— core 引擎直连（无 vendored 借入/调用）
-  if (entry.selfhost === true) {
-    const expr = SELFHOST_QUERY_EXPR[entry.name]
-    if (!expr) {
-      throw new Error(`[gen-l3-surface] selfhost query '${entry.name}' 缺 core 引擎映射（SELFHOST_QUERY_EXPR）`)
-    }
-    const docParams = params.map((p, i) => {
-      const kind = geomAt.has(i) ? '可形状参数' : arrayAt.has(i) ? 'Shape 数组' : '数值/选项参数'
-      return ` * @param ${p.name} - ${kind}（${p.docs ?? '原样透传'}）`
-    })
-    const handleVars = params
-      .map((p, i) => (geomAt.has(i) ? `  const h${i} = brepOf(${p.name} as Shape) as BrepHandle` : ''))
-      .filter((line) => line.length > 0)
-      .join('\n')
-    return [
-      `/**`,
-      ` * ${entry.name} — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。`,
-      ` * ${entry.args ?? ''}`,
-      ` * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。`,
-      ` *`,
-      ...docParams,
-      ` * @returns ${returnType} — 纯数据结果（非 Shape）。`,
-      ` */`,
-      `export function ${entry.name}(${faParams.join(', ')}): ${returnType} {`,
-      handleVars,
-      `  return ${expr}`,
-      `}`,
-    ].join('\n')
+  // selfhost query —— core 引擎直连
+  const expr = SELFHOST_QUERY_EXPR[entry.name]
+  if (!expr) {
+    throw new Error(`[gen-l3-surface] selfhost query '${entry.name}' 缺 core 引擎映射（SELFHOST_QUERY_EXPR）`)
   }
-
-  // 调用实参：几何位（单 Shape）借入；数组位逐元素借入；其余原样
-  const argItems = params.map((p, i) => {
-    if (geomAt.has(i)) return `borrowBrepjsShape(${p.name} as Shape)`
-    if (arrayAt.has(i)) return `(${p.name} as Shape[]).map((s) => borrowBrepjsShape(s))`
-    return p.name
-  })
-  const callExpr = `callBrepjs(__vendored_${exportName}, [${argItems.join(', ')}])`
-  // Phase 6（narrowing plan D7）：平台 query op（依赖 occt-only 内核方法的 vendored
-  // 测量/干涉面）在 arg-spec 声明 `engines: ['occt']` → 函数体第一行执行前断言，
-  // 触碰内核之前报错（D11-4 文案同构；中立 op 无 engines 不输出）。
-  const engineGuard = entry.engines?.length
-    ? `  assertEngineFor('${entry.name}', ${JSON.stringify(entry.engines)})\n`
-    : ''
-  const body =
-    entry.returnsResult === false
-      ? `  return ${callExpr}`
-      : `  const __r = ${callExpr}\n  if (!__r.ok) throw new Error('[faijs/generated] ${entry.name}: query failed')\n  return __r.value`
-
   const docParams = params.map((p, i) => {
     const kind = geomAt.has(i) ? '可形状参数' : arrayAt.has(i) ? 'Shape 数组' : '数值/选项参数'
     return ` * @param ${p.name} - ${kind}（${p.docs ?? '原样透传'}）`
   })
-
+  const handleVars = params
+    .map((p, i) => (geomAt.has(i) ? `  const h${i} = brepOf(${p.name} as Shape) as BrepHandle` : ''))
+    .filter((line) => line.length > 0)
+    .join('\n')
   return [
     `/**`,
-    ` * ${entry.name} — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。`,
+    ` * ${entry.name} — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。`,
     ` * ${entry.args ?? ''}`,
-    ` * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。`,
+    ` * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。`,
     ` *`,
     ...docParams,
     ` * @returns ${returnType} — 纯数据结果（非 Shape）。`,
     ` */`,
     `export function ${entry.name}(${faParams.join(', ')}): ${returnType} {`,
-    engineGuard,
-    body,
+    handleVars,
+    `  return ${expr}`,
     `}`,
   ].join('\n')
 }
 
 /** 组装某模块的 import 区（按需装配，避免未使用 import 触发 lint/tsc）。
- *  P23 起 brep-op 经 compatOp(projectBrepOp(…)) 包装——借入/收养/调用都收在
- *  compat-op/compat-projection 内，生成文件自身只需要 query 的桥接工具。
- *  Phase 3：selfhost brep-op 不再 import vendored（改 import ../brep-mirror/ 自有
- *  实现，且不输出 compatOp/projectBrepOp 桥）。 */
+ *  全部 brep-op / query 条目均为 selfhost：brep-op 直连 ../brep-mirror/（或手写
+ *  api/ 模块）自有实现；query 经 getBrepApi 直连引擎，无需 vendored 借入桥。 */
 function renderImports(entries: ArgSpecEntry[]): string[] {
   const hasBrep = entries.some((e) => e.kind === 'brep-op')
-  const hasSelfhost = entries.some((e) => e.kind === 'brep-op' && e.selfhost === true)
-  const hasVendoredBrep = entries.some((e) => e.kind === 'brep-op' && e.selfhost !== true)
   const hasQuery = entries.some((e) => e.kind === 'query')
-  // §5.5 第 2 条：vendored query（借入/调用桥）与 selfhost query（core 引擎直连）分开声明
-  const hasVendoredQuery = entries.some((e) => e.kind === 'query' && e.selfhost !== true)
-  const hasSelfhostQuery = entries.some((e) => e.kind === 'query' && e.selfhost === true)
-  const hasEngineQuery = entries.some((e) => e.kind === 'query' && e.selfhost !== true && e.engines?.length)
 
   const lines: string[] = []
-  if (hasSelfhost) {
+  if (hasBrep) {
     lines.push(`import { defineOp } from '../../define-op'`)
   }
-  if (hasVendoredBrep) {
-    lines.push(`import { compatOp } from '../internal/compat-op'`)
-    lines.push(`import { projectBrepOp } from '../internal/compat-projection'`)
-  }
-  if (hasVendoredQuery) {
-    lines.push(`import { borrowBrepjsShape, callBrepjs${hasEngineQuery ? ', assertEngineFor' : ''} } from '../internal/l3-bridge'`)
-  }
-  if (hasSelfhostQuery) {
+  if (hasQuery) {
     lines.push(`import { brepOf } from '../../shape'`)
     lines.push(`import { getBrepApi } from '../../brep/handle-bridge'`)
     lines.push(`import type { BrepHandle } from '../../brep/engine/types'`)
-  }
-  if (hasQuery) {
     lines.push(`import type { Shape } from '../../mesh/types'`)
   }
   const seenValue = new Set<string>()
-  const seenType = new Set<string>()
   for (const e of entries) {
     if (e.kind === 'skip' || e.kind === 'faijs') continue
+    // selfhost query 无符号 import（getBrepApi 直连，顶部已声明）
+    if (e.kind === 'query') continue
     const { file, exportName } = parseSource(e.source)
-    // §5.5 第 2 条：selfhost query 无 vendored/__own_ import（getBrepApi 直连，顶部已声明）
-    if (e.kind === 'query' && e.selfhost === true) continue
-    if (e.kind !== 'type' && e.kind !== 'pure') {
-      const vk = `${file}#${exportName}`
-      if (!seenValue.has(vk)) {
-        seenValue.add(vk)
-        if (e.selfhost === true) {
-          // core 自有实现：api/generated/<module>.ts -> api/brep-mirror/<file>（去 .ts 后缀）
-          const rel = file.endsWith('.ts') ? file.slice(0, -3) : file
-          lines.push(`import { ${exportName} as __own_${exportName} } from '../${rel}'`)
-        } else {
-          lines.push(`import { ${exportName} as __vendored_${exportName} } from '${vendoredImportSpec(file)}'`)
-        }
-      }
-    }
-    if (e.kind === 'query') {
-      const root = returnTypeImport(e)
-      if (root && !seenType.has(`${file}#${root}`)) {
-        seenType.add(`${file}#${root}`)
-        lines.push(`import type { ${root} } from '${vendoredImportSpec(file)}'`)
-      }
+    const vk = `${file}#${exportName}`
+    if (!seenValue.has(vk)) {
+      seenValue.add(vk)
+      // core 自有实现：api/generated/<module>.ts -> api/brep-mirror/<file>（去 .ts 后缀）
+      const rel = file.endsWith('.ts') ? file.slice(0, -3) : file
+      lines.push(`import { ${exportName} as __own_${exportName} } from '../${rel}'`)
     }
   }
   return lines
@@ -376,11 +250,11 @@ export function generateModule(module: string): string {
   const chunks: string[] = []
   for (const e of projected) {
     switch (e.kind) {
-      case 'type': chunks.push(renderType(e)); break
-      case 'pure': chunks.push(renderPure(e)); break
       case 'brep-op': chunks.push(renderBrepOp(e)); break
       case 'query': chunks.push(renderQuery(e)); break
       case 'faijs': chunks.push(renderFaijs(e)); break
+      default:
+        throw new Error(`[gen-l3-surface] unsupported projection kind '${e.kind}' for '${e.name}' (arg-spec must not contain type/pure entries)`)
     }
   }
   const imports = renderImports(projected)
