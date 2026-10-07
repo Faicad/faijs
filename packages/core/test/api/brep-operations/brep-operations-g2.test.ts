@@ -1,16 +1,16 @@
 /**
- * brep-mirror-g2.test — Phase 3（core-decouple §5.4）G2 自有化实现行为验证
+ * brep-operations-g2.test — Phase 3（core-decouple §5.4）G2 自有化实现行为验证
  *
- * 覆盖 7 个 selfhost op（topology/operations 分片）：
+ * 覆盖 7 个 core 自有 op（topology/operations 分片）：
  *   boolean：fuse / split
  *   compound：drill / pocket / boss / mirrorJoin
  *   hull：convexHull
  *
  * 两层验证：
- *   1. 单元层：直接调用 api/brep-mirror/* 自有实现（BrepHandle 层）
+ *   1. 单元层：直接调用 api/brep-operations/* 自有实现（BrepHandle 层）
  *   2. 生成层：经 generated/topology + generated/operations 的 defineOp 接线
  *
- * 运行：npx vitest run src/api/brep-mirror/brep-mirror-g2.test.ts
+ * 运行：npx vitest run src/api/brep-operations/brep-operations-g2.test.ts
  */
 
 // ─── OCCT stdout 噪声过滤（与 G1 同策略） ───
@@ -41,9 +41,9 @@ import type { Shape } from '../../../src/mesh/types'
 import { solidToShape } from '../../../src/brep/brep-ops'
 import { getSolidBoundingBox } from '../../../src/brep/brep-utils'
 
-import { fuseBrep, splitBrep } from '../../../src/api/brep-mirror/booleanFns'
-import { drillBrep, pocketBrep, bossBrep, mirrorJoinBrep } from '../../../src/api/brep-mirror/compoundFns'
-import { convexHullBrep } from '../../../src/api/brep-mirror/hullFns'
+import { fuseBrep, splitBrep } from '../../../src/api/brep-operations/booleanFns'
+import { drillBrep, pocketBrep, bossBrep, mirrorJoinBrep } from '../../../src/api/brep-operations/compoundFns'
+import { convexHullBrep } from '../../../src/api/brep-operations/hullFns'
 
 import { fuse, split } from '../../../src/api/generated/topology'
 import { drill, pocket, boss, mirrorJoin, convexHull } from '../../../src/api/generated/operations'
@@ -108,7 +108,7 @@ function wireOf(shape: Shape, idx = 0): { wrapped: BrepHandle } {
 // 单元层：自有实现直连
 // ===========================================================================
 
-describe('G2 单元层（brep-mirror 自有实现）', () => {
+describe('G2 单元层（brep-operations 自有实现）', () => {
   it('fuseBrep：两 box 融合为单 solid（体积≈和）', () => {
     const a = boxShape()
     const b = boxShape()
@@ -215,10 +215,10 @@ describe('G2 单元层（brep-mirror 自有实现）', () => {
 })
 
 // ===========================================================================
-// 生成层：generated defineOp selfhost 接线
+// 生成层：generated defineOp core 直连
 // ===========================================================================
 
-describe('G2 生成层（generated defineOp selfhost 接线）', () => {
+describe('G2 生成层（generated defineOp core 直连）', () => {
   it('fuse / split：投影 op 产出有效 Shape', async () => {
     const a = boxShape()
     const b = boxShape()

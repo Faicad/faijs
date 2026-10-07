@@ -176,11 +176,11 @@ function deactivateNodes(start: LavNode | null, count: number): void {
 /** Count active nodes reachable from a starting node. */
 function lavSize(start: LavNode): number {
   let count = 1;
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list: prev/next non-null after construction
+   
   let cur = start.next!;
   while (cur !== start) {
     count++;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list traversal
+     
     cur = cur.next!;
     if (count > 10000) break;
   }
@@ -281,18 +281,18 @@ function computeEvents(lavNodes: LavNode[]): SkEvent[] {
     }
 
     if (isLavNodeReflex(node)) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list traversal
+       
       let cur = node.next.next!;
       let count = 0;
       while (cur !== node.prev && cur !== node && count < 1000) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list traversal
+         
         const st = raySplitTime(node, cur, cur.next!);
         if (st !== null && st > EPS) {
           const x = node.x + st * node.bx;
           const y = node.y + st * node.by;
           events.push({ time: st, x, y, nodeA: node, nodeB: cur, type: 'split' });
         }
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list traversal
+         
         cur = cur.next!;
         count++;
       }
@@ -355,9 +355,9 @@ function computeStraightSkeletonImpl(polygon: SkPoint2D[]): StraightSkeleton {
     if (sz <= 3) {
       if (sz === 3) {
         const a = activeStart;
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list: 3-node LAV guaranteed non-null
+         
         const b = a.next!;
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list: 3-node LAV guaranteed non-null
+         
         const c = b.next!;
 
         const t = bisectorIntersectTime(a, b);
@@ -415,7 +415,7 @@ function computeStraightSkeletonImpl(polygon: SkPoint2D[]): StraightSkeleton {
       a.y = ev.y;
 
       a.next = b.next;
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list: b.next non-null in active LAV
+       
       b.next!.prev = a;
       b.active = false;
 
@@ -423,7 +423,7 @@ function computeStraightSkeletonImpl(polygon: SkPoint2D[]): StraightSkeleton {
       let cur = a;
       do {
         lavPoly.push({ x: cur.x, y: cur.y });
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list traversal
+         
         cur = cur.next!;
       } while (cur !== a);
 
@@ -463,9 +463,9 @@ function computeStraightSkeletonImpl(polygon: SkPoint2D[]): StraightSkeleton {
 
       // Rewire: LAV 1 runs a -> b.next -> ... -> a.prev -> a
       // Rewire: LAV 2 runs aCopy -> a.next -> ... -> b -> aCopy
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list: active nodes have non-null prev/next
+       
       const aNext = a.next!;
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list: active nodes have non-null prev/next
+       
       const bNext = b.next!;
 
       // LAV 1: a connects to b.next on the forward side
@@ -484,7 +484,7 @@ function computeStraightSkeletonImpl(polygon: SkPoint2D[]): StraightSkeleton {
         let c = start;
         do {
           poly.push({ x: c.x, y: c.y });
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- circular linked list traversal
+           
           c = c.next!;
         } while (c !== start);
         return poly;

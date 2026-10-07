@@ -10,7 +10,7 @@
  * - 2D 截面（`cad.profile` 的面）→ 取**外环**（孔环不参与扫掠/放样）。
  *
  * core-decouple G5 后：wire 视图为 `{ wrapped: BrepHandle, borrowed: boolean }`
- * （brepjs 形态保留，供 brep-mirror 实现直读）。所有权：面→外环的 wire 是
+ * （brepjs 形态保留，供 brep-operations 实现直读）。所有权：面→外环的 wire 是
  * arena 新句柄（borrowed=false），由调用方（loft/sweep）消费后 release；
  * 曲线借用（borrowed=true）不 release。
  */

@@ -1,5 +1,5 @@
 /**
- * brep-mirror helpers — shared utilities for self-hosted compat-op implementations
+ * brep-operations helpers — shared utilities for self-hosted compat-op implementations
  * (core-decouple Phase 3, §5.4).
  *
  * @module
@@ -30,7 +30,7 @@ export function brepHandleOf(v: unknown): BrepHandle {
     const solid = brepOf(v as never)
     if (typeof solid === 'number') return solid as BrepHandle
   }
-  throw new Error('[brep-mirror] E_BREP_INPUT: argument carries no BREP handle')
+  throw new Error('[brep-operations] E_BREP_INPUT: argument carries no BREP handle')
 }
 
 /** Identity 3×4 row-major affine matrix (12 elements). */
@@ -82,7 +82,7 @@ export function rotationMatrix(
 ): number[] {
   let [ux, uy, uz] = axis
   const len = Math.hypot(ux, uy, uz)
-  if (len < 1e-12) throw new Error('[brep-mirror] rotation: zero-length axis')
+  if (len < 1e-12) throw new Error('[brep-operations] rotation: zero-length axis')
   ux /= len
   uy /= len
   uz /= len
@@ -117,7 +117,7 @@ export function rotationMatrix(
 export function rotationZTo(axis: readonly [number, number, number]): number[] {
   const [x, y, z] = axis
   const len = Math.hypot(x, y, z)
-  if (len < 1e-12) throw new Error('[brep-mirror] rotationZTo: zero-length axis')
+  if (len < 1e-12) throw new Error('[brep-operations] rotationZTo: zero-length axis')
   const nx = x / len
   const ny = y / len
   const nz = z / len

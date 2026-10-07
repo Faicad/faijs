@@ -37,7 +37,7 @@ function legalCapabilityNames(): Set<string> {
 }
 
 describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
-  it('brep-op 条目数 == (capabilities ∪ engines) 条目数 == generated compatOp+selfhost defineOp 数', () => {
+  it('brep-op 条目数 == (capabilities ∪ engines) 条目数 == generated defineOp 数', () => {
     const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
     // 声明面：capabilities（能力依赖）与 engines（引擎白名单）是两条正交轴，可并存
     // （2026-09-24 撤销 D11-7 互斥）。故「100% 声明」= 每条 brep-op 至少命中一条轴，
@@ -46,7 +46,7 @@ describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
     const generated = ['operations.ts', 'topology.ts', 'sketching.ts'].map((f) =>
       fs.readFileSync(path.join(CORE_SRC, 'src', 'api', 'generated', f), 'utf-8'),
     )
-    // Phase 3（core-decouple §5.4）：selfhost 条目走 defineOp 直连，其余走 compatOp；合计 == brep-op 条目数。
+    // §5.4：brep-op 条目走 defineOp 直连 core 自有实现；合计 == brep-op 条目数。
     const opDeclCount = generated.reduce(
       (acc, src) => acc + (src.match(/export const \w+ = (?:compatOp|defineOp)\(/g)?.length ?? 0),
       0,

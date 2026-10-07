@@ -241,7 +241,7 @@ function importClosure(entries: string[]): Set<string> {
   return seen
 }
 
-/** arg-spec 的 source（`brep-mirror/hullFns.ts#convexHullBrep`）→ { 文件, 导出名 }。 */
+/** arg-spec 的 source（`brep-operations/hullFns.ts#convexHullBrep`）→ { 文件, 导出名 }。 */
 function parseSource(source: string): { file: string; exportName?: string } | null {
   const [file, exportName] = source.split('#')
   const p = path.join(REPO_ROOT, 'packages', 'core', 'src', 'api', file)

@@ -9,7 +9,7 @@
  *  - `revolveBrep` — options { at, axis, angle(radians, default 2π) }; REVOLUTION_NOT_3D.
  *  - `sweepBrep` — config.mode 'simple' → simplePipe; default → sweepPipeShell(frenet).
  *    shellMode / law / auxiliarySpine / support / correction configs are not
- *    supported after selfhosting (cad 面取手写 api/sweep.ts，shell 元组不暴露 §2.4①).
+ *    supported after core migration (cad 面取手写 api/sweep.ts，shell 元组不暴露 §2.4①).
  *  - `complexExtrudeBrep` / `twistExtrudeBrep` — linear / helix spine built on
  *    occt-wasm makeLineEdge+makeWire / makeHelixWire, then sweepPipeShell.
  *    ExtrusionProfile scaling law is not supported (brepjs buildLawFromProfile
@@ -122,7 +122,7 @@ export function sweepBrep(...args: unknown[]): Result<BrepHandle> {
     return err(
       validationError(
         'SWEEP_SHELL_MODE_UNSUPPORTED',
-        'sweep shellMode is not supported after selfhosting (cad 面不暴露壳元组 §2.4①)',
+        'sweep shellMode is not supported after core migration (cad 面不暴露壳元组 §2.4①)',
       ),
     )
   }
@@ -130,7 +130,7 @@ export function sweepBrep(...args: unknown[]): Result<BrepHandle> {
     return err(
       validationError(
         'SWEEP_TRANSITION_UNSUPPORTED',
-        `sweep transitionMode '${cfg.transitionMode}' is not supported after selfhosting (only 'right' default)`,
+        `sweep transitionMode '${cfg.transitionMode}' is not supported after core migration (only 'right' default)`,
       ),
     )
   }
@@ -169,7 +169,7 @@ export function complexExtrudeBrep(...args: unknown[]): Result<BrepHandle> {
     return err(
       validationError(
         'COMPLEX_EXTRUDE_LAW_UNSUPPORTED',
-        'complexExtrude ExtrusionProfile scaling law is not supported after selfhosting',
+        'complexExtrude ExtrusionProfile scaling law is not supported after core migration',
       ),
     )
   }
@@ -211,7 +211,7 @@ export function twistExtrudeBrep(...args: unknown[]): Result<BrepHandle> {
     return err(
       validationError(
         'TWIST_NEGATIVE_ANGLE_UNSUPPORTED',
-        'twistExtrude negative angle (left-handed helix) is not supported after selfhosting (occt-wasm makeHelixWire has no handedness param)',
+        'twistExtrude negative angle (left-handed helix) is not supported after core migration (occt-wasm makeHelixWire has no handedness param)',
       ),
     )
   }
@@ -222,7 +222,7 @@ export function twistExtrudeBrep(...args: unknown[]): Result<BrepHandle> {
     return err(
       validationError(
         'TWIST_EXTRUDE_LAW_UNSUPPORTED',
-        'twistExtrude ExtrusionProfile scaling law is not supported after selfhosting',
+        'twistExtrude ExtrusionProfile scaling law is not supported after core migration',
       ),
     )
   }

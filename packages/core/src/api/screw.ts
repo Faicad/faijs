@@ -2,7 +2,7 @@
  * api screw — 螺丝创建库函数（creator 函数，无输入）
  *
  * 平台分层（narrowing plan Phase 5，D11）：**平台 op（occt）**——BREP 路径的
- * 螺纹经 `threadBrep`（brep-mirror/threadFns.ts）走 occt-only `loft`（D3）→
+ * 螺纹经 `threadBrep`（brep-operations/threadFns.ts）走 occt-only `loft`（D3）→
  * `engines: ['occt']`。mesh 路径（cad.screw）在 auto 模式下正常降级。
  *
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
@@ -12,7 +12,7 @@ import type { Shape } from '../mesh/types'
 // B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
 import * as meshPrimitives from '../mesh/primitives'
 import { solidToShape } from '../brep/brep-ops'
-import { threadBrep } from './brep-mirror/threadFns'
+import { threadBrep } from './brep-operations/threadFns'
 import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '../primitives/screw/screw-db'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'

@@ -182,10 +182,10 @@ afterAll(() => {
   __resetEngineRegistriesForTests()
 })
 
-describe('Phase 3 接口覆盖：capability-map 43 方法 → BrepEngineApi', () => {
-  it('capability-map 唯一内核方法数 = 43（底表快照，与静态清单一致）', () => {
+describe('Phase 3 接口覆盖：capability-map 42 方法 → BrepEngineApi', () => {
+  it('capability-map 唯一内核方法数 = 42（底表快照，与静态清单一致）', () => {
     const fromMap = [...new Set(capabilityMap.entries.flatMap((e) => e.kernelMethods as string[]))]
-    expect(fromMap.length).toBe(43)
+    expect(fromMap.length).toBe(42)
   })
 
   it('编译期守卫生效：_coverageGuard 类型为 never（见文件顶 type _Assert）', () => {

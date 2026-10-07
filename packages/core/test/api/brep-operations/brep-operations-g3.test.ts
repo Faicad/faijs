@@ -1,13 +1,13 @@
 /**
- * brep-mirror-g3.test — Phase 3（core-decouple §5.4）G3 自有化实现行为验证
+ * brep-operations-g3.test — Phase 3（core-decouple §5.4）G3 自有化实现行为验证
  *
- * 覆盖 8 个 selfhost op：
+ * 覆盖 8 个 core 自有 op：
  *   topology：rotate / shell / offset
  *   operations：extrude / revolve / sweep / complexExtrude / twistExtrude
  *
- * 单元层直调 api/brep-mirror/*，生成层经 generated defineOp 接线（各 1 例）。
+ * 单元层直调 api/brep-operations/*，生成层经 generated defineOp 接线（各 1 例）。
  *
- * 运行：npx vitest run src/api/brep-mirror/brep-mirror-g3.test.ts
+ * 运行：npx vitest run src/api/brep-operations/brep-operations-g3.test.ts
  */
 
 // ─── OCCT stdout 噪声过滤（与 G1/G2 同策略） ───
@@ -38,8 +38,8 @@ import type { Shape } from '../../../src/mesh/types'
 import { solidToShape } from '../../../src/brep/brep-ops'
 import { getSolidBoundingBox } from '../../../src/brep/brep-utils'
 
-import { rotateBrep, shellBrep, offsetBrep } from '../../../src/api/brep-mirror/topologyFns'
-import { extrudeBrep, revolveBrep, sweepBrep, complexExtrudeBrep, twistExtrudeBrep } from '../../../src/api/brep-mirror/sweepFns'
+import { rotateBrep, shellBrep, offsetBrep } from '../../../src/api/brep-operations/topologyFns'
+import { extrudeBrep, revolveBrep, sweepBrep, complexExtrudeBrep, twistExtrudeBrep } from '../../../src/api/brep-operations/sweepFns'
 
 import { rotate, shell, offset } from '../../../src/api/generated/topology'
 import { extrude, revolve } from '../../../src/api/generated/operations'
@@ -99,7 +99,7 @@ function boxWire(): { wrapped: BrepHandle } {
 // 单元层
 // ===========================================================================
 
-describe('G3 单元层（brep-mirror 自有实现）', () => {
+describe('G3 单元层（brep-operations 自有实现）', () => {
   it('extrudeBrep：面 + Vec3 拉伸 → 体积正确', () => {
     const face = kernel.makeRectangle(10, 20)
     const r = extrudeBrep({ wrapped: face }, [0, 0, 30])
@@ -225,7 +225,7 @@ describe('G3 单元层（brep-mirror 自有实现）', () => {
 // 生成层
 // ===========================================================================
 
-describe('G3 生成层（generated defineOp selfhost 接线）', () => {
+describe('G3 生成层（generated defineOp core 直连）', () => {
   it('extrude / revolve：投影 op 产出有效 Shape', async () => {
     const face = kernel.makeRectangle(10, 20)
     const e = await extrude({ wrapped: face }, [0, 0, 30])

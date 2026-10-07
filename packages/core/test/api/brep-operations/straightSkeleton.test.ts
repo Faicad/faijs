@@ -1,11 +1,11 @@
 /**
  * straightSkeleton 回归（原 p5-surface 真实回归用例，core-decouple
- * wrapup §3.1 改写进 core 侧）：brep-mirror 自有实现下的断言保持原样。
+ * wrapup §3.1 改写进 core 侧）：brep-operations 自有实现下的断言保持原样。
  *
- * 运行：npx vitest run src/api/brep-mirror/straightSkeleton.test.ts
+ * 运行：npx vitest run src/api/brep-operations/straightSkeleton.test.ts
  */
 import { describe, expect, it } from 'vitest'
-import { computeStraightSkeleton } from '../../../src/api/brep-mirror/straightSkeleton'
+import { computeStraightSkeleton } from '../../../src/api/brep-operations/straightSkeleton'
 import { unwrap } from '../../../src/result/result'
 
 describe('computeStraightSkeleton', () => {

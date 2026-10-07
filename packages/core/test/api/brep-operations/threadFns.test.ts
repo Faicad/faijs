@@ -31,7 +31,7 @@ console.log = (...args: unknown[]) => {
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../../../src/occt-kernel/occtKernel'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
-import { threadBrep } from '../../../src/api/brep-mirror/threadFns'
+import { threadBrep } from '../../../src/api/brep-operations/threadFns'
 import { solidToShape } from '../../../src/brep/brep-ops'
 import { getSolidBoundingBox } from '../../../src/brep/brep-utils'
 

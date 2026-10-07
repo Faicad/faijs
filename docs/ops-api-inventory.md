@@ -120,11 +120,6 @@ const c = cad.cone(10, 0, 30, { centered: true, at: [0, 0, 20], segments: 64 })
 
 点集构造 → Result(Solid)，单产物，brep-op
 
-> ⚠️ **`convexHull` ≠ OpenSCAD 的 `hull`**（B7，2026-10-06）：本 op 只收**点集**
-> （`Vec3[]`，喂 Shape 会报 `points.map is not a function`）；OpenSCAD 的
-> `hull()` 收**任意子节点**（2D/3D shape）做凸包。两者不可互相替代。若未来要支持
-> 「对 shape 求凸包」的语义，应另起新名（如 `hullOfShapes`），不改变 `convexHull` 的既有语义。
-
 ```js
 convexHull(points: Vec3[]): Shape
 ```
@@ -139,7 +134,7 @@ convexHull(points: Vec3[]): Shape
 >
 > 内核能力依赖：`hullFromPoints`。
 >
-> 实现：`brep-mirror/hullFns.ts#convexHullBrep`。
+> 实现：`brep-operations/hullFns.ts#convexHullBrep`。
 
 ### 3.4 `cylinder` ✅
 
@@ -184,7 +179,7 @@ ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape
 >
 > 内核能力依赖：`makeEllipsoid`、`translate`。
 >
-> 实现：`brep-mirror/primitiveFns.ts#ellipsoidBrep`。
+> 实现：`brep-operations/primitiveFns.ts#ellipsoidBrep`。
 
 ### 3.6 `helix` ✅
 
@@ -260,7 +255,7 @@ const a = await cad.import_step({ path: 'D:/models/box.step' })
 >
 > 内核能力依赖：`makeRectangle`、`extrude`。
 >
-> 实现：`brep-mirror/primitiveFns.ts#makeBaseBoxBrep`。
+> 实现：`brep-operations/primitiveFns.ts#makeBaseBoxBrep`。
 
 ### 3.10 `profile` ✅
 
@@ -400,7 +395,7 @@ thread(options: ThreadOptions): Shape
 >
 > **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
 >
-> 实现：`brep-mirror/threadFns.ts#threadBrepOp`。
+> 实现：`brep-operations/threadFns.ts#threadBrepOp`。
 
 ### 3.18 `torus` ✅
 
@@ -420,7 +415,7 @@ thread(options: ThreadOptions): Shape
 >
 > 内核能力依赖：`dispose`、`makeTorus`。
 >
-> 实现：`brep-mirror/primitiveFns.ts#torusBrep`。
+> 实现：`brep-operations/primitiveFns.ts#torusBrep`。
 
 ### 3.19 `wedge` ✅
 
@@ -483,7 +478,7 @@ applyMatrix(shape: Shape, matrix: unknown): Shape
 >
 > 内核能力依赖：`transform`、`generalTransform`。
 >
-> 实现：`brep-mirror/topologyFns.ts#applyMatrixBrep`。
+> 实现：`brep-operations/topologyFns.ts#applyMatrixBrep`。
 
 ### 4.2 `locate` ✅
 
@@ -504,7 +499,7 @@ locate(shape: Shape, placement: unknown): Shape
 >
 > 内核能力依赖：`composeTransform`、`dispose`、`hashCode`、`locate`。
 >
-> 实现：`brep-mirror/topologyFns.ts#locateBrep`。
+> 实现：`brep-operations/topologyFns.ts#locateBrep`。
 
 ### 4.3 `offset` ✅
 
@@ -525,7 +520,7 @@ offset(shape: Shape, distance: number): Shape
 >
 > **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
 >
-> 实现：`brep-mirror/topologyFns.ts#offsetBrep`。
+> 实现：`brep-operations/topologyFns.ts#offsetBrep`。
 
 ### 4.4 `place` ✅
 
@@ -562,7 +557,7 @@ rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape
 >
 > 内核能力依赖：`transform`。
 >
-> 实现：`brep-mirror/topologyFns.ts#rotateBrep`。
+> 实现：`brep-operations/topologyFns.ts#rotateBrep`。
 
 ### 4.6 `rotate_euler` ✅ 🚫
 
@@ -584,7 +579,7 @@ const p3 = cad.rotate_euler(part0, { angles: [0, 0, 45], pivot: [0,0,0] })
 
 ### 4.7 `scale` ✅ 🚫
 
-等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认 原点（与 vendored `scale(shape, factor, { center? })` 一致），`center` 可选。
+等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认 原点（与旧 `scale(shape, factor, { center? })` 一致），`center` 可选。
 
 > 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
@@ -657,7 +652,7 @@ boss(shape: Shape, options: BossOptions): Shape
 >
 > 内核能力依赖：`getSubShapes`、`surfaceCenterOfMass`、`uvBounds`、`surfaceNormal`、`makeFace`、`translate`、`extrude`、`fuse`。
 >
-> 实现：`brep-mirror/compoundFns.ts#bossBrep`。
+> 实现：`brep-operations/compoundFns.ts#bossBrep`。
 
 ### 5.2 `chamfer` ✅
 
@@ -736,7 +731,7 @@ complexExtrude(wire: Shape, center: Vec3, normal: Vec3, profile?: ExtrusionProfi
 >
 > **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
 >
-> 实现：`brep-mirror/sweepFns.ts#complexExtrudeBrep`。
+> 实现：`brep-operations/sweepFns.ts#complexExtrudeBrep`。
 
 ### 5.6 `cut` ✅
 
@@ -791,7 +786,7 @@ drill(shape: Shape, options: DrillOptions): Shape
 >
 > 内核能力依赖：`makeCylinder`、`located`、`getBoundingBox`、`cut`。
 >
-> 实现：`brep-mirror/compoundFns.ts#drillBrep`。
+> 实现：`brep-operations/compoundFns.ts#drillBrep`。
 
 ### 5.9 `engrave` ✅
 
@@ -818,7 +813,7 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 
 ### 5.10 `extrude` ✅
 
-沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （vendored extrude 为唯一引擎），up-to 模式走半空间组合。 **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：输入是 `cad.sketchOnFace` 在网格实体识别面上铺出的网格链面时，本 op 沿同一份方向语义 拉伸出**一个新的网格零件**。网格链上不支持 `upTo` （需精度链求交裁切）——会以 `E_MESH_SOLID_UNSUPPORTED` 明确拒绝，不静默当定长拉伸。
+沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （brepjs extrude 为唯一引擎），up-to 模式走半空间组合。 **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：输入是 `cad.sketchOnFace` 在网格实体识别面上铺出的网格链面时，本 op 沿同一份方向语义 拉伸出**一个新的网格零件**。网格链上不支持 `upTo` （需精度链求交裁切）——会以 `E_MESH_SOLID_UNSUPPORTED` 明确拒绝，不静默当定长拉伸。
 
 ```js
 const p = await cad.extrude(part0, [0, 0, 10])
@@ -872,7 +867,7 @@ const v = await cad.filletVariable(part0, partEdges[0], 1, 4)
 
 **异步**。Shape 变半径圆角后的几何。
 
-> 中立 op：L1 filletVariable 两引擎同实现。`r1 == r2` 时与 cad.fillet 等半径 结果等价。vendored 的 per-edge 回调变半径（variableFillet）不上脚本面。 仅 BREP 可用。
+> 中立 op：L1 filletVariable 两引擎同实现。`r1 == r2` 时与 cad.fillet 等半径 结果等价。旧版的 per-edge 回调变半径（variableFillet）不上脚本面。 仅 BREP 可用。
 
 ### 5.13 `fuse` ✅
 
@@ -892,7 +887,7 @@ const v = await cad.filletVariable(part0, partEdges[0], 1, 4)
 >
 > **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
 >
-> 实现：`brep-mirror/booleanFns.ts#fuseBrep`。
+> 实现：`brep-operations/booleanFns.ts#fuseBrep`。
 
 ### 5.14 `gridPattern` ✅
 
@@ -1050,7 +1045,7 @@ pocket(shape: Shape, options: PocketOptions): Shape
 >
 > 内核能力依赖：`getSubShapes`、`surfaceCenterOfMass`、`uvBounds`、`surfaceNormal`、`makeFace`、`translate`、`extrude`、`cut`。
 >
-> 实现：`brep-mirror/compoundFns.ts#pocketBrep`。
+> 实现：`brep-operations/compoundFns.ts#pocketBrep`。
 
 ### 5.22 `rectangularPattern` ✅
 
@@ -1079,7 +1074,7 @@ const p1 = await cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.2
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `face` | `Shape` | ✅ | — | 平面轮廓 |
-| `options` | `RevolveOptions` |  | — | 旋转轴/点/角度（透传 vendored 语义） |
+| `options` | `RevolveOptions` |  | — | 旋转轴/点/角度（透传 compat 语义） |
 
 **异步**。Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
 
@@ -1102,7 +1097,7 @@ roof(wire: Shape, options?: RoofOptions): Shape
 >
 > 内核能力依赖：`buildTriFace`、`dispose`、`fixShape`、`isValid`、`sew`、`sewAndSolidify`。
 >
-> 实现：`brep-mirror/roofFns.ts#roofBrep`。
+> 实现：`brep-operations/roofFns.ts#roofBrep`。
 
 ### 5.25 `sectionByPlane` ✅
 
@@ -1255,7 +1250,7 @@ twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Sha
 >
 > **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
 >
-> 实现：`brep-mirror/sweepFns.ts#twistExtrudeBrep`。
+> 实现：`brep-operations/sweepFns.ts#twistExtrudeBrep`。
 
 ### 5.33 `union` ✅
 
@@ -1294,7 +1289,7 @@ autoHeal(shape: Shape, options?: AutoHealOptions): { shape: Shape, report }
 >
 > **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
 >
-> 实现：`brep-mirror/healingFns.ts#autoHealBrep`。
+> 实现：`brep-operations/healingFns.ts#autoHealBrep`。
 
 ### 6.2 `defeature` ✅
 
@@ -1328,7 +1323,7 @@ fixSelfIntersection(shape: Shape): Shape
 >
 > **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
 >
-> 实现：`brep-mirror/healingFns.ts#fixSelfIntersectionBrep`。
+> 实现：`brep-operations/healingFns.ts#fixSelfIntersectionBrep`。
 
 ### 6.4 `fixShape` ✅
 
@@ -1348,7 +1343,7 @@ fixShape(shape: Shape): Shape
 >
 > 内核能力依赖：`fixShape`。
 >
-> 实现：`brep-mirror/healingFns.ts#fixShapeBrep`。
+> 实现：`brep-operations/healingFns.ts#fixShapeBrep`。
 
 ### 6.5 `heal` ✅
 
@@ -1368,7 +1363,7 @@ heal(shape: Shape): Shape
 >
 > **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
 >
-> 实现：`brep-mirror/healingFns.ts#healBrep`。
+> 实现：`brep-operations/healingFns.ts#healBrep`。
 
 ### 6.6 `healSolid` ✅
 
@@ -1388,7 +1383,7 @@ healSolid(solid: Shape): Shape
 >
 > 内核能力依赖：`healSolid`。
 >
-> 实现：`brep-mirror/healingFns.ts#healSolidBrep`。
+> 实现：`brep-operations/healingFns.ts#healSolidBrep`。
 
 ### 6.7 `removeHolesFromFace` ✅
 
@@ -1473,7 +1468,7 @@ simplify(shape: Shape): Shape
 >
 > **平台限定**：仅 `occt` 引擎（缺能力时执行前静态报错，不回退）。
 >
-> 实现：`brep-mirror/healingFns.ts#simplifyBrep`。
+> 实现：`brep-operations/healingFns.ts#simplifyBrep`。
 
 ### 6.12 `unifySameDomain` ✅
 
@@ -1660,7 +1655,7 @@ const part1 = cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
 occt 独占诊断（绕轴惯性矩/主轴，中立面没有）→ inspect* 命名进脚本面（§7 待裁决 4）
 
 ```js
-(shape: Shape) -> { volume, area, centerOfMass }（core selfhost）
+(shape: Shape) -> { volume, area, centerOfMass }（core）
 ```
 
 | 参数 | 类型 | 必填 | 说明 |
@@ -1692,7 +1687,7 @@ occt 独占诊断（绕轴惯性矩/主轴，中立面没有）→ inspect* 命�
 两整件同构比较（纯数据），query
 
 ```js
-isSameShape(a: Shape, b: Shape): boolean（core selfhost）
+isSameShape(a: Shape, b: Shape): boolean（core）
 ```
 
 | 参数 | 类型 | 必填 | 说明 |
@@ -1704,14 +1699,14 @@ isSameShape(a: Shape, b: Shape): boolean（core selfhost）
 
 > 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
 >
-> 实现：`core:brep-mirror#isSameShape`。
+> 实现：`core:brep-operations#isSameShape`。
 
 ### 8.13 `isValid` ✅
 
 整件合法性检查（Shape → boolean 纯数据），query
 
 ```js
-isValid(shape: Shape): boolean（core selfhost）
+isValid(shape: Shape): boolean（core）
 ```
 
 | 参数 | 类型 | 必填 | 说明 |
@@ -1722,7 +1717,7 @@ isValid(shape: Shape): boolean（core selfhost）
 
 > 自动派生自 `api/surface/arg-spec.ts`（module `topology`）——生成 op 无手写 JSDoc 契约。
 >
-> 实现：`core:brep-mirror#isValid`。
+> 实现：`core:brep-operations#isValid`。
 
 ### 8.14 `jointTrajectory` ✅
 
@@ -1870,12 +1865,12 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 | convexHull | hullFromPoints、isSolid、release |
 | makeBaseBox | extrude、makeRectangle、release |
 | ellipsoid | makeEllipsoid |
-| rotate | rotate |
+| rotate | transform |
 | mirror | mirror |
 | clone | copyShape |
-| applyMatrix | generalTransform |
+| applyMatrix | generalTransform、transform |
 | locate | locate |
-| section | isNull、makeCompound、sectionByPlane |
+| section | makeCompound、sectionByPlane |
 | split | split |
 | shell | shell |
 | offset | offset |

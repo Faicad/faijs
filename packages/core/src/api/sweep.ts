@@ -1,7 +1,7 @@
 /**
  * api sweep — 扫掠：截面沿脊柱路径生成扫掠体（手写平台 op，Phase 4 → G5 core 直连）
  *
- * @platform occt — 实现走 core 自有 `brep-mirror/sweepFns.ts#sweepBrep`
+ * @platform occt — 实现走 core 自有 `brep-operations/sweepFns.ts#sweepBrep`
  * （occt-wasm simplePipe / sweepPipeShell；engine-method-map 里 `sweep` 为
  * occt-only）⇒ 平台 op：defineOp 声明 `engines: ['occt']`（D11）。
  *
@@ -10,7 +10,7 @@
  * （`internal/profile-wire.ts` 的唯一步径）。脊柱容忍 face（FCStd 翻译把
  * 脊柱基对象 sketch 整圈外廓当路径）。
  *
- * core-decouple G5：旧 `sweep`（brepjs）替换为 brep-mirror 自有实现直连，
+ * core-decouple G5：旧 `sweep`（brepjs）替换为 brep-operations 自有实现直连，
  * 产物经 `fromBrep` 收养（替代 l3-bridge adoptEntity）。
  */
 
@@ -20,7 +20,7 @@ import type { Provenance } from '../topology/naming/lineage'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
-import { sweepBrep as selfhostedSweep } from './brep-mirror/sweepFns'
+import { sweepBrep as coreSweep } from './brep-operations/sweepFns'
 import { toProfileWireView } from './internal/profile-wire'
 import { unwrapResult } from './internal/result-unwrap'
 import type { BrepHandle } from '../brep/engine/types'
@@ -31,20 +31,20 @@ export interface SweepOptions {
   frenet?: boolean
   /** 扫掠模式：'simple'（MakePipe）或 undefined（PipeShell）。 */
   mode?: 'simple'
-  /** 过渡模式：仅支持默认 'right'（selfhost 后限制，见 sweepFns）。 */
+  /** 过渡模式：仅支持默认 'right'（core 实现限制，见 sweepFns）。 */
   transitionMode?: string
   /** 公差等其余旧字段（保留以兼容调用方）。 */
   tolerance?: number
 }
 
-/** BREP 路径：截面沿脊柱扫掠（wire 视图 → brep-mirror 直连 → fromBrep 收养）。 */
+/** BREP 路径：截面沿脊柱扫掠（wire 视图 → brep-operations 直连 → fromBrep 收养）。 */
 function sweepBrep(profile: Shape, spine: Shape, opts?: SweepOptions): Shape {
   if (!profile) throw new Error('E_SWEEP_NO_PROFILE: sweep requires a profile (section) shape')
   if (!spine) throw new Error('E_SWEEP_NO_SPINE: sweep requires a spine (path) shape')
   // 截面 / 脊柱：wire 直用；面取外环（孔环不参与扫掠）。
   const profileWire = toProfileWireView(profile)
   const spineWire = toProfileWireView(spine)
-  const r = selfhostedSweep(profileWire, spineWire, opts ?? {}, false)
+  const r = coreSweep(profileWire, spineWire, opts ?? {}, false)
   const h = unwrapResult(r, 'sweep') as BrepHandle
   const kernel = getBrepApi()
   try {

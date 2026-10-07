@@ -30,7 +30,7 @@
  * GOTCHA-4（Phase 4 实测 → G5 已过时，断言同步收紧）：occt-wasm 3.x 缺
  * `sweepAdvanced` ⇒ 旧 `sweep` 会丢弃 transitionMode 并 `console.warn`。
  * core-decouple G5 后 sweep/complexExtrude/twistExtrude/loft 全部走 core 直连
- * （brep-mirror + occt-wasm 原生），不再有旧上游 ⇒ 本文件 spy 断言
+ * （brep-operations + occt-wasm 原生），不再有旧上游 ⇒ 本文件 spy 断言
  * 改为「warns === 0」（出现告警即失败，防真实噪声静默；出现时逐条核对前缀）。
  *
  * Run: npx vitest run src/api/sweep-loft.test.ts
@@ -63,7 +63,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   // G5（core-decouple）：sweep/complexExtrude/twistExtrude/loft 全部走 core 直连
-  // （brep-mirror + occt-wasm 原生），不再有旧上游 ⇒ 不应产生任何
+  // （brep-operations + occt-wasm 原生），不再有旧上游 ⇒ 不应产生任何
   // console.warn。若未来重新出现上游告警，逐条核对必须带 "occt-wasm: " 前缀
   // （防真实噪声静默），否则即失败。
   expect(upstreamWarns.length).toBe(0)

@@ -19,7 +19,7 @@ import {
   type JoineryBasis,
   type GrooveParams,
   type DowelOrTenonParams,
-} from '@faicad/faijs/api/brep-mirror/joinery-brep'
+} from '@faicad/faijs/api/brep-operations/joinery-brep'
 import { computeBasisFromNormal } from '../mesh/fai_split'
 import { getBackends } from '@faicad/faijs/runtime-state'
 import { solid, fromBrep, brepOf } from '@faicad/faijs/shape'

@@ -26,12 +26,12 @@ const __dirname = path.dirname(__filename)
 const GENERATED_DIR = path.resolve(__dirname, '../../../src/api/generated')
 
 describe('Phase 0 capability-map 三方一致', () => {
-  it('capability-map 条目数 == arg-spec brep-op 条目数 == generated compatOp+selfhost defineOp 数', () => {
+  it('capability-map 条目数 == arg-spec brep-op 条目数 == generated defineOp 数', () => {
     const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
     const generatedFiles = ['operations.ts', 'topology.ts', 'sketching.ts'].map((f) =>
       fs.readFileSync(path.join(GENERATED_DIR, f), 'utf-8'),
     )
-    // Phase 3（core-decouple §5.4）：selfhost 条目走 defineOp 直连，其余走 compatOp；合计 == brep-op 条目数。
+    // §5.4：brep-op 条目走 defineOp 直连 core 自有实现；合计 == brep-op 条目数。
     const opDeclCount = generatedFiles.reduce(
       (acc, src) => acc + (src.match(/export const \w+ = (?:compatOp|defineOp)\(/g)?.length ?? 0),
       0,

@@ -21,7 +21,7 @@ import {
   dovetailBooleanSplitBrep,
   dowelOrTenonBooleanSplitBrep,
   type JoineryBasis,
-} from '../../../src/api/brep-mirror/joinery-brep'
+} from '../../../src/api/brep-operations/joinery-brep'
 import { getSolidBoundingBox } from '../../../src/brep/brep-utils'
 import { splitBrep } from '../../../src/brep/brep-ops'
 

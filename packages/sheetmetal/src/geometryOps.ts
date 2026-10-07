@@ -20,7 +20,7 @@ import type { Bounds3D } from './types.js';
 
 /** 把 +Z 轴旋到 `axis`（单位化）的 3×3 线性矩阵 + 零平移（Rodrigues；数学同
  * core brepHelpers.rotationZTo）。返回 `{ linear, translation }` 形态——faijs
- * `applyMatrix` 的 brep 实现（api/brep-mirror/topologyFns.parseMatrixInput）
+ * `applyMatrix` 的 brep 实现（api/brep-operations/topologyFns.parseMatrixInput）
  * 接受该对象形态；扁平的 3×4 数组会落入数组解构分支导致线性矩阵全为
  * undefined（2026-09-25 实测：applyMatrix 后体积为 0 的根因）。 */
 function rotationZTo(axis: readonly [number, number, number]): { linear: number[]; translation: readonly [number, number, number] } {

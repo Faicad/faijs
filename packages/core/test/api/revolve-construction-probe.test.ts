@@ -3,7 +3,7 @@
  *
  * P2 probe (2026-09-28): fcstd-port reported `revolve CONSTRUCTION_FAILED`
  * on the drill / v-bit corpus files. Chain: cad.revolve → revolveBrep
- * (brep-mirror/sweepFns.ts:83) → kernel.revolveVec (OCCT native). The OCCT
+ * (brep-operations/sweepFns.ts:83) → kernel.revolveVec (OCCT native). The OCCT
  * failure modes for a face-revolution are geometric: profile crossing the
  * axis, axis not coplanar with the profile, or a self-intersecting wire.
  *

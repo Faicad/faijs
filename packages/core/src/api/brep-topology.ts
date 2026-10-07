@@ -20,7 +20,7 @@ import type { Shape } from '../mesh/types'
 import type { Vec3 } from './brepjs-compat/types'
 import { fromBrep, fromBrepCurve } from '../shape'
 import type { CurveShape, SolidShape } from '../shape'
-import { brepHandleOf } from './brep-mirror/brepHelpers'
+import { brepHandleOf } from './brep-operations/brepHelpers'
 import { ok, err, type Result } from '../result/result'
 import { kernelError, validationError } from '../result/errors'
 

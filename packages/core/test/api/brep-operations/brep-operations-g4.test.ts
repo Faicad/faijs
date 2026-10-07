@@ -1,11 +1,11 @@
 /**
- * brep-mirror-g4.test — Phase 3（core-decouple §5.4）G4 自有化实现行为验证
+ * brep-operations-g4.test — Phase 3（core-decouple §5.4）G4 自有化实现行为验证
  *
- * 覆盖 6 个 selfhost op：
+ * 覆盖 6 个 core 自有 op：
  *   pattern：linearPattern / circularPattern / gridPattern / rectangularPattern
  *   roof（straightSkeleton 迁移）/ thread（收敛至 core threadBrep）
  *
- * 运行：npx vitest run src/api/brep-mirror/brep-mirror-g4.test.ts
+ * 运行：npx vitest run src/api/brep-operations/brep-operations-g4.test.ts
  */
 
 // ─── OCCT stdout 噪声过滤 ───
@@ -32,9 +32,9 @@ import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
 import type { BrepHandle } from '../../../src/brep/engine/types'
 import { getSolidBoundingBox } from '../../../src/brep/brep-utils'
 
-import { linearPatternBrep, circularPatternBrep, gridPatternBrep, rectangularPatternBrep } from '../../../src/api/brep-mirror/patternFns'
-import { roofBrep } from '../../../src/api/brep-mirror/roofFns'
-import { threadBrepOp } from '../../../src/api/brep-mirror/threadFns'
+import { linearPatternBrep, circularPatternBrep, gridPatternBrep, rectangularPatternBrep } from '../../../src/api/brep-operations/patternFns'
+import { roofBrep } from '../../../src/api/brep-operations/roofFns'
+import { threadBrepOp } from '../../../src/api/brep-operations/threadFns'
 
 let kernel: BrepEngineApi
 
@@ -73,7 +73,7 @@ function boxWire(): { wrapped: BrepHandle } {
   return { wrapped: w }
 }
 
-describe('G4 单元层（brep-mirror 自有实现）', () => {
+describe('G4 单元层（brep-operations 自有实现）', () => {
   it('linearPatternBrep：3 个 box 沿 X 方向（间距 15）→ bbox X 宽 40', () => {
     const s = boxHandle()
     const r = linearPatternBrep({ wrapped: s }, [1, 0, 0], 3, 15)

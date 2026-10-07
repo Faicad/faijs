@@ -13,8 +13,8 @@ import type { BrepHandle } from '../../brep/engine/types'
 import type { Shape } from '../../mesh/types'
 
 /**
- * measureVolumeProps — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
- * (shape: Shape) -> { volume, centerOfMass }（core selfhost）
+ * measureVolumeProps — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
+ * (shape: Shape) -> { volume, centerOfMass }（core）
  * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
  *
  * @param shape - 可形状参数（原样透传）
@@ -26,8 +26,8 @@ export function measureVolumeProps(shape: Shape): { volume: number; centerOfMass
 }
 
 /**
- * measureSurfaceProps — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
- * (shape: Shape) -> { area }（core selfhost）
+ * measureSurfaceProps — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
+ * (shape: Shape) -> { area }（core）
  * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
  *
  * @param shape - 可形状参数（原样透传）
@@ -39,8 +39,8 @@ export function measureSurfaceProps(shape: Shape): { area: number } {
 }
 
 /**
- * measureLinearProps — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
- * (shape: Shape) -> { length }（core selfhost）
+ * measureLinearProps — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
+ * (shape: Shape) -> { length }（core）
  * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
  *
  * @param shape - 可形状参数（原样透传）
@@ -52,8 +52,8 @@ export function measureLinearProps(shape: Shape): { length: number } {
 }
 
 /**
- * measureVolume — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
- * (shape: Shape) -> number（core selfhost）
+ * measureVolume — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
+ * (shape: Shape) -> number（core）
  * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
  *
  * @param shape - 可形状参数（原样透传）
@@ -65,8 +65,8 @@ export function measureVolume(shape: Shape): number {
 }
 
 /**
- * measureArea — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
- * (shape: Shape) -> number（core selfhost）
+ * measureArea — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
+ * (shape: Shape) -> number（core）
  * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
  *
  * @param shape - 可形状参数（原样透传）
@@ -78,8 +78,8 @@ export function measureArea(shape: Shape): number {
 }
 
 /**
- * measureLength — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
- * (shape: Shape) -> number（core selfhost）
+ * measureLength — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
+ * (shape: Shape) -> number（core）
  * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
  *
  * @param shape - 可形状参数（原样透传）
@@ -91,8 +91,8 @@ export function measureLength(shape: Shape): number {
 }
 
 /**
- * inspectMassProps — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
- * (shape: Shape) -> { volume, area, centerOfMass }（core selfhost）
+ * inspectMassProps — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
+ * (shape: Shape) -> { volume, area, centerOfMass }（core）
  * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
  *
  * @param shape - 可形状参数（目标实体（体积/质心/惯量/主轴））

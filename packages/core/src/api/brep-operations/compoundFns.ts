@@ -8,7 +8,7 @@
  * object model dropped:
  *  - `options.face` supports an omitted default (highest-Z face) or an already
  *    constructed brepjs Face (`{ wrapped }`); FinderFn (brepjs finder DSL) is
- *    not supported after selfhosting.
+ *    not supported after core migration.
  *  - `options.profile` must be an already constructed brepjs Wire (`{ wrapped }`);
  *    DrawingLike (sketchOnPlane) is not supported (sketch DSL is the brepjs
  *    compat surface, not a core data type).

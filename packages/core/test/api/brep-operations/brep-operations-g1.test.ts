@@ -1,19 +1,19 @@
 /**
- * brep-mirror-g1.test — Phase 3（core-decouple §5.4）G1 自有化实现行为验证
+ * brep-operations-g1.test — Phase 3（core-decouple §5.4）G1 自有化实现行为验证
  *
- * 覆盖 14 个 selfhost op（topology/sketching 分片）：
+ * 覆盖 14 个 core 自有 op（topology/sketching 分片）：
  *   primitives：torus / ellipsoid / makeBaseBox
  *   transform：applyMatrix / clone / locate / mirror
  *   healing：heal / healSolid / fixShape / simplify / autoHeal / fixSelfIntersection
  *   boolean：section
  *
  * 两层验证：
- *   1. 单元层：直接调用 api/brep-mirror/* 自有实现（BrepHandle 层）
+ *   1. 单元层：直接调用 api/brep-operations/* 自有实现（BrepHandle 层）
  *   2. 生成层：经 generated/topology + generated/sketching 的 defineOp 接线
- *      （selfhost 分支：`defineOp({ brep: __own_<fn> })`），确认 Result 在语句
+ *      （core 直连：`defineOp({ brep: __own_<fn> })`），确认 Result 在语句
  *      边界被 unwrap 成 SolidShape / 裸产品。
  *
- * 运行：npx vitest run src/api/brep-mirror/brep-mirror-g1.test.ts
+ * 运行：npx vitest run src/api/brep-operations/brep-operations-g1.test.ts
  */
 
 // ─── OCCT stdout 噪声过滤（与 threadFns.test 同策略） ───
@@ -44,9 +44,9 @@ import type { Shape } from '../../../src/mesh/types'
 import { solidToShape } from '../../../src/brep/brep-ops'
 import { getSolidBoundingBox } from '../../../src/brep/brep-utils'
 
-// ── 单元层：brep-mirror 自有实现 ──
-import { torusBrep, ellipsoidBrep, makeBaseBoxBrep } from '../../../src/api/brep-mirror/primitiveFns'
-import { applyMatrixBrep, cloneBrep, locateBrep, mirrorBrep } from '../../../src/api/brep-mirror/topologyFns'
+// ── 单元层：brep-operations 自有实现 ──
+import { torusBrep, ellipsoidBrep, makeBaseBoxBrep } from '../../../src/api/brep-operations/primitiveFns'
+import { applyMatrixBrep, cloneBrep, locateBrep, mirrorBrep } from '../../../src/api/brep-operations/topologyFns'
 import {
   healBrep,
   healSolidBrep,
@@ -54,8 +54,8 @@ import {
   simplifyBrep,
   autoHealBrep,
   fixSelfIntersectionBrep,
-} from '../../../src/api/brep-mirror/healingFns'
-import { sectionBrep } from '../../../src/api/brep-mirror/booleanFns'
+} from '../../../src/api/brep-operations/healingFns'
+import { sectionBrep } from '../../../src/api/brep-operations/booleanFns'
 
 // ── 生成层：defineOp 接线后的投影 op ──
 import {
@@ -111,7 +111,7 @@ function expectValidSolid(shape: Shape, tag: string): void {
 // 单元层：自有实现直连
 // ===========================================================================
 
-describe('G1 单元层（brep-mirror 自有实现）', () => {
+describe('G1 单元层（brep-operations 自有实现）', () => {
   it('torusBrep：有效 torus solid', () => {
     const h = torusBrep(10, 2)
     expect(h.ok).toBe(true)
@@ -253,10 +253,10 @@ describe('G1 单元层（brep-mirror 自有实现）', () => {
 })
 
 // ===========================================================================
-// 生成层：generated 投影 op（defineOp selfhost 接线）
+// 生成层：generated 投影 op（defineOp core 直连）
 // ===========================================================================
 
-describe('G1 生成层（generated defineOp selfhost 接线）', () => {
+describe('G1 生成层（generated defineOp core 直连）', () => {
   it('torus / ellipsoid / makeBaseBox：投影 op 产出有效 SolidShape', async () => {
     const shapes = [await torus(10, 2), await ellipsoid(10, 5, 3), await makeBaseBox(10, 20, 30)]
     expect(shapes.length).toBe(3)

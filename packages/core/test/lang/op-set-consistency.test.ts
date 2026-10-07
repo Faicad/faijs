@@ -62,7 +62,7 @@ describe('op-set-consistency: 三源一致（check() 符号表 ≡ cad 面 ⊆ �
     //    → 以手写版为准。
     // 判据：命名空间条目与生成条目**同一引用** = 未被覆盖（真·生成产物）；否则为手写覆盖。
     //
-    // brep-only 是**生成器**的不变量（gen-l3-surface §5.4 selfhost：只桥接 brep），
+    // brep-only 是**生成器**的不变量（gen-l3-surface §5.4：只桥接 brep），
     // 不是脚本面 op 的不变量——手写覆盖可以带 mesh 路径（网格实体建模，见 mesh-solid 方案）。
     // 因此 mesh 必须为 undefined 的断言只对真·生成产物生效。
     const ns = createApiNamespace() as unknown as Record<

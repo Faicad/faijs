@@ -15,7 +15,7 @@ import {
   matrixToArray,
 } from '@faicad/faijs/brep/brep-ops'
 import { drillBrepWithRoleTable } from '@faicad/faijs/brep/face-evolution'
-import { threadBrep } from '@faicad/faijs/api/brep-mirror/threadFns'
+import { threadBrep } from '@faicad/faijs/api/brep-operations/threadFns'
 import { getScrewSpec, threadToPitchMm } from '@faicad/faijs/primitives/screw/screw-db'
 import * as THREE from 'three'
 import { getBackends, getCurrentStmt } from '@faicad/faijs/runtime-state'

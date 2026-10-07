@@ -10,7 +10,7 @@
  * 覆盖：
  * 1. occt 可达：inspectMassProps 返回真实数值/纯数据（体积 1000 / 质心 (5,5,5)，
  *    面积 600——box(10,10,10) 六面）；
- * 2. brep_mock 豁免引擎门（D11-3）：mock 下不被引擎身份静态拒绝（selfhost 后
+ * 2. brep_mock 豁免引擎门（D11-3）：mock 下不被引擎身份静态拒绝（core 直连
  *    无 assertEngineFor，直接走引擎查询；mock 有 getVolume/getCenterOfMass/getSurfaceArea）。
  *
  * Run: npx vitest run src/api/inspect-diagnostics.test.ts
@@ -73,7 +73,7 @@ describe('inspectMassProps（§5.5 第 2 条自有化：core 直连，中立 L1 
     expect(vol.centerOfMass.z).toBeCloseTo(5, 4)
   })
 
-  // D11-3：brep_mock 豁免引擎门——不因引擎身份被拦（selfhost 后无 assertEngineFor；
+  // D11-3：brep_mock 豁免引擎门——不因引擎身份被拦（core 直连无 assertEngineFor；
   // mock 引擎有 getVolume/getCenterOfMass/getSurfaceArea，调用属运行时语义）。
   it('brep_mock 下不被引擎门拦截（D11-3 豁免）', async () => {
     await useBrepMock()

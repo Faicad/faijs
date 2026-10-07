@@ -5,8 +5,8 @@
   "entries": [
     {
       "op": "torus",
-      "source": "brep-mirror/primitiveFns.ts#torusBrep",
-      "sourceFile": "brep-mirror/primitiveFns.ts",
+      "source": "brep-operations/primitiveFns.ts#torusBrep",
+      "sourceFile": "brep-operations/primitiveFns.ts",
       "sourceFn": "torusBrep",
       "kernelMethods": [
         "generalTransform",
@@ -16,22 +16,85 @@
       "trace": [
         {
           "fn": "torusBrep",
-          "file": "brep-mirror/primitiveFns.ts",
+          "file": "brep-operations/primitiveFns.ts",
           "methods": [
             "generalTransform",
             "makeTorus",
             "release"
           ],
           "calls": [
-            "primitiveFns.ts#translated"
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#rotationZTo",
+            "primitiveFns.ts#translated",
+            "../result/result.ts#ok",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "fuse",
-      "source": "brep-mirror/booleanFns.ts#fuseBrep",
-      "sourceFile": "brep-mirror/booleanFns.ts",
+      "source": "brep-operations/booleanFns.ts#fuseBrep",
+      "sourceFile": "brep-operations/booleanFns.ts",
       "sourceFn": "fuseBrep",
       "kernelMethods": [
         "fuse"
@@ -39,18 +102,99 @@
       "trace": [
         {
           "fn": "fuseBrep",
-          "file": "brep-mirror/booleanFns.ts",
+          "file": "brep-operations/booleanFns.ts",
           "methods": [
             "fuse"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#ok",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "extrude",
-      "source": "brep-mirror/sweepFns.ts#extrudeBrep",
-      "sourceFile": "brep-mirror/sweepFns.ts",
+      "source": "brep-operations/sweepFns.ts#extrudeBrep",
+      "sourceFile": "brep-operations/sweepFns.ts",
       "sourceFn": "extrudeBrep",
       "kernelMethods": [
         "extrude"
@@ -58,20 +202,109 @@
       "trace": [
         {
           "fn": "extrudeBrep",
-          "file": "brep-mirror/sweepFns.ts",
+          "file": "brep-operations/sweepFns.ts",
           "methods": [
             "extrude"
           ],
           "calls": [
-            "sweepFns.ts#vecLength"
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "sweepFns.ts#vecLength",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "revolve",
-      "source": "brep-mirror/sweepFns.ts#revolveBrep",
-      "sourceFile": "brep-mirror/sweepFns.ts",
+      "source": "brep-operations/sweepFns.ts#revolveBrep",
+      "sourceFile": "brep-operations/sweepFns.ts",
       "sourceFn": "revolveBrep",
       "kernelMethods": [
         "revolveVec"
@@ -79,18 +312,99 @@
       "trace": [
         {
           "fn": "revolveBrep",
-          "file": "brep-mirror/sweepFns.ts",
+          "file": "brep-operations/sweepFns.ts",
           "methods": [
             "revolveVec"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#ok",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "sweep",
-      "source": "brep-mirror/sweepFns.ts#sweepBrep",
-      "sourceFile": "brep-mirror/sweepFns.ts",
+      "source": "brep-operations/sweepFns.ts#sweepBrep",
+      "sourceFile": "brep-operations/sweepFns.ts",
       "sourceFn": "sweepBrep",
       "kernelMethods": [
         "simplePipe",
@@ -99,19 +413,84 @@
       "trace": [
         {
           "fn": "sweepBrep",
-          "file": "brep-mirror/sweepFns.ts",
+          "file": "brep-operations/sweepFns.ts",
           "methods": [
             "simplePipe",
             "sweepPipeShell"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
           "calls": []
         }
       ]
     },
     {
       "op": "complexExtrude",
-      "source": "brep-mirror/sweepFns.ts#complexExtrudeBrep",
-      "sourceFile": "brep-mirror/sweepFns.ts",
+      "source": "brep-operations/sweepFns.ts#complexExtrudeBrep",
+      "sourceFile": "brep-operations/sweepFns.ts",
       "sourceFn": "complexExtrudeBrep",
       "kernelMethods": [
         "release",
@@ -120,22 +499,112 @@
       "trace": [
         {
           "fn": "complexExtrudeBrep",
-          "file": "brep-mirror/sweepFns.ts",
+          "file": "brep-operations/sweepFns.ts",
           "methods": [
             "release",
             "sweepPipeShell"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
             "sweepFns.ts#vecLength",
-            "sweepFns.ts#makeSpineWire"
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "sweepFns.ts#makeSpineWire",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "twistExtrude",
-      "source": "brep-mirror/sweepFns.ts#twistExtrudeBrep",
-      "sourceFile": "brep-mirror/sweepFns.ts",
+      "source": "brep-operations/sweepFns.ts#twistExtrudeBrep",
+      "sourceFile": "brep-operations/sweepFns.ts",
       "sourceFn": "twistExtrudeBrep",
       "kernelMethods": [
         "makeHelixWire",
@@ -145,23 +614,113 @@
       "trace": [
         {
           "fn": "twistExtrudeBrep",
-          "file": "brep-mirror/sweepFns.ts",
+          "file": "brep-operations/sweepFns.ts",
           "methods": [
             "makeHelixWire",
             "release",
             "sweepPipeShell"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
             "sweepFns.ts#vecLength",
-            "sweepFns.ts#makeSpineWire"
+            "sweepFns.ts#makeSpineWire",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "linearPattern",
-      "source": "brep-mirror/patternFns.ts#linearPatternBrep",
-      "sourceFile": "brep-mirror/patternFns.ts",
+      "source": "brep-operations/patternFns.ts#linearPatternBrep",
+      "sourceFile": "brep-operations/patternFns.ts",
       "sourceFn": "linearPatternBrep",
       "kernelMethods": [
         "linearPattern"
@@ -169,22 +728,102 @@
       "trace": [
         {
           "fn": "linearPatternBrep",
-          "file": "brep-mirror/patternFns.ts",
+          "file": "brep-operations/patternFns.ts",
           "methods": [
             "linearPattern"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
             "patternFns.ts#vecIsZero",
             "patternFns.ts#vecNormalize",
             "patternFns.ts#fuseReplicas"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "circularPattern",
-      "source": "brep-mirror/patternFns.ts#circularPatternBrep",
-      "sourceFile": "brep-mirror/patternFns.ts",
+      "source": "brep-operations/patternFns.ts#circularPatternBrep",
+      "sourceFile": "brep-operations/patternFns.ts",
       "sourceFn": "circularPatternBrep",
       "kernelMethods": [
         "circularPattern"
@@ -192,21 +831,101 @@
       "trace": [
         {
           "fn": "circularPatternBrep",
-          "file": "brep-mirror/patternFns.ts",
+          "file": "brep-operations/patternFns.ts",
           "methods": [
             "circularPattern"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
             "patternFns.ts#vecIsZero",
             "patternFns.ts#fuseReplicas"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "gridPattern",
-      "source": "brep-mirror/patternFns.ts#gridPatternBrep",
-      "sourceFile": "brep-mirror/patternFns.ts",
+      "source": "brep-operations/patternFns.ts#gridPatternBrep",
+      "sourceFile": "brep-operations/patternFns.ts",
       "sourceFn": "gridPatternBrep",
       "kernelMethods": [
         "gridPattern"
@@ -214,21 +933,101 @@
       "trace": [
         {
           "fn": "gridPatternBrep",
-          "file": "brep-mirror/patternFns.ts",
+          "file": "brep-operations/patternFns.ts",
           "methods": [
             "gridPattern"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
             "patternFns.ts#vecIsZero",
             "patternFns.ts#vecNormalize"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "roof",
-      "source": "brep-mirror/roofFns.ts#roofBrep",
-      "sourceFile": "brep-mirror/roofFns.ts",
+      "source": "brep-operations/roofFns.ts#roofBrep",
+      "sourceFile": "brep-operations/roofFns.ts",
       "sourceFn": "roofBrep",
       "kernelMethods": [
         "buildTriFace",
@@ -241,7 +1040,7 @@
       "trace": [
         {
           "fn": "roofBrep",
-          "file": "brep-mirror/roofFns.ts",
+          "file": "brep-operations/roofFns.ts",
           "methods": [
             "buildTriFace",
             "fixShape",
@@ -251,17 +1050,117 @@
             "sewAndSolidify"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
             "roofFns.ts#extractPolygon",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError",
+            "brep-operations/straightSkeleton.ts#computeStraightSkeleton",
             "roofFns.ts#buildSkeletonTriFaces",
-            "roofFns.ts#earClipTriangulate"
+            "roofFns.ts#earClipTriangulate",
+            "../result/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "computeStraightSkeleton",
+          "file": "brep-operations/straightSkeleton.ts",
+          "methods": [],
+          "calls": [
+            "../result/result.ts#ok",
+            "straightSkeleton.ts#computeStraightSkeletonImpl",
+            "../result/result.ts#err",
+            "../result/errors.ts#computationError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "computationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "drill",
-      "source": "brep-mirror/compoundFns.ts#drillBrep",
-      "sourceFile": "brep-mirror/compoundFns.ts",
+      "source": "brep-operations/compoundFns.ts#drillBrep",
+      "sourceFile": "brep-operations/compoundFns.ts",
       "sourceFn": "drillBrep",
       "kernelMethods": [
         "cut",
@@ -271,24 +1170,113 @@
       "trace": [
         {
           "fn": "drillBrep",
-          "file": "brep-mirror/compoundFns.ts",
+          "file": "brep-operations/compoundFns.ts",
           "methods": [
             "cut",
             "getBoundingBox",
             "release"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
             "compoundFns.ts#vecIsZero",
             "compoundFns.ts#vecNormalize",
-            "compoundFns.ts#cylinderAt"
+            "compoundFns.ts#cylinderAt",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "pocket",
-      "source": "brep-mirror/compoundFns.ts#pocketBrep",
-      "sourceFile": "brep-mirror/compoundFns.ts",
+      "source": "brep-operations/compoundFns.ts#pocketBrep",
+      "sourceFile": "brep-operations/compoundFns.ts",
       "sourceFn": "pocketBrep",
       "kernelMethods": [
         "cut",
@@ -299,7 +1287,7 @@
       "trace": [
         {
           "fn": "pocketBrep",
-          "file": "brep-mirror/compoundFns.ts",
+          "file": "brep-operations/compoundFns.ts",
           "methods": [
             "cut",
             "extrude",
@@ -307,20 +1295,116 @@
             "translate"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
             "compoundFns.ts#resolveTargetFace",
+            "../result/result.ts#isErr",
             "compoundFns.ts#faceNormalAt",
             "compoundFns.ts#faceCenterAt",
             "compoundFns.ts#profileToFace",
             "compoundFns.ts#vecNormalize",
-            "compoundFns.ts#vecScale"
+            "compoundFns.ts#vecScale",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "boss",
-      "source": "brep-mirror/compoundFns.ts#bossBrep",
-      "sourceFile": "brep-mirror/compoundFns.ts",
+      "source": "brep-operations/compoundFns.ts#bossBrep",
+      "sourceFile": "brep-operations/compoundFns.ts",
       "sourceFn": "bossBrep",
       "kernelMethods": [
         "extrude",
@@ -331,7 +1415,7 @@
       "trace": [
         {
           "fn": "bossBrep",
-          "file": "brep-mirror/compoundFns.ts",
+          "file": "brep-operations/compoundFns.ts",
           "methods": [
             "extrude",
             "fuse",
@@ -339,20 +1423,116 @@
             "translate"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
             "compoundFns.ts#resolveTargetFace",
+            "../result/result.ts#isErr",
             "compoundFns.ts#faceNormalAt",
             "compoundFns.ts#faceCenterAt",
             "compoundFns.ts#profileToFace",
             "compoundFns.ts#vecNormalize",
-            "compoundFns.ts#vecScale"
+            "compoundFns.ts#vecScale",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "mirrorJoin",
-      "source": "brep-mirror/compoundFns.ts#mirrorJoinBrep",
-      "sourceFile": "brep-mirror/compoundFns.ts",
+      "source": "brep-operations/compoundFns.ts#mirrorJoinBrep",
+      "sourceFile": "brep-operations/compoundFns.ts",
       "sourceFn": "mirrorJoinBrep",
       "kernelMethods": [
         "fuse",
@@ -362,22 +1542,111 @@
       "trace": [
         {
           "fn": "mirrorJoinBrep",
-          "file": "brep-mirror/compoundFns.ts",
+          "file": "brep-operations/compoundFns.ts",
           "methods": [
             "fuse",
             "mirror",
             "release"
           ],
           "calls": [
-            "compoundFns.ts#vecIsZero"
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "compoundFns.ts#vecIsZero",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "rectangularPattern",
-      "source": "brep-mirror/patternFns.ts#rectangularPatternBrep",
-      "sourceFile": "brep-mirror/patternFns.ts",
+      "source": "brep-operations/patternFns.ts#rectangularPatternBrep",
+      "sourceFile": "brep-operations/patternFns.ts",
       "sourceFn": "rectangularPatternBrep",
       "kernelMethods": [
         "fuseAll",
@@ -387,23 +1656,103 @@
       "trace": [
         {
           "fn": "rectangularPatternBrep",
-          "file": "brep-mirror/patternFns.ts",
+          "file": "brep-operations/patternFns.ts",
           "methods": [
             "fuseAll",
             "release",
             "translate"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
             "patternFns.ts#vecIsZero",
             "patternFns.ts#vecNormalize"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "thread",
-      "source": "brep-mirror/threadFns.ts#threadBrepOp",
-      "sourceFile": "brep-mirror/threadFns.ts",
+      "source": "brep-operations/threadFns.ts#threadBrepOp",
+      "sourceFile": "brep-operations/threadFns.ts",
       "sourceFn": "threadBrepOp",
       "kernelMethods": [
         "loft",
@@ -414,29 +1763,102 @@
       "trace": [
         {
           "fn": "threadBrepOp",
-          "file": "brep-mirror/threadFns.ts",
+          "file": "brep-operations/threadFns.ts",
           "methods": [],
           "calls": [
-            "threadFns.ts#threadBrep"
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "threadFns.ts#threadBrep",
+            "../result/result.ts#ok",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
           ]
         },
         {
           "fn": "threadBrep",
-          "file": "brep-mirror/threadFns.ts",
+          "file": "brep-operations/threadFns.ts",
           "methods": [
             "loft",
             "makeLineEdge",
             "makeWire",
             "release"
           ],
+          "calls": [
+            "../occt-kernel/occtKernel.ts#getOcctKernel"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "convexHull",
-      "source": "brep-mirror/hullFns.ts#convexHullBrep",
-      "sourceFile": "brep-mirror/hullFns.ts",
+      "source": "brep-operations/hullFns.ts#convexHullBrep",
+      "sourceFile": "brep-operations/hullFns.ts",
       "sourceFn": "convexHullBrep",
       "kernelMethods": [
         "hullFromPoints",
@@ -446,20 +1868,92 @@
       "trace": [
         {
           "fn": "convexHullBrep",
-          "file": "brep-mirror/hullFns.ts",
+          "file": "brep-operations/hullFns.ts",
           "methods": [
             "hullFromPoints",
             "isSolid",
             "release"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/errors.ts#kernelError",
+            "../result/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "makeBaseBox",
-      "source": "brep-mirror/primitiveFns.ts#makeBaseBoxBrep",
-      "sourceFile": "brep-mirror/primitiveFns.ts",
+      "source": "brep-operations/primitiveFns.ts#makeBaseBoxBrep",
+      "sourceFile": "brep-operations/primitiveFns.ts",
       "sourceFn": "makeBaseBoxBrep",
       "kernelMethods": [
         "extrude",
@@ -469,20 +1963,83 @@
       "trace": [
         {
           "fn": "makeBaseBoxBrep",
-          "file": "brep-mirror/primitiveFns.ts",
+          "file": "brep-operations/primitiveFns.ts",
           "methods": [
             "extrude",
             "makeRectangle",
             "release"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "../result/result.ts#ok",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "ellipsoid",
-      "source": "brep-mirror/primitiveFns.ts#ellipsoidBrep",
-      "sourceFile": "brep-mirror/primitiveFns.ts",
+      "source": "brep-operations/primitiveFns.ts#ellipsoidBrep",
+      "sourceFile": "brep-operations/primitiveFns.ts",
       "sourceFn": "ellipsoidBrep",
       "kernelMethods": [
         "makeEllipsoid"
@@ -490,39 +2047,192 @@
       "trace": [
         {
           "fn": "ellipsoidBrep",
-          "file": "brep-mirror/primitiveFns.ts",
+          "file": "brep-operations/primitiveFns.ts",
           "methods": [
             "makeEllipsoid"
           ],
           "calls": [
-            "primitiveFns.ts#translated"
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "primitiveFns.ts#translated",
+            "../result/result.ts#ok",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "rotate",
-      "source": "brep-mirror/topologyFns.ts#rotateBrep",
-      "sourceFile": "brep-mirror/topologyFns.ts",
+      "source": "brep-operations/topologyFns.ts#rotateBrep",
+      "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "rotateBrep",
       "kernelMethods": [
-        "rotate"
+        "transform"
       ],
       "trace": [
         {
           "fn": "rotateBrep",
-          "file": "brep-mirror/topologyFns.ts",
+          "file": "brep-operations/topologyFns.ts",
           "methods": [
-            "rotate"
+            "transform"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "mirror",
-      "source": "brep-mirror/topologyFns.ts#mirrorBrep",
-      "sourceFile": "brep-mirror/topologyFns.ts",
+      "source": "brep-operations/topologyFns.ts#mirrorBrep",
+      "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "mirrorBrep",
       "kernelMethods": [
         "mirror"
@@ -530,18 +2240,99 @@
       "trace": [
         {
           "fn": "mirrorBrep",
-          "file": "brep-mirror/topologyFns.ts",
+          "file": "brep-operations/topologyFns.ts",
           "methods": [
             "mirror"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "../result/result.ts#ok",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "clone",
-      "source": "brep-mirror/topologyFns.ts#cloneBrep",
-      "sourceFile": "brep-mirror/topologyFns.ts",
+      "source": "brep-operations/topologyFns.ts#cloneBrep",
+      "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "cloneBrep",
       "kernelMethods": [
         "copyShape"
@@ -549,40 +2340,227 @@
       "trace": [
         {
           "fn": "cloneBrep",
-          "file": "brep-mirror/topologyFns.ts",
+          "file": "brep-operations/topologyFns.ts",
           "methods": [
             "copyShape"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "../result/result.ts#ok",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "applyMatrix",
-      "source": "brep-mirror/topologyFns.ts#applyMatrixBrep",
-      "sourceFile": "brep-mirror/topologyFns.ts",
+      "source": "brep-operations/topologyFns.ts#applyMatrixBrep",
+      "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "applyMatrixBrep",
       "kernelMethods": [
-        "generalTransform"
+        "generalTransform",
+        "transform"
       ],
       "trace": [
         {
           "fn": "applyMatrixBrep",
-          "file": "brep-mirror/topologyFns.ts",
+          "file": "brep-operations/topologyFns.ts",
+          "methods": [],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "topologyFns.ts#parseMatrixInput",
+            "topologyFns.ts#det3x3",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "../result/result.ts#ok",
+            "../brep/brep-ops.ts#applyAffineBrep",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "applyAffineBrep",
+          "file": "../brep/brep-ops.ts",
           "methods": [
-            "generalTransform"
+            "generalTransform",
+            "transform"
           ],
           "calls": [
-            "topologyFns.ts#parseMatrixInput",
-            "topologyFns.ts#det3x3"
+            "brep-ops.ts#isSimilarityAffine"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "isSimilarityAffine",
+          "file": "../brep/brep-ops.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "locate",
-      "source": "brep-mirror/topologyFns.ts#locateBrep",
-      "sourceFile": "brep-mirror/topologyFns.ts",
+      "source": "brep-operations/topologyFns.ts#locateBrep",
+      "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "locateBrep",
       "kernelMethods": [
         "locate"
@@ -590,43 +2568,291 @@
       "trace": [
         {
           "fn": "locateBrep",
-          "file": "brep-mirror/topologyFns.ts",
+          "file": "brep-operations/topologyFns.ts",
           "methods": [
             "locate"
           ],
           "calls": [
-            "topologyFns.ts#opToMatrix"
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#composeAffine",
+            "topologyFns.ts#opToMatrix",
+            "../result/result.ts#ok",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
           ]
         }
       ]
     },
     {
       "op": "section",
-      "source": "brep-mirror/booleanFns.ts#sectionBrep",
-      "sourceFile": "brep-mirror/booleanFns.ts",
+      "source": "brep-operations/booleanFns.ts#sectionBrep",
+      "sourceFile": "brep-operations/booleanFns.ts",
       "sourceFn": "sectionBrep",
       "kernelMethods": [
-        "isNull",
         "makeCompound",
         "sectionByPlane"
       ],
       "trace": [
         {
           "fn": "sectionBrep",
-          "file": "brep-mirror/booleanFns.ts",
+          "file": "brep-operations/booleanFns.ts",
           "methods": [
-            "isNull",
             "makeCompound",
             "sectionByPlane"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "brepjs-compat/planeOps.ts#resolvePlane",
+            "../result/result.ts#ok",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "resolvePlane",
+          "file": "brepjs-compat/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "planeOps.ts#createNamedPlane",
+            "../result/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "createNamedPlane",
+          "file": "brepjs-compat/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "brepjs-compat/vecOps.ts#vecScale",
+            "brepjs-compat/types.ts#toVec3",
+            "../result/result.ts#ok",
+            "planeOps.ts#createPlane"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "vecScale",
+          "file": "brepjs-compat/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "toVec3",
+          "file": "brepjs-compat/types.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createPlane",
+          "file": "brepjs-compat/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "brepjs-compat/vecOps.ts#vecNormalize",
+            "brepjs-compat/vecOps.ts#vecIsZero",
+            "brepjs-compat/vecOps.ts#vecCross"
+          ]
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "brepjs-compat/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "vecIsZero",
+          "file": "brepjs-compat/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLengthSq"
+          ]
+        },
+        {
+          "fn": "vecCross",
+          "file": "brepjs-compat/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLength",
+          "file": "brepjs-compat/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLengthSq",
+          "file": "brepjs-compat/vecOps.ts",
+          "methods": [],
           "calls": []
         }
       ]
     },
     {
       "op": "split",
-      "source": "brep-mirror/booleanFns.ts#splitBrep",
-      "sourceFile": "brep-mirror/booleanFns.ts",
+      "source": "brep-operations/booleanFns.ts#splitBrep",
+      "sourceFile": "brep-operations/booleanFns.ts",
       "sourceFn": "splitBrep",
       "kernelMethods": [
         "split"
@@ -634,18 +2860,74 @@
       "trace": [
         {
           "fn": "splitBrep",
-          "file": "brep-mirror/booleanFns.ts",
+          "file": "brep-operations/booleanFns.ts",
           "methods": [
             "split"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#ok",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
           "calls": []
         }
       ]
     },
     {
       "op": "shell",
-      "source": "brep-mirror/topologyFns.ts#shellBrep",
-      "sourceFile": "brep-mirror/topologyFns.ts",
+      "source": "brep-operations/topologyFns.ts#shellBrep",
+      "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "shellBrep",
       "kernelMethods": [
         "shell"
@@ -653,18 +2935,108 @@
       "trace": [
         {
           "fn": "shellBrep",
-          "file": "brep-mirror/topologyFns.ts",
+          "file": "brep-operations/topologyFns.ts",
           "methods": [
             "shell"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "offset",
-      "source": "brep-mirror/topologyFns.ts#offsetBrep",
-      "sourceFile": "brep-mirror/topologyFns.ts",
+      "source": "brep-operations/topologyFns.ts#offsetBrep",
+      "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "offsetBrep",
       "kernelMethods": [
         "offset"
@@ -672,18 +3044,83 @@
       "trace": [
         {
           "fn": "offsetBrep",
-          "file": "brep-mirror/topologyFns.ts",
+          "file": "brep-operations/topologyFns.ts",
           "methods": [
             "offset"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
           "calls": []
         }
       ]
     },
     {
       "op": "heal",
-      "source": "brep-mirror/healingFns.ts#healBrep",
-      "sourceFile": "brep-mirror/healingFns.ts",
+      "source": "brep-operations/healingFns.ts#healBrep",
+      "sourceFile": "brep-operations/healingFns.ts",
       "sourceFn": "healBrep",
       "kernelMethods": [
         "getShapeType",
@@ -694,32 +3131,126 @@
       "trace": [
         {
           "fn": "healBrep",
-          "file": "brep-mirror/healingFns.ts",
+          "file": "brep-operations/healingFns.ts",
           "methods": [
             "getShapeType"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
             "healingFns.ts#healSolidBrep",
             "healingFns.ts#healFaceBrep",
-            "healingFns.ts#healWireBrep"
+            "healingFns.ts#healWireBrep",
+            "../result/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
           ]
         },
         {
           "fn": "healSolidBrep",
-          "file": "brep-mirror/healingFns.ts",
+          "file": "brep-operations/healingFns.ts",
           "methods": [
             "healSolid",
             "isSolid",
             "isValid"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "simplify",
-      "source": "brep-mirror/healingFns.ts#simplifyBrep",
-      "sourceFile": "brep-mirror/healingFns.ts",
+      "source": "brep-operations/healingFns.ts#simplifyBrep",
+      "sourceFile": "brep-operations/healingFns.ts",
       "sourceFn": "simplifyBrep",
       "kernelMethods": [
         "simplify"
@@ -727,18 +3258,74 @@
       "trace": [
         {
           "fn": "simplifyBrep",
-          "file": "brep-mirror/healingFns.ts",
+          "file": "brep-operations/healingFns.ts",
           "methods": [
             "simplify"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../result/result.ts#ok",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
           "calls": []
         }
       ]
     },
     {
       "op": "autoHeal",
-      "source": "brep-mirror/healingFns.ts#autoHealBrep",
-      "sourceFile": "brep-mirror/healingFns.ts",
+      "source": "brep-operations/healingFns.ts#autoHealBrep",
+      "sourceFile": "brep-operations/healingFns.ts",
       "sourceFn": "autoHealBrep",
       "kernelMethods": [
         "getSubShapes",
@@ -752,7 +3339,7 @@
       "trace": [
         {
           "fn": "autoHealBrep",
-          "file": "brep-mirror/healingFns.ts",
+          "file": "brep-operations/healingFns.ts",
           "methods": [
             "getSubShapes",
             "healWire",
@@ -761,6 +3348,11 @@
             "sew"
           ],
           "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#ok",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
             "healingFns.ts#kindOf",
             "healingFns.ts#healSolidBrep",
             "healingFns.ts#healFaceBrep",
@@ -768,21 +3360,111 @@
           ]
         },
         {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
           "fn": "healSolidBrep",
-          "file": "brep-mirror/healingFns.ts",
+          "file": "brep-operations/healingFns.ts",
           "methods": [
             "healSolid",
             "isSolid",
             "isValid"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "fixShape",
-      "source": "brep-mirror/healingFns.ts#fixShapeBrep",
-      "sourceFile": "brep-mirror/healingFns.ts",
+      "source": "brep-operations/healingFns.ts#fixShapeBrep",
+      "sourceFile": "brep-operations/healingFns.ts",
       "sourceFn": "fixShapeBrep",
       "kernelMethods": [
         "fixShape"
@@ -790,18 +3472,99 @@
       "trace": [
         {
           "fn": "fixShapeBrep",
-          "file": "brep-mirror/healingFns.ts",
+          "file": "brep-operations/healingFns.ts",
           "methods": [
             "fixShape"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "../result/result.ts#ok",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "healSolid",
-      "source": "brep-mirror/healingFns.ts#healSolidBrep",
-      "sourceFile": "brep-mirror/healingFns.ts",
+      "source": "brep-operations/healingFns.ts#healSolidBrep",
+      "sourceFile": "brep-operations/healingFns.ts",
       "sourceFn": "healSolidBrep",
       "kernelMethods": [
         "healSolid",
@@ -811,20 +3574,110 @@
       "trace": [
         {
           "fn": "healSolidBrep",
-          "file": "brep-mirror/healingFns.ts",
+          "file": "brep-operations/healingFns.ts",
           "methods": [
             "healSolid",
             "isSolid",
             "isValid"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#validationError",
+            "../result/result.ts#ok",
+            "../result/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
           "calls": []
+        },
+        {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },
     {
       "op": "fixSelfIntersection",
-      "source": "brep-mirror/healingFns.ts#fixSelfIntersectionBrep",
-      "sourceFile": "brep-mirror/healingFns.ts",
+      "source": "brep-operations/healingFns.ts#fixSelfIntersectionBrep",
+      "sourceFile": "brep-operations/healingFns.ts",
       "sourceFn": "fixSelfIntersectionBrep",
       "kernelMethods": [
         "getShapeType",
@@ -833,11 +3686,67 @@
       "trace": [
         {
           "fn": "fixSelfIntersectionBrep",
-          "file": "brep-mirror/healingFns.ts",
+          "file": "brep-operations/healingFns.ts",
           "methods": [
             "getShapeType",
             "healWire"
           ],
+          "calls": [
+            "internal/dual-form-args.ts#resolveArgs",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../result/result.ts#err",
+            "../result/errors.ts#kernelError",
+            "../result/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "resolveArgs",
+          "file": "internal/dual-form-args.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepHandleOf",
+          "file": "brep-operations/brepHelpers.ts",
+          "methods": [],
+          "calls": [
+            "brepHelpers.ts#brepHandleOf",
+            "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "../result/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "brepOf",
+          "file": "../shape.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getRuntimeState",
+          "file": "../runtime-state.ts",
+          "methods": [],
           "calls": []
         }
       ]

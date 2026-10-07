@@ -1,6 +1,5 @@
 /**
- * measurement 数值钉住（core-decouple wrapup §3.1 迁移自
- * tests/faijs/measurement-selfhost 的数值价值）：core 第一方同步
+ * measurement 数值钉住（core-decouple wrapup §3.1）：core 第一方同步
  * 测量面（api/generated/measurement）的数值——20×10×5 盒 → 体积 1000 /
  * 面积 700 / 边总长 140（唯一 edge 弧长之和；2026-10-02 归一化前为 280）。
  *

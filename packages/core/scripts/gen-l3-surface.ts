@@ -7,9 +7,9 @@
  *       api/surface/upstream-surface.json（brepjs 基线清单，用于校验符号存在）
  * 产物：api/generated/<module>.ts（按模块分片；从 PROJECTED_MODULES 逐个生成）
  *
- * 产物形态（selfhost 化后，2026-10-07 清理 vendored 死分支）：
- *   kind 'brep-op'→ defineOp({ brep: __own_* })——直连 core 自有实现（api/brep-mirror/）
- *   kind 'query'  → 普通导出函数（getBrepApi().* 直连引擎，SELFHOST_QUERY_EXPR；
+ * 产物形态（core 第一方实现，2026-10-07 清理 vendored 死分支）：
+ *   kind 'brep-op'→ defineOp({ brep: __own_* })——直连 core 自有实现（api/brep-operations/）
+ *   kind 'query'  → 普通导出函数（getBrepApi().* 直连引擎，CORE_QUERY_EXPR；
  *                   返回纯数据，不进 defineOp——先例 = api/geom.ts）
  *   kind 'faijs'  → re-export 自手写 api/ 模块（P25 自研符号）
  *   kind 'skip'   → 仅登记（不生成，divergence：语义 faijs 面无法表达）
@@ -77,7 +77,7 @@ function renderFaijs(entry: ArgSpecEntry): string {
 
 /**
  * brep-op 模板：`defineOp({ brep: __own_<exportName>, … })` 直连 core 自有实现
- * （api/brep-mirror/）。全部 brep-op 条目均为 selfhost（arg-spec 无非 selfhost 条目）；
+ * （api/brep-operations/）。全部 brep-op 条目均直连 core 自有实现；
  * D11 归一在自有实现内部完成。
  */
 function renderBrepOp(entry: ArgSpecEntry): string {
@@ -95,7 +95,7 @@ function renderBrepOp(entry: ArgSpecEntry): string {
   const outputsLit = entry.outputs?.length ? `, outputs: ${JSON.stringify(entry.outputs)}` : ''
   const schemaLit = entry.schema ? `, schema: ${JSON.stringify(entry.schema)}` : ''
   const slotMapLit = entry.slotMap ? `, slotMap: ${JSON.stringify(entry.slotMap)}` : ''
-  // P26 (unit-system D8): dimension declarations thread into the selfhost defineOp
+  // P26 (unit-system D8): dimension declarations thread into the defineOp
   // so the static dimension stage can read them.
   const paramDimsLit = entry.paramDims ? `, paramDims: ${JSON.stringify(entry.paramDims)}` : ''
   const retDimLit = entry.retDim ? `, retDim: ${JSON.stringify(entry.retDim)}` : ''
@@ -105,8 +105,8 @@ function renderBrepOp(entry: ArgSpecEntry): string {
     `/**`,
     ` * ${entry.name} — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。`,
     ` * ${entry.args ?? ''}`,
-    ` * 桥接：defineOp({ brep: ${ownName} })——core 直连 occt 引擎（§5.4 selfhost），`,
-    ` * D11 归一在自有实现内部完成（api/brep-mirror/）。`,
+    ` * 桥接：defineOp({ brep: ${ownName} })——core 直连 occt 引擎（§5.4），`,
+    ` * D11 归一在自有实现内部完成（api/brep-operations/）。`,
     ` */`,
     `export const ${entry.name} = defineOp({`,
     `  brep: ${ownName},`,
@@ -116,10 +116,10 @@ function renderBrepOp(entry: ArgSpecEntry): string {
 }
 
 /**
- * §5.5 第 2 条：selfhost query → core 引擎直连（getBrepApi）。hN = brepOf(params[N])。
+ * §5.5 第 2 条：query → core 引擎直连（getBrepApi）。hN = brepOf(params[N])。
  * 名字 → 返回值表达式（returnType 与之一致）。
  */
-const SELFHOST_QUERY_EXPR: Record<string, string> = {
+const CORE_QUERY_EXPR: Record<string, string> = {
   measureVolumeProps: `{ volume: getBrepApi().getVolume(h0), centerOfMass: getBrepApi().getCenterOfMass(h0) }`,
   measureSurfaceProps: `{ area: getBrepApi().getSurfaceArea(h0) }`,
   measureLinearProps: `{ length: getBrepApi().getLength(h0) }`,
@@ -134,8 +134,8 @@ const SELFHOST_QUERY_EXPR: Record<string, string> = {
 
 /**
  * query 模板：普通导出函数（先例 api/geom.ts——查询返回纯数据，不进 defineOp）。
- * arguments 由 queryParams 描述（缺省单参 shape）。全部 query 条目均为 selfhost——
- * `getBrepApi().*` 直连 occt 引擎（SELFHOST_QUERY_EXPR），无 vendored 借入/调用。
+ * arguments 由 queryParams 描述（缺省单参 shape）。全部 query 条目均
+ * `getBrepApi().*` 直连 occt 引擎（CORE_QUERY_EXPR），无 vendored 借入/调用。
  * 返回类型必须显式标注 + `@returns`（export-JSDoc 门禁）。
  */
 function renderQuery(entry: ArgSpecEntry): string {
@@ -153,10 +153,10 @@ function renderQuery(entry: ArgSpecEntry): string {
     return `${p.name}${p.optional ? '?' : ''}: ${type}`
   })
 
-  // selfhost query —— core 引擎直连
-  const expr = SELFHOST_QUERY_EXPR[entry.name]
+  // query —— core 引擎直连
+  const expr = CORE_QUERY_EXPR[entry.name]
   if (!expr) {
-    throw new Error(`[gen-l3-surface] selfhost query '${entry.name}' 缺 core 引擎映射（SELFHOST_QUERY_EXPR）`)
+    throw new Error(`[gen-l3-surface] query '${entry.name}' 缺 core 引擎映射（CORE_QUERY_EXPR）`)
   }
   const docParams = params.map((p, i) => {
     const kind = geomAt.has(i) ? '可形状参数' : arrayAt.has(i) ? 'Shape 数组' : '数值/选项参数'
@@ -168,7 +168,7 @@ function renderQuery(entry: ArgSpecEntry): string {
     .join('\n')
   return [
     `/**`,
-    ` * ${entry.name} — 查询（core selfhost，生成文件，勿手改；来源 api/surface/arg-spec.ts）。`,
+    ` * ${entry.name} — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。`,
     ` * ${entry.args ?? ''}`,
     ` * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。`,
     ` *`,
@@ -183,7 +183,7 @@ function renderQuery(entry: ArgSpecEntry): string {
 }
 
 /** 组装某模块的 import 区（按需装配，避免未使用 import 触发 lint/tsc）。
- *  全部 brep-op / query 条目均为 selfhost：brep-op 直连 ../brep-mirror/（或手写
+ *  全部 brep-op / query 条目均直连 core：brep-op 直连 ../brep-operations/（或手写
  *  api/ 模块）自有实现；query 经 getBrepApi 直连引擎，无需 vendored 借入桥。 */
 function renderImports(entries: ArgSpecEntry[]): string[] {
   const hasBrep = entries.some((e) => e.kind === 'brep-op')
@@ -202,13 +202,13 @@ function renderImports(entries: ArgSpecEntry[]): string[] {
   const seenValue = new Set<string>()
   for (const e of entries) {
     if (e.kind === 'skip' || e.kind === 'faijs') continue
-    // selfhost query 无符号 import（getBrepApi 直连，顶部已声明）
+    // query 无符号 import（getBrepApi 直连，顶部已声明）
     if (e.kind === 'query') continue
     const { file, exportName } = parseSource(e.source)
     const vk = `${file}#${exportName}`
     if (!seenValue.has(vk)) {
       seenValue.add(vk)
-      // core 自有实现：api/generated/<module>.ts -> api/brep-mirror/<file>（去 .ts 后缀）
+      // core 自有实现：api/generated/<module>.ts -> api/brep-operations/<file>（去 .ts 后缀）
       const rel = file.endsWith('.ts') ? file.slice(0, -3) : file
       lines.push(`import { ${exportName} as __own_${exportName} } from '../${rel}'`)
     }

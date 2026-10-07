@@ -29,9 +29,8 @@ import { ARG_SPEC } from '../src/api/surface/arg-spec'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-/** Root for brep-mirror (self-hosted) implementations — formerly vendored brepjs. */
-const BREP_MIRROR_ROOT = path.resolve(__dirname, '..', 'src', 'api')
-const SELFHOST_ROOT = path.resolve(__dirname, '..', 'src', 'api')
+/** Root for brep-operations implementations — all core first-party (api/). */
+const API_ROOT = path.resolve(__dirname, '..', 'src', 'api')
 const OUT_FILE = path.resolve(__dirname, '..', 'src', 'api', 'surface', 'capability-map.json')
 
 /** source '<module>.js#<Export>' → 模块文件（.js → .ts）与导出名。 */
@@ -260,9 +259,12 @@ function buildImportInfo(fileAbs: string): ImportInfo {
   const dir = path.dirname(fileAbs)
 
   const resolveSpec = (spec: string): string | null => {
-    const p = path.resolve(dir, spec.endsWith('.js') ? spec : spec)
-    const cand = p.endsWith('.js') ? p.slice(0, -3) + '.ts' : p
-    return fs.existsSync(cand) ? cand : null
+    const base = path.resolve(dir, spec)
+    const candidates = spec.endsWith('.js')
+      ? [base.slice(0, -3) + '.ts']
+      : [base + '.ts', base, path.join(base, 'index.ts')]
+    for (const c of candidates) if (fs.existsSync(c)) return c
+    return null
   }
 
   // import * as alias from '…'
@@ -346,7 +348,7 @@ function collectCalls(
 }
 
 /** 从入口函数出发 BFS 收集全部内核方法（环保护）。 */
-function collectForOp(entryFile: string, entryFn: string, root = BREP_MIRROR_ROOT): {
+function collectForOp(entryFile: string, entryFn: string, root = API_ROOT): {
   methods: string[]
   trace: Array<{ fn: string; file: string; methods: string[]; calls: string[] }>
 } {
@@ -448,8 +450,7 @@ function main(): void {
   const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
   const entries = brepOps.map((e) => {
     const { file, exportName } = parseSource(e.source)
-    const isSelfhost = e.selfhost === true
-    const root = isSelfhost ? SELFHOST_ROOT : BREP_MIRROR_ROOT
+    const root = API_ROOT
     const fileAbs = path.join(root, file)
     if (!fs.existsSync(fileAbs)) {
       throw new Error(`[gen-capability-map] source file not found: ${file} (source '${e.source}')`)

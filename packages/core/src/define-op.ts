@@ -234,7 +234,7 @@ function wrapByKeys(r: unknown, keys: string[], wrapOne: (v: unknown) => Shape):
   }
   // Pass through non-shape data keys (e.g. autoHeal's `report`): declared
   // outputs are the geometry that gets Shape-wrapped, but sibling data products
-  // of the same op result must survive the statement boundary (§5.4 selfhost).
+  // of the same op result must survive the statement boundary (§5.4).
   for (const k of Object.keys(src)) {
     if (!keys.includes(k)) out[k] = src[k] as unknown as Shape
   }
