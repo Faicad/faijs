@@ -38,10 +38,19 @@ export type { SketchOnPlaneParams, PlaneSpec } from './sketch-on-plane'
 export { wire } from './wire'
 export { helix } from './helix'
 export { split } from './split'
-export { sweep } from './sweep'
+export { sweep, type SweepOptions, type SweepOrientation, type SweepGuideContact, type SweepLawKind } from './sweep'
 export { loft } from './loft'
 // S3（occt-wasm op 接入）：控制点阵 → B 样条面（平台 op engines:['occt']）。
 export { surface, type SurfaceOptions } from './surface'
+// S3（occt-wasm op 接入）：2D 轮廓偏置 → 1D 轮廓（平台 op engines:['occt']）。
+export { offset2d, type Offset2DOptions, type Offset2DJoinType } from './offset2d'
+// S3（occt-wasm op 接入）：面集一次成型为实体（平台 op engines:['occt']）。
+export { solidFromFaces, type SolidFromFacesParams } from './solid-from-faces'
+// S3（occt-wasm op 接入）：无限半空间实体（平台 op engines:['occt']，作无界布尔工具）。
+export { halfSpace, type HalfSpaceParams } from './half-space'
+// S3（occt-wasm op 接入）：导出族——STL（中立，纯数据序列化）/ BREP 文本（平台 op engines:['occt']）。
+export { exportStl, type ExportStlOptions } from './export-stl'
+export { exportBrep } from './export-brep'
 export { knurl } from './knurl'
 export { sdf } from './sdf'
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：

@@ -385,7 +385,15 @@ for (const op of ops) {
     }
   }
 }
-const C2 = c2Reach
+// 人工补充的平台可达（§7.2 缺陷 2 的残留面）：**数据型平台 op 是普通函数**——
+// 它们返回字符串/字节而非 Shape，进不了 `defineOp` 的 brep 包装（`wrapBrepOne` 只
+// 收养 Shape/handle），因此落在 §7.2 的 op 全集口径（『export const X =
+// defineOp/compatOp(』）之外。它们的引擎归属由函数体内的
+// `assertEngineFor('<name>', ['occt'])` 自证（`api/internal/l3-bridge.ts` 的既定做法），
+// 见 `api/export-brep.ts`。若日后 op 全集口径补上「api-namespace 注册的普通函数」，
+// 本清单应随之删除。
+const PLAN_C2_EXTRA = ['toBREP']
+const C2 = new Set<string>([...c2Reach, ...PLAN_C2_EXTRA])
 const L3 = new Set([...l3Reach].filter((m) => !c2Reach.has(m)))
 
 const reached = new Set([...C1, ...C2, ...L3])
@@ -396,7 +404,7 @@ const unReached = [...occtNames].filter((m) => !reached.has(m)).sort()
 // C4 是剩余补集。§3.4.6 的 surfaceCurvature：已核实 `inspectCurvature`（arg-spec.ts:499）
 // 覆盖曲面曲率查询 ⇒ 转 C3（方案 §7.2 的 102/10/4/63/10/22 分支）。
 // ───────────────────────────────────────────────────────────────────────────
-const PLAN_C3 = ['rotate', 'sweep', 'sectionPlane', 'surfaceCurvature']
+const PLAN_C3 = ['rotate', 'sweep', 'sectionPlane', 'surfaceCurvature', 'exportStl']
 const PLAN_C5 = [
   'translateWithHistory', 'rotateWithHistory', 'mirrorWithHistory', 'scaleWithHistory',
   'chamferWithHistory', 'shellWithHistory', 'offsetWithHistory', 'thickenWithHistory',

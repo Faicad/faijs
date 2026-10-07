@@ -358,6 +358,13 @@
       ]
     },
     {
+      "name": "offset2d",
+      "missing": [
+        "delta",
+        "profile"
+      ]
+    },
+    {
       "name": "profile",
       "missing": [
         "as",
@@ -474,6 +481,13 @@
       "missing": [
         "as",
         "scaleMode"
+      ]
+    },
+    {
+      "name": "solidFromFaces",
+      "missing": [
+        "faces",
+        "tolerance"
       ]
     },
     {

@@ -34,6 +34,11 @@ import { punchHole } from './punch-hole'
 import { wire } from './wire'
 import { helix } from './helix'
 import { surface } from './surface'
+import { offset2d } from './offset2d'
+import { solidFromFaces } from './solid-from-faces'
+import { halfSpace } from './half-space'
+import { exportStl } from './export-stl'
+import { exportBrep } from './export-brep'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
@@ -97,6 +102,17 @@ export function createApiNamespace(): LibNamespace {
     sweep, loft,
     // S3（occt-wasm op 接入）：控制点阵 → B 样条面（平台 op engines:['occt']）。
     surface,
+    // S3（occt-wasm op 接入）：2D 轮廓偏置（平台 op engines:['occt']，原生 offsetWire2D）。
+    offset2d,
+    // S3（occt-wasm op 接入）：面集一次成型为实体（平台 op engines:['occt']，原生 buildSolidFromFaces）。
+    solidFromFaces,
+    // S3（occt-wasm op 接入）：无限半空间实体（平台 op engines:['occt']，原生 halfSpace；
+    // 无界布尔工具的来源，产物 mesh 为空——单独渲染无意义，只作 cut/common/split 的工具位）。
+    halfSpace,
+    // S3（occt-wasm op 接入）：导出族。exportStl 中立（只序列化 Shape 自带三角载荷，
+    // 无内核调用）；exportBrep 平台（原生 toBREP，L1 只有 fromBREP 导入侧）。
+    exportStl,
+    exportBrep,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
     faceRef,

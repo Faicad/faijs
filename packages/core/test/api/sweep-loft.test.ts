@@ -12,6 +12,9 @@
  * 6. 平台 op 在 brep_mock 下不被引擎判定拦截（D11-3 豁免）；
  * 7. roof 是中立 op（capabilities 路由，非 engines）——brep_mock 下同样不被平台判定拦截。
  *
+ * S3 增补（方案 §3.4.3）：`sweep` 扩 sweepFull 完整控制面（law / orientation /
+ * transition / tolerance），旧路径行为不变 + 冲突与入参校验，见文件尾部独立 describe。
+ *
  * GOTCHA-1（Phase 4 实测）：旧 `complexExtrude(wire, center, normal, profile?, shellMode?)`
  * 的 `normal` 同时是**挤出向量**（`extrusionLength = vecLength(normal)`），不是单位方向；
  * 传 `[0,0,30]` 即沿 +Z 拉伸 30mm。`center` 是脊柱起点。`shellMode` 不暴露（元组产物）。
@@ -305,5 +308,127 @@ describe('roof — 中立 op（capabilities 路由，非 engines）', () => {
     await useBrepMock()
     const result = await exec('brep', 'let part0 = cad.cylinder(4, 20)\nlet part1 = cad.roof(part0)\n')
     expect(JSON.stringify(result.failedAt ?? {})).not.toMatch(/requires engine occt/)
+  })
+})
+
+/**
+ * S3（方案 §3.4.3）——`sweep` 扩完整控制面：给出 sweepFull 专有字段即走 occt 原生
+ * `sweepFull`（occt-wasm 的 sweepAdvanced / sweepOriented 是其子集）。
+ *
+ * 钉住：
+ * 1. law 驱动扫掠（线性缩放律）→ 体积按解析积分收缩（twist 类特征的正确路径，修 F17 根因）；
+ * 2. orientation / transitionMode 新名可达；
+ * 3. 冲突与入参校验：mode:'simple' × sweepFull 字段、law 缺 lawLength、非法枚举值；
+ * 4. 旧路径回归：无 sweepFull 字段时行为不变（transitionMode:'right' 旧别名仍可用）。
+ */
+describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
+  const PROFILE = `let part0 = ${squareSketch(4)}\nlet part1 = cad.wire([[0,0,0],[0,0,50]])\n`
+  const volOf = (s: Shape): number => getBrepApi().getVolume(brepOf(s) as never)
+
+  it('law:"linear" + lawLength + lawEndFactor → 体积按解析积分收缩', async () => {
+    await useOcct()
+    const plain = await shapeOf('brep', PROFILE + 'let part2 = cad.sweep(part0, part1)\n', 'part2')
+    const tapered = await shapeOf(
+      'brep',
+      PROFILE + "let part2 = cad.sweep(part0, part1, { law: 'linear', lawLength: 50, lawEndFactor: 0.5 })\n",
+      'part2',
+    )
+    const vPlain = volOf(plain)
+    const vTaper = volOf(tapered)
+    // 无律：8×8 截面 × 50 = 3200
+    expect(Math.abs(vPlain)).toBeCloseTo(3200, 0)
+    // 线性律 1→0.5：∫₀^50 (1−0.5t/50)² dt = 50·7/12 → V = 64·50·7/12 ≈ 1866.67
+    expect(Math.abs(vTaper)).toBeCloseTo(1866.67, 0)
+    expect(Math.abs(vTaper)).toBeLessThan(Math.abs(vPlain))
+  })
+
+  it('orientation:"frenet" 与默认 orientation:"fixed" 在直线脊柱上几何一致', async () => {
+    await useOcct()
+    const fixed = await shapeOf(
+      'brep',
+      PROFILE + "let part2 = cad.sweep(part0, part1, { orientation: 'fixed' })\n",
+      'part2',
+    )
+    const frenet = await shapeOf(
+      'brep',
+      PROFILE + "let part2 = cad.sweep(part0, part1, { orientation: 'frenet' })\n",
+      'part2',
+    )
+    // 直线脊柱无主法向变化 ⇒ 两模式同几何（体积一致）。
+    expect(Math.abs(volOf(frenet) - volOf(fixed))).toBeLessThan(1e-3)
+  })
+
+  it('transitionMode:"roundCorner"（新语义名）→ 走 sweepFull，可达', async () => {
+    await useOcct()
+    const s = await shapeOf(
+      'brep',
+      PROFILE + "let part2 = cad.sweep(part0, part1, { transitionMode: 'roundCorner' })\n",
+      'part2',
+    )
+    expect(Math.abs(volOf(s))).toBeGreaterThan(0)
+  })
+
+  it('tolerance 项（tol3d / boundTol / tolAngular）可达', async () => {
+    await useOcct()
+    const s = await shapeOf(
+      'brep',
+      PROFILE + 'let part2 = cad.sweep(part0, part1, { tol3d: 1e-6, boundTol: 1e-6, tolAngular: 1e-3 })\n',
+      'part2',
+    )
+    expect(Math.abs(volOf(s))).toBeCloseTo(3200, 0)
+  })
+
+  it('mode:"simple" × sweepFull 字段 → E_SWEEP_MODE_CONFLICT（执行前）', async () => {
+    await useOcct()
+    const result = await exec(
+      'brep',
+      PROFILE + "let part2 = cad.sweep(part0, part1, { mode: 'simple', law: 'linear', lawLength: 50 })\n",
+    )
+    expect(result.failedAt).toBeDefined()
+    expect(JSON.stringify(result.failedAt)).toMatch(/E_SWEEP_MODE_CONFLICT/)
+  })
+
+  it('law 非 none 但缺 lawLength → E_SWEEP_LAW_NEEDS_LENGTH（执行前）', async () => {
+    await useOcct()
+    const result = await exec(
+      'brep',
+      PROFILE + "let part2 = cad.sweep(part0, part1, { law: 'linear' })\n",
+    )
+    expect(result.failedAt).toBeDefined()
+    expect(JSON.stringify(result.failedAt)).toMatch(/E_SWEEP_LAW_NEEDS_LENGTH/)
+  })
+
+  it('非法 orientation → E_SWEEP_BAD_ORIENTATION（执行前）', async () => {
+    await useOcct()
+    const result = await exec(
+      'brep',
+      PROFILE + "let part2 = cad.sweep(part0, part1, { orientation: 'sideways' })\n",
+    )
+    expect(result.failedAt).toBeDefined()
+    expect(JSON.stringify(result.failedAt)).toMatch(/E_SWEEP_BAD_ORIENTATION/)
+  })
+
+  it('旧路径回归：transitionMode:"right"（旧别名）不报错；非法旧名仍报 E_SWEEP_TRANSITION_UNSUPPORTED', async () => {
+    await useOcct()
+    const okLegacy = await shapeOf(
+      'brep',
+      PROFILE + "let part2 = cad.sweep(part0, part1, { transitionMode: 'right' })\n",
+      'part2',
+    )
+    expect(Math.abs(volOf(okLegacy))).toBeCloseTo(3200, 0)
+    const bad = await exec('brep', PROFILE + "let part2 = cad.sweep(part0, part1, { transitionMode: 'left' })\n")
+    expect(bad.failedAt).toBeDefined()
+    expect(JSON.stringify(bad.failedAt)).toMatch(/E_SWEEP_TRANSITION_UNSUPPORTED/)
+  })
+
+  it('brepkit 引擎：sweepFull 路径同样被引擎门执行前拒绝（D11-4）', async () => {
+    await useBrepkit()
+    const result = await exec(
+      'brep',
+      NEUTRAL_INPUTS + "let part2 = cad.sweep(part0, part1, { law: 'linear', lawLength: 10 })\n",
+    )
+    expect(result.failedAt).toBeDefined()
+    expect(result.failedAt!.callee).toBe('sweep')
+    expect(JSON.stringify(result.failedAt)).toMatch(/E_BREP_UNSUPPORTED/)
   })
 })

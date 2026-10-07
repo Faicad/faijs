@@ -25,16 +25,64 @@ import { toProfileWireView } from './internal/profile-wire'
 import { unwrapResult } from './internal/result-unwrap'
 import type { BrepHandle } from '../brep/engine/types'
 
-/** 扫掠配置（与旧 SweepOptions 同形；本文件自持，去外部依赖）。 */
+/** sweep 的截面朝向模式（映射 occt `SweepMode`）。 */
+export type SweepOrientation = 'fixed' | 'frenet' | 'fixedUp' | 'auxiliary'
+/** sweep 的引导线接触关系（映射 occt `SweepContact`，仅 `orientation:'auxiliary'` 有效）。 */
+export type SweepGuideContact = 'none' | 'contact' | 'contactOnBorder'
+/** sweep 沿脊柱的缩放律（映射 occt `SweepLaw`；`law ≠ 'none'` 时必须给 `lawLength`）。 */
+export type SweepLawKind = 'none' | 'linear' | 'sCurve'
+
+/**
+ * 扫掠配置。
+ *
+ * 两条路径（S3，方案 §3.4.3「扩 sweep」）：
+ * - **旧路径**（默认）：只给 `frenet` / `mode` / `tolerance` / `transitionMode:'right'` 时，
+ *   走 `sweepPipeShell`（`mode:'simple'` → `simplePipe`），行为与 S3 前逐字节一致；
+ * - **完整控制面**：给出下列任一 sweepFull 字段时改走 occt 原生 `sweepFull`
+ *   （occt-wasm 的 `sweepAdvanced` / `sweepOriented` 是其子集，由同一选项对象承载）。
+ */
 export interface SweepOptions {
-  /** Frenet 参考系（默认 false）。 */
+  /** Frenet 参考系（默认 false）。仅旧路径。 */
   frenet?: boolean
-  /** 扫掠模式：'simple'（MakePipe）或 undefined（PipeShell）。 */
+  /** 扫掠模式：'simple'（MakePipe）或 undefined（PipeShell）。与 sweepFull 字段互斥。 */
   mode?: 'simple'
-  /** 过渡模式：仅支持默认 'right'（core 实现限制，见 sweepFns）。 */
-  transitionMode?: string
+  /**
+   * 转角过渡模式：`'right'`（旧别名，等价于内核缺省 Transformed）或
+   * `'transformed'` / `'rightCorner'` / `'roundCorner'`（后三者走 sweepFull）。
+   */
+  transitionMode?: 'right' | 'transformed' | 'rightCorner' | 'roundCorner'
   /** 公差等其余旧字段（保留以兼容调用方）。 */
   tolerance?: number
+
+  // ── sweepFull 控制面（S3）──
+  /** 截面朝向模式（默认内核缺省 Fixed）。 */
+  orientation?: SweepOrientation
+  /** `orientation:'fixedUp'` 的恒定 binormal 方向（默认 +Z）。 */
+  up?: [number, number, number]
+  /** `orientation:'auxiliary'` 的引导线（Shape）。 */
+  auxSpine?: Shape
+  /** `orientation:'auxiliary'`：按弧长而非参数匹配脊柱与引导线（默认 false）。 */
+  curvilinearEquivalence?: boolean
+  /** `orientation:'auxiliary'`：截面与引导线的关系（默认 'none'）。 */
+  guideContact?: SweepGuideContact
+  /** 支持面（含 spine 的 shape）；给出后取代 `orientation`。 */
+  support?: Shape
+  /** 逼近面的最大阶数（缺省 = 内核缺省）。 */
+  maxDegree?: number
+  /** 最大段数（缺省 = 内核缺省）。 */
+  maxSegments?: number
+  /** 沿脊柱的缩放律（默认 'none'）。 */
+  law?: SweepLawKind
+  /** law 跨越的参数长度（= 脊柱长度）；`law ≠ 'none'` 时必给。 */
+  lawLength?: number
+  /** law 末端的截面缩放（1 = 不缩放）。 */
+  lawEndFactor?: number
+  /** 3D 逼近公差（绝对量，缺省 = 内核缺省 1e-4）。 */
+  tol3d?: number
+  /** 边界公差（绝对量）。 */
+  boundTol?: number
+  /** 角度公差（弧度）。 */
+  tolAngular?: number
 }
 
 /** BREP 路径：截面沿脊柱扫掠（wire 视图 → brep-operations 直连 → fromBrep 收养）。 */
@@ -70,10 +118,15 @@ function sweepBrep(profile: Shape, spine: Shape, opts?: SweepOptions): Shape {
  * @note 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。截面接受
  *       wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错；
  *       brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。
+ *       S3 完整控制面（方案 §3.4.3）：给出 `orientation` / `up` / `auxSpine` /
+ *       `curvilinearEquivalence` / `guideContact` / `transitionMode`（新名）/
+ *       `support` / `maxDegree` / `maxSegments` / `law` / `lawLength` /
+ *       `lawEndFactor` / `tol3d` / `boundTol` / `tolAngular` 任一，即改走 occt 原生
+ *       `sweepFull`（law 驱动扫掠是 twist 类特征的正确路径）。
  * @returns Shape 扫掠体。
  * @param profile - 截面几何（wire 或面；面取其外环）。type:Shape required:true
  * @param spine - 脊柱路径（wire）。type:Shape required:true
- * @param opts - 扫掠配置（frenet / mode / tolerance 等）。type:SweepOptions required:false
+ * @param opts - 扫掠配置（旧字段 + sweepFull 完整控制面）。type:SweepOptions required:false
  * @example
  * const path = cad.wire([[0, 0, 0], [0, 0, 50]])
  * const section = cad.profile({ contours: [{ segments: [

@@ -8,6 +8,7 @@
  * 2. wire 的 kind 不随 mode 漂移（brep=curve / mesh=curve）——§7.1 建议 1 附带子项②；
  * 3. 1D 产物喂给 extrude（面 op）→ 执行前报错（不许运行时报错）；
  * 4. helix 可达（occt 原生 makeHelixWire）+ kind='curve'；
+ * 4b. helix handed：'left' 走 makeHelixWireHanded(..., true)，与右旋互为镜像；非法值报 E_HELIX_BAD_HANDED；
  * 5. helix 平台身份：brepkit 下执行前报 E_BREP_UNSUPPORTED（D11-4）；
  * 6. helix 在 brep_mock 下不被引擎判定拦截（D11-3 豁免）；
  * 7. sketch as:'wire' 交出 1D 曲线形态。
@@ -165,14 +166,51 @@ describe('helix — 螺旋线（平台 op engines:["occt"]）', () => {
     expect(bbox.zmax).toBeLessThanOrEqual(6.1)
   })
 
-  it('brepkit 引擎：非目标引擎执行前报 E_BREP_UNSUPPORTED（D11-4）', async () => {
-    __resetEngineRegistriesForTests()
+  it('handed:"left" 与默认右旋互为镜像（同 radius/pitch/turns）', async () => {
+    await useOcct()
+    const right = await shapeOf('brep', HELIX_CODE, 'part0')
+    const left = await shapeOf(
+      'brep',
+      "let part0 = cad.helix({ radius: 5, pitch: 2, turns: 3, handed: 'left' })\n",
+      'part0',
+    )
+    const fr = getBrepApi().wireframe(brepOf(right) as never)
+    const fl = getBrepApi().wireframe(brepOf(left) as never)
+    // 同采样（边数/点数一致），逐点 (x, y, z) → (x, -y, z) 镜像。
+    expect(fl.edgeCount).toBe(fr.edgeCount)
+    expect(fl.points.length).toBe(fr.points.length)
+    let maxDelta = 0
+    for (let i = 0; i < fr.points.length; i += 3) {
+      maxDelta = Math.max(
+        maxDelta,
+        Math.abs(fr.points[i]! - fl.points[i]!),
+        Math.abs(fr.points[i + 1]! + fl.points[i + 1]!),
+        Math.abs(fr.points[i + 2]! - fl.points[i + 2]!),
+      )
+    }
+    expect(maxDelta).toBeLessThan(1e-5)
+    // 非退化：两条线确实不同（y 不恒为零）。
+    expect(Math.max(...Array.from(fr.points).filter((_, i) => i % 3 === 1).map(Math.abs))).toBeGreaterThan(1)
+  })
+
+  it('handed: 非法值 → E_HELIX_BAD_HANDED（执行前）', async () => {
+    await useOcct()
+    const result = await exec(
+      'brep',
+      "let part0 = cad.helix({ radius: 5, pitch: 2, turns: 3, handed: 'up' })\n",
+    )
+    expect(result.failedAt).toBeDefined()
+    expect(JSON.stringify(result.failedAt)).toMatch(/E_HELIX_BAD_HANDED/)
+  })
+
+  it('brepkit 引擎：非目标引擎执行前报 E_BREP_UNSUPPORTED（D11-4）', async () => {    __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
     const result = await exec('brep', HELIX_CODE)
     expect(result.failedAt).toBeDefined()
     const msg = JSON.stringify(result.failedAt)
     expect(msg).toMatch(/helix/)
-    expect(msg).toMatch(/op requires engine occt/)
+    // op 现声明了 name ⇒ 文案是带名形态（GOTCHA-3：断言用 `/op '<name>' …`）。
+    expect(msg).toMatch(/op 'helix' requires engine occt/)
     expect(msg).toMatch(/brepkit/)
   })
 
