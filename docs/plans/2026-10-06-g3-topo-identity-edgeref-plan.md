@@ -77,7 +77,7 @@ FCStd 的 `EdgeN` 序号锚定在 **FreeCAD 端特征链终态**的形状上；f
 
 | 批 | 内容 | 验收判据 |
 |---|---|---|
-| **G3-0** | 侦察：对本仓 46+36+18 条按「of 形状是否链中间态 / 是否 import_brep 产物 / 目标边邻面数」做静态画像，确定各路线的实际覆盖数 | 画像数字落盘（fcstd-port census 工具，同 `_d2-consumed-census` 手法） |
+| **G3-0** | 侦察：对本仓 46+36+18 条按「of 形状是否链中间态 / 是否 import_brep 产物 / 目标边邻面数」做静态画像，确定各路线的实际覆盖数 | ✅ **已完成（2026-10-06，fcstd-port `tools/_g3-profile.mjs` → `out/g3-0-profile.json`）**：101 产品全量画像（每个 edgeRef 调用的 of 变量声明 op 分类）。**关键数字**：`chain-intermediate`（路线 A 域，链中间态形状上的引用）**101 产品全命中**（sig×kind：ordinal 46 / no-role-lineage 36 / two-face-pair 18 / other 1）；`asset`（路线 B 域，import_brep 产物上的引用）**6 产品**（ordinal 3 + no-role-lineage 2 + two-face-pair 1）；primitive 直接声明（box/cylinder 上的引用）**3 产品**（局部序号失配，路线 A 单步变体）。**路线覆盖修正**：A 是绝对主力（~95%），B 收 6 条，C 的 two-face-pair 18 条也全落在 A 域（重映射后邻面数可能恢复，重映射不可解才落 C） |
 | **G3-1** | 路线 A 骨架：本仓转换期演化链预演算器（拓扑变更 op 的边指纹映射），取点 Yellow_gearmotor_L（ordinal 16→? 重映射） | 取点 1 条转 RUN-OK；映射不可判处显式 gap |
 | **G3-2** | 路线 A 全量：46 条 ordinal 桶批量重映射 | 46 条分布 = RUN-OK ∪ 显式 gap，**零运行期 edgeRef 抛错**；留档测试 + 变异（把映射表改坏 ⇒ 红） |
 | **G3-3** | 路线 B：import_brep 产物上的 edgeRef ⇒ 转换期识别 + honest bake（36 条 no-role-lineage 中资产面部分） | 对应样本从 run-fail 转 gap（显式、有 reason） |
