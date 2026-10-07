@@ -6,7 +6,7 @@
  * 2. 解析在执行期：TopoRef 复用 topo-resolve 的解析通道（BREP 现场 / mesh 行快照）；
  * 3. 句柄是瞬态：解析出的几何立即转成纯数据 SolverEntity，句柄不跨语句。
  *
- * 输出契约对齐 brepjs solverAdapter 的 SolverEntity：{ type: 'plane'|'axis'|'point',
+ * 输出契约对齐约束求解器的 SolverEntity：{ type: 'plane'|'axis'|'point',
  * origin, normal?/direction? }。dependent 侧填本地坐标（部件自身坐标系），
  * reference 侧世界变换由 solverAdapter 的 transformEntity 负责——本层不做。
  *

@@ -35,7 +35,7 @@ codegen 侧显式 gap（`sketch-empty-geoms`）兜住；`sketchOnPlane` 零长�
 
 ## 5. 附：`revolve` CONSTRUCTION_FAILED（drill / v-bit，2 例）定性（2026-09-28）
 
-链路：`cad.revolve` → `revolveBrep`（`api/brep-mirror/sweepFns.ts:83`）→ `kernel.revolveVec`（OCCT 原生）。
+链路：`cad.revolve` → `revolveBrep`（`api/brep-operations/sweepFns.ts:83`）→ `kernel.revolveVec`（OCCT 原生）。
 探针实测（`packages/core/src/api/revolve-construction-probe.test.ts`，保留为可重复测试）：
 
 | 轴-轮廓关系 | 结果 |

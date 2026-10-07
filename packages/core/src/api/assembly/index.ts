@@ -3,7 +3,7 @@
  *
  * 分层（方案 §4.1）：normalize（规范化 + face_mate 兼容）→ lower（直译降级，
  * mate/align 寄生在 concentric 上）→ entities（TopoRef → SolverEntity，双链路）
- * → solve（委派 brepjs solveConstraints）→ pose（位姿转换契约）。
+ * → solve（core 自持 solveConstraints）→ pose（位姿转换契约）。
  */
 
 export * from './types'

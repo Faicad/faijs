@@ -72,12 +72,13 @@ export type NewFaceRule =
  * **继承面的处置完全由类别决定，op 不写**；只有 `construct` 和 `kernel` 会造新面，
  * 才有词汇这一项 ⇒ `identity` / `subdivide` / `replicate(k)` **零声明**。
  *
- * 本表是**类别归属**，不是接线状态（例：`sweep` 属 `construct` 类但未接线，见 §1 D10）。
+ * 本表是**六个类别的定义**；某个 op 实际声明哪一类，以该 op 的 `defineOp` 为准
+ * （实测：`sweep`、`loft` 声明 `unmodeled`；`extrude`、`revolve`、`makeBox` 声明 `construct`）。
  */
 export type Provenance =
   /** 内核给历史：boolean / fillet / chamfer / shell / offset / 刚体变换 */
   | { readonly kind: 'kernel'; readonly newFaces: NewFaceRule }
-  /** 输出面 ↔ 输入的构造规则：extrude / revolve / sweep / loft / primitives / sketch / import_brep */
+  /** 输出面 ↔ 输入的构造规则：extrude / revolve / primitives（`via: 'explicit'` 词汇表给出） */
   | { readonly kind: 'construct'; readonly newFaces: Extract<NewFaceRule, { via: 'explicit' }> }
   /** 1:1，第 i 面 → 第 i 面：copy / place / clone / locate / applyMatrix */
   | { readonly kind: 'identity' }

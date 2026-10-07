@@ -367,7 +367,7 @@ hole:<j>[/…]    第 j 个内环（profile 带孔时）下的同名子结构
 
 > **未接线的 8 条在 cad 面与 mesh 面都没有同名实现**（`grep` 确认），即能力真的缺失，
 > 不是「别名不同」。唯一的名称干扰是 `thread`：另有一处**同名不同物**的
-> `brepjsCompat.thread`（`api/index.ts:104`，来自 `api/brep-mirror/threadFns.ts` 的库作者面
+> `brepjsCompat.thread`（`api/index.ts:104`，来自 `api/brep-operations/threadFns.ts` 的库作者面
 > brepjs 形态函数），它既不是 cad op、也不走 `arg-spec`。命名声明表必须区分
 > 「cad 面 op」与「库作者面函数」，否则会重演「一个名字两份实现」这类混淆。
 >

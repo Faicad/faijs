@@ -142,7 +142,7 @@ export interface DualOpOptions {
   schema?: Record<string, string>
   /**
    * D11 slot-map declaration (§4.2): the positional→object boxing table
-   * (SlotMap) mapping a brepjs-style positional call onto this op's native
+   * (SlotMap) mapping a positional call onto this op's native
    * object form. Ops without it accept only the form their implementation
    * natively takes.
    */
@@ -401,7 +401,7 @@ export function defineOp<A extends unknown[]>(
   // awaits the call, so returning a Promise is transparent.
   const wrapped = async (...args: A): Promise<Shape | Record<string, Shape>> => {
     // D11 (§4.2): faijs-native ops declare an object-form implementation, so a
-    // brepjs-style positional call is boxed into the object form here — before
+    // positional call is boxed into the object form here — before
     // dispatch, so geometry inputs are collected from the normalized arg list.
     const callArgs = (
       meta.slotMap ? positionalToObject(args as unknown[], meta.slotMap, opLabel(meta)) : args

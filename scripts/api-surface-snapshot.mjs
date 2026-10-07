@@ -2,8 +2,8 @@
  * api-surface-snapshot — dump the runtime export surface of all @faicad/faijs
  * subpaths into scripts/api-surface-snapshot.json (P0 baseline).
  *
- * 用途：monorepo 迁移期间与之后，比对「公开导出面」不漂移（P5/P6 验收：
- * npm run build 产物的导出面与 P0 快照逐字一致，9 个子路径全比对）。
+ * 用途：比对「公开导出面」不漂移（npm run build 产物的导出面与入库快照逐字一致，
+ * SUBPATHS 列出的子路径全比对）。
  *
  * 只捕获**运行时值导出**（export type 不可见）；类型面由 typecheck 兜底。
  * 先 `npm run build` 生成最新 dist，再运行本脚本：
@@ -11,11 +11,14 @@
  */
 import { writeFileSync } from 'node:fs'
 
-// core package.json exports 的**具体（可整体 import）键**（D2-A 起 facade 折入 core；
-// 2026-09-20 的 ./fcstd 读层已于后续移除，2026-09-25 重拍基线对齐当前 28 键中可 import
-// 的 18 个；通配键 ./api/*、./mesh/*、./brep/*、./topology/* 等不可整体 import，不列入）。
+// 参与快照的**可整体 import 的子路径**（D2-A 起 facade 折入 core；2026-09-20 的
+// ./fcstd 读层已于后续移除）。本数组是快照的覆盖范围，**不是** package.json
+// exports 的镜像：通配键（./api/*、./mesh/*、./brep/*、./topology/* 等）不可整体
+// import，不列入；两者本就不等长，禁止互相反推。
+// 纪律：package.json 删掉某个具体子路径时，必须同步从本数组移除，否则该子路径
+// import 失败会让本脚本以非 0 退出（CI 5/9 因此报红）。
 const SUBPATHS = [
-  '.', './api', './api/brepjs-compat', './brepjs-compat',
+  '.', './api',
   './sdk', './symbol-table', './csg', './sdf', './node', './browser',
   './weapp', './runtime-state', './identity', './shape', './module-resolver',
   './mesh', './topology/naming', './env-agnostic', './units',

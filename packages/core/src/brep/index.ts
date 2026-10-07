@@ -5,9 +5,12 @@
  * - brep-ops.ts: 核心 BREP 操作（变换、布尔、钻孔、分割、拉伸）
  * - brep-chain.ts: BREP 链状态管理
  * - brep-utils.ts: 通用工具
- * - brepjs-mirror/: 从 brepjs 参考的操作实现（镜像 brepjs src/operations/，勿手改核心算法）
- * - text/: 文字 BREP 实现（镜像 brepjs src/text/）
- * - ops/: 每个操作的 BREP + Mesh 分派器（src/ops/）
+ * - brep-topology.ts / primitives-brep.ts / mesh-solid.ts: 拓扑查询、原型、实体化
+ * - face-evolution.ts / handle-bridge.ts / effective-deflection.ts: 面演化、句柄桥、偏转
+ * - engine/: BREP 引擎注册表与适配器（adapters/ 下 occt、brepkit、brep-mock）
+ * - export/: 导出（stl.ts、step.ts、export-model.ts）
+ * - svg/: SVG → 实体
+ * - text/: 文字 BREP（fontRegistry.ts、text-to-solid.ts）
  */
 
 // 核心 BREP 操作

@@ -117,7 +117,7 @@ const OCCT_METHOD_KINDS = [
   'surfaceType',
   'uvBounds',
   // Phase 5（D5）：测量族能力名统一为 L1 中立名（getBoundingBox/getVolume/...）——
-  // 旧面按 brepjs 自身命名（volume/area/length），core 能力表用 L1 中立名。
+  // 旧面按上游旧命名（volume/area/length），core 能力表用 L1 中立名。
   'getBoundingBox',
   'getVolume',
   'getSurfaceArea',
@@ -175,7 +175,7 @@ export async function registerOcctBrepEngine(): Promise<void> {
       directEdit: true,
       advSurface: true,
       assembly: true,
-      // P7 并入（D4）：OCCT 是精确 B-rep 内核——如实声明 brepjs KernelCapabilities 字段。
+      // P7 并入（D4）：OCCT 是精确 B-rep 内核——如实声明 L1 契约的能力字段。
       exact: true,
       brepExport: true,
       exactMeasurement: true,

@@ -13,8 +13,8 @@ import { brepOf } from '../../shape'
  *
  * Accepts (in order of preference):
  *  - a raw branded number (BrepHandle),
- *  - a brepjs-style kernel handle object `{ id }`,
- *  - a brepjs-style shape wrapper `{ wrapped }`,
+ *  - a kernel handle object `{ id }`,
+ *  - a shape wrapper object `{ wrapped }`,
  *  - a faijs Shape whose brep slot carries the handle.
  *
  * @param v - the op argument (positional, post D11 normalization).

@@ -19,6 +19,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { createEditorRuntime } from '../_support/editor-runtime'
 import { registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
+import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 
 beforeAll(async () => {
@@ -56,7 +57,7 @@ ${tail}
   const rt = createEditorRuntime(createNodePorts(), 'brep')
   const result = await rt.execute(code, { topology: 'auto' })
   expect(result.failedAt, JSON.stringify(result.failedAt)).toBeUndefined()
-  const shape = result.outputs.get(outName) as Shape | undefined
+  const shape = result.outputs.get(asPartName(outName)) as Shape | undefined
   expect(shape).toBeDefined()
   let min = Infinity
   let max = -Infinity

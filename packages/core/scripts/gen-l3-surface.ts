@@ -4,7 +4,7 @@
  * 设计文档：docs/plans/2026-09-02-faijs-api-surface-completion.md §E5 / §5.2
  *
  * 输入：api/surface/arg-spec.ts（ARG_SPEC：人工签名适配表，唯一人工维护点）
- *       api/surface/upstream-surface.json（brepjs 基线清单，用于校验符号存在）
+ *       api/surface/upstream-surface.json（符号存在性基线，用于反向护栏校验）
  * 产物：api/generated/<module>.ts（按模块分片；从 PROJECTED_MODULES 逐个生成）
  *
  * 产物形态（core 第一方实现，2026-10-07 清理 vendored 死分支）：

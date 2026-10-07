@@ -3,25 +3,25 @@
  *
  * 设计文档：docs/plans/2026-09-02-faijs-api-surface-completion.md §E5 / §5.2
  *
- * 输入：brepjs `src/index.ts`（upstream-surface.json 已按 §2.6 排除）。
+ * 输入：api/surface/upstream-surface.json（符号存在性基线；反向护栏见
+ *       test/api/generated/surface-mechanism.test.ts）。
  * 作用：为每个保留符号声明「faijs 面投影方式」。生成器
- * `scripts/gen-l3-surface.ts` 读取本表 + surface 清单，产出
- * `api/generated/<module>.ts`（E5：不手写 699 个；本表之外符号按默认规则推导）。
+ * `packages/core/scripts/gen-l3-surface.ts` 读取本表 + upstream-surface.json，按
+ * PROJECTED_MODULES 分片产出 `api/generated/<module>.ts`；未列入本表的符号不进生成。
  *
- * 产出类别（对齐 §5.2 / E5 分类表；生成器按本类判别产出）：
- *   brep-op : defineOp({ brep }) —— Solid 进出（构造/变换/布尔/修饰）
- *   query   : 普通导出函数（输入 Shape 借入 brepjs handle → 调 compat → 返回纯数据；
- *             返回非 Shape，不进 defineOp——先例 api/geom.ts，generated/topology.ts getBounds）
- *   pure    : 无 Shape 参数的纯函数 → 直接 re-export（不进 defineOp，不是 op）
- *   type    : `export type { … } from '<brepjs>'` re-export
- *   skip    : 登记跳过（divergence：语义 faijs 面无法表达 / 已由 faijs 既有 op 覆盖），带 reason
+ * 产出类别（生成器按此判别；完整定义见 gen-l3-surface.ts 头部）：
+ *   brep-op : defineOp({ brep: __own_* }) —— Solid 进出，直连 core 自有实现（api/brep-operations/）
+ *   query   : 普通导出函数（getBrepApi().* 直连引擎，返回纯数据，不进 defineOp——先例 api/geom.ts）
+ *   faijs   : re-export 自手写 api/ 模块
+ *   skip    : 仅登记不生成（divergence：语义 faijs 面无法表达 / 已由既有 op 覆盖），带 reason
+ *   （历史 kind 'type' / 'pure' 已无条目，出现即抛错）
  *
- * A6（2026-10-06）口径指认：本表 + 生成的 generated/*.ts 是 brepjs 投影面的
+ * A6（2026-10-06）口径指认：本表 + 生成的 generated/*.ts 是 L3 投影面的
  * **增量**清单；cad 脚本面的**全集**清单权威来源是 generated/script-face.ts
  * （scriptFace: true 条目）与 lang/symbol-table.generated.ts（95 op）。两个清单
  * 回答不同问题、互不为超集——禁止互相反推。
  *
- * 双形态（E2）：同名符号由生成器注入 `normalizeArgs` 判别器（faijs 对象形态 ↔ brepjs
+ * 双形态（E2）：同名符号由生成器注入 `normalizeArgs` 判别器（faijs 对象形态 ↔
  * 位置形态），适配表给 faijs 形参映射；本文件首批样本聚焦「faijs 无同名」的纯新增符号，
  * 双形态条目随 §5.1 同名处置逐批加入（P14 分批）。
  *

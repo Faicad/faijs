@@ -4,14 +4,13 @@
  *
  * @platform occt
  *
- * Semantics mirror brepjs `operations/compoundOpsFns.ts` with the brepjs
- * object model dropped:
+ * Argument contract (post core-decouple; handle extraction lives in
+ * `brepHelpers.ts`):
  *  - `options.face` supports an omitted default (highest-Z face) or an already
- *    constructed brepjs Face (`{ wrapped }`); FinderFn (brepjs finder DSL) is
- *    not supported after core migration.
- *  - `options.profile` must be an already constructed brepjs Wire (`{ wrapped }`);
- *    DrawingLike (sketchOnPlane) is not supported (sketch DSL is the brepjs
- *    compat surface, not a core data type).
+ *    constructed face handle (`{ wrapped }` / `{ id }`); a finder DSL is not
+ *    supported.
+ *  - `options.profile` must be an already constructed wire handle (`{ wrapped }` /
+ *    `{ id }`); a drawing/sketch DSL is not supported (it is not a core data type).
  * Intermediates (tool/profile face/positioned face) are released after use.
  */
 
@@ -30,7 +29,7 @@ const BOSS_PARAMS = { name: 'boss', params: ['shape', 'options'], formClass: 'A'
 const MIRROR_JOIN_PARAMS = { name: 'mirrorJoin', params: ['shape', 'options'], formClass: 'A' as FormClass }
 
 // ---------------------------------------------------------------------------
-// Vec helpers (brepjs vecOps)
+// Vec helpers
 // ---------------------------------------------------------------------------
 
 function vecIsZero(v: readonly number[]): boolean {
@@ -92,14 +91,14 @@ function resolveTargetFace(
       return ok(brepHandleOf(faceSpec))
     } catch {
       return err(
-        validationError('COMPOUND_FACE_NOT_FOUND', 'compoundOps: face spec must be a brepjs Face handle or omitted'),
+        validationError('COMPOUND_FACE_NOT_FOUND', 'compoundOps: face spec must be a face handle or omitted'),
       )
     }
   }
-  return err(validationError('COMPOUND_FACE_NOT_FOUND', 'compoundOps: face spec must be a brepjs Face handle or omitted'))
+  return err(validationError('COMPOUND_FACE_NOT_FOUND', 'compoundOps: face spec must be a face handle or omitted'))
 }
 
-/** 面法向（uv 中心，brepjs normalAt）。 */
+/** 面法向（uv 中心）。 */
 function faceNormalAt(kernel: ReturnType<typeof getBrepApi>, face: BrepHandle): Vec3 {
   const b = kernel.uvBounds(face)
   const u = 0.5 * (b.uMin + b.uMax)
@@ -108,13 +107,13 @@ function faceNormalAt(kernel: ReturnType<typeof getBrepApi>, face: BrepHandle): 
   return [n.x, n.y, n.z]
 }
 
-/** 面质心（brepjs faceCenter）。 */
+/** 面质心。 */
 function faceCenterAt(kernel: ReturnType<typeof getBrepApi>, face: BrepHandle): Vec3 {
   const c = kernel.surfaceCenterOfMass(face)
   return [c.x, c.y, c.z]
 }
 
-/** profile（brepjs Wire）→ face handle。 */
+/** profile（wire 句柄）→ face handle。 */
 function profileToFace(kernel: ReturnType<typeof getBrepApi>, profile: unknown): Result<BrepHandle> {
   try {
     const wire = brepHandleOf(profile)
@@ -122,7 +121,7 @@ function profileToFace(kernel: ReturnType<typeof getBrepApi>, profile: unknown):
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e)
     return err(
-      validationError('COMPOUND_PROFILE_INVALID', `compoundOps: profile must be a brepjs Wire (${raw})`),
+      validationError('COMPOUND_PROFILE_INVALID', `compoundOps: profile must be a wire handle (${raw})`),
     )
   }
 }
