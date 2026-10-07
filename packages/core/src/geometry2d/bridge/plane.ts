@@ -3,7 +3,7 @@
  *
  * A {@link Plane} carries an origin plus a right-handed, orthonormal frame
  * `xDir / yDir / zDir` where `zDir` is the plane normal — the same semantic as
- * the kernel `gp_Ax3` frame and the `createPlane` helper in `api/brepjs-compat`.
+ * the kernel `gp_Ax3` frame and the `createPlane` helper in `api/geom-types`.
  * The bridge may **not** import `api/` (plan rule against a cycle), so this
  * module re-derives the framing math self-containedly. Points use the
  * `{ x, y, z }` shape compatible with the BREP engine's neutral `BrepVec3`.

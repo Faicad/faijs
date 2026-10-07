@@ -18,7 +18,7 @@ import { ok, err, type Result } from '../../result/result'
 import { kernelError } from '../../result/errors'
 import type { FormClass } from '../internal/dual-form-args'
 import { resolveArgs } from '../internal/dual-form-args'
-import type { Vec3 } from '../brepjs-compat/types'
+import type { Vec3 } from '../geom-types/types'
 import { rotationZTo } from './brepHelpers'
 
 const TORUS_PARAMS = { name: 'torus', params: ['majorRadius', 'minorRadius', 'options'], formClass: 'A' as FormClass }

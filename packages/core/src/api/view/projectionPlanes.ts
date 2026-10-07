@@ -5,7 +5,7 @@
  * `src/projection/projectionPlanes.ts`（同源复制，签名不变）。
  */
 
-import type { Vec3 } from '../brepjs-compat/types';
+import type { Vec3 } from '../geom-types/types';
 
 /** Named face of an axis-aligned bounding cube. */
 export type CubeFace = 'front' | 'back' | 'top' | 'bottom' | 'left' | 'right';

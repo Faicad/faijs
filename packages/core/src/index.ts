@@ -234,7 +234,7 @@ export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resol
 // ② 生成脚本面 op（`api/generated/script-face.ts`，defineOp({ brep: __own_* }) 直连的
 //    brep-only 语句级 op——`cad.*` 脚本面与此同源，B1 三源一致）；
 // ③ 2026-09-25 core-decouple：brepjsCompat 命名空间与 op 投影随旧子包删除
-//    （裁决 9）；`api/brepjs-compat` 仅保留 core 内联的 Result / 向量 / 平面 / 错误 /
+//    （裁决 9）；`api/geom-types`（原名 api/brepjs-compat，2026-10-07 改名）仅保留 core 内联的 Result / 向量 / 平面 / 错误 /
 //    常量组合器（§5.2），顶层平铺不变。
 export * from './api'
 export { createApiNamespace } from './api/api-namespace'

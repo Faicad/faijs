@@ -99,19 +99,19 @@ export {
   createPlane, createNamedPlane, resolvePlane,
   kernelError, validationError,
   DEG2RAD, RAD2DEG,
-} from './brepjs-compat'
+} from './geom-types'
 export type {
   Result, Ok, Err,
   BrepError,
   Plane, PlaneName, PlaneInput,
   Vec3, PointInput,
-} from './brepjs-compat'
+} from './geom-types'
 // ── 2026-09-25 core-decouple：旧库建造工厂（makeExternalGear /
 //    makeInternalGear / makePlanetaryGear / thread）与其句柄类型
 //    （Vertex/Edge/…/Shape3D/ValidSolid/Bounds3D/Gear*）随裁决 9 删除；
 //    Result 组合器 map/andThen 为 core 内联（§5.2），保留平铺；
 //    brepjsCompat 命名空间整体删除（§5.5 第 3 条）。
-export { map, andThen } from './brepjs-compat'
+export { map, andThen } from './geom-types'
 // ── 2026-09-25 core-decouple wrapup §2.2：sheetmetal 拓扑查询 / 构造 / 测量
 //    出口（faijs 风格，裁决 3 补进公开导出）。isValid 不在此面——cad 脚本面
 //    已有同语义出口（见 brep-topology.ts 头部注释）。同步测量（measureVolume

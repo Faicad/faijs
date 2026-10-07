@@ -19,7 +19,7 @@
 import { createCamera, cameraFromPlane, type Camera } from './cameraFns'
 import { isProjectionPlane } from './projectionPlanes'
 import { unwrap } from '../../result/result'
-import type { Vec3 } from '../brepjs-compat/types'
+import type { Vec3 } from '../geom-types/types'
 
 /** 六个标准正交视图名（与 CubeFace 同集）。 */
 export type StandardView = 'front' | 'back' | 'top' | 'bottom' | 'left' | 'right'

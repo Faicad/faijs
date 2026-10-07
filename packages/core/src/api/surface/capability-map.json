@@ -2681,7 +2681,7 @@
             "../brep/handle-bridge.ts#getBrepApi",
             "brep-operations/brepHelpers.ts#brepHandleOf",
             "../occt-kernel/occtKernel.ts#getOcctKernel",
-            "brepjs-compat/planeOps.ts#resolvePlane",
+            "geom-types/planeOps.ts#resolvePlane",
             "../result/result.ts#ok",
             "../result/result.ts#err",
             "../result/errors.ts#kernelError"
@@ -2712,7 +2712,7 @@
         },
         {
           "fn": "resolvePlane",
-          "file": "brepjs-compat/planeOps.ts",
+          "file": "geom-types/planeOps.ts",
           "methods": [],
           "calls": [
             "planeOps.ts#createNamedPlane",
@@ -2758,13 +2758,13 @@
         },
         {
           "fn": "createNamedPlane",
-          "file": "brepjs-compat/planeOps.ts",
+          "file": "geom-types/planeOps.ts",
           "methods": [],
           "calls": [
             "../result/result.ts#err",
             "../result/errors.ts#validationError",
-            "brepjs-compat/vecOps.ts#vecScale",
-            "brepjs-compat/types.ts#toVec3",
+            "geom-types/vecOps.ts#vecScale",
+            "geom-types/types.ts#toVec3",
             "../result/result.ts#ok",
             "planeOps.ts#createPlane"
           ]
@@ -2793,29 +2793,29 @@
         },
         {
           "fn": "vecScale",
-          "file": "brepjs-compat/vecOps.ts",
+          "file": "geom-types/vecOps.ts",
           "methods": [],
           "calls": []
         },
         {
           "fn": "toVec3",
-          "file": "brepjs-compat/types.ts",
+          "file": "geom-types/types.ts",
           "methods": [],
           "calls": []
         },
         {
           "fn": "createPlane",
-          "file": "brepjs-compat/planeOps.ts",
+          "file": "geom-types/planeOps.ts",
           "methods": [],
           "calls": [
-            "brepjs-compat/vecOps.ts#vecNormalize",
-            "brepjs-compat/vecOps.ts#vecIsZero",
-            "brepjs-compat/vecOps.ts#vecCross"
+            "geom-types/vecOps.ts#vecNormalize",
+            "geom-types/vecOps.ts#vecIsZero",
+            "geom-types/vecOps.ts#vecCross"
           ]
         },
         {
           "fn": "vecNormalize",
-          "file": "brepjs-compat/vecOps.ts",
+          "file": "geom-types/vecOps.ts",
           "methods": [],
           "calls": [
             "vecOps.ts#vecLength"
@@ -2823,7 +2823,7 @@
         },
         {
           "fn": "vecIsZero",
-          "file": "brepjs-compat/vecOps.ts",
+          "file": "geom-types/vecOps.ts",
           "methods": [],
           "calls": [
             "vecOps.ts#vecLengthSq"
@@ -2831,19 +2831,19 @@
         },
         {
           "fn": "vecCross",
-          "file": "brepjs-compat/vecOps.ts",
+          "file": "geom-types/vecOps.ts",
           "methods": [],
           "calls": []
         },
         {
           "fn": "vecLength",
-          "file": "brepjs-compat/vecOps.ts",
+          "file": "geom-types/vecOps.ts",
           "methods": [],
           "calls": []
         },
         {
           "fn": "vecLengthSq",
-          "file": "brepjs-compat/vecOps.ts",
+          "file": "geom-types/vecOps.ts",
           "methods": [],
           "calls": []
         }

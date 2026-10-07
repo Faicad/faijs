@@ -8,8 +8,8 @@
  * （projectView/projectSheet）另行处理。
  */
 
-import type { Vec3 } from '../brepjs-compat/types';
-import { vecCross, vecNormalize, vecSub, vecLength } from '../brepjs-compat/vecOps';
+import type { Vec3 } from '../geom-types/types';
+import { vecCross, vecNormalize, vecSub, vecLength } from '../geom-types/vecOps';
 import type { ProjectionPlane } from './projectionPlanes';
 import { PROJECTION_PLANES } from './projectionPlanes';
 import { type Result, ok, err } from '../../result/result';

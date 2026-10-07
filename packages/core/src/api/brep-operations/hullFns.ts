@@ -15,7 +15,7 @@ import { ok, err, type Result } from '../../result/result'
 import { kernelError, validationError } from '../../result/errors'
 import type { FormClass } from '../internal/dual-form-args'
 import { resolveArgs } from '../internal/dual-form-args'
-import type { Vec3 } from '../brepjs-compat/types'
+import type { Vec3 } from '../geom-types/types'
 
 const CONVEX_HULL_PARAMS = { name: 'convexHull', params: ['points'], formClass: 'A' as FormClass }
 

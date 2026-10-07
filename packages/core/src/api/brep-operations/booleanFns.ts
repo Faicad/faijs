@@ -17,8 +17,8 @@ import { ok, err, type Result } from '../../result/result'
 import { kernelError } from '../../result/errors'
 import type { FormClass } from '../internal/dual-form-args'
 import { resolveArgs } from '../internal/dual-form-args'
-import type { PlaneInput } from '../brepjs-compat/planeTypes'
-import { resolvePlane } from '../brepjs-compat/planeOps'
+import type { PlaneInput } from '../geom-types/planeTypes'
+import { resolvePlane } from '../geom-types/planeOps'
 import { brepHandleOf } from './brepHelpers'
 
 const SECTION_PARAMS = { name: 'section', params: ['shape', 'plane'], formClass: 'A' as FormClass }

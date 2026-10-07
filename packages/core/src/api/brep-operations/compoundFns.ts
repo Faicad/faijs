@@ -20,7 +20,7 @@ import { ok, err, isErr, type Result } from '../../result/result'
 import { kernelError, validationError } from '../../result/errors'
 import type { FormClass } from '../internal/dual-form-args'
 import { resolveArgs } from '../internal/dual-form-args'
-import type { Vec3 } from '../brepjs-compat/types'
+import type { Vec3 } from '../geom-types/types'
 import { brepHandleOf, composeAffine, rotationZTo, translationMatrix } from './brepHelpers'
 
 const DRILL_PARAMS = { name: 'drill', params: ['shape', 'options'], formClass: 'A' as FormClass }
