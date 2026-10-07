@@ -748,7 +748,7 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     },
     circularPattern(shape: BrepHandle, _center: BrepVec3, axis: BrepVec3, _angleStep: number, count: number): BrepHandle[] {
       // ⚠️ brepkit wasm circularPattern(solid, ax, ay, az, count) 无 center/angle 参数：
-      // 固定整圆均分（每份 360°/count）。fullAngle=360 时与 vendored/occt 语义一致；
+      // 固定整圆均分（每份 360°/count）。fullAngle=360 时与 occt 语义一致；
       // 其它角度跨度无法表达（语义限制记录于此，parity 测试用整圆）。
       const compound = kernel.circularPattern(asNum(shape), axis.x, axis.y, axis.z, count)
       return markSolids(arr(kernel.getCompoundSolids(compound))).map(asHandle)

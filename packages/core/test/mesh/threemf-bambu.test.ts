@@ -183,6 +183,7 @@ function makeMeta(): Bambu3mfMetadata {
     plates: new Map(),
     metadataEntries: [],
     buildItems: [{ objectId: '1', transform: [1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 0] }],
+    leafParts: new Map(),
     assembleTransforms: new Map([
       ['1', { objectId: '1', transform: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5], offset: [0, 0, 0] }],
     ]),

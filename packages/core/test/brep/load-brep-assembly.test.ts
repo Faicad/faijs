@@ -15,6 +15,7 @@ import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import type { BrepEngineApi } from '../../src/brep/engine/primitives'
 import {
   importAssemblyFromStep, collectLeafParts, releaseAssemblyTree,
+  type ShapeHandle,
 } from '../../src/occt-kernel/occtKernel'
 import { loadBrepAssembly } from '../../src/brep/brep-ops'
 
@@ -50,12 +51,14 @@ describe('T0 探针：XCAF 原生句柄与注入 BrepEngineApi 互通', () => {
     // 注入面（BrepEngineApi）消费原生句柄：三角化 + 释放均不抛错
     for (const leaf of leaves) {
       expect(leaf.shapeHandle, 'leaf 必须持有 shapeHandle').not.toBeNull()
-      const mesh = kernel.meshShape(leaf.shapeHandle!, {
+      // ShapeHandle 与 BrepHandle 同构（number & brand），跨适配器边界按惯例双转
+      const handle = leaf.shapeHandle as unknown as Parameters<BrepEngineApi['meshShape']>[0]
+      const mesh = kernel.meshShape(handle, {
         linearDeflection: 0.1,
         angularDeflection: (2 * Math.PI) / 64,
       })
       expect(mesh.positions.length).toBeGreaterThan(0)
-      kernel.release(leaf.shapeHandle!)
+      kernel.release(handle)
     }
     // 树的其余句柄释放（装配节点 shapeHandle 为 null，本调用应为 no-op 保险）
     releaseAssemblyTree(kernel as never, nodes.filter((n) => n.isAssembly))

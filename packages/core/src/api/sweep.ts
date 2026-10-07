@@ -10,7 +10,7 @@
  * （`internal/profile-wire.ts` 的唯一步径）。脊柱容忍 face（FCStd 翻译把
  * 脊柱基对象 sketch 整圈外廓当路径）。
  *
- * core-decouple G5：vendored `sweep`（brepjs）替换为 brep-mirror 自有实现直连，
+ * core-decouple G5：旧 `sweep`（brepjs）替换为 brep-mirror 自有实现直连，
  * 产物经 `fromBrep` 收养（替代 l3-bridge adoptEntity）。
  */
 
@@ -25,7 +25,7 @@ import { toProfileWireView } from './internal/profile-wire'
 import { unwrapResult } from './internal/result-unwrap'
 import type { BrepHandle } from '../brep/engine/types'
 
-/** 扫掠配置（与 vendored SweepOptions 同形；本文件自持，去 brepjs 依赖）。 */
+/** 扫掠配置（与旧 SweepOptions 同形；本文件自持，去外部依赖）。 */
 export interface SweepOptions {
   /** Frenet 参考系（默认 false）。 */
   frenet?: boolean
@@ -33,7 +33,7 @@ export interface SweepOptions {
   mode?: 'simple'
   /** 过渡模式：仅支持默认 'right'（selfhost 后限制，见 sweepFns）。 */
   transitionMode?: string
-  /** 公差等其余 vendored 字段（保留以兼容调用方）。 */
+  /** 公差等其余旧字段（保留以兼容调用方）。 */
   tolerance?: number
 }
 

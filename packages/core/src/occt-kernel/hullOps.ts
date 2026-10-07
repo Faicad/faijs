@@ -5,7 +5,7 @@
  * `src/kernel/occtWasm/hullOps.ts` + `src/kernel/occtWasm/constructionOps.ts#buildSolidFromFaces`，
  * BREP 重建改为 core 的 occt-wasm 原生直调（`buildTriFace` / `sewAndSolidify` /
  * `fixFaceOrientations` / `release`，occt-wasm index.d.ts 形态——ShapeHandle[]、
- * Vec3 对象），**不 import brepjs**。occt-wasm 无原生 hull（Phase 0 实证），
+ * Vec3 对象），**不依赖外部 brepjs 包**。occt-wasm 无原生 hull（Phase 0 实证），
  * 故不直调原生 hull；QuickHull 由 `./hullGeometry` 承担。
  */
 
@@ -14,13 +14,13 @@ import type { BrepHandle } from '../brep/engine/types'
 import { quickHull, type Vec3 } from './hullGeometry'
 
 /**
- * 由点集构造凸包实体（brepjs 原语义：quickHull → 三角面 → 缝合 → 修复朝向 → solid）。
+ * 由点集构造凸包实体（原 brepjs 语义：quickHull → 三角面 → 缝合 → 修复朝向 → solid）。
  *
  * @param k - OCCT kernel used for BREP reconstruction.
  * @param points - Input points to build the hull from.
  * @param tolerance - Point coincidence tolerance for QuickHull.
  * @returns The constructed hull solid handle.
- * @throws 点数不足 4 或退化（面 < 4）——与 brepjs 原实现一致。
+ * @throws 点数不足 4 或退化（面 < 4）——与原 brepjs 实现一致。
  */
 export function hullFromPoints(
   k: OcctKernel,
@@ -31,7 +31,7 @@ export function hullFromPoints(
   const { points: hullPoints, faces } = quickHull(points, tolerance)
   if (faces.length < 4) throw new Error('hullFromPoints: degenerate hull (fewer than 4 faces)')
 
-  // Build triangle faces, sew them, and solidify（brepjs buildSolidFromFaces 原逻辑）。
+  // Build triangle faces, sew them, and solidify（原 brepjs buildSolidFromFaces 逻辑）。
   const faceIds: ShapeHandle[] = []
   for (const [i0, i1, i2] of faces) {
     const p0 = hullPoints[i0]

@@ -40,7 +40,7 @@ const shapes = (hs: BrepHandle[]): ShapeHandle[] => hs.map(asShape)
 const v3 = (v: Vec3): BrepVec3 => ({ x: v.x, y: v.y, z: v.z })
 const rad = (deg: number): number => (deg * Math.PI) / 180
 
-/** brepjs topology layer uses this upper bound for face hashes (HASH_CODE_MAX). */
+/** Topology layer uses this upper bound for face hashes (HASH_CODE_MAX). */
 const HASH_UPPER_BOUND = 2 ** 24
 
 /** occt-wasm native linearPattern/circularPattern return ONE compound handle
@@ -106,8 +106,8 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
   // the property again recurses into the wrapper).
   const nativeLinearPattern = raw.linearPattern.bind(k)
   // 2026-09-25 core-decouple Phase 2（§5.1）：hull 最小闭包已移植进 occt-kernel/
-  // （hullGeometry + hullOps，occt-wasm 原生直调），此处不再经 vendored
-  // OcctWasmAdapter——core 自有引擎对 brepjs 适配器的最后一处依赖已拔除。
+  // （hullGeometry + hullOps，occt-wasm 原生直调），此处不再经
+  // OcctWasmAdapter——core 自有引擎对旧适配器的最后一处依赖已拔除。
 
   const splitCompoundToArray = (compound: ShapeHandle): BrepHandle[] => {
     const parts = k.getSubShapes(compound, 'solid').map(asHandle)

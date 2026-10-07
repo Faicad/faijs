@@ -207,7 +207,7 @@ export interface BrepXcafDocument {
 
 /**
  * 曲面细分精度控制模型（与 brepjs KernelCapabilities.tessellationModel 同构的中立镜像，
- * P7 并入；faijs 侧零内核依赖，不 import vendored 树——D8 反向只允许发生在 api/）。
+ * P7 并入；faijs 侧零内核依赖，不 import 外部子包——D8 反向只允许发生在 api/）。
  *
  * - `'build-time'`  — 网格在实体构造时固定（如 manifold 全局分段设置）；质量参数须在构造前应用。
  * - `'extract-time'`— 形状是精确的，按需以每调用 deflection 细分（如 OCCT）；质量是
@@ -326,7 +326,7 @@ export type BrepMethodKind =
   // 查询/测量族
   // ⚠️ 测量族能力名用 L1 中立名（D5，narrowing plan）：`getBoundingBox` / `getVolume`
   // / `getSurfaceArea` / `getLength` / `getCenterOfMass` ——能力名 == BrepEngineApi 接口名，
-  // 守卫「能力声明诚实」据此逐名断言适配器是 function。vendored 面自己的原生名
+  // 守卫「能力声明诚实」据此逐名断言适配器是 function。旧面自己的原生名
   // （boundingBox/volume/area/length）按其自身命名，
   // 不是能力名空间成员。
   | 'getBoundingBox'
@@ -378,7 +378,7 @@ export type BrepMethodKind =
  * （backend-dispatch 的 BrepCapabilityName 路由）不改——新字段是引擎本质描述，不是
  * 逐 op 路由键。
  *
- * 未并入 `disposalModel`（D5 决策，与 vendored port 一致）：faijs 的句柄释放由
+ * 未并入 `disposalModel`（D5 决策，与旧 port 一致）：faijs 的句柄释放由
  * `cad-runtime` 顶替释放统一编排（增量失败回滚前提），brepjs 的 DisposalScope/arena
  * 语义不强制统一，故不作为能力位记录。
  */

@@ -67,7 +67,7 @@ export function scale3d(shape: Shape, factor: number | Vec3, center?: Vec3): Sha
 }
 
 /**
- * Uniformly scale a mesh shape (brepjs `scale` 契约，P6 §4.6)。后台用
+ * Uniformly scale a mesh shape (原 brepjs `scale` 契约，P6 §4.6)。后台用
  * `scale3d` 的等比参数；`center` 为缩放不动的点，默认原点。
  * @param shape - the mesh shape to scale.
  * @param factor - uniform scale factor (> 0).

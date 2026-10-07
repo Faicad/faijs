@@ -1,7 +1,7 @@
 /**
  * P3 combinator-surface regression test (2026-09-25 core-decouple rewrite).
  *
- * The brepjsCompat namespace is deleted with the vendored tree; the pure
+ * The brepjsCompat namespace is deleted with the old tree; the pure
  * combinators it projected (Result / vector / plane / errors / constants) were
  * inlined into the core facade (§5.2) and remain flat-exported from
  * '@faicad/faijs'. This test pins those inlined combinators.

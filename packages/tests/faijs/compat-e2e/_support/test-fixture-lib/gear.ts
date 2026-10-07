@@ -22,7 +22,7 @@
  * 4. No module-level pinning: `adoptEntity`'s `unregisterFromCleanup` takes
  *    over handle lifetime (R1 fix); the previous `pinned` array is deleted.
  *
- * 2026-09-25 core-decouple wrapup: the vendored gear surface was deleted with
+ * 2026-09-25 core-decouple wrapup: the old gear surface was deleted with
  * packages/brepjs, so the gear parameter/assembly types are defined **by the
  * library itself** here (a real third-party library owns its public API
  * types); errors use faijs first-party `validationError` + `err` (BrepError

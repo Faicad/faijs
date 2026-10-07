@@ -5,7 +5,7 @@
  * @platform occt
  *
  * Brep-shaped implementations for `heal`, `healSolid`, `fixShape`, `autoHeal`,
- * `fixSelfIntersection`, `simplify`. Semantics mirror vendored
+ * `fixSelfIntersection`, `simplify`. Semantics mirror brepjs
  * `topology/healingFns.ts` / `topology/shapeFns.ts` (error codes preserved),
  * with the brepjs object model (castResultShape / cache invalidation) dropped:
  * occt-wasm handles only. Platform-native methods (`healFace`, `healWire`,
@@ -36,7 +36,7 @@ const SIMPLIFY_PARAMS = { name: 'simplify', params: ['shape'], formClass: 'A' as
 // heal (type-dispatching)
 // ---------------------------------------------------------------------------
 
-/** Heal a solid (`ShapeFix_Solid`); error codes match vendored `healSolid`.
+/** Heal a solid (`ShapeFix_Solid`); error codes match brepjs `healSolid`.
  *
  * @param args - Resolved arguments (solid shape).
  * @returns The healed solid as a `BrepHandle`.
@@ -91,7 +91,7 @@ function healWireBrep(handle: BrepHandle): Result<BrepHandle> {
 
 /**
  * Dispatch healing by shape type (solid/face/wire); other types pass through
- * unchanged (vendored `heal`).
+ * unchanged (brepjs `heal`).
  *
  * @param args - Resolved arguments (shape).
  * @returns The healed shape as a `BrepHandle`.
@@ -192,7 +192,7 @@ function kindOf(h: BrepHandle): string {
 }
 
 /**
- * Auto-heal pipeline (vendored `autoHeal`): short-circuit on valid, optional
+ * Auto-heal pipeline (brepjs `autoHeal`): short-circuit on valid, optional
  * sew / wire self-intersection pass, shape-level heal, sub-shape delta report.
  *
  * The returned record carries the healed shape as a raw BREP handle; the

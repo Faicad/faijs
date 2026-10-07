@@ -41,11 +41,6 @@
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    // P3/P5：brepjs 自己的测试拷贝（tests/ 子目录）。上游 tsc 也 exclude tests/——
-    // 这些文件是按「能跑 vitest」写的，不做严格类型门禁；harness 代码
-    // （*-surface.ts / kernel-setup.ts / kernel-divergences.ts）仍在门内。
-    "faijs/p3-vendored-surface/tests",
-    "faijs/p5-vendored-surface/tests"
+    "dist"
   ]
 }

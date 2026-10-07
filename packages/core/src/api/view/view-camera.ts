@@ -5,15 +5,15 @@
  *
  * 视图规格（ViewSpec）：
  *   - 六个标准正交视图：'front' | 'back' | 'top' | 'bottom' | 'left' | 'right'
- *     （方向沿用 vendored brepjs PROJECTION_PLANES：front=(0,-1,0)、top=(0,0,-1)…，
+ *     （方向沿用早期 brepjs PROJECTION_PLANES：front=(0,-1,0)、top=(0,0,-1)…，
  *      与 FreeCAD TechDraw 的方向向量惯例一致，见方案 §2.2）；
  *   - 等轴测：'iso' | 'isometric'（方向 (1,-1,1)，方案 §2.3 定稿）；
- *   - 轴对平面：'XY' | 'XZ' | 'YZ' | 'YX' | 'ZX' | 'ZY'（vendored 平面名）；
+ *   - 轴对平面：'XY' | 'XZ' | 'YZ' | 'YX' | 'ZX' | 'ZY'（早期平面名）；
  *   - 任意方向：{ dir: Vec3, xAxis?: Vec3 }（xAxis 缺省由方向自动推导）。
  *
  * viewCamera 是纯数据函数（无 Shape 输入，kind 'pure' 语义）：把视图规格解析成
- * vendored brepjs 的 Camera 纯数据对象，供 projectView/projectSheet 与宿主复用。
- * 返回类型 re-export 自 vendored（api/generated/projection.ts 已登记 Camera type）。
+ * Camera 纯数据对象，供 projectView/projectSheet 与宿主复用。
+ * 返回类型 re-export 自第一方投影模块（api/generated/projection.ts 已登记 Camera type）。
  */
 
 import { createCamera, cameraFromPlane, type Camera } from './cameraFns'
@@ -21,13 +21,13 @@ import { isProjectionPlane } from './projectionPlanes'
 import { unwrap } from '../../result/result'
 import type { Vec3 } from '../brepjs-compat/types'
 
-/** 六个标准正交视图名（vendored CubeFace 同集）。 */
+/** 六个标准正交视图名（与 CubeFace 同集）。 */
 export type StandardView = 'front' | 'back' | 'top' | 'bottom' | 'left' | 'right'
 
 /** 等轴测视图名（faijs 新增别名；方向 (1,-1,1)）。 */
 export type IsoView = 'iso' | 'isometric'
 
-/** 轴对平面名（vendored ProjectionPlane 的子集）。 */
+/** 轴对平面名（ProjectionPlane 的子集）。 */
 export type AxisPlaneView = 'XY' | 'XZ' | 'YZ' | 'YX' | 'ZX' | 'ZY'
 
 /** 任意方向视图规格。 */

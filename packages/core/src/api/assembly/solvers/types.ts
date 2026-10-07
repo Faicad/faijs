@@ -4,13 +4,13 @@
  * 设计依据：`docs/plans/2026-09-08-assembly-dual-solver.md`（B1–B10、裁定 1–6）
  * 与 `docs/plans/2026-09-17-assembly-global-solver-plan.md`。
  *
- * 本模块是 pure-type / 轻量数据层，不依赖任何 vendored 或运行时单例，
+ * 本模块是 pure-type / 轻量数据层，不依赖任何 brepjs 或运行时单例，
  * 供 solve.ts、global-solver.ts、compound.ts 共享。
  */
 
 import type { AssemblyTransform } from '../../../runtime-state'
 
-/** 求解风格：'chain'（vendored brepjs 解析链式，默认）/ 'global'（CadQuery 兼容全局最小二乘）。 */
+/** 求解风格：'chain'（链式拓扑解析，默认）/ 'global'（CadQuery 兼容全局最小二乘）。 */
 export type SolverStyle = 'chain' | 'global'
 
 /**
@@ -56,7 +56,7 @@ export interface GlobalSolveResult {
 }
 
 
-// ── §5.6.1：chain 求解器类型迁入（原 vendored kernel/solverAdapter.ts，Phase 5 随包删除） ──
+// ── §5.6.1：chain 求解器类型迁入（原 brepjs kernel/solverAdapter.ts，已内化为第一方代码） ──
 
 /** 3D vector（chain 求解器本地别名，与 quat.ts 同构）。 */
 export type SolverVec3 = readonly [number, number, number]

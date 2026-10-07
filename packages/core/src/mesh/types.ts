@@ -108,7 +108,7 @@ export function clampNRad(n: number | undefined): number {
 }
 
 /**
- * Parameters for creating a box (brepjs `box(width, depth, height, {at?, centered?, segments?})`
+ * Parameters for creating a box (原 brepjs `box(width, depth, height, {at?, centered?, segments?})`
  * contract, §4.1 A 决策). Default: min-corner at the origin. `centered: true` shifts so the
  * box is centered at the origin; `at` is CENTER semantics and takes precedence over `centered`.
  */
@@ -119,7 +119,7 @@ export interface BoxParams {
   depth: number
   /** Side length along Z (mm). */
   height: number
-  /** Center position (brepjs `at`, CENTER semantics); takes precedence over `centered`. */
+  /** Center position (原 brepjs `at`, CENTER semantics); takes precedence over `centered`. */
   at?: Vec3
   /** Center the box at the origin when `at` is absent. Default: false (min-corner at origin). */
   centered?: boolean
@@ -137,13 +137,13 @@ export interface SphereParams {
   nRad?: number
 }
 
-/** Parameters for creating a cylinder (brepjs contract, §4.3 A). */
+/** Parameters for creating a cylinder (原 brepjs contract, §4.3 A). */
 export interface CylinderParams {
   /** Radius (mm). */
   radius: number
   /** Height along +Z (mm). */
   height: number
-  /** Base circle center (brepjs `at`, BASE semantics; default [0, 0, 0]). */
+  /** Base circle center (原 brepjs `at`, BASE semantics; default [0, 0, 0]). */
   at?: Vec3
   /** Center the cylinder (base at −h/2 / center at `at`) instead of base at `at`/origin. */
   centered?: boolean
@@ -161,7 +161,7 @@ export interface ConeParams {
   radiusTop: number
   /** Height along +Z (mm). */
   height: number
-  /** Base circle center (brepjs `at`, BASE semantics; default [0, 0, 0]). */
+  /** Base circle center (原 brepjs `at`, BASE semantics; default [0, 0, 0]). */
   at?: Vec3
   /** Center the cone (base at −h/2 / center at `at`) instead of base at `at`/origin. */
   centered?: boolean

@@ -30,7 +30,7 @@ interface MeshableKernel {
  * ("OCCT kernel") no longer matches what it returns — the current engine's raw
  * kernel, whatever engine that is. Prefer `getBrepApi()` (typed, engine-neutral,
  * same file) for neutral ops; platform-only code (L2 face) should use
- * `getOcctKernel()` (D3). Kept for vendored-face bridging and existing tests.
+ * `getOcctKernel()` (D3). Kept for compat-face bridging and existing tests.
  * @returns the current BREP engine's kernel instance.
  * @throws when the kernel is not ready (mesh mode or uninitialized) — never silently returns null.
  */
@@ -76,7 +76,7 @@ export interface MeshHandleOptions {
 /**
  * OCC 句柄身份契约判别（单一真源）。
  *
- * occt-wasm 的 `handle()` 工厂（vendored occtWasm helpers.ts:25）构造的句柄对象
+ * occt-wasm 的 `handle()` 工厂（occtWasm helpers.ts:25）构造的句柄对象
  * 统一携带 `__occtWasm: true`。本叶子是 faijs 侧唯一允许的判据：
  * define-op 的 `wrapBrepOne` 用它区分"几何句柄"与"纯数据记录"，本文件
  * `fromHandle`/`meshHandle` 入口用它做形态断言。禁止在其他文件硬编码

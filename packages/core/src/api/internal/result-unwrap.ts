@@ -17,7 +17,7 @@
  * @module
  */
 
-/** Structural shape of the vendored `Ok`/`Err` records (`vendored/brepjs/core/result.ts:12-21`). */
+/** Structural shape of the compat `Ok`/`Err` records (`brepjs/core/result.ts:12-21`). */
 export type ResultLike =
   | { ok: true; value: unknown }
   | { ok: false; error: { code?: string; message?: string } }
@@ -53,7 +53,7 @@ export class OpError extends Error {
 /**
  * Structural test for a Result value.
  *
- * Only the `ok: boolean` discriminant is checked — the vendored `Result` is a
+ * Only the `ok: boolean` discriminant is checked — the compat `Result` is a
  * plain record, so no `instanceof` and no import is needed (which is what keeps
  * this module a leaf).
  *

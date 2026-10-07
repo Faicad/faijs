@@ -1,7 +1,7 @@
 /**
  * BREP-TS compatibility surface (P21) — 2026-09-25 core-decouple rewrite.
  *
- * The vendored BREP TS tree (packages/brepjs) is deleted (裁决 9). Every
+ * The old BREP TS tree (packages/brepjs) is deleted (裁决 9). Every
  * op projection (primitives / booleans / evolutions / topology queries /
  * sketching DSL / raw 2D-morph ports) is gone with it — those symbols have no
  * receiver (裁决 1). What remains in this module is the ④ group only: the pure
@@ -12,8 +12,8 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ④ combinators / pure helpers / types（2026-09-25 core-decouple：op 投影面
-// ① ② ③ ⑤ 已随 vendored 树删除；④ 全部为 core 内联实现，保留为本文件的
-// 唯一内容。vendored 句柄类型（Vertex/Edge/…/Shape3D/ValidSolid）随裁决 9 删除）
+// ① ② ③ ⑤ 已随旧子包删除；④ 全部为 core 内联实现，保留为本文件的
+// 唯一内容。旧句柄类型（Vertex/Edge/…/Shape3D/ValidSolid）随裁决 9 删除）
 // ─────────────────────────────────────────────────────────────────────────────
 
 export {

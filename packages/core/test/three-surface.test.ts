@@ -65,10 +65,10 @@ function collectSourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
     if (statSync(full).isDirectory()) {
-      // `vendored` has its own strict tsconfig; `test-support` is test-only and
+      // `compat` has its own strict tsconfig; `test-support` is test-only and
       // deliberately imports @faicad/faijs-extra (excluded from dist — see the
       // built-closure assertions below, which are the authoritative check).
-      if (entry === 'node_modules' || entry === 'dist' || entry === 'vendored' || entry === 'test-support') continue
+      if (entry === 'node_modules' || entry === 'dist' || entry === 'test-support') continue
       collectSourceFiles(full, out)
       continue
     }

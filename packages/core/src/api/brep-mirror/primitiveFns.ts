@@ -5,7 +5,7 @@
  * @platform occt
  *
  * Brep-shaped implementations for `torus`, `ellipsoid`, `makeBaseBox`.
- * Semantics mirror vendored `topology/primitiveFns.ts` + `solidBuilders.ts`
+ * Semantics mirror brepjs `topology/primitiveFns.ts` + `solidBuilders.ts`
  * (`makeTorus`/`makeEllipsoid` take at/axis placement) and
  * `sketching/shortcuts.ts` `makeBaseBox` (origin-centered XY rectangle extruded
  * along +Z). Placement is composed from L1 `translate`/`generalTransform`
@@ -37,7 +37,7 @@ function translated(kernel: ReturnType<typeof getBrepApi>, h: BrepHandle, v: Vec
 }
 
 /**
- * Create a torus (vendored `torus(majorRadius, minorRadius, {at, axis})`).
+ * Create a torus (brepjs `torus(majorRadius, minorRadius, {at, axis})`).
  *
  * The L1 `makeTorus(major, minor)` builds the ring on the +Z axis at the
  * origin; placement is composed afterwards (`axis` → rotation, `at` →
@@ -67,7 +67,7 @@ export function torusBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 /**
- * Create an ellipsoid (vendored `ellipsoid(rx, ry, rz, {at})`).
+ * Create an ellipsoid (brepjs `ellipsoid(rx, ry, rz, {at})`).
  *
  * @param args - Resolved arguments (rx, ry, rz, placement options).
  * @returns The ellipsoid as a `BrepHandle`.
@@ -89,7 +89,7 @@ export function ellipsoidBrep(...args: unknown[]): Result<BrepHandle> {
 
 /**
  * Create a base box: origin-centered XY rectangle extruded by `zLength` along
- * +Z (vendored `makeBaseBox(xLength, yLength, zLength)` via the sketcher).
+ * +Z (brepjs `makeBaseBox(xLength, yLength, zLength)` via the sketcher).
  *
  * @param args - Resolved arguments (xLength, yLength, zLength).
  * @returns The box as a `BrepHandle`.

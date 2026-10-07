@@ -1,17 +1,17 @@
 /**
- * P1 regression e2e — a faijs Shape (adopted from a vendored handle) can be
- * passed BACK into a library function whose parameter is a vendored `Solid`.
+ * P1 regression e2e — a faijs Shape (adopted from a brep handle) can be
+ * passed BACK into a library function whose parameter is a compat `Solid`.
  *
  * Crash (fixed): `borrowBrepjsShape` wrapped the numeric arena id directly, so
- * the borrowed view's `wrapped` was a raw number — vendored code that uses
+ * the borrowed view's `wrapped` was a raw number — compat code that uses
  * `KernelShape` as a WeakMap key (shapeTypeCache) crashed with
  * "Invalid value used as weak map key". The borrow now produces a structurally
  * valid `OcctWasmHandle` view of the same arena slot (zero-copy).
  *
  * Round trip under test:
  *   p0 = sheet.author({...one flange...})
- *   s1 = sheet.solidOf(p0)          → vendored Solid adopted as a faijs Shape
- *   u1 = sheet.unfoldSolid(s1)      → s1 borrowed back as a vendored Solid view
+ *   s1 = sheet.solidOf(p0)          → compat Solid adopted as a faijs Shape
+ *   u1 = sheet.unfoldSolid(s1)      → s1 borrowed back as a compat Solid view
  *
  * The foreign unfold detects planar panels + cylindrical bends numerically;
  * the authored flange provides the cylindrical bend (bendLines ≥ 1).
@@ -47,7 +47,7 @@ beforeAll(async () => {
   await registerOcctBrepEngine()
 }, 180000)
 
-describe('P1 — faijs Shape round-trips into a vendored-Solid library parameter', () => {
+describe('P1 — faijs Shape round-trips into a compat-Solid library parameter', () => {
   it('solidOf product is a brep-backed Shape; unfoldSolid(s1) detects the flange bend instead of crashing', async () => {
     const runtime: CadRuntime = createEditorRuntime(createNodePorts(), 'auto')
     try {

@@ -7,8 +7,8 @@
  * 1. **BrepEngineApi 测量方法两引擎 parity 成立**：getVolume / getCenterOfMass /
  *    getBoundingBox 对同一几何（盒/球）结果一致（1% 容差）。
  *
- * （2026-09-25 core-decouple Phase 2：原「vendored 测量面双引擎 parity」与「注入
- * 缓存重置」两组用例随 occt-kernel-bridge 删除——core 不再注入 vendored registry，
+ * （2026-09-25 core-decouple Phase 2：原「旧测量面双引擎 parity」与「注入
+ * 缓存重置」两组用例随 occt-kernel-bridge 删除——core 不再注入外部 registry，
  * 相关对拍迁至 packages/tests 自装配套件；本文件只保留与引擎注册表直接相关的
  * BrepEngineApi parity。）
  *
@@ -26,7 +26,7 @@ let brepkitApi: BrepEngineApi
 
 beforeAll(async () => {
   // occt 先（2026-09-25 core-decouple Phase 2：注册只管 core 引擎注册表，
-  // 不再向 vendored registry 注入）
+  // 不再向旧 registry 注入）
   await registerOcctBrepEngine()
   occtApi = (await getBrepEngine()).primitives
 

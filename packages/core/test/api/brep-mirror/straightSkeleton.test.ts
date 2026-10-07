@@ -1,5 +1,5 @@
 /**
- * straightSkeleton 回归（原 p5-vendored-surface 真实回归用例，core-decouple
+ * straightSkeleton 回归（原 p5-surface 真实回归用例，core-decouple
  * wrapup §3.1 改写进 core 侧）：brep-mirror 自有实现下的断言保持原样。
  *
  * 运行：npx vitest run src/api/brep-mirror/straightSkeleton.test.ts

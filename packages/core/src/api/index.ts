@@ -89,8 +89,8 @@ export * from './generated/script-face'
 export { extrude } from './extrude'
 export { revolve } from './generated/operations'
 //
-// ② 2026-09-25 core-decouple：brepjsCompat 命名空间与全部 op 投影随 vendored
-//    树删除（§5.5 第 3 条，裁决 9）。此处只平铺**无 op 语义**的组合器与纯工具
+// ② 2026-09-25 core-decouple：brepjsCompat 命名空间与全部 op 投影随旧
+//    子包删除（§5.5 第 3 条，裁决 9）。此处只平铺**无 op 语义**的组合器与纯工具
 //    （Result / 向量 / 平面 / 错误 / 常量），它们为 core 内联实现（§5.2），
 //    在两个面之间语义一致且无同名冲突。
 export {
@@ -106,7 +106,7 @@ export type {
   Plane, PlaneName, PlaneInput,
   Vec3, PointInput,
 } from './brepjs-compat'
-// ── 2026-09-25 core-decouple：vendored 库建造工厂（makeExternalGear /
+// ── 2026-09-25 core-decouple：旧库建造工厂（makeExternalGear /
 //    makeInternalGear / makePlanetaryGear / thread）与其句柄类型
 //    （Vertex/Edge/…/Shape3D/ValidSolid/Bounds3D/Gear*）随裁决 9 删除；
 //    Result 组合器 map/andThen 为 core 内联（§5.2），保留平铺；

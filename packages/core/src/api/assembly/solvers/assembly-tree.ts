@@ -1,5 +1,5 @@
 /**
- * Assembly tree — core 自有实现（§5.6 移植：vendored assemblyFns 逐字对齐，纯数据结构）。
+ * Assembly tree — core 自有实现（§5.6 移植：brepjs assemblyFns 逐字对齐，纯数据结构）。
  *
  * An assembly is a tree of nodes. Each node has an optional shape,
  * a local transform (translation + rotation), optional metadata,

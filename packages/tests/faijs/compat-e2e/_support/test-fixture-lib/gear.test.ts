@@ -11,7 +11,7 @@
  *  - mesh mode → E_MESH_UNSUPPORTED (brep-only, no fallback).
  *
  * Host timing (§6.4): build the runtime first, warm it up (one box statement;
- * `registerOcctBrepEngine()` has bound the vendored kernel), then use the lib.
+ * `registerOcctBrepEngine()` has bound the brep kernel), then use the lib.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
@@ -40,7 +40,7 @@ describe('gear raw Result contract (§8.1)', () => {
     expect(isOk(r)).toBe(true)
     const v = (r as { ok: true; value: Shape }).value
     expect(v).toBeDefined()
-    expect(isShape(v)).toBe(true) // core dual-op Shape (2026-09-25 core-decouple: vendored gears deleted)
+    expect(isShape(v)).toBe(true) // core dual-op Shape (2026-09-25 core-decouple: old gears deleted)
   })
 
   it('internal returns an Ok ring solid', async () => {

@@ -4,10 +4,10 @@
  * 中立 op：L1 `shell(solid, facesToRemove, thickness, tolerance)` 在 occt 与
  * brepkit 两侧均有真实现（engine-method-map 实测 `dialect`）⇒ 走 `getBrepApi()`
  * （D12），不声明 engines（中立 op：实现只经 L1 契约面）。相对现状是
- * 能力升级——vendored 版是 occt 平台 op（arg-spec `engines:['occt']`，skip）。
+ * 能力升级——旧版是 occt 平台 op（arg-spec `engines:['occt']`，skip）。
  *
  * 选面口径（设计原则 4）：`openFaces: FaceTopoRef[]`（`cad.faceRef` 产物），
- * 与 `fillet` 的 `EdgeTopoRef[]` / `extrude` 的 `upTo` 同族；不复刻 vendored 的
+ * 与 `fillet` 的 `EdgeTopoRef[]` / `extrude` 的 `upTo` 同族；不复刻旧
  * `Face[]` 句柄入参。解析在 op 内一处完成（`buildEdgeResolutionContext` 现场枚举
  * + `resolveTopoRef`）。
  *

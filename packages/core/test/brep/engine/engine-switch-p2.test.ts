@@ -10,7 +10,7 @@
  *    不落入"静默通过判定后死在运行时"。
  *
  * （2026-09-25 core-decouple Phase 2：原「装配期完整性」用例随 occt-kernel-bridge
- * 删除——core 不再注入 vendored registry，KernelAdapter 胶水方法检查随之失效。）
+ * 删除——core 不再注入外部 registry，KernelAdapter 胶水方法检查随之失效。）
  *
  * Run: npx vitest run src/brep/engine/engine-switch-p2.test.ts
  */

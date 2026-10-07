@@ -16,6 +16,7 @@
 
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { asPartName } from '../../src/identity'
+import type { Shape } from '../../src/mesh/types'
 import { getKernel } from '../../src/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import type { BrepHandle } from '../../src/brep/engine/types'
@@ -28,7 +29,6 @@ import { setKnurlTextureLoader } from '../../src/mesh/knurl/textureLoader'
 import { union } from '../../src/api'
 import { solid } from '../../src/shape'
 import type { LibNamespace } from '../../src/runtime-state'
-import type { Shape } from '../../src/mesh/types'
 import type { Provenance } from '../../src/topology/naming/lineage'
 import { defineOp, hasBrep, CONTRACT_VERSION } from '../../src/sdk'
 import { createApiNamespaceWithEditorOps, createEditorRuntime } from '../support/editor-ops'
@@ -294,12 +294,13 @@ describe('CadRuntime: instance management', () => {
 
   it('writeToStatementCache adds entry', async () => {
     const runtime = makeRuntime()
-    const shape = { positions: new Float32Array([0,0,0, 1,0,0, 0,1,0]), indices: new Uint32Array([0,1,2]) }
+    const shape = { positions: new Float32Array([0,0,0, 1,0,0, 0,1,0]), indices: new Uint32Array([0,1,2]) } as unknown as Shape
     const ck = computeContentKey(shape.positions, shape.indices)
     runtime.writeToStatementCache(asPartName('s1'), null, shape, ck)
 
     expect(runtime.getCachedOutput(asPartName('s1'))).toBeDefined()
-    expect(runtime.getCachedOutput(asPartName('s1'))!.positions.length).toBe(9)
+    const cached = runtime.getCachedOutput(asPartName('s1')) as Shape
+    expect(cached.positions.length).toBe(9)
   })
 
   it('void/same_shape statements are skipped during execution', async () => {

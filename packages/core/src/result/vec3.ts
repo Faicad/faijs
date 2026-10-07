@@ -3,7 +3,7 @@
  * `src/utils/vec3.ts`（同源复制，仅提取 errors.ts 依赖的最小符号）。
  */
 
-/** Safe typed array index access（brepjs 原语义：`arr[i] as T`）。
+/** Safe typed array index access（原 brepjs 语义：`arr[i] as T`）。
  *
  * @param arr - The array to index into.
  * @param i - The index to access.

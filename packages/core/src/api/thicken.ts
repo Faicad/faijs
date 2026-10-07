@@ -5,7 +5,7 @@
  * engine-method-map 里 `thicken` 为 occt-only）⇒ 平台 op：defineOp 声明
  * `engines: ['occt']`（D11）。
  *
- * core-decouple G5：vendored `thicken`（brepjs modifierFns，thickenWithHistory）
+ * core-decouple G5：旧 `thicken`（brepjs modifierFns，thickenWithHistory）
  * 替换为 occt-wasm 原生直连，产物经 `fromBrep` 收养（替代 l3-bridge adoptEntity）。
  */
 

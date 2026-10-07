@@ -10,7 +10,7 @@
  * faijs Shapes (or raw handles) and results are returned as BREP handles
  * (wrapped by `wrapBrepOne` → `fromHandle`).
  *
- * Semantics mirror the vendored brepjs fns (`topology/transformFns.ts`,
+ * Semantics mirror the early brepjs fns (`topology/transformFns.ts`,
  * `topology/shapeFns.ts`) with the brepjs object model (castResultShape,
  * metadata propagation, evolution tracking) dropped: occt-wasm handles only.
  */
@@ -28,7 +28,7 @@ import { getOcctKernel } from '../../occt-kernel/occtKernel'
 const VALIDATION_FAILED = 'VALIDATION_FAILED'
 
 // ---------------------------------------------------------------------------
-// Matrix input parsing (vendored `parseMatrixInput` / `det3x3`)
+// Matrix input parsing (brepjs `parseMatrixInput` / `det3x3`)
 // ---------------------------------------------------------------------------
 
 type Linear3x3 = readonly [number, number, number, number, number, number, number, number, number]
@@ -72,7 +72,7 @@ const APPLY_MATRIX_PARAMS = { name: 'applyMatrix', params: ['shape', 'matrix'], 
 /**
  * Apply a 4×4 affine matrix (OpenSCAD `multmatrix` equivalent).
  *
- * The vendored fn splits orthogonal (evolution-tracked) and non-orthogonal
+ * The brepjs fn splits orthogonal (evolution-tracked) and non-orthogonal
  * (`gp_GTrsf`) paths; the core path uses the single L1 `generalTransform`
  * (occt-wasm `gp_GTrsf`, geometrically equivalent for both classes) since
  * `applyMatrix` carries identity naming and needs no face evolution.
@@ -237,12 +237,12 @@ export function mirrorBrep(...args: unknown[]): Result<BrepHandle> {
 
 
 // ---------------------------------------------------------------------------
-// rotate — 绕轴旋转（vendored topology/api.js#rotate + transformFns.ts#rotate）// ---------------------------------------------------------------------------
+// rotate — 绕轴旋转（brepjs topology/api.js#rotate + transformFns.ts#rotate）// ---------------------------------------------------------------------------
 
 const ROTATE_PARAMS = { name: 'rotate', params: ['shape', 'angle', 'options'], formClass: 'A' as FormClass }
 
 /**
- * Rotate the shape around an axis (vendored topology/api.js#rotate + transformFns.ts#rotate).
+ * Rotate the shape around an axis (brepjs topology/api.js#rotate + transformFns.ts#rotate).
  *
  * @param args - Resolved arguments (shape, angle in degrees, axis options).
  * @returns The rotated shape as a `BrepHandle`.
@@ -285,12 +285,12 @@ export function rotateBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// shell — 去面掏空（vendored topology/api.js#shell + modifierFns.ts#shell）// ---------------------------------------------------------------------------
+// shell — 去面掏空（brepjs topology/api.js#shell + modifierFns.ts#shell）// ---------------------------------------------------------------------------
 
 const SHELL_PARAMS = { name: 'shell', params: ['shape', 'faces', 'thickness', 'options'], formClass: 'A' as FormClass }
 
 /**
- * Shell — hollow the shape by removing faces (vendored topology/api.js#shell + modifierFns.ts#shell).
+ * Shell — hollow the shape by removing faces (brepjs topology/api.js#shell + modifierFns.ts#shell).
  *
  * @param args - Resolved arguments (shape, faces, thickness, options).
  * @returns The shelled (hollowed) shape as a `BrepHandle`.
@@ -317,12 +317,12 @@ export function shellBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// offset — 全表面偏移（vendored topology/api.js#offset + modifierFns.ts#offset）// ---------------------------------------------------------------------------
+// offset — 全表面偏移（brepjs topology/api.js#offset + modifierFns.ts#offset）// ---------------------------------------------------------------------------
 
 const OFFSET_PARAMS = { name: 'offset', params: ['shape', 'distance', 'options'], formClass: 'A' as FormClass }
 
 /**
- * Offset all faces of the shape (vendored topology/api.js#offset + modifierFns.ts#offset).
+ * Offset all faces of the shape (brepjs topology/api.js#offset + modifierFns.ts#offset).
  *
  * @param args - Resolved arguments (shape, distance, options).
  * @returns The offset shape as a `BrepHandle`.

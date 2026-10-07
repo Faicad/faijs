@@ -10,10 +10,10 @@
  *
  * 产出类别（对齐 §5.2 / E5 分类表；生成器按本类判别产出）：
  *   brep-op : defineOp({ brep }) —— Solid 进出（构造/变换/布尔/修饰）
- *   query   : 普通导出函数（输入 Shape 借入 brepjs handle → 调 vendored → 返回纯数据；
+ *   query   : 普通导出函数（输入 Shape 借入 brepjs handle → 调 compat → 返回纯数据；
  *             返回非 Shape，不进 defineOp——先例 api/geom.ts，generated/topology.ts getBounds）
  *   pure    : 无 Shape 参数的纯函数 → 直接 re-export（不进 defineOp，不是 op）
- *   type    : `export type { … } from '<vendored>'` re-export
+ *   type    : `export type { … } from '<brepjs>'` re-export
  *   skip    : 登记跳过（divergence：语义 faijs 面无法表达 / 已由 faijs 既有 op 覆盖），带 reason
  *
  * A6（2026-10-06）口径指认：本表 + 生成的 generated/*.ts 是 brepjs 投影面的
@@ -51,7 +51,7 @@ export interface QueryParam {
   name: string
   /** 非几何位的类型（如 `number`）；几何位由生成器覆写为 `Shape`。 */
   type: string
-  /** 是否为可选参数（faijs 面签名 `?`），函数缺省值由 vendored 承担。 */
+  /** 是否为可选参数（faijs 面签名 `?`），函数缺省值由 brepjs 承担。 */
   optional?: boolean
   /** JSDoc 补充说明。 */
   docs?: string
@@ -70,7 +70,7 @@ export type FormClass = 'A' | 'B1' | 'B2'
  * 单条投影适配。
  *
  * - `name`   faijs 面导出名（= brepjs 符号名；同名冲突已在 §5.1 处置后，寻表登记双形态或改名）。
- * - `source` vendored 树内的来源符号，`<相对 vendored 根的模块路径>#<导出名>`（默认同名）。
+ * - `source` brepjs 树内的来源符号，`<相对 brepjs 根的模块路径>#<导出名>`（默认同名）。
  * - `kind`   投影类别（见文件头）。
  * - `module` 分片归属（缺省 'topology'，P13 兼容；P14 起逐模块登记）。
  * - `args`   brep-op/query：调用约定描述，供生成器产出 JSDoc 与 normalizeArgs 占位；
@@ -104,7 +104,7 @@ export interface ArgSpecEntry {
   returnsResult?: boolean
   /** P14: query 侧 faijs 面形参列表（without the case for pure/type；brep-op 保持位置透传 `...args`）。 */
   queryParams?: QueryParam[]
-  /** For query only: the vendored return type name (re-exportable from the entry's module) so the generated function can annotate its return type (the export-JSDoc gate requires an explicit annotation + @returns). */
+  /** For query only: the brepjs return type name (re-exportable from the entry's module) so the generated function can annotate its return type (the export-JSDoc gate requires an explicit annotation + @returns). */
   returnType?: string
   /** P20: 机器参数名表（按位置顺序），供 dual-form-args resolveArgs 映射对象形态→位置数组。 */
   params?: string[]
@@ -117,7 +117,7 @@ export interface ArgSpecEntry {
   capabilities?: BrepCapabilityName[]
   /**
    * Phase 5（narrowing plan D11）：平台身份声明——该 brep-op 只在列出的引擎上
-   * 实现（如 vendored op 调 occt-only 方法 isNull/section/loft → ['occt']）。
+   * 实现（如 brepjs op 调 occt-only 方法 isNull/section/loft → ['occt']）。
    * 缺省 = 全平台中立。可与 capabilities 并存（2026-09-24 撤销 D11-7 互斥）：
    * engines 是引擎白名单，capabilities 是能力依赖，判定 engines 在先（D11-2）。
    * 生成器透传给 compatOp → defineOp engines，并写进 script-face-manifest。
@@ -142,7 +142,7 @@ export interface ArgSpecEntry {
   /**
    * Phase 3（core-decouple plan §5.4）：core 自有实现标记——source 指向
    * pi/brep-mirror/<file>.ts#<fn>（core 第一方实现），生成器走 selfhost 分支
-   * （defineOp({ brep: __own_<fn>, … })，无 vendored import、无 compatOp/
+   * （defineOp({ brep: __own_<fn>, … })，无 brepjs import、无 compatOp/
    * projectBrepOp 桥；D11 归一在自有实现内部完成）。
    */
   selfhost?: boolean
@@ -173,7 +173,7 @@ export interface ArgSpecEntry {
 
 /**
  * 首批机制验证样本（P13a）。每个样本都选了 faijs 无同名、brepjs 有完整实现的符号，
- * 生成产物可立即 typecheck 并桥接 vendored 跑通（E5 模板：句柄借入 → 调 vendored →
+ * 生成产物可立即 typecheck 并桥接 brepjs 跑通（E5 模板：句柄借入 → 调 brepjs →
  * Result 翻转 → fromBrep 所有权转入）。
  */
 export const ARG_SPEC: ArgSpecEntry[] = [
@@ -200,7 +200,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'fuse',
     source: 'brep-mirror/booleanFns.ts#fuseBrep', selfhost: true,
     kind: 'brep-op',
-    // Phase 5 补漏（§1.5 推论 1 / D11）：vendored fuse 默认 trackEvolution 路径依赖
+    // Phase 5 补漏（§1.5 推论 1 / D11）：brepjs fuse 默认 trackEvolution 路径依赖
     // kernel.isNull / kernel.dispose（occt 平台面）→ 平台 op，声明 engines: ['occt']
     // 在 brepkit 下执行前报错（D11-4）。
     args: '(a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>',
@@ -210,7 +210,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     params: ['a', 'b', 'options'],
     formClass: 'A',
     scriptFace: true,
-    // 依赖声明（诚实原则）：isNull / dispose 是 vendored fuse 的真实内核依赖，二者都在
+    // 依赖声明（诚实原则）：isNull / dispose 是 brepjs fuse 的真实内核依赖，二者都在
     // BrepMethodKind 逐核真名里。本条目早前因 D11-7 互斥被迫只留 engines；互斥已于
     // 2026-09-24 撤销，两条轴可并存，届时按 capability-map.json 实证补回依赖清单。
     engines: ['occt'],
@@ -473,7 +473,7 @@ selfhost: true,
 
   // Phase 7 待裁决 4（方案 §7.1 建议 4，2026-09-24）：occt 独占诊断族进脚本面，
   // 统一 `inspect*` 命名（不走 measure*——避免与中立量形成误导性双轨）。三条无
-  // 中立替代的族：干涉 / 曲率 / 质量属性（惯量/主轴）。name 与 vendored 导出
+  // 中立替代的族：干涉 / 曲率 / 质量属性（惯量/主轴）。name 与 brepjs 导出
   // 解耦（renderQuery 按 source 的 exportName 导入、按 name 声明），engines:['occt']
   // → 函数体第一行执行前断言（D11-4）。
   {
@@ -566,7 +566,7 @@ selfhost: true,
 
   // Phase 7（narrowing plan §Phase 7 / Q4）：cad 脚本面测量 op（手写实现，
   // kind 'faijs'——api/measurement/index.ts）。直接调 getBrepApi() 的 L1 测量面
-  // （getSurfaceArea / getLength），无 vendored 借入层、无引擎绑定 → **中立 op**
+  // （getSurfaceArea / getLength），无 brepjs 借入层、无引擎绑定 → **中立 op**
   // （occt / brepkit 同一份 .fai.js 可跑）。返回纯数字，不产出 Shape。
   // 三源一致（B1）：scriptFace: true → gen-l3-surface 进 script-face.ts /
   // script-face-manifest.ts，gen-symbol-table 同步 check() 符号表。
@@ -759,9 +759,9 @@ selfhost: true,
   // ──── 视图投影能力（P25）：view 模块（3 符号，全部 scriptFace=true）────
   // faijs 自研视图投影 op（方案 docs/plans/2026-09-10-faijs-view-projection-and-screenshot.md
   // §3.2，路径 A）：工程线稿，只返回纯数据（SVG 字符串 / 相机对象），不产出 Shape。
-  // 实现是手写模块（api/view/，内部借入 brepjs handle → vendored HLR → SVG 序列化），
+  // 实现是手写模块（api/view/，内部借入 brepjs handle → brepjs HLR → SVG 序列化），
   // 生成器只负责 re-export 进 L3 面与 cad 脚本面——kind 'faijs' 不入 upstream-surface
-  // 基线（faijs 自研符号），也不走 vendored import 模板。
+  // 基线（faijs 自研符号），也不走 brepjs import 模板。
   {
     name: 'viewCamera',
     source: 'view/index.js#viewCamera',
@@ -913,7 +913,7 @@ selfhost: true,
   },
 
   // ──── P14 第四片：ns 模块（9 符号）────
-  // 9 个符号均为「命名空间对象」：vendored 根 barrel 以
+  // 9 个符号均为「命名空间对象」：brepjs 根 barrel 以
   // `export * as booleans from './ns/booleans.js'` 形式聚合子命名空间。
   // surface 把每个 namespace 记为 value（file 指向子模块），但实际导出名来自
   // 根 barrel 的 *-as 再导出，故 source 指向 `index.js#<name>`（子文件只有
@@ -1698,7 +1698,7 @@ selfhost: true,
   },
 
   // ──── P14 第八片：operations 模块（122 符号 = 16 brep-op + 11 pure + 45 skip + 8u/others) ────
-  // brep-op：Shapeable<…> 单/双形状入参 → faijs Shape 借入 → vendored Result → adopt 单产物；
+  // brep-op：Shapeable<…> 单/双形状入参 → faijs Shape 借入 → brepjs Result → adopt 单产物；
   // 数组形状入参（loft/guidedSweep/multiSectionSweep 的 Wire[]）已无障碍——compat-op 的
   // borrowDeep 递归借入数组/对象内的 Shape（2026-09-24 校正：loft 已由手写平台 op 上脚本面，
   // guidedSweep/multiSectionSweep 的真障碍是 wire 输入 + 多截面/导轨语义，见各自条目）；
@@ -1886,7 +1886,7 @@ selfhost: true,
     name: 'jointsFromDH', source: 'operations/dhFns.js#jointsFromDH', kind: 'skip', module: 'operations', reason: '§5.6 后 dhFns 未自有化、未平铺（唯一消费方 p5 随删）',
   },
   {
-    name: 'computeStraightSkeleton', source: 'operations/straightSkeleton.js#computeStraightSkeleton', kind: 'skip', module: 'operations', reason: 'core brep-mirror 有自有版；operations vendored 版未平铺（唯一消费方 p5 随删）',
+    name: 'computeStraightSkeleton', source: 'operations/straightSkeleton.js#computeStraightSkeleton', kind: 'skip', module: 'operations', reason: 'core brep-mirror 有自有版；operations brepjs 版未平铺（唯一消费方 p5 随删）',
   },
   {
     name: 'isInstanced', source: 'operations/instanceFns.js#isInstanced', kind: 'skip', module: 'operations', reason: '未自有化、未平铺（唯一消费方 p5 随删）',
@@ -1895,7 +1895,7 @@ selfhost: true,
     // ---- brep-op：单/多单形状入参 → 单产物收养 ----
     name: 'extrude', source: 'brep-mirror/sweepFns.ts#extrudeBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0],
-    reason: 'faijs 侧 cad.extrude 由手写平台 op 覆盖（api/extrude.ts：对象形态 + upTo 拉伸到面/到支持体端面）。本投影只作为「长度形态」的引擎被手写 op 委托调用（vendored 是唯一拉伸引擎，既有 cad.extrude(face,[x,y,z]) 语义零漂移），生成模块符号不直接进 cad 命名空间 by design（同 fillet 口径）。',
+    reason: 'faijs 侧 cad.extrude 由手写平台 op 覆盖（api/extrude.ts：对象形态 + upTo 拉伸到面/到支持体端面）。本投影只作为「长度形态」的引擎被手写 op 委托调用（brepjs 是唯一拉伸引擎，既有 cad.extrude(face,[x,y,z]) 语义零漂移），生成模块符号不直接进 cad 命名空间 by design（同 fillet 口径）。',
     args: 'extrude(face: Shape, height: number|Vec3) → Shape｜extrude(face: Shape, params: { length? | upTo, normal?, mode?, baseFeature?, offset? }) → Shape',
     params: ['face', 'height'], formClass: 'A',
     naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } },
@@ -2081,7 +2081,7 @@ selfhost: true,
     name: 'addMate', source: 'operations/mateFns.js#addMate', kind: 'skip', module: 'operations', reason: '装配约束 DSL（MateEntity 持 kernel 活句柄，不可序列化）：P1 起改由 cad.assembly 的 constraints[] 纯数据约束面暴露（2026-09-06 装配方案 §5），仍不直接暴露',
   },
   {
-    name: 'solveAssembly', source: 'operations/mateFns.js#solveAssembly', kind: 'skip', module: 'operations', reason: '命令式求解入口（kernel 句柄输入）：P1 起由 asm.solve()/do_assemble() 替代，求解内核复用 vendored solverAdapter.solveConstraints（2026-09-06 装配方案 §4），仍不直接暴露',
+    name: 'solveAssembly', source: 'operations/mateFns.js#solveAssembly', kind: 'skip', module: 'operations', reason: '命令式求解入口（kernel 句柄输入）：P1 起由 asm.solve()/do_assemble() 替代，求解内核复用 brepjs solverAdapter.solveConstraints（2026-09-06 装配方案 §4），仍不直接暴露',
   },
   {
     name: 'createHistory', source: 'operations/historyFns.js#createHistory', kind: 'skip', module: 'operations', reason: '状态化历史 DSL，skip host 适配',
@@ -2290,7 +2290,7 @@ selfhost: true,
     name: 'CurveType', source: 'core/typeDiscriminants.js#CurveType', kind: 'skip', module: 'core',
   },
   {
-    // 别名：vendored types.ts 只导出 Direction；根 barrel `Direction as DirectionInput`
+    // 别名：brepjs types.ts 只导出 Direction；根 barrel `Direction as DirectionInput`
     name: 'DirectionInput', source: 'index.js#DirectionInput', kind: 'skip', module: 'core',
   },
   {
@@ -2455,7 +2455,7 @@ selfhost: true,
     name: 'pipeline', source: 'core/result.js#pipeline', kind: 'skip', module: 'core', reason: 'Result 管道入口（纯函数）',
   },
   {
-    // 别名：vendored result.ts 导出名 zip；根 barrel `zip as zipResults`
+    // 别名：brepjs result.ts 导出名 zip；根 barrel `zip as zipResults`
     name: 'zipResults', source: 'index.js#zipResults', kind: 'skip', module: 'core', reason: 'zip 的根 barrel 别名导出（纯函数）',
   },
   {
@@ -3189,7 +3189,7 @@ selfhost: true,
   {
     name: 'intersect', source: 'topology/api.js#intersect', kind: 'skip',
     reason: '禁止投脚本面（§4.8）：faijs 侧 cad.intersect 是 variadic、async、带 keepHidden 时间线副作用、roleTable '
-      + '合流的 dual-op，mesh+brep 双实现；vendored 的 intersect 是二元同步 Result 契约，仅驻留 compat 面，不共面不投影。'
+      + '合流的 dual-op，mesh+brep 双实现；brepjs 的 intersect 是二元同步 Result 契约，仅驻留 compat 面，不共面不投影。'
       + '任何想把上游 intersect 标为 brep-op / scriptFace 的改动，必须同时把 faijs 的 intersect 改名为 intersect_all'
       + '（含 UI ops 与存量迁移）——生成期守卫见 gen-l3-surface.ts（§4.8 触发条件）。',
   },
@@ -3230,7 +3230,7 @@ selfhost: true,
   {
     name: 'shell', source: 'brep-mirror/topologyFns.ts#shellBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
-    reason: 'faijs 侧 cad.shell 由手写中立 op 覆盖（api/shell.ts：选面走 FaceTopoRef，能力经 capabilities:["directEdit"] 路由 ⇒ 相对 vendored 的 occt 平台版是能力升级，brepkit 的 L1 shell 亦可用）。本投影保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 extrude / sweep 口径）。',
+    reason: 'faijs 侧 cad.shell 由手写中立 op 覆盖（api/shell.ts：选面走 FaceTopoRef，能力经 capabilities:["directEdit"] 路由 ⇒ 相对 brepjs 的 occt 平台版是能力升级，brepkit 的 L1 shell 亦可用）。本投影保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 extrude / sweep 口径）。',
     args: 'shell(shape: Shape, faces?: Shape[], thickness: number): Shape',
     params: ['shape', 'faces', 'thickness'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
@@ -3246,7 +3246,7 @@ selfhost: true,
   },
   {
     name: 'thicken', source: 'topology/api.js#thicken', kind: 'skip',
-    reason: 'overridden by handwritten api/thicken.ts (平台 op engines:[occt]：入参取面/壳整件 Shape——cad.profile 产物即天然面来源；内部借入喂 vendored thicken，不再要求子形状句柄)',
+    reason: 'overridden by handwritten api/thicken.ts (平台 op engines:[occt]：入参取面/壳整件 Shape——cad.profile 产物即天然面来源；内部借入喂 brepjs thicken，不再要求子形状句柄)',
   },
   {
     name: 'draft', source: 'topology/api.js#draft', kind: 'skip',
@@ -3514,7 +3514,7 @@ selfhost: true,
     name: 'faceCenter', source: 'topology/faceFns.js#faceCenter', kind: 'skip',
     reason: 'faijs 无同名 op（§4.9）：faceCenter 仅作为 api/engrave.ts 与 api/knurl.ts 的参数键（绝对坐标快照）存在，'
       + '不共面、不冲突。若将来要在 cad 面提供质心查询，契约应为 cad.faceCenter(shape, ordinal?)（入参是 faijs Shape + 面'
-      + '序号，与 vendored 的 Face 入参不同），两面各持各的契约。',
+      + '序号，与 brepjs 的 Face 入参不同），两面各持各的契约。',
   },
   {
     name: 'getSurfaceType', source: 'topology/faceFns.js#getSurfaceType', kind: 'skip',
@@ -3957,12 +3957,12 @@ selfhost: true,
   },
 
   // ──── P14 补批 12：kernel 模块（57 = 21 value + 36 type；D10 冻结 registry）────
-  // kernel 是 L0 注册表面：D10 单实例 occt-wasm 由 faijs 侧装配并冻结`n  // （2026-09-25 core-decouple 后 vendored registry 由宿主/测试自装配），
+  // kernel 是 L0 注册表面：D10 单实例 occt-wasm 由 faijs 侧装配并冻结`n  // （2026-09-25 core-decouple 后 brepjs registry 由宿主/测试自装配），
   // 只读/纯数据符号 re-export；registry 生命周期（init/with*/register*/tier/perf）与
   // KernelAdapter 对象谓词登记 skip（理由见各条）；上游已剪除符号（BrepkitHandle、
-  // PerformanceStats、BrepkitAdapter、init 系等）同样 skip——vendored 树无对应导出。
+  // PerformanceStats、BrepkitAdapter、init 系等）同样 skip——brepjs 树无对应导出。
   //
-  // 36 type：34 个 re-export（真身所在文件）+ 2 个 skip（vendored 无此类型）
+  // 36 type：34 个 re-export（真身所在文件）+ 2 个 skip（brepjs 无此类型）
   { name: 'BooleanDiagnostics', source: 'kernel/types.js#BooleanDiagnostics', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
   { name: 'BooleanIssue', source: 'kernel/types.js#BooleanIssue', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
   { name: 'BooleanOpType', source: 'kernel/types.js#BooleanOpType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
@@ -3999,11 +3999,11 @@ selfhost: true,
   { name: 'OcctWasmModule', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmModule', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
   {
     name: 'BrepkitHandle', source: 'kernel/index.js#BrepkitHandle', kind: 'skip', module: 'kernel',
-    reason: '上游 brepkit 句柄类型（faijs 以 OcctWasmHandle 承担），vendored 无此导出，skip',
+    reason: '上游 brepkit 句柄类型（faijs 以 OcctWasmHandle 承担），brepjs 无此导出，skip',
   },
   {
     name: 'PerformanceStats', source: 'kernel/perfStats.js#PerformanceStats', kind: 'skip', module: 'kernel',
-    reason: '性能统计类型，vendored perfStats 模块已剪除，skip',
+    reason: '性能统计类型，brepjs perfStats 模块已剪除，skip',
   },
 
   // 21 value：4 个只读/纯数据 re-export；registry 生命周期与对象谓词 skip
@@ -4017,7 +4017,7 @@ selfhost: true,
 
   {
     name: 'getKernel', source: 'kernel/index.js#getKernel', kind: 'skip', module: 'kernel',
-    reason: 'L0 kernel 读取器（D10：faijs 侧装配并冻结 vendored registry），不向 L3 用户面暴露，skip',
+    reason: 'L0 kernel 读取器（D10：faijs 侧装配并冻结 brepjs registry），不向 L3 用户面暴露，skip',
   },
   {
     name: 'registerKernel', source: 'kernel/index.js#registerKernel', kind: 'skip', module: 'kernel',
@@ -4037,7 +4037,7 @@ selfhost: true,
   },
   {
     name: 'BrepkitAdapter', source: 'kernel/index.js#BrepkitAdapter', kind: 'skip', module: 'kernel',
-    reason: '上游 brepkit 适配器（faijs 以 occt 面承担），vendored 无此导出，skip',
+    reason: '上游 brepkit 适配器（faijs 以 occt 面承担），brepjs 无此导出，skip',
   },
   {
     name: 'init', source: 'kernel/index.js#init', kind: 'skip', module: 'kernel',
@@ -4077,10 +4077,10 @@ selfhost: true,
   },
   {
     name: 'getPerformanceStats', source: 'kernel/index.js#getPerformanceStats', kind: 'skip', module: 'kernel',
-    reason: '上游性能统计读取（vendored 剪除），skip',
+    reason: '上游性能统计读取（brepjs 剪除），skip',
   },
   {
     name: 'resetPerformanceStats', source: 'kernel/index.js#resetPerformanceStats', kind: 'skip', module: 'kernel',
-    reason: '上游性能统计重置（vendored 剪除），skip',
+    reason: '上游性能统计重置（brepjs 剪除），skip',
   },
 ]

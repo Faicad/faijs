@@ -2,8 +2,8 @@
  * Pure-TS 3D convex hull (QuickHull).
  *
  * 第一方模块（2026-09-25 core-decouple Phase 2 §5.1）：复制自 brepjs
- * `src/kernel/hullGeometry.ts`（同源复制，签名不变；brepjs 包 Phase 5 删除后
- * 仍由本文件承担）。
+ * `src/kernel/hullGeometry.ts`（同源复制，签名不变；已内化为第一方代码，
+ * 由本文件承担）。
  *
  * Kernel-agnostic: operates on plain {x,y,z} points and returns triangle
  * indices. Shared by the occt and occt-wasm adapters, which supply their own
@@ -213,7 +213,7 @@ function findInitialTetrahedron(points: readonly Vec3[]): [number, number, numbe
  * @returns The hull faces (triangle indices) and deduplicated points.
  * @throws if fewer than 4 non-coincident, non-coplanar points are supplied.
  */
-// brepjs-patterns-disable: max-function-lines -- cohesive QuickHull main loop; splitting hurts readability
+
 export function quickHull(inputPoints: Vec3[], tolerance: number): HullResult {
   const points = deduplicatePoints(inputPoints, tolerance);
 

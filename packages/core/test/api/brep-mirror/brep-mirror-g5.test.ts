@@ -2,7 +2,7 @@
  * brep-mirror-g5.test — Phase 3（core-decouple §5.3）G5 手写平台 op 直连验证
  *
  * 覆盖 5 个手写平台 op（api/{loft,revolve,sweep,thicken,replicate}.ts）：
- * G5 后内部不再 import brepjs——vendored 调用替换为 core 直连
+ * G5 后内部不再 import brepjs——旧调用替换为 core 直连
  * （loft→occt loft/loftWithVertices、revolve→revolveVec、sweep→brep-mirror
  * sweepBrep、thicken→occt thicken、replicate(mirror)→本地 MirrorOptions）。
  *

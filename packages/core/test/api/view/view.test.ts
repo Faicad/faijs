@@ -30,7 +30,7 @@ const WARMUP = 'let warmup = cad.box(1, 1, 1, { centered: true })'
 const BOX_CODE = 'let part0 = cad.box(10, 20, 30, { centered: true })'
 
 describe('viewCamera：视图规格 → 相机纯数据', () => {
-  it('六个标准视图方向映射（vendored PROJECTION_PLANES / FreeCAD 惯例）', () => {
+  it('六个标准视图方向映射（早期 PROJECTION_PLANES / FreeCAD 惯例）', () => {
     expect(viewCamera('front').direction).toEqual([0, -1, 0])
     expect(viewCamera('back').direction).toEqual([0, 1, 0])
     expect(viewCamera('top').direction).toEqual([0, 0, -1])
@@ -67,7 +67,7 @@ describe('viewCamera：视图规格 → 相机纯数据', () => {
     expect(() => viewCamera('northwest' as never)).toThrow(/unknown view/)
   })
 
-  it('零方向向量抛错（vendored CAMERA_ZERO_DIRECTION）', () => {
+  it('零方向向量抛错（早期 CAMERA_ZERO_DIRECTION）', () => {
     expect(() => viewCamera({ dir: [0, 0, 0] })).toThrow()
   })
 })

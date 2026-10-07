@@ -9,8 +9,8 @@
  *   - volume(shape)       → 体积（getVolume）；
  *   - centerOfMass(shape) → 质心坐标（getCenterOfMass，BrepVec3 {x,y,z}）。
  *
- * 与 vendored 测量面（api/generated/measurement.ts 的 measureArea / measureLength）
- * 的区别：那些 op 经 l3-bridge 借入层 + vendored 函数绑定 occt-wasm，整体 occt-only
+ * 与旧测量面（api/generated/measurement.ts 的 measureArea / measureLength）
+ * 的区别：那些 op 经 l3-bridge 借入层 + compat 函数绑定 occt-wasm，整体 occt-only
  * （Phase 6 已声明 engines: ['occt']）；本模块直接调 L1 方法，无借入层、无引擎绑定，
  * 是脚本面的中立测量入口。返回纯数字，不产出 Shape、不消费 shape。
  *

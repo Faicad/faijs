@@ -4,7 +4,7 @@
  *
  * @platform occt
  *
- * Semantics mirror vendored `operations/compoundOpsFns.ts` with the brepjs
+ * Semantics mirror brepjs `operations/compoundOpsFns.ts` with the brepjs
  * object model dropped:
  *  - `options.face` supports an omitted default (highest-Z face) or an already
  *    constructed brepjs Face (`{ wrapped }`); FinderFn (brepjs finder DSL) is
@@ -30,7 +30,7 @@ const BOSS_PARAMS = { name: 'boss', params: ['shape', 'options'], formClass: 'A'
 const MIRROR_JOIN_PARAMS = { name: 'mirrorJoin', params: ['shape', 'options'], formClass: 'A' as FormClass }
 
 // ---------------------------------------------------------------------------
-// Vec helpers (vendored vecOps)
+// Vec helpers (brepjs vecOps)
 // ---------------------------------------------------------------------------
 
 function vecIsZero(v: readonly number[]): boolean {
@@ -99,7 +99,7 @@ function resolveTargetFace(
   return err(validationError('COMPOUND_FACE_NOT_FOUND', 'compoundOps: face spec must be a brepjs Face handle or omitted'))
 }
 
-/** 面法向（uv 中心，vendored normalAt）。 */
+/** 面法向（uv 中心，brepjs normalAt）。 */
 function faceNormalAt(kernel: ReturnType<typeof getBrepApi>, face: BrepHandle): Vec3 {
   const b = kernel.uvBounds(face)
   const u = 0.5 * (b.uMin + b.uMax)
@@ -108,7 +108,7 @@ function faceNormalAt(kernel: ReturnType<typeof getBrepApi>, face: BrepHandle): 
   return [n.x, n.y, n.z]
 }
 
-/** 面质心（vendored faceCenter）。 */
+/** 面质心（brepjs faceCenter）。 */
 function faceCenterAt(kernel: ReturnType<typeof getBrepApi>, face: BrepHandle): Vec3 {
   const c = kernel.surfaceCenterOfMass(face)
   return [c.x, c.y, c.z]

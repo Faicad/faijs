@@ -92,7 +92,7 @@ function resolveMarker(ref: EntityRef, env: EntityResolutionEnv): GlobalMarker {
     return {
       type: 'axis',
       origin: [se.origin[0], se.origin[1], se.origin[2]],
-      // `direction` is optional in the vendored SolverEntity type but always present for the
+      // `direction` is optional in the brepjs SolverEntity type but always present for the
       // axis branch produced by resolveSolverEntity (cylinder/cone face, or edge axis snapshot).
       dir: vnormalize([se.direction![0], se.direction![1], se.direction![2]]),
     }
@@ -101,7 +101,7 @@ function resolveMarker(ref: EntityRef, env: EntityResolutionEnv): GlobalMarker {
     return {
       type: 'plane',
       center: [se.origin[0], se.origin[1], se.origin[2]],
-      // `normal` is optional in the vendored SolverEntity type but always present for the plane branch.
+      // `normal` is optional in the brepjs SolverEntity type but always present for the plane branch.
       normal: vnormalize([se.normal![0], se.normal![1], se.normal![2]]),
     }
   }

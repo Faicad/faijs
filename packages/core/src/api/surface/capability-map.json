@@ -6,8 +6,8 @@
     {
       "op": "torus",
       "source": "brep-mirror/primitiveFns.ts#torusBrep",
-      "vendoredFile": "brep-mirror/primitiveFns.ts",
-      "vendoredFn": "torusBrep",
+      "sourceFile": "brep-mirror/primitiveFns.ts",
+      "sourceFn": "torusBrep",
       "kernelMethods": [
         "generalTransform",
         "makeTorus",
@@ -31,8 +31,8 @@
     {
       "op": "fuse",
       "source": "brep-mirror/booleanFns.ts#fuseBrep",
-      "vendoredFile": "brep-mirror/booleanFns.ts",
-      "vendoredFn": "fuseBrep",
+      "sourceFile": "brep-mirror/booleanFns.ts",
+      "sourceFn": "fuseBrep",
       "kernelMethods": [
         "fuse"
       ],
@@ -50,8 +50,8 @@
     {
       "op": "extrude",
       "source": "brep-mirror/sweepFns.ts#extrudeBrep",
-      "vendoredFile": "brep-mirror/sweepFns.ts",
-      "vendoredFn": "extrudeBrep",
+      "sourceFile": "brep-mirror/sweepFns.ts",
+      "sourceFn": "extrudeBrep",
       "kernelMethods": [
         "extrude"
       ],
@@ -71,8 +71,8 @@
     {
       "op": "revolve",
       "source": "brep-mirror/sweepFns.ts#revolveBrep",
-      "vendoredFile": "brep-mirror/sweepFns.ts",
-      "vendoredFn": "revolveBrep",
+      "sourceFile": "brep-mirror/sweepFns.ts",
+      "sourceFn": "revolveBrep",
       "kernelMethods": [
         "revolveVec"
       ],
@@ -90,8 +90,8 @@
     {
       "op": "sweep",
       "source": "brep-mirror/sweepFns.ts#sweepBrep",
-      "vendoredFile": "brep-mirror/sweepFns.ts",
-      "vendoredFn": "sweepBrep",
+      "sourceFile": "brep-mirror/sweepFns.ts",
+      "sourceFn": "sweepBrep",
       "kernelMethods": [
         "simplePipe",
         "sweepPipeShell"
@@ -111,8 +111,8 @@
     {
       "op": "complexExtrude",
       "source": "brep-mirror/sweepFns.ts#complexExtrudeBrep",
-      "vendoredFile": "brep-mirror/sweepFns.ts",
-      "vendoredFn": "complexExtrudeBrep",
+      "sourceFile": "brep-mirror/sweepFns.ts",
+      "sourceFn": "complexExtrudeBrep",
       "kernelMethods": [
         "release",
         "sweepPipeShell"
@@ -135,8 +135,8 @@
     {
       "op": "twistExtrude",
       "source": "brep-mirror/sweepFns.ts#twistExtrudeBrep",
-      "vendoredFile": "brep-mirror/sweepFns.ts",
-      "vendoredFn": "twistExtrudeBrep",
+      "sourceFile": "brep-mirror/sweepFns.ts",
+      "sourceFn": "twistExtrudeBrep",
       "kernelMethods": [
         "makeHelixWire",
         "release",
@@ -161,8 +161,8 @@
     {
       "op": "linearPattern",
       "source": "brep-mirror/patternFns.ts#linearPatternBrep",
-      "vendoredFile": "brep-mirror/patternFns.ts",
-      "vendoredFn": "linearPatternBrep",
+      "sourceFile": "brep-mirror/patternFns.ts",
+      "sourceFn": "linearPatternBrep",
       "kernelMethods": [
         "linearPattern"
       ],
@@ -184,8 +184,8 @@
     {
       "op": "circularPattern",
       "source": "brep-mirror/patternFns.ts#circularPatternBrep",
-      "vendoredFile": "brep-mirror/patternFns.ts",
-      "vendoredFn": "circularPatternBrep",
+      "sourceFile": "brep-mirror/patternFns.ts",
+      "sourceFn": "circularPatternBrep",
       "kernelMethods": [
         "circularPattern"
       ],
@@ -206,8 +206,8 @@
     {
       "op": "gridPattern",
       "source": "brep-mirror/patternFns.ts#gridPatternBrep",
-      "vendoredFile": "brep-mirror/patternFns.ts",
-      "vendoredFn": "gridPatternBrep",
+      "sourceFile": "brep-mirror/patternFns.ts",
+      "sourceFn": "gridPatternBrep",
       "kernelMethods": [
         "gridPattern"
       ],
@@ -228,8 +228,8 @@
     {
       "op": "roof",
       "source": "brep-mirror/roofFns.ts#roofBrep",
-      "vendoredFile": "brep-mirror/roofFns.ts",
-      "vendoredFn": "roofBrep",
+      "sourceFile": "brep-mirror/roofFns.ts",
+      "sourceFn": "roofBrep",
       "kernelMethods": [
         "buildTriFace",
         "fixShape",
@@ -261,8 +261,8 @@
     {
       "op": "drill",
       "source": "brep-mirror/compoundFns.ts#drillBrep",
-      "vendoredFile": "brep-mirror/compoundFns.ts",
-      "vendoredFn": "drillBrep",
+      "sourceFile": "brep-mirror/compoundFns.ts",
+      "sourceFn": "drillBrep",
       "kernelMethods": [
         "cut",
         "getBoundingBox",
@@ -288,8 +288,8 @@
     {
       "op": "pocket",
       "source": "brep-mirror/compoundFns.ts#pocketBrep",
-      "vendoredFile": "brep-mirror/compoundFns.ts",
-      "vendoredFn": "pocketBrep",
+      "sourceFile": "brep-mirror/compoundFns.ts",
+      "sourceFn": "pocketBrep",
       "kernelMethods": [
         "cut",
         "extrude",
@@ -320,8 +320,8 @@
     {
       "op": "boss",
       "source": "brep-mirror/compoundFns.ts#bossBrep",
-      "vendoredFile": "brep-mirror/compoundFns.ts",
-      "vendoredFn": "bossBrep",
+      "sourceFile": "brep-mirror/compoundFns.ts",
+      "sourceFn": "bossBrep",
       "kernelMethods": [
         "extrude",
         "fuse",
@@ -352,8 +352,8 @@
     {
       "op": "mirrorJoin",
       "source": "brep-mirror/compoundFns.ts#mirrorJoinBrep",
-      "vendoredFile": "brep-mirror/compoundFns.ts",
-      "vendoredFn": "mirrorJoinBrep",
+      "sourceFile": "brep-mirror/compoundFns.ts",
+      "sourceFn": "mirrorJoinBrep",
       "kernelMethods": [
         "fuse",
         "mirror",
@@ -377,8 +377,8 @@
     {
       "op": "rectangularPattern",
       "source": "brep-mirror/patternFns.ts#rectangularPatternBrep",
-      "vendoredFile": "brep-mirror/patternFns.ts",
-      "vendoredFn": "rectangularPatternBrep",
+      "sourceFile": "brep-mirror/patternFns.ts",
+      "sourceFn": "rectangularPatternBrep",
       "kernelMethods": [
         "fuseAll",
         "release",
@@ -403,8 +403,8 @@
     {
       "op": "thread",
       "source": "brep-mirror/threadFns.ts#threadBrepOp",
-      "vendoredFile": "brep-mirror/threadFns.ts",
-      "vendoredFn": "threadBrepOp",
+      "sourceFile": "brep-mirror/threadFns.ts",
+      "sourceFn": "threadBrepOp",
       "kernelMethods": [
         "loft",
         "makeLineEdge",
@@ -436,8 +436,8 @@
     {
       "op": "convexHull",
       "source": "brep-mirror/hullFns.ts#convexHullBrep",
-      "vendoredFile": "brep-mirror/hullFns.ts",
-      "vendoredFn": "convexHullBrep",
+      "sourceFile": "brep-mirror/hullFns.ts",
+      "sourceFn": "convexHullBrep",
       "kernelMethods": [
         "hullFromPoints",
         "isSolid",
@@ -459,8 +459,8 @@
     {
       "op": "makeBaseBox",
       "source": "brep-mirror/primitiveFns.ts#makeBaseBoxBrep",
-      "vendoredFile": "brep-mirror/primitiveFns.ts",
-      "vendoredFn": "makeBaseBoxBrep",
+      "sourceFile": "brep-mirror/primitiveFns.ts",
+      "sourceFn": "makeBaseBoxBrep",
       "kernelMethods": [
         "extrude",
         "makeRectangle",
@@ -482,8 +482,8 @@
     {
       "op": "ellipsoid",
       "source": "brep-mirror/primitiveFns.ts#ellipsoidBrep",
-      "vendoredFile": "brep-mirror/primitiveFns.ts",
-      "vendoredFn": "ellipsoidBrep",
+      "sourceFile": "brep-mirror/primitiveFns.ts",
+      "sourceFn": "ellipsoidBrep",
       "kernelMethods": [
         "makeEllipsoid"
       ],
@@ -503,8 +503,8 @@
     {
       "op": "rotate",
       "source": "brep-mirror/topologyFns.ts#rotateBrep",
-      "vendoredFile": "brep-mirror/topologyFns.ts",
-      "vendoredFn": "rotateBrep",
+      "sourceFile": "brep-mirror/topologyFns.ts",
+      "sourceFn": "rotateBrep",
       "kernelMethods": [
         "rotate"
       ],
@@ -522,8 +522,8 @@
     {
       "op": "mirror",
       "source": "brep-mirror/topologyFns.ts#mirrorBrep",
-      "vendoredFile": "brep-mirror/topologyFns.ts",
-      "vendoredFn": "mirrorBrep",
+      "sourceFile": "brep-mirror/topologyFns.ts",
+      "sourceFn": "mirrorBrep",
       "kernelMethods": [
         "mirror"
       ],
@@ -541,8 +541,8 @@
     {
       "op": "clone",
       "source": "brep-mirror/topologyFns.ts#cloneBrep",
-      "vendoredFile": "brep-mirror/topologyFns.ts",
-      "vendoredFn": "cloneBrep",
+      "sourceFile": "brep-mirror/topologyFns.ts",
+      "sourceFn": "cloneBrep",
       "kernelMethods": [
         "copyShape"
       ],
@@ -560,8 +560,8 @@
     {
       "op": "applyMatrix",
       "source": "brep-mirror/topologyFns.ts#applyMatrixBrep",
-      "vendoredFile": "brep-mirror/topologyFns.ts",
-      "vendoredFn": "applyMatrixBrep",
+      "sourceFile": "brep-mirror/topologyFns.ts",
+      "sourceFn": "applyMatrixBrep",
       "kernelMethods": [
         "generalTransform"
       ],
@@ -582,8 +582,8 @@
     {
       "op": "locate",
       "source": "brep-mirror/topologyFns.ts#locateBrep",
-      "vendoredFile": "brep-mirror/topologyFns.ts",
-      "vendoredFn": "locateBrep",
+      "sourceFile": "brep-mirror/topologyFns.ts",
+      "sourceFn": "locateBrep",
       "kernelMethods": [
         "locate"
       ],
@@ -603,8 +603,8 @@
     {
       "op": "section",
       "source": "brep-mirror/booleanFns.ts#sectionBrep",
-      "vendoredFile": "brep-mirror/booleanFns.ts",
-      "vendoredFn": "sectionBrep",
+      "sourceFile": "brep-mirror/booleanFns.ts",
+      "sourceFn": "sectionBrep",
       "kernelMethods": [
         "isNull",
         "makeCompound",
@@ -626,8 +626,8 @@
     {
       "op": "split",
       "source": "brep-mirror/booleanFns.ts#splitBrep",
-      "vendoredFile": "brep-mirror/booleanFns.ts",
-      "vendoredFn": "splitBrep",
+      "sourceFile": "brep-mirror/booleanFns.ts",
+      "sourceFn": "splitBrep",
       "kernelMethods": [
         "split"
       ],
@@ -645,8 +645,8 @@
     {
       "op": "shell",
       "source": "brep-mirror/topologyFns.ts#shellBrep",
-      "vendoredFile": "brep-mirror/topologyFns.ts",
-      "vendoredFn": "shellBrep",
+      "sourceFile": "brep-mirror/topologyFns.ts",
+      "sourceFn": "shellBrep",
       "kernelMethods": [
         "shell"
       ],
@@ -664,8 +664,8 @@
     {
       "op": "offset",
       "source": "brep-mirror/topologyFns.ts#offsetBrep",
-      "vendoredFile": "brep-mirror/topologyFns.ts",
-      "vendoredFn": "offsetBrep",
+      "sourceFile": "brep-mirror/topologyFns.ts",
+      "sourceFn": "offsetBrep",
       "kernelMethods": [
         "offset"
       ],
@@ -683,8 +683,8 @@
     {
       "op": "heal",
       "source": "brep-mirror/healingFns.ts#healBrep",
-      "vendoredFile": "brep-mirror/healingFns.ts",
-      "vendoredFn": "healBrep",
+      "sourceFile": "brep-mirror/healingFns.ts",
+      "sourceFn": "healBrep",
       "kernelMethods": [
         "getShapeType",
         "healSolid",
@@ -719,8 +719,8 @@
     {
       "op": "simplify",
       "source": "brep-mirror/healingFns.ts#simplifyBrep",
-      "vendoredFile": "brep-mirror/healingFns.ts",
-      "vendoredFn": "simplifyBrep",
+      "sourceFile": "brep-mirror/healingFns.ts",
+      "sourceFn": "simplifyBrep",
       "kernelMethods": [
         "simplify"
       ],
@@ -738,8 +738,8 @@
     {
       "op": "autoHeal",
       "source": "brep-mirror/healingFns.ts#autoHealBrep",
-      "vendoredFile": "brep-mirror/healingFns.ts",
-      "vendoredFn": "autoHealBrep",
+      "sourceFile": "brep-mirror/healingFns.ts",
+      "sourceFn": "autoHealBrep",
       "kernelMethods": [
         "getSubShapes",
         "healSolid",
@@ -782,8 +782,8 @@
     {
       "op": "fixShape",
       "source": "brep-mirror/healingFns.ts#fixShapeBrep",
-      "vendoredFile": "brep-mirror/healingFns.ts",
-      "vendoredFn": "fixShapeBrep",
+      "sourceFile": "brep-mirror/healingFns.ts",
+      "sourceFn": "fixShapeBrep",
       "kernelMethods": [
         "fixShape"
       ],
@@ -801,8 +801,8 @@
     {
       "op": "healSolid",
       "source": "brep-mirror/healingFns.ts#healSolidBrep",
-      "vendoredFile": "brep-mirror/healingFns.ts",
-      "vendoredFn": "healSolidBrep",
+      "sourceFile": "brep-mirror/healingFns.ts",
+      "sourceFn": "healSolidBrep",
       "kernelMethods": [
         "healSolid",
         "isSolid",
@@ -824,8 +824,8 @@
     {
       "op": "fixSelfIntersection",
       "source": "brep-mirror/healingFns.ts#fixSelfIntersectionBrep",
-      "vendoredFile": "brep-mirror/healingFns.ts",
-      "vendoredFn": "fixSelfIntersectionBrep",
+      "sourceFile": "brep-mirror/healingFns.ts",
+      "sourceFn": "fixSelfIntersectionBrep",
       "kernelMethods": [
         "getShapeType",
         "healWire"

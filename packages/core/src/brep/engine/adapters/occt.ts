@@ -52,7 +52,7 @@ const OCCT_EVOLUTION_KINDS = [
  *   - 保留 `gridPattern`：occt-wasm 无原生 gridPattern，但适配器有组合实现
  *     （嵌套 linearPattern + fuseAll，见 occt-primitives.ts）——occt 下
  *     gridPattern op 可执行，声明成立；
- *   - 移除 `rectangularPattern`：occt-wasm 无此内核方法，vendored rectangularPattern
+ *   - 移除 `rectangularPattern`：occt-wasm 无此内核方法，旧 rectangularPattern
  *     是纯 JS 组合（compoundOpsFns.ts translate+fuseAll，不调内核）——无 op 依赖
  *     该能力名，声明即虚假（capability-map 实证 36 op 无一依赖）。
  */
@@ -117,7 +117,7 @@ const OCCT_METHOD_KINDS = [
   'surfaceType',
   'uvBounds',
   // Phase 5（D5）：测量族能力名统一为 L1 中立名（getBoundingBox/getVolume/...）——
-  // vendored 面按 brepjs 自身命名（volume/area/length），core 能力表用 L1 中立名。
+  // 旧面按 brepjs 自身命名（volume/area/length），core 能力表用 L1 中立名。
   'getBoundingBox',
   'getVolume',
   'getSurfaceArea',
@@ -183,9 +183,9 @@ export async function registerOcctBrepEngine(): Promise<void> {
     },
   }))
   // 2026-09-25 core-decouple Phase 2（§5.1）：删除 occt-kernel-bridge 后，本注册
-  // 流程只管 core 引擎注册表，不再向 vendored kernel registry 注入——vendored
-  // 兼容面（compat op）由 Phase 3 逐批自有化替换；中间态下需要 vendored 面的
-  // 宿主/测试自行装配 vendored registry。
+  // 流程只管 core 引擎注册表，不再向旧 kernel registry 注入——compat
+  // 兼容面（compat op）由 Phase 3 逐批自有化替换；中间态下需要 compat 面的
+  // 宿主/测试自行装配 registry。
 }
 
 /**

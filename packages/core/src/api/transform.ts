@@ -292,7 +292,7 @@ export const rotate_euler = defineOp({
 
 /**
  * 等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认
- * 原点（与 vendored `scale(shape, factor, { center? })` 一致），`center` 可选。
+ * 原点（与旧 `scale(shape, factor, { center? })` 一致），`center` 可选。
  * @group 变换
  * @inputs 1
  * @async false

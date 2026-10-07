@@ -4,13 +4,13 @@
  *
  * @platform occt
  *
- * 迁移自 vendored `operations/roofFns.ts`（含 pure-TS straightSkeleton，
+ * 迁移自 brepjs `operations/roofFns.ts`（含 pure-TS straightSkeleton，
  * 见同目录 straightSkeleton.ts）。适配：
  *  - getEdges → kernel.getSubShapes(handle, 'edge')
  *  - curveStartPoint → kernel.curvePointAtParam(edge, 0)
  *  - isValidSolid → kernel.isSolid（sew 兜底路径的闭合校验近似）
  *  - Result/BrepError 用 core 面；输出 Result<BrepHandle>
- * 守卫与错误码保持 vendored：ROOF_FAILED / STRAIGHT_SKELETON_FAILED。
+ * 守卫与错误码保持 brepjs：ROOF_FAILED / STRAIGHT_SKELETON_FAILED。
  */
 
 import type { BrepHandle } from '../../brep/engine/types'
@@ -25,7 +25,7 @@ import { computeStraightSkeleton, type SkPoint2D } from './straightSkeleton'
 const ROOF_PARAMS = { name: 'roof', params: ['shape', 'options'], formClass: 'A' as FormClass }
 
 // ---------------------------------------------------------------------------
-// Helpers（照抄 vendored roofFns.ts）
+// Helpers（照抄 brepjs roofFns.ts）
 // ---------------------------------------------------------------------------
 
 function extractPolygon(kernel: ReturnType<typeof getBrepApi>, wire: BrepHandle): SkPoint2D[] {
@@ -81,7 +81,7 @@ function pointInTriangle(
   return !(hasNeg && hasPos)
 }
 
-/** Ear-clip triangulate a simple polygon（照抄 vendored，含 CW→CCW 归一）。 */
+/** Ear-clip triangulate a simple polygon（照抄 brepjs，含 CW→CCW 归一）。 */
 function earClipTriangulate(poly: SkPoint2D[]): Array<[number, number, number]> {
   const n = poly.length
   if (n < 3) return []
@@ -137,7 +137,7 @@ function earClipTriangulate(poly: SkPoint2D[]): Array<[number, number, number]> 
   return tris
 }
 
-/** Convert skeleton faces into 3D triangular kernel faces（照抄 vendored）。 */
+/** Convert skeleton faces into 3D triangular kernel faces（照抄 brepjs）。 */
 function buildSkeletonTriFaces(
   skeleton: { faces: Array<{ vertices: SkPoint2D[]; heights: number[] }> },
   tanAngle: number,
@@ -181,11 +181,11 @@ function buildSkeletonTriFaces(
 }
 
 // ---------------------------------------------------------------------------
-// roof — 平面 wire → 直骨架屋顶实体（vendored roofFns.ts#roof）
+// roof — 平面 wire → 直骨架屋顶实体（brepjs roofFns.ts#roof）
 // ---------------------------------------------------------------------------
 
 /**
- * Roof — planar wire to straight-skeleton roof solid (vendored roofFns.ts#roof).
+ * Roof — planar wire to straight-skeleton roof solid (brepjs roofFns.ts#roof).
  *
  * @param args - Resolved arguments (wire, roof options).
  * @returns The generated roof solid as a `BrepHandle`.

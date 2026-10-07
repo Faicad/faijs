@@ -233,7 +233,7 @@ export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resol
 // ① faijs 特有 dual op（mesh+brep 双路径，D11 双形态归一）；
 // ② 生成脚本面 op（`api/generated/script-face.ts`，compatOp(projectBrepOp(…)) 包装的
 //    brep-only 语句级 op——`cad.*` 脚本面与此同源，B1 三源一致）；
-// ③ 2026-09-25 core-decouple：brepjsCompat 命名空间与 op 投影随 vendored 树删除
+// ③ 2026-09-25 core-decouple：brepjsCompat 命名空间与 op 投影随旧子包删除
 //    （裁决 9）；`api/brepjs-compat` 仅保留 core 内联的 Result / 向量 / 平面 / 错误 /
 //    常量组合器（§5.2），顶层平铺不变。
 export * from './api'

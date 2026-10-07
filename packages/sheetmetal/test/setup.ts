@@ -1,6 +1,6 @@
 /**
- * Test kernel setup — core-decouple §5.8 改写：sheetmetal 不再依赖 brepjs
- * vendored registry，几何调用全部走 core API 面（@faicad/faijs/api）与 core
+ * Test kernel setup — core-decouple §5.8 改写：sheetmetal 不再依赖外部
+ * registry，几何调用全部走 core API 面（@faicad/faijs/api）与 core
  * 引擎。内核装配：occt-wasm 单例初始化 + occt BREP 引擎注册（幂等）+
  * runtime-state 后端配置（brep 模式，lib 面执行的前置条件）。
  */

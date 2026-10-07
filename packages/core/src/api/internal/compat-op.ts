@@ -211,7 +211,7 @@ export function compatOp(
     brep: buildAdapter(fn, spec),
     name: spec.name,
     capabilities,
-    // D11 透传：平台 op（vendored 实现调 occt-only 方法）在生成物里声明 engines。
+    // D11 透传：平台 op（compat 实现调 occt-only 方法）在生成物里声明 engines。
     // engines 与 capabilities 可并存（2026-09-24 撤销 D11-7 互斥），此处两条独立透传。
     engines,
     outputs,

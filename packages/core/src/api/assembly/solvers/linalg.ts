@@ -2,8 +2,8 @@
  * api/assembly/solvers/linalg — 自实现向量数学与线性求解（P1，裁定 4）
  *
  * 规模极小（≤30 阶对称正定），优先 Cholesky（比 Gauss-Jordan 更稳且快），
- * 退化时回落 Gauss-Jordan 带部分主元。vendored 的 `ikFns.solveLinear` 是模块私有、
- * 不可 import（裁定 4），故在此自实现，vendored 只读约定不变。
+ * 退化时回落 Gauss-Jordan 带部分主元。brepjs 的 `ikFns.solveLinear` 是模块私有、
+ * 不可 import（裁定 4），故在此自实现，brepjs 只读约定不变。
  *
  * 模块零外部依赖；所有函数纯数值。
  */

@@ -58,7 +58,7 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
         (e) => e.kind !== 'skip' && e.kind !== 'faijs' && (e.module ?? 'topology') === m,
       )
       for (const e of projected) {
-        // 改名投影（如 inspect* ← vendored checkInterference/measureCurvatureAt*，与
+        // 改名投影（如 inspect* ← 旧 checkInterference/measureCurvatureAt*，与
         // generateModule 的 U7 校验同规则）：上游基线无 faijs 面新名，按 source 的
         // exportName 回查。
         const exportName = e.source.split('#')[1]
@@ -89,7 +89,7 @@ const manifest = readFileSync(fileURLToPath(new URL('../../../src/api/generated/
       'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
       'asset',
     ])
-    // kind 白名单：brep-op（vendored 投影）/ faijs（自研视图投影）/ query（上游查询函数，
+    // kind 白名单：brep-op（compat 投影）/ faijs（自研视图投影）/ query（上游查询函数，
     // 如 getShapeKind / isValid / isEmpty / isEqualShape / isSameShape——b0c4a92 起进脚本面）。
     for (const e of scriptFaceEntries()) {
       expect(['brep-op', 'faijs', 'query'].includes(e.kind), `${e.name}（kind=${e.kind}）`).toBe(true)
@@ -120,7 +120,7 @@ const manifest = readFileSync(fileURLToPath(new URL('../../../src/api/generated/
         } else if (e.kind === 'query') {
           expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export function ${esc}\\(`))
         } else if (e.kind === 'faijs') {
-          // P25：faijs 自研符号 re-export 自手写 api/ 模块（非 vendored）。路径从
+          // P25：faijs 自研符号 re-export 自手写 api/ 模块（非 compat 投影）。路径从
           // arg-spec 的 source 推导（与生成器 renderFaijs 的 `'../${file}'` 同规则），
           // 不写死单一模块目录：Phase 7 起测量 op（area/length）位于 api/measurement/，
           // 视图投影（viewCamera/projectView/projectSheet）仍在 api/view/。

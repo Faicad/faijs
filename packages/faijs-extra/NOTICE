@@ -1,12 +1,11 @@
 faijs — @faicad/faijs NOTICE
 ============================
 
-This product includes code ported from the `brepjs` project
-(https://github.com/OpenCascade/brepjs), licensed under the Apache
-License 2.0. Ported as of brepjs commit 8685273a (locked upstream
-reference; no two-way sync). The ported files retain their original
-Apache-2.0 attribution; see the vendored NOTICE in the source
-repository (packages/core/src/vendored/brepjs/NOTICE).
+This product's brepjs-compat facade contains code ported from the
+`brepjs` project (https://github.com/OpenCascade/brepjs, licensed under
+the Apache License 2.0, locked at upstream commit 8685273a).
+The ported sources have been inlined into the core engine
+(`@faicad/faijs`); the original attribution is retained here.
 
 Full Apache-2.0 text: https://www.apache.org/licenses/LICENSE-2.0
 

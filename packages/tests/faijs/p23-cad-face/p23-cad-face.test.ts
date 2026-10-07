@@ -193,7 +193,7 @@ describe('③ 生成脚本面 op 在 .fai.js 中执行', () => {
   })
 
   it('脚本面可用：cad.clone 收 faijs Shape，返回 faijs Shape（§6.3，2026-09-25 core-decouple）', async () => {
-    // 脚本面：cad.clone 收 faijs Shape，返回 faijs Shape（brepjsCompat 面已随 vendored 树删除）
+    // 脚本面：cad.clone 收 faijs Shape，返回 faijs Shape（brepjsCompat 面已随旧子包删除）
     const res = await rt.execute('const p0 = cad.box(10, 10, 10, { centered: true })\nconst p1 = cad.clone(p0)')
     expect(res.failedAt).toBeUndefined()
     expect(res.outputs.get(asPartName('p1'))).toBeDefined()

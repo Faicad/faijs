@@ -2,7 +2,7 @@
  * revolve — 手写平台 op（E3 / Q13 路线①的 revolve 实例）
  *
  * 生成投影（`api/generated/operations.ts` 的 revolve）是 compat op：几何由
- * vendored brepjs 承载，但**没有可挂面命名的代码位置**，产物不带 roleTable，
+ * 早期 brepjs 承载，但**没有可挂面命名的代码位置**，产物不带 roleTable，
  * 下游 `cad.edgeRef` 抛 "nameless shape"（ModelFromV021 缺陷）。
  *
  * 本文件按 `cut` 覆盖生成投影的同一先例（`api-namespace.ts`），用 defineOp 包住
@@ -121,14 +121,14 @@ function revolveConstructRoles(
  * @qual ok
  * @name revolve
  * @param face - 平面轮廓。type:Shape required:true
- * @param options - 旋转轴/点/角度（透传 vendored 语义）。type:RevolveOptions
+ * @param options - 旋转轴/点/角度（透传 compat 语义）。type:RevolveOptions
  * @returns Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
  * @example
  * const p1 = await cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
  */
 export const revolve = defineOp({
   brep: async (face: Shape, options?: { axis?: unknown }) => {
-    // vendored 语义经 l3-bridge 三步桥接（与 compatOp 的 adapter 相同步骤，
+    // compat 语义经 l3-bridge 三步桥接（与 compatOp 的 adapter 相同步骤，
     // 但在这里执行以便在**同一处**收编产物并建链根 roleTable——compatOp 的
     // 自动 adoptOut 会先登记一次，二次 fromBrep 会让 edgeRef 读到残缺表）。
     const kernel = getBrepApi()

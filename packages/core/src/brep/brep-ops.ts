@@ -136,7 +136,7 @@ export function rotateBrep(
  * 与 mesh 路径 scale（P6 §4.6）一致：
  * - factor 为 number（均匀缩放）或 Vec3 [sx, sy, sz]（非均匀）
  * - center 为缩放不动点（p' = center + S·(p − center)）；缺省 [0,0,0]（原点），
- *   与 vendored brepjs `scale(shape, factor, { center? })` 的默认一致。
+ *   与早期 brepjs `scale(shape, factor, { center? })` 的默认一致。
  *
  * @param kernel  OCCT 内核
  * @param solid   输入实体

@@ -10,7 +10,7 @@
  *     （5 族布尔 + BrepEvolutionKind 真名 + BrepMethodKind 真名——从 types.ts 提取）。
  *  3. 手写 brep-only op（pattern.ts linearPattern、boolean.ts union/cut/subtract/
  *     intersect）声明真名能力。
- *  4. 兼容性事实（P3 冲突消除的证据）：vendored compat op 的 transform 调用
+ *  4. 兼容性事实（P3 冲突消除的证据）：compat op 的 transform 调用
  *     `*WithHistory` 真名——mirror/rotate/translate/scale 的 capabilities 是
  *     `*WithHistory`，不是裸名。
  */

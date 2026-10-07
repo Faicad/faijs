@@ -55,7 +55,7 @@ import {
   mirror as generatedMirror,
   clone as generatedClone,
 } from './generated/topology'
-/** 镜像面参数（与 vendored MirrorOptions 同形；G5 去 brepjs 依赖后本地自持）。 */
+/** 镜像面参数（与旧 MirrorOptions 同形；G5 去外部依赖后本地自持）。 */
 interface MirrorOptions {
   /** 镜像面法向。默认 [0,0,1]。 */
   normal?: readonly [number, number, number] | { x: number; y: number; z: number }
@@ -367,8 +367,8 @@ export const rectangularPattern = defineOp({
     const { xDir, xCount, xSpacing, yDir, yCount, ySpacing } = options
     const dx = norm(xDir)
     const dy = norm(yDir)
-    // vendored rectangularPattern 是纯 JS 组合（translate + fuseAll），内核不声明
-    // 该方法——与 vendored 同口径：逐份 translate 再 fuseAll。
+// 旧 rectangularPattern 是纯 JS 组合（translate + fuseAll），内核不声明
+// 该方法——与旧版同口径：逐份 translate 再 fuseAll。
     const copies: BrepHandle[] = []
     try {
       for (let ix = 0; ix < xCount; ix++) {

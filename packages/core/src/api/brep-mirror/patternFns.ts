@@ -4,7 +4,7 @@
  *
  * @platform occt
  *
- * Semantics mirror vendored `operations/patternFns.ts` + `compoundOpsFns.ts`
+ * Semantics mirror brepjs `operations/patternFns.ts` + `compoundOpsFns.ts`
  * rectangularPattern, on the L1 pattern primitives (occt-primitives:
  * native compound split per replica; gridPattern pre-fused compound).
  * Guards: PATTERN_INVALID_COUNT / PATTERN_ZERO_DIRECTION / PATTERN_ZERO_AXIS.
@@ -33,7 +33,7 @@ function vecNormalize(v: readonly [number, number, number]): [number, number, nu
   return [v[0] / len, v[1] / len, v[2] / len]
 }
 
-/** fuse 全部 replicas 并释放中间句柄（vendored fuseAll sameFace 等价）。 */
+/** fuse 全部 replicas 并释放中间句柄（brepjs fuseAll sameFace 等价）。 */
 function fuseReplicas(kernel: ReturnType<typeof getBrepApi>, copies: BrepHandle[]): BrepHandle {
   const fused = kernel.fuseAll(copies)
   for (const c of copies) kernel.release(c)
@@ -41,11 +41,11 @@ function fuseReplicas(kernel: ReturnType<typeof getBrepApi>, copies: BrepHandle[
 }
 
 // ---------------------------------------------------------------------------
-// linearPattern — 沿方向复制（vendored patternFns.ts#linearPattern）
+// linearPattern — 沿方向复制（brepjs patternFns.ts#linearPattern）
 // ---------------------------------------------------------------------------
 
 /**
- * Linear pattern — copy a shape along a direction (vendored patternFns.ts#linearPattern).
+ * Linear pattern — copy a shape along a direction (brepjs patternFns.ts#linearPattern).
  *
  * @param args - Resolved arguments (shape, direction, count, spacing).
  * @returns The fused pattern copies as a `BrepHandle`.
@@ -74,11 +74,11 @@ export function linearPatternBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// circularPattern — 绕轴环形复制（vendored patternFns.ts#circularPattern）
+// circularPattern — 绕轴环形复制（brepjs patternFns.ts#circularPattern）
 // ---------------------------------------------------------------------------
 
 /**
- * Circular pattern — copy a shape around an axis (vendored patternFns.ts#circularPattern).
+ * Circular pattern — copy a shape around an axis (brepjs patternFns.ts#circularPattern).
  *
  * @param args - Resolved arguments (shape, axis, count, fullAngle, center).
  * @returns The fused pattern copies as a `BrepHandle`.
@@ -109,11 +109,11 @@ export function circularPatternBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// gridPattern — 二维网格复制（vendored patternFns.ts#gridPattern）
+// gridPattern — 二维网格复制（brepjs patternFns.ts#gridPattern）
 // ---------------------------------------------------------------------------
 
 /**
- * Grid pattern — 2D grid copies of a shape (vendored patternFns.ts#gridPattern).
+ * Grid pattern — 2D grid copies of a shape (brepjs patternFns.ts#gridPattern).
  *
  * @param args - Resolved arguments (shape, directions, counts, spacings).
  * @returns The fused pattern copies as a `BrepHandle`.
@@ -153,12 +153,12 @@ export function gridPatternBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// rectangularPattern — 双向矩形阵列（vendored compoundOpsFns.ts#rectangularPattern）
+// rectangularPattern — 双向矩形阵列（brepjs compoundOpsFns.ts#rectangularPattern）
 // ---------------------------------------------------------------------------
 
 /**
  * Rectangular pattern — two-direction rectangular array
- * (vendored compoundOpsFns.ts#rectangularPattern).
+ * (brepjs compoundOpsFns.ts#rectangularPattern).
  *
  * @param args - Resolved arguments (shape, rectangular pattern options).
  * @returns The fused pattern copies as a `BrepHandle`.

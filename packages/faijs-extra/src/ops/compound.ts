@@ -5,7 +5,7 @@
  * 从 src/ops/assemble.ts 迁出并改写为 op 形态：
  * - `group(params)` → compound Shape（kind='compound'，children 为成员 Shape 引用）
  * - `assembly(params)` → compound Shape + AssemblyBehavior（约束列表 + solve 方法）
- * - 装配求解（P1 起）委派 api/assembly/（brepjs solverAdapter 内核）：
+ * - 装配求解（P1 起）委派 api/assembly/（chain-solver 内核）：
  *   do_assemble/solve 触发求解 → 引擎应用
  *   （mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
  *   P2-f5：旧装配算法与自有四元数实现已删除，求解全链路走 api/assembly。
@@ -43,7 +43,7 @@ export interface AssemblyParams extends GroupParams {
   drive?: Record<string, number | number[]>
   /** cq-compat：成员颜色（sRGB 0..1），导出 STEP 时写入 XCAF。 */
   memberColors?: Record<string, [number, number, number]>
-  /** P1：求解风格。'chain'（默认，vendored brepjs 解析链式）| 'global'（CadQuery 兼容全局最小二乘）。 */
+  /** P1：求解风格。'chain'（默认，链式拓扑解析）| 'global'（CadQuery 兼容全局最小二乘）。 */
   solver?: SolverStyle
 }
 
@@ -73,6 +73,7 @@ export type { AssemblySolveResult } from '@faicad/faijs/api/assembly/solve'
 // ── 求解器 ──
 // P2-f5：旧装配算法与自有四元数实现已整体删除——旋转计算一律走
 // brepjs utils/quaternion.ts，输出经 api/assembly/pose.ts fromBrepjsQuat 重排。
+// （utils/quaternion.ts 已内化为第一方代码，函数名保留历史来源标识。）
 
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：
 // 引擎不得 import api/compound；公共 API 经本 re-export 保持）。
@@ -104,7 +105,7 @@ export interface AssemblyBehavior {
  * 不修改任何输入、不触碰引擎状态——引擎负责应用变换并让下游失效重算（F2）。
  *
  * 约束形态（方案 §5）：
- * - 遗留 face_mate：规范化为 mate 后降级为 brepjs concentric + 轴编码求解（§3.7.2）；
+ * - 遗留 face_mate：规范化为 mate 后降级为 chain-solver concentric + 轴编码求解（§3.7.2）；
  * - 新形态 mate/align/coincident/concentric/distance/angle/parallel/perpendicular/fixed；
  * - 面参数 `{ topoRef }` 执行期解析（BREP 现场/mesh 行快照），旧 `{ center, normal }`
  *   快照直接使用（兼容已持久化的历史脚本）；
@@ -178,7 +179,7 @@ export function group(params: GroupParams): CompoundShape {
 
 /**
  * 装配：成员 + 约束。结构语句，无几何输出，成员用变量名引用、实体用 EntityRef / 拓扑引用。
- * 求解内核复用 vendored brepjs solverAdapter.solveConstraints（链式拓扑调度 / DOF / converged /
+ * 求解内核复用 chain-solver solveConstraints（链式拓扑调度 / DOF / converged /
  * unsupported 诊断）；输出为 per-member 终态变换（每成员一条，恒等位姿不输出）。
  * @group 结构
  * @inputs 1

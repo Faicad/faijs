@@ -4,9 +4,9 @@
  *
  * @platform occt
  *
- * Semantics mirror vendored `operations/convexHullFns.ts` (HULL_EMPTY_INPUT /
+ * Semantics mirror brepjs `operations/convexHullFns.ts` (HULL_EMPTY_INPUT /
  * HULL_NOT_3D / HULL_DEGENERATE guards) on the L1 `hullFromPoints` (core's own
- * hull closure, §5.1) with tolerance 0.1 (vendored default).
+ * hull closure, §5.1) with tolerance 0.1 (brepjs default).
  */
 
 import type { BrepHandle } from '../../brep/engine/types'

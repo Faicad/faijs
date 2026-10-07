@@ -1,8 +1,8 @@
 /**
  * faijs 建模 op 适配层（core-decouple wrapup §2.2）
  *
- * sheetmetal 原 brepjs 调用形态 → faijs op 组合。faijs 建模 op 均为
- * 异步 op（`Promise<Shape>`）；本层只做形态适配，不复制任何 brepjs
+ * sheetmetal 原调用形态 → faijs op 组合。faijs 建模 op 均为
+ * 异步 op（`Promise<Shape>`）；本层只做形态适配，不复制任何
  * 兼容层（裁决 9）。说明：
  *
  * - `rotate` — faijs 原生 op（绕任意轴 + `at`，签名兼容原调用），直透。

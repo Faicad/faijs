@@ -325,6 +325,6 @@ describe('§5.6.5 裁决 10：缺省 solver = chain（钉住，防止默认值�
     const chain = solveAssembly([dummy(), dummy()], ['p0', 'p1'], constraints, { solver: 'chain' })
     expect(def.converged).toBe(true)
     expect(def.transforms).toEqual(chain.transforms)
-    // chain 路径 = core solvers/chain-solver（§5.6 自有化移植，非 vendored）
+    // chain 路径 = core solvers/chain-solver（§5.6 自有化移植，非外部依赖）
   })
 })

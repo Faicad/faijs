@@ -115,7 +115,7 @@ export default defineConfig({
       target: 'esnext',
     },
     // occt-wasm / manifold-3d 的 Emscripten glue 经 esbuild 预打包会损坏 wasm
-    // import 对象（brepjs 同款），必须排除。
+    // import 对象（原 brepjs 同款），必须排除。
     // @faicad/* 现以 workspace 依赖（dist）安装，已是编译产物、不含 wasm glue，
     // 不再需要排除（demo 已改走独立 dist 消费，不再 live-src 联动）。
     exclude: ['occt-wasm', 'manifold-3d'],

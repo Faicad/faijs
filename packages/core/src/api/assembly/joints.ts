@@ -1,7 +1,7 @@
 /**
  * api/assembly/joints — 运动副声明与运动学解算（P3）
  *
- * JointSpec 是 .fai.js 可序列化子集（派生字段 dofs 由 vendored 工厂构造，
+ * JointSpec 是 .fai.js 可序列化子集（派生字段 dofs 由 brepjs 工厂构造，
  * 与 brepjs Joint.dofs 的组合顺序对齐：cylindrical → [rotation, translation]、
  * planar → [u, v, rotation]、spherical → [x, y, z]）。
  *
@@ -9,8 +9,8 @@
  * spherical 在 buildJoint 里显式抛错（绝不静默降级成单 DOF），待 per-DOF ranges
  * 启用（JointSpec.dofs 已按此预留）。
  *
- * 链路：JointSpec[] → buildJoint（vendored 工厂）→ buildKinematicTree（建树三步
- * + 校验）→ solveKinematics（vendored forwardKinematics）→ per-member 位姿。
+ * 链路：JointSpec[] → buildJoint（brepjs 工厂）→ buildKinematicTree（建树三步
+ * + 校验）→ solveKinematics（brepjs forwardKinematics）→ per-member 位姿。
  *
  * cad.* 查询函数（jointTrajectory / inverseKinematics / mechanismDOF）是无副作用
  * 纯函数：输入纯数据、输出纯数据，不挂在 assembly receiver 上。
@@ -58,7 +58,7 @@ export interface JointDofSpec {
 
 /**
  * 可序列化运动副声明（.fai.js 对象字面量）。派生字段（dofs）由 buildJoint 内
- * vendored 工厂构造——脚本里只写纯数据。
+ * brepjs 工厂构造——脚本里只写纯数据。
  */
 export interface JointSpec {
   type: JointType
@@ -96,13 +96,13 @@ export interface JointSpec {
 /**
  * 由 JointSpec 构造 brepjs Joint。
  *
- * revolute/prismatic 走 vendored 工厂（主 DOF 的 value 在工厂内 clamp 到
+ * revolute/prismatic 走 brepjs 工厂（主 DOF 的 value 在工厂内 clamp 到
  * [min,max]）；cylindrical/planar/spherical 显式抛错（多 DOF 未启用，绝不
  * 静默降级）。offset 的四元数经 toBrepjsQuat 换序（faijs [x,y,z,w] → brepjs
  * [w,x,y,z]）。
  *
  * @param spec - the serializable joint declaration.
- * @returns the vendored brepjs Joint (with offset attached when declared).
+ * @returns the Joint (with offset attached when declared).
  * @throws Error on multi-DOF joint types and unknown joint types.
  */
 export function buildJoint(spec: JointSpec): Joint {
@@ -143,7 +143,7 @@ export function buildJoint(spec: JointSpec): Joint {
 // ── buildKinematicTree：建树三步 + 校验 ──
 
 /**
- * 由成员名 + JointSpec[] 构建 kinematic AssemblyNode 树（vendored
+ * 由成员名 + JointSpec[] 构建 kinematic AssemblyNode 树（brepjs
  * forwardKinematics 只接受单个根；多成员必须有唯一合成根）。
  *
  * 校验（求解前，绝不静默）：
@@ -230,7 +230,7 @@ function specMemberNames(joints: JointSpec[]): string[] {
 }
 
 /**
- * 运动学正解：buildKinematicTree → vendored forwardKinematics → per-member 位姿。
+ * 运动学正解：buildKinematicTree → brepjs forwardKinematics → per-member 位姿。
  *
  * 校验（求解前）：成员名空串 / parent-child ∈ members / child 唯一驱动（都收在
  * buildKinematicTree 内）；drive 键必须 ∈ joints 的 child 集（多余键是笔误，
@@ -343,7 +343,7 @@ export interface InverseKinematicsParams {
   options?: BrepjsIKOptions
 }
 
-/** IK 结果（与 vendored IKResult 同构；values 键 = child 成员名）。 */
+/** IK 结果（与 brepjs IKResult 同构；values 键 = child 成员名）。 */
 export interface IKResult {
   values: Record<string, number[]>
   converged: boolean

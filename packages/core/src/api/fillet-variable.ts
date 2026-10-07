@@ -5,7 +5,7 @@
  * brepkit 两侧均有真实现（engine-method-map 实测 `dialect`）⇒ 走 `getBrepApi()`
  * （D12），不声明 engines（中立 op：实现只经 L1 契约面）。
  *
- * 这是 faijs 简化形态（单边 + 起止半径）；vendored 的 per-edge 回调形态
+ * 这是 faijs 简化形态（单边 + 起止半径）；旧版的 per-edge 回调形态
  * （`variableFillet`）维持 skip（状态化回调不可静态建模）。
  * 选边口径与 `fillet` 一致（EdgeTopoRef，faces 两面 role 线路）。
  */
@@ -58,7 +58,7 @@ function filletVariableBrep(input: Shape, edge: EdgeTopoRef, startRadius: number
  * @qual ok
  * @name filletVariable
  * @note 中立 op：L1 filletVariable 两引擎同实现。`r1 == r2` 时与 cad.fillet 等半径
- *       结果等价。vendored 的 per-edge 回调变半径（variableFillet）不上脚本面。
+ *       结果等价。旧版的 per-edge 回调变半径（variableFillet）不上脚本面。
  *       仅 BREP 可用。
  * @returns Shape 变半径圆角后的几何。
  * @param input - 目标几何。type:Shape required:true

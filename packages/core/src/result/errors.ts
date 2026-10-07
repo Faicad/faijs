@@ -14,7 +14,7 @@ export { bug, BrepBugError };
 // Error kinds
 // ---------------------------------------------------------------------------
 
-/** High-level category for a brepjs error. */
+/** High-level category for a BREP error. */
 export type BrepErrorKind =
   | 'KERNEL_OPERATION'
   | 'VALIDATION'
@@ -31,7 +31,7 @@ export type BrepErrorKind =
 // ---------------------------------------------------------------------------
 
 /**
- * Typed string constants for all known brepjs error codes, grouped by category.
+ * Typed string constants for all known BREP error codes, grouped by category.
  *
  * Use these instead of raw strings so that typos are caught at compile time.
  */

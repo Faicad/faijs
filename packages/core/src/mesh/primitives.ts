@@ -49,7 +49,7 @@ export function box(params: BoxParams): Shape {
   // pre-rotation sizes must be (width, height, depth) — 裁决 7 xyz contract.
   const geo = new THREE.BoxGeometry(width, height, depth)
   geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
-  // brepjs box semantics: corner at origin by default; centered at origin when
+  // 原 brepjs box semantics: corner at origin by default; centered at origin when
   // `centered` (no `at`); `at` (CENTER semantics) takes precedence.
   const at = params.at
   let tx = 0

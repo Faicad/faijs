@@ -4,7 +4,7 @@
  *
  * @platform occt
  *
- * Semantics mirror vendored `operations/{api,extrudeFns,sweepFns}.ts`:
+ * Semantics mirror brepjs `operations/{api,extrudeFns,sweepFns}.ts`:
  *  - `extrudeBrep` — height: number → [0,0,h]; Vec3 → as-is. EXTRUDE_ZERO_VECTOR guard.
  *  - `revolveBrep` — options { at, axis, angle(radians, default 2π) }; REVOLUTION_NOT_3D.
  *  - `sweepBrep` — config.mode 'simple' → simplePipe; default → sweepPipeShell(frenet).
@@ -12,7 +12,7 @@
  *    supported after selfhosting (cad 面取手写 api/sweep.ts，shell 元组不暴露 §2.4①).
  *  - `complexExtrudeBrep` / `twistExtrudeBrep` — linear / helix spine built on
  *    occt-wasm makeLineEdge+makeWire / makeHelixWire, then sweepPipeShell.
- *    ExtrusionProfile scaling law is not supported (vendored buildLawFromProfile
+ *    ExtrusionProfile scaling law is not supported (brepjs buildLawFromProfile
  *    has no L1 equivalent); non-undefined profile → LAW_UNSUPPORTED error.
  */
 
@@ -36,7 +36,7 @@ function vecLength(v: readonly number[]): number {
   return Math.hypot(v[0], v[1], v[2])
 }
 
-/** 构造直线 spine wire（vendored makeSpineWire）。 */
+/** 构造直线 spine wire（brepjs makeSpineWire）。 */
 function makeSpineWire(kernel: ReturnType<typeof getBrepApi>, start: Vec3, end: Vec3): BrepHandle {
   const e = kernel.makeLineEdge({ x: start[0], y: start[1], z: start[2] }, { x: end[0], y: end[1], z: end[2] })
   const w = kernel.makeWire([e])
@@ -45,11 +45,11 @@ function makeSpineWire(kernel: ReturnType<typeof getBrepApi>, start: Vec3, end: 
 }
 
 // ---------------------------------------------------------------------------
-// extrude — face 沿向量/高度拉伸（vendored api.js#extrude + extrudeFns.ts#extrude）
+// extrude — face 沿向量/高度拉伸（brepjs api.js#extrude + extrudeFns.ts#extrude）
 // ---------------------------------------------------------------------------
 
 /**
- * Extrude a face along a vector/height (vendored api.js#extrude + extrudeFns.ts#extrude).
+ * Extrude a face along a vector/height (brepjs api.js#extrude + extrudeFns.ts#extrude).
  *
  * @param args - Resolved arguments (face, height or extrusion vector).
  * @returns The extruded solid as a `BrepHandle`.
@@ -71,11 +71,11 @@ export function extrudeBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// revolve — face 绕轴旋转（vendored api.js#revolve；angle 单位弧度，默认 2π）
+// revolve — face 绕轴旋转（brepjs api.js#revolve；angle 单位弧度，默认 2π）
 // ---------------------------------------------------------------------------
 
 /**
- * Revolve a face around an axis (vendored api.js#revolve; angle in radians, default 2π).
+ * Revolve a face around an axis (brepjs api.js#revolve; angle in radians, default 2π).
  *
  * @param args - Resolved arguments (face, revolve options).
  * @returns The revolved solid as a `BrepHandle`.
@@ -104,11 +104,11 @@ export function revolveBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// sweep — 截面沿脊柱扫掠（vendored sweepFns.ts#sweep）
+// sweep — 截面沿脊柱扫掠（brepjs sweepFns.ts#sweep）
 // ---------------------------------------------------------------------------
 
 /**
- * Sweep a profile along a spine (vendored sweepFns.ts#sweep).
+ * Sweep a profile along a spine (brepjs sweepFns.ts#sweep).
  *
  * @param args - Resolved arguments (wire, spine, config, shellMode).
  * @returns The swept solid as a `BrepHandle`.
@@ -146,11 +146,11 @@ export function sweepBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// complexExtrude — wire 沿 normal 挤出（vendored sweepFns.ts#complexExtrude）
+// complexExtrude — wire 沿 normal 挤出（brepjs sweepFns.ts#complexExtrude）
 // ---------------------------------------------------------------------------
 
 /**
- * Extrude a wire along a normal (vendored sweepFns.ts#complexExtrude).
+ * Extrude a wire along a normal (brepjs sweepFns.ts#complexExtrude).
  *
  * @param args - Resolved arguments (wire, center, normal, profile).
  * @returns The extruded solid as a `BrepHandle`.
@@ -187,11 +187,11 @@ export function complexExtrudeBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// twistExtrude — wire 沿螺旋挤出（vendored sweepFns.ts#twistExtrude）
+// twistExtrude — wire 沿螺旋挤出（brepjs sweepFns.ts#twistExtrude）
 // ---------------------------------------------------------------------------
 
 /**
- * Extrude a wire along a helical path (vendored sweepFns.ts#twistExtrude).
+ * Extrude a wire along a helical path (brepjs sweepFns.ts#twistExtrude).
  *
  * @param args - Resolved arguments (wire, angleDegrees, center, normal, profile).
  * @returns The twisted extrusion as a `BrepHandle`.
@@ -228,7 +228,7 @@ export function twistExtrudeBrep(...args: unknown[]): Result<BrepHandle> {
   }
   const extrusionLength = vecLength(n)
   const pitch = (360.0 / Math.abs(angle)) * extrusionLength
-  // vendored 语义：主 spine=直线、auxiliary=helix，sweepPipeShell 传对象参数
+  // brepjs 语义：主 spine=直线、auxiliary=helix，sweepPipeShell 传对象参数
   // （occt-wasm 运行时接受 auxiliary 键；d.ts 窄签名用 as never 绕过）
   const endPointTwist: Vec3 = [c[0] + n[0], c[1] + n[1], c[2] + n[2]]
   const spine = makeSpineWire(kernel, c, endPointTwist)

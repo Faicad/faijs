@@ -8,18 +8,18 @@
  * faijs 扩展 op，与 fai_drill / fai_split 同族）不得承载它。
  *
  * 为什么是手写 op 而不是继续用生成投影：生成投影
- * `compatOp(projectBrepOp('extrude', ['face','height'], 'A', vendoredExtrude))`
+ * `compatOp(projectBrepOp('extrude', ['face','height'], 'A', brepjsExtrude))`
  * 有两个硬约束——
  * ① 参数表只有位置形参；D11 归一化只在「单 plain-object 形态」下按 params 表
  *    映射（api/internal/dual-form-args.ts），`(face, { upTo })` 属位置形态 →
- *    原样喂给 vendored extrude → 报错，无法表达对象形态；
- * ② compatOp 的入参先经 `borrowDeep` 借成 brepjs 视图（api/internal/compat-op.ts），
+ *    原样喂给 compat extrude → 报错，无法表达对象形态；
+ * ② compatOp 的入参先经 `borrowDeep` 借成 compat 视图（api/internal/compat-op.ts），
  *    在那一层 `brepOf()` 取不到 → 依赖 faceRef / brepOf / 内核直调的 up-to 实现
  *    必然走空（同 AGENTS.md 记录的「compatOp 自动提升边界」）。
  * 先例：arg-spec 的 `fillet` 条目（faijs 侧由手写 dual-op 覆盖，生成模块符号为
  * 孤儿 by design）。
  *
- * 长度形态**委托给生成投影**（`projectedExtrude`）：vendored 仍是唯一拉伸引擎，
+ * 长度形态**委托给生成投影**（`projectedExtrude`）：compat 投影仍是唯一拉伸引擎，
  * 既有 `cad.extrude(face, [x,y,z])` 语义零漂移。
  */
 
@@ -498,7 +498,7 @@ function extrudeMeshChain(input: Shape, params: unknown): Shape {
  * 沿 normal 拉伸几何（面 → 棱柱）。
  *
  * up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影
- * （vendored extrude 为唯一引擎），up-to 模式走半空间组合。
+ * （brepjs extrude 为唯一引擎），up-to 模式走半空间组合。
  *
  * **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：输入是
  * `cad.sketchOnFace` 在网格实体识别面上铺出的网格链面时，本 op 沿同一份方向语义
@@ -565,9 +565,9 @@ export const extrude = defineOp({
     const sign = o.mode === 'backward' ? -1 : 1
     const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
     let result: Shape
-    // GOTCHA：projectedExtrude 是 occt-gated 的 compat op（vendored brepjs 借入），
+    // GOTCHA：projectedExtrude 是 occt-gated 的 compat op（brepjs 借入），
     // 在 brepkit 引擎下执行前即抛 E_BREP_UNSUPPORTED。brepkit 有原生 L1 extrude
-    // （face→solid），直接走 kernel.extrude——与 revolve.ts 同路径（不经过 vendored 借入）。
+    // （face→solid），直接走 kernel.extrude——与 revolve.ts 同路径（不经过 brepjs 借入）。
     // occt 路径保持 projectedExtrude 不变，不回退既有几何/命名行为。
     if (getBackends().config.brepEngineId === 'brepkit') {
       const kernel = getBrepApi()

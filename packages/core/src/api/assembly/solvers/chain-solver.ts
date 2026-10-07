@@ -1,8 +1,8 @@
 /**
- * Constraint solver (chain) — core 自有实现（§5.6 移植：vendored solverAdapter 逐字对齐）。
+ * Constraint solver (chain) — core 自有实现（§5.6 移植：brepjs solverAdapter 逐字对齐）。
  *
  * 移植来源：packages/brepjs/src/kernel/solverAdapter.ts（Phase 5 随 brepjs 包删除前
- * 已做 parity 对拍——本文件与 vendored 行为逐项一致，无重新设计）。
+ * 已做 parity 对拍——本文件与 brepjs 行为逐项一致，无重新设计）。
  * 类型 SolverEntity/SolverConstraint/SolverResult 迁入 ./types（§5.6.1，消费方共用）。
  */
 import type { SolverEntity, SolverConstraint, SolverResult } from './types'

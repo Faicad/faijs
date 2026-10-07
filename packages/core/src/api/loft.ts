@@ -9,7 +9,7 @@
  * `cad.profile(...)`（产出 **face**），内核 `loft(wires, …)` 只吃 wire ⇒
  * 需要「面 → 外环」输入适配（`internal/profile-wire.ts` 的唯一步径）。
  *
- * core-decouple G5：vendored `loft`（brepjs）替换为 occt-wasm 原生直连，
+ * core-decouple G5：旧 `loft`（brepjs）替换为 occt-wasm 原生直连，
  * 产物经 `fromBrep` 收养（替代 l3-bridge adoptEntity）。
  */
 
@@ -23,7 +23,7 @@ import { getOcctKernel } from '../occt-kernel/occtKernel'
 import { toProfileWireView } from './internal/profile-wire'
 import type { BrepHandle } from '../brep/engine/types'
 
-/** 放样配置（与 vendored LoftOptions 同形；本文件自持，去 brepjs 依赖）。 */
+/** 放样配置（与旧 LoftOptions 同形；本文件自持，去外部依赖）。 */
 export interface LoftOptions {
   /** 直线插值（ruled）。默认 true。 */
   ruled?: boolean
@@ -35,7 +35,7 @@ export interface LoftOptions {
   tolerance?: number
 }
 
-/** PointInput → [x,y,z]（vendored toVec3 同口径）。 */
+/** PointInput → [x,y,z]（旧 toVec3 同口径）。 */
 function toVec3(p: LoftOptions['startPoint']): [number, number, number] {
   if (Array.isArray(p) && p.length >= 3) return [p[0]!, p[1]!, p[2]!]
   const o = p as { x: number; y: number; z: number }

@@ -1,5 +1,5 @@
 /**
- * Kinematic joints + IK — core 自有实现（§5.6.3 移植：vendored jointFns + ikFns 逐字对齐）。
+ * Kinematic joints + IK — core 自有实现（§5.6.3 移植：brepjs jointFns + ikFns 逐字对齐）。
  *
  * 移植来源：packages/brepjs/src/operations/{jointFns,ikFns}.ts（纯算法零 kernel 依赖，
  * 仅用 quat 与 assembly-tree；Phase 5 随 brepjs 包删除前已做 parity 对拍）。

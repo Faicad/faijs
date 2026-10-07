@@ -12,7 +12,7 @@
  * 6. 平台 op 在 brep_mock 下不被引擎判定拦截（D11-3 豁免）；
  * 7. roof 是中立 op（capabilities 路由，非 engines）——brep_mock 下同样不被平台判定拦截。
  *
- * GOTCHA-1（Phase 4 实测）：vendored `complexExtrude(wire, center, normal, profile?, shellMode?)`
+ * GOTCHA-1（Phase 4 实测）：旧 `complexExtrude(wire, center, normal, profile?, shellMode?)`
  * 的 `normal` 同时是**挤出向量**（`extrusionLength = vecLength(normal)`），不是单位方向；
  * 传 `[0,0,30]` 即沿 +Z 拉伸 30mm。`center` 是脊柱起点。`shellMode` 不暴露（元组产物）。
  *
@@ -28,9 +28,9 @@
  * 断言用 `/op '<name>' requires engine occt/`，不要写 `/op requires engine occt/`。
  *
  * GOTCHA-4（Phase 4 实测 → G5 已过时，断言同步收紧）：occt-wasm 3.x 缺
- * `sweepAdvanced` ⇒ vendored `sweep` 会丢弃 transitionMode 并 `console.warn`。
+ * `sweepAdvanced` ⇒ 旧 `sweep` 会丢弃 transitionMode 并 `console.warn`。
  * core-decouple G5 后 sweep/complexExtrude/twistExtrude/loft 全部走 core 直连
- * （brep-mirror + occt-wasm 原生），不再有 vendored 上游 ⇒ 本文件 spy 断言
+ * （brep-mirror + occt-wasm 原生），不再有旧上游 ⇒ 本文件 spy 断言
  * 改为「warns === 0」（出现告警即失败，防真实噪声静默；出现时逐条核对前缀）。
  *
  * Run: npx vitest run src/api/sweep-loft.test.ts
@@ -51,7 +51,7 @@ import { getBrepApi } from '../../src/brep/handle-bridge'
 import { brepOf } from '../../src/shape'
 import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
 
-/** 捕获的上游（vendored/occt-wasm）console.warn 内容，见文件头 GOTCHA-4。 */
+/** 捕获的上游（compat/occt-wasm）console.warn 内容，见文件头 GOTCHA-4。 */
 const upstreamWarns: unknown[][] = []
 
 beforeAll(async () => {
@@ -63,7 +63,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   // G5（core-decouple）：sweep/complexExtrude/twistExtrude/loft 全部走 core 直连
-  // （brep-mirror + occt-wasm 原生），不再有 vendored 上游 ⇒ 不应产生任何
+  // （brep-mirror + occt-wasm 原生），不再有旧上游 ⇒ 不应产生任何
   // console.warn。若未来重新出现上游告警，逐条核对必须带 "occt-wasm: " 前缀
   // （防真实噪声静默），否则即失败。
   expect(upstreamWarns.length).toBe(0)

@@ -1,19 +1,19 @@
 import type {SolidShape, CurveShape} from '@faicad/faijs/api';
 
-/** faijs 建模链产物（core-decouple wrapup §2.2）：brepjs `Solid` 的 faijs 等价。
+/** faijs 建模链产物（core-decouple wrapup §2.2）：原 brepjs `Solid` 的 faijs 等价。
  * 建模 op 均为 faijs 异步 op，产物统一为 `SolidShape`。 */
 export type Solid = SolidShape;
 
 /** 有效实体别名（断言实体性的调用点保留，等价 `SolidShape`）。 */
 export type ValidSolid = SolidShape;
 
-/** faijs 曲线形状（edge / wire）——brepjs `Wire` 的 faijs 等价。 */
+/** faijs 曲线形状（edge / wire）——原 brepjs `Wire` 的 faijs 等价。 */
 export type Wire = CurveShape;
 
-/** faijs 曲线形状（edge）——brepjs `Edge` 的 faijs 等价。 */
+/** faijs 曲线形状（edge）——原 brepjs `Edge` 的 faijs 等价。 */
 export type Edge = CurveShape;
 
-/** faijs 面（携带面句柄的 solid shape）——brepjs `Face` 的 faijs 等价。 */
+/** faijs 面（携带面句柄的 solid shape）——原 brepjs `Face` 的 faijs 等价。 */
 export type Face = SolidShape;
 
 /** 轴对齐包围盒（大写字段形态；由 faijs `bounds3D`（brep 引擎包围盒）组合，见 geometryOps.getBounds）。 */

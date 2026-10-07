@@ -1,7 +1,7 @@
 /**
  * Core-facade smoke test (2026-09-25 core-decouple rewrite of P21 smoke).
  *
- * The brepjsCompat namespace is deleted with the vendored tree. Its smoke
+ * The brepjsCompat namespace is deleted with the old tree. Its smoke
  * coverage maps onto the core facade:
  *
  *   1. the flat combinators (`ok`/`isOk`/`isErr`/`err`) still exist and behave;

@@ -35,7 +35,7 @@ import type { HostPorts } from '../../../src/cad-runtime/ports'
 import type { ExecutionResult } from '../../../src/cad-runtime/runtime'
 import type { LibNamespace } from '../../../src/runtime-state'
 import type { Provenance } from '../../../src/topology/naming/lineage'
-import { clone as vendoredClone } from '../../../src/api/generated/topology'
+import { clone as compatClone } from '../../../src/api/generated/topology'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { createEditorRuntime } from '../../support/editor-ops'
 
@@ -81,7 +81,7 @@ function brepOfChain(shape: Shape): Shape {
 const onChain = brepOfChain(cubeMesh(5))
 const offChain = solid(cubeMesh(5))
 
-/** Core dual-op box returns a faijs Shape (2026-09-25 core-decouple: vendored handle gone). */
+/** Core dual-op box returns a faijs Shape (2026-09-25 core-decouple: old handle gone). */
 const vendorBox = box as unknown as (a: number, b: number, c: number) => unknown
 
 function metaOf(op: unknown): DualOpMeta {
@@ -218,7 +218,7 @@ describe('§6 slotMap — positional boxing inherited via the spec', () => {
 describe('§5 keep — 兼容 op 调用点声明（UI 层显示契约不改）', () => {
   const ns = {
     contractVersion: CONTRACT_VERSION,
-    dup: vendoredClone as unknown as (...a: unknown[]) => unknown,
+    dup: compatClone as unknown as (...a: unknown[]) => unknown,
   } as unknown as LibNamespace
 
   async function run(code: string): Promise<ExecutionResult> {

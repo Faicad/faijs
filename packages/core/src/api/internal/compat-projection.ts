@@ -10,7 +10,7 @@
  *   1. single-kernel assert (D10) — library code never installs a kernel;
  *   2. D11 dual-form normalization — object form → positional form, in the
  *      exported function (§4.2 「归一化位置」), not in a script-side adapter;
- *   3. the vendored call itself, through `callBrepjs` (Result shape preserved).
+ *   3. the brepjs call itself, through `callBrepjs` (Result shape preserved).
  *
  * P21's `api/brepjs-compat` used a private copy of steps 1–3 (`wrapDual`); P23 lifts it
  * here so `gen-l3-surface.ts` can emit one `compatOp(projectBrepOp(…), …)` line
@@ -30,7 +30,7 @@ import { getBackends } from '../../runtime-state'
  * Reads the configured backend's kernel slot, guarding against the throw that
  * `getBackends()` performs before host configuration. Falls back to the core
  * engine-registry activation flag（2026-09-25 core-decouple wrapup：brepjs
- * registry 随子包删除——此处只问「core registry 是否已有激活 brep 引擎」）
+ * registry 已内化到 core——此处只问「core registry 是否已有激活 brep 引擎」）
  * when nothing is configured.
  *
  * @param name - op name, used in the guiding error message.
@@ -57,10 +57,10 @@ export function assertKernelBound(name: string): void {
 export type CompatProjection = (...args: unknown[]) => unknown
 
 /**
- * Project a vendored brepjs function onto the faijs TS compat face.
+ * Project a brepjs function onto the faijs TS compat face.
  *
  * The returned function is brepjs-shaped: positional arguments in, `Result`
- * (or whatever the vendored function returns) out — no faijs `Shape`, no
+ * (or whatever the brepjs function returns) out — no faijs `Shape`, no
  * adoption. Adoption and the statement-boundary unwrap are `compatOp`'s job
  * (§4.3.2 steps 4/5), which is why the script face can wrap the very same
  * projection the TS face exports.
@@ -69,7 +69,7 @@ export type CompatProjection = (...args: unknown[]) => unknown
  * @param params    - machine parameter-name table (object form → positional).
  * @param formClass - D11 form class (A single-name dual-form / B1 options-only /
  *                    B2 two names).
- * @param impl      - the vendored function.
+ * @param impl      - the brepjs function.
  * @returns the projected compat op.
  */
 export function projectBrepOp(

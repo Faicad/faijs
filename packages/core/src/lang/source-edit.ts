@@ -20,8 +20,8 @@ import { ParseError } from './parse-error'
 import type { StmtId } from '../identity'
 
 /**
- * 本地最小 Result（与 vendored brepjs/core/result 判别的结构一致，纯结构化等价）。
- * lang 层禁止反向 import vendored（分层守卫 R5/L1 D8）——`ok/err/Result` 入库 API
+ * 本地最小 Result（与早期 brepjs/core/result 判别的结构一致，纯结构化等价）。
+ * lang 层禁止反向 import result 模块（分层守卫 R5/L1 D8）——`ok/err/Result` 入库 API
  * 面是唯一官方出口；这里用同构本地实现，宿主按结构使用无感。
  */
 export type LocalResult<T, E = never> = { ok: true; value: T } | { ok: false; error: E }

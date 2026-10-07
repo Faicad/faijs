@@ -36,7 +36,7 @@ export interface ArgSpec {
   formClass: FormClass
 }
 
-/** 句柄类型守卫（vendored 句柄有 .wrapped 属性）。 */
+/** 句柄类型守卫（compat 句柄有 .wrapped 属性）。 */
 function isHandleLike(v: unknown): boolean {
   return typeof v === 'object' && v !== null && 'wrapped' in v
 }

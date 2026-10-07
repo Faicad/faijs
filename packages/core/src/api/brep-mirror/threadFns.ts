@@ -160,7 +160,7 @@ export function threadBrep(
 
 /**
  * compat-op 包装：thread(options) → Result<BrepHandle>。
- * 收敛以 core threadBrep 为准（§5.4：vendored compat op 与 core 版两份收敛为一处）。
+ * 收敛以 core threadBrep 为准（§5.4：brepjs compat op 与 core 版两份收敛为一处）。
  * threadBrep 内部校验抛异常 → 捕获为 Result err（错误码 THREAD_INVALID_ARGS / THREAD_FAILED）。
  */
 
@@ -173,7 +173,7 @@ const THREAD_PARAMS = { name: 'thread', params: ['options'], formClass: 'B1' as 
 
 /**
  * compat-op wrapper: thread(options) → Result<BrepHandle>.
- * Converges on core threadBrep (§5.4: vendored compat op and core version merged into one).
+ * Converges on core threadBrep (§5.4: brepjs compat op and core version merged into one).
  * threadBrep internal validation throws are caught as Result err (codes THREAD_INVALID_ARGS / THREAD_FAILED).
  *
  * @param args - Resolved arguments (thread options).

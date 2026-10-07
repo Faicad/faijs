@@ -83,7 +83,7 @@ describe('C3 external-CAD end-to-end scenario (assertions 1–4)', () => {
   })
 
   it('assertion 4: geometry cross-check (core cylinder payload) radius = m×z/2 = 24', () => {
-    // 2026-09-25 core-decouple: the vendored gear factories are deleted; the
+    // 2026-09-25 core-decouple: the old gear factories are deleted; the
     // library payload is now a core cylinder with radius m×z/2 = 2×24/2 = 24.
     const p0 = shapeOf('part0')
     let xyMax = -Infinity

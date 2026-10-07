@@ -4,7 +4,7 @@
  *
  * @platform occt
  *
- * Brep-shaped implementation for `section`. Semantics mirror vendored
+ * Brep-shaped implementation for `section`. Semantics mirror brepjs
  * `topology/booleanFns.ts` `section` (NULL_SHAPE_INPUT guard, plane resolution
  * from PlaneInput, kernel section via a planar tool, compound result) using the
  * L1 `sectionByPlane` (occt-wasm `BRepAlgoAPI_Section` + edge/wire downcast).
@@ -24,12 +24,12 @@ import { brepHandleOf } from './brepHelpers'
 const SECTION_PARAMS = { name: 'section', params: ['shape', 'plane'], formClass: 'A' as FormClass }
 
 /**
- * Section a shape with a plane (vendored `section(shape, plane, options?)`).
+ * Section a shape with a plane (brepjs `section(shape, plane, options?)`).
  *
  * The plane is resolved from `PlaneInput` (named plane or explicit Plane); the
  * L1 `sectionByPlane` builds the planar tool, runs `BRepAlgoAPI_Section`, and
  * downcasts the result compound to edge/wire handles, which are re-combined
- * into a compound to match the vendored product shape. `options` (approximation
+ * into a compound to match the brepjs product shape. `options` (approximation
  * / planeSize) is accepted for signature compatibility; the occt native
  * section uses its default approximation.
  *
@@ -73,7 +73,7 @@ export function sectionBrep(...args: unknown[]): Result<BrepHandle> {
 
 
 // ---------------------------------------------------------------------------
-// fuse — union two shapes (vendored topology/booleanFns.ts#fuse)
+// fuse — union two shapes (brepjs topology/booleanFns.ts#fuse)
 // ---------------------------------------------------------------------------
 
 const FUSE_PARAMS = { name: 'fuse', params: ['a', 'b', 'options'], formClass: 'A' as FormClass }
@@ -97,7 +97,7 @@ export function fuseBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// split — split a shape with tool(s) (vendored topology/api.ts#split → booleanFns.split)
+// split — split a shape with tool(s) (brepjs topology/api.ts#split → booleanFns.split)
 // ---------------------------------------------------------------------------
 
 const SPLIT_PARAMS = { name: 'split', params: ['shape', 'tools'], formClass: 'A' as FormClass }

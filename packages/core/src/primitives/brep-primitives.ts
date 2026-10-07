@@ -82,10 +82,10 @@ function applyCenter(kernel: BrepEngineApi, solid: BrepHandle, center?: [number,
 }
 
 /**
- * 用 OCCT 直接构造一个长方体 Solid（brepjs `box(width, depth, height,
+ * 用 OCCT 直接构造一个长方体 Solid（原 brepjs `box(width, depth, height,
  * {at?, centered?})` 契约，§4.1 A 决策；与 mesh 路径逐点对齐）。
  *
- * 几何语义与 vendored `primitiveFns.box` 完全一致：
+ * 几何语义与旧 `primitiveFns.box` 完全一致：
  * 默认 min 角点在原点；`centered:true`（无 at 时）居中到原点；`at` 为中心
  * 语义且优先于 `centered`。
  */
@@ -93,7 +93,7 @@ function cubeToCadSolid(kernel: BrepEngineApi, params: BoxParams): BrepHandle {
   const w = params.width
   const d = params.depth
   const h = params.height
-  // brepjs box: center = at ?? (centered ? [0,0,0] : undefined)；未给 center →
+  // 原 brepjs box: center = at ?? (centered ? [0,0,0] : undefined)；未给 center →
   // 构造角点实体不平移（这里统一中心构造 + 平移量，等价）。
   const center = params.at !== undefined
     ? params.at
@@ -118,10 +118,10 @@ function sphereToCadSolid(kernel: BrepEngineApi, params: SphereParams): BrepHand
 }
 
 /**
- * 用 OCCT 直接构造一个圆柱体 Solid（brepjs `cylinder(radius, height, {
+ * 用 OCCT 直接构造一个圆柱体 Solid（原 brepjs `cylinder(radius, height, {
  * at, centered })` 契约，§4.3 A 决策；与 mesh 路径逐点对齐）。
  *
- * 锚点同 vendored `primitiveFns.cylinder`：`at` 是底面轴心（BASE）语义（默认
+ * 锚点同旧 `primitiveFns.cylinder`：`at` 是底面轴心（BASE）语义（默认
  * [0,0,0]），OCCT makeCylinder 原生从 z=0 沿 +Z 建高 → 无需重居中；`centered:true`
  * 指底面沿轴下移 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
  */
@@ -139,10 +139,10 @@ function cylinderToCadSolid(kernel: BrepEngineApi, params: CylinderParams): Brep
 }
 
 /**
- * 用 OCCT 直接构造一个圆锥体 Solid（brepjs `cone(bottomRadius, topRadius,
+ * 用 OCCT 直接构造一个圆锥体 Solid（原 brepjs `cone(bottomRadius, topRadius,
  * height, { at, centered })` 契约，§4.1 P 决策；与 mesh 路径逐点对齐）。
  *
- * 锚点同 vendored `primitiveFns.cone`：`at` 是底面轴心（BASE）语义（默认
+ * 锚点同旧 `primitiveFns.cone`：`at` 是底面轴心（BASE）语义（默认
  * [0,0,0]），OCCT makeCone 原生从 z=0 沿 +Z 建高 → 无需重居中；`centered:true`
  * 指底面沿轴下移 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
  */

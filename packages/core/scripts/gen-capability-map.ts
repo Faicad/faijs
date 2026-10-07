@@ -1,14 +1,14 @@
 /**
- * gen-capability-map — compat op → vendored 内核方法依赖盘点（Phase 0 工件生成器）
+ * gen-capability-map — compat op → brepjs 内核方法依赖盘点（Phase 0 工件生成器）
  *
  * 设计：docs/plans/2026-09-23-brep-engine-switchability-rework.md §4 Phase 0
  *
  * 输入：api/surface/arg-spec.ts（ARG_SPEC，单一真源：kind==='brep-op' 条目）
- *       vendored 树（packages/core/src/vendored/brepjs/）
+ *       brepjs 树（packages/core/src/brepjs/brepjs/）
  * 产物：api/surface/capability-map.json（入库，能力映射表的工作底表）
  *
  * 算法：对每条 brep-op 条目——
- *   1. 解析 source（<module>.js#<Export>）定位 vendored 文件与导出函数；
+ *   1. 解析 source（<module>.js#<Export>）定位 brepjs 文件与导出函数；
  *   2. 解析文件的 import（namespace alias / named / re-export），建立调用图；
  *   3. 从导出函数出发 BFS：提取函数体，收集
  *       内核调用  getKernel().<m>( / getKernel2D().<m>( / kernel.<m>(
@@ -29,7 +29,8 @@ import { ARG_SPEC } from '../src/api/surface/arg-spec'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const VENDORED_ROOT = path.resolve(__dirname, '../../brepjs/src')
+/** Root for brep-mirror (self-hosted) implementations — formerly vendored brepjs. */
+const BREP_MIRROR_ROOT = path.resolve(__dirname, '..', 'src', 'api')
 const SELFHOST_ROOT = path.resolve(__dirname, '..', 'src', 'api')
 const OUT_FILE = path.resolve(__dirname, '..', 'src', 'api', 'surface', 'capability-map.json')
 
@@ -345,7 +346,7 @@ function collectCalls(
 }
 
 /** 从入口函数出发 BFS 收集全部内核方法（环保护）。 */
-function collectForOp(entryFile: string, entryFn: string, root = VENDORED_ROOT): {
+function collectForOp(entryFile: string, entryFn: string, root = BREP_MIRROR_ROOT): {
   methods: string[]
   trace: Array<{ fn: string; file: string; methods: string[]; calls: string[] }>
 } {
@@ -448,17 +449,17 @@ function main(): void {
   const entries = brepOps.map((e) => {
     const { file, exportName } = parseSource(e.source)
     const isSelfhost = e.selfhost === true
-    const root = isSelfhost ? SELFHOST_ROOT : VENDORED_ROOT
+    const root = isSelfhost ? SELFHOST_ROOT : BREP_MIRROR_ROOT
     const fileAbs = path.join(root, file)
     if (!fs.existsSync(fileAbs)) {
-      throw new Error(`[gen-capability-map] vendored file not found: ${file} (source '${e.source}')`)
+      throw new Error(`[gen-capability-map] source file not found: ${file} (source '${e.source}')`)
     }
     const { methods, trace } = collectForOp(fileAbs, exportName, root)
     return {
       op: e.name,
       source: e.source,
-      vendoredFile: file,
-      vendoredFn: exportName,
+      sourceFile: file,
+      sourceFn: exportName,
       kernelMethods: methods,
       trace,
     }

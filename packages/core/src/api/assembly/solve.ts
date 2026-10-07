@@ -2,7 +2,7 @@
  * api/assembly/solve — 装配求解入口（P1，方案 §4.2）
  *
  * 流程：规范化（normalize）→ 降级（lower）→ brepjs solveConstraints
- *（拓扑轮次调度 / DOF / converged 全部由 brepjs 提供，零 vendored 修改）→
+ *（拓扑轮次调度 / DOF / converged 全部由 brepjs 提供，零 brepjs 修改）→
  * per-member 终态 AssemblyTransform（修 L6：不再 per-constraint 增量叠加）。
  *
  * 不收敛 → 抛错（D3，错误信息带 unsupported 明细；对齐「绝不静默」约定）。

@@ -4,7 +4,7 @@
  * 动机：3d_editor 预览需要**与执行同源**的轻量入口（P2-f5 已删除旧预览专用数学）；
  *
  * 同源性保证：内部复用 lowerEntities（与 lowerStructuralConstraint 同编码规则）
- * 与 vendored brepjs solveConstraints——不另写数学。
+ * 与 chain-solver solveConstraints——不另写数学。
  *
  * **输入约定**：一律是"未编码"的实体（SolverEntity，纯数据）——
  * 面 → {type:'plane', origin:center, normal}，圆柱/圆锥面与边 →

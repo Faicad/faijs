@@ -88,7 +88,7 @@ function expectValidSolid(shape: Shape, tag: string): void {
 
 /** 构造 brepjs 形态 Wire 包装（{wrapped}），供 pocket/boss 的 profile 用。
  * 取最低 Z 面（z=0）的 outer wire：profile 需在 XY 平面（z=0），
- * 实现内部会 translate 到目标面质心——vendored sketchOnPlane('XY') 等价。 */
+ * 实现内部会 translate 到目标面质心——旧 sketchOnPlane('XY') 等价。 */
 function wireOf(shape: Shape, idx = 0): { wrapped: BrepHandle } {
   const faces = kernel.getSubShapes(hOf(shape), 'face')
   let best = faces[0]
