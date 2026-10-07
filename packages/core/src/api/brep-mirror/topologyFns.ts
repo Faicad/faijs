@@ -23,6 +23,7 @@ import type { FormClass } from '../internal/dual-form-args'
 import { resolveArgs } from '../internal/dual-form-args'
 import type { MatrixInput, Vec3 } from '../brepjs-compat/types'
 import { brepHandleOf, composeAffine, IDENTITY_3X4, rotationMatrix, translationMatrix } from './brepHelpers'
+import { applyAffineBrep } from '../../brep/brep-ops'
 import { getOcctKernel } from '../../occt-kernel/occtKernel'
 
 const VALIDATION_FAILED = 'VALIDATION_FAILED'
@@ -73,9 +74,25 @@ const APPLY_MATRIX_PARAMS = { name: 'applyMatrix', params: ['shape', 'matrix'], 
  * Apply a 4×4 affine matrix (OpenSCAD `multmatrix` equivalent).
  *
  * The brepjs fn splits orthogonal (evolution-tracked) and non-orthogonal
- * (`gp_GTrsf`) paths; the core path uses the single L1 `generalTransform`
- * (occt-wasm `gp_GTrsf`, geometrically equivalent for both classes) since
- * `applyMatrix` carries identity naming and needs no face evolution.
+ * (`gp_GTrsf`) paths; `applyMatrix` carries identity naming and needs no face
+ * evolution, so the core path just needs the *right kernel path for the matrix
+ * class* — that dispatch (and its two traps) lives in `applyAffineBrep`:
+ *
+ * GOTCHA (2026-09-25): occt-wasm's `located`/`generalTransform` return
+ * TopLoc/GTrsf-referencing handles whose STEP export crashes ("memory access
+ * out of bounds") — the affine `transform` (BRepBuilderAPI_Transform,
+ * deep-copy) is the STEP-safe one.
+ *
+ * GOTCHA (2026-10-07, openscad example023 parity): routing a rigid rotation to
+ * `generalTransform` silently corrupts the *tessellation* of an
+ * already-meshed shape (top cap z 5 → 10, exact bbox unaffected). A rotation
+ * printed to 7 decimals (`0.8660254`) used to be misclassified as
+ * "non-similar" by an absolute 1e-9 tolerance and sent down that path.
+ * Two independent fixes came out of it: (1) the classification now uses a
+ * *relative* tolerance (`isSimilarityAffine`, engine-neutral); (2) occt's
+ * residual GTrsf tessellation defect is absorbed in the occt **adapter**
+ * (`occt-kernel/occt-primitives.ts#generalTransform`, copy-then-transform —
+ * brepkit's GTrsf already clones internally, so it never had the defect).
  *
  * @param args - Resolved arguments (shape, matrix).
  * @returns The transformed shape as a `BrepHandle`.
@@ -100,25 +117,7 @@ export function applyMatrixBrep(...args: unknown[]): Result<BrepHandle> {
       linear[3], linear[4], linear[5], translation[1],
       linear[6], linear[7], linear[8], translation[2],
     ]
-    // GOTCHA (2026-09-25): occt-wasm's `located`/`generalTransform` return
-    // TopLoc/GTrsf-referencing handles whose STEP export crashes
-    // ("memory access out of bounds") — only the affine `transform`
-    // (BRepBuilderAPI_Transform, deep-copy) is STEP-safe. A similar
-    // transform (orthogonal rows, equal lengths) is affine and goes
-    // through `transform`; genuinely non-affine matrices keep the
-    // generalTransform path (no current caller, pre-existing behavior).
-    const lin = linear as readonly [number, number, number, number, number, number, number, number, number]
-    const s0 = Math.hypot(lin[0], lin[1], lin[2])
-    const s1 = Math.hypot(lin[3], lin[4], lin[5])
-    const s2 = Math.hypot(lin[6], lin[7], lin[8])
-    const dot01 = Math.abs(lin[0] * lin[3] + lin[1] * lin[4] + lin[2] * lin[5])
-    const dot02 = Math.abs(lin[0] * lin[6] + lin[1] * lin[7] + lin[2] * lin[8])
-    const dot12 = Math.abs(lin[3] * lin[6] + lin[4] * lin[7] + lin[5] * lin[8])
-    const TOL = 1e-9
-    const similar =
-      s0 > TOL && Math.abs(s1 - s0) < TOL && Math.abs(s2 - s0) < TOL &&
-      dot01 < TOL && dot02 < TOL && dot12 < TOL
-    return ok(similar ? kernel.transform(brepHandleOf(shape), m12) : kernel.generalTransform(brepHandleOf(shape), m12))
+    return ok(applyAffineBrep(kernel, brepHandleOf(shape), m12))
   } catch (e) {
     return err(
       kernelError(

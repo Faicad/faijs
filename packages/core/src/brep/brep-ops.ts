@@ -131,12 +131,84 @@ export function rotateBrep(
 }
 
 /**
+ * 判定 3×4 行主序仿射矩阵的线性部分是否为**相似变换**（旋转/反射 × 等比缩放）——
+ * 即 `gp_Trsf` 能精确承载、`kernel.transform`（BRepBuilderAPI_Transform）唯一
+ * 正确处理的那一类。
+ *
+ * 判据必须用**相对**容差，不能像 2026-10-07 之前那样用绝对容差：
+ * GOTCHA（2026-10-07，openscad example023 parity）——一个 60° 刚体旋转只要按
+ * 7 位小数打印（`0.8660254`），行范数就是 `0.99999999645`（与 1 相差 3.6e-9）。
+ * 绝对容差 1e-9 会判定 `|‖row2‖ − ‖row0‖| = 3.6e-9 > 1e-9` ⇒ 把这个**纯旋转**
+ * 判成"非相似"，从而错误地走进 `generalTransform`；而 occt 侧 `gp_GTrsf` 路径在
+ * **已三角化**的形状上会重复计入被平移面的 TopLoc（顶盖 z 由 5 变 10，绕过在
+ * `occt-kernel/occt-primitives.ts` 的 `generalTransform` 适配层，本层不感知）。
+ * 相对容差 1e-6 覆盖 7 位小数打印精度，同时仍能区分真正的非等比缩放
+ * （如 z×2.5 行范数相差 2.5 倍）。正交性同用 1e-6：7 位小数打印的旋转，行点积
+ * 误差上界约 2e-7。
+ *
+ * @param m12 - 3×4 行主序矩阵（12 元素：`[r00,r01,r02,tx, r10,r11,r12,ty, r20,r21,r22,tz]`）。
+ * @returns `true` 当且仅当线性部分可逆且为相似变换。
+ */
+export function isSimilarityAffine(m12: readonly number[]): boolean {
+  const s0 = Math.hypot(m12[0]!, m12[1]!, m12[2]!)
+  const s1 = Math.hypot(m12[4]!, m12[5]!, m12[6]!)
+  const s2 = Math.hypot(m12[8]!, m12[9]!, m12[10]!)
+  if (!(s0 > 1e-12) || !(s1 > 1e-12) || !(s2 > 1e-12)) return false
+  const REL = 1e-6
+  if (Math.abs(s1 - s0) > REL * s0 || Math.abs(s2 - s0) > REL * s0) return false
+  const dot = (r: number, c: number): number =>
+    m12[r * 4]! * m12[c * 4]! + m12[r * 4 + 1]! * m12[c * 4 + 1]! + m12[r * 4 + 2]! * m12[c * 4 + 2]!
+  return (
+    Math.abs(dot(0, 1)) <= REL * s0 * s1 &&
+    Math.abs(dot(0, 2)) <= REL * s0 * s2 &&
+    Math.abs(dot(1, 2)) <= REL * s1 * s2
+  )
+}
+
+/**
+ * 施加 3×4 行主序仿射矩阵，按矩阵类别选**唯一正确**的 OCCT 路径。
+ *
+ * 两条路径的差异是**正确性**而不只是性能：
+ * - 相似（旋转/反射 × 等比缩放）→ `kernel.transform`（BRepBuilderAPI_Transform）。
+ * - 其余（非等比缩放、错切）→ `kernel.generalTransform`（gp_GTrsf）。
+ *
+ * GOTCHA（2026-10-07）：occt 的 `generalTransform` 在**已经三角化过**的形状上会
+ * 重复计入被平移面的 TopLoc（精确 z∈[0,5]，网格顶盖却落在 z=10；非等比 z×2.5 时
+ * 12.5 vs 17.5）。该缺陷是 **occt 专属**（brepkit 的 GTrsf 路径干净），因此绕过
+ * **不在本层**——本层是引擎中立分派，让每个引擎都为 occt 的毛病多付一次句柄分配
+ * 是错的（还会扰动 brepkit 的 `cut` bbox，见 multi-engine-op-parity）。
+ * 绕过落在 occt 适配层：`occt-kernel/occt-primitives.ts` 的 `generalTransform`
+ * 先 `copy` 再变换。`kernel.transform` 无此问题，故相似矩阵不付这份深拷贝成本。
+ *
+ * 反向陷阱：把非相似矩阵交给 `kernel.transform` 是**静默错误**——OCCT 会按
+ * `det^(1/3)` 取等比因子近似（实测 z×2.5 被当成 1.357 倍等比缩放）。所以分类
+ * 判据既不能过严（把刚体旋转推给 GTrsf），也不能过宽（把非等比缩放塞给 Trsf）。
+ *
+ * @param kernel - L1 引擎句柄。
+ * @param solid - 输入实体（不被消费、不被释放；调用方保留其所有权）。
+ * @param m12 - 3×4 行主序矩阵（12 元素）。
+ * @returns 变换后的新实体（调用方负责释放）。
+ */
+export function applyAffineBrep(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  m12: readonly number[],
+): BrepHandle {
+  if (isSimilarityAffine(m12)) return kernel.transform(solid, m12 as number[])
+  return kernel.generalTransform(solid, m12 as number[])
+}
+
+/**
  * BREP 缩放：使用 OCCT transform（3x4 仿射矩阵）。
  *
  * 与 mesh 路径 scale（P6 §4.6）一致：
  * - factor 为 number（均匀缩放）或 Vec3 [sx, sy, sz]（非均匀）
  * - center 为缩放不动点（p' = center + S·(p − center)）；缺省 [0,0,0]（原点），
  *   与早期 brepjs `scale(shape, factor, { center? })` 的默认一致。
+ *
+ * 路径分派交给 {@link applyAffineBrep}：等比走 `transform`，非等比走
+ * `generalTransform`（gp_Trsf 表达不了非等比）。注意判据是**数值**相似性而非
+ * 因子逐分量相等——`[1, 1, 1+1e-9]` 这种数值上就是等比，归 `transform` 一侧。
  *
  * @param kernel  OCCT 内核
  * @param solid   输入实体
@@ -159,13 +231,7 @@ export function scaleBrep(
         .multiply(scale)
         .multiply(new THREE.Matrix4().makeTranslation(-center[0], -center[1], -center[2]))
     : scale
-  const isUniform = f[0] === f[1] && f[1] === f[2]
-  // OCCT gp_Trsf (kernel.transform) only supports uniform scaling.
-  // Non-uniform scaling requires gp_GTrsf (kernel.generalTransform).
-  if (isUniform) {
-    return kernel.transform(solid, matrixToArray(matrix))
-  }
-  return kernel.generalTransform(solid, matrixToArray(matrix))
+  return applyAffineBrep(kernel, solid, matrixToArray(matrix))
 }
 
 // ─── 装配变换 ───

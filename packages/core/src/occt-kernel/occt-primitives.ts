@@ -228,7 +228,33 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     transform: (shape, matrix) => asHandle(k.transform(asShape(shape), matrix)),
     located: (shape, matrix) => asHandle(k.located(asShape(shape), matrix)),
     locate: (shape, matrix) => asHandle(k.located(asShape(shape), matrix)),
-    generalTransform: (shape, matrix) => asHandle(k.generalTransform(asShape(shape), matrix)),
+    generalTransform: (shape, matrix) => {
+      // GOTCHA (2026-10-07, openscad example023 parity): the native `gp_GTrsf`
+      // path returns a handle whose *stored triangulation* double-applies the
+      // translated face's TopLoc. The exact geometry is right; only the
+      // tessellation is wrong, so the defect only shows on an **already meshed**
+      // shape — and every `cad.extrude`/boolean result is meshed for display
+      // (`brep-ops.ts#solidToShape`). Measured on an extruded face-with-hole
+      // prism: exact top cap 5.0, tessellated top cap 10.0 (non-uniform z×2.5:
+      // 12.5 vs 17.5). `BRepBuilderAPI_Copy` yields a shape without the stale
+      // triangulation, so the result re-tessellates correctly.
+      //
+      // Deliberately adapter-local, not in the engine-neutral dispatcher
+      // (`brep/brep-ops.ts#applyAffineBrep`): the defect is **occt-only** —
+      // brepkit's GTrsf path is clean (pinned by
+      // test/brep/applymatrix-similarity-routing.test.ts). Making every engine
+      // pay an extra handle allocation for an occt quirk also perturbed
+      // brepkit's `cut` bbox in test/brep/engine/multi-engine-op-parity.test.ts.
+      //
+      // Safety: the copy is adapter-owned and released here; the returned handle
+      // is independent of it (the native op does not consume its input).
+      const copy = k.copy(asShape(shape))
+      try {
+        return asHandle(k.generalTransform(copy, matrix))
+      } finally {
+        k.release(copy)
+      }
+    },
     copy: (shape) => asHandle(k.copy(asShape(shape))),
     copyShape: (shape) => asHandle(k.copy(asShape(shape))),
     composeTransform: (m1, m2) => k.composeTransform(m1, m2),

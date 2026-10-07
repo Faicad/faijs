@@ -32,8 +32,10 @@ console.log = (...args: unknown[]) => {
 }
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { getKernel } from '../../src/occt-kernel/occtKernel'
+import { getBrepApi } from '../../src/brep/handle-bridge'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
+import { getBrepEngine } from '../../src/brep/engine/registry'
+import { configureBackends, CONTRACT_VERSION, type Backends } from '../../src/runtime-state'
 import { primitiveToBrepSolid, brepSolidToStep } from '../../src/primitives/brep-primitives'
 import type { BrepHandle } from '../../src/brep/engine/types'
 import type { BrepEngineApi } from '../../src/brep/engine/primitives'
@@ -55,7 +57,21 @@ let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  kernel = getKernel() as unknown as BrepEngineApi
+  const brep = await getBrepEngine()
+  configureBackends({
+    contractVersion: CONTRACT_VERSION,
+    config: { mode: 'auto', brepCapabilities: brep.capabilities, brepEngineId: 'occt' },
+    kernel: { brep: brep.primitives, csg: undefined, sdf: undefined },
+    fonts: undefined,
+    texture: undefined,
+    assets: undefined,
+    events: { emit: () => undefined },
+  } as unknown as Backends)
+  // 走真正的 L1 契约面。此前这里是 `getKernel() as unknown as BrepEngineApi`
+  // ——原生 occt 句柄冒充 L1 面（违反本仓「禁止 as BrepEngineApi 跨层断言」），
+  // 只在 `transform`/`generalTransform` 这类两边同名的成员上侥幸可用；一旦
+  // brep-ops 用上 L1 中立名（如 `copyShape`）就会 `is not a function`。
+  kernel = getBrepApi()
   // 注入 fs 字体加载器（BREP text/engrave 操作需要）
   ensureTestFontLoader()
 }, 120000)
