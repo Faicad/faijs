@@ -31,7 +31,10 @@ pre-commit:
       stage_fixed: true
 
     - name: whitespace (staged)
-      run: git diff --cached --check
+      # OCCT BREP text fixtures carry trailing whitespace by format definition.
+      exclude:
+        - 'packages/fixtures/data/*.brep'
+      run: git diff --cached --check -- . ':(exclude)packages/fixtures/data/*.brep'
 
 pre-merge-commit:
   jobs:
