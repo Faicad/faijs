@@ -1,9 +1,6 @@
 /**
  * api/assembly/solvers/types — 纯 TS global 求解器的类型与契约（P1）
  *
- * 设计依据：`docs/plans/2026-09-08-assembly-dual-solver.md`（B1–B10、裁定 1–6）
- * 与 `docs/plans/2026-09-17-assembly-global-solver-plan.md`。
- *
  * 本模块是 pure-type / 轻量数据层，不依赖任何 brepjs 或运行时单例，
  * 供 solve.ts、global-solver.ts、compound.ts 共享。
  */

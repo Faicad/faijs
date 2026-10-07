@@ -1,8 +1,6 @@
 /**
  * lib-id — content-addressable identity for a registered library (B2 fix).
  *
- * Design: docs/plans/2026-09-03-faijs-brepjs-compat-api.md §7.3
- *
  * computeLibId(ns) hashes 「binding name + sorted export names + each exported
  * fn.toString()」 — the same content-addressing idea as `local.${callee}#${bodyHash}`:
  * a library identity changes when its implementation changes (so the statement

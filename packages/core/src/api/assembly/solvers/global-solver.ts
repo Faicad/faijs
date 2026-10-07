@@ -3,8 +3,7 @@
  *
  * 复刻 CadQuery `cadquery/occ_impl/solver.py` 的**语义**（全局 NLP、模长参数化旋转、
  * 9 类代价、Axis 缺省反平行、Plane=Axis(π)+Point(0)、包围盒对角长缩放），
- * 以 Levenberg-Marquardt 替代 IPOPT，**零原生/WASM 依赖**（裁定 1–6，详见
- * `docs/plans/2026-09-08-assembly-dual-solver.md`）。
+ * 以 Levenberg-Marquardt 替代 IPOPT，**零原生/WASM 依赖**（裁定 1–6）。
  *
  * 关键裁定（写进代码，不在别处手算）：
  * - 裁定 1/2：faijs Shape 不携带 placement → 初值 T0=R0=0，world 系==本地系；

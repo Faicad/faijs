@@ -63,7 +63,7 @@ writer.writeFiles();                   // :2059  ← 遍历 FileList，各对象
 识别方式：按扩展名 `fcstd` / `fcbak` / `std`（`src/App/Application.cpp:3104`）。
 **ZIP 内没有 mimetype 成员**（全仓未检索到 `FC-Standard` 字面量；此结论为穷尽检索后的否定判断，非逐行证明）。
 
-> **2026-09-15 实测订正**：ZIP 注释 `FreeCAD Document` **不能作为校验依据**——仓库自带 56 个样本中有 2 个（`data/tests/ProjectTest.FCStd`、`tests/src/Mod/PartDesign/App/TestModels/TwoLengthsPadWithExpression.FCStd`）注释为空字符串。可靠的唯一判据是「根目录下存在 `Document.xml`」。详见 `docs/plans/2026-09-15-fcstd-to-faijs-port-plan.md` §5.5.6。
+> **2026-09-15 实测订正**：ZIP 注释 `FreeCAD Document` **不能作为校验依据**——仓库自带 56 个样本中有 2 个（`data/tests/ProjectTest.FCStd`、`tests/src/Mod/PartDesign/App/TestModels/TwoLengthsPadWithExpression.FCStd`）注释为空字符串。可靠的唯一判据是「根目录下存在 `Document.xml`」。
 
 ### 3.2 典型成员清单
 
@@ -302,7 +302,7 @@ P1 结束时就有可用产物（保真但不可编辑），P2/P3/P4 逐步提�
 ## 11. 未确认项（如实列出）
 
 1. ~~本次调研**没有真实 `.FCStd` 样本**可用于解包验证，§3.2 的成员清单来自源码推导，未做实测交叉验证。实施 P0 时应先用真实样本核对。~~
-   **2026-09-15 作废**：仓库自带 56 个样本已全量解包扫描（56/56 成功），§3.2 清单已获实测验证（见该节订正）。实测画像（56 个文件 / 35 个含草图 / 786 个草图几何 / 1,539 条约束 / 约束与几何类型全分布）见 `docs/plans/2026-09-15-fcstd-to-faijs-port-plan.md` §5.5。
+   **2026-09-15 作废**：仓库自带 56 个样本已全量解包扫描（56/56 成功），§3.2 清单已获实测验证（见该节订正）。实测画像：56 个文件 / 35 个含草图 / 786 个草图几何 / 1,539 条约束 / 约束与几何类型全分布。
 2. `DocumentObjectFileIncluded::Save` 把外部文件注入 ZIP 的具体代码路径未逐行核实。
 3. `PropertyColor` 的内部元素标签未逐字核实（其余属性标签均已核实）。
 4. 当前版本 `FeaturePad` 是否仍保留 `Reversed` / `Midplane` 独立属性未逐字核实——据 agent 调研，双向/对称可能已由 `SideType` / `Type2` 表达；具体枚举取值未逐一核对。

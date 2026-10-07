@@ -3,7 +3,7 @@
 日期：2026-09-13
 状态：**扫描完成，判定 cgp-basic 为「已等价」，DIFFERENT 来自融合布尔差的数值伪差**
 代码位置：`packages/fai_cq_gears/src/crossed_pair.ts`（`crossedPairAlignAngle` / `placeSecondGear`）、诊断脚本 `packages/fai_cq_gears/scripts/_chk_phase.ts`
-关联方案：`docs/plans/2026-09-11-fai-cq-gears-port.md`（§8.4 齿轮对、§10 降级阶梯）
+关联：齿轮对相位扫描
 
 ## 1. 背景
 

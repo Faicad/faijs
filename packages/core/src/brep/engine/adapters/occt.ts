@@ -6,7 +6,7 @@
  * 业务层（runtime/brep ops/api）只经注册表取引擎，不直接 import occt 初始化
  * 函数——引擎本体可整体替换（换一个适配器即换引擎）。
  *
- * Phase 3（docs/plans/2026-09-24-brep-engine-api-narrowing-native-access.md）：
+ * Phase 3：
  * 本文件不再做任何猴子补丁（旧版在 occt-wasm 单例上覆写 pattern 三方法与 33 个
  * 登记方法——全部移入 `createOcctPrimitives` 的显式对象字面量）。occt-wasm 类型
  * 耦合只存在于 occt-kernel/（A1 允许的唯一耦合区）；本文件不接触 occt-wasm 类型。

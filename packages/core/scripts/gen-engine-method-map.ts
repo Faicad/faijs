@@ -1,8 +1,6 @@
 /**
  * gen-engine-method-map — 双引擎方法映射真源生成器（Phase 1）
  *
- * 设计：docs/plans/2026-09-24-brep-engine-api-narrowing-native-access.md §4 Phase 1 / D10
- *
  * 输入：occt-wasm dist/index.d.ts（OcctKernel 类）+ brepkit-wasm 声明面
  *       （api/surface/brepkit-wasm-surface.json，由 gen-brepkit-surface.ts 产出）。
  * 输出：packages/core/src/api/surface/engine-method-map.json

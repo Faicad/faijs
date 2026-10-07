@@ -1,6 +1,6 @@
 # FCStd `solver-throw` 余波与 `shape-asset-broken` 判定（2026-09-28）
 
-状态：已判定。来源：`docs/plans/2026-09-28-fcstd-v3-next-dev-plan.md` §4 P4 / P2，后续批次复核。
+状态：已判定，后续批次复核。
 
 ## solver-throw（P4）
 

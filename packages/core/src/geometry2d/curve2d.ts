@@ -6,7 +6,7 @@
  * - discriminant field renamed `__bk2d` → `kind2d` (2026-09-27 decision),
  *   bbox discriminant `__bk2d_bbox` → `kind2d_b`.
  * - All curves are plain data objects (no kernel handles, no dispose), per the
- *   faijs "2D curves are pure objects" design (docs/plans/2d-sketching: A1/B1).
+ *   faijs "2D curves are pure objects" design.
  *
  * Pure TS, zero WASM, zero external deps. All 2D curves represented as plain
  * objects with a `kind2d` discriminant.

@@ -1,8 +1,8 @@
 /**
  * load-mesh-solid — Phase 1 验收：STL 导入产出「网格实体 + 近似拓扑」
  *
- * 方案 docs/plans/2026-10-01-mesh-solid-brepkit-mesh-ops-and-approximate-topology.md
- * §4 Phase 1 验收原文：
+ * mesh-solid 链路
+ * Phase 1 验收原文：
  *
  * > host 拿到 STL 零件的拓扑后，能在 UI 上选中"6 个平面 / 12 条边"并读到正确的
  * > `surfaceType/area/normal/params/curveType/length`；立方体 STL 的 6 个面

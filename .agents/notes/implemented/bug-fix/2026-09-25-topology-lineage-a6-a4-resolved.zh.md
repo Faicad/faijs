@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-计划 §A6（`docs/plans/2026-09-25-fcstd-full-conversion-plan.md`）追踪 `Electronics Parts/Boards/Arduino/Arduino UNO/arduinounomissblack.FCStd`（共 3 个样本）上的 `Maximum call stack size exceeded`。该崩溃发生在 `cliRun`（brep 模式）内的 BREP 拓扑构建阶段，最初假设是拓扑/选择器构建里的无界递归（"疑似血统回走或布尔嵌套"）。
+fcstd 全量转换工作追踪 `Electronics Parts/Boards/Arduino/Arduino UNO/arduinounomissblack.FCStd`（共 3 个样本）上的 `Maximum call stack size exceeded`。该崩溃发生在 `cliRun`（brep 模式）内的 BREP 拓扑构建阶段，最初假设是拓扑/选择器构建里的无界递归（"疑似血统回走或布尔嵌套"）。
 
 计划 §A4 追踪 `Electrical Parts/Batteries/battery-AAA.fcstd`（共 19 个样本）上的同族签名：`chamfer: edgeRef: edge ordinal N out of ...` 与 `edgeRef: adjacent face ordinal N has no role lineage`。这是同一类缺陷——`edgeRef` 的面引用无法通过上游血统表解析出 role（A2 的 fillet 签名是同一根因，但其样本 `Beds.FCStd` 仍卡在未实现的 B1/B2 特性上，无产物 zip 可跑）。
 

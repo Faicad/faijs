@@ -1,8 +1,6 @@
 /**
  * view-sheet — 多视图投影图纸（三视图 + 等轴测组合 SVG，faijs 路径 A）
  *
- * 设计文档：docs/plans/2026-09-10-faijs-view-projection-and-screenshot.md §3.2
- *
  * projectSheet(shape, views, opts?) 把多个单视图投影按网格排布为一个 SVG：
  *   - 每个视图用嵌套 `<svg>`（绝对定位 + 各自 viewBox，preserveAspectRatio 保比例）；
  *   - 每个视图可带标签（默认用视图名，如 'front' / 'iso'）；

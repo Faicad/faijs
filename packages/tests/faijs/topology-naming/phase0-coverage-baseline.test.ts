@@ -1,7 +1,6 @@
 /**
  * Phase 0.8 覆盖率探针：**「无名字面」基线**（Phase 0 的最后一步）。
  *
- * 见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §5 Phase 0 的 0.8 行。
  * 用途与 G3 进度尺同源：把"命名机制现在覆盖到哪儿"变成可复跑的数字，
  * 之后每个阶段只需回答"semantic 加了多少、positional/empty 减了多少"。
  *

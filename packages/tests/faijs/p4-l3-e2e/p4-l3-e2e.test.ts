@@ -1,5 +1,5 @@
 /**
- * P4 · L3 端到端（docs/plans/2026-09-01-layered-api-architecture.md §8 P4）
+ * P4 · L3 端到端
  *
  * 首个端到端验证点：「defineOp 扩展 schema 字段（D2）」+「只接 3 个 op
  * （box/cylinder/union）打通 `.fai.js` → 执行 → terminals → 宿主」。

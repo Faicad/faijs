@@ -1,8 +1,8 @@
 /**
  * mesh-solid-ops — Phase 2 验收：B1 批 mesh op（倒圆角 / 倒角 / 布尔）
  *
- * 方案 docs/plans/2026-10-01-mesh-solid-brepkit-mesh-ops-and-approximate-topology.md
- * §4 Phase 2 验收原文：
+ * mesh-solid 链路
+ * Phase 2 验收原文：
  *
  * > 对立方体 STL 的任一识别边 `fillet(r=1)`，结果仍为合法网格实体、体积落在解析
  * > 预期区间；圆柱 STL 96 条边全部可倒角；网格实体与 BREP 实体**不可**混进同一次

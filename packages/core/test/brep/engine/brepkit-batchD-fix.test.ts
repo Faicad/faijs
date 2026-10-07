@@ -8,7 +8,7 @@
  * 执行前被平台门静态报 `requires engine occt`，即便 brepkit 裸 `kernel.translate` /
  * `kernel.scale` 是真实现。
  *
- * 修复（优雅降级，docs/plans/2026-09-26-brepkit-global-degradation.md 的既有纪律，
+ * 修复（优雅降级，既有纪律，
  * 但 translate/scale 因「变换不改变面数/顺序」而特化——identity 恒等映射**真实成立**）：
  *   - translate / scale 改为**中立 op**（移除 `engines:['occt']`）。
  *   - transformBrep 按引擎声明的能力集静态分派：

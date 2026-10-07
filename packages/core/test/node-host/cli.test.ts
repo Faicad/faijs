@@ -688,7 +688,7 @@ describe('cliView: execute and project view SVG', () => {
 
 // [PAUSED] occt-wasm XCAF kernel 开发暂时搁置：下列两层 STEP 导入/导出 round-trip
 // 依赖 occt-wasm 的 XCAF 通道（xcafImportSTEP / importAssemblyFromStep），
-// 恢复开发前整体 skip，见 docs/plans/2026-10-05-occt-wasm-xcaf-part-metadata.md。
+// 恢复开发前整体 skip。
 describe.skip('cliRun: assembly STEP export preserves member names', () => {
   it('cad.assembly with explicit memberNames exports members under those names', async () => {
     const code = [

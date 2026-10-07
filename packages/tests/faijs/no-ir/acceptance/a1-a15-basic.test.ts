@@ -1,7 +1,7 @@
 /**
  * A-1..A-15 验收（no-IR 双通道；mesh 模式）
  *
- * 方案：docs/plans/2026-09-06-no-ir-dual-channel-runtime.md §6 验收 A-1/A-2/A-3/A-15
+ * 无 IR 双通道运行时验收 A-1/A-2/A-3/A-15
  *
  * 这些验收驱动**无 IR 栈**（extractMetadata → DirectExecutor → computeLiveShapes）
  * 产出的几何与终端——是 runtime 行为锚点。

@@ -2,7 +2,7 @@
  * mesh-solid-topology — 网格实体（STL → 近似拓扑）的规范构造与可用性
  *
  * 为什么必须钉住（AGENTS.md「与预期不一致的 API 用法必须留档为测试」）：
- * 本方案（docs/plans/2026-10-01-mesh-solid-brepkit-mesh-ops-and-approximate-topology.md）
+ * 本 mesh-solid 链路
  * 的全部下游能力（对识别出的边倒圆角、在识别出的平面上拉伸）都建立在一条**唯一的**
  * 网格实体构造顺序上：
  *

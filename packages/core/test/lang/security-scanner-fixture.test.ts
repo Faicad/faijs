@@ -2,7 +2,7 @@
  * security-scanner-fixture — 全量 fixture 无误杀回归测试
  *
  * 扫描仓库中所有 .fai.js 文件，确保安全门禁不产生误杀。
- * 方案 docs/plans/2026-09-08-faijs-security-gate.md §8.1 P3 验收断言。
+ * 安全门禁 P3 验收断言。
  */
 
 import { describe, it, expect } from 'vitest'

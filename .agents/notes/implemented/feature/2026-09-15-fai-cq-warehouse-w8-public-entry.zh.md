@@ -6,7 +6,7 @@ English | [中文](2026-09-15-fai-cq-warehouse-w8-public-entry.md)
 
 ## Problem
 
-`@faicad/fai-cq-warehouse` 是 cq_warehouse（CadQuery 生态库）的 TypeScript 移植。W8 启动时该包缺三样东西：没有公共入口 `src/index.ts`、未注册进 root `workspaces`、移植方案为 W8 规定的分层约束只存在于文字（无机械执行）。缺了这三样，宿主无法消费该包，workspace 级工具链看不见它，「不得直接碰内核」的红线也没有守卫。
+`@faicad/fai-cq-warehouse` 是 cq_warehouse（CadQuery 生态库）的 TypeScript 移植。W8 启动时该包缺三样东西：没有公共入口 `src/index.ts`、未注册进 root `workspaces`、W8 规定的分层约束只存在于文字（无机械执行）。缺了这三样，宿主无法消费该包，workspace 级工具链看不见它，「不得直接碰内核」的红线也没有守卫。
 
 ## Decision
 

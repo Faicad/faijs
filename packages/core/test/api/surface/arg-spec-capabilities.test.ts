@@ -1,7 +1,7 @@
 /**
  * arg-spec-capabilities.test — Phase 1 断言（能力声明全覆盖 + 能力名合法性）
  *
- * 设计：docs/plans/2026-09-23-brep-engine-switchability-rework.md §4 Phase 1 / §8.2
+ * 双引擎能力声明断言
  *
  * 钉住的事实（单一真源 = arg-spec.ts）：
  *  1. `kind: 'brep-op'` 条目数 == 已声明 capabilities 的条目数 ==

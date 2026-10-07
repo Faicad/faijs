@@ -1,5 +1,5 @@
 /**
- * entry-boundary.test.ts — 宿主入口边界守卫（docs/plans/2026-09-20-weapp-host-entry-design.md）
+ * entry-boundary.test.ts — 宿主入口边界守卫
  *
  * 防止 brepkit（weapp 专用）符号再次渗入 browser umbrella：
  * 2026-09-20 3d_editor npm run dev 报 "Failed to resolve import brepkit-wasm"，

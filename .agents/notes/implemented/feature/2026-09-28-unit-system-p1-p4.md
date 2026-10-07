@@ -6,7 +6,7 @@ English | [中文](2026-09-28-unit-system-p1-p4.zh.md)
 
 ## Problem
 
-The unit system design doc (`docs/plans/2026-09-28-unit-system-design.md`) called for bringing real
+The unit system design called for bringing real
 dimensions and unit handling into faijs: base units `mm / degree / gram / kelvin / second / ampere`,
 typed value objects, deduplicated unit constants across packages, unit-aware I/O tolerances, and a
 script-side `paramDims`/`retDim` declaration surface. P0 (angle base = degree) was already decided.

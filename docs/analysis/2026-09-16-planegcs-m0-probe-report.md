@@ -1,7 +1,6 @@
 # M0 探针报告：planegcs WASM 可行性 — GO
 
 > 日期：2026-09-16
-> 对应计划：docs/plans/2026-09-15-fcstd-to-faijs-port-plan.md §7 M0
 > 结论：**GO**，按计划进入 M3（WASM 路线 A 兑现）
 
 ## M0.1 安装与 primitive 清单

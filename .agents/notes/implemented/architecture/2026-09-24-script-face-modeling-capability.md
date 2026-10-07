@@ -6,7 +6,7 @@ English | [中文](2026-09-24-script-face-modeling-capability.zh.md)
 
 ## Problem
 
-The plan `docs/plans/2026-09-24-script-face-gap-exposure-plan.md` left Phase 6 (plane-cut family + mock stubs) and Phase 7 (docs / guards / version) open after Phases 0–5 landed in commits b0c4a92 … e2165a4. Specifically:
+The script-face capability rollout left Phase 6 (plane-cut family + mock stubs) and Phase 7 (docs / guards / version) open after Phases 0–5 landed in commits b0c4a92 … e2165a4. Specifically:
 
 - `splitByPlane` / `sectionByPlane` existed only on the L1 contract face — no cad script-face ops.
 - `brep-mock.ts` still stubbed `revolveVec` / `sew` / `shell` / `hullFromPoints` / `sectionByPlane` / `splitByPlane` as `unsupported(...)`, so the mock engine could not drive any orchestration chain that touches them (plan §2.4⑥).

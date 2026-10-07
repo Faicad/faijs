@@ -1,5 +1,5 @@
 /**
- * @faicad/faijs-core/weapp — weapp 专用宿主入口（docs/plans/2026-09-20-weapp-host-entry-design.md）
+ * @faicad/faijs-core/weapp — weapp 专用宿主入口
  *
  * 小程序（无 OCCT 环境）宿主的最小导出面：brepkit wasm 装载注入点 + brepkit BREP
  * 引擎注册 + 环境无关执行栈。全部为 re-export，零新实现。

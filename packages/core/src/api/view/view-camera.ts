@@ -1,8 +1,6 @@
 /**
  * view-camera — 视图规格 → 投影相机（faijs 视图投影能力，路径 A 纯数据面）
  *
- * 设计文档：docs/plans/2026-09-10-faijs-view-projection-and-screenshot.md §3.2
- *
  * 视图规格（ViewSpec）：
  *   - 六个标准正交视图：'front' | 'back' | 'top' | 'bottom' | 'left' | 'right'
  *     （方向沿用早期 brepjs PROJECTION_PLANES：front=(0,-1,0)、top=(0,0,-1)…，

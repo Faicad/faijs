@@ -1,7 +1,7 @@
 /**
  * security-scanner — 静态安全门禁单元测试
  *
- * 覆盖方案 docs/plans/2026-09-08-faijs-security-gate.md §8.1 的验收断言
+ * 覆盖安全门禁的验收断言
  * S-1 ~ S-27（可在单测层覆盖的部分）。
  *
  * 拒绝类统一用具名 try/catch，放行类断言 scanSource().ok === true。

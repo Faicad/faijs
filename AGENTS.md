@@ -10,7 +10,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 **monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core）、`packages/faijs-extra`（`@faicad/faijs-extra` 编辑器扩展库，2026-09-24 D1 拆分：`fai_drill`/`fai_extrude`/`fai_split`/`group`/`assembly`/`copy`/`load`/`text`/`svgExtrude` 与 svg／文字预览辅助；`/editor-ops` 子入口只含 A 组、不触达 `three/examples`，供小程序 worker 使用。**它不是标准库、也不属于 faijs 语言核心库——原本只是为 3d_editor 应用提供的一组 op，其他应用原则上不应依赖**）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包；`packages/demo` 例外——独立化后经 workspace 依赖消费各包 `dist/`，见下）。
 
-> 包架构再设计（2026-09-19）：原根门面 `@faicad/faijs`（仅注入 cad + `export *`）已删除，其公开名 `@faicad/faijs` 由 core 升格继承（D2-A）；`cad` 默认命名空间内置引擎（D1，`createRuntime` 自带注册，不违反 K5）。详见 `docs/plans/2026-09-19-npm-publish-plan.md`。
+> 包架构再设计（2026-09-19）：原根门面 `@faicad/faijs`（仅注入 cad + `export *`）已删除，其公开名 `@faicad/faijs` 由 core 升格继承（D2-A）；`cad` 默认命名空间内置引擎（D1，`createRuntime` 自带注册，不违反 K5）。
 
 ## 开发完成后的测试步骤
 

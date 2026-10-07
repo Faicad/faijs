@@ -1,8 +1,6 @@
 /**
  * direct-executor — 无 IR 执行器（.fai.js 源码直通 JS VM）
  *
- * 方案：docs/plans/2026-09-06-no-ir-dual-channel-runtime.md §4.2（D1 / P2）
- *
  * 核心语义：源码文本按**执行单元**（顶层语句，行号即语句边界）直接交给 JS VM
  * 执行——没有语句模型、没有 deps、没有表达式折叠、没有 outputs 投影、没有 IR
  * 编译（不 import parser.ts / compile.ts）。共享 `ctx` 是唯一持久状态。
@@ -167,7 +165,7 @@ export interface DirectExecutorOptions {
   security?: SecurityPolicy
   /**
    * 执行后端（静态选定，无运行时回退；缺省 'vm'）。'interpreter' 在禁 eval
-   * 环境（weapp / 严格 CSP）使用——见 docs/plans/2026-09-14-no-eval-interpreter-backend-design.md。
+   * 环境（weapp / 严格 CSP）使用。
    */
   execBackend?: ExecBackendChoice
 }

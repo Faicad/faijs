@@ -1,6 +1,6 @@
 # Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-24-script-face-modeling-capability.md
-2026-09-24-script-face-modeling-capability.md: 350462dad559a4d57e9f3639c04fec1e1d2cb5c0
-2026-09-24-script-face-modeling-capability.zh.md: 202a236e044253ff5bb569b2baa40fe3520d93e5
+#   npm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-24-script-face-modeling-capability.md
+2026-09-24-script-face-modeling-capability.md: a7932520e9aebce3f0b376185e3642ca7e2c252b
+2026-09-24-script-face-modeling-capability.zh.md: 397e128d42bf76f192b0a61c753c9c5e769a6af6

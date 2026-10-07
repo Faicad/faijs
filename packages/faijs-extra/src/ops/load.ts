@@ -48,7 +48,7 @@ import type { MeshSolidBackend } from '@faicad/faijs/brep/mesh-solid'
  * @note 格式由 `file` 后缀白名单自判：stl/3mf → mesh 路径；step/stp/stpz/brep → BREP 路径。宿主不再传 `format`。
  * @note 后缀白名单未命中 → 报错（不猜格式）；3MF 后缀会做 zip 魔数 sanity（后缀与内容明显不符时报错）。
  * @note 本 op 要求导入物含实体（历史契约）。非实体（wire/face/shell）的导入是平台 `cad.import_brep` 的一等能力，不由本 op 承担。
- * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——`file` 读的是应用侧资产库（按用户上传文件名注册），产物语句位置与命名都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。P0（2026-10-06-step-3mf-multipart-import-plan.md §5.4）起多零件文件不再单零件收敛——全量以 compound + `ExecutionResult.importModels` 返回；宿主按 `importModel.parts` 身份批量建 part（P1）。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——`file` 读的是应用侧资产库（按用户上传文件名注册），产物语句位置与命名都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。2026-10-06 起多零件文件不再单零件收敛——全量以 compound + `ExecutionResult.importModels` 返回；宿主按 `importModel.parts` 身份批量建 part。
  * @example
  * const p = await cad.load({ file: 'box.stl' })
  * const p = await cad.load({ file: 'box.3mf' })

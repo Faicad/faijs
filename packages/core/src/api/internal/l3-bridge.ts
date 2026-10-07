@@ -1,8 +1,6 @@
 /**
  * L3 bridge — faijs Shape ⇄ 库侧 brepjs-shaped shape（生成层共用，E5 模板）
  *
- * 设计文档：docs/plans/2026-09-02-faijs-api-surface-completion.md §E5
- *
  * 桥接事实（2026-09-02 实测，2026-09-25 core-decouple wrapup 自有化）：
  * - faijs 的 brep slot（`brepOf(shape)` → `slot.solid`）运行时是 occt-wasm 的
  *   shape 句柄（number，见 `brep/engine/types.ts` 的 `BrepHandle` 注释）；
@@ -82,14 +80,14 @@ export function adoptBrepjsProduct(product: unknown, segments?: number): Shape {
 /**
  * Call a library function with a rebuilt positional argument list.
  *
- * Generated wrappers build `__args` positionally (borrowing geometry inputs,
- * passing value params through); a plain `fn(...args: unknown[])` spread fails
+ * Generated wrappers build `__args` positionally (geometry inputs pass through
+ * untouched, value params pass through as-is); a plain `fn(...args: unknown[])` spread fails
  * TS2556 against fixed-arity signatures, so the call goes through this
  * rest-typed bridge that preserves the function's own `ReturnType` (so a
  * `Result` return keeps `.ok`/`.value` for the generated unwrap code).
  *
  * @param fn   the library function.
- * @param args the rebuilt positional argument list (borrowed handles + value params).
+ * @param args the rebuilt positional argument list (geometry inputs + value params).
  * @returns whatever the function returns (typed via ReturnType).
  */
 export function callBrepjs<F extends (...a: never[]) => unknown>(fn: F, args: unknown[]): ReturnType<F> {

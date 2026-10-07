@@ -1,7 +1,7 @@
 /**
  * check-lib-src-language — 库源码语言审计（2026-09-23，M5）
  *
- * 架构红线（docs/plans/2026-09-23-script-js-only-lib-ts-design.md）：
+ * 架构红线：
  * - 建模脚本必须纯 JS（经 faijs 执行，运行时不允许 TS 语法/剥离）；
  * - 库代码必须 TS：脚本可 import 的库包，src/ 必须有 .ts 源码，禁止手写 .js。
  *

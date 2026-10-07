@@ -1,8 +1,6 @@
 /**
  * gen-brepkit-surface — brepkit-wasm 导出面盘点（Phase 0 工件生成器）
  *
- * 设计：docs/plans/2026-09-23-brep-engine-switchability-rework.md §4 Phase 0
- *
  * 输入：npm 包 brepkit-wasm 的 brepkit_wasm.d.ts（开发依赖，见 packages/core/package.json
  *       devDependencies；未安装时本脚本明确报错——wasm 导出面是 Phase 2 接线的
  *       事实基线，不允许在缺包时静默产出空表）。
@@ -88,7 +86,6 @@ function main(): void {
 
   const out = {
     generatedBy: 'packages/core/scripts/gen-brepkit-surface.ts',
-    design: 'docs/plans/2026-09-23-brep-engine-switchability-rework.md §4 Phase 0',
     package: pkg.name,
     version: pkg.version,
     dtsFile: path.relative(process.cwd(), dtsPath).replace(/\\/g, '/'),

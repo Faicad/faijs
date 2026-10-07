@@ -4,7 +4,7 @@
  * GOTCHA: STEP 只在颜色**恰好等于某个 ISO 预定义色**时才写名字形式
  * （`DRAUGHTING_PRE_DEFINED_COLOUR('red')`）；近似色仍写 `COLOUR_RGB`。
  * 只认 `COLOUR_RGB` 会让这类颜色整批静默丢失 —— 这正是
- * docs/plans/2026-10-02-cadquery-port-gap-audit.md §3.5 E3b 的一半。
+ * 该配色缺口的一半。
  *
  * 表中的 RGB 值冻结自一次性捕获（CadQuery 2.8.0 / OCCT 7.9.3）：
  * packages/faijs-cadquery/tests/ref-harness/predefined-colour-probe.py。

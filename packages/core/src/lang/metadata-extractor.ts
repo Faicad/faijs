@@ -1,8 +1,6 @@
 /**
  * metadata-extractor — 无 IR 元数据提取器（UI 通道语义源）
  *
- * 方案：docs/plans/2026-09-06-no-ir-dual-channel-runtime.md §4.1（D3）
- *
  * 定位：从 .fai.js 源码（任意合法 JS）提取 **UI 通道需要的全部元数据**。
  * 输入 = 源码文本；输出 = UiMetadata。不生成可执行代码、不求值、不参与执行、
  * 不建执行中介 IR（已删除，只产宿主面类型）。
@@ -43,7 +41,7 @@ export interface ParamEntry {
 /**
  * 单个参数槽的源码来源信息（UI 通道新增，非 IR）。
  *
- * Timeline 参数表达式编辑方案（docs/plans/2026-09-08-timeline-param-expression-editing.md）：
+ * Timeline 参数表达式编辑：
  * 每个参数槽携带自己的源码区间，编辑 = 精确替换该区间（`editArgSource`），
  * 不重印整行。path 对宿主是不透明标识符——宿主只能从本记录读取后原样回传。
  */

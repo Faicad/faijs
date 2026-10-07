@@ -7,7 +7,7 @@
   -> (build) -> npm pack --dry-run white-list assertion (E2) -> npm publish
   -> npm view verification -> emit a publish record.
 
-  Publish scope (see docs/plans/2026-09-19-npm-publish-plan.md section 2):
+  Publish scope:
     @faicad/faijs (core) -> @faicad/faijs-extra -> @faicad/cq-compat-compare
     -> @faicad/faijs-gears -> @faicad/faijs-fasteners -> @faicad/sheetmetal
 

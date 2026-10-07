@@ -1,5 +1,5 @@
 /**
- * 纯 TS global 装配求解器单测（P1，对齐 docs/plans/2026-09-08-assembly-dual-solver.md §5.1）
+ * 纯 TS global 装配求解器单测（P1）
  *
  * 全部用快照形态实体引用（{center,normal} / {point} / {edge.axis}），不需要内核——
  * 求解是纯位姿层。约束语义逐条从 solver.py 复刻，本测试以**解析期望位姿**作为对拍基准。

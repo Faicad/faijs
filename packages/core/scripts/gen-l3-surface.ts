@@ -1,10 +1,8 @@
 /**
  * gen-l3-surface — L3 投影生成器（E5，P13 机制 / P14 全量分片）
  *
- * 设计文档：docs/plans/2026-09-02-faijs-api-surface-completion.md §E5 / §5.2
- *
  * 输入：api/surface/arg-spec.ts（ARG_SPEC：人工签名适配表，唯一人工维护点）
- *       api/surface/upstream-surface.json（符号存在性基线，用于反向护栏校验）
+
  * 产物：api/generated/<module>.ts（按模块分片；从 PROJECTED_MODULES 逐个生成）
  *
  * 产物形态（core 第一方实现，2026-10-07 清理 vendored 死分支）：
@@ -26,7 +24,7 @@ import { ARG_SPEC, type ArgSpecEntry } from '../src/api/surface/arg-spec'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const SURFACE_JSON = path.resolve(__dirname, '..', 'src', 'api', 'surface', 'upstream-surface.json')
+
 const OUT_DIR = path.resolve(__dirname, '..', 'src', 'api', 'generated')
 
 /** 已登记分片的模块名（写产物 + 机制测试遍历对象）。 */
@@ -37,17 +35,6 @@ export function generatedOutputPath(module: string): string {
   return path.join(OUT_DIR, `${module}.ts`)
 }
 
-interface SurfaceSymbol {
-  name: string
-  kind: 'value' | 'type'
-  module: string
-  file: string
-}
-
-function loadSurfaceSymbols(): SurfaceSymbol[] {
-  const raw = JSON.parse(fs.readFileSync(SURFACE_JSON, 'utf-8')) as { symbols: SurfaceSymbol[] }
-  return raw.symbols
-}
 
 /** 'topology/shShapeFns.js#Bounds3D' -> { file, exportName } */
 function parseSource(source: string): { file: string; exportName: string } {
@@ -135,7 +122,7 @@ const CORE_QUERY_EXPR: Record<string, string> = {
 /**
  * query 模板：普通导出函数（先例 api/geom.ts——查询返回纯数据，不进 defineOp）。
  * arguments 由 queryParams 描述（缺省单参 shape）。全部 query 条目均
- * `getBrepApi().*` 直连 occt 引擎（CORE_QUERY_EXPR），无 vendored 借入/调用。
+ * `getBrepApi().*` 直连 occt 引擎（CORE_QUERY_EXPR），无来源实现中转。
  * 返回类型必须显式标注 + `@returns`（export-JSDoc 门禁）。
  */
 function renderQuery(entry: ArgSpecEntry): string {
@@ -170,7 +157,7 @@ function renderQuery(entry: ArgSpecEntry): string {
     `/**`,
     ` * ${entry.name} — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。`,
     ` * ${entry.args ?? ''}`,
-    ` * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。`,
+    ` * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无来源实现中转。`,
     ` *`,
     ...docParams,
     ` * @returns ${returnType} — 纯数据结果（非 Shape）。`,
@@ -184,7 +171,7 @@ function renderQuery(entry: ArgSpecEntry): string {
 
 /** 组装某模块的 import 区（按需装配，避免未使用 import 触发 lint/tsc）。
  *  全部 brep-op / query 条目均直连 core：brep-op 直连 ../brep-operations/（或手写
- *  api/ 模块）自有实现；query 经 getBrepApi 直连引擎，无需 vendored 借入桥。 */
+ *  api/ 模块）自有实现；query 经 getBrepApi 直连引擎，无需来源实现中转。 */
 function renderImports(entries: ArgSpecEntry[]): string[] {
   const hasBrep = entries.some((e) => e.kind === 'brep-op')
   const hasQuery = entries.some((e) => e.kind === 'query')
@@ -222,27 +209,10 @@ function renderModuleHeader(module: string, count: number, skipped: number): str
 
 /**
  * 纯生成某一模块产物（不落盘），供 main() 与机制测试共同使用。
- * @throws 条目缺失于 surface 基线（U7 反向护栏）
  */
 export function generateModule(module: string): string {
-  const symbols = loadSurfaceSymbols()
-  const inModule = symbols.filter((s) => s.module === module)
-  const base = new Map(inModule.map((s) => [s.name, s]))
   // 只取本模块条目（缺省 module=topology），skip 不产出
   const entries = ARG_SPEC.filter((e) => moduleOf(e) === module)
-  // U7 反向护栏：非 skip 条目必须存在于 surface 基线。faijs 自研符号（kind 'faijs'，
-  // 如 api/view 的视图投影 op）是 faijs 面新增、上游 surface 无此符号——跳过基线检查。
-  // 改名投影（如 inspect* ← vendored checkInterference/measureCurvatureAt*，2026-09-24
-  // §7 待裁决 4）：上游无 inspect* 名，按 source 的 exportName 回查基线。
-  const missing = entries.filter((e) => {
-    if (e.kind === 'skip' || e.kind === 'faijs') return false
-    if (base.has(e.name)) return false
-    const { exportName } = parseSource(e.source)
-    return !base.has(exportName)
-  })
-  if (missing.length > 0) {
-    throw new Error(`[gen-l3-surface] ${module} 中条目缺失: ${missing.map((m) => m.name).join(', ')}`)
-  }
 
   const projected = entries.filter((e) => e.kind !== 'skip')
   const skipped = entries.filter((e) => e.kind === 'skip')

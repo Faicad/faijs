@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-单位系统设计文档（`docs/plans/2026-09-28-unit-system-design.md`）要求把真正的量纲与单位处理引入 faijs：
+单位系统设计要求把真正的量纲与单位处理引入 faijs：
 基准单位 `mm / degree / gram / kelvin / second / ampere`、带类型值对象、跨包单位常量去重、
 面向单位的 I/O 容差，以及脚本侧 `paramDims`/`retDim` 声明面。P0（角度基准 = degree）已裁定。
 本 Note 记录 P1–P4 交付及其约束。

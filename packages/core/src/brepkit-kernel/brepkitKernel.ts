@@ -1,7 +1,7 @@
 /**
  * brepkit-kernel/brepkitKernel — brepkit 内核 → faijs BrepEngineApi 适配器
  *
- * Phase 4（docs/plans/2026-09-24-brep-engine-api-narrowing-native-access.md）：
+ * Phase 4：
  * 本文件是 L1 契约 `BrepEngineApi` 的 **brepkit 显式对象字面量实现**——与 occt 侧
  * `occt-primitives.ts` 同构：逐方法接线、方言在适配器内消化、零 `unsupported()` 桩。
  *

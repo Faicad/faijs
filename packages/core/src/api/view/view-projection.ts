@@ -1,8 +1,6 @@
 /**
  * view-projection — 单视图投影 → SVG 线稿（faijs 视图投影能力，路径 A）
  *
- * 设计文档：docs/plans/2026-09-10-faijs-view-projection-and-screenshot.md §3.2
- *
  * projectView(shape, view, opts?) 返回**纯数据 SVG 字符串**（非 Shape）：
  *   - 直连 core 引擎的 HLR 投影（`BrepEngineApi.projectEdges`，OCCT
  *     HLRBRep 隐线消除）：可见 / 隐藏两组边（sharp/smooth/outline compound）；

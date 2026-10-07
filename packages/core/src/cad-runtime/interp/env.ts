@@ -1,7 +1,7 @@
 /**
  * env — scope/binding resolution for the AST interpreter.
  *
- * Env kinds (design D1/D2, docs/plans/2026-09-14-no-eval-interpreter-backend-design.md):
+ * Env kinds (design D1/D2):
  * - root: the persistent ctx IS the variable container — reads resolve ctx,
  *   writes go to ctx (block-level const/let included, R-5 semantics per D1).
  * - function: params + function-local let/const only; a function body CANNOT

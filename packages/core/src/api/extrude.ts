@@ -2,19 +2,17 @@
  * api extrude — `cad.extrude`（平台 parity op，BREP-only）
  *
  * 归属（分层红线）：`cad.extrude` 是「面 → 棱柱」的**平台** op，FCStd Pad/Pocket
- * 链路与 TS 面共用它（docs/plans/2026-09-15-fcstd-to-faijs-port-plan.md M4.6：
- * 「原 `cad.fai_extrude` 路线废弃」）。up-to（拉伸到面 / 到支持体端面）属
+ * 链路与 TS 面共用它（原 `cad.fai_extrude` 路线废弃）。up-to（拉伸到面 / 到支持体端面）属
  * CadQuery `until=` 同族语义，因此落在**本 op**；`fai_extrude`（`fai_` 前缀的
  * faijs 扩展 op，与 fai_drill / fai_split 同族）不得承载它。
  *
- * 为什么是手写 op 而不是继续用生成投影：生成投影（compatOp 包装的 brepjs-shaped 函数）
- * 有两个硬约束——
+ * 为什么是手写 op 而不是继续用生成投影：生成投影是一条 1:1 转发通道
+ * （`defineOp({ brep: __own_* })` 直连 api/brep-operations/ 的源函数），有两个硬约束——
  * ① 参数表只有位置形参；D11 归一化只在「单 plain-object 形态」下按 params 表
  *    映射（api/internal/dual-form-args.ts），`(face, { upTo })` 属位置形态 →
  *    原样喂给 compat extrude → 报错，无法表达对象形态；
- * ② compatOp 的入参先经 `borrowDeep` 借成 compat 视图（api/internal/compat-op.ts），
- *    在那一层 `brepOf()` 取不到 → 依赖 faceRef / brepOf / 内核直调的 up-to 实现
- *    必然走空（同 AGENTS.md 记录的「compatOp 自动提升边界」）。
+ * ② 生成投影没有 faijs 侧入参解析挂点，只把实参原样转发给源函数 → 依赖 faceRef 解析 /
+ *    内核直调（extrudeUpToSolid）的 up-to 实现无法在生成投影里承载，落回本手写模块。
  * 先例：arg-spec 的 `fillet` 条目（faijs 侧由手写 dual-op 覆盖，生成模块符号为
  * 孤儿 by design）。
  *
@@ -560,13 +558,13 @@ export const extrude = defineOp({
       })
     }
 
-    // 长度形态：委托生成投影（生成投影自带借入 / Result 翻转 / 收养）
+    // 长度形态：委托生成投影（生成投影自带 Result 翻转 / adopt 收养）
     const sign = o.mode === 'backward' ? -1 : 1
     const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
     let result: Shape
-    // GOTCHA：projectedExtrude 是 occt-gated 的 compat op（brepjs 借入），
+    // GOTCHA：projectedExtrude 是 occt-gated 的生成投影 op，
     // 在 brepkit 引擎下执行前即抛 E_BREP_UNSUPPORTED。brepkit 有原生 L1 extrude
-    // （face→solid），直接走 kernel.extrude——与 revolve.ts 同路径（不经过 brepjs 借入）。
+    // （face→solid），直接走 kernel.extrude——与 revolve.ts 同路径（不经生成投影）。
     // occt 路径保持 projectedExtrude 不变，不回退既有几何/命名行为。
     if (getBackends().config.brepEngineId === 'brepkit') {
       const kernel = getBrepApi()

@@ -89,7 +89,7 @@ function main() {
   if (offenders.length > 0) {
     console.error('check-core-no-brepjs: brepjs 依赖未归零：')
     for (const o of offenders) console.error(`  ✗ ${o}`)
-    console.error('规则：docs/plans/2026-09-25-core-decouple-brepjs-wrapup.md §4.1')
+    console.error('规则：core 源码不得出现 brepjs 依赖（引擎实现一律经 occt / brepkit 适配器接入）。')
     process.exit(1)
   }
   console.log(`check-core-no-brepjs: 通过（${files.length} 个文件零 brepjs 依赖）。`)

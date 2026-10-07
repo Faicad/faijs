@@ -238,7 +238,7 @@ runtime.registerLib('gear', gear, { autoLift: true })
 
 `binding`（`'gear'`）是脚本导入并调用的名字：`.fai.js` 里的 `gear.external({ ... })`。
 
-内部直接消费 faijs core `Shape` 并调用 core op 的库（faijs 化库，如 `sheetmetal`）必须加 `borrow: false`：默认的借入步骤会把嵌套的 `Shape` 实参改写成 brepjs 句柄视图，core op 随后会以 "input is not on the BREP chain" 拒绝它们。真正的 brepjs 形态库保持默认。
+faijs 原生库（消费 core `Shape`、内部调 core op，如 `sheetmetal`）与 brepjs 形态库（消费 brepjs 形态的 `Shape`）注册方式完全相同：`registerLib(binding, ns, { autoLift: true })`，无需任何额外标记。所有 Shape 实参都原样送达库函数——引擎在入向不做任何改写——需要内核句柄的库自行经 `brepOf`（`@faicad/faijs/sdk`）从 Shape 上取。
 
 ### 3.3 接纳——每个导出发生什么
 
@@ -258,7 +258,7 @@ runtime.registerLib('gear', gear, { autoLift: true })
 脚本调用已接纳的函数时，边界机制由**引擎自己**处理——Host 不写任何这部分：
 
 1. **分派**：mesh / brep 路径静态判定（链状态 + 能力），无运行时回退。
-2. **借入**：faijs `Shape` 参数变成 brepjs 侧的零拷贝视图（仅当前调用内有效）。
+2. **直传**：faijs `Shape` 实参原样送达库函数（入向不做改写）。
 3. **调用 + unwrap**：函数运行；`Result` 的 `err` 被 unwrap 成语句失败。
 4. **收养**：几何产物跨回成为 faijs `Shape`（三角化 + BREP 槽）；纯数据原样透传（§2.3）。
 
@@ -308,7 +308,7 @@ let u1 = cad.union(g1, b0)
 2. **脚本里可以读记录字段**（`hem(u1.solid, …)`——成员访问是运行时求值的表达式）；整份记录传递照常可用。
 3. **库的 `err` 结果是语句失败，不是崩溃**——`OpError` → `ExecutionResult.failedAt`；失败前已完成的语句保留其 outputs。
 
-对 `@faicad/sheetmetal` 的实测结论（整包注册，`{ autoLift: true, borrow: false }`）——现在全部签名形态都可调用：
+对 `@faicad/sheetmetal` 的实测结论（整包注册，`{ autoLift: true }`）——现在全部签名形态都可调用：
 
 | 可调用 | 示例 |
 |---|---|
@@ -316,7 +316,7 @@ let u1 = cad.union(g1, b0)
 | 字符串 id / 标量 / 数组函数 | `addHole(p, 'root', 15, 15, 4)`、`allowance(p, 0.44)` |
 | 变量上的成员访问 | `hem(p0.solid, { kFactor: 0.44 })` |
 | 多个对象实参 | `tabAndSlot(p, tabSpec, slotSpec)` |
-| 几何终端 | `unfoldSolid(s1)`——借入零拷贝 arena 视图 |
+| 几何终端 | `unfoldSolid(s1)`——直接消费输入 `Shape`（无视图适配层） |
 
 `solidOf` 作为显式终端保留，供 TS 兼容面与库侧使用；脚本面上它不再是*必需*的——成员访问（`p.solid`）可以直接取到该字段。
 ### 4.4 平台 op 与 `engines` 声明
@@ -363,7 +363,7 @@ export const myOp = defineOp({
 
 1. **库作者写**（第一层）：`planetary` 返回 `Result<{ sun, planets, ring }>` 并携带 `fn.outputs = ['sun', 'planets', 'ring']`（§2.6）。
 2. **Host 注册**（第二层）：`registerLib('gear', gear, { autoLift: true })`——`planetary` 被提升为 brep-only op，`outputs: ['sun', 'planets', 'ring']`；`contractVersion` 通过校验（§3.3）。
-3. **脚本调用**（第三层）：`let p0 = gear.planetary({ ratio: 4 })`——语句记录调用点的 `keep`，引擎分派、借入 shape 输入、调用 `planetary`、unwrap `Result`。
+3. **脚本调用**（第三层）：`let p0 = gear.planetary({ ratio: 4 })`——语句记录调用点的 `keep`，引擎分派、原样直传 shape 输入、调用 `planetary`、unwrap `Result`。
 4. **产物返回**：`p0.sun` / `p0.planets` / `p0.ring` 被收养为 faijs `Shape`（或数据记录），存入值存储——后续语句可继续使用（`cad.union(p0.sun, b0)`）。
 
 每一步恰好属于一层：库作者写，Host 接纳，脚本调用，引擎桥接。
@@ -376,8 +376,8 @@ export const myOp = defineOp({
 
 1. **改导入**：`from 'brepjs'` → `from '@faicad/faijs'`（`package.json` 同步）。
 2. **删除 `registerKernel` 调用**——faijs 管理内核（单实例）；由宿主提供。
-3. **删除 `pinned` 数组 / finalizer 变通方案**——收养生命周期（借入 → 调用 → unwrap → 收养）由引擎处理，库不再管理释放。
+3. **删除 `pinned` 数组 / finalizer 变通方案**——收养生命周期（调用 → unwrap → 收养）由引擎处理，库不再管理释放。
 4. **注册命名空间**：`runtime.registerLib('mylib', myNamespace, { autoLift: true })`。
 5. **按需补 `fn.outputs` / `solidOf`**（§2.6 / §2.7）。
 
-brepjs 侧的惯例概念（借入视图仅限当前调用、返回句柄所有权转移）本身就是 brepjs 的约定。移植中遇到引擎边界问题时，第一层（§2.3 返回分类、§2.6 `outputs`、§2.7 `solidOf`、§2.8 硬约束）是权威契约。
+返回的句柄在被引擎收养前保持 borrowed-view 语义（不拥有、不释放），因此「返回即转移所有权」就是全部契约——borrowed-view 概念由 brepjs 自身的惯例自足。移植中遇到引擎边界问题时，第一层（§2.3 返回分类、§2.6 `outputs`、§2.7 `solidOf`、§2.8 硬约束）是权威契约。

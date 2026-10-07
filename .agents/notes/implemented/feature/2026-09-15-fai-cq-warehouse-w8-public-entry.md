@@ -6,7 +6,7 @@ English | [中文](2026-09-15-fai-cq-warehouse-w8-public-entry.zh.md)
 
 ## Problem
 
-The cq_warehouse port's P0 body (33 instantiable classes across thread / nut / screw / washer / bearing / sprocket, W1–W7) was complete, but the package had no public entry (`src/index.ts`), was absent from the root `workspaces` list, and had no static enforcement of the layering rules that the port plan (docs/plans/2026-09-13) defined for W8. Without these, the package could not be consumed by a host, was invisible to workspace-level tooling, and the "no direct kernel access" constraints existed only as prose.
+The cq_warehouse port's P0 body (33 instantiable classes across thread / nut / screw / washer / bearing / sprocket, W1–W7) was complete, but the package had no public entry (`src/index.ts`), was absent from the root `workspaces` list, and had no static enforcement of the layering rules that the port defined for W8. Without these, the package could not be consumed by a host, was invisible to workspace-level tooling, and the "no direct kernel access" constraints existed only as prose.
 
 ## Decision
 

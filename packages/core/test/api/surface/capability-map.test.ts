@@ -1,7 +1,7 @@
 /**
  * capability-map.test — Phase 0 工件断言（三方一致 + brepkit wasm 导出面基线）
  *
- * 设计：docs/plans/2026-09-23-brep-engine-switchability-rework.md §4 Phase 0
+ * 能力映射表三方一致断言
  *
  * 钉住的不可变事实：
  *  1. capability-map.json 条目数 == ARG_SPEC kind:'brep-op' 条目数 ==

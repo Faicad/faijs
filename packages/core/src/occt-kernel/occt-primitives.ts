@@ -2,7 +2,7 @@
  * occt-kernel/occt-primitives — `createOcctPrimitives()`: the L1 contract
  * (`BrepEngineApi`) adapter over the raw occt-wasm `OcctKernel` singleton.
  *
- * Plan Phase 3.2 (docs/plans/2026-09-24-brep-engine-api-narrowing-native-access.md):
+ * Plan Phase 3.2:
  * explicit object literal, one method per L1 contract member — no monkey
  * patching, no cross-layer assertion lies, no unsupported() stubs. Every member
  * here is either a direct pass-through to the native kernel or an adapter-side

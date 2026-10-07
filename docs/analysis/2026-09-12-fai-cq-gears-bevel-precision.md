@@ -2,7 +2,6 @@
 
 日期：2026-09-12
 状态：**实测完成；两项门槛已拍板（2026-09-13，见 §7）**
-关联方案：`docs/plans/2026-09-11-fai-cq-gears-port.md`（§8.2 BevelGear、§8.4 齿轮对、§9.1 T1、§9.2 T2、§10 降级阶梯）
 代码位置：`packages/fai_cq_gears/src/bevel_gear.ts`、`src/pairs.ts`、`src/profile.ts::bevelGearGeometry`
 
 ## 1. 结论速览

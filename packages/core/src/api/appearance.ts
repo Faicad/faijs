@@ -1,8 +1,6 @@
 /**
  * api/appearance — faijs PBR 外观规格（颜色/材质/透明度）权威类型与 Shape 方法
  *
- * 设计文档：docs/plans/2026-10-05-faijs-pbr-appearance-api-design.md（v2）
- *
  * 定位：
  * - 外观设置**不是 op**（不进 defineOp/api-namespace/args-schema），是 Shape
  *   实例方法（`box1.setColor(...)`，复用 `asm1.solve()` 的成员调用语句形态）。

@@ -316,7 +316,7 @@ export interface CadRuntimeOptions {
   /**
    * 执行后端（缺省 'vm'；静态选定，无运行时回退）。'interpreter' 为无
    * `new Function`/eval 的 AST 解释器后端，供禁 eval 环境（weapp / 严格 CSP）
-   * 使用——见 docs/plans/2026-09-14-no-eval-interpreter-backend-design.md。
+   * 使用。
    */
   execBackend?: ExecBackendChoice
   /**
@@ -468,7 +468,7 @@ export class CadRuntime {
     // skip the strict validation pass (R8).
     // Naming (2026-09-23): library authors no longer declare face naming; every
     // bare function is admitted with the default unmodeled provenance (see
-    // admit-compat-lib.ts / docs/plans/2026-09-23-relax-lib-naming-design.md).
+    // admit-compat-lib.ts).
     const lift = options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>)
     const admitted = lift
       ? (admitCompatLib(ns as unknown as Record<string, unknown>) as LibNamespace)

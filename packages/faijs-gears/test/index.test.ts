@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest'
 import { createRuntime } from '@faicad/faijs'
 import * as faiCqGears from '../src/index'
 
-/** 15 个导出函数名（与 `docs/plans/2026-09-11-faijs-gears-port.md` §6 逐字对齐）。 */
+/** 15 个导出函数名。 */
 const EXPECTED_FUNCTIONS = [
   'spurGear',
   'herringboneGear',

@@ -1,8 +1,6 @@
 /**
  * live-shapes — 无 IR 存活判定（运行时终端 = 最后写者 + 下游无独占消费）
  *
- * 方案：docs/plans/2026-09-06-no-ir-dual-channel-runtime.md §4.4（D5 / P3）
- *
  * 取消 IR 前后，活跃性判断的算法不变，变的是两个输入源：
  * - 语句序列：`metadata.lines`（MetadataExtractor → StatementSummary[]，与现状
  *   analyzeCode 逐字相等，A-16 锁定）；

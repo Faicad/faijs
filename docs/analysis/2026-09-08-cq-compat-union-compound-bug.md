@@ -130,13 +130,12 @@ compound 的。」验证实验结果：
 结论：
 - `compareStepFiles` 只比对**整件总 solid 数**，对「1 个 compound part vs 多个 part」的
   分解差异完全失明——STEP 文件本身不暴露 compound/产品结构，无法预判。
-- mini_lathe 之前的验证标准是「与 CadQuery 输出的体积 / 包围盒在容差内一致」
-  （见 `docs/plans/2026-09-06-cadquery-compat-and-multifile-faijs.md`），正是 slide_top
+- mini_lathe 之前的验证标准是「与 CadQuery 输出的体积 / 包围盒在容差内一致」，正是 slide_top
   被拆成 2 solids 仍通过的原因（总积体与 bbox 一致）。
 - **规则**：所有 STEP 比对一律使用 `compareAssemblyFiles`（装配一致性：structure
   leaf 数+名字、逐 part 几何/位姿/颜色、整体 boolean），`compareStepFiles` 只能作
   geometry 兜底参考，不能作为唯一判据。fai_cq_gears 移植方案中 `compareStepFiles`
-  的用法（`docs/plans/2026-09-08-fai-cq-gears-port.md`）需同步改为
+  的用法需同步改为
   `compareAssemblyFiles`。
 
 ## 建议修复方向（更正后）

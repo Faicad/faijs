@@ -1,8 +1,7 @@
 /**
  * engine/primitives — BREP 引擎契约面（port 面，L1 核心面）
  *
- * ⚠️ 2026-09-24 契约面收窄（docs/plans/2026-09-24-brep-engine-api-narrowing-native-access.md
- * §Phase 2 / D1 / D9 / D10）：`BrepEngineApi` 的语义 = **所有已注册 BREP 引擎都真实现的
+ * ⚠️ 2026-09-24 契约面收窄（Phase 2 / D1 / D9 / D10）：`BrepEngineApi` 的语义 = **所有已注册 BREP 引擎都真实现的
  * 方法**（occt 与 brepkit 双方语义可对齐的交集面，最大化口径）。判据唯一真源：
  * `api/surface/engine-method-map.json`（status ∈ {aligned, dialect} 的条目）。
  *
@@ -212,7 +211,7 @@ export interface BrepEngineApi {
   isSame(a: BrepHandle, b: BrepHandle): boolean
   isSolid(shape: BrepHandle): boolean
   /** 形状类型名（'SOLID' / 'FACE' / 'EDGE' / 'WIRE' / 'COMPOUND' 等；引擎方言归一）。
-   * 库桥（l3-bridge）构造借入视图时读；brepkit/mock 按能力防御返回。 */
+   * 库桥（l3-bridge）收编产物时判类型读；brepkit/mock 按能力防御返回。 */
   shapeType(shape: BrepHandle): string
   /** 方向标识（与内核 ShapeOrientation 同构：'forward'|'reversed'|'internal'|'external'）。 */
   shapeOrientation(shape: BrepHandle): string

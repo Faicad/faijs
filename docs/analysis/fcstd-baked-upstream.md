@@ -1,6 +1,6 @@
 # FCStd `*-baked-upstream` 烘焙轮廓判定（P3，2026-09-28）
 
-状态：已判定。计划来源 `docs/plans/2026-09-28-fcstd-v3-next-dev-plan.md` §4 P3 / 决策 D8。
+状态：已判定。
 
 ## 判定结论
 

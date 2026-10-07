@@ -592,7 +592,7 @@ export const myOp = defineOp({
 
 ### 10.5 `.ts` 整段执行通道（faqts）——**已删除**
 
-> ⚠️ **已删除（2026-09-23）**：faqts/faits 的 `.ts` 整段执行路径已随「脚本必须纯 JS、库必须 TS」红线移除。脚本只允许 `.fai.js`（经 faijs 执行）；库代码为 TS 源、构建期由 tsc 编译为 JS——运行时不做任何类型剥离。详见 docs/plans/2026-09-23-script-js-only-lib-ts-design.md。本节仅作为历史记录保留。
+> ⚠️ **已删除（2026-09-23）**：faqts/faits 的 `.ts` 整段执行路径已随「脚本必须纯 JS、库必须 TS」红线移除。脚本只允许 `.fai.js`（经 faijs 执行）；库代码为 TS 源、构建期由 tsc 编译为 JS——运行时不做任何类型剥离。本节仅作为历史记录保留。
 
 ### 10.6 编辑器扩展库（`@faicad/faijs-extra`）
 
@@ -644,6 +644,17 @@ export const myOp = defineOp({
 - **运动副**（`assembly({ joints, drive })`）：joint 是 JSON 可序列化的记录 `{ type, parent, child, … }`（C1）。P3 交付单 DOF 的 `revolute` / `prismatic` 类型（`axis: { origin, direction }`、`min` / `max` / `value` 以度为单位、可选 `offset: { position, rotation }`，其中 `rotation` 为 faijs `[x,y,z,w]` 四元数）；多 DOF 的 `cylindrical` / `planar` / `spherical` 声明在装配构造期被 `buildJoint` 以明确错误拒绝——绝不静默降级。`parent` / `child` 必须是成员名、一个 child 只能被一个 joint 驱动、每个 `drive` 键必须命名 joint 的 child；每条违规都带着上下文抛错。
 - **运动学求解 ≠ 约束求解**（合并语义）：`solveAssemblyAndKinematics` 先跑约束求解、再跑 `solveKinematics`；同名成员的 joint 位姿**覆盖**约束解（每条覆盖记录一条警告，D-P3-1）。运动学结果不参与 `converged` / `dof` 统计。
 - **消费通道**：带 joints 的 assembly 执行 `asm.solve()`（R0、无返回值）后，引擎把每成员位姿写入 `ExecutionResult.kinematics: Map<PartName, { position, rotation }>`（`rotation` 为 faijs `[x,y,z,w]`），**两个执行器都写**（module 与 direct，J12 锁定）。**没有** `asm.kinematics()` 方法。`cad.*` 查询面暴露无副作用纯函数（无 receiver）：`cad.jointTrajectory`、`cad.inverseKinematics`、`cad.mechanismDOF`（P3 方案 §3.2）。
+
+### 12.1 多部件文件导入（`cad.load`）
+
+`cad.load({ file })` 是唯一的导入入口（编辑器专属 op，`@faicad/faijs-extra`）。多部件文件返回 **`CompoundShape`**（`children` 顺序 = 文件声明顺序）；单部件文件原样返回普通 `Shape`（零回归）。导入的结构侧经 `ExecutionResult.importModels: Map<PartName, ImportModel>` 传递：
+
+- `ImportModel.parts: ImportPart[]` — 身份表（`index` = `compound.children` 下标、`name`、`color`、Bambu 3MF 的 `objectId`/`partId`/`plateId`/`extruder`、仅展示几何（如草图）的 `exportable` — 默认 `true`）。
+- `ImportModel.assembly?: ImportAssemblyNode` — STEP XCAF 层级（`partIndex` 叶子，DFS 顺序与 `parts` 对齐）。
+- `ImportModel.bambuViews?` — Bambu 3MF 的板材 / assemble·import 变换 / buildItems / 耗材颜色（宿主不再自行解析 3MF 压缩包）。
+- 多部件 `compound.children` 是**匿名几何**（无变量名），因此**不**进入 `ExecutionResult.compounds`（该字段承载具名成员变量）；部件身份在 `importModels`，几何在 `outputs.get(terminal).children`。
+
+实施状态：P0–P5 已实施（faijs 0.30.5）。
 
 ---
 

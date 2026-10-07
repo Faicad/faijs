@@ -403,7 +403,7 @@ export interface ShapeTypeProbe {
  * 加进真实件（5.04e+06 vs 5.50e+06 ⇒ ~91% 误差），parity 必 FAIL。所以「谁该被看见」与
  * 「什么能落成零件」是两件事：本判据只管后者，不去动终端集合。
  *
- * **判决表**（实测标定，2026-10-06，见 `docs/plans/2026-10-06-step-export-excludes-2d-terminals-plan.md`）：
+ * **判决表**（实测标定，2026-10-06）：
  * | shapeType | 判决 | 依据 |
  * |---|---|---|
  * | `SOLID` / `COMPSOLID` | 导出 | 真零件 |

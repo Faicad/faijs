@@ -1,8 +1,6 @@
 /**
  * admit-compat-lib — registerLib's admission-stage enhancement (B4 fix).
  *
- * Design: docs/plans/2026-09-03-faijs-brepjs-compat-api.md §4.3.3
- *
  * Hard ordering constraint: assertLibConforms runs BEFORE wrapping — DUAL_OP_META
  * hangs on the function object with enumerable:false (define-op.ts) and
  * assertLibConforms iterates values via Object.values to judge metadata; a
@@ -15,8 +13,8 @@
  * Naming (2026-09-23): library authors no longer declare face naming
  * (`faijs.naming` / `fn.naming` / `namingFor` removed). A library is a black-box
  * part producer — its functions output parts, not single-op geometry, so no
- * per-function or per-library naming declaration can carry information
- * (design: docs/plans/2026-09-23-relax-lib-naming-design.md). Every bare
+ * per-function or per-library naming declaration can carry information.
+ * Every bare
  * function is admitted with the fixed default `unmodeled` provenance: its
  * faces carry no stable identity and face references degrade to geometric
  * matching. Op-level naming (defineOp's `DUAL_OP_META.naming` / roleTable)

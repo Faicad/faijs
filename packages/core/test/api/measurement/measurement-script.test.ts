@@ -99,7 +99,7 @@ describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
     // 中立版脚本（box / area / length）在 brepkit 下可跑——测量 op 是 L1 中立面，
-    // 不依赖 compat 借入层 / occt-only 方法。
+    // 不经来源实现 / 不依赖 occt-only 方法。
     const r = await runBreps(SCRIPT_NEUTRAL)
     expect(r.failedAt).toBeUndefined()
 

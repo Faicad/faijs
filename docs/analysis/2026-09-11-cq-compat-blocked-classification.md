@@ -3,7 +3,6 @@
 > 日期：2026-09-11 ｜ 状态：分析文档（只写分析，不含实施；代码未做任何改动）
 > 背景：Phase 2 parity 收尾后，cq-compat 剩余 ~398 个 BLOCKED 变量。需要把这些 blocked 项按"能否在兼容层内解决"切成两类，明确哪些等内核升级、哪些不在兼容层范围。
 > 关联文档：
-> - `docs/plans/2026-09-08-cq-compat-parity-phase2.md`（阶段 A–K 可达范围与 Stage G 闭环）
 > - `docs/handover/2026-09-10-cq-compat-handover.md`（cq-compat 已移交第三方）
 > - `packages/faijs-cadquery/src/workplane.ts`（`resolveFaceSelector`、`compatFn` 投影链路）
 
@@ -119,8 +118,7 @@ cq-compat 把 CadQuery op 经 `compatFn(name)` 投影到 vendored brepjs / occt-
 
 ## 6. fai_cq_gears 消费映射（cq_gears 0.62 源码实际核查，2026-09-11 补）
 
-> 触发：用户确认 `C:\git\CADQ\cq_gears` 已有源码（2026-09-11 21:49 检出）。此前计划文档
-> `docs/plans/2026-09-11-fai-cq-gears-port.md` L7 称"Python 源本机不存在"——**已证伪**，6 个类可逐字对照翻译。
+> 触发：用户确认 `C:\git\CADQ\cq_gears` 已有源码（2026-09-11 21:49 检出）。此前规划文档称"Python 源本机不存在"——**已证伪**，6 个类可逐字对照翻译。
 > 本节以源码 grep 为准，修正"继续任务"对话中"WormGear 可能用 pipeShell、BevelGear 可能用 loft"的"部分相关"判断（**作废**）。
 
 ### 6.1 cq_gears 实际消费的 op（grep 证据，cq_gears 0.62）

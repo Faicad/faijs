@@ -1,8 +1,8 @@
 /**
  * mesh-solid-extrude — Phase 3 验收：识别平面上草图 + 拉伸（B2 批）
  *
- * 方案 docs/plans/2026-10-01-mesh-solid-brepkit-mesh-ops-and-approximate-topology.md
- * §4 Phase 3 验收原文：
+ * mesh-solid 链路
+ * Phase 3 验收原文：
  *
  * > 在立方体 STL 的顶面画矩形草图 → 拉伸 5mm → 得到合法的融合/切除结果。
  *

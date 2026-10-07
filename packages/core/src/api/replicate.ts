@@ -18,7 +18,7 @@
  *   also build `replica[*]/<inner>` role tables (same treatment as linearPattern,
  *   via the shared buildReplicaRoleTable helper).
  * - Single-copy ops (mirror / clone / transformCopy): thin overrides that keep
- *   the input and delegate to the generated compatOp (borrow/adopt/capabilities/
+ *   the input and delegate to the generated compatOp (adopt/capabilities/
  *   naming preserved).
  *
  * The generated files stay untouched; overrides win via api-namespace spread

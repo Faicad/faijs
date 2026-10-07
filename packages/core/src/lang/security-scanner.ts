@@ -1,8 +1,6 @@
 /**
  * security-scanner — .fai.js 静态安全门禁（纵深防御第一层）
  *
- * 方案：docs/plans/2026-09-08-faijs-security-gate.md（§5）
- *
  * 定位：在 MetadataExtractor（UI 通道）与 DirectExecutor（执行通道）之前
  * 对源码做 **AST 全量递归遍历**，覆盖函数体、控制流块、嵌套函数——消除
  * 当前"只扫顶层"的盲区。规则表与功能代码解耦（R6）：新增 op / 新增语法

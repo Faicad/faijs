@@ -1,7 +1,7 @@
 /**
  * execute-script — 一等「代码字符串 → 产物」执行 API（计划 B6，2026-10-06）。
  *
- * 动机（docs/plans/2026-10-06-faijs-api-discoverability-and-defect-hardening-plan.md B6）：
+ * 动机：
  * 发布 tarball 不含 `scripts/`，此前没有「给 `.fai.js` 源码字符串 → 直接拿到产物」的
  * 公开函数，每个下游各自内联 CLI 包装器，并各自重复踩 Host 装配的三个坑
  * （不 registerOcctBrepEngine → BREP engine API not available；configureBackends 漏

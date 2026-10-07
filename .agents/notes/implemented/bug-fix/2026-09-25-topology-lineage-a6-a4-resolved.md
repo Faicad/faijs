@@ -6,7 +6,7 @@ English | [中文](2026-09-25-topology-lineage-a6-a4-resolved.zh.md)
 
 ## Problem
 
-Plan §A6 (`docs/plans/2026-09-25-fcstd-full-conversion-plan.md`) tracked a `Maximum call
+The fcstd full-conversion work tracked a `Maximum call
 stack size exceeded` crash on `Electronics Parts/Boards/Arduino/Arduino UNO/arduinounomissblack.FCStd`
 (3 samples). The crash fired during the BREP topology build inside `cliRun` (mode `brep`),
 and the initial hypothesis was an unbounded recursion in the topology/selector build

@@ -1,8 +1,6 @@
 /**
  * api/meta — faijs 零件名称/描述/料号 与 整体文件元数据 权威类型与 Shape 方法
  *
- * 设计文档：docs/plans/2026-10-05-faijs-meta-name-note-api-design.md
- *
  * 定位（与 api/appearance.ts 同款方法模式）：
  * - 名称/描述设置**不是 op**（不进 defineOp/api-namespace/args-schema），是 Shape
  *   实例方法（`box1.setName('…')`，复用 `asm1.solve()` 的成员调用语句形态）。

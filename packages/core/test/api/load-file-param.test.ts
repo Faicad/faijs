@@ -1,6 +1,5 @@
 /**
- * P8 定稿（3d_editor docs/plans/2026-10-01-unified-load-flow-and-scene-tree-design.md
- * §4.2/§4.3）：`cad.load` 语句形态收敛为 `{ file, unit? }`——
+ * `cad.load` 语句形态收敛为 `{ file, unit? }`——
  * - `file` = 用户上传文件名（含后缀），资产寻址 + 格式声明统一载体（assets 按名寻址）；
  * - 格式从 `file` 后缀自判（白名单 stl/3mf → mesh 路径；step/iges/brep → BREP 路径），
  *   宿主不再传 `format`；魔数 sanity 校验（后缀定格式后用文件头校验）；

@@ -1,8 +1,7 @@
 /**
  * scan-occt-op-coverage — occt-wasm 能力的「脚本 op 可触达性」扫描器
  *
- * 口径（方案 docs/plans/2026-10-07-occt-wasm-op-enablement-plan.md §3）：
- * 一个 occt-wasm 方法「被接入」，当且仅当 **faijs 脚本作者能写出一行调用它的语句**。
+ * 口径：一个 occt-wasm 方法「被接入」，当且仅当 **faijs 脚本作者能写出一行调用它的语句**。
  * 因此判定不看「faijs 源码里有没有出现过这个 API 名」（那是库内部口径），而看
  * 四级可达性：
  *

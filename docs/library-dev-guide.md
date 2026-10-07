@@ -238,7 +238,7 @@ runtime.registerLib('gear', gear, { autoLift: true })
 
 The `binding` (`'gear'`) is the name scripts import and call: `gear.external({ ... })` in `.fai.js`.
 
-A library that consumes faijs core `Shape`s and calls core ops internally (faijs-native, like `sheetmetal`) must add `borrow: false`: the default borrow step rewrites nested `Shape` arguments into brepjs handle views, and core ops then reject them with "input is not on the BREP chain". Real brepjs-shaped libraries keep the default.
+Registration is identical for a faijs-native library (consumes core `Shape`s, calls core ops internally, like `sheetmetal`) and a brepjs-shaped library (consumes brepjs-shaped `Shape`s): `registerLib(binding, ns, { autoLift: true })`, with no extra flag. Every shape argument reaches the library unchanged — the engine rewrites nothing on the way in — so a library that needs a kernel handle reads it off the shape itself via `brepOf` (`@faicad/faijs/sdk`).
 
 ### 3.3 Admission — what happens to each export
 
@@ -258,7 +258,7 @@ Lifting is decided once for the whole namespace, not per export: `autoLift ?? !h
 When a script calls an admitted function, the engine itself handles the boundary mechanics — the Host writes none of this:
 
 1. **Dispatch**: mesh / brep path chosen statically (chain state + capabilities), no runtime fallback.
-2. **Borrow**: faijs `Shape` arguments become zero-copy views for the brepjs side (current call only).
+2. **Pass-through**: faijs `Shape` arguments reach the library unchanged, as they are (no rewriting on the way in).
 3. **Call + unwrap**: the function runs; a `Result` `err` is unwrapped into a statement failure.
 4. **Adopt**: geometry products cross back as faijs `Shape`s (tessellation + BREP slot); plain data passes through (§2.3).
 
@@ -308,7 +308,7 @@ Every statement that calls a library op is a boundary: the `Result` is unwrapped
 2. **Record *fields* are readable in the script** (`hem(u1.solid, …)` — member access is a runtime-evaluated expression). Whole-record passing still works.
 3. **Library `err` results are statement failures, not crashes** — `OpError` → `ExecutionResult.failedAt`; earlier statements keep their outputs.
 
-Verified against `@faicad/sheetmetal` (whole-package registration, `{ autoLift: true, borrow: false }`) — every signature shape is callable now:
+Verified against `@faicad/sheetmetal` (whole-package registration, `{ autoLift: true }`) — every signature shape is callable now:
 
 | Callable | Example |
 |---|---|
@@ -316,7 +316,7 @@ Verified against `@faicad/sheetmetal` (whole-package registration, `{ autoLift: 
 | string-id / scalar / array functions | `addHole(p, 'root', 15, 15, 4)`, `allowance(p, 0.44)` |
 | member access on variables | `hem(p0.solid, { kFactor: 0.44 })` |
 | multiple object arguments | `tabAndSlot(p, tabSpec, slotSpec)` |
-| geometry terminal | `unfoldSolid(s1)` — borrows a zero-copy arena view |
+| geometry terminal | `unfoldSolid(s1)` — consumes the input `Shape` directly (no view adapter) |
 
 `solidOf` remains as an explicit terminal for the TS compat face and library-side use; on the script face it is no longer *required* — member access (`p.solid`) reaches the field directly.
 ### 4.4 Platform ops and the `engines` declaration
@@ -363,7 +363,7 @@ One function crossing all three layers, step by step:
 
 1. **Author writes** (`Layer 1`): `planetary` returns `Result<{ sun, planets, ring }>` and carries `fn.outputs = ['sun', 'planets', 'ring']` (§2.6).
 2. **Host registers** (`Layer 2`): `registerLib('gear', gear, { autoLift: true })` — `planetary` is lifted into a brep-only op with `outputs: ['sun', 'planets', 'ring']`; `contractVersion` is validated (§3.3).
-3. **Script calls** (`Layer 3`): `let p0 = gear.planetary({ ratio: 4 })` — the statement records `keep` from the call site, the engine dispatches, borrows shape inputs, calls `planetary`, unwraps the `Result`.
+3. **Script calls** (`Layer 3`): `let p0 = gear.planetary({ ratio: 4 })` — the statement records `keep` from the call site, the engine dispatches, passes shape inputs through, calls `planetary`, unwraps the `Result`.
 4. **Products return**: `p0.sun` / `p0.planets` / `p0.ring` are adopted as faijs `Shape`s (or data records), stored in the value store — usable by later statements (`cad.union(p0.sun, b0)`).
 
 Each step belongs to exactly one layer: author writes, Host admits, script calls, engine bridges.
@@ -376,8 +376,8 @@ Already wrote a brepjs library? Porting is mostly mechanical — faijs shares th
 
 1. **Change imports**: `from 'brepjs'` → `from '@faicad/faijs'` (including `package.json`).
 2. **Remove `registerKernel` calls** — faijs manages the kernel (single-instance); the host provides it.
-3. **Remove `pinned` arrays / finalizer workarounds** — adoption lifecycle (borrow → call → unwrap → adopt) is handled by the engine; the library no longer manages disposal.
+3. **Remove `pinned` arrays / finalizer workarounds** — the adoption lifecycle (call → unwrap → adopt) is handled by the engine; the library no longer manages disposal.
 4. **Register the namespace**: `runtime.registerLib('mylib', myNamespace, { autoLift: true })`.
 5. **Add `fn.outputs` / `solidOf` where needed** (§2.6 / §2.7).
 
-The brepjs-side concepts (borrowed views scoped to the current call, returned-handle ownership transfer) are satisfied by brepjs conventions themselves. For engine-boundary questions, Layer 1 (§2.3 return classification, §2.6 `outputs`, §2.7 `solidOf`, §2.8 hard constraints) is authoritative.
+A returned handle keeps borrowed-view semantics (not owned, not disposed) until the engine adopts it, so ownership transfer on return is the whole contract — the borrowed-view notion is self-contained in brepjs's own conventions. For engine-boundary questions, Layer 1 (§2.3 return classification, §2.6 `outputs`, §2.7 `solidOf`, §2.8 hard constraints) is authoritative.

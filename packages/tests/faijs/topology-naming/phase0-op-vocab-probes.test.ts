@@ -2,7 +2,7 @@
  * Phase 0.4 探针（op 侧）：计划 §7 测定项第 **2** 项（`screw`）、第 **4** 项（`convexHull`）、
  * 第 **5** 项（`engrave`）。
  *
- * 见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §7。每项分支已预置，
+ * 每项分支已预置，
  * 本文件只负责**测出事实、选分支**。探针落成 `.test.ts`（AGENTS.md 铁律）。
  *
  * 这三项的共同判据：**该 op 有没有"能写进 `.fai.js`、且抗参数变化"的面词汇来源**。

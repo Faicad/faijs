@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/proposed/simplification/2026-10-07-compatop-adopt-only-terminology.md
+2026-10-07-compatop-adopt-only-terminology.md: f15022dd8486c30300a713687f91955c3c42f265
+2026-10-07-compatop-adopt-only-terminology.zh.md: 38802d998f4e82654241bd7a32fc834351c55209

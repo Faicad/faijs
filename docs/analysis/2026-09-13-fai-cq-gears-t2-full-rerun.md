@@ -3,7 +3,7 @@
 日期：2026-09-13
 状态：**复跑完成；32/43 EQUIVALENT，11 例 DIFFERENT 全部定类（7 已知偏差 + 4 比对工具层伪差），无未解释失败**
 代码位置：`packages/fai_cq_gears/src/testing/compare.ts`（标定容差 + 逐类覆盖 + `skipFusedBoolean`）、`scripts/export-ours.ts`、`scripts/compare-all.ts`
-关联方案：`docs/plans/2026-09-11-fai-cq-gears-port.md`（§9.2 T2、§10 降级阶梯、§11-4 验收）
+关联：T2 全量重跑
 
 ## 1. 复跑条件
 

@@ -884,7 +884,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
 
   const gearNs: LibNamespace = {
     // 2026-09-23：库命名声明通道已删除（fn.naming / faijs.naming）；裸函数默认接纳，
-    // naming 固定默认 unmodeled（见 docs/plans/2026-09-23-relax-lib-naming-design.md）。
+    // naming 固定默认 unmodeled。
     makeHeadstock: () => solid(cubeMesh(8)),
   } as unknown as LibNamespace
 

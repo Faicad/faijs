@@ -72,7 +72,7 @@
 
 ## 未动（明确不动）
 
-- 计划文档 `docs/plans/2026-09-02-faijs-api-surface-completion.md` 中的 faceCenter 冲突字节**未改**（用户指令「不准改别的文档」，冲突点改由本文档承载）。
+- faceCenter 冲突字节**未改**（用户指令「不准改别的文档」，冲突点改由本文档承载）。
 - 3d_editor 零改动（对 `cad.faceCenter` 零调用，engrave/knurl 的 `faceCenter` 字段名不受影响）。
 - `.fai.js` API 手册按删除后的状态重生成，faceCenter op 已不在手册中。
 

@@ -1,14 +1,12 @@
 /**
- * gen-capability-map — compat op → brepjs 内核方法依赖盘点（Phase 0 工件生成器）
- *
- * 设计：docs/plans/2026-09-23-brep-engine-switchability-rework.md §4 Phase 0
+ * gen-capability-map — compat op → 来源实现内核方法依赖盘点（Phase 0 工件生成器）
  *
  * 输入：api/surface/arg-spec.ts（ARG_SPEC，单一真源：kind==='brep-op' 条目）
- *       brepjs 树（packages/core/src/brepjs/brepjs/）
+ *       来源实现树（packages/core/src/api/ 内被 source: 引用的模块文件）
  * 产物：api/surface/capability-map.json（入库，能力映射表的工作底表）
  *
  * 算法：对每条 brep-op 条目——
- *   1. 解析 source（<module>.js#<Export>）定位 brepjs 文件与导出函数；
+ *   1. 解析 source（<module>.js#<Export>）定位来源模块文件与导出函数；
  *   2. 解析文件的 import（namespace alias / named / re-export），建立调用图；
  *   3. 从导出函数出发 BFS：提取函数体，收集
  *       内核调用  getKernel().<m>( / getKernel2D().<m>( / kernel.<m>(
@@ -468,7 +466,6 @@ function main(): void {
 
   const out = {
     generatedBy: 'packages/core/scripts/gen-capability-map.ts',
-    design: 'docs/plans/2026-09-23-brep-engine-switchability-rework.md §4 Phase 0',
     count: entries.length,
     entries,
   }

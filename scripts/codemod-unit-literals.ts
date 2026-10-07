@@ -2,7 +2,7 @@
  * codemod-unit-literals.ts — P5: wrap dimensioned args in existing .fai.js files
  * with unit literals `expr * MM`.
  *
- * Design (docs/plans/2026-09-28-unit-system-design.md §6 P5):
+ * Design:
  * - Parse each .fai.js with acorn (same parser as metadata-extractor).
  * - Find `cad.<opName>(...)` CallExpressions.
  * - For each argument that maps to a parameter with a declared `paramDims` entry,

@@ -1,7 +1,6 @@
 # W4（Nut 7 类 + Washer 3 类）探测与偏差裁决
 
 状态：**已落地** | 日期：2026-09-14 | 上游：`C:\git\CADQ\cq_warehouse` v0.8.0（git HEAD `daa4650`）
-方案：`docs/plans/2026-09-13-fai-cq-warehouse-port.md` §8-W4
 复现台：`scripts/kernel-nut-probe.ts`（段 7 = revolve 拓扑；段 8 = threaded GProps 混叠）、`scripts/kernel-pitfalls-probe.ts`、`scripts/probe-bradtee-decomposition.py`（A 侧）
 回归锁：`src/nut.test.ts`、`src/washer.test.ts`、`src/kernel-pitfalls.test.ts`（陷阱 8）
 

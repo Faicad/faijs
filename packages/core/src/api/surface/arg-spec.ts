@@ -1,12 +1,8 @@
 /**
  * arg-spec — L3 投影签名适配表（E5 唯一人工维护点）
  *
- * 设计文档：docs/plans/2026-09-02-faijs-api-surface-completion.md §E5 / §5.2
- *
- * 输入：api/surface/upstream-surface.json（符号存在性基线；反向护栏见
- *       test/api/generated/surface-mechanism.test.ts）。
  * 作用：为每个保留符号声明「faijs 面投影方式」。生成器
- * `packages/core/scripts/gen-l3-surface.ts` 读取本表 + upstream-surface.json，按
+ * `packages/core/scripts/gen-l3-surface.ts` 读取本表，按
  * PROJECTED_MODULES 分片产出 `api/generated/<module>.ts`；未列入本表的符号不进生成。
  *
  * 产出类别（生成器按此判别；完整定义见 gen-l3-surface.ts 头部）：
@@ -51,7 +47,7 @@ export interface QueryParam {
   name: string
   /** 非几何位的类型（如 `number`）；几何位由生成器覆写为 `Shape`。 */
   type: string
-  /** 是否为可选参数（faijs 面签名 `?`），函数缺省值由 brepjs 承担。 */
+  /** 是否为可选参数（faijs 面签名 `?`），函数缺省值由来源实现承担。 */
   optional?: boolean
   /** JSDoc 补充说明。 */
   docs?: string
@@ -61,16 +57,16 @@ export interface QueryParam {
  * D11 参数双形态分类。
  *
  * - A  : 单名双形态（位置形态首参非 plain object，判别式有效，如 box/fuse/torus）。
- * - B1 : 单名单形态（brepjs options 对象即唯一对象形态，无需拆名，如 thread）。
- * - B2 : 双名（brepjs 形态占正名，faijs 对象形态加描述性后缀，如 rotate_euler）。
+ * - B1 : 单名单形态（来源 options 对象即唯一对象形态，无需拆名，如 thread）。
+ * - B2 : 双名（来源形态占正名，faijs 对象形态加描述性后缀，如 rotate_euler）。
  */
 export type FormClass = 'A' | 'B1' | 'B2'
 
 /**
  * 单条投影适配。
  *
- * - `name`   faijs 面导出名（= brepjs 符号名；同名冲突已在 §5.1 处置后，寻表登记双形态或改名）。
- * - `source` brepjs 树内的来源符号，`<相对 brepjs 根的模块路径>#<导出名>`（默认同名）。
+ * - `name`   faijs 面导出名（= 来源符号名；同名冲突已在 §5.1 处置后，寻表登记双形态或改名）。
+ * - `source` 来源树内的来源符号，`<相对 api/ 的模块路径>#<导出名>`（默认同名）。
  * - `kind`   投影类别（见文件头）。
  * - `module` 分片归属（缺省 'topology'，P13 兼容；P14 起逐模块登记）。
  * - `args`   brep-op/query：调用约定描述，供生成器产出 JSDoc 与 normalizeArgs 占位；
@@ -96,14 +92,14 @@ export interface ArgSpecEntry {
    */
   geometryArgs?: number[]
   /**
-   * P14: 几何数组位（query）——该索引是 Shape 数组形参，逐元素借入 brepjs handle。
+   * P14: 几何数组位（query）——该索引是 Shape 数组形参；query 函数体内经 brepOf 逐元素直读内核句柄。
    */
   geometryCollectionArgs?: number[]
   /** For brep-op/query: whether a bool `Result` must be unwrapped (err → throw). Default true for ops/query. */
   returnsResult?: boolean
   /** P14: query 侧 faijs 面形参列表（without the case for pure/type；brep-op 保持位置透传 `...args`）。 */
   queryParams?: QueryParam[]
-  /** For query only: the brepjs return type name (re-exportable from the entry's module) so the generated function can annotate its return type (the export-JSDoc gate requires an explicit annotation + @returns). */
+  /** For query only: the source module's return type name (re-exportable from the entry's module) so the generated function can annotate its return type (the export-JSDoc gate requires an explicit annotation + @returns). */
   returnType?: string
   /** P20: 机器参数名表（按位置顺序），供 dual-form-args resolveArgs 映射对象形态→位置数组。 */
   params?: string[]
@@ -116,7 +112,7 @@ export interface ArgSpecEntry {
   capabilities?: BrepCapabilityName[]
   /**
    * Phase 5（narrowing plan D11）：平台身份声明——该 brep-op 只在列出的引擎上
-   * 实现（如 brepjs op 调 occt-only 方法 isNull/section/loft → ['occt']）。
+   * 实现（如 compat op 调 occt-only 方法 isNull/section/loft → ['occt']）。
    * 缺省 = 全平台中立。可与 capabilities 并存（2026-09-24 撤销 D11-7 互斥）：
    * engines 是引擎白名单，capabilities 是能力依赖，判定 engines 在先（D11-2）。
    * 生成器透传给 compatOp → defineOp engines，并写进 script-face-manifest。
@@ -165,8 +161,8 @@ export interface ArgSpecEntry {
 }
 
 /**
- * 首批机制验证样本（P13a）。每个样本都选了 faijs 无同名、brepjs 有完整实现的符号，
- * 生成产物可立即 typecheck 并桥接 brepjs 跑通（E5 模板：句柄借入 → 调 brepjs →
+ * 首批机制验证样本（P13a）。每个样本都选了 faijs 无同名、来源有完整实现的符号，
+ * 生成产物可立即 typecheck 并桥接来源实现跑通（E5 模板：输入原样直传 → 调来源实现 →
  * Result 翻转 → fromBrep 所有权转入）。
  */
 export const ARG_SPEC: ArgSpecEntry[] = [
@@ -181,7 +177,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'brep-op',
     capabilities: ["dispose","makeTorus"],
     args: '(majorRadius: number, minorRadius: number, options?: TorusOptions)',
-    // 构造类：无几何输入（纯数值参数），brepjs 返回裸 ValidSolid（非 Result）。
+    // 构造类：无几何输入（纯数值参数），来源实现返回裸 ValidSolid（非 Result）。
     geometryArgs: [],
     returnsResult: false,
     params: ['majorRadius', 'minorRadius', 'options'],
@@ -193,17 +189,17 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'fuse',
     source: 'brep-operations/booleanFns.ts#fuseBrep',
     kind: 'brep-op',
-    // Phase 5 补漏（§1.5 推论 1 / D11）：brepjs fuse 默认 trackEvolution 路径依赖
+    // Phase 5 补漏（§1.5 推论 1 / D11）：来源实现 fuse 默认 trackEvolution 路径依赖
     // kernel.isNull / kernel.dispose（occt 平台面）→ 平台 op，声明 engines: ['occt']
     // 在 brepkit 下执行前报错（D11-4）。
     args: '(a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>',
-    // 两个输入都是 faijs Shape → 借入 brepjs handle；第三参 options 透传。
+    // 两个输入都是 faijs Shape → 原样直传给来源实现（引擎不改写入参）；第三参 options 透传。
     geometryArgs: [0, 1],
     returnsResult: true,
     params: ['a', 'b', 'options'],
     formClass: 'A',
     scriptFace: true,
-    // 依赖声明（诚实原则）：isNull / dispose 是 brepjs fuse 的真实内核依赖，二者都在
+    // 依赖声明（诚实原则）：isNull / dispose 是来源实现 fuse 的真实内核依赖，二者都在
     // BrepMethodKind 逐核真名里。本条目早前因 D11-7 互斥被迫只留 engines；互斥已于
     // 2026-09-24 撤销，两条轴可并存，届时按 capability-map.json 实证补回依赖清单。
     engines: ['occt'],
@@ -214,7 +210,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'core:brep-operations#getBounds',
     kind: 'query',
     args: '(shape: Shape) -> BrepBoundingBox（core）',
-    // 查询：输入 Shape（借入），返回纯数据 Bounds3D → 不进 defineOp（直接导出函数）。
+    // 查询：输入 Shape（函数内经 brepOf 直读内核句柄），返回纯数据 Bounds3D → 不进 defineOp（直接导出函数）。
     geometryArgs: [0],
     returnsResult: false,
     returnType: '{ xmin: number; ymin: number; zmin: number; xmax: number; ymax: number; zmax: number }',
@@ -286,7 +282,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     module: 'measurement',
     reason:
       '状态化查询工具：返回带闭包引用（distanceTo/dispose）的 brep 距离工具，faijs 面' +
-      '无法静态建模（查询对象生命周期 + 后续 Shape 参数逐次借入）；跳过，待宿主适配器手工实现',
+      '无法静态建模（查询对象生命周期 + 后续 Shape 参数的逐次取句柄）；跳过，待宿主适配器手工实现',
   },
   // 12 × query（volume / area / length / distance / curvature / interference）
   {
@@ -445,7 +441,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'measurement',
     args: '(shapes: AnyShape[], tolerance?: number) -> InterferencePair[]',
-    // 数组输入：geometryCollectionArgs 索引对应的 Shape 数组逐元素借入 brepjs handle。
+    // 数组输入：geometryCollectionArgs 索引对应的 Shape 数组，query 体内经 brepOf 逐元素直读内核句柄。
     geometryCollectionArgs: [0],
     queryParams: [
       { name: 'shapes', type: 'Shape[]', docs: '成对检测的形状数组' },
@@ -459,7 +455,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
 
   // Phase 7 待裁决 4（方案 §7.1 建议 4，2026-09-24）：occt 独占诊断族进脚本面，
   // 统一 `inspect*` 命名（不走 measure*——避免与中立量形成误导性双轨）。三条无
-  // 中立替代的族：干涉 / 曲率 / 质量属性（惯量/主轴）。name 与 brepjs 导出
+  // 中立替代的族：干涉 / 曲率 / 质量属性（惯量/主轴）。name 与来源导出
   // 解耦（renderQuery 按 source 的 exportName 导入、按 name 声明），engines:['occt']
   // → 函数体第一行执行前断言（D11-4）。
   {
@@ -551,7 +547,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
 
   // Phase 7（narrowing plan §Phase 7 / Q4）：cad 脚本面测量 op（手写实现，
   // kind 'faijs'——api/measurement/index.ts）。直接调 getBrepApi() 的 L1 测量面
-  // （getSurfaceArea / getLength），无 brepjs 借入层、无引擎绑定 → **中立 op**
+  // （getSurfaceArea / getLength），无来源实现中转、无引擎绑定 → **中立 op**
   // （occt / brepkit 同一份 .fai.js 可跑）。返回纯数字，不产出 Shape。
   // 三源一致（B1）：scriptFace: true → gen-l3-surface 进 script-face.ts /
   // script-face-manifest.ts，gen-symbol-table 同步 check() 符号表。
@@ -601,7 +597,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'text',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'TextMetricsResult',
@@ -609,7 +605,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'text',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'fontMetrics',
@@ -617,7 +613,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'text',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'getFont',
@@ -625,7 +621,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'text',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'textMetrics',
@@ -633,7 +629,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'text',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'loadFont',
@@ -673,7 +669,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'projection',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'CubeFace',
@@ -681,7 +677,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'projection',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'ProjectionPlane',
@@ -689,7 +685,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'projection',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'cameraFromPlane',
@@ -697,7 +693,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'projection',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'cameraLookAt',
@@ -705,7 +701,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'projection',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'createCamera',
@@ -713,7 +709,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'projection',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'isProjectionPlane',
@@ -721,7 +717,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'projection',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'makeProjectedEdges',
@@ -742,11 +738,10 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
 
   // ──── 视图投影能力（P25）：view 模块（3 符号，全部 scriptFace=true）────
-  // faijs 自研视图投影 op（方案 docs/plans/2026-09-10-faijs-view-projection-and-screenshot.md
-  // §3.2，路径 A）：工程线稿，只返回纯数据（SVG 字符串 / 相机对象），不产出 Shape。
-  // 实现是手写模块（api/view/，内部借入 brepjs handle → brepjs HLR → SVG 序列化），
+  // faijs 自研视图投影 op（路径 A）：工程线稿，只返回纯数据（SVG 字符串 / 相机对象），不产出 Shape。
+  // 实现是手写模块（api/view/，内部经 brepOf 取内核句柄 → HLR → SVG 序列化），
   // 生成器只负责 re-export 进 L3 面与 cad 脚本面——kind 'faijs' 不入 upstream-surface
-  // 基线（faijs 自研符号），也不走 brepjs import 模板。
+  // 基线（faijs 自研符号），也不走来源 import 模板。
   {
     name: 'viewCamera',
     source: 'view/index.js#viewCamera',
@@ -776,7 +771,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // finder 体系（edge/face/wire/vertex/corner + ShapeFinder 基接口）是「状态化查询工具」：
   // finder 工厂返回带内部闭包状态的 DSL 对象（.when/.inList/.findAll…逐步链式），与
   // createDistanceQuery 同类（§5.2/测量批的 skip 先例）。faijs 面无法以静态函数忠实建模
-  // （finder 生命周期 + 逐次 Shape 借入需宿主适配），值侧全部 skip + reason。类型侧仍然
+  // （finder 生命周期 + 逐次 Shape 取句柄需宿主适配），值侧全部 skip + reason。类型侧仍然
   // re-export：这些类型是可复用查询契约的形态面，无运行时语义。
   {
     name: 'CornerFilter',
@@ -784,7 +779,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'query',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'CornerFinderFn',
@@ -792,7 +787,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'query',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'EdgeFinderFn',
@@ -800,7 +795,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'query',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'FaceFinderFn',
@@ -808,7 +803,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'query',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'ShapeFinder',
@@ -816,7 +811,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'query',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'SingleFace',
@@ -824,7 +819,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'query',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'VertexFinderFn',
@@ -832,7 +827,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'query',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'WireFinderFn',
@@ -840,7 +835,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'query',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'cornerFinder',
@@ -849,7 +844,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     module: 'query',
     reason:
       '返回带状态链式的 2D 角 finder 对象（builder DSL），同 createDistanceQuery 判例：' +
-      'faijs 面无法静态建模（逐 Shape 借入 + 生命周期），跳过（divergence）',
+      'faijs 面无法静态建模（逐 Shape 取句柄 + 生命周期），跳过（divergence）',
   },
   {
     name: 'edgeFinder',
@@ -898,19 +893,19 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
 
   // ──── P14 第四片：ns 模块（9 符号）────
-  // 9 个符号均为「命名空间对象」：brepjs 根 barrel 以
+  // 9 个符号均为「命名空间对象」：来源根 barrel 以
   // `export * as booleans from './ns/booleans.js'` 形式聚合子命名空间。
   // surface 把每个 namespace 记为 value（file 指向子模块），但实际导出名来自
   // 根 barrel 的 *-as 再导出，故 source 指向 `index.js#<name>`（子文件只有
   // 逐名导出、无名空间值）。faijs 面以 `pure` 整包 re-export 该命名空间对象
-  // 即可——保持 brepjs 的组织形态（§5.2 pure 判据：纯导出、无 Shape 参数）。
+  // 即可——保持来源树的组织形态（§5.2 pure 判据：纯导出、无 Shape 参数）。
   {
     name: 'booleans',
     source: 'index.js#booleans',
     kind: 'skip',
     module: 'ns',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'construction',
@@ -918,7 +913,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'ns',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'io',
@@ -926,7 +921,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'ns',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'measurement',
@@ -934,7 +929,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'ns',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'modifiers',
@@ -942,7 +937,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'ns',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'patterns',
@@ -950,7 +945,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'ns',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'primitives',
@@ -958,7 +953,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'ns',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'query',
@@ -966,7 +961,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'ns',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'transforms',
@@ -974,11 +969,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'ns',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
 
   // ──── P14 第五片：gear 模块（17 符号 = 11 type + 3 pure + 3 skip）────
-  // 纯数学/校验助手（无 Shape 参数，返回几何数据/校验结果）→ pure 直连 brepjs 函数。
+  // 纯数学/校验助手（无 Shape 参数，返回几何数据/校验结果）→ pure 直连来源函数。
   // 3 个 make*Gear 构造器返回「复合多句柄结果」：GearResult 内含 solid + 计量字段
   // （pitch/base/tip/root 直径 + diagnostics）；PlanetaryGearAssembly 内含 sun +
   // planets[] + ring 多个 solid。faijs 面的 ops 模板当前只收「单产物 Shape」
@@ -991,7 +986,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'GearDiagnostic',
@@ -999,7 +994,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'GearDiagnosticCode',
@@ -1007,7 +1002,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'GearDiagnosticSeverity',
@@ -1015,7 +1010,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'GearGeometry',
@@ -1023,7 +1018,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'GearResult',
@@ -1031,7 +1026,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'InternalGearParams',
@@ -1039,7 +1034,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'PlanetPlacement',
@@ -1047,7 +1042,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'PlanetPlacementParams',
@@ -1055,7 +1050,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'PlanetaryGearAssembly',
@@ -1063,7 +1058,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'PlanetaryGearParams',
@@ -1071,7 +1066,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'gearGeometry',
@@ -1079,7 +1074,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'planetPlacements',
@@ -1087,7 +1082,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'validatePlanetary',
@@ -1095,7 +1090,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'gear',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'makeExternalGear',
@@ -1139,7 +1134,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'Blueprints',
@@ -1147,7 +1142,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'BoundingBox2d',
@@ -1155,7 +1150,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'CompoundBlueprint',
@@ -1163,7 +1158,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'Curve2D',
@@ -1171,7 +1166,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'DrawingInterface',
@@ -1179,7 +1174,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'GenericSketcher',
@@ -1187,7 +1182,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'Point2D',
@@ -1195,7 +1190,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'ScaleMode',
@@ -1203,7 +1198,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'Shape2D',
@@ -1211,7 +1206,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'SketchData',
@@ -1219,7 +1214,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'SplineOptions',
@@ -1227,7 +1222,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: '2d',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'BaseSketcher2d',
@@ -1479,7 +1474,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'DXFExportOptions',
@@ -1487,7 +1482,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'DXFImportOptions',
@@ -1495,7 +1490,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'GltfExportOptions',
@@ -1503,7 +1498,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'GltfFace',
@@ -1511,7 +1506,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'GltfMaterial',
@@ -1519,7 +1514,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'MaterialFn',
@@ -1527,7 +1522,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'StepExportOptions',
@@ -1535,7 +1530,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'StepExportPart',
@@ -1543,7 +1538,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'SVGImportOptions',
@@ -1551,7 +1546,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'ThreeMFExportOptions',
@@ -1559,7 +1554,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'ThreeMFMaterial',
@@ -1567,7 +1562,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'skip',
     module: 'io',
     reason:
-      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随原 brepjs 树删除，无接收方（裁决 9）',
   },
   {
     name: 'blueprintToDXF',
@@ -1683,10 +1678,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
 
   // ──── P14 第八片：operations 模块（122 符号 = 16 brep-op + 11 pure + 45 skip + 8u/others) ────
-  // brep-op：Shapeable<…> 单/双形状入参 → faijs Shape 借入 → brepjs Result → adopt 单产物；
-  // 数组形状入参（loft/guidedSweep/multiSectionSweep 的 Wire[]）已无障碍——compat-op 的
-  // borrowDeep 递归借入数组/对象内的 Shape（2026-09-24 校正：loft 已由手写平台 op 上脚本面，
-  // guidedSweep/multiSectionSweep 的真障碍是 wire 输入 + 多截面/导轨语义，见各自条目）；
+  // brep-op：Shapeable<…> 单/双形状入参 → 输入原样直传给来源实现 → Result 翻转 → adopt 单产物；
+  // 数组形状入参（loft/guidedSweep/multiSectionSweep 的 Wire[]）不再经任何入参转换
+  // （compat-op 输入直传，见 api/internal/compat-op.ts 的 buildAdapter）——2026-09-24 校正：
+  // loft 已由手写平台 op 上脚本面，guidedSweep/multiSectionSweep 的真障碍是 wire 输入 +
+  // 多截面/导轨语义，见各自条目；
   // 多产物结果（extrudeAll/loftAll = Shape[]/ValidSolid[]）不在单产物收养模板内 → skip；
   // history/assembly/mate/instance 家族 = 状态化 DSL / kernel 句柄容器 → skip；
   // export*/createAssembly = host IO（同 io 判据）/宿主 API → skip；KernelType raw 句柄入参
@@ -1871,7 +1867,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'jointsFromDH', source: 'operations/dhFns.js#jointsFromDH', kind: 'skip', module: 'operations', reason: '§5.6 后 dhFns 未自有化、未平铺（唯一消费方 p5 随删）',
   },
   {
-    name: 'computeStraightSkeleton', source: 'operations/straightSkeleton.js#computeStraightSkeleton', kind: 'skip', module: 'operations', reason: 'core brep-operations 有自有版；operations brepjs 版未平铺（唯一消费方 p5 随删）',
+    name: 'computeStraightSkeleton', source: 'operations/straightSkeleton.js#computeStraightSkeleton', kind: 'skip', module: 'operations', reason: 'core brep-operations 有自有版；operations 原 brepjs 版未平铺（唯一消费方 p5 随删）',
   },
   {
     name: 'isInstanced', source: 'operations/instanceFns.js#isInstanced', kind: 'skip', module: 'operations', reason: '未自有化、未平铺（唯一消费方 p5 随删）',
@@ -1880,7 +1876,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     // ---- brep-op：单/多单形状入参 → 单产物收养 ----
     name: 'extrude', source: 'brep-operations/sweepFns.ts#extrudeBrep', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0],
-    reason: 'faijs 侧 cad.extrude 由手写平台 op 覆盖（api/extrude.ts：对象形态 + upTo 拉伸到面/到支持体端面）。本投影只作为「长度形态」的引擎被手写 op 委托调用（brepjs 是唯一拉伸引擎，既有 cad.extrude(face,[x,y,z]) 语义零漂移），生成模块符号不直接进 cad 命名空间 by design（同 fillet 口径）。',
+    reason: 'faijs 侧 cad.extrude 由手写平台 op 覆盖（api/extrude.ts：对象形态 + upTo 拉伸到面/到支持体端面）。本投影只作为「长度形态」的引擎被手写 op 委托调用（来源实现是唯一拉伸引擎，既有 cad.extrude(face,[x,y,z]) 语义零漂移），生成模块符号不直接进 cad 命名空间 by design（同 fillet 口径）。',
     args: 'extrude(face: Shape, height: number|Vec3) → Shape｜extrude(face: Shape, params: { length? | upTo, normal?, mode?, baseFeature?, offset? }) → Shape',
     params: ['face', 'height'], formClass: 'A',
     naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } },
@@ -2042,16 +2038,16 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'loft', source: 'operations/api.js#loft', kind: 'skip', module: 'operations',
     args: 'loft(sections: Shape[], opts?: LoftOptions): Shape',
-    reason: 'overridden by handwritten api/loft.ts (faijs 侧平台 op engines:[occt]：截面接受 face → 取外环；数组入参本身已无障碍——compat-op 的 borrowDeep 递归借入数组，不适用的是输入形态适配)',
+    reason: 'overridden by handwritten api/loft.ts (faijs 侧平台 op engines:[occt]：截面接受 face → 取外环；faijs 侧唯一实现路径即该手写 op，生成投影不做输入形态适配)',
   },
   {
     name: 'loftAll', source: 'operations/loftFns.js#loftAll', kind: 'skip', module: 'operations', reason: '返回 Shape3D 数组（多产物），skip',
   },
   {
-    name: 'guidedSweep', source: 'operations/guidedSweepFns.js#guidedSweep', kind: 'skip', module: 'operations', reason: 'guides: Wire[] 数组入参本身已无障碍（compat-op 的 borrowDeep 递归借入）；faijs 侧尚未手写对应 op（长尾，本轮不做），skip',
+    name: 'guidedSweep', source: 'operations/guidedSweepFns.js#guidedSweep', kind: 'skip', module: 'operations', reason: 'guides: Wire[]；faijs 侧尚未手写对应 op（长尾，本轮不做），skip',
   },
   {
-    name: 'multiSectionSweep', source: 'operations/multiSweepFns.js#multiSectionSweep', kind: 'skip', module: 'operations', reason: 'sections: SweepSectionConfig[] 数组入参本身已无障碍（compat-op 的 borrowDeep 递归借入）；faijs 侧尚未手写对应 op（长尾，本轮不做），skip',
+    name: 'multiSectionSweep', source: 'operations/multiSweepFns.js#multiSectionSweep', kind: 'skip', module: 'operations', reason: 'sections: SweepSectionConfig[]；faijs 侧尚未手写对应 op（长尾，本轮不做），skip',
   },
   {
     name: 'addJoint', source: 'operations/jointFns.js#addJoint', kind: 'skip', module: 'operations', reason: '运动副 DSL（AssemblyNode 输入）：P3 起改由 cad.assembly 的 joints[] 约束面暴露（库面 buildJoint 直调，2026-09-07 方案 §3.1），仍不直接暴露',
@@ -2066,7 +2062,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'addMate', source: 'operations/mateFns.js#addMate', kind: 'skip', module: 'operations', reason: '装配约束 DSL（MateEntity 持 kernel 活句柄，不可序列化）：P1 起改由 cad.assembly 的 constraints[] 纯数据约束面暴露（2026-09-06 装配方案 §5），仍不直接暴露',
   },
   {
-    name: 'solveAssembly', source: 'operations/mateFns.js#solveAssembly', kind: 'skip', module: 'operations', reason: '命令式求解入口（kernel 句柄输入）：P1 起由 asm.solve()/do_assemble() 替代，求解内核复用 brepjs solverAdapter.solveConstraints（2026-09-06 装配方案 §4），仍不直接暴露',
+    name: 'solveAssembly', source: 'operations/mateFns.js#solveAssembly', kind: 'skip', module: 'operations', reason: '命令式求解入口（kernel 句柄输入）：P1 起由 asm.solve()/do_assemble() 替代，求解内核复用原 brepjs `solverAdapter` 的同源移植（api/assembly/solvers/chain-solver.ts；2026-09-06 装配方案 §4），仍不直接暴露',
   },
   {
     name: 'createHistory', source: 'operations/historyFns.js#createHistory', kind: 'skip', module: 'operations', reason: '状态化历史 DSL，skip host 适配',
@@ -2148,9 +2144,9 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
 
   // ──── P14 batch 9：core 模块（168 = 47 type + 67 pure + 1 query + 53 skip）────
-  // core 是 brepjs 的 L0/L1 基础设施层：Result 组合子、错误构造、向量/平面数学、
+  // core 是来源树的 L0/L1 基础设施层：Result 组合子、错误构造、向量/平面数学、
   // 类型判别与 Shape 类型体系、内核句柄生命周期。faijs 面把「裸 kernel 句柄」排除在
-  // 外（Shape 所有权经 l3-bridge 借入/收养），故 disposal/kernelBoundary/kernelCall/
+  // 外（Shape 所有权经 l3-bridge adopt 收养，取句柄经 brepOf），故 disposal/kernelBoundary/kernelCall/
   // shapeTypes 裸句柄族登记 skip；纯数据函数与常量直接 re-export（pure）。
 
   // 47 × type（全量 re-export，无行为）
@@ -2275,7 +2271,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'CurveType', source: 'core/typeDiscriminants.js#CurveType', kind: 'skip', module: 'core',
   },
   {
-    // 别名：brepjs types.ts 只导出 Direction；根 barrel `Direction as DirectionInput`
+    // 别名：来源 `types.ts` 只导出 Direction；根 barrel `Direction as DirectionInput`
     name: 'DirectionInput', source: 'index.js#DirectionInput', kind: 'skip', module: 'core',
   },
   {
@@ -2440,7 +2436,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'pipeline', source: 'core/result.js#pipeline', kind: 'skip', module: 'core', reason: 'Result 管道入口（纯函数）',
   },
   {
-    // 别名：brepjs result.ts 导出名 zip；根 barrel `zip as zipResults`
+    // 别名：来源 `result.ts` 导出名 zip；根 barrel `zip as zipResults`
     name: 'zipResults', source: 'index.js#zipResults', kind: 'skip', module: 'core', reason: 'zip 的根 barrel 别名导出（纯函数）',
   },
   {
@@ -2513,7 +2509,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'core 引擎无等价方法（occt-wasm 无 isEmpty；getShapeType/isEqual 未进 L1），未平铺未公开（§5.5 第 2 条裁定删除）',
   },
 
-  // 53 × skip（裸 kernel 句柄族；faijs 面 Shape 所有权经 l3-bridge 借入/收养，不暴露裸句柄）
+  // 53 × skip（裸 kernel 句柄族；faijs 面 Shape 所有权经 l3-bridge adopt 收养，不暴露裸句柄）
   // disposal：内核句柄生命周期/作用域基础设施
   {
     name: 'createHandle', source: 'core/disposal.js#createHandle', kind: 'skip', module: 'core', reason: '裸 OCCT Shape 句柄注册（KernelShape 入参），skip host 生命周期管理',
@@ -2679,8 +2675,8 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
 
   // ──── P14 batch 10：sketching 模块（52 = 3 type + 1 pure + 1 brep-op + 47 skip）────
-  // sketching 是 brepjs 的「状态化草图 DSL」层：Sketcher/Sketch/Sketches/FaceSketcher/
-  // CompoundSketch 类 + draw*/drawing*/sketch*/compoundSketch* 函数全部消费 brepjs 内部
+  // sketching 是来源树的「状态化草图 DSL」层：Sketcher/Sketch/Sketches/FaceSketcher/
+  // CompoundSketch 类 + draw*/drawing*/sketch*/compoundSketch* 函数全部消费来源树内部
   // 草图状态对象（内部持有 kernel 引用/草绘平面），faijs 面以 cad 命名空间的声明式 op
   // 表达建模，不暴露草图 DSL 状态机 —— 整层除下列 5 个符号外登记 skip。
   // 保留：Drawing/DrawingPen/SketchInterface 类型 re-export（TS 消费方类型面需要）；
@@ -2856,7 +2852,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
 
   // ──── P14 补批 11：topology 模块（302 = 96 type + 206 value；P13a 4 样本已登）────
-  // topology 是 brepjs 建模核心面（primitive/boolean/transform/modifier/shape 查询）。
+  // topology 是来源树建模核心面（primitive/boolean/transform/modifier/shape 查询）。
   // 本批按 surface 基线逐符号登记：类型全量 re-export；整件进出的几何 op 投 brep-op；
   // Shape→纯数据查询投 query；纯函数投 pure；子形状句柄（Face/Edge/Wire/Vertex）入参
   // 或句柄数组/状态机/宿主渲染 DSL 登记 skip（faijs Shape 面只能表达整件，理由见各条）。
@@ -2960,7 +2956,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   { name: 'WrappedFace', source: 'topology/wrapperFns.js#WrappedFace', kind: 'skip' },
 
   // ── topology value 登记（203 = 206 − P13a 的 torus/fuse/getBounds）──
-  // brep-op：整件 Shape 进出（构造/变换/布尔/修饰，走 defineOp + borrow/adopt）；
+  // brep-op：整件 Shape 进出（构造/变换/布尔/修饰，走 defineOp + adopt 收养）；
   // query：整件 Shape 进 → 纯数据出；pure：无 Shape 参数；skip：divergence 见 reason
   // （子形状句柄入参/句柄数组产物/宿主渲染/状态 DSL 等——faijs Shape 面只有整件值）。
 
@@ -2968,7 +2964,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // 或手写面已覆盖），生成层不重复投影 → skip；曲线/线框/面类构造产物是 Edge/Wire/Face
   // 子形状句柄，faijs Shape 面整件模型无法承载 → skip；ellipsoid 是纯数值整件构造 → brep-op；
   // box（§4.1 A）、cone（§4.1 P）与 cylinder（§4.3 A）自 P3/P4/P5 起由 skip → brep-op：
-  // 投影到 brepjs 契约，但**不投 scriptFace**（faijs 侧由手写 dual-op 覆盖，生成模块
+  // 投影到来源契约，但**不投 scriptFace**（faijs 侧由手写 dual-op 覆盖，生成模块
   // 符号为孤儿 by design）。
   {
     name: 'box', source: 'topology/primitiveFns.js#box', kind: 'skip',
@@ -3165,7 +3161,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'fuseAll', source: 'topology/api.js#fuseAll', kind: 'skip',
-    reason: '入参 Shapeable<T>[]（几何数组），brep-op 模板单柄借入不适用；faijs 用 union 变参，skip',
+    reason: '入参 Shapeable<T>[]（几何数组），brep-op 模板单柄形参不适配；faijs 用 union 变参，skip',
   },
   {
     name: 'cutAll', source: 'topology/api.js#cutAll', kind: 'skip',
@@ -3174,7 +3170,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'intersect', source: 'topology/api.js#intersect', kind: 'skip',
     reason: '禁止投脚本面（§4.8）：faijs 侧 cad.intersect 是 variadic、async、带 keepHidden 时间线副作用、roleTable '
-      + '合流的 dual-op，mesh+brep 双实现；brepjs 的 intersect 是二元同步 Result 契约，仅驻留 compat 面，不共面不投影。'
+      + '合流的 dual-op，mesh+brep 双实现；来源实现的 intersect 是二元同步 Result 契约，仅驻留 compat 面，不共面不投影。'
       + '任何想把上游 intersect 标为 brep-op / scriptFace 的改动，必须同时把 faijs 的 intersect 改名为 intersect_all'
       + '（含 UI ops 与存量迁移）——生成期守卫见 gen-l3-surface.ts（§4.8 触发条件）。',
   },
@@ -3215,7 +3211,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'shell', source: 'brep-operations/topologyFns.ts#shellBrep', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
-    reason: 'faijs 侧 cad.shell 由手写中立 op 覆盖（api/shell.ts：选面走 FaceTopoRef，能力经 capabilities:["directEdit"] 路由 ⇒ 相对 brepjs 的 occt 平台版是能力升级，brepkit 的 L1 shell 亦可用）。本投影保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 extrude / sweep 口径）。',
+    reason: 'faijs 侧 cad.shell 由手写中立 op 覆盖（api/shell.ts：选面走 FaceTopoRef，能力经 capabilities:["directEdit"] 路由 ⇒ 相对来源实现的 occt 平台版是能力升级，brepkit 的 L1 shell 亦可用）。本投影保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 extrude / sweep 口径）。',
     args: 'shell(shape: Shape, faces?: Shape[], thickness: number): Shape',
     params: ['shape', 'faces', 'thickness'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
@@ -3231,7 +3227,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'thicken', source: 'topology/api.js#thicken', kind: 'skip',
-    reason: 'overridden by handwritten api/thicken.ts (平台 op engines:[occt]：入参取面/壳整件 Shape——cad.profile 产物即天然面来源；内部借入喂 brepjs thicken，不再要求子形状句柄)',
+    reason: 'overridden by handwritten api/thicken.ts (平台 op engines:[occt]：入参取面/壳整件 Shape——cad.profile 产物即天然面来源；内部经 brepOf 取句柄直连 occt 内核 thicken，不再要求子形状句柄)',
   },
   {
     name: 'draft', source: 'topology/api.js#draft', kind: 'skip',
@@ -3499,7 +3495,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'faceCenter', source: 'topology/faceFns.js#faceCenter', kind: 'skip',
     reason: 'faijs 无同名 op（§4.9）：faceCenter 仅作为 api/engrave.ts 与 api/knurl.ts 的参数键（绝对坐标快照）存在，'
       + '不共面、不冲突。若将来要在 cad 面提供质心查询，契约应为 cad.faceCenter(shape, ordinal?)（入参是 faijs Shape + 面'
-      + '序号，与 brepjs 的 Face 入参不同），两面各持各的契约。',
+      + '序号，与来源实现的 Face 入参不同），两面各持各的契约。',
   },
   {
     name: 'getSurfaceType', source: 'topology/faceFns.js#getSurfaceType', kind: 'skip',
@@ -3942,53 +3938,54 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
 
   // ──── P14 补批 12：kernel 模块（57 = 21 value + 36 type；D10 冻结 registry）────
-  // kernel 是 L0 注册表面：D10 单实例 occt-wasm 由 faijs 侧装配并冻结`n  // （2026-09-25 core-decouple 后 brepjs registry 由宿主/测试自装配），
+  // kernel 是 L0 注册表面：D10 单实例 occt-wasm 由 faijs 侧装配并冻结
+  // （2026-09-25 core-decouple 后原 brepjs 内核注册表由宿主/测试自装配），
   // 只读/纯数据符号 re-export；registry 生命周期（init/with*/register*/tier/perf）与
   // KernelAdapter 对象谓词登记 skip（理由见各条）；上游已剪除符号（BrepkitHandle、
-  // PerformanceStats、BrepkitAdapter、init 系等）同样 skip——brepjs 树无对应导出。
+  // PerformanceStats、BrepkitAdapter、init 系等）同样 skip——原 brepjs 树无对应导出。
   //
-  // 36 type：34 个 re-export（真身所在文件）+ 2 个 skip（brepjs 无此类型）
-  { name: 'BooleanDiagnostics', source: 'kernel/types.js#BooleanDiagnostics', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'BooleanIssue', source: 'kernel/types.js#BooleanIssue', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'BooleanOpType', source: 'kernel/types.js#BooleanOpType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'CheckBooleanResult', source: 'kernel/types.js#CheckBooleanResult', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'NurbsCurveData', source: 'kernel/types.js#NurbsCurveData', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'NurbsSurfaceData', source: 'kernel/types.js#NurbsSurfaceData', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'ShapeEvolution', source: 'kernel/types.js#ShapeEvolution', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'ShapeOrientation', source: 'kernel/types.js#ShapeOrientation', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'ShapeType', source: 'kernel/types.js#ShapeType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'SurfaceType', source: 'kernel/types.js#SurfaceType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'ProjectionCapability', source: 'kernel/types.js#ProjectionCapability', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'ConstraintSketchCapability', source: 'kernel/types.js#ConstraintSketchCapability', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelAdapter', source: 'kernel/interfaces/index.js#KernelAdapter', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelCore', source: 'kernel/interfaces/index.js#KernelCore', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelBooleanOps', source: 'kernel/interfaces/index.js#KernelBooleanOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelBuilderOps', source: 'kernel/interfaces/index.js#KernelBuilderOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelCurveOps', source: 'kernel/interfaces/index.js#KernelCurveOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelEvolutionOps', source: 'kernel/interfaces/index.js#KernelEvolutionOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelIOOps', source: 'kernel/interfaces/index.js#KernelIOOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelMeasureOps', source: 'kernel/interfaces/index.js#KernelMeasureOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelMeshOps', source: 'kernel/interfaces/index.js#KernelMeshOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelModifierOps', source: 'kernel/interfaces/index.js#KernelModifierOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelPrimitiveOps', source: 'kernel/interfaces/index.js#KernelPrimitiveOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelRepairOps', source: 'kernel/interfaces/index.js#KernelRepairOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelSurfaceOps', source: 'kernel/interfaces/index.js#KernelSurfaceOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelSweepOps', source: 'kernel/interfaces/index.js#KernelSweepOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelTopologyOps', source: 'kernel/interfaces/index.js#KernelTopologyOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelTransformOps', source: 'kernel/interfaces/index.js#KernelTransformOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'KernelCapabilities', source: 'kernel/capabilities.js#KernelCapabilities', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'TessellationModel', source: 'kernel/capabilities.js#TessellationModel', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'QualityLevel', source: 'kernel/quality.js#QualityLevel', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'OcctKernelWasm', source: 'kernel/occtWasm/occtWasmTypes.js#OcctKernelWasm', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'OcctWasmHandle', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmHandle', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
-  { name: 'OcctWasmModule', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmModule', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  // 36 type：34 个 re-export（真身所在文件）+ 2 个 skip（原 brepjs 无此类型）
+  { name: 'BooleanDiagnostics', source: 'kernel/types.js#BooleanDiagnostics', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'BooleanIssue', source: 'kernel/types.js#BooleanIssue', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'BooleanOpType', source: 'kernel/types.js#BooleanOpType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'CheckBooleanResult', source: 'kernel/types.js#CheckBooleanResult', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'NurbsCurveData', source: 'kernel/types.js#NurbsCurveData', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'NurbsSurfaceData', source: 'kernel/types.js#NurbsSurfaceData', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'ShapeEvolution', source: 'kernel/types.js#ShapeEvolution', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'ShapeOrientation', source: 'kernel/types.js#ShapeOrientation', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'ShapeType', source: 'kernel/types.js#ShapeType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'SurfaceType', source: 'kernel/types.js#SurfaceType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'ProjectionCapability', source: 'kernel/types.js#ProjectionCapability', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'ConstraintSketchCapability', source: 'kernel/types.js#ConstraintSketchCapability', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelAdapter', source: 'kernel/interfaces/index.js#KernelAdapter', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelCore', source: 'kernel/interfaces/index.js#KernelCore', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelBooleanOps', source: 'kernel/interfaces/index.js#KernelBooleanOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelBuilderOps', source: 'kernel/interfaces/index.js#KernelBuilderOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelCurveOps', source: 'kernel/interfaces/index.js#KernelCurveOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelEvolutionOps', source: 'kernel/interfaces/index.js#KernelEvolutionOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelIOOps', source: 'kernel/interfaces/index.js#KernelIOOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelMeasureOps', source: 'kernel/interfaces/index.js#KernelMeasureOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelMeshOps', source: 'kernel/interfaces/index.js#KernelMeshOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelModifierOps', source: 'kernel/interfaces/index.js#KernelModifierOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelPrimitiveOps', source: 'kernel/interfaces/index.js#KernelPrimitiveOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelRepairOps', source: 'kernel/interfaces/index.js#KernelRepairOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelSurfaceOps', source: 'kernel/interfaces/index.js#KernelSurfaceOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelSweepOps', source: 'kernel/interfaces/index.js#KernelSweepOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelTopologyOps', source: 'kernel/interfaces/index.js#KernelTopologyOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelTransformOps', source: 'kernel/interfaces/index.js#KernelTransformOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'KernelCapabilities', source: 'kernel/capabilities.js#KernelCapabilities', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'TessellationModel', source: 'kernel/capabilities.js#TessellationModel', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'QualityLevel', source: 'kernel/quality.js#QualityLevel', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'OcctKernelWasm', source: 'kernel/occtWasm/occtWasmTypes.js#OcctKernelWasm', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'OcctWasmHandle', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmHandle', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
+  { name: 'OcctWasmModule', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmModule', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随原 brepjs 树删除，无接收方（裁决 9）' },
   {
     name: 'BrepkitHandle', source: 'kernel/index.js#BrepkitHandle', kind: 'skip', module: 'kernel',
-    reason: '上游 brepkit 句柄类型（faijs 以 OcctWasmHandle 承担），brepjs 无此导出，skip',
+    reason: '上游 brepkit 句柄类型（faijs 以 OcctWasmHandle 承担），原 brepjs 无此导出，skip',
   },
   {
     name: 'PerformanceStats', source: 'kernel/perfStats.js#PerformanceStats', kind: 'skip', module: 'kernel',
-    reason: '性能统计类型，brepjs perfStats 模块已剪除，skip',
+    reason: '性能统计类型，原 brepjs perfStats 模块已剪除，skip',
   },
 
   // 21 value：4 个只读/纯数据 re-export；registry 生命周期与对象谓词 skip
@@ -4002,7 +3999,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
 
   {
     name: 'getKernel', source: 'kernel/index.js#getKernel', kind: 'skip', module: 'kernel',
-    reason: 'L0 kernel 读取器（D10：faijs 侧装配并冻结 brepjs registry），不向 L3 用户面暴露，skip',
+    reason: 'L0 kernel 读取器（D10：faijs 侧装配并冻结原 brepjs 内核注册表），不向 L3 用户面暴露，skip',
   },
   {
     name: 'registerKernel', source: 'kernel/index.js#registerKernel', kind: 'skip', module: 'kernel',
@@ -4022,7 +4019,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'BrepkitAdapter', source: 'kernel/index.js#BrepkitAdapter', kind: 'skip', module: 'kernel',
-    reason: '上游 brepkit 适配器（faijs 以 occt 面承担），brepjs 无此导出，skip',
+    reason: '上游 brepkit 适配器（faijs 以 occt 面承担），原 brepjs 无此导出，skip',
   },
   {
     name: 'init', source: 'kernel/index.js#init', kind: 'skip', module: 'kernel',
@@ -4062,10 +4059,10 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'getPerformanceStats', source: 'kernel/index.js#getPerformanceStats', kind: 'skip', module: 'kernel',
-    reason: '上游性能统计读取（brepjs 剪除），skip',
+    reason: '上游性能统计读取（原 brepjs 剪除），skip',
   },
   {
     name: 'resetPerformanceStats', source: 'kernel/index.js#resetPerformanceStats', kind: 'skip', module: 'kernel',
-    reason: '上游性能统计重置（brepjs 剪除），skip',
+    reason: '上游性能统计重置（原 brepjs 剪除），skip',
   },
 ]

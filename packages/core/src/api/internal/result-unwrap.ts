@@ -2,9 +2,7 @@
  * result-unwrap — the single Result→throw bridge shared by every faijs
  * statement boundary (D1).
  *
- * Design: docs/plans/2026-09-03-faijs-brepjs-compat-api.md §5.1 / §5.2
- *
- * Three-layer error semantics (§5.1):
+ * Three-layer error semantics:
  *   library internals / TS compat face → `Result<T>` native (BrepError)
  *   statement boundary                 → `err` unwrapped into a throw
  *   faijs-specific op impls            → may return `Result`; same unwrap

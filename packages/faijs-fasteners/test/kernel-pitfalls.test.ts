@@ -84,7 +84,7 @@ describe('陷阱 1：makeWire 不校验连通性（乱序喂边会静默丢边�
 
     // 实测真相：内核是**逐边**语义——接不上当前开口端的边被静默丢弃。
     // 这正是 cq-compat phase2 记录的「4 边入 → 3 边出」
-    //（docs/plans/2026-09-08-cq-compat-parity-phase2.md，那边用 reorderForWireAssembly 兜住）。
+    //（cq-compat 侧用 reorderForWireAssembly 兜住）。
     expect(() => k.makeWire([A, C, B, D]), '丢边不抛错').not.toThrow()
     expect(edgeCount(k.makeWire([A, C, B, D])), '[A,C,B,D] → 3').toBe(3)
     expect(edgeCount(k.makeWire([C, A, B, D])), '[C,A,B,D] → 3').toBe(3)

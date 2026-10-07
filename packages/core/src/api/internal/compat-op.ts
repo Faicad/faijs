@@ -2,8 +2,6 @@
  * compat-op — lift an arbitrary brepjs-shaped function into a faijs statement
  * op, built **on top of** defineOp (single implementation entry, v1).
  *
- * Design: docs/plans/2026-09-06-compatop-on-defineop.md §3
- *
  * compatOp is NOT a second implementation path parallel to defineOp: every
  * shared mechanism is owned by defineOp — dispatch (dispatchPath + capability
  * routing), the Result boundary (runImpl + unwrapResult), product wrapping
@@ -12,7 +10,7 @@
  *   - spec pass-through: `CompatSpec` is a combinatorial inheritance of
  *     `DualOpOptions` (single source of truth, fields auto-sync — §3.1);
  *   - adapter construction: a brepjs-shaped bridge feeding the brep impl — the
- *     three bridging steps that cannot be shared (all reuse shared
+ *     two bridging steps that cannot be shared (all reuse shared
  *     infrastructure, §3.2):
  *       1. call + unwrap — callBrepjs through the shared unwrapResult
  *          (`err` throws an OpError carrying the op name + BrepError code);
@@ -123,8 +121,8 @@ function readSegmentsFromArgs(args: unknown[]): number | undefined {
 }
 
 /**
- * Build the brep-only adapter: borrow inputs → call the vendor function through
- * the shared unwrap → adopt the product (with the caller's `segments`,
+ * Build the brep-only adapter: pass inputs through → call the vendor function
+ * through the shared unwrap → adopt the product (with the caller's `segments`,
  * 裁决 1/§5.2). The adapter never dispatches and never mounts metadata —
  * those are defineOp's.
  *
@@ -155,7 +153,7 @@ type MetaCarrier = { [DUAL_OP_META]?: DualOpMeta }
  * The decorated product is identical to a defineOp product: same `DUAL_OP_META`
  * field set (kind 'dual-op', brep impl, name, capabilities, outputs, schema,
  * slotMap), same dispatch semantics, same Result boundary. The adapter carries
- * only the brepjs bridging (borrow / call / adopt); every other mechanism
+ * only the brepjs bridging (input pass-through / call / adopt); every other mechanism
  * belongs to defineOp.
  *
  * @param fn   the brepjs-shaped function.

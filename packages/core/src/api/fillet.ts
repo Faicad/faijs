@@ -8,15 +8,13 @@
  * 与 chamfer 的差异：fillet 用 filletWithHistory 走面演化 + roleTable 传播
  * （chamfer 在 P5 同步改造）。M1 只支持等半径；M2 计划支持变半径与几何限定符。
  *
- * 设计见 docs/plans/2026-09-10-fillet-op-and-editor-ui.md §2–§3。
- *
  * M1：
  * - 等半径（number）：kernel.filletWithHistory(solid, edges, radius, hashes, bound)
- * - 走 filletWithRoleTable 传播 roleTable（§3.2）
+ * - 走 filletWithRoleTable 传播 roleTable
  * - BREP-only：mesh 输入 → E_MESH_UNSUPPORTED（backend-dispatch 静态判定）
  *
  * M2（未实施）：
- * - 变半径 [r1, r2]：filletVariable + 单边 + 不产 roleTable（§3.3 降级）
+ * - 变半径 [r1, r2]：filletVariable + 单边 + 不产 roleTable（降级）
  * - 几何限定符字符串选边（§4）
  */
 

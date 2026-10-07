@@ -56,7 +56,7 @@ export const fuse = defineOp({
 /**
  * getBounds — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
  * (shape: Shape) -> BrepBoundingBox（core）
- * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
+ * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无来源实现中转。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns { xmin: number; ymin: number; zmin: number; xmax: number; ymax: number; zmax: number } — 纯数据结果（非 Shape）。
@@ -201,7 +201,7 @@ export const simplify = defineOp({
 /**
  * isValid — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
  * isValid(shape: Shape): boolean（core）
- * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
+ * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无来源实现中转。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns boolean — 纯数据结果（非 Shape）。
@@ -214,7 +214,7 @@ export function isValid(shape: Shape): boolean {
 /**
  * isSameShape — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
  * isSameShape(a: Shape, b: Shape): boolean（core）
- * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无 vendored 借入/调用。
+ * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无来源实现中转。
  *
  * @param a - 可形状参数（第一个被比较形状）
  * @param b - 可形状参数（第二个被比较形状）

@@ -2,7 +2,7 @@
  * admit-compat-lib.test.ts — library admission tests (2026-09-23).
  *
  * Library authors no longer declare face naming: `fn.naming` / `options.naming` /
- * `namingFor` / `faijs.naming` were removed (docs/plans/2026-09-23-relax-lib-naming-design.md).
+ * `namingFor` / `faijs.naming` were removed.
  * Every bare function is admitted with the fixed default unmodeled provenance
  * (faces get no stable identity; face references degrade to geometric matching).
  * Op-level naming (defineOp's DUAL_OP_META.naming) is the only naming channel.

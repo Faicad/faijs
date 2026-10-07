@@ -591,7 +591,7 @@ export const myOp = defineOp({
 
 ### 10.5 Whole-module `.ts` execution channel (faqts) — **removed**
 
-> ⚠️ **Removed (2026-09-23)**: the faqts/faits whole-module `.ts` execution path has been deleted under the iron rule "scripts must be plain JS, libraries must be TS". Scripts are `.fai.js` only (executed by faijs); library code is TS source compiled to JS by `tsc` at build time — the runtime performs no type stripping. See `docs/plans/2026-09-23-script-js-only-lib-ts-design.md`. This section is kept only as a historical record.
+> ⚠️ **Removed (2026-09-23)**: the faqts/faits whole-module `.ts` execution path has been deleted under the iron rule "scripts must be plain JS, libraries must be TS". Scripts are `.fai.js` only (executed by faijs); library code is TS source compiled to JS by `tsc` at build time — the runtime performs no type stripping. This section is kept only as a historical record.
 
 ### 10.6 The editor extension library (`@faicad/faijs-extra`)
 
@@ -653,7 +653,7 @@ The library has two entries with different dependency closures. The root and `./
 - `ImportModel.bambuViews?` — Bambu 3MF plates / assemble·import transforms / buildItems / filament colors (host no longer re-parses the 3MF archive).
 - Multi-part `compound.children` are **anonymous geometry** (no variable names), so they do **not** enter `ExecutionResult.compounds` (that field is for named member variables); part identity lives in `importModels`, geometry in `outputs.get(terminal).children`.
 
-Full design: `docs/plans/2026-10-06-step-3mf-multipart-import-plan.md` (§5). Implementation status: P0–P5 implemented (faijs 0.30.5).
+Implementation status: P0–P5 implemented (faijs 0.30.5).
 
 ---
 

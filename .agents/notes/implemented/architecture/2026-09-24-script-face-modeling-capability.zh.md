@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-方案 `docs/plans/2026-09-24-script-face-gap-exposure-plan.md` 的 Phase 0–5 已在提交 b0c4a92 … e2165a4 落地，剩 Phase 6（剖切族 + mock 补桩）与 Phase 7（文档 / 守卫 / 版本）未收口：
+脚本面建模能力的 Phase 0–5 已在提交 b0c4a92 … e2165a4 落地，剩 Phase 6（剖切族 + mock 补桩）与 Phase 7（文档 / 守卫 / 版本）未收口：
 
 - `splitByPlane` / `sectionByPlane` 只存在于 L1 契约面——没有 cad 脚本面 op。
 - `brep-mock.ts` 仍把 `revolveVec` / `sew` / `shell` / `hullFromPoints` / `sectionByPlane` / `splitByPlane` 桩成 `unsupported(...)`，mock 引擎无法驱动任何触达它们的编排链路（方案 §2.4⑥）。

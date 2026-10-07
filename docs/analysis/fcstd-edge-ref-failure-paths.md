@@ -1,7 +1,6 @@
 # `edgeRef` 失败三路径定性：nameless shape / no role lineage / ordinal 越界
 
 状态：定性完成（2026-09-28）。三条路径全部是**契约内的结构化错误**，core 侧无可修缺陷。
-关联：`docs/plans/2026-09-28-fcstd-port-progress-review-and-next-plan.md` §P2 候选 4
 （corpus 实测 nameless 77 + no-role-lineage 15 + ordinal 越界 2）。
 
 ## 产生点与定性

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-10-07-drop-upstream-surface-baseline.md
+2026-10-07-drop-upstream-surface-baseline.md: 974cae091fe5c051c8c3e149eb18ce38fbb8dbf2
+2026-10-07-drop-upstream-surface-baseline.zh.md: e86fc2afa6c95db033c03232a87fd95428bef311

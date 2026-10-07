@@ -10,8 +10,8 @@
  *   - centerOfMass(shape) → 质心坐标（getCenterOfMass，BrepVec3 {x,y,z}）。
  *
  * 与旧测量面（api/generated/measurement.ts 的 measureArea / measureLength）
- * 的区别：那些 op 经 l3-bridge 借入层 + compat 函数绑定 occt-wasm，整体 occt-only
- * （Phase 6 已声明 engines: ['occt']）；本模块直接调 L1 方法，无借入层、无引擎绑定，
+ * 的区别：那些 op 挂在生成投影面上，整体 occt-only（Phase 6 已声明 engines: ['occt']）；
+ * 本模块直接调 L1 方法，不经来源实现、无引擎绑定，
  * 是脚本面的中立测量入口。返回纯数字，不产出 Shape、不消费 shape。
  *
  * 三源一致（B1）：本模块经 arg-spec 的 `scriptFace: true` 条目（kind 'faijs'）登记，
