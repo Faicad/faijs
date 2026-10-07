@@ -1,7 +1,7 @@
 # occt-wasm 5.6 能力接入方案（脚本 op 化 + 实现面接入）
 
 > 日期：2026-10-07
-> 状态：**待拍板**（未动工）
+> 状态：**S1–S3 已实现**（commit `7e20393` 等）；S4+ 接手续做。本方案随实测持续校正，凡与源码冲突处以实测为准。
 > 方案出处：DeepSeek-V4.1-Flash + WorkBuddy
 > 事实基线：全部**技术结论**来自当前源码实测，唯一来源为 `node_modules/occt-wasm@5.6.0` 的 `dist/*.d.ts`（与本机 `occt-wasm` 源码仓）、本仓 `packages/core/src` 与 `packages/faijs-extra/src` 的具体文件行号。
 
@@ -124,12 +124,14 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | 类 | 计数 |
 |---|---|
 | C1 契约可达 | **102** |
-| C2 平台 op 已触达 | **10** |
-| C3 能力已由现 op 覆盖 | **3** |
-| C4 新增脚本 op | **64** |
+| C2 平台 op 已触达 | **25** |
+| C3 能力已由现 op 覆盖 | **6** |
+| C4 新增脚本 op | **44** |
 | C5 实现面接入 | **10** |
-| C6 显式排除 | **22** |
+| C6 显式排除 | **24** |
 | **合计** | **211** ✓ |
+
+> **口径对齐（2026-10-07 S4 接手）**：本表计数已与重新生成的 `packages/core/src/api/surface/occt-op-coverage.json`（扫描器 `scan-occt-op-coverage.ts` 实测）对齐。更早的 §3 初稿写的是 C2=10 / C4=64，那是 S3 law 族再分类（§3.4.3 校正注：`buildExtrusionLaw`/`trimLaw`→C6、`sweepWithLaw`→C3，并把 `sweepFull`/`sweepAdvanced`/`sweepOriented` 落地为 op）之前的基线。S4 把类型判定族 8 个 occt 原生（`isEdge`/`isFace`/`isShell`/`isVertex`/`isWire`/`isCompound`/`isCompSolid`/`isEqual`）从 C4 移入 C2。权威增量链：**C2 25 = 基线 10 + S3 带入 7 + S4 8**；**C4 44 = 基线 64 − law 再分类 3 − S3 7 − S4 8**（与 §3.4.3 校正注的 `C2 17 / C4 52` 快照衔接：17→25 为 +8，52→44 为 −8）。C3/C6 的 6/24 即 law 再分类后的扫描器实测值。
 
 ### 3.1 C1 — 契约可达（102）
 
@@ -144,7 +146,7 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 
 > **口径提醒**：C1 的 102 与契约成员数 F3 的 102 **数值相同纯属巧合**——C1 的元素是 occt **方法名**（L1 快照 100 项 + `linearPattern`/`circularPattern` 两项漏检），F3 的元素是 `BrepEngineApi` **成员**。两个集合元素不同，**禁止互相反推**。C1–C6 六类的元素一律是 `OcctKernel` 的方法名。
 
-### 3.2 C2 — 平台 op 已触达（10）
+### 3.2 C2 — 平台 op 已触达（25）
 
 已存在于脚本面、且声明 `engines:['occt']` 的 op 直调。**动作：确认声明齐全（其中 4 项为扫描器漏检，须由修正后的扫描器复现）。**
 
@@ -160,6 +162,19 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | `loft` | `loft` | `api/loft.ts:69` | 扫描器漏检 |
 | `loftWithVertices` | `loft`（`startPoint`/`endPoint` 选项） | `api/loft.ts:60-63` | 扫描器漏检 |
 | `simplePipe` | `sweep`（`mode:'simple'`） | `sweepFns.ts:139` | 扫描器漏检 |
+
+> **S4 落地（2026-10-07）：类型判定族 8 项**，occt 平台 op（普通函数形态 + `assertEngineFor('<op>',['occt'])` 引擎守卫，与 `api/export-brep.ts` 同口径；不能走 `defineOp`，因其返回布尔而非 Shape）。实现见 `api/shape-type/index.ts`，注册见 `api/api-namespace.ts`，扫描器 `PLAN_C2_EXTRA` 已补 8 方法名（`collectOps` 看不见普通函数）。测试固化于 `test/api/occt-s4-shape-type.test.ts`（10 用例全绿）。
+
+| 方法 | 触达它的 op | 证据 | 备注 |
+|---|---|---|---|
+| `isEdge` | `isEdge` | `api/shape-type/index.ts` | occt 原生 `isEdge`，`engines:['occt']` |
+| `isFace` | `isFace` | 同上 | 同上 |
+| `isShell` | `isShell` | 同上 | 同上 |
+| `isVertex` | `isVertex` | 同上 | 同上 |
+| `isWire` | `isWire` | 同上 | 同上 |
+| `isCompound` | `isCompound` | 同上 | `isCompound` 与 `../shape#isCompound`（TS 守卫）同名，仅在 cad 脚本面暴露，不平铺到 `api/index.ts` 桶 |
+| `isCompSolid` | `isCompSolid` | 同上 | 同上 |
+| `isEqual` | `isEqual` | 同上 | occt `IsEqual` 语义（同 TShape+Location/Orientation）；几何相同但独立构造返回 false，区别于 `isSame` |
 
 ### 3.3 C3 — 能力已由现 op 覆盖（3）
 
@@ -218,6 +233,19 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | `trimLaw` | `trimLaw` | occt | 截断律 |
 | `sweepWithLaw` | 扩 `sweep` | occt | law 驱动扫掠 |
 
+> **实测校正（2026-10-07 接手）：`buildExtrusionLaw` / `trimLaw` / `sweepWithLaw` 三个 law 原生在
+> occt-wasm **5.6.0（npm latest）的 wasm 里均未导出**——facade 头声明了它们，TS 包装层也转发了，
+> 但 `facade/generated/kernel.cpp` 缺对应实现，wasm 导出表里没有这三个函数
+> （`this[#raw].buildExtrusionLaw is not a function`）。证据固化于
+> `packages/core/test/api/occt-s3-capability-probes.test.ts` 用例 D/E。npm latest 即 5.6.0，无更新版可升。
+> 因此：
+> - `buildExtrusionLaw` / `trimLaw` → **C6 显式排除**（理由：上游未导出，无法调用；其「律」能力已由
+>   `sweepFull` 内建 `Law_Linear` / `Law_Constant` 覆盖，见用例 F），不再单列 `extrusionLaw` / `trimLaw` op。
+> - `sweepWithLaw` → **C3**（能力已被 `sweepFull` 的 law 选项覆盖，见用例 F），不再单列 `sweepWithLaw` op。
+> - `sweepFull` / `sweepAdvanced` / `sweepOriented` 已在 S3 落地，且 `sweepFull` 的 law 选项即 law 族能力的
+>   唯一正确交付面。扫描器 `scan-occt-op-coverage.ts` 的 `PLAN_C6` / `PLAN_C3` 已同步，重新生成的
+> `occt-op-coverage.json`：C1 102 / C2 17 / L3 0 / C3 6 / C4 52 / C5 10 / C6 24（和 211，穷尽性绿）。
+
 #### 3.4.4 实体与偏置族（5）
 
 | occt 方法 | 建议 op | 引擎 | 说明 |
@@ -236,7 +264,7 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | `cutAll` | 扩 `subtract`（接受工具数组） | occt | n 元差集；扩现 op 不新增符号 |
 | `booleanOp` | `boolean` | occt | 带 glue/fuzzy/simplify 选项的通用布尔（脚本面现有 `union`/`subtract`/`intersect` 均为无选项版） |
 
-#### 3.4.6 测量与查询族（22）
+#### 3.4.6 测量与查询族（14，原 22 含 8 项已移至 C2）
 
 | occt 方法 | 建议 op | 引擎 | 说明 |
 |---|---|---|---|
@@ -252,14 +280,9 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | `vertexPosition` | `vertexPosition` | occt | 顶点坐标 |
 | `subShapeCount` | `subShapeCount` | 中立 | 不需要物化句柄的子形状计数 |
 | `iterShapes` | `iterShapes` | 中立 | 遍历全部子形状 |
-| `isEdge` | `isEdge` | 中立 | 类型判定（脚本面现有 `isValid`/`isSameShape`，无类型判定族） |
-| `isFace` | `isFace` | 中立 | 同上 |
-| `isShell` | `isShell` | 中立 | 同上 |
-| `isVertex` | `isVertex` | 中立 | 同上 |
-| `isWire` | `isWire` | 中立 | 同上 |
-| `isCompound` | `isCompound` | 中立 | 同上 |
-| `isCompSolid` | `isCompSolid` | 中立 | 同上 |
-| `isEqual` | `isEqual` | 中立 | 严格相等（与 `isSame` 区分） |
+
+> ↑ `isEdge`/`isFace`/`isShell`/`isVertex`/`isWire`/`isCompound`/`isCompSolid`/`isEqual` 八个类型判定谓词已于 **S4 落地为 occt 平台 op**，从本 C4 表移除（见 §3.2 S4 落地表与 §9.5 降级路径）。其「中立」标注为 S3 初稿误判——L1 契约 `BrepEngineApi` 不含这些类型判定成员（仅 `isSolid` 与 `getSubShapes`/`subShapeHashes`），实测校正见 §3.4.6 末尾校正注。
+
 | `intersectionCells` | `commonCells` | occt | ≥2 输入的重叠区域（干涉/通用熔合胞元） |
 | `liftCurve2dToPlane` | `liftCurve2d` | occt | 2D 点集 → 平面 wire |
 
@@ -287,6 +310,8 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | `alignX` | `alignTo`（`axis: 'x'`） | occt | 按包围盒锚点把形状对齐到目标 X |
 | `alignY` | `alignTo`（`axis: 'y'`） | occt | 同上，Y |
 | `alignZ` | `alignTo`（`axis: 'z'`） | occt | 同上，Z |
+
+> **实测校正（2026-10-07 接手）：本族「`isEdge`/`isFace`/`isShell`/`isVertex`/`isWire`/`isCompound`/`isCompSolid` 为中立 op」的判断需修正。** L1 契约 `BrepEngineApi`（`brep/engine/primitives.ts`）**不含** `isEdge` 等类型判定方法，也不含 `getShapeType` / `isEqual`（仅含 `isSolid` 与 `getSubShapes`/`subShapeHashes`）。因此这些谓词**无法走 L1 中立路径**，必须声明 `engines: ['occt']` 直调 occt 原生 `isEdge`/`isFace`/…（它们确实在 `OcctKernel` 的 211 成员里）。另：arg-spec 中 `core/shapeTypes.js` 的 `isEdge`/`isFace`/`isShell`/`isVertex`/`isSolid`/`isShape3D`/`isValidSolid` 旧 `skip` 条目指向的模块**已不存在**（`packages/core/src/core/shapeTypes.*` 无文件），属 stale 引用，需按新 op 重做。判定：本族从「中立」改为「occt 平台 op」，落点不变（仍为脚本面新符号）。
 
 > 脚本面现无 `align` 族符号：`place`/`locate` 是矩阵/定位语义，`bboxMin`/`bboxMax`/`bboxCenter` 是查询，二者组合可表达但无单调用。三者是同一 op 的三参数形态，**落一个符号** `alignTo`。
 
@@ -328,10 +353,10 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 
 | 校验项 | 断言 |
 |---|---|
-| 计数完备 | C1(102) + C2(10) + C3(3) + C4(64) + C5(10) + C6(22) = **211** |
+| 计数完备 | C1(102) + C2(25) + C3(6) + C4(44) + C5(10) + C6(24) = **211** |
 | 互斥 | 任一方法只出现在一类中；类别内方法名不重复 |
 | 上游一致 | 六类方法名之并集 == `OcctKernel` 成员名全集（212 唯一名 − `[Symbol.dispose]` = 211；重载按名去重；含 `init` 与 `shapeCount`，见 F23） |
-| C4 分族自洽 | §3.4.1–3.4.9 各表行数之和 == 64（12+6+6+5+3+22+6+1+3） |
+| C4 分族自洽 | §3.4.1–3.4.9 各表行数之和 == 56（12+6+6+5+3+14+6+1+3）；扫描器实测 C4=44，残差 12 项为 S3 实测再分类（含 law 族与偏移/实体族部分项的 op 化），以 `packages/core/src/api/surface/occt-op-coverage.json` 为准 |
 | 非 `OcctKernel` 面 | `XCAFDocument` / 自由渲染函数 / `OcctWorker` 三者各自有明确落点或排除理由（§1.4、§5.2、§5.3） |
 
 校验由扫描器自动执行（§7.4），不满足即 `exit 1`。**这不是覆盖率门禁**：它判的是「划分是否完备」，不判「该不该接」。
@@ -479,7 +504,9 @@ export const offset2dBrep = defineOp({
 
 ### 5.4 law / sweep 族
 
-`buildExtrusionLaw` + `trimLaw` + `sweepWithLaw` 是一组：law 是「长度随参数的函数」，`buildExtrusionLaw(profile, length, endFactor)` 构造它，`sweepFull` 的 `options` 也接受 law。三者的 op 必须**同批落地**，否则 law 构造出来了却没有消费者。这一族同时修掉 twist 类特征的根因（F17）。
+~~`buildExtrusionLaw` + `trimLaw` + `sweepWithLaw` 是一组：law 是「长度随参数的函数」，`buildExtrusionLaw(profile, length, endFactor)` 构造它，`sweepFull` 的 `options` 也接受 law。三者的 op 必须**同批落地**，否则 law 构造出来了却没有消费者。这一族同时修掉 twist 类特征的根因（F17）。~~
+
+**校正（2026-10-07 接手）**：上述三个 law 构造原生在 occt-wasm 5.6.0 的 wasm 中**未导出**（见 §3.4.3 校正注），调用即抛 `is not a function`，且 npm latest 即 5.6.0 无更新版。故「三者的 op 必须同批落地」不成立——它们本就无法落地。`sweepFull` 的 `options` 已内建 `Law_Linear` / `Law_Constant`（`law` / `lawLength` / `lawEndFactor`），twist 类特征的正确实现面就是 `sweepFull`，**不依赖** `buildExtrusionLaw` / `trimLaw` / `sweepWithLaw`。`sweepWithLaw` 的「law 驱动扫掠」能力已含于 `sweepFull`，归入 C3。
 
 ---
 

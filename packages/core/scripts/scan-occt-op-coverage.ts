@@ -386,13 +386,18 @@ for (const op of ops) {
   }
 }
 // 人工补充的平台可达（§7.2 缺陷 2 的残留面）：**数据型平台 op 是普通函数**——
-// 它们返回字符串/字节而非 Shape，进不了 `defineOp` 的 brep 包装（`wrapBrepOne` 只
+// 它们返回字符串/字节/布尔而非 Shape，进不了 `defineOp` 的 brep 包装（`wrapBrepOne` 只
 // 收养 Shape/handle），因此落在 §7.2 的 op 全集口径（『export const X =
 // defineOp/compatOp(』）之外。它们的引擎归属由函数体内的
 // `assertEngineFor('<name>', ['occt'])` 自证（`api/internal/l3-bridge.ts` 的既定做法），
-// 见 `api/export-brep.ts`。若日后 op 全集口径补上「api-namespace 注册的普通函数」，
-// 本清单应随之删除。
-const PLAN_C2_EXTRA = ['toBREP']
+// 见 `api/export-brep.ts` 与 `api/shape-type/index.ts`。若日后 op 全集口径补上
+// 「api-namespace 注册的普通函数」，本清单应随之删除。
+//   toBREP    — export-brep.ts（返回文本）
+//   isEdge/isFace/isShell/isVertex/isWire/isCompound/isCompSolid/isEqual — shape-type（返回布尔）
+const PLAN_C2_EXTRA = [
+  'toBREP',
+  'isEdge', 'isFace', 'isShell', 'isVertex', 'isWire', 'isCompound', 'isCompSolid', 'isEqual',
+]
 const C2 = new Set<string>([...c2Reach, ...PLAN_C2_EXTRA])
 const L3 = new Set([...l3Reach].filter((m) => !c2Reach.has(m)))
 
@@ -404,7 +409,10 @@ const unReached = [...occtNames].filter((m) => !reached.has(m)).sort()
 // C4 是剩余补集。§3.4.6 的 surfaceCurvature：已核实 `inspectCurvature`（arg-spec.ts:499）
 // 覆盖曲面曲率查询 ⇒ 转 C3（方案 §7.2 的 102/10/4/63/10/22 分支）。
 // ───────────────────────────────────────────────────────────────────────────
-const PLAN_C3 = ['rotate', 'sweep', 'sectionPlane', 'surfaceCurvature', 'exportStl']
+const PLAN_C3 = ['rotate', 'sweep', 'sectionPlane', 'surfaceCurvature', 'exportStl', 'sweepWithLaw']
+//  ↑ sweepWithLaw 的能力（law 驱动扫掠）已被 `sweepFull` 的内建 Law_Linear / Law_Constant
+//    覆盖（见 test/api/occt-s3-capability-probes.test.ts 用例 F）。原生 sweepWithLaw 在
+//    occt-wasm 5.6.0 的 wasm 中也**未导出**（同 buildExtrusionLaw / trimLaw），故不再单列 op。
 const PLAN_C5 = [
   'translateWithHistory', 'rotateWithHistory', 'mirrorWithHistory', 'scaleWithHistory',
   'chamferWithHistory', 'shellWithHistory', 'offsetWithHistory', 'thickenWithHistory',
@@ -415,6 +423,11 @@ const PLAN_C6 = [
   'mirrorBatch', 'transformBatch', 'booleanPipeline', 'tessellate', 'hasTriangulation',
   'cacheStep', 'loadCached', 'toBREPBinary', 'fromBREPBinary', 'init', 'releaseAll',
   'shapeCount', 'describe', 'getRawKernel', 'getRawModule', 'makeNullShape',
+  // 上游未导出（occt-wasm 5.6.0 = npm latest）：facade 头声明了 buildExtrusionLaw /
+  // trimLaw，TS 包装层也转发了，但 facade/generated/kernel.cpp 无对应实现 ⇒ wasm 导出表
+  // 里没有这两个函数（this.#raw.buildExtrusionLaw is not a function）。调用即抛。能力已由
+  // sweepFull 的内建 law 覆盖，无需独立 op。证据见 occt-s3-capability-probes.test.ts D/E/F。
+  'buildExtrusionLaw', 'trimLaw',
 ]
 const D3 = new Set(PLAN_C3)
 const D5 = new Set(PLAN_C5)

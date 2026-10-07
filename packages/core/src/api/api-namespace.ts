@@ -39,6 +39,12 @@ import { solidFromFaces } from './solid-from-faces'
 import { halfSpace } from './half-space'
 import { exportStl } from './export-stl'
 import { exportBrep } from './export-brep'
+// S4（occt-wasm op 接入）：类型判定谓词族（平台 op engines:['occt']，普通函数形态）。
+// 直调 occt 原生 isEdge/isFace/isShell/isVertex/isWire/isCompound/isCompSolid/isEqual
+// （不在 L1 契约，方案 §3.4.6 校正注）；布尔返回，走 export-brep 同口径。
+import {
+  isEdge, isFace, isShell, isVertex, isWire, isCompound, isCompSolid, isEqual,
+} from './shape-type'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
@@ -113,6 +119,8 @@ export function createApiNamespace(): LibNamespace {
     // 无内核调用）；exportBrep 平台（原生 toBREP，L1 只有 fromBREP 导入侧）。
     exportStl,
     exportBrep,
+    // S4（occt-wasm op 接入）：类型判定谓词族（平台 op engines:['occt']，布尔返回）。
+    isEdge, isFace, isShell, isVertex, isWire, isCompound, isCompSolid, isEqual,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
     faceRef,

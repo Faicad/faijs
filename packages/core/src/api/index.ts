@@ -51,6 +51,10 @@ export { halfSpace, type HalfSpaceParams } from './half-space'
 // S3（occt-wasm op 接入）：导出族——STL（中立，纯数据序列化）/ BREP 文本（平台 op engines:['occt']）。
 export { exportStl, type ExportStlOptions } from './export-stl'
 export { exportBrep } from './export-brep'
+// S4（occt-wasm op 接入）：类型判定谓词族（平台 op engines:['occt']，布尔返回）。
+// 仅平铺不与 ../shape 既有 TS 守卫同名者；`isCompound` 与 ../shape#isCompound 同名，
+// 只在 cad 脚本面（api-namespace）暴露，避免本桶重复导出。
+export { isEdge, isFace, isShell, isVertex, isWire, isCompSolid, isEqual } from './shape-type'
 export { knurl } from './knurl'
 export { sdf } from './sdf'
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：
