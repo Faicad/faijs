@@ -178,7 +178,7 @@ Body 的特征顺序由 `Group`（`PropertyLinkList`）持久化，`Tip`（`Prop
 `.fai.js` 是**合法 JS 子集**，acorn 解析（`packages/core/src/lang/metadata-extractor.ts:18`）；扁平语句、无 `export`/`async`/`return`（`lang/codegen.ts:7-11`）；语句 id 为 `sN`（`metadata-extractor.ts:11`）。**变量名是「任意合法 JS 标识符」，绝不一定是 `partN`**——`partN` 只是 UI 层 `derivePartName`（`lang/allocate-id.ts`）自动生成用户代码时分配的占位名，随时可改、绝对不能依赖（见 `docs/api-contract.md` §3.1 命名铁律）；翻译器/手写代码应使用源对象自带的真实名字。真实样例（`packages/tests/faijs/features/extrude.fai.js`，此处 `part0` 是 UI 自动生成的名字，非规范名）：
 
 ```js
-let part0 = cad.box(50, 50, 10, { centered: true })
+let part0 = cad.box(50, 50, 10)
 part0 = cad.fai_extrude(part0, { length: 5 })
 ```
 

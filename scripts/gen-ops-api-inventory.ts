@@ -193,7 +193,7 @@ function parseParam(raw: string): Param | null {
  * 静默丢弃（B1 的根因：`修复` 组 6 个 op 曾因此整组从手册消失）。`collectChapters`
  * 会断言这一点。
  */
-const GROUP_ORDER = ['创建', '变换', '特征', '修复', '结构', '查询']
+const GROUP_ORDER = ['创建', '变换', '特征', '修复', '结构', '查询', '布尔', '导出', '视图']
 
 /** 分节标题里的序号（渲染成 `## ${n}. ${group}类操作`）。 */
 const GROUP_SECTION: Record<string, number> = {
@@ -203,6 +203,9 @@ const GROUP_SECTION: Record<string, number> = {
   修复: 6,
   结构: 7,
   查询: 8,
+  布尔: 9,
+  导出: 10,
+  视图: 11,
 }
 
 const GROUP_SUFFIX: Record<string, string> = {
@@ -563,6 +566,21 @@ function renderDoc(locale: 'en' | 'zh'): string {
   lines.push('')
   lines.push('---')
   lines.push('')
+  // ── 基元锚点（跨 op 设计决定：默认角/底面在原点，centered 是显式选项）──
+  lines.push('## 2.5 基元锚点约定（跨 op 设计决定）')
+  lines.push('')
+  lines.push('基元 op 遵循 CAD 拉伸语义：**默认底面/角点落在原点平面上，沿 +Z 延伸**——`box` 是角点 (0,0,0) 在原点，`cylinder` / `cone` 是底面轴心在原点。`centered: true` 是显式非默认选项（底面落到 −h/2），仅在确实想把实体居中到原点时才传；生成脚本 / 手写脚本的预期写法是**不带 `centered`**。`at`（cylinder/cone 为 BASE、box 为 CENTER）优先级最高，同时覆盖前两者。')
+  lines.push('')
+  lines.push('```js')
+  lines.push('let plate = cad.box(100 * MM, 80 * MM, 10 * MM)          // 角点在原点，+Z 向上')
+  lines.push('let shaft = cad.cylinder(5 * MM, 40 * MM)                // 底面轴心在原点，+Z 向上')
+  lines.push('let shaft2 = cad.cylinder(5 * MM, 40 * MM, { at: [0, 0, 10 * MM] })  // 显式定位')
+  lines.push('```')
+  lines.push('')
+  lines.push('涉及 op：`box`、`cylinder`、`cone`、`makeBaseBox`。')
+  lines.push('')
+  lines.push('---')
+  lines.push('')
   // ── 外观方法（Shape 实例方法，非 op；PbrAppearance，plan 2026-10-05 P1）──
   // 外观设置不是 cad.* op（无 mesh/brep 双实现、无引擎分派），作为脚本面 Shape
   // 实例方法单列一节。改动须同步本生成器 + 重跑 gen-ops-api-inventory.ts（禁止手改 md）。
@@ -603,7 +621,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   }
 
     // ── BREP 能力声明节（Phase 4：来自 Phase 0 能力映射表 capability-map.json） ──
-  lines.push('## 9. BREP 能力声明（compat op → 内核方法真名）')
+  lines.push('## 12. BREP 能力声明（compat op → 内核方法真名）')
   lines.push('')
   lines.push('来自 `packages/core/src/api/surface/capability-map.json`（Phase 0 生成，36 compat op、64 个唯一内核方法）；能力名三层结构、静态前置判定与报错形态见 `docs/api-contract.md` §7.9 / §8.1；引擎侧可执行性由各适配器的 `capabilities.methods` / `evolution` 声明决定（缺能力执行前静态报错，不伪造）。')
   lines.push('')
@@ -619,7 +637,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
 // 接口品质状态（从各 op 的 @qual 派生，替换手写状态表）
   const bad = CHAPTERS.filter((c) => c.qual === 'error' || c.qual === 'warn')
   if (bad.length > 0) {
-    lines.push('## 10. 接口品质状态（自动派生自 @qual）')
+    lines.push('## 13. 接口品质状态（自动派生自 @qual）')
     lines.push('')
     lines.push('| op | 品质 | 说明 |')
     lines.push('|---|---|---|')
@@ -635,7 +653,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   }
 
   // 写给 AI 的速查（自动派生自分组 / 同步性 / 品质）
-  lines.push('## 11. 写给 AI 的速查（一句话总结每个可用 op）')
+  lines.push('## 14. 写给 AI 的速查（一句话总结每个可用 op）')
   lines.push('')
   lines.push('```')
   for (const group of GROUP_ORDER) {
@@ -662,7 +680,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   }
   lines.push('---')
   lines.push('')
-  lines.push('## 12. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）')
+  lines.push('## 15. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）')
   lines.push('')
   lines.push('BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**自己新造的面**声明的 role 词汇（`RoleName` 线格式）；继承来的面沿用其产生 op 的 role。`vocab` 中的 `<i>` / `<j>` / `[k]` 为序号占位。**改一个 op 的词汇 = breaking change**（会破坏存量 `.fai.js` 引用），需版本化。')
   lines.push('')

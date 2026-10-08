@@ -17,7 +17,7 @@ A `.fai.js` file is valid JavaScript with specific conventions:
 ```js
 // A simple .fai.js script — note explicit unit literals
 let base_plate = cad.box(100 * MM, 80 * MM, 10 * MM)
-let shaft = cad.cylinder(5 * MM, 40 * MM, { centered: true })
+let shaft = cad.cylinder(5 * MM, 40 * MM)
 let assembled = cad.union(base_plate, shaft)
 let rounded = cad.fillet(assembled, { edges: [cad.edgeRef(assembled, 1)], radius: 2 * MM })
 ```
@@ -62,8 +62,8 @@ Faces and edges are referenced by **role-based topology identity** (`cad.faceRef
 > **Engine-specific skill doc — auto-generated** by `scripts/gen-engine-skill-docs.ts` (do not edit by hand; regenerate on every faijs release via `npm run gen:engine-skill-docs`).
 >
 > This doc lists the `cad.*` ops available when the runtime BREP engine is **brepkit**.
-> It contains the **74 engine-neutral (common) ops** plus the **0 brepkit-only ops** (currently none).
-> OCCT-only ops (72: alignTo, approximatePoints, autoHeal, boolean, circleArc, classifyPointOnFace, commonCells, complexExtrude, containsPoint, curveDegreeElevate, curveIsPeriodic, curveKnotInsert, curveKnotRemove, distanceBetween, draft, draftPrism, edge, ellipseArc, ellipseEdge, exportBrep, faceOnSurface, fixSelfIntersection, fuse, halfSpace, heal, helix, import_brep, import_step, inertia, inspectMassProps, interpolateWithTangents, isCompSolid, isCompound, isEdge, isEqual, isFace, isShell, isVertex, isWire, iterShapes, liftCurve2d, linearCenterOfMass, loft, makeSolid, nonPlanarFace, offset, offset2d, outerWire, pipe, projectPointOnEdge, projectPointOnFace, punchHole, reverseShape, reverseSurfaceU, screw, simplify, sketchOnFace, solidFromFaces, split, subShapeCount, surface, sweep, tangentArc, thicken, thread, toMultiviewPNG, toMultiviewSVG, toPNG, toSVG, twistExtrude, uvFromPoint, vertexPosition) are **excluded** from the brepkit doc;
+> It contains the **73 engine-neutral (common) ops** plus the **0 brepkit-only ops** (currently none).
+> OCCT-only ops (75: alignTo, approximatePoints, autoHeal, boolean, circleArc, classifyPointOnFace, commonCells, complexExtrude, containsPoint, curveDegreeElevate, curveIsPeriodic, curveKnotInsert, curveKnotRemove, distanceBetween, draft, draftPrism, edge, ellipseArc, ellipseEdge, exportBrep, exportStep, faceOnSurface, fixSelfIntersection, fuse, halfSpace, heal, helix, import_brep, import_step, inertia, inspectMassProps, interpolateWithTangents, isCompSolid, isCompound, isEdge, isEqual, isFace, isShell, isVertex, isWire, iterShapes, liftCurve2d, linearCenterOfMass, locate, loft, makeSolid, nonPlanarFace, offset, offset2d, outerWire, pipe, projectPointOnEdge, projectPointOnFace, punchHole, reverseShape, reverseSurfaceU, roof, screw, simplify, sketchOnFace, solidFromFaces, split, subShapeCount, surface, sweep, tangentArc, thicken, thread, toMultiviewPNG, toMultiviewSVG, toPNG, toSVG, twistExtrude, uvFromPoint, vertexPosition) are **excluded** from the brepkit doc;
 > brepkit-only ops (0: none) are excluded from the OCCT doc.
 
 
@@ -71,12 +71,19 @@ Faces and edges are referenced by **role-based topology identity** (`cad.faceRef
 
 ## Primitives (Creators, no input)
 
+> **Anchor convention (cross-op design decision)**: primitives follow CAD extrusion semantics — by default the solid sits ON the origin plane, extending along +Z: `box` puts its corner (0,0,0) at the origin, `cylinder`/`cone` put the BASE-face center at the origin. `centered: true` is an explicit opt-in (base moved to −h/2); the expected style in scripts is to NOT pass `centered`. `at` (BASE for cylinder/cone, CENTER for box) overrides both.
+>
+> ```js
+> let plate = cad.box(100 * MM, 80 * MM, 10 * MM)          // corner at origin, +Z up
+> let shaft = cad.cylinder(5 * MM, 40 * MM)                // base center at origin, +Z up
+> ```
+
 ### `box(width, depth, height, opts?)`
 Creates a rectangular box.
 - **Parameters**: `width` (X), `depth` (Y), `height` (Z) — all required. Must use unit literals (e.g., `10 * MM`).
 - **Options**: `centered` (bool, default false), `at` ([x,y,z] center), `segments` (tessellation, default 64).
 - **Sync**. Returns `Shape`.
-- **Example**: `let bracket = cad.box(10 * MM, 20 * MM, 30 * MM)`, `let bracket = cad.box(10 * MM, 20 * MM, 30 * MM, { centered: true })`
+- **Example**: `let bracket = cad.box(10 * MM, 20 * MM, 30 * MM)`, `let bracket = cad.box(10 * MM, 20 * MM, 30 * MM, { at: [1, 2, 3] })`
 
 ### `sphere(radius, opts?)`
 Creates a sphere.
@@ -90,7 +97,7 @@ Creates a cylinder. `at` is the **base center** (BASE semantics); `centered` shi
 - **Parameters**: `radius`, `height` (along +Z) — both required. Must use unit literals (e.g., `5 * MM`, `40 * MM`).
 - **Options**: `centered` (bool), `at` ([x,y,z] base center), `segments` (default 64).
 - **Sync**. Returns `Shape`.
-- **Example**: `let shaft = cad.cylinder(5 * MM, 40 * MM)`, `let shaft = cad.cylinder(5 * MM, 40 * MM, { centered: true })`
+- **Example**: `let shaft = cad.cylinder(5 * MM, 40 * MM)`, `let shaft = cad.cylinder(5 * MM, 40 * MM, { at: [0, 0, 10 * MM] })`
 
 ### `cone(radiusBottom, radiusTop, height, opts?)`
 Creates a cone. `radiusTop=0` = pointed cone; `radiusTop=radiusBottom` = cylinder.

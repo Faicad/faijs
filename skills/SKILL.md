@@ -17,7 +17,7 @@ A `.fai.js` file is valid JavaScript with specific conventions:
 ```js
 // A simple .fai.js script — note explicit unit literals
 let base_plate = cad.box(100 * MM, 80 * MM, 10 * MM)
-let shaft = cad.cylinder(5 * MM, 40 * MM, { centered: true })
+let shaft = cad.cylinder(5 * MM, 40 * MM)
 let assembled = cad.union(base_plate, shaft)
 let rounded = cad.fillet(assembled, { edges: [cad.edgeRef(assembled, 1)], radius: 2 * MM })
 ```

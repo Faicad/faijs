@@ -4,12 +4,19 @@
 
 ## Primitives (Creators, no input)
 
+> **Anchor convention (cross-op design decision)**: primitives follow CAD extrusion semantics — by default the solid sits ON the origin plane, extending along +Z: `box` puts its corner (0,0,0) at the origin, `cylinder`/`cone` put the BASE-face center at the origin. `centered: true` is an explicit opt-in (base moved to −h/2); the expected style in scripts is to NOT pass `centered`. `at` (BASE for cylinder/cone, CENTER for box) overrides both.
+>
+> ```js
+> let plate = cad.box(100 * MM, 80 * MM, 10 * MM)          // corner at origin, +Z up
+> let shaft = cad.cylinder(5 * MM, 40 * MM)                // base center at origin, +Z up
+> ```
+
 ### `box(width, depth, height, opts?)`
 Creates a rectangular box.
 - **Parameters**: `width` (X), `depth` (Y), `height` (Z) — all required. Must use unit literals (e.g., `10 * MM`).
 - **Options**: `centered` (bool, default false), `at` ([x,y,z] center), `segments` (tessellation, default 64).
 - **Sync**. Returns `Shape`.
-- **Example**: `let bracket = cad.box(10 * MM, 20 * MM, 30 * MM)`, `let bracket = cad.box(10 * MM, 20 * MM, 30 * MM, { centered: true })`
+- **Example**: `let bracket = cad.box(10 * MM, 20 * MM, 30 * MM)`, `let bracket = cad.box(10 * MM, 20 * MM, 30 * MM, { at: [1, 2, 3] })`
 
 ### `sphere(radius, opts?)`
 Creates a sphere.
@@ -23,7 +30,7 @@ Creates a cylinder. `at` is the **base center** (BASE semantics); `centered` shi
 - **Parameters**: `radius`, `height` (along +Z) — both required. Must use unit literals (e.g., `5 * MM`, `40 * MM`).
 - **Options**: `centered` (bool), `at` ([x,y,z] base center), `segments` (default 64).
 - **Sync**. Returns `Shape`.
-- **Example**: `let shaft = cad.cylinder(5 * MM, 40 * MM)`, `let shaft = cad.cylinder(5 * MM, 40 * MM, { centered: true })`
+- **Example**: `let shaft = cad.cylinder(5 * MM, 40 * MM)`, `let shaft = cad.cylinder(5 * MM, 40 * MM, { at: [0, 0, 10 * MM] })`
 
 ### `cone(radiusBottom, radiusTop, height, opts?)`
 Creates a cone. `radiusTop=0` = pointed cone; `radiusTop=radiusBottom` = cylinder.

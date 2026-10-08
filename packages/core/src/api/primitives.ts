@@ -238,9 +238,9 @@ function brepPrimitiveMesh(
  * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @example
  * const part0 = cad.box(10 * MM, 20 * MM, 30 * MM)
- * const part1 = cad.box(30 * MM, 20 * MM, 10 * MM, { centered: true, at: [1, 2, 3], segments: 64 })
+ * const part1 = cad.box(30 * MM, 20 * MM, 10 * MM, { at: [1, 2, 3], segments: 64 })
  *
- * 位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10 * MM, 20 * MM, 30 * MM, {centered:true})`
+ * 位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10 * MM, 20 * MM, 30 * MM, { at: [1, 2, 3] })`
  * 有量纲位必须写单位字面量（基准单位亦然，`10` 裸数字被 D8 R2 拒）。
  * 归一到同一对象（D11 位置→对象 + 尾参 options 合并）。旧 `{ size }` 对象形态已废弃（裁决 3），
  * 传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.1）。
@@ -332,9 +332,9 @@ function centerParams(params: Record<string, unknown>): Record<string, unknown> 
  * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @example
  * const c = cad.cylinder(5, 40)
- * const c = cad.cylinder(5, 40, { centered: true, at: [0, 0, 20], segments: 64 })
+ * const c = cad.cylinder(5, 40, { at: [0, 0, 20], segments: 64 })
  *
- * 位置原生（§4.1/§6.2）：`cylinder(5, 40)` 与 `cylinder(5, 40, {centered:true})`
+ * 位置原生（§4.1/§6.2）：`cylinder(5, 40)` 与 `cylinder(5, 40, { at: [0, 0, 20] })`
  * 归一到同一对象（D11 位置→装箱 + 尾参 options 合并）。旧 `{ center }` 对象形态已废弃
  * （裁决 3），传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.3）。
   */
@@ -374,8 +374,8 @@ export const cylinder = defineOp({
  * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @example
  * const c = cad.cone(10, 4, 30)
- * const c = cad.cone(10, 0, 30, { centered: true, at: [0, 0, 20], segments: 64 })
- * 位置原生（§4.1/§6.2）：`cone(10, 4, 30)` 与 `cone(10, 4, 30, { centered: true })`
+ * const c = cad.cone(10, 0, 30, { at: [0, 0, 20], segments: 64 })
+ * 位置原生（§4.1/§6.2）：`cone(10, 4, 30)` 与 `cone(10, 4, 30, { at: [0, 0, 20] })`
  * 归一到同一对象（D11 位置→装箱 + 尾参 options 合并）。旧 `{ center }`/`{ size }` 对象形态
  * 已废弃（裁决 3），传入会抛 E_ARGS_FORM（错误提示 ≠ 兼容）。
   */
