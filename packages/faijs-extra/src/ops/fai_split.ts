@@ -29,28 +29,6 @@ import { assertNonZeroVec3 } from '@faicad/faijs/api/assert'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
-/** 世界坐标 → 局部坐标（含单位缩放）。 */
-function worldToLocalVec3(
-  worldPos: Vec3,
-  partTransform: { position: [number, number, number]; scale?: [number, number, number] } | undefined,
-): Vec3 {
-  const offset = partTransform?.position
-  if (!offset) return worldPos
-  const scale = partTransform?.scale
-  if (scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)) {
-    return [
-      (worldPos[0] - offset[0]) / scale[0],
-      (worldPos[1] - offset[1]) / scale[1],
-      (worldPos[2] - offset[2]) / scale[2],
-    ]
-  }
-  return [
-    worldPos[0] - offset[0],
-    worldPos[1] - offset[1],
-    worldPos[2] - offset[2],
-  ]
-}
-
 /** BREP 路径：OCCT 平面/榫卯分割 + 分离位移。 */
 function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: Shape; back: Shape } {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
@@ -62,23 +40,16 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
   const normal = (params.normal as Vec3) ?? [0, 0, 1]
   const offset = typeof params.offset === 'number' ? params.offset : 0
   const inPlaneAngle = typeof params.inPlaneAngle === 'number' ? params.inPlaneAngle : 0
+  // 坐标契约（方向 A）：bbCenter/bboxSize 是模型局部空间值——宿主生成脚本时已把
+  // 交互世界坐标转换好，本 op 不做 world→local（无 partTransform 依赖）。
   const bbCenter = (params.bbCenter as Vec3) ?? bboxCenter(input)
   const bboxSize = (params.bboxSize as Vec3) ?? boundingBox(input).max.map(
     (v, i) => v - boundingBox(input).min[i],
   ) as Vec3
-
-  const partTransform = getBackends().config.partTransform
-  const localBbCenter = worldToLocalVec3(bbCenter, partTransform)
-  const scale = partTransform?.scale
-  const hasScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)
-  const localBboxSize: Vec3 = hasScale
-    ? [bboxSize[0] / scale![0], bboxSize[1] / scale![1], bboxSize[2] / scale![2]]
-    : bboxSize
-
   const planeCenter: Vec3 = [
-    localBbCenter[0] + offset * normal[0],
-    localBbCenter[1] + offset * normal[1],
-    localBbCenter[2] + offset * normal[2],
+    bbCenter[0] + offset * normal[0],
+    bbCenter[1] + offset * normal[1],
+    bbCenter[2] + offset * normal[2],
   ]
   const planeDistance = normal[0] * planeCenter[0] + normal[1] * planeCenter[1] + normal[2] * planeCenter[2]
 
@@ -143,7 +114,7 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
   const applyExplode = (params.applyExplode as boolean | undefined) ?? true
   if (applyExplode) {
     const bboxDiagonal = Math.sqrt(
-      localBboxSize[0] * localBboxSize[0] + localBboxSize[1] * localBboxSize[1] + localBboxSize[2] * localBboxSize[2],
+      bboxSize[0] * bboxSize[0] + bboxSize[1] * bboxSize[1] + bboxSize[2] * bboxSize[2],
     )
     const baseOffset = bboxDiagonal * 0.02
     let joineryOffset = 0
@@ -187,14 +158,8 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
   const bboxSize = (params.bboxSize as Vec3) ?? boundingBox(input).max.map(
     (v, i) => v - boundingBox(input).min[i],
   ) as Vec3
-
-  const partTransform = getBackends().config.partTransform
-  const localBbCenter = worldToLocalVec3(bbCenter, partTransform)
-  const scale = partTransform?.scale
-  const hasScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)
-  const localBboxSize: Vec3 = hasScale
-    ? [bboxSize[0] / scale![0], bboxSize[1] / scale![1], bboxSize[2] / scale![2]]
-    : bboxSize
+  // 坐标契约（方向 A）：bbCenter/bboxSize 是模型局部空间值（宿主生成脚本时已转），
+  // 本 op 不做 world→local（无 partTransform 依赖）。
 
   const result = await meshSplitWithParams({
     shape: input,
@@ -202,8 +167,8 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
     normal,
     offset,
     inPlaneAngle,
-    bbCenter: localBbCenter,
-    bboxSize: localBboxSize,
+    bbCenter,
+    bboxSize,
     groove: params.grooveDepth !== undefined ? {
       depth: params.grooveDepth as number,
       depthTolerance: (params.grooveDepthTolerance as number) ?? 0,

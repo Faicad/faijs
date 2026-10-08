@@ -70,7 +70,6 @@ export interface Backends {
      * 正交，不做运行期探测。
      */
     hostEnv?: RuntimeHostEnv
-    partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   }
   /** 几何后端。brep 引擎异步初始化 → 用 getter。 */
   readonly kernel: {

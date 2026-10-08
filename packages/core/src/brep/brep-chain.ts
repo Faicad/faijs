@@ -77,16 +77,6 @@ export interface BrepChainState {
   /** BREP 引擎实例（mesh 模式为 null —— 等价于「无 BREP 能力」）。 */
   kernel: BrepEngineApi | null
   /**
-   * 零件在世界空间中的平移偏移（来自 mesh.position / partTransforms）。
-   *
-   * BREP solid 在原始局部坐标系中（STEP 文件原始坐标），而用户交互
-   * 产生的 position（如钻孔 clickPosition）是世界坐标。使用此偏移
-   * 将世界坐标转换为局部坐标，确保 BREP 操作在正确的坐标系中执行。
-   *
-   * 由 executePart 从 useEngineStore.partTransforms[scopedId].position 填充。
-   */
-  partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
-  /**
    * P5-2: 面演化映射缓存（statementId → FaceEvolution）。
    *
    * 每个布尔/变换操作执行后，存储面 ordinal 映射（输入 ordinal → 输出 ordinal 列表）。

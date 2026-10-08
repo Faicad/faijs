@@ -1,6 +1,11 @@
 /**
  * faijs-extra drill — 钻孔库函数
  *
+ * 坐标契约（unit-system §5.2，方向 A：position 契约自包含）：**所有几何参数
+ * （position / faceNormal / diameter / depth）一律是模型局部空间的值**——
+ * 宿主在生成脚本时负责把交互世界坐标转换为局部坐标（local = (world − position)/scale）；
+ * 本 op 不做任何 world→local 转换、不读取 partTransform。同一脚本在任何入口
+ * （交互式 / 容器重放 / 手写）重放结果一致。
  *
  * dispatchPath 静态判定 brep/mesh。
  * BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。
@@ -43,28 +48,6 @@ export function assertDrillParams(params: Record<string, unknown>): void {
   if (params.depth !== undefined && params.depth !== null) {
     assertNumber(params.depth, 'drill.depth')
   }
-}
-
-/** 世界坐标 → 几何体局部坐标（含单位缩放）。 */
-function worldToLocalPosition(
-  worldPos: [number, number, number],
-  partTransform: { position: [number, number, number]; scale?: [number, number, number] } | undefined,
-): [number, number, number] {
-  const offset = partTransform?.position
-  if (!offset) return worldPos
-  const scale = partTransform?.scale
-  if (scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)) {
-    return [
-      (worldPos[0] - offset[0]) / scale[0],
-      (worldPos[1] - offset[1]) / scale[1],
-      (worldPos[2] - offset[2]) / scale[2],
-    ]
-  }
-  return [
-    worldPos[0] - offset[0],
-    worldPos[1] - offset[1],
-    worldPos[2] - offset[2],
-  ]
 }
 
 /** 解析 direction 枚举 → 钻孔方向向量。 */
@@ -174,9 +157,9 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const direction = resolveDirection(params, faceNormal)
   const holeType = params.holeType as 'simple' | 'screw' | undefined
 
-  // 世界坐标 → 局部坐标（cad.load 返回的几何体在原始文件坐标系中）
-  const partTransform = getBackends().config.partTransform
-  const localPosition = worldToLocalPosition(params.position as [number, number, number], partTransform)
+  // position 契约（方向 A）：局部坐标——宿主生成脚本时已把交互世界坐标转换好，
+  // 本 op 不做 world→local（无 partTransform 依赖）。
+  const localPosition = params.position as [number, number, number]
 
   const inputTable = inputRoleTable(input) as ReadonlyMap<unknown, unknown> | undefined
   const outStmt = String(getCurrentStmt()?.id ?? '')
@@ -212,22 +195,19 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
 async function drillMeshPath(input: Shape, params: Record<string, unknown>): Promise<Shape> {
   const faceNormal = faceNormalFrom(input, params)
   const direction = resolveDirection(params, faceNormal)
-  const partTransform = getBackends().config.partTransform
-  const localPos = worldToLocalPosition(params.position as [number, number, number], partTransform)
-
-  const scale = partTransform?.scale
-  const unitScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)
-    ? scale[0]
-    : 1
+  // position/diameter/depth/tolerance 契约（方向 A）：全部是模型局部空间值——
+  // diameter 是用户输入的模型孔径（UI 面板），不随渲染层拖拽缩放折算；
+  // position 由宿主在生成脚本时转为局部坐标。本 op 不做任何转换。
+  const localPos = params.position as [number, number, number]
 
   return meshDrill(input, {
-    diameter: (params.diameter as number) / unitScale,
-    depth: (params.depth as number) / unitScale,
+    diameter: params.diameter as number,
+    depth: params.depth as number,
     type: (params.depth as number) > 0 ? 'blind' : 'through',
     position: localPos,
     direction,
     faceNormal,
-    tolerance: (params.tolerance as number | undefined) !== undefined ? (params.tolerance as number) / unitScale : undefined,
+    tolerance: (params.tolerance as number | undefined) !== undefined ? (params.tolerance as number) : undefined,
     holeType: params.holeType as 'simple' | 'screw' | undefined,
     screwSystem: params.screwSystem as string | undefined,
     screwSpecIdx: params.screwSpecIdx as number | undefined,

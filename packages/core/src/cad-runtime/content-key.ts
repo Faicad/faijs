@@ -34,8 +34,8 @@ export function computeContentKey(positions: Float32Array, indices: Uint32Array)
 
 /**
  * Compute a deterministic fingerprint for an arbitrary value, used by the
- * incremental update gates (G6/G7/G8) to detect whether params, libIds, or
- * partTransform have changed since the last successful execution.
+ * incremental update gates (G6/G7) to detect whether params or libIds have
+ * changed since the last successful execution.
  *
  * Design constraints:
  * - `undefined` and `null` are normalized to `null` (so "no params" and
@@ -44,7 +44,7 @@ export function computeContentKey(positions: Float32Array, indices: Uint32Array)
  * - Circular references are detected and represented stably (no infinite loop).
  * - Functions and Symbols have a deterministic degradation rule (type-tagged).
  * - Arrays preserve element order (position-sensitive).
- * @param value - the value to fingerprint (params / libIds / partTransform).
+ * @param value - the value to fingerprint (params / libIds).
  * @returns a hex string fingerprint.
  */
 export function stableFingerprint(value: unknown): string {

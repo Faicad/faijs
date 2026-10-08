@@ -44,20 +44,6 @@ export function assertEngraveParams(params: Record<string, unknown>): void {
   }
 }
 
-/** 世界坐标 → BREP solid 局部坐标。 */
-function worldToLocalPosition(
-  worldPos: Vec3,
-  partTransform: { position?: [number, number, number] } | undefined,
-): Vec3 {
-  const offset = partTransform?.position
-  if (!offset) return worldPos
-  return [
-    worldPos[0] - offset[0],
-    worldPos[1] - offset[1],
-    worldPos[2] - offset[2],
-  ]
-}
-
 /** 计算将 +Z 轴对齐到目标法向量的 3x4 仿射变换矩阵（仅旋转，无平移，Rodrigues 公式）。 */
 function alignZToNormal(normal: Vec3): number[] {
   const [nx, ny, nz] = normal
@@ -130,8 +116,9 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, sv
   kernel.release(decorationSolid)
 
   // 4. 沿法向偏移 + 平移到面中心（凸 offset=+depth/2，凹 offset=-depth/2；加 0.01 避免共面）
-  const worldFaceCenter: Vec3 = (params.faceCenter as Vec3) ?? [0, 0, 0]
-  const localFaceCenter = worldToLocalPosition(worldFaceCenter, getBackends().config.partTransform)
+  // faceCenter/faceNormal 契约（方向 A）：模型局部空间值（宿主生成脚本时已把交互
+  // 世界坐标转换好），本 op 不做 world→local（无 partTransform 依赖）。
+  const localFaceCenter: Vec3 = (params.faceCenter as Vec3) ?? [0, 0, 0]
   const offset = mode === 'convex' ? depth / 2 : -depth / 2
   const epsilon = 0.01
   const tx = localFaceCenter[0] + worldFaceNormal[0] * (offset + epsilon)
