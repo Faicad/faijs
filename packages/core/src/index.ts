@@ -1,121 +1,31 @@
 /**
- * @faicad/faijs �?Faicad CAD execution engine
+ * @faicad/faijs — Faicad CAD execution engine
  *
- * 公开 API 统一入口。所有导出按层组织：
- * - L0 文本层：parser / codegen / symbol-table / types
- * - L1 几何执行层：BREP ops / Shape / 导出
- * - L1 Mesh 执行层：cad API
- * - L1 Boolean/CSG 辅助：cross-section / deriveNormals / extrude-helpers / joinery-shapes
- * - L1 Primitives：geometry / screw / svg-extrude / text / types
- * - L1 SDF：sdf-runner / templates / types
- * - L1 Knurl：KnurlGenerator / subdivision / textureLoader
- * - L1 Topology：build-face-ids / build-selector-runtime / types
- * - L2 编排层：CadRuntime / HostPorts
- * - L3 Node Host：createNodePorts / CLI
- * - OCCT Kernel：initOcctWasm / getKernel / setOcctWasmInitFn / ...
- * - CSG Backend：setCsgBackend / geoToManifoldMesh / ...
+ * Public API umbrella entry. All exports are re-exports (no new signatures).
+ * Organized by architecture layer (L0–L3); each layer consumes `export *` from
+ * its sub-module index.ts, with explicit disambiguation for same-name types.
  */
 
 // ── 共享面（env-agnostic：identity + runtime-state + lang/*）──
-// 手写清单已收敛：三处 umbrella（index/browser/weapp）统一 re-export，防漂移。
 export * from './env-agnostic'
 
-// ── L1 几何执行 ──
-export type { Shape } from './mesh/types'
-export type { BrepChainState } from './brep/brep-chain'
-export {
-  createBrepChainState, initBrepChainState, releaseBrepChainState,
-  isCadFormat,
-} from './brep/brep-chain'
-export {
-  solidToShape, getSolidBoundingBox,
-  translateBrep, rotateBrep, scaleBrep,
-  fuseBrep, cutBrep, commonBrep,
-  drillBrep, splitBrep, extrudeBrep,
-  loadBrep, matrixToArray,
-} from './brep'
-export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './brep'
+// ── L1 Mesh（types + knurl + decoration + manifold-loader + query + import-model）──
+export * from './mesh'
+
+// ── L1 BREP（ops + chain + utils + export）──
+export * from './brep'
 export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
 export type { StepExportEntry } from './brep/export/step'
 
-// ── L1 Mesh ──
-// B3 correction (2026-10-06): no `cad` / `meshCad` aggregate is exported from the library
-// face. `cad` belongs to the script face (host-injected ops); TS consumers import
-// per-module from `@faicad/faijs/mesh/*`.
-// 宿主注入的 mesh 装饰几何（cad.engrave 的文字/SVG 几何链在 @faicad/faijs-extra）
-export { setEngraveDecorationProvider, getEngraveDecorationProvider } from './mesh/decoration-provider'
-export type { EngraveDecorationProvider, EngraveDecorationParams } from './mesh/decoration-provider'
-export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './mesh/manifold-loader'
-export type {
-  BoundingBox, FaceDescriptor,
-  BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
-  TextParams, SvgExtrudeParams, SdfParams,
-  DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
-  SplitPlane, SplitResult,
-} from './mesh/types'
-export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './mesh/types'
-export { faceAt } from './mesh/query'
-
-// ── L1 Boolean/CSG 辅助 ──
-export { computeSection, buildExtrudedProfile } from './boolean/cross-section'
-export { manifoldToMeshData, weldPositionsWorker, dovetailBooleanSplit, dowelOrTenonBooleanSplit } from './boolean/csg-core'
-export { deriveNormals } from './boolean/deriveNormals'
-export { buildExtrudeParts, makeWorldPlane } from './boolean/extrude-helpers'
-export type { ExtrudeParts, ExtrudeOffsetMode } from './boolean/extrude-helpers'
-export {
-  buildWedgeGeometry, buildDowelGeometry, buildStraightTenonGeometry,
-} from './boolean/joinery-shapes'
-export type { JoineryMeshData } from './boolean/joinery-shapes'
-
-// ── CSG Backend ──
-export { setCsgBackend } from './boolean/csg-backend'
-export { geoToManifoldMesh, manifoldMeshToGeo } from './boolean/geo-convert'
-export type {
-  ManifoldMeshData, BooleanOperation,
-  DovetailGrooveParams, DowelSplitParams, StraightTenonSplitParams,
-} from './boolean/geo-convert'
+// ── L1 Boolean/CSG ──
+export * from './boolean'
 
 // ── L1 Primitives ──
-export { mergeBufferGeometries, makePrimitiveGeo, DEFAULT_SIZE, applyPrimitiveOffset } from './primitives/mesh-primitives'
-export { makeScrew } from './primitives/screw/screw'
-export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './primitives/screw/screw-db'
-export type { ScrewParams, ScrewSpec, ScrewSystem } from './primitives/screw/screw-db'
-export { parseSvgNaturalSize } from './primitives/parse-svg-size'
-export {
-  extractMeshData, primitiveToBrepSolid, geometryToBrepSolid,
-  brepSolidToStep, primitiveToBrepStep,
-} from './primitives/brep-primitives'
-export type { PrimitiveToBrepResult, PrimitiveParams } from './primitives/brep-primitives'
-// B 组（svg 挤出 / 3D 文字几何链）已随 @faicad/faijs-extra 迁出；
-// 留 core 的是零 three 的 CJK 字符判定与系统字体装载。
-export { loadSystemCjkFont, containsCjk, isCjkChar } from './primitives/text/cjk-font'
-export type { CjkFontResult } from './primitives/text/cjk-font'
-export type {
-  PrimitiveType, PrimitiveParamsRecord, PrimitiveArgsRecord, PrimitiveMeta,
-} from './primitives/types'
-export { nextPrimitiveColor } from './primitives/types'
+export * from './primitives'
 
 // ── L1 SDF ──
-export { runSdf } from './sdf/sdf-runner'
-export type { SdfMeshData } from './sdf/sdf-runner'
-export { runSdfInline } from './sdf/sdf-core'
-export { SDF_TEMPLATES, DEFAULT_SDF_TEMPLATE } from './sdf/templates'
-export type {
-  SdfMeta, SdfBox, SdfParamDef, SdfTemplateCategory,
-  SdfWorkerInput, SdfWorkerMessage,
-} from './sdf/types'
-export { boxToTuple, parseParamDefs, defaultParamValues } from './sdf/types'
-
-// ── L1 Knurl ──
-export { applyKnurlDisplacement, KNURL_DEFAULTS } from './mesh/knurl/KnurlGenerator'
-export type { KnurlBounds } from './mesh/knurl/KnurlGenerator'
-export { subdivide } from './mesh/knurl/subdivision'
-export { loadKnurlingTexture, setKnurlTextureLoader } from './mesh/knurl/textureLoader'
-export type { TextureData } from './mesh/knurl/textureLoader'
-export { QuantizedPointMap, weldVertices } from './mesh/knurl/meshIndex'
-export { computeUV, MODE_TRIPLANAR, getCubicBlendWeights, type MappingSettings } from './mesh/knurl/mapping'
-export { applyDisplacement, type DisplacementSettings } from './mesh/knurl/displacement'
+export * from './sdf'
 
 // ── L1 Topology ──
 export { TOPOLOGY_FACE_ID_NONE, buildFaceIdsForPart } from './topology/build-face-ids'
@@ -128,16 +38,15 @@ export type {
   FaceRow, EdgeRow, Reference,
   BufferViewDescriptor, SelectorProxy,
 } from './topology/types'
-
 export * from './topology/naming'
 
-// ── L2 编排�?──
-// D1（2026-09-19）：createRuntime 自注册 cad 默认命名空间（引擎 + 标准库定位）。
-// 需要纯引擎（不带 cad）的宿主可直接 import { createRuntime } from './cad-runtime/runtime'。
-export { CadRuntime, createRuntime, computeContentKey, AppendPrefixError } from './cad-runtime/createRuntimeWithCad'
+// ── L2 编排层 ──
+// createRuntime auto-registers the built-in cad namespace (D1, facade-refactor
+// 2026-10-08). Use createBareRuntime for a pure engine without cad.
+export { CadRuntime, createRuntime, createBareRuntime, computeContentKey, AppendPrefixError } from './cad-runtime/runtime'
 export { createPreviewExec } from './cad-runtime/preview-exec'
 export type { PreviewExec } from './cad-runtime/preview-exec'
-export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, CadRuntimeOptions } from './cad-runtime/runtime'
+export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, CadRuntimeOptions, PartTopology, TopologySource } from './cad-runtime/runtime'
 export type {
   HostPorts, CsgBackend, SdfBackend, FontProvider, TextureSampler,
   AssetResolver, EventSink, ExecutionMode, HostEnv,
@@ -208,16 +117,9 @@ export type { SolidTopologyResult } from './brep/brep-topology'
 export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, ensureFont, getFont, clearFonts } from './brep/text/fontRegistry'
 export type { FontLoader } from './brep/text/fontRegistry'
 
-// ── L3 Node Host ──
-// node-host 模块已移�?@faicad/faijs/node 入口，避免浏览器环境静�?import
-// node-host 模块（含 Node.js 专用代码�?fs/path）导致生产构�?404�?
-// �?Node.js 环境中：import { createNodePorts } from '@faicad/faijs/node'
-
 // ── L3 Browser Host ──
 export { createBrowserPorts } from './browser-host'
 export type { CreateBrowserPortsOptions } from './browser-host'
-// D3-Browser（§9.4）：CDN 通用 libLoader 工厂（a/b 混合）。**不**被 createBrowserPorts
-// 默认装配——demo 的源码 alias HMR 路径必须零网络；CDN 装载由主机显式注入。
 export { createBrowserLibLoader, DEFAULT_CDN_BASE } from './cad-runtime/browser-lib-loader'
 export type {
   BrowserLibLoader, BrowserLibMeta, CreateBrowserLibLoaderOptions,
@@ -229,24 +131,15 @@ export { FetchAssetResolver } from './browser-host/fetch-asset-resolver'
 export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resolver'
 
 // ── L3 API 面（api/ 层）──
-// P23 主导出切换（§4.2 / Q1）：`export * from './api'` 带来
-// ① faijs 特有 dual op（mesh+brep 双路径，D11 双形态归一）；
-// ② 生成脚本面 op 中**有库作者消费者**的少数名字（`api/generated/script-face.ts`；
-//    其余脚本 op 只走 `cad.*` 与子路径，§2.7 / DEC-6、DEC-7——B1 由「三源」
-//    收为「cad 面 ≡ check() 符号表」两源）；
-// ③ 2026-09-25 core-decouple：brepjsCompat 命名空间与 op 投影随旧子包删除
-//    （裁决 9）；`api/geom-types`（原名 api/brepjs-compat，2026-10-07 改名）仅保留 core 内联的 Result / 向量 / 平面 / 错误 /
-//    常量组合器（§5.2），顶层平铺不变。
 export * from './api'
 export { createApiNamespace } from './api/api-namespace'
-// B5 (2026-10-06): unit constants re-exported from the main entry. In the script
-// face they are import-free globals (S4_SAFE_GLOBALS subset); TS consumers now
-// get the same names here instead of hunting for the /units subpath.
+
+// ── Units ──
 export {
   MM, CM, M, MICRON, INCH, FOOT, YARD,
   DEGREE, RADIAN,
   SCRIPT_UNIT_NAMES,
 } from './units'
-// Vec3 双源消歧：env-agnostic（lang/types）与 api（mesh/types）均有 Vec3，
-// 显式 re-export 定为 lang 版（与收敛前 index.ts 的具名导出一致）。
+
+// ── 重名消歧：Vec3 双源（lang/types vs mesh/types），显式指定 lang 版 ──
 export type { Vec3 } from './lang/types'

@@ -2,21 +2,25 @@
  * @vitest-environment node
  *
  * D1 (2026-09-19) — `createRuntime` carries the `cad` namespace as the default
- * lib; the pure-engine `createRuntime` from `cad-runtime/runtime` does not.
+ * lib; `createBareRuntime` does not (pure engine).
+ *
+ * Facade refactor (2026-10-08): the same-name `createRuntimeWithCad.ts` was
+ * deleted; its cad-auto-registration logic moved into `createRuntime` in
+ * `cad-runtime/runtime.ts`. The pure-engine variant is now named
+ * `createBareRuntime` (also in `runtime.ts`).
  *
  * Why this is a test and not a smoke script: D1 is the published contract that
- * lets a host ignore the (now deleted) root facade — "get a runtime, get cad".
- * A guarantee that ships in `@faicad/faijs` must be guarded in CI, and this
- * check needs no corpus, no WASM and no kernel, so nothing justifies it living
- * outside the suite. It replaces `scripts/smoke-cad-builtin.ts`.
+ * lets a host ignore the root facade — "get a runtime, get cad". A guarantee
+ * that ships in `@faicad/faijs` must be guarded in CI, and this check needs no
+ * corpus, no WASM and no kernel, so nothing justifies it living outside the
+ * suite. It replaces `scripts/smoke-cad-builtin.ts`.
  *
  * GOTCHA: `CadRuntime.libs` is private. There is no public accessor, so the
  * registration is read through a cast (the same way `defaultNs` was verified
  * before this test existed). If a public accessor is added, prefer it.
  */
 import { describe, it, expect } from 'vitest';
-import { createRuntime } from '../../src/cad-runtime/createRuntimeWithCad';
-import { createRuntime as createRuntimeCore, type CadRuntime } from '../../src/cad-runtime/runtime';
+import { createRuntime, createBareRuntime, type CadRuntime } from '../../src/cad-runtime/runtime';
 import type { HostPorts, EventSink } from '../../src/cad-runtime/ports';
 
 class TestEventSink implements EventSink {
@@ -47,8 +51,15 @@ describe('D1 — built-in cad namespace', () => {
     expect(Object.keys(cad!).length).toBeGreaterThan(50);
   });
 
-  it('pure-engine createRuntime stays cad-free (D1 is optional, not forced)', () => {
-    const rt = createRuntimeCore(ports());
+  it('createBareRuntime stays cad-free (pure engine, D1 is optional, not forced)', () => {
+    const rt = createBareRuntime(ports());
     expect(libsOf(rt).cad).toBeUndefined();
+  });
+
+  it('createRuntime does not overwrite a caller-supplied cad namespace', () => {
+    const customCad = { contractVersion: 1, box: () => 'custom' } as unknown as Record<string, unknown>;
+    const rt = createRuntime(ports(), undefined, { cad: customCad as never });
+    const cad = libsOf(rt).cad;
+    expect(cad).toBe(customCad);
   });
 });

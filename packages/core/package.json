@@ -78,17 +78,69 @@
       "types": "./dist/module-resolver/index.d.ts",
       "default": "./dist/module-resolver/index.js"
     },
-    "./module-resolver/*": {
-      "types": "./dist/module-resolver/*.d.ts",
-      "default": "./dist/module-resolver/*.js"
+    "./module-resolver/module-registry": {
+      "types": "./dist/module-resolver/module-registry.d.ts",
+      "default": "./dist/module-resolver/module-registry.js"
     },
     "./mesh": {
       "types": "./dist/mesh/index.d.ts",
       "default": "./dist/mesh/index.js"
     },
-    "./mesh/*": {
-      "types": "./dist/mesh/*.d.ts",
-      "default": "./dist/mesh/*.js"
+    "./mesh/boolean": {
+      "types": "./dist/mesh/boolean.d.ts",
+      "default": "./dist/mesh/boolean.js"
+    },
+    "./mesh/decoration-provider": {
+      "types": "./dist/mesh/decoration-provider.d.ts",
+      "default": "./dist/mesh/decoration-provider.js"
+    },
+    "./mesh/engrave": {
+      "types": "./dist/mesh/engrave.d.ts",
+      "default": "./dist/mesh/engrave.js"
+    },
+    "./mesh/import-model": {
+      "types": "./dist/mesh/import-model.d.ts",
+      "default": "./dist/mesh/import-model.js"
+    },
+    "./mesh/io": {
+      "types": "./dist/mesh/io.d.ts",
+      "default": "./dist/mesh/io.js"
+    },
+    "./mesh/manifold-loader": {
+      "types": "./dist/mesh/manifold-loader.d.ts",
+      "default": "./dist/mesh/manifold-loader.js"
+    },
+    "./mesh/primitives": {
+      "types": "./dist/mesh/primitives.d.ts",
+      "default": "./dist/mesh/primitives.js"
+    },
+    "./mesh/query": {
+      "types": "./dist/mesh/query.d.ts",
+      "default": "./dist/mesh/query.js"
+    },
+    "./mesh/rigid-transform": {
+      "types": "./dist/mesh/rigid-transform.d.ts",
+      "default": "./dist/mesh/rigid-transform.js"
+    },
+    "./mesh/stl-unit": {
+      "types": "./dist/mesh/stl-unit.d.ts",
+      "default": "./dist/mesh/stl-unit.js"
+    },
+    "./mesh/threemf-bambu": {
+      "types": "./dist/mesh/threemf-bambu.d.ts",
+      "default": "./dist/mesh/threemf-bambu.js"
+    },
+    "./mesh/threemf-view": {
+      "types": "./dist/mesh/threemf-view.d.ts",
+      "default": "./dist/mesh/threemf-view.js"
+    },
+    "./mesh/transform": {
+      "types": "./dist/mesh/transform.d.ts",
+      "default": "./dist/mesh/transform.js"
+    },
+    "./mesh/types": {
+      "types": "./dist/mesh/types.d.ts",
+      "default": "./dist/mesh/types.js"
     },
     "./io": {
       "types": "./dist/io/index.d.ts",
@@ -98,49 +150,237 @@
       "types": "./dist/io/fai-zip/index.d.ts",
       "default": "./dist/io/fai-zip/index.js"
     },
-    "./io/*": {
-      "types": "./dist/io/*.d.ts",
-      "default": "./dist/io/*.js"
+    "./io/bytes-node": {
+      "types": "./dist/io/bytes-node.d.ts",
+      "default": "./dist/io/bytes-node.js"
     },
-    "./brep/*": {
-      "types": "./dist/brep/*.d.ts",
-      "default": "./dist/brep/*.js"
+    "./io/zip": {
+      "types": "./dist/io/zip.d.ts",
+      "default": "./dist/io/zip.js"
     },
-    "./brepkit-kernel/*": {
-      "types": "./dist/brepkit-kernel/*.d.ts",
-      "default": "./dist/brepkit-kernel/*.js"
+    "./brep/brep-chain": {
+      "types": "./dist/brep/brep-chain.d.ts",
+      "default": "./dist/brep/brep-chain.js"
     },
-    "./primitives/*": {
-      "types": "./dist/primitives/*.d.ts",
-      "default": "./dist/primitives/*.js"
+    "./brep/brep-ops": {
+      "types": "./dist/brep/brep-ops.d.ts",
+      "default": "./dist/brep/brep-ops.js"
     },
-    "./cad-runtime/*": {
-      "types": "./dist/cad-runtime/*.d.ts",
-      "default": "./dist/cad-runtime/*.js"
+    "./brep/brep-utils": {
+      "types": "./dist/brep/brep-utils.d.ts",
+      "default": "./dist/brep/brep-utils.js"
     },
-    "./occt-kernel/*": {
-      "types": "./dist/occt-kernel/*.d.ts",
-      "default": "./dist/occt-kernel/*.js"
+    "./brep/engine/adapters/brepkit": {
+      "types": "./dist/brep/engine/adapters/brepkit.d.ts",
+      "default": "./dist/brep/engine/adapters/brepkit.js"
+    },
+    "./brep/engine/adapters/occt": {
+      "types": "./dist/brep/engine/adapters/occt.d.ts",
+      "default": "./dist/brep/engine/adapters/occt.js"
+    },
+    "./brep/engine/primitives": {
+      "types": "./dist/brep/engine/primitives.d.ts",
+      "default": "./dist/brep/engine/primitives.js"
+    },
+    "./brep/engine/registry": {
+      "types": "./dist/brep/engine/registry.d.ts",
+      "default": "./dist/brep/engine/registry.js"
+    },
+    "./brep/engine/types": {
+      "types": "./dist/brep/engine/types.d.ts",
+      "default": "./dist/brep/engine/types.js"
+    },
+    "./brep/export/export-model": {
+      "types": "./dist/brep/export/export-model.d.ts",
+      "default": "./dist/brep/export/export-model.js"
+    },
+    "./brep/export/step": {
+      "types": "./dist/brep/export/step.d.ts",
+      "default": "./dist/brep/export/step.js"
+    },
+    "./brep/export/stl": {
+      "types": "./dist/brep/export/stl.d.ts",
+      "default": "./dist/brep/export/stl.js"
+    },
+    "./brep/face-evolution": {
+      "types": "./dist/brep/face-evolution.d.ts",
+      "default": "./dist/brep/face-evolution.js"
+    },
+    "./brep/handle-bridge": {
+      "types": "./dist/brep/handle-bridge.d.ts",
+      "default": "./dist/brep/handle-bridge.js"
+    },
+    "./brep/mesh-solid": {
+      "types": "./dist/brep/mesh-solid.d.ts",
+      "default": "./dist/brep/mesh-solid.js"
+    },
+    "./brep/primitives-brep": {
+      "types": "./dist/brep/primitives-brep.d.ts",
+      "default": "./dist/brep/primitives-brep.js"
+    },
+    "./brep/svg/svg-to-solid": {
+      "types": "./dist/brep/svg/svg-to-solid.d.ts",
+      "default": "./dist/brep/svg/svg-to-solid.js"
+    },
+    "./brep/text/fontRegistry": {
+      "types": "./dist/brep/text/fontRegistry.d.ts",
+      "default": "./dist/brep/text/fontRegistry.js"
+    },
+    "./brep/text/text-to-solid": {
+      "types": "./dist/brep/text/text-to-solid.d.ts",
+      "default": "./dist/brep/text/text-to-solid.js"
+    },
+    "./brepkit-kernel/brepkitWasm": {
+      "types": "./dist/brepkit-kernel/brepkitWasm.d.ts",
+      "default": "./dist/brepkit-kernel/brepkitWasm.js"
+    },
+    "./primitives/brep-primitives": {
+      "types": "./dist/primitives/brep-primitives.d.ts",
+      "default": "./dist/primitives/brep-primitives.js"
+    },
+    "./primitives/mesh-primitives": {
+      "types": "./dist/primitives/mesh-primitives.d.ts",
+      "default": "./dist/primitives/mesh-primitives.js"
+    },
+    "./primitives/parse-svg-size": {
+      "types": "./dist/primitives/parse-svg-size.d.ts",
+      "default": "./dist/primitives/parse-svg-size.js"
+    },
+    "./primitives/screw/screw": {
+      "types": "./dist/primitives/screw/screw.d.ts",
+      "default": "./dist/primitives/screw/screw.js"
+    },
+    "./primitives/screw/screw-db": {
+      "types": "./dist/primitives/screw/screw-db.d.ts",
+      "default": "./dist/primitives/screw/screw-db.js"
+    },
+    "./primitives/text/cjk-font": {
+      "types": "./dist/primitives/text/cjk-font.d.ts",
+      "default": "./dist/primitives/text/cjk-font.js"
+    },
+    "./primitives/types": {
+      "types": "./dist/primitives/types.d.ts",
+      "default": "./dist/primitives/types.js"
+    },
+    "./cad-runtime/backend-dispatch": {
+      "types": "./dist/cad-runtime/backend-dispatch.d.ts",
+      "default": "./dist/cad-runtime/backend-dispatch.js"
+    },
+    "./cad-runtime/browser-lib-loader": {
+      "types": "./dist/cad-runtime/browser-lib-loader.d.ts",
+      "default": "./dist/cad-runtime/browser-lib-loader.js"
+    },
+    "./cad-runtime/content-key": {
+      "types": "./dist/cad-runtime/content-key.d.ts",
+      "default": "./dist/cad-runtime/content-key.js"
+    },
+    "./cad-runtime/direct-executor": {
+      "types": "./dist/cad-runtime/direct-executor.d.ts",
+      "default": "./dist/cad-runtime/direct-executor.js"
+    },
+    "./cad-runtime/live-shapes": {
+      "types": "./dist/cad-runtime/live-shapes.d.ts",
+      "default": "./dist/cad-runtime/live-shapes.js"
+    },
+    "./cad-runtime/ports": {
+      "types": "./dist/cad-runtime/ports.d.ts",
+      "default": "./dist/cad-runtime/ports.js"
+    },
+    "./cad-runtime/preview-exec": {
+      "types": "./dist/cad-runtime/preview-exec.d.ts",
+      "default": "./dist/cad-runtime/preview-exec.js"
+    },
+    "./cad-runtime/runtime": {
+      "types": "./dist/cad-runtime/runtime.d.ts",
+      "default": "./dist/cad-runtime/runtime.js"
+    },
+    "./occt-kernel/highLevelApi": {
+      "types": "./dist/occt-kernel/highLevelApi.d.ts",
+      "default": "./dist/occt-kernel/highLevelApi.js"
+    },
+    "./occt-kernel/meshReconstruct": {
+      "types": "./dist/occt-kernel/meshReconstruct.d.ts",
+      "default": "./dist/occt-kernel/meshReconstruct.js"
+    },
+    "./occt-kernel/occtKernel": {
+      "types": "./dist/occt-kernel/occtKernel.d.ts",
+      "default": "./dist/occt-kernel/occtKernel.js"
+    },
+    "./occt-kernel/topologyExt": {
+      "types": "./dist/occt-kernel/topologyExt.d.ts",
+      "default": "./dist/occt-kernel/topologyExt.js"
     },
     "./topology/naming": {
       "types": "./dist/topology/naming/index.d.ts",
       "default": "./dist/topology/naming/index.js"
     },
-    "./topology/*": {
-      "types": "./dist/topology/*.d.ts",
-      "default": "./dist/topology/*.js"
+    "./topology/naming/lineage": {
+      "types": "./dist/topology/naming/lineage.d.ts",
+      "default": "./dist/topology/naming/lineage.js"
     },
-    "./boolean/*": {
-      "types": "./dist/boolean/*.d.ts",
-      "default": "./dist/boolean/*.js"
+    "./topology/naming/resolve-face": {
+      "types": "./dist/topology/naming/resolve-face.d.ts",
+      "default": "./dist/topology/naming/resolve-face.js"
+    },
+    "./topology/naming/roles": {
+      "types": "./dist/topology/naming/roles.d.ts",
+      "default": "./dist/topology/naming/roles.js"
+    },
+    "./topology/naming/types": {
+      "types": "./dist/topology/naming/types.d.ts",
+      "default": "./dist/topology/naming/types.js"
+    },
+    "./topology/build-face-ids": {
+      "types": "./dist/topology/build-face-ids.d.ts",
+      "default": "./dist/topology/build-face-ids.js"
+    },
+    "./topology/build-selector-runtime": {
+      "types": "./dist/topology/build-selector-runtime.d.ts",
+      "default": "./dist/topology/build-selector-runtime.js"
+    },
+    "./topology/types": {
+      "types": "./dist/topology/types.d.ts",
+      "default": "./dist/topology/types.js"
+    },
+    "./boolean/csg-backend": {
+      "types": "./dist/boolean/csg-backend.d.ts",
+      "default": "./dist/boolean/csg-backend.js"
+    },
+    "./boolean/csg-core": {
+      "types": "./dist/boolean/csg-core.d.ts",
+      "default": "./dist/boolean/csg-core.js"
+    },
+    "./boolean/cross-section": {
+      "types": "./dist/boolean/cross-section.d.ts",
+      "default": "./dist/boolean/cross-section.js"
+    },
+    "./boolean/deriveNormals": {
+      "types": "./dist/boolean/deriveNormals.d.ts",
+      "default": "./dist/boolean/deriveNormals.js"
+    },
+    "./boolean/extrude-helpers": {
+      "types": "./dist/boolean/extrude-helpers.d.ts",
+      "default": "./dist/boolean/extrude-helpers.js"
+    },
+    "./boolean/geo-convert": {
+      "types": "./dist/boolean/geo-convert.d.ts",
+      "default": "./dist/boolean/geo-convert.js"
+    },
+    "./boolean/joinery-shapes": {
+      "types": "./dist/boolean/joinery-shapes.d.ts",
+      "default": "./dist/boolean/joinery-shapes.js"
+    },
+    "./boolean/manifold-preview": {
+      "types": "./dist/boolean/manifold-preview.d.ts",
+      "default": "./dist/boolean/manifold-preview.js"
     },
     "./geometry2d": {
       "types": "./dist/geometry2d/index.d.ts",
       "default": "./dist/geometry2d/index.js"
     },
-    "./geometry2d/*": {
-      "types": "./dist/geometry2d/*.d.ts",
-      "default": "./dist/geometry2d/*.js"
+    "./geometry2d/bridge/plane": {
+      "types": "./dist/geometry2d/bridge/plane.d.ts",
+      "default": "./dist/geometry2d/bridge/plane.js"
     },
     "./env-agnostic": {
       "types": "./dist/env-agnostic.d.ts",

@@ -55,7 +55,8 @@ export async function executeScript(
   mode?: ExecutionMode,
   _brepChain?: BrepChainState,
 ): Promise<ExecuteOutput> {
-  // P5/E-a-1：测试辅助注入 cad 命名空间（core 不默认装配；test-helpers 只被测试消费）
+  // P5/E-a-1：测试辅助注入编辑器扩展的 cad 命名空间（createRuntime 自动注册平台 cad
+  // 仅在 libs.cad 缺省时触发；这里传入自定义 cad 覆盖之）
   const runtime = createRuntime(ports ?? defaultPorts(), mode, { cad: await getCadLib() })
   const result = await runtime.execute(code, { params })
 

@@ -172,6 +172,8 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-lockstep.mjs
     if ($LASTEXITCODE -ne 0) { return }
+    node scripts/check-facade.mjs
+    if ($LASTEXITCODE -ne 0) { return }
     npx madge --circular packages/core/src packages/faijs-extra/src
     if ($LASTEXITCODE -ne 0) { return }
     # 平台 import 隔离（narrowing plan Phase 8）：中立模块不得静态 import occt/brepkit 平台模块

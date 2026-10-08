@@ -54,6 +54,7 @@ echo "==> 5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep
 node scripts/check-ghost-deps.mjs
 node scripts/check-workspaces-order.mjs
 node scripts/check-lockstep.mjs
+node scripts/check-facade.mjs
 npx madge --circular packages/core/src
 node scripts/api-surface-snapshot.mjs
 # A5 / M4：dist 是构建产物（gitignored），可能落后于 src。构建后比对 src 符号表与

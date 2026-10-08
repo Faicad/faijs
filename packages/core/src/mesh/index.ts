@@ -9,45 +9,45 @@
  * 3. 同步签名、异步执行：API 签名同步（或 async）；worker 边界由 ScriptEngine 处理
  * 4. 坐标系：右手系 +Z 向上、毫米、角度用度
  *
- * ⚠️ B3 补正（2026-10-06，用户决定）：本文件**不再导出任何聚合对象**。
- *
- * 此前这里有一个把 primitives / brep / transform / boolean / engrave / query / io
- * 全量聚合进来的对象（曾名 `cad`，B3 一度改名 `meshCad`）。它把内核实现包装成一个
- * 「形似平台 API」的门面，使下游（含本仓测试）能 `import { cad } from '../mesh'`
- * 把内核当成 faijs 的公开 API——这正是要根除的混淆。改名只是换了张皮，因此聚合
- * 对象已整体删除，不再以任何名字存在。
- *
- * 要哪一层的实现，就从对应模块具名导入：
- * - `mesh/primitives`   box / sphere / cylinder / cone / wedge / screw / sdf
- * - `mesh/transform`    translate / rotate_euler / scale / scale3d / transformMatrix
- * - `mesh/boolean`      union / subtract / intersect
- * - `mesh/engrave`      engrave / knurl
- * - `mesh/query`        boundingBox / bboxCenter / volume / faceAt
- * - `mesh/io`           importFile / detectStepUnit
- * - `brep`、`brep/primitives-brep`  BREP（OCCT）路径
- *
- * 注意：脚本面的 `cad`（宿主经 `registerLib('cad', …)` 注入的 op 命名空间）与这一层
- * 是两回事——它不在这里，也不该被这里 import。见 AGENTS.md「库开发者 vs 脚本开发者」。
+ * ⚠️ B3 补正（2026-10-06）：本文件不导出任何聚合对象（`cad` / `meshCad` 已删除）。
+ * 要内核实现就从对应模块具名导入。门面层经 `export * from './mesh'` 消费。
  */
 
-// ── 类型导出 ──
-
-export type { Shape, Vec3, BoundingBox, FaceDescriptor } from './types'
-export { guessStlUnit } from './stl-unit'
+// ── types ──
 export type {
+  Shape, BoundingBox, FaceDescriptor,
   BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
   TextParams, SvgExtrudeParams, SdfParams,
   DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
-  SplitPlane, SplitResult, DovetailSplitParams, DowelSplitParams, TenonSplitParams,
+  SplitPlane, SplitResult, DovetailSplitParams, TenonSplitParams,
 } from './types'
+export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './types'
+export { isMeshShape } from './types'
 
-// BREP ops 类型导出
+// ── stl-unit ──
+export { guessStlUnit } from './stl-unit'
+
+// ── decoration-provider ──
+export { setEngraveDecorationProvider, getEngraveDecorationProvider } from './decoration-provider'
+export type { EngraveDecorationProvider, EngraveDecorationParams } from './decoration-provider'
+
+// ── manifold-loader ──
+export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './manifold-loader'
+
+// ── query ──
+export { faceAt } from './query'
+
+// ── knurl ──
+export { applyKnurlDisplacement, KNURL_DEFAULTS } from './knurl/KnurlGenerator'
+export type { KnurlBounds } from './knurl/KnurlGenerator'
+export { subdivide } from './knurl/subdivision'
+export { loadKnurlingTexture, setKnurlTextureLoader } from './knurl/textureLoader'
+export type { TextureData } from './knurl/textureLoader'
+export { QuantizedPointMap, weldVertices } from './knurl/meshIndex'
+export { computeUV, MODE_TRIPLANAR, getCubicBlendWeights, type MappingSettings } from './knurl/mapping'
+export { applyDisplacement, type DisplacementSettings } from './knurl/displacement'
+
+// ── import-model ──
 export type {
-  BrepChainState, DrillBrepParams, SplitBrepParams, SplitBrepResult,
-  ExtrudeBrepParams,
-} from '../brep'
-export {
-  createBrepChainState, initBrepChainState, releaseBrepChainState,
-  solidToShape,
-  isCadFormat,
-} from '../brep'
+  ImportModel, ImportPart, ImportAssemblyNode, ImportBambuViews,
+} from './import-model'

@@ -1,7 +1,7 @@
 # 门面 index.ts 重构与重名导出梳理方案
 
 > 日期：2026-10-08
-> 状态：方案（未实施）
+> 状态：已落地
 > 前置分析：`docs/analysis/2026-10-08-same-name-facade-createRuntime.md`
 > 涉及外部仓：`3d_editor`、`faijs-cadquery`、`faijs-freecad`、`faijs-openscad`
 

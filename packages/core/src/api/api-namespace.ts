@@ -9,7 +9,7 @@
  * runtime 不按函数名分支、不区分函数类别，函数信息统一以 defineOp 元数据（均匀数据）
  * 承载。把 cad 这套库数据内置进引擎，与第三方库走完全相同的 registerLib 路径，
  * 引擎并未对 cad 特判，因此不构成 K5 违反。cad 在 core 的 createRuntime 包装中
- * 被注册为 default 命名空间（见 cad-runtime/createRuntimeWithCad.ts）。
+ * 被注册为 default 命名空间（见 cad-runtime/runtime.ts 的 createRuntime）。
  *
  * D1（2026-09-23 扩展库拆分）：本命名空间只装配**平台面**。编辑器专属 op
  * （`fai_*` / `group` / `assembly` / `copy` / `load`）与两个非基础 three 链的创建 op

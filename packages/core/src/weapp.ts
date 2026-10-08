@@ -38,5 +38,5 @@ export { assertShapeSlotExclusive } from './cad-runtime/backend-dispatch'
 
 // cad-runtime（环境无关执行栈）：createRuntime 为 with-cad 变体（§9.2），与
 // browser/node 入口同口径——自带 cad 命名空间注册，宿主无需手工补注册。
-export { createRuntime } from './cad-runtime/createRuntimeWithCad'
-export type { CadRuntime } from './cad-runtime/createRuntimeWithCad'
+export { createRuntime } from './cad-runtime/runtime'
+export type { CadRuntime } from './cad-runtime/runtime'

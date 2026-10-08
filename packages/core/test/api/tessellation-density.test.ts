@@ -28,9 +28,9 @@ function triCountOf(runtime: ReturnType<typeof createRuntime>, varName: string):
 }
 
 async function sphereTriCount(code: string, tessellation?: { angularDeflection?: number; linearDeflection?: number }): Promise<number> {
-  // index.ts re-exports createRuntimeWithCad(ports, mode?, options?) — options is
-  // the 3rd arg (GOTCHA: the pure engine createRuntime has libs as 3rd).
-  const runtime = createRuntime(createNodePorts(), 'brep', { tessellation })
+  // createRuntime (cad-runtime/runtime) has signature (ports, mode?, libs?, options?) —
+  // options is the 4th arg (facade-refactor 2026-10-08: single createRuntime).
+  const runtime = createRuntime(createNodePorts(), 'brep', undefined, { tessellation })
   try {
     await runtime.execute(code)
     return triCountOf(runtime, 'part0')
@@ -81,7 +81,7 @@ describe('tessellation density (proposal 2026-10-07)', () => {
   })
 
   it('coarse tessellation keeps inscribed-approximation direction (volume < exact sphere)', async () => {
-    const runtime = createRuntime(createNodePorts(), 'brep', {
+    const runtime = createRuntime(createNodePorts(), 'brep', undefined, {
       tessellation: { angularDeflection: (12 * Math.PI) / 180, linearDeflection: 2.0 },
     })
     try {

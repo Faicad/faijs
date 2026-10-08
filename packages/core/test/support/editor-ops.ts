@@ -15,7 +15,7 @@
  *
  * Production code must never import this module.
  */
-import { createRuntime as createRuntimeCore, CadRuntime } from '../../src/cad-runtime/runtime'
+import { createBareRuntime as createRuntimeCore, CadRuntime } from '../../src/cad-runtime/runtime'
 import type { CadRuntimeOptions } from '../../src/cad-runtime/runtime'
 import type { ExecutionMode, HostPorts } from '../../src/cad-runtime/ports'
 import type { LibNamespace } from '../../src/runtime-state'
@@ -67,7 +67,7 @@ export function createEditorRuntime(
   mode?: ExecutionMode,
   options?: CadRuntimeOptions,
 ): CadRuntime {
-  // 纯引擎 createRuntime(ports, mode, libs, options)：libs 注入即注册，
+  // createBareRuntime(ports, mode, libs, options)：libs 注入即注册，
   // defaultNsName 缺省就是 'cad'（与宿主 registerLib(…, {default:true}) 等价）。
   const rt = createRuntimeCore(ports, mode, { cad: createApiNamespaceWithEditorOps() }, options)
   registerEditorExtensions()

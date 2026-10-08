@@ -12,9 +12,9 @@
  * 仅 Node.js：经 `@faicad/faijs/node` 导入，不要进浏览器构建（依赖 node-host）。
  */
 
-// The facade-level createRuntime (cad-runtime/createRuntimeWithCad) self-registers
-// the built-in cad namespace; the bare cad-runtime/runtime one does not (D1).
-import { createRuntime } from '../cad-runtime/createRuntimeWithCad'
+// createRuntime (cad-runtime/runtime) auto-registers the built-in cad
+// namespace as the default lib (D1, facade-refactor 2026-10-08).
+import { createRuntime } from '../cad-runtime/runtime'
 import type { ExecutionResult } from '../cad-runtime/runtime'
 import type { ExecutionMode, LibLoader } from '../cad-runtime/ports'
 import type { TerminalShape } from '../lang/types'
