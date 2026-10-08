@@ -134,7 +134,9 @@ describe('G3 单元层（brep-operations 自有实现）', () => {
     const src = boxShape()
     const r = rotateBrep(src, 180, { at: [0, 0, 0], axis: [0, 0, 1] })
     expect(r.ok).toBe(true)
-    const h = (r as { ok: true; value: BrepHandle }).value
+    const out = (r as { ok: true; value: { solid: BrepHandle; faceEvolution: Map<number, number[]> } }).value
+    const h = out.solid
+    expect(out.faceEvolution).toBeInstanceOf(Map)
     const bb = getSolidBoundingBox(kernel, h)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(10, 3)
     expect(bb.max[1] - bb.min[1]).toBeCloseTo(20, 3)
@@ -147,7 +149,11 @@ describe('G3 单元层（brep-operations 自有实现）', () => {
     const v0 = kernel.getVolume(hOf(src))
     const r = offsetBrep(src, 1)
     expect(r.ok).toBe(true)
-    const h = (r as { ok: true; value: BrepHandle }).value
+    const out = (r as { ok: true; value: { solid: BrepHandle; faceEvolution: Map<number, number[]> } }).value
+    const h = out.solid
+    // C5：occt 提供 offsetWithHistory ⇒ 走权威路径。实测上游 5.6.0 该 API 返回**空演化**
+    // （modified/deleted 均空，见 test/api/occt-s4-c5-disposition.test.ts），故只断言容器存在。
+    expect(out.faceEvolution).toBeInstanceOf(Map)
     const vol = kernel.getVolume(h)
     expect(vol).toBeGreaterThan(v0)
     // 粗略下界：外扩 1 后 ≥ 12×22×32 = 8448

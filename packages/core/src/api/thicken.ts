@@ -16,6 +16,7 @@ import { getBrepApi } from '../brep/handle-bridge'
 import { brepOf, fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
 import { getOcctKernel } from '../occt-kernel/occtKernel'
+import { HASH_UPPER_BOUND, decodeEvolution, getFaceHashes } from '../brep/face-evolution'
 import type { BrepHandle } from '../brep/engine/types'
 
 /**
@@ -49,8 +50,20 @@ export const thicken = defineOp({
     const kernel = getBrepApi()
     const handle = brepOf(input) as BrepHandle | undefined
     if (!handle) throw new Error('[thicken] input is not BREP')
-    const h = getOcctKernel().thicken(handle as never, thickness, 1e-6) as unknown as BrepHandle
-    return fromBrep(solidToShape(kernel, h), { solid: h }) as Shape
+    // C5 实现面接入：occt 提供 thickenWithHistory ⇒ 用权威面演化，不用无历史 thicken。
+    // thicken 是 occt-only 平台 op（engines:['occt']），brepkit 在执行前已被拒绝，
+    // 因此不存在「有裸方法却因无 history 而报错」的回退分支。
+    const inputHashes = getFaceHashes(kernel, handle)
+    const evo = getOcctKernel().thickenWithHistory(
+      handle as never,
+      thickness,
+      1e-6,
+      inputHashes,
+      HASH_UPPER_BOUND,
+    )
+    const result = evo.result as unknown as BrepHandle
+    const faceEvolution = decodeEvolution(kernel, evo, handle, result)
+    return fromBrep(solidToShape(kernel, result), { solid: result, faceEvolution }) as Shape
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: 'thickened-body face vocabulary not defined' } as Provenance,

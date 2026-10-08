@@ -301,6 +301,110 @@ export function scaleWithHashEvolution(
 }
 
 /**
+ * 单轴旋转 + **权威**面演化：走内核 `rotateWithHistory`。
+ *
+ * 仅当旋转可由**单轴**表达时可用（内核只提供单轴 API）。多轴欧拉角
+ * `rotate_euler` 仍退回 `identityHashEvolution`（`face-evolution.ordering.test.ts` 钉住）。
+ *
+ * @param kernel    - the OCCT kernel.
+ * @param shape     - the input shape.
+ * @param axisPoint - a point on the rotation axis (the pivot).
+ * @param axisDir   - the unit rotation-axis direction.
+ * @param angleRad  - the rotation angle in radians.
+ * @returns the rotated handle plus the hash-keyed and ordinal-keyed evolutions.
+ */
+export function rotateWithHashEvolution(
+  kernel: BrepEngineApi,
+  shape: BrepHandle,
+  axisPoint: readonly [number, number, number],
+  axisDir: readonly [number, number, number],
+  angleRad: number,
+): { result: BrepHandle; evolution: HashEvolution; faceEvolution: FaceEvolution } {
+  const inputHashes = getFaceHashes(kernel, shape)
+  const evo = getOcctKernel().rotateWithHistory(
+    shape as unknown as ShapeHandle,
+    { point: { x: axisPoint[0], y: axisPoint[1], z: axisPoint[2] }, direction: { x: axisDir[0], y: axisDir[1], z: axisDir[2] } },
+    angleRad,
+    inputHashes,
+    HASH_UPPER_BOUND,
+  ) as unknown as BrepEvolutionData
+  return {
+    result: evo.result,
+    evolution: decodeHashEvolution(evo),
+    faceEvolution: decodeEvolution(kernel, evo, shape, evo.result),
+  }
+}
+
+/**
+ * 镜像 + **权威**面演化：走内核 `mirrorWithHistory`。
+ *
+ * 镜像不改变面数/顺序（刚体反射），内核给 1:1 映射；brepkit 侧无此能力时
+ * 由调用方显式回退 `identityHashEvolution`（**不报错**）。
+ *
+ * @param kernel - the OCCT kernel.
+ * @param shape  - the input shape.
+ * @param point  - a point on the mirror plane.
+ * @param normal - the mirror-plane normal.
+ * @returns the mirrored handle plus the hash-keyed and ordinal-keyed evolutions.
+ */
+export function mirrorWithHashEvolution(
+  kernel: BrepEngineApi,
+  shape: BrepHandle,
+  point: readonly [number, number, number],
+  normal: readonly [number, number, number],
+): { result: BrepHandle; evolution: HashEvolution; faceEvolution: FaceEvolution } {
+  const inputHashes = getFaceHashes(kernel, shape)
+  const evo = getOcctKernel().mirrorWithHistory(
+    shape as unknown as ShapeHandle,
+    { x: point[0], y: point[1], z: point[2] },
+    { x: normal[0], y: normal[1], z: normal[2] },
+    inputHashes,
+    HASH_UPPER_BOUND,
+  ) as unknown as BrepEvolutionData
+  return {
+    result: evo.result,
+    evolution: decodeHashEvolution(evo),
+    faceEvolution: decodeEvolution(kernel, evo, shape, evo.result),
+  }
+}
+
+/**
+ * 抽壳 + **权威**面演化：走内核 `shellWithHistory`。
+ *
+ * `shell` 是中立 op（L1 两引擎均有裸实现）——occt 走本函数的权威映射，
+ * brepkit 无 `shellWithHistory` 时由调用方显式回退裸 `shell`（**不报错**）。
+ *
+ * @param kernel    - the OCCT kernel.
+ * @param solid     - the input solid.
+ * @param faces     - the faces to remove (open faces).
+ * @param thickness - the wall thickness.
+ * @param tolerance - the tolerance.
+ * @returns the shelled handle plus both the hash-keyed and ordinal-keyed evolutions.
+ */
+export function shellWithHashEvolution(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  faces: BrepHandle[],
+  thickness: number,
+  tolerance: number,
+): { result: BrepHandle; evolution: HashEvolution; faceEvolution: FaceEvolution } {
+  const inputHashes = getFaceHashes(kernel, solid)
+  const evo = getOcctKernel().shellWithHistory(
+    solid as unknown as ShapeHandle,
+    faces as unknown as ShapeHandle[],
+    thickness,
+    tolerance,
+    inputHashes,
+    HASH_UPPER_BOUND,
+  ) as unknown as BrepEvolutionData
+  return {
+    result: evo.result,
+    evolution: decodeHashEvolution(evo),
+    faceEvolution: decodeEvolution(kernel, evo, solid, evo.result),
+  }
+}
+
+/**
  * 双输入布尔 + roleTable 合流组合封装（§3.4，api boolean 链式调用用）。
  *
  * 一次 *WithHistory 内核调用同时产出：

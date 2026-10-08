@@ -463,11 +463,9 @@ export const mirrorJoin = defineOp({
     const { kernel, solid, outStmt } = prelude(input, 'mirrorJoin')
     const n = norm(options?.normal ?? [1, 0, 0])
     const o = toBrepVec(options?.at ?? [0, 0, 0])
-    // 2026-09-26 C 批降级：原实现直调 getOcctKernel().mirrorWithHistory（occt-only history
-    // 镜像，返回 modified/newFaces 供细粒度 roleTable）。按用户指示「有没有历史 withhistory
-    // 并不重要」，降级为 L1 kernel.mirror（brepkit 已声明 mirror 能力）——几何结果一致，
-    // roleTable 仍由 buildReplicaRoleTable 经质心聚类重建（引擎无关），仅丢失 history 级
-    // modified 面映射（不影响几何与产物有效性）。
+    // replicate 的 role table 经质心聚类重建（引擎无关），mirror history 对
+    // role table 无增量收益，故走 L1 kernel.mirror（brepkit 已声明 mirror 能力）。
+    // 面演化由 mirrorBrep（topologyFns.ts）双轨接入，replicate 不重复消费。
     const mirrored = kernel.mirror(solid, o, toBrepVec(n))
     try {
       const resultSolid = kernel.fuse(solid, mirrored)
@@ -482,8 +480,8 @@ export const mirrorJoin = defineOp({
       kernel.release(mirrored)
     }
   },
-  // 2026-09-26 C 批：从 engines:[occt] 降级为 capabilities:['mirror','fuse']（L1 中立面，
-  // brepkit 已声明二者）。history 语义丢失（见上注释），几何不回退。
+  // L1 中立面（brepkit 已声明 mirror+fuse）。replicate 的 role table 不消费
+  // mirror history（见上注释），面演化由 mirrorBrep 双轨接入。
   capabilities: ['mirror', 'fuse'],
   naming: { kind: 'replicate', k: 2 } as Provenance,
 })
@@ -523,9 +521,9 @@ export const mirror = defineOp({
     keep(input)
     return (await generatedMirror(input, options)) as Shape
   },
-  // 2026-09-26 B 批：generatedMirror 已降级为 L1 kernel.mirror（brepkit 已声明 mirror
-  // 能力），薄 override 同步从 engines:[occt] 降级为 capabilities:['mirror']——
-  // 与 clone 薄 override 同模式（外层门不拦 brepkit，内层 generatedMirror 已按能力路由）。
+  // generatedMirror 走 L1 kernel.mirror（brepkit 已声明 mirror 能力），薄 override
+  // 同步用 capabilities:['mirror']——与 clone 薄 override 同模式（外层门不拦 brepkit，
+  // 内层 generatedMirror 已按能力路由）。面演化由 mirrorBrep 双轨接入。
   capabilities: ['mirror'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

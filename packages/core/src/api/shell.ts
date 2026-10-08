@@ -19,8 +19,11 @@ import type { Shape } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
 import { solidToShape } from '../brep/brep-ops'
 import { getBrepApi } from '../brep/handle-bridge'
+import { shellWithHashEvolution } from '../brep/face-evolution'
 import { brepOf, fromBrep } from '../shape'
 import { defineOp } from '../sdk'
+import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
+import { getBackends } from '../runtime-state'
 import type { FaceTopoRef } from '../topology/naming'
 import { resolveTopoRef, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
@@ -79,6 +82,15 @@ function shellBrep(input: Shape, params: ShellParams): Shape {
     return r.handle as BrepHandle
   })
 
+  // C5 实现面接入（静态双轨，无运行时 try-catch）：
+  // - occt 声明 `shellWithHistory` → 走权威面演化（血缘更准）；
+  // - brepkit 未声明 → 显式回退裸 L1 `shell`（**不报错**），不伪造面演化
+  //   （抽壳是毁面重造，恒等映射不真实）。
+  const caps = engineCapabilitySet(getBackends().config.brepCapabilities)
+  if (caps.has('shellWithHistory')) {
+    const r = shellWithHashEvolution(kernel, solid, faceHandles, thickness, tolerance ?? 1e-6)
+    return fromBrep(solidToShape(kernel, r.result), { solid: r.result, faceEvolution: r.faceEvolution })
+  }
   const result = kernel.shell(solid, faceHandles, thickness, tolerance ?? 1e-6)
   return fromBrep(solidToShape(kernel, result), { solid: result })
 }

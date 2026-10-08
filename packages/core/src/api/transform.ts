@@ -30,6 +30,7 @@ import { translateBrep, rotateBrep, scaleBrep, solidToShape } from '../brep/brep
 import {
   identityEvolution,
   identityHashEvolution,
+  rotateWithHashEvolution,
   scaleWithHashEvolution,
   translateWithHashEvolution,
 } from '../brep/face-evolution'
@@ -115,6 +116,25 @@ export function assertScale3dParams(params: Record<string, unknown>): void {
  * @param params - the operation parameters.
  * @returns the transformed Shape.
  */
+/**
+ * 返回欧拉角中唯一非零分量的轴索引（0=X / 1=Y / 2=Z）；多轴同时非零或全零返回 -1。
+ *
+ * 单轴欧拉角可等价映射到内核单轴 `rotateWithHistory`（绕该轴、以 pivot 为轴上一点），
+ * 从而拿到内核权威面演化；多轴欧拉角内核无单次 API 可表达，退回 identity。
+ * @param angles - the euler angles in degrees (XYZ order).
+ * @returns the single non-zero axis index, or -1.
+ */
+function singleNonZeroAxis(angles: Vec3): 0 | 1 | 2 | -1 {
+  let idx = -1
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(angles[i]) > 1e-12) {
+      if (idx !== -1) return -1
+      idx = i
+    }
+  }
+  return idx as 0 | 1 | 2 | -1
+}
+
 function transformBrep(op: string, input: Shape, params: Record<string, unknown>): Shape {
   // L1 面：translateBrep/rotateBrep/scaleBrep/identityHashEvolution 只用 L1（D12）。
   const kernel = getBrepApi()
@@ -128,6 +148,7 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   const caps = engineCapabilitySet(getBackends().config.brepCapabilities)
   const hasTranslateHistory = caps.has('translateWithHistory')
   const hasScaleHistory = caps.has('scaleWithHistory')
+  const hasRotateHistory = caps.has('rotateWithHistory')
 
   let resultSolid: BrepHandle
   // 面演化（hash 键）：权威路径用内核映射，降级/中立路径用 identity 恒等映射。
@@ -161,14 +182,25 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
       resultSolid = scaleBrep(kernel, inputSolid, params.factor as number, center)
       historyEvolution = identityHashEvolution(kernel, inputSolid, resultSolid)
     }
-  } else {
-    // rotate_euler（任意欧拉角+pivot）/ scale3d（非等比）：内核无单次 WithHistory 可表达 →
-    // L1 rotate/scale + identity 面演化（既有语义，face-evolution.ordering.test.ts 钉住）。
-    if (op === 'rotate_euler') {
-      resultSolid = rotateBrep(kernel, inputSolid, params.angles as Vec3, params.pivot as Vec3 | undefined)
+  } else if (op === 'rotate_euler') {
+    // 单轴欧拉角可映射到内核单轴 rotateWithHistory → 权威面演化；
+    // 多轴欧拉角内核无对应 API → L1 rotate + identity（ordering.test.ts 钉住）。
+    const angles = params.angles as Vec3
+    const axisIdx = singleNonZeroAxis(angles)
+    if (hasRotateHistory && axisIdx !== -1) {
+      const axis: Vec3 = axisIdx === 0 ? [1, 0, 0] : axisIdx === 1 ? [0, 1, 0] : [0, 0, 1]
+      const pivot = (params.pivot as Vec3 | undefined) ?? [0, 0, 0]
+      const r = rotateWithHashEvolution(kernel, inputSolid, pivot, axis, (angles[axisIdx] * Math.PI) / 180)
+      resultSolid = r.result
+      historyEvolution = r.evolution
     } else {
-      resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3, params.center as Vec3 | undefined)
+      resultSolid = rotateBrep(kernel, inputSolid, angles, params.pivot as Vec3 | undefined)
+      historyEvolution = identityHashEvolution(kernel, inputSolid, resultSolid)
     }
+  } else {
+    // scale3d（非等比）：内核无单次 WithHistory 可表达 →
+    // L1 scale + identity 面演化（face-evolution.ordering.test.ts 钉住）。
+    resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3, params.center as Vec3 | undefined)
     historyEvolution = identityHashEvolution(kernel, inputSolid, resultSolid)
   }
 

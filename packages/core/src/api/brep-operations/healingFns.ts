@@ -76,16 +76,40 @@ function healFaceBrep(handle: BrepHandle): Result<BrepHandle> {
   }
 }
 
-/** Heal a wire (`ShapeFix_Wire`, occt platform method). */
+/** Heal a wire (`ShapeFix_Wire` + `buildCurves3d`, occt platform method). */
 function healWireBrep(handle: BrepHandle): Result<BrepHandle> {
   try {
     const result = getOcctKernel().healWire(handle as never, 1e-6)
+    // buildCurves3d: rebuild 3D curves on the wire in-place (occt-wasm 5.6).
+    // Supplement to healWire — some wires carry only 2D curves in surface
+    // parameter space; this ensures a 3D representation exists. Idempotent.
+    try { getOcctKernel().buildCurves3d(result as never) } catch { /* not applicable */ }
     if (getOcctKernel().getShapeType(result as never) !== 'wire') {
       return err(kernelError('HEAL_RESULT_NOT_WIRE', 'Healed result is not a wire'))
     }
     return ok(result as never as BrepHandle)
   } catch (e) {
     return err(kernelError('HEAL_WIRE_FAILED', 'Wire healing failed', e))
+  }
+}
+
+/**
+ * Fix a wire to lie on a face's surface (`fixWireOnFace`, occt-wasm 5.6).
+ *
+ * Geometric precondition for `sketchOnFace`: the wire produced by UV-space
+ * sampling may not exactly lie on the host face's surface. This snaps it.
+ * On failure (wire already on surface, or shape mismatch) returns the wire
+ * unchanged — it is a supplement, not a hard requirement.
+ *
+ * @param wire - the wire to fix.
+ * @param face - the host face the wire must lie on.
+ * @returns the fixed wire (or the original on failure).
+ */
+export function fixWireOnFaceBrep(wire: BrepHandle, face: BrepHandle): BrepHandle {
+  try {
+    return getOcctKernel().fixWireOnFace(wire as never, face as never, 1e-6) as never as BrepHandle
+  } catch {
+    return wire
   }
 }
 

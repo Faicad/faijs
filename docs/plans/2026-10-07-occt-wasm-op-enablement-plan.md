@@ -400,15 +400,15 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | 方法 | 接入点 | 收益 |
 |---|---|---|
 | `translateWithHistory` | `translate` / `place` | 血缘更准 |
-| `rotateWithHistory` | `rotate` / `rotate_euler` | 血缘更准 |
-| `mirrorWithHistory` | `mirror` | 血缘更准 |
+| `rotateWithHistory` | `rotate` / `rotate_euler` | 血缘更准；`rotateBrep` 双轨（occt 走权威，brepkit 走 Rodrigues+transform）；`rotate_euler` 单轴特判；产物 STEP 导出安全（与原生 `rotate` 的 GOTCHA 无关） |
+| `mirrorWithHistory` | `mirror` | 血缘更准；`mirrorBrep` 双轨（occt 走权威，brepkit 走裸 `mirror`+identity）；replicate 不重复消费（role table 经质心聚类重建） |
 | `scaleWithHistory` | `scale` / `scale3d` | 血缘更准 |
 | `chamferWithHistory` | `chamfer` | 与已接入的 `filletWithHistory` 对称 |
-| `shellWithHistory` | `shell` | 血缘更准 |
-| `offsetWithHistory` | `offset` | 血缘更准 |
-| `thickenWithHistory` | `thicken` | 血缘更准 |
-| `buildCurves3d` | `heal` / `import_step` | wire 上重建 3D 曲线（原地变更、无返回值，与 op 的 `Shape→Shape` 契约不兼容，故不做 op） |
-| `fixWireOnFace` | `sketchOnFace` | 草图贴合面的几何前置（`api/sketch-on-face.ts` 自述为 follow-up） |
+| `shellWithHistory` | `shell` | 血缘更准；`shellBrep` 双轨（occt 走权威，brepkit 走裸 `shell`） |
+| `offsetWithHistory` | `offset` | 上游 5.6.0 空壳（`modified`/`deleted` 全空），接入为未来就绪（见 `test/api/occt-s4-c5-disposition.test.ts`） |
+| `thickenWithHistory` | `thicken` | 上游 5.6.0 空壳（`modified`/`deleted` 全空），接入为未来就绪 |
+| `buildCurves3d` | `heal` / `import_step` | wire 上重建 3D 曲线（原地变更）；已接入 `healWireBrep`（`healWire` 后追加，幂等补充） |
+| `fixWireOnFace` | `sketchOnFace` | 草图贴合面的几何前置；已接入 `buildOnFace`（`assembleWireOnFace` 后、`makeFace` 前） |
 
 **纪律**：C5 的接入不得改变 op 的外部签名、错误码与脚本面符号。是否启用由引擎能力表静态判定，brepkit 侧缺该能力时回退到现路径（**回退必须在实现层显式写出，不得静默**）。
 

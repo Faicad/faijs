@@ -1,6 +1,6 @@
 {
   "upstreamVersion": "5.6.0",
-  "generatedAt": "2026-10-07",
+  "generatedAt": "2026-10-08",
   "kernelMethodCount": 211,
   "contractMemberCount": 102,
   "opCount": 76,
@@ -115,6 +115,7 @@
     "approximatePoints",
     "booleanOp",
     "bsplineSurface",
+    "buildCurves3d",
     "buildSolidFromFaces",
     "classifyPointOnFace",
     "containsPoint",
@@ -153,8 +154,8 @@
     "makeNonPlanarFace",
     "makeSolid",
     "makeTangentArc",
-    "offset",
     "offsetWire2D",
+    "offsetWithHistory",
     "outerWire",
     "pipe",
     "projectPointOnEdge",
@@ -165,7 +166,7 @@
     "subShapeCount",
     "sweepFull",
     "sweepPipeShell",
-    "thicken",
+    "thickenWithHistory",
     "toBREP",
     "toMultiviewPNG",
     "toMultiviewSVG",
@@ -188,18 +189,17 @@
     "sweepWithLaw"
   ],
   "C4": [
-    "createXCAFDocument"
+    "createXCAFDocument",
+    "offset",
+    "thicken"
   ],
   "C5": [
-    "buildCurves3d",
     "chamferWithHistory",
     "fixWireOnFace",
     "mirrorWithHistory",
-    "offsetWithHistory",
     "rotateWithHistory",
     "scaleWithHistory",
     "shellWithHistory",
-    "thickenWithHistory",
     "translateWithHistory"
   ],
   "C6": [
@@ -230,7 +230,6 @@
   ],
   "unreached": [
     "booleanPipeline",
-    "buildCurves3d",
     "buildExtrusionLaw",
     "cacheStep",
     "chamferAsymmetric",
@@ -251,7 +250,7 @@
     "meshBatch",
     "mirrorBatch",
     "mirrorWithHistory",
-    "offsetWithHistory",
+    "offset",
     "queryBatch",
     "releaseAll",
     "rotate",
@@ -268,7 +267,7 @@
     "sweepOriented",
     "sweepWithLaw",
     "tessellate",
-    "thickenWithHistory",
+    "thicken",
     "toBREPBinary",
     "transformBatch",
     "translateBatch",

@@ -15,7 +15,17 @@
  * metadata propagation, evolution tracking) dropped: occt-wasm handles only.
  */
 
-import type { BrepHandle } from '../../brep/engine/types'
+import type { BrepEvolutionData, BrepHandle } from '../../brep/engine/types'
+import {
+  HASH_UPPER_BOUND,
+  decodeEvolution,
+  getFaceHashes,
+  identityEvolution,
+  mirrorWithHashEvolution,
+  rotateWithHashEvolution,
+} from '../../brep/face-evolution'
+import { engineCapabilitySet } from '../../cad-runtime/backend-dispatch'
+import { getBackends } from '../../runtime-state'
 import { getBrepApi } from '../../brep/handle-bridge'
 import { ok, err, type Result } from '../../result/result'
 import { kernelError, validationError } from '../../result/errors'
@@ -212,17 +222,27 @@ const MIRROR_PARAMS = { name: 'mirror', params: ['shape', 'options'], formClass:
 /**
  * Mirror across a plane defined by `options.at` (origin) and `options.normal`.
  *
+ * C5 实现面接入（静态双轨）：occt 声明 `mirrorWithHistory` → 走权威面演化；
+ * brepkit 未声明 → 显式回退裸 `mirror`（**不报错**），镜像保面序故挂恒等序号演化。
+ *
  * @param args - Resolved arguments (shape, mirror options).
- * @returns The mirrored shape as a `BrepHandle`.
+ * @returns The mirrored shape plus its face evolution.
  */
-export function mirrorBrep(...args: unknown[]): Result<BrepHandle> {
+export function mirrorBrep(...args: unknown[]): Result<{ solid: BrepHandle; faceEvolution: Map<number, number[]> }> {
   const [shape, options] = resolveArgs(args, MIRROR_PARAMS)
   const opts = (options ?? {}) as { normal?: Vec3; at?: Vec3 }
   const normal = opts.normal ?? [1, 0, 0]
   const at = opts.at ?? [0, 0, 0]
   const kernel = getBrepApi()
+  const s = brepHandleOf(shape)
   try {
-    return ok(kernel.mirror(brepHandleOf(shape), { x: at[0], y: at[1], z: at[2] }, { x: normal[0], y: normal[1], z: normal[2] }))
+    const caps = engineCapabilitySet(getBackends().config.brepCapabilities)
+    if (caps.has('mirrorWithHistory')) {
+      const r = mirrorWithHashEvolution(kernel, s, at, normal)
+      return ok({ solid: r.result, faceEvolution: r.faceEvolution })
+    }
+    const h = kernel.mirror(s, { x: at[0], y: at[1], z: at[2] }, { x: normal[0], y: normal[1], z: normal[2] })
+    return ok({ solid: h, faceEvolution: identityEvolution(kernel, h) })
   } catch (e) {
     return err(
       kernelError(
@@ -243,40 +263,46 @@ const ROTATE_PARAMS = { name: 'rotate', params: ['shape', 'angle', 'options'], f
 /**
  * Rotate the shape around an axis (brepjs topology/api.js#rotate + transformFns.ts#rotate).
  *
+ * C5 实现面接入（静态双轨）：occt 声明 `rotateWithHistory` → 走权威面演化
+ * （`rotateWithHistory` 产物 STEP 导出安全，与原生 `rotate` 的 GOTCHA 无关）；
+ * brepkit 未声明 → 退回 Rodrigues 矩阵 + STEP-safe `transform`（**不报错**），
+ * 挂恒等序号演化。
+ *
  * @param args - Resolved arguments (shape, angle in degrees, axis options).
- * @returns The rotated shape as a `BrepHandle`.
+ * @returns The rotated shape plus its face evolution.
  */
-export function rotateBrep(...args: unknown[]): Result<BrepHandle> {
+export function rotateBrep(...args: unknown[]): Result<{ solid: BrepHandle; faceEvolution: Map<number, number[]> }> {
   const [shape, angle, options] = resolveArgs(args, ROTATE_PARAMS)
   const s = brepHandleOf(shape)
   const { at = [0, 0, 0], axis = [0, 0, 1] } = (options ?? {}) as { at?: Vec3; axis?: Vec3 }
+  const kernel = getBrepApi()
+  const [ax, ay, az] = axis as readonly [number, number, number]
+  const alen = Math.hypot(ax, ay, az)
+  if (alen < 1e-12) {
+    return err(validationError('INVALID_AXIS', `rotate: axis must be non-zero, got [${ax}, ${ay}, ${az}]`))
+  }
+  const nx = ax / alen, ny = ay / alen, nz = az / alen
+  const theta = (Number(angle) * Math.PI) / 180
   try {
-    // GOTCHA (2026-09-25): occt-wasm's native `rotate` returns a handle whose
-    // STEP export crashes ("memory access out of bounds") — same family as
-    // located/generalTransform. Rotation is affine, so build the Rodrigues
-    // matrix and go through the STEP-safe `transform` (BRepBuilderAPI_Transform).
-    // 2026-09-26: switched from getOcctKernel().transform to the L1 getBrepApi().transform
-    // so the op is engine-neutral (brepkit transform = cloneAndTransform deep-copy,
-    // same STEP-safe semantics) — see brepkit-batchA-fix.
-    const [ax, ay, az] = axis as readonly [number, number, number]
-    const alen = Math.hypot(ax, ay, az)
-    if (alen < 1e-12) {
-      return err(validationError('INVALID_AXIS', `rotate: axis must be non-zero, got [${ax}, ${ay}, ${az}]`))
+    const caps = engineCapabilitySet(getBackends().config.brepCapabilities)
+    if (caps.has('rotateWithHistory')) {
+      const r = rotateWithHashEvolution(kernel, s, at, [nx, ny, nz], theta)
+      return ok({ solid: r.result, faceEvolution: r.faceEvolution })
     }
-    const nx = ax / alen, ny = ay / alen, nz = az / alen
-    const theta = (Number(angle) * Math.PI) / 180
+    // GOTCHA (2026-09-25): occt-wasm's native `rotate` returns a handle whose
+    // STEP export crashes ("memory access out of bounds"). Rotation is affine,
+    // so build the Rodrigues matrix and go through the STEP-safe `transform`.
     const c = Math.cos(theta), sTheta = Math.sin(theta), t = 1 - c
-    // R = cI + sK + t·(n⊗n) (Rodrigues)
     const r00 = t * nx * nx + c,     r01 = t * nx * ny - nz * sTheta, r02 = t * nx * nz + ny * sTheta
     const r10 = t * nx * ny + nz * sTheta, r11 = t * ny * ny + c,     r12 = t * ny * nz - nx * sTheta
     const r20 = t * nx * nz - ny * sTheta, r21 = t * ny * nz + nx * sTheta, r22 = t * nz * nz + c
     const [px, py, pz] = at as readonly [number, number, number]
-    // Pivot-preserving translation: p' = R·(p − at) + at  ⇒  tx = at − R·at
     const tx = px - (r00 * px + r01 * py + r02 * pz)
     const ty = py - (r10 * px + r11 * py + r12 * pz)
     const tz = pz - (r20 * px + r21 * py + r22 * pz)
     const m12 = [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz]
-    return ok(getBrepApi().transform(s, m12))
+    const h = kernel.transform(s, m12)
+    return ok({ solid: h, faceEvolution: identityEvolution(kernel, h) })
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e)
     return err(kernelError('ROTATE_FAILED', `Rotate operation failed: ${raw}`, e))
@@ -323,10 +349,14 @@ const OFFSET_PARAMS = { name: 'offset', params: ['shape', 'distance', 'options']
 /**
  * Offset all faces of the shape (brepjs topology/api.js#offset + modifierFns.ts#offset).
  *
+ * C5 实现面接入：occt 提供 `offsetWithHistory` ⇒ 用权威面演化，不用无历史 `offset`。
+ * `offset` 是 occt-only 平台 op（arg-spec `engines:['occt']`），brepkit 侧本就不支持，
+ * 不存在「有裸方法却因无 history 而报错」的回退分支。
+ *
  * @param args - Resolved arguments (shape, distance, options).
- * @returns The offset shape as a `BrepHandle`.
+ * @returns The offset shape plus its face evolution.
  */
-export function offsetBrep(...args: unknown[]): Result<BrepHandle> {
+export function offsetBrep(...args: unknown[]): Result<{ solid: BrepHandle; faceEvolution: Map<number, number[]> }> {
   const [shape, distance, options] = resolveArgs(args, OFFSET_PARAMS)
   const s = brepHandleOf(shape)
   const d = Number(distance)
@@ -335,8 +365,18 @@ export function offsetBrep(...args: unknown[]): Result<BrepHandle> {
   }
   const tolerance = ((options ?? {}) as { tolerance?: number }).tolerance ?? 1e-6
   try {
-    const h = getOcctKernel().offset(s as never, d, tolerance)
-    return ok(h as unknown as BrepHandle)
+    const kernel = getBrepApi()
+    const inputHashes = getFaceHashes(kernel, s)
+    const evo = getOcctKernel().offsetWithHistory(
+      s as never,
+      d,
+      tolerance,
+      inputHashes,
+      HASH_UPPER_BOUND,
+    ) as unknown as BrepEvolutionData
+    const solid = evo.result
+    const faceEvolution = decodeEvolution(kernel, evo, s, solid)
+    return ok({ solid, faceEvolution })
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e)
     return err(kernelError('OFFSET_FAILED', `Offset operation failed: ${raw}`, e))

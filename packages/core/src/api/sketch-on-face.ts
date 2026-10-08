@@ -13,9 +13,9 @@
  *
  * v1 scope: the on-surface primitive is surface-type-independent, but the result
  * face is built with `makeFace` on the interpolated wire, so it is exact for
- * planar faces; embedding the wire into a genuinely curved host face
- * (`fixWireOnFace`) is a follow-up. The op declares `engines: ['occt']`
- * (surface sampling needs the BREP platform).
+ * planar faces; for curved host faces the wire is snapped to the surface via
+ * `fixWireOnFace` (occt-wasm 5.6) before `makeFace`. The op declares
+ * `engines: ['occt']` (surface sampling needs the BREP platform).
  *
  * **Two chains, two mechanisms** (plan 2026-10-01 §4 Phase 3). The BREP branch
  * above maps the contour into the host face's UV domain. The **mesh branch**
@@ -45,6 +45,7 @@ import { assembleWireOnFace, type FaceScaleMode } from '../geometry2d/bridge/on-
 import { assembleWire, type Plane, type Vec3 } from '../geometry2d/bridge/lift-on-plane'
 import { profileSegToCurve, type ProfileSegLike } from '../geometry2d/adapt'
 import { assertProfileParams, toContourBlueprints, type ProfileLoop } from './profile'
+import { fixWireOnFaceBrep } from './brep-operations/healingFns'
 import { MeshUnsupportedError, getCurrentStmt } from '../runtime-state'
 import {
   meshBackendOrThrow,
@@ -124,12 +125,14 @@ function orientLikeHost(kernel: BrepEngineApi, host: BrepHandle, face: BrepHandl
 /** Build one face (outer + optional holes) on the host face for an organised contour entry. */
 function buildOnFace(kernel: BrepEngineApi, host: BrepHandle, mode: FaceScaleMode, entry: Blueprint | CompoundBlueprint): BrepHandle {
   if (entry instanceof CompoundBlueprint) {
-    let face = orientLikeHost(kernel, host, kernel.makeFace(assembleWireOnFace(kernel, host, mode, entry.blueprints[0]!).wire))
-    const holes = entry.blueprints.slice(1).map((h) => assembleWireOnFace(kernel, host, mode, h).wire as never)
+    const outerWire = fixWireOnFaceBrep(assembleWireOnFace(kernel, host, mode, entry.blueprints[0]!).wire, host)
+    let face = orientLikeHost(kernel, host, kernel.makeFace(outerWire))
+    const holes = entry.blueprints.slice(1).map((h) => fixWireOnFaceBrep(assembleWireOnFace(kernel, host, mode, h).wire, host) as never)
     if (holes.length > 0) face = kernel.addHolesInFace(face, holes)
     return face
   }
-  return orientLikeHost(kernel, host, kernel.makeFace(assembleWireOnFace(kernel, host, mode, entry).wire))
+  const wire = fixWireOnFaceBrep(assembleWireOnFace(kernel, host, mode, entry).wire, host)
+  return orientLikeHost(kernel, host, kernel.makeFace(wire))
 }
 
 /**
