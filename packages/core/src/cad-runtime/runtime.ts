@@ -203,8 +203,6 @@ export interface ExecutionResult {
 export interface ExecuteOptions {
   /** The parameter table. */
   params?: Record<string, unknown>
-  /** partTransform（世界→局部坐标偏移 + 单位缩放） */
-  partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   /** 语句前钩子（用于 undo 逐语句快照）；参数为语句 id（sN）与语句下标 */
   beforeStatement?: (stmtId: string, index: number) => void
   /**
@@ -369,7 +367,6 @@ export class CadRuntime {
   // P0 增量闸门用：上次成功执行的指纹快照
   private lastParamsFingerprint: string | null = null
   private lastLibIdsFingerprint: string | null = null
-  private lastPartTransformFingerprint: string | null = null
   private lastHadKinematics = false
 
   /**
@@ -594,9 +591,6 @@ export class CadRuntime {
         get hostEnv() {
           return portsOf().hostEnv
         },
-        get partTransform() {
-          return brepChainOf()?.partTransform
-        },
       },
       kernel: {
         get brep() {
@@ -811,13 +805,7 @@ export class CadRuntime {
     // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed；装载错误 → failedAt 短路。
     const moduleLoad = await this.loadDirectModuleImports(meta, opts?.entryKey)
     if (!('seed' in moduleLoad)) return moduleLoad
-    const brepChain = await this.ensureBrepChain()
-    if (opts?.partTransform?.position) {
-      brepChain.partTransform = {
-        position: opts.partTransform.position,
-        scale: opts.partTransform.scale,
-      }
-    }
+    await this.ensureBrepChain()
     const outcome = await de.execute(code, {
       imports: moduleLoad.seed,
       params: opts?.params,
@@ -904,13 +892,7 @@ export class CadRuntime {
     // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed（覆盖刷新 ctx 中旧 import 绑定）。
     const moduleLoad = await this.loadDirectModuleImports(meta, opts?.entryKey)
     if (!('seed' in moduleLoad)) return moduleLoad
-    const brepChain = await this.ensureBrepChain()
-    if (opts?.partTransform?.position) {
-      brepChain.partTransform = {
-        position: opts.partTransform.position,
-        scale: opts.partTransform.scale,
-      }
-    }
+    await this.ensureBrepChain()
     const outcome = await de.append(code, {
       imports: moduleLoad.seed,
       params: opts?.params,
@@ -1680,12 +1662,6 @@ export class CadRuntime {
       return this.executeDirectText(newCode, opts)
     }
 
-    // G8: partTransform 变化
-    const ptFp = stableFingerprint(opts?.partTransform ?? null)
-    if (ptFp !== this.lastPartTransformFingerprint) {
-      return this.executeDirectText(newCode, opts)
-    }
-
     // G5: 上一轮产生了装配运动学位姿
     if (this.lastHadKinematics) {
       return this.executeDirectText(newCode, opts)
@@ -1757,15 +1733,6 @@ export class CadRuntime {
     // ── 派生缓存失效 ──
     this.releasePartCaches(replayKeys.map((k) => asPartName(k)))
 
-    // ── BREP 链与 partTransform 同步 ──
-    const brepChain = await this.ensureBrepChain()
-    if (opts?.partTransform?.position) {
-      brepChain.partTransform = {
-        position: opts.partTransform.position,
-        scale: opts.partTransform.scale,
-      }
-    }
-
     // ── 重放 ──
     // G4 already checked: no relative imports → moduleLoad.seed = {}
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
@@ -1808,13 +1775,7 @@ export class CadRuntime {
     this.accumulatedCode = newCode
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
-    const brepChain = await this.ensureBrepChain()
-    if (opts?.partTransform?.position) {
-      brepChain.partTransform = {
-        position: opts.partTransform.position,
-        scale: opts.partTransform.scale,
-      }
-    }
+    await this.ensureBrepChain()
     de.clearRoundState()
     return this.collectDirectResult(meta, opts)
   }
@@ -1828,7 +1789,6 @@ export class CadRuntime {
       a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0,
     )
     this.lastLibIdsFingerprint = stableFingerprint(libIdsEntries)
-    this.lastPartTransformFingerprint = stableFingerprint(opts?.partTransform ?? null)
     this.lastHadKinematics = this.directExecutor.kinematicsSnapshot.size > 0
   }
 
@@ -1858,15 +1818,48 @@ export class CadRuntime {
 
 // ── 工厂函数 ──
 
+import { createApiNamespace } from '../api/api-namespace'
+
 /**
- * Create a CadRuntime instance.
+ * Create a CadRuntime with the built-in `cad` namespace auto-registered as the
+ * default library.
+ *
+ * This is the single public `createRuntime` entry point. Hosts get "engine +
+ * standard library" in one call. If `libs` already contains a `cad` key, that
+ * caller-supplied namespace is kept (not overwritten).
+ *
  * @param ports - the host-injected environment capabilities.
  * @param mode - the execution mode (default 'auto').
- * @param libs - the host-injected library namespaces (including `cad`, which the
- * root facade injects automatically; core does not assemble it by default).
- * @param options - optional runtime options (e.g. `executor: 'direct' | 'module'`).
- * @returns a new CadRuntime.
+ * @param libs - the host-injected library namespaces. If `libs.cad` is omitted,
+ *   the built-in cad namespace is auto-registered as the default lib.
+ * @param options - optional runtime options (e.g. `execBackend`, `tessellation`).
+ * @returns a new CadRuntime with `cad` registered as the default namespace.
  */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, LibNamespace>, options?: CadRuntimeOptions): CadRuntime {
+  const rt = new CadRuntime(ports, mode, libs, options)
+  if (!libs?.cad) {
+    rt.registerLib('cad', createApiNamespace(), {
+      default: true,
+      packageName: '@faicad/faijs',
+    })
+  }
+  return rt
+}
+
+/**
+ * Create a bare CadRuntime without auto-registering the built-in `cad` namespace.
+ *
+ * For hosts that want a pure engine (e.g. only using the parser / runtime
+ * framework with a custom op set). `CadRuntime` itself can also be constructed
+ * directly via `new CadRuntime(...)` — this function is the named factory
+ * counterpart to avoid creating another same-name variant.
+ *
+ * @param ports - the host-injected environment capabilities.
+ * @param mode - the execution mode (default 'auto').
+ * @param libs - the host-injected library namespaces (no cad auto-registration).
+ * @param options - optional runtime options.
+ * @returns a new CadRuntime without cad registered.
+ */
+export function createBareRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, LibNamespace>, options?: CadRuntimeOptions): CadRuntime {
   return new CadRuntime(ports, mode, libs, options)
 }
