@@ -6,10 +6,15 @@
  * 坐标永远以 faijs 基准长度单位（mm）存储 — Shape 不贴 unit 标签（D3）。
  *
  * 单位换算边界（unit-system §5.2）：
- * - STL 无单位元数据 → 由 `opts.unit` 显式声明优先；未声明时 faijs 按历史
- *   host 行为做启发式猜测（`guessStlUnit`，unified 方案 §6.1/§8 —— 3d_editor
- *   迁移回归的单位断言依赖此行为）。猜测收敛在 faijs 内（红线 R0：宿主不
- *   自实现单位换算），G0 = 折算后坐标，渲染 = 拓扑 = G0。
+ * - `opts.unit` **对所有格式一视同仁：强制设置模型的源单位**（直接指定，
+ *   覆盖/忽略模型内部记录的单位——STL 无内部单位、3MF `<model unit>`、
+ *   STEP SI_UNIT 声明均被覆盖），按 `unitScale(unit)` 折算坐标。它**只可能
+ *   来自调用方的显式知识**（脚本作者手写 `cad.load({ file, unit })`、或宿主
+ *   让用户选定单位后传入）；调用方不知道单位时**必须省略**——省略时：
+ *   STL 走 faijs 启发式（`guessStlUnit`，unified 方案 §6.1/§8 —— 3d_editor
+ *   迁移回归的单位断言依赖此行为）、3MF 走文件 `<model unit>`、STEP 走文件
+ *   声明（无声明 → 'mm'，与 OCCT 一致）。猜测/折算收敛在 faijs 内（红线
+ *   R0：宿主不自实现单位换算），G0 = 折算后坐标，渲染 = 拓扑 = G0。
  * - 3MF `<model unit>` 由解析器读取并换算（micron/mm/cm/inch/foot/meter）。
  *
  * 返回契约（unit-system §10.6）：`importFile` 返回 `{ shape, unit }` — `unit`
@@ -42,8 +47,10 @@ export interface ImportFileResult {
   parts: Shape[]
   /**
    * The file's source unit (always present; faijs is the single source of truth).
-   * 3MF/STEP: the file's declared unit (STEP 无声明 → 'mm', 与 OCCT 一致).
-   * STL: opts.unit if declared, else the guessStlUnit heuristic result.
+   * 3MF/STEP: opts.unit (forced) if provided, else the file's declared unit
+   * (STEP 无声明 → 'mm', 与 OCCT 一致). STL: opts.unit (forced) if provided,
+   * else the guessStlUnit heuristic result. unit 对所有格式一视同仁——提供即
+   * 强制设置（覆盖内部声明），未提供才回落各格式默认路径。
    * Metadata only — coordinates are already in the faijs base unit (mm).
    */
   unit: UnitName
@@ -143,9 +150,19 @@ export function detectStepUnit(stepText: string): UnitName | null {
  *   unzipping is the caller's job — faijs never unzips implicitly).
  * @param format - format identifier such as 'stl', '3mf'/'threemf' or 'step'
  *   (defaults to 'stl').
- * @param opts - optional settings; `unit` (a UnitName string) declares the
- *   source unit for formats without unit metadata (e.g. STL). Defaults to
- *   the guessStlUnit heuristic when omitted.
+ * @param opts - optional settings; `unit` (a UnitName string) **force-sets the
+ *   model's source unit — uniformly for every format** (STL/3MF/STEP): it is
+ *   NOT a default, it directly specifies the unit and overrides/ignores any
+ *   unit recorded inside the model (3MF `<model unit>`, STEP SI_UNIT; STL has
+ *   none), geometry scaled by `unitScale(unit)`. Only provide it when the
+ *   caller actually knows the unit (author-written `cad.load({ file, unit })`,
+ *   or a host unit picker). When the caller does NOT know the unit, it MUST
+ *   omit `unit` — each format then uses its own path: STL guesses via
+ *   `guessStlUnit` (the only allowed guessing path), 3MF/STEP use the file
+ *   declaration (STEP none → 'mm'). A wrong explicit unit scales geometry
+ *   wrongly and is never re-guessed.
+ * @returns the shape with base-unit coordinates plus the file's source unit
+ *   (`unit`, metadata only; always present — faijs is the single source of truth).
  * @returns the shape with base-unit coordinates plus the file's source unit
  *   (`unit`, metadata only; always present — faijs is the single source of truth).
  */
@@ -157,7 +174,7 @@ export async function importFile(
   const fmt = (format ?? 'stl').toLowerCase()
 
   if (fmt === '3mf' || fmt === 'threemf') {
-    const archive = await parseThreemf(buffer)
+    const archive = await parseThreemf(buffer, opts)
     // P0（方案 §5.4）：不再折叠——返回全部 `<build><item>` 对象（declaration order，
     // 坐标已在 parseThreemf 里折算为 faijs 基准单位）。`shape` 保留为 parts[0]
     // （单零件兼容，过渡期）。

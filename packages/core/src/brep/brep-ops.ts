@@ -239,6 +239,47 @@ export function scaleBrep(
   return applyAffineBrep(kernel, solid, matrixToArray(matrix))
 }
 
+/**
+ * 强制单位缩放（unit-system §5.2 — opts.unit/params.unit 对所有格式一视同仁）的
+ * BREP 重三角化：`scaleBrep(factor)`（等比，原点）后用 **相对 deflection** 重新
+ * meshShape。
+ *
+ * 为什么必须相对：OCCT meshShape 的 linearDeflection 是**绝对** mm 误差
+ * （DEFAULT_LINEAR_DEFLECTION = 0.1mm）。模型放大 factor 后仍用绝对 0.1mm →
+ * 细分密度暴增（实测 ×1000 时顶点数 ×~218），显示与拓扑双爆炸。乘以 factor
+ * 保持**相对精度不变**（模型大了，绝对误差等比例放宽），网格密度与原始一致。
+ *
+ * 返回含 faceGroups 的完整 BrepMeshResult：调用方应把它登记进
+ * brepChain.meshShapeCache（按 partName），引擎侧 buildBrepTopology 直接复用
+ * （规则 1：显示 mesh = 拓扑 mesh），不再二次 meshShape。
+ *
+ * @param kernel  OCCT 内核
+ * @param solid   输入实体（等比缩放后返回新句柄；输入句柄不变）
+ * @param factor  缩放因子（≠1 才有意义；=1 时应走 solidToShape 普通路径）
+ * @returns 缩放后的 { solid, shape（显示 mesh）, mesh（含 faceGroups 的完整三角化） }
+ */
+export function scaleBrepAndTessellate(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  factor: number,
+): { solid: BrepHandle; shape: Shape; mesh: BrepMeshResult } {
+  const scaled = scaleBrep(kernel, solid, factor)
+  // 与 solidToShape 默认一致的 angularDeflection（2π/64 = brepjs standard 等效）；
+  // linearDeflection × factor —— 相对精度不变。
+  const mesh: BrepMeshResult = kernel.meshShape(scaled, {
+    linearDeflection: DEFAULT_LINEAR_DEFLECTION.as(mm) * factor,
+    angularDeflection: (2 * Math.PI) / 64,
+  })
+  return {
+    solid: scaled,
+    shape: {
+      positions: new Float32Array(mesh.positions),
+      indices: new Uint32Array(mesh.indices),
+    },
+    mesh,
+  }
+}
+
 // ─── 装配变换 ───
 
 /**

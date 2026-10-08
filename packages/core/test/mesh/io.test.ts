@@ -150,6 +150,24 @@ describe('importFile 3MF unit conversion (D5)', () => {
     const buf = threemfBytes('weird_unit', 10)
     await expect(importFile(buf, '3mf')).rejects.toThrow(/unsupported.*unit/)
   })
+
+  it('opts.unit 对所有格式一视同仁：millimeter 声明 + 强制 inch → 坐标 ×25.4（覆盖内部声明）', async () => {
+    const { shape, unit } = await importFile(threemfBytes('millimeter', 10), '3mf', { unit: 'inch' })
+    expect(maxX(shape.positions)).toBeCloseTo(254, 3)
+    expect(unit).toBe('inch')
+  })
+
+  it('opts.unit 强制覆盖：inch 声明 + 指定 mm → 坐标保持原始数值（忽略文件声明）', async () => {
+    const { shape, unit } = await importFile(threemfBytes('inch', 2), '3mf', { unit: 'mm' })
+    expect(maxX(shape.positions)).toBeCloseTo(2, 3)
+    expect(unit).toBe('mm')
+  })
+
+  it('opts.unit 强制时跳过非法文件声明（不抛错，按强制单位解析）', async () => {
+    const { shape, unit } = await importFile(threemfBytes('weird_unit', 10), '3mf', { unit: 'mm' })
+    expect(maxX(shape.positions)).toBeCloseTo(10, 3)
+    expect(unit).toBe('mm')
+  })
 })
 
 /** A 3MF whose single object references a basematerials base (object-level color). */

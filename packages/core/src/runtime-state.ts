@@ -42,6 +42,19 @@ export interface ExecutionAnchor {
  */
 export type RuntimeExecutionMode = 'auto' | 'brep' | 'mesh'
 
+/**
+ * 宿主环境（与 src/cad-runtime/ports.ts 的 `HostEnv` 保持一致）。
+ *
+ * 重复定义的理由与 `RuntimeExecutionMode` 相同：本模块零依赖。一致性由
+ * `cad-runtime/runtime.ts` 的 `get hostEnv() { return portsOf().hostEnv }`
+ * 在编译期间接钉住——只给一侧加成员而另一侧不加 → 该行 tsc 报错。
+ *
+ * 用途：导出命令（`cad.exportStl` / `cad.exportBrep`）只在 `'node'` 宿主开放，
+ * 其余值（含未声明）执行即报 `E_HOST_UNSUPPORTED`。判据是端口装配期声明的事实，
+ * 不做运行期环境探测。
+ */
+export type RuntimeHostEnv = 'node' | 'browser' | 'weapp'
+
 /** 宿主注入的环境资源。字段类型用宽松结构，避免本模块依赖具体实现。 */
 export interface Backends {
   /** 契约版本（装配期校验，不兼容即抛错） */
@@ -51,6 +64,12 @@ export interface Backends {
     mode: RuntimeExecutionMode
     /** 当前 BREP 引擎 id（注册表首个注册者；未注册为 null）。静态判据（引擎身份）读。 */
     brepEngineId?: string | null
+    /**
+     * 宿主环境（端口装配期声明的事实；未声明 = undefined）。静态判据（导出命令的
+     * 宿主门，`api/internal/l3-bridge.ts#assertHostFor`）读；与执行模式 / 引擎身份
+     * 正交，不做运行期探测。
+     */
+    hostEnv?: RuntimeHostEnv
     partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   }
   /** 几何后端。brep 引擎异步初始化 → 用 getter。 */
@@ -144,6 +163,32 @@ export class MeshUnsupportedError extends Error {
   constructor(message: string, stmt?: ExecutionAnchor) {
     super(message)
     this.name = 'MeshUnsupportedError'
+    this.stmt = stmt
+  }
+}
+
+/**
+ * 宿主环境不支持错误——导出命令只在 node 宿主开放。
+ *
+ * 与 BrepUnsupportedError / MeshUnsupportedError 并列的第三类「执行前静态拒绝」：
+ * 由 API 侧的断言器（`api/internal/l3-bridge.ts#assertHostFor`）在实现体之前抛出，
+ * 不经 dispatchPath、不做运行期回退。CadRuntime 捕获后转换为
+ * ExecutionResult.failedAt，`failedAt.code` 取本类的 `code`。
+ *
+ * 定义在本层（零依赖）以便 L3 API 面与引擎共享同一类（instanceof 判定）。
+ *
+ * 判据是「脚本可由 AI 生成任意代码、属不受信输入」：导出把「往哪写、写几份、
+ * 写什么」的决定权交给脚本文本，浏览器 / 小程序里这种动作必须由宿主入口触发
+ * （用户点的按钮，或宿主自己调用的库面字节通道）。
+ */
+export class HostUnsupportedError extends Error {
+  /** 语句锚点（引擎在语句执行前设置，与兄弟错误类同构）。 */
+  readonly stmt?: ExecutionAnchor
+  /** 稳定错误码（落进 ExecutionResult.failedAt.code，供宿主程序化区分错误种类）。 */
+  readonly code = 'E_HOST_UNSUPPORTED'
+  constructor(message: string, stmt?: ExecutionAnchor) {
+    super(message)
+    this.name = 'HostUnsupportedError'
     this.stmt = stmt
   }
 }
@@ -710,5 +755,39 @@ export function setPendingMeshTopology(partName: PartName, data: unknown): void 
 export function takePendingMeshTopologies(): Map<PartName, unknown> {
   const out = new Map(pendingMeshTopologies)
   pendingMeshTopologies.clear()
+  return out
+}
+
+// ── BREP 强制单位缩放三角化登记（unit-system §5.2：unit 参数对所有格式一视同仁）──
+// 与 pendingMeshSolids 同模式：load op（@faicad/faijs-extra）不能直接持有
+// CadRuntime 实例，故把"强制单位缩放后的 BREP 三角化结果（含 faceGroups）"
+// 登记到这里，引擎在语句执行后按 part 名写进 brepChain.meshShapeCache——
+// buildBrepTopology 直接复用（规则 1：显示 mesh = 拓扑 mesh），不再二次
+// meshShape（相对 deflection 已在 op 内应用，二次 meshShape 会退回绝对 0.1mm
+// → 放大模型的网格密度爆炸）。仅单零件路径登记；多零件 compound 走
+// buildCompoundTopologyRuntime（自身重新 meshShape），缺口见 load op 注释。
+
+const pendingBrepMeshes = new Map<PartName, unknown>()
+
+/**
+ * 登记某 part 的强制单位缩放三角化结果（load op 调用；引擎在语句执行后收编）。
+ * 本层只按 `unknown` 透传（零依赖红线——meshShapeCache 的 BrepMeshResult 类型
+ * 由收编方/brep-chain 持有）。
+ *
+ * @param partName - the variable name the loaded BREP shape will be bound to.
+ * @param mesh - the full BrepMeshResult (含 faceGroups) from scaleBrepAndTessellate.
+ */
+export function setPendingBrepMesh(partName: PartName, mesh: unknown): void {
+  pendingBrepMeshes.set(partName, mesh)
+}
+
+/**
+ * 取走全部待收编的 BREP 缩放三角化结果并清空（引擎在语句执行后调用，消费一次）。
+ *
+ * @returns a fresh Map of part name → BrepMeshResult.
+ */
+export function takePendingBrepMeshes(): Map<PartName, unknown> {
+  const out = new Map(pendingBrepMeshes)
+  pendingBrepMeshes.clear()
   return out
 }

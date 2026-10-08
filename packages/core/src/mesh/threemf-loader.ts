@@ -584,19 +584,32 @@ function parseModelMetadata(rootDoc: string): FileMeta | undefined {
  *
  * `unit` is read from the ROOT model document (the file the build items
  * belong to); all documents share the same declared unit in practice.
+ * `forcedUnit`（opts.unit，用户显式指定）时**覆盖/忽略文件内部声明**——unit
+ * 参数对所有格式一视同仁：直接指定模型的源单位（unit-system §5.2），
+ * 未提供才回落到文件声明。
  */
-function parseModelXml(docTexts: string[]): {
+function parseModelXml(
+  docTexts: string[],
+  forcedUnit?: UnitName,
+): {
   unitName: UnitName
   objects: ThreemfObject[]
   fileMeta?: FileMeta
 } {
   // Last document = root model (caller appends it last).
   const rootDoc = docTexts[docTexts.length - 1]
-  const unitMatch = /<model\b[^>]*\bunit="([^"]+)"/.exec(rootDoc)
-  const unit = unitMatch ? unitMatch[1] : 'millimeter'
-  const unitName = threemfUnitToFaijs(unit)
-  if (unitName === null) {
-    throw new Error(`[mesh/threemf] unsupported <model unit>: ${JSON.stringify(unit)}`)
+  let unitName: UnitName
+  if (forcedUnit) {
+    // 强制设置模型单位：跳过文件声明（含非法声明）——用户显式指定优先。
+    unitName = forcedUnit
+  } else {
+    const unitMatch = /<model\b[^>]*\bunit="([^"]+)"/.exec(rootDoc)
+    const unit = unitMatch ? unitMatch[1] : 'millimeter'
+    const mapped = threemfUnitToFaijs(unit)
+    if (mapped === null) {
+      throw new Error(`[mesh/threemf] unsupported <model unit>: ${JSON.stringify(unit)}`)
+    }
+    unitName = mapped
   }
   const scale = UNIT_SCALE[unitName]
 
@@ -886,11 +899,20 @@ function parseModelXml(docTexts: string[]): {
  * (sub-models first, root last — root wins collisions).
  *
  * @param buffer - the raw .3mf (ZIP) bytes.
- * @returns an `ThreemfArchive` with mm-base per-instance objects, the declared
- *   source unit, and every non-model archive entry.
- * @throws when the buffer is not a 3MF/ZIP archive or the unit is invalid.
+ * @param opts - optional settings; `unit`（用户显式指定）**强制设置模型源单位**：
+ *   覆盖/忽略文件内部 `<model unit>` 声明（unit 对所有格式一视同仁，unit-system
+ *   §5.2）；未提供时读文件声明。无声明 → millimeter。
+ * @returns an `ThreemfArchive` with mm-base per-instance objects, the source
+ *   unit (forced value when provided, else the file declaration), and every
+ *   non-model archive entry.
+ * @throws when the buffer is not a 3MF/ZIP archive or the unit is invalid
+ *   (no forced unit → an unsupported declaration throws; forced unit skips
+ *   declaration parsing entirely).
  */
-export async function parseThreemf(buffer: ArrayBuffer): Promise<ThreemfArchive> {
+export async function parseThreemf(
+  buffer: ArrayBuffer,
+  opts?: { unit?: UnitName },
+): Promise<ThreemfArchive> {
   let entries: Map<string, Uint8Array>
   try {
     entries = readZipEntries(new Uint8Array(buffer))
@@ -910,7 +932,7 @@ export async function parseThreemf(buffer: ArrayBuffer): Promise<ThreemfArchive>
   }
   docKeys.push(rootKey)
   const docTexts = docKeys.map((k) => new TextDecoder().decode(entries.get(k)!))
-  const parsed = parseModelXml(docTexts)
+  const parsed = parseModelXml(docTexts, opts?.unit)
 
   // `extraEntries` = everything that is NOT a model document — Bambu's
   // `Metadata/model_settings.config`, `Metadata/project_settings.config`,
