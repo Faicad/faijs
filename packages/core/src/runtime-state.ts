@@ -757,37 +757,3 @@ export function takePendingMeshTopologies(): Map<PartName, unknown> {
   pendingMeshTopologies.clear()
   return out
 }
-
-// ── BREP 强制单位缩放三角化登记（unit-system §5.2：unit 参数对所有格式一视同仁）──
-// 与 pendingMeshSolids 同模式：load op（@faicad/faijs-extra）不能直接持有
-// CadRuntime 实例，故把"强制单位缩放后的 BREP 三角化结果（含 faceGroups）"
-// 登记到这里，引擎在语句执行后按 part 名写进 brepChain.meshShapeCache——
-// buildBrepTopology 直接复用（规则 1：显示 mesh = 拓扑 mesh），不再二次
-// meshShape（相对 deflection 已在 op 内应用，二次 meshShape 会退回绝对 0.1mm
-// → 放大模型的网格密度爆炸）。仅单零件路径登记；多零件 compound 走
-// buildCompoundTopologyRuntime（自身重新 meshShape），缺口见 load op 注释。
-
-const pendingBrepMeshes = new Map<PartName, unknown>()
-
-/**
- * 登记某 part 的强制单位缩放三角化结果（load op 调用；引擎在语句执行后收编）。
- * 本层只按 `unknown` 透传（零依赖红线——meshShapeCache 的 BrepMeshResult 类型
- * 由收编方/brep-chain 持有）。
- *
- * @param partName - the variable name the loaded BREP shape will be bound to.
- * @param mesh - the full BrepMeshResult (含 faceGroups) from scaleBrepAndTessellate.
- */
-export function setPendingBrepMesh(partName: PartName, mesh: unknown): void {
-  pendingBrepMeshes.set(partName, mesh)
-}
-
-/**
- * 取走全部待收编的 BREP 缩放三角化结果并清空（引擎在语句执行后调用，消费一次）。
- *
- * @returns a fresh Map of part name → BrepMeshResult.
- */
-export function takePendingBrepMeshes(): Map<PartName, unknown> {
-  const out = new Map(pendingBrepMeshes)
-  pendingBrepMeshes.clear()
-  return out
-}

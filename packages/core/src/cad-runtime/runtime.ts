@@ -48,7 +48,6 @@ import {
   type AssemblyKinematicsPose,
   configureTessellation, type TessellationDensity,
 } from '../runtime-state'
-import { takePendingBrepMeshes } from '../runtime-state'
 import { admitCompatLib } from './admit-compat-lib'
 import { hasDualOp, dualOpMetaOf } from '../define-op'
 import { computeLibId } from './lib-id'
@@ -1077,18 +1076,6 @@ export class CadRuntime {
     // 网格零件落位（方案 2026-10-01 §3.3）：load 的 mesh 路径在 op 内完成规范化 +
     // 近似拓扑构建，把「句柄」与「拓扑数据」登记为 pending；此处收编。
     this.applyPendingMeshSolids(de.meshSolidSnapshot, de.meshTopologySnapshot)
-    // BREP 强制单位缩放三角化收编（unit-system §5.2）：load op 缩放后以相对
-    // deflection 重新 meshShape（含 faceGroups），此处按 part 写进
-    // brepChain.meshShapeCache —— 下方 buildBrepTopology 直接复用（规则 1：
-    // 显示 mesh = 拓扑 mesh），避免二次 meshShape 退回绝对 0.1mm → 网格密度爆炸。
-    if (this.brepChain?.meshShapeCache) {
-      for (const [part, mesh] of takePendingBrepMeshes()) {
-        const v = de.getCtxVar(String(part))
-        if (!v || typeof v !== 'object') continue
-        if (!isShapeLike(v)) continue
-        this.brepChain.meshShapeCache.set(part, mesh as BrepMeshResult)
-      }
-    }
     // T3：拓扑——宿主注入（mesh/primitive，setTopology 缓存）原样带出 + BREP 真拓扑
     // 自动构建（与 collectResult 的 topology='auto'/'brep' 面同构）。solidCache 已由
     // DirectExecutor 的 setSolid 钩子同步（逐单元执行后写入），此处 buildBrepTopology

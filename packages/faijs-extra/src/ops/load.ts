@@ -11,18 +11,17 @@ import type { CompoundShape } from '@faicad/faijs/shape'
 import type { ImportModel, ImportAssemblyNode } from '@faicad/faijs/mesh/import-model'
 import { importFile, detectStepUnit } from '@faicad/faijs/mesh/io'
 import { isCadFormat } from '@faicad/faijs/brep/brep-chain'
-import { loadBrepAssembly, scaleBrepAndTessellate, solidToShape, type LoadBrepAssemblyPart } from '@faicad/faijs/brep/brep-ops'
+import { loadBrepAssembly, solidToShape, type LoadBrepAssemblyPart } from '@faicad/faijs/brep/brep-ops'
 import { importBrepToMesh } from '@faicad/faijs'
-import type { BrepHandle, BrepMeshResult } from '@faicad/faijs/brep/engine/types'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import { OpError } from '@faicad/faijs/api/internal/result-unwrap'
 import {
   getBackends, BrepUnsupportedError, getCurrentStmt,
   setPendingDetectedUnit, setPendingImportModel,
   setPendingMeshSolid, setPendingMeshTopology,
-  setPendingBrepMesh,
 } from '@faicad/faijs/runtime-state'
 import { solid, compound, fromBrep, fromMeshSolid } from '@faicad/faijs/shape'
-import { unitScale, UNIT_DIM, type UnitName } from '@faicad/faijs/units'
+import { UNIT_DIM, type UnitName } from '@faicad/faijs/units'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 // 只取**类型**：后端实现的运行时依赖（内核、拓扑构建器）留在 core，不进扩展库。
 import type { MeshSolidBackend } from '@faicad/faijs/brep/mesh-solid'
@@ -47,10 +46,11 @@ import type { MeshSolidBackend } from '@faicad/faijs/brep/mesh-solid'
  * @note 语言正常化后 loadFile/loadUrl/loadByKey 别名已删除（A4），统一为 `load` 一个函数。
  * @returns Shape 加载的几何，永远是 part 的第一条语句，后面可接特征链。
  * @param params.file - 资产文件名（用户上传名，不含路径、含后缀，如 'vise.3mf'）；内容按名从宿主资产库取。type:string
- * @param params.unit - **强制设置模型的源单位（所有格式一视同仁）**：提供即覆盖/忽略
- *   文件内部记录的单位（STL 无声明 / 3MF `<model unit>` / STEP SI_UNIT），按指定单位
- *   折算坐标；只有调用方确实知道单位时才提供（用户手写脚本）。未提供时各格式按
- *   默认路径：STL faijs 启发式（guessStlUnit）、3MF/STEP 文件声明（STEP 无声明 → mm）。type:string
+ * @param params.unit - **强制设置模型的源单位**：仅对无内部单位声明的 mesh 格式
+ *   （STL/3MF）有效——提供即覆盖/忽略模型内部记录的单位（3MF `<model unit>`），
+ *   按指定单位折算坐标；只有调用方确实知道单位时才提供（用户手写脚本）。未提供
+ *   时：STL faijs 启发式（guessStlUnit）、3MF 文件声明。**STEP/BREP 不支持**——
+ *   走 OCCT 链、单位由文件内部声明决定（读取时折算），提供 unit 直接报错。type:string
  * @note 格式由 `file` 后缀白名单自判：stl/3mf → mesh 路径；step/stp/stpz/brep → BREP 路径。宿主不再传 `format`。
  * @note 后缀白名单未命中 → 报错（不猜格式）；3MF 后缀会做 zip 魔数 sanity（后缀与内容明显不符时报错）。
  * @note 本 op 要求导入物含实体（历史契约）。非实体（wire/face/shell）的导入是平台 `cad.import_brep` 的一等能力，不由本 op 承担。
@@ -98,10 +98,10 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
 
   // mesh 路径：importFile 返回 { shape, parts, unit, importModel? } — unit 是文件
   // 源单位（必然有值；faijs 单一真源；元数据；坐标已是基准值）。opts.unit 强制
-  // 设置源单位（所有格式一视同仁：STL 直接折算；3MF 覆盖 `<model unit>` 声明）；
-  // 未提供时 STL 走 guessStlUnit 猜测、3MF 走文件声明。P0（方案 §5.4）：多零件
-  // mesh（多 object 3MF）不再折叠——全量 parts 以 compound 返回 + importModel
-  // 登记；单零件保持现状（buildMeshPart）。
+  // 设置源单位（mesh 格式：STL 直接折算；3MF 覆盖 `<model unit>` 声明）；未提供
+  // 时 STL 走 guessStlUnit 猜测、3MF 走文件声明。P0（方案 §5.4）：多零件 mesh
+  // （多 object 3MF）不再折叠——全量 parts 以 compound 返回 + importModel 登记；
+  // 单零件保持现状（buildMeshPart）。
   if (!useBrep) {
     const opts = buildImportOpts(params.unit)
     const { shape, parts, unit, importModel } = await importFile(buffer, fmt, opts)
@@ -120,43 +120,34 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
   // P0（方案 §5.3）：多 solid 文件经 XCAF 装配树全量导入——多零件返回 compound
   // （children 序 = parts.index），单零件返回单一 Shape（行为与现状一致）。
   // **不再接收/使用 partIndex**（取件点唯一，宿主不再拆）。
-  // 单位（unit-system §5.2，**所有格式一视同仁**）：params.unit 强制设置模型
-  // 源单位、覆盖文件内部声明（STEP SI_UNIT）；未提供时取文件声明（文本探测，
-  // 无声明 → 'mm'，与 OCCT 约定一致）。强制单位 ≠ 声明 → 读入结果（OCCT 已按
-  // 声明折算到 mm 基准）重折算到指定单位：factor = unitScale(force)/unitScale(declared)，
-  // **一次**换算（等价于用指定单位解读原始值），在 faijs 内完成（红线 R0）——
-  // 不是"按声明再 scale"双重换算；factor = 1 时零操作。
-  // P2（2026-10-06）：文件级缓存（内容 SHA-256 + 最终单位）——execute 全量重放
-  // 时同一文件同一单位只解析/缩放一次。worker 环境下重复 XCAF 解析累积 OCCT
-  // 资源、约第 6 次后 BOP 挂死（node 不现），缓存是根治；同时省去重复解析/
-  // 三角化成本。缓存 key 含 finalUnit——强制单位产物（缩放后 solid）按单位
-  // 维度缓存，避免每次重放重复缩放累积 OCCT 句柄。
+  // 单位（unit-system §5.2）：STEP/.brep 走 OCCT 链——OCCT 读取时按文件内部
+  // 单位声明折算（XCAF / fromBREP 均如此），**不支持用户强制设置单位**。因此
+  // BREP 路径**拒绝 params.unit**：用户显式提供 unit → 明确报错（不缩放、不
+  // workaround——缩放+重三角化会改变几何精度语义，且与文件声明矛盾）。
+  // STL/3MF（mesh 路径，importFile）支持 opts.unit 强制折算（坐标可直接缩放）。
+  const forcedUnit = buildImportOpts(params.unit)?.unit
+  if (forcedUnit) {
+    throw new OpError(
+      'load',
+      'E_ARGS_FORM',
+      `[extra/load] ${JSON.stringify(file)}: unit 参数不支持 ${fmt}（STEP/BREP 走 OCCT 链，` +
+      '单位由文件内部声明决定、读取时折算，OCCT 不支持强制设置单位）；' +
+      'unit 仅支持无内部单位声明的 mesh 格式（STL/3MF）。',
+    )
+  }
   const text = new TextDecoder().decode(new Uint8Array(buffer))
   const declared = detectStepUnit(text) ?? 'mm'
-  const forcedUnit = buildImportOpts(params.unit)?.unit
-  const finalUnit = forcedUnit ?? declared
-  const factor = forcedUnit && forcedUnit !== declared
-    ? unitScale(forcedUnit) / unitScale(declared)
-    : 1
   const hash = await contentHash(buffer)
-  const cacheKey = hash ? `${hash}|${finalUnit}` : null
-  let brepParts: (LoadBrepAssemblyPart & { mesh?: BrepMeshResult })[]
+  const cacheKey = hash ?? null
+  let brepParts: LoadBrepAssemblyPart[]
   let assembly: ImportAssemblyNode | undefined
   if (fmt === 'brep') {
     // CASCADE BREP 文本（单 solid，无装配树）：XCAF（STEPCAFControl_Reader）
     // 读不了 BREP 语法——唯一读取实现是 kernel.fromBREP（importBrepToMesh）。
     // 产物与 STEP 单零件同构（fromBrep + solid 句柄，句柄归 brepChain 管理）。
-    // BREP 文本无内部单位声明（按 mm 读入）→ declared='mm' → factor=unitScale(force)。
     const imported = await importBrepToMesh(text)
     const handle = imported.shapeHandle as unknown as BrepHandle
-    let part: { index: number; name: string; shape: Shape; solid: BrepHandle; color: null; mesh?: BrepMeshResult }
-    if (factor === 1) {
-      part = { index: 0, name: file, shape: solidToShape(kernel!, handle), solid: handle, color: null }
-    } else {
-      const t = scaleBrepAndTessellate(kernel!, handle, factor)
-      part = { index: 0, name: file, shape: t.shape, solid: t.solid, color: null, mesh: t.mesh }
-    }
-    brepParts = [part]
+    brepParts = [{ index: 0, name: file, shape: solidToShape(kernel!, handle), solid: handle, color: null }]
   } else if (cacheKey) {
     const cached = loadCache.get(cacheKey)
     if (cached) {
@@ -164,34 +155,27 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
       assembly = cached.assembly
     } else {
       const r = await loadBrepAssembly(kernel!, buffer)
-      brepParts = factor === 1 ? r.parts : applyForcedUnitScale(kernel!, r.parts, factor)
+      brepParts = r.parts
       assembly = r.assembly
       loadCache.set(cacheKey, { parts: brepParts, assembly })
     }
   } else {
     const r = await loadBrepAssembly(kernel!, buffer)
-    brepParts = factor === 1 ? r.parts : applyForcedUnitScale(kernel!, r.parts, factor)
+    brepParts = r.parts
     assembly = r.assembly
   }
-  // BREP 路径的源单位：params.unit 强制值优先，否则文件声明（探测，无声明 → 'mm'）。
+  // BREP 路径的源单位：文件声明（文本探测，无声明 → 'mm'，与 OCCT 约定一致）。
   // unit 必然有值（faijs 单一真源），registerDetectedUnit 总是登记。
-  registerDetectedUnit(finalUnit)
+  registerDetectedUnit(declared)
   const importModel: ImportModel = {
     format: fmt === 'brep' ? 'brep' : 'step',
-    unit: finalUnit,
+    unit: declared,
     parts: brepParts.map((p) => ({
       index: p.index,
       name: p.name,
       ...(p.color ? { color: p.color } : {}),
     })),
     ...(assembly ? { assembly } : {}),
-  }
-  if (brepParts.length === 1 && brepParts[0]!.mesh) {
-    // 单零件强制单位：把缩放三角化（含 faceGroups）登记进 pending——引擎收编进
-    // brepChain.meshShapeCache，buildBrepTopology 直接复用（规则 1：显示 mesh =
-    // 拓扑 mesh；不再二次 meshShape 退回绝对 deflection → 网格密度爆炸）。
-    const part = getCurrentStmt()?.outputs[0]
-    if (part) setPendingBrepMesh(part, brepParts[0]!.mesh)
   }
   registerImportModel(importModel)
   if (brepParts.length === 1) {
@@ -264,7 +248,7 @@ function buildMeshPart(shape: Shape, file: string): Shape {
  * （runtime 级；worker 重建时模块重载自然清空）。缓存只是优化：digest 计算失败时
  * 跳过缓存（功能等价，不静默降级语义）。
  */
-const loadCache = new Map<string, { parts: (LoadBrepAssemblyPart & { mesh?: BrepMeshResult })[]; assembly?: ImportAssemblyNode }>()
+const loadCache = new Map<string, { parts: LoadBrepAssemblyPart[]; assembly?: ImportAssemblyNode }>()
 
 async function contentHash(buffer: ArrayBuffer): Promise<string | null> {
   try {
@@ -316,36 +300,12 @@ function assertFileMagic(fmt: string, buffer: ArrayBuffer, file: string): void {
 }
 
 /**
- * 强制单位换算（BREP 路径，unit-system §5.2 所有格式一视同仁）：
- * 对读入结果（OCCT 已按文件声明折算到 mm 基准）应用
- * factor = unitScale(force)/unitScale(declared)，**一次**换算到指定单位。
- * 每个 part：`scaleBrepAndTessellate`（等比缩放 + **相对 deflection** 重新三角化，
- * 返回含 faceGroups 的 mesh——绝对 deflection 会让放大模型网格密度爆炸，见
- * brep-ops.scaleBrepAndTessellate 注释）。原句柄不变（缓存持有时零副作用）。
- * mesh 由调用方登记 pending → 引擎写进 meshShapeCache（规则 1：显示 mesh =
- * 拓扑 mesh）。
- *
- * 已知缺口（多零件 compound，如实记录）：compound 终端的拓扑走
- * buildCompoundTopologyRuntime（引擎侧按 children 重新 meshShape，绝对
- * 0.1mm）——强制单位 + 多 solid 文件的拓扑构建会网格密度爆炸。需
- * buildCompoundTopologyRuntime 支持预三角化输入才能根治；单零件路径已闭环。
- */
-function applyForcedUnitScale(
-  kernel: BrepEngineApi,
-  parts: LoadBrepAssemblyPart[],
-  factor: number,
-): (LoadBrepAssemblyPart & { mesh: BrepMeshResult })[] {
-  return parts.map((p) => {
-    const t = scaleBrepAndTessellate(kernel, p.solid, factor)
-    return { ...p, solid: t.solid, shape: t.shape, mesh: t.mesh }
-  })
-}
-
-/**
- * params.unit（UnitName 字符串，固化在脚本行里）→ importFile / BREP 路径的
- * 强制单位。**所有格式一视同仁**：提供即强制设置模型源单位、覆盖文件内部
- * 声明（STL 无声明 / 3MF `<model unit>` / STEP SI_UNIT）；未提供时各格式按
- * 默认路径（STL 启发式；3MF/STEP 文件声明）。非法/非长度单位直接报错。
+ * params.unit（UnitName 字符串，固化在脚本行里）→ importFile 的 opts.unit。
+ * 契约（unit-system §5.2）：提供即**强制设置模型的源单位**——只对无内部单位
+ * 声明、坐标可直接折算的 mesh 格式（STL/3MF）有效；STEP/BREP 走 OCCT 链
+ * （单位由文件内部声明决定），unit 参数由 load op 在 BREP 路径**明确报错**，
+ * 不在此处拦截（保持 importFile 对 mesh 格式的单一职责）。非法/非长度单位
+ * 直接报错。
  */
 function buildImportOpts(unitParam: unknown): { unit: UnitName } | undefined {
   if (typeof unitParam !== 'string' || unitParam === '') return undefined
