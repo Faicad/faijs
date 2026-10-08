@@ -33,6 +33,7 @@ import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { getBrepApi } from '../../src/brep/handle-bridge'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../src/runtime-state'
 import { brepOf, fromBrep } from '../../src/shape'
+import { solidToShape } from '../../src/brep/brep-ops'
 import type { BrepHandle } from '../../src/brep/engine/types'
 import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
 import {
@@ -260,12 +261,14 @@ describe('S4 曲线草图族 — TS 级直连（L1 覆盖门禁 + vertex 入参�
 
   it('D. edge 接受 vertex Shape 入参（L1 makeVertex 物化的顶点对）', async () => {
     const kernel = getBrepApi()
-    const v1 = fromBrep(kernel.makeVertex(0, 0, 0) as unknown as BrepHandle, {
-      solid: kernel.makeVertex(0, 0, 0) as unknown as BrepHandle,
-    })
-    const v2 = fromBrep(kernel.makeVertex(10, 0, 0) as unknown as BrepHandle, {
-      solid: kernel.makeVertex(10, 0, 0) as unknown as BrepHandle,
-    })
+    // A vertex handle has no mesh payload — wrap it as an (empty-mesh) Shape and
+    // register the handle so edge's vertexHandleOf can read it back via brepOf.
+    const mkVertexShape = (x: number, y: number, z: number) => {
+      const handle = kernel.makeVertex(x, y, z) as unknown as BrepHandle
+      return fromBrep(solidToShape(kernel, handle), { solid: handle })
+    }
+    const v1 = mkVertexShape(0, 0, 0)
+    const v2 = mkVertexShape(10, 0, 0)
     const e = await edge(v1, v2)
     expect(kindOf(e)).toBe('curve')
     expect(curveLen(e)).toBeCloseTo(10, 6)

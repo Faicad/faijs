@@ -124,7 +124,7 @@ describe('cad.exportStl — STL 导出（中立：纯数据序列化）', () => 
   it('二进制形态：Uint8Array，长度 84+50N，三角形数与 Shape 三角载荷一致', async () => {
     await useOcct()
     const box = await shapeOf('brep', BOX, 'part0')
-    const bytes = exportStl(box)
+    const bytes = exportStl(box) as Uint8Array
     expect(bytes).toBeInstanceOf(Uint8Array)
     const tris = box.indices.length / 3
     expect(tris).toBeGreaterThan(0)

@@ -38,7 +38,7 @@ describe('load op — CASCADE BREP 文本（.brep）', () => {
   it('Motor-c.brep → fromBREP 路径成功，mesh 非空，format 登记 brep', async () => {
     const rt = createEditorRuntime(createNodePorts({ assetsDir: FIXTURES_DIR }), 'brep')
     const result: ExecutionResult = await rt.execute("let a = await cad.load({ file: 'Motor-c.brep' })")
-    expect(result.failedAt, JSON.stringify(result.error)).toBeUndefined()
+    expect(result.failedAt, JSON.stringify(result.failedAt)).toBeUndefined()
 
     // 产物终端存在且 mesh 非空
     expect(result.outputs.has(asPartName('a')), 'outputs 必须含 a').toBe(true)
@@ -78,7 +78,7 @@ describe('load op — BREP 路径拒绝 unit 参数（OCCT 不支持强制设置
   it('box_boss.step（无 unit）→ 正常加载，format=step、unit=文件声明 mm', async () => {
     const rt = createEditorRuntime(createNodePorts({ assetsDir: FIXTURES_DIR }), 'brep')
     const result: ExecutionResult = await rt.execute("let a = await cad.load({ file: 'box_boss.step' })")
-    expect(result.failedAt, JSON.stringify(result.error)).toBeUndefined()
+    expect(result.failedAt, JSON.stringify(result.failedAt)).toBeUndefined()
     const shape = result.outputs.get(asPartName('a'))
     expect(shape).toBeDefined()
     expect((shape as { positions: Float32Array }).positions.length).toBeGreaterThan(0)

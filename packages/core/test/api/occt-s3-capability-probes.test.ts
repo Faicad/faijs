@@ -22,6 +22,7 @@ import { getBrepApi } from '../../src/brep/handle-bridge'
 import { solidToShape } from '../../src/brep/brep-ops'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../src/runtime-state'
 import type { BrepHandle } from '../../src/brep/engine/types'
+import type { ShapeHandle } from 'occt-wasm'
 
 beforeAll(async () => {
   __resetEngineRegistriesForTests()
@@ -46,10 +47,10 @@ afterAll(() => {
 describe('halfSpace — 无限半空间实体的实测行为（方案 §3.4.4）', () => {
   it('A. 原生 halfSpace 产句柄；直接 solidToShape 三角化 → 成功但 mesh 为空（0 顶点）', () => {
     const k = getOcctKernel()
-    const h = k.halfSpace({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }) as unknown as BrepHandle
+    const h = k.halfSpace({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }) as unknown as ShapeHandle
     expect(h).toBeDefined()
     // 实测：无限半空间**可以**被三角化（不抛错），但产出空 mesh（无有限面可离散）。
-    const s = solidToShape(getBrepApi(), h)
+    const s = solidToShape(getBrepApi(), h as unknown as BrepHandle)
     expect(s.positions.length).toBe(0)
     expect(s.indices.length).toBe(0)
   })
@@ -60,8 +61,8 @@ describe('halfSpace — 无限半空间实体的实测行为（方案 §3.4.4）
     const boxShape = kernel.makeBox(10, 10, 10)
     expect(kernel.getVolume(boxShape)).toBeCloseTo(1000, 6)
 
-    const half = k.halfSpace({ x: 0, y: 0, z: 5 }, { x: 0, y: 0, z: 1 }) as unknown as BrepHandle
-    const cut = kernel.cut(boxShape, half) as unknown as BrepHandle
+    const half = k.halfSpace({ x: 0, y: 0, z: 5 }, { x: 0, y: 0, z: 1 }) as unknown as ShapeHandle
+    const cut = kernel.cut(boxShape, half as unknown as BrepHandle) as unknown as BrepHandle
     // 实测：半空间（平面在 z=5）作为无界工具**可用**——切出 z∈[0,5] 的板。
     expect(Math.abs(kernel.getVolume(cut))).toBeCloseTo(500, 3)
     const bbox = kernel.getBoundingBox(cut)
@@ -73,8 +74,8 @@ describe('halfSpace — 无限半空间实体的实测行为（方案 §3.4.4）
     const kernel = getBrepApi()
     const k = getOcctKernel()
     const boxShape = kernel.makeBox(10, 10, 10)
-    const half = k.halfSpace({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }) as unknown as BrepHandle
-    const cut = kernel.cut(boxShape, half) as unknown as BrepHandle
+    const half = k.halfSpace({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }) as unknown as ShapeHandle
+    const cut = kernel.cut(boxShape, half as unknown as BrepHandle) as unknown as BrepHandle
     expect(Math.abs(kernel.getVolume(cut))).toBeCloseTo(0, 3)
   })
 })
@@ -142,7 +143,7 @@ describe('law 族 — buildExtrusionLaw / trimLaw / sweepWithLaw 的上游可达
     const k = getOcctKernel()
     const { wire, face, spine } = profileAndSpine()
     // SweepLaw.Linear = 1；lawLength 必填（缺失时 sweepFull 自己抛）。
-    const swept = k.sweepFull(wire, spine, {
+    const swept = k.sweepFull(wire as never, spine as never, {
       law: 1 as never,
       lawLength: 50,
       lawEndFactor: 0.5,
@@ -154,8 +155,8 @@ describe('law 族 — buildExtrusionLaw / trimLaw / sweepWithLaw 的上游可达
     expect(volume).toBeGreaterThan(16 * 50 * 0.5)
     expect(volume).toBeLessThan(16 * 50)
     // law ≠ None 且缺 lawLength 必须抛，不能静默按 0 处理。
-    expect(() => k.sweepFull(wire, spine, { law: 1 as never })).toThrow(/lawLength is required/)
+    expect(() => k.sweepFull(wire as never, spine as never, { law: 1 as never })).toThrow(/lawLength is required/)
     // GOTCHA 并钉：原生 sweepFull 拒收 face 截面（wire 才合法）。
-    expect(() => k.sweepFull(face, spine, {})).toThrow(/bad shape type of section/)
+    expect(() => k.sweepFull(face as never, spine as never, {})).toThrow(/bad shape type of section/)
   })
 })

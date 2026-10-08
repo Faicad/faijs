@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './setup.js';
-import {polygon, outerWire, unwrap} from '@faicad/faijs/api';
+import {polygon, outerWire, unwrap, type CurveShape} from '@faicad/faijs/api';
 import { authorPart as author } from '../src/authorFns.js';
 import { unfold } from '../src/unfoldFns.js';
 import { nest, nestToDXF } from '../src/nestFns.js';
@@ -26,7 +26,7 @@ beforeAll(async () => {
  * polygon outline so the geometry is exact and deterministic (no bend-allowance
  * arithmetic), which is what the interlocking-win and non-overlap proofs need.
  */
-function lPart(): FlatPattern {
+async function lPart(): Promise<FlatPattern> {
   const pts: [number, number, number][] = [
     [0, 0, 0],
     [40, 0, 0],
@@ -35,7 +35,9 @@ function lPart(): FlatPattern {
     [20, 40, 0],
     [0, 40, 0],
   ];
-  const wire = outerWire(unwrap(polygon(pts)));
+  // outerWire is a defineOp whose declared return is Promise<Shape>; its product
+  // is a 1D curve shape (kind:'curve') per the op's @returns contract.
+  const wire = (await outerWire(await unwrap(polygon(pts)))) as CurveShape;
   return {
     outline: wire,
     bendLines: [],
@@ -157,7 +159,7 @@ describe('nest — true-shape (nfp)', async () => {
     // Sheet 45×65: two Ls interlock onto ONE sheet (true-shape) but the bbox packer
     // fits only one 40×40 box per sheet. So nfp packs twice the material per sheet,
     // and its (true-area) utilization strictly exceeds bbox's (bbox-area) utilization.
-    const parts = Array.from({ length: 4 }, () => lPart());
+    const parts = await Promise.all(Array.from({ length: 4 }, () => lPart()));
     const sheet = { width: 45, height: 65 };
     const opts = { sheet, allowRotation: true } as const;
 
@@ -182,7 +184,7 @@ describe('nest — true-shape (nfp)', async () => {
   });
 
   it('NO OVERLAP at the polygon level over all placed pairs, within usable bounds', async () => {
-    const parts = [lPart(), lPart(), lPart(), await flatBlank(25, 25), lPart()];
+    const parts = await Promise.all([lPart(), lPart(), lPart(), flatBlank(25, 25), lPart()]);
     const margin = 5;
     const spacing = 2;
     const sheet = { width: 120, height: 120 };
@@ -220,7 +222,7 @@ describe('nest — true-shape (nfp)', async () => {
   it('rotations: a part that only interlocks rotated is still placed', async () => {
     // Two L-parts on a 45×65 sheet only both fit if the second is rotated 180° into
     // the first's notch — a 0°-only packer would spill one to a second sheet.
-    const parts = [lPart(), lPart()];
+    const parts = await Promise.all([lPart(), lPart()]);
     const sheet = { width: 45, height: 65 };
     const r = nest(parts, { sheet, allowRotation: true, strategy: 'nfp' });
     expect(r.ok).toBe(true);
@@ -234,7 +236,7 @@ describe('nest — true-shape (nfp)', async () => {
   });
 
   it('oversized part -> unplaced + warning, no infinite loop', async () => {
-    const parts = [lPart(), await flatBlank(500, 500), lPart()];
+    const parts = await Promise.all([lPart(), flatBlank(500, 500), lPart()]);
     const r = nest(parts, { sheet: { width: 80, height: 80 }, strategy: 'nfp' });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -259,7 +261,7 @@ describe('nest — true-shape (nfp)', async () => {
 
 describe('nestToDXF — true-shape sheet', async () => {
   it('places each part at its (x, y, rotation); a second part is shifted', async () => {
-    const parts = [lPart(), lPart()];
+    const parts = await Promise.all([lPart(), lPart()]);
     const r = nest(parts, { sheet: { width: 45, height: 65 }, allowRotation: true, strategy: 'nfp' });
     expect(r.ok).toBe(true);
     if (!r.ok) return;

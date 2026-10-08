@@ -203,7 +203,7 @@ describe('G1 单元层（brep-operations 自有实现）', () => {
     const src = boxSolidShape()
     const h = mirrorBrep(src, { normal: [1, 0, 0] })
     expect(h.ok).toBe(true)
-    const handle = (h as { ok: true; value: BrepHandle }).value
+    const handle = (h as { ok: true; value: { solid: BrepHandle } }).value.solid
     const bb = getSolidBoundingBox(kernel, handle)
     // 镜像平面 X=0：bbox 的 min/max 对调符号
     expect(bb.min[0]).toBeCloseTo(-10)
