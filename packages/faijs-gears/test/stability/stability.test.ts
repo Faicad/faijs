@@ -54,7 +54,9 @@ function runOneCase(suiteId: string, params: Record<string, number>): {
   const m = /^([A-Z_]+): (.*)$/.exec(out)
   return m
     ? { ok: false, tag: m[1], message: m[2] }
-    : { ok: false, tag: 'BUILDING', message: out || `exit ${res.status}` }
+    // BUILDING 分支带上 spawnSync 自身的 error（如 ENOENT/EAGAIN），否则
+    // 「exit null」无法区分是脚本构建失败还是子进程根本没起来。
+    : { ok: false, tag: 'BUILDING', message: out || res.error?.message || `exit ${res.status}` }
 }
 
 describe.skipIf(process.env.FAI_CQ_GEARS_SKIP_STABILITY)('stability (T3)', () => {
