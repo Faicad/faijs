@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.30.10",
+  "version": "0.31.1",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -78,10 +78,7 @@
       "types": "./dist/module-resolver/index.d.ts",
       "default": "./dist/module-resolver/index.js"
     },
-    "./module-resolver/module-registry": {
-      "types": "./dist/module-resolver/module-registry.d.ts",
-      "default": "./dist/module-resolver/module-registry.js"
-    },
+
     "./mesh": {
       "types": "./dist/mesh/index.d.ts",
       "default": "./dist/mesh/index.js"
@@ -97,6 +94,10 @@
     "./mesh/engrave": {
       "types": "./dist/mesh/engrave.d.ts",
       "default": "./dist/mesh/engrave.js"
+    },
+    "./mesh/stl-loader": {
+      "types": "./dist/mesh/stl-loader.d.ts",
+      "default": "./dist/mesh/stl-loader.js"
     },
     "./mesh/import-model": {
       "types": "./dist/mesh/import-model.d.ts",

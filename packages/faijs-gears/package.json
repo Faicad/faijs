@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-gears",
-  "version": "0.30.10",
+  "version": "0.31.1",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -30,7 +30,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.30.0",
+    "@faicad/faijs": "^0.31.0",
     "occt-wasm": "^5.6.0"
   },
   "devDependencies": {
