@@ -38,10 +38,9 @@ export interface StepExportEntry {
    * （XCAF assembly + component），不再展平为平级 PRODUCT。容器自身不贡献几何
    * （compound 几何 == 成员并集，写出会重复）。
    *
-   * wasm 限制（step-export.test.ts 双值钉住）：① 组件位姿的**旋转**烘进原型几何、
-   * 只有平移走 location（wasm location 旋转当前不生效）；② 容器有名时首叶自己的
-   * 名字让位（组件 setName 不过 STEP）；③ 嵌套容器的叶递归收集后作为顶层容器的
-   * 直接组件（子装配分组待 wasm 提供空装配 label 原语后升级）。
+   * 写出语义：直接子叶的完整位姿（平移 + 旋转）走 XCAF component location；
+   * 首叶位姿烘进晋升几何；嵌套容器的叶递归收集后作为顶层容器的直接组件
+   * （子装配分组待 wasm 提供空装配 label 原语后升级）。
    */
   children?: StepExportEntry[]
   /**
@@ -66,30 +65,34 @@ function srgbToLinear(c: number): number {
 }
 
 /**
- * 3×3 行主序旋转矩阵 → 是否单位旋转。
+ * 3×3 行主序旋转矩阵 → Euler 角（弧度）。
+ *
+ * 约定 **R = Rz(rz)·Ry(ry)·Rx(rx)**（X 先转，Z 最后）——这是 occt-wasm
+ * `xcafAddComponent` 的合成约定（`trsf = rotZ * rotY * rotX`），由
+ * `xcaf-step-assembly-fidelity.test.ts`（occt-wasm 仓）的 Rz/Rx 往返测试与
+ * 本仓 step-export 装配测试共同钉住：若 wasm 侧改约定，两边测试先红。
  */
-function isIdentityRotation(m: number[]): boolean {
-  return m[0] === 1 && m[1] === 0 && m[2] === 0
-    && m[4] === 0 && m[5] === 1 && m[6] === 0
-    && m[8] === 0 && m[9] === 0 && m[10] === 1
+function rotationToEuler(m: number[]): { rx: number; ry: number; rz: number } {
+  const ry = -Math.asin(Math.max(-1, Math.min(1, m[8]!)))
+  if (Math.abs(m[8]!) < 0.999999) {
+    return { rx: Math.atan2(m[9]!, m[10]!), ry, rz: Math.atan2(m[4]!, m[0]!) }
+  }
+  // 万向锁：m[8] = ±1 时 rx/rz 耦合，取 rz = 0 的退化解。
+  return { rx: Math.atan2(-m[6]!, m[5]!), ry, rz: 0 }
 }
 
 /**
- * 节点位姿拆分 → { 烘焙矩阵（仅旋转），location 平移 }。
+ * 节点位姿 → wasm `addChild({location})` 的分量形态：平移 + Euler 角（弧度）。
  *
- * **为什么旋转烘进几何而不是走 location**（P7 当前限制，测试钉住）：wasm
- * `addChild({location:{rx,ry,rz}})` 的旋转分量当前不生效——写出→回读 location
- * 恒为单位旋转（平移正常）。把旋转烘进原型几何、平移留在 location，世界几何
- * 保真；occt-wasm 修复 location 旋转后改为完整位姿走 location 并翻转测试。
- * 坐标刻度由调用方保证（export-model 映射时已按单位换算平移分量）。
+ * 完整位姿走 location（旋转分量经 occt-wasm `xcaf-step-assembly-fidelity`
+ * 往返测试证实保真，不再烘进几何）。坐标刻度由调用方保证（export-model
+ * 映射时已按单位换算平移分量）。
  */
-function splitTransform(t: NodeTransform | undefined): { bakeM: number[] | null; location: { tx: number; ty: number; tz: number } | undefined } {
-  if (!t) return { bakeM: null, location: undefined }
+function transformToLocation(t: NodeTransform | undefined): { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number } | undefined {
+  if (!t) return undefined
   const m = transformToMatrix12(t)
-  const location = { tx: m[3]!, ty: m[7]!, tz: m[11]! }
-  if (isIdentityRotation(m)) return { bakeM: null, location }
-  const R = [m[0]!, m[1]!, m[2]!, 0, m[4]!, m[5]!, m[6]!, 0, m[8]!, m[9]!, m[10]!, 0]
-  return { bakeM: R, location }
+  const { rx, ry, rz } = rotationToEuler(m)
+  return { tx: m[3]!, ty: m[7]!, tz: m[11]!, rx, ry, rz }
 }
 
 /**
@@ -123,10 +126,16 @@ function isIdentity12(m: number[]): boolean {
  *
  * XCAF 原语约束：`addChild` 只收 shape 句柄、且「part 在首个 child 加入时转为
  * assembly，原几何移入 identity 首组件」。因此：
- * - 首叶几何升起为容器 label 的初始 part（容器名 / 色优先），其位姿烘进几何；
- * - 其余**直接**子叶经 `addChild({location})` 写真组件位姿；
+ * - 首叶几何升起为容器 label 的初始 part，其位姿烘进几何（晋升强制 identity
+ *   location，首叶位姿只能烘焙）；
+ * - 其余**直接**子叶经 `addChild({location})` 写**完整位姿**（平移 + 旋转）；
  * - 嵌套容器的叶（`nested`）位姿复合后烘进几何、以 identity 位置加入——几何与
  *   名色保真，子装配分组待 wasm 提供空装配 label 原语后升级。
+ *
+ * 名字保真：容器名优先升起为容器/原型名；容器名与首叶名不同时，在晋升完成后
+ * 把首叶名补写回首组件及其原型（setName 必须在 addChild 之后调用——晋升发生
+ * 在首个 addChild，此前 getChildren 为空）。组件名与原型名均过 STEP 往返
+ * （occt-wasm `xcaf-step-assembly-fidelity.test.ts` 钉住）。
  */
 function writeAssemblyContainer(
   kernel: BrepEngineApi,
@@ -160,26 +169,33 @@ function writeAssemblyContainer(
     name: entry.name ?? first!.entry.name,
     color: linear(entry.color ?? first!.entry.color),
   })
-  // 名字取舍（wasm 限制，测试钉住）：几何升起后首组件沿用容器 label 的名/色；
-  // 组件 label 的 setName 不过 STEP 导出（回读仍为容器名），故容器有名时首叶
-  // 自己的名字让位——容器无名则首叶名升起为容器名。
+  // 名字保真：容器名优先升起为容器/原型名；容器名与首叶名不同时，晋升完成后
+  // 把首叶名补写回首组件及其原型（必须在 addChild 之后——晋升发生在首个
+  // addChild，此前 getChildren 为空，过早调用是空操作）。
   for (const leaf of rest) {
     let solid: BrepHandle
-    let location: { tx: number; ty: number; tz: number } | undefined
+    let location: { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number } | undefined
     if (leaf.nested) {
       // 嵌套容器的叶：位姿全量复合后烘进几何，identity 位置加入。
       solid = bake(leaf.entry, leaf.world)
     } else {
-      // 直接子叶：旋转烘进几何（P7 当前限制），平移留在 location。
-      const split = splitTransform(leaf.entry.transform)
-      solid = bake(leaf.entry, split.bakeM)
-      location = split.location
+      // 直接子叶：完整位姿走 location（旋转经 Euler 分解，wasm 按 Rz·Ry·Rx 合成）。
+      solid = resolveSolid(leaf.entry)
+      location = transformToLocation(leaf.entry.transform)
     }
     doc.addChild(label, solid as unknown as ShapeHandle, {
       ...(leaf.entry.name === undefined ? {} : { name: leaf.entry.name }),
       ...(leaf.entry.color === undefined ? {} : { color: linear(leaf.entry.color) }),
       ...(location === undefined ? {} : { location }),
     })
+  }
+  if (entry.name && first!.entry.name && entry.name !== first!.entry.name) {
+    const own = doc.getChildren(label)[0]
+    if (own) {
+      doc.setName(own, first!.entry.name)
+      const proto = doc.getReferredLabel(own)
+      if (proto) doc.setName(proto, first!.entry.name)
+    }
   }
 }
 

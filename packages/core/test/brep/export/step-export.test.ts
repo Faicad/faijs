@@ -352,12 +352,11 @@ describe('exportStepFromSolids with fileMeta header write (P3)', () => {
 // P3 验收：带 children 的条目写**真装配树**（NEXT_ASSEMBLY_USAGE_OCCURRENCE +
 // component location），不再是平级 PRODUCT。
 //
-// ⚠️ 两个 occt-wasm 当前限制（双值钉住，wasm 修复后翻转断言）：
-// 1. **location 旋转分量不生效**：`addChild({location:{rx,ry,rz}})` 写出→回读
-//    location 恒为单位旋转（平移正常）。当前实现把旋转烘进原型几何、平移留在
-//    location（世界几何保真）。应有值：location 携带完整位姿、几何不烘焙。
-// 2. **组件 label 的 setName 不过 STEP**：容器有名时，首叶（几何升起为容器
-//    初始 part）自己的名字让位给容器名。应有值：首组件名 = 首叶名。
+// 注：此前怀疑的两个 occt-wasm 限制（location 旋转不生效 / 组件 setName 不过
+// STEP）经 occt-wasm 仓 `xcaf-step-assembly-fidelity.test.ts` 证实**不存在**——
+// 都是本仓侧误诊：① 实现当时把旋转烘进几何、根本没发旋转分量；② setName 在
+// 晋升前调用（getChildren 为空，空操作）。现实现已改为完整位姿走 location +
+// 晋升后补写首叶名，以下断言钉住正确行为。
 
 /** 十进制近似断言：逐元素比较 12 元组（wasm 文本层有精度损失，1e-4 足够）。 */
 function expectMatrix12Close(actual: number[], expected: number[]): void {
@@ -400,12 +399,12 @@ describe('exportStepFromSolids — 装配层级（步骤 7 / P3）', () => {
         expect(roots).toHaveLength(1)
         const comps = doc2.getChildren(roots[0]!)
         expect(comps).toHaveLength(2)
-        // 首组件 identity（几何升起 + 位姿烘进几何），次组件携带平移 (20, 0, 5)。
+        // 首组件 identity（几何升起，无位姿），次组件携带平移 (20, 0, 5)。
         expectMatrix12Close(doc2.getLocation(comps[0]!), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0])
         expectMatrix12Close(doc2.getLocation(comps[1]!), [1, 0, 0, 20, 0, 1, 0, 0, 0, 0, 1, 5])
-        // 组件名：容器名优先升起为首组件名（限制 2——首叶名 'leg-left' 让位）；
-        // 次组件名 = 叶名。
-        expect(doc2.getLabelInfo(comps[0]!).name).toBe('asm-root')
+        // 组件名：首叶名经晋升后补写（组件 + 原型都过 STEP 往返）；次组件名 = 叶名。
+        expect(doc2.getLabelInfo(comps[0]!).name).toBe('leg-left')
+        expect(doc2.getLabelInfo(doc2.getReferredLabel(comps[0]!)!).name).toBe('leg-left')
         expect(doc2.getLabelInfo(comps[1]!).name).toBe('leg-right')
       } finally {
         doc2.close()
@@ -416,7 +415,7 @@ describe('exportStepFromSolids — 装配层级（步骤 7 / P3）', () => {
     }
   })
 
-  it('旋转位姿：世界几何保真（旋转烘进几何）；location 旋转当前不生效（P7 双值钉住）', async () => {
+  it('旋转位姿：完整位姿走 location（旋转 + 平移往返保真），世界几何一致', async () => {
     const a = makeBox(0, 0, 0)
     const b = makeBox(0, 0, 0)
     try {
@@ -431,7 +430,7 @@ describe('exportStepFromSolids — 装配层级（步骤 7 / P3）', () => {
           ],
         },
       ])
-      // 当前值（旋转烘进几何）：世界包围盒正确。
+      // 世界几何：location 位姿经 OCCT GetShape 烘焙到叶句柄上。
       const nodes = await importAssemblyFromStep(buffer)
       try {
         const leaves = collectLeaves(nodes)
@@ -447,16 +446,13 @@ describe('exportStepFromSolids — 装配层级（步骤 7 / P3）', () => {
       } finally {
         releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
       }
-      // P7 当前限制钉住：location 的旋转分量回读为单位旋转。应有值 =
-      // [1,0,0,10, 0,0,-1,0, 0,1,0,0]（Rx(90°)+平移，行主序 3×4）——
-      // occt-wasm 修复 location 旋转后，把本断言翻转为该期望矩阵，并去掉
-      // 实现里的旋转烘焙（splitTransform）。
+      // location 往返：旋转分量保真（Rx(90°) + 平移，行主序 3×4）。
+      // 旋转经 rotationToEuler 按 wasm 的 Rz·Ry·Rx 约定分解；约定改变时本断言先红。
       const doc2 = (getKernel() as OcctKernel).importXCAFFromSTEP(new TextDecoder().decode(new Uint8Array(buffer)))
       try {
         const comps = doc2.getChildren(doc2.getRoots()[0]!)
         const loc = doc2.getLocation(comps[1]!)
-        expectMatrix12Close(loc, [1, 0, 0, 10, 0, 1, 0, 0, 0, 0, 1, 0]) // 当前：单位旋转
-        // expectMatrix12Close(loc, [1, 0, 0, 10, 0, 0, -1, 0, 0, 1, 0, 0]) // 应有值（翻转用）
+        expectMatrix12Close(loc, [1, 0, 0, 10, 0, 0, -1, 0, 0, 1, 0, 0])
       } finally {
         doc2.close()
       }
@@ -526,10 +522,9 @@ describe('exportStepFromSolids — 装配层级（步骤 7 / P3）', () => {
         // 结构：root 装配 + 3 个组件（sub 的叶子升起，sub 分组不落树）。
         const leaves = collectLeaves(nodes)
         expect(leaves).toHaveLength(3)
-        // 当前值（限制 2）：首叶 'base' 的名字被容器名 'root' 顶掉；
-        // 应有值 = ['base', 'pin1', 'pin2']——wasm 组件 setName 过 STEP 后翻转。
+        // 名字保真：首叶 'base' 经晋升后补写回首组件，不被容器名 'root' 顶掉。
         const names = leaves.map((l) => l.name)
-        expect(names).toEqual(['root', 'pin1', 'pin2'])
+        expect(names).toEqual(['base', 'pin1', 'pin2'])
       } finally {
         releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
       }
