@@ -1,7 +1,7 @@
 /**
  * generated/script-face-manifest.ts — 生成文件，禁手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成。
- * cad 脚本面新增 op 清单（P23 B1 三源一致：导出面 ≡ cad 面 ≡ check() 符号表）。
+ * cad 脚本面新增 op 清单（P23 B1 双源一致：cad 面 ≡ check() 符号表）。
  */
 
 /** 一条 cad 脚本面新增 op。 */

@@ -51,6 +51,8 @@ export default {
   "halfSpace": {},
   "exportStl": {},
   "exportBrep": {},
+  "exportStep": {},
+  "export3mf": {},
   "isEdge": {},
   "isFace": {},
   "isShell": {},

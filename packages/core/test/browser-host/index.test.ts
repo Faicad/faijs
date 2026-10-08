@@ -8,6 +8,7 @@
  * 4. 默认使用 BrowserFontProvider + FetchAssetResolver
  * 5. 可注入自定义 csg/sdf/assets/events
  * 6. 连接 fontRegistry（setFontLoader 被调用）
+ * 7. 声明 hostEnv: 'browser'（导出命令宿主门，§2.5）
  *
  * Run: npx vitest run src/browser-host/index.test.ts
  */
@@ -34,6 +35,13 @@ describe('createBrowserPorts', () => {
     expect(ports.fonts).toBeDefined()
     expect(ports.assets).toBeDefined()
     expect(ports.events).toBeDefined()
+  })
+
+  it("declares hostEnv 'browser' (script-face export commands are rejected here)", async () => {
+    // 宿主门（§2.5）：导出命令只在 node 宿主开放；浏览器宿主由工厂声明 'browser'，
+    // 脚本面 cad.exportStl / cad.exportBrep 执行即报 E_HOST_UNSUPPORTED。
+    const ports = await createBrowserPorts()
+    expect(ports.hostEnv).toBe('browser')
   })
 
   it('defaults to InlineCsgBackend in environments without Worker (Node)', async () => {

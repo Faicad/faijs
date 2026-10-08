@@ -15,10 +15,18 @@
  * 与既有能力的分工（方案 §4.5 去重表）：`import_brep` / `import_step` 是**导入**侧；
  * 本 op 是导出侧，与宿主 `exportModel('stl')` 同一序列化器，脚本面因此首次拿到
  * 「导入 ↔ 导出」成对能力。
+ *
+ * **宿主门**：本 op 只在 `'node'` 宿主开放。`.fai.js` 可由 AI 生成任意代码、属
+ * 不受信输入，导出把「往哪写、写几份、写什么」的决定权交给脚本文本；浏览器 /
+ * 小程序里要导出模型必须由宿主入口触发（按钮或库面字节通道）。门禁写在函数体
+ * 第一行（`assertHostFor`），因此脚本面与库面直连同一函数都被同一门禁覆盖，
+ * 且门在读取 Shape 载荷之前。见 `cad-runtime/ports.ts#HostEnv`。
  */
 
 import type { Shape } from '../mesh/types'
-import { buildStlBufferFromMesh } from '../brep/export/stl'
+import { buildStlBufferFromMesh, bakeMatrix12ToPositions } from '../brep/export/stl'
+import { transformToMatrix12 } from '../brep/export/export-model'
+import { assertHostFor } from './internal/l3-bridge'
 
 /** `cad.exportStl` 选项。 */
 export interface ExportStlOptions {
@@ -77,17 +85,19 @@ function asciiStl(
   positions: Float32Array,
   indices: Uint32Array,
   name: string,
+  transform?: number[],
 ): string {
+  const pos = transform ? bakeMatrix12ToPositions(positions, transform) : positions
   const out: string[] = [`solid ${name}`]
   for (let i = 0; i < indices.length; i += 3) {
     const ia = indices[i]!
     const ib = indices[i + 1]!
     const ic = indices[i + 2]!
-    const [nx, ny, nz] = facetNormal(positions, ia, ib, ic)
+    const [nx, ny, nz] = facetNormal(pos, ia, ib, ic)
     out.push(`  facet normal ${nx} ${ny} ${nz}`, '    outer loop')
     for (const v of [ia, ib, ic]) {
       out.push(
-        `      vertex ${positions[v * 3]!} ${positions[v * 3 + 1]!} ${positions[v * 3 + 2]!}`,
+        `      vertex ${pos[v * 3]!} ${pos[v * 3 + 1]!} ${pos[v * 3 + 2]!}`,
       )
     }
     out.push('    endloop', '  endfacet')
@@ -107,6 +117,8 @@ function asciiStl(
  *       不走原生二次三角化，产物与显示 mesh 逐三角形一致。空 mesh（如
  *       `cad.halfSpace` 产的无界体）显式报 E_EXPORT_STL_EMPTY，不返回空文件。
  *       返回值是**纯数据**（二进制 `Uint8Array` 或 ASCII 文本），由宿主写入文件。
+ *       **宿主门**：仅 `'node'` 宿主可执行；browser / weapp / 未声明宿主报
+ *       E_HOST_UNSUPPORTED（门在读取载荷之前），浏览器与小程序里导出走宿主入口。
  * @returns Uint8Array 二进制 STL 字节；`options.ascii === true` 时返回 ASCII 文本 string。
  * @param shape - 目标几何（brep 或 mesh 链路的 Shape）。type:Shape required:true
  * @param options.ascii - true = ASCII STL 文本，缺省 = 二进制。type:boolean
@@ -116,10 +128,14 @@ function asciiStl(
  * const text = cad.exportStl(part0, { ascii: true, name: 'bracket' })
  */
 export function exportStl(shape: Shape, options?: ExportStlOptions): Uint8Array | string {
+  // 宿主门在实现体最前：非 node 宿主（browser / weapp / 未声明）一律先报
+  // E_HOST_UNSUPPORTED，不读取 Shape 载荷、不产任何字节。
+  assertHostFor('exportStl', ['node'])
   const { positions, indices } = meshOf(shape)
   const name = options?.name ?? 'Faicad STL'
-  // 坐标一律以 mm 写出（与宿主 exportModel('stl') 的 unit 语义一致——
-  // 单位换算在宿主侧按当前文档单位完成，本 op 不做缩放）。
-  if (options?.ascii === true) return asciiStl(positions, indices, name)
-  return new Uint8Array(buildStlBufferFromMesh(positions, indices, name))
+  // 顶点烘焙（方案 §2.1 / §5 步骤 5）：Shape.transform 写回的位姿在此烘焙进每个顶点。
+  // 坐标仍一律以 mm 写出（与宿主 exportModel('stl') 的 unit 语义一致，单位换算在宿主侧完成）。
+  const tf = shape.transform ? transformToMatrix12(shape.transform) : null
+  if (options?.ascii === true) return asciiStl(positions, indices, name, tf ?? undefined)
+  return new Uint8Array(buildStlBufferFromMesh(positions, indices, name, tf ?? undefined))
 }

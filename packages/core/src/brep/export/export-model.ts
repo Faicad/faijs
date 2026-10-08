@@ -14,12 +14,14 @@
  * 红线（§10.3 3a）：绝不文本级改坐标 — 坐标只在几何层缩放，文本层只碰单位实体。
  */
 
-import { buildStlBufferFromMesh } from './stl'
+import { buildStlBufferFromMesh, composeMatrix12, bakeMatrix12ToPositions } from './stl'
 import { writeZipEntries } from '../../io/zip'
 import { UNIT_SCALE, type UnitName } from '../../units'
+import type { Vec3 } from '../../mesh/types'
 import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
 import { getBrepApi } from '../handle-bridge'
+import { getBackends, BrepUnsupportedError } from '../../runtime-state'
 import { exportStepFromSolids, type StepExportEntry } from './step'
 import { detectStepUnit, STEP_UNIT_SCAN_PREFIX } from '../../mesh/io'
 import type { PbrAppearance } from '../../api/appearance'
@@ -45,6 +47,18 @@ export interface ExportEntry {
    * `<object name/partnumber>` + `<metadatagroup>`；STEP 走 PRODUCT name（既有）。
    */
   meta?: ShapeMeta
+  /**
+   * 装配子节点（方案 2026-10-08 §2.1 / 第 4 步）：存在时本条目是装配容器，写出器据此
+   * 生成 3MF `<components>`（每个 child 一个 `<component objectid>`，子节点的 `transform`
+   * 写进 `<component transform>`）；STL / STEP 分支忽略此字段或将其展平（逐层烘焙 /
+   * 逐实体通道，第 5、7 步）。
+   */
+  children?: ExportEntry[]
+  /**
+   * 本节点相对父的位姿（与 `Shape.transform` 同形态，方案 §2.1）。写出器消费：3MF 写
+   * `<component transform>`、STEP 写 XCAF location（第 7 步）、STL 顶点烘焙（第 5 步）。
+   */
+  transform?: { translate?: Vec3; rotate?: { angle: number; axis?: Vec3 }; matrix?: number[] }
 }
 
 /** Output formats supported by the unified {@link exportModel} entry. */
@@ -123,20 +137,28 @@ function rewriteStepUnitEntities(stepText: string, unit: UnitName): string {
   const lenId = maxId + 1
   const convId = maxId + 2
 
-  // 2) 找到 LENGTH_UNIT() 里挂 SI_UNIT 的实体行，替换为 CONVERSION_BASED_UNIT
-  //    并把 SI_UNIT 挂到 LENGTH_MEASURE 上。OCCT 输出形态（实测）：
-  //    #n=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
-  const siLine = out.match(/#(\d+)\s*=\s*\([^)]*SI_UNIT\s*\(\s*\.MILLI\.\s*,\s*\.METRE\.\s*\)[^)]*\)\s*;/)
-  if (!siLine) {
+  // 2) 存在性守卫：必须至少有一条 LENGTH_UNIT 挂 SI_UNIT(.MILLI.,.METRE.)，否则
+  //    没有可改写的声明（凭空插入单位声明 = 伪造文件单位）。
+  //    OCCT 实测形态（实体括号内还有 LENGTH_UNIT() / NAMED_UNIT(*) 的括号，且
+  //    `=`、`)` 前后都有空格）：
+  //      #346 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );
+  //    故实体体的字符类用 [^;]（STEP 实体行内不含分号）而不是 [^)]——后者跨不过
+  //    `LENGTH_UNIT()` 与 `NAMED_UNIT(*)` 自带的括号，整段永远匹配不上。
+  const siDecl = out.match(/#(\d+)\s*=\s*\([^;]*?SI_UNIT\s*\(\s*\.MILLI\.\s*,\s*\.METRE\.\s*\)[^;]*?\)\s*;/)
+  if (!siDecl) {
     throw new Error(`[export/step] no SI_UNIT(.MILLI.,.METRE.) entity found; cannot rewrite declaration to ${name}`)
   }
 
-  // 3) 替换原 SI_UNIT 实体为 CONVERSION_BASED_UNIT，插入换算因子与基准米实体：
-  //   #si=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
-  // → #si=(LENGTH_UNIT()NAMED_UNIT(*)CONVERSION_BASED_UNIT('INCH',#conv));
+  // 3) 把**全部** SI_UNIT(.MILLI.,.METRE.) 换成 CONVERSION_BASED_UNIT（各 context
+  //    共享同一份换算因子实体），插入换算因子与基准米实体：
+  //   #si=( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );
+  // → #si=( LENGTH_UNIT() NAMED_UNIT(*) CONVERSION_BASED_UNIT('INCH',#conv) );
   //   #conv=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#len);
   //   #len=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.));
-  out = out.replace(siLine[0], siLine[0].replace(/SI_UNIT\s*\(\s*\.MILLI\.\s*,\s*\.METRE\.\s*\)/, `CONVERSION_BASED_UNIT('${name}',#${convId})`))
+  // 全局替换而不是只改第一条：多零件导出会写出多条 LENGTH_UNIT 声明（每个 part 一个
+  // context，实测 2 个 part → #346 与 #690），只改第一条会让同一文件里并存两种长度
+  // 单位声明——而坐标是按同一 scale 换算过的。
+  out = out.replace(/SI_UNIT\s*\(\s*\.MILLI\.\s*,\s*\.METRE\.\s*\)/g, `CONVERSION_BASED_UNIT('${name}',#${convId})`)
   // 在 DATA 段结束前（ENDSEC;）插入新实体。
   const insert = [
     `#${convId}=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(${inchFactor}),#${lenId});`,
@@ -325,42 +347,67 @@ function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number,
   const objs: string[] = []
   const mats: string[] = []
   const items: string[] = []
+  let nextObjId = 1
+  // 逐三角形材质分组的 basematerials id 从「顶层条目数 + 1」起，与 object id（1..N）
+  // 错开（P3：resources 内 id 唯一）。对象级颜色 basematerials 复用其 object id。
   let nextMatId = entries.length + 1
-  entries.forEach((e, i) => {
-    if (!e.mesh) return
-    const pos = scalePositions(e.mesh.positions, scale)
-    const verts: string[] = []
-    for (let v = 0; v < pos.length; v += 3) {
-      verts.push(`<vertex x="${pos[v]}" y="${pos[v + 1]}" z="${pos[v + 2]}"/>`)
+
+  // 递归发射一个节点为 <object>（叶带 mesh、容器带 <components>），返回其 object id。
+  function emitObject(e: ExportEntry): number | undefined {
+    // P8 契约（库面）：无 mesh 且无子节点的条目 → 静默跳过（不发射 <object>/<item>），
+    // 与 op 层「无三角载荷即 E_EXPORT_3MF_EMPTY 显式报错」形成双值防护。显式容器
+    // （children 已声明，即便为空 []）仍发射，以便装配层级（含空装配）可写。
+    const isContainer = e.children !== undefined
+    if (!e.mesh && !isContainer) return undefined
+    const id = nextObjId++
+    let meshXml = ''
+    if (e.mesh) {
+      const pos = scalePositions(e.mesh.positions, scale)
+      const verts: string[] = []
+      for (let v = 0; v < pos.length; v += 3) {
+        verts.push(`<vertex x="${pos[v]}" y="${pos[v + 1]}" z="${pos[v + 2]}"/>`)
+      }
+      // P4（3MF Core 逐三角形材质）：materialGroups（appearance.color）→ 每组
+      // 一个独立 basematerials 资源（id 与对象 id 错开，P3 曾与对象共用 id、
+      // 违反 resources 内 id 唯一），分组三角形用 `<triangle pid p1..p3>` 引用。
+      const groupPids: number[] = []
+      const groups = (e.materialGroups ?? []).filter((g) => g.appearance?.color)
+      for (const g of groups) {
+        groupPids.push(nextMatId)
+        mats.push(
+          `<basematerials id="${nextMatId}"><base name="${xmlAttr(`${e.name ?? `part${id}`}_g${groupPids.length}`)}" displaycolor="${hexColor(g.appearance.color!)}"/></basematerials>`,
+        )
+        nextMatId++
+      }
+      const tris: string[] = []
+      const triCount = e.mesh.indices.length / 3
+      let gi = 0
+      for (let t = 0; t < triCount; t++) {
+        while (gi < groups.length && t >= groups[gi].start + groups[gi].count) gi++
+        const inGroup = gi < groups.length && t >= groups[gi].start
+        const matAttr = inGroup ? ` pid="${groupPids[gi]}" p1="0" p2="0" p3="0"` : ''
+        tris.push(
+          `<triangle v1="${e.mesh.indices[t * 3]}" v2="${e.mesh.indices[t * 3 + 1]}" v3="${e.mesh.indices[t * 3 + 2]}"${matAttr}/>`,
+        )
+      }
+      meshXml = `<mesh><vertices>${verts.join('')}</vertices><triangles>${tris.join('')}</triangles></mesh>`
     }
-    // P4（3MF Core 逐三角形材质）：materialGroups（appearance.color）→ 每组
-    // 一个独立 basematerials 资源（id 与对象 id 错开，P3 曾与对象共用 id、
-    // 违反 resources 内 id 唯一），分组三角形用 `<triangle pid p1..p3>` 引用。
-    const groupPids: number[] = []
-    const groups = (e.materialGroups ?? []).filter((g) => g.appearance?.color)
-    for (const g of groups) {
-      groupPids.push(nextMatId)
-      mats.push(
-        `<basematerials id="${nextMatId}"><base name="${xmlAttr(`${e.name ?? `part${i + 1}`}_g${groupPids.length}`)}" displaycolor="${hexColor(g.appearance.color!)}"/></basematerials>`,
-      )
-      nextMatId++
-    }
-    const tris: string[] = []
-    const triCount = e.mesh.indices.length / 3
-    let gi = 0
-    for (let t = 0; t < triCount; t++) {
-      while (gi < groups.length && t >= groups[gi].start + groups[gi].count) gi++
-      const inGroup = gi < groups.length && t >= groups[gi].start
-      const matAttr = inGroup ? ` pid="${groupPids[gi]}" p1="0" p2="0" p3="0"` : ''
-      tris.push(
-        `<triangle v1="${e.mesh.indices[t * 3]}" v2="${e.mesh.indices[t * 3 + 1]}" v3="${e.mesh.indices[t * 3 + 2]}"${matAttr}/>`,
-      )
-    }
-    // P3（v2 §8 3MF 行，Core 规范）：basematerials 必须声明在 <resources>，
-    // object 用 pid/pindex 引用——此前内联在 <object> 内的写法解析器（
-    // parseThreemf 只读 resources）不识别，导入→导出→导入颜色丢失。
+    // 对象级颜色 basematerials：复用 object id（既有契约，解析器按 id 取首个资源）。
+    let pidAttr = ''
     if (e.color) {
-      mats.push(`<basematerials id="${i + 1}"><base name="${xmlAttr(e.name ?? 'p' + i)}" displaycolor="${hexColor(e.color)}"/></basematerials>`)
+      mats.push(`<basematerials id="${id}"><base name="${xmlAttr(e.name ?? 'p' + id)}" displaycolor="${hexColor(e.color)}"/></basematerials>`)
+      pidAttr = ` pid="${id}" pindex="0"`
+    }
+    // 装配层级 → <components>（子节点递归；<component transform> 写相对父位姿）。
+    let compXml = ''
+    if (e.children && e.children.length > 0) {
+      const comps = e.children.map((child) => {
+        const cid = emitObject(child)
+        if (cid === undefined) return ''
+        const tf = child.transform ? ` transform="${matrix12ToAttr(transformToMatrix12(child.transform))}"` : ''
+        return `<component objectid="${cid}"${tf}/>`
+      }).filter((s) => s !== '')
+      compXml = comps.length > 0 ? `<components>${comps.join('')}</components>` : ''
     }
     // 零件级元数据（设计文档 2026-10-05-meta §6.1）：partnumber 属性 +
     // `<metadatagroup><metadata>`（3MF 自定义标签须带命名空间前缀；faijs
@@ -386,9 +433,17 @@ function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number,
       }
     }
     const metadatagroup = metadatas.length > 0 ? `<metadatagroup>${metadatas.join('')}</metadatagroup>` : ''
-    objs.push(`<object id="${i + 1}" type="model" name="${xmlAttr(e.name ?? `part${i + 1}`)}"${partnumberAttr}${e.color ? ` pid="${i + 1}" pindex="0"` : ''}>${metadatagroup}<mesh><vertices>${verts.join('')}</vertices><triangles>${tris.join('')}</triangles></mesh></object>`)
-    items.push(`<item objectid="${i + 1}"/>`)
-  })
+    const nameAttr = xmlAttr(e.name ?? `part${id}`)
+    objs.push(`<object id="${id}" type="model" name="${nameAttr}"${partnumberAttr}${pidAttr}>${metadatagroup}${meshXml}${compXml}</object>`)
+    return id
+  }
+
+  for (const e of entries) {
+    const id = emitObject(e)
+    if (id === undefined) continue
+    const tf = e.transform ? ` transform="${matrix12ToAttr(transformToMatrix12(e.transform))}"` : ''
+    items.push(`<item objectid="${id}"${tf}/>`)
+  }
   // 整体级元数据（`<model>` 直接子级 `<metadata>`）：well-known 名经映射写标准
   // 3MF 名，vendor 名写 `faijs:` 前缀。排在 `<resources>` 之前（3MF Core）。
   const modelMetas: string[] = []
@@ -426,6 +481,56 @@ function hexColor(c: readonly [number, number, number]): string {
   return `#${h(c[0])}${h(c[1])}${h(c[2])}`
 }
 
+/** 归一化向量（零向量回退 z 轴）。 */
+function normalize3(v: Vec3): Vec3 {
+  const len = Math.hypot(v[0], v[1], v[2])
+  return len === 0 ? [0, 0, 1] : [v[0] / len, v[1] / len, v[2] / len]
+}
+
+/** 轴角（度）→ 3×3 行主序旋转矩阵（Rodrigues）。 */
+function rotationMatrix3x3(axis: Vec3, angleDeg: number): number[] {
+  const [x, y, z] = normalize3(axis)
+  const a = (angleDeg * Math.PI) / 180
+  const c = Math.cos(a)
+  const s = Math.sin(a)
+  const t = 1 - c
+  return [
+    t * x * x + c, t * x * y - s * z, t * x * z + s * y,
+    t * x * y + s * z, t * y * y + c, t * y * z - s * x,
+    t * x * z - s * y, t * y * z + s * x, t * z * z + c,
+  ]
+}
+
+/**
+ * 3MF `<component transform>` 的 12 元组（行主序 3×4，平移在末列），与加载器 `parseTransformAttr` 同约定。
+ *
+ * @param t - 节点位姿（`matrix` 12 元组优先，缺省时由 `rotate` / `translate` 合成）。
+ * @returns 行主序 3×4 仿射矩阵的 12 元组。
+ */
+export function transformToMatrix12(t: NonNullable<ExportEntry['transform']>): number[] {
+  if (t.matrix && t.matrix.length === 12) return t.matrix.slice()
+  const m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]
+  if (t.rotate) {
+    const R = rotationMatrix3x3(t.rotate.axis ?? [0, 0, 1], t.rotate.angle)
+    m[0] = R[0]; m[1] = R[1]; m[2] = R[2]
+    m[4] = R[3]; m[5] = R[4]; m[6] = R[5]
+    m[8] = R[6]; m[9] = R[7]; m[10] = R[8]
+  }
+  if (t.translate) {
+    m[3] = t.translate[0]; m[7] = t.translate[1]; m[11] = t.translate[2]
+  }
+  return m
+}
+
+function fmtNum(v: number): string {
+  if (Number.isInteger(v)) return String(v)
+  return String(Math.round(v * 1e6) / 1e6)
+}
+
+function matrix12ToAttr(m: number[]): string {
+  return m.map(fmtNum).join(' ')
+}
+
 /**
  * Synchronous twin of {@link exportModel} for hosts already holding a live
  * kernel (CLI, in-process consumers). Same invariants: declared unit ==
@@ -449,7 +554,30 @@ export function exportModelSync(
   const scale = 1 / UNIT_SCALE[unit]
 
   if (format === 'stl') {
-    const bufs = entries.filter((e) => e.mesh).map((e) => ({ pos: scalePositions(e.mesh!.positions, scale), idx: e.mesh!.indices }))
+    // 步骤 5（方案 §2.1 / §4.3 L1-5）：装配展平 + 顶点烘焙。递归把 children 拍平成叶，
+    // 每个叶的世界变换 = 父世界变换 ∘ 本节点局部 transform（row-major 3×4，平移在末列）。
+    // 先在世界空间烘焙 transform，再按单位换算缩放坐标（缩放同时作用于平移分量，坐标与声明成对）。
+    const flatten = (
+      list: ExportEntry[],
+      accTf: number[] | null,
+    ): Array<{ pos: Float32Array; idx: Uint32Array }> => {
+      const out: Array<{ pos: Float32Array; idx: Uint32Array }> = []
+      for (const e of list) {
+        const tf = e.transform ? transformToMatrix12(e.transform) : null
+        const world = tf && accTf ? composeMatrix12(accTf, tf) : tf ?? accTf ?? null
+        if (e.children && e.children.length > 0) {
+          out.push(...flatten(e.children, world))
+          continue
+        }
+        if (!e.mesh) continue
+        let pos = e.mesh.positions
+        if (world) pos = bakeMatrix12ToPositions(pos, world)
+        pos = scalePositions(pos, scale)
+        out.push({ pos, idx: e.mesh.indices })
+      }
+      return out
+    }
+    const bufs = flatten(entries, null)
     if (bufs.length === 0) throw new Error('[export/stl] no mesh entries')
     if (bufs.length === 1) return buildStlBufferFromMesh(bufs[0]!.pos, bufs[0]!.idx)
     const totalTris = bufs.reduce((n, b) => n + b.idx.length / 3, 0)
@@ -468,6 +596,15 @@ export function exportModelSync(
   }
 
   if (format === 'step') {
+    // 步骤 6（方案 §2.3 / P1）：STEP 装配层级走 XCAF，仅 occt 具备；非 occt 引擎在
+    // 触碰任何句柄之前报 E_BREP_UNSUPPORTED（带当前引擎名），不落入 getBrepApi 的
+    // 未初始化异常，也不把 brepkit 句柄交给 occt 内核（句柄不得跨引擎传递）。
+    const engineId = getBackends().config.brepEngineId
+    if (engineId !== 'occt') {
+      throw new BrepUnsupportedError(
+        `E_BREP_UNSUPPORTED: op 'exportModel:step' requires engine occt (current=${engineId ?? '<none>'})`,
+      )
+    }
     const kernel = getBrepApi()
     const ownedHandles: BrepHandle[] = []
     const stepEntries: StepExportEntry[] = entries.map((e) => {
@@ -560,6 +697,13 @@ export async function exportModel(
   }
 
   if (format === 'step') {
+    // 步骤 6（方案 §2.3 / P1）：同同步分支，取内核前先断言 occt 引擎身份。
+    const engineId = getBackends().config.brepEngineId
+    if (engineId !== 'occt') {
+      throw new BrepUnsupportedError(
+        `E_BREP_UNSUPPORTED: op 'exportModel:step' requires engine occt (current=${engineId ?? '<none>'})`,
+      )
+    }
     // 同一 scale 变量喂两类条目（§10.3 规则 7，修 E4）：mesh 缩放 positions，
     // solid 用 owned copy 做 kernel.scale —— 不释放调用方缓存里的原句柄。
     // 先过门禁再取内核（同同步分支：拒绝理由与引擎装配状态无关）。

@@ -30,11 +30,12 @@
 import * as THREE from 'three'
 import { geoToManifoldMesh } from '../boolean/geo-convert'
 import { parseStl } from './stl-loader'
-import { parseThreemf, type ThreemfObject } from './threemf-loader'
+import { parseThreemf, type ThreemfObject, type ThreemfNode } from './threemf-loader'
 import { parseBambu3mfFromEntries } from './threemf-bambu'
 import { unitScale, type UnitName } from '../units'
 import { guessStlUnit } from './stl-unit'
 import type { Shape } from './types'
+import type { CompoundShape } from '../shape'
 import type { PbrAppearance } from '../api/appearance'
 import type { FileMeta } from '../api/meta'
 import type { ImportModel } from './import-model'
@@ -73,6 +74,15 @@ export interface ImportFileResult {
    * 单/多零件均登记（单零件 parts 长度 1）。
    */
   importModel?: ImportModel
+  /**
+   * 装配层级（方案 2026-10-08 §2.1 / 第 5 步「导入归一」）：当 3MF 含 `<components>`
+   * 装配结构时，按层级重建为 `CompoundShape`，每个子节点携带相对父的 `transform`
+   * （来自 3MF `<component transform>` / build `<item transform>`，行主序 3×4，平移在
+   * 末列，与写出器同源）。仅当存在真实装配（多 item 或任一 item 带 components）时存在；
+   * 单零件平铺导入不走它（`shape` / `parts` 已覆盖）。viewer 用 `parts`（已烘焙实例），
+   * 往返/层级消费者用 `assembly`（局部几何 + 节点 transform）。
+   */
+  assembly?: Shape | CompoundShape
 }
 
 /** SI prefixes that may precede .METRE. in a STEP SI_UNIT, → faijs UnitName. */
@@ -217,6 +227,11 @@ export async function importFile(
     }
     const bambuViews = buildBambuViews(bambu)
     if (bambuViews) importModel.bambuViews = bambuViews
+    // 装配层级重建（方案 §2.1 / 第 5 步）：含 `<components>` 时还原 CompoundShape，
+    // 叶节点携带相对父 transform；单零件平铺导入不挂载。
+    const assembly = archive.hierarchy && archive.localGeomById
+      ? buildAssemblyFromArchive(archive.hierarchy, archive.localGeomById)
+      : undefined
     return {
       shape: parts[0],
       parts,
@@ -225,6 +240,7 @@ export async function importFile(
       importModel,
       // 整体级元数据（`<model><metadata>`）随导入结果上抛（方案 §5.1）。
       ...(archive.fileMeta ? { fileMeta: archive.fileMeta } : {}),
+      ...(assembly ? { assembly } : {}),
     }
   }
 
@@ -290,6 +306,52 @@ function threemfObjectToShape(obj: ThreemfObject): Shape {
     // 零件级元数据（方案 §5.1 3MF 行）：对象 name/partnumber/metadatagroup → meta。
     ...(obj.meta ? { meta: obj.meta } : {}),
   }
+}
+
+/**
+ * 由 3MF 装配层级重建 `CompoundShape`（方案 §2.1 / 第 5 步「导入归一」）。
+ *
+ * 见 `ThreemfArchive.hierarchy` / `localGeomById`：节点带**相对父**位姿（行主序 3×4，
+ * 平移在末列，与写出器 `transformToMatrix12` 同源）；几何来自 `localGeomById` 的**未烘焙**
+ * 局部网格。叶节点的最终 `Shape.transform` 即该相对位姿（写回 `Shape.transform`，供
+ * 后续导出按 3MF `<component transform>` 原样还原——D1 往返）。容器节点落为
+ * `CompoundShape`（不含 `transform` / `meta`，与 `shape.ts` 的 `CompoundShape` 形态一致）。
+ *
+ * 注：`shape.ts` 的 `CompoundShape.children` 当前声明为 `Shape[]`（非递归），故嵌套装配
+ * 在类型层面暂不表达；运行时子节点可为子 `CompoundShape`（由 `isCompoundLike` 结构判定消费）。
+ * 把 `CompoundShape` 改为递归类型是独立的后续重构（会波及 faijs-extra / cad-runtime），本步
+ * 以最小改动桥接——见下方 `children` 处的收窄断言。
+ *
+ * 仅在存在真实装配（多 item 或任一 item 带 components）时返回非空；单零件平铺导入返回
+ * `undefined`（由调用方决定是否挂载到 `result.assembly`，避免改变单零件结果形状）。
+ */
+function buildAssemblyFromArchive(
+  hierarchy: ThreemfNode[],
+  localGeomById: Map<number, ThreemfObject>,
+): Shape | CompoundShape | undefined {
+  const hasHierarchy = hierarchy.length > 1 || hierarchy.some((n) => (n.children?.length ?? 0) > 0)
+  if (!hasHierarchy) return undefined
+
+  const buildNode = (node: ThreemfNode): Shape | CompoundShape => {
+    const obj = localGeomById.get(node.objectId)
+    if (node.children && node.children.length > 0) {
+      // 收窄断言：共享 CompoundShape 非递归声明，运行时子节点可含子 CompoundShape。
+      return { kind: 'compound', children: node.children.map(buildNode) as Shape[] }
+    }
+    // 叶节点：局部几何 + 相对父位姿。
+    if (!obj || !obj.positions || !obj.indices) {
+      return { kind: 'compound', children: [] }
+    }
+    const leaf = threemfObjectToShape(obj)
+    if (node.transform) {
+      ;(leaf as Shape & { transform?: unknown }).transform = { matrix: Array.from(node.transform) }
+    }
+    return leaf
+  }
+
+  return hierarchy.length === 1
+    ? buildNode(hierarchy[0])
+    : { kind: 'compound', children: hierarchy.map(buildNode) as Shape[] }
 }
 
 /** Bambu 显示视图数据 → ImportModel.bambuViews（无任何 Bambu 结构时省略）。 */

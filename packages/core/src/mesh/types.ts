@@ -63,6 +63,29 @@ export interface Shape {
    */
   meta?: ShapeMeta
   /**
+   * 装配节点位姿（方案 2026-10-08 §2.1「装配模型 = 节点属性，单一真源」）：节点
+   * **相对其父**的位置/姿态。可选、纯数据、JSON 可序列化——与 `appearance` /
+   * `meta` 同为**字段**而非方法，随 Shape 一起过 worker 序列化与 `structuredClone`
+   * （`isMeshShape` 鸭子判定不看本字段）。装配层级就是 Shape / CompoundShape
+   * 自身的 `children` + 本字段，**没有**平行的装配树。
+   *
+   * 取值形态（三种等价书写，均为可序列化纯数据）：`translate` 平移；`rotate`
+   * 单一轴角（`angle` 按本文件约定用**度**，`axis` 为轴向量）；`matrix` 3×4
+   * 行主序 12 元组——即 3MF `<component transform>` 与 XCAF location 的直接形态。
+   * 三者的复合顺序与形态间优先级由读侧实现固定（§5 第 4、5 步），本字段只定
+   * 义取值形态。
+   *
+   * 写入方两个、写回同一字段：导入侧（XCAF location / 3MF component transform）
+   * 与求解侧（`AssemblyTransform[]`）。导出侧**只读**它：STL 顶点烘焙、3MF
+   * `<component transform>`、STEP XCAF location（§2.1 映射表）。分量刻度与
+   * `positions` 同（基准单位），换算到声明单位由写出器成对完成（§2.1）。
+   *
+   * 阶段说明：本字段随 §5 第 3 步引入；写出器在 §5 第 4（3MF components）、第 5
+   * （导入归一 / STL 烘焙）步之前不消费它（`export-model.test.ts` 用「带与不带
+   * `transform` 的导出字节相等」钉住这一当前事实，届时翻转）。
+   */
+  transform?: { translate?: Vec3; rotate?: { angle: number; axis?: Vec3 }; matrix?: number[] }
+  /**
    * 面结构元数据：面序号 → 三角形区间 [start, count)（start/count 为三角形索引，
    * 对应 positions/indices 焊接后的三角形序列）。仅参数化 primitives 构造时记录
    * （面结构构造时已知、三角形顺序固定）；manifold 布尔/组合/导入后无 CAD 面

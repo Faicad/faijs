@@ -76,7 +76,10 @@ export interface CreateBrowserPortsOptions {
  * loading. It also connects the BrowserFontProvider to the fontRegistry via
  * setFontLoader so brep/text can load fonts through fetch. Consumers may inject
  * a projectLoader (multi-file §4.5) through opts; absent → projectLoader is not
- * installed and single-file behavior is unchanged.
+ * installed and single-file behavior is unchanged. The returned ports declare
+ * `hostEnv: 'browser'`, so script-face export commands (cad.exportStl /
+ * cad.exportBrep) are rejected here — exports must be triggered by a host entry
+ * point (see cad-runtime/ports.ts#HostEnv).
  * @param opts - options controlling font, worker, and backend selection.
  * @returns promise resolving to the assembled HostPorts.
  */
@@ -126,6 +129,9 @@ export async function createBrowserPorts(opts?: CreateBrowserPortsOptions): Prom
     fonts: fontProvider,
     assets: opts?.assets ?? new FetchAssetResolver(),
     events: opts?.events ?? new BrowserEventSink(),
+    // 宿主环境声明：web 页面 / web worker → 脚本面导出命令被拒（E_HOST_UNSUPPORTED）；
+    // 浏览器里导出必须走宿主入口（按钮或库面字节通道）。见 cad-runtime/ports.ts#HostEnv。
+    hostEnv: 'browser',
     libLoader: opts?.libLoader,
     projectLoader: opts?.projectLoader,
   }

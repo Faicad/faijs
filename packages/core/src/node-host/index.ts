@@ -53,6 +53,7 @@ export interface CreateNodePortsOptions {
  * - fonts: NodeFontProvider (fs font loading)
  * - assets: FsAssetResolver (fs asset resolution)
  * - events: CliEventSink (writes to stderr + collects)
+ * - hostEnv: 'node' (script-face export commands are open on this host)
  *
  * Also connects the NodeFontProvider to fontRegistry (setFontLoader), so that
  * brep/text's ensureDefaultFont() can load fonts via the filesystem.
@@ -81,5 +82,8 @@ export function createNodePorts(opts?: CreateNodePortsOptions): HostPorts {
     fonts: fontProvider,
     assets,
     events: new CliEventSink(),
+    // 宿主环境声明：Node.js 进程 → 脚本面导出命令（cad.exportStl / cad.exportBrep）
+    // 在此开放；落盘发生在用户自己的机器上。见 cad-runtime/ports.ts#HostEnv。
+    hostEnv: 'node',
   }
 }

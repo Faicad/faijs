@@ -153,13 +153,13 @@ describe('parseThreemf — build transforms (16-value form / malformed tolerance
       <vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/>
     </vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles></mesh></object>
   </resources>
-  <build><item objectid="1" transform="1 0 0 0 1 0 0 0 1 10 20 30 0 0 0 1"/></build>
+  <build><item objectid="1" transform="1 0 0 10 0 1 0 20 0 0 1 30 0 0 0 1"/></build>
 </model>`
     const zip = zipSync({ '3D/3dmodel.model': strToU8(model) })
     const arch = await parseThreemf(zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength))
     expect(arch.objects).toHaveLength(1)
     const pos = Array.from(arch.objects[0].positions)
-    // translation tokens are the last three of the 4×3 part (t[9], t[10], t[11])
+    // 行主序 3×4，平移在末列（token[3]/[7]/[11]）——与写出器 transformToMatrix12 同源。
     expect(pos[0]).toBeCloseTo(10, 5)
     expect(pos[1]).toBeCloseTo(20, 5)
     expect(pos[2]).toBeCloseTo(30, 5)
@@ -205,13 +205,13 @@ describe('parseThreemf — components recursion (Bambu-style assemblies)', () =>
     const resources = `
       ${meshObject(1, 'part')}
       <object id="2" type="model"><components>
-        <component objectid="1" transform="1 0 0 0 1 0 0 0 1 5 0 0"/>
-        <component objectid="1" transform="1 0 0 0 1 0 0 0 1 15 0 0"/>
+        <component objectid="1" transform="1 0 0 5 0 1 0 0 0 0 1 0 0 0 0 1"/>
+        <component objectid="1" transform="1 0 0 15 0 1 0 0 0 0 1 0 0 0 0 1"/>
       </components></object>`
     // build item 引用容器 2，并再平移 (10,0,0)：实例平移 = 10 + component 平移
     const arch = await parseThreemf(modelWithComponents(
       resources,
-      '<item objectid="2" transform="1 0 0 0 1 0 0 0 1 10 0 0"/>',
+      '<item objectid="2" transform="1 0 0 10 0 1 0 0 0 0 1 0 0 0 0 1"/>',
     ))
     expect(arch.objects).toHaveLength(2)
     // 实例 A: 10 + 5 = 15；实例 B: 10 + 15 = 25（手算判据）
@@ -230,14 +230,14 @@ describe('parseThreemf — components recursion (Bambu-style assemblies)', () =>
     const resources = `
       ${meshObject(3, 'leaf')}
       <object id="2" type="model"><components>
-        <component objectid="3" transform="1 0 0 0 1 0 0 0 1 0 0 7"/>
+        <component objectid="3" transform="1 0 0 0 0 1 0 0 0 0 1 7 0 0 0 1"/>
       </components></object>
       <object id="1" type="model"><components>
-        <component objectid="2" transform="1 0 0 0 1 0 0 0 1 1 0 0"/>
+        <component objectid="2" transform="1 0 0 1 0 1 0 0 0 0 1 0 0 0 0 1"/>
       </components></object>`
     const arch = await parseThreemf(modelWithComponents(
       resources,
-      '<item objectid="1" transform="1 0 0 0 1 0 0 0 1 100 0 0"/>',
+      '<item objectid="1" transform="1 0 0 100 0 1 0 0 0 0 1 0 0 0 0 1"/>',
     ))
     expect(arch.objects).toHaveLength(1)
     const p = arch.objects[0].positions
@@ -270,7 +270,7 @@ describe('parseThreemf — components recursion (Bambu-style assemblies)', () =>
     const resources = `
       ${meshObject(1, 'part')}
       <object id="9" type="model"><components>
-        <component objectid="1" transform="1 0 0 0 1 0 0 0 1 3 0 0"/>
+        <component objectid="1" transform="1 0 0 3 0 1 0 0 0 0 1 0 0 0 0 1"/>
       </components></object>`
     const arch = await parseThreemf(modelWithComponents(resources, ''))
     // 无 build → 全部 resources 对象：mesh 1 直接产出 + 容器 9 展开出一个实例

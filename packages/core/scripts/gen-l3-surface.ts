@@ -245,7 +245,9 @@ export function scriptFaceEntries(): ArgSpecEntry[] {
 
 /**
  * 生成 `api/generated/script-face.ts`：脚本面 op 的命名 re-export + 命名空间对象。
- * `api-namespace.ts` 与 `api/index.ts` 都从这里取（B1：同源）。
+ * `api-namespace.ts`（及取键的 `gen-symbol-table.ts`）从这里取（B1：同源）。
+ * 2026-10-08（§2.7 / DEC-6、DEC-7）：库面不再整批平铺本清单，故 `api/index.ts`
+ * 不再是消费面。
  */
 export function generateScriptFace(): string {
   const entries = scriptFaceEntries()
@@ -261,7 +263,7 @@ export function generateScriptFace(): string {
     ' * generated/script-face.ts — 生成文件，禁手改。',
     ' * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 的',
     ' * `scriptFace: true` 条目生成（P23 §4.2 ②：cad 脚本面 = faijs 特有 dual op + 本清单）。',
-    ' * 单一来源（B1）：api-namespace / api/index / gen-symbol-table 都从这里取，',
+    ' * 单一来源（B1）：api-namespace / gen-symbol-table 从这里取，',
     ' * 不允许手写第二份清单。',
     ' */',
     '',
@@ -281,7 +283,7 @@ export function generateScriptFace(): string {
 
 /**
  * 生成 `api/generated/script-face-manifest.ts`：脚本面清单数据。
- * `gen-symbol-table.ts` 与三源一致测试都消费它（check() 符号表同源，§6.1 B1）。
+ * `gen-symbol-table.ts` 与双源一致测试都消费它（check() 符号表同源，§6.1 B1）。
  */
 export function generateScriptFaceManifest(): string {
   const entries = scriptFaceEntries()
@@ -289,7 +291,7 @@ export function generateScriptFaceManifest(): string {
     '/**',
     ' * generated/script-face-manifest.ts — 生成文件，禁手改。',
     ' * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成。',
-    ' * cad 脚本面新增 op 清单（P23 B1 三源一致：导出面 ≡ cad 面 ≡ check() 符号表）。',
+    ' * cad 脚本面新增 op 清单（P23 B1 双源一致：cad 面 ≡ check() 符号表）。',
     ' */',
     '',
     '/** 一条 cad 脚本面新增 op。 */',

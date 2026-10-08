@@ -1,4 +1,21 @@
 /**
+ * @deprecated 2026-10-08 —— 本生成器已停用，未来删除。不要新增依赖，不要接回门禁链。
+ *
+ * 裁定（2026-10-08，`docs/plans/2026-10-08-assembly-hierarchy-and-export-plan.md`
+ * 决策记录 DEC-8）：「这个 gen-ops-api-inventory.ts 本身就很可疑。把它从任何测试
+ * 中拿掉，并标记为deprecated。我认为未来要删除它。」
+ *
+ * 已解除的接线（本次）：
+ *   - 根 `package.json` 的 `doc-sync` 链不再调用 `--check`；
+ *   - `packages/core/src/lang/ops-inventory-coverage.test.ts`（本产物的覆盖守卫）
+ *     已删除——它本就不被任何 vitest project 匹配（各包 `include` 只含 `test/**`），
+ *     从未真正执行过。
+ *
+ * 保留 `npm run gen-ops-api-inventory` / `npm run check-ops-api-inventory` 两个手工
+ * 入口，仅作过渡期手动重生成 `docs/ops-api-inventory.md` / `.zh.md` 之用。
+ *
+ * ----- 以下为停用前的原始说明 -----
+ *
  * Generate docs/ops-api-inventory.md (+ .zh.md + .i18n.yaml) from the L3
  * API-surface exported-op JSDoc. The api layer (core/src/api) is the
  * single source of truth for the faijs `.fai.js` coding API; this generator

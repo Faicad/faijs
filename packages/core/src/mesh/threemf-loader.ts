@@ -90,45 +90,54 @@ interface ObjectMeshMeta {
   components?: ObjectComponent[]
 }
 
-/** Bake a column-major ST_Matrix3D (translation = last three tokens) into positions. */
+/**
+ * Bake a 3MF ST_Matrix3D into positions.
+ *
+ * 3MF 约定（Core spec §4.3.1）：12 元组 **行主序** 3×4，平移在**末列**——token
+ * 序为 `m00 m01 m02 tx | m10 m11 m12 ty | m20 m21 m22 tz`，平移 = token[3]/[7]/[11]。
+ * 与写出器 `export-model.ts#transformToMatrix12`（同一行主序约定）必须同源，否则
+ * 写出 → 读回的 transform 会被旋转/平移错位（步骤 5 修复：此前本函数误用列主序）。
+ */
 function bakeTransform(positions: Float32Array, m: readonly number[]): Float32Array {
-  const [a, b, c, d, e, f, g, h, iz, p, q, r] = m
+  const [a, b, c, d, e, f, g, h, i, j, k, l] = m
   const out = new Float32Array(positions.length)
   for (let v = 0; v < positions.length; v += 3) {
     const x = positions[v]
     const y = positions[v + 1]
     const z = positions[v + 2]
-    out[v] = a * x + d * y + g * z + p
-    out[v + 1] = b * x + e * y + h * z + q
-    out[v + 2] = c * x + f * y + iz * z + r
+    out[v] = a * x + b * y + c * z + d
+    out[v + 1] = e * x + f * y + g * z + h
+    out[v + 2] = i * x + j * y + k * z + l
   }
   return out
 }
 
 /**
- * Compose two ST_Matrix3D column-major transforms (12 tokens each, same
- * layout as `bakeTransform`: `[a b c, d e f, g h i, p q r]`, translation last).
+ * Compose two 3MF ST_Matrix3D transforms (12 tokens each, **row-major** 3×4,
+ * translation in the last column — same layout as `bakeTransform`).
  *
  * Semantics: the child transform is applied first, then the parent —
  * `M = parent · child` (the child lives in the parent's space, exactly like
- * three.js `clone.applyMatrix4(parent).applyMatrix4(child)`).
+ * three.js `clone.applyMatrix4(parent).applyMatrix4(child)`). For the 3×3 part
+ * `M_rot = parent_rot · child_rot`; for the translation
+ * `M_t = parent_rot · child_t + parent_t`.
  */
 function composeTransform(parent: readonly number[], child: readonly number[]): number[] {
-  const [a1, b1, c1, d1, e1, f1, g1, h1, i1, p1, q1, r1] = parent
-  const [a2, b2, c2, d2, e2, f2, g2, h2, i2, p2, q2, r2] = child
+  const [a1, b1, c1, d1, e1, f1, g1, h1, i1, j1, k1, l1] = parent
+  const [a2, b2, c2, d2, e2, f2, g2, h2, i2, j2, k2, l2] = child
   return [
-    a1 * a2 + d1 * b2 + g1 * c2,
-    b1 * a2 + e1 * b2 + h1 * c2,
-    c1 * a2 + f1 * b2 + i1 * c2,
-    a1 * d2 + d1 * e2 + g1 * f2,
-    b1 * d2 + e1 * e2 + h1 * f2,
-    c1 * d2 + f1 * e2 + i1 * f2,
-    a1 * g2 + d1 * h2 + g1 * i2,
-    b1 * g2 + e1 * h2 + h1 * i2,
-    c1 * g2 + f1 * h2 + i1 * i2,
-    a1 * p2 + d1 * q2 + g1 * r2 + p1,
-    b1 * p2 + e1 * q2 + h1 * r2 + q1,
-    c1 * p2 + f1 * q2 + i1 * r2 + r1,
+    a1 * a2 + b1 * e2 + c1 * i2,
+    a1 * b2 + b1 * f2 + c1 * j2,
+    a1 * c2 + b1 * g2 + c1 * k2,
+    a1 * d2 + b1 * h2 + c1 * l2 + d1,
+    e1 * a2 + f1 * e2 + g1 * i2,
+    e1 * b2 + f1 * f2 + g1 * j2,
+    e1 * c2 + f1 * g2 + g1 * k2,
+    e1 * d2 + f1 * h2 + g1 * l2 + h1,
+    i1 * a2 + j1 * e2 + k1 * i2,
+    i1 * b2 + j1 * f2 + k1 * j2,
+    i1 * c2 + j1 * g2 + k1 * k2,
+    i1 * d2 + j1 * h2 + k1 * l2 + l1,
   ]
 }
 
@@ -201,12 +210,39 @@ export interface ThreemfObject {
   meta?: ShapeMeta
 }
 
+/**
+ * 装配层级节点（方案 2026-10-08 §2.1 / 第 5 步「导入归一」）：一个 `<build><item>`
+ * 或 `<components><component>` 引用，携带**相对父**的位姿（3MF `<component transform>`
+ * 或 build `<item transform>`）。`children` 递归展开嵌套装配。几何由 `localGeomById`
+ * 按 `objectId` 取未烘焙的局部网格（与 `objects` 的已烘焙实例不同轴：assembly 走
+ * 局部几何 + 节点 transform，viewer 走 `objects` 的已烘焙实例）。
+ */
+export interface ThreemfNode {
+  /** 引用的 `<object id>`（必为 `<resources>` 中的对象）。 */
+  objectId: number
+  /** 相对父的位姿（行主序 3×4，平移在末列，与写出器 `transformToMatrix12` 同源）；无则缺省。 */
+  transform?: readonly number[] | null
+  /** 子节点（嵌套装配）；叶节点缺省。 */
+  children?: ThreemfNode[]
+}
+
 /** Structured 3MF parse result. */
 export interface ThreemfArchive {
   /** The declared `<model unit>` mapped to a faijs UnitName. */
   unit: UnitName
   /** One object per build `<item>` (transform baked), or per `<resources>` object. */
   objects: ThreemfObject[]
+  /**
+   * 装配层级（方案 §2.1 / 第 5 步）：`<build>` 顶层 item + 其 `<components>` 递归展开，
+   * 节点带**相对父**位姿。仅当文件含装配结构（多 item 或任一 item 带 components）时存在。
+   */
+  hierarchy?: ThreemfNode[]
+  /**
+   * 未烘焙的局部几何，按 `<object id>` 索引（mesh 对象 carrying positions/indices；
+   * 组件容器只带 meta）。assembly 重建走它 + `hierarchy` 的节点 transform，与 `objects`
+   * 的已烘焙实例互不干扰。
+   */
+  localGeomById?: Map<number, ThreemfObject>
   /** Every non-model archive entry (key → raw bytes) for downstream consumers. */
   extraEntries: Map<string, Uint8Array>
   /** P4：根 model 文档（3D/3dmodel.model）XML——Bambu 层解析 build/组件结构用。 */
@@ -594,6 +630,10 @@ function parseModelXml(
 ): {
   unitName: UnitName
   objects: ThreemfObject[]
+  /** 装配层级（方案 §2.1 / 第 5 步「导入归一」）：build 顶层 item + 其 components 递归，节点带相对父位姿。 */
+  hierarchy?: ThreemfNode[]
+  /** 未烘焙的局部几何（mesh 对象），供 assembly 重建（与 `objects` 的已烘焙实例不同轴）。 */
+  localGeomById?: Map<number, ThreemfObject>
   fileMeta?: FileMeta
 } {
   // Last document = root model (caller appends it last).
@@ -884,10 +924,61 @@ function parseModelXml(
     }
   }
 
+  // 装配层级 + 局部几何（方案 §2.1 / 第 5 步「导入归一」）。
+  // `hierarchy`：build 顶层 item + 其 `<components>` 递归，节点带**相对父**位姿
+  // （行主序 3×4，平移末列——与写出器 `transformToMatrix12` 同源）。`localGeomById`：
+  // 未烘焙的局部几何（mesh 对象），供 assembly 重建（与 `out` 的已烘焙实例不同轴）。
+  const localGeomById = new Map<number, ThreemfObject>()
+  for (const src of byObjectId.values()) {
+    if (src.positions && src.indices) {
+      localGeomById.set(src.id, materializeMesh(src, undefined))
+    } else if (src.components && src.components.length > 0) {
+      localGeomById.set(
+        src.id,
+        { id: src.id, name: src.name, positions: new Float32Array(), indices: new Uint32Array() },
+      )
+    }
+  }
+
+  const nodeOf = (objId: number, tf: readonly number[] | null, visited: Set<number>): ThreemfNode => {
+    const src = byObjectId.get(objId)
+    const node: ThreemfNode = { objectId: objId }
+    if (tf) node.transform = tf
+    if (src?.components && src.components.length > 0) {
+      // 路径守卫：组件回指祖先（含自指）即时剪枝，避免无限递归（测试「component
+      // reference cycles terminate」）。被剪的重复引用不再展开为子节点。
+      const next = new Set(visited)
+      next.add(objId)
+      node.children = src.components
+        .filter((c) => !next.has(c.objectId))
+        .map((c) => nodeOf(c.objectId, c.transform ?? null, next))
+    }
+    return node
+  }
+  const roots: ThreemfNode[] = []
+  let hi: RegExpExecArray | null
+  const hItemRe = /<item\b[^>]*>/g
+  while ((hi = hItemRe.exec(buildSec)) !== null) {
+    const objId = Number(/(?:^|\s)objectid="([^"]+)"/.exec(hi[0])?.[1])
+    if (!byObjectId.has(objId)) continue
+    const tf = parseTransformAttr(/\btransform="([^"]*)"/.exec(hi[0])?.[1] ?? null)
+    roots.push(nodeOf(objId, tf, new Set()))
+  }
+  if (roots.length === 0) {
+    for (const src of byObjectId.values()) roots.push(nodeOf(src.id, null, new Set()))
+  }
+  const hierarchy = roots
+
   if (out.length === 0) {
     throw new Error('[mesh/threemf] no buildable geometry found in 3dmodel.model')
   }
-  return { unitName, objects: out, ...(fileMeta ? { fileMeta } : {}) }
+  return {
+    unitName,
+    objects: out,
+    hierarchy,
+    localGeomById,
+    ...(fileMeta ? { fileMeta } : {}),
+  }
 }
 
 /**
@@ -946,6 +1037,11 @@ export async function parseThreemf(
   return {
     unit: parsed.unitName,
     objects: parsed.objects,
+    // 装配层级 + 局部几何（方案 §2.1 / 第 5 步「导入归一」）：3MF `<components>`
+    // 重建 CompoundShape 时需要的相对父位姿树与未烘焙局部几何（与 `objects` 的
+    // 已烘焙实例不同轴）。必须透传，否则 importFile 拿不到 assembly。
+    ...(parsed.hierarchy ? { hierarchy: parsed.hierarchy } : {}),
+    ...(parsed.localGeomById ? { localGeomById: parsed.localGeomById } : {}),
     extraEntries,
     // P4：根 model XML（Bambu 层解析 build items / 父对象 components 需要；
     // 根 model 不在 extraEntries——extraEntries 只收非 model 条目）。

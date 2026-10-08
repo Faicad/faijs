@@ -24,7 +24,7 @@
 import type { Shape } from '../../mesh/types'
 import { fromHandle } from '../../brep/handle-bridge'
 import type { BrepHandle } from '../../brep/engine/types'
-import { getBackends } from '../../runtime-state'
+import { getBackends, HostUnsupportedError } from '../../runtime-state'
 import { OpError } from './result-unwrap'
 
 // ── brepjs 借用面最小自有化（core-decouple wrapup §4.3）──────────────────────
@@ -114,6 +114,31 @@ export function assertEngineFor(opName: string, engines: readonly string[]): voi
     )
     e.name = 'BrepUnsupportedError'
     throw e
+  }
+}
+
+/**
+ * 导出命令的宿主环境断言（与 {@link assertEngineFor} 并列同构，正交轴）。
+ *
+ * 脚本可由 AI 生成任意代码、属不受信输入，而出把「往哪写、写几份、写什么」的
+ * 决定权交给脚本文本；因此脚本面导出命令只在 `'node'` 宿主开放，browser / weapp
+ * 一律在执行前拒绝（`HostPorts.hostEnv` 未声明 = 非 node，不兜底放行）。
+ *
+ * 断言只在 API 函数体第一行执行（普通函数不走 dispatchPath），所以既覆盖脚本面
+ * `cad.*`，也覆盖 TS 直连同一函数的旁路——不存在「脚本被拒、库面直连却放行」。
+ * 判据只读 `config.hostEnv`，与安全扫描档位（`securityPolicy`）解耦：放宽档位
+ * （含 `off`）不解除本门禁。
+ *
+ * @param opName - op 名（报错文案）。
+ * @param hosts - 允许执行的宿主值集合。
+ * @throws HostUnsupportedError 当当前宿主不在 `hosts` 内（含未声明）。
+ */
+export function assertHostFor(opName: string, hosts: readonly string[]): void {
+  const current = getBackends().config.hostEnv
+  if (current === null || current === undefined || !hosts.some((h) => h === current)) {
+    throw new HostUnsupportedError(
+      `E_HOST_UNSUPPORTED: op '${opName}' requires host ${hosts.join(' or ')} (current=${current ?? '<none>'})`,
+    )
   }
 }
 

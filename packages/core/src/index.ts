@@ -140,7 +140,7 @@ export type { PreviewExec } from './cad-runtime/preview-exec'
 export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, CadRuntimeOptions } from './cad-runtime/runtime'
 export type {
   HostPorts, CsgBackend, SdfBackend, FontProvider, TextureSampler,
-  AssetResolver, EventSink, ExecutionMode,
+  AssetResolver, EventSink, ExecutionMode, HostEnv,
   MeshData, PlaneParams, SplitResult as CsgSplitResult,
   DovetailGrooveParams as PortDovetailGrooveParams,
   DowelSplitParams as PortDowelSplitParams,
@@ -229,10 +229,11 @@ export { FetchAssetResolver } from './browser-host/fetch-asset-resolver'
 export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resolver'
 
 // ── L3 API 面（api/ 层）──
-// P23 主导出切换（§4.2 / Q1）：`export * from './api'` 现在同时带来
+// P23 主导出切换（§4.2 / Q1）：`export * from './api'` 带来
 // ① faijs 特有 dual op（mesh+brep 双路径，D11 双形态归一）；
-// ② 生成脚本面 op（`api/generated/script-face.ts`，defineOp({ brep: __own_* }) 直连的
-//    brep-only 语句级 op——`cad.*` 脚本面与此同源，B1 三源一致）；
+// ② 生成脚本面 op 中**有库作者消费者**的少数名字（`api/generated/script-face.ts`；
+//    其余脚本 op 只走 `cad.*` 与子路径，§2.7 / DEC-6、DEC-7——B1 由「三源」
+//    收为「cad 面 ≡ check() 符号表」两源）；
 // ③ 2026-09-25 core-decouple：brepjsCompat 命名空间与 op 投影随旧子包删除
 //    （裁决 9）；`api/geom-types`（原名 api/brepjs-compat，2026-10-07 改名）仅保留 core 内联的 Result / 向量 / 平面 / 错误 /
 //    常量组合器（§5.2），顶层平铺不变。

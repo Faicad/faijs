@@ -33,7 +33,7 @@ export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, PartTopo
 export type {
   HostPorts,
   CsgBackend, SdfBackend, FontProvider, TextureSampler,
-  AssetResolver, EventSink, ExecutionMode, LibLoader,
+  AssetResolver, EventSink, ExecutionMode, HostEnv, LibLoader,
   MeshData, PlaneParams, SplitResult as CsgSplitResult,
   DovetailGrooveParams as PortDovetailGrooveParams,
   DowelSplitParams as PortDowelSplitParams,

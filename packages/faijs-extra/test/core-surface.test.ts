@@ -41,6 +41,40 @@ const STILL_CORE = [
   'scale3d',
 ]
 
+/**
+ * Script-face-exclusive ops: names available on the `.fai.js` script face
+ * (`cad.*`) that the **library** entry faces must NOT re-export.
+ *
+ * Plan §2.7 / DEC-6, DEC-7 (2026-10-08). The library face is public only when a
+ * *library author* needs the name (criterion: DEC-6); a name being reachable via
+ * `cad.*` is not a reason. These ops were previously flattened into
+ * `api/index.ts` solely to satisfy the now-deleted "cad face ⊆ export face" gate.
+ * With the gate gone, a stale re-export is the only way one of them could quietly
+ * survive — which is exactly what this list pins.
+ *
+ * Kept (have real library consumers, so they are *not* listed here): `fuse`,
+ * `isValid`, `rotate`, `applyMatrix` (imported from `@faicad/faijs/api` by
+ * `sheetmetal`), plus `extrude` / `revolve` (explicit re-exports).
+ *
+ * Own explicit re-exports in `api/index.ts` (so not "exclusive" to the wildcard,
+ * and therefore out of this list's scope): `cut` (`api/index.ts:20`) and `split`
+ * (`api/index.ts:40`). Whether `split` (no library consumer) should also leave the
+ * library face under DEC-6 is part of the wider §2.7 audit, not this pin.
+ */
+const SCRIPT_FACE_EXCLUSIVE = [
+  // 生成脚本面 op（api/generated/script-face.ts），无库作者消费者
+  'torus', 'inspectMassProps', 'area', 'length', 'volume', 'centerOfMass',
+  'viewCamera', 'projectView', 'projectSheet',
+  'complexExtrude', 'twistExtrude', 'linearPattern', 'circularPattern', 'gridPattern',
+  'roof', 'drill', 'pocket', 'boss', 'mirrorJoin', 'rectangularPattern', 'thread',
+  'convexHull', 'makeBaseBox', 'ellipsoid',
+  'mirror', 'clone', 'locate', 'offset',
+  'heal', 'simplify', 'isSameShape', 'autoHeal', 'fixShape', 'healSolid',
+  'fixSelfIntersection',
+  // cad 面名字，库面已收为自解释别名 booleanOp（§2.7 / DEC-7）
+  'boolean',
+]
+
 const CORE_ENTRIES: Array<[string, Record<string, unknown>]> = [
   ['@faicad/faijs', coreRoot as unknown as Record<string, unknown>],
   ['@faicad/faijs/browser', coreBrowser as unknown as Record<string, unknown>],
@@ -56,6 +90,11 @@ describe('core entry surfaces carry no editor / creator symbol', () => {
     it(`${name}: no migrated svg/3D-text preview helper is exported`, () => {
       const leaked = MIGRATED_PREVIEW_HELPERS.filter((helper) => helper in mod)
       expect(leaked, `${name} still exports helper(s)`).toEqual([])
+    })
+
+    it(`${name}: no script-face-exclusive op is re-exported`, () => {
+      const leaked = SCRIPT_FACE_EXCLUSIVE.filter((op) => op in mod)
+      expect(leaked, `${name} still re-exports script-face-exclusive op(s)`).toEqual([])
     })
 
     it(`${name}: the platform symbols that stayed in core are still exported`, () => {

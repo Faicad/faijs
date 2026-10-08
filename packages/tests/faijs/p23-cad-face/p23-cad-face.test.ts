@@ -4,9 +4,11 @@
  * cad 面形状句柄契约
  *
  * 覆盖（P23 执行卡「验证」三项）：
- *  ① 三源一致：`check()` 符号表 ≡ `cad` 命名空间键集 ⊆ 根门面导出面
- *     （core 侧静态断言在 src/lang/op-set-consistency.test.ts；这里在
- *     **根门面**上再断言一次，锁住 `@faicad/faijs` 的实际公开面）。
+ *  ① 双源一致：`check()` 符号表 ≡ `cad` 命名空间键集（core 侧静态断言在
+ *     src/lang/op-set-consistency.test.ts；这里在**根门面 runtime 的 libs.cad**
+ *     上再断言一次）。2026-10-08（§2.7 / DEC-6、DEC-7）：原「cad 面 ⊆ 根门面导出面」
+ *     的第三源已删除——库面公开什么只看库的作者是否需要；脚本面专属名字不得残留
+ *     在入口面的反向守卫落在 `packages/faijs-extra/test/core-surface.test.ts`。
  *  ② D11 双形态（§6.3 box 样本）：`cad.box(10, 20, 30)`（位置形态）与
  *     `cad.box({ width: 10, depth: 20, height: 30 })`（对象形态）归一到同一实现，产物几何一致；
  *     primitives / transforms 抽样同规则。
@@ -35,6 +37,7 @@ import { isShape, hasBrep } from '@faicad/faijs/shape'
 import { SYMBOL_TABLE } from '@faicad/faijs/lang/symbol-table'
 import { CONTRACT_VERSION } from '@faicad/faijs/runtime-state'
 import { SCRIPT_FACE_OPS } from '@faicad/faijs/api/generated/script-face-manifest'
+import { scriptFaceOps } from '@faicad/faijs/api/generated/script-face'
 import * as facade from '@faicad/faijs'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
@@ -66,27 +69,29 @@ function cadFn(name: string): (...a: unknown[]) => Promise<Shape> {
   return fn as (...a: unknown[]) => Promise<Shape>
 }
 
-describe('① 三源一致（根门面公开面）', () => {
+describe('① 双源一致（符号表 ≡ cad 命名空间）', () => {
   it('check() 符号表 ≡ cad 命名空间键集（不含 contractVersion）', () => {
     const cad = (rt as unknown as { libs: Record<string, Record<string, unknown>> }).libs.cad
     const cadKeys = Object.keys(cad).filter((k) => k !== 'contractVersion').sort()
     expect(Object.keys(SYMBOL_TABLE).sort()).toEqual(cadKeys)
   })
 
-  it('cad 面 ⊆ 根门面导出面（@faicad/faijs 顶层可取到每个 cad op）', () => {
-    for (const key of Object.keys(SYMBOL_TABLE)) {
-      expect((facade as unknown as Record<string, unknown>)[key], `facade 缺 "${key}"`).toBeDefined()
-    }
-  })
-
-  it('生成脚本面 op 全部在根门面顶层导出且带 dual-op 元数据（brep-only）', () => {
+  it('生成脚本面 op 全部在 cad 命名空间注册且带 dual-op 元数据（brep-only）', () => {
+    const ns = createApiNamespace() as unknown as Record<
+      string,
+      { __faijs__dualOp?: { brep?: unknown; mesh?: unknown } }
+    >
+    const generated = scriptFaceOps as unknown as Record<string, unknown>
     for (const op of SCRIPT_FACE_OPS) {
-      const fn = (facade as unknown as Record<string, { __faijs__dualOp?: { brep?: unknown; mesh?: unknown } }>)[op.name]
-      expect(fn, `facade 缺脚本面 op "${op.name}"`).toBeDefined()
+      const fn = ns[op.name]
+      expect(fn, `cad 命名空间缺脚本面 op "${op.name}"`).toBeDefined()
       // P25：view 三件套为原生库函数（无 dual-op 元数据）；compatOp 必须 brep-only
-      if (fn.__faijs__dualOp === undefined) continue
-      expect(typeof fn.__faijs__dualOp?.brep).toBe('function')
-      expect(fn.__faijs__dualOp!.mesh).toBeUndefined()
+      const meta = fn!.__faijs__dualOp
+      if (meta === undefined) continue
+      expect(typeof meta.brep, `脚本面 op "${op.name}" 缺 brep 实现`).toBe('function')
+      // 手写覆盖（cut/split/linearPattern/…）可带 mesh 路径，mesh 由手写版自行裁决。
+      if (ns[op.name] !== generated[op.name]) continue
+      expect(meta.mesh, `生成的 compatOp "${op.name}" 不应有 mesh 路径`).toBeUndefined()
     }
   })
 

@@ -75,11 +75,12 @@ export {
   liftCurve2d, commonCells,
   type SubShapeType,
 } from './measure-query'
-// S4（occt-wasm op 接入）：通用布尔族（方案 §3.4.5）。导出面 ⊇ cad 面是硬门禁
-// （test/lang/op-set-consistency.test.ts），故**必须**以 cad 面的名字 `boolean`
-// 导出；`booleanOp` 是给 TS 消费方的自解释别名（指向同一对象）。
+// S4（occt-wasm op 接入）：通用布尔族（方案 §3.4.5）。`boolean` 是 cad 面的名字
+// （`api-namespace.ts` 的键）；它此前在库里被整批平铺只是因为「导出面 ⊇ cad 面」
+// 门禁——该门禁已删（§2.7 / DEC-7），且库作者侧全仓无人 `import { boolean }`
+// （DEC-6），故库面只留自解释别名 `booleanOp`（指向同一 op）。
 export {
-  boolean, boolean as booleanOp,
+  boolean as booleanOp,
   type BooleanKind, type BooleanOptions,
 } from './boolean-op'
 // S4（occt-wasm op 接入）：包围盒对齐族（方案 §3.4.9）。
@@ -116,12 +117,15 @@ export { mergeAppearance, normalizeColor } from './appearance'
 export type { ShapeMeta, FileMeta, ShapeMetaMethods } from './meta'
 export { mergeMeta } from './meta'
 
-// ── P23：brepjs 兼容面接线（§4.2 / B1 三源一致）──
+// ── P23：脚本面 op 与库面导出面的边界（§2.7 / DEC-5、DEC-6、DEC-7）──
 //
 // ① 生成脚本面 op（与 api-namespace 的 cad 面同源：api/generated/script-face.ts）。
-//    这批 op 经 `defineOp({ brep: __own_* })` 直连 core 自有实现，faijs 形态（Shape 进 / Shape 出、
-//    布尔双形态、brep-only），TS 侧与 `.fai.js` 侧同语义。
-export * from './generated/script-face'
+//    这批 op **不再**整批平铺进本桶：库面公开什么只看库的作者是否需要（DEC-6），
+//    脚本 op 是 `.fai.js` 的能力，库作者要的图形 / IO 函数走细粒度子路径
+//    （docs/api-contract.zh.md:63、:70），「脚本面有」不构成「库面必须有」的理由。
+//    因此这里只按名保留**有库作者消费者**的脚本面 op（经 @faicad/faijs/api 被
+//    sheetmetal 等导入者）；其余留在 `cad.*` 脚本面与子路径，不经本聚合面。
+export { fuse, isValid, rotate, applyMatrix } from './generated/script-face'
 // P25: compat extrude/revolve (brep-only, face→prism / face→lathe) share one
 // definition between the TS surface and the cad scripting surface. The fcstd
 // codegen wires Pad/Pocket/Extrusion/Revolution through these (sketch face →

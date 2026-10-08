@@ -39,6 +39,12 @@ import { solidFromFaces } from './solid-from-faces'
 import { halfSpace } from './half-space'
 import { exportStl } from './export-stl'
 import { exportBrep } from './export-brep'
+// 2026-10-08（方案 §2.6 / DEC-3）：脚本面 step / 3mf 出口。两者都是薄壳：宿主门
+// （+ exportStep 的 occt 引擎门）之后把入参转成 ExportEntry[]，序列化一律交库面
+// exportModelSync（单一真源），故与库面逐字节同源。只进脚本面（本字面量 + check()
+// 符号表），**不平铺 api/index.ts**（§2.7 / DEC-6）。
+import { exportStep } from './export-step'
+import { export3mf } from './export-3mf'
 // S4（occt-wasm op 接入）：类型判定谓词族（平台 op engines:['occt']，普通函数形态）。
 // 直调 occt 原生 isEdge/isFace/isShell/isVertex/isWire/isCompound/isCompSolid/isEqual
 // （不在 L1 契约，方案 §3.4.6 校正注）；布尔返回，走 export-brep 同口径。
@@ -117,11 +123,12 @@ import type { LibNamespace } from '../runtime-state'
 /**
  * Assemble api functions into the cad namespace.
  *
- * P23（§4.2 ②，B1 三源一致）：cad 面 = faijs 特有 dual op（下方字面量）+
+ * P23（§4.2 ②，B1）：cad 面 = faijs 特有 dual op（下方字面量）+
  * 生成脚本面 op（`scriptFaceOps`——`api/generated/script-face.ts` 按 arg-spec
  * 的 `scriptFace: true` 条目生成，`defineOp({ brep: __own_* })` 直连的
- * brep-only 语句级 op）。`check()` 符号表（`gen-symbol-table.ts`）与
- * `api/index.ts` 导出面同源于同一份清单。
+ * brep-only 语句级 op）。`check()` 符号表（`gen-symbol-table.ts`）取自同一份清单。
+ * 2026-10-08（§2.7 / DEC-6、DEC-7）：本命名空间**不再**要求被 `api/index.ts`
+ * 平铺——库面只保留有库作者消费者的名字，其余脚本 op 只走 `cad.*` 与子路径。
  *
  * @returns the assembled LibNamespace ready for runtime injection.
  */
@@ -158,6 +165,9 @@ export function createApiNamespace(): LibNamespace {
     // 无内核调用）；exportBrep 平台（原生 toBREP，L1 只有 fromBREP 导入侧）。
     exportStl,
     exportBrep,
+    // 方案 §2.6：step（occt 必需——装配层级走 XCAF）/ 3mf（引擎中立，纯 XML + ZIP）。
+    exportStep,
+    export3mf,
     // S4（occt-wasm op 接入）：类型判定谓词族（平台 op engines:['occt']，布尔返回）。
     isEdge, isFace, isShell, isVertex, isWire, isCompound, isCompSolid, isEqual,
     // S4（occt-wasm op 接入）：视图与导出族（平台 op engines:['occt']，字符串/Uint8Array 返回）。

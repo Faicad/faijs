@@ -1,22 +1,25 @@
 ﻿/**
- * op-set-consistency — 三源一致守卫（P23 §6.1 B1 / §4.2 ②）
+ * op-set-consistency — 双源一致守卫（P23 §6.1 B1 / §4.2 ②；2026-10-08 §2.7 校正）
  *
  * P23 之前：符号表 ↔ api 签名一致性（阶段 1，§3.6）；键集合 == cad 命名空间。
  * P23 起：cad 脚本面重建到兼容面同源清单上（faijs 特有 dual op + 生成脚本面 op），
- * 三个消费面必须同源——
+ * **两个**消费面必须同源——
  *
  *   ① `check()` 符号表（src/lang/symbol-table.generated.ts）
  *   ② cad 命名空间运行时键集（api/api-namespace.ts 的 createApiNamespace()）
- *   ③ 导出面（api/index.ts，必须覆盖 cad 面每个键）
+ *
+ * ⚠️ 原「第三源」——「导出面（api/index.ts）必须覆盖 cad 面每个键」——已**删除**
+ * （§2.7 / DEC-6、DEC-7）。判据：库面公开什么只看库的作者是否需要；脚本 op 是
+ * `.fai.js` 的能力，不构成库面必须导出的理由。库面被删的名字改由**反向守卫**
+ * 钉住（`packages/faijs-extra/test/core-surface.test.ts`：脚本面专属名字不得残留
+ * 在 `@faicad/faijs` / `@faicad/faijs/browser` 入口面）。
  *
  * ②的运行时键集 = createApiNamespace() 键集（含 `...scriptFaceOps` 展开），
- * ①由 gen-symbol-table.ts 从「api-namespace 字面量 ∪ script-face-manifest」生成，
- * ③经 `export * from '../../src/lang/generated/script-face'` 与 api-namespace 同源。
+ * ①由 gen-symbol-table.ts 从「api-namespace 字面量 ∪ script-face-manifest」生成。
  * 本测试用运行时对象（而非文本解析）断言，防两份清单漂移。
  *
  * 覆盖：
  * - 符号表键集合 ≡ cad 命名空间函数集（双向：无缺失、无多余）
- * - cad 命名空间每个函数都被 api/index.ts 导出（导出面 ⊇ cad 面）
  * - 未知函数（不在 cad 命名空间）→ undefined
  * - keep 语义字段仍不在符号表上（R7）
  */
@@ -26,19 +29,13 @@ import { SYMBOL_TABLE, getFunctionSymbol } from '../../src/lang/symbol-table'
 import { createApiNamespace } from '../../src/api/api-namespace'
 import { SCRIPT_FACE_OPS } from '../../src/api/generated/script-face-manifest'
 import { scriptFaceOps } from '../../src/api/generated/script-face'
-import * as apiIndex from '../../src/api/index'
 
 /** cad 命名空间运行时键集（不含 contractVersion 元数据键）。 */
 function cadNamespaceFunctions(): string[] {
   return Object.keys(createApiNamespace()).filter((k) => k !== 'contractVersion')
 }
 
-/** api/index.ts 顶层导出名（运行时命名空间键集，含 `export *` 通配解析结果）。 */
-function apiIndexExportNames(): Set<string> {
-  return new Set(Object.keys(apiIndex))
-}
-
-describe('op-set-consistency: 三源一致（check() 符号表 ≡ cad 面 ⊆ 导出面）', () => {
+describe('op-set-consistency: 双源一致（check() 符号表 ≡ cad 面）', () => {
   it('符号表键集合恰好等于 cad 命名空间函数集（双向：无缺失、无多余）', () => {
     const tableKeys = new Set(Object.keys(SYMBOL_TABLE))
     const cadKeys = new Set(cadNamespaceFunctions())
@@ -79,12 +76,6 @@ describe('op-set-consistency: 三源一致（check() 符号表 ≡ cad 面 ⊆ �
       // ① 生成产物：生成器只桥接 brep，出现 mesh 路径即说明生成文件被手改或生成器越权。
       expect(meta.mesh, `生成的 compatOp "${op.name}" 不应有 mesh 路径（mesh 只能写在手写覆盖里）`).toBeUndefined()
     }
-  })
-
-  it('cad 命名空间每个函数都被 api/index.ts 导出（导出面 ⊇ cad 面）', () => {
-    const exported = apiIndexExportNames()
-    const missing = cadNamespaceFunctions().filter((f) => !exported.has(f))
-    expect(missing, `api/index.ts 缺失导出: ${missing.join(', ')}`).toEqual([])
   })
 
   it('每个 cad 命名空间函数在符号表中都有条目（供 check() 符号检查）', () => {

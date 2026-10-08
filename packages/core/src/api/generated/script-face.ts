@@ -2,7 +2,7 @@
  * generated/script-face.ts — 生成文件，禁手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 的
  * `scriptFace: true` 条目生成（P23 §4.2 ②：cad 脚本面 = faijs 特有 dual op + 本清单）。
- * 单一来源（B1）：api-namespace / api/index / gen-symbol-table 都从这里取，
+ * 单一来源（B1）：api-namespace / gen-symbol-table 从这里取，
  * 不允许手写第二份清单。
  */
 

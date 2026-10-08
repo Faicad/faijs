@@ -15,6 +15,10 @@
  * （与 dispatchPath 的差异：`assertEngineFor` **不含** D11-3 的 `brep_mock` 豁免——
  *  mock 句柄不是 occt 句柄，放行只会拿到错形状，故这里如实拦截。）
  *
+ * 宿主门在引擎门之前（`assertHostFor('exportBrep', ['node'])`）：导出命令只在 node
+ * 宿主开放，browser / weapp / 未声明宿主先报 `E_HOST_UNSUPPORTED`。理由见
+ * `cad-runtime/ports.ts#HostEnv`。
+ *
  * §9.5 降级路径（记录在案）：brepkit 的 wasm 面**自带 `toBREP`**
  * （`api/surface/brepkit-wasm-surface.json` 的 `methods` 含 `toBREP`），只是尚未接进
  * L1 契约。一旦契约新增导出成员且两侧适配器同时落地，本函数删掉 `assertEngineFor`
@@ -25,10 +29,13 @@ import type { Shape } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
 import { brepOf } from '../shape'
 import { getOcctKernel } from '../occt-kernel/occtKernel'
-import { assertEngineFor } from './internal/l3-bridge'
+import { assertEngineFor, assertHostFor } from './internal/l3-bridge'
 
-/** BREP 路径：先断言引擎身份 → 借出 brep 句柄 → occt 原生 toBREP 文本。 */
+/** BREP 路径：先宿主门 → 引擎门 → 借出 brep 句柄 → occt 原生 toBREP 文本。 */
 function exportBrepNative(shape: Shape): string {
+  // 门序固定：宿主门先于引擎门。门在 `brepOf(shape)` 之前，所以非 node 宿主下
+  // 不读取 Shape 的 BREP 槽、不触碰任何内核。
+  assertHostFor('exportBrep', ['node'])
   assertEngineFor('exportBrep', ['occt'])
   const handle = brepOf(shape) as BrepHandle | undefined
   if (!handle) {
@@ -52,6 +59,8 @@ function exportBrepNative(shape: Shape): string {
  *       执行前报 E_BREP_UNSUPPORTED；brep_mock 不拦截（引擎身份判定读
  *       `config.brepEngineId`）。返回**纯文本**，由宿主写入 `.brep` 文件；
  *       经 `import_brep` / L1 `fromBREP` 可无损回读（精确 BREP，非 mesh 回填）。
+ *       **宿主门**：仅 `'node'` 宿主可执行，且宿主门先于引擎门——browser / weapp /
+ *       未声明宿主报 E_HOST_UNSUPPORTED（不读 BREP 槽、不触碰内核）。
  * @returns string OCCT BREP 文本。
  * @param shape - 目标几何（必须带 BREP 槽；mesh-only 输入报 E_EXPORT_BREP_NO_BREP）。type:Shape required:true
  * @example

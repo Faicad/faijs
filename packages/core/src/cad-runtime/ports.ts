@@ -232,6 +232,29 @@ export interface ProjectLoader {
   fingerprint?(moduleKey: string): Promise<string>
 }
 
+// ── 宿主环境 ──
+
+/**
+ * 宿主环境——脚本面导出命令的可用性判据。
+ *
+ * - `'node'`：Node.js 进程（CLI、进程内嵌）。落盘发生在用户自己的机器上，
+ *   不构成跨域外泄，因此开放；
+ * - `'browser'`：web 页面 / web worker。页面内脚本发起下载正是 CSP、
+ *   用户手势要求与 drive-by download 防护所针对的模式；
+ * - `'weapp'`：小程序 worker。落盘同样属于宿主能力的范畴。
+ *
+ * 只有 `'node'` 宿主开放脚本面导出命令（`cad.exportStl` / `cad.exportBrep`），
+ * 其余值（含未声明）执行即报 `E_HOST_UNSUPPORTED`。理由：`.fai.js` 是可由 AI
+ * 生成任意代码的文本、属不受信输入（`lang/security-scanner.ts` 的静态门禁自认
+ * 不是沙箱），而导出把「往哪写、写几份、写什么」的决定权交给脚本文本。浏览器 /
+ * 小程序里要导出模型，必须由宿主提供的入口触发——用户点的按钮，或宿主自己调用的
+ * 库面字节通道（`exportModel(Sync)` / `exportStepFromSolids*` 等）。
+ *
+ * 宿主在端口装配期声明一次；运行期不探测环境（`typeof process` 那类判断只留在
+ * 内核装载器里选 wasm 装载通道）。未声明按非 node 处理（fail-closed，不兜底）。
+ */
+export type HostEnv = 'node' | 'browser' | 'weapp'
+
 // ── HostPorts 汇总 ──
 
 /**
@@ -247,6 +270,14 @@ export interface HostPorts {
   texture?: TextureSampler
   assets?: AssetResolver
   events: EventSink  // events 必填——断链通知是基础能力
+  /**
+   * 宿主环境（装配期声明一次；未声明 → 脚本面导出命令一律拒绝）。
+   *
+   * 保持可选而不设为必填：`HostPorts` 是公开类型，设必填会把与本次能力无关的
+   * 机械改动压到仓内近百处只给 `events` 的装配点上；读取端 fail-closed（漏声明 =
+   * 非 node）效果等价于必填。见 {@link HostEnv}。
+   */
+  hostEnv?: HostEnv
   /** 库加载器（execute 自动装载未注册库；check 用它做 specifier 预检）。可选——无则仅手工 registerLib。 */
   libLoader?: LibLoader
   /** 项目文件加载器（相对 specifier 的多文件模块，§4.5）。可选——不提供则单文件行为不变。 */

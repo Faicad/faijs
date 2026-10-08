@@ -34,4 +34,15 @@ describe('executeScript (B6)', () => {
     expect(r.failedAt).toBeDefined()
     expect(r.terminals).toEqual([])
   }, 120_000)
+
+  it('脚本面导出命令在真实 node 宿主可用（createNodePorts 声明 hostEnv node）', async () => {
+    // 导出命令只在 node 宿主开放（CSP / 用户手势针对的页面内下载在浏览器侧）；
+    // executeScript 内部走 createNodePorts()，宿主环境由工厂声明，因此这里必须
+    // 跑得通——若工厂漏声明 hostEnv，本用例会翻成 E_HOST_UNSUPPORTED。
+    const r = await executeScript(`
+      let a = cad.box(10, 10, 10)
+      let s = cad.exportStl(a, { ascii: true })
+    `)
+    expect(r.failedAt).toBeUndefined()
+  }, 120_000)
 })

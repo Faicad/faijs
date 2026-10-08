@@ -1799,6 +1799,7 @@
   "./runtime-state": [
     "BrepUnsupportedError",
     "CONTRACT_VERSION",
+    "HostUnsupportedError",
     "MeshUnsupportedError",
     "assertContractVersion",
     "configureBackends",
