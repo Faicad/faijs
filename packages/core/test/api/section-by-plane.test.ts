@@ -30,7 +30,7 @@ beforeAll(async () => {
   await registerOcctBrepEngine()
   configureBackends({
     contractVersion: 1,
-    config: { mode: 'brep', brepCapabilities: { directEdit: true }, brepEngineId: 'occt' },
+    config: { mode: 'brep', brepEngineId: 'occt' },
     kernel: { brep: (await getBrepEngine()).primitives, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,

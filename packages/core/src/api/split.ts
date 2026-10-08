@@ -4,7 +4,7 @@
  * @platform occt — 平台 op：内核原生 `split`（BRepAlgoAPI_Splitter）是 occt-only
  * （engine-method-map `split` → occt-only；L1 只有 `splitByPlane`）。本文件
  * 只取 L1 面做枚举/命名（getBrepApi），切分本身走平台面 getOcctKernel()（D3），
- * defineOp 声明 `engines: ['occt']`（D11），不声明 capabilities（互斥）。
+ * defineOp 声明 `engines: ['occt']`（D11），不声明其它收窄。
  *
  * 生成投影是 brep-only compatOp，不带角色表；本文件手写 defineOp，BREP 路径
  * 用内核原生 split（BRepAlgoAPI_Splitter）切分，存活面（hash 逐字不变）回投原

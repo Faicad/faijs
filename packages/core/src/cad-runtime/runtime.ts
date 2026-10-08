@@ -583,9 +583,6 @@ export class CadRuntime {
         get brepEngineId() {
           return getActiveBrepEngineId()
         },
-        get brepCapabilities() {
-          return brepChainOf()?.capabilities
-        },
         get partTransform() {
           return brepChainOf()?.partTransform
         },
@@ -635,7 +632,6 @@ export class CadRuntime {
     this.brepChain = {
       solidCache: this.solidCache,
       kernel,
-      capabilities: engine?.capabilities,
       faceEvolutionCache: this.faceEvolutionCache,
       roleTableCache: this.roleTableCache,
       meshShapeCache: new Map<PartName, BrepMeshResult>(),

@@ -87,4 +87,3 @@ export type {
   MeshData,
   BrepResult,
 } from './define-op'
-export type { BrepCapabilityName } from './cad-runtime/backend-dispatch'

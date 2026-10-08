@@ -68,7 +68,6 @@ function sectionByPlaneBrep(input: Shape, params: SectionByPlaneParams): Shape {
  * const sec = await cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
  */
 export const sectionByPlane = defineOp({
-  capabilities: ['directEdit'],
   paramDims: { 'params.point': 'length', 'params.normal': 'length' },
   brep(input: Shape, params: SectionByPlaneParams) {
     return sectionByPlaneBrep(input, params)

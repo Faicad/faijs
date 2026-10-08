@@ -2,20 +2,25 @@
  * @vitest-environment node
  *
  * brepkit-batchA-fix — A 批降级回归：ellipsoid / makeBaseBox / rotate / mirror /
- * applyMatrix / healSolid 从 engines:[occt] 白名单降级为能力路由后，在 brepkit 三版本
+ * applyMatrix / healSolid 从 engines:[occt] 白名单降级为中立 op 后，在 brepkit 三版本
  * 上可用、且 occt 不回退。
  *
  * 背景（2026-09-26，承接 clone/intersect 降级批次）：
- *   - ellipsoid   : 纯调 makeEllipsoid + translate（brepkit 两方法均已声明）→ clone 模式降级；
- *   - makeBaseBox : makeRectangle + extrude 链（brepkit 两方法此前未声明，本次补声明——
+ *   - ellipsoid   : 纯调 makeEllipsoid + translate（brepkit 两方法均可用）→ 中立化；
+ *   - makeBaseBox : makeRectangle + extrude 链（brepkit 两方法此前不可用，本次接线——
  *                   makeRectangle 产出 knownFace，extrude 沿 +Z 挤出，方言匹配）；
  *   - rotate      : 实现原硬编码 getOcctKernel().transform，本次切到 L1 getBrepApi().transform
  *                   （brepkit transform = cloneAndTransform 深拷贝，STEP-safe 语义对齐）；
- *   - mirror      : 纯调 kernel.mirror（brepkit 已声明）→ clone 模式降级；
+ *   - mirror      : 纯调 kernel.mirror（brepkit 可用）→ 中立化；
  *   - applyMatrix : transform / generalTransform 两条路径（brepkit 两方法均经 cloneAndTransform，
- *                   本次补声明）；
- *   - healSolid   : 纯调 healSolid + isSolid/isValid 查询（brepkit 已声明 healSolid）。
- *   - fixShape    : 上一批已降级（capabilities:["fixShape"]），本批不重复。
+ *                   本次接线）；
+ *   - healSolid   : 纯调 healSolid + isSolid/isValid 查询（brepkit 可用）。
+ *   - fixShape    : 上一批已中立化，本批不重复。
+ *
+ * 2026-10-08 更新（capabilities 声明轴删除）：上表这些 op 当时的中间形态是
+ * `capabilities:[...]` 声明；该轴删除后它们都是纯中立 op（无任何收窄声明），brepkit
+ * 判决不变（这些名字 brepkit 原生都有）。等价性由
+ * `test/brep/engine/engine-verdict-equivalence.test.ts` 逐 op 钉住。
  *
  * 命名/语义差异登记：
  *   - rotate / mirror / applyMatrix / healSolid 均无面演化（byAdjacency / identity provenance），

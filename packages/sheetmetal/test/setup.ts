@@ -20,10 +20,6 @@ export async function initOCCT(): Promise<void> {
     config: {
       mode: 'brep',
       brepEngineId: engine.id,
-      // 完整传递引擎能力声明（evolution + methods + 族级布尔位）。能力路由
-      // （rotate/applyMatrix 等 2026-09-26 B 批降级为 capabilities 判定）要求
-      // 静态判定读到逐核方法名——只传 evolution 会让 methods 路由的 op 被误拒。
-      brepCapabilities: engine.capabilities,
     },
     kernel: { brep: engine.primitives, csg: undefined, sdf: undefined },
     fonts: undefined,

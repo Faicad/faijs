@@ -49,34 +49,8 @@ export interface Backends {
   /** 执行配置（可变对象，宿主可在运行期切换） */
   readonly config: {
     mode: RuntimeExecutionMode
-    /** 当前 BREP 引擎 id（注册表首个注册者；未注册为 null）。能力路由读（§8.4）。 */
+    /** 当前 BREP 引擎 id（注册表首个注册者；未注册为 null）。静态判据（引擎身份）读。 */
     brepEngineId?: string | null
-    /**
-     * 当前引擎能力声明（宽松结构，零依赖）。能力路由读（§8.4）。
-     *
-     * `evolution` = 本引擎**实际提供**的 `*WithHistory` 核函数名名单
-     * （`brep/engine/types.ts` 的 `BrepEvolutionKind`）。**不是**族级布尔——
-     * 族级布尔会多报能力、使静态判定失效（Phase 0.2）。
-     * 本模块须零依赖，故此处只写 `readonly string[]`；权威类型见
-     * `BrepCapabilities`，消费侧由 `backend-dispatch.engineCapabilitySet` 归一化。
-     */
-    brepCapabilities?: {
-      evolution?: readonly string[]
-      /**
-       * 非演化内核方法名（D5）：本引擎**实际提供**的 L1 中立方法名
-       * （`getBoundingBox` / `getVolume` / `getSurfaceArea` / `getLength` /
-       * `getCenterOfMass` 等）。2026-09-24 narrowing plan §2.4：与
-       * `backend-dispatch.EngineCapabilitiesLike` 对齐（该类型有 `methods`，
-       * 运行时配置镜像此前缺失——非字面量赋值不做 excess property 检查，
-       * `methods` 判定"能用但没被契约钉住"）。
-       */
-      methods?: readonly string[]
-      heal?: boolean
-      directEdit?: boolean
-      advSurface?: boolean
-      assembly?: boolean
-      meshLift?: boolean
-    }
     partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   }
   /** 几何后端。brep 引擎异步初始化 → 用 getter。 */

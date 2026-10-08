@@ -148,7 +148,6 @@ export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPl
  * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
  */
 export const sketchOnPlane = defineOp({
-  capabilities: ['directEdit'],
 
   brep(params: Record<string, unknown>) {
     assertProfileParams(params)

@@ -121,7 +121,7 @@ export const gridPattern = defineOp({
  */
 export const roof = defineOp({
   brep: __own_roofBrep,
-  name: 'roof', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["buildTriFace","dispose","fixShape","isValid","sew","sewAndSolidify"],
+  name: 'roof', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
 })
 
 /**
@@ -132,7 +132,7 @@ export const roof = defineOp({
  */
 export const drill = defineOp({
   brep: __own_drillBrep,
-  name: 'drill', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["makeCylinder","located","getBoundingBox","cut"],
+  name: 'drill', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
 })
 
 /**
@@ -143,7 +143,7 @@ export const drill = defineOp({
  */
 export const pocket = defineOp({
   brep: __own_pocketBrep,
-  name: 'pocket', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["getSubShapes","surfaceCenterOfMass","uvBounds","surfaceNormal","makeFace","translate","extrude","cut"],
+  name: 'pocket', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
 })
 
 /**
@@ -154,7 +154,7 @@ export const pocket = defineOp({
  */
 export const boss = defineOp({
   brep: __own_bossBrep,
-  name: 'boss', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["getSubShapes","surfaceCenterOfMass","uvBounds","surfaceNormal","makeFace","translate","extrude","fuse"],
+  name: 'boss', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
 })
 
 /**
@@ -165,7 +165,7 @@ export const boss = defineOp({
  */
 export const mirrorJoin = defineOp({
   brep: __own_mirrorJoinBrep,
-  name: 'mirrorJoin', naming: {"kind":"replicate","k":2}, capabilities: ["mirror","fuse"],
+  name: 'mirrorJoin', naming: {"kind":"replicate","k":2},
 })
 
 /**
@@ -198,5 +198,5 @@ export const thread = defineOp({
  */
 export const convexHull = defineOp({
   brep: __own_convexHullBrep,
-  name: 'convexHull', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, capabilities: ["hullFromPoints"],
+  name: 'convexHull', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"},
 })

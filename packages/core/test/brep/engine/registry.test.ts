@@ -18,7 +18,6 @@ import {
   type MeshEngine,
 } from '../../../src/brep/engine/registry'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
-import type { BrepCapabilities } from '../../../src/brep/engine/types'
 
 /** Phase 1 编译期守卫（§7.8）骨架：真实适配器（occt/memory）实现 BrepEngineApi 后，
  *  用 `type _AssertSatisfiesBrepEngineApi = () => BrepEngineApi` 断言，漏实现任何
@@ -27,13 +26,13 @@ function mockPrimitives(): BrepEngineApi {
   return {} as unknown as BrepEngineApi
 }
 
-function mockBrep(id: string, capabilities?: BrepCapabilities): BrepEngine {
-  return { id, primitives: mockPrimitives(), capabilities }
+function mockBrep(id: string): BrepEngine {
+  return { id, primitives: mockPrimitives() }
 }
 
 /** 异步 provider 注册形式（引擎初始化可能异步：wasm 加载等）。 */
-function registerMock(id: string, capabilities?: BrepCapabilities): void {
-  registerBrepEngine(id, async () => mockBrep(id, capabilities))
+function registerMock(id: string): void {
+  registerBrepEngine(id, async () => mockBrep(id))
 }
 
 function mockMesh(id: string): MeshEngine {
@@ -87,11 +86,12 @@ describe('BREP 槽（槽位 1，异步 provider）', () => {
     expect(() => registerMock('occt')).toThrow(/already registered/)
   })
 
-  it('capabilities 随引擎携带（§7.5 可选能力槽）', async () => {
-    // Phase 0.2：evolution 是逐核函数名单（不再是族级布尔）
-    registerMock('occt', { evolution: ['cutWithHistory'], assembly: true })
-    expect((await getBrepEngine('occt')).capabilities).toEqual({ evolution: ['cutWithHistory'], assembly: true })
-    expect((await getBrepEngine('occt')).capabilities?.heal).toBeUndefined()
+  it('BrepEngine 仅 id + primitives——能力声明轴已删除（2026-10-08）', async () => {
+    // 「引擎能做什么」不再由引擎侧声明对象表达：真实引擎的事实是
+    // `brep/engine/native-history.ts` 的常量（面演化）与适配器实现本身。
+    registerMock('occt')
+    const engine = await getBrepEngine('occt')
+    expect(Object.keys(engine).sort()).toEqual(['id', 'primitives'])
   })
 })
 

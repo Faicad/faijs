@@ -3,10 +3,12 @@
  *
  * engine-switch-p3 — Phase 3 验收（方案 §Phase 3：能力收口）
  *
- * 1. 编译期守卫：L1 能力方法 ⊆ BrepEngineApi 接口键
- *    （能力表声明了 → 接口必须登记；缺失 → tsc 报错列出方法名）；
+ * 1. 编译期守卫：L1 方法清单 ⊆ BrepEngineApi 接口键
+ *    （清单里有 → 接口必须登记；缺失 → tsc 报错列出方法名）；
  * 2. occt 适配器：L1 登记方法实例完整 + 平台方法在原生内核上完整；
- * 3. brepkit 适配器：capabilities.methods 声明 ⊆ 实例实现面（不声明能力表外方法）。
+ * 3. brepkit 适配器：primitives 覆盖全部 L1 方法（适配器不得漏面）；原生历史面
+ *    恰为 {fuseWithHistory, cutWithHistory, filletWithHistory}
+ *    （2026-10-08 能力声明轴删除后，该事实的归属地是 `brep/engine/native-history.ts`）。
  *
  * Run: npx vitest run src/brep/engine/engine-switch-p3.test.ts
  */
@@ -19,12 +21,37 @@ import {
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
-import type { BrepHandle, BrepMethodKind } from '../../../src/brep/engine/types'
+import type { BrepHandle, BrepEvolutionKind } from '../../../src/brep/engine/types'
+import { hasNativeHistory } from '../../../src/brep/engine/native-history'
+import { configureBackends, CONTRACT_VERSION, type Backends } from '../../../src/runtime-state'
 import * as capabilityMap from '../../../src/api/surface/capability-map.json'
+
+/** 面演化核函数全 12 员（`BrepEvolutionKind` 的值域；`*WithHistory` 真名）。 */
+const BREP_EVOLUTION_KINDS: readonly BrepEvolutionKind[] = [
+  'fuseWithHistory', 'cutWithHistory', 'intersectWithHistory', 'filletWithHistory',
+  'chamferWithHistory', 'translateWithHistory', 'rotateWithHistory', 'mirrorWithHistory',
+  'scaleWithHistory', 'shellWithHistory', 'offsetWithHistory', 'thickenWithHistory',
+]
+
+/**
+ * 最小 backends 记录：本文件只用 `hasNativeHistory`（读 config.brepEngineId）与
+ * `configureBackends` 的写入口，故 kernel 全空。
+ */
+function backendsFor(mode: 'auto' | 'brep' | 'mesh', engineId: string): Backends {
+  return {
+    contractVersion: CONTRACT_VERSION,
+    config: { mode, brepEngineId: engineId },
+    kernel: { brep: null, csg: undefined, sdf: undefined },
+    fonts: undefined,
+    texture: undefined,
+    assets: undefined,
+    events: { emit: () => undefined },
+  } as unknown as Backends
+}
 
 /**
  * 编译期守卫用的 L1 方法全量（== BrepEngineApi 接口键，Phase 4 收窄后 99 个）。
- * 能力表声明了 → 接口必须登记；与 `keyof BrepEngineApi` 保持同步（缺失 → tsc 报错）。
+ * 清单里有 → 接口必须登记；与 `keyof BrepEngineApi` 保持同步（缺失 → tsc 报错）。
  */
 const CAPABILITY_METHODS = [
   'release',
@@ -252,7 +279,7 @@ describe('Phase 3 occt 适配器：L1 + 平台方法实例完整 + 组合代理�
   })
 })
 
-describe('Phase 3 brepkit 适配器：声明 ⊆ 实例（能力表外方法不声明）', () => {
+describe('Phase 3 brepkit 适配器：实例完整 + 原生历史面 = 三员', () => {
   it('brepkit 真实现接线冒烟：5 个新声明方法真可用（不崩、返回有效句柄）', async () => {
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
@@ -280,16 +307,13 @@ describe('Phase 3 brepkit 适配器：声明 ⊆ 实例（能力表外方法不�
     }
   })
 
-  it('capabilities.methods 每个声明方法在实例上存在（typeof function）', async () => {
+  it('brepkit primitives 覆盖全部 L1 方法（适配器不得漏面：未原生实现的以显式桩存在）', async () => {
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
     const engine = await getBrepEngine()
     try {
-      for (const m of engine.capabilities!.methods!) {
-        expect(
-          typeof engine.primitives[m as keyof BrepEngineApi],
-          `brepkit 声明了实例缺失方法: ${m}`,
-        ).toBe('function')
+      for (const m of L1_METHODS) {
+        expect(typeof engine.primitives[m], `brepkit primitives 缺 L1 方法: ${m}`).toBe('function')
       }
     } finally {
       __resetEngineRegistriesForTests()
@@ -298,30 +322,20 @@ describe('Phase 3 brepkit 适配器：声明 ⊆ 实例（能力表外方法不�
     }
   })
 
-  it('brepkit 侧平台方法保持未声明（unsupported 桩不伪造能力）', async () => {
-    __resetEngineRegistriesForTests()
-    await registerBrepkitBrepEngine()
-    const engine = await getBrepEngine()
+  it('brepkit 原生历史面恰为三员（逐名事实，替代已删除的 capabilities.methods 声明）', () => {
+    // 2026-10-08：`BrepEngine.capabilities` 与 op 侧 `capabilities` 一并删除。
+    // 「brepkit 只有三个原生 *WithHistory，其余是 unsupported 桩」这条事实现由
+    // `brep/engine/native-history.ts` 的常量表承载，本用例把它钉死。
+    configureBackends(backendsFor('brep', 'brepkit'))
     try {
-      const declared = new Set(engine.capabilities!.methods)
-      const brepkitReal = new Set([
-        'surfaceCenterOfMass',
-        'makeEllipsoid', 'makeTorus', 'makeVertex', 'mirror', 'shell',
-        // 2026-09-26 A 批：brepkitKernel 真实实现 dispose（GC 型 no-op）与
-        // copyShape（调 kernel.copySolid）——补入白名单使能力声明合法。
-        'dispose', 'copyShape',
-        // 2026-09-26 B 批：brepkitKernel.hullFromPoints 真实现（→ kernel.convexHull，
-        // brepkitKernel.ts:477）——convexHull op 降级后如实声明此方法。
-        'hullFromPoints',
-      ])
-      for (const m of L1_METHODS) {
-        if (brepkitReal.has(m as string)) continue
-        expect(declared.has(m as BrepMethodKind), `brepkit 不应声明桩方法: ${m}`).toBe(false)
+      const native = BREP_EVOLUTION_KINDS.filter((k) => hasNativeHistory(k))
+      expect([...native].sort()).toEqual(['cutWithHistory', 'filletWithHistory', 'fuseWithHistory'])
+      // 反面证据：未原生实现的一律 false（不得多报——多报＝静态放行后死在运行时，红线违规）。
+      for (const k of ['chamferWithHistory', 'mirrorWithHistory', 'shellWithHistory'] as const) {
+        expect(hasNativeHistory(k), `brepkit 不应声称原生实现 ${k}`).toBe(false)
       }
     } finally {
-      __resetEngineRegistriesForTests()
-      await registerOcctBrepEngine()
-      occtApi = (await getBrepEngine()).primitives
+      configureBackends(backendsFor('brep', 'occt'))
     }
   })
 })

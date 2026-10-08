@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   npm run verify-translation-pairing --write docs/api-contract.md
-api-contract.md: b6cc8025134af36f0c88c0441cf7a05c08619024
-api-contract.zh.md: 7c2ab63dde8cf987b46a1e8518960644166d4580
+api-contract.md: ae559bd05d6542eccbdd8c55f2dab7fce05b3642
+api-contract.zh.md: 5a4bea101509a9ec9ad6517d9f92cba6df28db45

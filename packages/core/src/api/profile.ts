@@ -356,7 +356,6 @@ function blueprintArea(entry: Blueprint | CompoundBlueprint): number {
  * const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }], as: 'wire' })
  */
 export const profile = defineOp({
-  capabilities: ['directEdit'],
   brep(params: Record<string, unknown>) {
     assertProfileParams(params)
     return buildProfileShape(params as unknown as ProfileParams)

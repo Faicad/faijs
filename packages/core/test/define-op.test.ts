@@ -6,7 +6,7 @@
  * - ② construction-time validation (at least one implementation)
  * - dispatchPath bidirectional matrix (mode × implementation set × chain state)
  * - ④ defineOp integration: mode selects the implementation automatically
- * - capability routing (D5)
+ * - engine routing (D11)
  * - auto-collection of geometry inputs (args.filter(isGeometryInput)) and
  *   automatic product wrapping (solid / fromHandle / fromBrep)
  * - multi-product outputs (scheme C, split shape)
@@ -43,12 +43,11 @@ function cubeMesh(size: number): Shape {
 
 function makeBackends(
   mode: 'auto' | 'brep' | 'mesh',
-  caps?: { evolution?: readonly string[] },
   kernelBrep?: unknown,
 ): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
-    config: { mode, brepCapabilities: caps },
+    config: { mode },
     kernel: { brep: kernelBrep ?? null, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,
@@ -110,21 +109,17 @@ describe('dispatchPath: bidirectional matrix (mode × impls × chain state)', ()
     expect(() => dispatchPath([offChain], { brep: noop })).toThrow(MeshUnsupportedError)
   })
 
-  it('capability routing (D5): missing capability degrades in auto, errors in brep, brep-only has no mesh to fall back to', () => {
-    // Phase 0.2：能力名是**具体**核函数名（'cut'），不再是族级 'evolution'。
-    configureBackends(makeBackends('auto', {}))
-    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, 'cut')).toBe('mesh')
-    expect(() => dispatchPath([onChain], { brep: noop }, 'cut')).toThrow(MeshUnsupportedError)
-    configureBackends(makeBackends('brep', {}))
-    expect(() => dispatchPath([onChain], { mesh: noop, brep: noop }, 'cut')).toThrow(BrepUnsupportedError)
-    configureBackends(makeBackends('auto', { evolution: ['cut'] }))
-    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, 'cut')).toBe('brep')
-    // 引擎只声明了一部分核函数 → 未声明的那一个照样静态拒绝（族级布尔会漏掉这条）。
-    // 这里必须用 brep 模式：auto 模式下缺能力且**有** mesh 实现 → 静态降级走 mesh（不抛）。
-    configureBackends(makeBackends('brep', { evolution: ['cut'] }))
-    expect(() => dispatchPath([onChain], { mesh: noop, brep: noop }, 'fuse')).toThrow(BrepUnsupportedError)
-    configureBackends(makeBackends('auto', { evolution: ['cut'] }))
-    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, 'fuse')).toBe('mesh')
+  it('engine routing (D11): non-whitelisted engine degrades in auto, errors in brep, brep-only has no mesh to fall back to', () => {
+    // 唯一的收窄轴是引擎身份（能力声明轴已于 2026-10-08 删除）。makeBackends 的 config
+    // 只给 mode（brepEngineId 缺省）⇒ 白名单 ['occt'] 必然不匹配。
+    configureBackends(makeBackends('auto'))
+    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, ['occt'])).toBe('mesh')
+    expect(() => dispatchPath([onChain], { brep: noop }, ['occt'])).toThrow(MeshUnsupportedError)
+    configureBackends(makeBackends('brep'))
+    expect(() => dispatchPath([onChain], { mesh: noop, brep: noop }, ['occt'])).toThrow(BrepUnsupportedError)
+    // 白名单缺省 / 空 = 中立 op（D11）→ 引擎门不参与
+    expect(dispatchPath([onChain], { mesh: noop, brep: noop })).toBe('brep')
+    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, [])).toBe('brep')
   })
 })
 
@@ -163,7 +158,7 @@ describe('defineOp: mode auto-selects the implementation (④)', () => {
 
   it('raw brep product (bare handle) → fromHandle: tessellated + BREP slot registered', async () => {
     const fakeKernel = { meshShape: () => ({ positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }) }
-    configureBackends(makeBackends('auto', undefined, fakeKernel))
+    configureBackends(makeBackends('auto', fakeKernel))
     const op = defineOp({ mesh: () => cubeMesh(10), brep: () => 42 as unknown as BrepHandle, naming: TEST_NAMING })
     const result = await op()
     expect(isShape(result)).toBe(true)
@@ -214,7 +209,7 @@ describe('defineOp: mode auto-selects the implementation (④)', () => {
 describe('defineOp: multi-product outputs (scheme C)', () => {
   it('brep path wraps each named key via fromHandle; mesh path wraps each via solid', async () => {
     const fakeKernel = { meshShape: () => ({ positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }) }
-    configureBackends(makeBackends('auto', undefined, fakeKernel))
+    configureBackends(makeBackends('auto', fakeKernel))
     const op = defineOp({
       mesh: (_input: Shape) => ({ front: cubeMesh(5), back: cubeMesh(3) }),
       brep: (_input: Shape) => ({ front: 11 as unknown as BrepHandle, back: 12 as unknown as BrepHandle }),
@@ -248,10 +243,10 @@ describe('assertLibConforms: strict assembly validation (③)', () => {
 
   it('structural validation: dual-op with no valid implementation / non-function members throws', () => {
     const badMesh = Object.assign(() => cubeMesh(10), {
-      [DUAL_OP_META]: { kind: 'dual-op', mesh: 42, brep: undefined, capabilities: undefined, outputs: undefined },
+      [DUAL_OP_META]: { kind: 'dual-op', mesh: 42, brep: undefined, outputs: undefined },
     })
     const badBrep = Object.assign(() => cubeMesh(10), {
-      [DUAL_OP_META]: { kind: 'dual-op', mesh: () => cubeMesh(10), brep: 'nope', capabilities: undefined, outputs: undefined },
+      [DUAL_OP_META]: { kind: 'dual-op', mesh: () => cubeMesh(10), brep: 'nope', outputs: undefined },
     })
     expect(() => assertLibConforms({ badMesh, contractVersion: CONTRACT_VERSION })).toThrow(/any implementation/)
     expect(() => assertLibConforms({ badBrep, contractVersion: CONTRACT_VERSION })).toThrow(/brep/)
@@ -262,14 +257,10 @@ describe('assertLibConforms: strict assembly validation (③)', () => {
     expect(() => assertLibConforms({ brepOnly, contractVersion: CONTRACT_VERSION })).not.toThrow()
   })
 
-  it('invalid capabilities / outputs declarations throw', () => {
-    const badCaps = Object.assign(() => cubeMesh(10), {
-      [DUAL_OP_META]: { kind: 'dual-op', mesh: () => cubeMesh(10), brep: undefined, capabilities: 'evolution', outputs: undefined },
-    })
+  it('invalid outputs declarations throw', () => {
     const badOutputs = Object.assign(() => cubeMesh(10), {
-      [DUAL_OP_META]: { kind: 'dual-op', mesh: () => cubeMesh(10), brep: undefined, capabilities: undefined, outputs: [1, 2] },
+      [DUAL_OP_META]: { kind: 'dual-op', mesh: () => cubeMesh(10), brep: undefined, outputs: [1, 2] },
     })
-    expect(() => assertLibConforms({ badCaps, contractVersion: CONTRACT_VERSION })).toThrow(/capabilities/)
     expect(() => assertLibConforms({ badOutputs, contractVersion: CONTRACT_VERSION })).toThrow(/outputs/)
   })
 
@@ -303,7 +294,7 @@ describe('defineOp: brep data-product passthrough (wrapBrepOne)', () => {
         throw new Error('must not tessellate a data record')
       },
     }
-    configureBackends(makeBackends('auto', undefined, throwingKernel))
+    configureBackends(makeBackends('auto', throwingKernel))
     const record = { partId: 7, bends: [1, 2, 3], name: 'sheet-part' }
     const op = defineOp({ brep: () => record as unknown as Shape, naming: TEST_NAMING })
     const result = await op()
@@ -314,7 +305,7 @@ describe('defineOp: brep data-product passthrough (wrapBrepOne)', () => {
 
   it('__occtWasm-tagged handle object still tessellates via fromHandle (discriminant leaf)', async () => {
     const fakeKernel = { meshShape: () => ({ positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }) }
-    configureBackends(makeBackends('auto', undefined, fakeKernel))
+    configureBackends(makeBackends('auto', fakeKernel))
     const handleObj = { __occtWasm: true, type: 'solid', id: 42 }
     const op = defineOp({ brep: () => handleObj as unknown as Shape, naming: TEST_NAMING })
     const result = await op()

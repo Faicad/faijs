@@ -24,6 +24,10 @@
  *                   原生切件（任意 tool 形状分件），brepkit L1 只有 splitByPlane
  *                   （单平面→2 实体），无法处理任意 tool。brepkit 上静态报 requires engine occt。
  *
+ * 2026-10-08 更新（capabilities 声明轴删除）：上表「→ capabilities:[...]」的降级结果现在
+ * 表达为「删除该声明，op 变中立」——brepkit 判决不变（这些名字 brepkit 原生都有）。
+ * 等价性由 `test/brep/engine/engine-verdict-equivalence.test.ts` 逐 op 钉住。
+ *
  * 本测试钉住：
  *   (a) 可降级 5 个 op 在 brepkit 三版本上几何有效（不报错，bbox/volume 合理）；
  *   (b) occt 上这些 op 不回退（几何正确）；
@@ -123,8 +127,8 @@ describe('brepkit-batchC-fix（section/drill/pocket/boss/mirrorJoin 降级 + spl
     'section：所有引擎上成功，bbox≈[20,10,0]（语义差异：face vs edge/wire）',
     async () => {
       // NOTE: 生成 compat `section`(topology.ts#sectionBrep) 未挂进 cad 命名空间——用户面是
-      // 手写中立 op `cad.sectionByPlane`（同一 L1 sectionByPlane+makeCompound 路径，本批已把
-      // sectionBrep 的 engines:[occt] 改为 capabilities 并移除 getOcctKernel().IsNull 耦合）。
+      // 手写中立 op `cad.sectionByPlane`（同一 L1 sectionByPlane+makeCompound 路径，本批已移除
+      // sectionBrep 的 engines:[occt] 收窄并移除 getOcctKernel().IsNull 耦合）。
       // 这里通过 cad.sectionByPlane 验证 brepkit 的 L1 sectionByPlane+makeCompound 链路几何有效。
       const code = [
         'const b = cad.box(20, 10, 5, { centered: true })',

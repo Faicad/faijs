@@ -189,7 +189,7 @@ describe('S4 曲线草图族 — NURBS 精修（TS 直连，输入为 B 样条�
     const brep = await getBrepEngine()
     configureBackends({
       contractVersion: CONTRACT_VERSION,
-      config: { mode: 'auto', brepCapabilities: brep.capabilities, brepEngineId: 'occt' },
+      config: { mode: 'auto', brepEngineId: 'occt' },
       kernel: { brep: brep.primitives, csg: undefined, sdf: undefined },
       fonts: undefined,
       texture: undefined,
@@ -249,7 +249,7 @@ describe('S4 曲线草图族 — TS 级直连（L1 覆盖门禁 + vertex 入参�
     const brep = await getBrepEngine()
     configureBackends({
       contractVersion: CONTRACT_VERSION,
-      config: { mode: 'auto', brepCapabilities: brep.capabilities, brepEngineId: 'occt' },
+      config: { mode: 'auto', brepEngineId: 'occt' },
       kernel: { brep: brep.primitives, csg: undefined, sdf: undefined },
       fonts: undefined,
       texture: undefined,

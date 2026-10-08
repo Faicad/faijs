@@ -3,8 +3,8 @@
  * op, built **on top of** defineOp (single implementation entry, v1).
  *
  * compatOp is NOT a second implementation path parallel to defineOp: every
- * shared mechanism is owned by defineOp — dispatch (dispatchPath + capability
- * routing), the Result boundary (runImpl + unwrapResult), product wrapping
+ * shared mechanism is owned by defineOp — dispatch (dispatchPath), the Result
+ * boundary (runImpl + unwrapResult), product wrapping
  * (wrapBrepOne / wrapByKeys), `DUAL_OP_META` mounting and
  * `assertLibConforms` validation. compatOp only does two things:
  *   - spec pass-through: `CompatSpec` is a combinatorial inheritance of
@@ -24,7 +24,7 @@
  * rewrites it — any function running inside a DirectExecutor context can use
  * function-body declarations (C1), and call-site declarations override them
  * (`lang/keep.ts` resolveKeep). The decorated product therefore behaves like
- * any defineOp product: `keep`-safe, capability-aware, multi-output
+ * any defineOp product: `keep`-safe, engine-aware, multi-output
  * (`DUAL_OP_META.outputs` visible).
  *
  * No self-invented fields: `CompatSpec` extends `Omit<DualOpOptions, 'mesh' |
@@ -151,13 +151,13 @@ type MetaCarrier = { [DUAL_OP_META]?: DualOpMeta }
  * Lift a brepjs-shaped function into a defineOp-decorated op facade (brep-only).
  *
  * The decorated product is identical to a defineOp product: same `DUAL_OP_META`
- * field set (kind 'dual-op', brep impl, name, capabilities, outputs, schema,
- * slotMap), same dispatch semantics, same Result boundary. The adapter carries
+ * field set (kind 'dual-op', brep impl, name, outputs, schema, slotMap), same
+ * dispatch semantics, same Result boundary. The adapter carries
  * only the brepjs bridging (input pass-through / call / adopt); every other mechanism
  * belongs to defineOp.
  *
  * @param fn   the brepjs-shaped function.
- * @param spec the static spec (name required; capabilities/outputs/slotMap/
+ * @param spec the static spec (name required; engines/outputs/slotMap/
  *  schema pass through and take effect).
  * @returns the compat op facade, carrying dual-op metadata.
  */
@@ -165,16 +165,14 @@ export function compatOp(
   fn: (...args: unknown[]) => unknown,
   spec: CompatSpec,
 ): ((...args: unknown[]) => Promise<Shape>) & MetaCarrier {
-  const { outputs, capabilities, engines, schema, slotMap, naming } = spec
+  const { outputs, engines, schema, slotMap, naming } = spec
   // `outputs` flows through defineOp's own wrapping path: the adapter adopts
   // per declared field, then defineOp wraps — isShape passthrough, so no
   // double wrapping (§3.2).
   return defineOp({
     brep: buildAdapter(fn, spec),
     name: spec.name,
-    capabilities,
     // D11 透传：平台 op（compat 实现调 occt-only 方法）在生成物里声明 engines。
-    // engines 与 capabilities 可并存（2026-09-24 撤销 D11-7 互斥），此处两条独立透传。
     engines,
     outputs,
     schema,

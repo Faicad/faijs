@@ -257,7 +257,6 @@ export function buildPunchHole(kernel: BrepEngineApi, params: PunchHoleParams): 
  * @param params.scaleMode - UV mapping: 'original' | 'bounds' | 'native'.type:string required:false
  */
 export const punchHole = defineOp({
-  capabilities: ['directEdit'],
   engines: ['occt'],
   brep(params: Record<string, unknown>) {
     assertProfileParams(params)

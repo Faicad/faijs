@@ -32,7 +32,7 @@ async function setBackend(mode: 'mesh' | 'brep'): Promise<void> {
   const kernel = (await getBrepEngine()).primitives
   configureBackends({
     contractVersion: CONTRACT_VERSION,
-    config: { mode, brepCapabilities: undefined },
+    config: { mode },
     kernel: { brep: kernel, csg: undefined, sdf: undefined },
     fonts: undefined, texture: undefined, assets: undefined,
     events: { emit: () => undefined },

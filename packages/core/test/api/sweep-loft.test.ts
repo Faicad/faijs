@@ -10,7 +10,8 @@
  * 4. complexExtrude / twistExtrude / roof 上脚本面可达；
  * 5. 平台 op 平台身份：brepkit（非目标引擎）下**执行前**报 E_BREP_UNSUPPORTED（D11-4）；
  * 6. 平台 op 在 brep_mock 下不被引擎判定拦截（D11-3 豁免）；
- * 7. roof 是中立 op（capabilities 路由，非 engines）——brep_mock 下同样不被平台判定拦截。
+ * 7. roof 是平台 op（`engines:['occt']`；2026-10-08 前靠 `capabilities` 门控，判决不变）
+ *    —— brep_mock 下受 D11-3 豁免，仍不被引擎门拦截。
  *
  * S3 增补（方案 §3.4.3）：`sweep` 扩 sweepFull 完整控制面（law / orientation /
  * transition / tolerance），旧路径行为不变 + 冲突与入参校验，见文件尾部独立 describe。
@@ -19,11 +20,10 @@
  * 的 `normal` 同时是**挤出向量**（`extrusionLength = vecLength(normal)`），不是单位方向；
  * 传 `[0,0,30]` 即沿 +Z 拉伸 30mm。`center` 是脊柱起点。`shellMode` 不暴露（元组产物）。
  *
- * GOTCHA-2（Phase 4 实测，D11-4 用例的输入选择）：brepkit 的能力表**没有 `makeWire`**
- * （`brep/engine/adapters/brepkit.ts` 声明 `makeLineEdge` 但无 `makeWire`），所以
- * `cad.wire` 在 brepkit 下会先挂 —— 用 wire 作输入会让失败点落在 `wire` 而不是被测 op。
+ * GOTCHA-2（Phase 4 实测，D11-4 用例的输入选择）：brepkit 侧 `cad.wire` 会先挂 ——
+ * 用 wire 作输入会让失败点落在 `wire` 而不是被测 op。
  * 引擎门用例只需输入**能在 brepkit 上构造**（该用例只验引擎身份判定，不验几何），
- * 故用 `cad.cylinder`（brepkit 声明了 `makeCylinder`）而非 wire。
+ * 故用 `cad.cylinder`（brepkit 实现面可用）而非 wire。
  *
  * GOTCHA-3（Phase 4 实测，报错文案）：defineOp 声明了 `name` 时引擎门文案是
  * `E_BREP_UNSUPPORTED: op '<name>' requires engine occt (current=<engine>)`；
@@ -143,8 +143,8 @@ function squareSketch(half: number): string {
 }
 
 /**
- * 引擎门控用例的「可构造输入」：cylinder 是中立 dual op（无 capabilities/engines），
- * brepkit 声明了 makeCylinder ⇒ 两个 cylinder 必然能在 brepkit 上造出来，
+ * 引擎门控用例的「可构造输入」：cylinder 是中立 dual op（无 engines 声明），
+ * brepkit 实现面可用 ⇒ 两个 cylinder 必然能在 brepkit 上造出来，
  * 从而保证失败点落在被测 op 上（见文件头 GOTCHA-2）。
  */
 const NEUTRAL_INPUTS = 'let part0 = cad.cylinder(4, 20)\nlet part1 = cad.cylinder(2, 10)\n'
@@ -293,7 +293,7 @@ describe('complexExtrude / twistExtrude — 脚本面可达（平台 op engines:
   })
 })
 
-describe('roof — 中立 op（capabilities 路由，非 engines）', () => {
+describe('roof — 平台 op（engines:["occt"]）', () => {
   it('occt 引擎：平面闭合 wire（≥3 边）→ 可达，产出实体', async () => {
     await useOcct()
     const code = `let part0 = ${closedWire(5)}\nlet part1 = cad.roof(part0)\n`
@@ -304,10 +304,13 @@ describe('roof — 中立 op（capabilities 路由，非 engines）', () => {
     expect(bbox.zmax).toBeGreaterThan(0)
   })
 
-  it('brep_mock 引擎：中立 op 不做平台身份拦截（无 engines 声明）', async () => {
+  it('brep_mock 引擎：D11-3 豁免——替身不被引擎门拦截（2026-10-08 前由能力门拦截，现两条门都不拦）', async () => {
     await useBrepMock()
     const result = await exec('brep', 'let part0 = cad.cylinder(4, 20)\nlet part1 = cad.roof(part0)\n')
-    expect(JSON.stringify(result.failedAt ?? {})).not.toMatch(/requires engine occt/)
+    const msg = JSON.stringify(result.failedAt ?? {})
+    expect(msg).not.toMatch(/requires engine occt/)
+    // 能力声明轴已删除 ⇒ 不可能再出现能力门文案（反面证据）。
+    expect(msg).not.toMatch(/lacks capability/)
   })
 })
 

@@ -126,10 +126,8 @@ function draftBrep(input: Shape, params: DraftParams): Shape {
  * const d = await cad.draft(part0, { faces: [cad.faceRef(part0, 3)], angleDeg: 3 })
  */
 export const draft = defineOp({
-  capabilities: ['directEdit'],
   // 实证收窄（2026-09-24）：brepkit 的 L1 draft 产出错误几何（破坏对称性 / 静默无操作），
-  // 声明 occt 白名单让静态门在执行前拒绝 —— 与 capabilities 并存合法（两条正交轴，
-  // engines 先判、能力门在引擎匹配后再求交）。
+  // 声明 occt 白名单让静态门在执行前拒绝（引擎身份是 op 侧唯一的收窄轴）。
   engines: ['occt'],
   brep(input: Shape, params: DraftParams) {
     return draftBrep(input, params)

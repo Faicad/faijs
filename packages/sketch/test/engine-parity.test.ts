@@ -328,10 +328,10 @@ describe('brepkit measurement traps', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Static capability declarations — what a static gate can and cannot see.
+// Which pipeline methods an engine really provides — measured, not declared.
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('static capability declaration: occt vs brepkit', () => {
+describe('pipeline kernel methods: occt vs brepkit', () => {
   /** Kernel methods the sketch/face pipeline actually calls. */
   const REQUIRED = [
     'makeLineEdge',
@@ -344,37 +344,73 @@ describe('static capability declaration: occt vs brepkit', () => {
     'makeCompound',
   ] as const
 
-  async function declaredMethods(register: () => Promise<void>): Promise<Set<string>> {
-    __resetEngineRegistriesForTests()
-    await register()
-    const engine = await getBrepEngine()
-    return new Set<string>([
-      ...(engine.capabilities?.methods ?? []),
-      ...(engine.capabilities?.evolution ?? []),
+  /**
+   * 2026-10-08：`BrepEngine.capabilities`（`methods` / `evolution` 逐名声明）随
+   * `capabilities` 声明轴整体删除。同一事实的来源改为**实现本身**——适配器对未实现的
+   * 成员摆桩，桩一调用就抛 `unsupported` / `not implemented`。所以这里把管线需要的核
+   * 方法逐个真跑一遍：「名单里有名字」换成「真的能用」。这比旧断言更强：名字只证明
+   * 存在，证明不了名字背后的几何正确（见本文件顶部 circumcircle 缺陷记录）。
+   *
+   * @param register - engine adapter registration to exercise.
+   * @returns `failures`（方法名 + 错误消息；空 = 全部可用）与 `covered`（实际跑过的方法名）。
+   */
+  async function unavailableMethods(
+    register: () => Promise<void>,
+  ): Promise<{ failures: string[]; covered: string[] }> {
+    const k = await useEngine(register)
+    const failures: string[] = []
+    const probe = (name: string, run: () => unknown): void => {
+      try {
+        run()
+      } catch (e) {
+        failures.push(`${name}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    const square = (): ReturnType<BrepEngineApi['makeWire']> => k.makeWire([
+      k.makeLineEdge({ x: 0, y: 0, z: 0 }, { x: 40, y: 0, z: 0 }),
+      k.makeLineEdge({ x: 40, y: 0, z: 0 }, { x: 40, y: 30, z: 0 }),
+      k.makeLineEdge({ x: 40, y: 30, z: 0 }, { x: 0, y: 30, z: 0 }),
+      k.makeLineEdge({ x: 0, y: 30, z: 0 }, { x: 0, y: 0, z: 0 }),
     ])
+    const cases: readonly (readonly [string, () => unknown])[] = [
+      ['makeLineEdge', () => k.makeLineEdge(at(0), at(Math.PI / 2))],
+      ['makeArcEdge', () => k.makeArcEdge(at(0), at(Math.PI / 4), at(Math.PI / 2))],
+      ['makeCircleEdge', () => k.makeCircleEdge({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, R)],
+      ['makeBezierEdge', () => k.makeBezierEdge([at(0), at(Math.PI / 4), at(Math.PI / 2)])],
+      ['makeWire', square],
+      ['makeFace', () => k.makeFace(square())],
+      ['addHolesInFace', () => {
+        const hole = k.makeWire([
+          k.makeLineEdge({ x: 5, y: 5, z: 0 }, { x: 10, y: 5, z: 0 }),
+          k.makeLineEdge({ x: 10, y: 5, z: 0 }, { x: 10, y: 10, z: 0 }),
+          k.makeLineEdge({ x: 10, y: 10, z: 0 }, { x: 5, y: 10, z: 0 }),
+          k.makeLineEdge({ x: 5, y: 10, z: 0 }, { x: 5, y: 5, z: 0 }),
+        ])
+        return k.addHolesInFace(k.makeFace(square()), [hole])
+      }],
+      ['makeCompound', () => k.makeCompound([k.makeLineEdge(at(0), at(Math.PI / 2))])],
+    ]
+    for (const [name, run] of cases) probe(name, run)
+    return { failures, covered: cases.map(([name]) => name) }
   }
 
-  it('occt declares every kernel method the pipeline needs', async () => {
-    const declared = await declaredMethods(registerOcctBrepEngine)
-    // `makeWire` / `makeCircleEdge` were added to the `BrepMethodKind` union
-    // (2026-09-30) so both are now declarable and gateable; before that the union
-    // had no member for either, so no adapter could declare them and no op could
-    // gate on them — a structural hole in the capability system.
-    expect(REQUIRED.filter((m) => !declared.has(m))).toEqual([])
+  it('occt: every kernel method the pipeline needs really runs (no stub)', async () => {
+    const { failures, covered } = await unavailableMethods(registerOcctBrepEngine)
+    expect([...covered].sort()).toEqual([...REQUIRED].sort())
+    expect(failures).toEqual([])
   }, 120000)
 
-  it('brepkit declares every kernel method the pipeline needs', async () => {
-    const declared = await declaredMethods(registerBrepkitBrepEngine)
-    // makeArcEdge / makeBezierEdge / makeCircleEdge / makeWire were declared
-    // after the circumcircle fix proved them geometrically correct.
-    expect(REQUIRED.filter((m) => !declared.has(m))).toEqual([])
+  it('brepkit: every kernel method the pipeline needs really runs (no stub)', async () => {
+    const { failures, covered } = await unavailableMethods(registerBrepkitBrepEngine)
+    expect([...covered].sort()).toEqual([...REQUIRED].sort())
+    expect(failures).toEqual([])
   }, 120000)
 
-  it('the declared arc is now geometrically correct — a name says PRESENCE, not CORRECTNESS', async () => {
+  it('the arc is geometrically correct — "it runs" says nothing about WHERE the centre is', async () => {
     // The engines:['occt'] gate that used to protect cad.sketch was removed only
     // because the implementation behind the name was proven correct. A
-    // correctness-blind capability gate would have passed while the centre was
-    // wrong, so this test pins the geometry itself, not just the declaration.
+    // presence-only probe (declared name, or a call that merely returns) would
+    // pass while the centre was wrong, so this test pins the geometry itself.
     const brepkit = await useEngine(registerBrepkitBrepEngine)
 
     expect(brepkit.curveLength(brepkit.makeArcEdge(at(0), at(Math.PI / 4), at(Math.PI / 2))))

@@ -89,7 +89,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 - **R-4 命名与终端语义由引擎统一。** `partN` 分配、DAG 叶子判定、消费合法性校验全部封装在引擎内，宿主不重复实现。
 - **R-5 坐标空间**：毫米（mm）、+Z 向上、角度用度。所有 `cad.*` 输入／输出均为世界空间 `Shape`。
 - **R-6 BREP 链是逐 part 的。** 一个 part 是否仍为 BREP，由 `solidCache` 中是否有它的句柄唯一决定；不存在全局标志，兄弟 part 互不污染。
-- **R-7 静态分派，禁止运行时回退。** BREP 路径执行抛异常 = bug，直接报错暴露，绝不 try-catch 后改走 mesh；能力缺失按静态规则降级或明确报错，**绝不伪造 API**。
+- **R-7 静态分派，禁止运行时回退。** BREP 路径执行抛异常 = bug，直接报错暴露，绝不 try-catch 后改走 mesh；引擎不能服务该 op 时按静态规则拒绝或明确报错，**绝不伪造 API**。
 - **R-8 keep 是 faijs 与 UI 的唯一耦合点。** faijs 不定义 feature／UI 表单／图标／编辑面板——它们属于上层应用（3d_editor）。
 - **R-9 op 与特征（feature）的术语约定。** 用户原话（逐字）："关于op的定义，在faijs里就是返回几何实体的操作。而在上层应用如3d_editor中，op默认指任何操作，或者说任何函数调用，而特征则对应到通用CAD术语，可以通过1个到多个op/函数调用实现。"——因此：**faijs 层**，op = 返回几何实体（`Shape`／`CompoundShape`）的操作；**宿主层（3d_editor）**，op = 任何操作／任何函数调用，特征（feature）= 通用 CAD 术语，由 1 到多个 op／函数调用实现。引擎不按函数名特判（K5，§1.2）只认识"返回几何实体的库函数调用"这一均匀概念；特征的语义与 UI 表单／图标／编辑面板一样属于上层应用（见 R-8）。
 
@@ -246,7 +246,7 @@ createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, LibN
 export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 ```
 
-- `auto`（默认）：优先 BREP；mesh-only op、输入断链或能力缺失 → 静态走 mesh。
+- `auto`（默认）：优先 BREP；mesh-only op、输入断链、或 op 未点名当前引擎 → 静态走 mesh。
 - `brep`：强制 BREP，不支持即报错（`BrepUnsupportedError` → `failedAt`），**不自动切换**。
 - `mesh`：全部走 mesh 路径。
 
@@ -322,7 +322,7 @@ configureBackends(backends: Backends): void   // called once at host startup
 getBackends(): Backends                       // throws when unconfigured; no silent default
 export interface Backends {
   readonly contractVersion: number
-  readonly config: { mode; brepEngineId?; brepCapabilities?; partTransform? }
+  readonly config: { mode; brepEngineId?; partTransform? }
   readonly kernel: { readonly brep: unknown | null; readonly csg?; readonly sdf? }
   readonly fonts; texture; assets; events
   readonly cad?: LibNamespace
@@ -379,17 +379,13 @@ unwrap<T>(r: Result<T>): T   // throws if Err
 
 以 `runtime.registerLib(binding, ns, { compat: true })` 注册的库命名空间被接纳进语句面：已经 `defineOp` 声明的函数按其 spec 原样透传；裸库函数被提升为 faijs op，`fn.outputs` 是裸函数上唯一被识别的多产物标注（映射到 op 的 `outputs` spec）。提升机制是引擎内部实现（`api/internal/compat-op.ts`）；库作者只需要 `docs/library-dev-guide.md` 里的行为契约。
 
-### 7.9 BREP 引擎可切换性与能力声明
+### 7.9 BREP 引擎可切换性与 `engines` 声明
 
-BREP 引擎在**装配期**切换（非运行时）：宿主经 `registerBrepEngine` 注册唯一默认引擎（§8.2），此后注册表只读。每个引擎暴露 `BrepEngineApi` 原语与 `capabilities` 声明；**静态判定，禁止运行时回退**——op 在当前引擎上能否执行，由能力表在执行前静态决定，绝不 try-catch 探测。
+BREP 引擎在**装配期**切换（非运行时）：宿主经 `registerBrepEngine` 注册唯一默认引擎（§8.2），此后注册表只读。每个引擎只暴露 `BrepEngineApi` 原语，别无他物；**静态判定，禁止运行时回退**——op 在当前引擎上能否执行，由 op 的 `engines` 声明对当前引擎身份在执行前静态决定，绝不 try-catch 探测。
 
-**能力名三层结构**（别名如 `'mirror'` 无法同时表达"提供 `mirrorWithHistory`"与"提供 `mirror`"，两族必须分名）：
+**`engines` 是唯一的收窄轴。** 实现里静态 import `occt-kernel/*` 或 `brepkit-kernel/*` 的 op 是平台 op，必须声明它为哪些引擎而写；中立 op（无 `engines`）只按 L1 写，在所有引擎上都可用。规则见 §7.11。
 
-- **族级布尔**（`heal`、`directEdit`、`advSurface`、`assembly`、`meshLift`）——遗留槽位，会多报能力（内核可能只实现该族一部分）；以下具体名层才是权威；
-- **`BrepEvolutionKind`**——引擎实际提供的 `*WithHistory` 核函数真名（如 `['fuse','cut','fillet']`）；
-- **`BrepMethodKind`**——引擎实际提供的非演化内核方法真名（如 `['fuse','cut','linearPattern','chamfer']`）。
-
-每个库 op 声明自己需要的具体名（`capabilities: ['cut']`）；分派层在执行前与引擎的 `methods` / `evolution` 名单求交（§8.1 判定顺序）。缺失能力**静态降级**（auto 模式且有 mesh 实现）或**执行前报错**（brep 模式抛 `BrepUnsupportedError`；无 mesh 实现抛 `MeshUnsupportedError`）。能力**绝不伪造**：引擎只声明自己能实际执行的能力（brepkit 不声明 `chamfer`，因其 wasm 无 chamfer 内核；以 capability-map 派生的登记为准，见 §7.10）。
+**内核能做什么由代码写死，不由元数据声明。** 没有能力表、没有 op 侧能力清单、也没有分派层要查的东西：引擎适配器本身就是事实。op 实现体唯一需要问引擎事实的地方是 `brep/engine/native-history.ts`——它的 `hasNativeHistory(kind)` 只回答一个问题「当前引擎原生实现这个 `*WithHistory` 核函数吗」，且只依据引擎身份回答（`occt`：全部十二个；`brepkit`：`fuseWithHistory` / `cutWithHistory` / `filletWithHistory`；`brep_mock` 与未知 id：一个都没有）。op 实现体据此静态分轨（例如 `booleanBrep` 在内核提供时走权威面演化轨，否则走 L1 裸调用）。它**刻意不**写成 `typeof kernel.X === 'function'`：所有适配器在整个面上都摆了桩，函数存在什么都证明不了。
 
 ### 7.10 compat op 内核获取
 
@@ -408,17 +404,17 @@ compat op（原 brepjs 投影的第一方 `brep-operations` 重实现）经共�
 
 - **L1——中立契约面 `BrepEngineApi`**：双方适配器都真实现的方法；方言差异由适配器消化。可移植代码（引擎无关 op、cad 脚本面、第三方库）只能经 `getBrepApi()` 调 L1。
 - **L2——平台原生面**：`OcctKernel` / `BrepKitKernel` 实例本身，原样类型、零归一。只有平台特定代码触碰它——适配器文件，或标注 `@platform occt` / `@platform brepkit` 的 op 实现文件。
-- **L3——能力声明面**：`BrepCapabilities.methods` / `evolution` 逐名声明（§7.9）+ `defineOp` 上的 `engines` 平台身份字段。
+- **L3——声明面**：`defineOp` 上的 `engines` 平台身份字段。L3 只有这一件东西：没有能力声明与它并列（§7.9）。
 
 **什么是平台 op？** 实现**静态 import 了** `occt-kernel/*` 或 `brepkit-kernel/*` 的 op——import 是唯一判据。平台 op 必须在 `defineOp` 里声明 `engines: ['occt']`（和/或 `'brepkit'`）（D11）。规则：
 
-1. **`engines` 先于 `capabilities`**——引擎身份判定在 `dispatchPath` 中最先执行（D11-2）；对一个没打算跑的引擎谈能力没有意义。
-2. **`engines` 与 `capabilities` 可以并存**——`engines` 是引擎白名单，`capabilities` 是实现所需的内核能力清单。判定次序 `engines` 在先（规则 1），能力门随后对同一引擎继续求交，故声明了目标引擎所缺的能力仍会静态失败。原 D11-7 互斥已于 2026-09-24 撤销。
+1. **`engines` 最先判定**——引擎身份判定在 `dispatchPath` 中最先执行，先于 mode、链状态与其它一切（D11-2）；对一个没打算跑的引擎谈其余都是空话。
+2. **`engines` 是唯一收窄轴**——不允许第二条声明再收窄可执行性。op 要么是平台 op（点名自己的引擎），要么是中立 op（无 `engines`，只用 L1）。内核实际能不能做这件事由代码定（适配器，以及 `*WithHistory` 这个问题由 `native-history.ts` 回答），绝不由分派层在运行时求交某张声明表。
 3. **执行前拦截**——非目标引擎下：brep 模式抛 `BrepUnsupportedError`；auto 模式静态降级 mesh（无 mesh 实现 → `MeshUnsupportedError`）。`mode='mesh'` 豁免（D11-6）：宿主强制 mesh 时不会因平台身份报错。
-4. **`brep_mock` 豁免**（D11-3）：mock 是测试替身，capabilities 故意全给；真实引擎的身份校验由 parity / engine-switch 测试覆盖。
+4. **`brep_mock` 豁免**（D11-3）：mock 是测试替身，故意放行引擎身份判定，好让编排链路（naming、`Result` 边界、多输出）可测；真实引擎的身份校验由 parity / engine-switch 测试覆盖。
 5. 脚本面可以同样声明地暴露平台 op——不支持的引擎在语句边界失败（`ExecutionResult.failedAt`，Q11）。
 
-**脚本面新增（2026-09-24 能力扩展）**：1D 曲线族（`wire`、`helix`、`sketch` 的 `as:'wire'`）与扫掠/放样族（`sweep`、`loft`、`complexExtrude`、`twistExtrude`、`roof`）已按上述规则进入 cad 面——`sweep`/`loft`/`helix` 声明 `engines: ['occt']`，`roof` 是中立 op（capability 路由），剖切族 `splitByPlane`（具名 `positive`/`negative` 产物）与 `sectionByPlane`（1D 截面曲线）是中立 L1 op。参数契约见 `docs/ops-api-inventory.md`。
+**脚本面新增（2026-09-24，`engines` 声明）**：1D 曲线族（`wire`、`helix`、`sketch` 的 `as:'wire'`）与扫掠/放样族（`sweep`、`loft`、`complexExtrude`、`twistExtrude`、`roof`）已按上述规则进入 cad 面——`sweep`/`loft`/`helix`/`thicken`/`roof` 声明 `engines: ['occt']`；`wire` / `splitByPlane`（具名 `positive`/`negative` 产物）/ `sectionByPlane`（1D 截面曲线）/ `shell` / `draft` / `filletVariable` 是中立（无 `engines`，经 `getBrepApi()` 的纯 L1 实现）。1D 产物（`wire`、`helix`、截面曲线）带 `kind:'curve'`，经 `wireframe` 渲染。参数契约见 `docs/ops-api-inventory.md`。
 
 
 ---
@@ -430,15 +426,15 @@ compat op（原 brepjs 投影的第一方 `brep-operations` 重实现）经共�
 位于 `packages/core/src/cad-runtime/backend-dispatch.ts`（**不在 SDK 公开面**——库作者经 `defineOp` 声明实现集，见 §10.3）：
 
 ```ts ignore-check
-dispatchPath(inputs: Shape[], impls: { mesh?: UnknownFn; brep?: UnknownFn }, requiredCapability?: BrepCapabilityName): 'brep' | 'mesh'
+dispatchPath(inputs: Shape[], impls: { mesh?: UnknownFn; brep?: UnknownFn }, engines?: readonly BrepEngineId[]): 'brep' | 'mesh'
 ```
 
-判定顺序（D11-2：引擎身份先于 mode 与能力判定）：
+判定顺序（D11-2：引擎身份先于 mode 与链判定）：
 
 1. `mode='mesh'` → 无 `impls.mesh` → **抛 `MeshUnsupportedError`**（`E_MESH_UNSUPPORTED`）；否则 mesh（D11-6——宿主强制 mesh 时不会因平台身份报错）。
 2. **`engines` 身份判定（D11-2）**——当前引擎非 `brep_mock`（D11-3 豁免）且不在 op 的 `engines` 列表 → brep 模式**抛 `BrepUnsupportedError`**；auto 模式降级 mesh（无 mesh 实现 → `MeshUnsupportedError`）。中立 op（无 `engines`）跳过此步。
-3. `mode='brep'` → 无 `impls.brep`、输入不全在链（`hasBrep`）、或当前引擎缺 `requiredCapability` → **抛 `BrepUnsupportedError`**。
-4. `mode='auto'` → 缺 `requiredCapability` → mesh（静态降级）；否则有 `impls.brep` 且全部输入在链 → brep，否则 mesh。
+3. `mode='brep'` → 无 `impls.brep`、输入不全在链（`hasBrep`）→ **抛 `BrepUnsupportedError`**。
+4. `mode='auto'` → 有 `impls.brep` 且全部输入在链 → brep；否则 mesh（静态降级）；无 mesh 实现可降 → `MeshUnsupportedError`。
 
 
 空输入的创建类 op 满足 `[].every(hasBrep) === true`，因此走 brep。两种不支持错误（`BrepUnsupportedError`／`MeshUnsupportedError`）都被引擎捕获为 `ExecutionResult.failedAt`，不冒泡、不静默。
@@ -453,13 +449,13 @@ registerMeshEngine(id: string, engine: MeshEngine): void
 getBrepEngine(id?): Promise<BrepEngine>     // async provider, result cached
 getMeshEngine(id?): MeshEngine
 freezeEngineRegistries(): void              // freeze after assembly; further registration throws
-export interface BrepEngine { readonly id: string; readonly primitives: BrepEngineApi; readonly capabilities?: BrepCapabilities }
+export interface BrepEngine { readonly id: string; readonly primitives: BrepEngineApi }
 export type BrepEngineProvider = () => Promise<BrepEngine>
 ```
 
 **注册只发生在宿主启动装配期，注册表运行期只读**；不提供 unregister／setDefault／运行时切换。OCCT 作为默认 BREP 引擎由适配器 `ensureOcctDefaultEngine()` 幂等装配。
 
-**能力声明**（`BrepCapabilities`，全可选）：`evolution`——本引擎**实际提供**的 `*WithHistory` 核函数名**名单**（`BrepEvolutionKind`，如 `['fuse','cut','fillet']`），**不是**族级布尔——以及 `methods`——本引擎**实际提供**的非演化内核方法名**名单**（`BrepMethodKind`，如 `['fuse','cut','linearPattern','chamfer']`）。`heal`、`directEdit`、`advSurface`、`assembly`（XCAF）、`meshLift`（mesh→BREP 提升）布尔位是遗留族级槽位，会多报能力；具体名名单才是权威（§7.9）。op 声明自己需要的**具体**名字（`capabilities: ['cut']`），与该名单求交。缺失的能力按静态规则在执行前降级或明确报错，**绝不伪造**。
+**引擎就是它的原语。** 没有可挂的声明：适配器的实现就是该引擎能力的全部陈述，`BrepEngine` 只带 `id` + `primitives`。op 实现体唯一可能要问的引擎事实——「这个引擎原生实现 `XWithHistory` 吗」——在 `brep/engine/native-history.ts`（`hasNativeHistory(kind)`，§7.9），依据引擎 id 回答，故永不可能与注册表不一致。某引擎缺什么，表现为 L1 方法背后没有真实现，而不是名单里少一项。
 
 ### 8.3 `BrepChainState`
 
@@ -467,7 +463,6 @@ export type BrepEngineProvider = () => Promise<BrepEngine>
 export interface BrepChainState {
   solidCache: Map<PartName, BrepHandle>       // present = still BREP; absent = downgraded
   kernel: BrepEngineApi | null                // null in mesh mode
-  capabilities?: BrepCapabilities             // current engine capabilities (capability routing)
   partTransform?: { position: Vec3; scale?: Vec3 }
   faceEvolutionCache?: Map<PartName, Map<number, number[]>>
   meshShapeCache?: Map<PartName, WasmMesh>    // tessellation cache (topology mesh = display mesh)
@@ -582,7 +577,7 @@ export const myOp = defineOp({
 
 - 至少声明一个实现；**mesh 为默认路径**（mesh-only／brep-only 均合法）。
 - 几何输入自动收集（`args.filter(isShape)`）；多产物函数用 `outputs: string[]` 声明（如 `split` 的 `{ front, back }`）。
-- 包装器按 mode 自动分派（内部走 `dispatchPath`，见 §8.1）；失败抛 `BrepUnsupportedError`／`MeshUnsupportedError`，由引擎转 `ExecutionResult.failedAt`。能力声明（如 `union` → `['fuse']`，与引擎 `evolution` 名单里的 `*WithHistory` 名求交）缺失时 auto 降级 mesh、brep 模式报错。
+- 包装器按 mode 自动分派（内部走 `dispatchPath`，见 §8.1）；失败抛 `BrepUnsupportedError`／`MeshUnsupportedError`，由引擎转 `ExecutionResult.failedAt`。op 未点名当前引擎时 auto 降级 mesh、brep 模式报错。
 
 ### 10.4 第三方库通道
 

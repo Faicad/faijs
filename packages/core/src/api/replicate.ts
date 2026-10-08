@@ -18,18 +18,16 @@
  *   also build `replica[*]/<inner>` role tables (same treatment as linearPattern,
  *   via the shared buildReplicaRoleTable helper).
  * - Single-copy ops (mirror / clone / transformCopy): thin overrides that keep
- *   the input and delegate to the generated compatOp (adopt/capabilities/
- *   naming preserved).
+ *   the input and delegate to the generated compatOp (adopt/engines/naming
+ *   preserved).
  *
  * The generated files stay untouched; overrides win via api-namespace spread
  * (same precedent as cut / split / linearPattern).
  *
  * 平台分层（narrowing plan Phase 5，D11）：
- * - mirrorJoin / mirror：平台 op（依赖 occt-only `mirrorWithHistory`）→
- *   `engines: ['occt']`，不声明 capabilities（能力由平台身份本身界定）。
- * - circularPattern / gridPattern / rectangularPattern / clone：中立 op（实现
- *   只用 L1 核心面）→ capabilities 收窄到真实 L1 名（删除 isNull/iterShapes/
- *   section/translateWithHistory 等 occt-only 虚名，capability-map 实证实现不依赖）。
+ * - mirrorJoin / mirror / circularPattern / gridPattern / rectangularPattern /
+ *   clone：中立 op（实现只用 L1 核心面）→ 无 engines、无能力声明；
+ *   面演化轨由 `hasNativeHistory` 在 mirrorBrep 内部按引擎事实静态分叉。
  */
 
 import type { Shape, Vec3 } from '../mesh/types'
@@ -183,18 +181,7 @@ export const circularPattern = defineOp({
     const roleTable = buildReplicaRoleTable(kernel, input, resultSolid, replicas, outStmt)
     return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
   },
-  // 中立 op（D11）：capabilities 收窄到实现真实调用的 L1 名（删除 isNull/iterShapes/
-  // section 等 occt-only 虚名——实现只调 kernel.circularPattern/fuseAll）。
-  capabilities: [
-    'circularPattern',
-    'dispose',
-    'fuseAll',
-    'hashCode',
-    'surfaceCenterOfMass',
-    'surfaceNormal',
-    'surfaceType',
-    'uvBounds',
-  ],
+  // 中立 op（D11）：实现只用 L1 核心面（kernel.circularPattern/fuseAll）。
   naming: { kind: 'replicate', k: 0 } as Provenance,
 })
 
@@ -296,20 +283,9 @@ export const gridPattern = defineOp({
     const roleTable = buildReplicaRoleTable(kernel, input, resultSolid, replicas, outStmt)
     return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
   },
-  capabilities: [
-    'dispose',
-    'fuseAll',
-    'gridPattern',
-    'hashCode',
-    'linearPattern',
-    'surfaceCenterOfMass',
-    'surfaceNormal',
-    'surfaceType',
-    'uvBounds',
-  ],
+  // 中立 op（D11）：实现只用 L1 核心面（kernel.gridPattern/translate/fuseAll）。
   naming: { kind: 'replicate', k: 0 } as Provenance,
 })
-
 // ── rectangularPattern ──────────────────────────────────────────────────────
 
 interface RectangularPatternOptions {
@@ -367,8 +343,7 @@ export const rectangularPattern = defineOp({
     const { xDir, xCount, xSpacing, yDir, yCount, ySpacing } = options
     const dx = norm(xDir)
     const dy = norm(yDir)
-// 旧 rectangularPattern 是纯 JS 组合（translate + fuseAll），内核不声明
-// 该方法——与旧版同口径：逐份 translate 再 fuseAll。
+    // 实现为纯 JS 组合：逐份 translate 再 fuseAll，不依赖内核的 rectangularPattern 方法。
     const copies: BrepHandle[] = []
     try {
       for (let ix = 0; ix < xCount; ix++) {
@@ -401,17 +376,7 @@ export const rectangularPattern = defineOp({
       for (const c of copies) kernel.release(c)
     }
   },
-  capabilities: [
-    'dispose',
-    'fuse',
-    'fuseAll',
-    'fuseWithHistory',
-    'hashCode',
-    'surfaceCenterOfMass',
-    'surfaceNormal',
-    'surfaceType',
-    'uvBounds',
-  ],
+  // 中立 op（D11）：实现只用 L1 核心面（kernel.translate/fuseAll）。
   naming: { kind: 'replicate', k: 0 } as Provenance,
 })
 
@@ -464,7 +429,8 @@ export const mirrorJoin = defineOp({
     const n = norm(options?.normal ?? [1, 0, 0])
     const o = toBrepVec(options?.at ?? [0, 0, 0])
     // replicate 的 role table 经质心聚类重建（引擎无关），mirror history 对
-    // role table 无增量收益，故走 L1 kernel.mirror（brepkit 已声明 mirror 能力）。
+    // role table 无增量收益，故走 L1 kernel.mirror（两引擎的 L1 契约面均提供
+    // `mirror`；`mirrorWithHistory` 不参与本 op，与引擎身份无关）。
     // 面演化由 mirrorBrep（topologyFns.ts）双轨接入，replicate 不重复消费。
     const mirrored = kernel.mirror(solid, o, toBrepVec(n))
     try {
@@ -480,9 +446,8 @@ export const mirrorJoin = defineOp({
       kernel.release(mirrored)
     }
   },
-  // L1 中立面（brepkit 已声明 mirror+fuse）。replicate 的 role table 不消费
-  // mirror history（见上注释），面演化由 mirrorBrep 双轨接入。
-  capabilities: ['mirror', 'fuse'],
+  // 中立 op（D11）：实现只用 L1 核心面（kernel.mirror/fuse）。replicate 的
+  // role table 不消费 mirror history（见上注释），面演化由 mirrorBrep 双轨接入。
   naming: { kind: 'replicate', k: 2 } as Provenance,
 })
 
@@ -521,10 +486,8 @@ export const mirror = defineOp({
     keep(input)
     return (await generatedMirror(input, options)) as Shape
   },
-  // generatedMirror 走 L1 kernel.mirror（brepkit 已声明 mirror 能力），薄 override
-  // 同步用 capabilities:['mirror']——与 clone 薄 override 同模式（外层门不拦 brepkit，
-  // 内层 generatedMirror 已按能力路由）。面演化由 mirrorBrep 双轨接入。
-  capabilities: ['mirror'],
+  // 薄 override：generatedMirror 走 L1 kernel.mirror，与 clone 薄 override 同模式
+  // （无能力门，内层实现自行按引擎事实分叉）。面演化由 mirrorBrep 双轨接入。
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
@@ -558,6 +521,6 @@ export const clone = defineOp({
     keep(input)
     return (await generatedClone(input)) as Shape
   },
-  capabilities: ['copyShape', 'dispose'],
+  // 中立 op（D11）：实现只用 L1 核心面（kernel.copyShape）。
   naming: { kind: 'identity' } as Provenance,
 })

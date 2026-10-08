@@ -5,8 +5,8 @@
  *   1. single entry — the compat product is indistinguishable from a defineOp
  *      product: identical `DUAL_OP_META` field set (no self-invented fields);
  *   2. dispatch matrix — brep-only compat op routes identically to a
- *      brep-only defineOp `{mesh,brep,auto} × {chain / off-chain / capability}`;
- *   3. capabilities — the declared capability reaches dispatchPath (brep mode
+ *      brep-only defineOp `{mesh,brep,auto} × {chain / off-chain / engine}`;
+ *   3. engines — the declared engine whitelist reaches dispatchPath (brep mode
  *      errors, auto errors with E_MESH_UNSUPPORTED when brep-only);
  *   4. outputs — per-field adoption incl. array fields; `DUAL_OP_META.outputs`
  *      visible; bare-lib admission reads only `fn.outputs`;
@@ -26,11 +26,11 @@ import {
 } from '../../../src/runtime-state'
 import { compatOp } from '../../../src/api/internal/compat-op'
 import { defineOp, DUAL_OP_META, type DualOpMeta } from '../../../src/define-op'
-import { dispatchPath, type BrepCapabilityName } from '../../../src/cad-runtime/backend-dispatch'
+import { dispatchPath } from '../../../src/cad-runtime/backend-dispatch'
 import { solid, fromBrep, isShape, hasBrep } from '../../../src/shape'
 import { asPartName } from '../../../src/identity'
 import type { Shape } from '../../../src/mesh/types'
-import type { BrepHandle } from '../../../src/brep/engine/types'
+import type { BrepEngineId, BrepHandle } from '../../../src/brep/engine/types'
 import type { HostPorts } from '../../../src/cad-runtime/ports'
 import type { ExecutionResult } from '../../../src/cad-runtime/runtime'
 import type { LibNamespace } from '../../../src/runtime-state'
@@ -63,10 +63,10 @@ function cubeMesh(size: number): Shape {
   return { positions, indices }
 }
 
-function makeBackends(mode: 'auto' | 'brep' | 'mesh', caps?: { evolution?: readonly string[] }): Backends {
+function makeBackends(mode: 'auto' | 'brep' | 'mesh'): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
-    config: { mode, brepCapabilities: caps },
+    config: { mode },
     kernel: { brep: null, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,
@@ -97,10 +97,10 @@ async function planetaryBody(_params: unknown): Promise<{ ok: true; value: Recor
 }
 
 describe('§ single entry — compat product is a defineOp product', () => {
-  it('DUAL_OP_META field set equals defineOp’s; name/capabilities/outputs/schema/slotMap pass through', () => {
+  it('DUAL_OP_META field set equals defineOp’s; name/engines/outputs/schema/slotMap pass through', () => {
     const spec = {
       name: 'mine',
-      capabilities: ['cutWithHistory'] as BrepCapabilityName[],
+      engines: ['occt'] as readonly BrepEngineId[],
       outputs: ['front', 'back'],
       schema: { size: 'number' },
       slotMap: { keys: ['size'] },
@@ -114,7 +114,7 @@ describe('§ single entry — compat product is a defineOp product', () => {
     expect(cm.kind).toBe('dual-op')
     expect(cm.mesh).toBeUndefined()
     expect(cm.name).toBe('mine')
-    expect(cm.capabilities).toEqual(['cutWithHistory'])
+    expect(cm.engines).toEqual(['occt'])
     expect(cm.outputs).toEqual(['front', 'back'])
     expect(cm.schema).toEqual({ size: 'number' })
     expect(cm.slotMap).toEqual({ keys: ['size'] })
@@ -138,19 +138,22 @@ describe('§ dispatch 矩阵 — 与 brep-only defineOp 一致', () => {
     expect(() => dispatchPath([offChain], meta)).toThrow(MeshUnsupportedError)
   })
 
-  it('capabilities 路由：brep 缺能力→E_BREP；auto 缺能力（brep-only）→E_MESH；具备→brep', () => {
-    // Phase 0.2：能力名是具体核函数名（'cutWithHistory'）；引擎声明是名单（evolution: ['cutWithHistory']）。
-    const op = compatOp(() => ({ ok: true, value: null }), { name: 'capped', capabilities: ['cutWithHistory'], naming: { kind: 'unmodeled', reason: 'test' } })
+  it('engines 路由：brep 引擎不匹配→E_BREP；auto 不匹配（brep-only）→E_MESH；mesh 模式先行', () => {
+    // 唯一的收窄轴是引擎身份（D11）；能力声明轴已于 2026-10-08 删除。
+    const op = compatOp(() => ({ ok: true, value: null }), { name: 'occtOnly', engines: ['occt'], naming: { kind: 'unmodeled', reason: 'test' } })
     const meta = metaOf(op)
 
-    configureBackends(makeBackends('brep', {}))
-    expect(() => dispatchPath([onChain], meta, 'cutWithHistory')).toThrow(BrepUnsupportedError)
+    // 当前引擎不在白名单（config 只给 mode，brepEngineId 缺省即不匹配）
+    configureBackends(makeBackends('brep'))
+    expect(() => dispatchPath([onChain], meta, meta.engines)).toThrow(BrepUnsupportedError)
 
-    configureBackends(makeBackends('auto', {}))
-    expect(() => dispatchPath([onChain], meta, 'cutWithHistory')).toThrow(MeshUnsupportedError)
+    configureBackends(makeBackends('auto'))
+    expect(() => dispatchPath([onChain], meta, meta.engines)).toThrow(MeshUnsupportedError)
 
-    configureBackends(makeBackends('auto', { evolution: ['cutWithHistory'] }))
-    expect(dispatchPath([onChain], meta, 'cutWithHistory')).toBe('brep')
+    // D11-6：mode='mesh' 分支先于引擎门（宿主强制 mesh 时不因平台身份报错）；
+    // 但本 op 无 mesh 实现 → MeshUnsupportedError。
+    configureBackends(makeBackends('mesh'))
+    expect(() => dispatchPath([onChain], meta, meta.engines)).toThrow(MeshUnsupportedError)
   })
 })
 

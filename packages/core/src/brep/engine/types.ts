@@ -206,32 +206,17 @@ export interface BrepXcafDocument {
 }
 
 /**
- * 曲面细分精度控制模型（与 brepjs KernelCapabilities.tessellationModel 同构的中立镜像，
- * P7 并入；faijs 侧零内核依赖，不 import 外部子包——D8 反向只允许发生在 api/）。
+ * 面演化（`*WithHistory`）核函数名——与内核方法同名，**逐核函数**。
  *
- * - `'build-time'`  — 网格在实体构造时固定（如 manifold 全局分段设置）；质量参数须在构造前应用。
- * - `'extract-time'`— 形状是精确的，按需以每调用 deflection 细分（如 OCCT）；质量是
- *                    `mesh()`/导出时的默认 deflection。
- * - `'none'`        — 无细分控制（或非网格内核）。
- */
-export type BrepTessellationModel = 'build-time' | 'extract-time' | 'none'
-
-/**
- * 面演化（`*WithHistory`）核函数名——与内核方法同名，**逐核函数**声明。
- *
- * ⚠️ **为什么不能是一个布尔位**（2026-09-22 Phase 0.2）：`evolution: true` 是**族级**声明。
- * 而「本内核提供面演化」这句话在建面上不成立——每个 `*WithHistory` 是一个独立核函数，
+ * ⚠️ **为什么不是一个布尔位**（2026-09-22 Phase 0.2，事实不变）：家族化命名会**多报**。
+ * 「本内核提供面演化」这句话在建面上不成立——每个 `*WithHistory` 是一个独立核函数，
  * 内核可以只提供其中一部分。`brepkit` 就是活例：它提供 `fuse`/`cut`/`fillet`，
  * `chamfer`/`intersect`/`translate`/… 一律 `unsupported(...)`
  * （`brepkit-kernel/brepkitKernel.ts:220-537`）。
  *
- * 族级布尔的后果不是"少报"而是**多报**：`cad.intersect` 声明需要 `evolution`，
- * 在 `evolution: true` 下通过静态判定 → 落到运行时才撞 `unsupported('intersectWithHistory')`。
- * 这直接违反 AGENTS.md 红线「BREP 路径能否走由静态规则判定，禁止运行时回退」——
- * 静态判定之所以能成立，前提是引擎的能力声明**说的是逐核函数的实话**。
- *
- * ⇒ 引擎声明"我提供哪几个"（`BrepCapabilities.evolution`），op 声明"我要哪一个"
- * （`defineOp.capabilities`），两者**按名字求交集**（`cad-runtime/backend-dispatch.ts`）。
+ * 本类型是「面演化核函数有哪些」的**名字全集**，供 `hasNativeHistory`
+ * （`brep/engine/native-history.ts`）按引擎身份逐名回答"这个引擎原生有没有它"。
+ * 没有声明轴：op 不声明要哪个核函数，分派时也不查任何能力表。
  */
 export type BrepEvolutionKind =
   // 布尔族
@@ -250,165 +235,3 @@ export type BrepEvolutionKind =
   | 'shellWithHistory'
   | 'offsetWithHistory'
   | 'thickenWithHistory'
-
-/**
- * 非演化内核方法真名（`*WithHistory` 之外的 `BrepEngineApi` 方法）。
- *
- * 与 `BrepEvolutionKind` 分名（P3 冲突消除）：`'mirror'` 一个字符串不能同时表示
- * "提供 `mirrorWithHistory`"与"提供 `mirror`"，两族必须互不共用字符串。
- * 语义与 evolution 相同——**逐核函数**声明：声明 = 实现（诚实原则），
- * 缺省/空 = 一个都不提供。
- *
- * 初始全集 = Phase 0 能力映射表（`api/surface/capability-map.json`）盘点的
- * compat op 依赖内核方法 + 方案初始项；Phase 3 全量收敛时按映射表滚动补全。
- */
-export type BrepMethodKind =
-  // pattern 族
-  | 'linearPattern'
-  | 'circularPattern'
-  | 'gridPattern'
-  | 'rectangularPattern'
-  // 基础方法族（裸方法，无历史）
-  | 'mirror'
-  | 'rotate'
-  | 'translate'
-  | 'scale'
-  // 倒角/圆角基础方法（directEdit 族下的逐核真名，Phase 2：chamfer op 能力声明
-  // 精确到内核方法——brepkit 无 chamfer/chamferDistAngle，静态判定执行前报错）
-  | 'chamfer'
-  | 'chamferDistAngle'
-  | 'fillet'
-  | 'filletVariable'
-  // 构形/拉伸/放样族
-  | 'makeRectangle'
-  | 'shell'
-  | 'extrude'
-  | 'loft'
-  | 'loftAdvanced'
-  | 'section'
-  | 'sweepPipeShell'
-  | 'simplePipe'
-  | 'revolveVec'
-  | 'buildExtrusionLaw'
-  // 布尔/装配辅助（裸方法）
-  | 'fuse'
-  | 'cut'
-  | 'intersect'
-  | 'fuseAll'
-  // 构造方法族
-  | 'makeArcEdge'
-  | 'makeCircleEdge'
-  | 'makeBezierEdge'
-  | 'makeCylinder'
-  | 'makeEllipsoid'
-  | 'makeFace'
-  | 'makeFaceOnSurface'
-  | 'makeLineEdge'
-  | 'makeTorus'
-  | 'makeVertex'
-  | 'makeWire'
-  | 'makeWireFromMixed'
-  | 'buildEdgeOnSurface'
-  | 'addHolesInFace'
-  | 'buildTriFace'
-  | 'sew'
-  | 'sewAndSolidify'
-  // 修复/校验族
-  | 'healFace'
-  | 'healSolid'
-  | 'healWire'
-  | 'fixShape'
-  | 'fixSelfIntersection'
-  | 'isValid'
-  | 'removeDegenerateEdges'
-  | 'simplify'
-  | 'split'
-  // 查询/测量族
-  // ⚠️ 测量族能力名用 L1 中立名（D5，narrowing plan）：`getBoundingBox` / `getVolume`
-  // / `getSurfaceArea` / `getLength` / `getCenterOfMass` ——能力名 == BrepEngineApi 接口名，
-  // 守卫「能力声明诚实」据此逐名断言适配器是 function。旧面自己的原生名
-  // （boundingBox/volume/area/length）按其自身命名，
-  // 不是能力名空间成员。
-  | 'getBoundingBox'
-  | 'getVolume'
-  | 'getSurfaceArea'
-  | 'getLength'
-  | 'getCenterOfMass'
-  | 'curveParameters'
-  | 'curvePointAtParam'
-  | 'curveTangent'
-  | 'hullFromPoints'
-  | 'isNull'
-  | 'iterShapes'
-  | 'locate'
-  | 'shapeType'
-  | 'surfaceCenterOfMass'
-  | 'surfaceNormal'
-  | 'surfaceType'
-  | 'uvBounds'
-  // 变换族（非演化真名）
-  | 'composeTransform'
-  | 'applyComposedTransformWithHistory'
-  | 'generalTransformNonOrthogonal'
-  | 'generalTransformWithHistory'
-  // 2026-09-26 C batch: section/drill/pocket/boss/mirrorJoin downgrade wiring.
-  | 'sectionByPlane'
-  | 'makeCompound'
-  | 'located'
-  | 'getSubShapes'
-  | 'transform'
-  | 'generalTransform'
-  // 交换/导入族
-  | 'importStl'
-  | 'createXCAFDocument'
-  | 'importXCAFFromSTEP'
-  // 生命周期辅助
-  | 'copyShape'
-  | 'dispose'
-  | 'downcast'
-  | 'hashCode'
-
-/**
- * 可选能力槽声明（§7.5，Phase 1 钉死成员）。
- *
- * 缺失的能力 → 依赖它的功能静态降级走 mesh（§8.4），绝不伪造。
- *
- * P7 并入（D4）：移植 brepjs `KernelCapabilities` 的数据字段（exact/brepExport/
- * exactMeasurement/tessellationModel）进本模型，由适配器在注册时如实声明；分派逻辑
- * （backend-dispatch 的 BrepCapabilityName 路由）不改——新字段是引擎本质描述，不是
- * 逐 op 路由键。
- *
- * 未并入 `disposalModel`（D5 决策，与旧 port 一致）：faijs 的句柄释放由
- * `cad-runtime` 顶替释放统一编排（增量失败回滚前提），brepjs 的 DisposalScope/arena
- * 语义不强制统一，故不作为能力位记录。
- */
-export interface BrepCapabilities {
-  /**
-   * 面演化族：本引擎**实际提供**的 `*WithHistory` 核函数名（不是族级布尔，见
-   * `BrepEvolutionKind`）。空数组 / 缺省 = 一个都不提供。
-   */
-  evolution?: readonly BrepEvolutionKind[]
-  /**
-   * 非演化内核方法族：本引擎**实际提供**的 `BrepEngineApi` 方法真名
-   * （逐核声明，与 `evolution` 同语义；空数组 / 缺省 = 一个都不提供）。
-   */
-  methods?: readonly BrepMethodKind[]
-  /** 修复族（healSolid/fixShape/fixFaceOrientations/...） */
-  heal?: boolean
-  /** 直接编辑族（C1：moveFace/replaceFace/...） */
-  directEdit?: boolean
-  /** 高级曲面族（C1：boundarySurface/fillSurface/...） */
-  advSurface?: boolean
-  /** XCAF 装配族 */
-  assembly?: boolean
-  /** mesh→BREP 提升（buildTriFace/sewAndSolidify） */
-  meshLift?: boolean
-  /** 精确 B-rep 几何（vs mesh 近似）——brepjs KernelCapabilities.exact 并入 */
-  exact?: boolean
-  /** 可序列化为 B-rep 交换格式（BREP/STEP）——brepjs brepExport 并入 */
-  brepExport?: boolean
-  /** 体积/面积/长度匹配解析值（vs mesh 近似）——brepjs exactMeasurement 并入 */
-  exactMeasurement?: boolean
-  /** 细分精度控制模型——brepjs tessellationModel 并入 */
-  tessellationModel?: BrepTessellationModel
-}

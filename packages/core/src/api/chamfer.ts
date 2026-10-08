@@ -1,11 +1,12 @@
 /**
- * api chamfer — chamfer 倒角库函数（BREP-only，directEdit 能力）
+ * api chamfer — chamfer 倒角库函数（BREP-only，directEdit 族）
  *
  * 平台分层（2026-09-26 B 批降级）：**中立 op**（不再声明 `engines:['occt']`）。
- * equal 分支按引擎能力**静态定轨**（与 intersect 同构，读 `dispatchPath` 同源的能力集）：
- *   - occt（声明 `chamferWithHistory`）→ `chamferWithRoleTable`（→ face-evolution.ts 的
+ * equal 分支按引擎事实**静态定轨**（与 intersect 同构，读 `hasNativeHistory`——
+ * 引擎身份是唯一判据，没有能力集可读）：
+ *   - occt（原生有 `chamferWithHistory`）→ `chamferWithRoleTable`（→ face-evolution.ts 的
  *     occt 原生 `chamferWithHistory`，D3 面演化 + roleTable 传播）——历史路径，不回退；
- *   - brepkit（无 chamferWithHistory，但裸 `kernel.chamfer` 是真实现）→ L1 裸
+ *   - brepkit（无 `chamferWithHistory`，但裸 `kernel.chamfer` 是真实现）→ L1 裸
  *     `kernel.chamfer(solid, edges, width)`：几何正确，**无面演化、无 roleTable 传播**
  *     （如实降级，不伪造恒等映射）。
  * distanceAngle / twoDistances 分支本就走 L1 `kernel.chamferDistAngle`（brepkit 真实现，
@@ -26,8 +27,8 @@ import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { chamferWithRoleTable, identityEvolution } from '../brep/face-evolution'
 import { getBrepApi } from '../brep/handle-bridge'
-import { getBackends, getCurrentStmt } from '../runtime-state'
-import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
+import { getCurrentStmt } from '../runtime-state'
+import { hasNativeHistory } from '../brep/engine/native-history'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -230,11 +231,11 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
   const inputTable = inputRoleTable(input) as ReadonlyMap<unknown, unknown> | undefined
   const outStmt = String(getCurrentStmt()?.id ?? '')
 
-  // 静态定轨：当前引擎是否声明 chamferWithHistory 面演化核函数（读与 dispatchPath
-  // 同源的能力集，非运行时探测）。occt 声明 → equal 走 chamferWithRoleTable 历史路径；
-  // brepkit 未声明（裸 kernel.chamfer 真实现但无 *WithHistory）→ L1 裸调用，
+  // 静态定轨：当前引擎是否原生实现 chamferWithHistory 面演化核函数（引擎事实，非运行时
+  // 探测）。occt 有 → equal 走 chamferWithRoleTable 历史路径；brepkit 没有
+  // （裸 kernel.chamfer 是真实现，但无 *WithHistory）→ L1 裸调用，
   // 不伪造面演化/roleTable（与 intersect 降级同构）。
-  const useHistory = engineCapabilitySet(getBackends().config.brepCapabilities).has('chamferWithHistory')
+  const useHistory = hasNativeHistory('chamferWithHistory')
 
   let resultSolid: BrepHandle
   let faceEvolution: Map<number, number[]> | undefined
@@ -365,7 +366,7 @@ function chamferMeshSolid(input: Shape, params: Record<string, unknown>): Shape 
  * const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
  */
 export const chamfer = defineOp({
-  // 中立 op（2026-09-26 B 批）：不再声明 engines——equal 路径按引擎能力静态分派
+  // 中立 op（2026-09-26 B 批）：不再声明 engines——equal 路径按引擎事实静态分派
   // （occt→chamferWithHistory 历史路径；brepkit→裸 kernel.chamfer 无演化降级）。
   // meshEngines：网格实体路径由 brepkit 网格后端提供（方案 2026-10-01 §3.4）。
   meshEngines: ['brepkit'],

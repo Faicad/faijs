@@ -9,7 +9,7 @@ await registerOcctBrepEngine()
 const prim = (await getBrepEngine()).primitives
 configureBackends({
   contractVersion: 1,
-  config: { mode: 'brep', brepCapabilities: {}, brepEngineId: 'occt' },
+  config: { mode: 'brep', brepEngineId: 'occt' },
   kernel: { brep: prim, csg: undefined, sdf: undefined },
   fonts: undefined,
 })

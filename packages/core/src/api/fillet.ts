@@ -1,9 +1,9 @@
 /**
- * api fillet — fillet 圆角库函数（BREP-only，directEdit 能力）
+ * api fillet — fillet 圆角库函数（BREP-only）
  *
  * 平台分层（narrowing plan Phase 5，D11）：**中立 op**——`filletWithHistory` 是
- * L1 核心面（brepkit 亦实现），实现全程走 L1（getBrepApi，D12），不声明 engines；
- * capabilities 保留族级 `directEdit`（brepkit 声明 directEdit: true）。
+ * L1 核心面（brepkit 亦实现），实现全程走 L1（getBrepApi，D12），不声明 engines。
+ * 实现体内不分支：两引擎都走 `filletWithRoleTable` 历史轨（见 `filletBrep`）。
  *
  * 与 chamfer 的差异：fillet 用 filletWithHistory 走面演化 + roleTable 传播
  * （chamfer 在 P5 同步改造）。M1 只支持等半径；M2 计划支持变半径与几何限定符。
@@ -214,7 +214,6 @@ function filletMeshSolid(input: Shape, params: Record<string, unknown>): Shape {
  * const q = await cad.fillet(meshPart, { edges: [3], radius: 1 })
  */
 export const fillet = defineOp({
-  capabilities: ['directEdit'],
   meshEngines: ['brepkit'],
   mesh(input: Shape, params: Record<string, unknown>) {
     assertFilletParams(params, { allowOrdinals: true })

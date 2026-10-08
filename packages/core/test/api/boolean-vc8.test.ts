@@ -28,13 +28,13 @@ import type { Shape } from '../../src/mesh/types'
 function makeBackends(kernelBrep: unknown): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
-    // GOTCHA (2026-09-24): `union` declares the **per-kernel-function** capability
-    // `fuseWithHistory` (Phase 0.2 — the family-level `'evolution'` name was dropped
-    // precisely so partially-implemented kernels cannot pass static judgement). The
-    // declaration here must therefore name that function, not `'fuse'`, or dispatch
-    // rejects before the op body with a capability BrepUnsupportedError. The engine
-    // id field is `brepEngineId` (not `brepCapabilitiesEngineId`).
-    config: { mode: 'brep', brepCapabilities: { evolution: ['fuseWithHistory'] }, brepEngineId: 'test' },
+    // GOTCHA (2026-10-08): `union` no longer declares a capability; the
+    // history-vs-plain route inside `booleanBrep` is decided by **engine
+    // identity** (`hasNativeHistory('fuseWithHistory')`). So the engine id is
+    // the only knob here: `'occt'` is the engine that natively implements
+    // `fuseWithHistory` (the stub kernel below stands in for it). A made-up id
+    // falls to the plain `kernel.fuse` route, which this stub does not provide.
+    config: { mode: 'brep', brepEngineId: 'occt' },
     kernel: { brep: kernelBrep, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,

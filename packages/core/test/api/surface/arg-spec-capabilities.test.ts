@@ -1,18 +1,20 @@
 /**
- * arg-spec-capabilities.test — Phase 1 断言（能力声明全覆盖 + 能力名合法性）
+ * arg-spec-capabilities.test — 生成面声明轴一致性（2026-10-08 改为 engines 单轴）
  *
- * 双引擎能力声明断言
+ * 2026-10-08 变更：`capabilities` 声明轴（`arg-spec.ArgSpecEntry.capabilities`、
+ * `BrepCapabilityName`、`BrepCapabilities`、`engineCapabilitySet`、
+ * `firstMissingCapability`、`defineOp.capabilities`）已整体删除。op 是否可在某引擎上
+ * 执行，一律由 `engines`（引擎身份白名单）表达。故本文件从「能力声明全覆盖 + 能力名
+ * 合法性」改为：
  *
- * 钉住的事实（单一真源 = arg-spec.ts）：
- *  1. `kind: 'brep-op'` 条目数 == 已声明 capabilities 的条目数 ==
- *     generated/*.ts 中 `export const X = compatOp(` 数（三方一致，防漏防漂移）。
- *  2. 每条 compat op 的 capabilities 非空，且每个名字 ∈ BrepCapabilityName
- *     （5 族布尔 + BrepEvolutionKind 真名 + BrepMethodKind 真名——从 types.ts 提取）。
- *  3. 手写 brep-only op（pattern.ts linearPattern、boolean.ts union/cut/subtract/
- *     intersect）声明真名能力。
- *  4. 兼容性事实（P3 冲突消除的证据）：compat op 的 transform 调用
- *     `*WithHistory` 真名——mirror/rotate/translate/scale 的 capabilities 是
- *     `*WithHistory`，不是裸名。
+ *  1. **三方一致（生成面）**：`kind:'brep-op'` 条目数 == `generated/*.ts` 中
+ *     `export const X = (compatOp|defineOp)(` 数（防漏防漂移）。
+ *  2. **engines 合法性**：凡声明 `engines` 的条目，非空且每个 id ∈ `BREP_ENGINE_IDS`。
+ *  3. **删除守卫**：全仓（arg-spec + 手写 op）不再出现 `capabilities` 声明，
+ *     且 `ArgSpecEntry` 上不再有该键。
+ *
+ * 判决等价性（旧能力门判决 == 新 engines 判决）由
+ * `test/brep/engine/engine-verdict-equivalence.test.ts` 逐 op 钉住。
  */
 
 import { describe, expect, it } from 'vitest'
@@ -20,31 +22,25 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import { ARG_SPEC } from '../../../src/api/surface/arg-spec'
+import { BREP_ENGINE_IDS, type BrepEngineId } from '../../../src/brep/engine/types'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const CORE_SRC = path.resolve(__dirname, '..', '..', '..')
 
-/** 从 types.ts 源码提取 BrepCapabilityName 合法全集（5 族布尔 + evolution 真名 + method 真名）。 */
-function legalCapabilityNames(): Set<string> {
-  const types = fs.readFileSync(path.join(CORE_SRC, 'src', 'brep', 'engine', 'types.ts'), 'utf-8')
-  const names = new Set<string>(['heal', 'directEdit', 'advSurface', 'assembly', 'meshLift'])
-  const evo = types.slice(types.indexOf('export type BrepEvolutionKind'), types.indexOf('export type BrepMethodKind'))
-  for (const m of evo.matchAll(/'([a-zA-Z]+)'/g)) names.add(m[1])
-  const method = types.slice(types.indexOf('export type BrepMethodKind'), types.indexOf('export interface BrepCapabilities'))
-  for (const m of method.matchAll(/'([a-zA-Z]+)'/g)) names.add(m[1])
-  return names
+/** 读 core 源码（相对 packages/core）。 */
+function srcOf(rel: string): string {
+  return fs.readFileSync(path.join(CORE_SRC, rel), 'utf-8')
 }
 
-describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
-  it('brep-op 条目数 == (capabilities ∪ engines) 条目数 == generated defineOp 数', () => {
+/** 声明式 `capabilities:`（行首缩进 + 键名），排除注释与字符串里的提及。 */
+const CAPABILITY_DECL = /^[ \t]*capabilities\s*:\s?/m
+
+describe('生成面三方一致：arg-spec ↔ generated', () => {
+  it('brep-op 条目数 == generated defineOp/compatOp 数', () => {
     const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
-    // 声明面：capabilities（能力依赖）与 engines（引擎白名单）是两条正交轴，可并存
-    // （2026-09-24 撤销 D11-7 互斥）。故「100% 声明」= 每条 brep-op 至少命中一条轴，
-    // 用 union 计数——不是两个集合各数一遍再相加（并存条目会被计两次）。
-    const declared = brepOps.filter((e) => e.capabilities?.length || e.engines?.length)
     const generated = ['operations.ts', 'topology.ts', 'sketching.ts'].map((f) =>
-      fs.readFileSync(path.join(CORE_SRC, 'src', 'api', 'generated', f), 'utf-8'),
+      srcOf(`src/api/generated/${f}`),
     )
     // §5.4：brep-op 条目走 defineOp 直连 core 自有实现；合计 == brep-op 条目数。
     const opDeclCount = generated.reduce(
@@ -52,61 +48,82 @@ describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
       0,
     )
     expect(brepOps.length).toBeGreaterThan(0)
-    // 并存合法（2026-09-24 撤销 D11-7 互斥）：同时声明两条轴的条目允许存在，
-    // 故此处不再断言"两者不同现"；下面用 union 计数（并存条目只计一次）。
-    expect(declared.length).toBe(brepOps.length) // 100% 声明
     expect(opDeclCount).toBe(brepOps.length)
   })
-})
 
-describe('Phase 1 能力名合法性：每条 compat op 声明非空且合法', () => {
-  const legal = legalCapabilityNames()
-  const legalEngineIds = new Set(['occt', 'brepkit', 'brep_mock'])
-
-  it('每条 brep-op 的 capabilities（或 engines）非空且名字合法', () => {
-    const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
-    for (const e of brepOps) {
-      if (e.capabilities?.length) {
-        for (const c of e.capabilities) {
-          expect(legal, `op '${e.name}' 能力名 '${c}' ∈ BrepCapabilityName`).toContain(c)
-        }
-      } else {
-        // Phase 5（D11）：engines 条目必须非空且 id ∈ BREP_ENGINE_IDS
-        expect(e.engines?.length, `op '${e.name}' engines 非空`).toBeGreaterThan(0)
-        for (const id of e.engines!) {
-          expect(legalEngineIds, `op '${e.name}' 引擎 id '${id}' ∈ BREP_ENGINE_IDS`).toContain(id)
-        }
+  it('凡声明 engines 的 brep-op：非空且 id ∈ BREP_ENGINE_IDS', () => {
+    const legal = new Set<string>(BREP_ENGINE_IDS)
+    const declaring = ARG_SPEC.filter((e) => e.kind === 'brep-op' && e.engines !== undefined)
+    expect(declaring.length).toBeGreaterThan(0)
+    for (const e of declaring) {
+      expect(e.engines!.length, `op '${e.name}' engines 非空`).toBeGreaterThan(0)
+      for (const id of e.engines!) {
+        expect(legal, `op '${e.name}' 引擎 id '${id}' ∈ BREP_ENGINE_IDS`).toContain(id as BrepEngineId)
       }
     }
   })
+})
 
-  it('P3 冲突消除证据：transform 族 op 平台身份随 B 批降级漂移（engines → capabilities）', () => {
-    const byName = new Map(ARG_SPEC.filter((e) => e.kind === 'brep-op').map((e) => [e.name, e]))
-    // 2026-09-26 B 批：mirror/rotate/ellipsoid 从 engines:['occt'] 白名单降级为能力路由
-    // （clone 模式）——实现只用 L1 中立方法（kernel.mirror / getBrepApi().transform /
-    // makeEllipsoid+translate），brepkit 已声明同名能力。现断言三者已摘除 engines 白名单、
-    // 改挂 capabilities（与 clone 上一批降级同方向）。
-    expect(byName.get('mirror')!.engines ?? []).not.toContain('occt')
-    expect(byName.get('rotate')!.engines ?? []).not.toContain('occt')
-    expect(byName.get('ellipsoid')!.engines ?? []).not.toContain('occt')
-    expect(byName.get('mirror')!.capabilities).toContain('mirror')
-    expect(byName.get('rotate')!.capabilities).toContain('transform')
-    expect(byName.get('ellipsoid')!.capabilities).toContain('makeEllipsoid')
+describe('删除守卫：capabilities 声明轴不再出现', () => {
+  it('ARG_SPEC 每条条目都没有 capabilities 键', () => {
+    for (const e of ARG_SPEC) {
+      expect(Object.keys(e), `条目 '${e.name}' 仍带 capabilities 键`).not.toContain('capabilities')
+    }
+  })
+
+  it('arg-spec.ts 源码没有 capabilities 字段声明', () => {
+    expect(srcOf('src/api/surface/arg-spec.ts')).not.toMatch(CAPABILITY_DECL)
+  })
+
+  it('手写 op 源文件没有 capabilities 字段声明（含 pattern / boolean / shell / sketch op）', () => {
+    const files = [
+      'src/api/boolean.ts',
+      'src/api/pattern.ts',
+      'src/api/shell.ts',
+      'src/api/draft.ts',
+      'src/api/fillet.ts',
+      'src/api/fillet-variable.ts',
+      'src/api/profile.ts',
+      'src/api/punch-hole.ts',
+      'src/api/replicate.ts',
+      'src/api/section-by-plane.ts',
+      'src/api/sketch-on-face.ts',
+      'src/api/sketch-on-plane.ts',
+      'src/api/split-by-plane.ts',
+      'src/api/split.ts',
+      'src/api/transform.ts',
+      'src/api/surface/arg-spec.ts',
+    ]
+    for (const f of files) {
+      expect(srcOf(f), `${f} 仍有 capabilities 声明`).not.toMatch(CAPABILITY_DECL)
+    }
+    expect(srcOf('../sketch/src/op.ts'), '../sketch/src/op.ts 仍有 capabilities 声明').not.toMatch(
+      CAPABILITY_DECL,
+    )
+  })
+
+  it('brep/engine 适配器与 registry 类型不再携带 capabilities 对象', () => {
+    for (const f of [
+      'src/brep/engine/adapters/occt.ts',
+      'src/brep/engine/adapters/brepkit.ts',
+      'src/brep/engine/adapters/brep-mock.ts',
+      'src/brep/engine/registry.ts',
+      'src/brep/brep-chain.ts',
+      'src/runtime-state.ts',
+    ]) {
+      expect(srcOf(f), `${f} 仍有 capabilities 声明`).not.toMatch(/^[ \t]*(readonly )?capabilities\s*[?:]/m)
+    }
   })
 })
 
-describe('Phase 1 手写 brep-only op 声明', () => {
-  it('pattern.ts linearPattern 声明 capabilities: [linearPattern]', () => {
-    const src = fs.readFileSync(path.join(CORE_SRC, 'src', 'api', 'pattern.ts'), 'utf-8')
-    expect(src).toMatch(/capabilities: \['linearPattern'\],/)
-  })
-
-  it('boolean.ts union/cut/subtract 声明 *WithHistory 真名；intersect 中立（按引擎静态降级）', () => {
-    const src = fs.readFileSync(path.join(CORE_SRC, 'src', 'api', 'boolean.ts'), 'utf-8')
-    expect(src).toMatch(/capabilities: \['fuseWithHistory'\],/)
-    expect(src.match(/capabilities: \['cutWithHistory'\],/g)?.length).toBe(2) // cut + subtract
-    // intersect 不再硬声明 intersectWithHistory（brepkit 无此历史方法）——
-    // 由 booleanBrep 按引擎声明的能力集静态分派（occt 历史路径 / brepkit 裸 intersect）。
-    expect(src).not.toMatch(/capabilities: \['intersectWithHistory'\],/)
+describe('B 批降级定案：mirror / rotate / ellipsoid 为中立 op', () => {
+  it('三者既不挂 engines 白名单，也没有任何能力声明', () => {
+    const byName = new Map(ARG_SPEC.filter((e) => e.kind === 'brep-op').map((e) => [e.name, e]))
+    for (const n of ['mirror', 'rotate', 'ellipsoid']) {
+      const e = byName.get(n)
+      expect(e, `arg-spec 缺条目 '${n}'`).toBeDefined()
+      expect(e!.engines ?? [], `'${n}' 不应挂 engines`).not.toContain('occt')
+      expect(Object.keys(e!), `'${n}' 不应带 capabilities`).not.toContain('capabilities')
+    }
   })
 })

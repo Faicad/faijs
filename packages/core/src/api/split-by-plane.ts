@@ -66,7 +66,6 @@ function splitByPlaneBrep(input: Shape, params: SplitByPlaneParams): Record<stri
  * const { positive, negative } = await cad.splitByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
  */
 export const splitByPlane = defineOp({
-  capabilities: ['directEdit'],
   outputs: ['positive', 'negative'],
   paramDims: { 'params.point': 'length', 'params.normal': 'length' },
   brep(input: Shape, params: SplitByPlaneParams) {

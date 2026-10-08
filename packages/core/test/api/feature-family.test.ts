@@ -24,12 +24,12 @@
  * 不可用（sketch 报 `invalid solid handle: index N is out of bounds`；edgeRef 报
  * `edge 1 has 0 adjacent face(s)`）。故本文件凡以 sketch 面 / edgeRef 为输入的用例都只跑
  * occt —— 失败点会落在输入构造（callee=sketch / edgeRef）而不是被测 op，那样断言毫无意义。
- * 引擎门用例改用 `cad.cylinder`（中立 dual op，brepkit 声明了 makeCylinder）。
+ * 引擎门用例改用 `cad.cylinder`（中立 dual op，brepkit 实现面有 makeCylinder）。
  *
  * GOTCHA-3（Phase 5 实测 → **已定案**）：brepkit 侧 `draft` / `reverseShape` 曾是
  * 「静态门放行、运行时出问题」形态。根因：两条只声明族级 `capabilities:['directEdit']`
  * （brepkit 声明了 `directEdit: true`），静态判定无从拦。**定案 = 按实证收窄为
- * `engines: ['occt']`**（非平台依赖；engines 与 capabilities 并存合法，engines 先判），
+ * `engines: ['occt']`**（非平台依赖；2026-10-08 能力声明轴删除后，`engines` 是唯一收窄轴），
  * brepkit 直接静态拒绝。证据（同一脚本 box(20,20,10) / angleDeg=3，两引擎同一次运行）：
  *   - occt：4 个侧面（ordinal 1–4）**一致** delta = −52.4078 —— 对称输入 ⇒ 对称输出；
  *     ⊥ pull 的端面由内核报 KERNEL_ERROR；
@@ -157,7 +157,7 @@ const SQUARE_SKETCH =
 /** box(20,20,10) 的体积，多个用例的基准。 */
 const BOX_20_20_10_VOL = 4000
 
-describe('shell — 抽壳（中立 op，capabilities 路由）', () => {
+describe('shell — 抽壳（中立 op，无引擎门）', () => {
   it('box(20,20,10) 开面 1 / t=2 → 成薄壁：bbox 不变、体积严格小于原体', async () => {
     await useOcct()
     const sh = await shapeOf(

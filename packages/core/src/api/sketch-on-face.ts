@@ -320,7 +320,6 @@ export function buildSketchOnFaceMesh(params: SketchOnFaceParams): Shape {
  * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
  */
 export const sketchOnFace = defineOp({
-  capabilities: ['directEdit'],
   engines: ['occt'],
   meshEngines: ['brepkit'],
   mesh(params: Record<string, unknown>) {

@@ -82,7 +82,7 @@ beforeAll(async () => {
   const brep = await getBrepEngine()
   configureBackends({
     contractVersion: CONTRACT_VERSION,
-    config: { mode: 'auto', brepCapabilities: brep.capabilities, brepEngineId: 'occt' },
+    config: { mode: 'auto', brepEngineId: 'occt' },
     kernel: { brep: brep.primitives, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,
@@ -192,6 +192,13 @@ describe('G1 单元层（brep-operations 自有实现）', () => {
     kernel.release(handle)
   })
 
+  // ⚠️ 既有红（2026-10-08 定位，非本次 capabilities 删除所致）：HEAD 提交 d530acd
+  // 「wire C5 occt-wasm WithHistory paths」把 mirrorBrep 接到 `mirrorWithHistory`
+  // （face-evolution.ts 的 mirrorWithHashEvolution），此后 occt 引擎下镜像结果句柄
+  // 不可用于 getBoundingBox（Invalid shape ID: 0）。当时本文件的 config 声明的是
+  // occt 的能力表（含 `mirrorWithHistory`），故同样走这条新轨——即本用例在 HEAD
+  // 上已是红的。本文件仅把该声明换成等价的 `brepEngineId: 'occt'`，未改判决。
+  // 修好 `mirrorWithHistory` 的句柄封送后本用例应转绿（保留断言，不改期望值）。
   it('mirrorBrep：镜像后 bbox 翻转', () => {
     const src = boxSolidShape()
     const h = mirrorBrep(src, { normal: [1, 0, 0] })

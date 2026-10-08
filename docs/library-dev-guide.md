@@ -87,8 +87,6 @@ export const intersect = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'intersect')
   },
-  capabilities: ['intersect'], // concrete BREP capability needed — a *WithHistory kernel
-                              // function name, matched against the engine's `evolution` list
   outputs: [...],             // named multi-product fields (§2.6)
   schema: { ... },            // param types for the UI panel (L3)
   slotMap: { ... },           // positional → object boxing, for brepjs-style calls
@@ -96,7 +94,7 @@ export const intersect = defineOp({
 ```
 
 - **`mesh` / `brep`**: the two engine paths. `mesh` is the default; `brep` is optional. A brep-only op raises `E_MESH_UNSUPPORTED` on the mesh path.
-- **`capabilities`**: BREP engine features the op needs — gated against the host's declared `brepCapabilities`.
+- **`engines`** (not in the example above — `intersect` is neutral): required only for a *platform op*, i.e. an implementation that statically imports `occt-kernel/*` or `brepkit-kernel/*`. It names the engines the op was written for (`engines: ['occt']`). Every other op omits it and must stay on L1 (`getBrepApi()`). There is no second declaration axis: what a kernel can do is read from the engine itself (see pitfall 2 below), never listed in op metadata.
 - **`outputs`**: named multi-product fields (the only recognized multi-output contract name; array fields adopted element-by-element).
 - **`schema` / `slotMap`**: L3 metadata — parameter types for the UI panel, and the positional → object boxing table for brepjs-style calls.
 
@@ -190,8 +188,6 @@ export async function assembleHost(): Promise<void> {
     config: {
       mode: 'brep',
       brepEngineId: getActiveBrepEngineId() ?? OCCT_BREP_ENGINE_ID,
-      // capabilities MUST travel with mode/brepEngineId (see pitfall 2 below).
-      brepCapabilities: eng.capabilities,
     },
     kernel: { brep: eng.primitives, csg: undefined, sdf: undefined },
     fonts: undefined,
@@ -223,7 +219,7 @@ const b = await F.union(a, await F.translate(a, [5, 0, 0]))
 #### Three pitfalls (observed empirically)
 
 1. **`createRuntime` without `registerOcctBrepEngine` → `[faijs/bridge] BREP engine API not available: BREP operations require an initialized engine`.** Script-face calls get a kernel via the brep chain automatically, but bare ①-face calls do not. Always run `assembleHost()` first.
-2. **`configureBackends` missing `config.brepCapabilities` → `E_BREP_UNSUPPORTED: current engine lacks capability 'fuseWithHistory' (brepEngineId=<none>)`.** The `config` field is a *getter* at `runtime.ts`; copying a snippet that only sets `config: { mode: 'brep' }` (e.g. from a test that only uses `directEdit`) leaves `brepCapabilities` `undefined`, and the first boolean op fails. Always pass `brepCapabilities` together with `mode` and `brepEngineId`.
+2. **`configureBackends` missing `config.brepEngineId` → `E_BREP_UNSUPPORTED: op 'sweep' requires engine occt (current=<none>)`.** The `config` field is a *getter* at `runtime.ts`; copying a snippet that only sets `config: { mode: 'brep' }` leaves `brepEngineId` `undefined`, and the first platform op is rejected before execution. Neutral ops are not rejected, but they lose the engine fact too: `hasNativeHistory` answers "no" for an unknown engine, so a boolean op silently takes the plain L1 route and drops face evolution and role-table propagation. Always pass `brepEngineId` together with `mode` — the runtime derives it from the registry, so only hand-rolled configs (tests) can miss it.
 3. **`defineOp`-wrapped functions return `Promise<Shape>`, not `Result`.** The ①-face ops (`box`, `union`, `volume`, …) are `defineOp` wrappers; calling them yields a `Shape` (or a promise of one), **not** a `Result`. Testing such a value with `isErr(x)` gives a false positive — `isErr` checks `ok === false`, but a `Shape` has no `ok` field. Only values *you* return from your own library functions carry a `Result`.
 
 ### 3.2 Registering a library
@@ -257,7 +253,7 @@ Lifting is decided once for the whole namespace, not per export: `autoLift ?? !h
 
 When a script calls an admitted function, the engine itself handles the boundary mechanics — the Host writes none of this:
 
-1. **Dispatch**: mesh / brep path chosen statically (chain state + capabilities), no runtime fallback.
+1. **Dispatch**: mesh / brep path chosen statically (chain state + engine identity), no runtime fallback.
 2. **Pass-through**: faijs `Shape` arguments reach the library unchanged, as they are (no rewriting on the way in).
 3. **Call + unwrap**: the function runs; a `Result` `err` is unwrapped into a statement failure.
 4. **Adopt**: geometry products cross back as faijs `Shape`s (tessellation + BREP slot); plain data passes through (§2.3).
@@ -278,7 +274,7 @@ A library whose functions return data or only register declarations (kinematics,
 
 Return `undefined` — not `false` — from `autoLiftFor` for every library you do not mean to affect: `undefined` falls back to `options.autoLift` and then to the inference.
 
-With lifting off, the namespace is injected as-is. Functions stay synchronous, may return `void` or any value, and behave as ordinary JS to the script. The library gives up the boundary services that lifting provides: no `Result` unwrapping (the script receives the `Result` record itself), no multi-output adoption through `fn.outputs`, and no capability or platform gating (§4.4).
+With lifting off, the namespace is injected as-is. Functions stay synchronous, may return `void` or any value, and behave as ordinary JS to the script. The library gives up the boundary services that lifting provides: no `Result` unwrapping (the script receives the `Result` record itself), no multi-output adoption through `fn.outputs`, and no platform gating (§4.4).
 
 ---
 
@@ -337,7 +333,7 @@ export const myOp = defineOp({
 Rules (D11, checked by `assertLibConforms` + the `check-platform-imports.mjs` CI guard):
 
 1. **`engines` lists real engine ids** — `'occt'` / `'brepkit'` / `'brep_mock'` (never a bare string).
-2. **`engines` and `capabilities` may be declared together** — the two are orthogonal: `engines` narrows *which engines* the op runs on, `capabilities` states *which kernel capabilities* it needs. The D11-7 mutual exclusion was withdrawn on 2026-09-24 and `assertLibConforms` no longer rejects the combination. Both empty is allowed only for mesh-only ops.
+2. **`engines` is the whole declaration** — it is the only narrowing axis; there is nothing else to declare alongside it. An op names its engines, or it is neutral. Both empty is allowed only for mesh-only ops.
 3. **Interception happens at execution** — under a non-listed engine the op fails before touching the kernel (`BrepUnsupportedError` → `ExecutionResult.failedAt`). The static guard only enforces the declaration, it does not substitute for it.
 4. **`brep_mock` is exempt** from the interception (test stand-in, D11-3) — declared `engines` are still honored for parity/switch tests.
 5. **Library dual-ops that import a platform module are bound by the same rule** — write `engines` in `defineOp`, interception occurs in `dispatchPath` at execution time, no registration-time validation.

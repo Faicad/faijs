@@ -16,7 +16,7 @@
  * - `reverseShape` 声明 `engines: ['occt']` —— 实证收窄：brepkit 实测在 **op 级**
  *   失败（`invalid solid handle: index N is out of bounds`，callee = reverseShape，
  *   非输入构造侧），静态门须在执行前拒绝。
- * - 其余五条保持中立（声明 `capabilities: ['directEdit']`，无 engines）。
+ * - 其余五条保持中立（无 engines）。
  *   注意 `unifySameDomain` 在 brepkit 上**可用但语义有差**（会把体重新居中），
  *   未收窄 —— 缺证据表明它不可用，不擅自扩大范围。
  *
@@ -94,7 +94,6 @@ const kernelNaming = { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Pro
  * const base = await cad.defeature(part0, [cad.faceRef(part0, 5)])
  */
 export const defeature = defineOp({
-  capabilities: ['directEdit'],
   brep(input: Shape, faces: FaceTopoRef[]) {
     if (!Array.isArray(faces) || faces.length === 0) {
       throw new Error('E_DEFEATURE_NO_FACES: defeature requires at least one FaceTopoRef')
@@ -124,7 +123,6 @@ export const defeature = defineOp({
  * const flipped = await cad.reverseShape(sh)
  */
 export const reverseShape = defineOp({
-  capabilities: ['directEdit'],
   // 实证收窄（2026-09-24）：brepkit op 级失败 → 静态门提前拒绝。
   engines: ['occt'],
   brep(input: Shape) {
@@ -149,7 +147,6 @@ export const reverseShape = defineOp({
  * const merged = await cad.unifySameDomain(part0)
  */
 export const unifySameDomain = defineOp({
-  capabilities: ['directEdit'],
   brep(input: Shape) {
     const kernel = getBrepApi()
     const solid = requireBrep(input, 'unifySameDomain')
@@ -179,7 +176,6 @@ export interface SewParams {
  * const shellShape = await cad.sew([f1, f2, f3], { tolerance: 1e-5 })
  */
 export const sew = defineOp({
-  capabilities: ['directEdit'],
   brep(shapes: Shape[], params?: SewParams) {
     const kernel = getBrepApi()
     const handles = borrowHandles(shapes, 'sew')
@@ -203,7 +199,6 @@ export const sew = defineOp({
  * const solid = await cad.sewAndSolidify([f1, f2, f3, f4, f5, f6])
  */
 export const sewAndSolidify = defineOp({
-  capabilities: ['directEdit'],
   brep(shapes: Shape[], params?: SewParams) {
     const kernel = getBrepApi()
     const handles = borrowHandles(shapes, 'sewAndSolidify')
@@ -227,7 +222,6 @@ export const sewAndSolidify = defineOp({
  * const plain = await cad.removeHolesFromFace(faceWithHoles)
  */
 export const removeHolesFromFace = defineOp({
-  capabilities: ['directEdit'],
   brep(face: Shape) {
     if (!face) throw new Error('E_REMOVEHOLES_NO_FACE: removeHolesFromFace requires a face shape')
     const kernel = getBrepApi()

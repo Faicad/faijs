@@ -27,7 +27,7 @@ import type { StmtId } from '../../src/identity'
 function makeBackends(mode: 'auto' | 'brep' | 'mesh', kernelBrep?: unknown, assets?: unknown): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
-    config: { mode, brepCapabilities: undefined },
+    config: { mode },
     kernel: { brep: kernelBrep ?? null, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,

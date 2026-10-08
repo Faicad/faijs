@@ -1,30 +1,25 @@
 /**
  * @vitest-environment node
  *
- * engines × capabilities 双轴声明（2026-09-24 撤销 D11-7 互斥）
+ * engines 单轴声明（D11）——2026-10-08 删除 capabilities 双轴
  *
- * 规则（现行为）：
- *   `defineOp` 的 `engines` 与 `capabilities` 是**两条正交的声明轴**，可以并存：
- *     - `engines`    = 引擎身份**白名单**（本实现只在列出的引擎上能跑）；
- *     - `capabilities` = 实现所需的**内核能力清单**（要用哪些方法）。
- *   判定次序 `engines` 在先（dispatchPath，D11-2），能力门随后对**同一引擎**继续求交。
- *   故「同时声明」的语义 = 「只在这些引擎上，且要求这些能力」。
+ * 现行为：`defineOp` 只有**一条**收窄轴 —— `engines`，即引擎身份白名单。
+ * 判定次序（`cad-runtime/backend-dispatch.ts` 的 `decidePath`）：
+ *   mode='mesh' 先行（D11-6）→ 引擎身份（D11-2）→ chain（BREP/mesh）。
+ * `brep_mock` 受 D11-3 豁免（由 engine-switch-p5 钉住）。
  *
- * 为什么撤销：原 D11-7 的理由是「平台能力由平台自己保证，能力名空间只收 L1 中立名」，
- * 与事实不符 —— `BrepCapabilityName` 含 `BrepMethodKind` **逐核真名**
- * （isNull / dispose / chamfer / shell / ...，见 `brep/engine/types.ts`），本就是内核名
- * 空间；平台 op 声明能力名并不越界。互斥只导致作者被迫丢信息（如 `arg-spec.ts` 的
- * `fuse` 只剩 engines，其真实依赖 isNull/dispose 的声明被移除），以及
- * 「能力声明全覆盖」的测试只能写成两个集合相加的绕行口径。
- *
- * GOTCHA-1（实测，报错文案）：引擎门与能力门的文案不同前缀 ——
- *   引擎门：`E_BREP_UNSUPPORTED: op '<name>' requires engine occt (current=<engine>)`
- *   能力门：`E_BREP_UNSUPPORTED: current engine lacks capability '<cap>' (brepEngineId=<engine>)`
- *   断言必须区分，否则会把「引擎门生效」误判成「能力门生效」。
+ * GOTCHA-1（实测，报错文案）：引擎门文案是
+ *   `E_BREP_UNSUPPORTED: op '<name>' requires engine occt (current=<engine>)`
+ * 断言用 `/requires engine occt/`，不要用「能力门」时代的 `/lacks capability/`。
  *
  * GOTCHA-2（实测，本用例的输入选择）：本文件测的是**门控次序**，不是几何 ——
- * 两道门都在执行实现之前触发，故实现体写成「一旦被调用就抛 sentinel」，用
- * `IMPL-MUST-NOT-RUN` 的出现与否**反证**门确实拦在执行之前（正面证据 + 反面证据）。
+ * 门在执行实现之前触发，故实现体写成「一旦被调用就打点」，用**未打点**反证门确实拦在
+ * 执行之前（正面证据 + 反面证据）。
+ *
+ * GOTCHA-3（2026-10-08，声明轴的删除）：`capabilities` 已从 `DualOpOptions` /
+ * `DUAL_OP_META` 移除。本文件额外钉住「meta 字段集不含 capabilities」这一形态，
+ * 防止该轴被悄悄重新引入（字段集与 defineOp product 相等的完整断言见
+ * `test/api/internal/compat-op.test.ts` 的 single-entry 用例）。
  *
  * Run: npx vitest run src/brep/engine/engine-switch-declaration.test.ts
  */
@@ -33,32 +28,51 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from '../../../src/cad-runtime/runtime'
 import type { ExecutionResult } from '../../../src/cad-runtime/runtime'
 import type { ExecutionMode, HostPorts } from '../../../src/cad-runtime/ports'
+import type { Shape } from '../../../src/mesh/types'
 import { initOcctWasm } from '../../../src/occt-kernel/occtKernel'
-import { defineOp, assertLibConforms } from '../../../src/define-op'
+import { defineOp, assertLibConforms, dualOpMetaOf } from '../../../src/define-op'
 import { CONTRACT_VERSION } from '../../../src/runtime-state'
+import { solid } from '../../../src/shape'
 import { __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
+import { registerBrepMockEngine } from '../../../src/brep/engine/adapters/brep-mock'
 import { createApiNamespaceWithEditorOps } from '../../support/editor-ops'
 
-/** 门已被拦下的证据：实现体一旦被执行就抛这个（见文件头 GOTCHA-2）。 */
-const IMPL_RAN = 'IMPL-MUST-NOT-RUN'
+/** 极小 mesh 立方体——探针实现产物（本文件不验几何）。 */
+function cubeMesh(size: number): Shape {
+  const s = size / 2
+  return {
+    positions: new Float32Array([
+      -s, -s, -s, s, -s, -s, s, s, -s, -s, s, -s,
+      -s, -s, s, s, -s, s, s, s, s, -s, s, s,
+    ]),
+    indices: new Uint32Array([
+      0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1,
+      1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0,
+    ]),
+  }
+}
+
+/** 门放行后实现体确实被调用的正面证据（见文件头 GOTCHA-2）。 */
+let implRuns = 0
 
 /**
- * 双轴声明探针：`engines: ['occt']` + `capabilities: ['meshLift']`。
+ * 单轴声明探针：`engines: ['occt']`。
  *
- * `meshLift` 是 occt 声明的能力表里**没有**的一项（`adapters/occt.ts` 只给
- * heal/directEdit/advSurface/assembly）⇒ 在 occt 上引擎门通过、能力门必然拦住；
- * 在 brepkit 上引擎门先拦住。两个引擎下实现体都不该被执行。
+ * 在 brepkit 上：引擎门在实现之前拦住 ⇒ `implRuns` 不增。
+ * 在 occt 上：引擎门放行 ⇒ `implRuns` +1。
+ * 在 brep_mock 上：D11-3 豁免 ⇒ 门不参与，`implRuns` +1（由能力声明轴删除后的
+ * 「替身不被任何门拦」钉住）。
  */
-const PROBE_BOTH_AXES = defineOp({
-  name: 'probeBothAxes',
+const PROBE_ENGINE_GATED = defineOp({
+  name: 'probeEngineGated',
   brep: () => {
-    throw new Error(IMPL_RAN)
+    implRuns += 1
+    return solid(cubeMesh(10))
   },
   engines: ['occt'],
-  capabilities: ['meshLift'],
-  naming: { kind: 'unmodeled', reason: 'declaration probe for engines × capabilities' },
+  naming: { kind: 'unmodeled', reason: 'engine-identity declaration probe' },
 })
 
 function ports(): HostPorts {
@@ -68,49 +82,68 @@ function ports(): HostPorts {
 /** 把探针挂进 cad 命名空间（宿主装配面的等价做法：命名空间即普通对象）。 */
 function makeRuntime(mode: ExecutionMode): CadRuntime {
   const cad = createApiNamespaceWithEditorOps()
-  const withProbe = { ...cad, probeBothAxes: PROBE_BOTH_AXES } as typeof cad
+  const withProbe = { ...cad, probeEngineGated: PROBE_ENGINE_GATED } as typeof cad
   return new CadRuntime(ports(), mode, { cad: withProbe })
 }
 
-const SCRIPT = 'let part0 = cad.probeBothAxes()\n'
+const SCRIPT = 'let part1 = cad.probeEngineGated()\n'
 
-describe('engines × capabilities 可以同时声明（2026-09-24 撤销 D11-7 互斥）', () => {
-  it('assertLibConforms 不再以「两者同时出现」为由拒绝', () => {
+describe('声明轴形态：capabilities 已删除，engines 是唯一收窄轴', () => {
+  it('DUAL_OP_META 不含 capabilities 字段（防该轴被重新引入）', () => {
+    const meta = dualOpMetaOf(PROBE_ENGINE_GATED)
+    expect(meta).toBeDefined()
+    expect(Object.keys(meta as object)).not.toContain('capabilities')
+    expect(meta!.engines).toEqual(['occt'])
+  })
+
+  it('assertLibConforms 接受带 engines 的平台 op（反证控制：缺 contractVersion 必须抛）', () => {
     // 反证控制：同一个 lib 去掉 contractVersion 必须抛错 —— 证明该 op 确实被
     // assertLibConforms 走到了（否则下面的 not.toThrow 可能是"压根没校验"的空洞通过）。
-    expect(() => assertLibConforms({ probeBothAxes: PROBE_BOTH_AXES })).toThrow(/contractVersion/)
-    // 第三方库通道（registerLib → admitCompatLib → assertLibConforms）：这条曾抛错。
+    expect(() => assertLibConforms({ probeEngineGated: PROBE_ENGINE_GATED })).toThrow(/contractVersion/)
     expect(() =>
-      assertLibConforms({ probeBothAxes: PROBE_BOTH_AXES, contractVersion: CONTRACT_VERSION }),
+      assertLibConforms({ probeEngineGated: PROBE_ENGINE_GATED, contractVersion: CONTRACT_VERSION }),
     ).not.toThrow()
   })
+})
 
-  it('engines 门在先：非目标引擎（brepkit）下报「requires engine occt」，且实现体未执行', async () => {
+describe('引擎门（D11-2/D11-4）：非白名单真引擎 brepkit', () => {
+  it('brep 模式：报「requires engine occt」，且实现体未执行', async () => {
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
+    implRuns = 0
 
     const result: ExecutionResult = await makeRuntime('brep').execute(SCRIPT)
     expect(result.failedAt).toBeDefined()
     const msg = `${result.failedAt!.callee}:${result.failedAt!.message}`
-    // 正面：引擎门文案
     expect(msg).toMatch(/requires engine occt/)
-    // 反面：能力门未参与（能力名不出现在文案里），实现体未被执行
-    expect(msg).not.toMatch(/meshLift/)
-    expect(msg).not.toMatch(new RegExp(IMPL_RAN))
+    // 反面证据：能力门文案已随声明轴删除，不可能出现；实现体未被执行。
+    expect(msg).not.toMatch(/lacks capability/)
+    expect(implRuns).toBe(0)
   })
+})
 
-  it('能力门在引擎匹配后仍然生效：occt 上缺 meshLift → 报「lacks capability」，且实现体未执行', async () => {
+describe('D11-3 豁免：brep_mock 替身不受引擎门拦截', () => {
+  it('brep 模式：门不参与，实现体被调用', async () => {
+    __resetEngineRegistriesForTests()
+    registerBrepMockEngine()
+    implRuns = 0
+
+    const result: ExecutionResult = await makeRuntime('brep').execute(SCRIPT)
+    const msg = `${result.failedAt?.callee ?? ''}:${result.failedAt?.message ?? ''}`
+    expect(msg).not.toMatch(/requires engine/)
+    expect(implRuns).toBe(1)
+  })
+})
+
+describe('引擎门放行：目标引擎 occt', () => {
+  it('brep 模式：门放行，实现体被调用', async () => {
     __resetEngineRegistriesForTests()
     await registerOcctBrepEngine()
+    implRuns = 0
 
     const result: ExecutionResult = await makeRuntime('brep').execute(SCRIPT)
-    expect(result.failedAt).toBeDefined()
-    const msg = `${result.failedAt!.callee}:${result.failedAt!.message}`
-    // 正面：引擎门已通过（无 requires engine 文案），能力门接住
-    expect(msg).not.toMatch(/requires engine/)
-    expect(msg).toMatch(/lacks capability 'meshLift'/)
-    // 反面：仍然拦在执行之前
-    expect(msg).not.toMatch(new RegExp(IMPL_RAN))
+    expect(result.failedAt).toBeUndefined()
+    expect(implRuns).toBe(1)
   })
 })
 

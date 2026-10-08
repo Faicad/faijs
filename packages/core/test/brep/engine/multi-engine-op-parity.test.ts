@@ -330,7 +330,7 @@ const CASES: Case[] = [
     note: '带方孔的面 → 去孔',
   },
 
-  // ── A. 降级 op（2026-09-26 批量：engines→capabilities / 静态分派） ──
+  // ── A. 降级 op（2026-09-26 批量：engines → 中立化 / 静态分派） ──
   { name: 'ellipsoid', code: 'const p = cad.ellipsoid(3, 2, 1)', category: 'parity', note: 'brepkit bbox Z 查询有精度偏差（体积精确=8π），登记已知缺口' },
   { name: 'makeBaseBox', code: 'const p = cad.makeBaseBox(20, 10, 5)', category: 'parity' },
   {

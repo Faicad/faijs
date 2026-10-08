@@ -132,7 +132,7 @@ describe('C5 默认消费（无 keep、无声明）', () => {
 })
 
 describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
-  it('api box/cylinder 携带 schema；union 有 capabilities 元数据', () => {
+  it('api box/cylinder 携带 schema；union 无 capabilities 声明（中立 op）', () => {
     const metaOf = (fn: unknown): NonNullable<{ [DUAL_OP_META]?: { schema?: unknown } }[typeof DUAL_OP_META]> => {
       const meta = (fn as { [DUAL_OP_META]?: { schema?: unknown } })[DUAL_OP_META]
       expect(meta).toBeDefined()
@@ -152,8 +152,11 @@ describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
     const cylMeta = metaOf(apiCylinder)
     expect(cylMeta.schema).toHaveProperty('radius')
 
-    const unionMeta = (apiUnion as { [DUAL_OP_META]?: { capabilities?: string[] } })[DUAL_OP_META]
-    // Phase 1 真名化：union → 'fuseWithHistory'（BrepEvolutionKind 真名），不再是族级 'evolution'
-    expect(unionMeta?.capabilities).toContain('fuseWithHistory')
+    const unionMeta = (apiUnion as { [DUAL_OP_META]?: Record<string, unknown> })[DUAL_OP_META]
+    // 2026-10-08：`capabilities` 声明轴已整体删除。union 是中立 op——既无能力声明，
+    // 也不声明 engines 白名单（`engines` 是唯一收窄轴，中立 op 不写）。
+    expect(unionMeta).toBeDefined()
+    expect(Object.prototype.hasOwnProperty.call(unionMeta, 'capabilities')).toBe(false)
+    expect(unionMeta?.engines).toBeUndefined()
   })
 })

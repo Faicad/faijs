@@ -149,7 +149,7 @@ describe('Phase 2 parity：occt 与 brepkit 的 pattern 输出一致', () => {
   })
 })
 
-describe('Phase 2 静态判定：brepkit 下缺能力 op 执行前明确报错', () => {
+describe('Phase 2 静态判定：brepkit 下非白名单平台 op 执行前明确报错', () => {
   it('reverseShape：平台 op（engines occt）在 brepkit 下执行前报 E_BREP_UNSUPPORTED，含引擎 id 与当前引擎（Phase 5 D11-4）', async () => {
     // brepkit 为默认引擎（mode 'brep' 强制 BREP 链）
     __resetEngineRegistriesForTests()

@@ -26,7 +26,7 @@
  * static-import guard keeps passing.
  */
 
-import { dispatchPath, firstMissingCapability, type BrepCapabilityName } from './cad-runtime/backend-dispatch'
+import { dispatchPath } from './cad-runtime/backend-dispatch'
 import {
   CONTRACT_VERSION,
   BrepUnsupportedError,
@@ -107,11 +107,10 @@ export type BrepProduct =
 /** BREP implementation: sync or async; returns a brep product. */
 export type BrepImpl<A extends unknown[]> = (...args: A) => BrepProduct | Promise<BrepProduct>
 
-/** Optional declaration: capabilities (D5) and named multi-products (split, scheme C). */
+/** Optional declaration: named multi-products (split, scheme C) + platform identity. */
 export interface DualOpOptions {
   /** Op name (error messages); falls back to an anonymous prefix when absent. */
   name?: string
-  capabilities?: BrepCapabilityName[]
   /**
    * 平台身份声明（D11，narrowing plan 2026-09-24）：本 op 实现可运行在哪些
    * BREP 引擎上——一个**引擎白名单**。缺省 = 全平台（中立 op——实现只用 L1 核心面）。
@@ -119,10 +118,8 @@ export interface DualOpOptions {
    * 平台 op（实现 import 了 `occt-kernel/*` / `brepkit-kernel/*`，调用该平台
    * 原生方法）**必须**声明 `engines` 自证身份。
    *
-   * 与 `capabilities` **可以并存**（2026-09-24 撤销 D11-7 互斥）：两者是正交的两轴——
-   * `engines` 收窄「在哪些引擎上跑」，`capabilities` 声明「需要哪些内核能力」。判定
-   * 次序 `engines` 在先（D11-2），能力门随后对同一引擎继续求交，故同时声明等于
-   * 「只在这些引擎上，且要求这些能力」——不会静默放行"目标引擎缺该能力"的组合。
+   * 这是 op 侧**唯一**的收窄轴：引擎能做什么由引擎自己的实现与
+   * `brep/engine/native-history.ts` 在写代码时刻定死，op 不声明能力、分派时不查能力表。
    */
   engines?: readonly BrepEngineId[]
   /**
@@ -176,7 +173,6 @@ export interface DualOpMeta {
   brep?: unknown
   /** Op name (error messages). */
   name?: string
-  capabilities?: BrepCapabilityName[]
   /** 平台身份声明（D11，镜像 DualOpOptions.engines）。 */
   engines?: readonly BrepEngineId[]
   /** 网格实体路径的引擎要求（镜像 DualOpOptions.meshEngines；缺省 = `['manifold']`）。 */
@@ -349,8 +345,8 @@ async function runImpl(
  *
  * @param decl - the declaration object: implementations `{ mesh }` (mesh-only),
  * `{ brep }` (brep-only, D1b), or `{ mesh, brep }` (dual-path), plus optional
- * `capabilities` (D5: missing capability degrades in auto, errors in brep mode)
- * and `outputs` (named multi-products, e.g. split) as siblings.
+ * `engines` (D11: engine whitelist for the implementation) and `outputs`
+ * (named multi-products, e.g. split) as siblings.
  * @returns the wrapped geometry function with dual-op metadata attached.
  */
 export function defineOp<A extends unknown[]>(
@@ -385,7 +381,6 @@ export function defineOp<A extends unknown[]>(
     mesh: decl.mesh,
     brep: decl.brep,
     name: decl.name,
-    capabilities: decl.capabilities,
     engines: decl.engines,
     meshEngines: decl.meshEngines,
     outputs: decl.outputs,
@@ -452,12 +447,7 @@ export function defineOp<A extends unknown[]>(
           },
         )
       }
-    // D5 capability routing: feed the first missing capability to dispatchPath
-    // (auto degrades to mesh, brep mode errors). Matched as a concrete name
-    // against the engine's declaration set (family booleans + its `evolution`
-    // list of *WithHistory kernel function names) — see firstMissingCapability.
-    const missing = firstMissingCapability(meta.capabilities)
-    const path = dispatchPath(inputs, meta, missing, meta.engines)
+    const path = dispatchPath(inputs, meta, meta.engines)
     if (path === 'brep') {
       const r = await runImpl(meta, decl.brep as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
       const out = meta.outputs ? wrapByKeys(r, meta.outputs, wrapBrepOne) : wrapBrepOne(r)
@@ -503,7 +493,7 @@ export function defineOp<A extends unknown[]>(
  * Assembly-time validation (③, strict mode, D-4): a library that exports any
  * dual-op function must carry a matching `contractVersion`, and every exported
  * dual-op must be structurally valid (mesh a function, brep a function or
- * undefined, capabilities/outputs well-formed). Called by `registerLib`.
+ * undefined, engines/outputs well-formed). Called by `registerLib`.
  *
  * Functions without dual-op metadata are left untouched (declarative
  * enforcement boundary — K5 forbids name-based classification).
@@ -563,17 +553,6 @@ export function assertLibConforms(lib: Record<string, unknown>): void {
     if (meta.brep !== undefined && typeof meta.brep !== 'function') {
       throw new Error(`[faijs] lib function '${name}' declares dual-op with a non-function brep implementation`)
     }
-    if (meta.capabilities !== undefined && !Array.isArray(meta.capabilities)) {
-      throw new Error(`[faijs] lib function '${name}' declares invalid capabilities (expected string[])`)
-    }
-    // D11-7 互斥**已撤销**（2026-09-24 用户裁决）：engines 与 capabilities 是两条正交的
-    // 声明轴——前者是引擎身份白名单（在哪些引擎上跑），后者是实现所需内核能力清单
-    // （要用哪些方法）。两者并存是合法且更诚实的写法：engines 收窄候选集，能力门随后
-    // 对同一引擎继续求交（dispatchPath 的求值次序本就是 engines 在先，D11-2）。
-    // 曾经的理由「能力名空间只收 L1 中立名」与事实不符——BrepCapabilityName 含
-    // BrepMethodKind 逐核真名（isNull / dispose / chamfer / shell / ...，见
-    // brep/engine/types.ts），本就是内核名空间；平台 op 声明能力名并不越界。
-    // 故此处不再校验两者是否同时出现。
     if (meta.engines !== undefined) {
       if (!Array.isArray(meta.engines) || meta.engines.length === 0) {
         throw new Error(`[faijs] lib function '${name}' declares invalid engines (expected non-empty BrepEngineId[])`)

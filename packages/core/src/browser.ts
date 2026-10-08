@@ -90,7 +90,7 @@ export type {
 export { assertShapeSlotExclusive } from './cad-runtime/backend-dispatch'
 export type { BrepEngineApi } from './brep/engine/primitives'
 export type {
-  BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3, BrepCapabilities,
+  BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3, BrepEvolutionKind,
   BrepEvolutionData, BrepXcafDocument,
 } from './brep/engine/types'
 export { buildTopologyAdjacency, type TopologyAdjacency } from './occt-kernel/topologyExt'

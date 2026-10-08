@@ -15,16 +15,16 @@ import { solidToShape } from '../brep/brep-ops'
 import {
   booleanWithRoleTable,
 } from '../brep/face-evolution'
-import { getCurrentStmt, getBackends, keepHidden, nameOf } from '../runtime-state'
+import { getCurrentStmt, keepHidden, nameOf } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, hasMeshSolid, inputRoleTable } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
 import { OpError } from './internal/result-unwrap'
 import { meshKernelFailure, meshSolidEntry, meshSolidProduct } from './internal/mesh-solid-op'
 import { defineOp } from '../sdk'
-import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
+import { hasNativeHistory } from '../brep/engine/native-history'
 import type { Provenance } from '../topology/naming/lineage'
-import type { BrepHandle } from '../brep/engine/types'
+import type { BrepEvolutionKind, BrepHandle } from '../brep/engine/types'
 
 type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
@@ -33,18 +33,15 @@ type BooleanOperation = 'union' | 'subtract' | 'intersect'
 /**
  * BREP 路径：fuse/cut/intersect。
  *
- * 静态双轨（无运行时 try-catch 回退——按引擎**声明**的能力集在执行前定轨）：
- * - 引擎声明了对应 `*WithHistory`（occt 三员全有）→ `booleanWithRoleTable`：
+ * 静态双轨（无运行时 try-catch 回退——按引擎事实在执行前定轨）：
+ * - 引擎原生有对应 `*WithHistory`（occt 三员全有）→ `booleanWithRoleTable`：
  *   一次内核调用同时产出结果 + 面演化（faceEvolution）+ roleTable 合流（§3.4）。
- * - 引擎只声明了裸布尔方法（brepkit：声明了 `intersect` 但**没有** `intersectWithHistory`）
+ * - 引擎只有裸布尔方法（brepkit：有 `intersect` 但**没有** `intersectWithHistory`）
  *   → 走 L1 裸 `kernel[op](a,b)`：几何正确，但**不产生面演化、不传播 roleTable**。
  *   这是如实降级——绝不用「恒等映射」伪造一张把输入面 hash 指到结果面 hash 的演化表
  *   （结果实体的面 hash 与输入根本不同，恒等映射是假身份）。
  *
- * `intersect` 因此不再声明 `capabilities: ['intersectWithHistory']`（中立 op）：
- * brepkit 上由本函数静态落到裸 `intersect`；occt 上仍走 `intersectWithHistory`。
- * fuse/cut 保留各自 `*WithHistory` 能力声明——dispatchPath 的 gate 保证它们到达本函数时
- * 引擎必已声明对应历史方法，故下方 `useHistory` 对 fuse/cut 恒为 true。
+ * 定轨只读引擎事实 `hasNativeHistory`（`brep/engine/native-history.ts`），op 侧不声明能力。
  */
 function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
   const kernel = getBrepApi()
@@ -96,11 +93,11 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
     )
   }
 
-  // 静态定轨：当前引擎是否声明了本 op 的面演化核函数（读的是同一声明源 dispatchPath 用的
-  // 能力集，不是运行时探测）。fuse/cut 因 gate 保证此处恒 true；intersect 在 occt true、
-  // brepkit/mock false（后者走 L1 裸 `kernel[op]`，该方法是 BrepEngineApi 必需成员，必存在）。
-  const historyCap = op === 'fuse' ? 'fuseWithHistory' : op === 'cut' ? 'cutWithHistory' : 'intersectWithHistory'
-  const useHistory = engineCapabilitySet(getBackends().config.brepCapabilities).has(historyCap)
+  // 静态定轨：当前引擎是否原生实现本 op 的面演化核函数（引擎事实，非运行时探测）。
+  // fuse/cut 的 brep 实现调 `*WithHistory`，在只提供裸布尔的引擎上走不了历史轨——
+  // 该分叉由 hasNativeHistory 回答，op 侧不声明任何能力。
+  const historyCap: BrepEvolutionKind = op === 'fuse' ? 'fuseWithHistory' : op === 'cut' ? 'cutWithHistory' : 'intersectWithHistory'
+  const useHistory = hasNativeHistory(historyCap)
 
   // 首个 solid 输入作为 target 起点（F 组：可能不是 inputs[0] —— wire/face
   // 资产常排在前面作为 profile/binder）。
@@ -272,7 +269,8 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
   return result
 }
 
-// ── 三个薄导出（多输入 variadic，defineOp 声明双路径 + 逐核函数 face-evolution 能力） ──
+// ── 三个薄导出（多输入 variadic，defineOp 声明双路径；面演化进路由引擎事实 ──
+// ── `hasNativeHistory` 定，op 不声明、不查表——见下方各 op 的分叉注释） ──
 // 函数体 keep 声明（keep-syntax 设计 §2.5）：union/subtract/intersect 保留其
 // 输入且隐藏（R5：3d_editor 现状）——keepHidden 使源变量保持终端但 canvas
 // 不渲染，只有布尔结果正常显示。混合/断链时刻：BREP 侧输入先归约为合法
@@ -300,10 +298,6 @@ export const union = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'union')
   },
-  // 逐核函数声明（Phase 0.2）：union 需要内核的 fuseWithHistory。
-  // 不再声明族级 'evolution'——族级名会让 brepkit（无 intersectWithHistory）等
-  // 部分实现的内核静默通过静态判定，再死在运行时（红线违规）。
-  capabilities: ['fuseWithHistory'],
   schema: { shapes: 'Shape*' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
@@ -334,7 +328,6 @@ export const cut = defineOp({
     keepHidden(base, tool)
     return booleanBrep([base, tool], 'subtract')
   },
-  capabilities: ['cutWithHistory'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
@@ -360,8 +353,6 @@ export const subtract = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'subtract')
   },
-  // 逐核函数声明（Phase 0.2）：subtract 需要内核的 cutWithHistory。
-  capabilities: ['cutWithHistory'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
@@ -387,11 +378,8 @@ export const intersect = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'intersect')
   },
-  // 不声明 `capabilities: ['intersectWithHistory']`（中立 op）：
-  // brepkit 声明了裸 `intersect` 但没有 `intersectWithHistory`——若硬声明历史能力，
-  // brepkit brep 模式会在执行前静态报 `lacks capability 'intersectWithHistory'`。
-  // 现由 booleanBrep 按引擎声明的能力集静态分派：occt（声明 intersectWithHistory）
-  // 走历史路径保留面演化/naming；brepkit（只声明裸 intersect）走 L1 裸 `kernel.intersect`，
-  // 几何正确但无面演化（如实降级，不伪造恒等映射）。
+  // intersect 不声明任何能力：brepkit 只有裸 `intersect`（无 `intersectWithHistory`），
+  // 由 booleanBrep 按引擎事实静态分派——occt 走历史路径保留面演化/naming；
+  // brepkit 走 L1 裸 `kernel.intersect`，几何正确但无面演化（如实降级，不伪造恒等映射）。
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

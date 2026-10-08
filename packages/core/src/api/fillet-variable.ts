@@ -69,7 +69,6 @@ function filletVariableBrep(input: Shape, edge: EdgeTopoRef, startRadius: number
  * const v = await cad.filletVariable(part0, partEdges[0], 1, 4)
  */
 export const filletVariable = defineOp({
-  capabilities: ['directEdit'],
   brep(input: Shape, edge: EdgeTopoRef, r1: number, r2: number) {
     return filletVariableBrep(input, edge, r1, r2)
   },

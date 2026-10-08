@@ -24,8 +24,7 @@ import {
   mirrorWithHashEvolution,
   rotateWithHashEvolution,
 } from '../../brep/face-evolution'
-import { engineCapabilitySet } from '../../cad-runtime/backend-dispatch'
-import { getBackends } from '../../runtime-state'
+import { hasNativeHistory } from '../../brep/engine/native-history'
 import { getBrepApi } from '../../brep/handle-bridge'
 import { ok, err, type Result } from '../../result/result'
 import { kernelError, validationError } from '../../result/errors'
@@ -222,8 +221,8 @@ const MIRROR_PARAMS = { name: 'mirror', params: ['shape', 'options'], formClass:
 /**
  * Mirror across a plane defined by `options.at` (origin) and `options.normal`.
  *
- * C5 实现面接入（静态双轨）：occt 声明 `mirrorWithHistory` → 走权威面演化；
- * brepkit 未声明 → 显式回退裸 `mirror`（**不报错**），镜像保面序故挂恒等序号演化。
+ * C5 实现面接入（静态双轨）：occt 原生有 `mirrorWithHistory` → 走权威面演化；
+ * brepkit 没有 → 显式回退裸 `mirror`（**不报错**），镜像保面序故挂恒等序号演化。
  *
  * @param args - Resolved arguments (shape, mirror options).
  * @returns The mirrored shape plus its face evolution.
@@ -236,8 +235,7 @@ export function mirrorBrep(...args: unknown[]): Result<{ solid: BrepHandle; face
   const kernel = getBrepApi()
   const s = brepHandleOf(shape)
   try {
-    const caps = engineCapabilitySet(getBackends().config.brepCapabilities)
-    if (caps.has('mirrorWithHistory')) {
+    if (hasNativeHistory('mirrorWithHistory')) {
       const r = mirrorWithHashEvolution(kernel, s, at, normal)
       return ok({ solid: r.result, faceEvolution: r.faceEvolution })
     }
@@ -263,9 +261,9 @@ const ROTATE_PARAMS = { name: 'rotate', params: ['shape', 'angle', 'options'], f
 /**
  * Rotate the shape around an axis (brepjs topology/api.js#rotate + transformFns.ts#rotate).
  *
- * C5 实现面接入（静态双轨）：occt 声明 `rotateWithHistory` → 走权威面演化
+ * C5 实现面接入（静态双轨）：occt 原生有 `rotateWithHistory` → 走权威面演化
  * （`rotateWithHistory` 产物 STEP 导出安全，与原生 `rotate` 的 GOTCHA 无关）；
- * brepkit 未声明 → 退回 Rodrigues 矩阵 + STEP-safe `transform`（**不报错**），
+ * brepkit 没有 → 退回 Rodrigues 矩阵 + STEP-safe `transform`（**不报错**），
  * 挂恒等序号演化。
  *
  * @param args - Resolved arguments (shape, angle in degrees, axis options).
@@ -284,8 +282,7 @@ export function rotateBrep(...args: unknown[]): Result<{ solid: BrepHandle; face
   const nx = ax / alen, ny = ay / alen, nz = az / alen
   const theta = (Number(angle) * Math.PI) / 180
   try {
-    const caps = engineCapabilitySet(getBackends().config.brepCapabilities)
-    if (caps.has('rotateWithHistory')) {
+    if (hasNativeHistory('rotateWithHistory')) {
       const r = rotateWithHashEvolution(kernel, s, at, [nx, ny, nz], theta)
       return ok({ solid: r.result, faceEvolution: r.faceEvolution })
     }

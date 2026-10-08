@@ -68,7 +68,7 @@ const brepShape = (): Shape => {
 function makeBackends(mode: 'auto' | 'brep' | 'mesh', meshBackendId: string | null): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
-    config: { mode, brepCapabilities: { methods: [] } },
+    config: { mode },
     kernel: {
       brep: {},
       csg: undefined,

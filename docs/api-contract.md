@@ -89,7 +89,7 @@ The engine package also exposes fine-grained subpaths (`@faicad/faijs/runtime-st
 - **R-4 Naming and terminal semantics are owned by the engine.** `partN` allocation, DAG leaf detection and consumption validation all live inside the engine; the host does not reimplement them.
 - **R-5 Coordinate space**: millimeters (mm), +Z up, angles in degrees. Every `cad.*` input and output is a world-space `Shape`.
 - **R-6 The BREP chain is per part.** Whether a part is still BREP is decided solely by whether `solidCache` holds a handle for it; there is no global flag, and sibling parts never contaminate each other.
-- **R-7 Static dispatch, no runtime fallback.** An exception on the BREP path is a bug — surface it, never catch it and silently switch to mesh. A missing capability degrades statically or raises a clear error; **never fake an API**.
+- **R-7 Static dispatch, no runtime fallback.** An exception on the BREP path is a bug — surface it, never catch it and silently switch to mesh. An engine that cannot serve the op is rejected statically or raises a clear error; **never fake an API**.
 - **R-8 keep is the only coupling point between faijs and the UI.** faijs defines no features, UI forms, icons or edit panels — those belong to the upper-layer application (3d_editor).
 - **R-9 Terminology: op vs. feature.** At the **faijs layer**, op = an operation that returns a geometric entity (`Shape` / `CompoundShape`). At the **host layer (3d_editor)**, op = any operation / any function call, and feature = the generic CAD term implemented by one or more ops / function calls. The engine has zero function knowledge (§1.2) and sees only "a library function call returning a geometric entity"; feature semantics, like UI forms / icons / edit panels, belong to the upper-layer application (see R-8). The user's exact words (zh) are quoted in the Chinese version (§2 R-9).
 
@@ -246,7 +246,7 @@ createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, LibN
 export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 ```
 
-- `auto` (default): prefer BREP; a mesh-only op, a broken input chain, or a missing capability falls back to mesh statically.
+- `auto` (default): prefer BREP; a mesh-only op, a broken input chain, or an op that does not name the current engine falls back to mesh statically.
 - `brep`: force BREP; anything unsupported raises (`BrepUnsupportedError` → `failedAt`) and **never switches automatically**.
 - `mesh`: every op takes the mesh path.
 
@@ -321,7 +321,7 @@ configureBackends(backends: Backends): void   // called once at host startup
 getBackends(): Backends                       // throws when unconfigured; no silent default
 export interface Backends {
   readonly contractVersion: number
-  readonly config: { mode; brepEngineId?; brepCapabilities?; partTransform? }
+  readonly config: { mode; brepEngineId?; partTransform? }
   readonly kernel: { readonly brep: unknown | null; readonly csg?; readonly sdf? }
   readonly fonts; texture; assets; events
   readonly cad?: LibNamespace
@@ -378,17 +378,13 @@ unwrap<T>(r: Result<T>): T   // throws if Err
 
 A library namespace registered with `runtime.registerLib(binding, ns, { compat: true })` is admitted into the statement face: functions already declared via `defineOp` pass through with their spec intact; bare library functions are lifted into faijs ops, with `fn.outputs` as the one recognized multi-output annotation on bare functions (it maps to the op's `outputs` spec). The lifting mechanics are engine-internal (`api/internal/compat-op.ts`); library authors only need the behavior contract in `docs/library-dev-guide.md`.
 
-### 7.9 BREP engine switchability and capability declaration
+### 7.9 BREP engine switchability and the `engines` declaration
 
-The BREP engine is **switchable at assembly time** (not at runtime): the host registers exactly one default engine via `registerBrepEngine` (§8.2), and the registry is read-only afterwards. Every engine exposes `BrepEngineApi` primitives plus a `capabilities` declaration; **static determination, no runtime fallback** — whether an op can run on the current engine is decided before execution from the capability table, never by try-catch probing.
+The BREP engine is **switchable at assembly time** (not at runtime): the host registers exactly one default engine via `registerBrepEngine` (§8.2), and the registry is read-only afterwards. Every engine exposes `BrepEngineApi` primitives and nothing else; **static determination, no runtime fallback** — whether an op can run on the current engine is decided before execution from the op's `engines` declaration against the current engine identity, never by try-catch probing.
 
-**Capability names are three-layered** (an alias like `'mirror'` cannot express both "provides `mirrorWithHistory`" and "provides `mirror`", so the two families are named separately):
+**`engines` is the only narrowing axis.** An op whose implementation statically imports `occt-kernel/*` or `brepkit-kernel/*` is a platform op and must name the engines it was written for; a neutral op (no `engines`) is written against L1 only and is available on every engine. The rules are in §7.11.
 
-- **family-level booleans** (`heal`, `directEdit`, `advSurface`, `assembly`, `meshLift`) — legacy slots that over-report (a kernel may implement only part of a family); the concrete-name layers below are authoritative;
-- **`BrepEvolutionKind`** — the concrete `*WithHistory` kernel names the engine provides (e.g. `['fuse','cut','fillet']`);
-- **`BrepMethodKind`** — the concrete non-evolution kernel method names the engine provides (e.g. `['fuse','cut','linearPattern','chamfer']`).
-
-Every library op declares the concrete names it needs (`capabilities: ['cut']`); the dispatch layer matches them against the engine's `methods` / `evolution` lists **before execution** (§8.1 decision order). A missing capability **degrades statically** (auto mode, mesh implementation present) or **raises before execution** (`BrepUnsupportedError` in brep mode; `MeshUnsupportedError` when no mesh implementation exists). A capability is **never faked**: an engine declares only what it can actually execute (brepkit does not declare `chamfer` because its wasm exports no chamfer kernel; capability-map-derived registration is the baseline, see §7.10).
+**What a kernel can do is fixed in code, not declared in metadata.** There is no capability table, no op-side capability list, and nothing for the dispatch layer to look up: the engine adapters are the fact of the matter. The one place an op body asks an engine fact is `brep/engine/native-history.ts`, whose `hasNativeHistory(kind)` answers a single question — does the current engine natively implement this `*WithHistory` kernel function? — from the engine identity alone (`occt`: all twelve; `brepkit`: `fuseWithHistory` / `cutWithHistory` / `filletWithHistory`; `brep_mock` and unknown ids: none). Op bodies use it to pick a static route (e.g. `booleanBrep` takes the authoritative face-evolution path where the kernel provides it, and the plain L1 call otherwise). It is deliberately **not** `typeof kernel.X === 'function'`: every adapter exposes stubs across the whole surface, so a present function proves nothing.
 
 ### 7.10 Compat op kernel acquisition
 
@@ -407,17 +403,17 @@ The engine surface is split into three layers (narrowing plan §1, D11):
 
 - **L1 — neutral contract face `BrepEngineApi`**: methods both adapters genuinely implement; dialect differences are absorbed inside adapters. Portable code (engine-agnostic ops, the cad script face, third-party libraries) may call only L1, via `getBrepApi()`.
 - **L2 — platform native face**: the `OcctKernel` / `BrepKitKernel` instance itself, verbatim types, zero normalization. Only platform-specific code touches it — adapter files, or op implementation files annotated `@platform occt` / `@platform brepkit`.
-- **L3 — capability declaration face**: `BrepCapabilities.methods` / `evolution` per-name declarations (§7.9) plus the `engines` platform-identity field on `defineOp`.
+- **L3 — declaration face**: the `engines` platform-identity field on `defineOp`. It is the whole of L3: there is no capability declaration to carry alongside it (§7.9).
 
 **What is a platform op?** An op whose implementation statically imports `occt-kernel/*` or `brepkit-kernel/*` — the import is the sole judge. Platform ops must declare `engines: ['occt']` (and/or `'brepkit'`) in `defineOp` (D11). Rules:
 
-1. **`engines` precedes `capabilities`** — the engine-identity check runs first in `dispatchPath` (D11-2); discussing capabilities is meaningless for an engine the op is not built for.
-2. **`engines` and `capabilities` may be declared together** — `engines` is the engine whitelist, `capabilities` is the set of kernel capabilities the implementation needs. The engine gate runs first (rule 1); the capability gate then intersects against the matched engine, so a declared capability the matched engine lacks still fails statically. The D11-7 mutual exclusion was withdrawn on 2026-09-24.
+1. **`engines` is checked first** — the engine-identity check runs before mode, chain and everything else in `dispatchPath` (D11-2); an engine the op is not built for is the first fact that matters.
+2. **`engines` is the only narrowing axis** — no second declaration may narrow executability. An op is either a platform op (names its engines) or neutral (no `engines`, L1 only). Whether a kernel can actually perform the work is settled in code (the adapters, and `native-history.ts` for the `*WithHistory` question), never by a declared list the dispatch layer intersects at runtime.
 3. **Interception before execution** — under a non-listed engine: brep mode throws `BrepUnsupportedError`; auto mode statically degrades to mesh (`MeshUnsupportedError` when no mesh implementation exists). `mode='mesh'` is exempt (D11-6): a host forcing mesh never errors on platform identity.
-4. **`brep_mock` is exempt** (D11-3): mock is a test stand-in whose capabilities are deliberately all-granted; real-engine identity checks are covered by parity / engine-switch tests.
+4. **`brep_mock` is exempt** (D11-3): mock is a test stand-in, deliberately allowed through the engine-identity check so the orchestration path (naming, `Result` boundary, multi-output) stays testable; real-engine identity checks are covered by parity / engine-switch tests.
 5. The script face may expose platform ops under the same declaration — unsupported engines fail at the statement boundary (`ExecutionResult.failedAt`, Q11).
 
-**Script-face additions (2026-09-24 capability extension)**: the 1D curve family (`wire`, `helix`, `sketch` `as:'wire'`) and the sweep/loft family (`sweep`, `loft`, `complexExtrude`, `twistExtrude`, `roof`) reached the cad face along these rules — `sweep`/`loft`/`helix`/`thicken` declare `engines: ['occt']`; `wire` / `splitByPlane` (named `positive`/`negative` outputs) / `sectionByPlane` (1D section curve) / `shell` / `draft` / `filletVariable` are neutral (no `engines`, L1-only implementations via `getBrepApi()`); `roof` is neutral (capability-routed). 1D products (`wire`, `helix`, section curves) carry `kind:'curve'` and render via `wireframe`. The parameter contract lives in `docs/ops-api-inventory.md`.
+**Script-face additions (2026-09-24, `engines` declarations)**: the 1D curve family (`wire`, `helix`, `sketch` `as:'wire'`) and the sweep/loft family (`sweep`, `loft`, `complexExtrude`, `twistExtrude`, `roof`) reached the cad face along these rules — `sweep`/`loft`/`helix`/`thicken`/`roof` declare `engines: ['occt']`; `wire` / `splitByPlane` (named `positive`/`negative` outputs) / `sectionByPlane` (1D section curve) / `shell` / `draft` / `filletVariable` are neutral (no `engines`, L1-only implementations via `getBrepApi()`). 1D products (`wire`, `helix`, section curves) carry `kind:'curve'` and render via `wireframe`. The parameter contract lives in `docs/ops-api-inventory.md`.
 
 
 ---
@@ -429,15 +425,15 @@ The engine surface is split into three layers (narrowing plan §1, D11):
 Located in `packages/core/src/cad-runtime/backend-dispatch.ts` (**not on the SDK public surface** — library authors declare implementation sets via `defineOp`, see §10.3):
 
 ```ts ignore-check
-dispatchPath(inputs: Shape[], impls: { mesh?: UnknownFn; brep?: UnknownFn }, requiredCapability?: BrepCapabilityName): 'brep' | 'mesh'
+dispatchPath(inputs: Shape[], impls: { mesh?: UnknownFn; brep?: UnknownFn }, engines?: readonly BrepEngineId[]): 'brep' | 'mesh'
 ```
 
-Decision order (D11-2: engine identity precedes mode and capability checks):
+Decision order (D11-2: engine identity precedes mode and chain):
 
 1. `mode='mesh'` → no `impls.mesh` → **throw `MeshUnsupportedError`** (`E_MESH_UNSUPPORTED`); else mesh (D11-6 — a host forcing mesh never errors on platform identity).
 2. **`engines` identity check (D11-2)** — current engine is not `brep_mock` (D11-3 exempt) and not listed in the op's `engines` → brep mode **throws `BrepUnsupportedError`**; auto mode degrades to mesh (`MeshUnsupportedError` when no mesh implementation exists). Neutral ops (no `engines`) skip this step.
-3. `mode='brep'` → no `impls.brep`, inputs off-chain, or current engine lacks `requiredCapability` → **throw `BrepUnsupportedError`**.
-4. `mode='auto'` → capability missing → mesh (static degradation); else `impls.brep` present and all inputs on the chain → brep, else mesh.
+3. `mode='brep'` → no `impls.brep` or inputs off-chain → **throw `BrepUnsupportedError`**.
+4. `mode='auto'` → `impls.brep` present and all inputs on the chain → brep; else mesh (static degradation), or `MeshUnsupportedError` when there is no mesh implementation to degrade to.
 
 
 Creation ops (empty inputs) satisfy `[].every(hasBrep) === true`, so they take the brep path. Both unsupported errors are captured by the engine as `ExecutionResult.failedAt`.
@@ -452,13 +448,13 @@ registerMeshEngine(id: string, engine: MeshEngine): void
 getBrepEngine(id?): Promise<BrepEngine>     // async provider, result cached
 getMeshEngine(id?): MeshEngine
 freezeEngineRegistries(): void              // freeze after assembly; further registration throws
-export interface BrepEngine { readonly id: string; readonly primitives: BrepEngineApi; readonly capabilities?: BrepCapabilities }
+export interface BrepEngine { readonly id: string; readonly primitives: BrepEngineApi }
 export type BrepEngineProvider = () => Promise<BrepEngine>
 ```
 
 **Registration happens only during host startup assembly; the registry is read-only at runtime** and offers no unregister / setDefault / runtime switching. OCCT is installed as the default BREP engine by the adapter's idempotent `ensureOcctDefaultEngine()`.
 
-**Capability declarations** (`BrepCapabilities`, all optional): `evolution` — **a list of the `*WithHistory` kernel function names the engine actually provides** (`BrepEvolutionKind`, e.g. `['fuse','cut','fillet']`), *not* a family-level boolean — and `methods` — **a list of the concrete non-evolution kernel method names the engine provides** (`BrepMethodKind`, e.g. `['fuse','cut','linearPattern','chamfer']`). The booleans `heal`, `directEdit`, `advSurface`, `assembly` (XCAF), `meshLift` (mesh→BREP lifting) are legacy family slots that over-report; the concrete-name lists are authoritative (§7.9). An op declares the concrete name(s) it needs (`capabilities: ['cut']`), matched against those lists. A missing capability degrades statically or raises a clear error before execution — **never faked**. A family-level boolean would over-report, because a kernel may implement only part of the family.
+**An engine is its primitives.** There is no declaration to attach: the adapter's implementation is the whole statement of what that engine can do, and `BrepEngine` carries only `id` + `primitives`. The single engine-facts query an op body may need — "does this engine natively implement `XWithHistory`?" — lives in `brep/engine/native-history.ts` (`hasNativeHistory(kind)`, §7.9) and answers from the engine id, so it can never disagree with the registry. What a given engine lacks shows up as the absence of a real implementation behind an L1 method, not as a missing entry in a list.
 
 ### 8.3 `BrepChainState`
 
@@ -466,7 +462,6 @@ export type BrepEngineProvider = () => Promise<BrepEngine>
 export interface BrepChainState {
   solidCache: Map<PartName, BrepHandle>       // present = still BREP; absent = downgraded
   kernel: BrepEngineApi | null                // null in mesh mode
-  capabilities?: BrepCapabilities             // current engine capabilities (capability routing)
   partTransform?: { position: Vec3; scale?: Vec3 }
   faceEvolutionCache?: Map<PartName, Map<number, number[]>>
   meshShapeCache?: Map<PartName, WasmMesh>    // tessellation cache (topology mesh = display mesh)
@@ -581,7 +576,7 @@ export const myOp = defineOp({
 
 - At least one implementation; **mesh is the default path** (mesh-only / brep-only both legal).
 - Geometry inputs are collected automatically (`args.filter(isShape)`); multi-product functions declare `outputs: string[]` (e.g. `split` → `{ front, back }`).
-- The wrapper dispatches by mode (internally `dispatchPath`, §8.1); failures raise `BrepUnsupportedError` / `MeshUnsupportedError`, converted to `ExecutionResult.failedAt`. Capabilities (e.g. `union` → `['fuse']`, matched against the engine's `evolution` list of provided `*WithHistory` names) degrade to mesh in auto when missing; brep mode raises.
+- The wrapper dispatches by mode (internally `dispatchPath`, §8.1); failures raise `BrepUnsupportedError` / `MeshUnsupportedError`, converted to `ExecutionResult.failedAt`. An op that does not name the current engine degrades to mesh in auto mode and raises in brep mode.
 
 ### 10.4 Third-party library channel
 

@@ -10,6 +10,11 @@
  *
  * 断言两引擎都产出 brepSolids + STEP 导出，且导出标记不同——证明执行路径
  * 与引擎解耦，换引擎不换代码。
+ *
+ * 2026-10-08（删除 `capabilities` 声明轴）：本文件第二段原先断言「memory 缺 evolution →
+ * 能力路由执行前报错」，那是能力门对 brep-mock 的判决，不是引擎身份判决。声明轴删除后
+ * `union` 是中立 op（无 `engines`），engine 门对 `brep_mock` 又本就有 D11-3 豁免，
+ * 故两段重新完全对称——同一段脚本、同一断言形状，只有导出标记不同。
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -22,8 +27,8 @@ import { registerBrepMockEngine, BREP_MOCK_ENGINE_ID } from '../../../src/brep/e
 import { createEditorRuntime } from '../../support/editor-ops'
 
 /** 同一段 faijs 脚本：构造（box×2）→ 布尔（union）。
- *  条件分支断言（不统一放宽）：occt 支持 evolution → union 成功（keepHidden 源保留 → 3 个 terminal）；
- *  memory 缺 evolution → 能力路由执行前明确报错（failedAt），已成功的 part0/part1 仍为 terminal（2 个）。 */
+ *  `union` 中立（无 `engines`）→ 两引擎都执行，无执行前静态拒绝；
+ *  唯一差异是 STEP 导出标记（`ADVANCED_FACE` vs `brep-mock-engine`）。 */
 const SCRIPT = `let part0 = cad.box(10, 10, 10, { centered: true })
 let part1 = cad.box(10, 10, 10, { centered: true, at: [15, 0, 0] })
 let part2 = cad.union(part0, part1)
@@ -71,15 +76,19 @@ describe('memory 引擎（第二引擎——切换能力验证）', () => {
     __resetEngineRegistriesForTests()
   })
 
-  it("同一脚本：union 缺 'fuse' 核函数 → 能力路由执行前明确报错（无部分结果，不伪造）", async () => {
+  it('同一脚本：union 成功 → ≥3 个 brepSolids + mock STEP 导出（brep-mock-engine 标记）', async () => {
     const result = await runWithEngine(registerBrepMockEngine, BREP_MOCK_ENGINE_ID)
 
-    // 布尔逐核函数声明（Phase 1 真名化：union → 'fuseWithHistory'），brep-mock 缺该能力
-    // → brep 模式执行前明确报错，不伪造
-    expect(result.failedAt).toBeDefined()
-    expect(result.failedAt!.callee).toBe('union')
-    expect(result.failedAt!.message).toMatch(/lacks capability 'fuseWithHistory'/)
-    // 能力路由在执行前拦截 union——失败不组装 brepSolids（无部分成功结果）
-    expect(result.brepSolids).toBeUndefined()
+    // union 无 engines 白名单 ⇒ 引擎门放行；brep_mock 亦不在任何白名单语义内（D11-3 豁免）。
+    // 静态拒绝面已无第二条声明轴（能力门于 2026-10-08 删除），故与 occt 段同形断言。
+    expect(result.failedAt).toBeUndefined()
+    expect(result.brepSolids).toBeDefined()
+    // union 走 keepHidden：part0/part1 保留为 terminal + part2 → ≥3 个
+    expect(result.brepSolids!.size).toBeGreaterThanOrEqual(3)
+    const entry = result.brepSolids!.get(asPartName('part2'))
+    expect(entry).toBeDefined()
+    const step = entry!.kernel.exportStep(entry!.solid)
+    expect(step).toContain('brep-mock-engine')
+    expect(step).not.toContain('ADVANCED_FACE')
   })
 })

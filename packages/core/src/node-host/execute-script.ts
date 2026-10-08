@@ -5,7 +5,8 @@
  * 发布 tarball 不含 `scripts/`，此前没有「给 `.fai.js` 源码字符串 → 直接拿到产物」的
  * 公开函数，每个下游各自内联 CLI 包装器，并各自重复踩 Host 装配的三个坑
  * （不 registerOcctBrepEngine → BREP engine API not available；configureBackends 漏
- * brepCapabilities → E_BREP_UNSUPPORTED；把 defineOp 返回的 Promise<Shape> 当 Result 判）。
+ * `config.brepEngineId` → 平台 op 静态被拒 `E_BREP_UNSUPPORTED`；把 defineOp 返回的
+ * Promise<Shape> 当 Result 判）。
  * 本函数把装配知识固化在一处（与 cliRun 同一套装配）。
  *
  * 仅 Node.js：经 `@faicad/faijs/node` 导入，不要进浏览器构建（依赖 node-host）。

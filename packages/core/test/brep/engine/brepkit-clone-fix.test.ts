@@ -1,12 +1,12 @@
 /**
  * @vitest-environment node
  *
- * brepkit-clone-fix — clone op 从 engines:[occt] 白名单降级为 copyShape 能力路由后的回归。
+ * brepkit-clone-fix — clone op 从 engines:[occt] 白名单降级为中立 op 后的回归。
  *
  * 背景：clone 原声明 `engines: ['occt']`，brepkit brep 模式执行前静态报
- * `requires engine occt`。cloneBrep 纯调 `kernel.copyShape`（brepkit 适配器 A 批已声明
- * copyShape，调 kernel.copySolid），无 occt 特有 API，故移除引擎白名单、改为
- * `capabilities: ['copyShape']` 按能力路由。
+ * `requires engine occt`。cloneBrep 纯调 `kernel.copyShape`（brepkit 实现面 A 批已接线
+ * copyShape，调 kernel.copySolid），无 occt 特有 API，故移除引擎白名单；2026-10-08
+ * 能力声明轴删除后它是纯中立 op（无任何收窄声明）。
  *
  * 命名契约探针结论（2026-09-26）：
  *   - identity provenance = 按 **ordinal（面枚举序号）1:1** 映射（第 i 面→第 i 面），

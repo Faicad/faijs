@@ -459,9 +459,6 @@ export function registerBrepMockEngine(): void {
   registerBrepEngine(BREP_MOCK_ENGINE_ID, async (): Promise<BrepEngine> => ({
     id: BREP_MOCK_ENGINE_ID,
     primitives: createBrepMockApi(),
-    capabilities: {
-      // brep-mock lacks evolution/heal/assembly — missing capabilities are exposed (§7.5).
-    },
   }))
 }
 

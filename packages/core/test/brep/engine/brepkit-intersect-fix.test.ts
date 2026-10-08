@@ -4,13 +4,14 @@
  * brepkit-intersect-fix — 回归测试：intersect op 在 brepkit 引擎上可用（优雅降级）
  *
  * 背景：intersect 曾声明 `capabilities: ['intersectWithHistory']`，而 brepkit 适配器
- * 只声明了 fuseWithHistory/cutWithHistory/filletWithHistory（无 intersectWithHistory），
- * 导致 brepkit brep 模式执行前静态报 `lacks capability 'intersectWithHistory'`。
+ * 未把 intersectWithHistory 列入原生面，导致 brepkit brep 模式执行前静态报
+ * `lacks capability 'intersectWithHistory'`。
  *
- * 修复（方向 A）：intersect 改为中立 op（不声明 capabilities）；booleanBrep 按引擎声明的
- * 能力集静态分派——
- *   - occt（声明 intersectWithHistory）→ booleanWithRoleTable 历史路径，产出面演化 + roleTable；
- *   - brepkit（只声明裸 intersect）→ L1 裸 kernel.intersect，几何正确但无面演化（如实降级，
+ * 修复（方向 A）：intersect 改为中立 op（不声明任何收窄轴）；booleanBrep 按
+ * `hasNativeHistory('intersectWithHistory')`（引擎身份事实，见
+ * `brep/engine/native-history.ts`）静态分派——
+ *   - occt（原生有）→ booleanWithRoleTable 历史路径，产出面演化 + roleTable；
+ *   - brepkit（原生没有）→ L1 裸 kernel.intersect，几何正确但无面演化（如实降级，
  *     不伪造恒等映射）。
  *
  * 本测试钉住：

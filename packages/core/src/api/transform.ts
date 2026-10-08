@@ -3,11 +3,11 @@
  *
  * 平台分层（narrowing plan Phase 5，D11 + 2026-09-28 D 批降级）：
  * - `translate` / `scale`：**中立 op**（不再声明 `engines:['occt']`）。BREP 路径按引擎
- *   能力**静态定轨**（读与 dispatchPath 同源的能力集，非运行时探测）：
- *   - occt（声明 `translateWithHistory` / `scaleWithHistory`）→ 走 face-evolution.ts 的
+ *   事实**静态定轨**（读 `hasNativeHistory`——引擎身份是唯一判据，非运行时探测）：
+ *   - occt（原生有 `translateWithHistory` / `scaleWithHistory`）→ 走 face-evolution.ts 的
  *     `translateWithHashEvolution` / `scaleWithHashEvolution` 权威面演化（历史路径），
  *     产 hash 面映射并传播 roleTable；
- *   - brepkit（未声明该二核函数，但裸 `kernel.translate` / `kernel.scale` 是真实现）→
+ *   - brepkit（无该二核函数，但裸 `kernel.translate` / `kernel.scale` 是真实现）→
  *     L1 `translateBrep` / `scaleBrep`：几何精确，**另加 identityHashEvolution**。
  *     变换不改变面数/顺序，恒等映射真实成立（非伪造）——挂恒等面演化并传播 roleTable，
  *     选面/命名在降级路径不丢（区别于 boolean/chamfer 这种毁面重造、严禁伪造的情形）。
@@ -36,8 +36,7 @@ import {
 } from '../brep/face-evolution'
 import type { HashEvolution } from '../brep/face-evolution'
 import { getBrepApi } from '../brep/handle-bridge'
-import { getBackends } from '../runtime-state'
-import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
+import { hasNativeHistory } from '../brep/engine/native-history'
 import { fromBrep, brepOf, inputRoleTable, hasMeshSolid } from '../shape'
 import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
@@ -141,14 +140,13 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[api/transform] input is not BREP')
 
-  // 静态双轨（无运行时 try-catch 回退——按引擎**声明**的能力集在执行前定轨）：
-  // - occt（声明 *WithHistory）→ 权威历史路径（产内核面映射 + roleTable）。
+  // 静态双轨（无运行时 try-catch 回退——按引擎事实在执行前定轨）：
+  // - occt（原生有 *WithHistory）→ 权威历史路径（产内核面映射 + roleTable）。
   // - brepkit（裸 translate/scale 是真实现，无 *WithHistory）→ L1 裸调用 + identityHashEvolution。
   //   变换不改变面数/顺序，恒等映射真实成立（非伪造），故仍挂恒等面演化与 roleTable 传播。
-  const caps = engineCapabilitySet(getBackends().config.brepCapabilities)
-  const hasTranslateHistory = caps.has('translateWithHistory')
-  const hasScaleHistory = caps.has('scaleWithHistory')
-  const hasRotateHistory = caps.has('rotateWithHistory')
+  const hasTranslateHistory = hasNativeHistory('translateWithHistory')
+  const hasScaleHistory = hasNativeHistory('scaleWithHistory')
+  const hasRotateHistory = hasNativeHistory('rotateWithHistory')
 
   let resultSolid: BrepHandle
   // 面演化（hash 键）：权威路径用内核映射，降级/中立路径用 identity 恒等映射。

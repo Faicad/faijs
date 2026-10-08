@@ -51,7 +51,7 @@ describe('occt high-level step/brep bridging', () => {
     const { importStepImpl } = await import('../../src/api/import-step')
     configureBackends({
       contractVersion: CONTRACT_VERSION,
-      config: { mode: 'brep', brepCapabilities: undefined },
+      config: { mode: 'brep' },
       kernel: { brep: kernel, csg: undefined, sdf: undefined },
       fonts: undefined,
       texture: undefined,

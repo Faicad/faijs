@@ -50,7 +50,7 @@ beforeAll(async () => {
 function makeBackends(kernelBrep: unknown): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
-    config: { mode: 'brep', brepCapabilities: undefined },
+    config: { mode: 'brep' },
     kernel: { brep: kernelBrep, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,

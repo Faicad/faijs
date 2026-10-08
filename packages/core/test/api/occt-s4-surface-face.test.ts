@@ -187,7 +187,7 @@ describe('S4 曲面面族 — TS 级直连（L1 覆盖门禁）', () => {
     const brep = await getBrepEngine()
     configureBackends({
       contractVersion: CONTRACT_VERSION,
-      config: { mode: 'auto', brepCapabilities: brep.capabilities, brepEngineId: 'occt' },
+      config: { mode: 'auto', brepEngineId: 'occt' },
       kernel: { brep: brep.primitives, csg: undefined, sdf: undefined },
       fonts: undefined,
       texture: undefined,

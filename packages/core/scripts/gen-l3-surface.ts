@@ -77,7 +77,6 @@ function renderBrepOp(entry: ArgSpecEntry): string {
     )
   }
   const namingLit = entry.naming ? `, naming: ${JSON.stringify(entry.naming)}` : ''
-  const capsLit = entry.capabilities?.length ? `, capabilities: ${JSON.stringify(entry.capabilities)}` : ''
   const enginesLit = entry.engines?.length ? `, engines: ${JSON.stringify(entry.engines)}` : ''
   const outputsLit = entry.outputs?.length ? `, outputs: ${JSON.stringify(entry.outputs)}` : ''
   const schemaLit = entry.schema ? `, schema: ${JSON.stringify(entry.schema)}` : ''
@@ -97,7 +96,7 @@ function renderBrepOp(entry: ArgSpecEntry): string {
     ` */`,
     `export const ${entry.name} = defineOp({`,
     `  brep: ${ownName},`,
-    `  name: '${entry.name}'${namingLit}${capsLit}${enginesLit}${outputsLit}${schemaLit}${slotMapLit}${paramDimsLit}${retDimLit},`,
+    `  name: '${entry.name}'${namingLit}${enginesLit}${outputsLit}${schemaLit}${slotMapLit}${paramDimsLit}${retDimLit},`,
     `})`,
   ].join('\n')
 }

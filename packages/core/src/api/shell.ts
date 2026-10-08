@@ -4,7 +4,7 @@
  * 中立 op：L1 `shell(solid, facesToRemove, thickness, tolerance)` 在 occt 与
  * brepkit 两侧均有真实现（engine-method-map 实测 `dialect`）⇒ 走 `getBrepApi()`
  * （D12），不声明 engines（中立 op：实现只经 L1 契约面）。相对现状是
- * 能力升级——旧版是 occt 平台 op（arg-spec `engines:['occt']`，skip）。
+ * 覆盖面扩大——旧版是 occt 平台 op（arg-spec `engines:['occt']`，skip）。
  *
  * 选面口径（设计原则 4）：`openFaces: FaceTopoRef[]`（`cad.faceRef` 产物），
  * 与 `fillet` 的 `EdgeTopoRef[]` / `extrude` 的 `upTo` 同族；不复刻旧
@@ -22,8 +22,7 @@ import { getBrepApi } from '../brep/handle-bridge'
 import { shellWithHashEvolution } from '../brep/face-evolution'
 import { brepOf, fromBrep } from '../shape'
 import { defineOp } from '../sdk'
-import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
-import { getBackends } from '../runtime-state'
+import { hasNativeHistory } from '../brep/engine/native-history'
 import type { FaceTopoRef } from '../topology/naming'
 import { resolveTopoRef, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
@@ -83,11 +82,10 @@ function shellBrep(input: Shape, params: ShellParams): Shape {
   })
 
   // C5 实现面接入（静态双轨，无运行时 try-catch）：
-  // - occt 声明 `shellWithHistory` → 走权威面演化（血缘更准）；
-  // - brepkit 未声明 → 显式回退裸 L1 `shell`（**不报错**），不伪造面演化
+  // - occt 原生有 `shellWithHistory` → 走权威面演化（血缘更准）；
+  // - brepkit 没有 → 显式回退裸 L1 `shell`（**不报错**），不伪造面演化
   //   （抽壳是毁面重造，恒等映射不真实）。
-  const caps = engineCapabilitySet(getBackends().config.brepCapabilities)
-  if (caps.has('shellWithHistory')) {
+  if (hasNativeHistory('shellWithHistory')) {
     const r = shellWithHashEvolution(kernel, solid, faceHandles, thickness, tolerance ?? 1e-6)
     return fromBrep(solidToShape(kernel, r.result), { solid: r.result, faceEvolution: r.faceEvolution })
   }
@@ -147,7 +145,6 @@ function shellMeshSolid(input: Shape, params: ShellParams): Shape {
  * const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
  */
 export const shell = defineOp({
-  capabilities: ['directEdit'],
   meshEngines: ['brepkit'],
   mesh(input: Shape, params: ShellParams) {
     return shellMeshSolid(input, params)

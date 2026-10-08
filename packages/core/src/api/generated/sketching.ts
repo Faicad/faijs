@@ -18,5 +18,5 @@ import { makeBaseBoxBrep as __own_makeBaseBoxBrep } from '../brep-operations/pri
  */
 export const makeBaseBox = defineOp({
   brep: __own_makeBaseBoxBrep,
-  name: 'makeBaseBox', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, capabilities: ["makeRectangle","extrude"],
+  name: 'makeBaseBox', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"},
 })

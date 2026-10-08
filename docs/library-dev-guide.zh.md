@@ -87,8 +87,6 @@ export const intersect = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'intersect')
   },
-  capabilities: ['intersect'], // concrete BREP capability needed — a *WithHistory kernel
-                              // function name, matched against the engine's `evolution` list
   outputs: [...],             // named multi-product fields (§2.6)
   schema: { ... },            // param types for the UI panel (L3)
   slotMap: { ... },           // positional → object boxing, for brepjs-style calls
@@ -96,7 +94,7 @@ export const intersect = defineOp({
 ```
 
 - **`mesh` / `brep`**：两条引擎路径。`mesh` 是默认；`brep` 可选。brep-only op 在 mesh 路径抛 `E_MESH_UNSUPPORTED`。
-- **`capabilities`**：op 需要的 BREP 引擎能力——按宿主声明的 `brepCapabilities` 门控。
+- **`engines`**（上例没有它——`intersect` 是中立 op）：只有**平台 op**才需要，即实现里静态 import 了 `occt-kernel/*` 或 `brepkit-kernel/*` 的 op。它点名这个 op 为哪些引擎而写（`engines: ['occt']`）。其余 op 一律不写它，且只能停留在 L1（`getBrepApi()`）。没有第二条声明轴：内核能做什么从引擎本身读（见下方陷阱 2），绝不写在 op 元数据里。
 - **`outputs`**：命名多产物字段（唯一被识别的多产物契约名；数组字段逐元素收养）。
 - **`schema` / `slotMap`**：L3 元数据——UI 面板的参数类型，以及 brepjs 风格调用所需的位置 → 对象装箱表。
 
@@ -190,8 +188,6 @@ export async function assembleHost(): Promise<void> {
     config: {
       mode: 'brep',
       brepEngineId: getActiveBrepEngineId() ?? OCCT_BREP_ENGINE_ID,
-      // capabilities MUST travel with mode/brepEngineId (see pitfall 2 below).
-      brepCapabilities: eng.capabilities,
     },
     kernel: { brep: eng.primitives, csg: undefined, sdf: undefined },
     fonts: undefined,
@@ -223,7 +219,7 @@ const b = await F.union(a, await F.translate(a, [5, 0, 0]))
 #### 三个必踩的坑（均为实测）
 
 1. **只 `createRuntime` 不 `registerOcctBrepEngine` → `[faijs/bridge] BREP engine API not available: BREP operations require an initialized engine`**。——脚本面走 `runtime.execute` 时 brepChain 会自带内核，但裸调 ① 面不会。务必先跑 `assembleHost()`。
-2. **`configureBackends` 漏 `config.brepCapabilities` → `E_BREP_UNSUPPORTED: current engine lacks capability 'fuseWithHistory' (brepEngineId=<none>)`**。——`runtime.ts` 里 `config` 是个 **getter**；照抄只设 `config: { mode: 'brep' }` 的片段（比如某个只用 `directEdit` 的测试）会漏掉它，第一个布尔 op 就报错。务必把 `brepCapabilities` 与 `mode`、`brepEngineId` 一并传入。
+2. **`configureBackends` 漏 `config.brepEngineId` → `E_BREP_UNSUPPORTED: op 'sweep' requires engine occt (current=<none>)`**。——`runtime.ts` 里 `config` 是个 **getter**；照抄只设 `config: { mode: 'brep' }` 的片段会漏掉它，第一个平台 op 在执行前就被拒。中立 op 不会被拒，但同样丢掉引擎事实：未知引擎下 `hasNativeHistory` 一律答「没有」，于是布尔 op 静默走 L1 裸轨，丢失面演化与 role table 传播。务必把 `brepEngineId` 与 `mode` 一并传入——运行时自己从注册表推导，只有手搓 config（测试）才会漏。
 3. **`defineOp` 包装的函数返回 `Promise<Shape>`，不是 `Result`。**——① 面的 op（`box`、`union`、`volume` …）都是 `defineOp` 包装；调用它们得到的是 `Shape`（或它的 Promise），**不是** `Result`。用 `isErr(x)` 判定这种值会得到假阳性——`isErr` 的判据是 `ok === false`，而 `Shape` 上没有 `ok` 字段。只有**你自己**从库函数返回的值才带 `Result`。
 
 ### 3.2 注册库
@@ -257,7 +253,7 @@ faijs 原生库（消费 core `Shape`、内部调 core op，如 `sheetmetal`）�
 
 脚本调用已接纳的函数时，边界机制由**引擎自己**处理——Host 不写任何这部分：
 
-1. **分派**：mesh / brep 路径静态判定（链状态 + 能力），无运行时回退。
+1. **分派**：mesh / brep 路径静态判定（链状态 + 引擎身份），无运行时回退。
 2. **直传**：faijs `Shape` 实参原样送达库函数（入向不做改写）。
 3. **调用 + unwrap**：函数运行；`Result` 的 `err` 被 unwrap 成语句失败。
 4. **收养**：几何产物跨回成为 faijs `Shape`（三角化 + BREP 槽）；纯数据原样透传（§2.3）。
@@ -278,7 +274,7 @@ faijs 原生库（消费 core `Shape`、内部调 core op，如 `sheetmetal`）�
 
 对不想影响的库，`autoLiftFor` 必须返回 `undefined` 而不是 `false`：`undefined` 才会回落到 `options.autoLift`，再回落到推断式。
 
-关掉提升后命名空间原样注入：函数保持同步，可以返回 `void` 或任意值，对脚本而言就是普通 JS。代价是失去提升提供的边界服务——`Result` 不再被 unwrap（脚本拿到的是 `Result` 记录本身）、`fn.outputs` 不再做多产物收养、也没有能力门控与平台门控（§4.4）。
+关掉提升后命名空间原样注入：函数保持同步，可以返回 `void` 或任意值，对脚本而言就是普通 JS。代价是失去提升提供的边界服务——`Result` 不再被 unwrap（脚本拿到的是 `Result` 记录本身）、`fn.outputs` 不再做多产物收养、也没有平台门控（§4.4）。
 
 ---
 
@@ -337,7 +333,7 @@ export const myOp = defineOp({
 规则（D11，由 `assertLibConforms` + CI 守卫 `check-platform-imports.mjs` 检查）：
 
 1. **`engines` 只写真实引擎 id**——`'occt'` / `'brepkit'` / `'brep_mock'`（禁止裸 `string`）。
-2. **`engines` 与 `capabilities` 可以并存**——两者正交：`engines` 收窄「在哪些引擎上跑」，`capabilities` 声明「需要哪些内核能力」。原 D11-7 互斥已于 2026-09-24 撤销，`assertLibConforms` 不再拒绝两者同时出现。两者皆空只允许 mesh-only op。
+2. **`engines` 就是全部声明**——它是唯一的收窄轴，没有别的东西与它并列可声明。op 要么点名自己的引擎，要么是中立 op。两者皆空只允许 mesh-only op。
 3. **拦截发生在执行期**——非目标引擎下 op 在触碰内核之前失败（`BrepUnsupportedError` → `ExecutionResult.failedAt`）。静态守卫只强制声明本身，不能替代声明。
 4. **`brep_mock` 豁免拦截**（测试替身，D11-3）——但声明的 `engines` 仍参与 parity / engine-switch 测试。
 5. **库的 dual-op 若 import 了平台模块，同样受此约束**——在 `defineOp` 写 `engines`，拦截发生在执行期 `dispatchPath`，不依赖注册期校验。

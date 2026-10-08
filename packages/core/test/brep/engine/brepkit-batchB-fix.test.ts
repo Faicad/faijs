@@ -13,12 +13,13 @@
  *
  * 修复：
  *   - chamfer（intersect 模式）：移除 engines 门控，chamferBrep 内按
- *     `engineCapabilitySet(...).has('chamferWithHistory')` 静态分派——
- *       occt（声明 chamferWithHistory）→ chamferWithRoleTable 历史路径（面演化 + roleTable）；
- *       brepkit（未声明）→ 裸 kernel.chamfer/chamferDistAngle，几何正确但**无面演化**
+ *     `hasNativeHistory('chamferWithHistory')` 静态分派（引擎身份事实，见
+ *     `brep/engine/native-history.ts`）——
+ *       occt（原生有 chamferWithHistory）→ chamferWithRoleTable 历史路径（面演化 + roleTable）；
+ *       brepkit（原生没有）→ 裸 kernel.chamfer/chamferDistAngle，几何正确但**无面演化**
  *       （如实降级，不伪造恒等映射）。
- *   - convexHull（clone 模式）：arg-spec `engines:['occt']` → `capabilities:['hullFromPoints']`；
- *     brepkit 适配器 methods 如实补声明 hullFromPoints。
+ *   - convexHull（clone 模式）：arg-spec `engines:['occt']` → 中立 op（brepkitKernel
+ *     原生提供 hullFromPoints，实现只用 L1 核心面，无需声明）。
  *
  * 本测试钉住：
  *   1. occt 上 chamfer equal 仍走历史路径（结果 slot 带 faceEvolution），几何正确；

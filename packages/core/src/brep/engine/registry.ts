@@ -14,13 +14,11 @@
  */
 
 import type { BrepEngineApi } from './primitives'
-import type { BrepCapabilities } from './types'
 
-/** BREP 引擎实例（槽位 1）：原语契约 + 可选能力声明。 */
+/** BREP 引擎实例（槽位 1）：原语契约。引擎能做什么由实现本身决定，没有能力声明面。 */
 export interface BrepEngine {
   readonly id: string
   readonly primitives: BrepEngineApi
-  readonly capabilities?: BrepCapabilities
 }
 
 /** BREP 引擎异步提供者（宿主装配时注册；引擎初始化完成后 resolve）。 */
@@ -98,7 +96,7 @@ export function isMeshEngineRegistered(id: string): boolean {
 }
 
 /**
- * Whether a default BREP engine is registered (none → mesh mode, equivalent to "no BREP capability").
+ * Whether a default BREP engine is registered (none → mesh mode, i.e. no BREP engine at all).
  * @returns true when a default BREP engine is registered.
  */
 export function hasBrepEngine(): boolean {

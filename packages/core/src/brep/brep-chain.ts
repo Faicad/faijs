@@ -12,7 +12,7 @@
  * 终端句柄（如果有）由调用方保留用于导出。
  */
 
-import type { BrepHandle, BrepMeshResult, BrepCapabilities } from './engine/types'
+import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
 import { getBrepEngine } from './engine/registry'
 import { ensureOcctDefaultEngine } from './engine/adapters/occt'
@@ -76,11 +76,6 @@ export interface BrepChainState {
   solidCache: Map<PartName, BrepHandle>
   /** BREP 引擎实例（mesh 模式为 null —— 等价于「无 BREP 能力」）。 */
   kernel: BrepEngineApi | null
-  /**
-   * 当前引擎的能力声明（§7.5；mesh 模式无引擎 → undefined）。
-   * 供能力路由静态判定（§8.4）：缺失的能力 → 依赖它的功能静态降级走 mesh。
-   */
-  capabilities?: BrepCapabilities
   /**
    * 零件在世界空间中的平移偏移（来自 mesh.position / partTransforms）。
    *
@@ -148,7 +143,6 @@ export async function initBrepChainState(): Promise<BrepChainState> {
   return {
     solidCache: new Map(),
     kernel: engine.primitives,
-    capabilities: engine.capabilities,
     faceEvolutionCache: new Map(),
     roleTableCache: new Map(),
     meshShapeCache: new Map(),

@@ -160,7 +160,6 @@ async function resolveSolver(): Promise<SketchSolver> {
  */
 export const sketch = defineOp({
   name: SKETCH_OP_NAME,
-  capabilities: ['directEdit'],
   async brep(params: Record<string, unknown>): Promise<Shape> {
     assertSketchParams(params)
     const solver = await resolveSolver()
