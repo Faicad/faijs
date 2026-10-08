@@ -195,12 +195,36 @@ export interface BrepUvBounds {
 export type BrepSubShapeType = 'vertex' | 'edge' | 'wire' | 'face' | 'shell' | 'solid'
 
 /**
+ * XCAF label 句柄（`addShape` / `addChild` 的返回值，仅在所属文档内有效）。
+ */
+export type BrepXcafLabel = number & { readonly __brepXcafLabel: 'BrepXcafLabel' }
+
+/**
  * XCAF 装配文档句柄（可选能力槽 AssemblyCapability 的文档形态）。
  *
  * 形态来自 occt-wasm XCAFDocumentImpl 的被调用子集（step.ts / occt-kernel 装配链）。
+ * `addChild` 支撑真装配写入（方案 2026-10-08 步骤 7 / P3）：组件位姿经
+ * `location`（平移 + Euler 弧度）落到 XCAF location，导出为装配引用而非平级 PRODUCT。
  */
 export interface BrepXcafDocument {
-  addShape(shape: BrepHandle, opts?: { name?: string; color?: [number, number, number] }): void
+  /** 顶层 part / 装配 label。返回的 label 可作为 `addChild` 的父。 */
+  addShape(shape: BrepHandle, opts?: { name?: string; color?: [number, number, number] }): BrepXcafLabel
+  /**
+   * 把 shape 作为 parent 的子组件加入（parent 是 part 时，首个 child 使其转为
+   * assembly：原几何移入 identity 首组件并携带 part 的名与色）。
+   */
+  addChild(
+    parent: BrepXcafLabel,
+    shape: BrepHandle,
+    opts?: {
+      name?: string
+      color?: [number, number, number]
+      /** 组件相对父的位姿：平移 + Euler 角（弧度）。⚠️ occt-wasm 当前只生效平移
+       * （旋转分量写出→回读恒 identity，step-export.test.ts P7 钉住）——旋转由
+       * 调用方烘进几何，wasm 修复后恢复 location 携带完整位姿。 */
+      location?: { tx?: number; ty?: number; tz?: number; rx?: number; ry?: number; rz?: number }
+    },
+  ): BrepXcafLabel
   exportSTEP(): string
   close(): void
 }

@@ -17,7 +17,7 @@ import { brepOf, fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
 import { getOcctKernel } from '../occt-kernel/occtKernel'
 import { HASH_UPPER_BOUND, decodeEvolution, getFaceHashes } from '../brep/face-evolution'
-import type { BrepHandle } from '../brep/engine/types'
+import type { BrepHandle, BrepEvolutionData } from '../brep/engine/types'
 
 /**
  * 加厚：把面（或壳）沿法向偏置成等厚实体。
@@ -54,14 +54,16 @@ export const thicken = defineOp({
     // thicken 是 occt-only 平台 op（engines:['occt']），brepkit 在执行前已被拒绝，
     // 因此不存在「有裸方法却因无 history 而报错」的回退分支。
     const inputHashes = getFaceHashes(kernel, handle)
+    // wasm EvolutionData.result 是 ShapeHandle 品牌；与 topologyFns.ts 同款，
+    // 在来源处一次性 cast 为引擎中立槽型（运行时同构，句柄不跨引擎）。
     const evo = getOcctKernel().thickenWithHistory(
       handle as never,
       thickness,
       1e-6,
       inputHashes,
       HASH_UPPER_BOUND,
-    )
-    const result = evo.result as unknown as BrepHandle
+    ) as unknown as BrepEvolutionData
+    const result = evo.result
     const faceEvolution = decodeEvolution(kernel, evo, handle, result)
     return fromBrep(solidToShape(kernel, result), { solid: result, faceEvolution }) as Shape
   },

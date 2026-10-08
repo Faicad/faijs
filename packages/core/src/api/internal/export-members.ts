@@ -132,7 +132,9 @@ export function exportTreeOf(input: Shape | CompoundShape): ExportMemberNode[] {
         children.push(leaf(child, name, color))
       }
     }
-    const node = leaf(s as Shape)
+    // compound 也是 Shape 的鸭子形态（有 children 槽），但类型面与叶 Shape 不重叠——
+    // 结构判定后这里的 cast 只对类型系统成立，运行时直接透传。
+    const node = leaf(s as unknown as Shape)
     node.children = children
     return node
   }

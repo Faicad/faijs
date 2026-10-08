@@ -347,3 +347,196 @@ describe('exportStepFromSolids with fileMeta header write (P3)', () => {
     }
   })
 })
+// ─── 装配层级（方案 2026-10-08 步骤 7 / P3）───
+//
+// P3 验收：带 children 的条目写**真装配树**（NEXT_ASSEMBLY_USAGE_OCCURRENCE +
+// component location），不再是平级 PRODUCT。
+//
+// ⚠️ 两个 occt-wasm 当前限制（双值钉住，wasm 修复后翻转断言）：
+// 1. **location 旋转分量不生效**：`addChild({location:{rx,ry,rz}})` 写出→回读
+//    location 恒为单位旋转（平移正常）。当前实现把旋转烘进原型几何、平移留在
+//    location（世界几何保真）。应有值：location 携带完整位姿、几何不烘焙。
+// 2. **组件 label 的 setName 不过 STEP**：容器有名时，首叶（几何升起为容器
+//    初始 part）自己的名字让位给容器名。应有值：首组件名 = 首叶名。
+
+/** 十进制近似断言：逐元素比较 12 元组（wasm 文本层有精度损失，1e-4 足够）。 */
+function expectMatrix12Close(actual: number[], expected: number[]): void {
+  expect(actual).toHaveLength(12)
+  for (let i = 0; i < 12; i++) expect(actual[i]!).toBeCloseTo(expected[i]!, 4)
+}
+
+/** 收集装配树所有叶节点的 shapeHandle（DFS 序，调用方不拥有、随树释放）。 */
+function collectLeafHandles(nodes: AssemblyPartNode[]): unknown[] {
+  const out: unknown[] = []
+  for (const node of nodes) {
+    if (node.isAssembly) out.push(...collectLeafHandles(node.children))
+    else if (node.shapeHandle) out.push(node.shapeHandle)
+  }
+  return out
+}
+
+describe('exportStepFromSolids — 装配层级（步骤 7 / P3）', () => {
+  it('单层装配：NAUO 数 == 叶数，容器与组件名落位，平移位姿经 location 往返', () => {
+    const a = makeBox(0, 0, 0)
+    const b = makeBox(0, 0, 0)
+    try {
+      const text = new TextDecoder().decode(new Uint8Array(exportStepFromSolids(kernel, [
+        {
+          name: 'asm-root',
+          children: [
+            { solid: a, name: 'leg-left' },
+            { solid: b, name: 'leg-right', transform: { translate: [20, 0, 5] } },
+          ],
+        },
+      ])))
+      // 真装配结构：每个组件一条装配引用（P3 当前缺陷是 0 条）。
+      const nauo = text.match(/NEXT_ASSEMBLY_USAGE_OCCURRENCE/g)?.length ?? 0
+      expect(nauo).toBe(2)
+
+      // 往返：XCAF 回读，根 label 是装配、含两个组件；组件位姿 == 写入 transform。
+      const doc2 = (getKernel() as OcctKernel).importXCAFFromSTEP(text)
+      try {
+        const roots = doc2.getRoots()
+        expect(roots).toHaveLength(1)
+        const comps = doc2.getChildren(roots[0]!)
+        expect(comps).toHaveLength(2)
+        // 首组件 identity（几何升起 + 位姿烘进几何），次组件携带平移 (20, 0, 5)。
+        expectMatrix12Close(doc2.getLocation(comps[0]!), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0])
+        expectMatrix12Close(doc2.getLocation(comps[1]!), [1, 0, 0, 20, 0, 1, 0, 0, 0, 0, 1, 5])
+        // 组件名：容器名优先升起为首组件名（限制 2——首叶名 'leg-left' 让位）；
+        // 次组件名 = 叶名。
+        expect(doc2.getLabelInfo(comps[0]!).name).toBe('asm-root')
+        expect(doc2.getLabelInfo(comps[1]!).name).toBe('leg-right')
+      } finally {
+        doc2.close()
+      }
+    } finally {
+      kernel.release(a)
+      kernel.release(b)
+    }
+  })
+
+  it('旋转位姿：世界几何保真（旋转烘进几何）；location 旋转当前不生效（P7 双值钉住）', async () => {
+    const a = makeBox(0, 0, 0)
+    const b = makeBox(0, 0, 0)
+    try {
+      const buffer = exportStepFromSolids(kernel, [
+        {
+          children: [
+            { solid: a },
+            // 绕 X 转 90°（度）再平移 (10, 0, 0)：(y,z)→(-z,y) → y∈[-10,0]。
+            // 期望世界包围盒 x∈[10,20], y∈[-10,0], z∈[0,10]——纯平移（y∈[0,10]）
+            // 与无旋转（同纯平移）落不出这个足迹，判别力唯一。
+            { solid: b, transform: { translate: [10, 0, 0], rotate: { angle: 90, axis: [1, 0, 0] } } },
+          ],
+        },
+      ])
+      // 当前值（旋转烘进几何）：世界包围盒正确。
+      const nodes = await importAssemblyFromStep(buffer)
+      try {
+        const leaves = collectLeaves(nodes)
+        expect(leaves).toHaveLength(2)
+        const rotated = collectLeafHandles(nodes)[1]!
+        const bb = kernel.getBoundingBox(rotated as unknown as BrepHandle)
+        expect(bb.xmin).toBeCloseTo(10, 3)
+        expect(bb.xmax).toBeCloseTo(20, 3)
+        expect(bb.ymin).toBeCloseTo(-10, 3)
+        expect(bb.ymax).toBeCloseTo(0, 3)
+        expect(bb.zmin).toBeCloseTo(0, 3)
+        expect(bb.zmax).toBeCloseTo(10, 3)
+      } finally {
+        releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
+      }
+      // P7 当前限制钉住：location 的旋转分量回读为单位旋转。应有值 =
+      // [1,0,0,10, 0,0,-1,0, 0,1,0,0]（Rx(90°)+平移，行主序 3×4）——
+      // occt-wasm 修复 location 旋转后，把本断言翻转为该期望矩阵，并去掉
+      // 实现里的旋转烘焙（splitTransform）。
+      const doc2 = (getKernel() as OcctKernel).importXCAFFromSTEP(new TextDecoder().decode(new Uint8Array(buffer)))
+      try {
+        const comps = doc2.getChildren(doc2.getRoots()[0]!)
+        const loc = doc2.getLocation(comps[1]!)
+        expectMatrix12Close(loc, [1, 0, 0, 10, 0, 1, 0, 0, 0, 0, 1, 0]) // 当前：单位旋转
+        // expectMatrix12Close(loc, [1, 0, 0, 10, 0, 0, -1, 0, 0, 1, 0, 0]) // 应有值（翻转用）
+      } finally {
+        doc2.close()
+      }
+    } finally {
+      kernel.release(a)
+      kernel.release(b)
+    }
+  })
+
+  it('组件颜色经 sRGB→linear 写入并往返保真', async () => {
+    const a = makeBox(0, 0, 0)
+    const b = makeBox(0, 0, 0)
+    try {
+      const buffer = exportStepFromSolids(kernel, [
+        {
+          children: [
+            { solid: a, color: [1, 0, 0] },
+            { solid: b, color: [0, 0.5, 1], transform: { translate: [10, 0, 0] } },
+          ],
+        },
+      ])
+      const nodes = await importAssemblyFromStep(buffer)
+      try {
+        const leaves = collectLeaves(nodes)
+        expect(leaves).toHaveLength(2)
+        const c0 = leaves[0]!.color
+        expect(c0).not.toBeNull()
+        expect(c0![0]).toBeCloseTo(1, 5)
+        expect(c0![1]).toBeCloseTo(0, 5)
+        expect(c0![2]).toBeCloseTo(0, 5)
+        const c1 = leaves[1]!.color
+        expect(c1).not.toBeNull()
+        expect(c1![1]).toBeCloseTo(0.5, 5)
+        expect(c1![2]).toBeCloseTo(1, 5)
+      } finally {
+        releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
+      }
+    } finally {
+      kernel.release(a)
+      kernel.release(b)
+    }
+  })
+
+  it('嵌套容器：叶几何与名色保真，位姿复合烘进几何（子装配分组待 wasm 原语）', async () => {
+    const a = makeBox(0, 0, 0)
+    const b = makeBox(0, 0, 0)
+    const c = makeBox(0, 0, 0)
+    try {
+      const buffer = exportStepFromSolids(kernel, [
+        {
+          name: 'root',
+          children: [
+            { solid: a, name: 'base' },
+            {
+              name: 'sub',
+              transform: { translate: [100, 0, 0] },
+              children: [
+                { solid: b, name: 'pin1' },
+                { solid: c, name: 'pin2', transform: { translate: [0, 0, 7] } },
+              ],
+            },
+          ],
+        },
+      ])
+      const nodes = await importAssemblyFromStep(buffer)
+      try {
+        // 结构：root 装配 + 3 个组件（sub 的叶子升起，sub 分组不落树）。
+        const leaves = collectLeaves(nodes)
+        expect(leaves).toHaveLength(3)
+        // 当前值（限制 2）：首叶 'base' 的名字被容器名 'root' 顶掉；
+        // 应有值 = ['base', 'pin1', 'pin2']——wasm 组件 setName 过 STEP 后翻转。
+        const names = leaves.map((l) => l.name)
+        expect(names).toEqual(['root', 'pin1', 'pin2'])
+      } finally {
+        releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
+      }
+    } finally {
+      kernel.release(a)
+      kernel.release(b)
+      kernel.release(c)
+    }
+  })
+})

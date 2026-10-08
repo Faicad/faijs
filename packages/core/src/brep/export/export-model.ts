@@ -481,45 +481,46 @@ function hexColor(c: readonly [number, number, number]): string {
   return `#${h(c[0])}${h(c[1])}${h(c[2])}`
 }
 
-/** 归一化向量（零向量回退 z 轴）。 */
-function normalize3(v: Vec3): Vec3 {
-  const len = Math.hypot(v[0], v[1], v[2])
-  return len === 0 ? [0, 0, 1] : [v[0] / len, v[1] / len, v[2] / len]
-}
-
-/** 轴角（度）→ 3×3 行主序旋转矩阵（Rodrigues）。 */
-function rotationMatrix3x3(axis: Vec3, angleDeg: number): number[] {
-  const [x, y, z] = normalize3(axis)
-  const a = (angleDeg * Math.PI) / 180
-  const c = Math.cos(a)
-  const s = Math.sin(a)
-  const t = 1 - c
-  return [
-    t * x * x + c, t * x * y - s * z, t * x * z + s * y,
-    t * x * y + s * z, t * y * y + c, t * y * z - s * x,
-    t * x * z - s * y, t * y * z + s * x, t * z * z + c,
-  ]
-}
+export { transformToMatrix12 } from './transform12'
+import { scaleTransform, transformToMatrix12 } from './transform12'
 
 /**
- * 3MF `<component transform>` 的 12 元组（行主序 3×4，平移在末列），与加载器 `parseTransformAttr` 同约定。
- *
- * @param t - 节点位姿（`matrix` 12 元组优先，缺省时由 `rotate` / `translate` 合成）。
- * @returns 行主序 3×4 仿射矩阵的 12 元组。
+ * ExportEntry → StepExportEntry 的递归映射器（step 分支同步/异步共用，单一真源）。
+ * 容器只传名/色与子节点（compound 几何 == 成员并集，写出会重复）；位姿平移按
+ * 单位刻度换算，与几何缩放同一 scale 因子（「声明单位 == 坐标刻度」对组件位姿
+ * 同样成立）。solid 经 kernel.scale 的 owned copy 缩放，入 ownedHandles 由调用方
+ * 统一释放。
  */
-export function transformToMatrix12(t: NonNullable<ExportEntry['transform']>): number[] {
-  if (t.matrix && t.matrix.length === 12) return t.matrix.slice()
-  const m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]
-  if (t.rotate) {
-    const R = rotationMatrix3x3(t.rotate.axis ?? [0, 0, 1], t.rotate.angle)
-    m[0] = R[0]; m[1] = R[1]; m[2] = R[2]
-    m[4] = R[3]; m[5] = R[4]; m[6] = R[5]
-    m[8] = R[6]; m[9] = R[7]; m[10] = R[8]
+function makeStepEntryMapper(
+  kernel: BrepEngineApi,
+  scale: number,
+  ownedHandles: BrepHandle[],
+): (e: ExportEntry) => StepExportEntry {
+  const toStepEntry = (e: ExportEntry): StepExportEntry => {
+    const head = {
+      ...(e.name ? { name: e.name } : {}),
+      ...(e.color ? { color: [...e.color] as [number, number, number] } : {}),
+    }
+    const transform = e.transform ? scaleTransform(e.transform, scale) : undefined
+    if (e.children && e.children.length > 0) {
+      return {
+        ...head,
+        ...(transform ? { transform } : {}),
+        children: e.children.map(toStepEntry),
+      }
+    }
+    if (e.solid) {
+      if (scale === 1) return { solid: e.solid, ...head }
+      const scaled = kernel.scale(e.solid, { x: 0, y: 0, z: 0 }, scale)
+      ownedHandles.push(scaled)
+      return { solid: scaled, ...head }
+    }
+    return {
+      ...head,
+      ...(e.mesh ? { mesh: { positions: scalePositions(e.mesh.positions, scale), indices: e.mesh.indices } } : {}),
+    }
   }
-  if (t.translate) {
-    m[3] = t.translate[0]; m[7] = t.translate[1]; m[11] = t.translate[2]
-  }
-  return m
+  return toStepEntry
 }
 
 function fmtNum(v: number): string {
@@ -607,19 +608,9 @@ export function exportModelSync(
     }
     const kernel = getBrepApi()
     const ownedHandles: BrepHandle[] = []
-    const stepEntries: StepExportEntry[] = entries.map((e) => {
-      if (e.solid) {
-        if (scale === 1) return { solid: e.solid, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
-        const scaled = kernel.scale(e.solid, { x: 0, y: 0, z: 0 }, scale)
-        ownedHandles.push(scaled)
-        return { solid: scaled, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
-      }
-      return {
-        ...(e.mesh ? { mesh: { positions: scalePositions(e.mesh.positions, scale), indices: e.mesh.indices } } : {}),
-        ...(e.name ? { name: e.name } : {}),
-        ...(e.color ? { color: [...e.color] as [number, number, number] } : {}),
-      }
-    })
+    // 层级映射（步骤 7 / P3）：ExportEntry 树 → StepExportEntry 树（映射器见
+    // makeStepEntryMapper——同步/异步分支共用，单一真源）。
+    const stepEntries: StepExportEntry[] = entries.map(makeStepEntryMapper(kernel, scale, ownedHandles))
     const buffer = exportStepFromSolids(kernel, stepEntries)
     for (const h of ownedHandles) {
       try { kernel.release(h) } catch { /* already released */ }
@@ -709,19 +700,8 @@ export async function exportModel(
     // 先过门禁再取内核（同同步分支：拒绝理由与引擎装配状态无关）。
     const kernel = (await import('../handle-bridge')).getBrepApi() as BrepEngineApi
     const ownedHandles: BrepHandle[] = []
-    const stepEntries: StepExportEntry[] = entries.map((e) => {
-      if (e.solid) {
-        if (scale === 1) return { solid: e.solid, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
-        const scaled = kernel.scale(e.solid, { x: 0, y: 0, z: 0 }, scale)
-        ownedHandles.push(scaled)
-        return { solid: scaled, ...(e.name ? { name: e.name } : {}), ...(e.color ? { color: [...e.color] as [number, number, number] } : {}) }
-      }
-      return {
-        ...(e.mesh ? { mesh: { positions: scalePositions(e.mesh.positions, scale), indices: e.mesh.indices } } : {}),
-        ...(e.name ? { name: e.name } : {}),
-        ...(e.color ? { color: [...e.color] as [number, number, number] } : {}),
-      }
-    })
+    // 同步分支同一映射器（单一真源）。
+    const stepEntries: StepExportEntry[] = entries.map(makeStepEntryMapper(kernel, scale, ownedHandles))
     const buffer = exportStepFromSolids(kernel, stepEntries)
     for (const h of ownedHandles) {
       try { kernel.release(h) } catch { /* already released */ }
