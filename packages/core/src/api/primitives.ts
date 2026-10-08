@@ -10,7 +10,7 @@ import { clampNRad } from '../mesh/types'
 // B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
 import * as meshPrimitives from '../mesh/primitives'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
-import { getCurrentStmt } from '../runtime-state'
+import { getCurrentStmt, getTessellation } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
 import { assignRoles } from '../topology/naming/roles'
@@ -20,8 +20,6 @@ import { defineOp } from '../sdk'
 import { assertPositiveNumber, assertNonNegativeNumber } from './assert'
 import type { BrepMeshResult, BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
-import { DEFAULT_LINEAR_DEFLECTION } from '../tolerance'
-import { mm } from '../units'
 
 // ── per-op 参数自校验（Phase 2.2；api 层被直接 import 时的防御层） ──
 
@@ -113,7 +111,10 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
   // 改名/复用，StmtId 全局唯一，保证多个同类型 primitive 不撞 origin。
   const origin = String(getCurrentStmt()?.id ?? op)
   const roles = assignRoles(kernel, result.solid, op)
-  const segments = clampNRad((params.nRad ?? params.segments) as number)
+  // Explicit segments/nRad wins ($fn override); otherwise derive from the global
+  // tessellation knob (proposal 2026-10-07) — default still 2π/64 ≈ 64 segments.
+  const rawSegments = (params.nRad ?? params.segments) as number | undefined
+  const segments = clampNRad(rawSegments ?? (2 * Math.PI) / getTessellation().angularDeflection)
   // P4 面级：brep 链基本体也挂契约序 faceRanges（编辑器默认 brep 链——
   // setFaceColor 必须可用）。box 的 OCCT 面枚举序（实测 0=−X,1=+Y,…）与契约
   // （+X/−X/+Y/−Y/+Z/−Z）不一致，按面法线重排 indices；cylinder/cone 的
@@ -175,7 +176,7 @@ function brepPrimitiveMesh(
 ): { shape: Shape; faceRanges?: Shape['faceRanges'] } {
   const angularDeflection = (2 * Math.PI) / Math.max(3, segments)
   const mesh = kernel.meshShape(solid, {
-    linearDeflection: DEFAULT_LINEAR_DEFLECTION.as(mm),
+    linearDeflection: getTessellation().linearDeflection,
     angularDeflection,
   })
   const shape: Shape = {

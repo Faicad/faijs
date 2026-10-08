@@ -29,6 +29,7 @@ export {
 export {
   configureBackends, getBackends, setCurrentStmt, getCurrentStmt,
   keep, keepHidden, getRuntimeState, nameOf, setName, setKeepSink,
+  configureTessellation, getTessellation,
   setPendingAssemblyTransforms, takePendingAssemblyTransforms, assertContractVersion,
   setPendingDetectedUnit, takePendingDetectedUnits,
   setPendingMeshSolid, takePendingMeshSolids,
@@ -38,6 +39,7 @@ export {
 export type {
   Backends, FaijsRuntimeState, ShapeSlot, KeepSink, RuntimeExecutionMode,
   AssemblyTransform, LibFn, LibNamespace, ExecutionAnchor, DetectedUnits,
+  TessellationDensity,
 } from './runtime-state'
 
 // ── L0 lang/ 文本面（IR 是引擎内部实现细节，不导出；公开面只有代码文本工具与结果类型）──

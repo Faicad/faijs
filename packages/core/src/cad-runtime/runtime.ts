@@ -46,6 +46,7 @@ import {
   configureBackends, CONTRACT_VERSION,
   assertContractVersion, type LibNamespace,
   type AssemblyKinematicsPose,
+  configureTessellation, type TessellationDensity,
 } from '../runtime-state'
 import { admitCompatLib } from './admit-compat-lib'
 import { hasDualOp, dualOpMetaOf } from '../define-op'
@@ -325,6 +326,12 @@ export interface CadRuntimeOptions {
    * `ports.libLoader.loadSource` 获取（宿主未提供则跳过库扫描）。
    */
   determinism?: DeterminismPolicy
+  /**
+   * 全局三角化密度（宿主可调，proposal 2026-10-07）。缺省 2π/64 rad /
+   * 0.1 mm。对应 OpenSCAD $fa（angularDeflection，弧度）/ $fs
+   * （linearDeflection，mm）。per-primitive `segments` 仍优先于全局配置。
+   */
+  tessellation?: TessellationDensity
 }
 
 /**
@@ -537,6 +544,7 @@ export class CadRuntime {
     this.namespaces = { ...libs } as Namespaces
     this.securityPolicy = options.security ?? 'strict'
     this.determinismPolicy = options.determinism ?? 'error'
+    if (options.tessellation) configureTessellation(options.tessellation)
 
     // P6/D7: register script-side unit constants (MM, INCH, DEGREE, …) on globalThis.
     // Both the VM backend (new Function resolves free identifiers from the global scope)

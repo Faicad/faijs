@@ -35,8 +35,7 @@ import type { ImportAssemblyNode } from '../mesh/import-model'
 import type { BrepChainState } from './brep-chain'
 import type { PartName } from '../identity'
 import { getSolidBoundingBox } from './brep-utils'
-import { DEFAULT_LINEAR_DEFLECTION } from '../tolerance'
-import { mm } from '../units'
+import { getTessellation, type TessellationDensity } from '../runtime-state'
 
 // ─── 通用工具 ───
 
@@ -52,6 +51,8 @@ import { mm } from '../units'
  * @param segments   optional tessellation segment count (affects precision).
  * @param brepChain  optional - caches the BrepMeshResult when provided.
  * @param partName   optional - the part this solid belongs to, paired with brepChain as the cache key.
+ * @param defaultDeflection optional - per-call deflection fallback when `segments` is absent
+ *   (wins over the global tessellation knob; explicit `segments` still wins over both).
  * @returns the tessellated Shape.
  */
 export function solidToShape(
@@ -60,12 +61,16 @@ export function solidToShape(
   segments?: number,
   brepChain?: BrepChainState,
   partName?: PartName,
+  defaultDeflection?: TessellationDensity,
 ): Shape {
+  // Deflection precedence: explicit segments > per-call defaultDeflection > global
+  // tessellation (host-tunable via createRuntime, proposal 2026-10-07).
+  const fallback = defaultDeflection ?? getTessellation()
   const angularDeflection = segments
     ? (2 * Math.PI) / Math.max(3, segments)
-    : (2 * Math.PI) / 64 // 缺省 64 = brepjs standard 等效（§5.0/§5.1）
+    : fallback.angularDeflection
   const mesh: BrepMeshResult = kernel.meshShape(solid, {
-    linearDeflection: DEFAULT_LINEAR_DEFLECTION.as(mm),
+    linearDeflection: fallback.linearDeflection,
     angularDeflection,
   })
 

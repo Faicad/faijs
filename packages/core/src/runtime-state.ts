@@ -169,6 +169,8 @@ export interface FaijsRuntimeState {
   readonly shapeToName: WeakMap<object, PartName>
   /** 同语句 lineage 去重标记（define-op 写入；语句边界 setCurrentStmt 重置）。 */
   registeredStmtId: StmtId | undefined
+  /** 宿主配置的全局三角化密度（createRuntime 写入；未配置为 undefined）。 */
+  tessellation: TessellationDensity | undefined
 }
 
 // ── 函数 BREP 域（控制流放松方案 §5.6 / D13） ──
@@ -370,9 +372,57 @@ export function getRuntimeState(): FaijsRuntimeState {
     slots: new WeakMap<object, ShapeSlot>(),
     shapeToName: new WeakMap<object, PartName>(),
     registeredStmtId: undefined,
+    tessellation: undefined,
   }
   g[KEY] = created
   return created
+}
+
+// ── 三角化密度（宿主可调，proposal 2026-10-07） ──
+
+/**
+ * Host-tunable tessellation density for BREP triangulation defaults.
+ * Maps to OpenSCAD $fa (angularDeflection, radians) / $fs (linearDeflection, mm).
+ */
+export interface TessellationDensity {
+  /** Angular deflection in radians (OpenSCAD $fa converted to rad). Default 2π/64. */
+  angularDeflection?: number
+  /** Linear deflection in mm (OpenSCAD $fs). Default 0.1. */
+  linearDeflection?: number
+}
+
+const DEFAULT_TESSELLATION_ANGULAR = (2 * Math.PI) / 64
+// Inlined 0.1 mm default — this file must not import src modules (zero-dep layer);
+// mirrors DEFAULT_LINEAR_DEFLECTION (tolerance.ts).
+const DEFAULT_TESSELLATION_LINEAR_MM = 0.1
+
+/**
+ * Read the host-configured tessellation density (missing fields fall back to
+ * the built-in defaults: 2π/64 rad angular, 0.1 mm linear). Pure read — no
+ * throw when unset (unlike getBackends, density is an optional tuning knob).
+ * @returns the effective density with both fields filled (never undefined).
+ */
+export function getTessellation(): Required<TessellationDensity> {
+  const t = getRuntimeState().tessellation
+  return {
+    angularDeflection: t?.angularDeflection ?? DEFAULT_TESSELLATION_ANGULAR,
+    linearDeflection: t?.linearDeflection ?? DEFAULT_TESSELLATION_LINEAR_MM,
+  }
+}
+
+/**
+ * Host/runtime sets the global tessellation density at construction time.
+ * Values must be positive; a mis-set knob is a host bug and must surface here.
+ * @param tessellation - the density to set; undefined fields keep the built-in default.
+ */
+export function configureTessellation(tessellation: TessellationDensity): void {
+  if (tessellation.angularDeflection !== undefined && !(tessellation.angularDeflection > 0)) {
+    throw new Error('[faijs] tessellation.angularDeflection must be > 0')
+  }
+  if (tessellation.linearDeflection !== undefined && !(tessellation.linearDeflection > 0)) {
+    throw new Error('[faijs] tessellation.linearDeflection must be > 0')
+  }
+  getRuntimeState().tessellation = { ...tessellation }
 }
 
 // ── 后端配置读写 ──
