@@ -411,6 +411,15 @@ const PLAN_C2_EXTRA = [
   // S4 曲线草图族（方案 §3.4.1）：curveIsPeriodic 返回布尔，普通函数形态
   // （api/curve-sketch/index.ts，与 shape-type 同口径），直调 occt 原生 curveIsPeriodic。
   'curveIsPeriodic',
+  // S4 测量与查询族（方案 §3.4.6）：返回布尔/标量/Vec3/对象/Shape[]，
+  // 普通函数形态（api/measure-query/index.ts，与 shape-type 同口径），
+  // 直调 occt 原生 containsPoint/distanceBetween/getInertia/getLinearCenterOfMass/
+  // projectPointOnEdge/projectPointOnFace/classifyPointOnFace/uvFromPoint/
+  // vertexPosition/subShapeCount/iterShapes。注意表内是**原生方法名**，
+  // 脚本 op 名（inertia / linearCenterOfMass …）是 op 侧符号，不在此列。
+  'containsPoint', 'distanceBetween', 'getInertia', 'getLinearCenterOfMass',
+  'projectPointOnEdge', 'projectPointOnFace', 'classifyPointOnFace', 'uvFromPoint',
+  'vertexPosition', 'subShapeCount', 'iterShapes',
 ]
 const C2 = new Set<string>([...c2Reach, ...PLAN_C2_EXTRA])
 const L3 = new Set([...l3Reach].filter((m) => !c2Reach.has(m)))
@@ -423,7 +432,18 @@ const unReached = [...occtNames].filter((m) => !reached.has(m)).sort()
 // C4 是剩余补集。§3.4.6 的 surfaceCurvature：已核实 `inspectCurvature`（arg-spec.ts:499）
 // 覆盖曲面曲率查询 ⇒ 转 C3（方案 §7.2 的 102/10/4/63/10/22 分支）。
 // ───────────────────────────────────────────────────────────────────────────
-const PLAN_C3 = ['rotate', 'sweep', 'sectionPlane', 'surfaceCurvature', 'exportStl', 'sweepWithLaw']
+const PLAN_C3 = [
+  'rotate', 'sweep', 'sectionPlane', 'surfaceCurvature', 'exportStl', 'sweepWithLaw',
+  // S4 收口（2026-10-08）：C4 剩余 5 项里的 4 项判定为「能力已由现 op 覆盖」。
+  // 四项一律**不能**落 C2——承载它们的 op（`chamfer` / `subtract` / `sweep`）里
+  // `chamfer` 与 `subtract` 是中立 op（brepkit 也要跑），塞 occt 原生直调会造 L3
+  // 违规（本文件 :383-395 的判定）。等价证据固化于
+  // test/api/occt-s4-c4-disposition.test.ts。
+  'chamferAsymmetric', // = chamfer(type:'twoDistances')；referenceFace 的取舍由 EdgeTopoRef.faces 顺序表达
+  'cutAll', // = subtract(a,b,c) 链式 / boolean([a],[b,c],'cut')；A−(B∪C) = ((A−B)−C)
+  'sweepAdvanced', // SweepFullOptions extends SweepAdvancedOptions ⇒ sweepFull 是严格超集
+  'sweepOriented', // mode/up/auxSpine + tolerances 全在 SweepAdvancedOptions 里
+]
 //  ↑ sweepWithLaw 的能力（law 驱动扫掠）已被 `sweepFull` 的内建 Law_Linear / Law_Constant
 //    覆盖（见 test/api/occt-s3-capability-probes.test.ts 用例 F）。原生 sweepWithLaw 在
 //    occt-wasm 5.6.0 的 wasm 中也**未导出**（同 buildExtrusionLaw / trimLaw），故不再单列 op。

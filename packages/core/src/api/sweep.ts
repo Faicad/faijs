@@ -65,6 +65,16 @@ export interface SweepOptions {
   curvilinearEquivalence?: boolean
   /** `orientation:'auxiliary'`：截面与引导线的关系（默认 'none'）。 */
   guideContact?: SweepGuideContact
+  /**
+   * 扫掠前把截面平移到与 spine 相切（`MakePipeShell::Add` 的 `WithContact`，
+   * 默认 false = 截面停在调用方放置的位置）。
+   */
+  withContact?: boolean
+  /**
+   * 把截面旋转到与 spine 切线正交（`Add` 的 `WithCorrection`，默认 false）。
+   * 直脊柱上是空操作。
+   */
+  withCorrection?: boolean
   /** 支持面（含 spine 的 shape）；给出后取代 `orientation`。 */
   support?: Shape
   /** 逼近面的最大阶数（缺省 = 内核缺省）。 */
@@ -120,9 +130,11 @@ function sweepBrep(profile: Shape, spine: Shape, opts?: SweepOptions): Shape {
  *       brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。
  *       S3 完整控制面（方案 §3.4.3）：给出 `orientation` / `up` / `auxSpine` /
  *       `curvilinearEquivalence` / `guideContact` / `transitionMode`（新名）/
- *       `support` / `maxDegree` / `maxSegments` / `law` / `lawLength` /
- *       `lawEndFactor` / `tol3d` / `boundTol` / `tolAngular` 任一，即改走 occt 原生
- *       `sweepFull`（law 驱动扫掠是 twist 类特征的正确路径）。
+ *       `withContact` / `withCorrection` / `support` / `maxDegree` / `maxSegments` /
+ *       `law` / `lawLength` / `lawEndFactor` / `tol3d` / `boundTol` / `tolAngular`
+ *       任一，即改走 occt 原生 `sweepFull`（law 驱动扫掠是 twist 类特征的正确路径）。
+ *       `sweepFull` 的 options 是 `sweepAdvanced` 的**严格超集**，且含
+ *       `sweepOriented` 的全部字段 ⇒ 三者能力并轨，脚本面只需 `sweep` 一个符号。
  * @returns Shape 扫掠体。
  * @param profile - 截面几何（wire 或面；面取其外环）。type:Shape required:true
  * @param spine - 脊柱路径（wire）。type:Shape required:true

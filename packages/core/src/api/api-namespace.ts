@@ -66,6 +66,24 @@ import { faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire } f
 // 直调 occt 原生 draftPrism/pipe（不在 L1 契约；offsetWire2D/buildSolidFromFaces/
 // halfSpace 已由 S3 落地）。
 import { draftPrism, pipe } from './solid-offset'
+// S4（occt-wasm op 接入）：测量与查询族（平台 op engines:['occt']，方案 §3.4.6）。
+// 13 个原生方法不在 L1 契约：containsPoint/distanceBetween/getInertia/
+// getLinearCenterOfMass/projectPointOnEdge/projectPointOnFace/classifyPointOnFace/
+// uvFromPoint/vertexPosition/subShapeCount/iterShapes 返回非 Shape，
+// 走 export-brep / shape-type 同口径的普通函数；liftCurve2d / commonCells
+// 返回 Shape，走 defineOp。
+import {
+  containsPoint, distanceBetween, inertia, linearCenterOfMass,
+  projectPointOnEdge, projectPointOnFace, classifyPointOnFace,
+  uvFromPoint, vertexPosition, subShapeCount, iterShapes,
+  liftCurve2d, commonCells,
+} from './measure-query'
+// S4（occt-wasm op 接入）：通用布尔族（平台 op engines:['occt']，方案 §3.4.5）——
+// 原生 booleanOp：带 glue/fuzzy/simplify 选项的通用形态，不在 L1 契约。
+import { boolean as booleanWithOptions } from './boolean-op'
+// S4（occt-wasm op 接入）：包围盒对齐族（平台 op engines:['occt']，方案 §3.4.9）——
+// 原生 alignX/alignY/alignZ 三轴并为一个脚本符号 alignTo。
+import { alignTo } from './align'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
@@ -152,6 +170,15 @@ export function createApiNamespace(): LibNamespace {
     faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire,
     // S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
     draftPrism, pipe,
+    // S4（occt-wasm op 接入）：测量与查询族（平台 op engines:['occt']，方案 §3.4.6）。
+    containsPoint, distanceBetween, inertia, linearCenterOfMass,
+    projectPointOnEdge, projectPointOnFace, classifyPointOnFace,
+    uvFromPoint, vertexPosition, subShapeCount, iterShapes,
+    liftCurve2d, commonCells,
+    // S4（occt-wasm op 接入）：通用布尔族 booleanOp（方案 §3.4.5）+ 包围盒对齐族
+    // alignX/Y/Z → alignTo（方案 §3.4.9），平台 op engines:['occt']。
+    boolean: booleanWithOptions,
+    alignTo,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
     faceRef,

@@ -67,6 +67,23 @@ export {
 export { faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire } from './surface-face'
 // S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
 export { draftPrism, pipe } from './solid-offset'
+// S4（occt-wasm op 接入）：测量与查询族（平台 op engines:['occt']，方案 §3.4.6）。
+export {
+  containsPoint, distanceBetween, inertia, linearCenterOfMass,
+  projectPointOnEdge, projectPointOnFace, classifyPointOnFace,
+  uvFromPoint, vertexPosition, subShapeCount, iterShapes,
+  liftCurve2d, commonCells,
+  type SubShapeType,
+} from './measure-query'
+// S4（occt-wasm op 接入）：通用布尔族（方案 §3.4.5）。导出面 ⊇ cad 面是硬门禁
+// （test/lang/op-set-consistency.test.ts），故**必须**以 cad 面的名字 `boolean`
+// 导出；`booleanOp` 是给 TS 消费方的自解释别名（指向同一对象）。
+export {
+  boolean, boolean as booleanOp,
+  type BooleanKind, type BooleanOptions,
+} from './boolean-op'
+// S4（occt-wasm op 接入）：包围盒对齐族（方案 §3.4.9）。
+export { alignTo, type AlignAxis, type AlignAnchor, type AlignOptions } from './align'
 export { knurl } from './knurl'
 export { sdf } from './sdf'
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：

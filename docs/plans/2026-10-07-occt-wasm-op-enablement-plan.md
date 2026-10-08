@@ -1,7 +1,8 @@
 # occt-wasm 5.6 能力接入方案（脚本 op 化 + 实现面接入）
 
-> 日期：2026-10-07
-> 状态：**S1–S3 已实现**（commit `7e20393` 等）；**S4 类型判定族已落地**（commit `7e13583`，8 个 occt 平台谓词 isEdge/isFace/isShell/isVertex/isWire/isCompound/isCompSolid/isEqual，C4 64→44、C2 10→25，sum=211 全绿）；**S4 其余族（§3.4.1 曲线草图 / §3.4.2 曲面面 / §3.4.4 实体偏置 / §3.4.6 测量查询剩余 / §3.4.7 视图 / §3.4.9 对齐）续做**。本方案随实测持续校正，凡与源码冲突处以实测为准。
+> 日期：2026-10-07（2026-10-08 续：C4 收口批）
+> 状态：**S1–S3 已实现**（commit `7e20393` 等）；**S4 类型判定族已落地**（commit `7e13583`，8 个 occt 平台谓词）；**S4b 视图/导出族已落地**（commit `e57578c`）；**S4 曲线草图 / 曲面面 / 实体偏置族已落地**（commit `5da07a0`）；**S4 测量查询族 + 布尔扩展族 + 对齐族已落地**：`api/measure-query`、`booleanOp` → `cad.boolean`、`alignX/Y/Z` → `alignTo`；**C4 收口批（2026-10-08）**：`chamferAsymmetric` / `cutAll` / `sweepAdvanced` / `sweepOriented` 四项判为 C3（等价证据固化于 `test/api/occt-s4-c4-disposition.test.ts`），`sweep` 补齐 `withContact` / `withCorrection` 两个脚本面字段。
+> 刷新后六类 = **C1 102 / C2 64 / L3 0 / C3 10 / C4 1 / C5 10 / C6 24**（和 211，穷尽性四项全绿）。**C4 只剩 1 项**：`createXCAFDocument`（§5.3，属 S5，命名待拍板）。本方案随实测持续校正，凡与源码冲突处以实测为准。
 > 方案出处：DeepSeek-V4.1-Flash + WorkBuddy
 > 事实基线：全部**技术结论**来自当前源码实测，唯一来源为 `node_modules/occt-wasm@5.6.0` 的 `dist/*.d.ts`（与本机 `occt-wasm` 源码仓）、本仓 `packages/core/src` 与 `packages/faijs-extra/src` 的具体文件行号。
 
@@ -124,14 +125,22 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | 类 | 计数 |
 |---|---|
 | C1 契约可达 | **102** |
-| C2 平台 op 已触达 | **29** |
-| C3 能力已由现 op 覆盖 | **6** |
-| C4 新增脚本 op | **40** |
+| C2 平台 op 已触达 | **64** |
+| C3 能力已由现 op 覆盖 | **10** |
+| C4 新增脚本 op | **1** |
 | C5 实现面接入 | **10** |
 | C6 显式排除 | **24** |
 | **合计** | **211** ✓ |
 
-> **口径对齐（2026-10-07 S4 接手）**：本表计数已与重新生成的 `packages/core/src/api/surface/occt-op-coverage.json`（扫描器 `scan-occt-op-coverage.ts` 实测）对齐。更早的 §3 初稿写的是 C2=10 / C4=64，那是 S3 law 族再分类（§3.4.3 校正注：`buildExtrusionLaw`/`trimLaw`→C6、`sweepWithLaw`→C3，并把 `sweepFull`/`sweepAdvanced`/`sweepOriented` 落地为 op）之前的基线。S4 把类型判定族 8 个 occt 原生（`isEdge`/`isFace`/`isShell`/`isVertex`/`isWire`/`isCompound`/`isCompSolid`/`isEqual`）从 C4 移入 C2。权威增量链：**C2 25 = 基线 10 + S3 带入 7 + S4 8**；**C4 44 = 基线 64 − law 再分类 3 − S3 7 − S4 8**（与 §3.4.3 校正注的 `C2 17 / C4 52` 快照衔接：17→25 为 +8，52→44 为 −8）。C3/C6 的 6/24 即 law 再分类后的扫描器实测值。
+> **口径对齐（2026-10-07 S4 接手，二次刷新）**：本表计数取自 `packages/core/src/api/surface/occt-op-coverage.json`（`npm run scan:occt-ops` 实测，穷尽性四项全绿：sum 211 / equalsUpstream / disjoint / unionCoverage；L3 = 0）。
+> 权威增量链：**C2 64 = 25（类型判定族 8 项落地后） + 22（曲线草图 11 / 曲面面 6 / 实体偏置 5，commit `5da07a0`） + 17（测量查询 11 + liftCurve2dToPlane + intersectionCells + booleanOp + alignX/Y/Z）**。
+> **2026-10-08 收口批（C4 5 → 1）**：`chamferAsymmetric` / `cutAll` / `sweepAdvanced` / `sweepOriented` 四项判定为 **C3**（能力已由现 op 覆盖），**C4 只剩 `createXCAFDocument`**。四项一律**不能**落 C2：承载它们的 `chamfer` / `subtract` 是**中立 op**（brepkit 也要跑），在其实现体里插 occt 原生直调会造 **L3 违规**（扫描器 `scan-occt-op-coverage.ts:383-395` 的判定：op 直调了 occt 方法却未声明 `engines:['occt']`）。等价证据固化于 `packages/core/test/api/occt-s4-c4-disposition.test.ts`（9 用例）：
+> - `cutAll`：原生 `cutAll(A,[B,C])` 与链式 `subtract(A,B,C)` 同为 **250**（A−(B∪C) = ((A−B)−C)），`cad.boolean([a],[b,c],'cut')` 同解；
+> - `sweepAdvanced`：原生 `sweepAdvanced(w,sp,opts)` 与 `sweepFull(w,sp,opts)` 体积相等（`SweepFullOptions extends SweepAdvancedOptions`，是**严格超集**）；
+> - `sweepOriented`：原生 `sweepOriented(w,sp,FixedUp,up)` 与 `sweepFull(w,sp,{mode:FixedUp,up})` 体积相等（其 `SweepOrientedOptions` 的 tolerances / `curvilinearEquivalence` / `contact` 全在 `SweepAdvancedOptions` 里）；本批补上 `SweepOptions` 漏声明的 `withContact` / `withCorrection`（`sweepFns.ts` 早已支持，脚本面却触达不到）；
+> - `chamferAsymmetric`：原生 `chamferAsymmetric(edge, d1, d2, refFace)` 与 `chamfer` 的 `twoDistances` 换算（§3.5 → `chamferDistAngle(dF,θ)`）体积相等 ⇒ `twoDistances` 即非对称倒角，`referenceFace` 的取舍由 `EdgeTopoRef.faces` 的**顺序**表达（换序即换参考面）。
+> 更早的 §3 初稿写的是 C2=10 / C4=64（S3 law 族再分类前的基线）；law 再分类（§3.4.3 校正注：`buildExtrusionLaw`/`trimLaw`→C6、`sweepWithLaw`→C3）与类型判定族 8 项从 C4→C2 都已在链上。C6 的 24 为扫描器实测值，未变。
+> **剩余 C4 的 1 项**：`createXCAFDocument`（§5.3，S5，建文档 op 的命名待拍板）。
 
 ### 3.1 C1 — 契约可达（102）
 
@@ -238,8 +247,8 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | occt 方法 | 建议 op | 引擎 | 说明 |
 |---|---|---|---|
 | `sweepFull` | 扩 `sweep`（`options`） | occt | 完整控制面：法向模式 + 转角过渡 + 截面放置 + 支持面 + 逼近预算 + 缩放律。**这是 twist 类特征的正确实现路径**（F17：现 op 从不用 `*Law`） |
-| `sweepAdvanced` | 扩 `sweep` | occt | `sweepFull` 的子集，参数并轨 |
-| `sweepOriented` | 扩 `sweep` | occt | 方向模式 + 辅 spine |
+| `sweepAdvanced` | 扩 `sweep` | occt | `sweepFull` 的子集，参数并轨。**2026-10-08 → C3**：`SweepFullOptions extends SweepAdvancedOptions`（严格超集），`sweep` 已走 `sweepFull` ⇒ 能力已覆盖，无需再单列入口（不落 C2 的理由见 §3 增量链） |
+| `sweepOriented` | 扩 `sweep` | occt | 方向模式 + 辅 spine。**2026-10-08 → C3**：`mode`/`up`/`auxSpine` + `SweepOrientedOptions`（tolerances / `curvilinearEquivalence` / `contact`）全在 `SweepAdvancedOptions` ⊆ `SweepFullOptions` 内 |
 | `buildExtrusionLaw` | `extrusionLaw` | occt | 构造挤出律（长度随参数） |
 | `trimLaw` | `trimLaw` | occt | 截断律 |
 | `sweepWithLaw` | 扩 `sweep` | occt | law 驱动扫掠 |
@@ -253,9 +262,14 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 > - `buildExtrusionLaw` / `trimLaw` → **C6 显式排除**（理由：上游未导出，无法调用；其「律」能力已由
 >   `sweepFull` 内建 `Law_Linear` / `Law_Constant` 覆盖，见用例 F），不再单列 `extrusionLaw` / `trimLaw` op。
 > - `sweepWithLaw` → **C3**（能力已被 `sweepFull` 的 law 选项覆盖，见用例 F），不再单列 `sweepWithLaw` op。
-> - `sweepFull` / `sweepAdvanced` / `sweepOriented` 已在 S3 落地，且 `sweepFull` 的 law 选项即 law 族能力的
->   唯一正确交付面。扫描器 `scan-occt-op-coverage.ts` 的 `PLAN_C6` / `PLAN_C3` 已同步，重新生成的
-> `occt-op-coverage.json`：C1 102 / C2 17 / L3 0 / C3 6 / C4 52 / C5 10 / C6 24（和 211，穷尽性绿）。
+> - `sweepFull` 已在 S3 落地，且 `sweepFull` 的 law 选项即 law 族能力的唯一正确交付面。
+> - `sweepAdvanced` / `sweepOriented`（2026-10-08 收口批）判为 **C3**：`SweepFullOptions
+>   extends SweepAdvancedOptions`（严格超集），`SweepOrientedOptions` 的 tolerances /
+>   `curvilinearEquivalence` / `contact` 也全在 `SweepAdvancedOptions` 内 ⇒ 二者能力已由
+>   `sweep` 的 sweepFull 路径覆盖。同批补上 `api/sweep.ts` 的 `SweepOptions` 漏声明的
+>   `withContact` / `withCorrection`（`sweepFns.ts:121-122,212-214` 早已支持，脚本面却
+>   因缺声明触达不到）。证据：`test/api/occt-s4-c4-disposition.test.ts` 用例 B1 / B2 / B3。
+>   扫描器 `PLAN_C3` 已同步。
 
 #### 3.4.4 实体与偏置族（5）
 
@@ -271,11 +285,47 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 
 | occt 方法 | 建议 op | 引擎 | 说明 |
 |---|---|---|---|
-| `chamferAsymmetric` | 扩 `chamfer`（`distance2` + `referenceFace`） | occt | 非对称倒角；扩现 op 不新增符号 |
-| `cutAll` | 扩 `subtract`（接受工具数组） | occt | n 元差集；扩现 op 不新增符号 |
-| `booleanOp` | `boolean` | occt | 带 glue/fuzzy/simplify 选项的通用布尔（脚本面现有 `union`/`subtract`/`intersect` 均为无选项版） |
+| `chamferAsymmetric` | 扩 `chamfer`（`distance2` + `referenceFace`） | occt | 非对称倒角；扩现 op 不新增符号。**2026-10-08 → C3**：`chamfer` 的 `type:'twoDistances'`，`referenceFace` 的取舍由 `EdgeTopoRef.faces` 顺序表达 |
+| `cutAll` | 扩 `subtract`（接受工具数组） | occt | n 元差集；扩现 op 不新增符号。**2026-10-08 → C3**：`subtract(a,b,c)` 链式，或 `cad.boolean([a],[b,c],'cut')` 一次成 |
+| `booleanOp` | `boolean` | occt | 带 glue/fuzzy/simplify 选项的通用布尔（脚本面现有 `union`/`subtract`/`intersect` 均为无选项版）**已落地** |
+
+> **2026-10-08 收口（2/3 → 3/3）**：上两行判为 C3 的依据是「原生 ↔ 现 op」的**体积等价实测**，
+> 证据固化于 `test/api/occt-s4-c4-disposition.test.ts` 用例 A1–A3 / C1–C3。不落 C2 的硬约束：
+> `chamfer` / `subtract` 是中立 op，塞 occt 原生直调 ⇒ L3 违规。
+
+> **已落地（2026-10-07，本批，1/3）**：`booleanOp` → `cad.boolean`，实现见
+> `api/boolean-op/index.ts`，注册见 `api/api-namespace.ts`（cad 面名 `boolean`）与
+> `api/index.ts`（导出面 ⊇ cad 面是硬门禁 —— `test/lang/op-set-consistency.test.ts`
+> 要求 cad 命名空间每个函数都被 `api/index.ts` 导出，故必须**同时**以 `boolean` 导出；
+> `booleanOp` 只是给 TS 消费方的自解释别名）。测试固化于
+> `test/api/occt-s4-boolean-align.test.ts`（18 用例全绿）。
+> naming 为 `unmodeled`：原生 `booleanOp` 回的 `EvolutionData` 里 modified/generated/
+> deleted 是**扁平的面 hash 数组**，不是本仓 `faceEvolution` 需要的
+> `Map<输入面 hash, 结果面 hash[]>` —— 合成不出 roleTable，按 §4.2 纪律不给
+> `kernel` + `byAdjacency`（那会声称「内核给了历史」，实为伪造身份）。
 
 #### 3.4.6 测量与查询族（14，原 22 含 8 项已移至 C2）
+
+> **已落地（2026-10-07，本批，13/14）**：实现见 `api/measure-query/index.ts`，注册见
+> `api/api-namespace.ts` / `api/index.ts`，扫描器 `PLAN_C2_EXTRA` 补 11 个方法名
+> （返回非 Shape 的普通函数不在 `collectOps` 口径内）。测试固化于
+> `test/api/occt-s4-measure-query.test.ts`（25 用例全绿）。
+> 形态二分：**返回 Shape 的两项走 `defineOp`**（`liftCurve2d` ← 原生
+> `liftCurve2dToPlane`；`commonCells` ← 原生 `intersectionCells`），**其余 11 项返回
+> 标量/Vec3/对象/Shape[] ⇒ 普通函数 + `assertEngineFor`**（与 shape-type 同口径）。
+> naming：`liftCurve2d` / `commonCells` 均为 `unmodeled`（前者无面词汇；后者原生只回
+> 裸 Shape，无 EvolutionData）。
+>
+> **GOTCHA（上游载体差异，写实现前必读）**：occt-wasm 的 `Vec3` 是 **`{x,y,z}` 对象**
+> （`dist/types.d.ts:52-56），faijs 脚本面的 `Vec3` 是 **`[x,y,z]` 数组**
+> （`mesh/types.ts:21`，见 `api/geom.ts` 里 `normal = [n.x, n.y, n.z]` 的同款转接）。
+> 漏掉这层转换的**症状不是报错**——原生读到 `undefined` 坐标，静默落在原点。
+>
+> **GOTCHA（`liftCurve2d` 产物形态）**：原生造的是**过点的插值 B 样条**，不是折线
+> wire ⇒ bbox 会越出给定点集（实测点集 bbox x∈[0,10]，产物 xmax ≈ 10.4167）。
+> 判定产物只能用端点（`curvePointAtParam` 于参数域两端），不能用 bbox。
+
+#### 3.4.6 测量与查询族（14，原 22 含 8 项已移至 C2；本批再落地 13/14）
 
 | occt 方法 | 建议 op | 引擎 | 说明 |
 |---|---|---|---|
@@ -312,7 +362,7 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 
 | occt 方法 | 落点 | 说明 |
 |---|---|---|
-| `createXCAFDocument` | `newDocument`（待拍板） | 见 §5.3；建文档能力必须可达，不整族排除 |
+| `createXCAFDocument` | 建文档 op（**命名待你拍板**） | 见 §5.3；建文档能力必须可达，不整族排除。这是 2026-10-08 收口批后 **C4 唯一剩余项** |
 
 #### 3.4.9 对齐/定位族（3）
 
@@ -325,6 +375,23 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 > **实测校正（2026-10-07 接手）：本族「`isEdge`/`isFace`/`isShell`/`isVertex`/`isWire`/`isCompound`/`isCompSolid` 为中立 op」的判断需修正。** L1 契约 `BrepEngineApi`（`brep/engine/primitives.ts`）**不含** `isEdge` 等类型判定方法，也不含 `getShapeType` / `isEqual`（仅含 `isSolid` 与 `getSubShapes`/`subShapeHashes`）。因此这些谓词**无法走 L1 中立路径**，必须声明 `engines: ['occt']` 直调 occt 原生 `isEdge`/`isFace`/…（它们确实在 `OcctKernel` 的 211 成员里）。另：arg-spec 中 `core/shapeTypes.js` 的 `isEdge`/`isFace`/`isShell`/`isVertex`/`isSolid`/`isShape3D`/`isValidSolid` 旧 `skip` 条目指向的模块**已不存在**（`packages/core/src/core/shapeTypes.*` 无文件），属 stale 引用，需按新 op 重做。判定：本族从「中立」改为「occt 平台 op」，落点不变（仍为脚本面新符号）。
 
 > 脚本面现无 `align` 族符号：`place`/`locate` 是矩阵/定位语义，`bboxMin`/`bboxMax`/`bboxCenter` 是查询，二者组合可表达但无单调用。三者是同一 op 的三参数形态，**落一个符号** `alignTo`。
+
+> **已落地（2026-10-07，本批，3/3）**：实现见 `api/align/index.ts`，注册见
+> `api/api-namespace.ts` / `api/index.ts`。测试固化于
+> `test/api/occt-s4-boolean-align.test.ts` A4/A4b/A5/A6（18 用例全绿）。
+> naming 为 `kernel` + `newFaces: { via: 'byAdjacency' }`——对齐是刚体平移，与
+> `api/transform.ts` 的 `translate` 同口径。
+>
+> **GOTCHA（默认值，实测钉在 A4b）**：`target` / `anchor` 在 d.ts 里都写作可选，但
+> 原生的默认值是 **`target = 0` 且 `anchor = "center"`**（`dist/index.js:549-553`
+> 的默认参数）——**不是**直觉上的 `min`。缺省调用 `cad.alignTo(p, 'z')` 把包围盒
+> **中点**挪到 0（`z∈[0,10]` 的盒子会移到 `zmin = −5`）。本 op 不替上游编默认值
+> （缺省一律透传 `undefined`），因此该语义变化会直接透到脚本面。
+>
+> 实现细节（与扫描器有关）：三轴走 **if/else 显式直调**，不用
+> `const native = axis === 'x' ? k.alignX : …` 再 `.call()` —— 动态取属性会让
+> `scan-occt-op-coverage.ts` 看不见 `alignX`/`alignY`/`alignZ`，它们会掉回 C4 被
+> 误判成「未接入」。
 
 ### 3.5 C5 — 实现面接入（10）
 
@@ -367,7 +434,7 @@ occt-wasm 的一项能力被接入 faijs，有两种等价合法的落点，二�
 | 计数完备 | C1(102) + C2(25) + C3(6) + C4(44) + C5(10) + C6(24) = **211** |
 | 互斥 | 任一方法只出现在一类中；类别内方法名不重复 |
 | 上游一致 | 六类方法名之并集 == `OcctKernel` 成员名全集（212 唯一名 − `[Symbol.dispose]` = 211；重载按名去重；含 `init` 与 `shapeCount`，见 F23） |
-| C4 分族自洽 | §3.4.1–3.4.9 各表行数之和 == 56（12+6+6+5+3+14+6+1+3）；扫描器实测 C4=44，残差 12 项为 S3 实测再分类（含 law 族与偏移/实体族部分项的 op 化），以 `packages/core/src/api/surface/occt-op-coverage.json` 为准 |
+| C4 分族自洽 | 扫描器实测 **C4 = 1**，即 `createXCAFDocument`（§3.4.8 / §5.3，建文档 op 命名待拍板）。原 5 项里的 `chamferAsymmetric` / `cutAll`（§3.4.5）与 `sweepAdvanced` / `sweepOriented`（§3.4.3）已于 2026-10-08 收口批判为 C3（证据见 `test/api/occt-s4-c4-disposition.test.ts`）。以 `packages/core/src/api/surface/occt-op-coverage.json` 为准 |
 | 非 `OcctKernel` 面 | `XCAFDocument` / 自由渲染函数 / `OcctWorker` 三者各自有明确落点或排除理由（§1.4、§5.2、§5.3） |
 
 校验由扫描器自动执行（§7.4），不满足即 `exit 1`。**这不是覆盖率门禁**：它判的是「划分是否完备」，不判「该不该接」。
