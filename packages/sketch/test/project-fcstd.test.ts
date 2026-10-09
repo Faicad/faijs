@@ -150,57 +150,102 @@ describe('fromFreeCadConstraints — unmapped ledger', () => {
     expect(constraints[0]).toMatchObject({ kind: 'coincident', b: { index: -3 } })
   })
 
-  it('non-driving (reference) constraints are ledgered as reference-driven', () => {
+  it('non-driving (reference) constraints are dropped (no solve information, no gap)', () => {
     const cons = [con(0, ConstraintType.Distance, [{ geoId: 0, pos: 1 }, { geoId: 1, pos: 2 }], 12, { isDriving: false })]
     const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
     expect(constraints).toEqual([])
-    expect(unmapped).toEqual([expect.objectContaining({ index: 0, reason: 'reference-driven' })])
+    expect(unmapped).toEqual([])
   })
 
-  it('unsupported types (InternalAlignment/Block/Weight/…) are ledgered with their names', () => {
+  it('unsupported types (InternalAlignment/Group/Text/…) are ledgered with their names', () => {
     const cons: FcstdSketchCon[] = [
       con(0, ConstraintType.InternalAlignment, [{ geoId: 0, pos: 3 }]),
-      con(1, ConstraintType.Block, [{ geoId: 0, pos: 0 }]),
       con(2, 99, []),
     ]
     const { unmapped } = fromFreeCadConstraints(cons, [])
-    expect(unmapped.map((u) => u.reason)).toEqual(['unsupported-type', 'unsupported-type', 'unsupported-type'])
+    expect(unmapped.map((u) => u.reason)).toEqual(['unsupported-type', 'unsupported-type'])
     expect(unmapped[0]!.typeName).toBe('InternalAlignment')
-    expect(unmapped[1]!.typeName).toBe('Block')
-    expect(unmapped[2]!.typeName).toBe('type#99')
+    expect(unmapped[1]!.typeName).toBe('type#99')
   })
 
-  it('a 1-ref Angle has no canonical counterpart → ambiguous-refs', () => {
-    const cons = [con(0, ConstraintType.Angle, [{ geoId: 0, pos: 0 }], 0.5)]
-    const { unmapped } = fromFreeCadConstraints(cons, [])
-    expect(unmapped).toEqual([expect.objectContaining({ index: 0, reason: 'ambiguous-refs' })])
+  it('Block projects to canonical `fixed` per referenced geometry', () => {
+    const cons = [con(0, ConstraintType.Block, [{ geoId: 0, pos: 0 }, { geoId: 1, pos: 0 }, { geoId: 2, pos: 0 }])]
+    const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
+    expect(unmapped).toEqual([])
+    expect(constraints).toEqual([
+      { kind: 'fixed', of: { index: 0 } },
+      { kind: 'fixed', of: { index: 1 } },
+      { kind: 'fixed', of: { index: 2 } },
+    ])
   })
 
-  // GOTCHA (2026-09-28): FreeCAD writes an absolute-coordinate constraint as a
-  // 1-ref DistanceY when the axis is implicit (Bathroom_cabinet_sink Sketch259:
-  // `{geoId: 0, pos: 1}` = the start point's y = 70, matching the stored y1=70).
-  // Before the REFS_REQUIRED guard this dereferenced the absent second ref and
-  // threw `Cannot read properties of undefined (reading 'pos')` — reported by
-  // the converter as `solver-throw`, which failed 436/900 corpus files.
-  it('a 1-ref DistanceY (implicit axis) is ledgered, never thrown', () => {
-    const cons = [con(0, ConstraintType.DistanceY, [{ geoId: 0, pos: 1 }], 70)]
+  it('Weight (solver soft-penalty hint) is dropped (no canonical counterpart, no gap)', () => {
+    const cons = [con(0, ConstraintType.Weight, [{ geoId: 0, pos: 0 }], 1)]
     const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
     expect(constraints).toEqual([])
-    expect(unmapped).toEqual([expect.objectContaining({ index: 0, reason: 'ambiguous-refs' })])
+    expect(unmapped).toEqual([])
   })
 
-  it('under-specified constraints of any type never throw out of the projection', () => {
+  it('a 1-ref Angle projects to canonical `orientation` (absolute line angle)', () => {
+    const v = 0.5
+    const cons = [con(0, ConstraintType.Angle, [{ geoId: 0, pos: 0 }], v)]
+    const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
+    expect(unmapped).toEqual([])
+    expect(constraints).toEqual([
+      { kind: 'orientation', of: { index: 0 }, dir: [Math.cos(v), Math.sin(v)] },
+    ])
+  })
+
+  // GOTCHA (2026-09-28, UPDATED 2026-10-09): FreeCAD writes an absolute-coordinate
+  // constraint as a 1-ref DistanceX/Y when the axis is implicit (Bathroom_cabinet_sink
+  // Sketch259: `{geoId: 0, pos: 1}` = the start point's y = 70, matching the stored
+  // y1=70). The REFS_REQUIRED guard (now 1 for DistanceX/Y) lets the projection
+  // synthesize the implicit axis anchor and emit distanceX/Y(a, VAxis/HAxis) instead
+  // of dereferencing the absent second ref and throwing `Cannot read properties of
+  // undefined (reading 'pos')` — which had failed 436/900 corpus files.
+  it('a 1-ref DistanceY (implicit axis) projects to distanceY(a, HAxis=-1)', () => {
+    const cons = [con(0, ConstraintType.DistanceY, [{ geoId: 0, pos: 1 }], 70)]
+    const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
+    expect(unmapped).toEqual([])
+    expect(constraints).toEqual([{ kind: 'distanceY', a: { index: 0, at: 'start' }, b: { index: -1 }, value: 70 }])
+  })
+
+  it('under-specified constraints never throw; a 1-ref DistanceX now projects (not ambiguous)', () => {
     const cons: FcstdSketchCon[] = [
       con(0, ConstraintType.Coincident, []),
       con(1, ConstraintType.PointOnObject, [{ geoId: 0, pos: 0 }]),
       con(2, ConstraintType.Symmetric, [{ geoId: 0, pos: 1 }, { geoId: 0, pos: 2 }]),
       con(3, ConstraintType.Horizontal, []),
-      con(4, ConstraintType.DistanceX, [{ geoId: 0, pos: 1 }]),
+      con(4, ConstraintType.DistanceX, [{ geoId: 0, pos: 1 }], 5),
     ]
     const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
-    expect(constraints).toEqual([])
-    expect(unmapped.map((u) => u.index)).toEqual([0, 1, 2, 3, 4])
+    // index 4 (1-ref DistanceX) now projects to distanceX(geo0, VAxis=-2); the rest stay ambiguous
+    expect(constraints).toEqual([{ kind: 'distanceX', a: { index: 0, at: 'start' }, b: { index: -2 }, value: 5 }])
+    expect(unmapped.map((u) => u.index)).toEqual([0, 1, 2, 3])
     expect(unmapped.every((u) => u.reason === 'ambiguous-refs')).toBe(true)
+  })
+})
+
+describe('projection gap fixes (R-5b §3.1–3.5)', () => {
+  it('a 1-ref DistanceX (implicit axis) projects to distanceX(a, VAxis=-2)', () => {
+    const cons = [con(0, ConstraintType.DistanceX, [{ geoId: 0, pos: 1 }], 35)]
+    const { constraints, unmapped } = fromFreeCadConstraints(cons, [])
+    expect(unmapped).toEqual([])
+    expect(constraints).toEqual([{ kind: 'distanceX', a: { index: 0, at: 'start' }, b: { index: -2 }, value: 35 }])
+  })
+
+  it('canonical `orientation` round-trips through mapConstraint to a 1-ref FCStd Angle and back', () => {
+    const v = 0.75
+    const geoms: SketchGeom[] = [{ kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }]
+    const canonical: SketchConstraint[] = [{ kind: 'orientation', of: { index: 0 }, dir: [Math.cos(v), Math.sin(v)] }]
+    const fwd = toFreeCadConstraints(canonical, geoms)
+    expect(fwd.constraints).toHaveLength(1)
+    expect(fwd.constraints[0]!.type).toBe(ConstraintType.Angle)
+    expect(fwd.constraints[0]!.refs).toEqual([{ geoId: 0, pos: 0 }])
+    expect(fwd.constraints[0]!.value).toBeCloseTo(v, 12)
+    const back = fromFreeCadConstraints(fwd.constraints, geoms)
+    expect(back.unmapped).toEqual([])
+    expect(back.constraints).toEqual(canonical)
   })
 })
 

@@ -10,7 +10,7 @@
  * counterpart in a target dialect raise an explicit `E_SKETCHC_*` — never a
  * silent downgrade.
  */
-import { PointPos, CONSTRAINT_NAMES, ConstraintType, type FcstdGeoRef, type FcstdSketchGeom, type FcstdSketchCon } from './fcstd-types.js'
+import { PointPos, GeoId, CONSTRAINT_NAMES, ConstraintType, type FcstdGeoRef, type FcstdSketchGeom, type FcstdSketchCon } from './fcstd-types.js'
 import type { At, Ref, SketchConstraint, SketchConstraintKind, SketchGeom } from './canonical.js'
 import { evalBSpline } from './bspline.js'
 
@@ -321,7 +321,10 @@ function mapConstraint(c: SketchConstraint, tagIndex: Map<string, number>, geoms
     case 'angle':
       return { type: ConstraintType.Angle, refs: [ref(c.a), ref(c.b)], value: c.value }
     case 'orientation':
-      throw new SketchProjectionError('E_SKETCHC_UNMAPPED', 'constraint "orientation" has no FCStd counterpart')
+      // Reverse of the 1-ref Angle projection: emit a single-reference FCStd
+      // Angle (absolute line orientation, radians). The planegcs backend lowers a
+      // 1-ref Angle to `p2p_angle` on the line's own endpoints.
+      return { type: ConstraintType.Angle, refs: [ref(c.of)], value: Math.atan2(c.dir[1], c.dir[0]) }
     case 'radius':
       return { type: ConstraintType.Radius, refs: [ref(c.of)], value: c.value }
     case 'diameter':
@@ -412,8 +415,8 @@ const REFS_REQUIRED: Partial<Record<number, number>> = {
   [ConstraintType.Coincident]: 2,
   [ConstraintType.Parallel]: 2,
   [ConstraintType.Tangent]: 2,
-  [ConstraintType.DistanceX]: 2,
-  [ConstraintType.DistanceY]: 2,
+  [ConstraintType.DistanceX]: 1,
+  [ConstraintType.DistanceY]: 1,
   [ConstraintType.Perpendicular]: 2,
   [ConstraintType.Equal]: 2,
   [ConstraintType.PointOnObject]: 2,
@@ -466,7 +469,8 @@ export function fromFreeCadConstraints(cons: FcstdSketchCon[], geoms: SketchGeom
 
   cons.forEach((c, index) => {
     if (!c.isDriving) {
-      pushUnmapped(index, c.type, 'reference-driven')
+      // Reference/driven constraint carries no solve information — canonical has
+      // no field for it. Drop it silently instead of reporting a gap.
       return
     }
     // External geometry refs (geoId <= -3, down to just above GeoUndef) ride
@@ -553,13 +557,26 @@ export function fromFreeCadConstraints(cons: FcstdSketchCon[], geoms: SketchGeom
         }
         break
       case ConstraintType.DistanceX: {
-        const [a, b] = two()
-        constraints.push({ kind: 'distanceX', a, b, value: c.value })
+        if (c.refs.length >= 2) {
+          const [a, b] = two()
+          constraints.push({ kind: 'distanceX', a, b, value: c.value })
+        } else {
+          // 1-ref DistanceX = absolute X coordinate of the point/line w.r.t. the
+          // Y-axis (VAxis, geoId -2). The planegcs backend special-cases an
+          // axis-edge second ref as `coordinate_x` (absolute, not a difference),
+          // matching FreeCAD's single-reference DistanceX semantics.
+          constraints.push({ kind: 'distanceX', a: ref(c.refs[0]!), b: { index: GeoId.VAxis }, value: c.value })
+        }
         break
       }
       case ConstraintType.DistanceY: {
-        const [a, b] = two()
-        constraints.push({ kind: 'distanceY', a, b, value: c.value })
+        if (c.refs.length >= 2) {
+          const [a, b] = two()
+          constraints.push({ kind: 'distanceY', a, b, value: c.value })
+        } else {
+          // 1-ref DistanceY = absolute Y coordinate w.r.t. the X-axis (HAxis=-1).
+          constraints.push({ kind: 'distanceY', a: ref(c.refs[0]!), b: { index: GeoId.HAxis }, value: c.value })
+        }
         break
       }
       case ConstraintType.Angle:
@@ -567,8 +584,12 @@ export function fromFreeCadConstraints(cons: FcstdSketchCon[], geoms: SketchGeom
           const [a, b] = two()
           constraints.push({ kind: 'angle', a, b, value: c.value })
         } else {
-          // single-line orientation angle: canonical has no 1-ref `angle`
-          pushUnmapped(index, c.type, 'ambiguous-refs')
+          // 1-ref Angle = absolute orientation of a single line w.r.t. the X-axis.
+          // Canonical models this as `orientation` (dir = [cos, sin]); the
+          // planegcs backend lowers a 1-ref FCStd Angle to `p2p_angle` on the
+          // line's own endpoints, and `mapConstraint` re-emits it as a 1-ref
+          // Angle on the reverse path.
+          constraints.push({ kind: 'orientation', of: ref(c.refs[0]!), dir: [Math.cos(c.value), Math.sin(c.value)] })
         }
         break
       case ConstraintType.Radius:
@@ -593,8 +614,19 @@ export function fromFreeCadConstraints(cons: FcstdSketchCon[], geoms: SketchGeom
           about: ref(c.refs[2]!),
         })
         break
+      case ConstraintType.Weight:
+        // Weight is a solver soft-penalty hint, not a geometric constraint —
+        // canonical has no field for it. Drop it (no gap, no constraint).
+        break
+      case ConstraintType.Block: {
+        // Block freezes its referenced geometry. Canonical `fixed` is the closest
+        // existing kind; `mapConstraint` lowers `fixed` to a no-op because the
+        // implicit fixed frame already pins the rigid body.
+        for (const r of c.refs) constraints.push({ kind: 'fixed', of: ref(r) })
+        break
+      }
       default:
-        // InternalAlignment / SnellsLaw / Block / Weight / Group / Text / …
+        // InternalAlignment / SnellsLaw / Group / Text / …
         pushUnmapped(index, c.type, 'unsupported-type')
     }
   })
