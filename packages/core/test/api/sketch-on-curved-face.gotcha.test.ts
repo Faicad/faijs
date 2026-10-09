@@ -4,15 +4,17 @@
  * G2 residual — `fixWireOnFace 曲面贴合` exploration, PINNED as a known
  * hard-blocked boundary (not a bug-chase).
  *
- * `cad.sketchOnFace` places a closed 2D contour onto the UV space of an existing
- * face and wraps the sample→UV→interpolate 3D wire as a face. This works for a
- * PLANAR face (`sketch-on-face-e2e.test.ts` proves centre→extrude volume, wire,
- * bounds). For a CURVED (cylindrical) host face the on-surface wire is an
- * interpolated set of BSpline edges on the cylinder, and OCCT cannot reconstruct
- * an exact face from that wire (`BRepBuilderAPI_MakeFace` succeeds only when the
- * wire lies on a planar fit or an already-known surface). So:
+ * `cad.sketchOnSurface` (the renamed curved/UV-conform successor of the old
+ * curved `cad.sketchOnFace`) places a closed 2D contour onto the UV space of an
+ * existing face and wraps the sample→UV→interpolate 3D wire as a face. This
+ * works for a PLANAR face (`sketch-on-face-e2e.test.ts` proves centre→extrude
+ * volume, wire, bounds — via the planar `cad.sketchOnFace`). For a CURVED
+ * (cylindrical) host face the on-surface wire is an interpolated set of BSpline
+ * edges on the cylinder, and OCCT cannot reconstruct an exact face from that
+ * wire (`BRepBuilderAPI_MakeFace` succeeds only when the wire lies on a planar
+ * fit or an already-known surface). So:
  *
- *   cur⧋ extrude from a sketchOn curved face  →  CONSTRUCTION_FAILED: makeFace:
+ *   cur⧋ extrude from a sketchOnSurface curved face  →  CONSTRUCTION_FAILED: makeFace:
  *   construction failed  (hard-blocked at the face-construction stage)
  *
  * G2 ("曲面草图 e2e", extrude/punchHole off a curved face) and E3's
@@ -94,12 +96,12 @@ async function curvedFaceOrdinal(): Promise<number> {
   throw new Error('no cylindrical face found on cad.cylinder')
 }
 
-describe('cad.sketchOnFace on a curved face — pinned boundary (G2/fixWireOnFace)', () => {
-  it('curved(cylindrical) host face → sketchOnFace throws CONSTRUCTION_FAILED makeFace', async () => {
+describe('cad.sketchOnSurface on a curved face — pinned boundary (G2/fixWireOnFace)', () => {
+  it('curved(cylindrical) host face → sketchOnSurface throws CONSTRUCTION_FAILED makeFace', async () => {
     const ord = await curvedFaceOrdinal()
     const result = await exec(
       `const p0 = cad.cylinder(5, 20)\n` +
-        `const sk = cad.sketchOnFace({ contours: ${JSON.stringify([sq(1, 2, 2)])}, on: p0, face: ${ord}, scaleMode: 'original' })\n`,
+        `const sk = cad.sketchOnSurface({ contours: ${JSON.stringify([sq(1, 2, 2)])}, on: p0, face: ${ord}, scaleMode: 'original' })\n`,
     )
     // The contour (u∈[1,4],v∈[2,5]) is well inside the UV bounds; the failure is
     // the exact-surface reconstruction of the interpolated on-surface wire, NOT

@@ -1,14 +1,17 @@
 /**
  * sketch-on-face-brepkit — engine verdict probe: does brepkit support cad.sketchOnFace?
  *
- * sketch-on-face.ts declares `engines: ['occt']` (BREP path) and
- * `meshEngines: ['brepkit']` (mesh-solid path). This test pins the *actual*
- * brepkit verdict by executing the op on a brepkit-assembled runtime:
+ * After the 2026-10-09 split `cad.sketchOnFace` is **planar-only and carries no
+ * `engines` declaration** (common op). This test pins the *actual* brepkit
+ * verdict by executing the op on a brepkit-assembled runtime:
  *
  *   1. mesh-solid path (brepkit as the mesh backend): sketchOnFace on a mesh
  *      solid must succeed — this is the documented brepkit capability.
- *   2. BREP path request under brepkit: must fail statically (E_ENGINE_*
- *      verdict), never silently fall back.
+ *   2. BREP path on a brepkit planar face: must succeed — the new common-engine
+ *      capability (planar sketchOnFace now runs on the brepkit BREP engine too).
+ *   3. BREP path on a brepkit CURVED face: must fail statically, directed to
+ *      `cad.sketchOnSurface` (sketchOnFace is planar-only) — never silently
+ *      degrade.
  *
  * The doc generator's engine buckets must stay consistent with these facts.
  */
@@ -16,8 +19,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import type { HostPorts } from '../../src/cad-runtime/ports'
 import { createEditorRuntime } from '../support/editor-ops'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
-import { registerBrepkitMeshEngine } from '../../src/brep/engine/adapters/brepkit'
+import { registerBrepkitMeshEngine, registerBrepkitBrepEngine } from '../../src/brep/engine/adapters/brepkit'
 import { disposeBrepkit } from '../../src/brepkit-kernel/brepkitKernel'
+import { getBrepApi } from '../../src/brep/handle-bridge'
+import { brepOf } from '../../src/shape'
+import type { Shape } from '../../src/mesh/types'
+import { asPartName } from '../../src/identity'
 
 function binaryStl(tris: number[][]): ArrayBuffer {
   const n = tris.length
@@ -92,6 +99,18 @@ function faceRefLiteral(f: FaceRowLike): string {
 const BOX_STL = binaryStl(boxTriangles(10, 10, 10))
 const PORTS = () => portsFor({ 'cube10.stl': BOX_STL })
 
+/** A 4×6 square centred at the origin (4 closed line segments). */
+function squareContour(): string {
+  return JSON.stringify([{
+    segments: [
+      { kind: 'line', x1: -2, y1: -3, x2: 2, y2: -3 },
+      { kind: 'line', x1: 2, y1: -3, x2: 2, y2: 3 },
+      { kind: 'line', x1: 2, y1: 3, x2: -2, y2: 3 },
+      { kind: 'line', x1: -2, y1: 3, x2: -2, y2: -3 },
+    ],
+  }])
+}
+
 /** Load the box on a brepkit mesh runtime and return the +Z face ref literal. */
 async function topFaceRefOf(runtime: ReturnType<typeof createEditorRuntime>): Promise<string> {
   const loaded = await runtime.execute("let a = await cad.load({ file: 'cube10.stl' })")
@@ -104,34 +123,74 @@ async function topFaceRefOf(runtime: ReturnType<typeof createEditorRuntime>): Pr
   return faceRefLiteral(top!)
 }
 
+/** 1-based ordinal of the box face whose outward normal is +Z (brepkit BREP engine). */
+async function boxTopFaceOrdinal(runtime: ReturnType<typeof createEditorRuntime>): Promise<number> {
+  const base = await runtime.execute('const p0 = cad.box(10, 10, 10)\n')
+  if (base.failedAt) throw new Error(base.failedAt.message)
+  const s = base.outputs.get(asPartName('p0')) as Shape | undefined
+  if (!s) throw new Error('no box output')
+  const h = brepOf(s) as never
+  const faces = getBrepApi().getSubShapes(h, 'face' as never) as never[]
+  for (let i = 0; i < faces.length; i++) {
+    const n = getBrepApi().surfaceNormal(faces[i]!, 0, 0) as { x: number; y: number; z: number }
+    if (Math.abs(n.z - 1) < 1e-6) return i + 1
+  }
+  throw new Error('no +Z planar face on box')
+}
+
+/** 1-based ordinal of a cylindrical face on a brepkit cylinder. */
+async function cylinderFaceOrdinal(runtime: ReturnType<typeof createEditorRuntime>): Promise<number> {
+  const base = await runtime.execute('const p0 = cad.cylinder(5, 20)\n')
+  if (base.failedAt) throw new Error(base.failedAt.message)
+  const s = base.outputs.get(asPartName('p0')) as Shape | undefined
+  if (!s) throw new Error('no cylinder output')
+  const h = brepOf(s) as never
+  const faces = getBrepApi().getSubShapes(h, 'face' as never) as never[]
+  for (let i = 0; i < faces.length; i++) {
+    const t = (getBrepApi().surfaceType(faces[i]!) as string).toLowerCase()
+    if (t.includes('cylind')) return i + 1
+  }
+  throw new Error('no cylindrical face on cad.cylinder')
+}
+
 describe('brepkit × cad.sketchOnFace engine verdict', () => {
   beforeAll(async () => {
     __resetEngineRegistriesForTests()
     await registerBrepkitMeshEngine()
+    await registerBrepkitBrepEngine()
   })
   afterAll(() => { disposeBrepkit() })
 
   it('mesh-solid path: sketchOnFace succeeds on a brepkit mesh solid', async () => {
-    const probe = createEditorRuntime(PORTS(), 'mesh')
-    const ref = await topFaceRefOf(probe)
-
     const runtime = createEditorRuntime(PORTS(), 'mesh')
+    const ref = await topFaceRefOf(runtime)
     const result = await runtime.execute(
       "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: [{ kind: 'line', x1: -2, y1: -3, x2: 2, y2: -3 }, { kind: 'line', x1: 2, y1: -3, x2: 2, y2: 3 }, { kind: 'line', x1: 2, y1: 3, x2: -2, y2: 3 }, { kind: 'line', x1: -2, y1: 3, x2: -2, y2: -3 }] }], on: a, face: ${ref} })\n`,
+      `let s = await cad.sketchOnFace({ contours: ${squareContour()}, on: a, face: ${ref} })\n`,
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
     expect(result.outputs.has('s')).toBe(true)
   })
 
-  it('BREP path: sketchOnFace under brepkit fails statically, no silent fallback', async () => {
+  it('BREP path: sketchOnFace succeeds on a brepkit PLANAR BREP face (common op, no engine declaration)', async () => {
     const runtime = createEditorRuntime(PORTS(), 'brep')
+    const top = await boxTopFaceOrdinal(runtime)
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      "let s = await cad.sketchOnFace({ contours: [{ segments: [{ kind: 'line', x1: 0, y1: 0, x2: 4, y2: 0 }, { kind: 'line', x1: 4, y1: 0, x2: 4, y2: 4 }, { kind: 'line', x1: 4, y1: 4, x2: 0, y2: 4 }, { kind: 'line', x1: 0, y1: 4, x2: 0, y2: 0 }] }], on: a, face: 0 })\n",
+      `const p0 = cad.box(10, 10, 10)\n` +
+        `const sk = cad.sketchOnFace({ contours: ${squareContour()}, on: p0, face: ${top} })\n`,
     )
-    // The op declares engines: ['occt'] — under brepkit this must be rejected
-    // up front (static verdict / failedAt), never produce a silent result.
-    expect(result.failedAt).not.toBeNull()
+    expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
+    expect(result.outputs.has('sk')).toBe(true)
+  })
+
+  it('BREP path: sketchOnFace rejects a brepkit CURVED face (must use cad.sketchOnSurface)', async () => {
+    const runtime = createEditorRuntime(PORTS(), 'brep')
+    const curved = await cylinderFaceOrdinal(runtime)
+    const result = await runtime.execute(
+      `const p0 = cad.cylinder(5, 20)\n` +
+        `const sk = cad.sketchOnFace({ contours: ${squareContour()}, on: p0, face: ${curved} })\n`,
+    )
+    expect(result.failedAt, 'curved face must be rejected by planar-only sketchOnFace').toBeTruthy()
+    expect(result.failedAt?.message ?? '').toContain('sketchOnSurface')
   })
 })

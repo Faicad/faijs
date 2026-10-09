@@ -484,6 +484,13 @@
       ]
     },
     {
+      "name": "sketchOnSurface",
+      "missing": [
+        "as",
+        "scaleMode"
+      ]
+    },
+    {
       "name": "solidFromFaces",
       "missing": [
         "faces",

@@ -186,6 +186,7 @@ export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'shell', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:shell:<i>'] },
   { op: 'simplify', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:simplify:<i>'] },
   { op: 'sketchOnFace', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
+  { op: 'sketchOnSurface', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
   { op: 'sketchOnPlane', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
   { op: 'solidFromFaces', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:solidFromFaces:<i>'] },
   { op: 'sphere', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "sphere face vocabulary pending Phase 3", vocab: [] },

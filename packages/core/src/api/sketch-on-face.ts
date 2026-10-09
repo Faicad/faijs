@@ -1,31 +1,33 @@
 /**
- * `cad.sketchOnFace`: place 2D contours onto the UV parameter space of an
- * existing face (E3 placement).
+ * `cad.sketchOnFace`: place 2D contours onto a **planar** face of an existing
+ * solid (E3 placement), engine-neutral.
  *
- * Unlike `sketchOnPlane` (which lifts a contour onto a whole plane *frame*),
- * `sketchOnFace` lays the contour on the surface of a specific face of a target
- * solid. Every 2D curve is sampled, the samples mapped into the face's `(u,v)`
- * domain under a scale mode (`original` / `bounds` / `native`), the surface
- * evaluated at those UVs, and a curve edge interpolated through the resulting
- * 3D points (see `geometry2d/bridge/on-surface.ts`). The placed wire then
- * becomes a face (`as:'face'`) ready to be extruded along the face normal, or
- * is returned raw (`as:'wire'`).
+ * 2026-10-09 split: `sketchOnFace` now owns the *planar* case only and carries
+ * **no `engines` declaration** — it is a common op, available on the OCCT BREP
+ * engine, the brepkit BREP engine, and the brepkit mesh backend. The
+ * curved / UV-conform capability (map into the face's `(u,v)` domain + snap to
+ * the surface via `fixWireOnFace`, which needs OCCT) moved to
+ * `cad.sketchOnSurface` (`engines: ['occt']`).
  *
- * v1 scope: the on-surface primitive is surface-type-independent, but the result
- * face is built with `makeFace` on the interpolated wire, so it is exact for
- * planar faces; for curved host faces the wire is snapped to the surface via
- * `fixWireOnFace` (occt-wasm 5.6) before `makeFace`. The op declares
- * `engines: ['occt']` (surface sampling needs the BREP platform).
+ * For a planar face the contour is laid on the face's own plane frame via
+ * `assembleWireOnFace` (identity `original` scale mode, or `bounds`/`native`
+ * where the engine exposes a finite UV domain) and wrapped as a face with
+ * `makeFace` — exact, no surface snapping needed. Non-planar faces are refused
+ * up front with a pointer to `cad.sketchOnSurface`.
  *
  * **Two chains, two mechanisms** (plan 2026-10-01 §4 Phase 3). The BREP branch
- * above maps the contour into the host face's UV domain. The **mesh branch**
+ * above maps the contour onto the host face's plane. The **mesh branch**
  * (`buildSketchOnFaceMesh`, `meshEngines: ['brepkit']`) works on a mesh solid's
- * approximate topology and deliberately does NOT use UV space: a brepkit plane's
- * domain is ±1e6 (an infinite domain), so "place the sketch in the face's UV
- * range" is meaningless there. It places the contour in the face's own plane
+ * approximate topology and deliberately does NOT use a UV domain: a brepkit
+ * plane's domain is ±1e6 (an infinite domain), so "place the sketch in the face's
+ * UV range" is meaningless there. It places the contour in the face's own plane
  * frame instead (origin = face bbox centre, normal = `surfaceNormal`), which
  * matches `cad.sketchOnPlane`'s semantics. The result is a **mesh-chain face**
  * (`ShapeSlot.meshFace`), ready for the mesh branch of `cad.extrude`.
+ *
+ * For both chains a planar face is required; curved faces are rejected by the
+ * BREP branch (→ `cad.sketchOnSurface`) and by the mesh branch (→
+ * `E_MESH_SOLID_UNSUPPORTED`).
  * @module
  */
 import type { Shape } from '../mesh/types'
@@ -45,8 +47,7 @@ import { assembleWireOnFace, type FaceScaleMode } from '../geometry2d/bridge/on-
 import { assembleWire, type Plane, type Vec3 } from '../geometry2d/bridge/lift-on-plane'
 import { profileSegToCurve, type ProfileSegLike } from '../geometry2d/adapt'
 import { assertProfileParams, toContourBlueprints, type ProfileLoop } from './profile'
-import { fixWireOnFaceBrep } from './brep-operations/healingFns'
-import { MeshUnsupportedError, getCurrentStmt } from '../runtime-state'
+import { MeshUnsupportedError, BrepUnsupportedError, getCurrentStmt, getBackends } from '../runtime-state'
 import {
   meshBackendOrThrow,
   meshFacePlane,
@@ -115,58 +116,72 @@ export function resolveFaceHandle(kernel: BrepEngineApi, on: Shape, selector: Fa
  * @param face - the face built on the host surface.
  * @returns a handle to the (possibly re-oriented) face.
  */
-function orientLikeHost(kernel: BrepEngineApi, host: BrepHandle, face: BrepHandle): BrepHandle {
+export function orientLikeHost(kernel: BrepEngineApi, host: BrepHandle, face: BrepHandle): BrepHandle {
   const a = kernel.surfaceNormal(host, 0, 0)
   const b = kernel.surfaceNormal(face, 0, 0)
   const dot = a.x * b.x + a.y * b.y + a.z * b.z
   return dot < 0 ? kernel.reverseShape(face) : face
 }
 
-/** Build one face (outer + optional holes) on the host face for an organised contour entry. */
-function buildOnFace(kernel: BrepEngineApi, host: BrepHandle, mode: FaceScaleMode, entry: Blueprint | CompoundBlueprint): BrepHandle {
-  if (entry instanceof CompoundBlueprint) {
-    const outerWire = fixWireOnFaceBrep(assembleWireOnFace(kernel, host, mode, entry.blueprints[0]!).wire, host)
-    let face = orientLikeHost(kernel, host, kernel.makeFace(outerWire))
-    const holes = entry.blueprints.slice(1).map((h) => fixWireOnFaceBrep(assembleWireOnFace(kernel, host, mode, h).wire, host) as never)
-    if (holes.length > 0) face = kernel.addHolesInFace(face, holes)
-    return face
-  }
-  const wire = fixWireOnFaceBrep(assembleWireOnFace(kernel, host, mode, entry).wire, host)
-  return orientLikeHost(kernel, host, kernel.makeFace(wire))
-}
-
 /**
- * Place `contours` onto the UV space of the host face and return one BREP face
- * per classified contour (each outer + holes folded into a single face). Shared
- * by `cad.sketchOnFace` (wrap as a Shape) and `cad.punchHole` (extrude → cut).
+ * Build one planar face (outer + optional holes) on the host **planar** face for
+ * an organised contour entry. No surface snapping (`fixWireOnFace`) is needed:
+ * the wire from `assembleWireOnFace` already lies in the face's plane, so
+ * `makeFace` is exact.
  * @param kernel - the BREP engine surface.
  * @param host - the resolved live host face handle.
- * @param mode - the face-scale (UV mapping) mode.
- * @param contours - ordered 2D closed contour loops to place.
- * @returns the BREP faces built on the host face (one per organised entry).
+ * @param mode - the face-scale mode (`original` everywhere; `bounds`/`native` only where the engine exposes a finite UV domain).
+ * @param entry - the organised contour entry (outer + optional holes).
+ * @returns the built face handle.
  */
-export function placeContoursOnFace(
+function buildPlanarFaceOnHost(
   kernel: BrepEngineApi,
   host: BrepHandle,
   mode: FaceScaleMode,
-  contours: ProfileLoop[],
-): BrepHandle[] {
-  const blueprints = contours.map(
-    (loop) => new Blueprint(loop.segments.map((s) => profileSegToCurve(s as ProfileSegLike))),
-  )
-  const organised = organiseBlueprints(blueprints)
-  return organised.blueprints.map((entry) => buildOnFace(kernel, host, mode, entry))
+  entry: Blueprint | CompoundBlueprint,
+): BrepHandle {
+  const outerBp = entry instanceof CompoundBlueprint ? entry.blueprints[0]! : entry
+  const outerWire = assembleWireOnFace(kernel, host, mode, outerBp).wire
+  let face = orientLikeHost(kernel, host, kernel.makeFace(outerWire))
+  if (entry instanceof CompoundBlueprint) {
+    const holes = entry.blueprints.slice(1).map((h) => assembleWireOnFace(kernel, host, mode, h).wire as never)
+    if (holes.length > 0) face = kernel.addHolesInFace(face, holes)
+  }
+  return face
 }
 
 /**
- * Build a 3D Shape from closed contours placed on the host face.
+ * Build a 3D Shape from closed contours placed on the host **planar** face.
  * @param kernel - the BREP engine surface.
  * @param params - contour loops + target solid + face + scale mode.
  * @returns Shape on the target face (face, or the outer wire when `as:'wire'`).
+ * @throws {BrepUnsupportedError} when the host face is not planar (use `cad.sketchOnSurface`).
  */
 export function buildSketchOnFaceWith(kernel: BrepEngineApi, params: SketchOnFaceParams): Shape {
   const host = resolveFaceHandle(kernel, params.on, params.face)
   const mode = params.scaleMode ?? 'original'
+
+  // Planar-only gate: the curved / UV-conform capability moved to `cad.sketchOnSurface`.
+  const surface = kernel.surfaceType(host)
+  if (surface !== 'plane') {
+    throw new BrepUnsupportedError(
+      `E_BREP_UNSUPPORTED: cad.sketchOnFace only supports planar faces (got surfaceType '${surface}'). ` +
+      'Use cad.sketchOnSurface for curved/UV-conform placement.',
+      getCurrentStmt(),
+    )
+  }
+  // brepkit planar faces expose an infinite (±1e6) UV domain, so only the
+  // identity 'original' scale mode is meaningful there (mirrors the mesh branch
+  // restriction); OCCT planar faces keep full scaleMode support.
+  const engineId = getBackends().config.brepEngineId
+  if (engineId === 'brepkit' && mode !== 'original') {
+    throw new BrepUnsupportedError(
+      `E_BREP_UNSUPPORTED: cad.sketchOnFace on a brepkit planar face only supports scaleMode 'original' ` +
+      "(brepkit planar faces have no finite UV domain) — use the default 'original'.",
+      getCurrentStmt(),
+    )
+  }
+
   const blueprints = params.contours.map(
     (loop) => new Blueprint(loop.segments.map((s) => profileSegToCurve(s as ProfileSegLike))),
   )
@@ -181,7 +196,7 @@ export function buildSketchOnFaceWith(kernel: BrepEngineApi, params: SketchOnFac
     return fromBrepCurve(solidToShape(kernel, wire), { solid: wire })
   }
 
-  const faces = placeContoursOnFace(kernel, host, mode, params.contours)
+  const faces = organised.blueprints.map((entry) => buildPlanarFaceOnHost(kernel, host, mode, entry))
   if (faces.length === 0) throw new Error('sketchOnFace: no contours to place')
   if (faces.length === 1) {
     const f = faces[0]!
@@ -299,7 +314,9 @@ export function buildSketchOnFaceMesh(params: SketchOnFaceParams): Shape {
 }
 
 /**
- * `cad.sketchOnFace`: place 2D contours on a face of a solid and construct a Shape.
+ * `cad.sketchOnFace`: place 2D contours on a **planar** face of a solid and
+ * construct a Shape. Engine-neutral (no `engines` declaration): works on the
+ * OCCT BREP engine, the brepkit BREP engine, and the brepkit mesh backend.
  *
  * **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：`on` 是网格实体
  * 时，轮廓按面自己的**平面框**铺放（原点 = 面包围盒中心、法向 = 面法向），产物是一张
@@ -316,11 +333,10 @@ export function buildSketchOnFaceMesh(params: SketchOnFaceParams): Shape {
  * @param params.contours - ordered 2D closed contours (same shape as `cad.profile`).type:any[] required:true
  * @param params.on - the target solid on which the face lives.type:Shape required:true
  * @param params.face - the host face: a 1-based ordinal or a `cad.faceRef(on, n)` result.type:any required:true
- * @param params.scaleMode - UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit).type:string required:false
+ * @param params.scaleMode - UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit; OCCT planar only).type:string required:false
  * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
  */
 export const sketchOnFace = defineOp({
-  engines: ['occt'],
   meshEngines: ['brepkit'],
   mesh(params: Record<string, unknown>) {
     assertProfileParams(params)
