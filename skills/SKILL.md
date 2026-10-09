@@ -4,7 +4,7 @@
 
 ## What is faijs?
 
-faijs is a CAD execution engine: a JavaScript-based language (`.fai.js`) for parametric 3D modeling with dual BREP (OCCT) and mesh (manifold) geometry backends. Scripts use a `cad.*` namespace for platform operations, and can `import` additional libraries for domain-specific capabilities (sheet metal, gears, fasteners, CadQuery compatibility, etc.).
+faijs is a CAD execution engine: a JavaScript-based language (`.fai.js`) for parametric 3D modeling with dual BREP (OCCT) and mesh (manifold) geometry backends. Scripts use a `cad.*` namespace for platform operations, and can `import` additional libraries for domain-specific capabilities (sheet metal, gears, fasteners, etc.).
 
 ## Script Structure
 
@@ -21,33 +21,6 @@ let shaft = cad.cylinder(5 * MM, 40 * MM)
 let assembled = cad.union(base_plate, shaft)
 let rounded = cad.fillet(assembled, { edges: [cad.edgeRef(assembled, 1)], radius: 2 * MM })
 ```
-
-## Available Libraries
-
-The following packages provide capabilities usable in `.fai.js` scripts. Each link below leads to a detailed skill file for that package.
-
-### Platform (built-in `cad` namespace)
-
-| Package | Skill File | Description |
-|---------|----------|-------------|
-| **@faicad/faijs** (core) | [core.md](core.md) | The platform `cad.*` namespace: primitives (box, sphere, cylinder, cone, wedge), boolean ops (union, subtract, intersect, cut), feature ops (extrude, fillet, chamfer, shell, draft, sweep, loft, revolve, etc.), pattern ops, transform ops, query ops, and more. Always available — no import needed. |
-
-### Editor Extension Library (merged into `cad` namespace)
-
-| Package | Skill File | Description |
-|---------|----------|-------------|
-| **@faicad/faijs-extra** | [faijs-extra.md](faijs-extra.md) | Editor ops merged into `cad.*`: `fai_drill`, `fai_extrude`, `fai_split`, `group`, `assembly`, `copy`, `load`, `text`, `svgExtrude`. |
-
-### Domain Libraries (imported via `import * as <binding> from '<specifier>'`)
-
-| Package | Skill File | Import Specifier | Description |
-|---------|----------|------------------|-------------|
-| **@faicad/faijs-sketch** | [sketch.md](sketch.md) | (merged into `cad`) | `cad.sketch` — constraint-based sketching with planegcs solver. Merged into `cad` namespace. |
-
-| **@faicad/sheetmetal** | [sheetmetal.md](sheetmetal.md) | `@faicad/sheetmetal` or short name `sheetmetal` | Sheet-metal authoring, unfold, flat patterns, bend relief, cutouts, nesting, DXF export. |
-| **@faicad/faijs-gears** | [faijs-gears.md](faijs-gears.md) | `@faicad/faijs-gears` or short name `faijs-gears` | Gear generation: spur, herringbone, ring, bevel, worm, rack, planetary gearsets. |
-| **@faicad/faijs-fasteners** | [faijs-fasteners.md](faijs-fasteners.md) | `@faicad/faijs-fasteners` or short name `faijs-fasteners` | Fasteners: threads, nuts, screws, washers, bearings, sprockets, chain, holes. |
-| **@faicad/faijs-cadquery** | [faijs-cadquery.md](faijs-cadquery.md) | `@faicad/faijs-cadquery` or short name `faijs-cadquery` | CadQuery API compatibility: Workplane, Sketch, Shape, selectors, assembly. |
 
 ## Key Concepts
 
@@ -84,21 +57,34 @@ Faces and edges are referenced by **role-based topology identity** (`cad.faceRef
 - Compound expressions are supported: `10 * MM + 2 * MM` evaluates to `12`.
 - Unit constants are reserved — you cannot shadow them with `let INCH = ...` or use them as parameter names.
 
-## Quick Reference: Platform `cad.*` Ops
+---
 
-```
-Primitives:   box / sphere / cylinder / cone / wedge / helix / wire / profile / screw / sdf
-Sketch:       sketchOnPlane / sketchOnFace / punchHole
-Import:       import_brep / import_step / asset
-Boolean:      union / subtract / intersect / cut
-Feature:      extrude / revolve / sweep / loft / fillet / filletVariable / chamfer / shell / draft / thicken / engrave / knurl
-Pattern:      linearPattern / circularPattern / gridPattern / rectangularPattern / mirror / mirrorJoin / clone
-Split:        split / splitByPlane / sectionByPlane
-Transform:    place
-Repair:       defeature / reverseShape / unifySameDomain / sew / sewAndSolidify / removeHolesFromFace
-Structure:    compound
-Assembly:     jointTrajectory / inverseKinematics / mechanismDOF
-Query:        bboxCenter / bboxMin / bboxMax / faceNormal / faceRef / edgeRef / viewCamera / projectView / projectSheet
-```
+## Available Libraries
 
-For full details on each op, see [core.md](core.md).
+The following packages provide capabilities usable in `.fai.js` scripts.
+
+### Platform (built-in `cad` namespace)
+
+| Package | Description |
+|---------|-------------|
+| **@faicad/faijs** (core) | The platform `cad.*` namespace: primitives (box, sphere, cylinder, cone, wedge), boolean ops (union, subtract, intersect, cut), feature ops (extrude, fillet, chamfer, shell, draft, sweep, loft, revolve, etc.), pattern ops, transform ops, query ops, Shape instance methods (appearance, metadata), and more. Always available — no import needed. |
+
+### Editor Extension Library (merged into `cad` namespace)
+
+| Package | Import Specifier | Description |
+|---------|------------------|-------------|
+| **@faicad/faijs-extra** | (merged into `cad`) | Editor ops merged into `cad.*`: `fai_drill`, `fai_extrude`, `fai_split`, `group`, `assembly`, `copy`, `load`, `text`, `svgExtrude`. |
+
+### Sketch Library (merged into `cad` namespace)
+
+| Package | Import Specifier | Description |
+|---------|------------------|-------------|
+| **@faicad/faijs-sketch** | (merged into `cad`) | `cad.sketch` — constraint-based sketching with planegcs solver. Merged into `cad` namespace. |
+
+### Domain Libraries (imported via `import * as <binding> from '<specifier>'`)
+
+| Package | Import Specifier | Description |
+|---------|------------------|-------------|
+| **@faicad/sheetmetal** | `@faicad/sheetmetal` or short name `sheetmetal` | Sheet-metal authoring, unfold, flat patterns, bend relief, cutouts, nesting, DXF export. |
+| **@faicad/faijs-gears** | `@faicad/faijs-gears` or short name `faijs-gears` | Gear generation: spur, herringbone, ring, bevel, worm, rack, planetary gearsets. |
+| **@faicad/faijs-fasteners** | `@faicad/faijs-fasteners` or short name `faijs-fasteners` | Fasteners: threads, nuts, screws, washers, bearings, sprockets, chain, holes. |
