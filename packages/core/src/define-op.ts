@@ -43,7 +43,7 @@ import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
 import { toOpFailure, unwrapResult, OpError, type ResultLike } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engine/types'
-import type { DimName } from './units'
+import type { DimName, DimSpec } from './units'
 import { type Provenance, runtimeLineage } from './topology/naming/lineage'
 
 /** 合法引擎 id 集合（assertLibConforms 的 engines 校验用，D11-1）。 */
@@ -159,6 +159,10 @@ export interface DualOpOptions {
   paramDims?: Record<string, DimName>
   /** Return dimension declaration (D8): the value produced carries this dim. */
   retDim?: DimName
+  /** D8+: recursive DimSpec for structured params (e.g. cad.sketch's shapes[]/constraints[]). */
+  spec?: DimSpec
+  /** D8+: dimension check mode: 'error' (default, blocks) or 'warn' (warns without blocking). */
+  dimCheck?: 'error' | 'warn'
 }
 
 /** Implementation set (at least one of mesh/brep is required, D1/D1b); options are siblings of the implementations. */
@@ -187,6 +191,10 @@ export interface DualOpMeta {
   paramDims?: Record<string, DimName>
   /** Return dimension declaration (D8). */
   retDim?: DimName
+  /** D8+: recursive DimSpec (mirrors DualOpOptions.spec). */
+  spec?: DimSpec
+  /** D8+: dimension check mode (mirrors DualOpOptions.dimCheck). */
+  dimCheck?: 'error' | 'warn'
 }
 
 /** Property key carrying DualOpMeta on wrapped functions. */
@@ -389,6 +397,8 @@ export function defineOp<A extends unknown[]>(
     naming: decl.naming,
     paramDims: decl.paramDims,
     retDim: decl.retDim,
+    spec: decl.spec,
+    dimCheck: decl.dimCheck,
   }
 
   // Async wrapper: implementations may be sync or async (api mesh paths are

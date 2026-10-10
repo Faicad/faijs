@@ -22,7 +22,7 @@ import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef } from './ho
 import { ParseError } from './parse-error'
 import { fnv1a32 } from './fnv-hash'
 import { assertSecure, isSafeGlobalIdent, type SecurityPolicy } from './security-scanner'
-import type { DimName } from '../units'
+import type { DimName, DimSpec } from '../units'
 import { SCRIPT_UNIT_NAMES, UNIT_DIM, UNIT_SCALE, SCRIPT_UNIT_TO_NAME } from '../units'
 
 // ── UiMetadata 类型（§4.1） ──
@@ -127,6 +127,8 @@ export interface UiMetadata {
    * 列进来反而会让宿主把它们当成脚本变量（联想/重命名都会误伤）。
    */
   names: string[]
+  /** P6/D8+: dimension 校验警告（dimCheck='warn' 的 op；不阻断执行）。 */
+  dimWarnings?: ParseError[]
 }
 
 // ── AST 辅助 ──
@@ -512,6 +514,8 @@ interface ValueParseCtx {
   opDims?: OpDimMap
   /** P6/D8: dimension 校验错误累积 */
   dimErrors: ParseError[]
+  /** P6/D8+: dimension 校验警告累积（dimCheck='warn' 的 op） */
+  dimWarnings: ParseError[]
 }
 
 /** 是否非平凡表达式：非 Literal（负字面量视为字面量）→ UI 显示 fx 徽标 */
@@ -656,6 +660,64 @@ function checkDim(node: ASTNode, expectedDim: DimName, ctx: ValueParseCtx): void
       'E_DIM_MISMATCH',
     ))
     return
+  }
+}
+
+/**
+ * D8+: Recursively check an AST value against a structured {@link DimSpec}.
+ *
+ * Mirrors `fmtValueWithSpec` in codegen.ts but at the AST level: descends into
+ * nested arrays/objects and dispatches `tagged` specs by a discriminator field.
+ * Unlisted fields and unknown discriminator values are skipped (bare passthrough).
+ */
+function checkValueWithSpec(node: ASTNode, spec: DimSpec, ctx: ValueParseCtx): void {
+  if (!node) return
+  switch (spec.kind) {
+    case 'dim': {
+      checkDim(node, spec.dim, ctx)
+      // Array (vec/point) → element-wise
+      if (node.type === 'ArrayExpression') {
+        for (const el of node.elements ?? []) {
+          if (el) checkDim(el, spec.dim, ctx)
+        }
+      }
+      return
+    }
+    case 'array': {
+      if (node.type === 'ArrayExpression') {
+        for (const el of node.elements ?? []) {
+          if (el) checkValueWithSpec(el, spec.item, ctx)
+        }
+      }
+      return
+    }
+    case 'object': {
+      if (node.type === 'ObjectExpression') {
+        for (const prop of node.properties) {
+          if (prop?.type !== 'Property') continue
+          const keyNode = prop.key
+          if (keyNode?.type !== 'Identifier') continue
+          const fieldSpec = spec.fields[keyNode.name]
+          if (fieldSpec) checkValueWithSpec(prop.value, fieldSpec, ctx)
+        }
+      }
+      return
+    }
+    case 'tagged': {
+      if (node.type === 'ObjectExpression') {
+        for (const prop of node.properties) {
+          if (prop?.type !== 'Property') continue
+          const keyNode = prop.key
+          if (keyNode?.type !== 'Identifier' || keyNode.name !== spec.key) continue
+          if (prop.value?.type === 'Literal' && typeof prop.value.value === 'string') {
+            const caseSpec = spec.cases[prop.value.value]
+            if (caseSpec) checkValueWithSpec(node, caseSpec, ctx)
+          }
+          return
+        }
+      }
+      return
+    }
   }
 }
 
@@ -1243,6 +1305,10 @@ export interface OpDimDecl {
   retDim?: DimName
   /** D11 slot-map（positional→object 装箱表）；位置形态校验用。 */
   slotMap?: { keys: string[]; vec3Keys?: string[]; shapeArity?: number }
+  /** D8+: 递归 DimSpec（结构化参数，如 cad.sketch 的 shapes[]/constraints[]）。 */
+  spec?: DimSpec
+  /** D8+: 量纲校验模式：'error'（缺省，阻断）或 'warn'（警告不阻断）。 */
+  dimCheck?: 'error' | 'warn'
 }
 
 /** P4/P6: callee 名 → 量纲声明（供 extractMetadata 的 dimension pass 消费）。 */
@@ -1415,6 +1481,8 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
   const argSources: ArgSource[] = []
   // P6/D8: dimension 校验错误累积（跨语句共享）
   const allDimErrors: ParseError[] = []
+  // P6/D8+: dimension 校验警告累积（dimCheck='warn' 的 op；不阻断）
+  const allDimWarnings: ParseError[] = []
 
   // ── 逐顶层语句分类 ──
   for (const stmtNode of bodyNodes) {
@@ -1431,6 +1499,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
       argSources,
       opDims: options?.opDims,
       dimErrors: allDimErrors,
+      dimWarnings: allDimWarnings,
     }
 
     switch (stmtNode.type) {
@@ -1598,7 +1667,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
     throw allDimErrors[0]
   }
 
-  return { lines, params, imports, functions, blocks, keep: symbols.keep, meta, terminalShapes, argSources, names }
+  return { lines, params, imports, functions, blocks, keep: symbols.keep, meta, terminalShapes, argSources, names, dimWarnings: allDimWarnings }
 }
 
 function isLiteralValue(init: ASTNode): boolean {
@@ -1747,26 +1816,71 @@ function classifyOpCall(
  */
 function checkOpCallDims(call: ASTNode, calleeKey: string, ctx: ValueParseCtx): void {
   const decl = ctx.opDims?.[calleeKey]
-  if (!decl || !decl.paramDims) return
+  if (!decl) return
 
   const args = call.arguments ?? []
   if (args.length === 0) return
 
-  const slotMap = decl.slotMap
-  const shapeArity = slotMap?.shapeArity ?? 0
+  // D8+: redirect dim errors to warnings for ops in 'warn' mode
+  const savedTarget = ctx.dimErrors
+  if (decl.dimCheck === 'warn') {
+    ctx.dimErrors = ctx.dimWarnings
+  }
+  try {
+    // D8+: recursive spec check (e.g. cad.sketch's shapes[]/constraints[])
+    if (decl.spec) {
+      for (const arg of args) {
+        if (arg?.type === 'ObjectExpression') {
+          checkValueWithSpec(arg, decl.spec, ctx)
+          break
+        }
+      }
+    }
 
-  // ── Object form ──
-  // Look for an ObjectExpression arg that contains keys matching paramDims.
-  // It could be at position `shapeArity` (with slotMap) or at any position
-  // (without slotMap — e.g. fai_extrude(shape, { length: 5 })).
-  if (slotMap) {
-    const firstNonShape = args[shapeArity]
-    if (firstNonShape?.type === 'ObjectExpression') {
-      const hasDimKeys = firstNonShape.properties.some(
-        (p: ASTNode) => p?.type === 'Property' && p.key?.type === 'Identifier' && p.key.name in decl.paramDims!,
-      )
-      if (hasDimKeys) {
-        for (const prop of firstNonShape.properties) {
+    if (!decl.paramDims) return
+
+    const slotMap = decl.slotMap
+    const shapeArity = slotMap?.shapeArity ?? 0
+
+    // ── Object form ──
+    // Look for an ObjectExpression arg that contains keys matching paramDims.
+    // It could be at position `shapeArity` (with slotMap) or at any position
+    // (without slotMap — e.g. fai_extrude(shape, { length: 5 })).
+    if (slotMap) {
+      const firstNonShape = args[shapeArity]
+      if (firstNonShape?.type === 'ObjectExpression') {
+        const hasDimKeys = firstNonShape.properties.some(
+          (p: ASTNode) => p?.type === 'Property' && p.key?.type === 'Identifier' && p.key.name in decl.paramDims!,
+        )
+        if (hasDimKeys) {
+          for (const prop of firstNonShape.properties) {
+            if (prop?.type !== 'Property') continue
+            const keyNode = prop.key
+            if (keyNode?.type !== 'Identifier') continue
+            const paramName = keyNode.name
+            const dim = decl.paramDims[paramName]
+            if (!dim) continue
+
+            checkDim(prop.value, dim, ctx)
+
+            if (slotMap.vec3Keys?.includes(paramName) && prop.value?.type === 'ArrayExpression') {
+              for (const el of prop.value.elements ?? []) {
+                if (el) checkDim(el, dim, ctx)
+              }
+            }
+          }
+          return
+        }
+      }
+    } else {
+      // No slotMap — scan all args for ObjectExpression with dim keys
+      for (const arg of args) {
+        if (arg?.type !== 'ObjectExpression') continue
+        const hasDimKeys = arg.properties.some(
+          (p: ASTNode) => p?.type === 'Property' && p.key?.type === 'Identifier' && p.key.name in decl.paramDims!,
+        )
+        if (!hasDimKeys) continue
+        for (const prop of arg.properties) {
           if (prop?.type !== 'Property') continue
           const keyNode = prop.key
           if (keyNode?.type !== 'Identifier') continue
@@ -1775,60 +1889,36 @@ function checkOpCallDims(call: ASTNode, calleeKey: string, ctx: ValueParseCtx): 
           if (!dim) continue
 
           checkDim(prop.value, dim, ctx)
-
-          if (slotMap.vec3Keys?.includes(paramName) && prop.value?.type === 'ArrayExpression') {
-            for (const el of prop.value.elements ?? []) {
-              if (el) checkDim(el, dim, ctx)
-            }
-          }
         }
         return
       }
     }
-  } else {
-    // No slotMap — scan all args for ObjectExpression with dim keys
-    for (const arg of args) {
-      if (arg?.type !== 'ObjectExpression') continue
-      const hasDimKeys = arg.properties.some(
-        (p: ASTNode) => p?.type === 'Property' && p.key?.type === 'Identifier' && p.key.name in decl.paramDims!,
-      )
-      if (!hasDimKeys) continue
-      for (const prop of arg.properties) {
-        if (prop?.type !== 'Property') continue
-        const keyNode = prop.key
-        if (keyNode?.type !== 'Identifier') continue
-        const paramName = keyNode.name
-        const dim = decl.paramDims[paramName]
-        if (!dim) continue
 
-        checkDim(prop.value, dim, ctx)
+    // ── Positional form ──
+    if (!slotMap) return
+    const keys = slotMap.keys
+    const vec3Keys = new Set(slotMap.vec3Keys ?? [])
+    let keyIdx = 0
+    for (let i = shapeArity; i < args.length && keyIdx < keys.length; i++) {
+      const arg = args[i]
+      if (arg?.type === 'ObjectExpression') break // trailing options object
+
+      const paramName = keys[keyIdx]
+      const dim = decl.paramDims[paramName]
+      keyIdx++
+
+      if (!dim) continue
+
+      if (vec3Keys.has(paramName) && arg?.type === 'ArrayExpression') {
+        for (const el of arg.elements ?? []) {
+          if (el) checkDim(el, dim, ctx)
+        }
+      } else if (arg) {
+        checkDim(arg, dim, ctx)
       }
-      return
     }
-  }
-
-  // ── Positional form ──
-  if (!slotMap) return
-  const keys = slotMap.keys
-  const vec3Keys = new Set(slotMap.vec3Keys ?? [])
-  let keyIdx = 0
-  for (let i = shapeArity; i < args.length && keyIdx < keys.length; i++) {
-    const arg = args[i]
-    if (arg?.type === 'ObjectExpression') break // trailing options object
-
-    const paramName = keys[keyIdx]
-    const dim = decl.paramDims[paramName]
-    keyIdx++
-
-    if (!dim) continue
-
-    if (vec3Keys.has(paramName) && arg?.type === 'ArrayExpression') {
-      for (const el of arg.elements ?? []) {
-        if (el) checkDim(el, dim, ctx)
-      }
-    } else if (arg) {
-      checkDim(arg, dim, ctx)
-    }
+  } finally {
+    ctx.dimErrors = savedTarget
   }
 }
 

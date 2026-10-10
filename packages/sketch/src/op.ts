@@ -13,6 +13,7 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 import type { SketchConstraint, SketchGeom, SolveOutcome } from './canonical.js'
 import { sketchFaces } from './faces.js'
 import { expandShapes, type SketchShape } from './shapes.js'
+import { sketchDimSpec } from './dim-spec.js'
 import type { SketchSolver, ExternalFixedSeg } from './solver.js'
 
 /** The op name `cad.sketch`. */
@@ -179,4 +180,6 @@ export const sketch = defineOp({
     })
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
+  spec: sketchDimSpec(),
+  dimCheck: 'warn',
 })

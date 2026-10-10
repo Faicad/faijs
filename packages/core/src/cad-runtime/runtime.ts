@@ -506,11 +506,13 @@ export class CadRuntime {
       for (const [name, value] of Object.entries(ns)) {
         if (typeof value !== 'function') continue
         const meta = dualOpMetaOf(value)
-        if (!meta || (!meta.paramDims && !meta.retDim)) continue
+        if (!meta || (!meta.paramDims && !meta.retDim && !meta.spec)) continue
         out[`${binding}.${name}`] = {
           paramDims: meta.paramDims,
           retDim: meta.retDim,
           ...(meta.slotMap ? { slotMap: meta.slotMap } : {}),
+          ...(meta.spec ? { spec: meta.spec } : {}),
+          ...(meta.dimCheck ? { dimCheck: meta.dimCheck } : {}),
         }
       }
     }
@@ -1534,10 +1536,11 @@ export class CadRuntime {
   check(code: string): CheckResult {
     try {
       const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs), opDims: this.buildOpDims() })
+      const dimWarnings = (meta.dimWarnings ?? []).map((w) => `line ${w.line}: ${w.message}`)
       return {
         ok: true,
         errors: [],
-        warnings: [],
+        warnings: dimWarnings,
         script: {
           statements: meta.lines.length,
           callees: meta.lines.map((l) => l.callee),
