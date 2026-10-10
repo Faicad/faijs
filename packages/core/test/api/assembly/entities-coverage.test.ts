@@ -145,3 +145,85 @@ describe('lowerStructuralConstraint (kernel-null paths)', () => {
     expect(out.depOrigin).toEqual([0, 0, 2])
   })
 })
+// ── P5: qualified name 子实体寻址（嵌套成员 qualified name 下的实体解析） ──
+
+describe('resolveSolverEntity — qualified name (P5)', () => {
+  const env = makeEnv('subassy.partA', 'subassy.partB', 'root.sub.deep.partC')
+
+  it('resolves a point ref with qualified name', () => {
+    const e = resolveSolverEntity(
+      { part: P('subassy.partA'), point: [1, 2, 3] },
+      env,
+    )
+    expect(e).toEqual({ type: 'point', origin: [1, 2, 3] })
+  })
+
+  it('resolves a face snapshot with qualified name', () => {
+    const e = resolveSolverEntity(
+      { part: P('subassy.partB'), face: { surfaceType: 'plane', center: [0, 0, 0], normal: [0, 1, 0] } },
+      env,
+    )
+    expect(e.type).toBe('plane')
+  })
+
+  it('resolves an edge axis snapshot with qualified name', () => {
+    const e = resolveSolverEntity(
+      { part: P('subassy.partB'), edge: { axis: { origin: [0, 0, 0], direction: [1, 0, 0] } } },
+      env,
+    )
+    expect(e).toEqual({ type: 'axis', origin: [0, 0, 0], direction: [1, 0, 0] })
+  })
+
+  it('resolves a deeply nested qualified name (3 levels)', () => {
+    const e = resolveSolverEntity(
+      { part: P('root.sub.deep.partC'), point: [5, 5, 5] },
+      env,
+    )
+    expect(e).toEqual({ type: 'point', origin: [5, 5, 5] })
+  })
+
+  it('throws for an unknown qualified name part', () => {
+    expect(() =>
+      resolveSolverEntity({ part: P('subassy.ghost'), point: [0, 0, 0] }, env),
+    ).toThrow(/unknown part/)
+  })
+})
+
+describe('resolveFaceGeometryOfRef — qualified name (P5)', () => {
+  const env = makeEnv('subassy.partA', 'subassy.partB')
+
+  it('resolves a face snapshot with qualified name', () => {
+    const geom = resolveFaceGeometryOfRef(
+      { part: P('subassy.partA'), face: { surfaceType: 'plane', center: [1, 0, 0], normal: [0, 0, 1] } },
+      env,
+    )
+    expect(geom.center).toEqual([1, 0, 0])
+    expect(geom.normal).toEqual([0, 0, 1])
+  })
+
+  it('throws for an unknown qualified name part', () => {
+    expect(() =>
+      resolveFaceGeometryOfRef(
+        { part: P('subassy.ghost'), face: { center: [0, 0, 0], normal: [0, 0, 1] } },
+        env,
+      ),
+    ).toThrow(/unknown part/)
+  })
+})
+
+describe('resolveSolverEntity — faceIndex error path (P5)', () => {
+  const env = makeEnv('partA')
+
+  it('faceIndex without kernel throws E_TOPO_NOT_FOUND', () => {
+    expect(() =>
+      resolveSolverEntity({ part: P('partA'), faceIndex: 1 }, env),
+    ).toThrow(TopoRefError)
+  })
+
+  it('faceIndex with qualified name without kernel throws E_TOPO_NOT_FOUND', () => {
+    const env2 = makeEnv('subassy.partA')
+    expect(() =>
+      resolveSolverEntity({ part: P('subassy.partA'), faceIndex: 1 }, env2),
+    ).toThrow(TopoRefError)
+  })
+})

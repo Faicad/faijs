@@ -168,3 +168,88 @@ describe('solve-tree: flatten + solve + recompose', () => {
     expectNear(rotated[1], 1, 1e-4)
   })
 })
+// ── P5: 嵌套子实体寻址集成测试（qualified name + 子实体引用） ──
+
+describe('solve-tree: sub-entity addressing with qualified names (P5)', () => {
+  it('face snapshot ref on nested member — mate across layers', () => {
+    const partA = createAssemblyNode('partA', { shape: dummy })
+    const partB = createAssemblyNode('partB', { shape: dummy })
+    const partC = createAssemblyNode('partC', { shape: dummy })
+    const subassy = addChild(
+      addChild(createAssemblyNode('subassy'), partB),
+      partC,
+    )
+    const constraints: AssemblyConstraint[] = [
+      { type: 'fixed', part: asPartName('partA') },
+      {
+        type: 'mate',
+        a: faceRef('partA', [0, 0, 0], [0, 0, 1]),
+        b: faceRef('subassy.partB', [0, 0, 5], [0, 0, -1]),
+      },
+      {
+        type: 'coincident',
+        a: pointRef('subassy.partB', [0, 0, 0]),
+        b: pointRef('subassy.partC', [0, 0, 0]),
+      },
+    ]
+    const rootBase = addChild(createAssemblyNode('root'), partA)
+    const root = addChild({ ...rootBase, constraints }, subassy)
+    const res = solveAssemblyTree(root)
+    expect(res.converged).toBe(true)
+    expect(res.transforms['subassy.partB']).toBeDefined()
+    expect(res.transforms['subassy.partC']).toBeDefined()
+  })
+
+  it('edge axis ref on nested member — concentric across layers', () => {
+    const partA = createAssemblyNode('partA', { shape: dummy })
+    const partB = createAssemblyNode('partB', { shape: dummy })
+    const subassy = addChild(createAssemblyNode('subassy'), partB)
+    const constraints: AssemblyConstraint[] = [
+      { type: 'fixed', part: asPartName('partA') },
+      {
+        type: 'concentric',
+        a: { part: asPartName('partA'), edge: { axis: { origin: [0, 0, 0], direction: [0, 0, 1] } } },
+        b: { part: asPartName('subassy.partB'), edge: { axis: { origin: [0, 0, 0], direction: [0, 0, 1] } } },
+      },
+    ]
+    const rootBase = addChild(createAssemblyNode('root'), partA)
+    const root = addChild({ ...rootBase, constraints }, subassy)
+    const res = solveAssemblyTree(root)
+    expect(res.converged).toBe(true)
+    expect(res.transforms['subassy.partB']).toBeDefined()
+  })
+
+  it('point ref on deeply nested member (3 levels)', () => {
+    const partA = createAssemblyNode('partA', { shape: dummy })
+    const partC = createAssemblyNode('partC', { shape: dummy })
+    const deep = addChild(createAssemblyNode('deep'), partC)
+    const sub = addChild(createAssemblyNode('sub'), deep)
+    const constraints: AssemblyConstraint[] = [
+      { type: 'fixed', part: asPartName('partA') },
+      {
+        type: 'coincident',
+        a: pointRef('partA', [0, 0, 0]),
+        b: pointRef('sub.deep.partC', [0, 0, 0]),
+      },
+    ]
+    const rootBase = addChild(createAssemblyNode('root'), partA)
+    const root = addChild({ ...rootBase, constraints }, sub)
+    const res = solveAssemblyTree(root)
+    expect(res.converged).toBe(true)
+    expect(res.transforms['sub.deep.partC']).toBeDefined()
+  })
+
+  it('fixedPoint on nested member with qualified name', () => {
+    const partB = createAssemblyNode('partB', { shape: dummy })
+    const subassy = addChild(createAssemblyNode('subassy'), partB)
+    const constraints: AssemblyConstraint[] = [
+      { type: 'fixedPoint', a: pointRef('subassy.partB', [0, 0, 0]), world: [3, 3, 3] },
+    ]
+    const root = addChild({ ...createAssemblyNode('root'), constraints }, subassy)
+    const res = solveAssemblyTree(root)
+    expect(res.converged).toBe(true)
+    const tB = res.transforms['subassy.partB']
+    expect(tB).toBeDefined()
+    expectVecNear(applyTransform(tB!, [0, 0, 0]), [3, 3, 3])
+  })
+})
