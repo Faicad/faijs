@@ -170,5 +170,14 @@ export function lowerStructuralConstraint(c: StructuralConstraint, env: EntityRe
     case 'distance':
     case 'angle':
       return lowerPair(c, env)
+    case 'fixedPoint':
+    case 'fixedAxis':
+    case 'fixedRotation':
+      // 世界锚定 unary 无 brepjs chain 等效（chain 无「子实体 ↔ 世界字面系」概念）。
+      // 主路径是 solver:'global'（global-solver 原生处理这三类）；chain 上明确报错，
+      // 绝不静默降级为错误的定位语义。
+      throw new Error(
+        `[assembly:lower] ${c.type} is only supported by the 'global' solver; set { solver: 'global' }`,
+      )
   }
 }

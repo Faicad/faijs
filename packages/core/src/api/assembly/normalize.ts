@@ -28,7 +28,8 @@ export function normalizeConstraint(c: AssemblyConstraint): StructuralConstraint
   if (
     c.type === 'mate' || c.type === 'align' || c.type === 'coincident' ||
     c.type === 'concentric' || c.type === 'distance' || c.type === 'angle' ||
-    c.type === 'parallel' || c.type === 'perpendicular' || c.type === 'fixed'
+    c.type === 'parallel' || c.type === 'perpendicular' || c.type === 'fixed' ||
+    c.type === 'fixedPoint' || c.type === 'fixedAxis' || c.type === 'fixedRotation'
   ) {
     return c
   }

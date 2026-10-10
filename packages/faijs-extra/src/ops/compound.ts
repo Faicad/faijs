@@ -65,6 +65,9 @@ export type {
   ParallelConstraint,
   PerpendicularConstraint,
   FixedConstraint,
+  FixedPointConstraint,
+  FixedAxisConstraint,
+  FixedRotationConstraint,
   StructuralConstraint,
   AssemblyVec3,
 } from '@faicad/faijs/api/assembly/types'
@@ -188,7 +191,7 @@ export function group(params: GroupParams): CompoundShape {
  * @name assembly
  * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（成员以编辑器结构语句形态声明，服务于画布与时间线），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
  * @returns CompoundShape + AssemblyBehavior（含 do_assemble / solve 方法）。
- * @note 约束类型（a=参考、b=从动，移动 b 去贴合 a）：`mate` 面对面贴合（法向反向+面中心重合，遗留 face_mate 的新名，求解降级为 concentric + 轴编码）；`align` 同向对齐（法向同向+面中心重合）；`coincident` 共面/共点/共线（保留面内 2 个平移 DOF）；`concentric` 轴重合（孔轴配合，圆柱/圆锥面需 hint.axis，直边/圆边需 EdgeHint.axis）；`distance` 定距（mm，带 value）；`angle` 夹角（deg，带 value）；`parallel`/`perpendicular` 平行/垂直（angle 0°/90° 语法糖）；`fixed` 锚定部件（地基）；`face_mate` 为遗留别名（规范化为 mate，新代码不再使用）。
+ * @note 约束类型（a=参考、b=从动，移动 b 去贴合 a）：`mate` 面对面贴合（法向反向+面中心重合，遗留 face_mate 的新名，求解降级为 concentric + 轴编码）；`align` 同向对齐（法向同向+面中心重合）；`coincident` 共面/共点/共线（保留面内 2 个平移 DOF）；`concentric` 轴重合（孔轴配合，圆柱/圆锥面需 hint.axis，直边/圆边需 EdgeHint.axis）；`distance` 定距（mm，带 value）；`angle` 夹角（deg，带 value）；`parallel`/`perpendicular` 平行/垂直（angle 0°/90° 语法糖）；`fixed` 锚定部件（地基）；`fixedPoint`/`fixedAxis`/`fixedRotation` 世界锚定 unary（把成员子实体钉到世界字面点/方向、锁朝向，平移其余 DOF 仍自由，仅 `solver:'global'` 支持）；`face_mate` 为遗留别名（规范化为 mate，新代码不再使用）。
  * @note EntityRef 四种形态：`{ part, face: { topoRef } | { surfaceType?, center, normal } }`、`{ part, edge: { topoRef } | { axis: { origin, direction } } }`、`{ part, point: [x,y,z] }`、`{ part, faceIndex }`（1 起，仅调试简写）。
  * @note 不收敛（实体类型不匹配/环/参考不可达）→ 抛错并带 unsupported 明细；成员名为空串 → 求解前抛错；mesh 快照缺 axis 的圆柱/圆锥面作轴实体 → E_TOPO_NOT_FOUND（绝不静默降级）。`mate`（中心重合）与 `coincident`（只共面）是两种不同语义，不互相映射。
  * @note 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`（遗留 face_mate）。`faceId` 字段随 §6.2 移除，不再写入。

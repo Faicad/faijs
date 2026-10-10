@@ -112,6 +112,40 @@ export interface FixedConstraint {
   part: PartName
 }
 
+/**
+ * 世界锚定 unary：把该部件的某个子实体（顶点/面中心/原点）钉到**世界字面坐标**
+ * `world`。只约束该点，成员其余自由度（尤其朝向）保持自由——**不等于**整件 `fixed`。
+ */
+export interface FixedPointConstraint {
+  type: 'fixedPoint'
+  /** 待钉定的成员子实体（`{part, point}` / `{part, face}` / `{part, edge}`）。 */
+  a: EntityRef
+  /** 世界字面坐标（mm）。 */
+  world: AssemblyVec3
+}
+
+/**
+ * 世界锚定 unary：把该部件的某个轴（边方向 / 面法向）钉到**世界字面方向**
+ * `worldDir`。无需单位化，求解器内 `vnormalize`。
+ */
+export interface FixedAxisConstraint {
+  type: 'fixedAxis'
+  /** 待钉定的成员轴（`{part, edge}` / `{part, face}`）。 */
+  a: EntityRef
+  /** 世界字面方向（不需要单位化）。 */
+  worldDir: AssemblyVec3
+}
+
+/**
+ * 世界锚定 unary：锁定该部件的**朝向**（本地 X/Y/Z 轴对齐世界 X/Y/Z，即恒等朝向），
+ * 平移自由度保持自由。
+ */
+export interface FixedRotationConstraint {
+  type: 'fixedRotation'
+  /** 仅锁朝向的成员名。 */
+  part: PartName
+}
+
 /** 新形态约束的并集。 */
 export type StructuralConstraint =
   | MateConstraint
@@ -123,6 +157,9 @@ export type StructuralConstraint =
   | ParallelConstraint
   | PerpendicularConstraint
   | FixedConstraint
+  | FixedPointConstraint
+  | FixedAxisConstraint
+  | FixedRotationConstraint
 
 // ── 遗留形态（§2.1，规范化时改写为 mate）──
 

@@ -176,6 +176,82 @@ describe('global-solver: distance / angle / fixed', () => {
   })
 })
 
+describe('global-solver: fixedPoint / fixedAxis / fixedRotation', () => {
+  it('fixedPoint：把 A 原点钉到世界 [0,0,-3]，朝向保持恒等', () => {
+    const c: AssemblyConstraint[] = [
+      { type: 'fixed', part: asPartName('B') },
+      { type: 'fixedPoint', a: pointRef('A', [0, 0, 0]), world: [0, 0, -3] },
+    ]
+    const ts = solveOne(c)
+    expect(ts).toHaveLength(1)
+    const t = ts[0]
+    expect(t.index).toBe(0) // A 是自由件，被世界锚定驱动
+    expectVecNear(applyTransform(t, [0, 0, 0]), [0, 0, -3])
+    // 朝向未被 fixedPoint 约束——旋转是自由 DOF，仅由极小 penalty 弱收敛到近恒等
+    expectVecNear(applyDir(t, [1, 0, 0]), [1, 0, 0], 0.05)
+    expectVecNear(applyDir(t, [0, 0, 1]), [0, 0, 1], 0.05)
+  })
+
+  it('fixedPoint：带偏移的成员子实体点也钉到世界坐标', () => {
+    const c: AssemblyConstraint[] = [
+      { type: 'fixed', part: asPartName('B') },
+      { type: 'fixedPoint', a: pointRef('A', [0, 0, 5]), world: [0, 0, -3] },
+    ]
+    const ts = solveOne(c)
+    const t = ts[0]
+    expectVecNear(applyTransform(t, [0, 0, 5]), [0, 0, -3])
+  })
+
+  it('fixedAxis：把 A 面法向钉到世界 [0,1,1] 方向', () => {
+    const c: AssemblyConstraint[] = [
+      { type: 'fixed', part: asPartName('B') },
+      { type: 'fixedAxis', a: faceRef('A', [0, 0, 0], [0, 0, 1]), worldDir: [0, 1, 1] },
+    ]
+    const ts = solveOne(c)
+    expect(ts).toHaveLength(1)
+    const t = ts[0]
+    expectVecNear(applyDir(t, [0, 0, 1]), [0, Math.SQRT1_2, Math.SQRT1_2])
+  })
+
+  it('fixedAxis：成员轴（边）也能钉到世界方向', () => {
+    const c: AssemblyConstraint[] = [
+      { type: 'fixed', part: asPartName('B') },
+      { type: 'fixedAxis', a: axisRef('A', [0, 0, 0], [1, 0, 0]), worldDir: [0, 0, 1] },
+    ]
+    const ts = solveOne(c)
+    const t = ts[0]
+    expectVecNear(applyDir(t, [1, 0, 0]), [0, 0, 1])
+  })
+
+  it('fixedRotation：锁 A 朝向为恒等，平移仍自由', () => {
+    const c: AssemblyConstraint[] = [
+      { type: 'fixed', part: asPartName('B') },
+      { type: 'fixedRotation', part: asPartName('A') },
+      { type: 'coincident', a: pointRef('B', [4, 0, 0]), b: pointRef('A', [0, 0, 0]) },
+    ]
+    const ts = solveOne(c)
+    const t = ts.find((x) => x.index === 0)
+    expect(t).toBeDefined()
+    if (!t) return
+    // 朝向被锁为世界轴（恒等旋转）
+    expectVecNear(applyDir(t, [1, 0, 0]), [1, 0, 0], 1e-4)
+    expectVecNear(applyDir(t, [0, 1, 0]), [0, 1, 0], 1e-4)
+    // 平移自由：A 原点被 coincident 拖到 B 的世界点 [4,0,0]
+    expectVecNear(applyTransform(t, [0, 0, 0]), [4, 0, 0], 1e-4)
+  })
+
+  it('全 unary（仅 fixedPoint）不误锁目标成员，仍能解到世界点', () => {
+    const c: AssemblyConstraint[] = [
+      { type: 'fixedPoint', a: pointRef('A', [0, 0, 0]), world: [0, 0, -3] },
+    ]
+    const ts = solveOne(c)
+    const t = ts.find((x) => x.index === 0)
+    expect(t).toBeDefined()
+    if (!t) return
+    expectVecNear(applyTransform(t, [0, 0, 0]), [0, 0, -3])
+  })
+})
+
 describe('global-solver: 残差与诊断', () => {
   it('求解后逐约束残差近零', () => {
     const c: AssemblyConstraint[] = [

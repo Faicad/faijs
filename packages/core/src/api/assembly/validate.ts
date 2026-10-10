@@ -8,7 +8,7 @@
  *
  * 校验规则（逐条可判，报错文案必含：字段路径 + 期望形态 + 实际收到值）：
  * - V1 `type` ∈ {mate, align, coincident, concentric, distance, angle, parallel,
- *   perpendicular, fixed, face_mate}（文案列出合法类型全集）；
+ *   perpendicular, fixed, fixedPoint, fixedAxis, fixedRotation, face_mate}（文案列出合法类型全集）；
  * - V2 mate/align/coincident/concentric/distance/angle/parallel/perpendicular
  *   必须有 `a`、`b` 两个 EntityRef（face_mate 等价为 fixedFace/movingFace）；
  * - V3 distance/angle 必须有**有限数** `value`；不设区间（angle 允许 ±360 以外）
@@ -29,7 +29,7 @@ import type { AssemblyConstraint } from './types'
 /** 合法约束类型全集（V1；与 types.ts 的 AssemblyConstraint 并集约等）。 */
 export const ASSEMBLY_CONSTRAINT_TYPES = [
   'mate', 'align', 'coincident', 'concentric', 'distance', 'angle',
-  'parallel', 'perpendicular', 'fixed', 'face_mate',
+  'parallel', 'perpendicular', 'fixed', 'fixedPoint', 'fixedAxis', 'fixedRotation', 'face_mate',
 ] as const
 
 /** 需要 `a`/`b` 两个 EntityRef 的新形态类型（V2；distance/angle 在 types 契约里也有 a/b）。 */
@@ -40,6 +40,16 @@ const PAIRED_TYPES = new Set([
 
 function fail(path: string, expected: string, got: unknown): never {
   throw new Error(`[assembly] ${path}: expected ${expected}, got ${JSON.stringify(got)}`)
+}
+
+/** V3 类比：有限数 vec3（world/worldDir 用）。 */
+function checkVec3(v: unknown, path: string): void {
+  if (
+    !Array.isArray(v) || v.length !== 3 ||
+    v.some((n) => typeof n !== 'number' || !Number.isFinite(n))
+  ) {
+    fail(path, 'a vec3 [x, y, z] of finite numbers', v)
+  }
 }
 
 /** V4：EntityRef 四形态互斥且恰占其一；faceIndex 正整数；part 必须 ∈ members（V5）。 */
@@ -110,6 +120,24 @@ function checkOne(raw: unknown, i: number, memberNames: string[]): void {
 
   // V5：fixed 只需要顶层 part（字符串）且 ∈ members
   if (type === 'fixed') {
+    if (typeof c.part !== 'string' || c.part.length === 0) {
+      fail(`${path}.part`, 'a non-empty member name string', c.part)
+    }
+    if (!memberNames.includes(c.part)) {
+      throw new Error(
+        `[assembly] ${path}.part: "${c.part}" is not a member; members: [${memberNames.join(', ')}]`,
+      )
+    }
+    return
+  }
+
+  // 世界锚定 unary（fixedPoint/fixedAxis/fixedRotation）：a 是 EntityRef，part 是成员
+  if (type === 'fixedPoint' || type === 'fixedAxis') {
+    checkEntityRef(c.a, `${path}.a`, memberNames)
+    checkVec3(type === 'fixedPoint' ? c.world : c.worldDir, type === 'fixedPoint' ? `${path}.world` : `${path}.worldDir`)
+    return
+  }
+  if (type === 'fixedRotation') {
     if (typeof c.part !== 'string' || c.part.length === 0) {
       fail(`${path}.part`, 'a non-empty member name string', c.part)
     }

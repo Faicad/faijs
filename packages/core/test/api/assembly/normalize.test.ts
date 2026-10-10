@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { normalizeConstraint } from '../../../src/api/assembly/normalize'
-import type { AssemblyConstraint } from '../../../src/api/assembly/types'
+import type {
+  AssemblyConstraint,
+  FixedPointConstraint,
+  FixedAxisConstraint,
+  FixedRotationConstraint,
+} from '../../../src/api/assembly/types'
 import { asPartName } from '../../../src/identity'
 
 const P = (s: string) => asPartName(s)
@@ -31,6 +36,23 @@ describe('normalizeConstraint', () => {
 
     const fixed: AssemblyConstraint = { type: 'fixed', part: P('sock') }
     expect(normalizeConstraint(fixed)).toBe(fixed)
+  })
+
+  it('passes through world-anchored unary constraints verbatim', () => {
+    const fp: FixedPointConstraint = {
+      type: 'fixedPoint',
+      a: { part: P('b2'), point: [0, 0, 0] },
+      world: [0, 0, -3],
+    }
+    const fa: FixedAxisConstraint = {
+      type: 'fixedAxis',
+      a: { part: P('b2'), point: [0, 0, 0] },
+      worldDir: [0, 1, 1],
+    }
+    const fr: FixedRotationConstraint = { type: 'fixedRotation', part: P('b2') }
+    expect(normalizeConstraint(fp)).toBe(fp)
+    expect(normalizeConstraint(fa)).toBe(fa)
+    expect(normalizeConstraint(fr)).toBe(fr)
   })
 
   it('passes through distance and angle constraints keeping their value', () => {

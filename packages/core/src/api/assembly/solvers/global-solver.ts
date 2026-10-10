@@ -212,6 +212,67 @@ export function solveGlobal(
       if (idx >= 0) lockedSet.add(idx)
       return
     }
+    // 世界锚定 unary（fixedPoint/fixedAxis/fixedRotation）：入 unarySet 但**不**入
+    // lockedSet——只靠代价项约束，不冻结整件（CQ unary 语义，见 solver.py fixed_*_cost）。
+    if (c.type === 'fixedPoint') {
+      register(c.a.part)
+      unarySet.add(c.a.part)
+      const ia = memberNames.indexOf(c.a.part)
+      if (ia < 0) {
+        unsupported.push(`constraint references unknown part: ${c.a.part}`)
+        return
+      }
+      const mA = resolveMarker(c.a, env)
+      scalePts.push(markerPoint(mA, [0, 0, 0], [0, 0, 0]))
+      terms.push({
+        cid, fn: 'point', ia, ma: mA, ib: -1,
+        mb: { type: 'point', p: [c.world[0], c.world[1], c.world[2]] },
+        val: 0, scaleFlag: true,
+      })
+      return
+    }
+    if (c.type === 'fixedAxis') {
+      register(c.a.part)
+      unarySet.add(c.a.part)
+      const ia = memberNames.indexOf(c.a.part)
+      if (ia < 0) {
+        unsupported.push(`constraint references unknown part: ${c.a.part}`)
+        return
+      }
+      const len = Math.hypot(c.worldDir[0], c.worldDir[1], c.worldDir[2])
+      if (!(len > 1e-12)) {
+        unsupported.push('fixedAxis requires a non-zero worldDir')
+        return
+      }
+      const mA = resolveMarker(c.a, env)
+      terms.push({
+        cid, fn: 'axis', ia, ma: mA, ib: -1,
+        mb: { type: 'axis', origin: [0, 0, 0], dir: vnormalize([c.worldDir[0], c.worldDir[1], c.worldDir[2]]) },
+        val: 0, scaleFlag: false,
+      })
+      return
+    }
+    if (c.type === 'fixedRotation') {
+      register(c.part)
+      unarySet.add(c.part)
+      const ia = memberNames.indexOf(c.part)
+      if (ia < 0) {
+        unsupported.push(`constraint references unknown part: ${c.part}`)
+        return
+      }
+      // 成员本地 X/Y/Z 轴分别钉到世界 X/Y/Z（恒等朝向）；平移保持自由
+      const axes: Vec3[] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+      for (const ax of axes) {
+        terms.push({
+          cid, fn: 'axis', ia,
+          ma: { type: 'axis', origin: [0, 0, 0], dir: ax },
+          ib: -1,
+          mb: { type: 'axis', origin: [0, 0, 0], dir: [ax[0], ax[1], ax[2]] },
+          val: 0, scaleFlag: false,
+        })
+      }
+      return
+    }
     const ia = memberNames.indexOf(c.a.part)
     const ib = memberNames.indexOf(c.b.part)
     if (ia < 0 || ib < 0) {
@@ -287,8 +348,13 @@ export function solveGlobal(
     }
   }
   if (lockedSet.size === 0 && order.length > 0) {
-    const idx = memberNames.indexOf(order[0])
-    if (idx >= 0) lockedSet.add(idx)
+    // 兜底锚定不得选「世界锚定 unary」成员——锁死它会让其 anchor 代价无法满足
+    // （全 unary 场景：无 binary 参考可锚，宁可全部自由交 LM 求解，也不误锁）。
+    const candidate = order.find((p) => !unarySet.has(p))
+    if (candidate !== undefined) {
+      const idx = memberNames.indexOf(candidate)
+      if (idx >= 0) lockedSet.add(idx)
+    }
   }
 
   // ── scale = 所有 marker 点的包围盒对角长（CQ B5；marker 近似几何 bbox） ──
@@ -312,6 +378,8 @@ export function solveGlobal(
   }
 
   const stateOf = (xx: number[], i: number): { T: Vec3; R: Vec3 } => {
+    // 世界哨兵 i = -1：identity（世界系 marker 已存字面坐标，不再施加成员变换）
+    if (i < 0) return { T: [0, 0, 0], R: [0, 0, 0] }
     if (lockedSet.has(i)) return { T: [0, 0, 0], R: [0, 0, 0] }
     const k = blockMap.get(i)!
     return {

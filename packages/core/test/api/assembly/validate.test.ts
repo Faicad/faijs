@@ -12,7 +12,13 @@
 import { describe, it, expect } from 'vitest'
 import { validateConstraints } from '../../../src/api/assembly/validate'
 import { assembly } from '../../support/editor-ops'
-import type { AssemblyConstraint, EntityRef } from '../../../src/api/assembly/types'
+import type {
+  AssemblyConstraint,
+  EntityRef,
+  FixedPointConstraint,
+  FixedAxisConstraint,
+  FixedRotationConstraint,
+} from '../../../src/api/assembly/types'
 import type { Shape } from '../../../src/mesh/types'
 import { asPartName } from '../../../src/identity'
 
@@ -41,7 +47,7 @@ describe('VT1: 违规输入 → 抛错且文案含字段路径', () => {
     } catch (e) {
       expectPath(e, 'constraints[0].type')
       expectPath(e, 'unknown constraint type "bogus"')
-      expectPath(e, 'mate | align | coincident | concentric | distance | angle | parallel | perpendicular | fixed | face_mate')
+      expectPath(e, 'mate | align | coincident | concentric | distance | angle | parallel | perpendicular | fixed | fixedPoint | fixedAxis | fixedRotation | face_mate')
     }
   })
 
@@ -228,6 +234,65 @@ describe('VT3: part 不在 members → 抛错且文案列出 members', () => {
       expect.unreachable('should have thrown')
     } catch (e) {
       expectPath(e, '[p0, p1]')
+    }
+  })
+})
+
+describe('VT5: 世界锚定 unary（fixedPoint/fixedAxis/fixedRotation）', () => {
+  it('三种类型合法样例通过', () => {
+    const fp: FixedPointConstraint = {
+      type: 'fixedPoint',
+      a: { part: asPartName('p0'), point: [0, 0, 0] },
+      world: [0, 0, -3],
+    }
+    const fa: FixedAxisConstraint = {
+      type: 'fixedAxis',
+      a: faceRef('p0', 0),
+      worldDir: [0, 1, 1],
+    }
+    const fr: FixedRotationConstraint = { type: 'fixedRotation', part: asPartName('p0') }
+    expect(() => validateConstraints([fp], MEMBERS)).not.toThrow()
+    expect(() => validateConstraints([fa], MEMBERS)).not.toThrow()
+    expect(() => validateConstraints([fr], MEMBERS)).not.toThrow()
+  })
+
+  it('fixedPoint 缺 world → constraints[0].world', () => {
+    try {
+      validateConstraints([{ type: 'fixedPoint', a: { part: 'p0', point: [0, 0, 0] } }], MEMBERS)
+      expect.unreachable('should have thrown')
+    } catch (e) {
+      expectPath(e, 'constraints[0].world')
+    }
+  })
+
+  it('fixedPoint world=NaN → constraints[0].world（有限数校验）', () => {
+    expect(() =>
+      validateConstraints([{ type: 'fixedPoint', a: { part: 'p0', point: [0, 0, 0] }, world: [0, 0, Number.NaN] }], MEMBERS),
+    ).toThrow(/constraints\[0\]\.world/)
+  })
+
+  it('fixedAxis 缺 a → constraints[0].a', () => {
+    try {
+      validateConstraints([{ type: 'fixedAxis', worldDir: [0, 1, 1] }], MEMBERS)
+      expect.unreachable('should have thrown')
+    } catch (e) {
+      expectPath(e, 'constraints[0].a')
+    }
+  })
+
+  it('fixedAxis worldDir 非 vec3 → constraints[0].worldDir', () => {
+    expect(() =>
+      validateConstraints([{ type: 'fixedAxis', a: { part: 'p0', point: [0, 0, 0] }, worldDir: [0, 1] }], MEMBERS),
+    ).toThrow(/constraints\[0\]\.worldDir/)
+  })
+
+  it('fixedRotation.part 指向未知成员 → 抛错且文案列出 members', () => {
+    try {
+      validateConstraints([{ type: 'fixedRotation', part: 'ghost' }], MEMBERS)
+      expect.unreachable('should have thrown')
+    } catch (e) {
+      expectPath(e, 'constraints[0].part')
+      expectPath(e, '"ghost" is not a member')
     }
   })
 })
