@@ -140,6 +140,7 @@ export {
   DEGREE, RADIAN,
   SCRIPT_UNIT_NAMES,
 } from './units'
+export type { DimName, DimDecl, DimSpec, BaseDimension, UnitName } from './units'
 
 // ── 重名消歧：Vec3 双源（lang/types vs mesh/types），显式指定 lang 版 ──
 export type { Vec3 } from './lang/types'

@@ -32,6 +32,17 @@ export type BaseDimension =
 export type DimName = BaseDimension
 
 /**
+ * A dimension declaration for a single parameter.
+ *
+ * `'plain'` means the parameter is a pure number with no physical dimension
+ * (e.g. `segments: 64`, `degree: 3`, `ccw: true`). It is a **legal, explicit
+ * declaration** — not an exemption — so that `paramDims` can exhaustively
+ * cover every numeric parameter without a second escape hatch (design doc
+ * §3.1, user裁定 2026-10-10).
+ */
+export type DimDecl = DimName | 'plain'
+
+/**
  * A recursive dimension specification for structured (nested) values.
  *
  * Serialization (`lang/codegen`'s `UnitSerializeOptions.spec`) uses it to
@@ -46,7 +57,8 @@ export type DimName = BaseDimension
  *              to `cases`; an unknown value leaves the value bare.
  */
 export type DimSpec =
-  | { kind: 'dim'; dim: DimName }
+  | { kind: 'dim'; dim: DimDecl }
+  | { kind: 'plain' }
   | { kind: 'array'; item: DimSpec }
   | { kind: 'object'; fields: Record<string, DimSpec> }
   | { kind: 'tagged'; key: string; cases: Record<string, DimSpec> }

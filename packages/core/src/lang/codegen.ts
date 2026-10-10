@@ -22,7 +22,7 @@
 
 import type { HostArg } from './host-arg'
 import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef, isHostRef } from './host-arg'
-import type { DimName, UnitName, UnitContext, DimSpec } from '../units'
+import type { DimName, DimDecl, UnitName, UnitContext, DimSpec } from '../units'
 import { unitFor, fromBase } from '../units'
 
 // ── 数值格式化 ──
@@ -117,7 +117,7 @@ export interface UnitSerializeOptions {
   /** System display unit; defaults to base (mm / degree). */
   units?: UnitContext
   /** Parameter dimension declarations (host provides from op paramDims + slotMap). */
-  dims?: { positional?: (DimName | null)[]; byKey?: Record<string, DimName> }
+  dims?: { positional?: (DimDecl | null)[]; byKey?: Record<string, DimDecl> }
   /**
    * Structured (recursive) spec for a positional options object whose nested
    * arrays/objects carry per-field dimensions — e.g.
@@ -199,8 +199,8 @@ function isPlainObjArg(arg: HostArg): boolean {
  * Recursively format a HostArg value, applying unit wrapping to numbers inside
  * arrays (vec3) and plain objects when a dimension is declared.
  */
-function fmtValueWithDim(value: HostArg, dim: DimName | null | undefined, opts: UnitSerializeOptions | undefined): string {
-  if (opts && dim) {
+function fmtValueWithDim(value: HostArg, dim: DimDecl | null | undefined, opts: UnitSerializeOptions | undefined): string {
+  if (opts && dim && dim !== 'plain') {
     // Number → unit literal
     if (typeof value === 'number') {
       const unitName = unitFor(dim, opts.units)
@@ -227,7 +227,11 @@ function fmtValueWithDim(value: HostArg, dim: DimName | null | undefined, opts: 
  */
 function fmtValueWithSpec(value: HostArg, spec: DimSpec, opts: UnitSerializeOptions): string {
   switch (spec.kind) {
+    case 'plain':
+      return fmtValue(value)
     case 'dim': {
+      // `'plain'` in a `dim` spec = bare output, no unit literal.
+      if (spec.dim === 'plain') return fmtValue(value)
       if (typeof value === 'number') {
         return formatUnitLiteral(value, spec.dim, unitFor(spec.dim, opts.units))
       }

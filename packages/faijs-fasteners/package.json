@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-fasteners",
-  "version": "0.31.3",
+  "version": "0.32.1",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -31,7 +31,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.31.0",
+    "@faicad/faijs": "^0.32.0",
     "occt-wasm": "^5.6.0"
   },
   "devDependencies": {

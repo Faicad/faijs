@@ -133,11 +133,12 @@ export interface ArgSpecEntry {
   /** D11 slot-map 声明（positional→object 装箱表）。 */
   slotMap?: import('../../api/internal/dual-form-args').SlotMap
   /**
-   * P26 (unit-system D8): 脚本面参数量纲声明——`参数名 → DimName`。缺省该键的
-   * 参数视为无量纲、不参与静态 dimension 检查（10 裸数字会被拒、10*mm 通过）。
-   * 生成器透传给 defineOp 的 `paramDims`，并写进 script-face-manifest 供宿主读取。
+   * P26 (unit-system D8): 脚本面参数量纲声明——`参数名 → DimDecl`。`'plain'`
+   * 表示纯数字（无量纲，design doc §3.1）。缺省该键的参数视为无量纲、不参与
+   * 静态 dimension 检查（10 裸数字会被拒、10*mm 通过）。生成器透传给 defineOp
+   * 的 `paramDims`，并写进 script-face-manifest 供宿主读取。
    */
-  paramDims?: Record<string, import('../../units').DimName>
+  paramDims?: Record<string, import('../../units').DimDecl>
   /** P26 (unit-system D8): 返回值量纲声明（函数调用结果携带的量纲）。 */
   retDim?: import('../../units').DimName
   /**

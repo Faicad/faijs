@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-draw",
-  "version": "0.31.1",
+  "version": "0.32.0",
   "private": true,
   "description": "DEPRECATED 鈥?this package will be removed. faijs 2D drawing DSL (cad.draw fluent scripting); superseded by cad.sketchOnPlane / cad.profile.",
   "keywords": [
@@ -31,7 +31,7 @@
     "LICENSE"
   ],
   "peerDependencies": {
-    "@faicad/faijs": "^0.31.0"
+    "@faicad/faijs": "^0.32.0"
   },
   "devDependencies": {
     "typescript": "*",

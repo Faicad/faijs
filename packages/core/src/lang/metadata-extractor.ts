@@ -22,7 +22,7 @@ import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef } from './ho
 import { ParseError } from './parse-error'
 import { fnv1a32 } from './fnv-hash'
 import { assertSecure, isSafeGlobalIdent, type SecurityPolicy } from './security-scanner'
-import type { DimName, DimSpec } from '../units'
+import type { DimName, DimDecl, DimSpec } from '../units'
 import { SCRIPT_UNIT_NAMES, UNIT_DIM, UNIT_SCALE, SCRIPT_UNIT_TO_NAME } from '../units'
 
 // ── UiMetadata 类型（§4.1） ──
@@ -673,7 +673,11 @@ function checkDim(node: ASTNode, expectedDim: DimName, ctx: ValueParseCtx): void
 function checkValueWithSpec(node: ASTNode, spec: DimSpec, ctx: ValueParseCtx): void {
   if (!node) return
   switch (spec.kind) {
+    case 'plain':
+      return
     case 'dim': {
+      // `'plain'` in a `dim` spec = no dimension check (passthrough).
+      if (spec.dim === 'plain') return
       checkDim(node, spec.dim, ctx)
       // Array (vec/point) → element-wise
       if (node.type === 'ArrayExpression') {
@@ -1299,8 +1303,8 @@ export interface ExtractMetadataOptions {
  * op 注册表（铁律：lang 不得依赖 op 注册表）。
  */
 export interface OpDimDecl {
-  /** 参数名 → 量纲；缺省键视为无量纲。 */
-  paramDims?: Record<string, DimName>
+  /** 参数名 → 量纲；`'plain'` 为纯数字（design doc §3.1）；缺省键视为无量纲。 */
+  paramDims?: Record<string, DimDecl>
   /** 函数调用结果的量纲。 */
   retDim?: DimName
   /** D11 slot-map（positional→object 装箱表）；位置形态校验用。 */
@@ -1859,7 +1863,7 @@ function checkOpCallDims(call: ASTNode, calleeKey: string, ctx: ValueParseCtx): 
             if (keyNode?.type !== 'Identifier') continue
             const paramName = keyNode.name
             const dim = decl.paramDims[paramName]
-            if (!dim) continue
+            if (!dim || dim === 'plain') continue
 
             checkDim(prop.value, dim, ctx)
 
@@ -1886,7 +1890,7 @@ function checkOpCallDims(call: ASTNode, calleeKey: string, ctx: ValueParseCtx): 
           if (keyNode?.type !== 'Identifier') continue
           const paramName = keyNode.name
           const dim = decl.paramDims[paramName]
-          if (!dim) continue
+          if (!dim || dim === 'plain') continue
 
           checkDim(prop.value, dim, ctx)
         }
@@ -1907,7 +1911,7 @@ function checkOpCallDims(call: ASTNode, calleeKey: string, ctx: ValueParseCtx): 
       const dim = decl.paramDims[paramName]
       keyIdx++
 
-      if (!dim) continue
+      if (!dim || dim === 'plain') continue
 
       if (vec3Keys.has(paramName) && arg?.type === 'ArrayExpression') {
         for (const el of arg.elements ?? []) {

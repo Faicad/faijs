@@ -43,7 +43,7 @@ import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
 import { toOpFailure, unwrapResult, OpError, type ResultLike } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engine/types'
-import type { DimName, DimSpec } from './units'
+import type { DimName, DimDecl, DimSpec } from './units'
 import { type Provenance, runtimeLineage } from './topology/naming/lineage'
 
 /** 合法引擎 id 集合（assertLibConforms 的 engines 校验用，D11-1）。 */
@@ -151,12 +151,13 @@ export interface DualOpOptions {
    * missing naming = compile-time error (G4: no undeclared ops).
    */
   naming: Provenance
-  /**
-   * Script-side dimension declaration (unit-system D8): per-parameter dim for
-   * the static `dimension` check stage. Params absent here are treated as
-   * dimensionless and exempt from the check. `DimName` is a pure type import.
-   */
-  paramDims?: Record<string, DimName>
+/**
+* Script-side dimension declaration (unit-system D8): per-parameter dim for
+* the static `dimension` check stage. `'plain'` means a pure number with no
+* physical dimension (design doc §3.1). Params absent here are treated as
+* dimensionless and exempt from the check.
+*/
+paramDims?: Record<string, DimDecl>
   /** Return dimension declaration (D8): the value produced carries this dim. */
   retDim?: DimName
   /** D8+: recursive DimSpec for structured params (e.g. cad.sketch's shapes[]/constraints[]). */
@@ -187,8 +188,8 @@ export interface DualOpMeta {
   slotMap?: SlotMap
   /** Topology identity provenance (Phase 2.3, mirrors DualOpOptions.naming). */
   naming: Provenance
-  /** Script-side dimension declaration (D8, mirrors DualOpOptions.paramDims). */
-  paramDims?: Record<string, DimName>
+/** Script-side dimension declaration (D8, mirrors DualOpOptions.paramDims). */
+paramDims?: Record<string, DimDecl>
   /** Return dimension declaration (D8). */
   retDim?: DimName
   /** D8+: recursive DimSpec (mirrors DualOpOptions.spec). */
