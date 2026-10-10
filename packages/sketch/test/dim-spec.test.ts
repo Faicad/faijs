@@ -39,14 +39,14 @@ describe('sketchDimSpec — shapes', () => {
       .toBe("let s = cad.sketch({ shapes:[{kind:'circle', r:50 * MM, cx:10 * MM, cy:20 * MM}] })")
   })
 
-  it('ellipse → rx/ry/cx/cy get MM, angle bare', () => {
+  it('ellipse → rx/ry/cx/cy get MM, angle gets DEGREE', () => {
     expect(sketch([{ shapes: [{ kind: 'ellipse', rx: 50, ry: 30, cx: 10, cy: 20, angle: 0.5 }] }], SPEC))
-      .toBe("let s = cad.sketch({ shapes:[{kind:'ellipse', rx:50 * MM, ry:30 * MM, cx:10 * MM, cy:20 * MM, angle:0.5}] })")
+      .toBe("let s = cad.sketch({ shapes:[{kind:'ellipse', rx:50 * MM, ry:30 * MM, cx:10 * MM, cy:20 * MM, angle:0.5 * DEGREE}] })")
   })
 
-  it('polygon → r/cx/cy get MM, n bare, angle bare', () => {
+  it('polygon → r/cx/cy get MM, n bare, angle gets DEGREE', () => {
     expect(sketch([{ shapes: [{ kind: 'polygon', n: 6, r: 50, angle: 0.5 }] }], SPEC))
-      .toBe("let s = cad.sketch({ shapes:[{kind:'polygon', n:6, r:50 * MM, angle:0.5}] })")
+      .toBe("let s = cad.sketch({ shapes:[{kind:'polygon', n:6, r:50 * MM, angle:0.5 * DEGREE}] })")
   })
 
   it('slot → w/d/cx/cy get MM', () => {
@@ -54,9 +54,9 @@ describe('sketchDimSpec — shapes', () => {
       .toBe("let s = cad.sketch({ shapes:[{kind:'slot', w:100 * MM, d:30 * MM, cx:5 * MM, cy:5 * MM}] })")
   })
 
-  it('trapezoid → w/h/cx/cy get MM, a1/a2 bare', () => {
+  it('trapezoid → w/h/cx/cy get MM, a1/a2 get DEGREE', () => {
     expect(sketch([{ shapes: [{ kind: 'trapezoid', w: 100, h: 50, a1: 0.5, a2: 0.7 }] }], SPEC))
-      .toBe("let s = cad.sketch({ shapes:[{kind:'trapezoid', w:100 * MM, h:50 * MM, a1:0.5, a2:0.7}] })")
+      .toBe("let s = cad.sketch({ shapes:[{kind:'trapezoid', w:100 * MM, h:50 * MM, a1:0.5 * DEGREE, a2:0.7 * DEGREE}] })")
   })
 
   it('line → from/to get MM (element-wise)', () => {
@@ -64,9 +64,9 @@ describe('sketchDimSpec — shapes', () => {
       .toBe("let s = cad.sketch({ shapes:[{kind:'line', from:[10 * MM,20 * MM], to:[30 * MM,40 * MM]}] })")
   })
 
-  it('arc → cx/cy/r get MM, a0/a1 bare, ccw bare', () => {
+  it('arc → cx/cy/r get MM, a0/a1 get DEGREE, ccw bare', () => {
     expect(sketch([{ shapes: [{ kind: 'arc', cx: 0, cy: 0, r: 50, a0: 0, a1: 1.5, ccw: true }] }], SPEC))
-      .toBe("let s = cad.sketch({ shapes:[{kind:'arc', cx:0 * MM, cy:0 * MM, r:50 * MM, a0:0, a1:1.5, ccw:true}] })")
+      .toBe("let s = cad.sketch({ shapes:[{kind:'arc', cx:0 * MM, cy:0 * MM, r:50 * MM, a0:0 * DEGREE, a1:1.5 * DEGREE, ccw:true}] })")
   })
 
   it('bspline → pts get MM (nested array of pairs), degree bare', () => {
@@ -119,14 +119,14 @@ describe('sketchDimSpec — constraints', () => {
     )).toBe("let s = cad.sketch({ shapes:[{kind:'circle', r:50 * MM}], constraints:[{kind:'radius', of:{tag:'g1'}, value:25 * MM},{kind:'diameter', of:{tag:'g1'}, value:50 * MM}] })")
   })
 
-  it('angle/arcAngle → value bare (radians, deferred)', () => {
+  it('angle/arcAngle → value gets DEGREE', () => {
     expect(sketch(
       [{ shapes: [{ kind: 'circle', r: 50 }], constraints: [
         { kind: 'angle', a: { tag: 'g1' }, b: { tag: 'g2' }, value: 1.5 },
         { kind: 'arcAngle', of: { tag: 'g1' }, value: 0.8 },
       ] }],
       SPEC,
-    )).toBe("let s = cad.sketch({ shapes:[{kind:'circle', r:50 * MM}], constraints:[{kind:'angle', a:{tag:'g1'}, b:{tag:'g2'}, value:1.5},{kind:'arcAngle', of:{tag:'g1'}, value:0.8}] })")
+    )).toBe("let s = cad.sketch({ shapes:[{kind:'circle', r:50 * MM}], constraints:[{kind:'angle', a:{tag:'g1'}, b:{tag:'g2'}, value:1.5 * DEGREE},{kind:'arcAngle', of:{tag:'g1'}, value:0.8 * DEGREE}] })")
   })
 
   it('orientation → dir bare (direction vector)', () => {
@@ -181,9 +181,9 @@ describe('sketchDimSpec — geoms (expanded canonical)', () => {
       .toBe("let s = cad.sketch({ geoms:[{kind:'circle', cx:10 * MM, cy:20 * MM, r:50 * MM}] })")
   })
 
-  it('arc geom → cx/cy/r get MM, a0/a1 bare', () => {
+  it('arc geom → cx/cy/r get MM, a0/a1 get DEGREE', () => {
     expect(sketch([{ geoms: [{ kind: 'arc', cx: 0, cy: 0, r: 50, a0: 0, a1: 1.5 }] }], SPEC))
-      .toBe("let s = cad.sketch({ geoms:[{kind:'arc', cx:0 * MM, cy:0 * MM, r:50 * MM, a0:0, a1:1.5}] })")
+      .toBe("let s = cad.sketch({ geoms:[{kind:'arc', cx:0 * MM, cy:0 * MM, r:50 * MM, a0:0 * DEGREE, a1:1.5 * DEGREE}] })")
   })
 
   it('bspline geom → poles get MM, knots/degree bare', () => {

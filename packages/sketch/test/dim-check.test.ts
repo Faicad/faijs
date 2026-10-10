@@ -116,9 +116,17 @@ describe('sketch dim-check — constraints', () => {
     expect(result.dimWarnings.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('angle constraint value bare → no warning (radians)', () => {
+  it('angle constraint value bare → warning (angle is dimensioned, base unit degree)', () => {
     const result = check(sketchCode(
       'const s = cad.sketch({ shapes: [{ kind: "circle", r: 50 * MM }], constraints: [{ kind: "angle", a: { tag: "g1" }, b: { tag: "g2" }, value: 1.5 }] })',
+    ))
+    expect(result.ok).toBe(true)
+    expect(result.dimWarnings.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('angle constraint value with unit → no warning', () => {
+    const result = check(sketchCode(
+      'const s = cad.sketch({ shapes: [{ kind: "circle", r: 50 * MM }], constraints: [{ kind: "angle", a: { tag: "g1" }, b: { tag: "g2" }, value: 90 * DEGREE }] })',
     ))
     expect(result.ok).toBe(true)
     expect(result.dimWarnings).toHaveLength(0)

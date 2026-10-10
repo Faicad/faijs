@@ -8,6 +8,7 @@
  * imports `node:*`.
  */
 import { defineOp } from '@faicad/faijs/sdk'
+import { fromBase } from '@faicad/faijs/units'
 import type { Provenance } from '@faicad/faijs/topology/naming'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { SketchConstraint, SketchGeom, SolveOutcome } from './canonical.js'
@@ -18,6 +19,56 @@ import type { SketchSolver, ExternalFixedSeg } from './solver.js'
 
 /** The op name `cad.sketch`. */
 export const SKETCH_OP_NAME = 'sketch' as const
+
+// ── degree → radian boundary (unit-system D8) ─────────────────────────────
+// The script face declares every angle field `dim: 'angle'` whose base unit is
+// DEGREE, so the runtime hands numbers here in degrees. The sketch library
+// internals (expandShapes, planegcs, Math.cos/sin) all work in radians. This
+// boundary converts once, at op entry — internals never see degrees. The
+// conversion goes through the unit system (`fromBase`), not a local constant.
+
+function degToRad(angle: number): number {
+  return fromBase(angle, 'radian', 'angle')
+}
+
+/** Convert a plain record in place, returning it for chaining. */
+function convertAngles<T extends Record<string, unknown>>(obj: T, keys: readonly string[]): T {
+  for (const k of keys) {
+    if (typeof obj[k] === 'number') (obj as Record<string, unknown>)[k] = degToRad(obj[k] as number)
+  }
+  return obj
+}
+
+/** Angle-bearing fields per semantic shape kind (see `dim-spec.ts` shapeCases). */
+const SHAPE_ANGLE_KEYS: Record<string, readonly string[]> = {
+  rect: ['angle'], roundedRect: ['angle'], ellipse: ['angle'], polygon: ['angle'],
+  slot: ['angle'], trapezoid: ['a1', 'a2'], arc: ['a0', 'a1'],
+}
+
+/** Angle-bearing fields per canonical geom kind (see `dim-spec.ts` geomCases). */
+const GEOM_ANGLE_KEYS: Record<string, readonly string[]> = {
+  arc: ['a0', 'a1'], ellipse: ['angle', 'a0', 'a1'],
+}
+
+/** Constraint kinds whose `value` is an angle (see `dim-spec.ts` constraintCases). */
+const ANGLE_VALUE_CONSTRAINTS: ReadonlySet<string> = new Set(['angle', 'arcAngle'])
+
+/**
+ * Convert script-face angle values (degrees) into library-internal radians,
+ * mutating the given arrays' entries in place. Unknown kinds pass through
+ * untouched (the library validates them downstream).
+ */
+function anglesToRadians(
+  shapes: Array<Record<string, unknown>> | undefined,
+  geoms: Array<Record<string, unknown>> | undefined,
+  constraints: Array<Record<string, unknown>> | undefined,
+): void {
+  for (const s of shapes ?? []) convertAngles(s, SHAPE_ANGLE_KEYS[s.kind as string] ?? [])
+  for (const g of geoms ?? []) convertAngles(g, GEOM_ANGLE_KEYS[g.kind as string] ?? [])
+  for (const c of constraints ?? []) {
+    if (ANGLE_VALUE_CONSTRAINTS.has(c.kind as string)) convertAngles(c, ['value'])
+  }
+}
 
 let solverFactory: (() => Promise<SketchSolver>) | undefined
 let diagnosticSink: ((outcome: SolveOutcome) => void) | undefined
@@ -165,6 +216,14 @@ export const sketch = defineOp({
     assertSketchParams(params)
     const solver = await resolveSolver()
     const p = params as unknown as SketchParams
+    // Unit boundary: script-face angles arrive in degrees (angle base unit);
+    // library internals work in radians. Mutates the caller's arrays — safe
+    // because params are per-execution, never retained by the host.
+    anglesToRadians(
+      p.shapes as Array<Record<string, unknown>> | undefined,
+      p.geoms as Array<Record<string, unknown>> | undefined,
+      p.constraints as Array<Record<string, unknown>> | undefined,
+    )
     const expansion = p.shapes ? expandShapes(p.shapes) : undefined
     const geoms = expansion ? expansion.geoms : p.geoms!
     const constraints = [...(expansion ? expansion.constraints : []), ...(p.constraints ?? [])]
