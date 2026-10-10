@@ -49,6 +49,9 @@ export type {
   ShapeHandle, ShapeHandleKind, GeomControl, Pt2,
 } from './shapes.js'
 
+// ── serialize dimension spec (`cad.sketch` unit-aware codegen) ──
+export { shapesDimSpec, constraintsDimSpec, sketchDimSpec } from './dim-spec.js'
+
 // ── FCStd solve pipeline (consumed by the fcstd port) ──
 export type { SketchSolver, FcstdSolveOutcome, ExternalFixedSeg } from './solver.js'
 export { SUPPORTED_CONSTRAINT_TYPES, allConstraintsSupported } from './solver.js'

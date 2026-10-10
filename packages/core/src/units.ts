@@ -32,6 +32,26 @@ export type BaseDimension =
 export type DimName = BaseDimension
 
 /**
+ * A recursive dimension specification for structured (nested) values.
+ *
+ * Serialization (`lang/codegen`'s `UnitSerializeOptions.spec`) uses it to
+ * describe the dimension of the numbers inside nested arrays/objects — e.g.
+ * `cad.sketch`'s `shapes[]` / `constraints[]`, where each element's fields
+ * carry different dimensions and are selected by a `kind` discriminator.
+ *
+ * - `dim`    — a number of this dimension is emitted as `n * UNIT`;
+ * - `array`  — each element carries `item`;
+ * - `object` — each field carries its own spec; unlisted fields stay bare;
+ * - `tagged` — dispatch on a string discriminator field (`key`, e.g. `kind`)
+ *              to `cases`; an unknown value leaves the value bare.
+ */
+export type DimSpec =
+  | { kind: 'dim'; dim: DimName }
+  | { kind: 'array'; item: DimSpec }
+  | { kind: 'object'; fields: Record<string, DimSpec> }
+  | { kind: 'tagged'; key: string; cases: Record<string, DimSpec> }
+
+/**
  * A unit name. `micron/mm/cm/m/inch/foot/meter` are the six legal values of
  * the 3MF `<model unit>` enum and must all be present in `UNIT_SCALE`.
  */

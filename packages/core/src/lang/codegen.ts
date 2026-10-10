@@ -22,7 +22,7 @@
 
 import type { HostArg } from './host-arg'
 import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef, isHostRef } from './host-arg'
-import type { DimName, UnitName, UnitContext } from '../units'
+import type { DimName, UnitName, UnitContext, DimSpec } from '../units'
 import { unitFor, fromBase } from '../units'
 
 // ── 数值格式化 ──
@@ -118,6 +118,17 @@ export interface UnitSerializeOptions {
   units?: UnitContext
   /** Parameter dimension declarations (host provides from op paramDims + slotMap). */
   dims?: { positional?: (DimName | null)[]; byKey?: Record<string, DimName> }
+  /**
+   * Structured (recursive) spec for a positional options object whose nested
+   * arrays/objects carry per-field dimensions — e.g.
+   * `cad.sketch({ shapes: [...], constraints: [...], plane })`, where each
+   * `shapes[]` element's fields are dispatched by its `kind`.
+   *
+   * When present, `spec` supersedes `dims` for the positional arguments.
+   * Unlisted fields and unknown discriminator values are emitted bare
+   * (zero-impact passthrough) — so old, unit-less sketch code still round-trips.
+   */
+  spec?: DimSpec
 }
 
 /** 参数值 → 文本（递归，HostArg 面） */
@@ -206,6 +217,61 @@ function fmtValueWithDim(value: HostArg, dim: DimName | null | undefined, opts: 
 }
 
 /**
+ * Recursively format a HostArg against a structured {@link DimSpec}.
+ *
+ * Mirrors the dimension semantics of {@link fmtValueWithDim} but descends into
+ * nested arrays/objects and dispatches `tagged` specs by a discriminator field
+ * (e.g. `kind`). Values not covered by the spec — unlisted fields, unknown
+ * discriminator values, non-matching shapes — fall through to `fmtValue`
+ * (bare, no unit wrapping), so existing unit-less code stays byte-identical.
+ */
+function fmtValueWithSpec(value: HostArg, spec: DimSpec, opts: UnitSerializeOptions): string {
+  switch (spec.kind) {
+    case 'dim': {
+      if (typeof value === 'number') {
+        return formatUnitLiteral(value, spec.dim, unitFor(spec.dim, opts.units))
+      }
+      // A dimensioned value may also be a point/vec (e.g. `from: [x, y]`).
+      if (Array.isArray(value)) {
+        return `[${value.map((el) => fmtValueWithSpec(el, spec, opts)).join(',')}]`
+      }
+      // Bare expr-ref already containing a unit literal → keep as-is.
+      if (isHostExprRef(value) && value.bare) return value.text
+      return fmtValue(value)
+    }
+    case 'array': {
+      if (Array.isArray(value)) {
+        return `[${value.map((el) => fmtValueWithSpec(el, spec.item, opts)).join(',')}]`
+      }
+      return fmtValue(value)
+    }
+    case 'object': {
+      if (isPlainObjArg(value)) {
+        const entries = Object.entries(value as Record<string, HostArg>)
+        return `{${entries
+          .map(([k, v]) => {
+            const fieldSpec = spec.fields[k]
+            return `${k}:${fieldSpec ? fmtValueWithSpec(v, fieldSpec, opts) : fmtValue(v)}`
+          })
+          .join(', ')}}`
+      }
+      return fmtValue(value)
+    }
+    case 'tagged': {
+      if (isPlainObjArg(value)) {
+        const disc = (value as Record<string, HostArg>)[spec.key]
+        const key = typeof disc === 'string' ? disc : undefined
+        const caseSpec = key !== undefined ? spec.cases[key] : undefined
+        if (caseSpec) return fmtValueWithSpec(value, caseSpec, opts)
+      }
+      return fmtValue(value)
+    }
+    default:
+      return fmtValue(value)
+  }
+}
+
+/**
  * Original `formatCodeLine` body without unit support (P7 fast path).
  *
  * This is the byte-identical pre-P7 implementation, called when `opts` is
@@ -281,17 +347,31 @@ function formatCodeLineRaw(input: FormatCodeLineInput): string {
  */
 export function formatCodeLine(input: FormatCodeLineInput, opts?: UnitSerializeOptions): string {
   // Fast path: no unit options → original behavior (byte-identical)
-  if (!opts || !opts.dims) {
+  if (!opts || (!opts.dims && !opts.spec)) {
     return formatCodeLineRaw(input)
   }
 
   const positional = input.positional
   const argsInput: Record<string, HostArg> = input.args ?? {}
-  const posDims = opts.dims.positional ?? []
-  const keyDims = opts.dims.byKey ?? {}
+  const posDims = opts.dims?.positional ?? []
+  const keyDims = opts.dims?.byKey ?? {}
+  const spec = opts.spec
 
-  // Positional args with per-index dimension
+  // Positional args with per-index dimension (or a structured `spec`)
   const positionalParts = positional.map((arg, i) => {
+    if (spec) {
+      if (isPlainObjArg(arg) && spec.kind === 'object') {
+        // Top-level options object: spaced braces + per-field spec.
+        const entries = Object.entries(arg as Record<string, HostArg>)
+        return `{ ${entries
+          .map(([k, v]) => {
+            const fieldSpec = spec.fields[k]
+            return `${k}:${fieldSpec ? fmtValueWithSpec(v, fieldSpec, opts) : fmtValue(v)}`
+          })
+          .join(', ')} }`
+      }
+      return fmtValueWithSpec(arg, spec, opts)
+    }
     const dim = posDims[i] ?? null
     if (isPlainObjArg(arg)) {
       const entries = Object.entries(arg as Record<string, HostArg>)
