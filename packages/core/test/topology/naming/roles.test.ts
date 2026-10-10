@@ -38,6 +38,9 @@ function fakeKernel(faces: FakeFace[]): BrepEngineApi {
       type === 'face' ? [...handles] : type === 'solid' ? [shape] : [],
     subShapeHashes: (shape: BrepHandle, type: BrepSubShapeType) =>
       type === 'face' ? handles.map((h) => h) : [],
+    // 造型运算：本 fake 只服务面属性命名，扫掠/放样不入测（显式抛错桩，不静默返回）。
+    sweep: () => { throw new Error('fakeKernel: sweep not implemented') },
+    loft: () => { throw new Error('fakeKernel: loft not implemented') },
     surfaceType: (face: BrepHandle) => byHandle.get(face)?.surfaceType ?? 'plane',
     surfaceNormal: (face: BrepHandle) => {
       const n = byHandle.get(face)?.normal ?? [0, 0, 1]

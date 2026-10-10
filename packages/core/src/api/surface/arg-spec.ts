@@ -1880,7 +1880,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'sweep', source: 'brep-operations/sweepFns.ts#sweepBrep', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0, 1],
-    reason: 'faijs 侧 cad.sweep 由手写平台 op 覆盖（api/sweep.ts：截面接受 face → 取外环；shellMode 元组产物不暴露，§2.4 ①）。本投影保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 revolve / extrude 口径）。',
+    reason: 'faijs 侧 cad.sweep 由手写 op 覆盖（api/sweep.ts：截面接受 face → 取外环；shellMode 元组产物不暴露，§2.4 ①）。2026-10-10 双引擎化后该脚本面 op 为**中立**（两内核交集、选项集为空）；本投影仍绑定 occt 直连的 sweepBrep，保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 revolve / extrude 口径）；occt 完整控制面走 cad.sweepAdvanced。',
     args: 'sweep(wire: Shape, spine: Shape, config?: SweepOptions, shellMode?: boolean): Shape',
     params: ['wire', 'spine', 'config', 'shellMode'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
@@ -2023,7 +2023,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'loft', source: 'operations/api.js#loft', kind: 'skip', module: 'operations',
     args: 'loft(sections: Shape[], opts?: LoftOptions): Shape',
-    reason: 'overridden by handwritten api/loft.ts (faijs 侧平台 op engines:[occt]：截面接受 face → 取外环；faijs 侧唯一实现路径即该手写 op，生成投影不做输入形态适配)',
+    reason: 'overridden by handwritten api/loft.ts (faijs 侧唯一实现路径即该手写 op，生成投影不做输入形态适配)。2026-10-10 双引擎化后该脚本面 op 为**中立**（选项集 = 两内核交集 { ruled, endPoint }）；startPoint/tolerance 等 occt 独有控制面走 cad.loftAdvanced。',
   },
   {
     name: 'loftAll', source: 'operations/loftFns.js#loftAll', kind: 'skip', module: 'operations', reason: '返回 Shape3D 数组（多产物），skip',

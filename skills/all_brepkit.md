@@ -62,8 +62,8 @@ Faces and edges are referenced by **role-based topology identity** (`cad.faceRef
 > **Engine-specific skill doc — auto-generated** by `scripts/gen-skill-docs.ts` (do not edit by hand; regenerate via `npm run gen:skill-docs`).
 >
 > This doc lists the APIs available when the runtime BREP engine is **brepkit**.
-> It contains the **73 engine-neutral (common) ops** plus the **0 brepkit-only ops** (currently none).
-> OCCT-only ops (75: alignTo, approximatePoints, autoHeal, boolean, circleArc, classifyPointOnFace, commonCells, complexExtrude, containsPoint, curveDegreeElevate, curveIsPeriodic, curveKnotInsert, curveKnotRemove, distanceBetween, draft, draftPrism, edge, ellipseArc, ellipseEdge, exportBrep, exportStep, faceOnSurface, fixSelfIntersection, fuse, halfSpace, heal, helix, import_brep, import_step, inertia, inspectMassProps, interpolateWithTangents, isCompSolid, isCompound, isEdge, isEqual, isFace, isShell, isVertex, isWire, iterShapes, liftCurve2d, linearCenterOfMass, locate, loft, makeSolid, nonPlanarFace, offset, offset2d, outerWire, pipe, projectPointOnEdge, projectPointOnFace, punchHole, reverseShape, reverseSurfaceU, roof, screw, simplify, sketchOnFace, solidFromFaces, split, subShapeCount, surface, sweep, tangentArc, thicken, thread, toMultiviewPNG, toMultiviewSVG, toPNG, toSVG, twistExtrude, uvFromPoint, vertexPosition) are **excluded** from the brepkit doc;
+> It contains the **76 engine-neutral (common) ops** plus the **0 brepkit-only ops** (currently none).
+> OCCT-only ops (75: alignTo, approximatePoints, autoHeal, boolean, circleArc, classifyPointOnFace, commonCells, complexExtrude, containsPoint, curveDegreeElevate, curveIsPeriodic, curveKnotInsert, curveKnotRemove, distanceBetween, draft, draftPrism, edge, ellipseArc, ellipseEdge, exportBrep, exportStep, faceOnSurface, fixSelfIntersection, fuse, halfSpace, heal, helix, import_brep, import_step, inertia, inspectMassProps, interpolateWithTangents, isCompSolid, isCompound, isEdge, isEqual, isFace, isShell, isVertex, isWire, iterShapes, liftCurve2d, linearCenterOfMass, locate, loftAdvanced, makeSolid, nonPlanarFace, offset, offset2d, outerWire, pipe, projectPointOnEdge, projectPointOnFace, punchHole, reverseShape, reverseSurfaceU, roof, screw, simplify, sketchOnSurface, solidFromFaces, split, subShapeCount, surface, sweepAdvanced, tangentArc, thicken, thread, toMultiviewPNG, toMultiviewSVG, toPNG, toSVG, twistExtrude, uvFromPoint, vertexPosition) are **excluded** from the brepkit doc;
 > brepkit-only ops (0: none) are excluded from the OCCT doc.
 
 
@@ -219,6 +219,20 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 - `params.as`: `'face'` (default) or `'wire'` (outer loop only).type:string required:false
 
 **Returns**: Shape on the target plane (face, or a wire curve when `as:'wire'`).
+
+ **Sync**.
+
+### `sketchOnFace(...)`
+`cad.sketchOnFace`: place 2D contours on a **planar** face of a solid and construct a Shape. Engine-neutral (no `engines` declaration): works on the OCCT BREP engine, the brepkit BREP engine, and the brepkit mesh backend. **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：`on` 是网格实体 时，轮廓按面自己的**平面框**铺放（原点 = 面包围盒中心、法向 = 面法向），产物是一张 网格链面，可直接交给 `cad.extrude` 拉伸。该分支只接受平面面、只接受默认 `scaleMode`（`'bounds'`/`'native'` 相对 UV 域定义，网格链上没有 UV 域）、只接受 `as:'face'`、且只接受单个轮廓岛——每一条越界都以 `E_MESH_SOLID_UNSUPPORTED` 说明原因。
+
+**Parameters**:
+- `params.contours`: ordered 2D closed contours (same shape as `cad.profile`).type:any[] required:true
+- `params.on`: the target solid on which the face lives.type:Shape required:true
+- `params.face`: the host face: a 1-based ordinal or a `cad.faceRef(on, n)` result.type:any required:true
+- `params.scaleMode`: UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit; OCCT planar only).type:string required:false
+- `params.as`: `'face'` (default) or `'wire'` (outer loop only).type:string required:false
+
+**Returns**: Shape on the target face (face, or a wire curve when `as:'wire'`).
 
  **Sync**.
 
@@ -622,6 +636,57 @@ const c = await cad.intersect(part0, part1)
 **Examples**:
 ```js
 const p1 = await cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
+```
+
+### `sweep(...)`
+扫掠：截面沿脊柱路径生成扫掠体。 `sweep(face, NURBS path)`，路径由适配器从脊柱 wire 拟合）。截面接受 wire 或面（面取其外环）；脊柱必须为 wire。选项集 = 两内核交集 = **空** —— 需要 transition / auxSpine / support / law / orientation 等 occt 独有控制面 时用 `cad.sweepAdvanced`。
+
+**Parameters**:
+- `profile`: 截面几何（wire 或面；面取其外环）。type:Shape required:true
+- `spine`: 脊柱路径（wire）。type:Shape required:true
+
+**Returns**: Shape 扫掠体。
+
+ **Async**.
+
+**Examples**:
+```js
+const path = cad.wire([[0, 0, 0], [0, 0, 50]])
+const section = cad.profile({ contours: [{ segments: [
+{ kind: 'line', x1: -4, y1: -4, x2: 4, y2: -4 },
+{ kind: 'line', x1: 4, y1: -4, x2: 4, y2: 4 },
+{ kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
+{ kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
+] }] })
+const body = await cad.sweep(section, path)
+```
+
+### `loft(...)`
+放样：按给定顺序在截面之间蒙皮生成体。 brepkit `loft` / `loftSmooth` / `loftWithOptions`）。截面可为 wire 或面 （面取其外环），至少 2 个；`endPoint` 可做终点退化到点的蒙皮。选项集 = 两内核交集 = `{ ruled, endPoint }` —— `startPoint` 与 `tolerance` 只有 occt 有，用 `cad.loftAdvanced`。brepkit 链要求各截面顶点数一致。
+
+**Parameters**:
+- `sections`: 有序截面集合（wire 或面；面取其外环）。type:Shape[] required:true
+- `opts`: 放样配置（ruled / endPoint）。type:LoftOptions required:false
+
+**Returns**: Shape 放样体。
+
+ **Async**.
+
+**Examples**:
+```js
+const bottom = cad.profile({ contours: [{ segments: [
+{ kind: 'line', x1: -5, y1: -5, x2: 5, y2: -5 },
+{ kind: 'line', x1: 5, y1: -5, x2: 5, y2: 5 },
+{ kind: 'line', x1: 5, y1: 5, x2: -5, y2: 5 },
+{ kind: 'line', x1: -5, y1: 5, x2: -5, y2: -5 },
+] }] })
+const top = cad.translate(cad.profile({ contours: [{ segments: [
+{ kind: 'line', x1: -3, y1: -3, x2: 3, y2: -3 },
+{ kind: 'line', x1: 3, y1: -3, x2: 3, y2: 3 },
+{ kind: 'line', x1: 3, y1: 3, x2: -3, y2: 3 },
+{ kind: 'line', x1: -3, y1: 3, x2: -3, y2: -3 },
+] }] }), [0, 0, 20])
+const body = await cad.loft([bottom, top])
 ```
 
 ### `cut(...)`

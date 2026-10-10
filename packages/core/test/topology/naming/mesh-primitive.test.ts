@@ -41,6 +41,8 @@ function fakeKernel(faces: Array<{ surfaceType: string; normal: [number, number,
     getSubShapes: (shape: BrepHandle, type: string) =>
       type === 'face' ? [...handles] : type === 'solid' ? [shape] : [],
     subShapeHashes: (shape: BrepHandle, type: string) => (type === 'face' ? handles.map((h) => h) : []),
+    // L1 新增的 sweep（本 fake 其余方法已全量列出，loft 见下方）——不入测，显式返回桩值。
+    sweep: () => 1 as BrepHandle,
     surfaceType: (face: BrepHandle) => byHandle.get(face)?.surfaceType ?? 'plane',
     surfaceNormal: (face: BrepHandle) => {
       const n = byHandle.get(face)?.normal ?? [0, 0, 1]

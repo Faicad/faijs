@@ -407,6 +407,7 @@
       "sourceFn": "sweepBrep",
       "kernelMethods": [
         "simplePipe",
+        "sweepFull",
         "sweepPipeShell"
       ],
       "trace": [
@@ -415,6 +416,7 @@
           "file": "brep-operations/sweepFns.ts",
           "methods": [
             "simplePipe",
+            "sweepFull",
             "sweepPipeShell"
           ],
           "calls": [
@@ -422,6 +424,8 @@
             "brep-operations/brepHelpers.ts#brepHandleOf",
             "../result/result.ts#err",
             "../result/errors.ts#validationError",
+            "sweepFns.ts#wantsSweepFull",
+            "sweepFns.ts#toSweepFullOptions",
             "../result/result.ts#ok",
             "../occt-kernel/occtKernel.ts#getOcctKernel",
             "../result/errors.ts#kernelError"
@@ -2124,6 +2128,7 @@
       "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "rotateBrep",
       "kernelMethods": [
+        "rotateWithHistory",
         "transform"
       ],
       "trace": [
@@ -2136,11 +2141,13 @@
           "calls": [
             "internal/dual-form-args.ts#resolveArgs",
             "brep-operations/brepHelpers.ts#brepHandleOf",
-            "../occt-kernel/occtKernel.ts#getOcctKernel",
             "../brep/handle-bridge.ts#getBrepApi",
             "../result/result.ts#err",
             "../result/errors.ts#validationError",
+            "../brep/engine/native-history.ts#hasNativeHistory",
+            "../brep/face-evolution.ts#rotateWithHashEvolution",
             "../result/result.ts#ok",
+            "../brep/face-evolution.ts#identityEvolution",
             "../result/errors.ts#kernelError"
           ]
         },
@@ -2182,10 +2189,39 @@
           ]
         },
         {
+          "fn": "hasNativeHistory",
+          "file": "../brep/engine/native-history.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "rotateWithHashEvolution",
+          "file": "../brep/face-evolution.ts",
+          "methods": [
+            "rotateWithHistory"
+          ],
+          "calls": [
+            "face-evolution.ts#getFaceHashes",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "face-evolution.ts#decodeHashEvolution",
+            "face-evolution.ts#decodeEvolution"
+          ]
+        },
+        {
           "fn": "ok",
           "file": "../result/result.ts",
           "methods": [],
           "calls": []
+        },
+        {
+          "fn": "identityEvolution",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": [
+            "face-evolution.ts#getFaceHashes"
+          ]
         },
         {
           "fn": "kernelError",
@@ -2213,6 +2249,28 @@
           ]
         },
         {
+          "fn": "getFaceHashes",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": [
+            "face-evolution.ts#getFaceHashes"
+          ]
+        },
+        {
+          "fn": "decodeHashEvolution",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "decodeEvolution",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": [
+            "face-evolution.ts#getFaceHashes"
+          ]
+        },
+        {
           "fn": "getRuntimeState",
           "file": "../runtime-state.ts",
           "methods": [],
@@ -2234,7 +2292,8 @@
       "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "mirrorBrep",
       "kernelMethods": [
-        "mirror"
+        "mirror",
+        "mirrorWithHistory"
       ],
       "trace": [
         {
@@ -2246,8 +2305,11 @@
           "calls": [
             "internal/dual-form-args.ts#resolveArgs",
             "../brep/handle-bridge.ts#getBrepApi",
-            "../result/result.ts#ok",
             "brep-operations/brepHelpers.ts#brepHandleOf",
+            "../brep/engine/native-history.ts#hasNativeHistory",
+            "../brep/face-evolution.ts#mirrorWithHashEvolution",
+            "../result/result.ts#ok",
+            "../brep/face-evolution.ts#identityEvolution",
             "../result/result.ts#err",
             "../result/errors.ts#kernelError"
           ]
@@ -2267,18 +2329,47 @@
           ]
         },
         {
-          "fn": "ok",
-          "file": "../result/result.ts",
-          "methods": [],
-          "calls": []
-        },
-        {
           "fn": "brepHandleOf",
           "file": "brep-operations/brepHelpers.ts",
           "methods": [],
           "calls": [
             "brepHelpers.ts#brepHandleOf",
             "../shape.ts#brepOf"
+          ]
+        },
+        {
+          "fn": "hasNativeHistory",
+          "file": "../brep/engine/native-history.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "mirrorWithHashEvolution",
+          "file": "../brep/face-evolution.ts",
+          "methods": [
+            "mirrorWithHistory"
+          ],
+          "calls": [
+            "face-evolution.ts#getFaceHashes",
+            "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "face-evolution.ts#decodeHashEvolution",
+            "face-evolution.ts#decodeEvolution"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "../result/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "identityEvolution",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": [
+            "face-evolution.ts#getFaceHashes"
           ]
         },
         {
@@ -2310,6 +2401,28 @@
           "methods": [],
           "calls": [
             "../runtime-state.ts#getRuntimeState"
+          ]
+        },
+        {
+          "fn": "getFaceHashes",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": [
+            "face-evolution.ts#getFaceHashes"
+          ]
+        },
+        {
+          "fn": "decodeHashEvolution",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "decodeEvolution",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": [
+            "face-evolution.ts#getFaceHashes"
           ]
         },
         {
@@ -3038,21 +3151,24 @@
       "sourceFile": "brep-operations/topologyFns.ts",
       "sourceFn": "offsetBrep",
       "kernelMethods": [
-        "offset"
+        "offsetWithHistory"
       ],
       "trace": [
         {
           "fn": "offsetBrep",
           "file": "brep-operations/topologyFns.ts",
           "methods": [
-            "offset"
+            "offsetWithHistory"
           ],
           "calls": [
             "internal/dual-form-args.ts#resolveArgs",
             "brep-operations/brepHelpers.ts#brepHandleOf",
             "../result/result.ts#err",
             "../result/errors.ts#validationError",
+            "../brep/handle-bridge.ts#getBrepApi",
+            "../brep/face-evolution.ts#getFaceHashes",
             "../occt-kernel/occtKernel.ts#getOcctKernel",
+            "../brep/face-evolution.ts#decodeEvolution",
             "../result/result.ts#ok",
             "../result/errors.ts#kernelError"
           ]
@@ -3087,6 +3203,30 @@
           ]
         },
         {
+          "fn": "getBrepApi",
+          "file": "../brep/handle-bridge.ts",
+          "methods": [],
+          "calls": [
+            "../runtime-state.ts#getBackends"
+          ]
+        },
+        {
+          "fn": "getFaceHashes",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": [
+            "face-evolution.ts#getFaceHashes"
+          ]
+        },
+        {
+          "fn": "decodeEvolution",
+          "file": "../brep/face-evolution.ts",
+          "methods": [],
+          "calls": [
+            "face-evolution.ts#getFaceHashes"
+          ]
+        },
+        {
           "fn": "ok",
           "file": "../result/result.ts",
           "methods": [],
@@ -3109,10 +3249,27 @@
           ]
         },
         {
+          "fn": "getBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState",
+            "runtime-state.ts#configureBackends"
+          ]
+        },
+        {
           "fn": "getRuntimeState",
           "file": "../runtime-state.ts",
           "methods": [],
           "calls": []
+        },
+        {
+          "fn": "configureBackends",
+          "file": "../runtime-state.ts",
+          "methods": [],
+          "calls": [
+            "runtime-state.ts#getRuntimeState"
+          ]
         }
       ]
     },

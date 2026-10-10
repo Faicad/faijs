@@ -7,9 +7,13 @@
  * 故每条处置都钉住「原生方法」与「现有脚本 op」的**等价证据**：
  *
  *   1. `cutAll`              → `cad.subtract(a,b,c)`（链式）/ `cad.boolean([a],[b,c],'cut')`
- *   2. `sweepAdvanced`       → `cad.sweep(..., { …sweepFull 字段 })`（SweepFullOptions ⊇ SweepAdvancedOptions）
- *   3. `sweepOriented`       → `cad.sweep(..., { orientation, up })`
+ *   2. `sweepAdvanced`       → `cad.sweepAdvanced(..., { …sweepFull 字段 })`（SweepFullOptions ⊇ SweepAdvancedOptions）
+ *   3. `sweepOriented`       → `cad.sweepAdvanced(..., { orientation, up })`
  *   4. `chamferAsymmetric`   → `cad.chamfer(..., { type:'twoDistances', width1, width2 })`
+ *
+ * 📌 2026-10-10 双引擎化后术语更新（方案 2026-10-10-sweep-loft-dual-engine-plan）：
+ * 上述 2/3 的脚本面符号是 **`cad.sweepAdvanced`**（`engines:['occt']`）；`cad.sweep`
+ * 已收窄为**基础 op**（两内核交集、选项集为空），sweepFull 控制面不再挂在它上面。
  *
  * ⚠️ 为什么这四项**不能**落成 C2（op 直调）：`chamfer` / `subtract` 是**中立 op**
  * （brepkit 也要能跑），在它们的实现体里插 occt 原生调用会造出 **L3 违规**
@@ -20,7 +24,7 @@
  *   A. 原生 `cutAll(A,[B,C])` 与链式 `subtract(A,B,C)` 体积相等（A − (B∪C) = ((A−B)−C)）；
  *   B. 原生 `sweepAdvanced` 与 `sweepFull`（同一 options）体积相等；
  *      原生 `sweepOriented(mode,up)` 与 `sweepFull({mode,up})` 体积相等；
- *      ⇒ `sweepFull` 是二者的严格超集，脚本面只需 `sweep` 一个符号；
+ *      ⇒ `sweepFull` 是二者的严格超集，脚本面只需 `sweepAdvanced` 一个符号；
  *   C. 原生 `chamferAsymmetric(d1,d2,refFace)` 与 `chamfer` 的 `twoDistances` 换算
  *      （§3.5：dF/dO + β → chamferDistAngle(dF,θ)）体积相等 ⇒ `twoDistances` 即
  *      非对称倒角，`referenceFace` 的取舍由 `EdgeTopoRef.faces` 的**顺序**表达。
@@ -184,7 +188,7 @@ describe('C4-2. sweepAdvanced / sweepOriented ⇒ sweepFull（脚本级 + 原生
     k.release(sp)
   })
 
-  it('B3. 脚本面 sweep 接受 withContact / withCorrection（sweepFull 控制面补齐）', async () => {
+  it('B3. 脚本面 sweepAdvanced 接受 withContact / withCorrection（sweepFull 控制面补齐）', async () => {
     const r = await exec(
       'brep',
       `let part0 = cad.wire([[0,0,0],[0,0,50]])\n` +
@@ -194,7 +198,7 @@ describe('C4-2. sweepAdvanced / sweepOriented ⇒ sweepFull（脚本级 + 原生
         `{ kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },` +
         `{ kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },` +
         `] }] })\n` +
-        `let part2 = cad.sweep(part1, part0, { orientation: 'fixed', withContact: true, withCorrection: true })\n`,
+        `let part2 = cad.sweepAdvanced(part1, part0, { orientation: 'fixed', withContact: true, withCorrection: true })\n`,
     )
     expect(r.failedAt).toBeUndefined()
     // 8×8 截面 × 50 长 = 3200

@@ -209,10 +209,14 @@ afterAll(() => {
   __resetEngineRegistriesForTests()
 })
 
-describe('Phase 3 接口覆盖：capability-map 42 方法 → BrepEngineApi', () => {
-  it('capability-map 唯一内核方法数 = 42（底表快照，与静态清单一致）', () => {
+describe('Phase 3 接口覆盖：capability-map 45 方法 → BrepEngineApi', () => {
+  it('capability-map 唯一内核方法数 = 45（底表快照，与静态清单一致）', () => {
+    // 45 = 2026-10-10 重跑 gen-capability-map 后的底表实数（生成器幂等已验证）。
+    // 相对上一版快照 42 的差异全部来自生成器重跑：+sweepFull（sweepBrep 的 sweepFull
+    // 分支）、+rotateWithHistory / +mirrorWithHistory / -offset / +offsetWithHistory
+    // （C5 WithHistory 接线），后四项是 2026-10-08 改动源码后未重跑生成器留下的陈旧底表。
     const fromMap = [...new Set(capabilityMap.entries.flatMap((e) => e.kernelMethods as string[]))]
-    expect(fromMap.length).toBe(42)
+    expect(fromMap.length).toBe(45)
   })
 
   it('编译期守卫生效：_coverageGuard 类型为 never（见文件顶 type _Assert）', () => {

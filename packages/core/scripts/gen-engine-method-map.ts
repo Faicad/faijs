@@ -62,10 +62,12 @@ const HAND_MAP: MapEntry[] = [
 
   // ── 造型运算 ──
   { core: 'extrude', occt: 'extrude', brepkit: 'extrude', status: 'dialect', note: 'occt 向量分量 vs brepkit 方向+距离且只吃 face；适配器归一 + face 断言（§3.6-1）' },
-  { core: 'loft', occt: 'loft', brepkit: null, status: 'occt-only', platform: 'occt', note: 'brepkit loft 吃 faces 非 wires，工具形态不同 → L2' },
-  { core: 'loftAdvanced', occt: null, brepkit: null, status: 'occt-only', platform: 'occt', note: 'occt 适配器组合实现（原生 loft + options）' },
+  { core: 'loft', occt: 'loft', brepkit: 'loft', status: 'dialect', note: 'brepkit loft 吃 faces 且要求各截面顶点数一致；适配器做 wire→face 升格与一致性检查（不一致报 E_LOFT_SECTION_MISMATCH，不静默降级）。endPoint 走 loftWithOptions，ruled=false 走 loftSmooth' },
+  { core: 'loftAdvanced', occt: null, brepkit: null, status: 'occt-only', platform: 'occt', note: 'occt 适配器组合实现（原生 loft + startPoint/tolerance）' },
   { core: 'revolveVec', occt: 'revolve', brepkit: 'revolve', status: 'dialect', note: 'occt 原生 revolve 吃对象参数（适配器组合名 revolveVec）；brepkit 只吃 face → 适配器 face 断言' },
-  { core: 'simplePipe', occt: 'simplePipe', brepkit: 'pipe', status: 'occt-only', platform: 'occt', note: 'brepkit pipe 吃 NURBS 路径，输入形态不同 → L2' },
+  { core: 'sweep', occt: 'sweepPipeShell', brepkit: 'sweep', status: 'dialect', note: 'occt 侧适配器用原生 sweepPipeShell（补两个默认开关 false），**不用 simplePipe**：实测 simplePipe 对 8×8 方截面沿 +Z 扫 50 产出体积 2133.33，sweepPipeShell 为解析值 3200。brepkit sweep 只吃 (face, NURBS 四数组)——适配器把 spine 折线采样 → interpolatePoints 拟合 → getEdgeNurbsData 拆 (degree,knots,controlPoints,weights)' },
+  { core: 'sweepAdvanced', occt: null, brepkit: null, status: 'occt-only', platform: 'occt', note: 'occt 适配器组合实现（sweepPipeShell + sweepFull 控制面）' },
+  { core: 'simplePipe', occt: 'simplePipe', brepkit: 'pipe', status: 'occt-only', platform: 'occt', note: 'brepkit pipe 吃 NURBS 路径，输入形态不同 → L2；基础语义的 L1 名已由 sweep(dialect) 承担' },
   { core: 'sweepPipeShell', occt: 'sweepPipeShell', brepkit: null, status: 'occt-only', platform: 'occt' },
   { core: 'sew', occt: 'sew', brepkit: 'sewFaces', status: 'dialect', note: 'brepkit wasm 已有，适配器待接线' },
   { core: 'sewAndSolidify', occt: 'sewAndSolidify', brepkit: 'sewFaces', status: 'dialect', note: 'brepkit 适配器 sewFaces+makeSolid 组合' },

@@ -94,7 +94,9 @@ import { alignTo } from './align'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
+import { sweepAdvanced } from './sweep-advanced'
 import { loft } from './loft'
+import { loftAdvanced } from './loft-advanced'
 import { linearPattern } from './pattern'
 import { circularPattern, gridPattern, rectangularPattern, mirrorJoin, mirror, clone } from './replicate'
 import { engrave } from './engrave'
@@ -149,10 +151,13 @@ export function createApiNamespace(): LibNamespace {
     defeature, reverseShape, unifySameDomain, sew, sewAndSolidify, removeHolesFromFace,
     union, subtract, intersect,
     extrude, revolve,
-    // Phase 4：手写扫掠 / 放样（平台 op engines:['occt']；截面接受 face → 取外环）。
+    // Phase 4：手写扫掠 / 放样。**基础 op 两内核都支持**（进 L1 中立名
+    // BrepEngineApi#sweep / #loft）；只有 occt 能做的完整控制面拆成独立平台 op
+    // （engines:['occt']）：sweepAdvanced（transition/auxSpine/support/law/…）、
+    // loftAdvanced（startPoint/tolerance）。
     // arg-spec 里 sweep 保留 brep-op（引擎记录）/ loft 为 skip，两者均不投脚本面，
     // 所以这里不是 override 而是唯一实现（同 extrude / revolve 口径）。
-    sweep, loft,
+    sweep, sweepAdvanced, loft, loftAdvanced,
     // S3（occt-wasm op 接入）：控制点阵 → B 样条面（平台 op engines:['occt']）。
     surface,
     // S3（occt-wasm op 接入）：2D 轮廓偏置（平台 op engines:['occt']，原生 offsetWire2D）。

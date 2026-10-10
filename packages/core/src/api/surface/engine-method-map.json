@@ -1,6 +1,6 @@
 {
   "_comment": "Engine method map — 唯一真源（D10-3）。生成器：packages/core/scripts/gen-engine-method-map.ts；人工映射表内置于该脚本（禁止字符串归一化自动匹配）。status: aligned|dialect → L1 核心面；occt-only|brepkit-only → L2 平台面；need-probe → 待探针（§3.7 失败降级 brepkit-only）。",
-  "_occtKernelMethodCount": 201,
+  "_occtKernelMethodCount": 209,
   "_brepkitSurfaceMethodCount": 228,
   "methods": [
     {
@@ -86,10 +86,9 @@
     {
       "core": "loft",
       "occt": "loft",
-      "brepkit": null,
-      "status": "occt-only",
-      "platform": "occt",
-      "note": "brepkit loft 吃 faces 非 wires，工具形态不同 → L2"
+      "brepkit": "loft",
+      "status": "dialect",
+      "note": "brepkit loft 吃 faces 且要求各截面顶点数一致；适配器做 wire→face 升格与一致性检查（不一致报 E_LOFT_SECTION_MISMATCH，不静默降级）。endPoint 走 loftWithOptions，ruled=false 走 loftSmooth"
     },
     {
       "core": "loftAdvanced",
@@ -97,7 +96,7 @@
       "brepkit": null,
       "status": "occt-only",
       "platform": "occt",
-      "note": "occt 适配器组合实现（原生 loft + options）"
+      "note": "occt 适配器组合实现（原生 loft + startPoint/tolerance）"
     },
     {
       "core": "revolveVec",
@@ -107,12 +106,27 @@
       "note": "occt 原生 revolve 吃对象参数（适配器组合名 revolveVec）；brepkit 只吃 face → 适配器 face 断言"
     },
     {
+      "core": "sweep",
+      "occt": "sweepPipeShell",
+      "brepkit": "sweep",
+      "status": "dialect",
+      "note": "occt 侧适配器用原生 sweepPipeShell（补两个默认开关 false），**不用 simplePipe**：实测 simplePipe 对 8×8 方截面沿 +Z 扫 50 产出体积 2133.33，sweepPipeShell 为解析值 3200。brepkit sweep 只吃 (face, NURBS 四数组)——适配器把 spine 折线采样 → interpolatePoints 拟合 → getEdgeNurbsData 拆 (degree,knots,controlPoints,weights)"
+    },
+    {
+      "core": "sweepAdvanced",
+      "occt": null,
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "occt 适配器组合实现（sweepPipeShell + sweepFull 控制面）"
+    },
+    {
       "core": "simplePipe",
       "occt": "simplePipe",
       "brepkit": "pipe",
       "status": "occt-only",
       "platform": "occt",
-      "note": "brepkit pipe 吃 NURBS 路径，输入形态不同 → L2"
+      "note": "brepkit pipe 吃 NURBS 路径，输入形态不同 → L2；基础语义的 L1 名已由 sweep(dialect) 承担"
     },
     {
       "core": "sweepPipeShell",

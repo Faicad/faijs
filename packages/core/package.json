@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.31.1",
+  "version": "0.31.2",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -78,7 +78,6 @@
       "types": "./dist/module-resolver/index.d.ts",
       "default": "./dist/module-resolver/index.js"
     },
-
     "./mesh": {
       "types": "./dist/mesh/index.d.ts",
       "default": "./dist/mesh/index.js"

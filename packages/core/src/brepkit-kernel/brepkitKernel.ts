@@ -558,6 +558,104 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     return c
   }
 
+  // ── 扫掠 / 放样共用助手（L1 中立名 sweep/loft 的 brepkit 方言消化）──
+
+  /** 截面句柄（面直用、wire 升面）→ brepkit face 句柄号（升面结果登记 knownFaces）。 */
+  const profileFaceOf = (section: BrepHandle, what: string): number => {
+    const n = asNum(section)
+    const kind = resolveKind(section, n)
+    if (kind === KIND_FACE) return n
+    if (kind === KIND_WIRE) {
+      // GOTCHA（与 makeFace 同因）：makeFaceFromWire 产出的是**新** face 句柄号，
+      // 不登记 knownFaces 的话，后续任何按类型分发的调用（meshShape / 再扫掠）
+      // 会把它当 solid 走 tessellateSolidGrouped 崩溃。
+      const f = kernel.makeFaceFromWire(n)
+      knownFaces.add(f)
+      return f
+    }
+    return fail(`${what} requires a planar face or a closed wire; got a handle that is neither`)
+  }
+
+  /** edge 的参数域 `[first, last]`（brepkit `getEdgeCurveParameters` 返回 Float64Array）。 */
+  const curveParamsOf = (edge: number): [number, number] => {
+    const d = toNumArray(kernel.getEdgeCurveParameters(edge))
+    return [d[0] ?? 0, d[d.length - 1] ?? 1]
+  }
+
+  /** 相邻重复点去重（折线链顶点与采样点列共用；容差 1e-9 mm）。 */
+  const pushUnique = (out: BrepVec3[], p: BrepVec3): void => {
+    const last = out[out.length - 1]
+    if (
+      last !== undefined &&
+      Math.abs(last.x - p.x) < 1e-9 &&
+      Math.abs(last.y - p.y) < 1e-9 &&
+      Math.abs(last.z - p.z) < 1e-9
+    ) return
+    out.push(p)
+  }
+
+  /** 折线链顶点：各线的首点 + 末线终点（供 degree=1 插值，拐角不圆化）。 */
+  const lineChainVertices = (edges: number[]): BrepVec3[] => {
+    const out: BrepVec3[] = []
+    for (const e of edges) {
+      const [t0, t1] = curveParamsOf(e)
+      pushUnique(out, vec3Of(toNumArray(kernel.evaluateEdgeCurve(e, t0))))
+      pushUnique(out, vec3Of(toNumArray(kernel.evaluateEdgeCurve(e, t1))))
+    }
+    return out
+  }
+
+  /** 曲线链按参数等分采样（每条边 perEdge 段），供 NURBS 拟合。 */
+  const sampleChainPoints = (edges: number[], perEdge = 8): BrepVec3[] => {
+    const out: BrepVec3[] = []
+    for (const e of edges) {
+      const [t0, t1] = curveParamsOf(e)
+      for (let i = 0; i <= perEdge; i++) {
+        pushUnique(out, vec3Of(toNumArray(kernel.evaluateEdgeCurve(e, t0 + (t1 - t0) * (i / perEdge)))))
+      }
+    }
+    return out
+  }
+
+  /**
+   * 路径 wire → 一条可作 brepkit 扫掠路径的 NURBS edge（方案 §4.1 三条路线）。
+   *
+   * - 路线 3：单条 NURBS/Bézier 边 → 原样返回，零损失；
+   * - 路线 1：折线 wire（`cad.wire` 默认产物，全 line 边）→ 顶点列 + **degree=1** 插值。
+   *   一次 NURBS 的基就是折线，这不是近似而是精确表示 —— 比一律 degree=3 拟合更忠实；
+   * - 路线 2：含圆弧等曲线边 → 按参数等分采样后 degree=3 拟合（近似，方案 §8 已声明代价）。
+   *
+   * GOTCHA-1：`getNurbsCurveData` 对解析边（line/circle）**抛错**而非返回 null，
+   * 「先拿它探路、失败再拟合」会踩坑 —— 必须**先**判 `getEdgeCurveType` 再选路线。
+   *
+   * GOTCHA-2（2026-10-10 实测）：**不要**走 `kernel.sweep(face, degree, knots, ctrl, weights)`
+   * —— 本仓 `getNurbsCurveData` 给出的 `knots`（去重值 + 平行 multiplicities）展开后
+   * 与 brepkit `sweep` 期望的节点向量长度不一致，实测报
+   * `invalid knot vector: expected 2 knots, got 6`。改用直吃 edge 句柄的
+   * `sweepWithOptions`（本 helper 因此返回 edge 而不是四数组），绕开该约定差异。
+   */
+  const wireToSpineEdge = (spine: BrepHandle): number => {
+    const w = asNum(spine)
+    if (resolveKind(spine, w) !== KIND_WIRE) fail('sweep: spine must be a wire')
+    const edges = arr(kernel.getWireEdges(w))
+    if (edges.length === 0) fail('sweep: spine wire has no edges')
+    const typeOf = (e: number): string => String(kernel.getEdgeCurveType(e)).toUpperCase()
+    const ANALYTIC = new Set(['LINE', 'CIRCLE', 'ELLIPSE'])
+    // 路线 3：单条非解析边（NURBS/Bézier）原样用，零损失。
+    if (edges.length === 1 && !ANALYTIC.has(typeOf(edges[0]!))) return edges[0]!
+    // 路线 1 / 2：采样点列 → interpolatePoints 拟合成一条 NURBS 边。
+    const allLines = edges.every((e) => typeOf(e) === 'LINE')
+    const pts = allLines ? lineChainVertices(edges) : sampleChainPoints(edges)
+    if (pts.length < 2) fail('sweep: spine wire degenerates to fewer than 2 distinct points')
+    const degree = allLines ? 1 : Math.min(3, pts.length - 1)
+    // GOTCHA：brepkit 内核是 **GC 型**，没有 `release` 方法（HAND_MAP 里 core:'release'
+    // 的 brepkit 侧为 null，适配器 no-op）——这里不能 `kernel.release(fit)`；
+    // 拟合边登记进 knownEdges 后由内核统一管理生命周期。
+    const fit = kernel.interpolatePoints(flattenPoints(pts), degree)
+    knownEdges.add(fit)
+    return fit
+  }
+
   const api: BrepkitEngineExtras = {
     // ── 生命周期 ──
     release(_shape: BrepHandle): void { /* GC 型：brepkit 句柄由内核统一管理，无逐句柄 free API */ },
@@ -615,6 +713,45 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return asHandle(markSolid(kernel.revolve(
         s, center.x, center.y, center.z, direction.x, direction.y, direction.z, angleDeg,
       )))
+    },
+    sweep(profile: BrepHandle, spine: BrepHandle): BrepHandle {
+      // L1 中立 sweep：occt 侧走 sweepPipeShell；brepkit 只吃 (face, 路径 edge)
+      // —— 两处方言都在这里消化，op 层只看到「截面 + 路径 → 体」。
+      // ① 截面 wire → face（开口 wire 建面由内核拒绝；不在适配器预判，内核报错更权威）。
+      const faceNum = profileFaceOf(profile, 'sweep')
+      // ② 路径 wire → 一条 NURBS edge（见 wireToSpineEdge 的 GOTCHA-2）。
+      const pathEdge = wireToSpineEdge(spine)
+      // ③ sweepWithOptions：contact_mode 'rmf'（内核默认）、无缩放律、默认分段、光滑转角。
+      return asHandle(markSolid(kernel.sweepWithOptions(
+        faceNum, pathEdge, 'rmf', new Float64Array(0), 0, 'smooth',
+      )))
+    },
+    loft(sections: BrepHandle[], ruled: boolean, endPoint?: BrepVec3): BrepHandle {
+      if (!Array.isArray(sections) || sections.length < 2) {
+        fail('loft requires at least 2 sections')
+      }
+      // ① 各截面 → face。
+      const faces = sections.map((s) => profileFaceOf(s, 'loft'))
+      // ② brepkit loft 要求各截面**顶点数一致**。内核自己也会抛，但报错不含「哪几个
+      //    截面、差多少」——执行前静态判一次，给出可指路的错误；不静默降级、不换引擎
+      //    （方案 §5②，红线：静态可判的输入约束必须在执行前报错）。
+      const counts = faces.map((f) => arr(kernel.getFaceVertices(f)).length)
+      const ref = counts[0]!
+      if (counts.some((c) => c !== ref)) {
+        fail(
+          'E_LOFT_SECTION_MISMATCH: brepkit loft requires every section to have the same ' +
+            `vertex count, got [${counts.join(', ')}] — use cad.loftAdvanced (occt) for ` +
+            'sections with different vertex counts',
+        )
+      }
+      const farr = Uint32Array.from(faces)
+      // ③ 选项映射：endPoint → loftWithOptions；ruled=false → loftSmooth。
+      if (endPoint !== undefined) {
+        return asHandle(markSolid(kernel.loftWithOptions(
+          farr, JSON.stringify({ ruled, endPoint: [endPoint.x, endPoint.y, endPoint.z] }),
+        )))
+      }
+      return asHandle(markSolid(ruled ? kernel.loft(farr) : kernel.loftSmooth(farr)))
     },
     sew(shapesList: BrepHandle[], tolerance?: number): BrepHandle {
       return asHandle(markSolid(kernel.sewFaces(Uint32Array.from(shapesList.map(asNum)), tolerance ?? 1e-6)))

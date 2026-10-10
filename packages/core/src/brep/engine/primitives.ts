@@ -57,6 +57,36 @@ export interface BrepEngineApi {
   extrude(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle
   /** 旋转挤出（绕过 center、方向 direction 的轴，angle 为度；输入需 face，brepkit 方言断言同 extrude）。 */
   revolveVec(shape: BrepHandle, center: BrepVec3, direction: BrepVec3, angleDeg: number): BrepHandle
+  /**
+   * 扫掠（基础）：闭合截面沿路径脊柱蒙皮成体。
+   *
+   * 中立语义 = 两内核交集：`profile` 是**闭合**截面（face；wire 由适配器升 face），
+   * `spine` 是路径（wire）。无过渡模式 / 引导线 / 缩放律 / 参考系选择 —— 那些
+   * 只有 occt 能做，归 `cad.sweepAdvanced`；基础 op 静默分叉比报错更危险。
+   *
+   * - occt 适配器映射原生 `sweepPipeShell`（补两个默认开关 false；**不用**
+   *   `simplePipe`：实测那条约 8×8 方截面沿 +Z 扫 50 的用例，`simplePipe` 产出
+   *   体积 2133.33，`sweepPipeShell` 为解析值 3200 —— 真值断言在
+   *   `test/api/sweep-loft.test.ts`）；
+   * - brepkit 适配器把 spine 折线采样 → `interpolatePoints` 拟合 NURBS →
+   *   `getEdgeNurbsData` 拆 `(degree, knots, controlPoints, weights)` → `kernel.sweep`。
+   *
+   * ⚠️ 两内核在非平面路径上的截面参考系算法不同（RMF 细节），产物可能有细微差别；
+   * 需要确定性行为时用 `cad.sweepAdvanced`（occt）。
+   */
+  sweep(profile: BrepHandle, spine: BrepHandle): BrepHandle
+  /**
+   * 放样（基础）：多截面按序蒙皮成体。
+   *
+   * `sections` 是面或闭合 wire（面取外环）；`ruled` 直线插值；`endPoint` 终点退化收口。
+   *
+   * - occt 适配器映射原生 `loft`（`endPoint` 经 `loftWithVertices` 退化段）；
+   * - brepkit 适配器 `wire → face` 后用 `loft` / `loftSmooth`（`endPoint` 走 `loftWithOptions`），
+   *   并要求各截面**顶点数一致** —— 不一致在执行前报 `E_LOFT_SECTION_MISMATCH`（不静默降级）。
+   *
+   * `startPoint`（起点退化）与 `tolerance` 只有 occt 有 → 归 `cad.loftAdvanced`。
+   */
+  loft(sections: BrepHandle[], ruled: boolean, endPoint?: BrepVec3): BrepHandle
   /** 缝合（tolerance 可选）。 */
   sew(shapes: BrepHandle[], tolerance?: number): BrepHandle
   /** 缝合并固化成实体。 */

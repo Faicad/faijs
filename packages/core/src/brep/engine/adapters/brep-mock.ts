@@ -138,6 +138,29 @@ export function createBrepMockApi(): BrepEngineApi {
         tag: `revolveVec(${s.tag},a=${angleDeg})`,
       })
     },
+    sweep: (profile, spine) => {
+      // Mock approximation: the swept body spans the profile and the spine's
+      // bbox (signature-level coverage only, like extrude/revolveVec above).
+      const p = need(profile, 'sweep')
+      const sp = need(spine, 'sweep')
+      return alloc({
+        kind: 'solid',
+        bbox: mergeBbox({ ...p.bbox }, sp.bbox),
+        tag: `sweep(${p.tag},${sp.tag})`,
+      })
+    },
+    loft: (sections, ruled, endPoint) => {
+      let bbox: BrepBoundingBox | null = null
+      for (const h of sections) {
+        const rec = need(h, 'loft')
+        bbox = bbox ? mergeBbox(bbox, rec.bbox) : { ...rec.bbox }
+      }
+      if (bbox === null) return unsupported('loft: empty sections')
+      if (endPoint !== undefined) {
+        bbox = mergeBbox(bbox, { xmin: endPoint.x, ymin: endPoint.y, zmin: endPoint.z, xmax: endPoint.x, ymax: endPoint.y, zmax: endPoint.z })
+      }
+      return alloc({ kind: 'solid', bbox, tag: `loft(n=${sections.length},ruled=${ruled})` })
+    },
     sew: (shapesIn, _tolerance) => {
       // Mock approximation: merge the parts' bboxes into one shell-ish solid.
       let bbox: BrepBoundingBox | null = null

@@ -8,8 +8,12 @@
  *      脚本，取最终 Shape 的精确 AABB 尺寸（getBoundingBox，不依赖三角化），两两 1% 容差对拍。
  *      intersect 现属此类：occt 走 intersectWithHistory（历史路径），brepkit 走裸 kernel.intersect
  *      （无面演化降级）——几何 bbox 对拍。
- *   B. expect-error（occt-only）：loft / screw / draft / thicken / split 声明 engines:['occt']
- *      → 在 brepkit brep 模式下执行前报「op requires engine occt」（含 op 名 + 当前引擎 id）。
+ *   B. expect-error（occt-only）：sweepAdvanced / loftAdvanced / screw / draft / thicken /
+ *      split 声明 engines:['occt'] → 在 brepkit brep 模式下执行前报「op requires engine
+ *      occt」（含 op 名 + 当前引擎 id）。
+ *      ⚠️ 2026-10-10 双引擎化（方案 2026-10-10-sweep-loft-dual-engine-plan）后
+ *      **基础 `sweep` / `loft` 已是中立 op**（故列入 A 类 parity 四引擎对拍），
+ *      occt-only 的是它们的 advanced 兄弟。
  *   C. mesh-only：knurl / sdf 无 brep 实现 → brep 模式下执行前抛 BrepUnsupportedError。
  *
  * 结果收集策略：每个 op × 引擎组合独立 try-catch，**不在首个失败处停止**；全部跑完后
@@ -245,6 +249,25 @@ const CASES: Case[] = [
       `const p = await cad.revolve(f, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })`,
     category: 'parity',
   },
+  // ── A. 创建 · 扫掠 / 放样（2026-10-10 双引擎化：基础 op 两内核都跑） ──
+  {
+    name: 'sweep',
+    code:
+      `const s = cad.wire([[-4,-4,0],[4,-4,0],[4,4,0],[-4,4,0]], { closed: true })\n` +
+      `const sp = cad.wire([[0,0,0],[0,0,25]])\n` +
+      `const p = await cad.sweep(s, sp)`,
+    category: 'parity',
+    note: '基础扫掠两内核都跑：8×8 方截面沿 +Z 扫 25 → [8,8,25]；occt 走 sweepPipeShell，brepkit 走 sweep(face, NURBS path)',
+  },
+  {
+    name: 'loft',
+    code:
+      `const s0 = cad.wire([[-5,-5,0],[5,-5,0],[5,5,0],[-5,5,0]], { closed: true })\n` +
+      `const s1 = cad.wire([[-2,-2,10],[2,-2,10],[2,2,10],[-2,2,10]], { closed: true })\n` +
+      `const p = await cad.loft([s0, s1])`,
+    category: 'parity',
+    note: '基础放样两内核都跑：两个**等顶点数**方截面（brepkit loft 硬约束）→ [10,10,10]；occt 走 ThruSections',
+  },
   {
     name: 'wire',
     code: 'const p = cad.wire([[0,0,0],[10,0,0],[10,10,0],[0,10,0]], { closed: true })',
@@ -407,11 +430,23 @@ const CASES: Case[] = [
     note: '镜像+合并，bbox≈20×20×20 体积≈8000',
   },
   // ── C. occt-only op 抽样：brepkit 下应执行前报「op requires engine occt」 ──
+  //   ⚠️ 2026-10-10 双引擎化后 `loft` / `sweep` 已是中立 op（见上方 A 类 parity 用例），
+  //   这里改用它们 occt-only 的 advanced 兄弟。**不可**再用 `cad.loft([])` 做本用例：
+  //   它在 brepkit 上报的是 `E_LOFT_NO_SECTIONS: loft requires ...`，信息里含 "loft"
+  //   字样，会被宽松正则假阳性判过（正是本次修正掉的缺陷）。
   {
-    name: 'loft',
-    code: 'const p = cad.loft([])',
+    name: 'loftAdvanced',
+    code: 'const p = cad.loftAdvanced([])',
     category: 'expect-error',
-    expectErrorRe: 'loft|requires engine occt',
+    expectErrorRe: 'requires engine occt',
+  },
+  {
+    name: 'sweepAdvanced',
+    code:
+      'const b = cad.box(1, 1, 1)\n' +
+      'const p = cad.sweepAdvanced(b, b, { orientation: "frenet" })',
+    category: 'expect-error',
+    expectErrorRe: 'requires engine occt',
   },
   {
     name: 'screw',

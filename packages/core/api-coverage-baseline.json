@@ -358,6 +358,13 @@
       ]
     },
     {
+      "name": "loftAdvanced",
+      "missing": [
+        "opts",
+        "sections"
+      ]
+    },
+    {
       "name": "offset2d",
       "missing": [
         "delta",
@@ -512,6 +519,14 @@
     },
     {
       "name": "sweep",
+      "missing": [
+        "opts",
+        "profile",
+        "spine"
+      ]
+    },
+    {
+      "name": "sweepAdvanced",
       "missing": [
         "opts",
         "profile",

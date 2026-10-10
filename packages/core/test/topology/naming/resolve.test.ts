@@ -24,6 +24,9 @@ function planeKernel(normal: [number, number, number], center: [number, number, 
   return {
     getSubShapes: () => [],
     subShapeHashes: () => [],
+    // 造型运算：本 fake 只服务面属性命名，扫掠/放样不入测（显式抛错桩，不静默返回）。
+    sweep: () => { throw new Error('planeKernel: sweep not implemented') },
+    loft: () => { throw new Error('planeKernel: loft not implemented') },
     surfaceType: () => 'plane',
     surfaceNormal: () => ({ x: normal[0], y: normal[1], z: normal[2] }),
     uvBounds: () => ({ uMin: 0, uMax: 1, vMin: 0, vMax: 1 }),

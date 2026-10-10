@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T14:38:42.575Z",
+  "generatedAt": "2026-10-10T06:18:25.870Z",
   "results": [
     {
       "op": "box",
@@ -238,6 +238,26 @@
         36.05551275463989,
         36.05551275463989,
         0
+      ],
+      "status": "pass"
+    },
+    {
+      "op": "sweep",
+      "engine": "occt",
+      "bbox": [
+        8,
+        8,
+        25
+      ],
+      "status": "pass"
+    },
+    {
+      "op": "loft",
+      "engine": "occt",
+      "bbox": [
+        10.0000002,
+        10.0000002,
+        10.000000199999999
       ],
       "status": "pass"
     },
@@ -692,6 +712,26 @@
       "status": "pass"
     },
     {
+      "op": "sweep",
+      "engine": "brepkit-2.129.15",
+      "bbox": [
+        8,
+        8,
+        25
+      ],
+      "status": "pass"
+    },
+    {
+      "op": "loft",
+      "engine": "brepkit-2.129.15",
+      "bbox": [
+        10,
+        10,
+        10
+      ],
+      "status": "pass"
+    },
+    {
       "op": "wire",
       "engine": "brepkit-2.129.15",
       "bbox": [
@@ -1142,6 +1182,26 @@
       "status": "pass"
     },
     {
+      "op": "sweep",
+      "engine": "brepkit-3.4.18",
+      "bbox": [
+        8,
+        8,
+        25
+      ],
+      "status": "pass"
+    },
+    {
+      "op": "loft",
+      "engine": "brepkit-3.4.18",
+      "bbox": [
+        10,
+        10,
+        10
+      ],
+      "status": "pass"
+    },
+    {
       "op": "wire",
       "engine": "brepkit-3.4.18",
       "bbox": [
@@ -1592,6 +1652,26 @@
       "status": "pass"
     },
     {
+      "op": "sweep",
+      "engine": "brepkit-4.0.32",
+      "bbox": [
+        8,
+        8,
+        25
+      ],
+      "status": "pass"
+    },
+    {
+      "op": "loft",
+      "engine": "brepkit-4.0.32",
+      "bbox": [
+        10,
+        10,
+        10
+      ],
+      "status": "pass"
+    },
+    {
       "op": "wire",
       "engine": "brepkit-4.0.32",
       "bbox": [
@@ -1804,9 +1884,15 @@
   ],
   "errors": [
     {
-      "op": "loft",
+      "op": "loftAdvanced",
       "engine": "brepkit-2.129.15",
-      "error": "loft: E_BREP_UNSUPPORTED: op 'loft' requires engine occt (current=brepkit)",
+      "error": "loftAdvanced: E_BREP_UNSUPPORTED: op 'loftAdvanced' requires engine occt (current=brepkit)",
+      "expected": true
+    },
+    {
+      "op": "sweepAdvanced",
+      "engine": "brepkit-2.129.15",
+      "error": "sweepAdvanced: E_BREP_UNSUPPORTED: op 'sweepAdvanced' requires engine occt (current=brepkit)",
       "expected": true
     },
     {
@@ -1846,9 +1932,15 @@
       "expected": true
     },
     {
-      "op": "loft",
+      "op": "loftAdvanced",
       "engine": "brepkit-3.4.18",
-      "error": "loft: E_BREP_UNSUPPORTED: op 'loft' requires engine occt (current=brepkit)",
+      "error": "loftAdvanced: E_BREP_UNSUPPORTED: op 'loftAdvanced' requires engine occt (current=brepkit)",
+      "expected": true
+    },
+    {
+      "op": "sweepAdvanced",
+      "engine": "brepkit-3.4.18",
+      "error": "sweepAdvanced: E_BREP_UNSUPPORTED: op 'sweepAdvanced' requires engine occt (current=brepkit)",
       "expected": true
     },
     {
@@ -1888,9 +1980,15 @@
       "expected": true
     },
     {
-      "op": "loft",
+      "op": "loftAdvanced",
       "engine": "brepkit-4.0.32",
-      "error": "loft: E_BREP_UNSUPPORTED: op 'loft' requires engine occt (current=brepkit)",
+      "error": "loftAdvanced: E_BREP_UNSUPPORTED: op 'loftAdvanced' requires engine occt (current=brepkit)",
+      "expected": true
+    },
+    {
+      "op": "sweepAdvanced",
+      "engine": "brepkit-4.0.32",
+      "error": "sweepAdvanced: E_BREP_UNSUPPORTED: op 'sweepAdvanced' requires engine occt (current=brepkit)",
       "expected": true
     },
     {

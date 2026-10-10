@@ -147,6 +147,24 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     extrude: (shape, dx, dy, dz) => asHandle(k.extrude(asShape(shape), dx, dy, dz)),
     revolveVec: (shape, center, direction, angleDeg) =>
       asHandle(k.revolve(asShape(shape), { point: center, direction }, rad(angleDeg))),
+    // L1 中立 sweep：occt 侧 native sweepPipeShell 的 (profile, spine) 与 L1 同形，
+    // 只补齐两个默认开关（freenet=false / smooth=false，与旧 sweepFns 的默认路径
+    // 逐字节一致）；brepkit 侧的 face/NURBS 适配在 brepkitKernel 内。
+    // ⚠️ 不用 native `simplePipe`：实测它对本用例的 8×8 方截面沿 +Z 扫 50 产出
+    // 体积 2133.33，而 sweepPipeShell 产出解析值 3200（`test/api/sweep-loft.test.ts`
+    // 的「两个 2D 面截面」用例即为该真值）——基础 sweep 必须与既有行为一致。
+    sweep: (profile, spine) => asHandle(k.sweepPipeShell(asShape(profile), asShape(spine), false, false)),
+    // L1 中立 loft：occt 原生 loft 吃 wire，只作 endPoint → loftWithVertices 的退化解。
+    loft: (sections, ruled, endPoint) => {
+      const wires = shapes(sections)
+      if (endPoint === undefined) return asHandle(k.loft(wires, true, ruled))
+      const end = k.makeVertex(endPoint.x, endPoint.y, endPoint.z)
+      try {
+        return asHandle(k.loftWithVertices(wires, true, ruled, undefined as never, end))
+      } finally {
+        k.release(end)
+      }
+    },
     sew: (list, tolerance) => asHandle(k.sew(shapes(list), tolerance)),
     sewAndSolidify: (faces, tolerance) => asHandle(k.sewAndSolidify(shapes(faces), tolerance)),
     shell: (solid, facesToRemove, thickness, tolerance) =>

@@ -39,8 +39,10 @@ export type { SketchOnPlaneParams, PlaneSpec } from './sketch-on-plane'
 export { wire } from './wire'
 export { helix } from './helix'
 export { split } from './split'
-export { sweep, type SweepOptions, type SweepOrientation, type SweepGuideContact, type SweepLawKind } from './sweep'
-export { loft } from './loft'
+export { sweep } from './sweep'
+export { sweepAdvanced, type SweepAdvancedOptions, type SweepOrientation, type SweepGuideContact, type SweepLawKind } from './sweep-advanced'
+export { loft, type LoftOptions } from './loft'
+export { loftAdvanced, type LoftAdvancedOptions } from './loft-advanced'
 // S3（occt-wasm op 接入）：控制点阵 → B 样条面（平台 op engines:['occt']）。
 export { surface, type SurfaceOptions } from './surface'
 // S3（occt-wasm op 接入）：2D 轮廓偏置 → 1D 轮廓（平台 op engines:['occt']）。

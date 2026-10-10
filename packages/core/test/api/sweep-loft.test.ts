@@ -8,13 +8,18 @@
  * 2. sweep 可达：截面为 1D wire（kind='curve' 直通，Phase 3 判别位消费侧）；
  * 3. loft 可达：多截面蒙皮；截面可为面或 wire；
  * 4. complexExtrude / twistExtrude / roof 上脚本面可达；
- * 5. 平台 op 平台身份：brepkit（非目标引擎）下**执行前**报 E_BREP_UNSUPPORTED（D11-4）；
- * 6. 平台 op 在 brep_mock 下不被引擎判定拦截（D11-3 豁免）；
+ * 5. **基础 sweep / loft 两内核都支持**（2026-10-10 双引擎化，方案
+ *    2026-10-10-sweep-loft-dual-engine-plan）：occt 走 `sweepPipeShell` / `loft`，
+ *    brepkit 走 `sweep(face, NURBS path)` / `loft(faces)` —— brepkit 链上必须**真出
+ *    实体**（正面几何用例），不再是引擎门拒绝；
+ * 6. brep_mock 下不被引擎判定拦截（D11-3 豁免）；
  * 7. roof 是平台 op（`engines:['occt']`；2026-10-08 前靠 `capabilities` 门控，判决不变）
  *    —— brep_mock 下受 D11-3 豁免，仍不被引擎门拦截。
  *
- * S3 增补（方案 §3.4.3）：`sweep` 扩 sweepFull 完整控制面（law / orientation /
- * transition / tolerance），旧路径行为不变 + 冲突与入参校验，见文件尾部独立 describe。
+ * S3 增补（方案 §3.4.3）：sweepFull 完整控制面（law / orientation / transition /
+ * tolerance）**已迁到独立平台 op `cad.sweepAdvanced`**（2026-10-10 双引擎化：基础 op
+ * 的选项集 = 两内核交集 = 空）；loft 的 `startPoint` / `tolerance` 同理迁到
+ * `cad.loftAdvanced`。见文件尾部独立 describe。
  *
  * GOTCHA-1（Phase 4 实测）：旧 `complexExtrude(wire, center, normal, profile?, shellMode?)`
  * 的 `normal` 同时是**挤出向量**（`extrusionLength = vecLength(normal)`），不是单位方向；
@@ -149,7 +154,7 @@ function squareSketch(half: number): string {
  */
 const NEUTRAL_INPUTS = 'let part0 = cad.cylinder(4, 20)\nlet part1 = cad.cylinder(2, 10)\n'
 
-describe('sweep — 截面沿脊柱扫掠（平台 op engines:["occt"]）', () => {
+describe('sweep — 截面沿脊柱扫掠（基础 op：两内核都支持）', () => {
   it('截面为 2D 面（sketch）→ 取外环；可达且几何合理', async () => {
     await useOcct()
     const code =
@@ -178,26 +183,31 @@ describe('sweep — 截面沿脊柱扫掠（平台 op engines:["occt"]）', () =
     expect(bbox.zmax).toBeGreaterThanOrEqual(29.9)
   })
 
-  it('brepkit 引擎：非目标引擎执行前报 E_BREP_UNSUPPORTED（D11-4）', async () => {
+  it('brepkit 引擎：**可达**（两内核交集，2026-10-10 双引擎化）—— 真出实体', async () => {
     await useBrepkit()
-    const result = await exec('brep', NEUTRAL_INPUTS + 'let part2 = cad.sweep(part0, part1)\n')
-    expect(result.failedAt).toBeDefined()
-    expect(result.failedAt!.callee).toBe('sweep')
-    const msg = JSON.stringify(result.failedAt)
-    expect(msg).toMatch(/E_BREP_UNSUPPORTED/)
-    expect(msg).toMatch(/op 'sweep' requires engine occt/)
-    expect(msg).toMatch(/current=brepkit/)
+    const code =
+      `let part0 = ${closedWire(4)}\n` +
+      'let part1 = cad.wire([[0,0,0],[0,0,25]])\n' +
+      'let part2 = cad.sweep(part0, part1)\n'
+    const s = await shapeOf('brep', code, 'part2')
+    const bbox = bboxOf(s)
+    // 8×8 方截面沿 +Z 扫 25 → XY ±4、Z ∈ [0,25]
+    expect(bbox.xmax).toBeGreaterThanOrEqual(3.9)
+    expect(bbox.xmin).toBeLessThanOrEqual(-3.9)
+    expect(Math.abs(bbox.zmin)).toBeLessThanOrEqual(0.1)
+    expect(bbox.zmax).toBeGreaterThanOrEqual(24.9)
+    expect(bbox.zmax).toBeLessThanOrEqual(25.1)
   })
 
-  it('brep_mock 引擎：不被平台身份判定拦截（D11-3 豁免）', async () => {
+  it('brep_mock 引擎：不被引擎判定拦截（D11-3 豁免）', async () => {
     await useBrepMock()
     const result = await exec('brep', NEUTRAL_INPUTS + 'let part2 = cad.sweep(part0, part1)\n')
-    // 豁免语义 = 报错形态必不是"引擎不匹配"（与 brepkit 用例对照）。
+    // 豁免语义 = 报错形态必不是"引擎不匹配"（与平台 op 用例对照）。
     expect(JSON.stringify(result.failedAt ?? {})).not.toMatch(/requires engine occt/)
   })
 })
 
-describe('loft — 多截面蒙皮（平台 op engines:["occt"]）', () => {
+describe('loft — 多截面蒙皮（基础 op：两内核都支持）', () => {
   it('两个 2D 面截面 → 可达且几何合理', async () => {
     await useOcct()
     const code =
@@ -224,18 +234,20 @@ describe('loft — 多截面蒙皮（平台 op engines:["occt"]）', () => {
     expect(bbox.zmax).toBeGreaterThanOrEqual(9.9)
   })
 
-  it('brepkit 引擎：非目标引擎执行前报 E_BREP_UNSUPPORTED（D11-4）', async () => {
+  it('brepkit 引擎：**可达**（两内核交集，2026-10-10 双引擎化）—— 真出实体', async () => {
     await useBrepkit()
-    const result = await exec('brep', NEUTRAL_INPUTS + 'let part2 = cad.loft([part0, part1])\n')
-    expect(result.failedAt).toBeDefined()
-    expect(result.failedAt!.callee).toBe('loft')
-    const msg = JSON.stringify(result.failedAt)
-    expect(msg).toMatch(/E_BREP_UNSUPPORTED/)
-    expect(msg).toMatch(/op 'loft' requires engine occt/)
-    expect(msg).toMatch(/current=brepkit/)
+    // 两截面顶点数一致（brepkit loft 的硬约束，见 BREPKIT `E_LOFT_SECTION_MISMATCH`）。
+    const code =
+      `let part0 = ${closedWire(5)}\n` +
+      `let part1 = ${closedWire(2, 10)}\n` +
+      'let part2 = cad.loft([part0, part1])\n'
+    const s = await shapeOf('brep', code, 'part2')
+    const bbox = bboxOf(s)
+    expect(bbox.xmax).toBeGreaterThanOrEqual(4.9)
+    expect(bbox.zmax).toBeGreaterThanOrEqual(9.9)
   })
 
-  it('brep_mock 引擎：不被平台身份判定拦截（D11-3 豁免）', async () => {
+  it('brep_mock 引擎：不被引擎判定拦截（D11-3 豁免）', async () => {
     await useBrepMock()
     const result = await exec('brep', NEUTRAL_INPUTS + 'let part2 = cad.loft([part0, part1])\n')
     expect(JSON.stringify(result.failedAt ?? {})).not.toMatch(/requires engine occt/)
@@ -333,7 +345,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     const plain = await shapeOf('brep', PROFILE + 'let part2 = cad.sweep(part0, part1)\n', 'part2')
     const tapered = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweep(part0, part1, { law: 'linear', lawLength: 50, lawEndFactor: 0.5 })\n",
+      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { law: 'linear', lawLength: 50, lawEndFactor: 0.5 })\n",
       'part2',
     )
     const vPlain = volOf(plain)
@@ -349,12 +361,12 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const fixed = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweep(part0, part1, { orientation: 'fixed' })\n",
+      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { orientation: 'fixed' })\n",
       'part2',
     )
     const frenet = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweep(part0, part1, { orientation: 'frenet' })\n",
+      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { orientation: 'frenet' })\n",
       'part2',
     )
     // 直线脊柱无主法向变化 ⇒ 两模式同几何（体积一致）。
@@ -365,7 +377,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const s = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweep(part0, part1, { transitionMode: 'roundCorner' })\n",
+      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { transitionMode: 'roundCorner' })\n",
       'part2',
     )
     expect(Math.abs(volOf(s))).toBeGreaterThan(0)
@@ -375,7 +387,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const s = await shapeOf(
       'brep',
-      PROFILE + 'let part2 = cad.sweep(part0, part1, { tol3d: 1e-6, boundTol: 1e-6, tolAngular: 1e-3 })\n',
+      PROFILE + 'let part2 = cad.sweepAdvanced(part0, part1, { tol3d: 1e-6, boundTol: 1e-6, tolAngular: 1e-3 })\n',
       'part2',
     )
     expect(Math.abs(volOf(s))).toBeCloseTo(3200, 0)
@@ -385,7 +397,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const result = await exec(
       'brep',
-      PROFILE + "let part2 = cad.sweep(part0, part1, { mode: 'simple', law: 'linear', lawLength: 50 })\n",
+      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { mode: 'simple', law: 'linear', lawLength: 50 })\n",
     )
     expect(result.failedAt).toBeDefined()
     expect(JSON.stringify(result.failedAt)).toMatch(/E_SWEEP_MODE_CONFLICT/)
@@ -395,7 +407,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const result = await exec(
       'brep',
-      PROFILE + "let part2 = cad.sweep(part0, part1, { law: 'linear' })\n",
+      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { law: 'linear' })\n",
     )
     expect(result.failedAt).toBeDefined()
     expect(JSON.stringify(result.failedAt)).toMatch(/E_SWEEP_LAW_NEEDS_LENGTH/)
@@ -405,7 +417,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const result = await exec(
       'brep',
-      PROFILE + "let part2 = cad.sweep(part0, part1, { orientation: 'sideways' })\n",
+      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { orientation: 'sideways' })\n",
     )
     expect(result.failedAt).toBeDefined()
     expect(JSON.stringify(result.failedAt)).toMatch(/E_SWEEP_BAD_ORIENTATION/)
@@ -415,23 +427,125 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const okLegacy = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweep(part0, part1, { transitionMode: 'right' })\n",
+      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { transitionMode: 'right' })\n",
       'part2',
     )
     expect(Math.abs(volOf(okLegacy))).toBeCloseTo(3200, 0)
-    const bad = await exec('brep', PROFILE + "let part2 = cad.sweep(part0, part1, { transitionMode: 'left' })\n")
+    const bad = await exec('brep', PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { transitionMode: 'left' })\n")
     expect(bad.failedAt).toBeDefined()
     expect(JSON.stringify(bad.failedAt)).toMatch(/E_SWEEP_TRANSITION_UNSUPPORTED/)
   })
 
-  it('brepkit 引擎：sweepFull 路径同样被引擎门执行前拒绝（D11-4）', async () => {
+  it('brepkit 引擎：sweepAdvanced（occt 平台 op）→ 执行前报 E_BREP_UNSUPPORTED（D11-4）', async () => {
     await useBrepkit()
     const result = await exec(
       'brep',
-      NEUTRAL_INPUTS + "let part2 = cad.sweep(part0, part1, { law: 'linear', lawLength: 10 })\n",
+      NEUTRAL_INPUTS + "let part2 = cad.sweepAdvanced(part0, part1, { law: 'linear', lawLength: 10 })\n",
     )
     expect(result.failedAt).toBeDefined()
-    expect(result.failedAt!.callee).toBe('sweep')
-    expect(JSON.stringify(result.failedAt)).toMatch(/E_BREP_UNSUPPORTED/)
+    expect(result.failedAt!.callee).toBe('sweepAdvanced')
+    const msg = JSON.stringify(result.failedAt)
+    expect(msg).toMatch(/E_BREP_UNSUPPORTED/)
+    expect(msg).toMatch(/op 'sweepAdvanced' requires engine occt/)
+    expect(msg).toMatch(/current=brepkit/)
+  })
+})
+
+/**
+ * 双引擎化 GOTCHA（方案 2026-10-10-sweep-loft-dual-engine-plan §7.7）。
+ *
+ * 钉住三条**执行前可静态判**的约束与其后果——每条都同时钉住「当前值」与
+ * 「应有值」，将来适配器行为变化时断言会翻面：
+ * 1. brepkit `loft` 要求各截面顶点数一致（`E_LOFT_SECTION_MISMATCH`，指路
+ *    `cad.loftAdvanced`）；同一输入在 occt 上**可达**——约束是 brepkit 内核的，
+ *    不是 op 的（对照用例钉住这个不对称，防有人把检查上移到 op 层把 occt 也限死）；
+ * 2. 脊柱是**解析边**（line/circle）时 `getEdgeNurbsData` 会抛错 ⇒ 适配器
+ *    必须先判 `getEdgeCurveType` 再选拟合路线（`wireToSpineEdge` 的 GOTCHA-1）；
+ * 3. 脊柱是**折线 wire** 时适配器走「顶点列 + degree=1 插值」的精确表示路线，
+ *    不圆化拐角（GOTCHA-2：不走 `kernel.sweep(face, …NURBS 数组)`，其 knots 约定
+ *    与本仓 `getNurbsCurveData` 不一致）。
+ */
+describe('sweep/loft 双引擎化 GOTCHA（方案 §7.7）', () => {
+  /** 4 顶点方截面（z=0） + 3 顶点三角截面（z=10）：顶点数不一致。 */
+  const MISMATCHED =
+    `let s0 = ${closedWire(4)}\n` +
+    'let s1 = cad.wire([[0,0,10],[5,0,10],[2.5,5,10]], { closed: true })\n'
+
+  it('brepkit loft：截面顶点数不一致 → 执行前 E_LOFT_SECTION_MISMATCH（指路 loftAdvanced）', async () => {
+    await useBrepkit()
+    const result = await exec('brep', MISMATCHED + 'let part2 = cad.loft([s0, s1])\n')
+    expect(result.failedAt).toBeDefined()
+    const msg = JSON.stringify(result.failedAt)
+    expect(msg).toMatch(/E_LOFT_SECTION_MISMATCH/)
+    // 报错必须指路 advanced op（不静默降级、不换引擎）。
+    expect(msg).toMatch(/loftAdvanced/)
+    // 且必须是「执行前」判定：失败点落在 loft 本身。
+    expect(result.failedAt!.callee).toBe('loft')
+  })
+
+  it('occt loft：同一组不等顶点数截面 → **可达**（约束属 brepkit 内核，不是 op 层）', async () => {
+    await useOcct()
+    const s = await shapeOf('brep', MISMATCHED + 'let part2 = cad.loft([s0, s1])\n', 'part2')
+    const b = bboxOf(s)
+    // 4×4 方（z=0）→ 三角（z=10）：z 跨度 10，xy 由宽的一侧决定（±4）。
+    expect(b.zmax).toBeGreaterThanOrEqual(9.9)
+    expect(b.zmax).toBeLessThanOrEqual(10.1)
+    expect(b.xmax).toBeGreaterThanOrEqual(3.9)
+  })
+
+  it('brepkit sweep：脊柱为单条解析 line 边 → 顶点拟合路线可达（GOTCHA-1 规避）', async () => {
+    await useBrepkit()
+    const code =
+      `let s = ${closedWire(3)}\n` +
+      'let sp = cad.wire([[0,0,0],[0,0,20]])\n' +
+      'let part2 = cad.sweep(s, sp)\n'
+    const b = bboxOf(await shapeOf('brep', code, 'part2'))
+    // 6×6 方截面沿 +Z 扫 20 → z ∈ [0,20]、xy ±3。
+    expect(b.zmax).toBeGreaterThanOrEqual(19.9)
+    expect(b.zmax).toBeLessThanOrEqual(20.1)
+    expect(b.xmax).toBeGreaterThanOrEqual(2.9)
+  })
+
+  it('brepkit sweep：脊柱为折线 wire（L 形，全解析 line 边）→ degree=1 精确表示，拐角不圆化', async () => {
+    await useBrepkit()
+    const code =
+      `let s = ${closedWire(2)}\n` +
+      'let sp = cad.wire([[0,0,0],[0,0,15],[10,0,15]])\n' +
+      'let part2 = cad.sweep(s, sp)\n'
+    const b = bboxOf(await shapeOf('brep', code, 'part2'))
+    // 4×4 方截面沿 L 形路径 → x ∈ [-2,10]、y ∈ [-2,2]、z ∈ [0,15]。
+    expect(b.zmax).toBeGreaterThanOrEqual(14.9)
+    expect(b.xmax).toBeGreaterThanOrEqual(9.9)
+    expect(b.xmin).toBeLessThanOrEqual(-1.9)
+  })
+
+  /**
+   * 开口截面 wire（方案 §4.1① 预留的 `E_SWEEP_OPEN_PROFILE`）——**实测后未采用**，
+   * 这里钉住实测证据，防止将来有人凭方案原文单侧加检查：
+   *
+   * - 方案 §4.1① 假设「开口 wire 不构成合法截面 ⇒ 执行前报错」，且该假设写在
+   *   §4「基础 sweep 的 **brepkit** 实现」下（暗示只在 brepkit 适配器加）。
+   * - 实测（2026-10-10）：**occt 与 brepkit 都接受**开口折线截面——适配器
+   *   `makeFaceFromWire` / occt `MakePipeShell` 各自把折线按隐式闭合处理，两引擎
+   *   产物几何一致（见下方断言）。既然两引擎行为一致，就不是本次双引擎化引入的
+   *   分叉；此时**单侧**加 `E_SWEEP_OPEN_PROFILE` 反而会制造 occt/brepkit 分叉
+   *   （违反方案 §3「基础 op = 两内核交集」原则）；要做就得两内核一起做，属改变
+   *   occt 既有行为的独立决策 —— 未拍板前不动，故本用例钉当前一致行为。
+   */
+  it('sweep 开口截面 wire：两引擎都按隐式闭合接受，且几何一致（方案 §4.1① 的 E_SWEEP_OPEN_PROFILE 未采用）', async () => {
+    const code =
+      'let s = cad.wire([[-2,-2,0],[2,-2,0],[2,2,0]])\n' + // 开口（3 点折线，未闭合）
+      'let sp = cad.wire([[0,0,0],[0,0,20]])\n' +
+      'let part2 = cad.sweep(s, sp)\n'
+    await useBrepkit()
+    const bk = bboxOf(await shapeOf('brep', code, 'part2'))
+    await useOcct()
+    const oc = bboxOf(await shapeOf('brep', code, 'part2'))
+    // 当前实测：两引擎都把开口折线当隐式闭合截面 → x/y ∈ [-2,2]、z ∈ [0,20]。
+    expect(bk.xmax).toBeCloseTo(oc.xmax, 0)
+    expect(bk.xmin).toBeCloseTo(oc.xmin, 0)
+    expect(bk.zmax).toBeCloseTo(oc.zmax, 0)
+    expect(oc.zmax).toBeGreaterThanOrEqual(19.9)
+    expect(oc.zmax).toBeLessThanOrEqual(20.1)
   })
 })
