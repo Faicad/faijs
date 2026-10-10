@@ -464,6 +464,16 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
   /** solid → BrepMeshResult（tessellateSolidGrouped，原 meshShape 实体路径抽出）。 */
   const solidMesh = (solid: number, deflection: number, angular: number): BrepMeshResult => {
     const raw = kernel.tessellateSolidGrouped(solid, deflection, angular)
+    // GOTCHA (2026-10-10, real-device iOS): tessellateSolidGrouped once returned
+    // undefined on WeChat's JavaScriptCore worker; the unguarded JSON.parse(undefined)
+    // threw the engine-specific "JSON Parse error: Unexpected identifier \"undefined\"",
+    // which toOpFailure wrapped into an unlocatable E_OP_FAILED. Fail loudly with
+    // handle/param context instead — reporting beats masking, and this also surfaces
+    // null / object / other non-string shapes (JSON.parse's implicit ToString would
+    // otherwise mangle them into unrecognizable messages).
+    if (typeof raw !== 'string') {
+      fail(`tessellateSolidGrouped(${solid}, deflection=${deflection}, angular=${angular}) returned ${typeof raw} (${String(raw)}); expected a JSON string`)
+    }
     const m = JSON.parse(raw) as { positions: number[]; normals: number[]; indices: number[]; faceOffsets: number[] }
     // faceOffsets 形如 [start0, start1, ..., totalEnd]：以「索引数组单位」计的每面偏移
     // （2026-09-19 实测）。**L1 契约的 faceGroups 就是索引单位**（与 OCCT 一致，
