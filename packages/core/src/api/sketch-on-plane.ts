@@ -154,4 +154,6 @@ export const sketchOnPlane = defineOp({
     return buildSketchOnPlaneWith(getBrepApi(), params as unknown as SketchOnPlaneParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
+
+  paramDims: {},
 })

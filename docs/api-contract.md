@@ -568,6 +568,7 @@ declare function myOpBrep(input: Shape, params: MyParams): BrepHandle
 export const myOp = defineOp({
   mesh: (input: Shape, params: MyParams) => myOpMesh(input, params),
   brep: (input: Shape, params: MyParams) => myOpBrep(input, params),
+  paramDims: { size: 'length' },
   naming: { kind: 'identity' },
 })
 ```
@@ -577,6 +578,17 @@ export const myOp = defineOp({
 - At least one implementation; **mesh is the default path** (mesh-only / brep-only both legal).
 - Geometry inputs are collected automatically (`args.filter(isShape)`); multi-product functions declare `outputs: string[]` (e.g. `split` → `{ front, back }`).
 - The wrapper dispatches by mode (internally `dispatchPath`, §8.1); failures raise `BrepUnsupportedError` / `MeshUnsupportedError`, converted to `ExecutionResult.failedAt`. An op that does not name the current engine degrades to mesh in auto mode and raises in brep mode.
+
+#### Dimension declaration discipline (`paramDims` / `spec`)
+
+Every `defineOp` / `compatOp` **must** declare `paramDims` (or `spec` for structured params). This is a **mandatory field**, enforced by the `scripts/check-op-dims.mjs` AST guard (CI hard gate).
+
+- **`paramDims`**: `Record<string, DimParamValue>` where `DimParamValue = DimName | 'plain'`. Each key is a script-side parameter name; the value is its dimension (`'length'`, `'angle'`, `'mass'`, `'temperature'`, `'time'`, `'current'`) or `'plain'` for intentionally dimensionless numeric parameters (e.g. `segments: 64`, `count: 3`).
+- **`'plain'` is not an exemption channel** — it is the same declaration statement with a different value, so every numeric parameter is explicitly accounted for.
+- **`spec`**: alternative to `paramDims` for structured/nested params (e.g. `cad.sketch`'s `shapes[]`/`constraints[]`), using `DimSpec` (recursive dim specification).
+- Ops with **no numeric parameters** declare `paramDims: {}` (empty object = exhaustive declaration that there are zero numeric params).
+- The declaration is the **single source of truth** for dimension knowledge: `CadRuntime.getOpDims()` aggregates it at runtime, consumed by the dimension check pass (`extractMetadata`) and codegen unit-literal serialization (`n * MM`). No second table is maintained.
+- New op without `paramDims` (or `spec`) → `check-op-dims.mjs` fails CI.
 
 ### 10.4 Third-party library channel
 

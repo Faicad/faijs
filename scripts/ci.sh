@@ -63,6 +63,9 @@ node scripts/check-dist-sync.mjs
 # core-decouple wrapup §4.1：brepjs 归零守卫（包名/路径零依赖）
 node scripts/check-core-no-brepjs.mjs
 
+# op 量纲声明防遗漏（D8+）：每个 defineOp/compatOp 必须声明 paramDims（或 spec）
+node scripts/check-op-dims.mjs
+
 # API 测试覆盖门禁：每个可发布包的导出 API 必须被本包测试引用（L1），
 # 且每个参数必须在调用点被覆盖（L2）。基于源码 AST，不依赖 build。
 for pkg in core faijs-extra sheetmetal sketch draw faijs-gears faijs-fasteners faijs-viewer; do

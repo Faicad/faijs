@@ -82,8 +82,9 @@ function renderBrepOp(entry: ArgSpecEntry): string {
   const schemaLit = entry.schema ? `, schema: ${JSON.stringify(entry.schema)}` : ''
   const slotMapLit = entry.slotMap ? `, slotMap: ${JSON.stringify(entry.slotMap)}` : ''
   // P26 (unit-system D8): dimension declarations thread into the defineOp
-  // so the static dimension stage can read them.
-  const paramDimsLit = entry.paramDims ? `, paramDims: ${JSON.stringify(entry.paramDims)}` : ''
+  // so the static dimension stage can read them. Always emit paramDims (even
+  // empty {}) so the AST guard (check-op-dims.mjs) passes on generated files.
+  const paramDimsLit = `, paramDims: ${JSON.stringify(entry.paramDims ?? {})}`
   const retDimLit = entry.retDim ? `, retDim: ${JSON.stringify(entry.retDim)}` : ''
 
   const ownName = `__own_${exportName}`

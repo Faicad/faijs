@@ -140,4 +140,6 @@ export const boolean = defineOp({
     kind: 'unmodeled',
     reason: 'booleanOp returns flat face-hash lists, not an input-face to result-face map',
   } as Provenance,
+
+  paramDims: {},
 })

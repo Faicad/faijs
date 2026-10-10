@@ -167,4 +167,6 @@ export const revolve = defineOp({
       ],
     },
   } as never,
+
+  paramDims: { face: 'plain' },
 })

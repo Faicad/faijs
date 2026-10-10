@@ -110,4 +110,6 @@ export const import_brep = defineOp({
   // 与上面 roleTable 的 `imported:${i}` 逐字对齐。不能写成 semantic 'imported'——
   // 它是结构 kind，出现在串首会被 parseRoleName 读成结构而非语义名（见 role-name.ts RESERVED_KEYWORDS）。
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'imported', index: 0 }] } } as Provenance,
+
+  paramDims: {},
 })

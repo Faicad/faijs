@@ -593,4 +593,6 @@ export const extrude = defineOp({
     return result
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'wall', index: 0 }] } } as Provenance,
+
+  paramDims: {},
 })

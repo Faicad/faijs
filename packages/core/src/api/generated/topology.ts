@@ -39,7 +39,7 @@ import { fixSelfIntersectionBrep as __own_fixSelfIntersectionBrep } from '../bre
  */
 export const torus = defineOp({
   brep: __own_torusBrep,
-  name: 'torus', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"},
+  name: 'torus', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, paramDims: {},
 })
 
 /**
@@ -50,7 +50,7 @@ export const torus = defineOp({
  */
 export const fuse = defineOp({
   brep: __own_fuseBrep,
-  name: 'fuse', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'fuse', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -74,7 +74,7 @@ export function getBounds(shape: Shape): { xmin: number; ymin: number; zmin: num
  */
 export const ellipsoid = defineOp({
   brep: __own_ellipsoidBrep,
-  name: 'ellipsoid', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"},
+  name: 'ellipsoid', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, paramDims: {},
 })
 
 /**
@@ -85,7 +85,7 @@ export const ellipsoid = defineOp({
  */
 export const rotate = defineOp({
   brep: __own_rotateBrep,
-  name: 'rotate', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
+  name: 'rotate', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**
@@ -96,7 +96,7 @@ export const rotate = defineOp({
  */
 export const mirror = defineOp({
   brep: __own_mirrorBrep,
-  name: 'mirror', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
+  name: 'mirror', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**
@@ -107,7 +107,7 @@ export const mirror = defineOp({
  */
 export const clone = defineOp({
   brep: __own_cloneBrep,
-  name: 'clone', naming: {"kind":"identity"},
+  name: 'clone', naming: {"kind":"identity"}, paramDims: {},
 })
 
 /**
@@ -118,7 +118,7 @@ export const clone = defineOp({
  */
 export const applyMatrix = defineOp({
   brep: __own_applyMatrixBrep,
-  name: 'applyMatrix', naming: {"kind":"identity"},
+  name: 'applyMatrix', naming: {"kind":"identity"}, paramDims: {},
 })
 
 /**
@@ -129,7 +129,7 @@ export const applyMatrix = defineOp({
  */
 export const locate = defineOp({
   brep: __own_locateBrep,
-  name: 'locate', naming: {"kind":"identity"}, engines: ["occt"],
+  name: 'locate', naming: {"kind":"identity"}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -140,7 +140,7 @@ export const locate = defineOp({
  */
 export const section = defineOp({
   brep: __own_sectionBrep,
-  name: 'section', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
+  name: 'section', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**
@@ -151,7 +151,7 @@ export const section = defineOp({
  */
 export const split = defineOp({
   brep: __own_splitBrep,
-  name: 'split', naming: {"kind":"subdivide"}, engines: ["occt"],
+  name: 'split', naming: {"kind":"subdivide"}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -162,7 +162,7 @@ export const split = defineOp({
  */
 export const shell = defineOp({
   brep: __own_shellBrep,
-  name: 'shell', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'shell', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -173,7 +173,7 @@ export const shell = defineOp({
  */
 export const offset = defineOp({
   brep: __own_offsetBrep,
-  name: 'offset', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'offset', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -184,7 +184,7 @@ export const offset = defineOp({
  */
 export const heal = defineOp({
   brep: __own_healBrep,
-  name: 'heal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'heal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -195,7 +195,7 @@ export const heal = defineOp({
  */
 export const simplify = defineOp({
   brep: __own_simplifyBrep,
-  name: 'simplify', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'simplify', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -234,7 +234,7 @@ export function isSameShape(a: Shape, b: Shape): boolean {
  */
 export const autoHeal = defineOp({
   brep: __own_autoHealBrep,
-  name: 'autoHeal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], outputs: ["shape"],
+  name: 'autoHeal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], outputs: ["shape"], paramDims: {},
 })
 
 /**
@@ -245,7 +245,7 @@ export const autoHeal = defineOp({
  */
 export const fixShape = defineOp({
   brep: __own_fixShapeBrep,
-  name: 'fixShape', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
+  name: 'fixShape', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**
@@ -256,7 +256,7 @@ export const fixShape = defineOp({
  */
 export const healSolid = defineOp({
   brep: __own_healSolidBrep,
-  name: 'healSolid', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
+  name: 'healSolid', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**
@@ -267,5 +267,5 @@ export const healSolid = defineOp({
  */
 export const fixSelfIntersection = defineOp({
   brep: __own_fixSelfIntersectionBrep,
-  name: 'fixSelfIntersection', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'fixSelfIntersection', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })

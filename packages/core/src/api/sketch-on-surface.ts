@@ -139,4 +139,6 @@ export const sketchOnSurface = defineOp({
     return buildSketchOnSurfaceWith(getBrepApi(), params as unknown as SketchOnFaceParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
+
+  paramDims: {},
 })

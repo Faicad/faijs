@@ -224,4 +224,6 @@ export const fillet = defineOp({
     return filletBrep(input, params)
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: {},
 })

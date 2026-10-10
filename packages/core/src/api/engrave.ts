@@ -213,4 +213,6 @@ export const engrave = defineOp({
     return engraveBrepPath(input, params, svgText)
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: {},
 })

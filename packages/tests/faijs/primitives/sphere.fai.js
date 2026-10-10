@@ -1,2 +1,2 @@
-let part0 = cad.sphere({ radius:10 })
-let part1 = cad.sphere({ radius:8, center:[0,0,5] })
+let part0 = cad.sphere({ radius:10 * MM })
+let part1 = cad.sphere({ radius:8 * MM, center:[0 * MM,0 * MM,5 * MM] })

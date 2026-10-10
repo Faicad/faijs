@@ -118,4 +118,6 @@ export const import_step = defineOp({
   engines: ['occt'],
   // `imported:0` 是 <i> 采样值（同 extrude 的 `wall:0`），与 import-brep 同构。
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'imported', index: 0 }] } } as Provenance,
+
+  paramDims: {},
 })

@@ -124,6 +124,8 @@ export const edge = defineOp({
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: '1D edge has no face role vocabulary' } as Provenance,
+
+  paramDims: {},
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -458,6 +460,8 @@ export const curveDegreeElevate = defineOp({
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: '1D refined curve has no face role vocabulary' } as Provenance,
+
+  paramDims: {},
 })
 
 /** BREP 路径：occt 原生 curveKnotInsert（插节点 times 次）。 */
@@ -495,6 +499,8 @@ export const curveKnotInsert = defineOp({
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: '1D refined curve has no face role vocabulary' } as Provenance,
+
+  paramDims: {},
 })
 
 /** BREP 路径：occt 原生 curveKnotRemove（容差内去节点）。 */

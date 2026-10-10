@@ -76,6 +76,8 @@ export const faceOnSurface = defineOp({
     kind: 'unmodeled',
     reason: 'face built on a host surface has no source-derived face role vocabulary',
   } as Provenance,
+
+  paramDims: {},
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -115,6 +117,8 @@ export const nonPlanarFace = defineOp({
     kind: 'unmodeled',
     reason: 'face from arbitrary non-planar wire has no face role vocabulary',
   } as Provenance,
+
+  paramDims: {},
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -154,6 +158,8 @@ export const makeSolid = defineOp({
     kind: 'unmodeled',
     reason: 'solid promoted from an arbitrary shell has no face role vocabulary',
   } as Provenance,
+
+  paramDims: {},
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,6 +200,8 @@ export const reverseSurfaceU = defineOp({
     kind: 'unmodeled',
     reason: 'U-reversed face proxy keeps input topology; no new face role vocabulary',
   } as Provenance,
+
+  paramDims: {},
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -233,4 +241,6 @@ export const outerWire = defineOp({
     kind: 'unmodeled',
     reason: 'extracted sub-wire has no face role vocabulary',
   } as Provenance,
+
+  paramDims: {},
 })

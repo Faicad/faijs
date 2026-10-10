@@ -117,4 +117,6 @@ export const loftAdvanced = defineOp({
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: 'lofted-body face vocabulary not defined' } as Provenance,
+
+  paramDims: {},
 })

@@ -263,4 +263,6 @@ export const punchHole = defineOp({
     return buildPunchHole(getBrepApi(), params as unknown as PunchHoleParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
+
+  paramDims: {},
 })

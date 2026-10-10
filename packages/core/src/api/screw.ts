@@ -188,4 +188,6 @@ export const screw = defineOp({
   // 平台 op（D11）：螺纹 loft 是 occt-only（threadFns.ts，D3）→ engines 声明。
   engines: ['occt'],
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
+
+  paramDims: {},
 })

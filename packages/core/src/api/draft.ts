@@ -133,4 +133,6 @@ export const draft = defineOp({
     return draftBrep(input, params)
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: {},
 })

@@ -86,4 +86,6 @@ export const copy = defineOp({
     return copyBrep(input)
   },
   naming: { kind: 'identity' } as Provenance,
+
+  paramDims: {},
 })

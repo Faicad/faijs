@@ -153,4 +153,6 @@ export const shell = defineOp({
     return shellBrep(input, params)
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: {},
 })

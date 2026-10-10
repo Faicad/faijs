@@ -569,6 +569,7 @@ declare function myOpBrep(input: Shape, params: MyParams): BrepHandle
 export const myOp = defineOp({
   mesh: (input: Shape, params: MyParams) => myOpMesh(input, params),
   brep: (input: Shape, params: MyParams) => myOpBrep(input, params),
+  paramDims: { size: 'length' },
   naming: { kind: 'identity' },
 })
 ```
@@ -578,6 +579,17 @@ export const myOp = defineOp({
 - 至少声明一个实现；**mesh 为默认路径**（mesh-only／brep-only 均合法）。
 - 几何输入自动收集（`args.filter(isShape)`）；多产物函数用 `outputs: string[]` 声明（如 `split` 的 `{ front, back }`）。
 - 包装器按 mode 自动分派（内部走 `dispatchPath`，见 §8.1）；失败抛 `BrepUnsupportedError`／`MeshUnsupportedError`，由引擎转 `ExecutionResult.failedAt`。op 未点名当前引擎时 auto 降级 mesh、brep 模式报错。
+
+#### 量纲声明纪律（`paramDims` / `spec`）
+
+每个 `defineOp` / `compatOp` **必须**声明 `paramDims`（或对结构化参数用 `spec`）。这是**必填字段**，由 `scripts/check-op-dims.mjs` AST 守卫强制（CI 硬门禁）。
+
+- **`paramDims`**：`Record<string, DimParamValue>`，其中 `DimParamValue = DimName | 'plain'`。每个 key 是脚本面参数名，值为其量纲（`'length'`、`'angle'`、`'mass'`、`'temperature'`、`'time'`、`'current'`）或 `'plain'`（显式无量纲，如 `segments: 64`、`count: 3`）。
+- **`'plain'` 不是豁免通道**——它是同一条声明语句取不同值，每个数字参数都被显式穷举。
+- **`spec`**：`paramDims` 的替代方案，用于结构化/嵌套参数（如 `cad.sketch` 的 `shapes[]`/`constraints[]`），使用 `DimSpec`（递归量纲规范）。
+- **无数字参数的 op** 声明 `paramDims: {}`（空对象 = 穷举声明零数字参数）。
+- 该声明是量纲知识的**唯一来源**：`CadRuntime.getOpDims()` 运行时汇总，供维度校验 pass（`extractMetadata`）和 codegen 单位字面量序列化（`n * MM`）消费。不维护第二张表。
+- 新 op 未声明 `paramDims`（或 `spec`）→ `check-op-dims.mjs` CI 失败。
 
 ### 10.4 第三方库通道
 

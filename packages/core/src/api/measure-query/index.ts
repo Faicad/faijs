@@ -380,6 +380,8 @@ export const liftCurve2d = defineOp({
     kind: 'unmodeled',
     reason: '1D wire lifted from 2D points has no face role vocabulary',
   } as Provenance,
+
+  paramDims: {},
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -426,4 +428,6 @@ export const commonCells = defineOp({
     kind: 'unmodeled',
     reason: 'intersectionCells returns a bare shape with no face evolution data',
   } as Provenance,
+
+  paramDims: {},
 })

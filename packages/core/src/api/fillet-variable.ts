@@ -73,4 +73,6 @@ export const filletVariable = defineOp({
     return filletVariableBrep(input, edge, r1, r2)
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: {},
 })

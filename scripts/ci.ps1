@@ -198,6 +198,9 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     # tsconfig paths 完整性：@faicad/* import 必须有显式映射，否则本地静默退回旧 dist、CI fresh checkout 报 TS2307
     node scripts/check-tsconfig-paths.mjs
     if ($LASTEXITCODE -ne 0) { return }
+    # op 量纲声明防遗漏（D8+）：每个 defineOp/compatOp 必须声明 paramDims（或 spec）
+    node scripts/check-op-dims.mjs
+    if ($LASTEXITCODE -ne 0) { return }
     # API 测试覆盖门禁：每个可发布包的导出 API 必须被本包测试引用（L1），
     # 且每个参数必须在调用点被覆盖（L2）。基于源码 AST，不依赖 build。
     foreach ($pkg in @('core','faijs-extra','sheetmetal','sketch','draw','faijs-gears','faijs-fasteners','faijs-viewer')) {

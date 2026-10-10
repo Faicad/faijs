@@ -80,4 +80,6 @@ export const sweep = defineOp({
     return sweepBrep(profile, spine)
   },
   naming: { kind: 'unmodeled', reason: 'swept-body face vocabulary not defined' } as Provenance,
+
+  paramDims: {},
 })

@@ -102,4 +102,6 @@ export const helix = defineOp({
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: 'construct vocabulary pending Phase 3' } as Provenance,
+
+  paramDims: {},
 })

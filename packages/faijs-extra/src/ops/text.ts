@@ -110,4 +110,6 @@ export const text = defineOp({
     return textBrep(params)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
+
+  paramDims: { inputOrParams: 'plain', maybeParams: 'plain' },
 })

@@ -361,4 +361,6 @@ export const profile = defineOp({
     return buildProfileShape(params as unknown as ProfileParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
+
+  paramDims: {},
 })

@@ -84,4 +84,6 @@ export const surface = defineOp({
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: 'bspline-surface face vocabulary not defined' } as Provenance,
+
+  paramDims: {},
 })

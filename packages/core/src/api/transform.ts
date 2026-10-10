@@ -357,6 +357,8 @@ export const scale = defineOp({
   // （{center}）经 dual-form-args 尾参合并并入。
   slotMap: { keys: ['factor'], shapeArity: 1 },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: {},
 })
 
 /**
@@ -396,4 +398,6 @@ export const scale3d = defineOp({
   // 标量 factor（如 `scale(p, 2)`）由 assertScale3dParams 拒绝并提示 `scale`。
   slotMap: { keys: ['factor'], vec3Keys: ['factor'], shapeArity: 1 },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: {},
 })

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npx tsx scripts/verify-translation-pairing.ts --write <path>
+2026-10-10-op-dims-declaration-guard.md: 44818b8f65176a59181843d07564564c8aaf98ba
+2026-10-10-op-dims-declaration-guard.zh.md: d05e353637bdec959c8c467d9a9f63b6d17760f7

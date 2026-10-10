@@ -183,6 +183,8 @@ export const circularPattern = defineOp({
   },
   // 中立 op（D11）：实现只用 L1 核心面（kernel.circularPattern/fuseAll）。
   naming: { kind: 'replicate', k: 0 } as Provenance,
+
+  paramDims: {},
 })
 
 // ── gridPattern ─────────────────────────────────────────────────────────────
@@ -285,6 +287,8 @@ export const gridPattern = defineOp({
   },
   // 中立 op（D11）：实现只用 L1 核心面（kernel.gridPattern/translate/fuseAll）。
   naming: { kind: 'replicate', k: 0 } as Provenance,
+
+  paramDims: {},
 })
 // ── rectangularPattern ──────────────────────────────────────────────────────
 
@@ -378,6 +382,8 @@ export const rectangularPattern = defineOp({
   },
   // 中立 op（D11）：实现只用 L1 核心面（kernel.translate/fuseAll）。
   naming: { kind: 'replicate', k: 0 } as Provenance,
+
+  paramDims: {},
 })
 
 // ── mirrorJoin ──────────────────────────────────────────────────────────────
@@ -449,6 +455,8 @@ export const mirrorJoin = defineOp({
   // 中立 op（D11）：实现只用 L1 核心面（kernel.mirror/fuse）。replicate 的
   // role table 不消费 mirror history（见上注释），面演化由 mirrorBrep 双轨接入。
   naming: { kind: 'replicate', k: 2 } as Provenance,
+
+  paramDims: {},
 })
 
 // ── single-copy thin overrides（keep + 委托生成 op）─────────────────────────
@@ -489,6 +497,8 @@ export const mirror = defineOp({
   // 薄 override：generatedMirror 走 L1 kernel.mirror，与 clone 薄 override 同模式
   // （无能力门，内层实现自行按引擎事实分叉）。面演化由 mirrorBrep 双轨接入。
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: {},
 })
 
 /**
@@ -523,4 +533,6 @@ export const clone = defineOp({
   },
   // 中立 op（D11）：实现只用 L1 核心面（kernel.copyShape）。
   naming: { kind: 'identity' } as Provenance,
+
+  paramDims: {},
 })

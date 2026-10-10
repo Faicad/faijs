@@ -116,4 +116,6 @@ export const linearPattern = defineOp({
     return linearPatternBrep(input, direction, count, spacing)
   },
   naming: { kind: 'replicate', k: 0 } as Provenance,
+
+  paramDims: {},
 })

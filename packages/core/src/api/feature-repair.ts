@@ -104,6 +104,8 @@ export const defeature = defineOp({
     return adopt(kernel, kernel.defeature(solid, handles))
   },
   naming: kernelNaming,
+
+  paramDims: {},
 })
 
 /**
@@ -131,6 +133,8 @@ export const reverseShape = defineOp({
     return adopt(kernel, kernel.reverseShape(solid))
   },
   naming: kernelNaming,
+
+  paramDims: {},
 })
 
 /**
@@ -153,6 +157,8 @@ export const unifySameDomain = defineOp({
     return adopt(kernel, kernel.unifySameDomain(solid))
   },
   naming: kernelNaming,
+
+  paramDims: {},
 })
 
 /** `cad.sew` / `cad.sewAndSolidify` 公共参数。 */
@@ -182,6 +188,8 @@ export const sew = defineOp({
     return adopt(kernel, kernel.sew(handles, params?.tolerance))
   },
   naming: kernelNaming,
+
+  paramDims: {},
 })
 
 /**
@@ -205,6 +213,8 @@ export const sewAndSolidify = defineOp({
     return adopt(kernel, kernel.sewAndSolidify(handles, params?.tolerance))
   },
   naming: kernelNaming,
+
+  paramDims: {},
 })
 
 /**
@@ -230,4 +240,6 @@ export const removeHolesFromFace = defineOp({
     return adopt(kernel, kernel.removeHolesFromFace(handle))
   },
   naming: kernelNaming,
+
+  paramDims: {},
 })

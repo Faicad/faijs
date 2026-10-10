@@ -156,4 +156,6 @@ export const sweepAdvanced = defineOp({
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: 'swept-body face vocabulary not defined' } as Provenance,
+
+  paramDims: {},
 })

@@ -1,1 +1,1 @@
-let part0 = cad.screw({ system:'metric', specIdx:5, thread:'coarse', length:30, head:'hex' })
+let part0 = cad.screw({ system:'metric', specIdx:5, thread:'coarse', length:30 * MM, head:'hex' })

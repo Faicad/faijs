@@ -147,4 +147,6 @@ export const pipe = defineOp({
     kind: 'unmodeled',
     reason: 'pipe face vocabulary not defined',
   } as Provenance,
+
+  paramDims: {},
 })

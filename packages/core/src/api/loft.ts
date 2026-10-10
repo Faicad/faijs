@@ -100,4 +100,6 @@ export const loft = defineOp({
     return loftBrep(sections, opts)
   },
   naming: { kind: 'unmodeled', reason: 'lofted-body face vocabulary not defined' } as Provenance,
+
+  paramDims: {},
 })

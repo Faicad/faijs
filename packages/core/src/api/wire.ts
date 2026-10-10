@@ -110,4 +110,6 @@ export const wire = defineOp({
     return wireBrep(points, opts)
   },
   naming: { kind: 'unmodeled', reason: 'construct vocabulary pending Phase 3' } as Provenance,
+
+  paramDims: {},
 })

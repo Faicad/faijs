@@ -379,4 +379,6 @@ export const chamfer = defineOp({
     return chamferBrep(input, params)
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: {},
 })

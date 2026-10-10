@@ -33,7 +33,7 @@ import { convexHullBrep as __own_convexHullBrep } from '../brep-operations/hullF
  */
 export const extrude = defineOp({
   brep: __own_extrudeBrep,
-  name: 'extrude', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"}]}}, engines: ["occt"],
+  name: 'extrude', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"}]}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -44,7 +44,7 @@ export const extrude = defineOp({
  */
 export const revolve = defineOp({
   brep: __own_revolveBrep,
-  name: 'revolve', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"},{"kind":"wall","index":0}]}}, engines: ["occt"],
+  name: 'revolve', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"},{"kind":"wall","index":0}]}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -55,7 +55,7 @@ export const revolve = defineOp({
  */
 export const sweep = defineOp({
   brep: __own_sweepBrep,
-  name: 'sweep', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'sweep', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -66,7 +66,7 @@ export const sweep = defineOp({
  */
 export const complexExtrude = defineOp({
   brep: __own_complexExtrudeBrep,
-  name: 'complexExtrude', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'complexExtrude', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -77,7 +77,7 @@ export const complexExtrude = defineOp({
  */
 export const twistExtrude = defineOp({
   brep: __own_twistExtrudeBrep,
-  name: 'twistExtrude', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'twistExtrude', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -88,7 +88,7 @@ export const twistExtrude = defineOp({
  */
 export const linearPattern = defineOp({
   brep: __own_linearPatternBrep,
-  name: 'linearPattern', naming: {"kind":"replicate","k":0}, engines: ["occt"],
+  name: 'linearPattern', naming: {"kind":"replicate","k":0}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -99,7 +99,7 @@ export const linearPattern = defineOp({
  */
 export const circularPattern = defineOp({
   brep: __own_circularPatternBrep,
-  name: 'circularPattern', naming: {"kind":"replicate","k":0}, engines: ["occt"],
+  name: 'circularPattern', naming: {"kind":"replicate","k":0}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -110,7 +110,7 @@ export const circularPattern = defineOp({
  */
 export const gridPattern = defineOp({
   brep: __own_gridPatternBrep,
-  name: 'gridPattern', naming: {"kind":"replicate","k":0}, engines: ["occt"],
+  name: 'gridPattern', naming: {"kind":"replicate","k":0}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -121,7 +121,7 @@ export const gridPattern = defineOp({
  */
 export const roof = defineOp({
   brep: __own_roofBrep,
-  name: 'roof', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'roof', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -132,7 +132,7 @@ export const roof = defineOp({
  */
 export const drill = defineOp({
   brep: __own_drillBrep,
-  name: 'drill', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
+  name: 'drill', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**
@@ -143,7 +143,7 @@ export const drill = defineOp({
  */
 export const pocket = defineOp({
   brep: __own_pocketBrep,
-  name: 'pocket', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
+  name: 'pocket', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**
@@ -154,7 +154,7 @@ export const pocket = defineOp({
  */
 export const boss = defineOp({
   brep: __own_bossBrep,
-  name: 'boss', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}},
+  name: 'boss', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**
@@ -165,7 +165,7 @@ export const boss = defineOp({
  */
 export const mirrorJoin = defineOp({
   brep: __own_mirrorJoinBrep,
-  name: 'mirrorJoin', naming: {"kind":"replicate","k":2},
+  name: 'mirrorJoin', naming: {"kind":"replicate","k":2}, paramDims: {},
 })
 
 /**
@@ -176,7 +176,7 @@ export const mirrorJoin = defineOp({
  */
 export const rectangularPattern = defineOp({
   brep: __own_rectangularPatternBrep,
-  name: 'rectangularPattern', naming: {"kind":"replicate","k":0}, engines: ["occt"],
+  name: 'rectangularPattern', naming: {"kind":"replicate","k":0}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -187,7 +187,7 @@ export const rectangularPattern = defineOp({
  */
 export const thread = defineOp({
   brep: __own_threadBrepOp,
-  name: 'thread', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'thread', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
 })
 
 /**
@@ -198,5 +198,5 @@ export const thread = defineOp({
  */
 export const convexHull = defineOp({
   brep: __own_convexHullBrep,
-  name: 'convexHull', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"},
+  name: 'convexHull', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, paramDims: {},
 })

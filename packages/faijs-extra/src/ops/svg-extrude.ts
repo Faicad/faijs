@@ -79,4 +79,6 @@ export const svgExtrude = defineOp({
     return svgExtrudeBrep(params, svgText)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
+
+  paramDims: {},
 })

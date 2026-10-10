@@ -300,6 +300,8 @@ export const union = defineOp({
   },
   schema: { shapes: 'Shape*' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: { shapes: 'plain' },
 })
 
 /**
@@ -329,6 +331,8 @@ export const cut = defineOp({
     return booleanBrep([base, tool], 'subtract')
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: { base: 'plain', tool: 'plain' },
 })
 
 /**
@@ -354,6 +358,8 @@ export const subtract = defineOp({
     return booleanBrep(shapes, 'subtract')
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: { shapes: 'plain' },
 })
 
 /**
@@ -382,4 +388,6 @@ export const intersect = defineOp({
   // 由 booleanBrep 按引擎事实静态分派——occt 走历史路径保留面演化/naming；
   // brepkit 走 L1 裸 `kernel.intersect`，几何正确但无面演化（如实降级，不伪造恒等映射）。
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+
+  paramDims: { shapes: 'plain' },
 })

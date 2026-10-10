@@ -117,4 +117,6 @@ export const split = defineOp({
   },
   engines: ['occt'],
   naming: { kind: 'subdivide' } as Provenance,
+
+  paramDims: {},
 })
