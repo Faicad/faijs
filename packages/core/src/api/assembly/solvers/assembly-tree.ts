@@ -12,6 +12,7 @@
  */
 
 import type { Shape } from '../../../mesh/types'
+import type { AssemblyConstraint } from '../types'
 
 /** 3D vector（core 本地别名，§5.6 移植）。 */
 export type Vec3 = readonly [number, number, number];
@@ -33,6 +34,8 @@ export interface AssemblyNode {
   readonly mates?: readonly unknown[];
   /** Drivable kinematic joints (see jointFns). Typed loosely to avoid a cycle. */
   readonly joints?: readonly unknown[];
+  /** P4: constraints local to this node (part names use qualified names relative to root). */
+  readonly constraints?: readonly AssemblyConstraint[];
 }
 
 /** Optional properties for creating or updating an assembly node. */
@@ -41,6 +44,7 @@ export interface AssemblyNodeOptions {
   translate?: Vec3;
   rotate?: { angle: number; axis?: Vec3 };
   metadata?: Record<string, unknown>;
+  constraints?: AssemblyConstraint[];
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +65,7 @@ export function createAssemblyNode(name: string, options: AssemblyNodeOptions = 
     ...(options.translate !== undefined ? { translate: options.translate } : {}),
     ...(options.rotate !== undefined ? { rotate: options.rotate } : {}),
     ...(options.metadata !== undefined ? { metadata: options.metadata } : {}),
+    ...(options.constraints !== undefined ? { constraints: options.constraints } : {}),
   };
 }
 
