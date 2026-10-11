@@ -115,7 +115,7 @@ function squareContour(): string {
 async function topFaceRefOf(runtime: ReturnType<typeof createEditorRuntime>): Promise<string> {
   const loaded = await runtime.execute("let a = await cad.load({ file: 'cube10.stl' })")
   expect(loaded.failedAt?.message ?? 'no failure').toBe('no failure')
-  const topo = loaded.topology?.get('a')
+  const topo = loaded.topology?.get(asPartName('a'))
   expect(topo).toBeDefined()
   const faces = topo!.data.faces as unknown as FaceRowLike[]
   const top = faces.find((f) => f.normal !== undefined && (f.normal[2] ?? 0) > 0.9)
@@ -169,7 +169,7 @@ describe('brepkit × cad.sketchOnFace engine verdict', () => {
       `let s = await cad.sketchOnFace({ contours: ${squareContour()}, on: a, face: ${ref} })\n`,
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
-    expect(result.outputs.has('s')).toBe(true)
+    expect(result.outputs.has(asPartName('s'))).toBe(true)
   })
 
   it('BREP path: sketchOnFace succeeds on a brepkit PLANAR BREP face (common op, no engine declaration)', async () => {
@@ -180,7 +180,7 @@ describe('brepkit × cad.sketchOnFace engine verdict', () => {
         `const sk = cad.sketchOnFace({ contours: ${squareContour()}, on: p0, face: ${top} })\n`,
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
-    expect(result.outputs.has('sk')).toBe(true)
+    expect(result.outputs.has(asPartName('sk'))).toBe(true)
   })
 
   it('BREP path: sketchOnFace rejects a brepkit CURVED face (must use cad.sketchOnSurface)', async () => {
