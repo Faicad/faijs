@@ -9,26 +9,28 @@
  *   - the safety-cap flag surface and onProgress callback.
  */
 import { describe, it, expect } from 'vitest'
-import * as THREE from 'three'
 import { subdivide } from '../../../src/mesh/knurl/subdivision'
+import type { Shape } from '../../../src/mesh/types'
 
-function triangleGeometry(verts: number[]): THREE.BufferGeometry {
-  const g = new THREE.BufferGeometry()
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3))
-  return g
+function triangleGeometry(verts: number[]): Shape {
+  const pos = new Float32Array(verts)
+  const indices = new Uint32Array(pos.length / 3)
+  for (let i = 0; i < indices.length; i++) indices[i] = i
+  return { positions: pos, indices }
 }
 
 /** Return the longest edge length found across every triangle of a geometry. */
-function longestEdge(geometry: THREE.BufferGeometry): number {
-  const pos = geometry.attributes.position
+function longestEdge(geometry: Shape): number {
+  const pos = geometry.positions
+  const count = pos.length / 3
   let max = 0
-  for (let t = 0; t < pos.count; t += 3) {
+  for (let t = 0; t < count; t += 3) {
     for (let e = 0; e < 3; e++) {
       const a = t + e
       const b = t + ((e + 1) % 3)
-      const dx = pos.getX(a) - pos.getX(b)
-      const dy = pos.getY(a) - pos.getY(b)
-      const dz = pos.getZ(a) - pos.getZ(b)
+      const dx = pos[a * 3] - pos[b * 3]
+      const dy = pos[a * 3 + 1] - pos[b * 3 + 1]
+      const dz = pos[a * 3 + 2] - pos[b * 3 + 2]
       max = Math.max(max, Math.sqrt(dx * dx + dy * dy + dz * dz))
     }
   }
@@ -40,7 +42,7 @@ describe('subdivide', () => {
     // Right triangle with legs 1; largest edge sqrt(2) ~ 1.41 <= 2.
     const geo = triangleGeometry([0, 0, 0, 1, 0, 0, 0, 1, 0])
     const { geometry, safetyCapHit } = await subdivide(geo, 2)
-    expect(geometry.attributes.position.count).toBe(3) // single triangle
+    expect(geometry.positions.length / 3).toBe(3) // single triangle
     expect(longestEdge(geometry)).toBeLessThanOrEqual(2.0)
     expect(safetyCapHit).toBe(false)
   })
@@ -50,25 +52,26 @@ describe('subdivide', () => {
     const g = triangleGeometry([0, 0, 0, 10, 0, 0, 0, 10, 0])
     const target = 3
     const { geometry, safetyCapHit } = await subdivide(g, target)
-    expect(geometry.attributes.position.count).toBeGreaterThan(9)
+    expect(geometry.positions.length / 3).toBeGreaterThan(9)
     expect(longestEdge(geometry)).toBeLessThanOrEqual(target + 1e-6)
     expect(safetyCapHit).toBe(false)
   })
 
   it('accepts an indexed input by expanding it to non-indexed first', async () => {
-    const fake = new THREE.BufferGeometry()
-    fake.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0]), 3))
-    fake.setIndex([0, 1, 2])
+    const fake: Shape = {
+      positions: new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0]),
+      indices: new Uint32Array([0, 1, 2]),
+    }
     const { geometry } = await subdivide(fake, 3)
-    expect(geometry.index).toBeNull() // output is non-indexed
-    expect(geometry.attributes.position.count).toBeGreaterThan(9)
+    expect(geometry.indices.length).toBe(geometry.positions.length / 3) // output is non-indexed
+    expect(geometry.positions.length / 3).toBeGreaterThan(9)
   })
 
   it('honours faceWeights: an excluded face is never refined', async () => {
     const g = triangleGeometry([0, 0, 0, 10, 0, 0, 0, 10, 0])
     const faceWeights = new Float32Array([1, 1, 1]) // exclude the only face
     const { geometry, safetyCapHit } = await subdivide(g, 1, undefined, faceWeights)
-    expect(geometry.attributes.position.count).toBe(3) // unchanged single face
+    expect(geometry.positions.length / 3).toBe(3) // unchanged single face
     expect(longestEdge(geometry)).toBeGreaterThan(5) // still coarse
     expect(safetyCapHit).toBe(false)
   })

@@ -12,8 +12,10 @@
  * 这些由执行器负责（P1 不改变现有执行器行为）。
  */
 
-import * as THREE from 'three'
+import { Vec3 as Vec3C, Quat, Mat4 } from '../math3d'
+import { transformShape, translateShape } from './meshdata/ops'
 import { computeBoolean, geoToManifoldMesh, manifoldMeshToGeo } from '../boolean/csg-backend'
+import { boundingBox } from './query'
 import { getEngraveDecorationProvider } from './decoration-provider'
 import type { Shape, EngraveParams, KnurlParams } from './types'
 
@@ -44,7 +46,7 @@ export async function engrave(shape: Shape, params: EngraveParams): Promise<Shap
       'or run the op on the BREP path',
     )
   }
-  const decorationGeo: THREE.BufferGeometry = await provider({
+  let decoration = await provider({
     text: params.text,
     textSize: params.textSize,
     svg: params.svg,
@@ -55,36 +57,37 @@ export async function engrave(shape: Shape, params: EngraveParams): Promise<Shap
   })
 
   // 2. 定位装饰几何到面
-  const faceCenter = new THREE.Vector3(...params.face.center)
-  const faceNormal = new THREE.Vector3(...params.face.normal)
+  const faceCenter = new Vec3C(...params.face.center)
+  const faceNormal = new Vec3C(...params.face.normal)
 
   // Center geometry at origin
-  decorationGeo.computeBoundingBox()
-  const center = new THREE.Vector3()
-  decorationGeo.boundingBox!.getCenter(center)
-  decorationGeo.translate(-center.x, -center.y, -center.z)
+  const bb = boundingBox(decoration)
+  const center = new Vec3C(
+    (bb.min[0] + bb.max[0]) / 2,
+    (bb.min[1] + bb.max[1]) / 2,
+    (bb.min[2] + bb.max[2]) / 2,
+  )
+  decoration = translateShape(decoration, -center.x, -center.y, -center.z)
 
   // Rotate +Z to align with face normal
-  const quat = new THREE.Quaternion().setFromUnitVectors(
-    new THREE.Vector3(0, 0, 1),
+  const quat = new Quat().setFromUnitVectors(
+    new Vec3C(0, 0, 1),
     faceNormal,
   )
-  decorationGeo.applyQuaternion(quat)
+  const rotMatrix = new Mat4().makeRotationFromQuaternion(quat)
+  decoration = transformShape(decoration, rotMatrix)
 
   // Offset along normal (convex = outward, concave = inward)
   const offset = params.mode === 'convex' ? params.depth / 2 : -params.depth / 2
   const pos = faceCenter.clone().add(faceNormal.clone().multiplyScalar(offset))
-  decorationGeo.translate(pos.x, pos.y, pos.z)
+  decoration = translateShape(decoration, pos.x, pos.y, pos.z)
 
   // 3. 转换为 ManifoldMeshData
-  const decorationData = geoToManifoldMesh(decorationGeo)
+  const decorationData = geoToManifoldMesh(decoration)
 
   // 4. 布尔运算
   const op = params.mode === 'convex' ? 'union' : 'subtract'
   const result = await computeBoolean([shape, decorationData], op)
-
-  // 5. 清理
-  decorationGeo.dispose()
 
   return result
 }
@@ -104,25 +107,24 @@ export async function knurl(shape: Shape, params: KnurlParams): Promise<Shape> {
     './knurl/KnurlGenerator'
   )
 
-  // 1. Shape → THREE.BufferGeometry
+  // 1. Shape → Shape (with normals)
   const geo = manifoldMeshToGeo(shape, { computeNormals: true })
 
   // 2. 计算面排除权重：法向与 face.normal 不接近的面标记为排除
-  const posAttr = geo.getAttribute('position')
-  const triCount = posAttr.count / 3
-  const faceNormal = new THREE.Vector3(...params.face.normal).normalize()
+  const positions = geo.positions
+  const triCount = positions.length / 3
+  const faceNormal = new Vec3C(...params.face.normal).normalize()
 
   // 计算每个三角形的法向
-  const positions = posAttr.array as Float32Array
-  const indices = geo.index ? (geo.index.array as Uint32Array) : null
-  const faceWeights = new Float32Array(posAttr.count)
+  const indices = geo.indices.length > 0 ? geo.indices : null
+  const faceWeights = new Float32Array(positions.length)
 
-  const v0 = new THREE.Vector3()
-  const v1 = new THREE.Vector3()
-  const v2 = new THREE.Vector3()
-  const edge1 = new THREE.Vector3()
-  const edge2 = new THREE.Vector3()
-  const triNormal = new THREE.Vector3()
+  const v0 = new Vec3C()
+  const v1 = new Vec3C()
+  const v2 = new Vec3C()
+  const edge1 = new Vec3C()
+  const edge2 = new Vec3C()
+  const triNormal = new Vec3C()
 
   for (let t = 0; t < triCount; t++) {
     const i0 = indices ? indices[t * 3] : t * 3
@@ -147,17 +149,18 @@ export async function knurl(shape: Shape, params: KnurlParams): Promise<Shape> {
   }
 
   // 3. 计算包围盒
-  geo.computeBoundingBox()
-  const bb = geo.boundingBox!
+  const bb = boundingBox(geo)
+  const bbMin = new Vec3C(bb.min[0], bb.min[1], bb.min[2])
+  const bbMax = new Vec3C(bb.max[0], bb.max[1], bb.max[2])
   const partBounds = {
-    min: bb.min.clone(),
-    max: bb.max.clone(),
-    size: new THREE.Vector3().subVectors(bb.max, bb.min),
-    center: new THREE.Vector3().addVectors(bb.min, bb.max).multiplyScalar(0.5),
+    min: bbMin,
+    max: bbMax,
+    size: new Vec3C().subVectors(bbMax, bbMin),
+    center: new Vec3C().addVectors(bbMin, bbMax).multiplyScalar(0.5),
   }
 
   // 4. 调用 applyKnurlDisplacement
-  const resultGeo = await applyKnurlDisplacement(
+  const result = await applyKnurlDisplacement(
     geo,
     {
       ...KNURL_DEFAULTS,
@@ -173,8 +176,6 @@ export async function knurl(shape: Shape, params: KnurlParams): Promise<Shape> {
     partBounds,
   )
 
-  geo.dispose()
-
-  // 5. THREE.BufferGeometry → Shape
-  return geoToManifoldMesh(resultGeo)
+  // 5. Shape → ManifoldMeshData
+  return geoToManifoldMesh(result)
 }

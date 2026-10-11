@@ -21,7 +21,7 @@ describe('createEngraveDecorationProvider — SVG branch (jsdom env)', () => {
       svg: simpleSvg,
       svgSize: 20,
     })
-    expect(geo.getAttribute('position').count).toBeGreaterThan(0)
+    expect(geo.positions.length / 3).toBeGreaterThan(0)
   })
 
   it('honours svgSize and natural dimension parameters', async () => {
@@ -33,6 +33,6 @@ describe('createEngraveDecorationProvider — SVG branch (jsdom env)', () => {
       svgNaturalWidth: 200,
       svgNaturalHeight: 100,
     })
-    expect(geo.getAttribute('position').count).toBeGreaterThan(0)
+    expect(geo.positions.length / 3).toBeGreaterThan(0)
   })
 })

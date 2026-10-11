@@ -5,7 +5,7 @@
  * 这些函数不产生几何，供 GeomRef 求值与面板显示使用。
  */
 
-import * as THREE from 'three'
+import { Vec3 as Vec3C } from '../math3d'
 import type { Shape, Vec3, BoundingBox, FaceDescriptor } from './types'
 
 /**
@@ -79,8 +79,8 @@ export function volume(shape: Shape): number {
  * @returns the closest face descriptor, or null when the mesh has no faces.
  */
 export function faceAt(shape: Shape, anchor: { point: Vec3; normal?: Vec3 }): FaceDescriptor | null {
-  const targetPoint = new THREE.Vector3(...anchor.point)
-  const targetNormal = anchor.normal ? new THREE.Vector3(...anchor.normal) : null
+  const targetPoint = new Vec3C(anchor.point[0], anchor.point[1], anchor.point[2])
+  const targetNormal = anchor.normal ? new Vec3C(anchor.normal[0], anchor.normal[1], anchor.normal[2]) : null
 
   let bestDist = Infinity
   let bestFace: FaceDescriptor | null = null
@@ -93,18 +93,18 @@ export function faceAt(shape: Shape, anchor: { point: Vec3; normal?: Vec3 }): Fa
     const b = indices[i + 1] * 3
     const c = indices[i + 2] * 3
 
-    const va = new THREE.Vector3(positions[a], positions[a + 1], positions[a + 2])
-    const vb = new THREE.Vector3(positions[b], positions[b + 1], positions[b + 2])
-    const vc = new THREE.Vector3(positions[c], positions[c + 1], positions[c + 2])
+    const va = new Vec3C(positions[a], positions[a + 1], positions[a + 2])
+    const vb = new Vec3C(positions[b], positions[b + 1], positions[b + 2])
+    const vc = new Vec3C(positions[c], positions[c + 1], positions[c + 2])
 
     // 面中心
-    const center = new THREE.Vector3().addVectors(va, vb).add(vc).divideScalar(3)
+    const center = new Vec3C().addVectors(va, vb).add(vc).divideScalar(3)
     const dist = center.distanceTo(targetPoint)
 
     // 面法向
-    const normal = new THREE.Vector3()
+    const normal = new Vec3C()
       .subVectors(vb, va)
-      .cross(new THREE.Vector3().subVectors(vc, va))
+      .cross(new Vec3C().subVectors(vc, va))
       .normalize()
 
     // 如果有目标法向，加权距离（法向不匹配的面惩罚更大）
@@ -116,9 +116,9 @@ export function faceAt(shape: Shape, anchor: { point: Vec3; normal?: Vec3 }): Fa
 
     if (weightedDist < bestDist) {
       bestDist = weightedDist
-      const area = new THREE.Vector3()
+      const area = new Vec3C()
         .subVectors(vb, va)
-        .cross(new THREE.Vector3().subVectors(vc, va))
+        .cross(new Vec3C().subVectors(vc, va))
         .length() / 2
       bestFace = {
         center: [center.x, center.y, center.z],

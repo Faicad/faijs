@@ -7,16 +7,16 @@
  * modes and height/offset parameters are covered.
  */
 import { describe, it, expect } from 'vitest'
-import * as THREE from 'three'
 import { extrude } from '../../src/mesh/fai_extrude'
 import { geoToManifoldMesh } from '@faicad/faijs/boolean/csg-backend'
+import { boxGeometry } from '@faicad/faijs/mesh/meshdata/parametric'
+import { translateShape } from '@faicad/faijs/mesh/meshdata/ops'
 import type { Shape } from '@faicad/faijs/mesh/types'
 
 /** A world-space box occupying z ∈ [5, 7], horizon at planeDistance=6. */
 function box(): Shape {
-  const g = new THREE.BoxGeometry(4, 4, 2)
-  g.translate(0, 0, 6)
-  return geoToManifoldMesh(g)
+  const g = boxGeometry(4, 4, 2)
+  return geoToManifoldMesh(translateShape(g, 0, 0, 6))
 }
 
 function zRange(p: Float32Array): { min: number; max: number } {
@@ -88,7 +88,7 @@ describe('meshExtrude (extrude) — real extrusion through the manifold backend'
 
   it('extrudes along a non-axis-aligned-cutting normal (Y)', async () => {
     // Box centred at origin spanning y∈[-2,2]; cut on the Y=0 plane.
-    const yBox = geoToManifoldMesh(new THREE.BoxGeometry(4, 4, 4))
+    const yBox = geoToManifoldMesh(boxGeometry(4, 4, 4))
     const out = await extrude(yBox, {
       normal: [0, 1, 0],
       planeDistance: 0,

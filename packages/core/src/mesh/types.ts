@@ -48,6 +48,8 @@ export type JsonValue =
 export interface Shape {
   positions: Float32Array
   indices: Uint32Array
+  /** Per-vertex normals (x, y, z interleaved), length = positions.length. Optional; derived via creased-normals when absent. */
+  normals?: Float32Array
   /** 可选：形状级外观（mesh/brep 双链路产物自解释；worker 序列化保留字段、不保留方法）。 */
   appearance?: PbrAppearance
   /** Phase 2：面级外观分组 [三角形起始, 数量, 外观]；存在时优先于 appearance 作为未分组默认。 */

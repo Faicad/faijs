@@ -1,39 +1,67 @@
-import * as THREE from 'three'
+import { Vec3 as Vec3C, Plane } from '../../src/math3d'
+import { boxGeometry } from '../../src/mesh/meshdata/parametric'
+import { translateShape } from '../../src/mesh/meshdata/ops'
+import type { Shape } from '../../src/mesh/types'
 import { describe, it, expect } from 'vitest'
 import { computeSection, buildExtrudedProfile } from '../../src/boolean/cross-section'
 
 /** 在 z=0 平面切一个中心在原点的立方体（边长 2）→ 1 个外环（正方形 4 顶点）。 */
-function cubeGeometry(): THREE.BufferGeometry {
-  return new THREE.BoxGeometry(2, 2, 2)
+function cubeGeometry(): Shape {
+  return boxGeometry(2, 2, 2)
 }
 
 /** 两个分离立方体合并 → 切 z=0 应得 2 个外环。 */
-function twoCubeGeometry(): THREE.BufferGeometry {
-  const a = new THREE.BoxGeometry(2, 2, 2)
-  const b = new THREE.BoxGeometry(2, 2, 2)
-  b.translate(10, 0, 0)
-  const pa = a.attributes.position.array as Float32Array
-  const pb = b.attributes.position.array as Float32Array
-  const ia = a.index!.array as ArrayLike<number>
-  const ib = b.index!.array as ArrayLike<number>
+function twoCubeGeometry(): Shape {
+  const a = boxGeometry(2, 2, 2)
+  const b = translateShape(boxGeometry(2, 2, 2), 10, 0, 0)
+  const pa = a.positions
+  const pb = b.positions
+  const ia = a.indices
+  const ib = b.indices
   const pos = new Float32Array(pa.length + pb.length)
   pos.set(pa, 0)
   pos.set(pb, pa.length)
   const idx = new Uint32Array(ia.length + ib.length)
   idx.set(ia, 0)
   for (let i = 0; i < ib.length; i++) idx[ia.length + i] = ib[i] + pa.length / 3
-  const g = new THREE.BufferGeometry()
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-  g.setIndex(new THREE.BufferAttribute(idx, 1))
-  return g
+  return { positions: pos, indices: idx }
 }
 
-/** 圆环（轴沿 Z）在 z=0 切过中心 → 1 外环 + 1 孔环。 */
-function torusGeometry(): THREE.BufferGeometry {
-  return new THREE.TorusGeometry(1, 0.4, 12, 32)
+function torusGeometry(majorR = 1, minorR = 0.4, radialSegs = 12, tubularSegs = 32): Shape {
+  const positions: number[] = []
+  const indices: number[] = []
+  for (let j = 0; j <= radialSegs; j++) {
+    for (let i = 0; i <= tubularSegs; i++) {
+      const u = (i / tubularSegs) * Math.PI * 2
+      const v = (j / radialSegs) * Math.PI * 2
+      const x = (majorR + minorR * Math.cos(v)) * Math.cos(u)
+      const y = (majorR + minorR * Math.cos(v)) * Math.sin(u)
+      const z = minorR * Math.sin(v)
+      positions.push(x, y, z)
+    }
+  }
+  for (let j = 0; j < radialSegs; j++) {
+    for (let i = 0; i < tubularSegs; i++) {
+      const a = j * (tubularSegs + 1) + i
+      const b = a + tubularSegs + 1
+      indices.push(a, b, a + 1, b, b + 1, a + 1)
+    }
+  }
+  return { positions: new Float32Array(positions), indices: new Uint32Array(indices) }
 }
 
-const planeZ0 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
+function toNonIndexedShape(shape: Shape): Shape {
+  const positions: number[] = []
+  const indices: number[] = []
+  for (let i = 0; i < shape.indices.length; i++) {
+    const v = shape.indices[i] * 3
+    positions.push(shape.positions[v], shape.positions[v + 1], shape.positions[v + 2])
+    indices.push(i)
+  }
+  return { positions: new Float32Array(positions), indices: new Uint32Array(indices) }
+}
+
+const planeZ0 = new Plane(new Vec3C(0, 0, 1), 0)
 
 describe('computeSection', () => {
   it('立方体 z=0 截面 = 1 个外环、4 顶点、非空', () => {
@@ -48,7 +76,7 @@ describe('computeSection', () => {
   })
 
   it('非索引立方体同样得到 1 个外环', () => {
-    const s = computeSection(cubeGeometry().toNonIndexed(), planeZ0)
+    const s = computeSection(toNonIndexedShape(cubeGeometry()), planeZ0)
     expect(s.outers.length).toBe(1)
     expect(s.outers[0].length).toBeGreaterThanOrEqual(4)
   })
@@ -69,13 +97,13 @@ describe('computeSection', () => {
   })
 
   it('切面与模型不相交 → 无环', () => {
-    const s = computeSection(cubeGeometry(), new THREE.Plane(new THREE.Vector3(0, 0, 1), 2))
+    const s = computeSection(cubeGeometry(), new Plane(new Vec3C(0, 0, 1), 2))
     expect(s.outers.length).toBe(0)
     expect(s.hitTriangleCount).toBe(0)
   })
 
   it('空几何安全返回', () => {
-    const g = new THREE.BufferGeometry()
+    const g: Shape = { positions: new Float32Array(0), indices: new Uint32Array(0) }
     const s = computeSection(g, planeZ0)
     expect(s.outers.length).toBe(0)
   })
@@ -84,7 +112,7 @@ describe('computeSection', () => {
 describe('buildExtrudedProfile', () => {
   it('立方体截面挤出为闭合棱柱，无 NaN，索引在范围内', () => {
     const s = computeSection(cubeGeometry(), planeZ0)
-    const prof = buildExtrudedProfile(s, new THREE.Vector3(0, 0, 1), 2, -1)
+    const prof = buildExtrudedProfile(s, new Vec3C(0, 0, 1), 2, -1)
     expect(prof.positions.length).toBeGreaterThan(0)
     expect(prof.indices.length % 3).toBe(0)
     expect([...prof.positions].every((v) => Number.isFinite(v))).toBe(true)
@@ -97,7 +125,7 @@ describe('buildExtrudedProfile', () => {
 
   it('圆环截面挤出同样闭合、无 NaN', () => {
     const s = computeSection(torusGeometry(), planeZ0)
-    const prof = buildExtrudedProfile(s, new THREE.Vector3(0, 0, 1), 1, 0)
+    const prof = buildExtrudedProfile(s, new Vec3C(0, 0, 1), 1, 0)
     expect(prof.positions.length).toBeGreaterThan(0)
     expect([...prof.positions].every((v) => Number.isFinite(v))).toBe(true)
     const vCount = prof.positions.length / 3
@@ -106,7 +134,7 @@ describe('buildExtrudedProfile', () => {
 
   it('挤出长度与 start 偏移影响几何范围', () => {
     const s = computeSection(cubeGeometry(), planeZ0)
-    const prof = buildExtrudedProfile(s, new THREE.Vector3(0, 0, 1), 2, -1)
+    const prof = buildExtrudedProfile(s, new Vec3C(0, 0, 1), 2, -1)
     // 顶点 z 应落在 [-1, 1]（start=-1, length=2）
     let minZ = Infinity
     let maxZ = -Infinity

@@ -10,10 +10,13 @@
  * - 执行器（dispatcher / runtime.execute）调用这些函数将变换烘焙进几何
  * - 交互拖拽期间的预览仍由 partTransforms（渲染层瞬态）承担
  *   确认后由引擎重放语句完成烘焙（P2）
+ *
+ * 数学层：three 已由 `../math3d` 替代（Vec3/Mat4/Euler 为 r162 逐位移植）。
  */
 
-import * as THREE from 'three'
-import type { Shape, Vec3 } from './types'
+import { Vec3, Mat4, Euler, type MatrixLike } from '../math3d'
+import type { Shape } from './types'
+import type { Vec3 as Vec3Tuple } from './types'
 
 /**
  * Translate a mesh shape by baking the offset into its vertices.
@@ -21,14 +24,14 @@ import type { Shape, Vec3 } from './types'
  * @param offset - translation vector in mm.
  * @returns a new shape moved by the given offset.
  */
-export function translate(shape: Shape, offset: Vec3): Shape {
+export function translate(shape: Shape, offset: Vec3Tuple): Shape {
   const positions = new Float32Array(shape.positions)
   for (let i = 0; i < positions.length; i += 3) {
     positions[i] += offset[0]
     positions[i + 1] += offset[1]
     positions[i + 2] += offset[2]
   }
-  return { positions, indices: shape.indices }
+  return { ...shape, positions }
 }
 
 /**
@@ -39,16 +42,16 @@ export function translate(shape: Shape, offset: Vec3): Shape {
  * @param pivot - optional rotation pivot point in mm.
  * @returns a new shape with rotated vertices.
  */
-export function rotate_euler(shape: Shape, angles: Vec3, pivot?: Vec3): Shape {
-  const euler = new THREE.Euler(
+export function rotate_euler(shape: Shape, angles: Vec3Tuple, pivot?: Vec3Tuple): Shape {
+  const euler = new Euler(
     (angles[0] * Math.PI) / 180,
     (angles[1] * Math.PI) / 180,
     (angles[2] * Math.PI) / 180,
   )
-  const matrix = new THREE.Matrix4().makeRotationFromEuler(euler)
+  const matrix = new Mat4().makeRotationFromEuler(euler)
   if (pivot) {
-    matrix.premultiply(new THREE.Matrix4().makeTranslation(pivot[0], pivot[1], pivot[2]))
-    matrix.multiply(new THREE.Matrix4().makeTranslation(-pivot[0], -pivot[1], -pivot[2]))
+    matrix.premultiply(new Mat4().makeTranslation(pivot[0], pivot[1], pivot[2]))
+    matrix.multiply(new Mat4().makeTranslation(-pivot[0], -pivot[1], -pivot[2]))
   }
   return applyMatrix(shape, matrix)
 }
@@ -60,7 +63,7 @@ export function rotate_euler(shape: Shape, angles: Vec3, pivot?: Vec3): Shape {
  * @param center - optional fixed point of the scaling (P6 §4.6; default origin).
  * @returns a new shape with scaled vertices.
  */
-export function scale3d(shape: Shape, factor: number | Vec3, center?: Vec3): Shape {
+export function scale3d(shape: Shape, factor: number | Vec3Tuple, center?: Vec3Tuple): Shape {
   const f: [number, number, number] =
     typeof factor === 'number' ? [factor, factor, factor] : [factor[0], factor[1], factor[2]]
   return applyMatrix(shape, scaleMatrix(f, center))
@@ -74,24 +77,24 @@ export function scale3d(shape: Shape, factor: number | Vec3, center?: Vec3): Sha
  * @param center - optional fixed point of the scaling (default origin).
  * @returns a new shape with uniformly scaled vertices.
  */
-export function scale(shape: Shape, factor: number, center?: Vec3): Shape {
+export function scale(shape: Shape, factor: number, center?: Vec3Tuple): Shape {
   return applyMatrix(shape, scaleMatrix([factor, factor, factor], center))
 }
 
 /** 缩放矩阵：围绕 `center`（缺省原点）构造 T(c)·S·T(−c)。 */
-function scaleMatrix(f: [number, number, number], center?: Vec3): THREE.Matrix4 {
-  const s = new THREE.Matrix4().makeScale(f[0], f[1], f[2])
+function scaleMatrix(f: [number, number, number], center?: Vec3Tuple): Mat4 {
+  const s = new Mat4().makeScale(f[0], f[1], f[2])
   if (!center) return s
-  return new THREE.Matrix4()
+  return new Mat4()
     .makeTranslation(center[0], center[1], center[2])
     .multiply(s)
-    .multiply(new THREE.Matrix4().makeTranslation(-center[0], -center[1], -center[2]))
+    .multiply(new Mat4().makeTranslation(-center[0], -center[1], -center[2]))
 }
 
-/** 用 THREE.Matrix4 变换几何 */
-function applyMatrix(shape: Shape, matrix: THREE.Matrix4): Shape {
+/** 用 4x4 矩阵变换几何 */
+function applyMatrix(shape: Shape, matrix: MatrixLike): Shape {
   const positions = new Float32Array(shape.positions)
-  const v = new THREE.Vector3()
+  const v = new Vec3()
   for (let i = 0; i < positions.length; i += 3) {
     v.set(positions[i], positions[i + 1], positions[i + 2])
     v.applyMatrix4(matrix)
@@ -99,16 +102,19 @@ function applyMatrix(shape: Shape, matrix: THREE.Matrix4): Shape {
     positions[i + 1] = v.y
     positions[i + 2] = v.z
   }
-  return { positions, indices: shape.indices }
+  return { ...shape, positions }
 }
 
 /**
- * Transform a mesh shape with an arbitrary THREE.Matrix4 (corresponds to the
+ * Transform a mesh shape with an arbitrary 4x4 matrix (corresponds to the
  * existing transformMeshData function).
+ *
+ * 参数类型为结构化的 `MatrixLike`（`{ elements: number[] }`）——three.Matrix4
+ * 与 core 的 `Mat4` 都满足，避免把公开 API 绑死在某一个矩阵类上。
  * @param shape - the mesh shape to transform.
  * @param matrix - the 4x4 transform matrix to apply.
  * @returns a new shape with transformed vertices.
  */
-export function transformMatrix(shape: Shape, matrix: THREE.Matrix4): Shape {
+export function transformMatrix(shape: Shape, matrix: MatrixLike): Shape {
   return applyMatrix(shape, matrix)
 }

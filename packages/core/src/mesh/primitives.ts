@@ -9,24 +9,28 @@
  * B 组迁到 `@faicad/faijs-extra` 的 `mesh/primitives.ts`，core 的 mesh 面不再
  * 承载 three 的非基础几何生成链。
  *
- * 所有函数返回 Shape (ManifoldMeshData)：THREE.BufferGeometry → geoToManifoldMesh 转换。
+ * 所有函数返回 Shape (ManifoldMeshData)：parametric GeoData → geoToManifoldMesh 转换。
  * 坐标系：Z-up、毫米。
  */
 
-import * as THREE from 'three'
-import { makePrimitiveGeo } from '../primitives/mesh-primitives'
+import { Mat4 } from '../math3d'
+import { boxGeometry, cylinderGeometry, coneGeometry, sphereGeometry, type GeoData } from './meshdata/parametric'
+import { transformShape, translateShape } from './meshdata/ops'
 import { geoToManifoldMesh } from '../boolean/csg-backend'
 import type { Shape, BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams, SdfParams } from './types'
 import { clampNRad } from './types'
 
 // ── 内部工具 ──
 
-/** THREE.BufferGeometry → Shape (ManifoldMeshData)；可选携带面结构元数据。 */
-function geoToShape(geo: THREE.BufferGeometry, faceRanges?: Shape['faceRanges']): Shape {
+/** GeoData → Shape (ManifoldMeshData)；可选携带面结构元数据。 */
+function geoToShape(geo: GeoData, faceRanges?: Shape['faceRanges']): Shape {
   const shape = geoToManifoldMesh(geo) as Shape
   if (faceRanges !== undefined) shape.faceRanges = faceRanges
   return shape
 }
+
+/** Y-up → Z-up rotation (rotateX by PI/2), same as three's `makeRotationX(Math.PI / 2)`. */
+const ROT_Y_TO_Z = new Mat4().makeRotationX(Math.PI / 2)
 
 // ── 创建 API ──
 
@@ -44,11 +48,10 @@ function geoToShape(geo: THREE.BufferGeometry, faceRanges?: Shape['faceRanges'])
  */
 export function box(params: BoxParams): Shape {
   const { width, depth, height } = params
-  // THREE.BoxGeometry(a, b, c) is Y-up (X=a, Y=b, Z=c); after the +90° rotateX
-  // the dims map to X=a, Y=c, Z=b. To reach X=width, Y=depth, Z=height the
-  // pre-rotation sizes must be (width, height, depth) — 裁决 7 xyz contract.
-  const geo = new THREE.BoxGeometry(width, height, depth)
-  geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
+  // boxGeometry(width, height, depth) is Y-up (X=width, Y=height, Z=depth);
+  // after the +90° rotateX the dims map to X=width, Y=depth, Z=height.
+  const geo = boxGeometry(width, height, depth)
+  const rotated = transformShape(geo, ROT_Y_TO_Z)
   // 原 brepjs box semantics: corner at origin by default; centered at origin when
   // `centered` (no `at`); `at` (CENTER semantics) takes precedence.
   const at = params.at
@@ -62,7 +65,9 @@ export function box(params: BoxParams): Shape {
     ty = depth / 2
     tz = height / 2
   }
-  if (tx !== 0 || ty !== 0 || tz !== 0) geo.translate(tx, ty, tz)
+  const translated = tx !== 0 || ty !== 0 || tz !== 0
+    ? translateShape(rotated, tx, ty, tz)
+    : rotated
   // 面结构（P4 面级）：BoxGeometry 12 三角形 = 6 面 × 2，顺序固定
   // (+X, −X, +Y, −Y, +Z, −Z)；geoToManifoldMesh 焊接顶点保三角形序，故面序契约成立。
   // 面序号契约（setFaceColor 的 faceIds 即此序号）：0=+X, 1=−X, 2=+Y, 3=−Y, 4=+Z, 5=−Z。
@@ -74,7 +79,7 @@ export function box(params: BoxParams): Shape {
     { start: 8, count: 2 },
     { start: 10, count: 2 },
   ]
-  return geoToShape(geo, faceRanges)
+  return geoToShape(translated, faceRanges)
 }
 
 /**
@@ -85,11 +90,12 @@ export function box(params: BoxParams): Shape {
  */
 export function sphere(params: SphereParams): Shape {
   const segs = clampNRad(params.nRad ?? params.segments)
-  const geo = makePrimitiveGeo('sphere', params.radius * 2, segs)
-  if (params.center) {
-    geo.translate(params.center[0], params.center[1], params.center[2])
-  }
-  return geoToShape(geo)
+  const geo = sphereGeometry(params.radius, segs, segs)
+  const rotated = transformShape(geo, ROT_Y_TO_Z)
+  const translated = params.center
+    ? translateShape(rotated, params.center[0], params.center[1], params.center[2])
+    : rotated
+  return geoToShape(translated)
 }
 
 /**
@@ -105,14 +111,14 @@ export function sphere(params: SphereParams): Shape {
  */
 export function cylinder(params: CylinderParams): Shape {
   const segs = clampNRad(params.nRad ?? params.segments)
-  const geo = new THREE.CylinderGeometry(params.radius, params.radius, params.height, segs)
-  geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
+  const geo = cylinderGeometry(params.radius, params.radius, params.height, segs)
+  const rotated = transformShape(geo, ROT_Y_TO_Z)
   // geometry（rotateX 后）沿 z ∈ [-h/2, +h/2]（three 默认 Y-up 居中）：
   // 目标底面中心 in baseZ = (at?.[2] ?? 0) - (centered ? h/2 : 0) → 平移到 baseZ + h/2。
   const baseX = params.at?.[0] ?? 0
   const baseY = params.at?.[1] ?? 0
   const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
-  geo.translate(baseX, baseY, baseZ + params.height / 2)
+  const translated = translateShape(rotated, baseX, baseY, baseZ + params.height / 2)
   // 面结构（P4 面级）：CylinderGeometry 三角形布局稳定——侧面 2*segs（tri 0..2segs-1）、
   // 顶盖 segs、底盖 segs。面序号契约：0=侧面, 1=顶, 2=底。
   const faceRanges: Shape['faceRanges'] = [
@@ -120,7 +126,7 @@ export function cylinder(params: CylinderParams): Shape {
     { start: 2 * segs, count: segs },
     { start: 3 * segs, count: segs },
   ]
-  return geoToShape(geo, faceRanges)
+  return geoToShape(translated, faceRanges)
 }
 
 /**
@@ -137,33 +143,21 @@ export function cylinder(params: CylinderParams): Shape {
  */
 export function cone(params: ConeParams): Shape {
   const segs = clampNRad(params.nRad ?? params.segments)
-  const geo = new THREE.ConeGeometry(
-    Math.max(params.radiusBottom, params.radiusTop),
-    params.height,
-    segs,
-  )
-  geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
-  // radiusTop === 0 → 尖锥（ConeGeometry 顶点在顶）；其余（含 radiusTop ===
-  // radiusBottom 的等径圆柱/圆台）用 CylinderGeometry（radiusTop/bottom 各就各位）。
-  let resultGeo: THREE.BufferGeometry
+  // radiusTop === 0 → 尖锥（coneGeometry 顶点在顶）；其余（含 radiusTop ===
+  // radiusBottom 的等径圆柱/圆台）用 cylinderGeometry（radiusTop/bottom 各就各位）。
+  let geo: GeoData
   if (params.radiusTop === 0) {
-    resultGeo = geo
+    geo = coneGeometry(Math.max(params.radiusBottom, params.radiusTop), params.height, segs)
   } else {
-    const geo2 = new THREE.CylinderGeometry(
-      params.radiusTop,
-      params.radiusBottom,
-      params.height,
-      segs,
-    )
-    geo2.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
-    resultGeo = geo2
+    geo = cylinderGeometry(params.radiusTop, params.radiusBottom, params.height, segs)
   }
+  const rotated = transformShape(geo, ROT_Y_TO_Z)
   // geometry（rotateX 后）沿 z ∈ [-h/2, +h/2]（three 默认 Y-up 居中）：
   // 目标底面中心 in baseZ = (at?.[2] ?? 0) - (centered ? h/2 : 0) → 平坦平移 baseZ + h/2。
   const baseX = params.at?.[0] ?? 0
   const baseY = params.at?.[1] ?? 0
   const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
-  resultGeo.translate(baseX, baseY, baseZ + params.height / 2)
+  const translated = translateShape(rotated, baseX, baseY, baseZ + params.height / 2)
   // 面结构（P4 面级）：radiusTop=0 的 ConeGeometry 只有 2 面——侧面（segs 个
   // 三角扇）+ 底盖（segs 个）；radiusTop>0 的圆台 CylinderGeometry 3 面
   // （侧面 2*segs、顶、底，同 cylinder 布局）。面序号契约：0=侧面, 1=底
@@ -179,7 +173,7 @@ export function cone(params: ConeParams): Shape {
           { start: 2 * segs, count: segs },
           { start: 3 * segs, count: segs },
         ]
-  return geoToShape(resultGeo, faceRanges)
+  return geoToShape(translated, faceRanges)
 }
 
 /**
@@ -238,14 +232,12 @@ export function wedge(params: WedgeParams): Shape {
         1, 5, 6,  1, 6, 2,
       ])
 
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  geo.setIndex(new THREE.BufferAttribute(indices, 1))
+  const geo: GeoData = { positions, indices }
 
-  if (params.center) {
-    geo.translate(params.center[0], params.center[1], params.center[2])
-  }
-  return geoToShape(geo)
+  const translated = params.center
+    ? translateShape(geo, params.center[0], params.center[1], params.center[2])
+    : geo
+  return geoToShape(translated)
 }
 
 /**

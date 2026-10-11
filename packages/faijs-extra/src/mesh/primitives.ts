@@ -9,7 +9,6 @@
  * Both return Shape (ManifoldMeshData): THREE.BufferGeometry →
  * geoToManifoldMesh conversion. Coordinates: Z-up, millimetres.
  */
-import * as THREE from 'three'
 import { geoToManifoldMesh } from '@faicad/faijs/boolean/csg-backend'
 import type { Shape, TextParams, SvgExtrudeParams } from '@faicad/faijs/mesh/types'
 import { svgToExtrudedGeometry } from '../extras/svg-extrude'
@@ -17,9 +16,23 @@ import { createTextGeometry, getOpentypeFont } from '../extras/text-geometry'
 import { createMixedTextGeometry } from '../extras/text-cjk'
 import { containsCjk, loadSystemCjkFont } from '@faicad/faijs/primitives/text/cjk-font'
 
-/** THREE.BufferGeometry → Shape (ManifoldMeshData) */
-function geoToShape(geo: THREE.BufferGeometry): Shape {
-  return geoToManifoldMesh(geo)
+type BufferGeometryLike = {
+  attributes: Record<string, { array?: ArrayLike<number> }>
+  index: { array: ArrayLike<number> } | null
+}
+
+function geoToShape(geo: BufferGeometryLike): Shape {
+  const positions = geo.attributes.position.array!
+  let indices: ArrayLike<number>
+  if (geo.index) {
+    indices = geo.index.array
+  } else {
+    const vertexCount = positions.length / 3
+    const seq = new Uint32Array(vertexCount)
+    for (let i = 0; i < vertexCount; i++) seq[i] = i
+    indices = seq
+  }
+  return geoToManifoldMesh({ positions, indices })
 }
 
 /**
@@ -31,7 +44,7 @@ function geoToShape(geo: THREE.BufferGeometry): Shape {
  */
 export async function text(params: TextParams): Promise<Shape> {
   const font = await getOpentypeFont()
-  let geo: THREE.BufferGeometry
+  let geo: BufferGeometryLike
   if (containsCjk(params.text)) {
     const cjkFont = await loadSystemCjkFont()
     if (cjkFont) {

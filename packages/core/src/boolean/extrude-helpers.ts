@@ -13,7 +13,7 @@
  * 放在 engine/boolean/ 下的约束：**不得 import stores**（保持与 csg.ts 同层的纯度）。
  * 平面参数（normal / planeDistance）由调用方用 computePlaneParams 算好后传入。
  */
-import * as THREE from 'three'
+import { Vec3, Plane } from '../math3d'
 import { computeSplit } from '../boolean/csg-backend'
 import type { ManifoldMeshData } from '../boolean/csg-backend'
 
@@ -59,19 +59,19 @@ export function computeExtrudeOffsets(
 /**
  * 由 computePlaneParams 的 (normal, planeDistance) 构造 THREE 世界平面。
  *
- * 约定：平面方程为 `N · p = planeDistance`；THREE.Plane 用 `N · p + constant = 0`，
- * 故 constant = -planeDistance。THREE 裁剪保留 distanceToPoint >= 0 的一侧（法线正侧）。
+ * 约定：平面方程为 `N · p = planeDistance`；Plane 用 `N · p + constant = 0`，
+ * 故 constant = -planeDistance。裁剪保留 distanceToPoint >= 0 的一侧（法线正侧）。
  * @param normal - the cutting plane normal as a 3-component array.
  * @param planeDistance - the plane equation origin offset along the normal.
- * @returns a THREE.Plane and its normalized normal vector.
+ * @returns a Plane and its normalized normal vector.
  */
 export function makeWorldPlane(
   normal: [number, number, number],
   planeDistance: number,
-): { plane: THREE.Plane; normalVec: THREE.Vector3 } {
-  const normalVec = new THREE.Vector3(normal[0], normal[1], normal[2]).normalize()
+): { plane: Plane; normalVec: Vec3 } {
+  const normalVec = new Vec3(normal[0], normal[1], normal[2]).normalize()
   return {
-    plane: new THREE.Plane(normalVec.clone(), -planeDistance),
+    plane: new Plane(normalVec.clone(), -planeDistance),
     normalVec,
   }
 }

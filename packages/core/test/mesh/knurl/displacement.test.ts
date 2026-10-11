@@ -12,9 +12,10 @@
  *   - invalid/degenerate input (empty texture) still returns a geometry.
  */
 import { describe, it, expect, vi } from 'vitest'
-import * as THREE from 'three'
+import { Vec3 as Vec3C } from '../../../src/math3d'
 import { applyDisplacement, type DisplacementSettings } from '../../../src/mesh/knurl/displacement'
 import { MODE_TRIPLANAR } from '../../../src/mesh/knurl/mapping'
+import { isMeshShape, type Shape } from '../../../src/mesh/types'
 
 function makeImage(data: number[], width: number, height: number) {
   const bytes = new Uint8ClampedArray(width * height * 4)
@@ -36,18 +37,19 @@ function triNormals(): number[] {
   return [0, 0, 1, 0, 0, 1, 0, 0, 1]
 }
 
-function makeGeometry(positions: number[], normals: number[]): THREE.BufferGeometry {
-  const g = new THREE.BufferGeometry()
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3))
-  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3))
-  return g
+function makeGeometry(positions: number[], normals: number[]): Shape & { excludeWeight?: Float32Array | null } {
+  const pos = new Float32Array(positions)
+  const nrm = new Float32Array(normals)
+  const indices = new Uint32Array(pos.length / 3)
+  for (let i = 0; i < indices.length; i++) indices[i] = i
+  return { positions: pos, indices, normals: nrm }
 }
 
 const BOUNDS = {
-  min: new THREE.Vector3(0, 0, 0),
-  max: new THREE.Vector3(1, 1, 1),
-  size: new THREE.Vector3(1, 1, 1),
-  center: new THREE.Vector3(0.5, 0.5, 0.5),
+  min: new Vec3C(0, 0, 0),
+  max: new Vec3C(1, 1, 1),
+  size: new Vec3C(1, 1, 1),
+  center: new Vec3C(0.5, 0.5, 0.5),
 }
 
 function settings(overrides: Partial<DisplacementSettings> = {}): DisplacementSettings {
@@ -67,10 +69,10 @@ describe('applyDisplacement', () => {
     // grey 255 -> 1.0, no symmetric centering -> disp = amplitude. plane z=0 -> new z = 1.0.
     const img = makeImage([255, 255, 255, 255], 2, 2)
     const out = applyDisplacement(makeGeometry(triPositions(), triNormals()), img, 2, 2, settings(), BOUNDS)
-    expect(out.attributes.position.count).toBe(3)
-    expect(out.attributes.position.getZ(0)).toBeCloseTo(1.0, 3)
-    expect(out.attributes.position.getZ(1)).toBeCloseTo(1.0, 3)
-    expect(out.attributes.position.getZ(2)).toBeCloseTo(1.0, 3)
+    expect(out.positions.length / 3).toBe(3)
+    expect(out.positions[0 * 3 + 2]).toBeCloseTo(1.0, 3)
+    expect(out.positions[1 * 3 + 2]).toBeCloseTo(1.0, 3)
+    expect(out.positions[2 * 3 + 2]).toBeCloseTo(1.0, 3)
   })
 
   it('displaces exactly along the (0,0,1) normal by grey-0.5 when symmetric', () => {
@@ -84,9 +86,9 @@ describe('applyDisplacement', () => {
       BOUNDS,
     )
     // x,y unchanged, z = 0 + 1.0
-    expect(out.attributes.position.getX(0)).toBe(0)
-    expect(out.attributes.position.getY(0)).toBe(0)
-    expect(out.attributes.position.getZ(0)).toBeCloseTo(1.0, 3)
+    expect(out.positions[0]).toBe(0)
+    expect(out.positions[1]).toBe(0)
+    expect(out.positions[2]).toBeCloseTo(1.0, 3)
   })
 
   it('a mid-grey texture holds the plane still under symmetric displacement', () => {
@@ -99,9 +101,9 @@ describe('applyDisplacement', () => {
       { ...settings(), amplitude: 1, symmetricDisplacement: true },
       BOUNDS,
     )
-    expect(Math.abs(out.attributes.position.getZ(0))).toBeLessThan(0.01)
-    expect(Math.abs(out.attributes.position.getZ(1))).toBeLessThan(0.01)
-    expect(Math.abs(out.attributes.position.getZ(2))).toBeLessThan(0.01)
+    expect(Math.abs(out.positions[0 * 3 + 2])).toBeLessThan(0.01)
+    expect(Math.abs(out.positions[1 * 3 + 2])).toBeLessThan(0.01)
+    expect(Math.abs(out.positions[2 * 3 + 2])).toBeLessThan(0.01)
   })
 
   it('inverts the displacement direction with a negative amplitude', () => {
@@ -113,7 +115,7 @@ describe('applyDisplacement', () => {
       { ...settings(), amplitude: -1, symmetricDisplacement: false }, // grey 1 -> disp -1
       BOUNDS,
     )
-    expect(out.attributes.position.getZ(0)).toBeCloseTo(-1.0, 3)
+    expect(out.positions[0 * 3 + 2]).toBeCloseTo(-1.0, 3)
   })
 
   it('keeps the watertight invariant: shared vertices displace identically', () => {
@@ -130,21 +132,21 @@ describe('applyDisplacement', () => {
     const img = makeImage([255, 255, 255, 255], 2, 2)
     const out = applyDisplacement(makeGeometry(positions, normals), img, 2, 2, settings(), BOUNDS)
     // Shared position (0,0,0): vertex index 0 (tri0) and vertex index 3 (tri1).
-    expect(out.attributes.position.getZ(0)).toBeCloseTo(out.attributes.position.getZ(3), 6)
+    expect(out.positions[0 * 3 + 2]).toBeCloseTo(out.positions[3 * 3 + 2], 6)
     // Shared position (1,0,0): vertex index 1 and vertex index 4.
-    expect(out.attributes.position.getZ(1)).toBeCloseTo(out.attributes.position.getZ(4), 6)
+    expect(out.positions[1 * 3 + 2]).toBeCloseTo(out.positions[4 * 3 + 2], 6)
   })
 
   it('disables excluded faces to zero displacement via excludeWeight', () => {
     const g = makeGeometry(triPositions(), triNormals())
     // All three corners > 0.99 -> face excluded.
-    g.setAttribute('excludeWeight', new THREE.BufferAttribute(new Float32Array([1, 1, 1]), 1))
+    g.excludeWeight = new Float32Array([1, 1, 1])
     const img = makeImage([255, 255, 255, 255], 2, 2)
     const out = applyDisplacement(g, img, 2, 2, settings(), BOUNDS)
     // Excluded face is not moved: z stays 0.
-    expect(out.attributes.position.getZ(0)).toBeCloseTo(0, 6)
-    expect(out.attributes.position.getZ(1)).toBeCloseTo(0, 6)
-    expect(out.attributes.position.getZ(2)).toBeCloseTo(0, 6)
+    expect(out.positions[0 * 3 + 2]).toBeCloseTo(0, 6)
+    expect(out.positions[1 * 3 + 2]).toBeCloseTo(0, 6)
+    expect(out.positions[2 * 3 + 2]).toBeCloseTo(0, 6)
   })
 
   it('reports onProgress at least once (vertex 0 always triggers)', () => {
@@ -159,6 +161,6 @@ describe('applyDisplacement', () => {
     // tmax clamps to 1, so no division-by-zero inside sampleBilinear's guard.
     const img = makeImage([0], 1, 1)
     const out = applyDisplacement(geo, img, 1, 1, settings(), BOUNDS)
-    expect(out).toBeInstanceOf(THREE.BufferGeometry)
+    expect(isMeshShape(out)).toBe(true)
   })
 })

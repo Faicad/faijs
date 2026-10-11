@@ -7,11 +7,13 @@
  * 全程在 mesh 局部空间工作，不需要 world matrix 变换。
  */
 
-import * as THREE from 'three'
+import { Vec3 as Vec3C } from '../../math3d'
 import { subdivide } from './subdivision'
 import { applyDisplacement, type DisplacementSettings } from './displacement'
 import { loadKnurlingTexture, type TextureData } from './textureLoader'
 import { MODE_TRIPLANAR } from './mapping'
+import { boundingBox } from '../query'
+import type { Shape } from '../types'
 
 // ── Types ──
 
@@ -53,10 +55,10 @@ export interface KnurlParams {
 
 /** 包围盒（与 mapping.ts / displacement.ts 的 Bounds 同构） */
 export interface KnurlBounds {
-  min: THREE.Vector3
-  max: THREE.Vector3
-  size: THREE.Vector3
-  center: THREE.Vector3
+  min: Vec3C
+  max: Vec3C
+  size: Vec3C
+  center: Vec3C
 }
 
 /** Default knurling parameters, used for every field the caller leaves unset. */
@@ -95,7 +97,7 @@ export const KNURL_DEFAULTS: KnurlParams = {
  * @returns the displaced geometry.
  */
 export async function applyKnurlDisplacement(
-  geometry: THREE.BufferGeometry,
+  geometry: Shape,
   params: KnurlParams,
   onProgress?: (stage: string, p: number) => void,
   /** External whole-part bounds (defaults to the geometry's own bounds).
@@ -103,7 +105,7 @@ export async function applyKnurlDisplacement(
    *  GPU preview, which normalizes against the part bbox while this geometry
    *  is often only the selected-face subset. */
   boundsOverride?: KnurlBounds,
-): Promise<THREE.BufferGeometry> {
+): Promise<Shape> {
   const {
     textureHeight,
     invertDisplacement,
@@ -139,13 +141,14 @@ export async function applyKnurlDisplacement(
   const bounds: KnurlBounds = boundsOverride
     ? { min: boundsOverride.min, max: boundsOverride.max, size: boundsOverride.size, center: boundsOverride.center }
     : (() => {
-        geometry.computeBoundingBox()
-        const bb = geometry.boundingBox!
+        const bb = boundingBox(geometry)
+        const bbMin = new Vec3C(bb.min[0], bb.min[1], bb.min[2])
+        const bbMax = new Vec3C(bb.max[0], bb.max[1], bb.max[2])
         return {
-          min: bb.min.clone(),
-          max: bb.max.clone(),
-          size: new THREE.Vector3().subVectors(bb.max, bb.min),
-          center: new THREE.Vector3().addVectors(bb.min, bb.max).multiplyScalar(0.5),
+          min: bbMin,
+          max: bbMax,
+          size: new Vec3C().subVectors(bbMax, bbMin),
+          center: new Vec3C().addVectors(bbMin, bbMax).multiplyScalar(0.5),
         }
       })()
 
@@ -197,8 +200,6 @@ export async function applyKnurlDisplacement(
     (p) => onProgress?.('displace', p),
   )
 
-  // 5. 释放中间几何体
-  subdivided.dispose()
 
   return result
 }

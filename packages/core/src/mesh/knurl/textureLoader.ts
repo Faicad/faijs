@@ -10,7 +10,7 @@
  * 多个 CadRuntime 实例共享同一个纹理加载器是正确的行为。
  */
 
-import * as THREE from 'three'
+import type { Box3 } from '../../math3d'
 
 /**
  * Raw RGBA pixel data plus the pixel dimensions of a loaded texture.
@@ -53,5 +53,5 @@ export function disposeKnurlPreviewMaterial(): void {
   // no-op in headless
 }
 
-/** Bounds type shared with the knurl preview path (a THREE.Box3). */
-export type KnurlPreviewBounds = THREE.Box3
+/** Bounds type shared with the knurl preview path (a math3d Box3). */
+export type KnurlPreviewBounds = Box3

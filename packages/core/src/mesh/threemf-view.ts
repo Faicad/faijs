@@ -11,12 +11,12 @@
  * target pose we need
  *   delta = M_target × M_build⁻¹   (component-level transforms cancel).
  *
- * Matrices are `THREE.Matrix4` — core already depends on three as a peer dep
+ * Matrices are `Mat4` — core already depends on three as a peer dep
  * (io.ts imports THREE.BufferAttribute, brep imports occt-wasm) and the host
  * resolves it. This module is only reachable from the web display path
  * (`@faicad/faijs/mesh/threemf-view`); the weapp bundle never imports it.
  */
-import * as THREE from 'three'
+import { Mat4 } from '../math3d'
 import type { Bambu3mfMetadata } from './threemf-bambu'
 
 /** Bambu view layout: the pose a part carries on the plate / assembled / import. */
@@ -33,18 +33,18 @@ type ViewMetadata = Pick<
   'buildItems' | 'assembleTransforms' | 'importTransforms'
 >
 
-/** Convert a 12-value 4×3 column-major transform (3MF §3.5.1) to THREE.Matrix4.
+/** Convert a 12-value 4×3 column-major transform (3MF §3.5.1) to Mat4.
  *
  *  Per 3MF spec (Section 3.5.1) the 12 values are column-major:
  *    Col 0: [v0,v1,v2], Col 1: [v3,v4,v5], Col 2: [v6,v7,v8],
  *    Col 3: [v9,v10,v11] (translation).
- *  THREE.Matrix4.set() takes row-major args, so we transpose.
+ *  Mat4.set() takes row-major args, so we transpose.
  *
  * @param v - the 12 column-major transform values (3MF §3.5.1).
- * @returns the equivalent column-major 4×4 THREE.Matrix4.
+ * @returns the equivalent column-major 4×4 Mat4.
  */
-export function mat4From12Values(v: number[]): THREE.Matrix4 {
-  return new THREE.Matrix4().set(
+export function mat4From12Values(v: number[]): Mat4 {
+  return new Mat4().set(
     v[0], v[3], v[6], v[9],
     v[1], v[4], v[7], v[10],
     v[2], v[5], v[8], v[11],
@@ -52,13 +52,13 @@ export function mat4From12Values(v: number[]): THREE.Matrix4 {
   )
 }
 
-/** Convert a 16-value 4×4 row-major array to THREE.Matrix4.
+/** Convert a 16-value 4×4 row-major array to Mat4.
  *
  * @param v - the 16 row-major matrix values.
- * @returns the equivalent THREE.Matrix4.
+ * @returns the equivalent Mat4.
  */
-export function mat4From16Values(v: number[]): THREE.Matrix4 {
-  return new THREE.Matrix4().set(
+export function mat4From16Values(v: number[]): Mat4 {
+  return new Mat4().set(
     v[0], v[1], v[2], v[3],
     v[4], v[5], v[6], v[7],
     v[8], v[9], v[10], v[11],
@@ -71,8 +71,8 @@ export function mat4From16Values(v: number[]): THREE.Matrix4 {
  * @param t - the translation [x, y, z].
  * @returns the 4×4 translation matrix.
  */
-export function makeTranslationMatrix(t: [number, number, number]): THREE.Matrix4 {
-  return new THREE.Matrix4().makeTranslation(t[0], t[1], t[2])
+export function makeTranslationMatrix(t: [number, number, number]): Mat4 {
+  return new Mat4().makeTranslation(t[0], t[1], t[2])
 }
 
 /**
@@ -89,7 +89,7 @@ export function computeViewDelta(
   viewMode: ViewMode,
   bambuMeta: ViewMetadata,
   partInfo: ViewPartInfo,
-): THREE.Matrix4 | null {
+): Mat4 | null {
   const objectId = partInfo.objectId
   if (!objectId) return null
 

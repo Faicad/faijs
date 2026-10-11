@@ -10,7 +10,8 @@
  * 保留了核心水密性保证：同位置顶点使用相同平滑法线 + 相同位移值。
  */
 
-import * as THREE from 'three'
+import { Vec3 as Vec3C } from '../../math3d'
+import type { Shape } from '../types'
 import { QuantizedPointMap } from './meshIndex'
 import { computeUV, getCubicBlendWeights, type MappingSettings } from './mapping'
 
@@ -27,10 +28,10 @@ export interface DisplacementSettings extends MappingSettings {
 }
 
 interface Bounds {
-  min: THREE.Vector3
-  max: THREE.Vector3
-  center: THREE.Vector3
-  size: THREE.Vector3
+  min: Vec3C
+  max: Vec3C
+  center: Vec3C
+  size: Vec3C
 }
 
 interface ImageDataLike {
@@ -55,29 +56,29 @@ interface ImageDataLike {
  * @returns a new BufferGeometry with displaced positions and face normals.
  */
 export function applyDisplacement(
-  geometry: THREE.BufferGeometry,
+  geometry: Shape,
   imageData: ImageDataLike,
   imgWidth: number,
   imgHeight: number,
   settings: DisplacementSettings,
   bounds: Bounds,
   onProgress?: (p: number) => void,
-): THREE.BufferGeometry {
-  const posAttr = geometry.attributes.position
-  const nrmAttr = geometry.attributes.normal
-  const count = posAttr.count
+): Shape {
+  const posAttr = geometry.positions
+  const nrmAttr = geometry.normals || new Float32Array(posAttr.length)
+  const count = posAttr.length / 3
 
   const newPos = new Float32Array(count * 3)
   const newNrm = new Float32Array(count * 3)
 
-  const tmpPos = new THREE.Vector3()
-  const tmpNrm = new THREE.Vector3()
-  const vA = new THREE.Vector3()
-  const vB = new THREE.Vector3()
-  const vC = new THREE.Vector3()
-  const edge1 = new THREE.Vector3()
-  const edge2 = new THREE.Vector3()
-  const faceNrm = new THREE.Vector3()
+  const tmpPos = new Vec3C()
+  const tmpNrm = new Vec3C()
+  const vA = new Vec3C()
+  const vB = new Vec3C()
+  const vC = new Vec3C()
+  const edge1 = new Vec3C()
+  const edge2 = new Vec3C()
+  const faceNrm = new Vec3C()
 
   // 纹理纵横比校正
   const tmax = Math.max(imgWidth, imgHeight, 1)
@@ -93,9 +94,9 @@ export function applyDisplacement(
   let nextId = 0
   const vertexId = new Uint32Array(count)
   for (let i = 0; i < count; i++) {
-    const x = posAttr.getX(i),
-      y = posAttr.getY(i),
-      z = posAttr.getZ(i)
+    const x = posAttr[i * 3],
+      y = posAttr[i * 3 + 1],
+      z = posAttr[i * 3 + 2]
     const id = dedupMap.getOrSet(x, y, z, nextId)
     if (dedupMap.inserted) nextId++
     vertexId[i] = id
@@ -112,14 +113,14 @@ export function applyDisplacement(
   const maskedFracTotal = new Float64Array(uniqueCount)
 
   // 面排除权重
-  const ewAttr = geometry.attributes.excludeWeight || null
+  const ewAttr = (geometry as Shape & { excludeWeight?: Float32Array | null }).excludeWeight || null
   const userExcludedFaces = ewAttr ? new Uint8Array(count / 3) : null
   const excludedPos = ewAttr ? new Uint8Array(uniqueCount) : null
 
   for (let t = 0; t < count; t += 3) {
-    vA.fromBufferAttribute(posAttr, t)
-    vB.fromBufferAttribute(posAttr, t + 1)
-    vC.fromBufferAttribute(posAttr, t + 2)
+    vA.set(posAttr[t * 3], posAttr[t * 3 + 1], posAttr[t * 3 + 2])
+    vB.set(posAttr[(t + 1) * 3], posAttr[(t + 1) * 3 + 1], posAttr[(t + 1) * 3 + 2])
+    vC.set(posAttr[(t + 2) * 3], posAttr[(t + 2) * 3 + 1], posAttr[(t + 2) * 3 + 2])
     edge1.subVectors(vB, vA)
     edge2.subVectors(vC, vA)
     faceNrm.crossVectors(edge1, edge2)
@@ -135,7 +136,7 @@ export function applyDisplacement(
           faceAngle <= (settings.topAngleLimit ?? 0)
 
     const userExcluded = ewAttr
-      ? (ewAttr.getX(t) + ewAttr.getX(t + 1) + ewAttr.getX(t + 2)) / 3 > 0.99
+      ? (ewAttr[t] + ewAttr[t + 1] + ewAttr[t + 2]) / 3 > 0.99
       : false
     const faceMasked = angleMasked
     if (userExcluded && userExcludedFaces) userExcludedFaces[t / 3] = 1
@@ -143,7 +144,7 @@ export function applyDisplacement(
     for (let v = 0; v < 3; v++) {
       const vid = vertexId[t + v]
       if (userExcluded && excludedPos) excludedPos[vid] = 1
-      tmpNrm.fromBufferAttribute(nrmAttr, t + v)
+      tmpNrm.set(nrmAttr[(t + v) * 3], nrmAttr[(t + v) * 3 + 1], nrmAttr[(t + v) * 3 + 2])
       smoothNrmX[vid] += tmpNrm.x * faceArea
       smoothNrmY[vid] += tmpNrm.y * faceArea
       smoothNrmZ[vid] += tmpNrm.z * faceArea
@@ -174,7 +175,7 @@ export function applyDisplacement(
     if (dispCacheSet[vid]) continue
     dispCacheSet[vid] = 1
 
-    tmpPos.fromBufferAttribute(posAttr, i)
+    tmpPos.set(posAttr[i * 3], posAttr[i * 3 + 1], posAttr[i * 3 + 2])
 
     // Cubic 模式特殊处理
     if (settings.mappingMode === 6) {
@@ -235,8 +236,8 @@ export function applyDisplacement(
   const REPORT_EVERY = 5000
 
   for (let i = 0; i < count; i++) {
-    tmpPos.fromBufferAttribute(posAttr, i)
-    tmpNrm.fromBufferAttribute(nrmAttr, i)
+    tmpPos.set(posAttr[i * 3], posAttr[i * 3 + 1], posAttr[i * 3 + 2])
+    tmpNrm.set(nrmAttr[i * 3], nrmAttr[i * 3 + 1], nrmAttr[i * 3 + 2])
 
     const vid = vertexId[i]
     const grey = dispCacheVal[vid]
@@ -273,9 +274,9 @@ export function applyDisplacement(
   }
 
   // 从位移后位置计算精确的面法线
-  const eA = new THREE.Vector3()
-  const eB = new THREE.Vector3()
-  const fn = new THREE.Vector3()
+  const eA = new Vec3C()
+  const eB = new Vec3C()
+  const fn = new Vec3C()
   for (let t = 0; t < count; t += 3) {
     const ax = newPos[t * 3],
       ay = newPos[t * 3 + 1],
@@ -296,10 +297,9 @@ export function applyDisplacement(
     }
   }
 
-  const out = new THREE.BufferGeometry()
-  out.setAttribute('position', new THREE.BufferAttribute(newPos, 3))
-  out.setAttribute('normal', new THREE.BufferAttribute(newNrm, 3))
-  return out
+  const indices = new Uint32Array(count)
+  for (let i = 0; i < count; i++) indices[i] = i
+  return { positions: newPos, indices, normals: newNrm }
 }
 
 // ── 双线性采样 ──

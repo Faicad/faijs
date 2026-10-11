@@ -34,7 +34,8 @@
  *     - 原始 bounds [0,0,0]~[150,120,90] → knurl 后 [-0.5,-0.5,0]~[150.5,120.5,90.5]
  */
 
-import * as THREE from 'three'
+import type { Shape } from '../types'
+import { toNonIndexed as shapeToNonIndexed } from '../meshdata/ops'
 import { QuantizedPointMap } from './meshIndex'
 
 // 10μm 顶点去重网格
@@ -109,18 +110,19 @@ function makeVertStore(initialCap: number, hasWeights: boolean, hasCanon: boolea
  * @returns the subdivided non-indexed geometry and whether the safety cap was reached.
  */
 export async function subdivide(
-  geometry: THREE.BufferGeometry,
+  geometry: Shape,
   maxEdgeLength: number,
   onProgress?: (p: number, triCount: number, longestEdge: number) => void,
   faceWeights: Float32Array | null = null,
 ): Promise<{
-  geometry: THREE.BufferGeometry
+  geometry: Shape
   safetyCapHit: boolean
 }> {
   // 确保 geometry 是 non-indexed（toIndexed 假设输入是 flat 的）
-  let workingGeo = geometry
-  if (geometry.index) {
-    workingGeo = geometry.toNonIndexed()
+  let workingGeo: Shape = geometry
+  if (geometry.indices.length > 0) {
+    const ni = shapeToNonIndexed(geometry)
+    workingGeo = { positions: ni.positions, indices: ni.indices }
   }
 
   // 在 toIndexed 之前推导每面排除标记
@@ -439,25 +441,25 @@ interface ClusterInfo {
 }
 
 function toIndexed(
-  geometry: THREE.BufferGeometry,
+  geometry: Shape,
   nonIndexedWeights: Float32Array | null = null,
 ): { verts: VertStore; indices: Uint32Array; posCanonMap: QuantizedPointMap } {
-  const posAttr = geometry.attributes.position
-  const n = posAttr.count
+  const positions = geometry.positions
+  const n = positions.length / 3
 
   // 预计算每个面的法线（单位 + 原始叉积）
   const faceNrmUnit = new Float32Array(n * 3)
   const faceNrmRaw = new Float32Array(n * 3)
   for (let t = 0; t < n; t += 3) {
-    const ax = posAttr.getX(t),
-      ay = posAttr.getY(t),
-      az = posAttr.getZ(t)
-    const bx = posAttr.getX(t + 1),
-      by = posAttr.getY(t + 1),
-      bz = posAttr.getZ(t + 1)
-    const cx = posAttr.getX(t + 2),
-      cy = posAttr.getY(t + 2),
-      cz = posAttr.getZ(t + 2)
+    const ax = positions[t * 3],
+      ay = positions[t * 3 + 1],
+      az = positions[t * 3 + 2]
+    const bx = positions[(t + 1) * 3],
+      by = positions[(t + 1) * 3 + 1],
+      bz = positions[(t + 1) * 3 + 2]
+    const cx = positions[(t + 2) * 3],
+      cy = positions[(t + 2) * 3 + 1],
+      cz = positions[(t + 2) * 3 + 2]
     const e1x = bx - ax,
       e1y = by - ay,
       e1z = bz - az
@@ -489,9 +491,9 @@ function toIndexed(
   const clustersByCanon = new Map<number, ClusterInfo[]>()
 
   for (let i = 0; i < n; i++) {
-    const px = posAttr.getX(i)
-    const py = posAttr.getY(i)
-    const pz = posAttr.getZ(i)
+    const px = positions[i * 3]
+    const py = positions[i * 3 + 1]
+    const pz = positions[i * 3 + 2]
     const fnUx = faceNrmUnit[i * 3],
       fnUy = faceNrmUnit[i * 3 + 1],
       fnUz = faceNrmUnit[i * 3 + 2]
@@ -587,7 +589,7 @@ function toNonIndexed(
   verts: VertStore,
   indices: Uint32Array,
   faceExcluded: Uint8Array | null = null,
-): THREE.BufferGeometry {
+): Shape {
   const positions = verts.pos,
     normals = verts.nrm,
     weights = verts.wgt
@@ -612,9 +614,13 @@ function toNonIndexed(
     }
   }
 
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(posArray, 3))
-  geo.setAttribute('normal', new THREE.BufferAttribute(nrmArray, 3))
-  if (wgtArray) geo.setAttribute('excludeWeight', new THREE.BufferAttribute(wgtArray, 1))
+  const seqIndices = new Uint32Array(triCount * 3)
+  for (let i = 0; i < seqIndices.length; i++) seqIndices[i] = i
+  const geo: Shape = {
+    positions: posArray,
+    indices: seqIndices,
+    normals: nrmArray,
+  }
+  if (wgtArray) (geo as Shape & { excludeWeight?: Float32Array }).excludeWeight = wgtArray
   return geo
 }

@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import * as THREE from 'three'
+import { Mat4 } from '../../src/math3d'
 import * as meshPrimitives from '../../src/mesh/primitives'
 import * as meshTransform from '../../src/mesh/transform'
 import * as meshBoolean from '../../src/mesh/boolean'
@@ -168,7 +168,7 @@ describe('mesh-api: transform', () => {
 
   it('transformMatrix: 用 Matrix4 变换', () => {
     const s = meshPrimitives.box({ width: 10, depth: 10, height: 10, centered: true })
-    const matrix = new THREE.Matrix4().makeTranslation(50, 0, 0)
+    const matrix = new Mat4().makeTranslation(50, 0, 0)
     const transformed = meshTransform.transformMatrix(s, matrix)
 
     const bb = meshQuery.boundingBox(transformed)

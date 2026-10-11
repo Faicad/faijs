@@ -20,7 +20,7 @@ import {
   drillBrep, splitBrep, extrudeBrep,
 } from '../../src/brep/brep-ops'
 import { getSolidBoundingBox } from '../../src/brep/brep-utils'
-import * as THREE from 'three'
+import { Mat4 } from '../../src/math3d'
 
 let kernel: BrepEngineApi
 
@@ -53,8 +53,8 @@ describe('solidToShape', () => {
 // ─── matrixToArray ───
 
 describe('matrixToArray', () => {
-  it('should convert THREE.Matrix4 to OCCT row-major 3x4 array', () => {
-    const m = new THREE.Matrix4().makeTranslation(1, 2, 3)
+  it('should convert Mat4 to OCCT row-major 3x4 array', () => {
+    const m = new Mat4().makeTranslation(1, 2, 3)
     const arr = matrixToArray(m)
     expect(arr).toHaveLength(12)
     // Row-major: [r00,r01,r02,tx, r10,r11,r12,ty, r20,r21,r22,tz]
@@ -64,7 +64,7 @@ describe('matrixToArray', () => {
   })
 
   it('should convert identity matrix correctly', () => {
-    const m = new THREE.Matrix4()
+    const m = new Mat4()
     const arr = matrixToArray(m)
     expect(arr[0]).toBe(1) // r00
     expect(arr[5]).toBe(1) // r11

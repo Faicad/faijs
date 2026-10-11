@@ -17,7 +17,7 @@ import * as THREE from 'three'
 // library never calls opentype at runtime (keeps it out of the A-group closure).
 import type * as opentype from 'opentype.js'
 import type { Font } from 'opentype.js'
-import { mergeBufferGeometries } from '@faicad/faijs/primitives/mesh-primitives'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { getOpentypeFont } from './text-geometry'
 
 /**
@@ -156,7 +156,7 @@ export async function createMixedTextGeometry(
   }
 
   // Merge via BufferGeometryUtils or manual merge
-  const merged = mergeBufferGeometries(charGeos.map((cg) => cg.geo))
+  const merged = mergeGeometries(charGeos.map((cg) => cg.geo))
 
   // Center the whole text in X/Z
   merged.computeBoundingBox()

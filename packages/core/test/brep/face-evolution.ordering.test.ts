@@ -21,7 +21,7 @@
  * 若本文件变红 ⇒ `identityHashEvolution` 在这 4 个 op 上产出**错误的身份映射**，
  * 必须为它们找权威来源（而不是调松断言）。
  */
-import * as THREE from 'three'
+import { Mat4, Vec3 as Vec3C } from '../../src/math3d'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../../src/occt-kernel/occtKernel'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
@@ -60,8 +60,8 @@ function faceSignature(shape: BrepHandle): FaceSignature {
  * @param v - the point.
  * @returns the transformed point.
  */
-function applyMatrix(m: THREE.Matrix4, v: BrepVec3): BrepVec3 {
-  const p = new THREE.Vector3(v.x, v.y, v.z).applyMatrix4(m)
+function applyMatrix(m: Mat4, v: BrepVec3): BrepVec3 {
+  const p = new Vec3C(v.x, v.y, v.z).applyMatrix4(m)
   return { x: p.x, y: p.y, z: p.z }
 }
 
@@ -75,7 +75,7 @@ describe('Phase 0.3: identityHashEvolution 的面序假设（内核实测）', (
     const box = makeProbeBox()
     const before = faceSignature(box)
 
-    const m = new THREE.Matrix4().makeRotationZ(Math.PI / 2)
+    const m = new Mat4().makeRotationZ(Math.PI / 2)
     const out = kernel.transform(box as unknown as ShapeHandle, matrixToArray(m))
     const after = faceSignature(out as unknown as BrepHandle)
 
@@ -95,7 +95,7 @@ describe('Phase 0.3: identityHashEvolution 的面序假设（内核实测）', (
     const box = makeProbeBox()
     const before = faceSignature(box)
 
-    const m = new THREE.Matrix4().makeScale(2, 1, 3)
+    const m = new Mat4().makeScale(2, 1, 3)
     const out = kernel.generalTransform(box as unknown as ShapeHandle, matrixToArray(m))
     const after = faceSignature(out as unknown as BrepHandle)
 

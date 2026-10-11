@@ -22,7 +22,7 @@ import {
 import { drillBrepWithRoleTable } from '@faicad/faijs/brep/face-evolution'
 import { threadBrep } from '@faicad/faijs/api/brep-operations/threadFns'
 import { getScrewSpec, threadToPitchMm } from '@faicad/faijs/primitives/screw/screw-db'
-import * as THREE from 'three'
+import { Vec3 as Vec3C, Mat4, Quat } from '@faicad/faijs/math3d'
 import { getBackends, getCurrentStmt } from '@faicad/faijs/runtime-state'
 import { fromBrep, brepOf, inputRoleTable, resolveCompoundMember, replaceCompoundMember } from '@faicad/faijs/shape'
 import { defineOp } from '@faicad/faijs/sdk'
@@ -124,15 +124,15 @@ function screwHoleBrep(
       height: depth > 0 ? depth : 20,
       inward: true,
     })
-    const dir = new THREE.Vector3(...direction).normalize()
-    const fn = new THREE.Vector3(...faceNormal)
+    const dir = new Vec3C(...direction).normalize()
+    const fn = new Vec3C(...faceNormal)
     if (dir.dot(fn) > 0) dir.negate()
 
-    const zAxis = new THREE.Vector3(0, 0, 1)
-    const quat = new THREE.Quaternion().setFromUnitVectors(zAxis, dir)
-    const rotMatrix = new THREE.Matrix4().makeRotationFromQuaternion(quat)
-    const transMatrix = new THREE.Matrix4().makeTranslation(localPosition[0], localPosition[1], localPosition[2])
-    const fullMatrix = new THREE.Matrix4().multiplyMatrices(transMatrix, rotMatrix)
+    const zAxis = new Vec3C(0, 0, 1)
+    const quat = new Quat().setFromUnitVectors(zAxis, dir)
+    const rotMatrix = new Mat4().makeRotationFromQuaternion(quat)
+    const transMatrix = new Mat4().makeTranslation(localPosition[0], localPosition[1], localPosition[2])
+    const fullMatrix = new Mat4().multiplyMatrices(transMatrix, rotMatrix)
 
     const positionedThread = kernel.transform(threadSolid, matrixToArray(fullMatrix))
     kernel.release(threadSolid)

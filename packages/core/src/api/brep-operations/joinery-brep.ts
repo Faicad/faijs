@@ -16,7 +16,7 @@
  * 所有函数都是纯函数，输入输出均为 OCCT BrepHandle，调用方负责句柄生命周期。
  */
 
-import * as THREE from 'three'
+import { Vec3 as Vec3C, Mat4, Quat } from '../../math3d'
 import type { BrepHandle } from '../../brep/engine/types'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import type { Vec3 } from '../../mesh/types'
@@ -243,14 +243,14 @@ function solidToMeshData(kernel: BrepEngineApi, solid: BrepHandle): MeshData {
 /**
  * 构造局部的变换矩阵：local X → widthDir, Y → depthDir, Z → normal，再平移到 origin。
  */
-function makeBasisTransform(basis: JoineryBasis, origin: Vec3): THREE.Matrix4 {
-  const basisMatrix = new THREE.Matrix4().makeBasis(
-    new THREE.Vector3(...basis.widthDir),
-    new THREE.Vector3(...basis.depthDir),
-    new THREE.Vector3(...basis.normal),
+function makeBasisTransform(basis: JoineryBasis, origin: Vec3): Mat4 {
+  const basisMatrix = new Mat4().makeBasis(
+    new Vec3C(...basis.widthDir),
+    new Vec3C(...basis.depthDir),
+    new Vec3C(...basis.normal),
   )
-  const transMatrix = new THREE.Matrix4().makeTranslation(origin[0], origin[1], origin[2])
-  return new THREE.Matrix4().multiplyMatrices(transMatrix, basisMatrix)
+  const transMatrix = new Mat4().makeTranslation(origin[0], origin[1], origin[2])
+  return new Mat4().multiplyMatrices(transMatrix, basisMatrix)
 }
 
 /**
@@ -351,14 +351,14 @@ export function buildDowelSolid(
   const cyl = kernel.makeCylinder(radius, height)
 
   // 旋转 Z → -normal
-  const zAxis = new THREE.Vector3(0, 0, 1)
-  const negNormal = new THREE.Vector3(-normal[0], -normal[1], -normal[2]).normalize()
-  const quat = new THREE.Quaternion().setFromUnitVectors(zAxis, negNormal)
-  const rotMatrix = new THREE.Matrix4().makeRotationFromQuaternion(quat)
+  const zAxis = new Vec3C(0, 0, 1)
+  const negNormal = new Vec3C(-normal[0], -normal[1], -normal[2]).normalize()
+  const quat = new Quat().setFromUnitVectors(zAxis, negNormal)
+  const rotMatrix = new Mat4().makeRotationFromQuaternion(quat)
 
   // 平移到 centroid（旋转后 Z=0 对应 centroid，即切割平面上的顶面）
-  const transMatrix = new THREE.Matrix4().makeTranslation(centroid[0], centroid[1], centroid[2])
-  const fullMatrix = new THREE.Matrix4().multiplyMatrices(transMatrix, rotMatrix)
+  const transMatrix = new Mat4().makeTranslation(centroid[0], centroid[1], centroid[2])
+  const fullMatrix = new Mat4().multiplyMatrices(transMatrix, rotMatrix)
 
   const result = kernel.transform(cyl, matrixToArray(fullMatrix))
   kernel.release(cyl)

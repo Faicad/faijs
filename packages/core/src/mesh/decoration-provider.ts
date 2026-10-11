@@ -12,7 +12,7 @@
  * (OCCT `textToSolid` / `svgToSolid`, zero three); only the **mesh** path needs
  * a provider, and it reports a precise error instead of failing obscurely.
  */
-import type * as THREE from 'three'
+import type { Shape } from './types'
 
 /** Decoration inputs `cad.engrave` passes to the provider. */
 export interface EngraveDecorationParams {
@@ -38,7 +38,7 @@ export interface EngraveDecorationParams {
  */
 export type EngraveDecorationProvider = (
   params: EngraveDecorationParams,
-) => Promise<THREE.BufferGeometry>
+) => Promise<Shape>
 
 let provider: EngraveDecorationProvider | null = null
 

@@ -1,4 +1,7 @@
-import * as THREE from 'three'
+import { Mat4 } from '../math3d'
+import type { Shape } from '../mesh/types'
+import { boxGeometry, sphereGeometry, cylinderGeometry, coneGeometry } from '../mesh/meshdata/parametric'
+import { transformShape, translateShape, mergeShapes } from '../mesh/meshdata/ops'
 import type { PrimitiveType } from './types'
 
 /** Default size in mm used when no explicit size is given. */
@@ -7,47 +10,51 @@ export const DEFAULT_SIZE = 20
 export const DEFAULT_SEGMENTS = 32
 
 /** Rotation matrix: +90° around X — converts Y-up vertex data to Z-up. */
-const ROT_Y_TO_Z = new THREE.Matrix4().makeRotationX(Math.PI / 2)
+const ROT_Y_TO_Z = new Mat4().makeRotationX(Math.PI / 2)
 
 /**
  * Build the base geometry for a primitive type, centred on the origin.
  *
- * Returns a BufferGeometry in Z-up coordinates. Cube/sphere/cylinder/cone
+ * Returns a Shape in Z-up coordinates. Cube/sphere/cylinder/cone
  * geometry is rotated from Y-up to Z-up; the wedge is constructed directly
  * in Z-up.
  *
  * @param type - the primitive type to build.
  * @param size - nominal size in mm (defaults to DEFAULT_SIZE).
  * @param segments - angular/height resolution for curved primitives (defaults to DEFAULT_SEGMENTS).
- * @returns the primitive BufferGeometry.
+ * @returns the primitive Shape.
  */
 export function makePrimitiveGeo(
   type: PrimitiveType,
   size?: number,
   segments?: number,
-): THREE.BufferGeometry {
+): Shape {
   const s = size ?? DEFAULT_SIZE
   const segs = segments ?? DEFAULT_SEGMENTS
 
-  let geo: THREE.BufferGeometry
+  let geo: Shape
   switch (type) {
     case 'cube':
-    case 'box':
-      geo = new THREE.BoxGeometry(s, s, s)
-      geo.applyMatrix4(ROT_Y_TO_Z)
+    case 'box': {
+      const g = boxGeometry(s, s, s)
+      geo = transformShape(g, ROT_Y_TO_Z)
       break
-    case 'sphere':
-      geo = new THREE.SphereGeometry(s / 2, segs, segs)
-      geo.applyMatrix4(ROT_Y_TO_Z)
+    }
+    case 'sphere': {
+      const g = sphereGeometry(s / 2, segs, segs)
+      geo = transformShape(g, ROT_Y_TO_Z)
       break
-    case 'cylinder':
-      geo = new THREE.CylinderGeometry(s / 2, s / 2, s, segs)
-      geo.applyMatrix4(ROT_Y_TO_Z)
+    }
+    case 'cylinder': {
+      const g = cylinderGeometry(s / 2, s / 2, s, segs)
+      geo = transformShape(g, ROT_Y_TO_Z)
       break
-    case 'cone':
-      geo = new THREE.ConeGeometry(s / 2, s, segs)
-      geo.applyMatrix4(ROT_Y_TO_Z)
+    }
+    case 'cone': {
+      const g = coneGeometry(s / 2, s, segs)
+      geo = transformShape(g, ROT_Y_TO_Z)
       break
+    }
     case 'wedge': {
       // 楔形体：梯形棱柱，直接在 Z-up 中构建
       // 梯形在 YZ 平面（Y=宽度方向，Z=高度方向），拉升沿 X 轴
@@ -89,10 +96,7 @@ export function makePrimitiveGeo(
         1, 6, 5,  1, 2, 6,
       ])
 
-      geo = new THREE.BufferGeometry()
-      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-      geo.setIndex(new THREE.BufferAttribute(indices, 1))
-      // 楔形体直接在 Z-up 中构建，无需 ROT_Y_TO_Z
+      geo = { positions, indices }
       break
     }
   }
@@ -108,74 +112,22 @@ export function makePrimitiveGeo(
  * @param geo - the geometry to translate.
  * @param x - the X offset in mm.
  * @param y - the Y offset in mm.
+ * @returns a new translated Shape.
  */
 export function applyPrimitiveOffset(
-  geo: THREE.BufferGeometry,
+  geo: Shape,
   x: number,
   y: number,
-): void {
-  if (x === 0 && y === 0) return
-  geo.translate(x, y, 0)
+): Shape {
+  return translateShape(geo, x, y, 0)
 }
 
 /**
- * Merge multiple BufferGeometries into a single indexed geometry.
- * Automatically handles a mix of indexed and non-indexed inputs.
+ * Merge multiple Shapes into a single indexed Shape.
  *
- * @param geometries - the geometries to merge.
- * @returns a new BufferGeometry containing the combined vertices and triangles.
+ * @param geometries - the shapes to merge.
+ * @returns a new Shape containing the combined vertices and triangles.
  */
-export function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  if (geometries.length === 1) return geometries[0].clone()
-
-  const merged = new THREE.BufferGeometry()
-
-  // Collect all position arrays
-  const allPositions: Float32Array[] = []
-  const allIndices: Uint32Array[] = []
-  let vertexOffset = 0
-
-  for (const geo of geometries) {
-    const pos = geo.getAttribute('position') as THREE.BufferAttribute
-    if (!pos) continue
-
-    allPositions.push(new Float32Array(pos.array))
-    const idx = geo.index
-    if (idx) {
-      const shifted = new Uint32Array(idx.array.length)
-      for (let i = 0; i < idx.count; i++) {
-        shifted[i] = (idx.array as Uint32Array | Uint16Array)[i] + vertexOffset
-      }
-      allIndices.push(shifted)
-    } else {
-      // Non-indexed geometry: create sequential indices
-      const count = pos.count
-      const indices = new Uint32Array(count)
-      for (let i = 0; i < count; i++) indices[i] = i + vertexOffset
-      allIndices.push(indices)
-    }
-    vertexOffset += pos.count
-  }
-
-  // Concatenate positions
-  const totalPosLen = allPositions.reduce((s, a) => s + a.length, 0)
-  const mergedPos = new Float32Array(totalPosLen)
-  let posOffset = 0
-  for (const arr of allPositions) {
-    mergedPos.set(arr, posOffset)
-    posOffset += arr.length
-  }
-  merged.setAttribute('position', new THREE.BufferAttribute(mergedPos, 3))
-
-  // Concatenate indices
-  const totalIdxLen = allIndices.reduce((s, a) => s + a.length, 0)
-  const mergedIdx = new Uint32Array(totalIdxLen)
-  let idxOffset = 0
-  for (const arr of allIndices) {
-    mergedIdx.set(arr, idxOffset)
-    idxOffset += arr.length
-  }
-  merged.setIndex(new THREE.BufferAttribute(mergedIdx, 1))
-
-  return merged
+export function mergeBufferGeometries(geometries: Shape[]): Shape {
+  return mergeShapes(geometries)
 }

@@ -17,7 +17,7 @@
  *    产出精确 BREP——平面是 PLANE，圆柱面是 CYLINDRICAL_SURFACE，等。
  *
  * 2. **Mesh 重建路径**（mesh path）：
- *    对于无 OCCT 直接对应的复杂形状（screw, text），从 THREE.js BufferGeometry
+ *    对于无 OCCT 直接对应的复杂形状（screw, text），从 mesh Shape
  *    提取三角网格，经 meshReconstruct.ts 的多阶段愈合管线重建为 Solid。
  *    产出仍为 BREP，但曲面由多个小三角平面近似（faceted）。在本项目里，默认brep模型不包含此类近似的到的模型。
  *
@@ -25,7 +25,7 @@
  * OCCT 默认也是 Z-up，因此直接对应，无需额外轴转换。
  */
 
-import type * as THREE from 'three'
+
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { PrimitiveType } from './types'
@@ -36,39 +36,22 @@ import type {
   CylinderParams,
   ConeParams,
   WedgeParams,
+  Shape,
 } from '../mesh/types'
 
-// ─── 辅助：从 BufferGeometry 提取网格数据 ───
+// ─── 辅助：从 Shape 提取网格数据 ───
 
 /**
- * Extract positions + indices from a THREE.BufferGeometry for the mesh reconstruction path.
+ * Extract positions + indices from a Shape for the mesh reconstruction path.
  *
- * Handles both indexed and non-indexed geometry.
- * Sequential indices are created automatically for non-indexed geometry.
- *
- * @param geo - the source THREE.BufferGeometry.
+ * @param shape - the source Shape.
  * @returns the extracted positions and indices arrays.
  */
-export function extractMeshData(geo: THREE.BufferGeometry): {
+export function extractMeshData(shape: Shape): {
   positions: Float32Array
   indices: Uint32Array
 } {
-  const posAttr = geo.getAttribute('position') as THREE.BufferAttribute
-  if (!posAttr) throw new Error('Geometry has no position attribute')
-
-  const positions = new Float32Array(posAttr.array)
-
-  const idxAttr = geo.getIndex()
-  let indices: Uint32Array
-  if (idxAttr) {
-    indices = new Uint32Array(idxAttr.array)
-  } else {
-    // Non-indexed: create sequential indices
-    indices = new Uint32Array(posAttr.count)
-    for (let i = 0; i < posAttr.count; i++) indices[i] = i
-  }
-
-  return { positions, indices }
+  return { positions: new Float32Array(shape.positions), indices: new Uint32Array(shape.indices) }
 }
 
 // ─── 直接构造路径 ───
@@ -320,20 +303,20 @@ export function primitiveToBrepSolid(
 }
 
 /**
- * Create a CAD solid from a THREE.BufferGeometry via the mesh reconstruction path.
+ * Create a CAD solid from a Shape via the mesh reconstruction path.
  *
  * Suitable for complex shapes that cannot be constructed directly
  * (screw, text, SVG extrusion, etc.).
  *
  * @param kernel - the initialized OCCT kernel.
- * @param geo - the THREE.js BufferGeometry.
+ * @param shape - the mesh Shape.
  * @returns the CAD solid plus path information.
  */
 export function geometryToBrepSolid(
   kernel: BrepEngineApi,
-  geo: THREE.BufferGeometry,
+  shape: Shape,
 ): PrimitiveToBrepResult {
-  const { positions, indices } = extractMeshData(geo)
+  const { positions, indices } = extractMeshData(shape)
   const solid = reconstructSolidFromMesh(kernel, positions, indices)
   return { solid, path: 'mesh', type: 'screw' }
 }

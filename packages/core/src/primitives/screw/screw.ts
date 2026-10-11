@@ -1,4 +1,6 @@
-import * as THREE from 'three'
+import { Mat4 } from '../../math3d'
+import { transformShape } from '../../mesh/meshdata/ops'
+import type { GeoData } from '../../mesh/meshdata/parametric'
 import type { ScrewParams } from './screw-db'
 import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from './screw-db'
 
@@ -9,7 +11,7 @@ const N_AX_MAX = 3200
 const N_PER_TURN = 32
 
 /** Rotation matrix: +90° around X — converts Y-up vertex data to Z-up. */
-const ROT_Y_TO_Z = new THREE.Matrix4().makeRotationX(Math.PI / 2)
+const ROT_Y_TO_Z = new Mat4().makeRotationX(Math.PI / 2)
 
 /**
  * Modulo that always returns a positive result.
@@ -34,9 +36,9 @@ function threadProfileFactor(offset: number): number {
  * at a specific angular phase; vertices near that phase get larger radius.
  *
  * @param params - the screw parameters (system, spec, thread, length, head, resolution).
- * @returns a Z-up BufferGeometry of the screw.
+ * @returns a Z-up GeoData of the screw.
  */
-export function makeScrew(params: ScrewParams): THREE.BufferGeometry {
+export function makeScrew(params: ScrewParams): GeoData {
   const {
     system,
     specIdx,
@@ -203,11 +205,10 @@ export function makeScrew(params: ScrewParams): THREE.BufferGeometry {
     }
   }
 
-  // ---- Build BufferGeometry and rotate to Z-up ----
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vPos), 3))
-  geo.setIndex(new THREE.BufferAttribute(new Uint32Array(tris), 1))
-  geo.applyMatrix4(ROT_Y_TO_Z)
-
-  return geo
+  // ---- Build GeoData and rotate to Z-up ----
+  const geo: GeoData = {
+    positions: new Float32Array(vPos),
+    indices: new Uint32Array(tris),
+  }
+  return transformShape(geo, ROT_Y_TO_Z) as GeoData
 }

@@ -11,7 +11,6 @@
  * against the loaded backend, not mocked.
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import * as THREE from 'three'
 import {
   computeBasisFromNormal,
   computePlaneBasis,
@@ -20,12 +19,13 @@ import {
 } from '../../src/mesh/fai_split'
 import { meshSplit } from '../../src/index'
 import { geoToManifoldMesh } from '@faicad/faijs/boolean/csg-backend'
+import { boxGeometry } from '@faicad/faijs/mesh/meshdata/parametric'
+import { Vec3 as Vec3C, Euler } from '@faicad/faijs/math3d'
 import type { Shape } from '@faicad/faijs/mesh/types'
 
 /** A world-space unit box centred on the origin. */
 function unitBox(): Shape {
-  const g = new THREE.BoxGeometry(2, 2, 2)
-  return geoToManifoldMesh(g)
+  return geoToManifoldMesh(boxGeometry(2, 2, 2))
 }
 
 describe('computeBasisFromNormal — pure basis from normal + inPlaneAngle', () => {
@@ -73,8 +73,8 @@ describe('computeBasisFromNormal — pure basis from normal + inPlaneAngle', () 
 
   it('an exact Euler-decomposable normal yields width/depth exactly orthogonal to it', () => {
     // normal = forward-map of Euler XYZ (rx, ry, rz=0) with a non-degenerate rx/ry.
-    const euler = new THREE.Euler((20 * Math.PI) / 180, (15 * Math.PI) / 180, 0, 'XYZ')
-    const n = new THREE.Vector3(0, 0, 1).applyEuler(euler)
+    const euler = new Euler((20 * Math.PI) / 180, (15 * Math.PI) / 180, 0, 'XYZ')
+    const n = new Vec3C(0, 0, 1).applyEuler(euler)
     const normal: [number, number, number] = [n.x, n.y, n.z]
     const { widthDir, depthDir } = computeBasisFromNormal(normal, 0)
     const dotNW = normal[0] * widthDir[0] + normal[1] * widthDir[1] + normal[2] * widthDir[2]
@@ -90,8 +90,8 @@ describe('computeBasisFromNormal — pure basis from normal + inPlaneAngle', () 
     const rx = 20
     const ry = 15
     const rz = 0
-    const euler = new THREE.Euler((rx * Math.PI) / 180, (ry * Math.PI) / 180, (rz * Math.PI) / 180, 'XYZ')
-    const normalVec = new THREE.Vector3(0, 0, 1).applyEuler(euler)
+    const euler = new Euler((rx * Math.PI) / 180, (ry * Math.PI) / 180, (rz * Math.PI) / 180, 'XYZ')
+    const normalVec = new Vec3C(0, 0, 1).applyEuler(euler)
     const normal: [number, number, number] = [normalVec.x, normalVec.y, normalVec.z]
 
     const viaPlaneBasis = computePlaneBasis(rx, ry, rz)

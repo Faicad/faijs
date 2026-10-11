@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { SVGLoader, type SVGResult } from 'three/examples/jsm/loaders/SVGLoader.js'
-import { mergeBufferGeometries } from '@faicad/faijs/primitives/mesh-primitives'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 /**
  * Options controlling an SVG extrusion.
@@ -75,7 +75,7 @@ export function extrudeShapes(
   })
 
   // 合并所有几何体为一个
-  const merged = mergeBufferGeometries(geometries)
+  const merged = mergeGeometries(geometries)
   merged.computeVertexNormals()
 
   // 居中处理：XY 居中，Z 底部对齐到 0（3D 打印放在热床上）

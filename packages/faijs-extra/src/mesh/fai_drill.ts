@@ -9,7 +9,7 @@
  * mesh 直接复用其几何计算逻辑。
  */
 
-import * as THREE from 'three'
+import { Vec3, Box3 } from '@faicad/faijs/math3d'
 import {
   buildHoleGeometry,
   computeThroughHoleDimensions,
@@ -32,23 +32,23 @@ import type { Shape, DrillParams } from '@faicad/faijs/mesh/types'
  * @returns the drilled shape in world space.
  */
 export async function drill(shape: Shape, params: DrillParams): Promise<Shape> {
-  const position = new THREE.Vector3(...params.position)
-  const faceNormal = new THREE.Vector3(...params.faceNormal)
+  const position = new Vec3(...params.position)
+  const faceNormal = new Vec3(...params.faceNormal)
 
   // 1. 计算钻孔方向：direction 是 Vec3，确保朝向材料内部
-  const direction = new THREE.Vector3(...params.direction).normalize()
+  const direction = new Vec3(...params.direction).normalize()
   if (direction.dot(faceNormal) > 0) {
     direction.negate()
   }
 
   // 2. 从输入几何计算 bbox（世界空间）
-  const bbox = new THREE.Box3()
-  const posVec = new THREE.Vector3()
+  const bbox = new Box3()
+  const posVec = new Vec3()
   for (let i = 0; i < shape.positions.length; i += 3) {
     posVec.set(shape.positions[i], shape.positions[i + 1], shape.positions[i + 2])
     bbox.expandByPoint(posVec)
   }
-  const bboxSize = bbox.getSize(new THREE.Vector3())
+  const bboxSize = bbox.getSize(new Vec3())
   const bboxMax = Math.max(bboxSize.x, bboxSize.y, bboxSize.z)
 
   // 3. 钳制深度
@@ -57,7 +57,7 @@ export async function drill(shape: Shape, params: DrillParams): Promise<Shape> {
 
   // 4. 计算孔高和中心
   let holeHeight: number
-  let holeCenter: THREE.Vector3
+  let holeCenter: Vec3
 
   if (safeDepth === 0) {
     // 通孔：按 bbox 裁剪
@@ -104,10 +104,6 @@ export async function drill(shape: Shape, params: DrillParams): Promise<Shape> {
 
   // 8. CSG subtract
   const result = await computeBoolean([shape, holeManifold], 'subtract')
-
-  // 9. 清理
-  holeGeo.dispose()
-  holeGeoWorld.dispose()
 
   return result
 }

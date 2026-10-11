@@ -31,7 +31,7 @@ describe('createEngraveDecorationProvider', () => {
       depth: 2,
       text: 'HELLO',
     })
-    expect(geo.getAttribute('position').count).toBeGreaterThan(0)
+    expect(geo.positions.length / 3).toBeGreaterThan(0)
   })
 
   it('honours textSize and depth parameters', async () => {
@@ -41,10 +41,10 @@ describe('createEngraveDecorationProvider', () => {
       text: 'WIDE',
       textSize: 30,
     })
-    expect(geo.getAttribute('position').count).toBeGreaterThan(0)
+    expect(geo.positions.length / 3).toBeGreaterThan(0)
     // Larger text → wider geometry extent.
     let minX = Infinity, maxX = -Infinity
-    const pos: Float32Array = geo.getAttribute('position').array as Float32Array
+    const pos: Float32Array = geo.positions
     for (let i = 0; i < pos.length; i += 3) {
       if (pos[i] < minX) minX = pos[i]
       if (pos[i] > maxX) maxX = pos[i]

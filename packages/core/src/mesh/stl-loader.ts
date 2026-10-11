@@ -7,11 +7,11 @@
  * whose bundle must stay free of the addons. Precedent: `mesh/creased-normals.ts`
  * ports three's `toCreasedNormals` for exactly this reason.
  *
- * Output matches `STLLoader.parse()`: a non-indexed `BufferGeometry` carrying
- * `position` (one vertex triple per triangle, duplicates preserved) and `normal`
- * attributes, so callers can keep using `geoToManifoldMesh` for welding.
+ * Output: a non-indexed `Shape` carrying `positions` (one vertex triple per
+ * triangle, duplicates preserved), sequential `indices`, and `normals`,
+ * so callers can keep using `geoToManifoldMesh` for welding.
  */
-import * as THREE from 'three'
+import type { Shape } from './types'
 
 /** Binary STL layout: 80-byte header + uint32 count + 50 bytes per triangle. */
 const BINARY_HEADER_BYTES = 80
@@ -48,7 +48,15 @@ function normalOf(
   return [nx / len, ny / len, nz / len]
 }
 
-function parseBinary(buffer: ArrayBuffer): THREE.BufferGeometry {
+/** Build a non-indexed Shape from positions + normals (sequential indices). */
+function makeShape(positions: Float32Array, normals: Float32Array): Shape {
+  const vertCount = positions.length / 3
+  const indices = new Uint32Array(vertCount)
+  for (let i = 0; i < vertCount; i++) indices[i] = i
+  return { positions, indices, normals }
+}
+
+function parseBinary(buffer: ArrayBuffer): Shape {
   const view = new DataView(buffer)
   const triangles = view.getUint32(BINARY_HEADER_BYTES, true)
   const positions = new Float32Array(triangles * 9)
@@ -84,13 +92,10 @@ function parseBinary(buffer: ArrayBuffer): THREE.BufferGeometry {
     }
     offset += 2 // attribute byte count
   }
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
-  return geo
+  return makeShape(positions, normals)
 }
 
-function parseAscii(buffer: ArrayBuffer): THREE.BufferGeometry {
+function parseAscii(buffer: ArrayBuffer): Shape {
   const text = new TextDecoder().decode(new Uint8Array(buffer))
   const vertices: number[] = []
   const normals: number[] = []
@@ -129,20 +134,17 @@ function parseAscii(buffer: ArrayBuffer): THREE.BufferGeometry {
   }
   flush()
 
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
-  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3))
-  return geo
+  return makeShape(new Float32Array(vertices), new Float32Array(normals))
 }
 
 /**
- * Parse STL bytes into a non-indexed BufferGeometry.
+ * Parse STL bytes into a non-indexed Shape.
  *
  * @param buffer - the raw STL file bytes (binary or ASCII).
- * @returns the parsed geometry (empty when the file holds no triangle).
+ * @returns the parsed shape (empty when the file holds no triangle).
  * @throws when the buffer is neither a well-formed binary nor ASCII STL.
  */
-export function parseStl(buffer: ArrayBuffer): THREE.BufferGeometry {
+export function parseStl(buffer: ArrayBuffer): Shape {
   if (buffer.byteLength === 0) {
     throw new Error('[mesh/stl-loader] empty STL buffer')
   }

@@ -13,17 +13,18 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import * as THREE from 'three'
 import { InlineCsgBackend } from '../../src/browser-host/inline-csg-backend'
 import { geoToManifoldMesh } from '../../src/boolean/csg-backend'
 import type { MeshData } from '../../src/cad-runtime/ports'
+import { boxGeometry } from '../../src/mesh/meshdata/parametric'
+import { translateShape } from '../../src/mesh/meshdata/ops'
 
 // ── helpers ──
 
 function box(cx: number, cy: number, cz: number, hw: number, hh: number, hd: number): MeshData {
-  const g = new THREE.BoxGeometry(hw * 2, hh * 2, hd * 2)
-  g.translate(cx, cy, cz)
-  const m = geoToManifoldMesh(g)
+  const g = boxGeometry(hw * 2, hh * 2, hd * 2)
+  const moved = translateShape(g, cx, cy, cz)
+  const m = geoToManifoldMesh(moved)
   return { positions: m.positions, indices: m.indices }
 }
 

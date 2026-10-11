@@ -16,8 +16,8 @@ import { initOcctWasm, importStepToMesh, meshesToStep } from '../../src/occt-ker
 import { releaseSolid, exportStepFromSolidsHighLevel } from '../../src/occt-kernel/highLevelApi'
 import { primitiveToBrepSolid, geometryToBrepSolid } from '../../src/primitives/brep-primitives'
 import { cadShapeIsValid, meshToStepBrep } from '../../src/occt-kernel/meshReconstruct'
-import { BufferGeometry, BufferAttribute } from 'three'
 import { fromBrep } from '../../src/shape'
+import type { Shape } from '../../src/mesh/types'
 import { resolveEdgeSelection, resolveFaceEdgeSelection, resolveVertexSelection } from '../../src/api/cadquery-selectors/edge'
 import { resolveFaceSelector } from '../../src/api/cadquery-selectors/face'
 import { orientedFaceNormal } from '../../src/api/cadquery-selectors/entity'
@@ -166,14 +166,12 @@ describe('occt edge/vertex selectors + geometry hints', () => {
     expect(front.normal).toEqual([0, 0, 1])
   })
 
-  it('geometryToBrepSolid rebuilds a solid from a BufferGeometry of a box tessellation', () => {
+  it('geometryToBrepSolid rebuilds a solid from a Shape of a box tessellation', () => {
     const src = buildBox()
     try {
       const mesh = kernel.meshShape(src.solid, { linearDeflection: 0.1, angularDeflection: 0.5 })
-      const geo = new BufferGeometry()
-      geo.setAttribute('position', new BufferAttribute(mesh.positions, 3))
-      geo.setIndex(new BufferAttribute(mesh.indices, 1))
-      const res = geometryToBrepSolid(kernel, geo)
+      const shape: Shape = { positions: mesh.positions, indices: mesh.indices }
+      const res = geometryToBrepSolid(kernel, shape)
       expect(res.path).toBe('mesh')
       expect(cadShapeIsValid(kernel, res.solid)).toBe(true)
       kernel.release(res.solid)

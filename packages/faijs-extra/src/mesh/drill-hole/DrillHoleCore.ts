@@ -1,4 +1,5 @@
-import * as THREE from 'three'
+import { Vec3, Mat4, Quat, Box3 } from '@faicad/faijs/math3d'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import { makeScrew } from '@faicad/faijs/primitives/screw/screw'
 import { getScrewSpec } from '@faicad/faijs/primitives/screw/screw-db'
 import {
@@ -8,10 +9,12 @@ import {
 } from '@faicad/faijs/boolean/csg-backend'
 import { deriveNormals } from '@faicad/faijs/boolean/deriveNormals'
 import type { ManifoldMeshData } from '@faicad/faijs/boolean/csg-backend'
+import { cylinderGeometry } from '@faicad/faijs/mesh/meshdata/parametric'
+import { transformShape, translateShape } from '@faicad/faijs/mesh/meshdata/ops'
 import type { DrillDirection, DrillHoleParams } from './drill-types'
 
 /** Rotation matrix: +90° around X — converts Y-up vertex data to Z-up. */
-const ROT_Y_TO_Z = new THREE.Matrix4().makeRotationX(Math.PI / 2)
+const ROT_Y_TO_Z = new Mat4().makeRotationX(Math.PI / 2)
 
 /**
  * Build a Z-up hole geometry centered on the origin, with the axial direction
@@ -24,25 +27,24 @@ const ROT_Y_TO_Z = new THREE.Matrix4().makeRotationX(Math.PI / 2)
  *
  * @param params - drill-hole parameters (type, diameter, screw details, tolerance).
  * @param height - axial length of the hole in millimeters.
- * @returns the hole geometry as a Z-up BufferGeometry.
+ * @returns the hole geometry as a Z-up Shape.
  */
 export function buildHoleGeometry(
   params: DrillHoleParams,
   height: number,
-): THREE.BufferGeometry {
+): Shape {
   const toleranceRadius = params.tolerance / 2
 
   // ── simple: CylinderGeometry → rotate to Z-up ──
   if (params.holeType === 'simple') {
     const r = params.diameter / 2 + toleranceRadius
-    const geo = new THREE.CylinderGeometry(r, r, height, 32)
-    geo.applyMatrix4(ROT_Y_TO_Z)
-    return geo
+    const geo = cylinderGeometry(r, r, height, 32)
+    return transformShape(geo, ROT_Y_TO_Z)
   }
 
   // ── screw: makeScrew() already returns Z-up ──
   if (params.holeType === 'screw') {
-    const geo = makeScrew({
+    let geo: Shape = makeScrew({
       system: params.screwSystem,
       specIdx: params.screwSpecIdx,
       thread: params.screwThread,
@@ -58,43 +60,40 @@ export function buildHoleGeometry(
     const spec = getScrewSpec(params.screwSystem, params.screwSpecIdx)
     const headHeight = params.screwHead !== 'none' ? spec.dia : 0
     const totalLength = height + headHeight
-    geo.translate(0, 0, -totalLength / 2)
+    geo = translateShape(geo, 0, 0, -totalLength / 2)
 
     // For screw with head: makeScrew places the head at the +Z end (top of
     // the screw), but for a drill hole the head must be at the -Z end — the
     // entry point at the surface. Reflect Z to put the head at the entry side,
     // and reverse triangle winding to maintain correct normals.
     if (params.screwHead !== 'none') {
-      const pos = geo.getAttribute('position')
-      for (let i = 0; i < pos.count; i++) {
-        pos.setZ(i, -pos.getZ(i))
+      const pos = geo.positions
+      for (let i = 2; i < pos.length; i += 3) {
+        pos[i] = -pos[i]
       }
-      pos.needsUpdate = true
 
       // Fix winding order: reflection flips triangle orientation
-      const idx = geo.index!
-      const arr = idx.array as Uint16Array | Uint32Array
+      const arr = geo.indices
       for (let i = 0; i < arr.length; i += 3) {
         const tmp = arr[i + 1]
         arr[i + 1] = arr[i + 2]
         arr[i + 2] = tmp
       }
-      idx.needsUpdate = true
     }
 
     // Apply tolerance: scale radially (X and Y in Z-up space)
     const baseRadius = spec.dia / 2
     if (toleranceRadius > 0 && baseRadius > 0) {
       const scale = 1 + toleranceRadius / baseRadius
-      geo.scale(scale, scale, 1)
+      const scaleMatrix = new Mat4().makeScale(scale, scale, 1)
+      geo = transformShape(geo, scaleMatrix)
     }
     return geo
   }
 
   // Fallback (should not reach)
-  const geo = new THREE.CylinderGeometry(params.diameter / 2, params.diameter / 2, height, 32)
-  geo.applyMatrix4(ROT_Y_TO_Z)
-  return geo
+  const geo = cylinderGeometry(params.diameter / 2, params.diameter / 2, height, 32)
+  return transformShape(geo, ROT_Y_TO_Z)
 }
 
 /**
@@ -108,10 +107,10 @@ export function buildHoleGeometry(
  * @returns the height and world-space center of the through hole.
  */
 export function computeThroughHoleDimensions(
-  position: THREE.Vector3,
-  direction: THREE.Vector3,
-  bbox: THREE.Box3,
-): { height: number; center: THREE.Vector3 } {
+  position: Vec3,
+  direction: Vec3,
+  bbox: Box3,
+): { height: number; center: Vec3 } {
   const dir = direction.clone().normalize()
 
   // Manual slab-method intersection: compute distances along dir to bbox entry/exit.
@@ -177,10 +176,10 @@ export function computeThroughHoleDimensions(
  * @returns the world-space cylinder center.
  */
 export function computeBlindHoleCenter(
-  position: THREE.Vector3,
-  direction: THREE.Vector3,
+  position: Vec3,
+  direction: Vec3,
   depth: number,
-): THREE.Vector3 {
+): Vec3 {
   return position.clone().add(direction.clone().normalize().multiplyScalar(depth / 2))
 }
 
@@ -194,19 +193,19 @@ export function computeBlindHoleCenter(
  * @returns a transformed clone of the input geometry.
  */
 export function positionHoleGeometry(
-  geo: THREE.BufferGeometry,
-  direction: THREE.Vector3,
-  center: THREE.Vector3,
-): THREE.BufferGeometry {
-  const result = geo.clone()
+  geo: Shape,
+  direction: Vec3,
+  center: Vec3,
+): Shape {
   // Rotate Z axis to direction
-  const quat = new THREE.Quaternion().setFromUnitVectors(
-    new THREE.Vector3(0, 0, 1),
+  const quat = new Quat().setFromUnitVectors(
+    new Vec3(0, 0, 1),
     direction.clone().normalize(),
   )
-  result.applyQuaternion(quat)
+  const rotMatrix = new Mat4().makeRotationFromQuaternion(quat)
+  let result = transformShape(geo, rotMatrix)
   // Translate to center
-  result.translate(center.x, center.y, center.z)
+  result = translateShape(result, center.x, center.y, center.z)
   return result
 }
 
@@ -223,14 +222,14 @@ export function positionHoleGeometry(
  */
 export function resolveDrillDirection(
   direction: DrillDirection,
-  faceNormal: THREE.Vector3,
-): THREE.Vector3 {
+  faceNormal: Vec3,
+): Vec3 {
   if (direction === 'normal') {
     return faceNormal.clone().negate().normalize()
   }
 
   // Axis-aligned direction
-  const axisDir = new THREE.Vector3(
+  const axisDir = new Vec3(
     direction === 'x' ? 1 : 0,
     direction === 'y' ? 1 : 0,
     direction === 'z' ? 1 : 0,
@@ -244,25 +243,24 @@ export function resolveDrillDirection(
 }
 
 /**
- * Drill a hole into a THREE.Mesh in world space, returning the resulting
+ * Drill a hole into a mesh in world space, returning the resulting
  * geometry in the mesh's local space.
  *
- * @param targetMesh - the mesh to drill into.
+ * @param target - the target mesh-like object with geometry and world matrix.
  * @param params - drill-hole parameters.
  * @param position - world-space hole entry point.
  * @param faceNormal - world-space normal of the face at the entry point.
  * @returns the drilled geometry in mesh-local space.
  */
 export async function executeDrillHole(
-  targetMesh: THREE.Mesh,
+  target: { geometry: Shape; matrixWorld: Mat4 },
   params: DrillHoleParams,
-  position: THREE.Vector3,
-  faceNormal: THREE.Vector3,
-): Promise<THREE.BufferGeometry> {
-  targetMesh.updateMatrixWorld()
+  position: Vec3,
+  faceNormal: Vec3,
+): Promise<Shape> {
   return executeDrillHoleOnGeometry(
-    targetMesh.geometry,
-    targetMesh.matrixWorld,
+    target.geometry,
+    target.matrixWorld,
     params,
     position,
     faceNormal,
@@ -274,7 +272,7 @@ export async function executeDrillHole(
  *
  * This avoids the need to temporarily swap mesh.geometry when the mesh
  * currently has a preview geometry on it. Callers that have the G0 geometry
- * in a separate BufferGeometry can use this directly.
+ * in a separate Shape can use this directly.
  *
  * @param sourceGeometry - the base geometry to drill (mesh-local space).
  * @param worldMatrix - world transform of the source geometry.
@@ -284,20 +282,24 @@ export async function executeDrillHole(
  * @returns the drilled geometry, transformed back into mesh-local space.
  */
 export async function executeDrillHoleOnGeometry(
-  sourceGeometry: THREE.BufferGeometry,
-  worldMatrix: THREE.Matrix4,
+  sourceGeometry: Shape,
+  worldMatrix: Mat4,
   params: DrillHoleParams,
-  position: THREE.Vector3,
-  faceNormal: THREE.Vector3,
-): Promise<THREE.BufferGeometry> {
+  position: Vec3,
+  faceNormal: Vec3,
+): Promise<Shape> {
   // 1. Compute drill direction based on params.direction
   const direction = resolveDrillDirection(params.direction, faceNormal)
 
   // 2. Compute bbox from the source geometry (in world space)
-  sourceGeometry.computeBoundingBox()
-  const bbox = sourceGeometry.boundingBox!.clone()
-  bbox.applyMatrix4(worldMatrix)
-  const bboxSize = bbox.getSize(new THREE.Vector3())
+  const bbox = new Box3()
+  const v = new Vec3()
+  for (let i = 0; i < sourceGeometry.positions.length; i += 3) {
+    v.set(sourceGeometry.positions[i], sourceGeometry.positions[i + 1], sourceGeometry.positions[i + 2])
+    v.applyMatrix4(worldMatrix)
+    bbox.expandByPoint(v)
+  }
+  const bboxSize = bbox.getSize(new Vec3())
   const bboxMax = Math.max(bboxSize.x, bboxSize.y, bboxSize.z)
 
   // 3. Clamp depth to valid range: [0, bboxMax]
@@ -305,7 +307,7 @@ export async function executeDrillHoleOnGeometry(
 
   // 4. Compute hole height and center
   let holeHeight: number
-  let holeCenter: THREE.Vector3
+  let holeCenter: Vec3
 
   if (safeDepth === 0) {
     // Through hole: clip to bbox
@@ -334,9 +336,8 @@ export async function executeDrillHoleOnGeometry(
   // 6. Position hole geometry to world space
   const holeGeoWorld = positionHoleGeometry(holeGeo, direction, holeCenter)
 
-  // 7. Clone source geometry and transform to world space
-  const targetGeo = sourceGeometry.clone()
-  targetGeo.applyMatrix4(worldMatrix)
+  // 7. Transform source geometry to world space
+  const targetGeo = transformShape(sourceGeometry, worldMatrix)
 
   // 8. Convert to ManifoldMeshData
   const targetManifold: ManifoldMeshData = geoToManifoldMesh(targetGeo)
@@ -345,25 +346,19 @@ export async function executeDrillHoleOnGeometry(
   // 9. Execute CSG subtract
   const result = await computeBoolean([targetManifold, holeManifold], 'subtract')
 
-  // 10. Convert back to BufferGeometry
+  // 10. Convert back to Shape
   const resultGeo = manifoldMeshToGeo(result)
 
   // 11. Transform back to mesh local space
-  const invMatrix = new THREE.Matrix4().copy(worldMatrix).invert()
-  resultGeo.applyMatrix4(invMatrix)
+  const invMatrix = new Mat4().copy(worldMatrix).invert()
+  const transformedGeo = transformShape(resultGeo, invMatrix)
 
   // Derive creased normals on the committed result so sharp edges stay sharp
   // (the old computeVertexNormals() averaged on the welded shared-vertex
   // topology and rounded them off). toCreasedNormals transforms correctly with
   // applyMatrix4 above, but we re-derive to guarantee the final geometry uses
   // the unified creased-normal logic regardless of the manifold output topology.
-  const finalGeo = deriveNormals(resultGeo)
-  resultGeo.dispose()
-
-  // 12. Cleanup
-  holeGeo.dispose()
-  holeGeoWorld.dispose()
-  targetGeo.dispose()
+  const finalGeo = deriveNormals(transformedGeo)
 
   return finalGeo
 }

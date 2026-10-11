@@ -72,24 +72,24 @@ endsolid square
 describe('mesh/stl-loader', () => {
   it('binary STL: one vertex triple per triangle, stored normal kept', () => {
     const geo = parseStl(binaryStl(TRIANGLES, [[0, 0, 1], [0, 0, 1]]))
-    const position = geo.getAttribute('position')
-    const normal = geo.getAttribute('normal')
-    expect(position.count).toBe(6)
-    expect(Array.from(position.array)).toEqual(Array.from(SQUARE_POSITIONS))
-    expect(Array.from(normal.array.slice(0, 3))).toEqual([0, 0, 1])
+    const position = geo.positions
+    const normal = geo.normals!
+    expect(position.length / 3).toBe(6)
+    expect(Array.from(position)).toEqual(Array.from(SQUARE_POSITIONS))
+    expect(Array.from(normal.slice(0, 3))).toEqual([0, 0, 1])
   })
 
   it('binary STL: a degenerate stored normal falls back to the geometric one', () => {
     const geo = parseStl(binaryStl([TRIANGLES[0]], [[0, 0, 0]]))
-    const normal = geo.getAttribute('normal')
-    expect(Array.from(normal.array.slice(0, 3))).toEqual([0, 0, 1])
+    const normal = geo.normals!
+    expect(Array.from(normal.slice(0, 3))).toEqual([0, 0, 1])
   })
 
   it('ASCII STL parses to the same geometry as its binary twin', () => {
     const ascii = parseStl(new TextEncoder().encode(ASCII_STL).buffer as ArrayBuffer)
     const binary = parseStl(binaryStl(TRIANGLES, [[0, 0, 1], [0, 0, 1]]))
-    expect(Array.from(ascii.getAttribute('position').array))
-      .toEqual(Array.from(binary.getAttribute('position').array))
+    expect(Array.from(ascii.positions))
+      .toEqual(Array.from(binary.positions))
   })
 
   it('round trip through the STL writer recovers triangles and bounds', () => {

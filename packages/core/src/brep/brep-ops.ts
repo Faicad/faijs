@@ -19,7 +19,7 @@
  * 坐标系：Z-up、毫米，与 mesh 路径一致。
  */
 
-import * as THREE from 'three'
+import { Vec3 as Vec3C, Mat4, Euler, Quat } from '../math3d'
 import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
 import {
@@ -122,15 +122,15 @@ export function rotateBrep(
   angles: Vec3,
   pivot?: Vec3,
 ): BrepHandle {
-  const euler = new THREE.Euler(
+  const euler = new Euler(
     (angles[0] * Math.PI) / 180,
     (angles[1] * Math.PI) / 180,
     (angles[2] * Math.PI) / 180,
   )
-  const matrix = new THREE.Matrix4().makeRotationFromEuler(euler)
+  const matrix = new Mat4().makeRotationFromEuler(euler)
   if (pivot) {
-    matrix.premultiply(new THREE.Matrix4().makeTranslation(pivot[0], pivot[1], pivot[2]))
-    matrix.multiply(new THREE.Matrix4().makeTranslation(-pivot[0], -pivot[1], -pivot[2]))
+    matrix.premultiply(new Mat4().makeTranslation(pivot[0], pivot[1], pivot[2]))
+    matrix.multiply(new Mat4().makeTranslation(-pivot[0], -pivot[1], -pivot[2]))
   }
   return kernel.transform(solid, matrixToArray(matrix))
 }
@@ -228,13 +228,13 @@ export function scaleBrep(
   center?: Vec3,
 ): BrepHandle {
   const f = typeof factor === 'number' ? [factor, factor, factor] : factor
-  const scale = new THREE.Matrix4().makeScale(f[0], f[1], f[2])
+  const scale = new Mat4().makeScale(f[0], f[1], f[2])
   // T(c)·S·T(−c)：不动点为 center；缺省时退化为原点缩放（现状行为）。
   const matrix = center
-    ? new THREE.Matrix4()
+    ? new Mat4()
         .makeTranslation(center[0], center[1], center[2])
         .multiply(scale)
-        .multiply(new THREE.Matrix4().makeTranslation(-center[0], -center[1], -center[2]))
+        .multiply(new Mat4().makeTranslation(-center[0], -center[1], -center[2]))
     : scale
   return applyAffineBrep(kernel, solid, matrixToArray(matrix))
 }
@@ -264,15 +264,15 @@ export function applyTransformBrep(
   pivot: [number, number, number],
   translation: [number, number, number],
 ): BrepHandle {
-  const rotation = new THREE.Matrix4().makeRotationFromQuaternion(
-    new THREE.Quaternion(quaternion[0], quaternion[1], quaternion[2], quaternion[3]),
+  const rotation = new Mat4().makeRotationFromQuaternion(
+    new Quat(quaternion[0], quaternion[1], quaternion[2], quaternion[3]),
   )
   // T(translation) · T(pivot) · R · T(-pivot) = T(pivot+translation) · R · T(-pivot)
   // 先绕 pivot 旋转，再平移 translation（与 mesh 路径 applyTransform 一致）
-  const matrix = new THREE.Matrix4()
+  const matrix = new Mat4()
     .makeTranslation(pivot[0] + translation[0], pivot[1] + translation[1], pivot[2] + translation[2])
     .multiply(rotation)
-    .multiply(new THREE.Matrix4().makeTranslation(-pivot[0], -pivot[1], -pivot[2]))
+    .multiply(new Mat4().makeTranslation(-pivot[0], -pivot[1], -pivot[2]))
   return kernel.transform(solid, matrixToArray(matrix))
 }
 
@@ -362,8 +362,8 @@ export interface DrillBrepParams {
 export interface DrillGeometry {
   readonly radius: number
   readonly holeHeight: number
-  readonly holeCenter: THREE.Vector3
-  readonly direction: THREE.Vector3
+  readonly holeCenter: Vec3C
+  readonly direction: Vec3C
 }
 
 /** 从 `DrillBrepParams` 推导钻孔几何（孔中心/高度/轴向）。供 `drillBrep` 与 role-table 路径共用。
@@ -378,16 +378,16 @@ export function computeDrillGeometry(
   params: DrillBrepParams,
 ): DrillGeometry {
   const radius = params.diameter / 2
-  const direction = new THREE.Vector3(...params.direction).normalize()
+  const direction = new Vec3C(...params.direction).normalize()
   // 确保方向指向材料内部
-  const faceNormal = new THREE.Vector3(...params.faceNormal)
+  const faceNormal = new Vec3C(...params.faceNormal)
   if (direction.dot(faceNormal) > 0) {
     direction.negate()
   }
 
   // 计算孔的高度和中心
   const bbox = getSolidBoundingBox(kernel, solid)
-  const bboxSize = new THREE.Vector3(
+  const bboxSize = new Vec3C(
     bbox.max[0] - bbox.min[0],
     bbox.max[1] - bbox.min[1],
     bbox.max[2] - bbox.min[2],
@@ -395,15 +395,15 @@ export function computeDrillGeometry(
   const bboxMax = Math.max(bboxSize.x, bboxSize.y, bboxSize.z)
 
   let holeHeight: number
-  let holeCenter: THREE.Vector3
-  const pos = new THREE.Vector3(...params.position)
+  let holeCenter: Vec3C
+  const pos = new Vec3C(...params.position)
 
   // 通孔：depth <= 0（契约：depth<=0 表示通孔，与 mesh 路径 `depth>0 ? 'blind':'through'` 一致）。
   // ⚠️ 只判 `=== 0` 会让 depth<0 落入盲孔分支 → safeDepth=0 → 零高圆柱 → OCCT transform 崩溃。
   if (params.depth <= 0) {
     const d = direction.clone().normalize()
-    const bbMin = new THREE.Vector3(bbox.min[0], bbox.min[1], bbox.min[2])
-    const bbMax = new THREE.Vector3(bbox.max[0], bbox.max[1], bbox.max[2])
+    const bbMin = new Vec3C(bbox.min[0], bbox.min[1], bbox.min[2])
+    const bbMax = new Vec3C(bbox.max[0], bbox.max[1], bbox.max[2])
 
     let tNear = -Infinity
     let tFar = Infinity
@@ -453,21 +453,21 @@ export function buildDrillToolSolid(kernel: BrepEngineApi, geom: DrillGeometry):
   const cylinder = kernel.makeCylinder(geom.radius, geom.holeHeight)
 
   // 计算从 Z 轴到 direction 的旋转
-  const zAxis = new THREE.Vector3(0, 0, 1)
-  const quat = new THREE.Quaternion().setFromUnitVectors(zAxis, geom.direction)
-  const rotMatrix = new THREE.Matrix4().makeRotationFromQuaternion(quat)
+  const zAxis = new Vec3C(0, 0, 1)
+  const quat = new Quat().setFromUnitVectors(zAxis, geom.direction)
+  const rotMatrix = new Mat4().makeRotationFromQuaternion(quat)
 
   // 平移矩阵：到孔中心，并减去 height/2（因为圆柱从 Z=0 开始）
-  const transMatrix = new THREE.Matrix4().makeTranslation(
+  const transMatrix = new Mat4().makeTranslation(
     geom.holeCenter.x,
     geom.holeCenter.y,
     geom.holeCenter.z,
   )
   // 组合：先旋转，再平移
-  const finalMatrix = new THREE.Matrix4().multiplyMatrices(transMatrix, rotMatrix)
+  const finalMatrix = new Mat4().multiplyMatrices(transMatrix, rotMatrix)
   // 还需要补偿圆柱的起始位置（从 Z=0 开始 → 需要先下移 height/2）
-  const offsetMatrix = new THREE.Matrix4().makeTranslation(0, 0, -geom.holeHeight / 2)
-  const fullMatrix = new THREE.Matrix4().multiplyMatrices(finalMatrix, offsetMatrix)
+  const offsetMatrix = new Mat4().makeTranslation(0, 0, -geom.holeHeight / 2)
+  const fullMatrix = new Mat4().multiplyMatrices(finalMatrix, offsetMatrix)
 
   const toolSolid = kernel.transform(cylinder, matrixToArray(fullMatrix))
   kernel.release(cylinder)
@@ -545,7 +545,7 @@ export function splitBrep(
   params: SplitBrepParams,
 ): SplitBrepResult {
   const bbox = getSolidBoundingBox(kernel, solid)
-  const bboxSize = new THREE.Vector3(
+  const bboxSize = new Vec3C(
     bbox.max[0] - bbox.min[0],
     bbox.max[1] - bbox.min[1],
     bbox.max[2] - bbox.min[2],
@@ -553,14 +553,14 @@ export function splitBrep(
   const bboxMax = Math.max(bboxSize.x, bboxSize.y, bboxSize.z)
 
   // 创建一个大的盒子代表法线正方向的半空间
-  const normal = new THREE.Vector3(...params.normal).normalize()
+  const normal = new Vec3C(...params.normal).normalize()
   const halfSize = bboxMax * 3 // 足够大
 
   // 先在局部坐标系（Z 轴 = 法线方向）创建盒子
   // 然后旋转到世界坐标系
-  const zAxis = new THREE.Vector3(0, 0, 1)
-  const quat = new THREE.Quaternion().setFromUnitVectors(zAxis, normal)
-  const rotMatrix = new THREE.Matrix4().makeRotationFromQuaternion(quat)
+  const zAxis = new Vec3C(0, 0, 1)
+  const quat = new Quat().setFromUnitVectors(zAxis, normal)
+  const rotMatrix = new Mat4().makeRotationFromQuaternion(quat)
 
   // 在局部坐标系中，盒子从 Z=0（切割平面）延伸到 Z=halfSize
   const localBox = kernel.makeBoxFromCorners(
@@ -572,12 +572,12 @@ export function splitBrep(
   // 都缺省直接报错，不隐式回退 bbox 中心）
   const planeOrigin = resolvePlaneOrigin(normal, params.planeCenter, params.planeDistance)
 
-  const transMatrix = new THREE.Matrix4().makeTranslation(
+  const transMatrix = new Mat4().makeTranslation(
     planeOrigin.x,
     planeOrigin.y,
     planeOrigin.z,
   )
-  const finalMatrix = new THREE.Matrix4().multiplyMatrices(transMatrix, rotMatrix)
+  const finalMatrix = new Mat4().multiplyMatrices(transMatrix, rotMatrix)
 
   const halfSpaceBox = kernel.transform(localBox, matrixToArray(finalMatrix))
   kernel.release(localBox)
@@ -631,12 +631,12 @@ export interface ExtrudeBrepParams {
 
 /** 从 planeCenter / planeDistance 收敛出切割平面上的一个点（planeOrigin）。 */
 function resolvePlaneOrigin(
-  normal: THREE.Vector3,
+  normal: Vec3C,
   planeCenter?: Vec3,
   planeDistance?: number,
-): THREE.Vector3 {
+): Vec3C {
   if (planeCenter !== undefined) {
-    return new THREE.Vector3(...planeCenter)
+    return new Vec3C(...planeCenter)
   }
   if (planeDistance !== undefined) {
     // 平面方程 n·x = d 上的点：取法线上距原点 d 处（n 为单位向量）
@@ -669,7 +669,7 @@ export function extrudeBrep(
   params: ExtrudeBrepParams,
 ): BrepHandle {
   const mode = params.mode ?? 'centered'
-  const normal = new THREE.Vector3(...params.normal).normalize()
+  const normal = new Vec3C(...params.normal).normalize()
   const length = params.length
 
   // 1. 确定切割平面位置（世界系，来源静态：planeCenter 或 planeDistance，
@@ -685,18 +685,18 @@ export function extrudeBrep(
   // 3. 获取截面
   // 使用 section 获取切割平面与实体的交线
   const bbox = getSolidBoundingBox(kernel, solid)
-  const zAxis = new THREE.Vector3(0, 0, 1)
-  const quat = new THREE.Quaternion().setFromUnitVectors(zAxis, normal)
-  const rotMatrix = new THREE.Matrix4().makeRotationFromQuaternion(quat)
-  const transMatrix = new THREE.Matrix4().makeTranslation(
+  const zAxis = new Vec3C(0, 0, 1)
+  const quat = new Quat().setFromUnitVectors(zAxis, normal)
+  const rotMatrix = new Mat4().makeRotationFromQuaternion(quat)
+  const transMatrix = new Mat4().makeTranslation(
     planeOrigin.x,
     planeOrigin.y,
     planeOrigin.z,
   )
-  const planeMatrix = new THREE.Matrix4().multiplyMatrices(transMatrix, rotMatrix)
+  const planeMatrix = new Mat4().multiplyMatrices(transMatrix, rotMatrix)
 
   // 创建一个大的矩形面作为切割平面
-  const bboxSize = new THREE.Vector3(
+  const bboxSize = new Vec3C(
     bbox.max[0] - bbox.min[0],
     bbox.max[1] - bbox.min[1],
     bbox.max[2] - bbox.min[2],
@@ -704,7 +704,7 @@ export function extrudeBrep(
   const planeSize = Math.max(bboxSize.x, bboxSize.y, bboxSize.z) * 3
   const planeRect = kernel.makeRectangle(planeSize, planeSize)
   // makeRectangle creates a face from [0,0] to [width,height] — center it at origin first
-  const centerMatrix = new THREE.Matrix4().makeTranslation(-planeSize / 2, -planeSize / 2, 0)
+  const centerMatrix = new Mat4().makeTranslation(-planeSize / 2, -planeSize / 2, 0)
   const centeredRect = kernel.transform(planeRect, matrixToArray(centerMatrix))
   kernel.release(planeRect)
   const planeFace = kernel.transform(centeredRect, matrixToArray(planeMatrix))
@@ -736,7 +736,7 @@ export function extrudeBrep(
     kernel.release(wire)
 
     // 计算拉伸向量
-    let extrudeVec: THREE.Vector3
+    let extrudeVec: Vec3C
     if (mode === 'centered') {
       extrudeVec = normal.clone().multiplyScalar(length)
     } else if (mode === 'forward') {
@@ -1092,16 +1092,16 @@ function toImportAssemblyNode(
 // ─── 辅助函数 ───
 
 /**
- * Convert a THREE.Matrix4 into the 3x4 row-major array (12 doubles) the OCCT
+ * Convert a Mat4 into the 3x4 row-major array (12 doubles) the OCCT
  * transform expects.
  *
  * OCCT transform accepts [r00,r01,r02,tx, r10,r11,r12,ty, r20,r21,r22,tz].
  * @param matrix - the source matrix to convert.
  * @returns the 3x4 row-major array of 12 doubles.
  */
-export function matrixToArray(matrix: THREE.Matrix4): number[] {
+export function matrixToArray(matrix: Mat4): number[] {
   const e = matrix.elements
-  // THREE.Matrix4 是 column-major，OCCT 需要 row-major 3x4
+  // Mat4 是 column-major，OCCT 需要 row-major 3x4
   return [
     e[0], e[4], e[8], e[12],
     e[1], e[5], e[9], e[13],

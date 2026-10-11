@@ -8,10 +8,10 @@
  *       - throws when the injected loader yields null,
  *       - rethrows a wrapped error when the loader rejects (console.error is spied
  *         so the run stays stderr-silent),
- *       - produces a displaced BufferGeometry when a loader is injected.
+ *       - produces a displaced Shape when a loader is injected.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import * as THREE from 'three'
+import { Vec3 as Vec3C } from '../../../src/math3d'
 import {
   applyKnurlDisplacement,
   KNURL_DEFAULTS,
@@ -20,18 +20,19 @@ import {
 } from '../../../src/mesh/knurl/KnurlGenerator'
 import { setKnurlTextureLoader } from '../../../src/mesh/knurl/textureLoader'
 import { MODE_TRIPLANAR } from '../../../src/mesh/knurl/mapping'
+import { isMeshShape, type Shape } from '../../../src/mesh/types'
 
 const BOUNDS_OVERRIDE: KnurlBounds = {
-  min: new THREE.Vector3(0, 0, 0),
-  max: new THREE.Vector3(1, 1, 1),
-  size: new THREE.Vector3(1, 1, 1),
-  center: new THREE.Vector3(0.5, 0.5, 0.5),
+  min: new Vec3C(0, 0, 0),
+  max: new Vec3C(1, 1, 1),
+  size: new Vec3C(1, 1, 1),
+  center: new Vec3C(0.5, 0.5, 0.5),
 }
 
-function unitTriangle(): THREE.BufferGeometry {
-  const g = new THREE.BufferGeometry()
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), 3))
-  return g
+function unitTriangle(): Shape {
+  const pos = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0])
+  const indices = new Uint32Array([0, 1, 2])
+  return { positions: pos, indices }
 }
 
 const defaultParams = (): KnurlParams => ({ ...KNURL_DEFAULTS })
@@ -92,7 +93,7 @@ describe('applyKnurlDisplacement', () => {
     expect(errorSpy).toHaveBeenCalled() // the wrapped error did log via console.error
   })
 
-  it('produces a displaced BufferGeometry when a loader is injected', async () => {
+  it('produces a displaced Shape when a loader is injected', async () => {
     setKnurlTextureLoader(async () => ({
       data: new Uint8ClampedArray(4 * 4 * 4).fill(255), // 4x4 solid white
       width: 4,
@@ -108,9 +109,9 @@ describe('applyKnurlDisplacement', () => {
       },
       BOUNDS_OVERRIDE,
     )
-    expect(out).toBeInstanceOf(THREE.BufferGeometry)
-    expect(out.attributes.position.count).toBeGreaterThan(0)
-    expect(out.attributes.normal.count).toBe(out.attributes.position.count)
+    expect(isMeshShape(out)).toBe(true)
+    expect(out.positions.length / 3).toBeGreaterThan(0)
+    expect(out.normals!.length / 3).toBe(out.positions.length / 3)
     // Pipeline reports texture -> subdivide -> displace.
     expect(stages).toContain('texture')
     expect(stages).toContain('displace')

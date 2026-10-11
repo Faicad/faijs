@@ -21,7 +21,7 @@
  */
 
 import { extrude as projectedExtrude } from './generated/operations'
-import * as THREE from 'three'
+import { Vec3 as Vec3C, Mat4 } from '../math3d'
 import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { getCurrentStmt, getBackends, MeshUnsupportedError } from '../runtime-state'
@@ -262,12 +262,12 @@ function bboxDiag(bbox: { min: Vec3; max: Vec3 }): number {
  * @returns 定向半空间盒的 brep 句柄。
  */
 function farSideBox(kernel: BrepEngineApi, faceCenter: Vec3, faceNormal: Vec3, reach: number): BrepHandle {
-  const unit = new THREE.Vector3(...faceNormal).normalize()
-  const center = new THREE.Vector3(...faceCenter)
+  const unit = new Vec3C(...faceNormal).normalize()
+  const center = new Vec3C(...faceCenter)
   // 与 n 正交的正交基 u,v
-  const aux = Math.abs(unit.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)
-  const u = new THREE.Vector3().crossVectors(unit, aux).normalize()
-  const v = new THREE.Vector3().crossVectors(unit, u).normalize()
+  const aux = Math.abs(unit.y) < 0.9 ? new Vec3C(0, 1, 0) : new Vec3C(1, 0, 0)
+  const u = new Vec3C().crossVectors(unit, aux).normalize()
+  const v = new Vec3C().crossVectors(unit, u).normalize()
   const R = reach
   // 局部系盒：x∈[−R,R] (u), y∈[−R,R] (v), z∈[−R,0] (n 深度侧)
   const box = kernel.makeBoxFromCorners(
@@ -275,7 +275,7 @@ function farSideBox(kernel: BrepEngineApi, faceCenter: Vec3, faceNormal: Vec3, r
     { x: R, y: R, z: 0 },
   )
   // 旋转矩阵：列 = u, v, n；平移 = center（局部 z=0 端面落到过 center 的目标平面）
-  const m = new THREE.Matrix4().makeBasis(u, v, unit).setPosition(center)
+  const m = new Mat4().makeBasis(u, v, unit).setPosition(center)
   return kernel.transform(box, matrixToArray(m))
 }
 
@@ -290,7 +290,7 @@ function farSideBox(kernel: BrepEngineApi, faceCenter: Vec3, faceNormal: Vec3, r
  * @throws Error E_UP_TO_* 系列：缺支持体 / 方向与目标面平行 / 不相交（禁静默）。
  */
 function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: ExtrudeOptions): BrepHandle {
-  const normal = new THREE.Vector3(...(o.normal ?? [0, 0, 1])).normalize()
+  const normal = new Vec3C(...(o.normal ?? [0, 0, 1])).normalize()
   const offset = o.offset ?? 0
   const upTo = o.upTo as ExtrudeUpTo
 
@@ -362,7 +362,7 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
       (bbox.min[1] + bbox.max[1]) / 2,
       (bbox.min[2] + bbox.max[2]) / 2,
     ]
-    const tnAuto = new THREE.Vector3(...targetNormal).normalize()
+    const tnAuto = new Vec3C(...targetNormal).normalize()
     const dAuto =
       (c0[0] - shiftedCenter0[0]) * tnAuto.x +
       (c0[1] - shiftedCenter0[1]) * tnAuto.y +
@@ -384,15 +384,15 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
     [bbox.min[0], bbox.max[1], bbox.max[2]],
     [bbox.max[0], bbox.max[1], bbox.max[2]],
   ] as Vec3[]
-  const planePoint0 = new THREE.Vector3(...shiftedCenter0)
-  const tn0 = new THREE.Vector3(...targetNormal).normalize()
+  const planePoint0 = new Vec3C(...shiftedCenter0)
+  const tn0 = new Vec3C(...targetNormal).normalize()
   const planeD = planePoint0.dot(tn0)
   const dirD = normal.dot(tn0)
   if (Math.abs(dirD) < 1e-9) {
     throw new Error('E_UP_TO_PARALLEL: extrude direction is parallel to the target face plane')
   }
   const tMax = cornerProjections
-    .map((p) => (planeD - new THREE.Vector3(...p).dot(tn0)) / dirD)
+    .map((p) => (planeD - new Vec3C(...p).dot(tn0)) / dirD)
     .reduce((a, b) => Math.max(a, b), 0)
   const L = tMax + Math.abs(offset) + bboxDiag(bbox) * 0.1 + 1
   const longSolid = kernel.extrude(inputSolid, normal.x * L, normal.y * L, normal.z * L)
@@ -401,12 +401,12 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
   //    取「法向负侧」——目标面法向朝向与拉伸方向无必然关系。正确语义：保留「包含
   //    拉伸起点」的那一侧。farSideBox 覆盖「传入法向的反侧」，因此传 -keepSide。
   const tn = tn0
-  const startCenter = new THREE.Vector3(
+  const startCenter = new Vec3C(
     (bbox.min[0] + bbox.max[0]) / 2,
     (bbox.min[1] + bbox.max[1]) / 2,
     (bbox.min[2] + bbox.max[2]) / 2,
   )
-  const planePoint = new THREE.Vector3(...shiftedCenter0)
+  const planePoint = new Vec3C(...shiftedCenter0)
   const d = startCenter.sub(planePoint).dot(tn)
   // 保留侧法向：起点所在侧（d 与 tn 同号 → 正侧；异号 → 负侧）；d≈0 时退化为
   // 拉伸方向（起点在面上时按拉伸方向截）
@@ -416,8 +416,8 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
   // L（按轮廓到截断面的投影距离）则半空间盒横向盖不住长拉伸体 → common 为空。
   // reach 必须 ≥ 平面点到拉伸体的距离 + 体对角线（全方向覆盖）。
   const reach =
-    new THREE.Vector3(...shiftedCenter0).distanceTo(
-      new THREE.Vector3((bbox.min[0] + bbox.max[0]) / 2, (bbox.min[1] + bbox.max[1]) / 2, (bbox.min[2] + bbox.max[2]) / 2),
+    new Vec3C(...shiftedCenter0).distanceTo(
+      new Vec3C((bbox.min[0] + bbox.max[0]) / 2, (bbox.min[1] + bbox.max[1]) / 2, (bbox.min[2] + bbox.max[2]) / 2),
     ) + bboxDiag(bbox) + Math.abs(offset) + 1
   const halfspace = farSideBox(kernel, shiftedCenter0, [-keepSide.x, -keepSide.y, -keepSide.z], reach)
 
@@ -473,7 +473,7 @@ function extrudeMeshChain(input: Shape, params: unknown): Shape {
     )
   }
 
-  const normal = new THREE.Vector3(...(o.normal ?? [0, 0, 1])).normalize()
+  const normal = new Vec3C(...(o.normal ?? [0, 0, 1])).normalize()
   const sign = o.mode === 'backward' ? -1 : 1
   const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
 
@@ -540,7 +540,7 @@ export const extrude = defineOp({
     assertExtrudeOptions(o)
     // A2: 拉伸方向同时是链根建表的候选轴（extrudeConstructRoles 的 hintAxis），
     // 两条路径（定长 / up-to）都要用，故提到分支之前。
-    const normal = new THREE.Vector3(...(o.normal ?? [0, 0, 1])).normalize()
+    const normal = new Vec3C(...(o.normal ?? [0, 0, 1])).normalize()
 
     if (o.upTo !== undefined) {
       const kernel = getBrepApi()

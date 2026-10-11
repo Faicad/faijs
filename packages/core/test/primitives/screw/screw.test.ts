@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import * as THREE from 'three'
 import { makeScrew } from '../../../src/primitives/screw/screw'
 import type { ScrewParams } from '../../../src/primitives/screw/screw-db'
+import { boundingBox } from '../../../src/mesh/query'
+import type { Shape } from '../../../src/mesh/types'
 
 function base(): ScrewParams {
   return {
@@ -15,11 +16,11 @@ function base(): ScrewParams {
   }
 }
 
-function vertexCount(g: THREE.BufferGeometry): number {
-  return (g.getAttribute('position') as THREE.BufferAttribute).count
+function vertexCount(g: Shape): number {
+  return g.positions.length / 3
 }
-function triCount(g: THREE.BufferGeometry): number {
-  return (g.index?.count ?? 0) / 3
+function triCount(g: Shape): number {
+  return g.indices.length / 3
 }
 
 describe('makeScrew', () => {
@@ -27,7 +28,7 @@ describe('makeScrew', () => {
     const geo = makeScrew(base())
     expect(vertexCount(geo)).toBeGreaterThan(0)
     expect(triCount(geo)).toBeGreaterThan(0)
-    expect(geo.index).toBeTruthy()
+    expect(geo.indices.length).toBeGreaterThan(0)
   })
 
   describe('system / specIdx', () => {
@@ -42,9 +43,9 @@ describe('makeScrew', () => {
     it('specIdx selects the diameter (M5 vs M10 differ in radius thus wider mesh)', () => {
       const m5 = makeScrew({ ...base(), specIdx: 4 })
       const m10 = makeScrew({ ...base(), specIdx: 8 })
-      m5.computeBoundingBox()
-      m10.computeBoundingBox()
-      expect(m10.boundingBox!.max.x).toBeGreaterThan(m5.boundingBox!.max.x)
+      const bb5 = boundingBox(m5)
+      const bb10 = boundingBox(m10)
+      expect(bb10.max[0]).toBeGreaterThan(bb5.max[0])
     })
 
     it('out-of-range specIdx is clamped without throwing', () => {
@@ -83,17 +84,17 @@ describe('makeScrew', () => {
     it('produces a taller mesh for a longer screw length', () => {
       const short = makeScrew({ ...base(), length: 10 })
       const long = makeScrew({ ...base(), length: 80 })
-      short.computeBoundingBox()
-      long.computeBoundingBox()
-      expect(long.boundingBox!.max.z - long.boundingBox!.min.z).toBeGreaterThan(
-        short.boundingBox!.max.z - short.boundingBox!.min.z,
+      const bbShort = boundingBox(short)
+      const bbLong = boundingBox(long)
+      expect(bbLong.max[2] - bbLong.min[2]).toBeGreaterThan(
+        bbShort.max[2] - bbShort.min[2],
       )
     })
 
     it('the shank is centred: |min z| ≈ max z for a symmetric thread-none body', () => {
       const geo = makeScrew({ ...base(), thread: 'none', length: 30 })
-      geo.computeBoundingBox()
-      expect(Math.abs(geo.boundingBox!.min.z)).toBeCloseTo(Math.abs(geo.boundingBox!.max.z), 2)
+      const bb = boundingBox(geo)
+      expect(Math.abs(bb.min[2])).toBeCloseTo(Math.abs(bb.max[2]), 2)
     })
   })
 
@@ -110,12 +111,12 @@ describe('makeScrew', () => {
       const none = makeScrew({ ...base(), head: 'none' })
       const hex = makeScrew({ ...base(), head: 'hex' })
       const chc = makeScrew({ ...base(), head: 'chc' })
-      none.computeBoundingBox()
-      hex.computeBoundingBox()
-      chc.computeBoundingBox()
-      const hNone = none.boundingBox!.max.z - none.boundingBox!.min.z
-      const hHex = hex.boundingBox!.max.z - hex.boundingBox!.min.z
-      const hChc = chc.boundingBox!.max.z - chc.boundingBox!.min.z
+      const bbNone = boundingBox(none)
+      const bbHex = boundingBox(hex)
+      const bbChc = boundingBox(chc)
+      const hNone = bbNone.max[2] - bbNone.min[2]
+      const hHex = bbHex.max[2] - bbHex.min[2]
+      const hChc = bbChc.max[2] - bbChc.min[2]
       expect(hHex).toBeGreaterThan(hNone)
       expect(hChc).toBeGreaterThan(hNone)
       // chc head is shorter than hex head (0.5*dia vs 0.6*dia)
@@ -150,7 +151,7 @@ describe('makeScrew', () => {
         const params: ScrewParams = { ...base(), head, thread }
         if (thread === 'custom') params.pitchCustom = 1.5
         const geo = makeScrew(params)
-        expect(geo.index!.count % 3, `${head}/${thread}`).toBe(0)
+        expect(geo.indices.length % 3, `${head}/${thread}`).toBe(0)
         expect(triCount(geo)).toBeGreaterThan(0)
       }
     }

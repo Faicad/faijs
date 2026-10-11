@@ -16,7 +16,7 @@ import {
   computeDowelSplit,
   computeStraightTenonSplit,
 } from '@faicad/faijs/boolean/csg-backend'
-import * as THREE from 'three'
+import { Euler, Quat, Vec3 as Vec3C } from '@faicad/faijs/math3d'
 import type { Shape, SplitResult, SplitPlane, DovetailSplitParams, DowelSplitParams, TenonSplitParams, Vec3 } from '@faicad/faijs/mesh/types'
 
 // ── 派生量计算（从 split-store 下沉，UI 与重放共用同一份公式） ──
@@ -43,9 +43,9 @@ export function computePlaneParams(
   const ry = (rotationY * Math.PI) / 180
   const rz = (rotationZ * Math.PI) / 180
 
-  const euler = new THREE.Euler(rx, ry, rz, 'XYZ')
-  const quat = new THREE.Quaternion().setFromEuler(euler)
-  const normalVec = new THREE.Vector3(0, 0, 1).applyQuaternion(quat)
+  const euler = new Euler(rx, ry, rz, 'XYZ')
+  const quat = new Quat().setFromEuler(euler)
+  const normalVec = new Vec3C(0, 0, 1).applyQuaternion(quat)
 
   const normal: Vec3 = [normalVec.x, normalVec.y, normalVec.z]
 
@@ -77,12 +77,12 @@ export function computePlaneBasis(
   const ry = (rotationY * Math.PI) / 180
   const rz = (rotationZ * Math.PI) / 180
 
-  const euler = new THREE.Euler(rx, ry, rz, 'XYZ')
-  const quat = new THREE.Quaternion().setFromEuler(euler)
+  const euler = new Euler(rx, ry, rz, 'XYZ')
+  const quat = new Quat().setFromEuler(euler)
 
-  const normalVec = new THREE.Vector3(0, 0, 1).applyQuaternion(quat)
-  const widthVec = new THREE.Vector3(1, 0, 0).applyQuaternion(quat)
-  const depthVec = new THREE.Vector3(0, 1, 0).applyQuaternion(quat)
+  const normalVec = new Vec3C(0, 0, 1).applyQuaternion(quat)
+  const widthVec = new Vec3C(1, 0, 0).applyQuaternion(quat)
+  const depthVec = new Vec3C(0, 1, 0).applyQuaternion(quat)
 
   return {
     normal: [normalVec.x, normalVec.y, normalVec.z],

@@ -27,9 +27,9 @@
  * 参与几何缩放（读入折算已由解析器完成，二次缩放 = 双重换算）。
  */
 
-import * as THREE from 'three'
 import { geoToManifoldMesh } from '../boolean/geo-convert'
 import { parseStl } from './stl-loader'
+import { boundingBox } from './query'
 import { parseThreemf, type ThreemfObject, type ThreemfNode } from './threemf-loader'
 import { parseBambu3mfFromEntries } from './threemf-bambu'
 import { unitScale, type UnitName } from '../units'
@@ -257,19 +257,17 @@ export async function importFile(
       sourceUnit = declared
       scale = unitScale(declared)
     } else {
-      geo.computeBoundingBox()
-      const bb = geo.boundingBox
-      if (bb) {
+      const bb = boundingBox(geo)
+      if (bb.min[0] !== Infinity) {
         sourceUnit = guessStlUnit({
-          min: [bb.min.x, bb.min.y, bb.min.z],
-          max: [bb.max.x, bb.max.y, bb.max.z],
+          min: [bb.min[0], bb.min[1], bb.min[2]],
+          max: [bb.max[0], bb.max[1], bb.max[2]],
         })
         scale = unitScale(sourceUnit)
       }
     }
     if (scale !== 1) {
-      const attr = geo.getAttribute('position') as THREE.BufferAttribute
-      const arr = attr.array as Float32Array
+      const arr = geo.positions
       for (let i = 0; i < arr.length; i++) arr[i] *= scale
     }
     const shape = geoToManifoldMesh(geo)

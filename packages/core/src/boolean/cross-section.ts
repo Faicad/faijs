@@ -14,14 +14,16 @@
  *   - computeSection 直接读 geometry.attributes，不拷贝整份顶点缓冲。
  *   - 输出的 cap 顶点为局部空间，预览期经 matrixWorld 渲染到世界空间。
  */
-import * as THREE from 'three'
+import { Vec3 as Vec3C, Vec2, Plane } from '../math3d'
+import earcut from 'earcut'
+import type { Shape } from '../mesh/types'
 
 /**
  * A single closed loop (3D, local space, lying on the section plane).
  * `isHole=false` marks the outer boundary, `true` marks a hole.
  */
 export interface SectionRing {
-  points: THREE.Vector3[]
+  points: Vec3C[]
   isHole: boolean
 }
 
@@ -32,9 +34,9 @@ export interface SectionResult {
   /** All stitched loops (already classified by area into isHole). */
   rings: SectionRing[]
   /** 外环列表（3D 点）。 */
-  outers: THREE.Vector3[][]
+  outers: Vec3C[][]
   /** 每个外环对应的孔环列表（与 outers 同序）。 */
-  holesOf: THREE.Vector3[][][]
+  holesOf: Vec3C[][][]
   /** 实际参与求交、跨越/贴合平面的三角形数（诊断用）。 */
   hitTriangleCount: number
   /** 收集到的交线段数。 */
@@ -45,24 +47,39 @@ const EPS_SURFACE = 1e-6
 /** 线段端点量化容差（平面 2D 坐标），用于缝合相邻线段。 */
 const STITCH_TOL = 1e-4
 
+function triangulateWithEarcut(contour: Vec2[], holes: Vec2[][]): number[][] {
+  const data: number[] = []
+  const holeIndices: number[] = []
+  let vertexCount = 0
+  for (const p of contour) { data.push(p.x, p.y); vertexCount++ }
+  for (const hole of holes) {
+    holeIndices.push(vertexCount)
+    for (const p of hole) { data.push(p.x, p.y); vertexCount++ }
+  }
+  const flat = earcut(data, holeIndices.length > 0 ? holeIndices : undefined, 2)
+  const tris: number[][] = []
+  for (let i = 0; i < flat.length; i += 3) tris.push([flat[i], flat[i + 1], flat[i + 2]])
+  return tris
+}
+
 /** 平面正交基 (u, v)，用于把 3D 截面点投影到 2D 以做缝合/面积/三角化。 */
-function planeBasis(normal: THREE.Vector3): { u: THREE.Vector3; v: THREE.Vector3 } {
+function planeBasis(normal: Vec3C): { u: Vec3C; v: Vec3C } {
   const n = normal.clone().normalize()
-  const t = Math.abs(n.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)
-  const u = new THREE.Vector3().crossVectors(t, n).normalize()
-  const v = new THREE.Vector3().crossVectors(n, u).normalize()
+  const t = Math.abs(n.x) < 0.9 ? new Vec3C(1, 0, 0) : new Vec3C(0, 1, 0)
+  const u = new Vec3C().crossVectors(t, n).normalize()
+  const v = new Vec3C().crossVectors(n, u).normalize()
   return { u, v }
 }
 
-function project2D(p: THREE.Vector3, u: THREE.Vector3, v: THREE.Vector3): THREE.Vector2 {
-  return new THREE.Vector2(p.dot(u), p.dot(v))
+function project2D(p: Vec3C, u: Vec3C, v: Vec3C): Vec2 {
+  return new Vec2(p.dot(u), p.dot(v))
 }
 
 /**
  * 端点量化到 STITCH_TOL 网格上作为缝合 key。
  * 用 Math.round 而非 toFixed：避免 -0.00001 → "-0.0000" 与 0 → "0.0000" 被当成两个点。
  */
-function key2D(p: THREE.Vector2): string {
+function key2D(p: Vec2): string {
   return `${Math.round(p.x / STITCH_TOL)},${Math.round(p.y / STITCH_TOL)}`
 }
 
@@ -79,35 +96,25 @@ interface TriRef {
  * @param plane    Local-space cutting plane (THREE.Plane semantics: normal·p + constant = 0).
  * @returns The stitched section rings, outers, holes, and diagnostic counters.
  */
-export function computeSection(geometry: THREE.BufferGeometry, plane: THREE.Plane): SectionResult {
-  const posAttr = geometry.attributes.position as THREE.BufferAttribute
-  if (!posAttr) {
-    return { rings: [], outers: [], holesOf: [], hitTriangleCount: 0, segmentCount: 0 }
-  }
-  const pos = posAttr.array as Float32Array
-  const index = geometry.index
-  const triCount = index ? index.count / 3 : pos.length / 9
+export function computeSection(geometry: Shape, plane: Plane): SectionResult {
+  const pos = geometry.positions
+  const index = geometry.indices
+  const triCount = index.length / 3
 
   const refs: TriRef[] = []
-  if (index) {
-    for (let t = 0; t < triCount; t++) {
-      refs.push({ a: index.getX(t * 3), b: index.getX(t * 3 + 1), c: index.getX(t * 3 + 2) })
-    }
-  } else {
-    for (let t = 0; t < triCount; t++) {
-      refs.push({ a: t * 3, b: t * 3 + 1, c: t * 3 + 2 })
-    }
+  for (let t = 0; t < triCount; t++) {
+    refs.push({ a: index[t * 3], b: index[t * 3 + 1], c: index[t * 3 + 2] })
   }
 
-  const at = (i: number, out: THREE.Vector3) => out.set(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])
+  const at = (i: number, out: Vec3C) => out.set(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])
 
   const n = plane.normal
-  const va = new THREE.Vector3()
-  const vb = new THREE.Vector3()
-  const vc = new THREE.Vector3()
+  const va = new Vec3C()
+  const vb = new Vec3C()
+  const vc = new Vec3C()
 
   // 收集交线段（每条 2 个 3D 端点，均在截面上）
-  const segments: [THREE.Vector3, THREE.Vector3][] = []
+  const segments: [Vec3C, Vec3C][] = []
   let hitTriangleCount = 0
 
   for (const r of refs) {
@@ -121,14 +128,14 @@ export function computeSection(geometry: THREE.BufferGeometry, plane: THREE.Plan
     const onSurf = (d: number) => !above(d) && !below(d)
 
     // 交点插值：在 a、b 边上按距离比例
-    const lerp = (ia: number, ib: number, daa: number, dbb: number): THREE.Vector3 => {
+    const lerp = (ia: number, ib: number, daa: number, dbb: number): Vec3C => {
       const pa = ia === r.a ? va : ia === r.b ? vb : vc
       const pb = ib === r.a ? va : ib === r.b ? vb : vc
       const t = daa / (daa - dbb)
-      return new THREE.Vector3().lerpVectors(pa, pb, t)
+      return new Vec3C().lerpVectors(pa, pb, t)
     }
 
-    const crossings: THREE.Vector3[] = []
+    const crossings: Vec3C[] = []
     if (onSurf(da) && (above(db) !== above(dc) || below(db) !== below(dc))) {
       crossings.push(va.clone())
     }
@@ -159,7 +166,7 @@ export function computeSection(geometry: THREE.BufferGeometry, plane: THREE.Plan
       crossings.push(lerp(p.i, q2.i, p.d, q2.d))
     }
     // 去重（同一三角形内重复端点）
-    const uniq: THREE.Vector3[] = []
+    const uniq: Vec3C[] = []
     for (const c of crossings) {
       if (!uniq.some((u) => u.distanceToSquared(c) < 1e-12)) uniq.push(c)
     }
@@ -185,10 +192,10 @@ export function computeSection(geometry: THREE.BufferGeometry, plane: THREE.Plan
   })
 
   const visited = new Set<number>()
-  const loops: THREE.Vector3[][] = []
+  const loops: Vec3C[][] = []
   for (let si = 0; si < segments.length; si++) {
     if (visited.has(si)) continue
-    const loop: THREE.Vector3[] = []
+    const loop: Vec3C[] = []
     const start = segments[si][0]
     loop.push(start)
     visited.add(si)
@@ -215,7 +222,7 @@ export function computeSection(geometry: THREE.BufferGeometry, plane: THREE.Plan
   // 关键：不能单纯按「面积<0 即孔」判断，因为缝合出的环绕序不固定（可能整体 CW）。
   // 正确做法：以「绝对面积最大的环」为外环基准，其有向面积符号 outerSign 定义外环方向；
   // 与之同号者为外环、异号者为孔环。这样即使所有环都 CW，最大面积环仍被正确认作外环。
-  const signedArea = (loop: THREE.Vector3[]): number => {
+  const signedArea = (loop: Vec3C[]): number => {
     let area = 0
     for (let i = 0; i < loop.length; i++) {
       const p = project2D(loop[i], u, v)
@@ -244,13 +251,13 @@ export function computeSection(geometry: THREE.BufferGeometry, plane: THREE.Plan
   const holes = rings.filter((r) => r.isHole).map((r) => r.points)
 
   // 把孔分给包含其重心的外环
-  const holesOf: THREE.Vector3[][][] = outers.map(() => [])
-  const centroid = (loop: THREE.Vector3[]): THREE.Vector2 => {
-    const c = new THREE.Vector2()
+  const holesOf: Vec3C[][][] = outers.map(() => [])
+  const centroid = (loop: Vec3C[]): Vec2 => {
+    const c = new Vec2()
     for (const p of loop) c.add(project2D(p, u, v))
     return c.multiplyScalar(1 / Math.max(1, loop.length))
   }
-  const pointInLoop = (pt: THREE.Vector2, loop: THREE.Vector3[]): boolean => {
+  const pointInLoop = (pt: Vec2, loop: Vec3C[]): boolean => {
     let inside = false
     for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
       const a = project2D(loop[i], u, v)
@@ -288,7 +295,7 @@ export function computeSection(geometry: THREE.BufferGeometry, plane: THREE.Plan
  */
 export function buildExtrudedProfile(
   section: SectionResult,
-  normal: THREE.Vector3,
+  normal: Vec3C,
   length: number,
   start = 0,
 ): { positions: Float32Array; indices: Uint32Array } {
@@ -304,16 +311,16 @@ export function buildExtrudedProfile(
   section.outers.forEach((outer, oi) => {
     const holeLoops = section.holesOf[oi]
     // 本组所有边界环（外环在前，孔环随后），顺序即 pts3D 顺序，也是 triangulateShape 的顶点顺序
-    const allLoops: THREE.Vector3[][] = [outer, ...holeLoops]
+    const allLoops: Vec3C[][] = [outer, ...holeLoops]
     const offsets: number[] = []
-    const pts3D: THREE.Vector3[] = []
+    const pts3D: Vec3C[] = []
     for (const loop of allLoops) {
       offsets.push(pts3D.length)
       pts3D.push(...loop)
     }
     const basis = planeBasis(normal)
-    const to2D = (p: THREE.Vector3) => project2D(p, basis.u, basis.v)
-    const tris = THREE.ShapeUtils.triangulateShape(
+    const to2D = (p: Vec3C) => project2D(p, basis.u, basis.v)
+    const tris = triangulateWithEarcut(
       outer.map(to2D),
       holeLoops.map((h) => h.map(to2D)),
     )

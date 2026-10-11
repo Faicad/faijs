@@ -11,20 +11,22 @@
  * tests validate the actual algorithm correctness.
  */
 import { describe, it, expect } from 'vitest'
-import * as THREE from 'three'
 import { geoToManifoldMesh } from '../../src/boolean/geo-convert'
 import { getManifoldModule } from '../../src/mesh/manifold-loader'
 import {
   vec3Cross, vec3Normalize, vec3Scale, vec3Add, vec3Sub,
   type Vec3,
 } from '../../src/boolean/dovetail-math'
+import { boxGeometry, cylinderGeometry, coneGeometry } from '../../src/mesh/meshdata/parametric'
+import { translateShape, transformShape } from '../../src/mesh/meshdata/ops'
+import { Mat4 } from '../../src/math3d'
 
 // ---- helpers (same as csg.test.ts) ----
 
 function box(cx: number, cy: number, cz: number, hw: number, hh: number, hd: number) {
-  const g = new THREE.BoxGeometry(hw * 2, hh * 2, hd * 2)
-  g.translate(cx, cy, cz)
-  return geoToManifoldMesh(g)
+  const g = boxGeometry(hw * 2, hh * 2, hd * 2)
+  const gt = translateShape(g, cx, cy, cz)
+  return geoToManifoldMesh(gt)
 }
 
 function tris(d: { indices: Uint32Array }) { return d.indices.length / 3 }
@@ -76,9 +78,9 @@ function meshToData(manifold: import('manifold-3d/manifold').Manifold) {
  * Used for curved surface testing.
  */
 function cylinderMesh(radius: number, height: number, segments = 32) {
-  const geo = new THREE.CylinderGeometry(radius, radius, height, segments)
-  geo.rotateX(Math.PI / 2) // align along Z
-  return geoToManifoldMesh(geo)
+  const geo = cylinderGeometry(radius, radius, height, segments)
+  const geoR = transformShape(geo, new Mat4().makeRotationX(Math.PI / 2))
+  return geoToManifoldMesh(geoR)
 }
 
 // ---- algorithm replicas (copied from csg-worker.ts) ----
@@ -242,10 +244,10 @@ describe('D2: detectCurvedSurface — cylinder → true', () => {
     lower.delete()
 
     // Use a cone instead (tapered: radius varies with height)
-    const coneGeo = new THREE.ConeGeometry(5, 20, 32)
-    coneGeo.rotateX(Math.PI / 2) // align along Z
-    coneGeo.translate(0, 0, 0) // center at origin, tip at +10, base at -10
-    const coneD = geoToManifoldMesh(coneGeo)
+    const coneGeo = coneGeometry(5, 20, 32)
+    const coneGeoR = transformShape(coneGeo, new Mat4().makeRotationX(Math.PI / 2))
+    const coneGeoT = translateShape(coneGeoR, 0, 0, 0)
+    const coneD = geoToManifoldMesh(coneGeoT)
     const coneMesh = new Mesh({ numProp: 3, vertProperties: coneD.positions, triVerts: coneD.indices })
     const cone = Manifold.ofMesh(coneMesh)
 
@@ -272,9 +274,9 @@ describe('D3: curved branch dovetail split — cone → valid result', () => {
   it('圆锥体燕尾榫切割（曲面分支）→ 结果有效，无 NaN', async () => {
     const { Manifold, Mesh } = await getManifold()
     // Cone: radius=5, height=20, aligned along Z, centered at origin
-    const coneGeo = new THREE.ConeGeometry(5, 20, 32)
-    coneGeo.rotateX(Math.PI / 2)
-    const d = geoToManifoldMesh(coneGeo)
+    const coneGeo = coneGeometry(5, 20, 32)
+    const coneGeoR = transformShape(coneGeo, new Mat4().makeRotationX(Math.PI / 2))
+    const d = geoToManifoldMesh(coneGeoR)
     const mesh = new Mesh({ numProp: 3, vertProperties: d.positions, triVerts: d.indices })
     const m = Manifold.ofMesh(mesh)
 
@@ -481,9 +483,9 @@ describe('D5: unconditional dovetail split — cylinder → wedge is trimmed to 
     // Cylinder: radius=5, height=20, aligned along Z
     // Old detectCurvedSurface returns false for a right cylinder (width constant),
     // but the new code always intersects, so the wedge should be trimmed.
-    const cylGeo = new THREE.CylinderGeometry(5, 5, 20, 32)
-    cylGeo.rotateX(Math.PI / 2)
-    const d = geoToManifoldMesh(cylGeo)
+    const cylGeo = cylinderGeometry(5, 5, 20, 32)
+    const cylGeoR = transformShape(cylGeo, new Mat4().makeRotationX(Math.PI / 2))
+    const d = geoToManifoldMesh(cylGeoR)
     const mesh = new Mesh({ numProp: 3, vertProperties: d.positions, triVerts: d.indices })
     const m = Manifold.ofMesh(mesh)
 
