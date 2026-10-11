@@ -15,7 +15,9 @@
  *   - 输出的 cap 顶点为局部空间，预览期经 matrixWorld 渲染到世界空间。
  */
 import { Vec3 as Vec3C, Vec2, Plane } from '../math3d'
-import earcut from 'earcut'
+// earcut 上游仅提供 CJS，浏览器/Vite 直接 serve 无法 default import；vendored
+// ESM（`../third-party/earcut`，算法与 npm earcut@2.2.4 逐字节一致，ISC）。
+import earcut from '../third-party/earcut'
 import type { Shape } from '../mesh/types'
 
 /**

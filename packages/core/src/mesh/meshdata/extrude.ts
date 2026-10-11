@@ -8,7 +8,9 @@
  *   顺序 = 底面 faces → 顶面 faces → 侧壁 quad 拆 (a,b,d)+(b,c,d)），
  *   `indices` 为平凡顺序 0..n-1。因此 positions/normals 与 three r162 逐位一致，
  *   且底/侧/顶棱边保留**硬边法线**（与 three computeVertexNormals 行为相同）；
- * - **三角化**：earcut **2.2.x**（three r162 内置 `Earcut.js` 同版本快照，输出逐位一致）。
+ * - **三角化**：vendored earcut **2.2.4** ESM（`../third-party/earcut`，算法与 npm
+ *   earcut@2.2.4 逐字节一致；注：three r162 内置 Earcut 与该 npm 版对凹多边形的
+ *   划分可能不同，golden 对照按**几何等价**断言、绝不搬 three 内部 Earcut）。
  *
  * 与 three 的差异（登记为设计决策）：
  * - three `Shape.extractPoints(curveSegments)` 会把每段（含直线）细分为
@@ -21,7 +23,9 @@
  * 坐标约定：输入轮廓为 **Y-up 平面坐标**（+Z 向上），拉伸沿 +Z，
  * 底面 z=0、顶面 z=depth。
  */
-import earcut from 'earcut'
+// earcut 上游仅提供 CJS，浏览器/Vite 直接 serve 无法 default import；vendored
+// ESM（`../third-party/earcut`，算法与 npm earcut@2.2.4 逐字节一致，ISC）。
+import earcut from '../../third-party/earcut'
 import type { Shape } from '../types'
 import { computeVertexNormals } from './ops'
 import type { Contour, P2 } from './contour'
