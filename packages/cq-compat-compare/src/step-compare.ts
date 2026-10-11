@@ -44,6 +44,15 @@ export interface CompareOptions {
    * Feed the solver's underdetermined free direction here.
    */
   canonicalFreeAxis?: BrepVec3
+  /**
+   * P7/D4: a point ON the free twist axis (world coords). The canonical scan
+   * rotates B about the axis through this point. Default: B's center of mass.
+   * For assemblies the free twist acts per-member around its own constraint
+   * anchor — a compound-COM pivot moves the members when it is not on the
+   * twist axis and the scan cannot converge (residual = the twist offset left
+   * behind). Pass the anchor point of the constrained member here.
+   */
+  canonicalPivot?: BrepVec3
 }
 
 /** Per-metric comparison result. */
@@ -165,15 +174,26 @@ export async function compareStepFiles(
     const len = Math.hypot(ux, uy, uz)
     if (!(len > 0)) throw new Error('canonicalFreeAxis must be a nonzero direction')
     const axis: BrepVec3 = { x: ux / len, y: uy / len, z: uz / len }
-    const comB = kernel.getCenterOfMass(shapeB)
-    const pivot: [number, number, number] = [comB.x, comB.y, comB.z]
-    const diffAt = (deg: number): number => {
-      // Rotate B about axis through its COM by deg, then bbox-diff vs A.
+    const bboxA0 = kernel.getBoundingBox(shapeA)
+
+    // The free twist acts PER-MEMBER around the member's own constraint anchor
+    // — a single rigid twist of the whole compound cannot absorb it (a compound
+    // COM or anchor pivot that is off a member's twist axis translates that
+    // member while rotating). So split both compounds into solids and align
+    // each B solid independently: rotate it about its own COM (twist axis
+    // through a member's FixedPoint anchor passes through the member's COM for
+    // unary constraints) to the minimal-bbox-diff angle vs the whole A.
+    const solidsA = kernel.getSubShapes(shapeA, 'solid')
+    const solidsB = kernel.getSubShapes(shapeB, 'solid')
+    if (solidsA.length !== solidsB.length || solidsA.length === 0) {
+      throw new Error(`canonical-pose: solid count mismatch (A=${solidsA.length}, B=${solidsB.length}) — per-member alignment needs 1:1 solids`)
+    }
+
+    const rotAbout = (shape: ShapeHandle, deg: number, pivot: BrepVec3): ShapeHandle => {
       const a = (deg * Math.PI) / 180
       const c = Math.cos(a)
       const s = Math.sin(a)
       const t = 1 - c
-      // Rodrigues rotation matrix (row-major 3x3)
       const r00 = c + axis.x * axis.x * t
       const r01 = axis.x * axis.y * t - axis.z * s
       const r02 = axis.x * axis.z * t + axis.y * s
@@ -183,58 +203,68 @@ export async function compareStepFiles(
       const r20 = axis.z * axis.x * t - axis.y * s
       const r21 = axis.z * axis.y * t + axis.x * s
       const r22 = c + axis.z * axis.z * t
-      // T(pivot)·R·T(-pivot) folded into the 3x4 row-major form OCCT accepts
-      const tx = pivot[0] - (r00 * pivot[0] + r01 * pivot[1] + r02 * pivot[2])
-      const ty = pivot[1] - (r10 * pivot[0] + r11 * pivot[1] + r12 * pivot[2])
-      const tz = pivot[2] - (r20 * pivot[0] + r21 * pivot[1] + r22 * pivot[2])
-      const rotated = kernel.transform(shapeB, [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz])
-      const diff = bboxMaxDiff(bboxA0, kernel.getBoundingBox(rotated))
-      kernel.release(rotated)
-      return diff
+      const tx = pivot.x - (r00 * pivot.x + r01 * pivot.y + r02 * pivot.z)
+      const ty = pivot.y - (r10 * pivot.x + r11 * pivot.y + r12 * pivot.z)
+      const tz = pivot.z - (r20 * pivot.x + r21 * pivot.y + r22 * pivot.z)
+      return kernel.transform(shape, [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz])
     }
-    const bboxA0 = kernel.getBoundingBox(shapeA)
-    // Coarse 2° grid, then golden-section refine within ±2° of the best cell.
-    let bestDeg = 0
-    let bestDiff = diffAt(0)
-    for (let deg = 2; deg < 360; deg += 2) {
-      const d = diffAt(deg)
-      if (d < bestDiff) {
-        bestDiff = d
-        bestDeg = deg
+
+    // Pair each B solid with its nearest A solid (COM distance) — ordering in
+    // a STEP compound is not guaranteed to match the solver's member order.
+    const comA = solidsA.map((s) => kernel.getCenterOfMass(s))
+    const aligned: ShapeHandle[] = new Array(solidsB.length)
+    const usedA = new Set<number>()
+    let maxAbsTwist = 0
+    for (const sb of solidsB) {
+      const com = kernel.getCenterOfMass(sb)
+      let ai = -1
+      let best = Infinity
+      for (let i = 0; i < comA.length; i++) {
+        if (usedA.has(i)) continue
+        const d = Math.hypot(comA[i].x - com.x, comA[i].y - com.y, comA[i].z - com.z)
+        if (d < best) { best = d; ai = i }
       }
+      usedA.add(ai)
+      // Scan the twist about the member's own COM (pivot override applies when
+      // the anchor is off-COM); MEMBER-vs-MEMBER bbox — aligning one member
+      // against the whole-assembly bbox would chase the wrong optimum.
+      // 2° grid + golden-section refine.
+      const pv = opts.canonicalPivot ?? com
+      const bboxAi = kernel.getBoundingBox(solidsA[ai])
+      const diffAtDeg = (deg: number): number => {
+        const rot = rotAbout(sb, deg, pv)
+        const b = kernel.getBoundingBox(rot)
+        kernel.release(rot)
+        return Math.max(
+          Math.abs(bboxAi.xmin - b.xmin), Math.abs(bboxAi.xmax - b.xmax),
+          Math.abs(bboxAi.ymin - b.ymin), Math.abs(bboxAi.ymax - b.ymax),
+          Math.abs(bboxAi.zmin - b.zmin), Math.abs(bboxAi.zmax - b.zmax),
+        )
+      }
+      let bestDeg = 0
+      let bestDiff = diffAtDeg(0)
+      for (let deg = 2; deg < 360; deg += 2) {
+        const d = diffAtDeg(deg)
+        if (d < bestDiff) { bestDiff = d; bestDeg = deg }
+      }
+      let lo = bestDeg - 2
+      let hi = bestDeg + 2
+      for (let i = 0; i < 40; i++) {
+        const m1 = lo + (hi - lo) * 0.382
+        const m2 = lo + (hi - lo) * 0.618
+        if (diffAtDeg(m1) < diffAtDeg(m2)) hi = m2
+        else lo = m1
+      }
+      const angle = (lo + hi) / 2
+      if (Math.abs(angle) > Math.abs(maxAbsTwist)) maxAbsTwist = angle
+      aligned[ai] = rotAbout(sb, angle, pv)
+      kernel.release(sb)
     }
-    let lo = bestDeg - 2
-    let hi = bestDeg + 2
-    for (let i = 0; i < 40; i++) {
-      const m1 = lo + (hi - lo) * 0.382
-      const m2 = lo + (hi - lo) * 0.618
-      if (diffAt(m1) < diffAt(m2)) hi = m2
-      else lo = m1
-    }
-    canonicalTwistAngle = (lo + hi) / 2
-    // Re-import B and apply the final alignment (avoids deep-copying handles):
-    // transform in place once and keep the aligned handle for all metrics.
-    const a = (canonicalTwistAngle * Math.PI) / 180
-    const c = Math.cos(a)
-    const s = Math.sin(a)
-    const t = 1 - c
-    const axis2 = axis
-    const r00 = c + axis2.x * axis2.x * t
-    const r01 = axis2.x * axis2.y * t - axis2.z * s
-    const r02 = axis2.x * axis2.z * t + axis2.y * s
-    const r10 = axis2.y * axis2.x * t + axis2.z * s
-    const r11 = c + axis2.y * axis2.y * t
-    const r12 = axis2.y * axis2.z * t - axis2.x * s
-    const r20 = axis2.z * axis2.x * t - axis2.y * s
-    const r21 = axis2.z * axis2.y * t + axis2.x * s
-    const r22 = c + axis2.z * axis2.z * t
-    const tx = pivot[0] - (r00 * pivot[0] + r01 * pivot[1] + r02 * pivot[2])
-    const ty = pivot[1] - (r10 * pivot[0] + r11 * pivot[1] + r12 * pivot[2])
-    const tz = pivot[2] - (r20 * pivot[0] + r21 * pivot[1] + r22 * pivot[2])
-    const aligned = kernel.transform(shapeB, [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz])
+    for (const s of solidsA) kernel.release(s)
     kernel.release(shapeB)
-    shapeB = aligned
-    details.push(`canonical-pose: twist about (${axis.x.toFixed(4)},${axis.y.toFixed(4)},${axis.z.toFixed(4)}) aligned at ${canonicalTwistAngle.toFixed(3)}°`)
+    shapeB = solidsB.length === 1 ? aligned[0] : kernel.makeCompound(aligned)
+    canonicalTwistAngle = maxAbsTwist
+    details.push(`canonical-pose: per-member twist about (${axis.x.toFixed(4)},${axis.y.toFixed(4)},${axis.z.toFixed(4)}), max |twist| ${maxAbsTwist.toFixed(3)}°`)
   }
 
   // 1. Bounding box
