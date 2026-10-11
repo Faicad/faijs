@@ -3,7 +3,7 @@
  * Pure TS, no WASM — verifies container semantics and hole classification.
  */
 import { describe, expect, it } from 'vitest'
-import { makeLine2d, makeArc2dThreePoints } from '../../src/geometry2d/curve2d'
+import { makeLine2d, makeArc2dThreePoints, makeCircle2d } from '../../src/geometry2d/curve2d'
 import { Blueprint } from '../../src/geometry2d/blueprint'
 import { CompoundBlueprint } from '../../src/geometry2d/compound-blueprint'
 import { organiseBlueprints } from '../../src/geometry2d/organise'
@@ -52,6 +52,18 @@ describe('Blueprint container', () => {
     // degenerate open probe — just assert it doesn't throw
     expect(() => bp.isInside([0.2, 0.2])).not.toThrow()
   })
+
+  it('isInside ray-cast is correct against a full circle', () => {
+    // GOTCHA（2026-10-11，垫圈/管件"+1 额外实体"）：`intersectLineCircle` 曾用
+    // `refineParam`（80 样本粗网格）+ `(eval−crossing)² > tol²·1e6` 二次校验交点，
+    // 会丢弃解析法求得的合法整圆交点，使圆内点的射线交点数为 0 → 一律判 false。
+    // 整圆交点由二次方程精确解出，本就落在圆上，无需 refineParam 复检。
+    const bp = new Blueprint([makeCircle2d(0, 0, 10, true)])
+    expect(bp.isInside([-6.5, 0])).toBe(true) // 同心小圆的中点探针（垫圈孔）
+    expect(bp.isInside([0, 0])).toBe(true) // 圆心
+    expect(bp.isInside([0, 20])).toBe(false) // 圆外
+    expect(bp.isInside([10, 0])).toBe(false) // 边界上
+  })
 })
 
 describe('organiseBlueprints', () => {
@@ -69,6 +81,21 @@ describe('organiseBlueprints', () => {
     expect(cb.blueprints).toHaveLength(2)
     expect(cb.blueprints[0]!.boundingBox.xMax).toBe(10) // outer
     expect(cb.blueprints[1]!.boundingBox.xMax).toBe(7) // inner hole
+  })
+
+  it('concentric full circles → CompoundBlueprint (washer regression)', () => {
+    // GOTCHA（2026-10-11，mech_b "+1 额外实体" 桶，293 个样本）：同心整圆必须被识别为
+    // "外环 + 孔"。此前因 `intersectLineCircle` 丢弃合法整圆交点，包含判定失效，
+    // 同心圆被当成两个独立岛 → 各挤出成实心体（垫圈产 2 solid 而非 1 空心件）。
+    const inner = new Blueprint([makeCircle2d(0, 0, 6.5, true)])
+    const outer = new Blueprint([makeCircle2d(0, 0, 10, true)])
+    const or = organiseBlueprints([inner, outer])
+    expect(or.blueprints).toHaveLength(1)
+    expect(or.blueprints[0]).toBeInstanceOf(CompoundBlueprint)
+    const cb = or.blueprints[0] as CompoundBlueprint
+    expect(cb.blueprints).toHaveLength(2)
+    expect(cb.blueprints[0]!.boundingBox.xMax).toBeCloseTo(10) // 外环
+    expect(cb.blueprints[1]!.boundingBox.xMax).toBeCloseTo(6.5) // 孔
   })
 
   it('two disjoint rings → two Blueprints', () => {

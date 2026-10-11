@@ -1016,7 +1016,17 @@ function intersectLineCircle(
     if (!inDomain(cLine, tLine, tol)) continue
     const px = line.ox + tLine * line.dx
     const py = line.oy + tLine * line.dy
-    // Check that the point is in the circle's domain
+    // GOTCHA（2026-10-11，垫圈/管件"+1 额外实体"根因）：此前的
+    // `refineParam(cCirc, px, py)` + `(eval−crossing)² > tol²·1e6`（≈1e-12）二次校验
+    // 会**丢弃合法的整圆交点**——`refineParam` 是 80 样本粗网格，其最近点可能远离
+    // 解析交点，1e-12 复检几乎永不通过。后果：`isInside` 射线法对圆一律判 false，
+    // `organiseBlueprints` 因而**永不嵌套同心圆**（垫圈产 2 solid 而非 1 空心件）。
+    // 解析交点 (px,py) 由二次方程解出、本就精确落在圆上，整圆无需再校验。
+    if (cCirc.kind2d === 'circle') {
+      results.push([px, py])
+      continue
+    }
+    // 圆弧（trimmed）保留原有 refineParam 校验路径，本修复不改动其语义。
     const tCirc = refineParam(cCirc, px, py)
     if (tCirc === null) continue
     const [cx2, cy2] = evaluateCurve2d(cCirc, tCirc)
