@@ -27,6 +27,23 @@ export interface CompareOptions {
   booleanVolumeTolerance?: number
   /** Whether to require topology counts to match exactly. Default true. */
   strictTopology?: boolean
+  /**
+   * P7/D3: pose comparison mode. Default 'bitwise' (exact placement match).
+   * 'canonical-pose' = the two files are two LEGAL solutions of an
+   * underdetermined constraint set (solver DOF diagnostic said dof > 0): the
+   * placement difference along the free twist is not a defect. B is pre-aligned
+   * to A by scanning the twist about `canonicalFreeAxis` (through B's COM) to
+   * the minimal-difference angle before the rotation-sensitive metrics (bbox,
+   * boolean diff); invariants (topology / volume / COM) stay bitwise — they are
+   * unchanged by that rotation anyway.
+   */
+  poseMode?: 'bitwise' | 'canonical-pose'
+  /**
+   * Free twist axis (world direction, any nonzero length — normalized
+   * internally). Required when poseMode is 'canonical-pose'; ignored otherwise.
+   * Feed the solver's underdetermined free direction here.
+   */
+  canonicalFreeAxis?: BrepVec3
 }
 
 /** Per-metric comparison result. */
@@ -59,9 +76,16 @@ export interface StepCompareResult {
     match: boolean
   }
   details: string[]
+  /**
+   * P7/D3 audit fields (present only when poseMode is 'canonical-pose'):
+   * the aligned twist angle (deg) applied to B and the resulting minimal
+   * bbox diff. Makes every canonical-channel relaxation visible in reports —
+   * no silent loosening.
+   */
+  canonicalPose?: { twistAngleDeg: number; alignedBboxDiff: number }
 }
 
-const DEFAULT_OPTIONS: Required<CompareOptions> = {
+const DEFAULT_OPTIONS: Required<Pick<CompareOptions, 'linearTolerance' | 'volumeRelativeTolerance' | 'booleanVolumeTolerance' | 'strictTopology'>> = {
   linearTolerance: 1e-4,
   volumeRelativeTolerance: 1e-4,
   booleanVolumeTolerance: 1e-3,
@@ -122,7 +146,96 @@ export async function compareStepFiles(
   const exact = (buf: Buffer): ArrayBuffer =>
     buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
   const shapeA = kernel.importStep(exact(bufA))
-  const shapeB = kernel.importStep(exact(bufB))
+  let shapeB = kernel.importStep(exact(bufB))
+
+  // P7/D3: canonical-pose pre-alignment. Two legal solutions of an
+  // underdetermined constraint set differ only by the twist about the free
+  // axis; scan that twist to the minimal-difference angle before the
+  // rotation-sensitive metrics. Invariants (topology/volume/COM) are unchanged
+  // by a rotation about the axis through B's COM, so computing them before or
+  // after this alignment is equivalent — do it before, once.
+  let canonicalTwistAngle: number | undefined
+  if (opts.poseMode === 'canonical-pose') {
+    if (!opts.canonicalFreeAxis) {
+      throw new Error("poseMode 'canonical-pose' requires canonicalFreeAxis (the solver's underdetermined free direction)")
+    }
+    const ux = opts.canonicalFreeAxis.x
+    const uy = opts.canonicalFreeAxis.y
+    const uz = opts.canonicalFreeAxis.z
+    const len = Math.hypot(ux, uy, uz)
+    if (!(len > 0)) throw new Error('canonicalFreeAxis must be a nonzero direction')
+    const axis: BrepVec3 = { x: ux / len, y: uy / len, z: uz / len }
+    const comB = kernel.getCenterOfMass(shapeB)
+    const pivot: [number, number, number] = [comB.x, comB.y, comB.z]
+    const diffAt = (deg: number): number => {
+      // Rotate B about axis through its COM by deg, then bbox-diff vs A.
+      const a = (deg * Math.PI) / 180
+      const c = Math.cos(a)
+      const s = Math.sin(a)
+      const t = 1 - c
+      // Rodrigues rotation matrix (row-major 3x3)
+      const r00 = c + axis.x * axis.x * t
+      const r01 = axis.x * axis.y * t - axis.z * s
+      const r02 = axis.x * axis.z * t + axis.y * s
+      const r10 = axis.y * axis.x * t + axis.z * s
+      const r11 = c + axis.y * axis.y * t
+      const r12 = axis.y * axis.z * t - axis.x * s
+      const r20 = axis.z * axis.x * t - axis.y * s
+      const r21 = axis.z * axis.y * t + axis.x * s
+      const r22 = c + axis.z * axis.z * t
+      // T(pivot)·R·T(-pivot) folded into the 3x4 row-major form OCCT accepts
+      const tx = pivot[0] - (r00 * pivot[0] + r01 * pivot[1] + r02 * pivot[2])
+      const ty = pivot[1] - (r10 * pivot[0] + r11 * pivot[1] + r12 * pivot[2])
+      const tz = pivot[2] - (r20 * pivot[0] + r21 * pivot[1] + r22 * pivot[2])
+      const rotated = kernel.transform(shapeB, [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz])
+      const diff = bboxMaxDiff(bboxA0, kernel.getBoundingBox(rotated))
+      kernel.release(rotated)
+      return diff
+    }
+    const bboxA0 = kernel.getBoundingBox(shapeA)
+    // Coarse 2° grid, then golden-section refine within ±2° of the best cell.
+    let bestDeg = 0
+    let bestDiff = diffAt(0)
+    for (let deg = 2; deg < 360; deg += 2) {
+      const d = diffAt(deg)
+      if (d < bestDiff) {
+        bestDiff = d
+        bestDeg = deg
+      }
+    }
+    let lo = bestDeg - 2
+    let hi = bestDeg + 2
+    for (let i = 0; i < 40; i++) {
+      const m1 = lo + (hi - lo) * 0.382
+      const m2 = lo + (hi - lo) * 0.618
+      if (diffAt(m1) < diffAt(m2)) hi = m2
+      else lo = m1
+    }
+    canonicalTwistAngle = (lo + hi) / 2
+    // Re-import B and apply the final alignment (avoids deep-copying handles):
+    // transform in place once and keep the aligned handle for all metrics.
+    const a = (canonicalTwistAngle * Math.PI) / 180
+    const c = Math.cos(a)
+    const s = Math.sin(a)
+    const t = 1 - c
+    const axis2 = axis
+    const r00 = c + axis2.x * axis2.x * t
+    const r01 = axis2.x * axis2.y * t - axis2.z * s
+    const r02 = axis2.x * axis2.z * t + axis2.y * s
+    const r10 = axis2.y * axis2.x * t + axis2.z * s
+    const r11 = c + axis2.y * axis2.y * t
+    const r12 = axis2.y * axis2.z * t - axis2.x * s
+    const r20 = axis2.z * axis2.x * t - axis2.y * s
+    const r21 = axis2.z * axis2.y * t + axis2.x * s
+    const r22 = c + axis2.z * axis2.z * t
+    const tx = pivot[0] - (r00 * pivot[0] + r01 * pivot[1] + r02 * pivot[2])
+    const ty = pivot[1] - (r10 * pivot[0] + r11 * pivot[1] + r12 * pivot[2])
+    const tz = pivot[2] - (r20 * pivot[0] + r21 * pivot[1] + r22 * pivot[2])
+    const aligned = kernel.transform(shapeB, [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz])
+    kernel.release(shapeB)
+    shapeB = aligned
+    details.push(`canonical-pose: twist about (${axis.x.toFixed(4)},${axis.y.toFixed(4)},${axis.z.toFixed(4)}) aligned at ${canonicalTwistAngle.toFixed(3)}°`)
+  }
 
   // 1. Bounding box
   const bboxA = kernel.getBoundingBox(shapeA)
@@ -200,6 +313,9 @@ export async function compareStepFiles(
       match: boolMatch,
     },
     details,
+    ...(canonicalTwistAngle !== undefined
+      ? { canonicalPose: { twistAngleDeg: canonicalTwistAngle, alignedBboxDiff: bboxDiff } }
+      : {}),
   }
 }
 
