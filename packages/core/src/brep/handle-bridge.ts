@@ -2,10 +2,10 @@
  * handle-bridge — OCCT 句柄 → faijs Shape 的 SDK 桥接（B1）
  *
  *
- * 第三方库要造 BREP 产物，需要"OCCT handle → mesh"。`src/brep/brep-ops.ts:17`
- * 有 `import * as THREE from 'three'`，SDK 绝不能 import 它（会把 three 拉进
- * SDK bundle，违反 `src/sdk.test.ts` 的零 heavy 依赖守卫）。本文件在**新建的
- * 零依赖模块**中实现，直接调运行时注入的 `kernel.meshShape`。
+ * 第三方库要造 BREP 产物，需要"OCCT handle → mesh"。SDK 绝不能 import
+ * heavy 几何库（会把它们拉进 SDK bundle，违反 `src/sdk.test.ts` 的零 heavy
+ * 依赖守卫）。本文件在**新建的零依赖模块**中实现，直接调运行时注入的
+ * `kernel.meshShape`。
  *
  * 依赖约束（硬性）：只允许 import `runtime-state`、`api/shape`、type-only
  * `mesh/types`——任何新增依赖必须保持 dist/sdk.js 零 heavy 依赖守卫通过。

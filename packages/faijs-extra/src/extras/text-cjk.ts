@@ -2,8 +2,8 @@
  * text-cjk — mixed CJK + Latin text geometry (editor extension library).
  *
  * Uses the Local Font Access API (window.queryLocalFonts) to load system CJK
- * fonts, then parses glyph paths with opentype.js to create THREE.Shape →
- * ExtrudeGeometry.
+ * fonts, then parses glyph paths with opentype.js to create Contour[] →
+ * extrudeShape (core, three-free).
  *
  * When a CJK font is available, it is used for ALL characters (including Latin).
  * When no CJK font is available, the default OpenSans Regular font (from
@@ -12,81 +12,34 @@
  * The character classification / system-font loading half lives in core
  * (`@faicad/faijs/primitives/text/cjk-font`) and is deliberately three-free.
  */
-import * as THREE from 'three'
-// Type-only: glyph parsing itself lives in core's fontRegistry; the extension
-// library never calls opentype at runtime (keeps it out of the A-group closure).
-import type * as opentype from 'opentype.js'
 import type { Font } from 'opentype.js'
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { getOpentypeFont } from './text-geometry'
+import { extrudeShape } from '@faicad/faijs/mesh/meshdata/extrude'
+import { mergeShapes } from '@faicad/faijs/mesh/meshdata/ops'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import { getOpentypeFont, opentypePathToContours, centerShapeXZBottom } from './text-geometry'
 
 /**
  * Generate geometry for a single character using opentype.js.
  * Uses the same shape/extrude chain as opentypePathToGeometry().
  */
-function charGeometry(
+function charShape(
   char: string,
   size: number,
   depth: number,
   font: Font,
   xOffset: number,
-): THREE.BufferGeometry | null {
+): Shape | null {
   const glyph = font.charToGlyph(char)
   if (!glyph || !glyph.path) return null
 
   const path = glyph.getPath(xOffset, 0, size)
   if (!path || !path.commands || path.commands.length === 0) return null
 
-  // Build shapes without centering (the per-character offset is handled here).
-  const commands = path.commands as opentype.PathCommand[]
-  if (commands.length === 0) return null
-
-  const shapes: THREE.Shape[] = []
-  let currentShape: THREE.Shape | null = null
-
-  for (const cmd of commands) {
-    switch (cmd.type) {
-      case 'M':
-        // Implicit closure: opentype.js doesn't always emit 'Z' before a new 'M'.
-        if (currentShape) {
-          shapes.push(currentShape)
-        }
-        currentShape = new THREE.Shape()
-        currentShape.moveTo(cmd.x!, cmd.y!)
-        break
-      case 'L':
-        currentShape?.lineTo(cmd.x!, cmd.y!)
-        break
-      case 'C':
-        currentShape?.bezierCurveTo(cmd.x1!, cmd.y1!, cmd.x2!, cmd.y2!, cmd.x!, cmd.y!)
-        break
-      case 'Q':
-        currentShape?.quadraticCurveTo(cmd.x1!, cmd.y1!, cmd.x!, cmd.y!)
-        break
-      case 'Z':
-        if (currentShape) {
-          shapes.push(currentShape)
-          currentShape = null
-        }
-        break
-    }
-  }
-
-  // Handle final unclosed subpath (opentype.js doesn't always emit 'Z')
-  if (currentShape) {
-    shapes.push(currentShape)
-  }
-
-  if (shapes.length === 0) return null
-
-  const geo = new THREE.ExtrudeGeometry(shapes, {
-    depth,
-    bevelEnabled: false,
-    curveSegments: 6,
-  })
-  return geo
+  const contours = opentypePathToContours(path, 6)
+  if (contours.length === 0) return null
+  // 不居中：逐字符的 xOffset 布局在此处处理
+  return extrudeShape(contours, depth)
 }
-
 
 /**
  * Generate geometry for mixed text (CJK + Latin).
@@ -104,7 +57,7 @@ function charGeometry(
  * @param cjkFont  CJK font from system (null = use default font only)
  * @param defaultFont  Default opentype.js Font (OpenSans Regular from fontRegistry).
  *                     If not provided, will be loaded via getOpentypeFont().
- * @returns a promise resolving to the merged, centred geometry for the whole text.
+ * @returns a promise resolving to the merged, centred shape for the whole text.
  */
 export async function createMixedTextGeometry(
   text: string,
@@ -112,12 +65,12 @@ export async function createMixedTextGeometry(
   depth: number,
   cjkFont: Font | null,
   defaultFont?: Font,
-): Promise<THREE.BufferGeometry> {
+): Promise<Shape> {
   // Use CJK font for all chars if available, otherwise use default font
   const font = cjkFont ?? defaultFont ?? (await getOpentypeFont())
 
   // All characters individually
-  const charGeos: { geo: THREE.BufferGeometry; advance: number }[] = []
+  const charShapes: { shape: Shape; advance: number }[] = []
   let cursorX = 0
 
   for (const char of text) {
@@ -134,42 +87,31 @@ export async function createMixedTextGeometry(
       continue
     }
 
-    const geo = charGeometry(char, size, depth, font, cursorX)
-    if (geo) {
-      geo.computeBoundingBox()
-      const bb = geo.boundingBox!
-      const charWidth = bb.max.x - bb.min.x
+    const shape = charShape(char, size, depth, font, cursorX)
+    if (shape) {
+      let minX = Infinity, maxX = -Infinity
+      for (let i = 0; i < shape.positions.length; i += 3) {
+        const x = shape.positions[i]
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+      }
+      const charWidth = maxX - minX
       const adv = (glyph.advanceWidth ?? 0) * (size / font.unitsPerEm)
       // Use advance width for cursor, but ensure minimum advance
       const effectiveAdv = adv > 0 ? adv : charWidth + size * 0.1
-      charGeos.push({ geo, advance: effectiveAdv })
+      charShapes.push({ shape, advance: effectiveAdv })
       cursorX += effectiveAdv
     }
   }
 
   // Merge all character geometries into one
-  if (charGeos.length === 0) {
+  if (charShapes.length === 0) {
     // Fallback: create a minimal geometry from a question mark
-    const geo = charGeometry('?', size, depth, font, 0)
-    if (geo) return geo
-    return new THREE.BufferGeometry()
+    const shape = charShape('?', size, depth, font, 0)
+    if (shape) return centerShapeXZBottom(shape)
+    return { positions: new Float32Array(0), indices: new Uint32Array(0) }
   }
 
-  // Merge via BufferGeometryUtils or manual merge
-  const merged = mergeGeometries(charGeos.map((cg) => cg.geo))
-
-  // Center the whole text in X/Z
-  merged.computeBoundingBox()
-  if (merged.boundingBox) {
-    const cx = (merged.boundingBox.max.x + merged.boundingBox.min.x) / 2
-    const cz = (merged.boundingBox.max.z + merged.boundingBox.min.z) / 2
-    merged.translate(-cx, -merged.boundingBox.min.y, -cz)
-  }
-
-  // Dispose individual geometries
-  for (const cg of charGeos) {
-    cg.geo.dispose()
-  }
-
-  return merged
+  const merged = mergeShapes(charShapes.map((cs) => cs.shape))
+  return centerShapeXZBottom(merged)
 }

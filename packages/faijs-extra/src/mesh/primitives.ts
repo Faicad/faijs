@@ -1,39 +1,20 @@
 /**
  * mesh primitives — editor extension mesh-path creators.
  *
- * `text` and `svgExtrude` are the two creators whose mesh implementations carry
- * three's non-basic geometry chain (`Shape` / `ExtrudeGeometry` / `SVGLoader`).
- * They moved here from core's `mesh/primitives.ts` so the platform mesh entry no
- * longer drags that chain (nor `three/examples/**`) into every consumer.
+ * `text` and `svgExtrude` are the two creators whose mesh implementations
+ * used to carry three's non-basic geometry chain (`Shape` / `ExtrudeGeometry` /
+ * `SVGLoader`). They moved here from core's `mesh/primitives.ts` so the
+ * platform mesh entry no longer drags that chain (nor `three/examples/**`)
+ * into every consumer.
  *
- * Both return Shape (ManifoldMeshData): THREE.BufferGeometry →
- * geoToManifoldMesh conversion. Coordinates: Z-up, millimetres.
+ * Both return core `Shape` directly: text/SVG → Contour[] → `extrudeShape`
+ * (three-free). Coordinates: Z-up, millimetres.
  */
-import { geoToManifoldMesh } from '@faicad/faijs/boolean/csg-backend'
 import type { Shape, TextParams, SvgExtrudeParams } from '@faicad/faijs/mesh/types'
 import { svgToExtrudedGeometry } from '../extras/svg-extrude'
 import { createTextGeometry, getOpentypeFont } from '../extras/text-geometry'
 import { createMixedTextGeometry } from '../extras/text-cjk'
 import { containsCjk, loadSystemCjkFont } from '@faicad/faijs/primitives/text/cjk-font'
-
-type BufferGeometryLike = {
-  attributes: Record<string, { array?: ArrayLike<number> }>
-  index: { array: ArrayLike<number> } | null
-}
-
-function geoToShape(geo: BufferGeometryLike): Shape {
-  const positions = geo.attributes.position.array!
-  let indices: ArrayLike<number>
-  if (geo.index) {
-    indices = geo.index.array
-  } else {
-    const vertexCount = positions.length / 3
-    const seq = new Uint32Array(vertexCount)
-    for (let i = 0; i < vertexCount; i++) seq[i] = i
-    indices = seq
-  }
-  return geoToManifoldMesh({ positions, indices })
-}
 
 /**
  * Create text geometry. Font loading is asynchronous, so this function is
@@ -44,22 +25,18 @@ function geoToShape(geo: BufferGeometryLike): Shape {
  */
 export async function text(params: TextParams): Promise<Shape> {
   const font = await getOpentypeFont()
-  let geo: BufferGeometryLike
   if (containsCjk(params.text)) {
     const cjkFont = await loadSystemCjkFont()
     if (cjkFont) {
-      geo = await createMixedTextGeometry(params.text, params.size, params.depth, cjkFont.font, font)
-    } else {
-      // No CJK font available: replace CJK chars with '?' so geometry still
-      // can be created (graceful degradation). Without this, createTextGeometry
-      // would throw because CJK glyphs are .notdef in OpenSans Regular.
-      const fallback = params.text.replace(/[\u4E00-\u9FFF\u3400-\u4DBF\u2F800-\u2FA1F\u3000-\u303F\uFF00-\uFFEF]/g, '?')
-      geo = await createTextGeometry(fallback, params.size, params.depth, font)
+      return createMixedTextGeometry(params.text, params.size, params.depth, cjkFont.font, font)
     }
-  } else {
-    geo = await createTextGeometry(params.text, params.size, params.depth, font)
+    // No CJK font available: replace CJK chars with '?' so geometry still
+    // can be created (graceful degradation). Without this, createTextGeometry
+    // would throw because CJK glyphs are .notdef in OpenSans Regular.
+    const fallback = params.text.replace(/[\u4E00-\u9FFF\u3400-\u4DBF\u2F800-\u2FA1F\u3000-\u303F\uFF00-\uFFEF]/g, '?')
+    return createTextGeometry(fallback, params.size, params.depth, font)
   }
-  return geoToShape(geo)
+  return createTextGeometry(params.text, params.size, params.depth, font)
 }
 
 /**
@@ -69,11 +46,10 @@ export async function text(params: TextParams): Promise<Shape> {
  * @returns the extruded shape.
  */
 export function svgExtrude(params: SvgExtrudeParams): Shape {
-  const geo = svgToExtrudedGeometry(params.svg, {
+  return svgToExtrudedGeometry(params.svg, {
     depth: params.depth,
     targetLongSide: params.targetLongSide ?? 20,
     naturalWidth: params.naturalWidth ?? 0,
     naturalHeight: params.naturalHeight ?? 0,
   })
-  return geoToShape(geo)
 }

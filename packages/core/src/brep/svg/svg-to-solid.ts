@@ -27,19 +27,25 @@ import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
 import { getSolidBoundingBox } from '../brep-utils'
 import { parseSvgNaturalSize } from '../../primitives/parse-svg-size'
+import {
+  extractSvgPaths,
+  tokenizeSvgPath,
+  extractGroupTransform,
+  classifyNested,
+  computeBBox,
+  computeSignedArea,
+} from '../../primitives/svg/svg-path'
+import type { SvgTransform } from '../../primitives/svg/svg-path'
 
 export { parseSvgNaturalSize }
+
+// 兼容导出：语法层共享实现（extractSvgPaths 等的历史入口仍在 brep 面可用）
+export { extractSvgPaths }
 
 // ─── 类型定义 ───
 
 /** 3D 点（OCCT Vec3 格式） */
 interface Pt { x: number; y: number; z: number }
-
-/** SVG path token */
-interface PathToken {
-  command: string
-  args: number[]
-}
 
 /** 闭合子路径信息（用于孔洞检测） */
 interface ClosedSubpath {
@@ -53,196 +59,13 @@ interface ClosedSubpath {
   wire: BrepHandle
 }
 
-// ─── SVG 元素提取（将 <rect>/<circle>/… 转为 <path d>） ───
+// ─── SVG 元素提取 / transform / tokenizer ───
+// 与 mesh 链共享同一实现（primitives/svg/svg-path.ts）：
+// extractSvgPaths / parseSvgTransform / extractGroupTransform / tokenizeSvgPath。
+// brep 链保留精确几何语义（Bezier→OCCT 曲线、Arc→三点圆弧），
+// 语法层（元素提取、矩阵解析、tokenizer）不重复实现。
 
-/**
- * 从 SVG 字符串中提取所有图形元素的 path `d` 属性。
- *
- * 支持：<path>, <rect>, <circle>, <ellipse>, <line>, <polyline>, <polygon>。
- * 使用正则提取，无 DOMParser 依赖（可在 Web Worker / Node 中运行）。
- *
- * @param svgString - the raw SVG markup to extract paths from.
- * @returns an array of path `d` strings.
- */
-export function extractSvgPaths(svgString: string): string[] {
-  const paths: string[] = []
-
-  // <path d="...">
-  extractPathDAttributes(svgString, paths)
-
-  // <rect>
-  extractRectPaths(svgString, paths)
-
-  // <circle>
-  extractCirclePaths(svgString, paths)
-
-  // <ellipse>
-  extractEllipsePaths(svgString, paths)
-
-  // <line>
-  extractLinePaths(svgString, paths)
-
-  // <polyline>
-  extractPolylinePaths(svgString, paths, false)
-
-  // <polygon>
-  extractPolylinePaths(svgString, paths, true)
-
-  return paths
-}
-
-function extractPathDAttributes(svg: string, out: string[]): void {
-  const re = /<path\b[^>]*\bd\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>/gi
-  let m: RegExpExecArray | null
-  while ((m = re.exec(svg)) !== null) {
-    const d = m[1] ?? m[2]
-    if (d) out.push(d)
-  }
-}
-
-function extractRectPaths(svg: string, out: string[]): void {
-  const re = /<rect\b([^>]*)\/?>/gi
-  let m: RegExpExecArray | null
-  while ((m = re.exec(svg)) !== null) {
-    const attrs = parseAttrs(m[1] ?? '')
-    const x = parseFloat(attrs.x ?? '0')
-    const y = parseFloat(attrs.y ?? '0')
-    const w = parseFloat(attrs.width ?? '0')
-    const h = parseFloat(attrs.height ?? '0')
-    const rx = parseFloat(attrs.rx ?? '0')
-    const ry = parseFloat(attrs.ry ?? '0')
-    if (w <= 0 || h <= 0) continue
-
-    // 如果 rect 有 transform 属性，将变换应用到四个角点后输出为 path d
-    const rectTransform = attrs.transform ? parseSvgTransform(attrs.transform) : undefined
-    if (rectTransform) {
-      const corners: [number, number][] = [
-        [x, y], [x + w, y], [x + w, y + h], [x, y + h],
-      ]
-      const tc = corners.map(([cx, cy]) => [
-        rectTransform[0] * cx + rectTransform[2] * cy + rectTransform[4],
-        rectTransform[1] * cx + rectTransform[3] * cy + rectTransform[5],
-      ])
-      let d = `M ${tc[0][0]},${tc[0][1]}`
-      for (let i = 1; i < tc.length; i++) d += ` L ${tc[i][0]},${tc[i][1]}`
-      out.push(d + ' Z')
-    } else if (rx > 0 || ry > 0) {
-      const r = Math.min(rx || ry, w / 2, h / 2)
-      out.push(rectToPathRounded(x, y, w, h, r))
-    } else {
-      out.push(`M ${x},${y} h ${w} v ${h} h ${-w} Z`)
-    }
-  }
-}
-
-function rectToPathRounded(x: number, y: number, w: number, h: number, r: number): string {
-  return [
-    `M ${x + r},${y}`,
-    `h ${w - 2 * r}`,
-    `A ${r},${r} 0 0 1 ${x + w},${y + r}`,
-    `v ${h - 2 * r}`,
-    `A ${r},${r} 0 0 1 ${x + w - r},${y + h}`,
-    `h ${-(w - 2 * r)}`,
-    `A ${r},${r} 0 0 1 ${x},${y + h - r}`,
-    `v ${-(h - 2 * r)}`,
-    `A ${r},${r} 0 0 1 ${x + r},${y}`,
-    'Z',
-  ].join(' ')
-}
-
-function extractCirclePaths(svg: string, out: string[]): void {
-  const re = /<circle\b([^>]*)\/?>/gi
-  let m: RegExpExecArray | null
-  while ((m = re.exec(svg)) !== null) {
-    const attrs = parseAttrs(m[1] ?? '')
-    const cx = parseFloat(attrs.cx ?? '0')
-    const cy = parseFloat(attrs.cy ?? '0')
-    const r = parseFloat(attrs.r ?? '0')
-    if (r <= 0) continue
-    // 两个半圆弧组成完整圆
-    out.push(`M ${cx - r},${cy} A ${r},${r} 0 1 0 ${cx + r},${cy} A ${r},${r} 0 1 0 ${cx - r},${cy} Z`)
-  }
-}
-
-function extractEllipsePaths(svg: string, out: string[]): void {
-  const re = /<ellipse\b([^>]*)\/?>/gi
-  let m: RegExpExecArray | null
-  while ((m = re.exec(svg)) !== null) {
-    const attrs = parseAttrs(m[1] ?? '')
-    const cx = parseFloat(attrs.cx ?? '0')
-    const cy = parseFloat(attrs.cy ?? '0')
-    const rx = parseFloat(attrs.rx ?? '0')
-    const ry = parseFloat(attrs.ry ?? '0')
-    if (rx <= 0 || ry <= 0) continue
-    out.push(`M ${cx - rx},${cy} A ${rx},${ry} 0 1 0 ${cx + rx},${cy} A ${rx},${ry} 0 1 0 ${cx - rx},${cy} Z`)
-  }
-}
-
-function extractLinePaths(svg: string, out: string[]): void {
-  const re = /<line\b([^>]*)\/?>/gi
-  let m: RegExpExecArray | null
-  while ((m = re.exec(svg)) !== null) {
-    const attrs = parseAttrs(m[1] ?? '')
-    const x1 = parseFloat(attrs.x1 ?? '0')
-    const y1 = parseFloat(attrs.y1 ?? '0')
-    const x2 = parseFloat(attrs.x2 ?? '0')
-    const y2 = parseFloat(attrs.y2 ?? '0')
-    out.push(`M ${x1},${y1} L ${x2},${y2}`)
-  }
-}
-
-function extractPolylinePaths(svg: string, out: string[], closed: boolean): void {
-  const tag = closed ? 'polygon' : 'polyline'
-  const re = new RegExp(`<${tag}\\b([^>]*)\\/??>`, 'gi')
-  let m: RegExpExecArray | null
-  while ((m = re.exec(svg)) !== null) {
-    const attrs = parseAttrs(m[1] ?? '')
-    const pointsStr = attrs.points ?? ''
-    const nums = pointsStr.split(/[\s,]+/).filter(s => s.length > 0).map(Number)
-    if (nums.length < 4) continue
-    let d = `M ${nums[0]},${nums[1]}`
-    for (let i = 2; i + 1 < nums.length; i += 2) {
-      d += ` L ${nums[i]},${nums[i + 1]}`
-    }
-    if (closed) d += ' Z'
-    out.push(d)
-  }
-}
-
-function parseAttrs(attrStr: string): Record<string, string> {
-  const attrs: Record<string, string> = {}
-  const re = /(\w[\w-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(attrStr)) !== null) {
-    attrs[m[1].toLowerCase()] = m[2] ?? m[3] ?? ''
-  }
-  return attrs
-}
-
-// ─── SVG transform 处理 ───
-
-/** SVG 2D 仿射变换矩阵 [a, b, c, d, e, f]（matrix(a,b,c,d,e,f)） */
-type SvgTransform = [number, number, number, number, number, number]
-
-/** 解析 SVG transform 字符串（仅支持 matrix 形式） */
-function parseSvgTransform(transformStr: string): SvgTransform | undefined {
-  const m = transformStr.match(/matrix\s*\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\)/)
-  if (m) {
-    return [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3]), parseFloat(m[4]), parseFloat(m[5]), parseFloat(m[6])]
-  }
-  return undefined
-}
-
-/** 从 SVG 字符串中提取 <g transform="matrix(...)"> 的变换矩阵 */
-function extractGroupTransform(svgString: string): SvgTransform | undefined {
-  const m = svgString.match(/<g\b[^>]*\btransform\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>/i)
-  if (m) {
-    return parseSvgTransform(m[1] ?? m[2] ?? '')
-  }
-  return undefined
-}
-
-/** 将 SVG 2D 变换转为 OCCT 3x4 row-major 仿射矩阵（考虑 Y 翻转） */
+// ─── SVG transform 处理（OCCT 矩阵适配，brep 链特有） ───
 function svgTransformToOcctMatrix(gt: SvgTransform): number[] {
   // SVG: x' = a*x + c*y + e, y' = b*x + d*y + f
   // OCCT 点的 Y 已翻转 (y_occt = -y_svg)，所以：
@@ -267,26 +90,6 @@ function applySvgTransformToOcctPoint(p: Pt, gt: SvgTransform): Pt {
 }
 
 // ─── SVG path tokenizer ───
-
-function tokenizeSVGPath(d: string): PathToken[] {
-  const tokens: PathToken[] = []
-  const re = /([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g
-  let match: RegExpExecArray | null
-  while ((match = re.exec(d)) !== null) {
-    const command = match[1] ?? ''
-    const argStr = (match[2] ?? '').trim()
-    const args: number[] = []
-    if (argStr) {
-      const numRe = /[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/g
-      let numMatch: RegExpExecArray | null
-      while ((numMatch = numRe.exec(argStr)) !== null) {
-        args.push(parseFloat(numMatch[0]))
-      }
-    }
-    tokens.push({ command, args })
-  }
-  return tokens
-}
 
 // ─── SVG path → OCCT edges ───
 
@@ -356,7 +159,7 @@ export function parseSVGPathToWires(
   kernel: BrepEngineApi,
   pathD: string,
 ): ClosedSubpath[] {
-  const tokens = tokenizeSVGPath(pathD)
+  const tokens = tokenizeSvgPath(pathD)
   const subpaths: ClosedSubpath[] = []
 
   const cursor: PathCursor = {
@@ -676,64 +479,10 @@ export function parseSVGPathToWires(
   return subpaths
 }
 
-// ─── 几何工具 ───
-
-function computeBBox(points: Pt[]): { minX: number; minY: number; maxX: number; maxY: number } {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const p of points) {
-    if (p.x < minX) minX = p.x
-    if (p.y < minY) minY = p.y
-    if (p.x > maxX) maxX = p.x
-    if (p.y > maxY) maxY = p.y
-  }
-  return { minX, minY, maxX, maxY }
-}
-
-/** Shoelace 公式计算有符号面积（正=CCW，负=CW） */
-function computeSignedArea(points: Pt[]): number {
-  let area = 0
-  const n = points.length
-  if (n < 3) return 0
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n
-    area += points[i].x * points[j].y
-    area -= points[j].x * points[i].y
-  }
-  return area / 2
-}
-
-/** 点在多边形内（ray casting） */
-function pointInPolygon(pt: Pt, polygon: Pt[]): boolean {
-  const n = polygon.length
-  if (n < 3) return false
-  let inside = false
-  for (let i = 0, j = n - 1; i < n; j = i++) {
-    const xi = polygon[i].x, yi = polygon[i].y
-    const xj = polygon[j].x, yj = polygon[j].y
-    const intersect = ((yi > pt.y) !== (yj > pt.y)) &&
-      (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi + 1e-12) + xi)
-    if (intersect) inside = !inside
-  }
-  return inside
-}
-
-/** 计算多边形质心 */
-function polygonCentroid(points: Pt[]): Pt {
-  let cx = 0, cy = 0
-  for (const p of points) {
-    cx += p.x
-    cy += p.y
-  }
-  return { x: cx / points.length, y: cy / points.length, z: 0 }
-}
-
-function bboxContains(outer: { minX: number; minY: number; maxX: number; maxY: number },
-                      inner: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
-  return inner.minX >= outer.minX && inner.maxX <= outer.maxX &&
-         inner.minY >= outer.minY && inner.maxY <= outer.maxY
-}
-
 // ─── 孔洞分类 ───
+// 几何工具（computeBBox/computeSignedArea/pointInPolygon/polygonCentroid/bboxContains）
+// 与嵌套分组算法共享 primitives/svg/svg-path.ts 的 classifyNested 实现，
+// 本文件仅组装 wire 句柄（岛/孔中孔的多层嵌套语义已内置于 classifyNested）。
 
 interface ContourGroup {
   /** 外轮廓 wire */
@@ -743,78 +492,17 @@ interface ContourGroup {
 }
 
 /**
- * 将闭合子路径分类为外轮廓 + 孔洞的分组。
- *
- * 算法：
- * 1. 按有符号面积绝对值降序排（大轮廓优先）
- * 2. 对每条子路径 A，找到直接包含它的最小外轮廓 B
- * 3. A 是 B 的孔洞
- * 4. 没有外轮廓的子路径是独立外轮廓
+ * 将闭合子路径分类为外轮廓 + 孔洞的分组（复用共享 classifyNested，支持多层嵌套岛）。
  *
  * @param subpaths - the closed subpaths to classify.
  * @returns the contour groups of outer wires and their hole wires.
  */
 export function classifyHoles(subpaths: ClosedSubpath[]): ContourGroup[] {
-  // 按面积绝对值降序排
-  const sorted = [...subpaths].sort((a, b) => Math.abs(b.signedArea) - Math.abs(a.signedArea))
-
-  // 为每条子路径找直接外轮廓
-  const parentOf = new Array(sorted.length).fill(-1)
-  for (let i = 0; i < sorted.length; i++) {
-    let bestParent = -1
-    let bestParentArea = Infinity
-    const centroid = polygonCentroid(sorted[i].points)
-    for (let j = 0; j < sorted.length; j++) {
-      if (i === j) continue
-      // j 的面积必须大于 i
-      if (Math.abs(sorted[j].signedArea) <= Math.abs(sorted[i].signedArea)) continue
-      // j 的 bbox 必须包含 i 的 bbox
-      if (!bboxContains(sorted[j].bbox, sorted[i].bbox)) continue
-      // i 的质心必须在 j 的多边形内
-      if (!pointInPolygon(centroid, sorted[j].points)) continue
-      // 选面积最小的外轮廓（直接包含者）
-      if (Math.abs(sorted[j].signedArea) < bestParentArea) {
-        bestParentArea = Math.abs(sorted[j].signedArea)
-        bestParent = j
-      }
-    }
-    parentOf[i] = bestParent
-  }
-
-  // 构建分组
-  const groups: ContourGroup[] = []
-  for (let i = 0; i < sorted.length; i++) {
-    if (parentOf[i] === -1) {
-      // 外轮廓
-      groups.push({ outer: sorted[i].wire, holes: [] })
-    }
-  }
-
-  // 为每个孔洞找到对应的外轮廓
-  for (let i = 0; i < sorted.length; i++) {
-    if (parentOf[i] !== -1) {
-      // 找到 groups 中对应的外轮廓
-      const parentIdx = parentOf[i]
-      // parentIdx 是 sorted 中的索引，需要找到对应的 group
-      // 外轮廓在 sorted 中的索引 → groups 中的索引
-      let groupIdx = -1
-      let outerCount = 0
-      for (let k = 0; k < sorted.length; k++) {
-        if (parentOf[k] === -1) {
-          if (k === parentIdx) {
-            groupIdx = outerCount
-            break
-          }
-          outerCount++
-        }
-      }
-      if (groupIdx >= 0 && groupIdx < groups.length) {
-        groups[groupIdx].holes.push(sorted[i].wire)
-      }
-    }
-  }
-
-  return groups
+  const groups = classifyNested(subpaths)
+  return groups.map((g) => ({
+    outer: subpaths[g.outerIdx].wire,
+    holes: g.holes.map((h) => subpaths[h].wire),
+  }))
 }
 
 // ─── SVG → Solid ───
