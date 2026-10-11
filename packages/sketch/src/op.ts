@@ -240,5 +240,4 @@ export const sketch = defineOp({
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
   spec: sketchDimSpec(),
-  dimCheck: 'warn',
 })

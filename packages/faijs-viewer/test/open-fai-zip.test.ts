@@ -103,7 +103,7 @@ describe('openFaiZip (e2e, node + local engines)', () => {
     const moduleSource = [
       'let plate = cad.sketch({',
       "  plane: 'XY',",
-      "  shapes: [ { kind: 'rect', w: 100, d: 60, tag: 'g0' } ],",
+      "  shapes: [ { kind: 'rect', w: 100 * MM, d: 60 * MM, tag: 'g0' } ],",
       '})',
       'let body = cad.extrude(plate, 20)\n',
     ].join('\n')

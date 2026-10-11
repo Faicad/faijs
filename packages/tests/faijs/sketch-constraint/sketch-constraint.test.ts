@@ -68,10 +68,10 @@ function bboxSize(shape: Shape): [number, number, number] {
 const RECT = (w: number, h: number, dw: number) => `
 let sk0 = cad.sketch({
   geoms: [
-    { tag: 'bottom', kind: 'line', x1: 0, y1: 0, x2: ${w + dw}, y2: 0 },
-    { tag: 'right',  kind: 'line', x1: ${w + dw}, y1: 0, x2: ${w + dw}, y2: ${h} },
-    { tag: 'top',    kind: 'line', x1: ${w + dw}, y1: ${h}, x2: 0, y2: ${h} },
-    { tag: 'left',   kind: 'line', x1: 0, y1: ${h}, x2: 0, y2: 0 },
+    { tag: 'bottom', kind: 'line', x1: 0 * MM, y1: 0 * MM, x2: ${w + dw} * MM, y2: 0 * MM },
+    { tag: 'right',  kind: 'line', x1: ${w + dw} * MM, y1: 0 * MM, x2: ${w + dw} * MM, y2: ${h} * MM },
+    { tag: 'top',    kind: 'line', x1: ${w + dw} * MM, y1: ${h} * MM, x2: 0 * MM, y2: ${h} * MM },
+    { tag: 'left',   kind: 'line', x1: 0 * MM, y1: ${h} * MM, x2: 0 * MM, y2: 0 * MM },
   ],
   constraints: [
     { kind: 'horizontal', of: { tag: 'bottom' } },
@@ -82,8 +82,8 @@ let sk0 = cad.sketch({
     { kind: 'coincident', a: { tag: 'right', at: 'end' }, b: { tag: 'top', at: 'start' } },
     { kind: 'coincident', a: { tag: 'top', at: 'end' }, b: { tag: 'left', at: 'start' } },
     { kind: 'coincident', a: { tag: 'left', at: 'end' }, b: { tag: 'bottom', at: 'start' } },
-    { kind: 'length', of: { tag: 'bottom' }, value: ${w} },
-    { kind: 'length', of: { tag: 'right' }, value: ${h} },
+    { kind: 'length', of: { tag: 'bottom' }, value: ${w} * MM },
+    { kind: 'length', of: { tag: 'right' }, value: ${h} * MM },
   ],
 })
 let part0 = cad.extrude(sk0, [0, 0, 10])
@@ -107,10 +107,10 @@ describe('cad.sketch script-face e2e', () => {
     const code = `
 let sk0 = cad.sketch({
   geoms: [
-    { tag: 'bottom', kind: 'line', x1: 0, y1: 0, x2: 30, y2: 0 },
-    { tag: 'right',  kind: 'line', x1: 30, y1: 0, x2: 30, y2: 20 },
-    { tag: 'top',    kind: 'line', x1: 30, y1: 20, x2: 0, y2: 20 },
-    { tag: 'left',   kind: 'line', x1: 0, y1: 20, x2: 0, y2: 0 },
+    { tag: 'bottom', kind: 'line', x1: 0 * MM, y1: 0 * MM, x2: 30 * MM, y2: 0 * MM },
+    { tag: 'right',  kind: 'line', x1: 30 * MM, y1: 0 * MM, x2: 30 * MM, y2: 20 * MM },
+    { tag: 'top',    kind: 'line', x1: 30 * MM, y1: 20 * MM, x2: 0 * MM, y2: 20 * MM },
+    { tag: 'left',   kind: 'line', x1: 0 * MM, y1: 20 * MM, x2: 0 * MM, y2: 0 * MM },
   ],
   constraints: [
     { kind: 'coincident', a: { tag: 'bottom', at: 'end' }, b: { tag: 'right', at: 'start' } },
@@ -119,8 +119,8 @@ let sk0 = cad.sketch({
     { kind: 'coincident', a: { tag: 'left', at: 'end' }, b: { tag: 'bottom', at: 'start' } },
     { kind: 'horizontal', of: { tag: 'bottom' } },
     { kind: 'vertical',   of: { tag: 'left' } },
-    { kind: 'length', of: { tag: 'bottom' }, value: 100 },
-    { kind: 'length', of: { tag: 'left' }, value: 20 },
+    { kind: 'length', of: { tag: 'bottom' }, value: 100 * MM },
+    { kind: 'length', of: { tag: 'left' }, value: 20 * MM },
   ],
 })
 let part0 = cad.extrude(sk0, [0, 0, 5])
@@ -138,10 +138,10 @@ let part0 = cad.extrude(sk0, [0, 0, 5])
     const code = `
 let sk0 = cad.sketch({
   geoms: [
-    { tag: 'bottom', kind: 'line', x1: 0, y1: 0, x2: 30, y2: 0 },
-    { tag: 'right',  kind: 'line', x1: 30, y1: 0, x2: 30, y2: 20 },
-    { tag: 'top',    kind: 'line', x1: 30, y1: 20, x2: 0, y2: 20 },
-    { tag: 'left',   kind: 'line', x1: 0, y1: 20, x2: 0, y2: 0 },
+    { tag: 'bottom', kind: 'line', x1: 0 * MM, y1: 0 * MM, x2: 30 * MM, y2: 0 * MM },
+    { tag: 'right',  kind: 'line', x1: 30 * MM, y1: 0 * MM, x2: 30 * MM, y2: 20 * MM },
+    { tag: 'top',    kind: 'line', x1: 30 * MM, y1: 20 * MM, x2: 0 * MM, y2: 20 * MM },
+    { tag: 'left',   kind: 'line', x1: 0 * MM, y1: 20 * MM, x2: 0 * MM, y2: 0 * MM },
   ],
   constraints: [
     { kind: 'coincident', a: { tag: 'bottom', at: 'end' }, b: { tag: 'right', at: 'start' } },
@@ -170,10 +170,10 @@ let part0 = cad.extrude(sk0, [0, 0, 5])
     const redundant = `
 let sk0 = cad.sketch({
   geoms: [
-    { tag: 'bottom', kind: 'line', x1: 0, y1: 0, x2: 80, y2: 0 },
-    { tag: 'right',  kind: 'line', x1: 80, y1: 0, x2: 80, y2: 50 },
-    { tag: 'top',    kind: 'line', x1: 80, y1: 50, x2: 0, y2: 50 },
-    { tag: 'left',   kind: 'line', x1: 0, y1: 50, x2: 0, y2: 0 },
+    { tag: 'bottom', kind: 'line', x1: 0 * MM, y1: 0 * MM, x2: 80 * MM, y2: 0 * MM },
+    { tag: 'right',  kind: 'line', x1: 80 * MM, y1: 0 * MM, x2: 80 * MM, y2: 50 * MM },
+    { tag: 'top',    kind: 'line', x1: 80 * MM, y1: 50 * MM, x2: 0 * MM, y2: 50 * MM },
+    { tag: 'left',   kind: 'line', x1: 0 * MM, y1: 50 * MM, x2: 0 * MM, y2: 0 * MM },
   ],
   constraints: [
     { kind: 'horizontal', of: { tag: 'bottom' } },
@@ -184,8 +184,8 @@ let sk0 = cad.sketch({
     { kind: 'coincident', a: { tag: 'right', at: 'end' }, b: { tag: 'top', at: 'start' } },
     { kind: 'coincident', a: { tag: 'top', at: 'end' }, b: { tag: 'left', at: 'start' } },
     { kind: 'coincident', a: { tag: 'left', at: 'end' }, b: { tag: 'bottom', at: 'start' } },
-    { kind: 'length', of: { tag: 'bottom' }, value: 80 },
-    { kind: 'length', of: { tag: 'bottom' }, value: 80 },
+    { kind: 'length', of: { tag: 'bottom' }, value: 80 * MM },
+    { kind: 'length', of: { tag: 'bottom' }, value: 80 * MM },
   ],
 })
 let part0 = cad.extrude(sk0, [0, 0, 5])
@@ -205,10 +205,10 @@ let part0 = cad.extrude(sk0, [0, 0, 5])
     const code = `
 let sk0 = cad.sketch({
   geoms: [
-    { tag: 'bottom', kind: 'line', x1: 0, y1: 0, x2: 80, y2: 0 },
-    { tag: 'right',  kind: 'line', x1: 80, y1: 0, x2: 80, y2: 50 },
-    { tag: 'top',    kind: 'line', x1: 80, y1: 50, x2: 0, y2: 50 },
-    { tag: 'left',   kind: 'line', x1: 0, y1: 50, x2: 0, y2: 0 },
+    { tag: 'bottom', kind: 'line', x1: 0 * MM, y1: 0 * MM, x2: 80 * MM, y2: 0 * MM },
+    { tag: 'right',  kind: 'line', x1: 80 * MM, y1: 0 * MM, x2: 80 * MM, y2: 50 * MM },
+    { tag: 'top',    kind: 'line', x1: 80 * MM, y1: 50 * MM, x2: 0 * MM, y2: 50 * MM },
+    { tag: 'left',   kind: 'line', x1: 0 * MM, y1: 50 * MM, x2: 0 * MM, y2: 0 * MM },
   ],
   constraints: [
     { kind: 'horizontal', of: { tag: 'bottom' } },
@@ -219,8 +219,8 @@ let sk0 = cad.sketch({
     { kind: 'coincident', a: { tag: 'right', at: 'end' }, b: { tag: 'top', at: 'start' } },
     { kind: 'coincident', a: { tag: 'top', at: 'end' }, b: { tag: 'left', at: 'start' } },
     { kind: 'coincident', a: { tag: 'left', at: 'end' }, b: { tag: 'bottom', at: 'start' } },
-    { kind: 'length', of: { tag: 'bottom' }, value: 80 },
-    { kind: 'length', of: { tag: 'top' }, value: 60 },
+    { kind: 'length', of: { tag: 'bottom' }, value: 80 * MM },
+    { kind: 'length', of: { tag: 'top' }, value: 60 * MM },
   ],
 })
 let part0 = cad.extrude(sk0, [0, 0, 5])
@@ -245,10 +245,10 @@ let part0 = cad.extrude(sk0, [0, 0, 5])
     const redundant = `
 let sk0 = cad.sketch({
   geoms: [
-    { tag: 'bottom', kind: 'line', x1: 0, y1: 0, x2: 80, y2: 0 },
-    { tag: 'right',  kind: 'line', x1: 80, y1: 0, x2: 80, y2: 50 },
-    { tag: 'top',    kind: 'line', x1: 80, y1: 50, x2: 0, y2: 50 },
-    { tag: 'left',   kind: 'line', x1: 0, y1: 50, x2: 0, y2: 0 },
+    { tag: 'bottom', kind: 'line', x1: 0 * MM, y1: 0 * MM, x2: 80 * MM, y2: 0 * MM },
+    { tag: 'right',  kind: 'line', x1: 80 * MM, y1: 0 * MM, x2: 80 * MM, y2: 50 * MM },
+    { tag: 'top',    kind: 'line', x1: 80 * MM, y1: 50 * MM, x2: 0 * MM, y2: 50 * MM },
+    { tag: 'left',   kind: 'line', x1: 0 * MM, y1: 50 * MM, x2: 0 * MM, y2: 0 * MM },
   ],
   constraints: [
     { kind: 'horizontal', of: { tag: 'bottom' } },
@@ -259,8 +259,8 @@ let sk0 = cad.sketch({
     { kind: 'coincident', a: { tag: 'right', at: 'end' }, b: { tag: 'top', at: 'start' } },
     { kind: 'coincident', a: { tag: 'top', at: 'end' }, b: { tag: 'left', at: 'start' } },
     { kind: 'coincident', a: { tag: 'left', at: 'end' }, b: { tag: 'bottom', at: 'start' } },
-    { kind: 'length', of: { tag: 'bottom' }, value: 80 },
-    { kind: 'length', of: { tag: 'bottom' }, value: 80 },
+    { kind: 'length', of: { tag: 'bottom' }, value: 80 * MM },
+    { kind: 'length', of: { tag: 'bottom' }, value: 80 * MM },
   ],
 })
 let part0 = cad.extrude(sk0, [0, 0, 5])
@@ -281,16 +281,16 @@ let part0 = cad.extrude(sk0, [0, 0, 5])
     const code = `
 let sk0 = cad.sketch({
   geoms: [
-    { tag: 'bottom', kind: 'line', x1: 0, y1: 0, x2: 80, y2: 0 },
-    { tag: 'right',  kind: 'line', x1: 80, y1: 0, x2: 80, y2: 50 },
-    { tag: 'top',    kind: 'line', x1: 80, y1: 50, x2: 0, y2: 50 },
-    { tag: 'left',   kind: 'line', x1: 0, y1: 50, x2: 0, y2: 0 },
+    { tag: 'bottom', kind: 'line', x1: 0 * MM, y1: 0 * MM, x2: 80 * MM, y2: 0 * MM },
+    { tag: 'right',  kind: 'line', x1: 80 * MM, y1: 0 * MM, x2: 80 * MM, y2: 50 * MM },
+    { tag: 'top',    kind: 'line', x1: 80 * MM, y1: 50 * MM, x2: 0 * MM, y2: 50 * MM },
+    { tag: 'left',   kind: 'line', x1: 0 * MM, y1: 50 * MM, x2: 0 * MM, y2: 0 * MM },
   ],
   constraints: [
     { kind: 'horizontal', of: { tag: 'bottom' } },
     { kind: 'vertical',   of: { tag: 'right' } },
     { kind: 'coincident', a: { tag: 'bottom', at: 'end' }, b: { tag: 'right', at: 'start' } },
-    { kind: 'length', of: { tag: 'bottom' }, value: 80 },
+    { kind: 'length', of: { tag: 'bottom' }, value: 80 * MM },
   ],
   as: 'wire',
 })
