@@ -220,7 +220,7 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
   // L1 面：chamferDistAngle/枚举/命名（D12）。equal 分支经 face-evolution 走 occt 平台面。
   const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
-  if (!solid) throw new Error('[api/chamfer] E_CHAMFER_NO_BREP: input is not BREP')
+  if (solid === undefined) throw new Error('[api/chamfer] E_CHAMFER_NO_BREP: input is not BREP')
 
   const edges = (params.edges as unknown as EdgeTopoRef[] | undefined) ?? []
   const type = params.type as string

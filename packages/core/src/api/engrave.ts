@@ -85,7 +85,7 @@ function centerSolidAtOrigin(kernel: BrepEngineApi, solid: BrepHandle): BrepHand
 async function engraveBrepPath(input: Shape, params: Record<string, unknown>, svgText?: string): Promise<Shape> {
   const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[api/engrave] input is not BREP')
+  if (inputSolid === undefined) throw new Error('[api/engrave] input is not BREP')
 
   const depth = params.depth as number
   const mode = (params.mode as 'convex' | 'concave' | undefined) ?? 'concave'

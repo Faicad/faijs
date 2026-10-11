@@ -4,7 +4,7 @@
  * 装载策略（与 occt-kernel 一致）：
  * - 宿主可调用 setBrepkitWasmInitFn(fn) 注入自定义初始化函数
  *   （小程序 Worker 传 WXWebAssembly 实例化路径；node 测试走 npm 包默认 init）；
- * - 未注入时，node 环境直接 require('brepkit-wasm')（该包胶水零 eval，可直接装载）；
+ * - 未注入时，node 环境直接 require('@faicad/brepkit2-wasm')（该包胶水零 eval，可直接装载）；
  * - 两边都没有 → 抛带上下文的错误（报错好于掩盖，禁止静默回退）。
  */
 
@@ -83,15 +83,16 @@ export function initBrepkitWasm(): Promise<BrepKitKernel> {
     // node 环境（单测 / CLI）：npm 包默认装载路径
 
     if (typeof process !== 'undefined' && process.versions?.node) {
-      // Non-literal specifier: brepkit-wasm is an optional runtime injection, not
-      // a declared dependency — a literal would make tsc fail with TS2307 when
-      // the package is absent. A missing package surfaces at runtime (below).
-      const specifier = 'brepkit-wasm'
+      // Non-literal specifier: @faicad/brepkit2-wasm is an optional runtime
+      // injection (a devDependency for tests; hosts inject their own loader) —
+      // a literal would make tsc fail with TS2307 when the package is absent.
+      // A missing package surfaces at runtime (below).
+      const specifier = '@faicad/brepkit2-wasm'
       const mod = (await import(/* @vite-ignore */ specifier)) as {
         BrepKernel: new () => BrepKitKernel
       }
       if (!mod?.BrepKernel) {
-        throw new Error('initBrepkitWasm: brepkit-wasm is not installed; install it or call setBrepkitWasmInitFn() first.')
+        throw new Error('initBrepkitWasm: @faicad/brepkit2-wasm is not installed; install it or call setBrepkitWasmInitFn() first.')
       }
       return new mod.BrepKernel() as BrepKitKernel
     }

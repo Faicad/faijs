@@ -34,7 +34,7 @@ function splitBrep(input: Shape, tools: Shape[]): Shape {
   // 平台面：原生 split（occt-only，D3）。
   const occtKernel = getOcctKernel()
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[api/split] input is not BREP')
+  if (inputSolid === undefined) throw new Error('[api/split] input is not BREP')
   const toolSolids = tools
     .map((t) => brepOf(t) as BrepHandle | undefined)
     .filter((s): s is BrepHandle => !!s)

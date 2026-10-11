@@ -49,7 +49,7 @@ export const thicken = defineOp({
     }
     const kernel = getBrepApi()
     const handle = brepOf(input) as BrepHandle | undefined
-    if (!handle) throw new Error('[thicken] input is not BREP')
+    if (handle === undefined) throw new Error('[thicken] input is not BREP')
     // C5 实现面接入：occt 提供 thickenWithHistory ⇒ 用权威面演化，不用无历史 thicken。
     // thicken 是 occt-only 平台 op（engines:['occt']），brepkit 在执行前已被拒绝，
     // 因此不存在「有裸方法却因无 history 而报错」的回退分支。

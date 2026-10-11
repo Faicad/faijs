@@ -431,7 +431,7 @@ export interface ShapeTypeProbe {
  */
 export function isExportableSolid(shape: BrepHandle | undefined, probe: ShapeTypeProbe | undefined): boolean {
   // 无 BREP 句柄（纯 mesh 终端）→ 导出（既有能力，零回归）。
-  if (!shape || !probe) return true
+  if (shape === undefined || !probe) return true
   let type: string
   try {
     type = probe.shapeType(shape).toUpperCase()
@@ -811,7 +811,8 @@ function writeAssemblyStep(
       // transformed members.
       const child = children[i]
       const liveSolid = child ? (brepOf(child) as BrepHandle | undefined) : undefined
-      if (liveSolid) {
+      // 句柄 0 也是合法句柄（brepkit 0 基）——存在性判断必须写 `!== undefined`。
+      if (liveSolid !== undefined) {
         if (!kernel) kernel = execResult.brepSolids?.values().next().value?.kernel ?? null
         if (kernel) {
           entries.push({

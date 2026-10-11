@@ -1,13 +1,13 @@
 /**
  * brepkit-kernel/multi-version-test — 同进程多版本 brepkit-wasm 装载辅助（仅测试用）
  *
- * 让 faijs 测试在同一 Node 进程内切换三个 brepkit-wasm 版本：
- *   - 2.129.15（MIT OR Apache-2.0，用户目标版本线末代）
- *   - 3.4.18（仓库当前 devDependency，node_modules 默认路径）
- *   - 4.0.32（npm dist-tag latest）
+ * 让 faijs 测试在同一 Node 进程内切换三个 brepkit 内核版本：
+ *   - 2.129.15（上游 `brepkit-wasm` 基线，MIT OR Apache-2.0）
+ *   - 2.130.0（Faicad fork `@faicad/brepkit2-wasm`，仓库当前 devDependency）
+ *   - 4.0.32（上游 `brepkit-wasm` 的 npm dist-tag latest）
  *
  * 解包产物位于 `_test-kernels/brepkit-<version>/package/`（由 `npm pack` 拉取并解包，
- * 已 gitignore，不进入 dist / 不提交）。3.4.18 直接走 node_modules。
+ * 已 gitignore，不进入 dist / 不提交）。2.130.0 直接走 node_modules。
  *
  * 切换序列（与 brep/engine/measurement-parity.test.ts 的 reset+重注册范式一致，
  * 全程只经公开导出 API 操作，不改动内核源码）：
@@ -28,11 +28,11 @@ import { disposeBrepkit } from './brepkitKernel'
 import { __resetEngineRegistriesForTests } from '../brep/engine/registry'
 import { registerBrepkitBrepEngine } from '../brep/engine/adapters/brepkit'
 
-/** 可在同进程切换的 brepkit-wasm 版本。 */
-export type BrepkitTestVersion = '2.129.15' | '3.4.18' | '4.0.32'
+/** 可在同进程切换的 brepkit 内核版本。 */
+export type BrepkitTestVersion = '2.129.15' | '2.130.0' | '4.0.32'
 
-/** 解包版本（2.x/4.x）相对本辅助文件的目录名；3.4.18 走 node_modules。 */
-const UNPACKED_PKG_DIR: Exclude<BrepkitTestVersion, '3.4.18'>[] = ['2.129.15', '4.0.32'] as const
+/** 解包版本（2.129.15 / 4.0.32）相对本辅助文件的目录名；2.130.0 走 node_modules。 */
+const UNPACKED_PKG_DIR: Exclude<BrepkitTestVersion, '2.130.0'>[] = ['2.129.15', '4.0.32'] as const
 
 /** 本辅助文件所在目录（vite-node / 原生 ESM 在 node 环境下均暴露 file:// 源文件 URL）。 */
 const hereDir = dirname(fileURLToPath(import.meta.url))
@@ -42,19 +42,19 @@ type BrepKernelCtor = new () => BrepKitKernel
 /**
  * 从指定版本装载 BrepKernel 类。
  *
- * - 3.4.18：复用 node_modules 默认包路径（与 brepkitWasm.ts 生产路径一致）。
+ * - 2.130.0：复用 node_modules 默认包路径（与 brepkitWasm.ts 生产路径一致）。
  * - 2.129.15 / 4.0.32：按绝对路径动态 import 解包后的 node cjs 入口；
  *   vite 注释标记让 vite-node 不拦截、交回原生 Node ESM 装载，
  *   cjs 入口内部用 __dirname 相对定位 wasm，因此与 cwd 无关。
  */
 async function loadBrepKernelClass(version: BrepkitTestVersion): Promise<BrepKernelCtor> {
-  if (version === '3.4.18') {
+  if (version === '2.130.0') {
     // node_modules 默认路径（与 brepkitWasm.ts 生产装载同 specifier）。
-    const mod = (await import(/* @vite-ignore */ 'brepkit-wasm')) as {
+    const mod = (await import(/* @vite-ignore */ '@faicad/brepkit2-wasm')) as {
       BrepKernel?: BrepKernelCtor
     }
     if (!mod?.BrepKernel) {
-      throw new Error(`[multi-version] 3.4.18: node_modules brepkit-wasm 未导出 BrepKernel`)
+      throw new Error(`[multi-version] 2.130.0: node_modules @faicad/brepkit2-wasm 未导出 BrepKernel`)
     }
     return mod.BrepKernel
   }

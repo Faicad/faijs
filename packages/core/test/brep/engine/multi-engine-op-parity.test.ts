@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  *
- * multi-engine-op-parity — 全上层 op 跨引擎（occt / brepkit 2.129.15 / 3.4.18 / 4.0.32）兼容性测试
+ * multi-engine-op-parity — 全上层 op 跨引擎（occt / brepkit 2.129.15 / 2.130.0 / 4.0.32）兼容性测试
  *
  * 三类用例：
  *   A. parity：中立 op（无 engines 声明、有 brep 实现）在四引擎上跑同一条自包含 .fai.js
@@ -63,7 +63,7 @@ const ENGINES: EngineSlot[] = [
     },
   },
   { label: 'brepkit-2.129.15', brepkitVersion: '2.129.15', setup: () => loadBrepkitVersion('2.129.15') },
-  { label: 'brepkit-3.4.18', brepkitVersion: '3.4.18', setup: () => loadBrepkitVersion('3.4.18') },
+  { label: 'brepkit-2.130.0', brepkitVersion: '2.130.0', setup: () => loadBrepkitVersion('2.130.0') },
   { label: 'brepkit-4.0.32', brepkitVersion: '4.0.32', setup: () => loadBrepkitVersion('4.0.32') },
 ]
 
@@ -571,7 +571,7 @@ function bboxClose(a: BBox, b: BBox): boolean {
 interface PassRec { op: string; engine: string; bbox?: number[]; status: 'pass' | 'fail'; error?: string }
 interface ErrRec { op: string; engine: string; error: string; expected: boolean }
 
-describe('multi-engine op parity（occt × brepkit 2.129.15/3.4.18/4.0.32）', () => {
+describe('multi-engine op parity（occt × brepkit 2.129.15/2.130.0/4.0.32）', () => {
   beforeAll(() => {
     ensureTestFontLoader()
     registerEditorExtensions()
@@ -630,7 +630,7 @@ describe('multi-engine op parity（occt × brepkit 2.129.15/3.4.18/4.0.32）', (
         }
       }
 
-      // 已查实的 brepkit 适配器能力缺口（三版本 2.129.15/3.4.18/4.0.32 完全一致）。
+      // 已查实的 brepkit 适配器能力缺口（三版本 2.129.15/2.130.0/4.0.32 完全一致）。
       // 这些组合失败是预期的，记录但不算「意外分歧」；若未来适配器补齐，把对应 op 从这里删掉即可暴露回归。
       const KNOWN_BREPKIT_GAPS: Record<string, string> = {
         ellipsoid: 'brepkit 内核对曲面 bbox Z 查询有精度偏差（dz≈rz 而非 2rz、zmin 恒 0），但体积积分精确（=8π）、X/Y 居中正确——非 op 几何错误，op 不崩',

@@ -227,7 +227,7 @@ export function buildShapeResolutionContext(
   const roleTable = (part ? runtimeLineage.tableOfPart(part) : undefined) as RoleTable | undefined
 
   const solid = slot.solid as BrepHandle | undefined
-  if (kernel && solid) {
+  if (kernel && solid !== undefined) {
     const handles = kernel.getSubShapes(solid, 'face')
     const hashes = Array.from(kernel.subShapeHashes(solid, 'face', HASH_UPPER_BOUND))
     const faces = handles.map((handle, i) => ({ ordinal: i + 1, hash: hashes[i] ?? 0, handle }))
@@ -269,7 +269,7 @@ export function buildEdgeResolutionContext(
   const edgePart = nameOf(shape)
   const roleTable = (edgePart ? runtimeLineage.tableOfPart(edgePart) : undefined) as RoleTable | undefined
   const solid = slot.solid as BrepHandle | undefined
-  if (!solid) return undefined
+  if (solid === undefined) return undefined
 
   const faceHandles = kernel.getSubShapes(solid, 'face')
   const faceHashes = Array.from(kernel.subShapeHashes(solid, 'face', HASH_UPPER_BOUND))
@@ -331,7 +331,7 @@ export function buildMeshEdgeResolutionContext(
   if (!shape) return undefined
   const slot = getSlot(shape)
   const solid = slot?.meshSolid as BrepHandle | undefined
-  if (!solid) return undefined
+  if (solid === undefined) return undefined
 
   const faceHandles = kernel.getSubShapes(solid, 'face')
   const faces = faceHandles.map((handle, i) => ({ ordinal: i + 1, handle }))
@@ -367,7 +367,7 @@ export function buildMeshFaceResolutionContext(
   if (!shape) return undefined
   const slot = getSlot(shape)
   const solid = slot?.meshSolid as BrepHandle | undefined
-  if (!solid) return undefined
+  if (solid === undefined) return undefined
 
   const faces = kernel.getSubShapes(solid, 'face').map((handle, i) => ({ ordinal: i + 1, handle }))
   return { kernel, faces }

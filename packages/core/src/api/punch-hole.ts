@@ -234,7 +234,7 @@ export function punchSolidOf(kernel: BrepEngineApi, solid: BrepHandle, params: P
  */
 export function buildPunchHole(kernel: BrepEngineApi, params: PunchHoleParams): Shape {
   const solid = brepOf(params.on) as BrepHandle | undefined
-  if (!solid) {
+  if (solid === undefined) {
     throw new TopoRefError('E_TOPO_MESH_UNSUPPORTED', 'face', 'punchHole: target `on` has no BREP solid')
   }
   const holed = punchSolidOf(kernel, solid, params)

@@ -1048,6 +1048,56 @@ export async function loadBrepAssembly(
 }
 
 /**
+ * BREP-native 多零件 STEP 导入 —— **无 XCAF 的引擎**的装配读取通道。
+ *
+ * 与 `loadBrepAssembly`（XCAF 装配树，occt-only）对照：本函数只用 L1 契约面
+ * （`kernel.importStep` / `kernel.fromBREP` / `kernel.getSubShapes`），因此对任何
+ * 实现了这两个方法的引擎成立（brepkit 即此路径）。代价是拿不到 XCAF 的零件名 /
+ * 颜色 / 装配层级——零件身份退回 `imported:<index>`，`assembly` 不产出。这是
+ * **引擎能力事实**，不是静默降级（调用方按引擎 id 静态分派，见下）。
+ *
+ * 分派规则（静态，无运行时回退）：XCAF（`STEPCAFControl_Reader`）是 occt 内核的
+ * 装配读取器，brepkit 没有；调用方按当前引擎 id 选择本函数还是 XCAF 版本
+ * （`cad.load` 见 `packages/faijs-extra/src/ops/load.ts`），不靠 try-catch 探测。
+ *
+ * 句柄归属：返回的每个 `part.solid` 即内核枚举出的实体本身（生命周期交给调用方，
+ * `fromBrep` 绑定后归 brepChain）。顶层包装句柄在本函数内释放——但**若顶层句柄
+ * 就是枚举出的那个实体**（brepkit 的 `getSubShapes(solid,'solid')` 对单实体返回
+ * 自身，见 brepkitKernel 的 `catch { list = [s] }`）则不释放，否则返回件被释放。
+ *
+ * @param kernel - the initialized BREP kernel (L1 contract face).
+ * @param buffer - the raw STEP (or CASCADE BREP text) file bytes.
+ * @returns 全部实体零件（内核枚举序，index 连续）+ 实体数（>1 时）。
+ */
+export function loadBrepAssemblyNative(
+  kernel: BrepEngineApi,
+  buffer: ArrayBuffer,
+): { parts: LoadBrepAssemblyPart[]; multiSolidCount?: number } {
+  // 与 loadBrep 同一格式判别：CASCADE Topology 文本走 fromBREP，其余（STEP/STP）走 importStep。
+  const decoder = new TextDecoder('utf-8')
+  const head = decoder.decode(buffer.slice(0, 64))
+  const top = head.includes('CASCADE Topology')
+    ? kernel.fromBREP(decoder.decode(buffer))
+    : kernel.importStep(buffer)
+
+  const solids = kernel.getSubShapes(top, 'solid')
+  if (solids.length === 0) {
+    kernel.release(top)
+    throw new Error('[loadBrepAssemblyNative] imported file contains no solid sub-shapes')
+  }
+  if (!solids.some((s) => s === top)) kernel.release(top)
+
+  const parts: LoadBrepAssemblyPart[] = solids.map((solid, index) => ({
+    index,
+    name: `imported:${index}`,
+    color: null,
+    shape: solidToShape(kernel, solid),
+    solid,
+  }))
+  return { parts, ...(parts.length > 1 ? { multiSolidCount: parts.length } : {}) }
+}
+
+/**
  * leaf 是否持有实体（loadBrepAssembly 实体校验）：自身是 solid（syntheticGroup
  * 拆出的单个 solid 句柄），或 label compound 内含 solid。getSubShapes 的引用
  * 句柄须立即 release（walkLabel 只释放了它自己取的副本）。

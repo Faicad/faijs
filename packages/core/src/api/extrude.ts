@@ -301,7 +301,7 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
   if (typeof upTo === 'string') {
     const base = o.baseFeature
     const baseSolid = base ? (brepOf(base) as BrepHandle | undefined) : undefined
-    if (!baseSolid) {
+    if (baseSolid === undefined) {
       throw new Error('E_UP_TO_NO_BASE: upTo "last"/"first" requires a baseFeature shape')
     }
     // 支持体 bbox 沿拉伸方向的远端/近端平面（R-C：baseFeature 显式传参）
@@ -545,7 +545,7 @@ export const extrude = defineOp({
     if (o.upTo !== undefined) {
       const kernel = getBrepApi()
       const inputSolid = brepOf(input) as BrepHandle | undefined
-      if (!inputSolid) throw new Error('[api/extrude] input is not BREP')
+      if (inputSolid === undefined) throw new Error('[api/extrude] input is not BREP')
       const clipped = extrudeUpToSolid(kernel, inputSolid, o)
       // E3-b（2026-09-23，同 revolve 修法）：不能对投影产物再走一次 fromBrep——
       // 同语句 registeredStmtId 去重会吞掉第二次登记（part 键保持空表，下游
@@ -569,7 +569,7 @@ export const extrude = defineOp({
     if (getBackends().config.brepEngineId === 'brepkit') {
       const kernel = getBrepApi()
       const faceHandle = brepOf(input) as BrepHandle | undefined
-      if (!faceHandle) throw new Error('[api/extrude] brepkit path: input is not BREP')
+      if (faceHandle === undefined) throw new Error('[api/extrude] brepkit path: input is not BREP')
       const solid = kernel.extrude(faceHandle, v[0]!, v[1]!, v[2]!)
       result = fromBrep(solidToShape(kernel, solid), { solid })
     } else {

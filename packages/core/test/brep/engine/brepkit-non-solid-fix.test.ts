@@ -35,7 +35,7 @@ import { disposeBrepkit } from '../../../src/brepkit-kernel/brepkitKernel'
 
 const require = createRequire(import.meta.url)
 let brepkitAvailable = false
-try { require.resolve('brepkit-wasm'); brepkitAvailable = true } catch { brepkitAvailable = false }
+try { require.resolve('@faicad/brepkit2-wasm'); brepkitAvailable = true } catch { brepkitAvailable = false }
 
 /** 单位正方形 profile（0..10 × 0..10，z=0）。 */
 const SQUARE = `{ contours: [{ segments: [

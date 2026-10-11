@@ -1202,13 +1202,13 @@ export class CadRuntime {
     if (!this.kernel) return brepSolids
     for (const t of terminals) {
       const s = this.solidCache.get(t.id)
-      if (s && this.kernel) brepSolids.set(t.id, { solid: s, kernel: this.kernel })
+      if (s !== undefined && this.kernel) brepSolids.set(t.id, { solid: s, kernel: this.kernel })
     }
     for (const members of compounds.values()) {
       for (const m of members) {
         if (brepSolids.has(m)) continue
         const s = this.solidCache.get(m)
-        if (s && this.kernel) brepSolids.set(m, { solid: s, kernel: this.kernel })
+        if (s !== undefined && this.kernel) brepSolids.set(m, { solid: s, kernel: this.kernel })
       }
     }
     return brepSolids
@@ -1276,7 +1276,7 @@ export class CadRuntime {
       const roleTable = this.roleTableCache.get(partName) as PartNamingInput['roleTable']
       const solid = this.solidCache.get(partName)
       let ordinalToHash: readonly number[] | undefined
-      if (solid && this.kernel) {
+      if (solid !== undefined && this.kernel) {
         ordinalToHash = Array.from(this.kernel.subShapeHashes(solid, 'face', HASH_UPPER_BOUND))
       }
       return {
@@ -1494,7 +1494,7 @@ export class CadRuntime {
 
     // partName 即该变量的首输出变量名，按 PartName 查持久 solidCache
     const solid = brepChain.solidCache.get(partName)
-    if (!solid) return null
+    if (solid === undefined) return null
 
     // 规则 1：优先从 brepChain.meshShapeCache 复用执行链产出的三角化结果
     // （与显示 mesh 完全同一份 mesh，不二次 meshShape）
@@ -1581,7 +1581,7 @@ export class CadRuntime {
     for (const name of partNames) {
       // solidCache: release OCCT handle first, then delete key
       const handle = this.solidCache.get(name)
-      if (handle) {
+      if (handle !== undefined) {
         try { this.kernel?.release(handle) } catch { /* already released */ }
         this.solidCache.delete(name)
       }

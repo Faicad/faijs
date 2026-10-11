@@ -71,7 +71,7 @@ function placeMesh(
 function placeBrep(input: Shape, rotation: [number, number, number, number], position: [number, number, number]): Shape {
   const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[api/place] input is not BREP')
+  if (inputSolid === undefined) throw new Error('[api/place] input is not BREP')
 
   const resultSolid = applyTransformBrep(kernel, inputSolid, rotation, [0, 0, 0], position)
 

@@ -151,7 +151,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[extra/drill] no OCCT kernel')
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[extra/drill] input is not BREP')
+  if (inputSolid === undefined) throw new Error('[extra/drill] input is not BREP')
 
   const faceNormal = faceNormalFrom(input, params)
   const direction = resolveDirection(params, faceNormal)

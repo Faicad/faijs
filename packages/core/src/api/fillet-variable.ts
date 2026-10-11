@@ -37,7 +37,7 @@ function filletVariableBrep(input: Shape, edge: EdgeTopoRef, startRadius: number
   }
   const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
-  if (!solid) throw new Error('E_FILLETVAR_NO_BREP: filletVariable input is not BREP')
+  if (solid === undefined) throw new Error('E_FILLETVAR_NO_BREP: filletVariable input is not BREP')
 
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', 'filletVariable: input has no BREP naming context')

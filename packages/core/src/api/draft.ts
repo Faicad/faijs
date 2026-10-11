@@ -60,7 +60,7 @@ function draftBrep(input: Shape, params: DraftParams): Shape {
   }
   const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
-  if (!solid) throw new Error('E_DRAFT_NO_BREP: draft input is not BREP')
+  if (solid === undefined) throw new Error('E_DRAFT_NO_BREP: draft input is not BREP')
 
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'draft: input has no BREP naming context')

@@ -29,7 +29,7 @@ import { disposeBrepkit } from '../../../src/brepkit-kernel/brepkitKernel'
 
 const require = createRequire(import.meta.url)
 let brepkitAvailable = false
-try { require.resolve('brepkit-wasm'); brepkitAvailable = true } catch { brepkitAvailable = false }
+try { require.resolve('@faicad/brepkit2-wasm'); brepkitAvailable = true } catch { brepkitAvailable = false }
 
 /** 跑一条 .fai.js 脚本，返回最终实体的 volume 与 bbox 尺寸。 */
 async function runMeasure(code: string, outputVar?: string): Promise<{ volume: number; bbox: [number, number, number] }> {

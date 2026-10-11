@@ -41,7 +41,7 @@ function splitByPlaneBrep(input: Shape, params: SplitByPlaneParams): Record<stri
   const { point, normal } = params ?? ({} as SplitByPlaneParams)
   const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
-  if (!solid) throw new Error('E_SPLIT_BY_PLANE_NO_BREP: splitByPlane input is not BREP')
+  if (solid === undefined) throw new Error('E_SPLIT_BY_PLANE_NO_BREP: splitByPlane input is not BREP')
   const halves = kernel.splitByPlane(solid, toVec3(point), toVec3(normal))
   return {
     positive: fromBrep(solidToShape(kernel, halves.positive), { solid: halves.positive }),

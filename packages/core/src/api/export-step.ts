@@ -52,7 +52,9 @@ function stepEntryOf(member: ExportMember): ExportEntry | undefined {
   const positions = member.shape?.positions
   const indices = member.shape?.indices
   const hasMesh = !!positions && !!indices && positions.length > 0 && indices.length > 0
-  const payload: ExportEntry | undefined = handle
+  // 句柄存在性 = `!== undefined`：brepkit 的句柄空间是 0 基（0 是合法 solid 句柄），
+  // 真值判断会把 0 误判成「无句柄」而退回 mesh 通道（丢精确拓扑）。
+  const payload: ExportEntry | undefined = handle !== undefined
     ? { solid: handle }
     : hasMesh
       ? { mesh: { positions, indices } }

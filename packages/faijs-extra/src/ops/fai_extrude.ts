@@ -31,7 +31,7 @@ function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[extra/extrude] no OCCT kernel')
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[extra/extrude] input is not BREP')
+  if (inputSolid === undefined) throw new Error('[extra/extrude] input is not BREP')
 
   const normal = (params.normal as Vec3 | undefined) ?? [0, 0, 1]
   const planeDistance = (params.planeDistance as number | undefined) ?? 0

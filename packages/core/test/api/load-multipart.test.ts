@@ -22,6 +22,9 @@ import { asPartName } from '../../src/identity'
 import { buildSelectorRuntimeMaps } from '../../src/topology/build-selector-runtime'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
+import { hasBrep, brepOf } from '../../src/shape'
+import { getBrepApi } from '../../src/brep/handle-bridge'
+import type { Shape } from '../../src/mesh/types'
 
 /** Node Buffer 可能是池化切片的视图（小文件 <8KB 时 .buffer 含偏移/整池），按 byteOffset 正确截取 ArrayBuffer。 */
 function toArrayBuffer(buf: Buffer): ArrayBuffer {
@@ -191,5 +194,93 @@ describe('cad.load multi-solid STEP multi-part contract (P0) — BREP', () => {
     expect(new Set(rt1.occurrenceIdByRowIndex.values()).size).toBe(2)
     // 单零件文件拓扑不受影响
     expect(result.topology?.get(asPartName('part0'))).toBeDefined()
+  })
+})
+
+// ── brepkit（无 XCAF）───────────────────────────────────────────────────────
+
+/**
+ * `cad.load` 的 STEP 通道**按引擎静态分派**（无运行时回退）：
+ * - occt → XCAF（`STEPCAFControl_Reader`）装配树，带零件名/颜色/层级；
+ * - brepkit（无 XCAF）→ `loadBrepAssemblyNative`（L1 契约面：importStep +
+ *   getSubShapes 枚举实体，按内核枚举序拆零件）。
+ *
+ * brepkit 段钉住的是**通道真的走通了**：多零件全量返回（不再只取第一个）、
+ * 每个成员都带可用 BREP 句柄、importModels 零件身份连续。代价是标签退化为
+ * `imported:<i>`、无装配层级——引擎能力事实，故这里**不做**"必须有零件名/装配树"
+ * 的断言（那是 XCAF 通道的契约，见上面 occt 段）。
+ */
+describe('cad.load multi-solid STEP — brepkit（无 XCAF 引擎的原生装配通道）', () => {
+  beforeEach(() => {
+    __resetEngineRegistriesForTests()
+  })
+
+  it('multi-solid STEP → compound of all parts + importModels（平铺零件表）', async () => {
+    const { registerBrepkitBrepEngine } = await import('../../src/brep/engine/adapters/brepkit')
+    await registerBrepkitBrepEngine()
+    const stepBuf = toArrayBuffer(
+      readFileSync(new URL('../../../fixtures/data/test-model.step', import.meta.url)),
+    )
+    const ports: HostPorts = {
+      events: { emit: () => undefined },
+      hostEnv: 'node',
+      assets: {
+        resolveByKey: async () => ({ bytes: stepBuf }),
+        resolveFile: async () => stepBuf,
+        resolveUrl: async () => stepBuf,
+      },
+    } as unknown as HostPorts
+    const runtime = createEditorRuntime(ports, 'brep')
+    const result = await runtime.execute(
+      `let a = await cad.load({ file: 'test-model.step' })\nlet r = a`,
+    )
+    expect(result.failedAt).toBeUndefined()
+    // compound：children = 全部 solid 零件（内核枚举序）
+    const entry = result.outputs.get(asPartName('a'))
+    expect(entry).toBeDefined()
+    expect((entry as { kind?: string }).kind).toBe('compound')
+    const children = (entry as { children: ArrayLike<unknown> }).children
+    expect(children).toHaveLength(2)
+    // 每个成员都带**可用的** BREP 句柄（brepkit 句柄 0 基——成员 0 的句柄就是 0）。
+    for (const child of Array.from(children)) {
+      expect(hasBrep(child as Shape)).toBe(true)
+    }
+    // importModels：平铺零件身份（index 连续、名回退 imported:<i>），无装配层级。
+    const model = result.importModels!.get(asPartName('a'))
+    expect(model).toBeDefined()
+    expect(model!.format).toBe('step')
+    expect(model!.parts).toHaveLength(2)
+    expect(model!.parts.map((p) => p.index)).toEqual([0, 1])
+    expect(model!.parts.map((p) => p.name)).toEqual(['imported:0', 'imported:1'])
+    expect(model!.assembly).toBeUndefined()
+  })
+
+  it('single-solid STEP → 单零件（无 compound），且 BREP 句柄可直接导出 STEP', async () => {
+    const { registerBrepkitBrepEngine } = await import('../../src/brep/engine/adapters/brepkit')
+    await registerBrepkitBrepEngine()
+    const boxBuf = toArrayBuffer(
+      readFileSync(new URL('../../../fixtures/data/box_boss.step', import.meta.url)),
+    )
+    const ports: HostPorts = {
+      events: { emit: () => undefined },
+      hostEnv: 'node',
+      assets: {
+        resolveByKey: async () => ({ bytes: boxBuf }),
+        resolveFile: async () => boxBuf,
+        resolveUrl: async () => boxBuf,
+      },
+    } as unknown as HostPorts
+    const runtime = createEditorRuntime(ports, 'brep')
+    const result = await runtime.execute(
+      `let a = await cad.load({ file: 'box_boss.step' })\nlet r = a`,
+    )
+    expect(result.failedAt).toBeUndefined()
+    const entry = result.outputs.get(asPartName('a'))
+    expect(entry).toBeDefined()
+    expect((entry as { kind?: string }).kind).toBe('solid')
+    expect(hasBrep(entry as Shape)).toBe(true)
+    // 句柄真能用：导出回 STEP 仍带精确曲面面（ADVANCED_FACE）→ 导入没有退化成三角化。
+    const solid = brepOf(entry as Shape) as never
+    expect(getBrepApi().exportStep(solid)).toContain('ADVANCED_FACE')
   })
 })

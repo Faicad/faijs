@@ -109,7 +109,7 @@ function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
   // L1 面（D12）：filletWithHistory 是 L1，全链路中立。
   const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
-  if (!solid) throw new Error('E_FILLET_NO_BREP: fillet input is not BREP')
+  if (solid === undefined) throw new Error('E_FILLET_NO_BREP: fillet input is not BREP')
 
   const edges = params.edges as EdgeTopoRef[]
   const radius = params.radius as number

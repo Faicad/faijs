@@ -31,7 +31,7 @@ function norm(v: Vec3): [number, number, number] {
 function linearPatternBrep(input: Shape, direction: Vec3, count: number, spacing: number): Shape {
   const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[api/pattern] input is not BREP')
+  if (inputSolid === undefined) throw new Error('[api/pattern] input is not BREP')
 
   // Phase 1.6：origin = 本次语句 StmtId。
   const outStmt = String(getCurrentStmt()?.id ?? '')

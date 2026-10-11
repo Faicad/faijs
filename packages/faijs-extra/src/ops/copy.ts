@@ -29,7 +29,7 @@ function copyBrep(input: Shape): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[extra/copy] no OCCT kernel')
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[extra/copy] input is not BREP')
+  if (inputSolid === undefined) throw new Error('[extra/copy] input is not BREP')
 
   const copiedSolid = kernel.copy(inputSolid)
 

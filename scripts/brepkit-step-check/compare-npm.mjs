@@ -1,7 +1,7 @@
-// brepkit-wasm (npm package) vs occt-wasm STEP consistency probe.
+// @faicad/brepkit2-wasm (npm package) vs occt-wasm STEP consistency probe.
 //
 // Both kernels are driven purely from JS via their npm packages:
-//   - brepkit-wasm@3.4.18  (BrepKernel from 'brepkit-wasm')
+//   - @faicad/brepkit2-wasm@2.130.0 (BrepKernel from '@faicad/brepkit2-wasm')
 //   - occt-wasm@3.8.4      (OcctKernel from 'occt-wasm')
 //
 // Each case builds the same solid in both kernels, exports STEP, and
@@ -20,7 +20,7 @@ mkdirSync(join(OUT, 'bk'), { recursive: true })
 mkdirSync(join(OUT, 'oc'), { recursive: true })
 
 // ── kernel init ──
-const { BrepKernel } = await import('brepkit-wasm')
+const { BrepKernel } = await import('@faicad/brepkit2-wasm')
 const { OcctKernel } = await import('occt-wasm')
 const bk = new BrepKernel()
 const occtWasmPath = require.resolve('occt-wasm/dist/occt-wasm.wasm')

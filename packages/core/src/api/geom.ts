@@ -26,7 +26,7 @@ function geomQuery(
   if (faceOrdinal !== undefined) {
     const solid = brepOf(of) as BrepHandle | undefined
     const kernel = getBrepApi()
-    if (solid && kernel) {
+    if (solid !== undefined && kernel) {
       try {
         const faces = kernel.getSubShapes(solid, 'face')
         if (faceOrdinal < faces.length) {

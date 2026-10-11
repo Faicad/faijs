@@ -132,8 +132,8 @@ export const revolve = defineOp({
     // 但在这里执行以便在**同一处**收编产物并建链根 roleTable——compatOp 的
     // 自动 adoptOut 会先登记一次，二次 fromBrep 会让 edgeRef 读到残缺表）。
     const kernel = getBrepApi()
-    const handle = brepOf(face) as BrepHandle
-    if (!handle) throw new Error('[revolve] input is not BREP')
+    const handle = brepOf(face) as BrepHandle | undefined
+    if (handle === undefined) throw new Error('[revolve] input is not BREP')
     const { at = [0, 0, 0], axis = [0, 0, 1], angle = 2 * Math.PI } = (options ?? {}) as {
       at?: [number, number, number]
       axis?: [number, number, number]

@@ -138,7 +138,7 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   // L1 面：translateBrep/rotateBrep/scaleBrep/identityHashEvolution 只用 L1（D12）。
   const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[api/transform] input is not BREP')
+  if (inputSolid === undefined) throw new Error('[api/transform] input is not BREP')
 
   // 静态双轨（无运行时 try-catch 回退——按引擎事实在执行前定轨）：
   // - occt（原生有 *WithHistory）→ 权威历史路径（产内核面映射 + roleTable）。

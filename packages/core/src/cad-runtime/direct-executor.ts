@@ -543,7 +543,7 @@ export class DirectExecutor {
                 if (bv !== null && typeof bv === 'object') {
                   setName(bv, asPartName(key))
                   const bslot = getSlot(bv)
-                  if (bslot?.solid) this.setSolidHook?.(asPartName(key), bslot.solid as BrepHandle)
+                  if (bslot?.solid !== undefined) this.setSolidHook?.(asPartName(key), bslot.solid as BrepHandle)
                   if (bslot?.faceEvolution) this.setFaceEvolutionHook?.(asPartName(key), bslot.faceEvolution)
                   // 1.10 前置③：roleTable 权威落点在血缘图旁挂（part 键）。
                   const btable = runtimeLineage.tableOfPart(asPartName(key))
@@ -561,7 +561,7 @@ export class DirectExecutor {
               // 的 slot→solidCache/faceEvolutionCache/roleTableCache 同步同语义）。
               // buildBrepTopology/directBrepSolids/buildNamingInput 依赖此缓存命中。
               const slot = getSlot(v)
-              if (slot?.solid) this.setSolidHook?.(asPartName(w), slot.solid as BrepHandle)
+              if (slot?.solid !== undefined) this.setSolidHook?.(asPartName(w), slot.solid as BrepHandle)
               if (slot?.faceEvolution) this.setFaceEvolutionHook?.(asPartName(w), slot.faceEvolution)
               // 1.10 前置③：roleTable 权威落点在血缘图旁挂（part 键），slot 字段已删。
               const rtable = runtimeLineage.tableOfPart(asPartName(w))

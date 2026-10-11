@@ -42,7 +42,7 @@ function sectionByPlaneBrep(input: Shape, params: SectionByPlaneParams): Shape {
   const { point, normal } = params ?? ({} as SectionByPlaneParams)
   const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
-  if (!solid) throw new Error('E_SECTION_BY_PLANE_NO_BREP: sectionByPlane input is not BREP')
+  if (solid === undefined) throw new Error('E_SECTION_BY_PLANE_NO_BREP: sectionByPlane input is not BREP')
   const curves = kernel.sectionByPlane(solid, toVec3(point), toVec3(normal))
   if (!curves || curves.length === 0) {
     throw new Error('E_SECTION_BY_PLANE_NO_INTERSECTION: plane does not intersect the shape')

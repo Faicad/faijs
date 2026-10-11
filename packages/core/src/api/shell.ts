@@ -59,7 +59,7 @@ function shellBrep(input: Shape, params: ShellParams): Shape {
   assertShellParams(params)
   const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
-  if (!solid) throw new Error('E_SHELL_NO_BREP: shell input is not BREP')
+  if (solid === undefined) throw new Error('E_SHELL_NO_BREP: shell input is not BREP')
 
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'shell: input has no BREP naming context')

@@ -11,8 +11,10 @@ import type { CompoundShape } from '@faicad/faijs/shape'
 import type { ImportModel, ImportAssemblyNode } from '@faicad/faijs/mesh/import-model'
 import { importFile, detectStepUnit } from '@faicad/faijs/mesh/io'
 import { isCadFormat } from '@faicad/faijs/brep/brep-chain'
-import { loadBrepAssembly, solidToShape, type LoadBrepAssemblyPart } from '@faicad/faijs/brep/brep-ops'
-import { importBrepToMesh } from '@faicad/faijs'
+import {
+  loadBrepAssembly, loadBrepAssemblyNative, solidToShape, type LoadBrepAssemblyPart,
+} from '@faicad/faijs/brep/brep-ops'
+import { importBrepToMesh, OCCT_BREP_ENGINE_ID } from '@faicad/faijs'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import { OpError } from '@faicad/faijs/api/internal/result-unwrap'
 import {
@@ -138,12 +140,29 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
   const text = new TextDecoder().decode(new Uint8Array(buffer))
   const declared = detectStepUnit(text) ?? 'mm'
   const hash = await contentHash(buffer)
-  const cacheKey = hash ?? null
+  // key 带引擎 id（见 loadCache 注释）：缓存值持有该内核的 BREP 句柄。
+  const cacheKey = hash ? `${config.brepEngineId ?? '<none>'}:${hash}` : null
+  // 装配读取通道（**静态**按引擎分派，无运行时回退）：
+  // - XCAF（`STEPCAFControl_Reader`）是 occt 内核的装配读取器 → 装配树 + 零件名/颜色；
+  // - 其余引擎（brepkit）没有 XCAF → 走 L1 契约面的原生通道
+  //   `loadBrepAssemblyNative`（importStep/fromBREP + getSubShapes 枚举实体）。
+  //   代价是零件身份只有 `imported:<i>`、无装配层级——引擎能力事实，非降级回退。
+  const hasXcafChannel = config.brepEngineId === OCCT_BREP_ENGINE_ID
+  /** 装配读取（无缓存）：XCAF 通道产装配层级，原生通道无层级（引擎能力事实）。 */
+  const readBrepParts = async (): Promise<{
+    parts: LoadBrepAssemblyPart[]
+    assembly?: ImportAssemblyNode
+  }> => {
+    if (!hasXcafChannel) return loadBrepAssemblyNative(kernel!, buffer)
+    const r = await loadBrepAssembly(kernel!, buffer)
+    return { parts: r.parts, ...(r.assembly ? { assembly: r.assembly } : {}) }
+  }
   let brepParts: LoadBrepAssemblyPart[]
   let assembly: ImportAssemblyNode | undefined
-  if (fmt === 'brep') {
+  if (fmt === 'brep' && hasXcafChannel) {
     // CASCADE BREP 文本（单 solid，无装配树）：XCAF（STEPCAFControl_Reader）
-    // 读不了 BREP 语法——唯一读取实现是 kernel.fromBREP（importBrepToMesh）。
+    // 读不了 BREP 语法——occt 下唯一读取实现是 kernel.fromBREP（importBrepToMesh）。
+    // 非 occt 引擎走下方 `loadBrepAssemblyNative`（同一 kernel.fromBREP，走契约面）。
     // 产物与 STEP 单零件同构（fromBrep + solid 句柄，句柄归 brepChain 管理）。
     const imported = await importBrepToMesh(text)
     const handle = imported.shapeHandle as unknown as BrepHandle
@@ -154,13 +173,13 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
       brepParts = cached.parts
       assembly = cached.assembly
     } else {
-      const r = await loadBrepAssembly(kernel!, buffer)
+      const r = await readBrepParts()
       brepParts = r.parts
       assembly = r.assembly
       loadCache.set(cacheKey, { parts: brepParts, assembly })
     }
   } else {
-    const r = await loadBrepAssembly(kernel!, buffer)
+    const r = await readBrepParts()
     brepParts = r.parts
     assembly = r.assembly
   }
@@ -243,7 +262,9 @@ function buildMeshPart(shape: Shape, file: string): Shape {
  * 内存充足）。缓存命中后同一文件全量重放只解析一次，既根治 worker BOP 挂死，
  * 也消除重复解析/三角化的成本。
  *
- * 缓存 key = 内容 SHA-256（不按文件名——同名文件内容可不同，内容指纹才可靠）。
+ * 缓存 key = **引擎 id + 内容 SHA-256**（不按文件名——同名文件内容可不同，内容指纹
+ * 才可靠）。带上引擎 id 是因为缓存值持有**该内核的** BREP 句柄：换引擎（或换内核
+ * 版本）后旧句柄对新内核无效，仅按内容指纹做 key 会把 A 引擎的句柄交给 B 引擎。
  * 缓存持有解析产物（compound 的 BREP solid 句柄等），与 statementCache 同生命周期
  * （runtime 级；worker 重建时模块重载自然清空）。缓存只是优化：digest 计算失败时
  * 跳过缓存（功能等价，不静默降级语义）。

@@ -34,7 +34,7 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[extra/split] no OCCT kernel')
   const inputSolid = brepOf(input) as BrepHandle | undefined
-  if (!inputSolid) throw new Error('[extra/split] input is not BREP')
+  if (inputSolid === undefined) throw new Error('[extra/split] input is not BREP')
 
   const cutMode = (params.cutMode as string) ?? 'plane'
   const normal = (params.normal as Vec3) ?? [0, 0, 1]

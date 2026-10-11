@@ -73,7 +73,7 @@ function entryOfNode(node: ExportMemberNode): ExportEntry {
   if (!mesh) {
     // 兜底：Shape 只有 BREP 槽（跨库产物）时现场三角化一次；引擎身份中立。
     const handle = brepOf(node.shape) as BrepHandle | undefined
-    if (handle) {
+    if (handle !== undefined) {
       const tri = solidToShape(getBrepApi(), handle)
       if (tri.indices.length > 0) mesh = { positions: tri.positions, indices: tri.indices }
     }

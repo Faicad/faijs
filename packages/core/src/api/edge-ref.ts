@@ -23,7 +23,7 @@
 
 import type { Shape } from '../mesh/types'
 import { getBrepApi } from '../brep/handle-bridge'
-import { brepOf } from '../shape'
+import { hasBrep } from '../shape'
 import { nameOf } from '../runtime-state'
 import type { BrepHandle } from '../brep/engine/types'
 import { captureEdgeHint, findOriginRole, TopoRefError } from '../topology/naming'
@@ -56,7 +56,7 @@ export function edgeRef(of: Shape, edgeOrdinal: number): EdgeTopoRef {
   if (!kernel) {
     throw new TopoRefError('E_TOPO_MESH_UNSUPPORTED', 'edge', 'edgeRef: topology references are BREP-only (mesh path unsupported)')
   }
-  if (!brepOf(of)) {
+  if (!hasBrep(of)) {
     throw new TopoRefError('E_TOPO_MESH_UNSUPPORTED', 'edge', 'edgeRef: input shape has no BREP solid (mesh shapes do not carry topology identity)')
   }
 

@@ -38,7 +38,7 @@ function exportBrepNative(shape: Shape): string {
   assertHostFor('exportBrep', ['node'])
   assertEngineFor('exportBrep', ['occt'])
   const handle = brepOf(shape) as BrepHandle | undefined
-  if (!handle) {
+  if (handle === undefined) {
     throw new Error('E_EXPORT_BREP_NO_BREP: exportBrep input has no BREP handle (mesh-only shape)')
   }
   const text = getOcctKernel().toBREP(handle as never)

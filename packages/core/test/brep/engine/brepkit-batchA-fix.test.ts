@@ -66,7 +66,7 @@ const ENGINES: EngineSlot[] = [
     await registerOcctBrepEngine()
   } },
   { label: 'brepkit-2.129.15', setup: () => loadBrepkitVersion('2.129.15') },
-  { label: 'brepkit-3.4.18', setup: () => loadBrepkitVersion('3.4.18') },
+  { label: 'brepkit-2.130.0', setup: () => loadBrepkitVersion('2.130.0') },
   { label: 'brepkit-4.0.32', setup: () => loadBrepkitVersion('4.0.32') },
 ]
 

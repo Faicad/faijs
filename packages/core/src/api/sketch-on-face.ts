@@ -81,7 +81,7 @@ export interface SketchOnFaceParams {
  */
 export function resolveFaceHandle(kernel: BrepEngineApi, on: Shape, selector: FaceSelector): BrepHandle {
   const solid = brepOf(on) as BrepHandle | undefined
-  if (!solid) {
+  if (solid === undefined) {
     throw new TopoRefError('E_TOPO_MESH_UNSUPPORTED', 'face', 'sketchOnFace: target `on` has no BREP solid')
   }
   if (typeof selector === 'number') {

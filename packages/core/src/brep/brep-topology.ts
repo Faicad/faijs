@@ -151,7 +151,7 @@ export function buildCompoundTopologyRuntime(
   const inputs: PartTopologyInput[] = []
   for (let i = 0; i < children.length; i++) {
     const solid = brepOf(children[i]) as BrepHandle | undefined
-    if (!solid) return undefined
+    if (solid === undefined) return undefined
     const eff = computeEffectiveDeflection(kernel, solid, {
       linearDeflection: DEFAULT_LINEAR_DEFLECTION.as(mm),
       angularDeflection: DISPLAY_ANGULAR_DEFLECTION,

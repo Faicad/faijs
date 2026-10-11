@@ -510,7 +510,7 @@ function makeStepEntryMapper(
         children: e.children.map(toStepEntry),
       }
     }
-    if (e.solid) {
+    if (e.solid !== undefined) {
       if (scale === 1) return { solid: e.solid, ...head }
       const scaled = kernel.scale(e.solid, { x: 0, y: 0, z: 0 }, scale)
       ownedHandles.push(scaled)
@@ -537,7 +537,7 @@ function collectSolidHandles(entries: ExportEntry[]): BrepHandle[] {
         walk(e.children)
         continue
       }
-      if (e.solid) handles.push(e.solid)
+      if (e.solid !== undefined) handles.push(e.solid)
     }
   }
   walk(entries)

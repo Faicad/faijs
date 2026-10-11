@@ -17,7 +17,7 @@
 
 import type { Shape } from '../mesh/types'
 import { getBrepApi } from '../brep/handle-bridge'
-import { brepOf } from '../shape'
+import { hasBrep } from '../shape'
 import { captureFaceHint, findOriginRole, TopoRefError } from '../topology/naming'
 import type { FaceTopoRef } from '../topology/naming'
 import { buildEdgeResolutionContext } from './topo-resolve'
@@ -48,7 +48,7 @@ export function faceRef(of: Shape, faceOrdinal: number): FaceTopoRef {
   if (!kernel) {
     throw new TopoRefError('E_TOPO_MESH_UNSUPPORTED', 'face', 'faceRef: topology references are BREP-only (mesh path unsupported)')
   }
-  if (!brepOf(of)) {
+  if (!hasBrep(of)) {
     throw new TopoRefError('E_TOPO_MESH_UNSUPPORTED', 'face', 'faceRef: input shape has no BREP solid (mesh shapes do not carry topology identity)')
   }
 

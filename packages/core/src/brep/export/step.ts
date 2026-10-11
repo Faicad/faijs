@@ -144,7 +144,7 @@ function writeAssemblyContainer(
   ownedHandles: BrepHandle[],
 ): void {
   const resolveSolid = (e: StepExportEntry): BrepHandle => {
-    if (e.solid) return e.solid
+    if (e.solid !== undefined) return e.solid
     if (!e.mesh) throw new Error('StepExportEntry must provide either solid or mesh')
     const s = reconstructSolidFromMesh(kernel, e.mesh.positions, e.mesh.indices)
     ownedHandles.push(s)
@@ -234,7 +234,7 @@ export function exportStepFromSolids(
       }
       // 1. 解析 solid：优先用精确 solid；无则从三角网格重建
       let solid = entry.solid
-      if (!solid) {
+      if (solid === undefined) {
         if (!entry.mesh) {
           throw new Error('StepExportEntry must provide either solid or mesh')
         }

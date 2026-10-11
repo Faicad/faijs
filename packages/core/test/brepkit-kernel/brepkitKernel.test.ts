@@ -17,7 +17,7 @@ import type { BrepHandle } from '../../src/brep/engine/types'
 const require = createRequire(import.meta.url)
 let brepkitAvailable = false
 try {
-  require.resolve('brepkit-wasm')
+  require.resolve('@faicad/brepkit2-wasm')
   brepkitAvailable = true
 } catch {
   brepkitAvailable = false

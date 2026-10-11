@@ -41,7 +41,7 @@ type ProvenanceLike = Provenance
 /** BREP 输入守卫：取 BREP 句柄，无则报错。 */
 function requireBrep(input: Shape, op: string): BrepHandle {
   const handle = brepOf(input) as BrepHandle | undefined
-  if (!handle) throw new Error(`E_${op.toUpperCase()}_NO_BREP: ${op} input is not BREP`)
+  if (handle === undefined) throw new Error(`E_${op.toUpperCase()}_NO_BREP: ${op} input is not BREP`)
   return handle
 }
 
@@ -236,7 +236,7 @@ export const removeHolesFromFace = defineOp({
     if (!face) throw new Error('E_REMOVEHOLES_NO_FACE: removeHolesFromFace requires a face shape')
     const kernel = getBrepApi()
     const handle = brepOf(face) as BrepHandle | undefined
-    if (!handle) throw new Error('E_REMOVEHOLES_NO_BREP: removeHolesFromFace input is not BREP')
+    if (handle === undefined) throw new Error('E_REMOVEHOLES_NO_BREP: removeHolesFromFace input is not BREP')
     return adopt(kernel, kernel.removeHolesFromFace(handle))
   },
   naming: kernelNaming,

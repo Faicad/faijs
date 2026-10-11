@@ -4,8 +4,9 @@
  *
  * The multi-version tests (packages/core/src/brepkit-kernel/multi-version-smoke.test.ts
  * and packages/core/src/brep/engine/brepkit-*-fix.test.ts) switch between three
- * brepkit-wasm versions in one process. Version 3.4.18 comes from node_modules
- * (the devDependency); 2.129.15 and 4.0.32 are loaded from unpacked npm tarballs
+ * brepkit versions in one process. Version 2.130.0 — the Faicad fork published as
+ * @faicad/brepkit2-wasm — comes from node_modules (the devDependency); 2.129.15 and
+ * 4.0.32 are unpacked npm tarballs of the upstream brepkit-wasm package.
  * under packages/core/src/brepkit-kernel/_test-kernels/ (gitignored — large wasm
  * binaries are not committed).
  *

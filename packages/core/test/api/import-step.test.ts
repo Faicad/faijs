@@ -183,12 +183,12 @@ describe('import_step: brepkit engine (no gate)', () => {
     },
   } as unknown as HostPorts)
 
-  // 待办：本地 brepkit2 内核已修 SURFACE_CURVE/SEAM_CURVE/INTERSECTION_CURVE
-  // reader 支持（crates/io/src/step/reader.rs build_curve_geometry），但 npm 上的
-  // brepkit-wasm 3.6.0 还未发布该修复——occt 写的 STEP（box_boss.step 含
-  // SURFACE_CURVE）在发布版内核上仍会抛 unsupported entity。内核发版并升级
-  // faijs 依赖后取消 skip（本地验证脚本：packages/core/scripts/dbg-brepkit-step-import.ts）。
-  it.skip('reads a .step path under brepkit → solid with volume > 0 (needs brepkit-wasm SURFACE_CURVE release)', async () => {
+  // 2026-10-11 转正：`@faicad/brepkit2-wasm@2.130.0`（Faicad fork）已带上
+  // SURFACE_CURVE / SEAM_CURVE / INTERSECTION_CURVE 的 reader 修复
+  // （brepkit2 `crates/io/src/step/reader.rs` 按 3D 基曲线读入），外部（occt /
+  // CadQuery）写的 STEP 在 brepkit 引擎下可直接读入。此前用上游 brepkit-wasm 时
+  // box_boss.step 会抛 `unsupported STEP entity: SURFACE_CURVE`，故本用例曾 skip。
+  it('reads a .step path under brepkit → solid with volume > 0', async () => {
     const { registerBrepkitBrepEngine } = await import('../../src/brep/engine/adapters/brepkit')
     await registerBrepkitBrepEngine()
     const runtime = createEditorRuntime(brepkitPorts(), 'brep')

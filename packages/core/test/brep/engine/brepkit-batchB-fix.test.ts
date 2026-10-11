@@ -49,7 +49,7 @@ import { disposeBrepkit } from '../../../src/brepkit-kernel/brepkitKernel'
 const require = createRequire(import.meta.url)
 let brepkitAvailable = false
 try {
-  require.resolve('brepkit-wasm')
+  require.resolve('@faicad/brepkit2-wasm')
   brepkitAvailable = true
 } catch {
   brepkitAvailable = false
@@ -135,7 +135,7 @@ describe('brepkit B 批降级：chamfer（裸路径）+ convexHull（能力路�
 
   // ── brepkit：三版本 chamfer 裸路径降级（几何正确、无面演化）+ convexHull 能力路由 ──
   const suite = brepkitAvailable ? describe : describe.skipIf(!brepkitAvailable)
-  const VERSIONS: BrepkitTestVersion[] = ['2.129.15', '3.4.18', '4.0.32']
+  const VERSIONS: BrepkitTestVersion[] = ['2.129.15', '2.130.0', '4.0.32']
 
   for (const version of VERSIONS) {
     suite(`brepkit ${version}`, () => {

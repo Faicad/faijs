@@ -97,7 +97,7 @@ describe('native-history 判据：brep-mock / 未装配 / 未知引擎（一律 
 const require = createRequire(import.meta.url)
 let brepkitAvailable: boolean
 try {
-  require.resolve('brepkit-wasm')
+  require.resolve('@faicad/brepkit2-wasm')
   brepkitAvailable = true
 } catch {
   brepkitAvailable = false
