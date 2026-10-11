@@ -2549,6 +2549,8 @@ const svg = cad.projectView(part0, 'iso', { strokeWidth: 1, dash: '4,4', hiddenO
 
 **同步**。SVG 字符串（<svg viewBox="…"> + 可见实线 <path> + 隐藏虚线 <path>）。裸调用 cad.projectView(part0, 'front') 不消费 part0（规则 1），part 仍留在 canvas。
 
+引擎通道（无门禁）：任何 BREP 引擎可执行。`occt` = HLR compound 采样；`brepkit` = 内核原生折线（已投影 2D 点列直接序列化）；产出按各自内核为准。
+
 ### 8.40 `reverseSurfaceU` ✅
 
 反转面的 U 参数方向（occt `Geom_Surface::UReverse` 语义）：返回新面代理， 其曲面是原曲面的 U 反转版（拓扑不变，UV 求值随之镜像）。

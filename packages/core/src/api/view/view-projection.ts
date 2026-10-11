@@ -15,12 +15,21 @@
  * 2026-09-25 core-decouple wrapup（§3.1 A 案）：不再依赖 brepjs 的 HLR+2D
  * drawing 链——HLR 由 core 引擎原生提供（occt-wasm projectEdges），2D SVG
  * 序列化为本地实现（曲线边以采样折线近似）。
+ *
+ * 2026-10-11 双方言通道（方案 docs/plans/2026-10-11-brepkit-svg-view.md，与
+ * STEP 引擎中立化同基调：按引擎 id 静态分派通道，无门禁、无 engines 声明、
+ * 不因内核缺特性报错）：
+ *   - occt：HLR compound 句柄 → getSubShapes → 3D 曲线采样 → 相机平面投影；
+ *   - brepkit：内核原生 `projectEdges` 直接返回已投影 2D 折线 JSON
+ *     `{"visible":[[x,y,…],…],"hidden":[…]}`（每条折线 = 扁平 x,y 点对数组；
+ *     y 轴 = x_axis × view，与 occt 输出坐标约定同构），解析后直接序列化。
  */
 
 import type { Shape } from '../../mesh/types'
 import { brepOf } from '../../shape'
 import { getBrepApi } from '../../brep/handle-bridge'
 import type { BrepHandle } from '../../brep/engine/types'
+import { getBackends } from '../../runtime-state'
 import { resolveCamera, type ViewSpec } from './view-camera'
 
 /** 投影相机（与 view-camera 输出同构）。 */
@@ -97,7 +106,10 @@ const COMPOUND_KEYS = [
 
 /**
  * HLR 投影 shape → 可见/隐藏 2D 折线（SVG d 串）。
- * 全部句柄在本函数内释放（compound + 边；输入 shape 不消费）。
+ * 按引擎 id 静态分派方言通道（见文件头 2026-10-11 注）：
+ *   - brepkit → 内核原生折线 JSON 通道；
+ *   - 其余（含 occt）→ compound 句柄采样通道（现状）。
+ * 无引擎门禁：分派只选通道，不因内核缺特性报错。
  */
 function projectPolylines(shape: Shape, view: ViewSpec): { visible: string[]; hidden: string[] } {
   const solid = brepOf(shape) as BrepHandle | undefined
@@ -109,14 +121,80 @@ function projectPolylines(shape: Shape, view: ViewSpec): { visible: string[]; hi
   }
   const api = getBrepApi()
   const cam = resolveCamera(view) as unknown as Camera
-  const r = api.projectEdges(
-    solid,
+  const engineId = getBackends().config.brepEngineId
+  if (engineId === 'brepkit') {
+    return projectPolylinesNative(api, solid, cam)
+  }
+  return projectPolylinesCompound(api, solid, cam)
+}
+
+/** projectEdges 的公共调用参数（两方言同构，签名见 brep/engine/primitives.ts）。 */
+function projectEdgesArgs(cam: Camera) {
+  return [
     { x: cam.position[0], y: cam.position[1], z: cam.position[2] },
     { x: cam.direction[0], y: cam.direction[1], z: cam.direction[2] },
     { x: cam.xAxis[0], y: cam.xAxis[1], z: cam.xAxis[2] },
     true,
     0.1,
-  ) as ProjectEdgesResult
+  ] as const
+}
+
+/**
+ * brepkit 原生通道：内核 projectEdges 返回 JSON 字符串
+ * `{"visible":[[x,y,…],…],"hidden":[…]}`（每条折线 = 扁平 x,y 点对数组，已是
+ * 相机平面 2D 坐标），解析后直接转 SVG path d 串。内核返回非法 JSON 属实现
+ * 缺陷，直接抛错暴露（非"缺特性"，不受无门禁基调豁免）。
+ */
+function projectPolylinesNative(
+  api: ReturnType<typeof getBrepApi>,
+  solid: BrepHandle,
+  cam: Camera,
+): { visible: string[]; hidden: string[] } {
+  const [origin, direction, xAxis] = projectEdgesArgs(cam)
+  const raw = api.projectEdges(solid, origin, direction, xAxis, true, 0.1)
+  const parsed = parseNativeProjection(raw)
+  return {
+    visible: parsed.visible.map(polylineToPath),
+    hidden: parsed.hidden.map(polylineToPath),
+  }
+}
+
+/** 解析 brepkit projectEdges 的折线 JSON（结构错误一律抛错暴露）。 */
+function parseNativeProjection(raw: unknown): { visible: number[][]; hidden: number[][] } {
+  if (typeof raw !== 'string') {
+    throw new Error(
+      `[faijs/view-projection] E_PROJECTION_DIALECT: native projectEdges returned ${typeof raw}, expected JSON string`,
+    )
+  }
+  const obj = JSON.parse(raw) as { visible?: unknown; hidden?: unknown }
+  const flat = (v: unknown): number[][] => {
+    if (!Array.isArray(v)) throw new Error('[faijs/view-projection] E_PROJECTION_DIALECT: malformed native projection JSON')
+    return v.filter((p): p is number[] => Array.isArray(p) && p.length >= 4)
+  }
+  return { visible: flat(obj.visible), hidden: flat(obj.hidden) }
+}
+
+/** 扁平 x,y 点对数组 → SVG path d 串（M + L 序列）。 */
+function polylineToPath(poly: number[]): string {
+  let d = `M ${poly[0].toFixed(4)} ${poly[1].toFixed(4)}`
+  for (let i = 2; i + 1 < poly.length; i += 2) {
+    d += ` L ${poly[i].toFixed(4)} ${poly[i + 1].toFixed(4)}`
+  }
+  return d
+}
+
+/**
+ * occt compound 通道（现状，逐字节不变）：HLR 输出 6 组 compound 的 arena id，
+ * 逐 compound 取边 → 3D 曲线采样 → 相机平面投影。
+ * 全部句柄在本函数内释放（compound + 边；输入 shape 不消费）。
+ */
+function projectPolylinesCompound(
+  api: ReturnType<typeof getBrepApi>,
+  solid: BrepHandle,
+  cam: Camera,
+): { visible: string[]; hidden: string[] } {
+  const [origin, direction, xAxis] = projectEdgesArgs(cam)
+  const r = api.projectEdges(solid, origin, direction, xAxis, true, 0.1) as ProjectEdgesResult
 
   const out: { visible: string[]; hidden: string[] } = { visible: [], hidden: [] }
   const toHandle = (id: number): BrepHandle => id as BrepHandle
