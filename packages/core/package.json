@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.32.2",
+  "version": "0.32.3",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -141,6 +141,18 @@
     "./mesh/types": {
       "types": "./dist/mesh/types.d.ts",
       "default": "./dist/mesh/types.js"
+    },
+    "./mesh/meshdata/parametric": {
+      "types": "./dist/mesh/meshdata/parametric.d.ts",
+      "default": "./dist/mesh/meshdata/parametric.js"
+    },
+    "./mesh/meshdata/ops": {
+      "types": "./dist/mesh/meshdata/ops.d.ts",
+      "default": "./dist/mesh/meshdata/ops.js"
+    },
+    "./math3d": {
+      "types": "./dist/math3d/index.d.ts",
+      "default": "./dist/math3d/index.js"
     },
     "./io": {
       "types": "./dist/io/index.d.ts",
