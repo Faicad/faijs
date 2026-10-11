@@ -536,6 +536,8 @@ Everything except `events` is optional — a Node test environment can supply on
 | Assembly solving | `jointTrajectory` `inverseKinematics` `mechanismDOF` |
 | Asset | `asset` |
 
+> STEP engine channels (no gates): `exportStep` / `import_step` run on any BREP engine. `occt` uses the XCAF assembly channel (hierarchy, member names/colors, paired `unit` declaration); `brepkit` uses the kernel's native AP203 channel (`brep/export/step-flat.ts` — flat multi-solid, no hierarchy/names/colors, `unit` inert). Unsupported features follow the kernel's own behavior and never raise a gate error.
+
 Beyond the handwritten set, `cad` also carries the **generated first-party BREP ops** (`fuse`, `torus`, `viewCamera`, `projectView`, `shell`, `offset`, …) built by `defineOp({ brep: __own_* })` direct wiring; `docs/ops-api-inventory.md` is its home.
 
 > Note: "Feature" above is an internal faijs catalog category (ops modifying existing geometry), unrelated to the host-layer "feature" term — the generic CAD term implemented by one or more ops / function calls (see §2 R-9).

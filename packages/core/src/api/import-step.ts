@@ -75,7 +75,7 @@ export async function importStepImpl(params: Record<string, unknown>): Promise<S
 
   let kernel: BrepEngineApi
   try { kernel = getBrepApi() } catch { throw new BrepUnsupportedError(
-      'E_BREP_UNSUPPORTED: import_step requires an OCCT kernel (STEP has no mesh parser)',
+      'E_BREP_UNSUPPORTED: import_step requires a BREP engine (STEP has no mesh parser)',
     )
   }
 
@@ -115,7 +115,9 @@ export async function importStepImpl(params: Record<string, unknown>): Promise<S
 export const import_step = defineOp({
   name: 'import_step',
   brep: importStepImpl,
-  engines: ['occt'],
+  // 方案 docs/plans/2026-10-11-brepkit-step-io.md：不做引擎门禁。实现体走
+  // getBrepApi() 的 L1 契约（kernel.importStep / fromBREP），brepkit 适配器已实现，
+  // 各引擎行为同构；不支持的实体类型按 reader 自身行为处理，faijs 侧不抛错。
   // `imported:0` 是 <i> 采样值（同 extrude 的 `wall:0`），与 import-brep 同构。
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'imported', index: 0 }] } } as Provenance,
 

@@ -21,8 +21,9 @@ import type { Vec3 } from '../../mesh/types'
 import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
 import { getBrepApi } from '../handle-bridge'
-import { getBackends, BrepUnsupportedError } from '../../runtime-state'
+import { getBackends } from '../../runtime-state'
 import { exportStepFromSolids, type StepExportEntry } from './step'
+import { exportStepFlat } from './step-flat'
 import { detectStepUnit, STEP_UNIT_SCAN_PREFIX } from '../../mesh/io'
 import type { PbrAppearance } from '../../api/appearance'
 import type { ShapeMeta, FileMeta } from '../../api/meta'
@@ -523,6 +524,26 @@ function makeStepEntryMapper(
   return toStepEntry
 }
 
+/**
+ * brepkit 原生通道（step-flat）的条目 → solid 句柄表：带 `solid` 的条目参与；
+ * 容器条目（children）无自身几何，递归下钻；纯 mesh 条目无精确 BREP，跳过——
+ * 不报错（"按 brepkit 支持的格式来"的基调）。
+ */
+function collectSolidHandles(entries: ExportEntry[]): BrepHandle[] {
+  const handles: BrepHandle[] = []
+  const walk = (list: ExportEntry[]) => {
+    for (const e of list) {
+      if (e.children && e.children.length > 0) {
+        walk(e.children)
+        continue
+      }
+      if (e.solid) handles.push(e.solid)
+    }
+  }
+  walk(entries)
+  return handles
+}
+
 function fmtNum(v: number): string {
   if (Number.isInteger(v)) return String(v)
   return String(Math.round(v * 1e6) / 1e6)
@@ -597,14 +618,14 @@ export function exportModelSync(
   }
 
   if (format === 'step') {
-    // 步骤 6（方案 §2.3 / P1）：STEP 装配层级走 XCAF，仅 occt 具备；非 occt 引擎在
-    // 触碰任何句柄之前报 E_BREP_UNSUPPORTED（带当前引擎名），不落入 getBrepApi 的
-    // 未初始化异常，也不把 brepkit 句柄交给 occt 内核（句柄不得跨引擎传递）。
+    // 方案 docs/plans/2026-10-11-brepkit-step-io.md：按引擎分派 STEP 通道，不做门禁。
+    // brepkit → 内核原生通道（step-flat，平铺多实体，unit/fileMeta 不生效）；
+    // 其余（含 occt）→ XCAF 装配通道（现状，occt-only）。
     const engineId = getBackends().config.brepEngineId
-    if (engineId !== 'occt') {
-      throw new BrepUnsupportedError(
-        `E_BREP_UNSUPPORTED: op 'exportModel:step' requires engine occt (current=${engineId ?? '<none>'})`,
-      )
+    if (engineId === 'brepkit') {
+      const kernel = getBrepApi()
+      const handles = collectSolidHandles(entries)
+      return exportStepFlat(kernel, handles)
     }
     const kernel = getBrepApi()
     const ownedHandles: BrepHandle[] = []
@@ -688,16 +709,16 @@ export async function exportModel(
   }
 
   if (format === 'step') {
-    // 步骤 6（方案 §2.3 / P1）：同同步分支，取内核前先断言 occt 引擎身份。
+    // 方案 docs/plans/2026-10-11-brepkit-step-io.md：同同步分支，按引擎分派通道，不做门禁。
     const engineId = getBackends().config.brepEngineId
-    if (engineId !== 'occt') {
-      throw new BrepUnsupportedError(
-        `E_BREP_UNSUPPORTED: op 'exportModel:step' requires engine occt (current=${engineId ?? '<none>'})`,
-      )
+    if (engineId === 'brepkit') {
+      const kernel = (await import('../handle-bridge')).getBrepApi() as BrepEngineApi
+      const handles = collectSolidHandles(entries)
+      return exportStepFlat(kernel, handles)
     }
     // 同一 scale 变量喂两类条目（§10.3 规则 7，修 E4）：mesh 缩放 positions，
     // solid 用 owned copy 做 kernel.scale —— 不释放调用方缓存里的原句柄。
-    // 先过门禁再取内核（同同步分支：拒绝理由与引擎装配状态无关）。
+    // occt → XCAF 装配通道（现状）。
     const kernel = (await import('../handle-bridge')).getBrepApi() as BrepEngineApi
     const ownedHandles: BrepHandle[] = []
     // 同步分支同一映射器（单一真源）。

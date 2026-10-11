@@ -459,20 +459,35 @@ describe('cad.exportStep / cad.export3mf — 脚本面 step / 3mf 出口（§2.6
     expect(readDeclaredUnit(new TextEncoder().encode(mms), 'step')).toBe('mm')
   })
 
-  it('B13 引擎门：非 occt 引擎下 cad.exportStep 报 E_BREP_UNSUPPORTED，且实现体未执行', async () => {
-    // 直连形态：门在函数体第一行，载荷陷阱未被读取 → 证明门在触碰句柄 / 载荷之前。
-    configureHost('node', 'brepkit')
-    const err = caught(() => exportStep(payloadTrapShape()))
-    expect((err as Error).message).toMatch(/^E_BREP_UNSUPPORTED:/)
-    expect((err as Error).message).toContain("op 'exportStep' requires engine occt")
-    expect((err as Error).message).not.toContain('PAYLOAD_READ')
-    // 脚本面同门：宿主放行（node）后由引擎门拦下。
+  it('B13 brepkit 原生通道：cad.exportStep 不设引擎门，产出内核原生平铺 STEP（方案 2026-10-11）', async () => {
+    // 门禁已移除（docs/plans/2026-10-11-brepkit-step-io.md）：brepkit 引擎下直接走
+    // 内核 exportStep（纯 Rust AP203 writer，平铺多实体）。旧的「非 occt 报
+    // E_BREP_UNSUPPORTED」断言已随门禁一起删除——现在同一段脚本应成功产出文本。
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
     const r = await runtimeOn('node').execute(`${BOX}let out = cad.exportStep(part0)\n`)
-    expect(r.failedAt?.message).toMatch(/^E_BREP_UNSUPPORTED:/)
-    expect(r.failedAt?.message).toContain("op 'exportStep' requires engine occt")
-    expect(r.activeValues?.get('out' as never)).toBeUndefined()
+    expect(r.failedAt).toBeUndefined()
+    const text = r.activeValues?.get('out' as never) as string
+    expect(typeof text).toBe('string')
+    expect(text.startsWith('ISO-10303-21')).toBe(true)
+    expect(text).toContain('ADVANCED_BREP_SHAPE_REPRESENTATION')
+    // 平铺单实体：brepkit writer 每 solid 一个 MANIFOLD_SOLID_BREP，无 XCAF label。
+    expect((text.match(/MANIFOLD_SOLID_BREP/g) ?? []).length).toBe(1)
+  })
+
+  it('B13b brepkit 原生通道：多成员装配导出不报错，DATA 段含全部成员（重编号拼接）', async () => {
+    __resetEngineRegistriesForTests()
+    await registerBrepkitBrepEngine()
+    const r = await runtimeOn('node').execute(`${ASM}let out = cad.exportStep(asm1)\n`)
+    expect(r.failedAt).toBeUndefined()
+    const text = r.activeValues?.get('out' as never) as string
+    expect(typeof text).toBe('string')
+    expect(text.startsWith('ISO-10303-21')).toBe(true)
+    // 两成员都平铺进同一份文件（合并前每成员一份完整文件——DATA; 只能出现一次；
+    // ENDSEC; == 2 是合法 P21 的常态：HEADER 段与 DATA 段各一个闭合）。
+    expect((text.match(/MANIFOLD_SOLID_BREP/g) ?? []).length).toBe(2)
+    expect((text.match(/\bDATA;/g) ?? []).length).toBe(1)
+    expect((text.match(/ENDSEC;/g) ?? []).length).toBe(2)
   })
 
   it('B14 同源（3mf）：cad.export3mf(part0) 字节 == 库面 exportModelSync([entry],"3mf") 字节；ZIP 结构正确', async () => {

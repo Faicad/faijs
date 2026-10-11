@@ -165,3 +165,73 @@ describe('import_step: real STEP file e2e (occt)', () => {
     expect(entry!.kernel.exportStep(entry!.solid)).toContain('ADVANCED_FACE')
   })
 })
+
+// ── brepkit 引擎（方案 docs/plans/2026-10-11-brepkit-step-io.md：无引擎门禁）──
+
+describe('import_step: brepkit engine (no gate)', () => {
+  beforeEach(() => {
+    __resetEngineRegistriesForTests()
+  })
+
+  const brepkitPorts = (): HostPorts => ({
+    events: { emit: () => undefined },
+    hostEnv: 'node',
+    assets: {
+      resolveByKey: async () => ({ bytes: STEP_BUFFER }),
+      resolveFile: async () => STEP_BUFFER,
+      resolveUrl: async () => STEP_BUFFER,
+    },
+  } as unknown as HostPorts)
+
+  // 待办：本地 brepkit2 内核已修 SURFACE_CURVE/SEAM_CURVE/INTERSECTION_CURVE
+  // reader 支持（crates/io/src/step/reader.rs build_curve_geometry），但 npm 上的
+  // brepkit-wasm 3.6.0 还未发布该修复——occt 写的 STEP（box_boss.step 含
+  // SURFACE_CURVE）在发布版内核上仍会抛 unsupported entity。内核发版并升级
+  // faijs 依赖后取消 skip（本地验证脚本：packages/core/scripts/dbg-brepkit-step-import.ts）。
+  it.skip('reads a .step path under brepkit → solid with volume > 0 (needs brepkit-wasm SURFACE_CURVE release)', async () => {
+    const { registerBrepkitBrepEngine } = await import('../../src/brep/engine/adapters/brepkit')
+    await registerBrepkitBrepEngine()
+    const runtime = createEditorRuntime(brepkitPorts(), 'brep')
+    const result = await runtime.execute(
+      `let a = await cad.import_step({ path: 'fixtures/box_boss.step' })\nlet r = a`,
+    )
+    expect(result.failedAt).toBeUndefined()
+    const entry = result.brepSolids!.get(asPartName('a'))
+    expect(entry, 'import_step result lands in brepSolids').toBeDefined()
+    expect(entry!.kernel.getVolume(entry!.solid)).toBeGreaterThan(0)
+  })
+
+  it('roundtrip: brepkit exportStep → import_step → same volume', async () => {
+    const { registerBrepkitBrepEngine } = await import('../../src/brep/engine/adapters/brepkit')
+    await registerBrepkitBrepEngine()
+    // 第一段：建 box 并导出 STEP 文本（exportStep 返回 activeValue，不落盘）。
+    const runtimeA = createEditorRuntime(brepkitPorts(), 'brep')
+    const r0 = await runtimeA.execute(
+      `let p = cad.box(10, 10, 10)\nlet txt = cad.exportStep(p)`,
+    )
+    expect(r0.failedAt).toBeUndefined()
+    const stepText = r0.activeValues!.get('txt' as never) as string
+    expect(stepText.startsWith('ISO-10303-21')).toBe(true)
+    // 第二段：把导出文本作为文件喂回 import_step（体积一致即往返）。
+    const roundtripBuffer = new TextEncoder().encode(stepText).buffer
+    const runtimeB = createEditorRuntime(
+      {
+        events: { emit: () => undefined },
+        hostEnv: 'node',
+        assets: {
+          resolveByKey: async () => null,
+          resolveFile: async () => roundtripBuffer,
+          resolveUrl: async () => null,
+        },
+      } as unknown as HostPorts,
+      'brep',
+    )
+    const result = await runtimeB.execute(
+      `let b = await cad.import_step({ path: 'roundtrip.step' })\nlet r = b`,
+    )
+    expect(result.failedAt).toBeUndefined()
+    const entry = result.brepSolids!.get(asPartName('b'))
+    expect(entry).toBeDefined()
+    expect(entry!.kernel.getVolume(entry!.solid)).toBeCloseTo(1000, 6)
+  })
+})

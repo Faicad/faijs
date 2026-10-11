@@ -41,9 +41,9 @@ import { halfSpace } from './half-space'
 import { exportStl } from './export-stl'
 import { exportBrep } from './export-brep'
 // 2026-10-08（方案 §2.6 / DEC-3）：脚本面 step / 3mf 出口。两者都是薄壳：宿主门
-// （+ exportStep 的 occt 引擎门）之后把入参转成 ExportEntry[]，序列化一律交库面
-// exportModelSync（单一真源），故与库面逐字节同源。只进脚本面（本字面量 + check()
-// 符号表），**不平铺 api/index.ts**（§2.7 / DEC-6）。
+// （引擎通道无门禁——库面按当前引擎分派，见 export-step.ts）之后把入参转成 ExportEntry[]，
+// 序列化一律交库面 exportModelSync（单一真源），故与库面逐字节同源。只进脚本面
+// （本字面量 + check() 符号表），**不平铺 api/index.ts**（§2.7 / DEC-6）。
 import { exportStep } from './export-step'
 import { export3mf } from './export-3mf'
 // S4（occt-wasm op 接入）：类型判定谓词族（平台 op engines:['occt']，普通函数形态）。

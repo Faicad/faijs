@@ -62,8 +62,8 @@ Faces and edges are referenced by **role-based topology identity** (`cad.faceRef
 > **Engine-specific skill doc — auto-generated** by `scripts/gen-skill-docs.ts` (do not edit by hand; regenerate via `npm run gen:skill-docs`).
 >
 > This doc lists the APIs available when the runtime BREP engine is **brepkit**.
-> It contains the **76 engine-neutral (common) ops** plus the **0 brepkit-only ops** (currently none).
-> OCCT-only ops (75: alignTo, approximatePoints, autoHeal, boolean, circleArc, classifyPointOnFace, commonCells, complexExtrude, containsPoint, curveDegreeElevate, curveIsPeriodic, curveKnotInsert, curveKnotRemove, distanceBetween, draft, draftPrism, edge, ellipseArc, ellipseEdge, exportBrep, exportStep, faceOnSurface, fixSelfIntersection, fuse, halfSpace, heal, helix, import_brep, import_step, inertia, inspectMassProps, interpolateWithTangents, isCompSolid, isCompound, isEdge, isEqual, isFace, isShell, isVertex, isWire, iterShapes, liftCurve2d, linearCenterOfMass, locate, loftAdvanced, makeSolid, nonPlanarFace, offset, offset2d, outerWire, pipe, projectPointOnEdge, projectPointOnFace, punchHole, reverseShape, reverseSurfaceU, roof, screw, simplify, sketchOnSurface, solidFromFaces, split, subShapeCount, surface, sweepAdvanced, tangentArc, thicken, thread, toMultiviewPNG, toMultiviewSVG, toPNG, toSVG, twistExtrude, uvFromPoint, vertexPosition) are **excluded** from the brepkit doc;
+> It contains the **78 engine-neutral (common) ops** plus the **0 brepkit-only ops** (currently none).
+> OCCT-only ops (73: alignTo, approximatePoints, autoHeal, boolean, circleArc, classifyPointOnFace, commonCells, complexExtrude, containsPoint, curveDegreeElevate, curveIsPeriodic, curveKnotInsert, curveKnotRemove, distanceBetween, draft, draftPrism, edge, ellipseArc, ellipseEdge, exportBrep, faceOnSurface, fixSelfIntersection, fuse, halfSpace, heal, helix, import_brep, inertia, inspectMassProps, interpolateWithTangents, isCompSolid, isCompound, isEdge, isEqual, isFace, isShell, isVertex, isWire, iterShapes, liftCurve2d, linearCenterOfMass, locate, loftAdvanced, makeSolid, nonPlanarFace, offset, offset2d, outerWire, pipe, projectPointOnEdge, projectPointOnFace, punchHole, reverseShape, reverseSurfaceU, roof, screw, simplify, sketchOnSurface, solidFromFaces, split, subShapeCount, surface, sweepAdvanced, tangentArc, thicken, thread, toMultiviewPNG, toMultiviewSVG, toPNG, toSVG, twistExtrude, uvFromPoint, vertexPosition) are **excluded** from the brepkit doc;
 > brepkit-only ops (0: none) are excluded from the OCCT doc.
 
 
@@ -314,6 +314,11 @@ Open-chain mobility — the number of independent degrees of freedom, summing ea
 - `assembly`: AssemblyNode — The assembly to analyze.
 
 **Returns**: Total number of independent degrees of freedom.
+
+ **Sync**.
+
+### `import_step(...)`
+GOTCHA（2026-09-30）：与 import_brep 同——必须经 defineOp 包装进入 cad 命名空间， 不能是裸 async 函数。part 键 roleTable（outputTablesByPart）只在 define-op.ts 包装层的 brep 分支登记；裸 async 函数产物没有 part 键表，下游 place/edgeRef 报 "input shape has no role table (nameless shape)"。
 
  **Sync**.
 
@@ -806,6 +811,23 @@ const plain = await cad.removeHolesFromFace(faceWithHoles)
 ```js
 const bytes = cad.exportStl(part0)
 const text = cad.exportStl(part0, { ascii: true, name: 'bracket' })
+```
+
+### `exportStep(...)`
+导出 STEP 文本（与 `cad.import_step` 成对的导出侧）。 故同一入参下脚本面文本与库面**逐字节一致**（同一真源，不另起写出通道）。 返回**纯文本**（ISO-10303-21），由宿主写入 `.step` / `.stp` 文件——内核不 import fs。`unit` 只声明单位，坐标换算与声明由库面成对完成（缺省 mm）。 入参可为单件 Shape 或装配 compound（`cad.assembly` / `cad.group` 产物）， compound 逐成员导出并带上成员名与 `memberColors`；空装配显式报 E_EXPORT_STEP_EMPTY，不落空文件。 **宿主门**：仅 `'node'`（browser / weapp / 未声明报 E_HOST_UNSUPPORTED）。 引擎通道无门禁：库面按当前引擎分派——brepkit → 内核原生通道（unit/fileMeta 不生效），occt → XCAF 装配通道。
+
+**Parameters**:
+- `shape`: Shape | CompoundShape — 目标几何（单件 Shape 或装配 compound）。type:Shape|CompoundShape required:true
+- `options`: ExportStepOptions
+
+**Returns**: string STEP（ISO-10303-21）文本。
+
+ **Sync**.
+
+**Examples**:
+```js
+const text = cad.exportStep(part0)
+const asm = cad.exportStep(asm1, { unit: 'inch' })
 ```
 
 ### `export3mf(...)`

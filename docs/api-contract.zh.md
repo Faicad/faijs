@@ -537,6 +537,8 @@ export interface HostPorts {
 | 装配求解 | `jointTrajectory` `inverseKinematics` `mechanismDOF` |
 | 资产 | `asset` |
 
+> STEP 引擎通道（无门禁）：`exportStep` / `import_step` 在任何 BREP 引擎上可执行。`occt` 走 XCAF 装配通道（层级、成员名/颜色、`unit` 成对声明）；`brepkit` 走内核原生 AP203 通道（`brep/export/step-flat.ts` —— 平铺多实体、无层级/名称/颜色，`unit` 不生效）。不支持的特性按内核自身行为处理，绝不因门禁报错。
+
 除手写集合外，`cad` 还承载**生成的第一方 BREP op**（`fuse`、`torus`、`viewCamera`、`projectView`、`shell`、`offset` 等），由 `defineOp({ brep: __own_* })` 直连构造；它们的归属地是 `docs/ops-api-inventory.md`。
 
 > 注：表中"特征类"是 faijs 函数目录的内部类别名（对既有几何做修改的操作），与宿主层"特征（feature）"术语无关——后者是通用 CAD 术语，由 1 到多个 op／函数调用实现（见 §2 R-9）。

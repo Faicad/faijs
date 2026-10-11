@@ -380,7 +380,7 @@ const a = await cad.import_brep({ asset: 'Array001.Shape' })
 
 ### 3.16 `import_step` ✅
 
-api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
+api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， 经当前 BREP 引擎的 `kernel.importStep` 读入，返回持引擎句柄 + roleTable 的 Shape（无引擎门禁：occt / brepkit 行为同构，方案 2026-10-11-brepkit-step-io.md）。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
 
 ```js
 const a = await cad.import_step({ path: 'D:/models/box.step' })
@@ -2722,7 +2722,7 @@ const asm = cad.exportStep(asm1, { unit: 'inch' })
 
 **同步**。string STEP（ISO-10303-21）文本。
 
-> 薄壳 op：条目构造后一律交库面 `exportModelSync(entries,'step',{unit})` 序列化， 故同一入参下脚本面文本与库面**逐字节一致**（同一真源，不另起写出通道）。 返回**纯文本**（ISO-10303-21），由宿主写入 `.step` / `.stp` 文件——内核不 import fs。`unit` 只声明单位，坐标换算与声明由库面成对完成（缺省 mm）。 入参可为单件 Shape 或装配 compound（`cad.assembly` / `cad.group` 产物）， compound 逐成员导出并带上成员名与 `memberColors`；空装配显式报 E_EXPORT_STEP_EMPTY，不落空文件。 **双门**：宿主门仅 `'node'`（browser / weapp / 未声明报 E_HOST_UNSUPPORTED）， 引擎门仅 `occt`（装配层级走 XCAF；非 occt 报 E_BREP_UNSUPPORTED）。门序固定 为宿主门 → 引擎门 → 实现体，两级都在触碰任何句柄之前。
+> 薄壳 op：条目构造后一律交库面 `exportModelSync(entries,'step',{unit})` 序列化， 故同一入参下脚本面文本与库面**逐字节一致**（同一真源，不另起写出通道）。 返回**纯文本**（ISO-10303-21），由宿主写入 `.step` / `.stp` 文件——内核不 import fs。 入参可为单件 Shape 或装配 compound（`cad.assembly` / `cad.group` 产物）， compound 逐成员导出；空装配显式报 E_EXPORT_STEP_EMPTY，不落空文件。 **宿主门**：仅 `'node'`（browser / weapp / 未声明报 E_HOST_UNSUPPORTED）。 **引擎通道无门禁**（方案 2026-10-11-brepkit-step-io.md）：库面按当前引擎静态分派——`occt` → XCAF 装配通道（层级/成员名/颜色，`unit` 成对换算写出）；`brepkit` → 内核原生通道（`brep/export/step-flat.ts`，平铺多实体、无层级/名称/颜色，`unit` 不生效——一切按 brepkit 自身实现，不因缺特性报错）。
 
 ### 10.4 `exportStl` ✅
 
