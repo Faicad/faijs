@@ -132,6 +132,46 @@ if (!inDom) continue;
 `grep -c "cCirc.kind2d === 'circle'" <...>/dist/geometry2d/curve2d.js` 须为 1。
 任何 `npm install` 后必须**重新同步 dist 再复测**。
 
+## 7. 追加：trim 弧推广（2026-10-12 实证）
+
+§5 的最小改动只覆盖整圆（`kind2d==='circle'`）。全量复测暴露 trim 弧同样受害，
+故按 §2 原设计推广。
+
+### 实证（faijs-freecad）
+
+样本 `Mechanical Parts/Profiles EN/EN10219 Rectangular Hollow Sections/
+Rectangular hollow section 100x50x6.3 EN10219 S235JRH.FCStd`（矩形空心型材）：
+
+- 发射形态：单个 `cad.sketch`，16 个 geom = 内圆角矩形 4 line + 4 arc(r=6.3)
+  + 外圆角矩形 4 line + 4 arc(r=9.45)。
+- `extractContours` **正确**产出 2 个闭环（bbox 内 x[-18.7,18.7] / 外 x[-25,25]）。
+- `profileSegToCurve` 后 curve 类型为 `line` + **`trimmed`**（非 `circle`）。
+- `organiseBlueprints` 返回 **2 FLAT**；`isInside` 双向均 **false** → 不嵌套 → 2 实体。
+  对应 parity 判定 `solids(1vs2)`（truth 1 空心件，fai.js 2 实心体）。
+- 诊断脚本：`faijs-freecad/_diag-nest.mjs`（从真实 fai.js 提取 geoms → solve →
+  extractContours → Blueprint → organise 的端到端探针）。
+
+### 规模（fcstd-port 基线 verdicts）
+
+solids-fail 681 按方向拆分（`solids(<truth>vs<faijs>)`）：
+
+| 方向 | 数量 | 说明 |
+|---|---|---|
+| fai.js **多于** truth | 328 | 孔未嵌套 → 多实体。垫圈 98（整圆，§5 已修）+ 其余 ~230 多为矩形/方形空心型材等 **trim 弧**轮廓 |
+| fai.js **少于** truth | 353 | 欠产出（多终端导出不全 / 零件丢失），**与本次根因无关**，需另案诊断 |
+
+故 trim 弧推广的目标增量约 **230** 个，远大于整圆的 98。
+
+### 方案
+
+`intersectLineCircle` 内：取 basis 圆（整圆自身，或 `trimmed.basis` 为圆），
+令 `ang = atan2(py-cy, px-cx)`、`tBasis = sense ? ang : -ang`；
+- 整圆 → 恒接受（§5 已有）；
+- trimmed → 用 `tBasis` 落在 `[tStart, tEnd]` 判定（模 2π 归一化后与 span 比较），
+  **替代** `refineParam` 粗网格距离复检。
+
+basis 非圆（ellipse / bezier / bspline 的 trimmed）继续走原 `refineParam` 路径，不动。
+
 ## 6. 范围与不确定性（诚实披露）
 
 - 本修复**只解决"同心整圆不被嵌套"这一类**。1135 fail 是多种根因的合集；本修复预期覆盖 mech_b 293 个 "+1" 的全部，并可能外溢吸收同源于"实体数/体积不符"的其他桶，但**不能保证 1135→0**。

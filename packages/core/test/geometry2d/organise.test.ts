@@ -3,7 +3,7 @@
  * Pure TS, no WASM — verifies container semantics and hole classification.
  */
 import { describe, expect, it } from 'vitest'
-import { makeLine2d, makeArc2dThreePoints, makeCircle2d } from '../../src/geometry2d/curve2d'
+import { makeLine2d, makeArc2dThreePoints, makeCircle2d, trimCurve } from '../../src/geometry2d/curve2d'
 import { Blueprint } from '../../src/geometry2d/blueprint'
 import { CompoundBlueprint } from '../../src/geometry2d/compound-blueprint'
 import { organiseBlueprints } from '../../src/geometry2d/organise'
@@ -128,6 +128,33 @@ describe('organiseBlueprints', () => {
     expect(or.blueprints).toHaveLength(2)
     expect(or.blueprints[0]).toBeInstanceOf(CompoundBlueprint)
     expect(or.blueprints[1]).toBeInstanceOf(CompoundBlueprint)
+  })
+
+  it('concentric trimmed-arc loops → CompoundBlueprint (hollow-section regression)', () => {
+    // 2026-10-12: rounded-rect hollow sections (EN10219 etc.) emit their inner and
+    // outer loops as *trimmed* arcs (`kind2d: 'trimmed'`, basis circle), not as bare
+    // circles. They must nest exactly like full circles — otherwise the hole is lost
+    // and the solid count doubles (parity `solids(1vs2)`).
+    const outer = new Blueprint([trimCurve(makeCircle2d(0, 0, 10), 0, 2 * Math.PI)])
+    const inner = new Blueprint([trimCurve(makeCircle2d(0, 0, 6.5), 0, 2 * Math.PI)])
+    expect(outer.curves[0]!.kind2d).toBe('trimmed')
+    expect(outer.isInside([0, 0])).toBe(true)
+    const or = organiseBlueprints([outer, inner])
+    expect(or.blueprints).toHaveLength(1)
+    expect(or.blueprints[0]).toBeInstanceOf(CompoundBlueprint)
+  })
+
+  it('concentric loops split into several trimmed arcs → CompoundBlueprint', () => {
+    // Same loop shape as above but built from two half-arcs each, which is how a
+    // real rounded-rect profile arrives (corner arcs + straight segments).
+    const ring = (r: number) =>
+      new Blueprint([
+        trimCurve(makeCircle2d(0, 0, r), 0, Math.PI),
+        trimCurve(makeCircle2d(0, 0, r), Math.PI, 2 * Math.PI),
+      ])
+    const or = organiseBlueprints([ring(10), ring(6.5)])
+    expect(or.blueprints).toHaveLength(1)
+    expect(or.blueprints[0]).toBeInstanceOf(CompoundBlueprint)
   })
 
   it('bbox-overlap but not containing → remains disjoint compounds (beyond-simple containment)', () => {
