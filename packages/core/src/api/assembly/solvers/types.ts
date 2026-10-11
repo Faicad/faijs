@@ -42,6 +42,12 @@ export interface GlobalSolveResult {
   transforms: AssemblyTransform[]
   /** 恒 0（数值求解不做 DOF 分析，保留字段避免 undefined）。 */
   dof: number
+  /**
+   * P7/D1-3：欠定自由度诊断（仅 global 路径）。dof > 0 = 约束集欠定，终态位姿
+   * 依赖优化器轨迹、无唯一「正确解」——判等方应走规范判等通道而非逐位比对。
+   * dof === 0 时字段缺省（undefined）。
+   */
+  underdetermined?: { dof: number }
   /** LM 终止即 true（无论残差大小；裁定 4.6）。 */
   converged: boolean
   /** 仅约束类型无法映射为代价时填充。 */

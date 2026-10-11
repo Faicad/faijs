@@ -35,6 +35,11 @@ export interface AssemblyTreeSolveResult {
   residuals: number[]
   /** 残差超阈值的约束逐条写入。 */
   warnings?: string[]
+  /**
+   * P7/D1-3：欠定自由度诊断（透传自 solveGlobal）。dof > 0 = 约束集欠定，
+   * 终态位姿依赖优化器轨迹、无唯一「正确解」——判等方应走规范判等通道而非逐位比对。
+   */
+  underdetermined?: { dof: number }
 }
 
 
@@ -175,5 +180,7 @@ export function solveAssemblyTree(
     unsupported: result.unsupported,
     residuals: result.residuals,
     warnings: result.warnings,
+    // P7/D1-3：显式透传（此处是重建对象，spread 不会带上）。
+    underdetermined: result.underdetermined,
   }
 }

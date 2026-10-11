@@ -156,6 +156,134 @@ function termResidual(t: CostTerm, sa: { T: Vec3; R: Vec3 }, sb: { T: Vec3; R: V
   }
 }
 
+/** 单条代价项的残差维数（与 termResidual 的分支表一一对应；诊断参考）。 */
+function residualDim(t: CostTerm): number {
+  switch (t.fn) {
+    case 'point':
+      return Math.abs(t.val) < 1e-12 ? 3 : 1
+    case 'axis':
+      return Math.abs(t.val) < 1e-12 || Math.abs(t.val - Math.PI) < 1e-12 ? 3 : 1
+    case 'point_in_plane':
+      return 1
+    case 'point_on_line':
+      return Math.abs(t.val) < 1e-12 ? 3 : 1
+  }
+}
+void residualDim // P7/D1-1：诊断参考表（秩判定走列归一特征值，见下）
+
+/**
+ * 对称 n×n 矩阵的特征值（循环 Jacobi 旋转）。
+ *
+ * @returns 特征值数组（无序）；扫掠不收敛返回 null（调用方走保守 fallback）。
+ */
+function symEigenvalues(A: number[], n: number): number[] | null {
+  const a = A.slice()
+  for (let sweep = 0; sweep < 60; sweep++) {
+    let off = 0
+    for (let p = 0; p < n; p++) {
+      for (let q = p + 1; q < n; q++) off += a[p * n + q] * a[p * n + q]
+    }
+    if (off <= 1e-30 * Math.max(1, Math.abs(a[0]))) break
+    for (let p = 0; p < n - 1; p++) {
+      for (let q = p + 1; q < n; q++) {
+        const apq = a[p * n + q]
+        if (Math.abs(apq) < 1e-300) continue
+        // Numerical Recipes 经典公式（θ=0 时 t=1，即 45° 旋转；sign(0)=0 的变体是错的）
+        const theta = (a[q * n + q] - a[p * n + p]) / (2 * apq)
+        const t = theta >= 0 ? 1 / (theta + Math.sqrt(1 + theta * theta)) : 1 / (theta - Math.sqrt(1 + theta * theta))
+        const c = 1 / Math.sqrt(t * t + 1)
+        const s = t * c
+        for (let k = 0; k < n; k++) {
+          const akp = a[k * n + p]
+          const akq = a[k * n + q]
+          a[k * n + p] = c * akp - s * akq
+          a[k * n + q] = s * akp + c * akq
+        }
+        for (let k = 0; k < n; k++) {
+          const apk = a[p * n + k]
+          const aqk = a[q * n + k]
+          a[p * n + k] = c * apk - s * aqk
+          a[q * n + k] = s * apk + c * aqk
+        }
+      }
+    }
+    if (sweep === 59) return null
+  }
+  const out: number[] = []
+  for (let i = 0; i < n; i++) out.push(a[i * n + i])
+  return out
+}
+
+/**
+ * P7/D1-2：收敛后的欠定自由度诊断。
+ *
+ * 关键细节一：LM 的残差行含 PENALTY 正则行（1e-8·x）——正则化不是约束，却让 JᵀJ
+ * 技术上满秩；秩判定必须剔除 penalty 行。
+ *
+ * 关键细节二（为何要列归一）：`computeScale` 只收集 fixedPoint 的 marker 点，
+ * unary 场景（fixedAxis-only + 单点 fixedPoint）scale 可能退化到 1e-6，T 块
+ * （1/scale² ~1e12）与 R 块（~1）的特征值量级悬殊，全局阈值会把 R 块整列误杀。
+ * 做法是对 J 做列范数归一（J·D⁻¹，D = diag(列范数)；可逆对角重参数化保秩不变），
+ * 再对归一后的 JᵀJ 做特征分解，rank = #{λ > λmax·1e-8}，dof = n − rank。
+ * 欠定方向在归一后是精确零列（零特征值），与 λmax 差无穷量级，阈值余量充足。
+ * 零范数列（约束完全摸不到的方向）直接计入自由。
+ *
+ * @returns 剩余自由度（0 = 适定）；特征分解不收敛时保守报 0（不阻塞消费方）。
+ */
+function computeUnderdeterminedDof(
+  terms: CostTerm[],
+  scale: number,
+  n: number,
+  x: number[],
+  stateOf: (xx: number[], i: number) => { T: Vec3; R: Vec3 },
+): number {
+  if (n === 0) return 0
+  // 仅约束残差（剔除 penalty 正则行）
+  const residualC = (xx: number[]): number[] => {
+    const r: number[] = []
+    for (const t of terms) {
+      const e = termResidual(t, stateOf(xx, t.ia), stateOf(xx, t.ib), scale)
+      for (const v of e) r.push(v)
+    }
+    return r
+  }
+  const m = residualC(x).length
+  if (m === 0) return n // 无任何约束：全部自由
+  const J: number[] = new Array(m * n).fill(0)
+  for (let col = 0; col < n; col++) {
+    const h = col % 6 < 3 ? 1e-7 * scale : 1e-7
+    const xp = x.slice()
+    xp[col] += h
+    const xm = x.slice()
+    xm[col] -= h
+    const rp = residualC(xp)
+    const rm = residualC(xm)
+    for (let row = 0; row < m; row++) J[row * n + col] = (rp[row] - rm[row]) / (2 * h)
+  }
+  // 列范数归一（欠定方向 → 精确零列；可逆对角缩放保秩）
+  const norms = new Array<number>(n).fill(0)
+  let freeCols = 0
+  for (let col = 0; col < n; col++) {
+    let s = 0
+    for (let row = 0; row < m; row++) s += J[row * n + col] * J[row * n + col]
+    norms[col] = Math.sqrt(s)
+    if (!(norms[col] > 1e-12)) freeCols++ // 约束完全摸不到的列 → 直接自由
+  }
+  if (freeCols === n) return n
+  const Jn: number[] = J.slice()
+  for (let col = 0; col < n; col++) {
+    const d = norms[col] > 1e-12 ? norms[col] : 1 // 零列归一因子取 1（已被计为自由）
+    for (let row = 0; row < m; row++) Jn[row * n + col] /= d
+  }
+  const JtJ = ata(Jn, m, n)
+  const eig = symEigenvalues(JtJ, n)
+  if (!eig) return 0 // 保守 fallback（适定假设，不阻塞）
+  const lambdaMax = Math.max(...eig.map(Math.abs))
+  if (!(lambdaMax > 1e-300)) return freeCols + n // 理论不可达；防御
+  const rank = eig.filter((v) => Math.abs(v) > lambdaMax * 1e-8).length
+  return Math.max(0, n - rank)
+}
+
 /**
  * 纯 TS global 求解器入口。
  *
@@ -490,9 +618,14 @@ export function solveGlobal(
     if (r > RESIDUAL_WARN * scale) warnings.push(`constraint #${cid} residual=${r.toExponential(3)} (> ${RESIDUAL_WARN * scale})`)
   })
 
+  // P7/D1-2：欠定自由度诊断（剔除 penalty 正则行后按 JᵀJc 特征值秩判定）
+  const underdeterminedDof = computeUnderdeterminedDof(terms, scale, n, x, stateOf)
+
   return {
     transforms,
     dof: 0,
+    // P7/D1-3：旧 `dof` 字段语义不变（unsupported 合计的占位），欠定信息走新字段。
+    underdetermined: underdeterminedDof > 0 ? { dof: underdeterminedDof } : undefined,
     converged: true,
     unsupported,
     residuals,
