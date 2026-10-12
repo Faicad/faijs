@@ -35,6 +35,7 @@ import type { FaceTopoRef } from '../topology/naming'
 import { resolveTopoRef, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext } from './topo-resolve'
+import { expandFaceSelectorRefs } from './selectors-to-refs'
 
 type ProvenanceLike = Provenance
 
@@ -45,13 +46,14 @@ function requireBrep(input: Shape, op: string): BrepHandle {
   return handle
 }
 
-/** 解析 FaceTopoRef[] → 句柄数组（shell/draft 同款口径）。 */
-function resolveFaces(kernel: ReturnType<typeof getBrepApi>, input: Shape, refs: FaceTopoRef[], op: string): BrepHandle[] {
+/** 解析面选择器（FaceTopoRef[] | 字符串）→ 句柄数组（shell/draft 同款口径）。 */
+function resolveFaces(kernel: ReturnType<typeof getBrepApi>, input: Shape, refs: FaceTopoRef[] | string, op: string): BrepHandle[] {
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', `${op}: input has no BREP naming context`)
-  return refs.map((ref) => {
+  // 展开选择器字符串 → FaceTopoRef[]，再逐 ref 解析句柄
+  return expandFaceSelectorRefs(input, refs).map((ref) => {
     if (!ref || (ref as { kind?: unknown }).kind !== 'face') {
-      throw new Error(`E_${op.toUpperCase()}_BAD_FACE_REF: every faces entry must be a FaceTopoRef (cad.faceRef)`)
+      throw new Error(`E_${op.toUpperCase()}_BAD_FACE_REF: every faces entry must be a FaceTopoRef (cad.faceRef) or a selector string`)
     }
     const r = resolveTopoRef(ref, ctx)
     if (r.handle === undefined) {
@@ -89,14 +91,17 @@ const kernelNaming = { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Pro
  * @note 中立 op：L1 defeature 两引擎同实现。仅 BREP 可用。
  * @returns Shape 移除特征后的几何。
  * @param input - 目标几何。type:Shape required:true
- * @param faces - 要移除的面（FaceTopoRef[]，cad.faceRef 产物）。type:FaceTopoRef[] required:true
+ * @param faces - 要移除的面：面选择器字符串（如 "|Z"，AI 生成）或 FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号）。type:FaceTopoRef[]|string required:true
  * @example
- * const base = await cad.defeature(part0, [cad.faceRef(part0, 5)])
+ * // faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
+ * const base = await cad.defeature(part0, pickedFaces)
+ * // AI 生成可写 CadQuery 面选择器字符串
+ * const base2 = await cad.defeature(part0, "|Z")
  */
 export const defeature = defineOp({
-  brep(input: Shape, faces: FaceTopoRef[]) {
-    if (!Array.isArray(faces) || faces.length === 0) {
-      throw new Error('E_DEFEATURE_NO_FACES: defeature requires at least one FaceTopoRef')
+  brep(input: Shape, faces: FaceTopoRef[] | string) {
+    if (typeof faces !== 'string' && (!Array.isArray(faces) || faces.length === 0)) {
+      throw new Error('E_DEFEATURE_NO_FACES: defeature requires at least one FaceTopoRef or a face selector string')
     }
     const kernel = getBrepApi()
     const solid = requireBrep(input, 'defeature')

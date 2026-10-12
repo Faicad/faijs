@@ -30,13 +30,14 @@ import type { FaceTopoRef } from '../topology/naming'
 import { resolveTopoRef, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext } from './topo-resolve'
+import { expandFaceSelectorRefs } from './selectors-to-refs'
 
 type Vec3 = [number, number, number]
 
 /** `cad.draft` 参数。 */
 export interface DraftParams {
-  /** 拔模面（FaceTopoRef[]，`cad.faceRef` 产物）。 */
-  faces: FaceTopoRef[]
+  /** 拔模面：面选择器字符串（如 "|Z"，AI 生成）或 FaceTopoRef[]（UI 拾取产物字面量）。 */
+  faces: FaceTopoRef[] | string
   /** 拔模角（度）。 */
   angleDeg: number
   /** 拔模方向（默认 +Z）。 */
@@ -52,8 +53,8 @@ export interface DraftParams {
 /** BREP 路径：解析面引用 → L1 draft → 收养。 */
 function draftBrep(input: Shape, params: DraftParams): Shape {
   const { faces, angleDeg } = params ?? ({} as DraftParams)
-  if (!Array.isArray(faces) || faces.length === 0) {
-    throw new Error('E_DRAFT_NO_FACES: draft requires at least one FaceTopoRef in faces')
+  if ((typeof faces !== 'string' && (!Array.isArray(faces) || faces.length === 0))) {
+    throw new Error('E_DRAFT_NO_FACES: draft requires at least one FaceTopoRef or a face selector string in faces')
   }
   if (typeof angleDeg !== 'number' || !Number.isFinite(angleDeg) || angleDeg === 0) {
     throw new Error('E_DRAFT_BAD_ANGLE: draft.angleDeg must be a non-zero number (degrees)')
@@ -64,9 +65,10 @@ function draftBrep(input: Shape, params: DraftParams): Shape {
 
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'draft: input has no BREP naming context')
-  const faceHandles = faces.map((ref) => {
+  // 展开选择器字符串 → FaceTopoRef[]，再逐 ref 解析句柄
+  const faceHandles = expandFaceSelectorRefs(input, faces as FaceTopoRef[] | string).map((ref) => {
     if (!ref || (ref as { kind?: unknown }).kind !== 'face') {
-      throw new Error('E_DRAFT_BAD_FACE_REF: every faces entry must be a FaceTopoRef (cad.faceRef)')
+      throw new Error('E_DRAFT_BAD_FACE_REF: every faces entry must be a FaceTopoRef (cad.faceRef) or a selector string')
     }
     const r = resolveTopoRef(ref, ctx)
     if (r.handle === undefined) {
@@ -118,12 +120,15 @@ function draftBrep(input: Shape, params: DraftParams): Shape {
  *       `pull` + 面上一点建模。仅 BREP 可用（mesh 输入执行前报错）。
  * @returns Shape 拔模后的几何。
  * @param input - 目标几何。type:Shape required:true
- * @param params.faces - 拔模面（FaceTopoRef[]，cad.faceRef 产物）。type:FaceTopoRef[] required:true
+ * @param params.faces - 拔模面：面选择器字符串（如 "|Z"，AI 生成）或 FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号）。type:FaceTopoRef[]|string required:true
  * @param params.angleDeg - 拔模角（度，≠0）。type:number required:true
  * @param params.pull - 拔模方向（默认 +Z）。type:Vec3 required:false
  * @param params.neutral - 中性面**点**（{point}；normal 无消费者）。type:{point:Vec3,normal?:Vec3} required:false
  * @example
- * const d = await cad.draft(part0, { faces: [cad.faceRef(part0, 3)], angleDeg: 3 })
+ * // faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
+ * const d = await cad.draft(part0, { faces: pickedFaces, angleDeg: 3 })
+ * // AI 生成可写 CadQuery 面选择器字符串（"|Z" 法向平行 Z 的面）
+ * const d2 = await cad.draft(part0, { faces: "|Z", angleDeg: 3 })
  */
 export const draft = defineOp({
   // 实证收窄（2026-09-24）：brepkit 的 L1 draft 产出错误几何（破坏对称性 / 静默无操作），

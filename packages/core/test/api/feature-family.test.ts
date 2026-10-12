@@ -157,6 +157,14 @@ const SQUARE_SKETCH =
 /** box(20,20,10) 的体积，多个用例的基准。 */
 const BOX_20_20_10_VOL = 4000
 
+/** 5×5 见方轮廓（[-2.5,2.5]²），面选择器用例的宿主面轮廓（20×20 面内任意 UV 原点都放得下）。 */
+const SMALL_LOOPS =
+  'contours: [{ segments: [ ' +
+  '{ kind: "line", x1: -2.5, y1: -2.5, x2: 2.5, y2: -2.5 }, ' +
+  '{ kind: "line", x1: 2.5, y1: -2.5, x2: 2.5, y2: 2.5 }, ' +
+  '{ kind: "line", x1: 2.5, y1: 2.5, x2: -2.5, y2: 2.5 }, ' +
+  '{ kind: "line", x1: -2.5, y1: 2.5, x2: -2.5, y2: -2.5 } ] }]'
+
 describe('shell — 抽壳（中立 op，无引擎门）', () => {
   it('box(20,20,10) 开面 1 / t=2 → 成薄壁：bbox 不变、体积严格小于原体', async () => {
     await useOcct()
@@ -204,6 +212,66 @@ describe('shell — 抽壳（中立 op，无引擎门）', () => {
     )
     expect(bad.failedAt).toBeDefined()
     expect(bad.failedAt!.message).toMatch(/E_SHELL_BAD_THICKNESS/)
+  })
+
+  it('P0 锚点：选择器 ">Z" 与等效 faceRef 字面量产出同一几何（bbox 一致 + 体积逐位相等）', async () => {
+    await useOcct()
+    const selShape = await shapeOf(
+      'brep',
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.shell(p0, { openFaces: ">Z", thickness: 2 })\n`,
+      'part1',
+    )
+    const selBox = bboxOf(selShape)
+    const selVol = volOf(selShape)
+    expectSameBBox(selBox, { xmin: 0, xmax: 20, ymin: 0, ymax: 20, zmin: 0, zmax: 10 })
+    expect(selVol).toBeGreaterThan(0)
+    expect(selVol).toBeLessThan(BOX_20_20_10_VOL)
+    // 枚举 6 面找与 ">Z" 版同一几何的 faceRef（顶面 ordinal 不写死，内核枚举序不定）
+    let matched = false
+    for (let k = 1; k <= 6; k++) {
+      const refShape = await shapeOf(
+        'brep',
+        `const p0 = cad.box(20,20,10)\nlet part1 = cad.shell(p0, { openFaces: [cad.faceRef(p0, ${k})], thickness: 2 })\n`,
+        'part1',
+      )
+      if (Math.abs(volOf(refShape) - selVol) < 1e-6) {
+        matched = true
+        break
+      }
+    }
+    expect(matched, '选择器 ">Z" 应与某个 faceRef 面产生同一 shell 几何').toBe(true)
+  })
+
+  it('选择器 "|Z"（法向平行 Z 的两张面）→ 一次移除两面，体积小于单面版', async () => {
+    await useOcct()
+    const two = await shapeOf(
+      'brep',
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.shell(p0, { openFaces: "|Z", thickness: 2 })\n`,
+      'part1',
+    )
+    const volTwo = volOf(two)
+    expect(volTwo).toBeGreaterThan(0)
+    expect(volTwo).toBeLessThan(BOX_20_20_10_VOL)
+    // 单面版（枚举找同一几何）体积应大于两面版
+    let singleVol = Infinity
+    for (let k = 1; k <= 6; k++) {
+      const one = await shapeOf(
+        'brep',
+        `const p0 = cad.box(20,20,10)\nlet part1 = cad.shell(p0, { openFaces: [cad.faceRef(p0, ${k})], thickness: 2 })\n`,
+        'part1',
+      )
+      singleVol = Math.min(singleVol, volOf(one))
+    }
+    expect(volTwo).toBeLessThan(singleVol)
+  })
+
+  it('无效选择器字符串 → 执行失败（不静默降级）', async () => {
+    await useOcct()
+    const bad = await exec(
+      'brep',
+      `const p0 = cad.box(10,10,5)\nlet part1 = cad.shell(p0, { openFaces: "bogus", thickness: 2 })\n`,
+    )
+    expect(bad.failedAt).toBeDefined()
   })
 })
 
@@ -406,5 +474,117 @@ describe('修复薄包装 — reverseShape / unifySameDomain / sew / removeHoles
     const msg = JSON.stringify(r.failedAt)
     expect(msg).toMatch(/E_BREP_UNSUPPORTED/)
     expect(msg).toMatch(/requires engine occt/)
+  })
+})
+
+describe('P2 — 选择器字符串接入（fillet / chamfer / filletVariable / draft / defeature / extrude upTo / sketchOnFace / punchHole）', () => {
+  it('fillet: edges "|Z"（box 四条竖棱）→ 圆角生效（bbox 不变、体积小于原体）', async () => {
+    await useOcct()
+    const s = await shapeOf(
+      'brep',
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.fillet(p0, { edges: "|Z", radius: 2 })\n`,
+      'part1',
+    )
+    expectSameBBox(bboxOf(s), { xmin: 0, xmax: 20, ymin: 0, ymax: 20, zmin: 0, zmax: 10 })
+    const vol = volOf(s)
+    expect(vol).toBeGreaterThan(0)
+    expect(vol).toBeLessThan(BOX_20_20_10_VOL)
+  })
+
+  it('chamfer: edges "|Z"（box 四条竖棱）→ 倒角生效（bbox 不变、体积小于原体）', async () => {
+    await useOcct()
+    const s = await shapeOf(
+      'brep',
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.chamfer(p0, { edges: "|Z", type: "equal", width: 2 })\n`,
+      'part1',
+    )
+    expectSameBBox(bboxOf(s), { xmin: 0, xmax: 20, ymin: 0, ymax: 20, zmin: 0, zmax: 10 })
+    const vol = volOf(s)
+    expect(vol).toBeGreaterThan(0)
+    expect(vol).toBeLessThan(BOX_20_20_10_VOL)
+  })
+
+  it('filletVariable: 选择器多边命中 → 抛 E_TOPO_NOT_FOUND（R3：单边参数不静默取第一个）', async () => {
+    await useOcct()
+    const bad = await exec(
+      'brep',
+      `const p0 = cad.box(10,10,10)\nlet part1 = cad.filletVariable(p0, "|Z", 2, 2)\n`,
+    )
+    expect(bad.failedAt).toBeDefined()
+    const msg = JSON.stringify(bad.failedAt)
+    expect(msg).toMatch(/E_TOPO_NOT_FOUND/)
+    expect(msg).toMatch(/matched 4 edges/)
+  })
+
+  it('draft: faces ">X"（右侧面选择器）与某 faceRef 面产出同一几何（枚举逐位相等）', async () => {
+    await useOcct()
+    const sel = await shapeOf(
+      'brep',
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: ">X", angleDeg: 3 })\n`,
+      'part1',
+    )
+    const selVol = volOf(sel)
+    expect(selVol).toBeGreaterThan(BOX_20_20_10_VOL * 0.97)
+    expect(selVol).toBeLessThan(BOX_20_20_10_VOL)
+    let matched = false
+    for (let k = 1; k <= 6; k++) {
+      const one = await shapeOf(
+        'brep',
+        `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, ${k})], angleDeg: 3 })\n`,
+        'part1',
+      )
+      if (Math.abs(volOf(one) - selVol) < 1e-6) {
+        matched = true
+        break
+      }
+    }
+    expect(matched, '选择器 ">X" 应与某个 faceRef 面产生同一拔模几何').toBe(true)
+  })
+
+  it('defeature: 无效选择器字符串 → 执行失败（选择器解析路径被走到，不静默降级）', async () => {
+    await useOcct()
+    const bad = await exec('brep', `const p0 = cad.box(10,10,10)\nlet part1 = cad.defeature(p0, "bogus")\n`)
+    expect(bad.failedAt).toBeDefined()
+  })
+
+  it('extrude: upTo 面选择器（在 baseFeature 上解析 ">Z"）→ 拉伸到顶面（棱柱高 10）', async () => {
+    await useOcct()
+    const s = await shapeOf(
+      'brep',
+      `const p0 = cad.box(20,20,10)\nconst f0 = ${SQUARE_SKETCH}\nlet part1 = cad.extrude(f0, { upTo: ">Z", baseFeature: p0 })\n`,
+      'part1',
+    )
+    const b = bboxOf(s)
+    expect(Math.abs(b.zmin - 0)).toBeLessThanOrEqual(1e-6)
+    expect(Math.abs(b.zmax - 10)).toBeLessThanOrEqual(1e-6)
+    // 20×20 见方（SQUARE_SKETCH 是 [-10,10]²）柱，高 10 → 400×10=4000
+    // （与 faceRef 顶面分支逐位一致，见 debug 对比）
+    const vol = volOf(s)
+    expect(vol).toBeGreaterThan(3900)
+    expect(vol).toBeLessThan(4100)
+  })
+
+  it('sketchOnFace: face 选择器 ">Z" → 在 box 顶面铺出面（z=10 平面）', async () => {
+    await useOcct()
+    const s = await shapeOf(
+      'brep',
+      `const p0 = cad.box(20,20,10)\nconst f0 = cad.sketchOnFace({ ${SMALL_LOOPS}, on: p0, face: ">Z" })\nlet part1 = f0\n`,
+      'part1',
+    )
+    const b = bboxOf(s)
+    expect(Math.abs(b.zmin - 10)).toBeLessThanOrEqual(1e-6)
+    expect(Math.abs(b.zmax - 10)).toBeLessThanOrEqual(1e-6)
+  })
+
+  it('punchHole: face 选择器 ">Z" → 顶面打孔（体积小于原体）', async () => {
+    await useOcct()
+    const s = await shapeOf(
+      'brep',
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.punchHole({ ${SMALL_LOOPS}, on: p0, face: ">Z" })\n`,
+      'part1',
+    )
+    const vol = volOf(s)
+    expect(vol).toBeGreaterThan(0)
+    expect(vol).toBeLessThan(BOX_20_20_10_VOL)
   })
 })

@@ -380,7 +380,7 @@ const a = await cad.import_brep({ asset: 'Array001.Shape' })
 
 ### 3.16 `import_step` ✅
 
-api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， 经当前 BREP 引擎的 `kernel.importStep` 读入，返回持引擎句柄 + roleTable 的 Shape（无引擎门禁：occt / brepkit 行为同构，方案 2026-10-11-brepkit-step-io.md）。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
+api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
 
 ```js
 const a = await cad.import_step({ path: 'D:/models/box.step' })
@@ -524,7 +524,7 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 |---|---|---|---|---|
 | `contours` | `any[]` | ✅ | — | ordered 2D closed contours (the hole profile). |
 | `on` | `Shape` | ✅ | — | the target solid to punch. |
-| `face` | `any` | ✅ | — | host face: 1-based ordinal or `cad.faceRef(on, n)`. |
+| `face` | `any` | ✅ | — | host face: FaceTopoRef（UI 拾取产物字面量）或 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本） |
 | `height` | `number|object` |  | — | blind depth along the face inward normal (null/absent = through). |
 | `draftAngle` | `number` |  | — | wall taper in degrees (default 0 = straight; built as an occt loft frustum). |
 | `scaleMode` | `string` |  | — | UV mapping: 'original' | 'bounds' | 'native'. |
@@ -583,7 +583,7 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 |---|---|---|---|---|
 | `contours` | `any[]` | ✅ | — | ordered 2D closed contours (same shape as `cad.profile`). |
 | `on` | `Shape` | ✅ | — | the target solid on which the face lives. |
-| `face` | `any` | ✅ | — | the host face: a 1-based ordinal or a `cad.faceRef(on, n)` result. |
+| `face` | `any` | ✅ | — | the host face: FaceTopoRef（UI 拾取产物字面量）或 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本） |
 | `scaleMode` | `string` |  | — | UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit; OCCT planar only). |
 | `as` | `string` |  | — | `'face'` (default) or `'wire'` (outer loop only). |
 
@@ -609,7 +609,7 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 |---|---|---|---|---|
 | `contours` | `any[]` | ✅ | — | ordered 2D closed contours (same shape as `cad.profile`). |
 | `on` | `Shape` | ✅ | — | the target solid on which the face lives. |
-| `face` | `any` | ✅ | — | the host face: a 1-based ordinal or a `cad.faceRef(on, n)` result. |
+| `face` | `any` | ✅ | — | the host face: FaceTopoRef（UI 拾取产物字面量）或 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本） |
 | `scaleMode` | `string` |  | — | UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit). |
 | `as` | `string` |  | — | `'face'` (default) or `'wire'` (outer loop only). |
 
@@ -1084,12 +1084,13 @@ const b = await cad.cut(part0, part1)
 拔模：对选定面施加拔模斜度（铸造/注塑出模角）。
 
 ```js
-const d = await cad.draft(part0, { faces: [cad.faceRef(part0, 3)], angleDeg: 3 })
+// faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
+const d = await cad.draft(part0, { faces: pickedFaces, angleDeg: 3 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `faces` | `FaceTopoRef[]` | ✅ | — | 拔模面（FaceTopoRef[]，cad.faceRef 产物） |
+| `faces` | `FaceTopoRef[]` | ✅ | — | 拔模面：FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号） |
 | `angleDeg` | `number` | ✅ | — | 拔模角（度，≠0） |
 | `pull` | `Vec3` |  | +Z）。type:Vec3 required:false | 拔模方向（ |
 | `neutral` | `{point:Vec3,normal?:Vec3}` |  | — | 中性面**点**（{point}；normal 无消费者） |
@@ -1147,7 +1148,8 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 ```js
 const p = await cad.extrude(part0, [0, 0, 10])
 const p = await cad.extrude(part0, { length: 10 })
-const p = await cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
+// upTo 接受 FaceTopoRef（UI 拾取产物字面量）；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
+const p = await cad.extrude(sk, { upTo: pickedUpToFace })
 const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
 ```
 
@@ -1156,7 +1158,7 @@ const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
 | `length` | `number` |  | — | 总拉伸量（mm，>0）。up-to 模式下无需给 |
 | `normal` | `[x,y,z]` |  | [0,0,1] | 拉伸方向（世界坐标） |
 | `mode` | `'forward' | 'backward'` |  | 'forward' | 沿 normal 的前进方向：forward 正向 / backward 反向 |
-| `upTo` | `'last' | 'first' | FaceTopoRef` |  | — | 拉伸到面：FaceTopoRef 指定面 / 'last' 支持体远端面 / 'first' 近端面（需 baseFeature）。提供时忽略 length |
+| `upTo` | `'last' | 'first' | FaceTopoRef` |  | — | 拉伸到面：FaceTopoRef（UI 拾取产物字面量）指定面 / 'last' 支持体远端面 / 'first' 近端面（需 baseFeature）。提供时忽略 length。❌ 禁止 cad.faceRef 序号 |
 | `baseFeature` | `Shape` |  | — | upTo 'last'/'first' 的支持体几何（累积支持体） |
 | `offset` | `number` |  | 0 | 截断面沿其法向的偏移（mm） |
 
@@ -1496,19 +1498,22 @@ const sec = await cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
 抽壳：移除指定面并把余下面偏置成等厚薄壁。
 
 ```js
-const sh = await cad.shell(part0, { openFaces: [cad.faceRef(part0, 1)], thickness: 2 })
+// openFaces 取 UI 拾取产物的 FaceTopoRef 字面量（origin/role 由命名层分配，不手写）；
+// ❌ 不要用 cad.faceRef 序号——跨内核不可移植
+const sh = await cad.shell(part0, { openFaces: pickedFaces, thickness: 2 })
+// 网格链（3MF mesh-solid）：无 role 层，序号是唯一无歧义指认（仅当前内核快照）
 const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `openFaces` | `FaceTopoRef[]` | ✅ | — | 要移除的面（FaceTopoRef[]，cad.faceRef 产物；网格链可用 1 起序号） |
+| `openFaces` | `FaceTopoRef[]` | ✅ | — | 要移除的面：FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号；网格链可用 1 起序号） |
 | `thickness` | `number` | ✅ | — | 壁厚（mm，>0） |
 | `tolerance` | `number` |  | — | 容差（mm） |
 
 **异步**。Shape 抽壳后的薄壁体。
 
-> 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。 精度链按 role 线路选面（`cad.faceRef`）；网格链按序号或几何选面——网格零件 没有 role 层，序号是唯一无歧义的指认方式。
+> 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。 精度链按 role 线路选面（TopoRef 字面量）；**禁止 `cad.faceRef` 序号**—— 序号跨内核不可移植。网格链没有 role 层，序号是唯一无歧义的指认方式（仅当前 内核快照）。
 
 ### 5.30 `solidFromFaces` ✅
 
@@ -1712,12 +1717,13 @@ autoHeal(shape: Shape, options?: AutoHealOptions): { shape: Shape, report }
 移除特征面（孔/凸台等），恢复基础形状。
 
 ```js
-const base = await cad.defeature(part0, [cad.faceRef(part0, 5)])
+// faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
+const base = await cad.defeature(part0, pickedFaces)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `faces` | `FaceTopoRef[]` | ✅ | — | 要移除的面（FaceTopoRef[]，cad.faceRef 产物） |
+| `faces` | `FaceTopoRef[]` | ✅ | — | 要移除的面：FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号） |
 
 **异步**。Shape 移除特征后的几何。
 
@@ -2137,11 +2143,7 @@ const gap = cad.distanceBetween(box1, box2)
 
 ### 8.14 `edgeRef` ✅
 
-查询几何体第 N 条边的 `EdgeTopoRef`，供 `cad.fillet` / `cad.chamfer` 的 `edges` 使用： `cad.fillet(base, { edges: [cad.edgeRef(base, 17)], radius: 2 })`。 定不了案（无 BREP / 序号越界 / 邻面不足两面 / 邻面无 role 血统）抛 `TopoRefError`。
-
-```js
-const part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 1)], radius: 2 })
-```
+查询几何体第 N 条边的 `EdgeTopoRef`（1 起），供按 role 线路选边（`cad.fillet` / `cad.chamfer` 的 `edges` 等）使用。**查询用途，不用于脚本生成**——序号是内核 枚举序，跨内核/跨特征会漂移；本 API 仅供 FCStd 移植桥与网格链等无 role 层场景使用。 定不了案（无 BREP / 序号越界 / 邻面不足两面 / 邻面无 role 血统）抛 `TopoRefError`。
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -2150,6 +2152,8 @@ const part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 1)], radius: 2 })
 
 **同步**。EdgeTopoRef 该边的拓扑引用（相邻两面 role 对 + length/midpoint hint）。
 
+> ⚠️ 查询用途，不用于脚本生成：序号跨内核不可移植（同实体 occt 与 brepkit 枚举序不同）。生成脚本应使用 TopoRef 字面量（UI 拾取产物）或 CadQuery 选择器字符串（AI 生成）。
+>
 > 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `EdgeN` 同序（`getSubShapes(solid,'edge')` 用 TopExp::MapShapes + IndexedMap 枚举）。
 
 ### 8.15 `faceNormal` ✅
@@ -2170,11 +2174,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 ### 8.16 `faceRef` ✅
 
-查询几何体第 N 张面的 `FaceTopoRef`，供 `cad.extrude` 的 `upTo` 等参数使用： `cad.extrude(part0, { upTo: cad.faceRef(part0, 3) })`。 定不了案（无 BREP / 序号越界 / 面无 role 血统）抛 `TopoRefError`。
-
-```js
-const part1 = cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
-```
+查询几何体第 N 张面的 `FaceTopoRef`（1 起），供按 role 线路选面（`cad.extrude` 的 `upTo` 等）使用。**查询用途，不用于脚本生成**——序号是内核枚举序，跨内核/跨特征 会漂移；本 API 仅供 FCStd 移植桥与网格链等无 role 层场景使用。 定不了案（无 BREP / 序号越界 / 面无 role 血统）抛 `TopoRefError`。
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -2183,6 +2183,8 @@ const part1 = cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
 
 **同步**。FaceTopoRef 该面的拓扑引用（origin/role 血统 + 几何 hint）。
 
+> ⚠️ 查询用途，不用于脚本生成：序号跨内核不可移植（同实体 occt 与 brepkit 枚举序不同）。生成脚本应使用 TopoRef 字面量（UI 拾取产物）或 CadQuery 选择器字符串（AI 生成）。
+>
 > 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `FaceN` 同序（`getSubShapes(solid,'face')` 用 TopExp::MapShapes + IndexedMap 枚举）。
 
 ### 8.17 `inertia` ✅
@@ -2549,8 +2551,6 @@ const svg = cad.projectView(part0, 'iso', { strokeWidth: 1, dash: '4,4', hiddenO
 
 **同步**。SVG 字符串（<svg viewBox="…"> + 可见实线 <path> + 隐藏虚线 <path>）。裸调用 cad.projectView(part0, 'front') 不消费 part0（规则 1），part 仍留在 canvas。
 
-引擎通道（无门禁）：任何 BREP 引擎可执行。`occt` = HLR compound 采样；`brepkit` = 内核原生折线（已投影 2D 点列直接序列化）；产出按各自内核为准。
-
 ### 8.40 `reverseSurfaceU` ✅
 
 反转面的 U 参数方向（occt `Geom_Surface::UReverse` 语义）：返回新面代理， 其曲面是原曲面的 U 反转版（拓扑不变，UV 求值随之镜像）。
@@ -2724,7 +2724,7 @@ const asm = cad.exportStep(asm1, { unit: 'inch' })
 
 **同步**。string STEP（ISO-10303-21）文本。
 
-> 薄壳 op：条目构造后一律交库面 `exportModelSync(entries,'step',{unit})` 序列化， 故同一入参下脚本面文本与库面**逐字节一致**（同一真源，不另起写出通道）。 返回**纯文本**（ISO-10303-21），由宿主写入 `.step` / `.stp` 文件——内核不 import fs。 入参可为单件 Shape 或装配 compound（`cad.assembly` / `cad.group` 产物）， compound 逐成员导出；空装配显式报 E_EXPORT_STEP_EMPTY，不落空文件。 **宿主门**：仅 `'node'`（browser / weapp / 未声明报 E_HOST_UNSUPPORTED）。 **引擎通道无门禁**（方案 2026-10-11-brepkit-step-io.md）：库面按当前引擎静态分派——`occt` → XCAF 装配通道（层级/成员名/颜色，`unit` 成对换算写出）；`brepkit` → 内核原生通道（`brep/export/step-flat.ts`，平铺多实体、无层级/名称/颜色，`unit` 不生效——一切按 brepkit 自身实现，不因缺特性报错）。
+> 薄壳 op：条目构造后一律交库面 `exportModelSync(entries,'step',{unit})` 序列化， 故同一入参下脚本面文本与库面**逐字节一致**（同一真源，不另起写出通道）。 返回**纯文本**（ISO-10303-21），由宿主写入 `.step` / `.stp` 文件——内核不 import fs。`unit` 只声明单位，坐标换算与声明由库面成对完成（缺省 mm）。 入参可为单件 Shape 或装配 compound（`cad.assembly` / `cad.group` 产物）， compound 逐成员导出并带上成员名与 `memberColors`；空装配显式报 E_EXPORT_STEP_EMPTY，不落空文件。 **宿主门**：仅 `'node'`（browser / weapp / 未声明报 E_HOST_UNSUPPORTED）。 引擎通道无门禁：库面按当前引擎分派——brepkit → 内核原生通道（unit/fileMeta 不生效），occt → XCAF 装配通道。
 
 ### 10.4 `exportStl` ✅
 

@@ -31,8 +31,9 @@ import type { EdgeTopoRef, RoleQualifier } from '../topology/naming'
 import { buildEdgeResolutionContext, recoverEdgeFaceRole } from './topo-resolve'
 
 /**
- * 查询几何体第 N 条边的 `EdgeTopoRef`，供 `cad.fillet` / `cad.chamfer` 的 `edges` 使用：
- * `cad.fillet(base, { edges: [cad.edgeRef(base, 17)], radius: 2 })`。
+ * 查询几何体第 N 条边的 `EdgeTopoRef`（1 起），供按 role 线路选边（`cad.fillet` /
+ * `cad.chamfer` 的 `edges` 等）使用。**查询用途，不用于脚本生成**——序号是内核
+ * 枚举序，跨内核/跨特征会漂移；本 API 仅供 FCStd 移植桥与网格链等无 role 层场景使用。
  *
  * 定不了案（无 BREP / 序号越界 / 邻面不足两面 / 邻面无 role 血统）抛 `TopoRefError`。
  * @group 查询
@@ -43,9 +44,8 @@ import { buildEdgeResolutionContext, recoverEdgeFaceRole } from './topo-resolve'
  * @returns EdgeTopoRef 该边的拓扑引用（相邻两面 role 对 + length/midpoint hint）。
  * @param of - 目标几何（BREP 实体所在的 Shape）。type:Shape required:true
  * @param edgeOrdinal - 边序号（1 起；等于 FreeCAD 的 `EdgeN`）。type:number required:true
+ * @note ⚠️ 查询用途，不用于脚本生成：序号跨内核不可移植（同实体 occt 与 brepkit 枚举序不同）。生成脚本应使用 TopoRef 字面量（UI 拾取产物）或 CadQuery 选择器字符串（AI 生成）。
  * @note 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `EdgeN` 同序（`getSubShapes(solid,'edge')` 用 TopExp::MapShapes + IndexedMap 枚举）。
- * @example
- * const part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 1)], radius: 2 })
  */
 export function edgeRef(of: Shape, edgeOrdinal: number): EdgeTopoRef {
   if (!Number.isInteger(edgeOrdinal) || edgeOrdinal < 1) {

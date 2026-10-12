@@ -32,6 +32,7 @@ import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import { assertPositiveNumber } from './assert'
+import { resolveSelectorToFaceRefs } from './selectors-to-refs'
 import { meshFaceEntry, meshKernelFailure, meshSolidProductWithBackend } from './internal/mesh-solid-op'
 import type { Shape, Vec3 } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
@@ -183,8 +184,9 @@ export interface UpToPlaneSpec {
   normal: Vec3
 }
 
-/** up-to 目标：显式面引用 / 显式平面 / 支持体沿拉伸方向的远端（last）/近端（first）端面。 */
-export type ExtrudeUpTo = FaceTopoRef | 'last' | 'first' | { plane: UpToPlaneSpec }
+/** up-to 目标：显式面引用 / 显式平面 / 支持体沿拉伸方向的远端（last）/近端（first）端面 /
+ * CadQuery 面选择器字符串（在 baseFeature 上解析，如 `">Z"`，多面命中抛错）。 */
+export type ExtrudeUpTo = FaceTopoRef | 'last' | 'first' | { plane: UpToPlaneSpec } | string
 
 /** `cad.extrude` 的对象形态参数（位置形态由 {@link normalizeExtrudeOptions} 归一到这里）。 */
 export interface ExtrudeOptions {
@@ -194,7 +196,7 @@ export interface ExtrudeOptions {
   normal?: Vec3
   /** 沿 normal 的前进方向；缺省 'forward'（'backward' 等价于方向取反）。 */
   mode?: 'forward' | 'backward'
-  /** 拉伸到面 / 到支持体端面；提供时忽略 length。 */
+  /** 拉伸到面 / 到支持体端面；提供时忽略 length。字符串 `'last'`/`'first'` 取支持体端面；其它字符串为 CadQuery 面选择器（在 baseFeature 上解析，多面命中抛错）。 */
   upTo?: ExtrudeUpTo
   /** upTo 'last'/'first' 的支持体（累积支持体，由转换器显式传入）。 */
   baseFeature?: Shape
@@ -301,30 +303,53 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
   if (typeof upTo === 'string') {
     const base = o.baseFeature
     const baseSolid = base ? (brepOf(base) as BrepHandle | undefined) : undefined
-    if (baseSolid === undefined) {
-      throw new Error('E_UP_TO_NO_BASE: upTo "last"/"first" requires a baseFeature shape')
+    if (base === undefined || baseSolid === undefined) {
+      throw new Error('E_UP_TO_NO_BASE: upTo "last"/"first"/selector requires a baseFeature shape')
     }
-    // 支持体 bbox 沿拉伸方向的远端/近端平面（R-C：baseFeature 显式传参）
-    const bbox = getSolidBoundingBox(kernel, baseSolid)
-    const pick = (which: 'max' | 'min'): Vec3 => {
-      const c: Vec3 = [
-        (bbox.min[0] + bbox.max[0]) / 2,
-        (bbox.min[1] + bbox.max[1]) / 2,
-        (bbox.min[2] + bbox.max[2]) / 2,
-      ]
-      const extent = which === 'max' ? 1 : -1
-      const proj =
-        (bbox.max[0] - bbox.min[0]) * Math.abs(normal.x) +
-        (bbox.max[1] - bbox.min[1]) * Math.abs(normal.y) +
-        (bbox.max[2] - bbox.min[2]) * Math.abs(normal.z)
-      return [
-        c[0] + ((normal.x * proj) / 2) * extent,
-        c[1] + ((normal.y * proj) / 2) * extent,
-        c[2] + ((normal.z * proj) / 2) * extent,
-      ]
+    if (upTo === 'last' || upTo === 'first') {
+      const bbox = getSolidBoundingBox(kernel, baseSolid)
+      const pick = (which: 'max' | 'min'): Vec3 => {
+        const c: Vec3 = [
+          (bbox.min[0] + bbox.max[0]) / 2,
+          (bbox.min[1] + bbox.max[1]) / 2,
+          (bbox.min[2] + bbox.max[2]) / 2,
+        ]
+        const extent = which === 'max' ? 1 : -1
+        const proj =
+          (bbox.max[0] - bbox.min[0]) * Math.abs(normal.x) +
+          (bbox.max[1] - bbox.min[1]) * Math.abs(normal.y) +
+          (bbox.max[2] - bbox.min[2]) * Math.abs(normal.z)
+        return [
+          c[0] + ((normal.x * proj) / 2) * extent,
+          c[1] + ((normal.y * proj) / 2) * extent,
+          c[2] + ((normal.z * proj) / 2) * extent,
+        ]
+      }
+      targetCenter = pick(upTo === 'last' ? 'max' : 'min')
+      targetNormal = [normal.x, normal.y, normal.z]
+    } else {
+      // CadQuery 面选择器：在支持体（baseFeature）上解析为单个目标面。
+      // 与 FaceTopoRef 分支同款——直接用解析出的 hint 快照（引用面在目标体上，
+      // 不做二次 resolveFaceGeometry，见下 GOTCHA）。
+      const refs = resolveSelectorToFaceRefs(base, upTo)
+      if (refs.length === 0) {
+        throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', `extrude upTo: selector "${upTo}" matched no face on baseFeature`)
+      }
+      if (refs.length > 1) {
+        throw new TopoRefError(
+          'E_TOPO_NOT_FOUND',
+          'face',
+          `extrude upTo: selector "${upTo}" matched ${refs.length} faces; upTo takes exactly one face`,
+        )
+      }
+      const ref = refs[0]
+      if (ref.hint.center && ref.hint.normal) {
+        targetCenter = [...ref.hint.center] as Vec3
+        targetNormal = [...ref.hint.normal] as Vec3
+      } else {
+        throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'extrude upTo: selector-resolved face ref hint has no center/normal snapshot')
+      }
     }
-    targetCenter = pick(upTo === 'last' ? 'max' : 'min')
-    targetNormal = [normal.x, normal.y, normal.z]
   } else if (upTo && typeof upTo === 'object' && 'plane' in upTo) {
     // 显式平面目标（datum plane 等无限平面：截断面由平面方程决定，不受
     // 目标面边界限制——斜置基准面时顶面是斜的，定长路径语义错误）。
@@ -512,14 +537,17 @@ function extrudeMeshChain(input: Shape, params: unknown): Shape {
  * @param params.length - 总拉伸量（mm，>0）。up-to 模式下无需给。type:number
  * @param params.normal - 拉伸方向（世界坐标）。type:[x,y,z] 默认 [0,0,1]
  * @param params.mode - 沿 normal 的前进方向：forward 正向 / backward 反向。type:'forward' | 'backward' 默认 'forward'
- * @param params.upTo - 拉伸到面：FaceTopoRef 指定面 / 'last' 支持体远端面 / 'first' 近端面（需 baseFeature）。提供时忽略 length。type:'last' | 'first' | FaceTopoRef
- * @param params.baseFeature - upTo 'last'/'first' 的支持体几何（累积支持体）。type:Shape
+ * @param params.upTo - 拉伸到面：FaceTopoRef（UI 拾取产物字面量）指定面 / 'last' 支持体远端面 / 'first' 近端面 / 面选择器字符串（如 ">Z"，在 baseFeature 上解析，多面命中抛错）。提供时忽略 length。❌ 禁止 cad.faceRef 序号。type:'last' | 'first' | FaceTopoRef | string
+ * @param params.baseFeature - upTo 'last'/'first'/面选择器的支持体几何（累积支持体）。type:Shape
  * @param params.offset - 截断面沿其法向的偏移（mm）。type:number 默认 0
  * @example
  * const p = await cad.extrude(part0, [0, 0, 10])
  * const p = await cad.extrude(part0, { length: 10 })
- * const p = await cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
+ * // upTo 接受 FaceTopoRef（UI 拾取产物字面量）；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
+ * const p = await cad.extrude(sk, { upTo: pickedUpToFace })
  * const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
+ * // AI 生成可写 CadQuery 面选择器字符串（在 baseFeature 上解析）
+ * const p = await cad.extrude(sk, { upTo: '>Z', baseFeature: part0 })
  */
 export const extrude = defineOp({
   name: 'extrude',

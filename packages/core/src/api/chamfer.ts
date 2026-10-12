@@ -37,6 +37,7 @@ import type { EdgeTopoRef, ResolutionContext } from '../topology/naming'
 import { resolveTopoRef, facesForQualifier, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext, buildEdgeContextFromSolid } from './topo-resolve'
+import { expandEdgeSelectorRefs } from './selectors-to-refs'
 import { OpError } from './internal/result-unwrap'
 import { meshKernelFailure, meshSolidEntry, meshSolidProduct, resolveMeshEdges } from './internal/mesh-solid-op'
 import { angleBetweenNormals, materialDihedralFromNormalAngle, chamferAngleFromDistances } from './chamfer-math'
@@ -45,9 +46,10 @@ import { angleBetweenNormals, materialDihedralFromNormalAngle, chamferAngleFromD
 
 /**
  * Validate chamfer parameters: `edges` must be a non-empty array of EdgeTopoRef,
- * each with kind key "edge" and a two-entry faces pair — or of 1-based ordinals
- * when `opts.allowOrdinals` (the mesh chain, which has no role layer to match
- * edges against).
+ * each with kind key "edge" and a two-entry faces pair — or of selector strings
+ * (`"|Z"` etc., precision chain) — or of 1-based ordinals when
+ * `opts.allowOrdinals` (the mesh chain, which has no role layer to match
+ * edges against). A top-level selector string is also accepted.
  * @param params the raw chamfer operation parameters.
  * @param opts the selector-form options (mesh chain allows ordinals).
  */
@@ -56,13 +58,20 @@ export function assertChamferParams(
   opts?: { readonly allowOrdinals?: boolean },
 ): void {
   const edges = params.edges
-  if (!Array.isArray(edges) || edges.length === 0) {
+  const list = typeof edges === 'string' ? [edges] : (edges as unknown[])
+  if (typeof edges !== 'string' && (!Array.isArray(edges) || list.length === 0)) {
     throw new Error('E_CHAMFER_NO_EDGES: chamfer requires at least one edge')
   }
-  for (const e of edges) {
+  for (const e of list) {
     if (opts?.allowOrdinals && typeof e === 'number') {
       if (!Number.isInteger(e) || e < 1) {
         throw new Error('E_CHAMFER_BAD_EDGE_REF: an edge ordinal must be a positive integer (1-based)')
+      }
+      continue
+    }
+    if (typeof e === 'string') {
+      if (e.trim() === '') {
+        throw new Error('E_CHAMFER_BAD_EDGE_REF: an edge selector string must not be empty')
       }
       continue
     }
@@ -222,10 +231,13 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
   const solid = brepOf(input) as BrepHandle | undefined
   if (solid === undefined) throw new Error('[api/chamfer] E_CHAMFER_NO_BREP: input is not BREP')
 
-  const edges = (params.edges as unknown as EdgeTopoRef[] | undefined) ?? []
+  const edges = (params.edges as unknown as EdgeTopoRef[] | string | undefined) ?? []
   const type = params.type as string
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', 'input has no edge naming context')
+
+  // 展开选择器字符串 → EdgeTopoRef[]（顶层字符串或数组元素字符串）
+  const edgeRefs = expandEdgeSelectorRefs(input, (edges ?? []) as EdgeTopoRef[] | string)
 
   // 输入 roleTable + outStmt（与 boolean.ts / fillet.ts 同构）。Phase 1.6：origin=StmtId。
   const inputTable = inputRoleTable(input) as ReadonlyMap<unknown, unknown> | undefined
@@ -243,7 +255,7 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
 
   switch (type) {
     case 'equal': {
-      const edgeHandles = edges.map((e) => resolveEdge(ctx, e).handle)
+      const edgeHandles = edgeRefs.map((e) => resolveEdge(ctx, e).handle)
       if (useHistory) {
         // occt 历史路径（P5：chamferWithHistory + roleTable 传播，§3.2 末段）
         const r = chamferWithRoleTable(
@@ -266,7 +278,7 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
       break
     }
     case 'distanceAngle':
-      resultSolid = kernel.chamferDistAngle(solid, edges.map((e) => resolveEdge(ctx, e).handle), params.width as number, params.angle as number)
+      resultSolid = kernel.chamferDistAngle(solid, edgeRefs.map((e) => resolveEdge(ctx, e).handle), params.width as number, params.angle as number)
       if (useHistory) {
         // occt：chamferDistAngle 无 WithHistory 版本——用恒等面演化 + 原表（既有行为）。
         faceEvolution = identityEvolution(kernel, resultSolid)
@@ -278,7 +290,7 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
       }
       break
     case 'twoDistances':
-      resultSolid = chamferTwoDistances(kernel, edges, ctx, solid, params.width1 as number, params.width2 as number)
+      resultSolid = chamferTwoDistances(kernel, edgeRefs, ctx, solid, params.width1 as number, params.width2 as number)
       if (useHistory) {
         faceEvolution = identityEvolution(kernel, resultSolid)
         roleTable = inputTable
@@ -315,7 +327,7 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
  */
 function chamferMeshSolid(input: Shape, params: Record<string, unknown>): Shape {
   const type = params.type as string
-  const edges = (params.edges as unknown as (number | EdgeTopoRef)[] | undefined) ?? []
+  const edges = (params.edges as unknown as (number | string | EdgeTopoRef)[] | string | undefined) ?? []
   if (type === 'twoDistances') {
     throw new OpError(
       'chamfer',
@@ -325,7 +337,15 @@ function chamferMeshSolid(input: Shape, params: Record<string, unknown>): Shape 
     )
   }
   const entry = meshSolidEntry(input, 'chamfer')
-  const edgeHandles = resolveMeshEdges(entry, edges, 'chamfer')
+  // 选择器字符串只服务精度链（网格零件无 role 层）；网格链用 1 起序号。
+  if (typeof edges === 'string' || (Array.isArray(edges) && edges.some((e) => typeof e === 'string'))) {
+    throw new TopoRefError(
+      'E_TOPO_MESH_UNSUPPORTED',
+      'edge',
+      'chamfer: selector strings are precision-chain only — mesh solids have no role layer (use 1-based edge ordinals)',
+    )
+  }
+  const edgeHandles = resolveMeshEdges(entry, edges as (number | EdgeTopoRef)[], 'chamfer')
 
   let result: BrepHandle
   try {
@@ -355,7 +375,7 @@ function chamferMeshSolid(input: Shape, params: Record<string, unknown>): Shape 
  *       `width1` 沿 faces[0] 侧、`width2` 沿 faces[1] 侧（BREP 路径）。
  * @returns Shape 倒角后的几何。
  * @param input - 目标几何。type:Shape required:true
- * @param params.edges - 参与倒角的边（EdgeTopoRef[]，条目为相邻两面的 role 线路）。type:EdgeTopoRef[] required:true
+ * @param params.edges - 参与倒角的边：CadQuery 边选择器字符串（如 "|Z"，AI 生成）或相邻两面的 role 线路（EdgeTopoRef[]，UI 拾取产物）。type:EdgeTopoRef[]|string required:true
  * @param params.type - 倒角类型（equal | twoDistances | distanceAngle）。type:string required:true
  * @param params.width - type=equal: 倒角宽度（mm）。type:number 默认 1
  * @param params.width1 - type=twoDistances: 沿 faces[0] 侧距离（mm）。type:number
@@ -363,6 +383,8 @@ function chamferMeshSolid(input: Shape, params: Record<string, unknown>): Shape 
  * @param params.angle - type=distanceAngle: 与参考面夹角（度，(0,90)）。type:number
  * @example
  * const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
+ * // AI 生成可写 CadQuery 边选择器字符串
+ * const p2 = await cad.chamfer(part0, { edges: "|Z", type:'equal', width:1 })
  * const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
  */
 export const chamfer = defineOp({

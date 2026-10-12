@@ -19,7 +19,6 @@ A `.fai.js` file is valid JavaScript with specific conventions:
 let base_plate = cad.box(100 * MM, 80 * MM, 10 * MM)
 let shaft = cad.cylinder(5 * MM, 40 * MM)
 let assembled = cad.union(base_plate, shaft)
-let rounded = cad.fillet(assembled, { edges: [cad.edgeRef(assembled, 1)], radius: 2 * MM })
 ```
 
 ## Key Concepts
@@ -31,7 +30,28 @@ Every op supports the **mesh** path (default, manifold-3d). Some also support th
 APIs use a `Result<T>` type (`ok`/`err`/`isErr`). In `.fai.js` scripts, statement boundaries automatically unwrap results — an `err` becomes a statement failure. Third-party library functions return `Result` natively; the boundary unwraps at the statement level.
 
 ### Topology References
-Faces and edges are referenced by **role-based topology identity** (`cad.faceRef(shape, n)`, `cad.edgeRef(shape, n)`), where `n` is a 1-based ordinal matching FreeCAD's `FaceN`/`EdgeN` convention. This allows fillet/chamfer/draft/shell to target specific edges/faces across parametric changes.
+Topology parameters (`fillet.edges`, `chamfer.edges`, `shell.openFaces`, `draft.faces`, `defeature.faces`, `extrude.upTo`, ...) are referenced by **portable topology identity** — `EdgeTopoRef` / `FaceTopoRef` — each recording the statement it was born from (`origin`) and its role within that statement (`role`), so the reference stays valid across parametric changes and across kernels.
+
+**In generated scripts, topology parameters take the TopoRef literal the UI picker emits** (`{ kind:'edge'|'face', origin, role, hint }`). Pass it through unchanged; never hand-write `origin`/`role` values — they are assigned by the naming layer at runtime.
+
+**⚠️ Never use ordinal references in generated scripts** — the `cad.edgeRef` / `cad.faceRef` query bridges or bare numbers. Ordinals are the kernel's enumeration order and drift across kernels and features (the same box enumerates edge[0] = length 5 under occt but length 20 under brepkit). `edgeRef` / `faceRef` are **query bridges only**, for FCStd import porting and mesh-chain parts that have no role layer; mesh-chain bare ordinals (`openFaces: [4]`) are likewise current-kernel-only.
+
+### Selector Strings (precision chain)
+
+When a script must pick topology without a UI-picked literal, use **CadQuery selector strings** on the BREP (precision) chain. The following ops accept them (as the top-level value or as array elements, in place of TopoRef literals):
+
+| Op | Parameter accepting a selector string |
+|---|---|
+| `fillet` / `chamfer` | `edges` (edge selector) |
+| `filletVariable` | `edge` (single edge; multi-match fails) |
+| `shell` | `openFaces` (face selector) |
+| `draft` / `defeature` | `faces` (face selector) |
+| `extrude` | `upTo` (face selector, resolved on `baseFeature`; single face) |
+| `sketchOnFace` / `sketchOnSurface` / `punchHole` | `face` (face selector on the target solid) |
+
+Selector syntax follows CadQuery (compatible subset): `">Z"` = the face/edge at the Z extreme, `"<Z"` = Z minimum, `"|Z"` = parallel to Z (face normal / edge tangent), `"#Z"` = perpendicular to Z, `"+Z"`/`"-Z"` = facing +Z/-Z, `"%LINE"` = by type, `">Z,|X"`-style set expressions. Selectors are evaluated against the current kernel at runtime, so they are **portable across kernels** (unlike ordinals). A selector matching nothing, or matching more than one entity for a single-entity parameter, fails loudly — never silently picks one.
+
+Selector strings are **precision-chain only**: the mesh chain has no role layer, so mesh solids must keep using 1-based ordinals (current-kernel-only, see above).
 
 ### Unit System
 - **+Z is up.**

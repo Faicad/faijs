@@ -42,7 +42,7 @@ export interface PunchHoleParams {
   contours: ProfileLoop[]
   /** The target solid on which the hole is punched. */
   on: Shape
-  /** The host face: a 1-based ordinal or a `cad.faceRef(on, n)` result. */
+  /** The host face: a FaceTopoRef (UI-picked literal), a CadQuery face selector string (e.g. ">Z", resolved on `on`), or a 1-based ordinal (mesh chain / current kernel snapshot only). */
   face: FaceSelector
   /** Removal depth along the face inward normal. `null`/absent = through hole. */
   height?: number | null
@@ -251,7 +251,7 @@ export function buildPunchHole(kernel: BrepEngineApi, params: PunchHoleParams): 
  * @returns Shape with the profile punched out of `on`.
  * @param params.contours - ordered 2D closed contours (the hole profile).type:any[] required:true
  * @param params.on - the target solid to punch.type:Shape required:true
- * @param params.face - host face: 1-based ordinal or `cad.faceRef(on, n)`.type:any required:true
+ * @param params.face - host face: FaceTopoRef（UI 拾取产物字面量）| 面选择器字符串（如 ">Z"，在 on 上解析，多面命中抛错）| 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本）。type:any required:true
  * @param params.height - blind depth along the face inward normal (null/absent = through).type:number|object required:false
  * @param params.draftAngle - wall taper in degrees (default 0 = straight; built as an occt loft frustum).type:number required:false
  * @param params.scaleMode - UV mapping: 'original' | 'bounds' | 'native'.type:string required:false

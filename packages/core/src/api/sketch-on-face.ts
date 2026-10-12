@@ -40,6 +40,7 @@ import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import { TopoRefError, resolveTopoRef, type FaceTopoRef } from '../topology/naming'
 import { buildEdgeResolutionContext } from './topo-resolve'
+import { resolveSelectorToFaceRefs } from './selectors-to-refs'
 import { Blueprint } from '../geometry2d/blueprint'
 import { CompoundBlueprint } from '../geometry2d/compound-blueprint'
 import { organiseBlueprints } from '../geometry2d/organise'
@@ -55,8 +56,10 @@ import {
   resolveMeshFaceHandle,
 } from './internal/mesh-solid-op'
 
-/** A face selector on a target solid: a 1-based ordinal (FreeCAD `FaceN`) or a `cad.faceRef` result. */
-export type FaceSelector = number | FaceTopoRef
+/** A face selector on a target solid: a 1-based ordinal (FreeCAD `FaceN`, mesh chain /
+ * current kernel snapshot only), a `cad.faceRef` result, or a CadQuery face selector
+ * string (e.g. `">Z"` — precision chain, resolved on `on`). */
+export type FaceSelector = number | FaceTopoRef | string
 
 /** Contour loops + the target face for `cad.sketchOnFace`. */
 export interface SketchOnFaceParams {
@@ -64,7 +67,7 @@ export interface SketchOnFaceParams {
   contours: ProfileLoop[]
   /** The target solid on which the host face lives. */
   on: Shape
-  /** The host face: a 1-based face ordinal, or a `cad.faceRef(on, n)` result. */
+  /** The host face: a FaceTopoRef (UI-picked literal), a CadQuery face selector string (e.g. ">Z", resolved on `on`), or a 1-based face ordinal (mesh chain / current kernel snapshot only). */
   face: FaceSelector
   /** How 2D coords map onto the face UV space: `'original'` (identity) | `'bounds'`/`'native'` (affine-fit). */
   scaleMode?: FaceScaleMode
@@ -73,10 +76,11 @@ export interface SketchOnFaceParams {
 }
 
 /**
- * Resolve a face on `on` to its live BREP handle (1-based ordinal or `cad.faceRef`).
+ * Resolve a face on `on` to its live BREP handle (1-based ordinal, `cad.faceRef`,
+ * or CadQuery face selector string resolved on `on`).
  * @param kernel - the BREP engine surface.
  * @param on - the target solid shape.
- * @param selector - the face ordinal or `cad.faceRef` result.
+ * @param selector - the face ordinal, `cad.faceRef` result, or selector string.
  * @returns the live face handle.
  */
 export function resolveFaceHandle(kernel: BrepEngineApi, on: Shape, selector: FaceSelector): BrepHandle {
@@ -95,8 +99,29 @@ export function resolveFaceHandle(kernel: BrepEngineApi, on: Shape, selector: Fa
     }
     return faces[selector - 1] as BrepHandle
   }
+  if (typeof selector === 'string') {
+    // CadQuery 面选择器字符串（精度链）：在 `on` 上解析为单个宿主面。
+    const refs = resolveSelectorToFaceRefs(on, selector)
+    if (refs.length === 0) {
+      throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', `sketchOnFace: selector "${selector}" matched no face on target`)
+    }
+    if (refs.length > 1) {
+      throw new TopoRefError(
+        'E_TOPO_NOT_FOUND',
+        'face',
+        `sketchOnFace: selector "${selector}" matched ${refs.length} faces; the host face must be unique`,
+      )
+    }
+    const ctx = buildEdgeResolutionContext(kernel, on as object)
+    if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'sketchOnFace: input has no naming context')
+    const resolved = resolveTopoRef(refs[0]!, ctx)
+    if (resolved.handle === undefined) {
+      throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'sketchOnFace: selector-resolved face ref resolved to no live handle')
+    }
+    return resolved.handle as BrepHandle
+  }
   if (selector.kind !== 'face') {
-    throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'sketchOnFace: selector must be a face ordinal or a face ref')
+    throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'sketchOnFace: selector must be a face ordinal, a selector string, or a face ref')
   }
   const ctx = buildEdgeResolutionContext(kernel, on as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'sketchOnFace: input has no naming context')
@@ -283,6 +308,14 @@ export function buildSketchOnFaceMesh(params: SketchOnFaceParams): Shape {
       getCurrentStmt(),
     )
   }
+  // 选择器字符串只服务精度链（网格零件无 role 层）；网格链用 1 起序号。
+  if (typeof params.face === 'string') {
+    throw new TopoRefError(
+      'E_TOPO_MESH_UNSUPPORTED',
+      'face',
+      `sketchOnFace: selector strings are precision-chain only — mesh solids have no role layer (use 1-based face ordinals)`,
+    )
+  }
 
   const host = resolveMeshFaceHandle(kernel, params.on, params.face, opLabel)
   const surface = kernel.surfaceType(host)
@@ -332,7 +365,7 @@ export function buildSketchOnFaceMesh(params: SketchOnFaceParams): Shape {
  * @returns Shape on the target face (face, or a wire curve when `as:'wire'`).
  * @param params.contours - ordered 2D closed contours (same shape as `cad.profile`).type:any[] required:true
  * @param params.on - the target solid on which the face lives.type:Shape required:true
- * @param params.face - the host face: a 1-based ordinal or a `cad.faceRef(on, n)` result.type:any required:true
+ * @param params.face - the host face: FaceTopoRef（UI 拾取产物字面量）| 面选择器字符串（如 ">Z"，在 on 上解析，多面命中抛错）| 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本）。type:any required:true
  * @param params.scaleMode - UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit; OCCT planar only).type:string required:false
  * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
  */

@@ -20,13 +20,35 @@ import type { EdgeTopoRef } from '../topology/naming'
 import { resolveTopoRef, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext } from './topo-resolve'
+import { resolveSelectorToEdgeRefs } from './selectors-to-refs'
+
+/** 单边选择：EdgeTopoRef（UI 拾取产物）或 CadQuery 边选择器字符串（AI 生成）。 */
+export type FilletVariableEdge = EdgeTopoRef | string
 
 /** BREP 路径：解析边引用 → L1 filletVariable → 收养。 */
-function filletVariableBrep(input: Shape, edge: EdgeTopoRef, startRadius: number, endRadius: number): Shape {
-  if (!edge || (edge as { kind?: unknown }).kind !== 'edge') {
-    throw new Error('E_FILLETVAR_BAD_EDGE_REF: edge must be an EdgeTopoRef (as consumed by cad.fillet)')
+function filletVariableBrep(input: Shape, edge: FilletVariableEdge, startRadius: number, endRadius: number): Shape {
+  let edgeRef: EdgeTopoRef
+  if (typeof edge === 'string') {
+    // 选择器字符串 → 解析；单边参数多命中 → 抛错（R3：不静默取第一个）。
+    const refs = resolveSelectorToEdgeRefs(input, edge)
+    if (refs.length === 0) {
+      throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', `filletVariable: selector "${edge}" matched no edge`)
+    }
+    if (refs.length > 1) {
+      throw new TopoRefError(
+        'E_TOPO_NOT_FOUND',
+        'edge',
+        `filletVariable: selector "${edge}" matched ${refs.length} edges; filletVariable takes exactly one edge`,
+      )
+    }
+    edgeRef = refs[0]
+  } else {
+    edgeRef = edge
   }
-  const faces = (edge as { faces?: unknown }).faces
+  if (!edgeRef || (edgeRef as { kind?: unknown }).kind !== 'edge') {
+    throw new Error('E_FILLETVAR_BAD_EDGE_REF: edge must be an EdgeTopoRef (as consumed by cad.fillet) or a selector string')
+  }
+  const faces = (edgeRef as { faces?: unknown }).faces
   if (!Array.isArray(faces) || faces.length !== 2) {
     throw new Error('E_FILLETVAR_BAD_EDGE_REF: EdgeTopoRef.faces must be a two-entry RoleQualifier pair')
   }
@@ -41,9 +63,9 @@ function filletVariableBrep(input: Shape, edge: EdgeTopoRef, startRadius: number
 
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', 'filletVariable: input has no BREP naming context')
-  const r = resolveTopoRef(edge, ctx)
+  const r = resolveTopoRef(edgeRef, ctx)
   if (r.handle === undefined) {
-    throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', `filletVariable: edge resolved without handle (${edge.faces[0].role}/${edge.faces[1].role})`)
+    throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', `filletVariable: edge resolved without handle (${edgeRef.faces[0].role}/${edgeRef.faces[1].role})`)
   }
 
   const result = kernel.filletVariable(solid, r.handle as BrepHandle, startRadius, endRadius)
@@ -62,14 +84,16 @@ function filletVariableBrep(input: Shape, edge: EdgeTopoRef, startRadius: number
  *       仅 BREP 可用。
  * @returns Shape 变半径圆角后的几何。
  * @param input - 目标几何。type:Shape required:true
- * @param edge - 目标边（EdgeTopoRef，同 cad.fillet 的 edges 条目）。type:EdgeTopoRef required:true
+ * @param edge - 目标边：EdgeTopoRef（同 cad.fillet 的 edges 条目，UI 拾取产物）或 CadQuery 边选择器字符串（如 "|Z"，AI 生成；多边命中抛错）。type:EdgeTopoRef|string required:true
  * @param r1 - 起点半径（mm，>0）。type:number required:true
  * @param r2 - 终点半径（mm，>0）。type:number required:true
  * @example
  * const v = await cad.filletVariable(part0, partEdges[0], 1, 4)
+ * // AI 生成可写 CadQuery 边选择器字符串
+ * const v2 = await cad.filletVariable(part0, "|Z", 1, 4)
  */
 export const filletVariable = defineOp({
-  brep(input: Shape, edge: EdgeTopoRef, r1: number, r2: number) {
+  brep(input: Shape, edge: FilletVariableEdge, r1: number, r2: number) {
     return filletVariableBrep(input, edge, r1, r2)
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,

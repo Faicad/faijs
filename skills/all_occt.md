@@ -19,7 +19,6 @@ A `.fai.js` file is valid JavaScript with specific conventions:
 let base_plate = cad.box(100 * MM, 80 * MM, 10 * MM)
 let shaft = cad.cylinder(5 * MM, 40 * MM)
 let assembled = cad.union(base_plate, shaft)
-let rounded = cad.fillet(assembled, { edges: [cad.edgeRef(assembled, 1)], radius: 2 * MM })
 ```
 
 ## Key Concepts
@@ -31,7 +30,28 @@ Every op supports the **mesh** path (default, manifold-3d). Some also support th
 APIs use a `Result<T>` type (`ok`/`err`/`isErr`). In `.fai.js` scripts, statement boundaries automatically unwrap results — an `err` becomes a statement failure. Third-party library functions return `Result` natively; the boundary unwraps at the statement level.
 
 ### Topology References
-Faces and edges are referenced by **role-based topology identity** (`cad.faceRef(shape, n)`, `cad.edgeRef(shape, n)`), where `n` is a 1-based ordinal matching FreeCAD's `FaceN`/`EdgeN` convention. This allows fillet/chamfer/draft/shell to target specific edges/faces across parametric changes.
+Topology parameters (`fillet.edges`, `chamfer.edges`, `shell.openFaces`, `draft.faces`, `defeature.faces`, `extrude.upTo`, ...) are referenced by **portable topology identity** — `EdgeTopoRef` / `FaceTopoRef` — each recording the statement it was born from (`origin`) and its role within that statement (`role`), so the reference stays valid across parametric changes and across kernels.
+
+**In generated scripts, topology parameters take the TopoRef literal the UI picker emits** (`{ kind:'edge'|'face', origin, role, hint }`). Pass it through unchanged; never hand-write `origin`/`role` values — they are assigned by the naming layer at runtime.
+
+**⚠️ Never use ordinal references in generated scripts** — the `cad.edgeRef` / `cad.faceRef` query bridges or bare numbers. Ordinals are the kernel's enumeration order and drift across kernels and features (the same box enumerates edge[0] = length 5 under occt but length 20 under brepkit). `edgeRef` / `faceRef` are **query bridges only**, for FCStd import porting and mesh-chain parts that have no role layer; mesh-chain bare ordinals (`openFaces: [4]`) are likewise current-kernel-only.
+
+### Selector Strings (precision chain)
+
+When a script must pick topology without a UI-picked literal, use **CadQuery selector strings** on the BREP (precision) chain. The following ops accept them (as the top-level value or as array elements, in place of TopoRef literals):
+
+| Op | Parameter accepting a selector string |
+|---|---|
+| `fillet` / `chamfer` | `edges` (edge selector) |
+| `filletVariable` | `edge` (single edge; multi-match fails) |
+| `shell` | `openFaces` (face selector) |
+| `draft` / `defeature` | `faces` (face selector) |
+| `extrude` | `upTo` (face selector, resolved on `baseFeature`; single face) |
+| `sketchOnFace` / `sketchOnSurface` / `punchHole` | `face` (face selector on the target solid) |
+
+Selector syntax follows CadQuery (compatible subset): `">Z"` = the face/edge at the Z extreme, `"<Z"` = Z minimum, `"|Z"` = parallel to Z (face normal / edge tangent), `"#Z"` = perpendicular to Z, `"+Z"`/`"-Z"` = facing +Z/-Z, `"%LINE"` = by type, `">Z,|X"`-style set expressions. Selectors are evaluated against the current kernel at runtime, so they are **portable across kernels** (unlike ordinals). A selector matching nothing, or matching more than one entity for a single-entity parameter, fails loudly — never silently picks one.
+
+Selector strings are **precision-chain only**: the mesh chain has no role layer, so mesh solids must keep using 1-based ordinals (current-kernel-only, see above).
 
 ### Unit System
 - **+Z is up.**
@@ -250,7 +270,7 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 **Parameters**:
 - `params.contours`: ordered 2D closed contours (same shape as `cad.profile`).type:any[] required:true
 - `params.on`: the target solid on which the face lives.type:Shape required:true
-- `params.face`: the host face: a 1-based ordinal or a `cad.faceRef(on, n)` result.type:any required:true
+- `params.face`: the host face: FaceTopoRef（UI 拾取产物字面量）| 面选择器字符串（如 ">Z"，在 on 上解析，多面命中抛错）| 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本）。type:any required:true
 - `params.scaleMode`: UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit; OCCT planar only).type:string required:false
 - `params.as`: `'face'` (default) or `'wire'` (outer loop only).type:string required:false
 
@@ -264,7 +284,7 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 **Parameters**:
 - `params.contours`: ordered 2D closed contours (same shape as `cad.profile`).type:any[] required:true
 - `params.on`: the target solid on which the face lives.type:Shape required:true
-- `params.face`: the host face: a 1-based ordinal or a `cad.faceRef(on, n)` result.type:any required:true
+- `params.face`: the host face: FaceTopoRef（UI 拾取产物字面量）| 面选择器字符串（如 ">Z"，在 on 上解析，多面命中抛错）| 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本）。type:any required:true
 - `params.scaleMode`: UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit).type:string required:false
 - `params.as`: `'face'` (default) or `'wire'` (outer loop only).type:string required:false
 
@@ -278,7 +298,7 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 **Parameters**:
 - `params.contours`: ordered 2D closed contours (the hole profile).type:any[] required:true
 - `params.on`: the target solid to punch.type:Shape required:true
-- `params.face`: host face: 1-based ordinal or `cad.faceRef(on, n)`.type:any required:true
+- `params.face`: host face: FaceTopoRef（UI 拾取产物字面量）| 面选择器字符串（如 ">Z"，在 on 上解析，多面命中抛错）| 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本）。type:any required:true
 - `params.height`: blind depth along the face inward normal (null/absent = through).type:number|object required:false
 - `params.draftAngle`: wall taper in degrees (default 0 = straight; built as an occt loft frustum).type:number required:false
 - `params.scaleMode`: UV mapping: 'original' | 'bounds' | 'native'.type:string required:false
@@ -803,7 +823,7 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 
 **Parameters**:
 - `input`: 目标几何。type:Shape required:true
-- `params.edges`: 参与倒角的边（EdgeTopoRef[]，条目为相邻两面的 role 线路）。type:EdgeTopoRef[] required:true
+- `params.edges`: 参与倒角的边：CadQuery 边选择器字符串（如 "|Z"，AI 生成）或相邻两面的 role 线路（EdgeTopoRef[]，UI 拾取产物）。type:EdgeTopoRef[]|string required:true
 - `params.type`: 倒角类型（equal | twoDistances | distanceAngle）。type:string required:true
 - `params.width`: type=equal: 倒角宽度（mm）。type:number 默认 1
 - `params.width1`: type=twoDistances: 沿 faces[0] 侧距离（mm）。type:number
@@ -817,6 +837,8 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 **Examples**:
 ```js
 const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
+// AI 生成可写 CadQuery 边选择器字符串
+const p2 = await cad.chamfer(part0, { edges: "|Z", type:'equal', width:1 })
 const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
 ```
 
@@ -825,7 +847,7 @@ const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
 
 **Parameters**:
 - `input`: 目标几何。type:Shape required:true
-- `params.edges`: 参与圆角的边：相邻两面的 role 线路（EdgeTopoRef[]）；网格链上也可用 1 起序号。type:EdgeTopoRef[] required:true
+- `params.edges`: 参与圆角的边：CadQuery 边选择器字符串（如 "|Z"，AI 生成）或相邻两面的 role 线路（EdgeTopoRef[]，UI 拾取产物）；网格链上也可用 1 起序号。type:EdgeTopoRef[]|string required:true
 - `params.radius`: 圆角半径（mm，>0）。type:number required:true
 
 **Returns**: Shape 圆角后的几何。
@@ -835,6 +857,8 @@ const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
 **Examples**:
 ```js
 const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], radius:2 })
+// AI 生成可写 CadQuery 边选择器字符串（"|Z" 切线平行 Z 的边）
+const p2 = await cad.fillet(part0, { edges: "|Z", radius: 2 })
 const q = await cad.fillet(meshPart, { edges: [3], radius: 1 })
 ```
 
@@ -862,11 +886,11 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 ```
 
 ### `shell(...)`
-抽壳：移除指定面并把余下面偏置成等厚薄壁。 精度链按 role 线路选面（`cad.faceRef`）；网格链按序号或几何选面——网格零件 没有 role 层，序号是唯一无歧义的指认方式。
+抽壳：移除指定面并把余下面偏置成等厚薄壁。 精度链按 role 线路选面（TopoRef 字面量或 CadQuery 面选择器字符串）； **禁止 `cad.faceRef` 序号**——序号跨内核不可移植。网格链没有 role 层， 序号是唯一无歧义的指认方式（仅当前内核快照），选择器字符串只服务精度链。
 
 **Parameters**:
 - `input`: 目标几何。type:Shape required:true
-- `params.openFaces`: 要移除的面（FaceTopoRef[]，cad.faceRef 产物；网格链可用 1 起序号）。type:FaceTopoRef[] required:true
+- `params.openFaces`: 要移除的面：面选择器字符串（如 ">Z"，AI 生成）或 FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号；网格链可用 1 起序号）。type:ShellFaceSelector[]|string required:true
 - `params.thickness`: 壁厚（mm，>0）。type:number required:true
 - `params.tolerance`: 容差（mm）。type:number required:false
 
@@ -876,7 +900,12 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 **Examples**:
 ```js
-const sh = await cad.shell(part0, { openFaces: [cad.faceRef(part0, 1)], thickness: 2 })
+// openFaces 取 UI 拾取产物的 FaceTopoRef 字面量（origin/role 由命名层分配，不手写）；
+// ❌ 不要用 cad.faceRef 序号——跨内核不可移植
+const sh = await cad.shell(part0, { openFaces: pickedFaces, thickness: 2 })
+// AI 生成可写 CadQuery 面选择器字符串（"|Z" 法向平行 Z 的面、"top" 命名视图）
+const sh2 = await cad.shell(part0, { openFaces: "|Z", thickness: 2 })
+// 网格链（3MF mesh-solid）：无 role 层，序号是唯一无歧义指认（仅当前内核快照）
 const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
 ```
 
@@ -885,7 +914,7 @@ const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
 
 **Parameters**:
 - `input`: 目标几何。type:Shape required:true
-- `params.faces`: 拔模面（FaceTopoRef[]，cad.faceRef 产物）。type:FaceTopoRef[] required:true
+- `params.faces`: 拔模面：面选择器字符串（如 "|Z"，AI 生成）或 FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号）。type:FaceTopoRef[]|string required:true
 - `params.angleDeg`: 拔模角（度，≠0）。type:number required:true
 - `params.pull`: 拔模方向（默认 +Z）。type:Vec3 required:false
 - `params.neutral`: 中性面**点**（{point}；normal 无消费者）。type:{point:Vec3,normal?:Vec3} required:false
@@ -896,7 +925,10 @@ const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
 
 **Examples**:
 ```js
-const d = await cad.draft(part0, { faces: [cad.faceRef(part0, 3)], angleDeg: 3 })
+// faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
+const d = await cad.draft(part0, { faces: pickedFaces, angleDeg: 3 })
+// AI 生成可写 CadQuery 面选择器字符串（"|Z" 法向平行 Z 的面）
+const d2 = await cad.draft(part0, { faces: "|Z", angleDeg: 3 })
 ```
 
 ### `thicken(...)` `[OCCT only]`
@@ -926,7 +958,7 @@ const solid = await cad.thicken(face, 2)
 
 **Parameters**:
 - `input`: 目标几何。type:Shape required:true
-- `edge`: 目标边（EdgeTopoRef，同 cad.fillet 的 edges 条目）。type:EdgeTopoRef required:true
+- `edge`: 目标边：EdgeTopoRef（同 cad.fillet 的 edges 条目，UI 拾取产物）或 CadQuery 边选择器字符串（如 "|Z"，AI 生成；多边命中抛错）。type:EdgeTopoRef|string required:true
 - `r1`: 起点半径（mm，>0）。type:number required:true
 - `r2`: 终点半径（mm，>0）。type:number required:true
 
@@ -937,6 +969,8 @@ const solid = await cad.thicken(face, 2)
 **Examples**:
 ```js
 const v = await cad.filletVariable(part0, partEdges[0], 1, 4)
+// AI 生成可写 CadQuery 边选择器字符串
+const v2 = await cad.filletVariable(part0, "|Z", 1, 4)
 ```
 
 ### `splitByPlane(...)`
@@ -1221,7 +1255,7 @@ const b = await cad.cut(part0, part1)
 
 **Parameters**:
 - `input`: 目标几何。type:Shape required:true
-- `faces`: 要移除的面（FaceTopoRef[]，cad.faceRef 产物）。type:FaceTopoRef[] required:true
+- `faces`: 要移除的面：面选择器字符串（如 "|Z"，AI 生成）或 FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号）。type:FaceTopoRef[]|string required:true
 
 **Returns**: Shape 移除特征后的几何。
 
@@ -1229,7 +1263,10 @@ const b = await cad.cut(part0, part1)
 
 **Examples**:
 ```js
-const base = await cad.defeature(part0, [cad.faceRef(part0, 5)])
+// faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
+const base = await cad.defeature(part0, pickedFaces)
+// AI 生成可写 CadQuery 面选择器字符串
+const base2 = await cad.defeature(part0, "|Z")
 ```
 
 ### `reverseShape(...)` `[OCCT only]`
@@ -1815,7 +1852,7 @@ const mx = cad.bboxMax(part0)
 ```
 
 ### `edgeRef(...)`
-查询几何体第 N 条边的 `EdgeTopoRef`，供 `cad.fillet` / `cad.chamfer` 的 `edges` 使用： `cad.fillet(base, { edges: [cad.edgeRef(base, 17)], radius: 2 })`。 定不了案（无 BREP / 序号越界 / 邻面不足两面 / 邻面无 role 血统）抛 `TopoRefError`。
+查询几何体第 N 条边的 `EdgeTopoRef`（1 起），供按 role 线路选边（`cad.fillet` / `cad.chamfer` 的 `edges` 等）使用。**查询用途，不用于脚本生成**——序号是内核 枚举序，跨内核/跨特征会漂移；本 API 仅供 FCStd 移植桥与网格链等无 role 层场景使用。 定不了案（无 BREP / 序号越界 / 邻面不足两面 / 邻面无 role 血统）抛 `TopoRefError`。
 
 **Parameters**:
 - `of`: Shape — 目标几何（BREP 实体所在的 Shape）。type:Shape required:true
@@ -1825,13 +1862,8 @@ const mx = cad.bboxMax(part0)
 
  **Sync**.
 
-**Examples**:
-```js
-const part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 1)], radius: 2 })
-```
-
 ### `faceRef(...)`
-查询几何体第 N 张面的 `FaceTopoRef`，供 `cad.extrude` 的 `upTo` 等参数使用： `cad.extrude(part0, { upTo: cad.faceRef(part0, 3) })`。 定不了案（无 BREP / 序号越界 / 面无 role 血统）抛 `TopoRefError`。
+查询几何体第 N 张面的 `FaceTopoRef`（1 起），供按 role 线路选面（`cad.extrude` 的 `upTo` 等）使用。**查询用途，不用于脚本生成**——序号是内核枚举序，跨内核/跨特征 会漂移；本 API 仅供 FCStd 移植桥与网格链等无 role 层场景使用。 定不了案（无 BREP / 序号越界 / 面无 role 血统）抛 `TopoRefError`。
 
 **Parameters**:
 - `of`: Shape — 目标几何（BREP 实体所在的 Shape）。type:Shape required:true
@@ -1840,11 +1872,6 @@ const part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 1)], radius: 2 })
 **Returns**: FaceTopoRef 该面的拓扑引用（origin/role 血统 + 几何 hint）。
 
  **Sync**.
-
-**Examples**:
-```js
-const part1 = cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
-```
 
 ### `asset(...)`
 查询资产 key 内容为 UTF-8 字符串（SVG 等文本资产）。嵌套调用，供 text/svg 类 op 作资产引用。

@@ -28,14 +28,18 @@ import { resolveTopoRef, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext } from './topo-resolve'
 import { meshKernelFailure, meshSolidBasicEntry, meshSolidProduct, resolveMeshFaces } from './internal/mesh-solid-op'
+import { resolveSelectorToFaceRefs } from './selectors-to-refs'
 
-/** 抽壳时移除的面选择器：精度链用 `FaceTopoRef`；网格链也可用 1 起序号。 */
-export type ShellFaceSelector = number | FaceTopoRef
+/**
+ * 抽壳时移除的面选择器：精度链用 `FaceTopoRef`（UI 拾取产物）或 CadQuery 面选择器
+ * 字符串（AI 生成，如 `">Z"` / `"|Z"` / `"%PLANE"`）；网格链也可用 1 起序号。
+ */
+export type ShellFaceSelector = number | FaceTopoRef | string
 
 /** `cad.shell` 参数。 */
 export interface ShellParams {
-  /** 抽壳时移除的面（FaceTopoRef[]，`cad.faceRef` 产物；空数组 = 全封闭薄壁）。 */
-  openFaces: ShellFaceSelector[]
+  /** 抽壳时移除的面：面选择器字符串（`">Z"` 等）、或 FaceTopoRef/序号/选择器字符串数组（空数组 = 全封闭薄壁）。 */
+  openFaces: ShellFaceSelector[] | string
   /** 壁厚（mm，>0，向内偏置）。 */
   thickness: number
   /** 容差（mm，可选；默认走内核约定值）。 */
@@ -45,12 +49,45 @@ export interface ShellParams {
 /** 参数共校验（两条路径共用；`openFaces` 为空数组合法 = 全封闭薄壁）。 */
 function assertShellParams(params: ShellParams): void {
   const { openFaces, thickness } = params ?? ({} as ShellParams)
-  if (!Array.isArray(openFaces)) {
-    throw new Error('E_SHELL_BAD_OPEN_FACES: shell.openFaces must be an array of FaceTopoRef or ordinals')
+  const openFacesOk =
+    typeof openFaces === 'string' ||
+    (Array.isArray(openFaces) &&
+      openFaces.every(
+        (s) =>
+          typeof s === 'string' ||
+          typeof s === 'number' ||
+          (!!s && typeof s === 'object' && (s as { kind?: unknown }).kind === 'face'),
+      ))
+  if (!openFacesOk) {
+    throw new Error(
+      'E_SHELL_BAD_OPEN_FACES: shell.openFaces must be a face selector string, or an array of FaceTopoRef / ordinal / selector string',
+    )
   }
   if (typeof thickness !== 'number' || !Number.isFinite(thickness) || thickness <= 0) {
     throw new Error('E_SHELL_BAD_THICKNESS: shell.thickness must be a positive number')
   }
+}
+
+/**
+ * 展开 `openFaces` 到 `FaceTopoRef` 列表（BREP 路径）：选择器字符串 → 桥解析；
+ * `FaceTopoRef` 原样保留；**序号在精度链抛错**（BREP 面身份是 `(origin, role)`，
+ * 序号只是本次枚举序，见 shellBrep 原注释）。
+ */
+function expandShellFaceRefs(input: Shape, openFaces: ShellFaceSelector[] | string): FaceTopoRef[] {
+  if (typeof openFaces === 'string') return resolveSelectorToFaceRefs(input, openFaces)
+  return openFaces.flatMap((sel) => {
+    if (typeof sel === 'string') return resolveSelectorToFaceRefs(input, sel)
+    if (typeof sel === 'number') {
+      throw new Error(
+        'E_SHELL_BAD_OPEN_FACES: an ordinal face selector is only available on the mesh chain — ' +
+          'a precision-chain face is identified by its role line (cad.faceRef) or a selector string',
+      )
+    }
+    if (!sel || (sel as { kind?: unknown }).kind !== 'face') {
+      throw new Error('E_SHELL_BAD_OPEN_FACES: every openFaces entry must be a FaceTopoRef (cad.faceRef) or a selector string')
+    }
+    return [sel]
+  })
 }
 
 /** BREP 路径：解析面引用 → L1 shell → 收养。 */
@@ -63,17 +100,7 @@ function shellBrep(input: Shape, params: ShellParams): Shape {
 
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'shell: input has no BREP naming context')
-  const faceHandles = openFaces.map((ref) => {
-    // 精度链不开序号口子：BREP 的面身份是 `(origin, role)`，序号只是本次枚举序。
-    if (typeof ref === 'number') {
-      throw new Error(
-        'E_SHELL_BAD_OPEN_FACES: an ordinal face selector is only available on the mesh chain — ' +
-        'a precision-chain face is identified by its role line (cad.faceRef)',
-      )
-    }
-    if (!ref || (ref as { kind?: unknown }).kind !== 'face') {
-      throw new Error('E_SHELL_BAD_OPEN_FACES: every openFaces entry must be a FaceTopoRef (cad.faceRef)')
-    }
+  const faceHandles = expandShellFaceRefs(input, openFaces).map((ref) => {
     const r = resolveTopoRef(ref, ctx)
     if (r.handle === undefined) {
       throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', `shell: face resolved without handle (${ref.origin}/${ref.role})`)
@@ -109,7 +136,16 @@ function shellMeshSolid(input: Shape, params: ShellParams): Shape {
   const { openFaces, thickness, tolerance } = params
   assertShellParams(params)
   const entry = meshSolidBasicEntry(input, 'shell')
-  const faceHandles = resolveMeshFaces(entry.kernel, input, openFaces, 'shell')
+  // 选择器字符串只服务精度链：网格零件没有 role 层，选择器命中无名实体转
+  // TopoRef 必然失败（方案 R1），显式抛错而非静默降级；网格链用 1 起序号。
+  if (typeof openFaces === 'string' || openFaces.some((s) => typeof s === 'string')) {
+    throw new TopoRefError(
+      'E_TOPO_MESH_UNSUPPORTED',
+      'face',
+      'shell: selector strings are precision-chain only — mesh solids have no role layer (use 1-based face ordinals)',
+    )
+  }
+  const faceHandles = resolveMeshFaces(entry.kernel, input, openFaces as (number | FaceTopoRef)[], 'shell')
 
   let result: BrepHandle
   try {
@@ -133,15 +169,21 @@ function shellMeshSolid(input: Shape, params: ShellParams): Shape {
  * @qual ok
  * @name shell
  * @note 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。
- *       精度链按 role 线路选面（`cad.faceRef`）；网格链按序号或几何选面——网格零件
- *       没有 role 层，序号是唯一无歧义的指认方式。
+ *       精度链按 role 线路选面（TopoRef 字面量或 CadQuery 面选择器字符串）；
+ *       **禁止 `cad.faceRef` 序号**——序号跨内核不可移植。网格链没有 role 层，
+ *       序号是唯一无歧义的指认方式（仅当前内核快照），选择器字符串只服务精度链。
  * @returns Shape 抽壳后的薄壁体。
  * @param input - 目标几何。type:Shape required:true
- * @param params.openFaces - 要移除的面（FaceTopoRef[]，cad.faceRef 产物；网格链可用 1 起序号）。type:FaceTopoRef[] required:true
+ * @param params.openFaces - 要移除的面：面选择器字符串（如 ">Z"，AI 生成）或 FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号；网格链可用 1 起序号）。type:ShellFaceSelector[]|string required:true
  * @param params.thickness - 壁厚（mm，>0）。type:number required:true
  * @param params.tolerance - 容差（mm）。type:number required:false
  * @example
- * const sh = await cad.shell(part0, { openFaces: [cad.faceRef(part0, 1)], thickness: 2 })
+ * // openFaces 取 UI 拾取产物的 FaceTopoRef 字面量（origin/role 由命名层分配，不手写）；
+ * // ❌ 不要用 cad.faceRef 序号——跨内核不可移植
+ * const sh = await cad.shell(part0, { openFaces: pickedFaces, thickness: 2 })
+ * // AI 生成可写 CadQuery 面选择器字符串（"|Z" 法向平行 Z 的面、"top" 命名视图）
+ * const sh2 = await cad.shell(part0, { openFaces: "|Z", thickness: 2 })
+ * // 网格链（3MF mesh-solid）：无 role 层，序号是唯一无歧义指认（仅当前内核快照）
  * const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
  */
 export const shell = defineOp({

@@ -30,6 +30,7 @@ import type { EdgeTopoRef, ResolutionContext } from '../topology/naming'
 import { resolveTopoRef, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext } from './topo-resolve'
+import { expandEdgeSelectorRefs } from './selectors-to-refs'
 import { meshKernelFailure, meshSolidEntry, meshSolidProduct, resolveMeshEdges } from './internal/mesh-solid-op'
 
 // ── 参数自校验（api 层被直接 import 时的防御层）──
@@ -48,9 +49,10 @@ export interface EdgeSelectorCheckOptions {
 
 /**
  * Validate fillet parameters: `edges` must be a non-empty array of EdgeTopoRef
- * (each with kind key "edge" and a two-entry faces pair) — or of 1-based
- * ordinals when `opts.allowOrdinals` (the mesh chain); `radius` must be a
- * positive number (M1: uniform radius only).
+ * (each with kind key "edge" and a two-entry faces pair) or of selector strings
+ * (`"|Z"` etc., precision chain) — or of 1-based ordinals when
+ * `opts.allowOrdinals` (the mesh chain); a top-level selector string is also
+ * accepted. `radius` must be a positive number (M1: uniform radius only).
  * @param params the raw fillet operation parameters.
  * @param opts the selector-form options (mesh chain allows ordinals).
  */
@@ -59,13 +61,20 @@ export function assertFilletParams(
   opts?: EdgeSelectorCheckOptions,
 ): void {
   const edges = params.edges
-  if (!Array.isArray(edges) || edges.length === 0) {
+  const list = typeof edges === 'string' ? [edges] : (edges as unknown[])
+  if (typeof edges !== 'string' && (!Array.isArray(edges) || list.length === 0)) {
     throw new Error('E_FILLET_NO_EDGES: fillet requires at least one edge')
   }
-  for (const e of edges) {
+  for (const e of list) {
     if (opts?.allowOrdinals && typeof e === 'number') {
       if (!Number.isInteger(e) || e < 1) {
         throw new Error('E_FILLET_BAD_EDGE_REF: an edge ordinal must be a positive integer (1-based)')
+      }
+      continue
+    }
+    if (typeof e === 'string') {
+      if (e.trim() === '') {
+        throw new Error('E_FILLET_BAD_EDGE_REF: an edge selector string must not be empty')
       }
       continue
     }
@@ -111,13 +120,13 @@ function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
   const solid = brepOf(input) as BrepHandle | undefined
   if (solid === undefined) throw new Error('E_FILLET_NO_BREP: fillet input is not BREP')
 
-  const edges = params.edges as EdgeTopoRef[]
+  const edges = params.edges as EdgeTopoRef[] | string
   const radius = params.radius as number
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', 'fillet: input has no edge naming context')
 
-  // 解析所有 EdgeTopoRef → Edge 句柄
-  const edgeHandles = edges.map((e) => resolveEdge(ctx, e))
+  // 展开选择器字符串 → EdgeTopoRef[]，再解析所有 EdgeTopoRef → Edge 句柄
+  const edgeHandles = expandEdgeSelectorRefs(input, edges).map((e) => resolveEdge(ctx, e))
 
   // 输入 roleTable + outStmt（与 boolean.ts 同构）。Phase 1.6：origin=本次语句 StmtId。
   const inputTable = inputRoleTable(input) as ReadonlyMap<unknown, unknown> | undefined
@@ -171,10 +180,18 @@ function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
  * @returns the filleted mesh solid as a new mesh part.
  */
 function filletMeshSolid(input: Shape, params: Record<string, unknown>): Shape {
-  const edges = params.edges as (number | EdgeTopoRef)[]
+  const edges = params.edges as (number | string | EdgeTopoRef)[] | string
   const radius = params.radius as number
   const entry = meshSolidEntry(input, 'fillet')
-  const edgeHandles = resolveMeshEdges(entry, edges, 'fillet')
+  // 选择器字符串只服务精度链（网格零件无 role 层）；网格链用 1 起序号。
+  if (typeof edges === 'string' || edges.some((e) => typeof e === 'string')) {
+    throw new TopoRefError(
+      'E_TOPO_MESH_UNSUPPORTED',
+      'edge',
+      'fillet: selector strings are precision-chain only — mesh solids have no role layer (use 1-based edge ordinals)',
+    )
+  }
+  const edgeHandles = resolveMeshEdges(entry, edges as (number | EdgeTopoRef)[], 'fillet')
 
   let result: BrepHandle
   try {
@@ -207,10 +224,12 @@ function filletMeshSolid(input: Shape, params: Record<string, unknown>): Shape {
  *       序号（近似拓扑 `edges` 数组下标 + 1）指认。
  * @returns Shape 圆角后的几何。
  * @param input - 目标几何。type:Shape required:true
- * @param params.edges - 参与圆角的边：相邻两面的 role 线路（EdgeTopoRef[]）；网格链上也可用 1 起序号。type:EdgeTopoRef[] required:true
+ * @param params.edges - 参与圆角的边：CadQuery 边选择器字符串（如 "|Z"，AI 生成）或相邻两面的 role 线路（EdgeTopoRef[]，UI 拾取产物）；网格链上也可用 1 起序号。type:EdgeTopoRef[]|string required:true
  * @param params.radius - 圆角半径（mm，>0）。type:number required:true
  * @example
  * const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], radius:2 })
+ * // AI 生成可写 CadQuery 边选择器字符串（"|Z" 切线平行 Z 的边）
+ * const p2 = await cad.fillet(part0, { edges: "|Z", radius: 2 })
  * const q = await cad.fillet(meshPart, { edges: [3], radius: 1 })
  */
 export const fillet = defineOp({

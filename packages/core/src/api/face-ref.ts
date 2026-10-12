@@ -23,8 +23,9 @@ import type { FaceTopoRef } from '../topology/naming'
 import { buildEdgeResolutionContext } from './topo-resolve'
 
 /**
- * 查询几何体第 N 张面的 `FaceTopoRef`，供 `cad.extrude` 的 `upTo` 等参数使用：
- * `cad.extrude(part0, { upTo: cad.faceRef(part0, 3) })`。
+ * 查询几何体第 N 张面的 `FaceTopoRef`（1 起），供按 role 线路选面（`cad.extrude` 的
+ * `upTo` 等）使用。**查询用途，不用于脚本生成**——序号是内核枚举序，跨内核/跨特征
+ * 会漂移；本 API 仅供 FCStd 移植桥与网格链等无 role 层场景使用。
  *
  * 定不了案（无 BREP / 序号越界 / 面无 role 血统）抛 `TopoRefError`。
  * @group 查询
@@ -35,9 +36,8 @@ import { buildEdgeResolutionContext } from './topo-resolve'
  * @returns FaceTopoRef 该面的拓扑引用（origin/role 血统 + 几何 hint）。
  * @param of - 目标几何（BREP 实体所在的 Shape）。type:Shape required:true
  * @param faceOrdinal - 面序号（1 起；等于 FreeCAD 的 `FaceN`）。type:number required:true
+ * @note ⚠️ 查询用途，不用于脚本生成：序号跨内核不可移植（同实体 occt 与 brepkit 枚举序不同）。生成脚本应使用 TopoRef 字面量（UI 拾取产物）或 CadQuery 选择器字符串（AI 生成）。
  * @note 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `FaceN` 同序（`getSubShapes(solid,'face')` 用 TopExp::MapShapes + IndexedMap 枚举）。
- * @example
- * const part1 = cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
  */
 export function faceRef(of: Shape, faceOrdinal: number): FaceTopoRef {
   if (!Number.isInteger(faceOrdinal) || faceOrdinal < 1) {

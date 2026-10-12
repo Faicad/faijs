@@ -128,7 +128,7 @@ export function buildSketchOnSurfaceWith(kernel: BrepEngineApi, params: SketchOn
  * @returns Shape on the target face (face, or a wire curve when `as:'wire'`).
  * @param params.contours - ordered 2D closed contours (same shape as `cad.profile`).type:any[] required:true
  * @param params.on - the target solid on which the face lives.type:Shape required:true
- * @param params.face - the host face: a 1-based ordinal or a `cad.faceRef(on, n)` result.type:any required:true
+ * @param params.face - the host face: FaceTopoRef（UI 拾取产物字面量）| 面选择器字符串（如 ">Z"，在 on 上解析，多面命中抛错）| 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本）。type:any required:true
  * @param params.scaleMode - UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit).type:string required:false
  * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
  */
