@@ -179,6 +179,14 @@ export interface CliRunOptions {
    * 也一并写盘（多为诊断用途）。
    */
   includeHidden?: boolean
+  /**
+   * 连带导出 2D-only 终端（默认 false）。默认策略：终端集合回答「谁该被看见」，
+   * 导出层回答「什么能落成零件」——纯 2D（face/wire/edge/vertex 及无 solid 的
+   * compound）不写盘，避免未消费草图从后门进产物。STEP 规范本身支持 2D 几何
+   * （face → SHELL_BASED_SURFACE_MODEL，edge → GEOMETRIC_CURVE_SET），第三方
+   * 显式传 true 时按规范形态写出（仅 STEP；STL/mesh 链路不支持，传了即报错）。
+   */
+  include2D?: boolean
 }
 
 /** Result of the `check` (dry-run validation) command. */
@@ -357,7 +365,7 @@ export async function cliRun(
   // exception — the census and batch driver treat a throw as a process crash,
   // while `{ ok: false, error }` keeps it a per-file, classifiable failure.
   try {
-    return await exportExecutionResult(outPath, ext, execResult, terminals, opts?.includeHidden ?? false)
+    return await exportExecutionResult(outPath, ext, execResult, terminals, opts?.includeHidden ?? false, opts?.include2D ?? false)
   } catch (e) {
     return {
       ok: false,
@@ -469,6 +477,7 @@ async function exportExecutionResult(
   execResult: Awaited<ReturnType<CadRuntime['execute']>>,
   terminals: NonNullable<Awaited<ReturnType<CadRuntime['execute']>>['terminals']>,
   includeHidden = false,
+  include2D = false,
 ): Promise<{ ok: boolean; error?: string; outputFile?: string; outputFormat?: string; infos?: string[] }> {
   const { exportable, hiddenCount } = selectExportableTerminals(terminals, includeHidden)
   // 装配导出（writeAssemblyStep 的兜底路径）同样不得带出隐藏终端；includeHidden 时传 undefined。
@@ -486,9 +495,11 @@ async function exportExecutionResult(
   // ── 二维终端过滤（G0-D）──：终端集合回答「谁该被看见」，导出层回答「什么能落成零件」。
   // 未消费的 2D 草图同样是顶层未消费变量 ⇒ 也是终端，但落成 `.step` 会污染 parity 的 area。
   // 过滤后**不得**回退到「最后一个 output」，否则等于把刚剔除的草图从后门写回去。
+  // include2D=true 时整层放行：STEP 规范支持 2D 几何，第三方显式要求即按规范形态
+  // 写出（仅 STEP；STL 是三角网格格式，无法表达边/面集合，见下方守卫）。
   const skipped2d: string[] = []
   let solidExportable = exportable
-  if (!includeHidden) {
+  if (!includeHidden && !include2D) {
     solidExportable = []
     for (const t of exportable) {
       const entry = execResult.brepSolids?.get(t.id)
@@ -503,11 +514,29 @@ async function exportExecutionResult(
         ok: false,
         error:
           `All ${exportable.length} live terminal(s) are 2D (no solid) — nothing to export as a 3D part` +
-          (skipped2d.length > 0 ? ` (skipped: ${skipped2d.join(', ')})` : ''),
+          (skipped2d.length > 0 ? ` (skipped: ${skipped2d.join(', ')})` : '') +
+          (ext === 'step' || ext === 'stpz'
+            ? ' — pass include2D / --include-2d to export 2D-only results as STEP'
+            : ''),
       }
     }
   }
   const solidInfos = skipped2d.length > 0 ? [`Skipped ${skipped2d.length} 2D terminal(s): ${skipped2d.join(', ')}`] : []
+
+  // include2D 只对 STEP（BREP 链）有意义：STL 是三角网格格式，边/面集合没有网格
+  // 表达，显式报错而非静默丢弃（与方案 §3.1 一致）。
+  if (include2D && ext !== 'step' && ext !== 'stpz') {
+    const has2d = exportable.some((t) => {
+      const entry = execResult.brepSolids?.get(t.id)
+      return !isExportableSolid(entry?.solid, entry?.kernel)
+    })
+    if (has2d) {
+      return {
+        ok: false,
+        error: `include2D requires a STEP output (.step); ".${ext}" cannot represent 2D-only geometry (use --mode brep with a .step output)`,
+      }
+    }
+  }
 
   if (solidExportable.length === 0) {
     // No terminals — use last output
@@ -878,6 +907,7 @@ export function parseArgs(argv: string[]): {
   sheet?: string
   part?: string
   includeHidden?: boolean
+  include2D?: boolean
 } {
   const args = argv.slice(2) // skip node + script
   if (args.length === 0) return { command: null }
@@ -895,6 +925,7 @@ export function parseArgs(argv: string[]): {
   let sheet: string | undefined
   let part: string | undefined
   let includeHidden: boolean | undefined
+  let include2D: boolean | undefined
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]
@@ -919,12 +950,14 @@ export function parseArgs(argv: string[]): {
       part = args[++i]
     } else if (arg === '--include-hidden') {
       includeHidden = true
+    } else if (arg === '--include-2d') {
+      include2D = true
     } else if (!file && !arg.startsWith('-')) {
       file = arg
     }
   }
 
-  return { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part, includeHidden }
+  return { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part, includeHidden, include2D }
 }
 
 /**
@@ -935,7 +968,7 @@ export function parseArgs(argv: string[]): {
  * @returns the process exit code (0 on success, non-zero on failure)
  */
 export async function cliMain(argv: string[], libs?: Record<string, LibNamespace>): Promise<number> {
-  const { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part, includeHidden } = parseArgs(argv)
+  const { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part, includeHidden, include2D } = parseArgs(argv)
 
   if (!command) {
     process.stderr.write('Usage: faijs-cli <check|run|view> <file.fai.js> [options]\n')
@@ -947,6 +980,7 @@ export async function cliMain(argv: string[], libs?: Record<string, LibNamespace
     process.stderr.write('  --fonts <dir>             Extra fonts directory\n')
     process.stderr.write('  --project-root <dir>      Project root for relative .fai.js imports\n')
     process.stderr.write('  --include-hidden          (run) also export hidden terminals (keep/keepHidden sources; default off)\n')
+    process.stderr.write('  --include-2d              (run) also export 2D-only terminals as STEP (edge/face sets; default off)\n')
     process.stderr.write('  --part <name>             (view) shape variable to project (default: terminals)\n')
     process.stderr.write('  --view <dir>              (view) single view: front|back|top|bottom|left|right|iso|"x,y,z" (default front)\n')
     process.stderr.write('  --sheet <a,b,c>           (view) multi-view sheet: front,top,right,iso (mutually exclusive with --view)\n')
@@ -986,7 +1020,7 @@ export async function cliMain(argv: string[], libs?: Record<string, LibNamespace
     }
 
     const outPath = resolve(out)
-    const result = await cliRun(filePath, outPath, { mode, assetsDir, fontsDir, projectRoot, libs, includeHidden })
+    const result = await cliRun(filePath, outPath, { mode, assetsDir, fontsDir, projectRoot, libs, includeHidden, include2D })
 
     if (result.ok) {
       process.stdout.write(`✓ ${filePath} → ${outPath} (${result.outputFormat})\n`)

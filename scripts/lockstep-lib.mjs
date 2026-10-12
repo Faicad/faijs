@@ -32,6 +32,8 @@ export const FAMILY_EXCLUDE = new Set([
   '@faicad/faijs-fixtures',
   '@faicad/faijs-tests',
   '@faicad/faijs-demo',
+  // slated for deletion; kept working (peer ranges aligned) but not release-relevant
+  '@faicad/faijs-draw',
 ])
 
 /** Local path protocols: resolved from disk, never from the registry. */

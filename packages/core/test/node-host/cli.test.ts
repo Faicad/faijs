@@ -270,6 +270,48 @@ describe('cliRun: execute and export', () => {
     expect(existsSync(`${TMP_DIR}/box-boolean-hidden.stl_2_part2.stl`)).toBe(true)
   }, 60000)
 
+  it('include2D 默认关：2D-only 终端（cad.edge）被拦，报错文案提示 --include-2d', async () => {
+    // G0-D 契约（902699e）+ 2026-10-12 edge-2d 方案：默认策略不变，仅报错文案追加提示。
+    const tmpFile = resolve(TMP_DIR, 'edge-2d-default.fai.js')
+    writeFileSync(tmpFile, `let e = cad.edge([0,0,0], [10,0,0])`)
+    const outPath = resolve(TMP_DIR, 'edge-2d-default.step')
+
+    const result = await cliRun(tmpFile, outPath, { mode: 'brep', libs: CAD_LIBS })
+
+    expect(result.ok).toBe(false)
+    expect(result.error ?? '').toContain('are 2D (no solid)')
+    expect(result.error ?? '').toContain('--include-2d')
+    expect(existsSync(outPath)).toBe(false)
+  }, 60000)
+
+  it('include2D:true → 2D-only 终端按 STEP 规范写出（GEOMETRIC_CURVE_SET）', async () => {
+    const tmpFile = resolve(TMP_DIR, 'edge-2d-on.fai.js')
+    writeFileSync(tmpFile, `let e = cad.edge([0,0,0], [10,0,0])`)
+    const outPath = resolve(TMP_DIR, 'edge-2d-on.step')
+
+    const result = await cliRun(tmpFile, outPath, { mode: 'brep', libs: CAD_LIBS, include2D: true })
+
+    expect(result.ok, result.error ?? '').toBe(true)
+    expect(existsSync(outPath)).toBe(true)
+    const content = readFileSync(outPath, 'utf-8')
+    expect(content).toContain('ISO-10303-21')
+    // P1 探针冻结结论：边写出为 GEOMETRIC_CURVE_SET，无 solid/face 实体。
+    expect(content).toContain('GEOMETRIC_CURVE_SET')
+    expect(content).not.toContain('MANIFOLD_SOLID_BREP')
+    expect(content).not.toContain('ADVANCED_FACE')
+  }, 60000)
+
+  it('include2D:true + STL 输出 → 明确报错（STL 无法表达 2D 几何）', async () => {
+    const tmpFile = resolve(TMP_DIR, 'edge-2d-stl.fai.js')
+    writeFileSync(tmpFile, `let e = cad.edge([0,0,0], [10,0,0])`)
+    const outPath = resolve(TMP_DIR, 'edge-2d.stl')
+
+    const result = await cliRun(tmpFile, outPath, { mode: 'brep', libs: CAD_LIBS, include2D: true })
+
+    expect(result.ok).toBe(false)
+    expect(result.error ?? '').toContain('include2D requires a STEP output')
+  }, 60000)
+
   it('text-engrave.fai.js → single terminal STL output', async () => {
     // box → part0；translate 保名复用 part0；text(part0) 是 creator → 新名 part1
     // DAG leaf: part0 被 text 消耗 → 非终端；part1 是唯一终端
@@ -299,6 +341,13 @@ describe('parseArgs', () => {
     expect(result.command).toBe('run')
     expect(result.file).toBe('model.fai.js')
     expect(result.out).toBe('output.stl')
+  })
+
+  it('parses --include-2d flag (run)', () => {
+    const off = parseArgs(['node', 'cli.ts', 'run', 'model.fai.js', '--out', 'o.step'])
+    expect(off.include2D).toBeUndefined()
+    const on = parseArgs(['node', 'cli.ts', 'run', 'model.fai.js', '--out', 'o.step', '--include-2d'])
+    expect(on.include2D).toBe(true)
   })
 
   it('parses --mode option', () => {
