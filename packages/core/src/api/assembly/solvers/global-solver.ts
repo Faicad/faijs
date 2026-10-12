@@ -172,12 +172,18 @@ function residualDim(t: CostTerm): number {
 void residualDim // P7/D1-1：诊断参考表（秩判定走列归一特征值，见下）
 
 /**
- * 对称 n×n 矩阵的特征值（循环 Jacobi 旋转）。
+ * 对称 n×n 矩阵的特征分解（循环 Jacobi 旋转）。
  *
+ * @param A      行主 n×n 对称矩阵（会被复制，不修改原矩阵）。
+ * @param n      阶数。
+ * @param outVec 可选输出：n×n 行主特征向量矩阵 V（列 v[:,i] 是 outVec[i] 对应的
+ *   特征向量）。传 `V`（单位矩阵）时原地累积旋转。
  * @returns 特征值数组（无序）；扫掠不收敛返回 null（调用方走保守 fallback）。
  */
-function symEigenvalues(A: number[], n: number): number[] | null {
+function symEigenvalues(A: number[], n: number, outVec?: number[]): number[] | null {
   const a = A.slice()
+  if (outVec) for (let i = 0; i < n * n; i++) outVec[i] = 0
+  if (outVec) for (let i = 0; i < n; i++) outVec[i * n + i] = 1
   for (let sweep = 0; sweep < 60; sweep++) {
     let off = 0
     for (let p = 0; p < n; p++) {
@@ -204,6 +210,14 @@ function symEigenvalues(A: number[], n: number): number[] | null {
           const aqk = a[q * n + k]
           a[p * n + k] = c * apk - s * aqk
           a[q * n + k] = s * apk + c * aqk
+        }
+        if (outVec) {
+          for (let k = 0; k < n; k++) {
+            const vkp = outVec[k * n + p]
+            const vkq = outVec[k * n + q]
+            outVec[k * n + p] = c * vkp - s * vkq
+            outVec[k * n + q] = s * vkp + c * vkq
+          }
         }
       }
     }
@@ -236,6 +250,7 @@ function computeUnderdeterminedDof(
   n: number,
   x: number[],
   stateOf: (xx: number[], i: number) => { T: Vec3; R: Vec3 },
+  outFreeDirs?: number[][],
 ): number {
   if (n === 0) return 0
   // 仅约束残差（剔除 penalty 正则行）
@@ -276,12 +291,32 @@ function computeUnderdeterminedDof(
     for (let row = 0; row < m; row++) Jn[row * n + col] /= d
   }
   const JtJ = ata(Jn, m, n)
-  const eig = symEigenvalues(JtJ, n)
+  const V: number[] = new Array(n * n).fill(0)
+  const eig = symEigenvalues(JtJ, n, V)
   if (!eig) return 0 // 保守 fallback（适定假设，不阻塞）
   const lambdaMax = Math.max(...eig.map(Math.abs))
   if (!(lambdaMax > 1e-300)) return freeCols + n // 理论不可达；防御
   const rank = eig.filter((v) => Math.abs(v) > lambdaMax * 1e-8).length
-  return Math.max(0, n - rank)
+  const dof = Math.max(0, n - rank)
+  // P7/D1-4：零空间特征向量（λ < λmax·1e-8 的列）= 欠定自由方向（变量系：
+  // 每成员 6 维 [tx,ty,tz,rx,ry,rz]，列范数已归一）。旋转分量为主的方向对
+  // 位姿判等有意义；调用方按需解释。
+  if (outFreeDirs && dof > 0) {
+    for (let i = 0; i < n; i++) {
+      if (Math.abs(eig[i]) > lambdaMax * 1e-8) continue
+      const v: number[] = new Array(n)
+      for (let r = 0; r < n; r++) v[r] = V[r * n + i]
+      outFreeDirs.push(v)
+    }
+    // 零范数列（约束摸不到的坐标轴方向）也是自由方向，补在后面
+    for (let col = 0; col < n; col++) {
+      if (norms[col] > 1e-12) continue
+      const v = new Array(n).fill(0)
+      v[col] = 1
+      outFreeDirs.push(v)
+    }
+  }
+  return dof
 }
 
 /**
@@ -618,14 +653,18 @@ export function solveGlobal(
     if (r > RESIDUAL_WARN * scale) warnings.push(`constraint #${cid} residual=${r.toExponential(3)} (> ${RESIDUAL_WARN * scale})`)
   })
 
-  // P7/D1-2：欠定自由度诊断（剔除 penalty 正则行后按 JᵀJc 特征值秩判定）
-  const underdeterminedDof = computeUnderdeterminedDof(terms, scale, n, x, stateOf)
+  // P7/D1-2/D1-4：欠定自由度诊断 + 零空间自由方向（变量系 6 维块 [tx,ty,tz,rx,ry,rz]）
+  const freeDirs: number[][] = []
+  const underdeterminedDof = computeUnderdeterminedDof(terms, scale, n, x, stateOf, freeDirs)
 
   return {
     transforms,
     dof: 0,
     // P7/D1-3：旧 `dof` 字段语义不变（unsupported 合计的占位），欠定信息走新字段。
-    underdetermined: underdeterminedDof > 0 ? { dof: underdeterminedDof } : undefined,
+    underdetermined:
+      underdeterminedDof > 0
+        ? { dof: underdeterminedDof, freeDirs: freeDirs.map((v) => v.map((c) => Math.abs(c) < 1e-12 ? 0 : +c.toFixed(12))) }
+        : undefined,
     converged: true,
     unsupported,
     residuals,

@@ -39,7 +39,7 @@ export interface AssemblyTreeSolveResult {
    * P7/D1-3：欠定自由度诊断（透传自 solveGlobal）。dof > 0 = 约束集欠定，
    * 终态位姿依赖优化器轨迹、无唯一「正确解」——判等方应走规范判等通道而非逐位比对。
    */
-  underdetermined?: { dof: number }
+  underdetermined?: { dof: number; freeDirs?: number[][] }
 }
 
 

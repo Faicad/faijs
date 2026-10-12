@@ -43,11 +43,12 @@ export interface GlobalSolveResult {
   /** 恒 0（数值求解不做 DOF 分析，保留字段避免 undefined）。 */
   dof: number
   /**
-   * P7/D1-3：欠定自由度诊断（仅 global 路径）。dof > 0 = 约束集欠定，终态位姿
+   * P7/D1-3/D1-4：欠定自由度诊断（仅 global 路径）。dof > 0 = 约束集欠定，终态位姿
    * 依赖优化器轨迹、无唯一「正确解」——判等方应走规范判等通道而非逐位比对。
-   * dof === 0 时字段缺省（undefined）。
+   * freeDirs = 零空间自由方向（变量系：每成员 6 维块 [tx,ty,tz,rx,ry,rz]，
+   * 欧氏范数 1；D1-4），供判等方直接构造 canonical 扫描的轴/枢轴。
    */
-  underdetermined?: { dof: number }
+  underdetermined?: { dof: number; freeDirs?: number[][] }
   /** LM 终止即 true（无论残差大小；裁定 4.6）。 */
   converged: boolean
   /** 仅约束类型无法映射为代价时填充。 */
