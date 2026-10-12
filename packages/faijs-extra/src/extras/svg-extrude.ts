@@ -44,7 +44,16 @@ export interface SvgExtrudeOptions {
  * @throws when the SVG contains no closed contour.
  */
 export function parseSvgShapes(svgText: string): Contour[] {
-  const contours = svgPathToContours(svgText, 6)
+  let contours: Contour[]
+  try {
+    contours = svgPathToContours(svgText, 6)
+  } catch {
+    // svgPathToContours 在「无 path 元素」与「无闭合轮廓」两种情形会各自抛更底层的
+    // 错误（"[svg-path] No path elements found" / "[svg-path] No closed contours
+    // generated"）。这里统一成编辑器面向用户的同一句，避免上层按消息文本做分档时
+    // 撞上两种措辞（3d_editor 的 svg-extrude.test.ts 也按这一句断言）。
+    throw new Error('No closed contour found in SVG. Please check the file content.')
+  }
   if (contours.length === 0) {
     throw new Error('No closed contour found in SVG. Please check the file content.')
   }

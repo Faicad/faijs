@@ -297,7 +297,12 @@ function circumcircle(
   const p1sq = p1.x * p1.x + p1.y * p1.y
   const p2sq = p2.x * p2.x + p2.y * p2.y
   const cx = (p0sq * (p1.y - p2.y) + p1sq * (p2.y - p0.y) + p2sq * (p0.y - p1.y)) / d
-  const cy = (p0sq * (p1.x - p2.x) + p1sq * (p2.x - p0.x) + p2sq * (p0.x - p1.x)) / d
+  // 注意 cy 取 x 差分（与 cx 取 y 差分对称）。标准外接圆圆心公式的 y 分量为
+  // (p0sq·(p2.x−p1.x) + p1sq·(p0.x−p2.x) + p2sq·(p1.x−p0.x)) / D；
+  // 旧写法把三项整体取了相反数（得 −uy），导致圆心纵坐标翻转、采样弧绕错心、
+  // 闭合多边形有向面积自相抵消≈0，进而 svgPathToContours 把所有圆弧 SVG（圆/环/
+  // 圆角矩形）误判为“无闭合轮廓”而丢弃。
+  const cy = (p0sq * (p2.x - p1.x) + p1sq * (p0.x - p2.x) + p2sq * (p1.x - p0.x)) / d
   return { cx, cy, r: Math.hypot(p0.x - cx, p0.y - cy) }
 }
 
