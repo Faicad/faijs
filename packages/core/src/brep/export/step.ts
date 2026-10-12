@@ -13,7 +13,7 @@
  * `name [n]`，与本节点的展平命名规则一致。
  */
 
-import type { BrepHandle } from '../engine/types'
+import type { BrepHandle, BrepSubShapeType } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
 import type { XCAFDocument } from 'occt-wasm'
 import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
@@ -244,27 +244,44 @@ export function exportStepFromSolids(
 
       // 2. 展平 Compound（多 solid 导入的 part 其 solid 是 Compound）；
       //    纯 solid 时 getSubShapes('solid') 返回 [自身]。
-      //    形状类型分派：solid → shell → face → edge。ref 侧（cadquery
-      //    Shape.exportStep）可导出任意类型的形状，面/壳/边 compound（如
-      //    Shape.faces('>Z') / shape.edges('>Z') 的结果）同样要能写进
-      //    STEP（U22，2026-09-09）。
-      let subs = kernel.getSubShapes(solid, 'solid')
-      if (subs.length === 0) {
-        subs = kernel.getSubShapes(solid, 'shell')
+      //    形状类型分派：solid → shell → face → edge，取首个非空层级。
+      //    ref 侧（cadquery Shape.exportStep）可导出任意类型的形状，面/壳/边
+      //    compound（如 Shape.faces('>Z') / shape.edges('>Z') 的结果）同样要能
+      //    写进 STEP（U22，2026-09-09）。
+      //
+      //    ⚠️ 级联只选一个层级会丢掉平级的更低层级形状：sew 产物常是
+      //    「一个 shell + 一张游离 face」的混合 compound，命中 shell 后那张
+      //    游离 face 拿不到 XCAF label、导出丢面（cq-compat test_sewing__res3）。
+      //    故选中某层级后，再补齐**未被任何已选形状覆盖**的更低层级形状。
+      const levels: BrepSubShapeType[] = ['solid', 'shell', 'face', 'edge']
+      let subs: BrepHandle[] = []
+      let chosenLevel = -1
+      for (let li = 0; li < levels.length; li++) {
+        const found = kernel.getSubShapes(solid, levels[li])
+        if (found.length > 0) {
+          subs = found
+          chosenLevel = li
+          break
+        }
       }
-      if (subs.length === 0) {
-        subs = kernel.getSubShapes(solid, 'face')
-      }
-      if (subs.length === 0) {
-        subs = kernel.getSubShapes(solid, 'edge')
-      }
-      if (subs.length === 0) {
-        // wasm getSubShapes 不展开 compound 层（TopExp_Explorer 默认跳过），
-        // 纯面/壳/边 compound（如 Shape.siblings / faces('>Z') 结果）在这里
-        // 拿不到子形状。把 compound 整体作为单个 XCAF label 写入（STEP
-        // writer 支持 compound 形状，与 ref 侧 cadquery Shape.exportStep
-        // 对 faces/edges compound 的行为一致）。
+      if (chosenLevel < 0) {
+        // 各层全空：wasm getSubShapes 未展开该 compound（如个别纯面/边
+        // compound）。整体作为单个 XCAF label 写入（STEP writer 支持 compound
+        // 形状，与 ref 侧 cadquery Shape.exportStep 对 faces/edges compound
+        // 的行为一致）。
         subs = [solid]
+      } else {
+        // 补齐游离的更低层级形状：候选与「已选形状（含此前补入者）的同类
+        // 子形状」做 isSame 覆盖判定，不被覆盖者才追加。
+        for (let li = chosenLevel + 1; li < levels.length; li++) {
+          const lower = kernel.getSubShapes(solid, levels[li])
+          if (lower.length === 0) continue
+          const covered: BrepHandle[] = []
+          for (const s of subs) covered.push(...kernel.getSubShapes(s, levels[li]))
+          for (const cand of lower) {
+            if (!covered.some((c) => kernel.isSame(c, cand))) subs.push(cand)
+          }
+        }
       }
       for (let si = 0; si < subs.length; si++) {
         const sub = subs[si]

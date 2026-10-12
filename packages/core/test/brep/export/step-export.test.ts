@@ -164,6 +164,44 @@ describe('exportStepFromSolids', () => {
     }
   })
 
+  it('compound with a detached face: the free face is exported (no silent face loss)', async () => {
+    // 复现 cq-compat test_sewing__res3：混合 compound（solid + 游离 face）
+    // 在旧级联分派下只写 solid、丢掉平级的游离 face。此处用「一个 box +
+    // 另一 box 的一个面」构造同构输入，断言面不再丢失。
+    const box = makeBox(0, 0, 0)
+    const donor = makeBox(50, 0, 0)
+    const freeFace = kernel.getSubShapes(donor, 'face')[0]!
+    const compound = kernel.makeCompound([box, freeFace])
+    try {
+      const text = decodeStep(exportStepFromSolids(kernel, [{ solid: compound, name: 'assy' }]))
+      // 6（box）+ 1（游离 face）= 7；旧实现短路在 solid 层只写 box → 6。
+      const faceCount = (text.match(/ADVANCED_FACE/g) ?? []).length
+      expect(faceCount).toBe(7)
+      expect((text.match(/MANIFOLD_SOLID_BREP/g) ?? []).length).toBe(1)
+    } finally {
+      kernel.release(compound)
+      kernel.release(box)
+      kernel.release(donor)
+    }
+  })
+
+  it('pure multi-solid compound: no spurious sub-shape duplication', async () => {
+    // 回归：纯 solid compound 走 solid 层后，补齐逻辑不得把已被 solid 覆盖的
+    // 面/边当成游离形状重复写入（ADVANCED_FACE 应为 2×6=12，非更多）。
+    const boxA = makeBox(0, 0, 0)
+    const boxB = makeBox(20, 0, 0)
+    const compound = kernel.makeCompound([boxA, boxB])
+    try {
+      const text = decodeStep(exportStepFromSolids(kernel, [{ solid: compound, name: 'assy' }]))
+      expect((text.match(/MANIFOLD_SOLID_BREP/g) ?? []).length).toBe(2)
+      expect((text.match(/ADVANCED_FACE/g) ?? []).length).toBe(12)
+    } finally {
+      kernel.release(compound)
+      kernel.release(boxA)
+      kernel.release(boxB)
+    }
+  })
+
   it('mesh entry: reconstructed solid exported as ADVANCED_FACE', async () => {
     const buffer = exportStepFromSolids(kernel, [
       { mesh: unitCubeMesh(), name: 'faceted-part' },
