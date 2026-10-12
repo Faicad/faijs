@@ -16,14 +16,14 @@
  * Validated against the LOCKED cadquery 2.8.0 probe (C:\cqenv\sel_probe.py)
  * — cube_off ground truth recorded in plan §5.2.
  *
- * @platform occt — narrowing evaluates kernel `ShapeHandle`s through the
- * native occt-kernel (`getKernel()`: isSame identity dedup etc.), so this
- * module is occt-coupled by nature.
+ * @platform neutral — 2026-10-12 内核无关化：identity 去重经 `getBrepApi()`
+ * （BrepEngineApi）访问当前装配引擎；occt / brepkit 均可求值（双内核等价测试
+ * `test/api/cadquery-selectors/selectors-brepkit.test.ts` 钉住）。
  */
-import { getKernel } from '../../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import { getBrepApi } from '../../brep/handle-bridge'
 import type { AtomDesc, EntityKind, SelectorExpr, SelStep, Vec3 } from './types'
-import type { EntityGeom, P3, ShapeHandle } from './entity'
+import type { EntityGeom, P3 } from './entity'
+import type { BrepHandle } from '../../brep/engine/types'
 import { faceGeom, edgeGeom, vertexGeom, subShapeHandles } from './entity'
 import { parseSelector } from './grammar'
 import {
@@ -38,18 +38,18 @@ import {
 
 /** A set of candidate entities with their owning shape (for normal orientation). */
 export interface Selection {
-  owner: ShapeHandle | null
+  owner: BrepHandle | null
   items: EntityGeom[]
 }
 
-/** A fully-resolved narrowing chain: the surviving kind and kernel handles. */
+/** A fully-resolved narrowing chain: the surviving kind and engine handles. */
 export interface ChainResult {
   kind: EntityKind
-  handles: ShapeHandle[]
+  handles: BrepHandle[]
 }
 
-/** Project a kernel handle of the given kind into its `EntityGeom`. */
-function project(handle: ShapeHandle, kind: EntityKind): EntityGeom {
+/** Project an engine handle of the given kind into its `EntityGeom`. */
+function project(handle: BrepHandle, kind: EntityKind): EntityGeom {
   if (kind === 'face') return faceGeom(handle)
   if (kind === 'edge') return edgeGeom(handle)
   return vertexGeom(handle)
@@ -68,15 +68,19 @@ function project(handle: ShapeHandle, kind: EntityKind): EntityGeom {
  * @param chain - The ordered per-kind narrowing steps to apply.
  * @returns The final kind and the surviving kernel handles at that kind.
  */
-export function resolveSelection(owner: ShapeHandle | null, chain: SelStep[]): ChainResult {
+export function resolveSelection(owner: BrepHandle | null, chain: SelStep[]): ChainResult {
+  // ⚠️ 内核无关化 GOTCHA（2026-10-12 实测修复）：owner 是内核句柄（BrepHandle =
+  // number & brand），**brepkit 的合法句柄可以是 0**（occt-wasm 从 1 开始）。
+  // 必须用 `!== null` 判断，绝不能用 truthy（`owner ? [owner] : []` 会把 0 号
+  // solid 丢弃成空候选）。
   if (chain.length === 0) {
-    return { kind: 'face', handles: owner ? subShapeHandles(owner, 'face') : [] }
+    return { kind: 'face', handles: owner !== null ? subShapeHandles(owner, 'face') : [] }
   }
-  let candidates: ShapeHandle[] = owner ? [owner] : []
+  let candidates: BrepHandle[] = owner !== null ? [owner] : []
   let kind: EntityKind = chain[0].kind
   for (const step of chain) {
     // ① collect: sub-entities of each candidate, union/ordered, dedup by identity.
-    const gathered: ShapeHandle[] = dedupByIsSame(
+    const gathered: BrepHandle[] = dedupByIsSame(
       candidates.flatMap((o) => subShapeHandles(o, step.kind)),
     )
     // ② filter: resolve the selector over the gathered views.
@@ -91,16 +95,13 @@ export function resolveSelection(owner: ShapeHandle | null, chain: SelStep[]): C
 }
 
 /** Deduplicate kernel handles by KERNEL identity (isSame), preserving order. */
-function dedupByIsSame(handles: ShapeHandle[]): ShapeHandle[] {
-  const out: ShapeHandle[] = []
+function dedupByIsSame(handles: BrepHandle[]): BrepHandle[] {
+  const out: BrepHandle[] = []
+  const k = getBrepApi()
   for (const h of handles) {
-    if (!out.some((o) => kernOf().isSame(o as never, h as never))) out.push(h)
+    if (!out.some((o) => k.isSame(o, h))) out.push(h)
   }
   return out
-}
-
-function kernOf(): OcctKernel {
-  return getKernel() as unknown as OcctKernel
 }
 
 // ─── single-kind conveniences (plan §4.6) ────────────────────────────────
@@ -116,10 +117,10 @@ function kernOf(): OcctKernel {
  * @returns The surviving kernel handles after the single-step narrowing.
  */
 export function resolveStepHandles(
-  owner: ShapeHandle | null,
+  owner: BrepHandle | null,
   kind: EntityKind,
   sel: string,
-): ShapeHandle[] {
+): BrepHandle[] {
   return resolveSelection(owner, [{ kind, sel }]).handles
 }
 
@@ -209,7 +210,7 @@ function subtract(a: EntityGeom[], b: EntityGeom[]): EntityGeom[] {
 /** BaseDirSelector filter: the direction test over allowed entity kinds. */
 function filterByTest(
   items: EntityGeom[],
-  owner: ShapeHandle | null,
+  owner: BrepHandle | null,
   test: (d: P3) => boolean,
 ): EntityGeom[] {
   const out: EntityGeom[] = []
@@ -222,7 +223,7 @@ function filterByTest(
 }
 
 /** Apply one atom to the full candidate list, mirroring each selector.filter. */
-function applyAtom(items: EntityGeom[], owner: ShapeHandle | null, desc: AtomDesc): EntityGeom[] {
+function applyAtom(items: EntityGeom[], owner: BrepHandle | null, desc: AtomDesc): EntityGeom[] {
   switch (desc.kind) {
     case 'dir':
       // `DirectionSelector` (bare `X` or `(x,y,z)`): angle≈0, signed — same as

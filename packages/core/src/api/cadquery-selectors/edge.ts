@@ -16,7 +16,7 @@ import { resolveSelection, resolveStepHandles } from './resolve'
 import { brepOf } from '../../shape'
 import type { Shape } from '../../mesh/types'
 
-/** faijs BREP handle for a shape (numeric id space shared with occt-wasm). */
+/** faijs BREP handle for a shape (engine-neutral handle id space). */
 function ownerHandle(shape: Shape): unknown {
   return brepOf(shape) as unknown
 }

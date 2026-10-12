@@ -47,12 +47,16 @@ describe('occt high-level step/brep bridging', () => {
 
   it('importStepImpl (api op) wires to importStepToMesh via resolve assets', async () => {
     // Configure an assets backend so importStep can read the STEP bytes.
+    // ⚠️ backends.kernel.brep 的契约是 BrepEngineApi——原生 OcctKernel 不是
+    // （缺 surfaceCenterOfMass 等中立包装名）。此前直接塞原生 kernel 会污染全局
+    // backends，让后续走 `getBrepApi()` 的选择器/命名路径拿到缺方法的内核而崩。
     const { configureBackends, CONTRACT_VERSION } = await import('../../src/runtime-state')
     const { importStepImpl } = await import('../../src/api/import-step')
+    const { createOcctPrimitives } = await import('../../src/occt-kernel/occt-primitives')
     configureBackends({
       contractVersion: CONTRACT_VERSION,
       config: { mode: 'brep' },
-      kernel: { brep: kernel, csg: undefined, sdf: undefined },
+      kernel: { brep: await createOcctPrimitives(), csg: undefined, sdf: undefined },
       fonts: undefined,
       texture: undefined,
       assets: { resolveFile: async () => STEP_BUFFER },

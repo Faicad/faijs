@@ -382,6 +382,9 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     pointOnSurface: (face, u, vv) => v3(k.pointOnSurface(asShape(face), u, vv)),
     uvBounds: (face): BrepUvBounds => k.uvBounds(asShape(face)),
     surfaceCenterOfMass: (face) => v3(k.getSurfaceCenterOfMass(asShape(face))),
+    vertexPosition: (vertex) => v3(k.vertexPosition(asShape(vertex))),
+    containsPoint: (shape, point, tolerance) =>
+      k.containsPoint(asShape(shape), { x: point.x, y: point.y, z: point.z }, tolerance),
     getFaceCylinderData: (face) => {
       const d = k.getFaceCylinderData(asShape(face))
       return d ? { radius: d.radius } : null

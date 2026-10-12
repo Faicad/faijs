@@ -87,6 +87,8 @@ function planeKernel(): BrepEngineApi {
     surfaceNormal: () => ({ x: 0, y: 0, z: 1 }),
     uvBounds: () => ({ uMin: 0, uMax: 1, vMin: 0, vMax: 1 }),
     surfaceCenterOfMass: () => ({ x: 5, y: 5, z: 10 }),
+    vertexPosition: () => ({ x: 0, y: 0, z: 0 }),
+    containsPoint: () => true,
     release: () => undefined,
     hashCode: (h) => h as unknown as number,
     isSame: (a, b) => a === b,

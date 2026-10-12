@@ -267,6 +267,23 @@ export interface BrepEngineApi {
   uvBounds(face: BrepHandle): BrepUvBounds
   /** 曲面质心。 */
   surfaceCenterOfMass(face: BrepHandle): BrepVec3
+  /**
+   * 顶点坐标（顶点句柄 → 世界坐标）。
+   *
+   * 2026-10-12 加入 L1（选择器引擎内核无关化的依赖）：CadQuery 顶点投影
+   * （`Vertex.Center()`）需要它；occt 原生 `vertexPosition`、brepkit 原生
+   * `getVertexPosition` 均有（d.ts 实测），进 L1 后 occt/brepkit 选择器
+   * 语义才可等价。
+   */
+  vertexPosition(vertex: BrepHandle): BrepVec3
+  /**
+   * 点相对形状的包含判定（含边界视为包含；容差为内核接受的点分类容差）。
+   *
+   * 2026-10-12 加入 L1（选择器引擎内核无关化的依赖）：CadQuery 面法线定向
+   * （`Face.normalAt()` 的 outward 探针）需要它；occt 原生 `containsPoint`、
+   * brepkit 原生 `classifyPoint`（"inside"/"outside"/"boundary"）均可映射。
+   */
+  containsPoint(shape: BrepHandle, point: BrepVec3, tolerance: number): boolean
   /** Phase 1 钉死返回形态（topologyExt 仅读 radius）。 */
   getFaceCylinderData(face: BrepHandle): { radius: number } | null
   /**

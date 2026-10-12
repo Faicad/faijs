@@ -1343,6 +1343,16 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return { uMin: d[0] ?? 0, uMax: d[1] ?? 1, vMin: d[2] ?? 0, vMax: d[3] ?? 1 }
     },
     surfaceCenterOfMass: faceCenterOfMass,
+    vertexPosition(vertex: BrepHandle): BrepVec3 {
+      // getVertexPosition 返回 Float64Array [x,y,z]（brepkit_wasm.d.ts 实测）
+      const p = toNumArray(kernel.getVertexPosition(asNum(vertex)))
+      return { x: p[0] ?? 0, y: p[1] ?? 0, z: p[2] ?? 0 }
+    },
+    containsPoint(shape: BrepHandle, point: BrepVec3, tolerance: number): boolean {
+      // classifyPoint 返回 "inside" | "outside" | "boundary"（d.ts 实测）；
+      // 边界视为包含（与 occt containsPoint 的口径对齐：探针点在面上不翻转法线）。
+      return kernel.classifyPoint(asNum(shape), point.x, point.y, point.z, tolerance) !== 'outside'
+    },
     getFaceCylinderData(face: BrepHandle): { radius: number } | null {
       try {
         const p = JSON.parse(kernel.getAnalyticSurfaceParams(asNum(face))) as { type?: string; radius?: number }

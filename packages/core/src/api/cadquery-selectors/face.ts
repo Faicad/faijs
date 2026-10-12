@@ -5,17 +5,17 @@
  * （含其私有 `NAMED_VIEW_TO_AXIS`、`bboxMax`/`bboxMin`、`cad` 单例）。仅 import
  * 路径改为 core 内部相对路径，逻辑逐行不变，零功能增减。
  *
- * @platform occt — face 选择对 BREP 面做枚举/比较，经 `getKernel()` 与
- * `getBrepApi()` 访问 occt 原生内核（getSubShapes / surface 查询等）。
+ * @platform neutral — 2026-10-12 内核无关化：面枚举/比较全部经
+ * `getBrepApi()`（BrepEngineApi，引擎中立）访问当前装配引擎，occt / brepkit
+ * 均可求值（双内核等价测试 `test/api/cadquery-selectors/selectors-brepkit.test.ts`
+ * 钉住）。此前直连 occt-wasm `getKernel()` 的 occt 耦合已移除。
  */
 
 import { createApiNamespace } from '../api-namespace'
-import { getKernel } from '../../occt-kernel/occtKernel'
 import { getBrepApi } from '../../brep/handle-bridge'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import type { BrepHandle } from '../../brep/engine/types'
 import { brepOf } from '../../shape'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type { Shape } from '../../mesh/types'
 import { asBrepShape } from './borrow-bridge'
 
@@ -165,18 +165,18 @@ export async function resolveFaceSelector(
     if (!handleM) {
       throw new Error(`[cq-compat] selector "${sel}": BREP unavailable`)
     }
-    const kernelM = getKernel() as unknown as OcctKernel
-    const faceList = kernelM.getSubShapes(handleM as unknown as ShapeHandle, 'face') as unknown as ShapeHandle[]
+    const kernelM = getBrepApi()
+    const faceList = kernelM.getSubShapes(handleM as BrepHandle, 'face')
     if (faceList.length === 0) {
       throw new Error(`[cq-compat] selector "${sel}": shape has no faces`)
     }
-    const faceNormalOf = (f: ShapeHandle): [number, number, number] => {
+    const faceNormalOf = (f: BrepHandle): [number, number, number] => {
       const uv = kernelM.uvBounds(f)
       const n = kernelM.surfaceNormal(f, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
       return [n.x, n.y, n.z]
     }
-    const comOf = (f: ShapeHandle): [number, number, number] => {
-      const c = kernelM.getSurfaceCenterOfMass(f)
+    const comOf = (f: BrepHandle): [number, number, number] => {
+      const c = kernelM.surfaceCenterOfMass(f)
       return [c.x, c.y, c.z]
     }
     const dot = (a: [number, number, number], b: [number, number, number]): number =>
@@ -194,7 +194,7 @@ export async function resolveFaceSelector(
       return { center: comOf(found), normal: faceNormalOf(found) }
     }
     // '>'/'<': DirectionMinMaxSelector over center-of-mass projections.
-    let bestF: ShapeHandle | null = null
+    let bestF: BrepHandle | null = null
     let bestVal = 0
     for (const f of faceList) {
       const val = dot(comOf(f), dirV)
@@ -209,10 +209,10 @@ export async function resolveFaceSelector(
   // ── Face-based selection (BREP kernel available) ──
   try {
     const handle = brepOf(shape)
-    const kernel = getKernel() as unknown as OcctKernel
+    const kernel = getBrepApi()
     if (handle && dir) {
-      const faces = kernel.getSubShapes(handle as unknown as ShapeHandle, 'face') as unknown as ShapeHandle[]
-      const cands: { handle: ShapeHandle; center: [number, number, number] }[] = []
+      const faces = kernel.getSubShapes(handle as BrepHandle, 'face')
+      const cands: { handle: BrepHandle; center: [number, number, number] }[] = []
       for (const f of faces) {
         const bb = kernel.getBoundingBox(f)
         cands.push({
@@ -224,7 +224,7 @@ export async function resolveFaceSelector(
           ],
         })
       }
-      let best: { handle: ShapeHandle; center: [number, number, number] } | null = null
+      let best: { handle: BrepHandle; center: [number, number, number] } | null = null
       let normal = fallbackNormal
       // Extract the index suffix, if any.
       const idxMatch = /\[(-?\d+)\]$/.exec(sel.trim())
@@ -301,7 +301,7 @@ export async function resolveFaceSelector(
           origin = best.center
         } else {
           // CenterOfMass: surface (area-weighted) centroid
-          const com = kernel.getSurfaceCenterOfMass(best.handle)
+          const com = kernel.surfaceCenterOfMass(best.handle)
           origin = [com.x, com.y, com.z]
         }
         return { center: origin, normal }

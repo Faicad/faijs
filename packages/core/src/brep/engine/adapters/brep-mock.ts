@@ -407,6 +407,8 @@ export function createBrepMockApi(): BrepEngineApi {
     surfaceNormal: () => ({ x: 0, y: 0, z: 1 }),
     pointOnSurface: () => ({ x: 0, y: 0, z: 0 }),
     uvBounds: (): BrepUvBounds => ({ uMin: 0, uMax: 1, vMin: 0, vMax: 1 }),
+    vertexPosition: (shape) => { const b = need(shape, 'vertexPosition').bbox; return { x: (b.xmin + b.xmax) / 2, y: (b.ymin + b.ymax) / 2, z: (b.zmin + b.zmax) / 2 } },
+    containsPoint: () => false,
     getFaceCylinderData: () => null,
     getNurbsCurveData: () => null,
     interpolatePoints: () => alloc({ kind: 'edge', bbox: bboxOf('edge', [1, 1, 1]), tag: 'interpolatePoints' }),

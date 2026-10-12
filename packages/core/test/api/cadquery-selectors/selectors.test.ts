@@ -14,45 +14,65 @@
  * only the +X face qualifies; `|X` (parallel) is sign-insensitive and returns
  * both X faces. `>X[k]` first applies a parallel pre-filter THEN the Nth step.
  */
-import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../../../src/occt-kernel/occtKernel'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
+import { configureBackends, CONTRACT_VERSION, type Backends } from '../../../src/runtime-state'
+import { getBrepApi } from '../../../src/brep/handle-bridge'
 import { primitiveToBrepSolid } from '../../../src/primitives/brep-primitives'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
 import { parseSelector } from '../../../src/api/cadquery-selectors/grammar'
 import { faceGeom, edgeGeom, vertexGeom, subShapeHandles } from '../../../src/api/cadquery-selectors/entity'
 import { resolveSelection, resolveStepHandles, EmptyNthError } from '../../../src/api/cadquery-selectors/resolve'
-import type { EntityGeom, ShapeHandle } from '../../../src/api/cadquery-selectors/entity'
+import type { EntityGeom } from '../../../src/api/cadquery-selectors/entity'
 import type { SelStep } from '../../../src/api/cadquery-selectors/types'
 
 let kernel: BrepEngineApi
 
 beforeAll(async () => {
-  await initOcctWasm()
-  kernel = getKernel() as unknown as BrepEngineApi
+  // 装配 OCCT 引擎并经 L1 契约面访问（选择器引擎内核无关化后统一走
+  // `getBrepApi()`——直连 `getKernel()` 的旧装配已移除）。
+  __resetEngineRegistriesForTests()
+  await registerOcctBrepEngine()
+  const brep = await getBrepEngine()
+  configureBackends({
+    contractVersion: CONTRACT_VERSION,
+    config: { mode: 'auto', brepEngineId: 'occt' },
+    kernel: { brep: brep.primitives, csg: undefined, sdf: undefined },
+    fonts: undefined,
+    texture: undefined,
+    assets: undefined,
+    events: { emit: () => undefined },
+  } as unknown as Backends)
+  kernel = getBrepApi()
 }, 120000)
 
+afterAll(() => {
+  __resetEngineRegistriesForTests()
+})
+
 /** Build the unit cube spanning 0..1 (matches the reference `box(1,1,1)` probe). */
-function unitCube(): ShapeHandle {
+function unitCube() {
   const res = primitiveToBrepSolid(kernel, 'box', { width: 1, depth: 1, height: 1 })
-  return res.solid as unknown as ShapeHandle
+  return res.solid
 }
 
-function project(solid: ShapeHandle, kind: 'face' | 'edge' | 'vertex'): EntityGeom[] {
-  const handles = subShapeHandles(solid, kind)
+function project(solid: unknown, kind: 'face' | 'edge' | 'vertex'): EntityGeom[] {
+  const handles = subShapeHandles(solid as never, kind)
   return handles.map((h) =>
     kind === 'face' ? faceGeom(h) : kind === 'edge' ? edgeGeom(h) : vertexGeom(h),
   )
 }
 
-function resolve(owner: ShapeHandle, kind: 'face' | 'edge' | 'vertex', src: string): EntityGeom[] {
-  const handles = resolveStepHandles(owner, kind, src)
+function resolve(owner: unknown, kind: 'face' | 'edge' | 'vertex', src: string): EntityGeom[] {
+  const handles = resolveStepHandles(owner as never, kind, src)
   return handles.map((h) =>
     kind === 'face' ? faceGeom(h) : kind === 'edge' ? edgeGeom(h) : vertexGeom(h),
   )
 }
 
-function resolveChain(src: ShapeHandle, chain: SelStep[]): EntityGeom[] {
-  const { handles } = resolveSelection(src, chain)
+function resolveChain(src: unknown, chain: SelStep[]): EntityGeom[] {
+  const { handles } = resolveSelection(src as never, chain)
   const kind = chain[chain.length - 1].kind
   return handles.map((h) =>
     kind === 'face' ? faceGeom(h) : kind === 'edge' ? edgeGeom(h) : vertexGeom(h),
@@ -67,7 +87,7 @@ function centerSet(items: EntityGeom[]): string[] {
 }
 
 describe('cadquery-selector parity: unit cube (box(1,1,1))', () => {
-  let solid: ShapeHandle
+  let solid: unknown
   let faces: EntityGeom[]
   let edges: EntityGeom[]
   let verts: EntityGeom[]

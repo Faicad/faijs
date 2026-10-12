@@ -51,6 +51,8 @@ function fakeKernel(faces: FakeFace[]): BrepEngineApi {
       const c = byHandle.get(face)?.center ?? [0, 0, 0]
       return { x: c[0], y: c[1], z: c[2] }
     },
+    vertexPosition: () => ({ x: 0, y: 0, z: 0 }),
+    containsPoint: () => true,
     release: () => undefined,
     hashCode: (shape: BrepHandle) => shape as unknown as number,
     isSame: (a, b) => a === b,
