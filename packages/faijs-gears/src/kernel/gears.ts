@@ -14,7 +14,7 @@
  * kernel call sequence → bit-identical geometry).
  */
 
-import { initOcctWasm } from '@faicad/faijs'
+import { getBackends, initOcctWasm } from '@faicad/faijs'
 import type { BrepEngineApi, BrepHandle, BrepVec3 } from '@faicad/faijs'
 import type { Vec3 } from '../math'
 
@@ -92,22 +92,41 @@ export type GearKernel = Omit<BrepEngineApi, 'interpolatePoints'> & {
   loft(wires: BrepHandle[], isSolid?: boolean, ruled?: boolean): BrepHandle
 }
 
-let gearKernelPromise: Promise<GearKernel> | null = null
+let legacyKernelPromise: Promise<GearKernel> | null = null
 
 /**
- * Get the raw occt-wasm kernel (process-wide singleton).
+ * Get the BREP kernel this gear builder should use.
  *
- * Same instance as `initOcctWasm()` — this only asserts the richer
- * `GearKernel` type, never constructs a second kernel (handles are indices
- * into one kernel arena and must not cross instances).
+ * Resolution order (aligned with faijs-fasteners `kernel.ts`, the canonical
+ * injection pattern — this closes the architectural gap where gears used to
+ * hard-bind `initOcctWasm()` and bypass the host-injected backend):
+ *   1. Host-injected backend `getBackends().kernel.brep` — what makes gears
+ *      engine-declarable. When the host injects brepkit, gears receive the
+ *      brepkit kernel and surface the genuine primitive gap (brepkit core
+ *      lacks `bsplineSurface` / `makeHelixWire` / `approximatePoints` / `loft`)
+ *      instead of silently assuming occt.
+ *   2. Legacy self-init `initOcctWasm()` — only when the host has NOT
+ *      configured backends (e.g. the package's own unit tests that call
+ *      `spurGear` directly). Transitional fallback for backward compatibility;
+ *      not the preferred path.
  *
- * @returns the raw kernel (promise; initializes wasm on first call)
+ * The injected backend is re-read on every call (never cached as a singleton
+ * that could go stale across engine switches), so the harness can flip
+ * occt↔brepkit between tests and gears always see the current kernel.
+ *
+ * @returns the kernel (promise; initializes wasm only on legacy fallback)
  */
 export function getGearKernel(): Promise<GearKernel> {
-  if (!gearKernelPromise) {
-    gearKernelPromise = initOcctWasm().then((k) => k as unknown as GearKernel)
+  try {
+    const injected = getBackends().kernel?.brep
+    if (injected) return Promise.resolve(injected as unknown as GearKernel)
+  } catch {
+    // backends not configured by host → fall through to legacy self-init
   }
-  return gearKernelPromise
+  if (!legacyKernelPromise) {
+    legacyKernelPromise = initOcctWasm().then((k) => k as unknown as GearKernel)
+  }
+  return legacyKernelPromise
 }
 
 // ── tolerant edge chaining (port of faijs-gears v1 geom-build.ts) ─────────

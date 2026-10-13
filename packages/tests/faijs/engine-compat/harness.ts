@@ -1,24 +1,22 @@
 /**
  * harness.ts — brepkit ↔ occt 一致性测试共享底座（方案 §6.2 / §6.3）
  *
- * 关键约束（来自对现有代码的核查，非臆测）：
- *  - faijs-fasteners 的 `primitives.ts` 通过 `requireKernel() as WarehouseKernel` 取内核，
- *    调用的 `revolve` / `makeHelixWire` / `approximatePoints` / `bsplineSurface` 等是
- *    **raw occt-wasm 扩展方法**，不在 L1 核心面 `BrepEngineApi`（L1 只有 `revolveVec`）。
- *  - 生产中 `test-setup.ts` 把**原始 occt-wasm 内核**直接注入 `kernel.brep`，所以 fasteners
- *    在 occt 下能跑；brepkit 只暴露 L1（无 `revolve`），所以**目前跑不了**——
- *    这正是方案 §3.3「raw→L1 改写」要解决的迁移，属于库源码层工作（归另一个 agent）。
+ * 引擎接入方式（实测结论，非臆测）：
+ *  - faijs-fasteners 与 faijs-gears 均已与宿主注入式 backend 对齐：fasteners 走
+ *    `requireKernel()` 读 `getBackends().kernel.brep`；gears 走 `getGearKernel()`
+ *    （优先注入式 backend，未配置时回退 `initOcctWasm()`）。
+ *  - 本 harness 通过 `configureBackends({ kernel: { brep } })` 把指定引擎注入
+ *    `getBackends().kernel.brep`：occt 侧注入 raw occt-wasm（与生产一致）；
+ *    brepkit 侧注入 L1 单例 + 测试桩（`revolve`→`revolveVec` / `makeSolid` /
+ *    `rotate`）。两部分零件（washer/nut/screw/holes/chain/bearing）由此在
+ *    brepkit 下也能构建并通过 T1+T2 一致性。
+ *  - 指标（volume/表面积/包围盒/质心/拓扑）统一用 L1 适配器抽取（raw occt 与
+ *    brepkit 的 `getSubShapes` 约定不同，L1 已归一化；句柄在同引擎单例内可互通）。
  *
- * 本 harness 的做法（不修改任何库源码）：
- *  - occt 侧：注入 raw occt-wasm（与生产一致），保证 washer 等能 build。
- *  - brepkit 侧：用 brepkit 的 L1 单例，外裹一个**测试专用** `WarehouseKernel` 适配层，
- *    把 `revolve(shape, axis, angleRad)` 委托给 L1 的 `revolveVec(shape, center, dir, deg)`
- *    （这就是 §3.3 要求的映射，先以测试桩验证可行性）。
- *  - 指标（volume/表面积/包围盒/质心/拓扑）**统一用 L1 适配器抽取**，因为 raw occt 与
- *    brepkit 的 `getSubShapes` 等类型约定不同，L1 已归一化；句柄在同引擎单例内可互通。
- *
- * ⚠️ 测试桩里的 `revolve` 适配只是 seed 验证用；真正的修复是把 fasteners 源码改成直接
- *    调 L1（删除 `WarehouseKernel` 扩展依赖），届时本桩可删。
+ * 真缺口根因在 core 引擎：brepkit 未实现 `bsplineSurface` / `makeHelixWire` /
+ * `approximatePoints` / `loft` 等 B 样条/螺旋原语（归 core，不在本包范围）。
+ * thread / gears 在 brepkit 注入下构建必然失败——用 `useBuildKernel('brepkit')`
+ * + 断言抛错把缺口**暴露在引擎层**，而非绕过。
  */
 
 import type { BrepEngineApi, BrepHandle, BrepVec3 } from '../../../core/src/brep/engine/primitives'
@@ -121,10 +119,13 @@ export async function initEngines(): Promise<void> {
   } as unknown as WarehouseKernel
   buildKernel.brepkit = brepWk
   metricKernel.brepkit = brepL1
+  // 默认把活动内核配成 occt，使直接读取 `getBackends().kernel.brep` 的库
+  // （fasteners 的 requireKernel / thread 等）在 beforeAll 后即可 build，无需每个测试再切。
+  useBuildKernel('occt')
 }
 
 /** 切换当前活动内核：把对应 `WarehouseKernel` 注入 `getBackends().kernel.brep`。 */
-function useBuildKernel(id: BrepEngineId): void {
+export function useBuildKernel(id: BrepEngineId): void {
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'brep', brepEngineId: id },
@@ -156,6 +157,15 @@ export function buildOn(
   useBuildKernel(engine)
   const result = build(params)
   const handle = result.handle
+  const metrics = extractMetrics(engine, handle)
+  return { engine, metrics, handle }
+}
+
+/**
+ * 在指定引擎下抽取几何/拓扑指标（与 buildOn 共享）。
+ * 供 brepkit 不可建、只能 occt 建模的零件（thread / gears 等）直接量测 occt 几何。
+ */
+export function extractMetrics(engine: BrepEngineId, handle: BrepHandle): EngineMetrics {
   const k = metricKernel[engine]
   const bbox = k.getBoundingBox(handle)
   // 子形状枚举对两引擎能力取并集；任一引擎不支持的类型记为 null（T1 跳过比较）。
@@ -169,7 +179,7 @@ export function buildOn(
       unsupported.push(type)
     }
   }
-  const metrics: EngineMetrics = {
+  return {
     volume: k.getVolume(handle),
     surfaceArea: k.getSurfaceArea(handle),
     bbox: {
@@ -188,7 +198,11 @@ export function buildOn(
     isSolid: k.isSolid(handle),
     unsupported,
   }
-  return { engine, metrics, handle }
+}
+
+/** occt-only 零件（brepkit 无对应原语）的度量抽娶：仅用 occt L1 量测。 */
+export function measureOcct(handle: BrepHandle): EngineMetrics {
+  return extractMetrics('occt', handle)
 }
 
 export interface Toleration {

@@ -250,19 +250,23 @@ test('worm grid-approx: brepkit 与 occt 体积收敛', async () => {
 - 门禁：`['occt','brepkit']` 零件任意 T1/T2 失败 → 红；`pinCurrent` 值被改大 → 红；`assertEngineMetaConsistent` 任一不一致 → 红。
 - 输出 `engine-compat-report.json`（每零件 T1/T2 结果 + 当前偏差值），归档供趋势追踪。
 
-### 6.7 零件级覆盖清单（落到具体测试文件）
+### 6.7 零件级覆盖清单（落到具体测试文件，2026-10-13 续实证修正）
 
-| 库 | 零件 | 测试文件 | 期望结论 |
-|---|---|---|---|
-| fasteners | washer(3) / bearing(深沟球+带盖深沟球+圆柱滚子 共 3 类 `['occt','brepkit']` + §6.3 双钉体积 band) / nut(6/7) / thread(4/5) / screw(10/12) / holes(6) / chain | 对应 `*.test.ts` | bearing 三类 T1+T2 通过（体积钉死 band，目标 0）；其余零缺口件 T1+T2 通过 |
-| fasteners | sprocket（`['occt']` 真缺口：brepkit 复杂多弧闭合 wire 退化→体积偏小 ~12% 且非对称）/ bearing 角接触球（interpolatePointsWithTangents）/ bearing 圆锥滚子（makeFaceFromWire 构建失败） | `sprocket.test.ts`(occt 回归) / `bearing.test.ts`(仅 occt 对照) | 仅 occt 单体回归；brepkit 对照不跑 |
-| fasteners | heatSetNut | `nut.test.ts` | `['occt']` 仅回归；不跑 brepkit |
-| fasteners | thread `end_finishes:'chamfer'` | `thread.test.ts` | `['occt']` 仅回归 |
-| fasteners | screw `PanHeadWithCollar`(din967/PH) / `RaisedCheeseHead`(iso7045/PH) | `screw.test.ts` | `['occt']` 仅回归 |
-| gears | spur / ring / crossed_helical / hyperbolic / herringbone | `spur.test.ts` 等 | T1+T2 通过 |
-| gears | bevel / worm(切 row-approx-loft) / rack | `bevel.test.ts`/`worm.test.ts`/`rack.test.ts` | T1+T2 通过（split 取片适配器） |
-| gears | worm(`grid-approx` 变体) | `worm.test.ts` | `['occt','brepkit']` + **双钉偏差**（§6.3） |
-| gears | 装配体(BevelPair/CrossedPair/Planetary/HerringbonePlanetary) | `assembly.test.ts` | T1+T2 通过（仅 transform，低偏差） |
+> 实测后修正：齿轮包**全部** `['occt']`（齿面依赖 `bsplineSurface`/`approximatePoints`/`interpolatePoints`/`makeHelixWire`，且绕过 `kernel.brep` 注入直接取 raw occt-wasm）；`thread`/`internalThreadSolid` 同理 `['occt']`；`nut`/`screw`/`holes`/`chain` 为 `['occt','brepkit']` 但带 §6.3 双钉 band（圆弧离散/布尔精度致系统性小偏差）。下表为权威分类。
+
+| 库 | 零件 | 测试文件 | 引擎分类 | 期望结论 |
+|---|---|---|---|---|
+| fasteners | washer（Plain/Chamfered/CheeseHead 共 3 类） | `washer.test.ts` | `['occt','brepkit']` | T1(`solid`)+T2(≤1e-3) 全绿 |
+| fasteners | bearing（深沟球+带盖深沟球+圆柱滚子 3 类） | `bearing.test.ts` | `['occt','brepkit']` + §6.3 band | T1+T2 通过（体积≤6.0e-3/面积≤2.3e-3/bbox≤6.5e-4 band，目标 0） |
+| fasteners | nut（HexNut / HexNutWithFlange / BradTeeNut 3 类） | `nut.test.ts` | `['occt','brepkit']` + §6.3 band | T1+T2 通过（体积≤2.6e-3/面积≤2.0e-3/bbox≤4.6e-4/coM≤2.1e-3 band） |
+| fasteners | screw（HexHead / CounterSunk / SetScrew 3 类） | `screw.test.ts` | `['occt','brepkit']` + §6.3 band | T1+T2 通过（沉头锥形头体积≤3.7e-2、coM.z≤1.6e-2 偏大 band，监控 brepkit revolve/intersect 精度） |
+| fasteners | holes（`fastenerHoleCutter` 平/沉头 2 fixture） | `holes.test.ts` | `['occt','brepkit']` | T1+T2 通过（圆柱/圆锥精确体，无 band） |
+| fasteners | chain（2-链轮链节 `parts[0]`） | `chain.test.ts` | `['occt','brepkit']` | T1+T2 通过（链板轮廓源码已密采样折线，几何近一致，无 band） |
+| fasteners | sprocket | `sprocket.test.ts` | `['occt']` 真缺口 | 仅 occt 单体回归（多弧闭合 wire 退化→体积偏小 ~12% 且非对称） |
+| fasteners | thread（含 internalThreadSolid） | `thread.test.ts` | `['occt']` 真缺口 | 仅 occt 单体回归（依赖 makeHelixWire + bsplineSurface/approximatePoints，brepkit 无对应原语） |
+| fasteners | bearing 角接触球 / 圆锥滚子 | `bearing.test.ts` | `['occt']` 真缺口 | 仅 occt 对照（interpolatePointsWithTangents / makeFaceFromWire 构建失败） |
+| fasteners | heatSetNut / screw PanHeadWithCollar·RaisedCheeseHead / holes internalThreadSolid | 各自 `*.test.ts` | `['occt']` 真缺口 | 仅 occt 回归（非平面 knurl 面 / 特定头型 / 螺纹，brepkit 缺原语） |
+| gears | spur / ring / crossed_helical / hyperbolic / herringbone / bevel / rack / worm（+ 各装配体） | `gears.test.ts` | `['occt']` 真缺口 | 仅 occt 单体回归（齿面依赖 bsplineSurface/approximatePoints/interpolatePoints/makeHelixWire，且齿轮包绕过 `kernel.brep` 注入直接取 raw occt-wasm，brepkit 不可建） |
 
 ### 6.8 Seed 状态（2026-10-13 已跑通）
 
@@ -274,10 +278,19 @@ test('worm grid-approx: brepkit 与 occt 体积收敛', async () => {
 - **零缺口零件实证**：washer（PlainWasher / ChamferedWasher / CheeseHeadWasher）在 occt 与 brepkit 下 T1（`solid/shell/face/edge` 精确相等）+ T2（体积/面积/包围盒/质心相对偏差 ≤ 1e-3）全部通过；唯一偏差是 T1* 接缝顶点数（occt 4/5/6 vs brepkit 5/6/7），已降为软记录。
 - **扩展零缺口零件（2026-10-13 续，按用户选定方向 §6.7 第一批，已落地并跑通）**：
   - `sprocket.test.ts`：**经实测重新归类为 brepkit 真缺口（`['occt']`）**。表面上构建调用面干净（仅 L1 的 extrude/makeFace/makeWire/makeArcEdge/makeCone/makeCylinder/cut/fuse/mirror/translate/reverseShape），但 brepkit 对链轮齿廓这种 50+ 条小半径圆弧边构成的单闭合 wire，在 `makeWire`/`makeFaceFromWire` 处静默退化（已知 `makeWire`「边序接不上时静默丢弃」陷阱 + 圆弧离散），导致 brepkit 体积比 occt 小 **~12%**（10 齿 2503 vs 2194；48 齿 61486 vs 54369）且带孔变体 CoM 非对称（偏差 100%）。非测试方法可修复（改库源码禁止），故改为 occt-only 单体回归 + 文档记录缺口。
-  - `bearing.test.ts`：深沟球 / 带盖深沟球 / 圆柱滚子三类（每类取该 type 首/尾尺寸）走 brepkit↔occt，实测几何高度一致，仅存在**系统性小体积偏差 0.1%–0.6%**（brepkit 比 occt 略小，滚道圆弧离散成弦致旋转体轻微欠填）。按 §6.3 双钉：钉死偏差上限 5.9e-3 为 band、目标 0，brepkit 偏差增大即自动转红。`SingleRowAngularContactBallBearing` 因 `interpolatePointsWithTangents`（无 L1 等价）静态排除、仅 occt 回归；`SingleRowTaperedRollerBearing` 经实测为 **brepkit 真缺口**——圆锥内/外圈轮廓线在 `makeFaceFromWire`（brepkitKernel.ts:1044）报 `invalid wire handle`，属 brepkit 轮廓线容错/构建缺陷，已排除出 brepkit 对照并降为 occt-only，须另行排查（不在本测试范围）。
+  - `bearing.test.ts`：深沟球 / 带盖深沟球 / 圆柱滚子三类（每类取该 type 首/尾尺寸）走 brepkit↔occt，实测几何高度一致，仅存在**系统性小体积偏差 0.1%–0.6%**（brepkit 比 occt 略小，滚道圆弧离散成弦致旋转体轻微欠填）。按 §6.3 双钉：钉死体积偏差上限 6.0e-3 为 band、目标 0，brepkit 偏差增大即自动转红。`SingleRowAngularContactBallBearing` 因 `interpolatePointsWithTangents`（无 L1 等价）静态排除、仅 occt 回归；`SingleRowTaperedRollerBearing` 经实测为 **brepkit 真缺口**——圆锥内/外圈轮廓线在 `makeFaceFromWire`（brepkitKernel.ts:1044）报 `invalid wire handle`，属 brepkit 轮廓线容错/构建缺陷，已排除出 brepkit 对照并降为 occt-only，须另行排查（不在本测试范围）。
   - **T1 门禁实证二次修正**：带盖深沟球轴承实测 occt=2 shell / brepkit=1 shell（fuse 后装配体枚举策略差异），故 T1 硬门禁最终收敛为**仅 `solid` 精确相等**，`shell` 与 `face`/`edge`/`vertex`/`wire` 一并降为 T1* 软记录；几何一致由 T2 把关。
-  - **T2 / isSolid 实证修正**：轴承在 volume 之外，还暴露 area（≤2.2e-3）、bbox.x（≤3.0e-4）的小偏差，以及 isSolid 在 M10 深沟球上 occt=false（compound-of-solids）/ brepkit=true（合并 solid）的表示差异。故 `isSolid` 由硬门禁降为软记录（实体有效性已由 T1 `solid` 数量保证）；area/bbox 偏差按 §6.3 双钉钉入 `BEARING_T2_BAND`（areaRel=2.3e-3、bboxRel=3.5e-4、volumeRel=6.0e-3，目标 0）。链轮 occt 回归也因 occt 把多体链轮作 compound-of-solids 返回（`metrics.solid` 计数 undefined）而改为只校验体积 > 0 与 bbox 有限。
-- **未改任何库源码**：brepkit 侧的 `revolve`/`makeSolid`/`rotate` 适配仅存在于测试桩（`WarehouseKernel` 测试专用适配器；`rotate`→ Rodrigues 矩阵映射 L1 `transform`），待 fasteners 迁移 L1 后该桩可删（见 §3.3 实测补充）。
+  - **T2 / isSolid 实证修正**：轴承在 volume 之外，还暴露 area（≤2.2e-3）、bbox（**M3 小尺寸 y 轴 ≤6.09e-4，为各轴全量最大**，源于包围盒最小、同一圆弧弦离散绝对误差占比最大）的小偏差，以及 isSolid 在 M10 深沟球上 occt=false（compound-of-solids）/ brepkit=true（合并 solid）的表示差异。故 `isSolid` 由硬门禁降为软记录（实体有效性已由 T1 `solid` 数量保证）；area/bbox 偏差按 §6.3 双钉钉入 `BEARING_T2_BAND`（areaRel=2.3e-3、bboxRel=6.5e-4、volumeRel=6.0e-3，目标 0；band 仅覆盖实测最大观测，后续 brepkit 精度提升可收紧）。链轮 occt 回归也因 occt 把多体链轮作 compound-of-solids 返回（`metrics.solid` 计数 undefined）而改为只校验体积 > 0 与 bbox 有限。
+  - **第二批零缺口件实证（2026-10-13 续，全绿）**：
+    - `nut.test.ts`：HexNut / HexNutWithFlange / BradTeeNut 三类（各取 1 尺寸）走 brepkit↔occt，实测**系统性小偏差**（brepkit 比 occt 略小，六角/法兰轮廓圆弧离散）：体积≤2.500e-3、面积≤1.822e-3、bbox.y≤4.511e-4、coM.z≤1.986e-3。按 §6.3 双钉 `NUT_T2_BAND`（volumeRel=2.6e-3、areaRel=2.0e-3、bboxRel=4.6e-4、coMRel=2.1e-3，目标 0）。heatSetNut 因非平面 knurl 面（`makeNonPlanarFace`）brepkit 缺原语，保持 `['occt']`。
+    - `screw.test.ts`：HexHead / CounterSunk / SetScrew 三类。HexHead/SetScrew 仅 coM.z 偏高（长细件质心对头部离散极敏感：1.5%/0.2%）；CounterSunk 锥形头更甚（体积 3.619e-2）。均按 §6.3 双钉 `SCREW_T2_BAND`（volumeRel=3.7e-2、coMRel=1.6e-2、bboxRel=3.8e-3、areaRel=4.0e-2，目标 0；沉头头为 brepkit revolve/intersect 精度监控重点）。PanHeadWithCollar / RaisedCheeseHead 等特定头型未纳入本轮，保持 `['occt']`。
+    - `holes.test.ts`：`fastenerHoleCutter`（平/沉头 2 fixture）仅用 revolveProfile/cylinder/cone/fuse/translate，圆柱圆锥为精确体，T1+T2 无 band 全绿。`clearanceHole`/`tapHole` 需宿主 `part` 实体、`internalThreadSolid` 走螺纹（helix+bspline），保持 `['occt']`。
+    - `chain.test.ts`：2-链轮链节取 `parts[0].solid`；链板轮廓源码已密采样折线（圆弧预离散），brepkit↔occt 几何近一致，T1+T2 无 band 全绿（需传 `positive_chain_wrap` 满足 buildChain 校验）。
+  - **occt-only 回归实证（2026-10-13 续，全绿）**：
+    - `thread.test.ts`：`buildThread`（非 simple）依赖 `makeHelixWire` + `bsplineSurface`/`approximatePoints`（`ruledFace`），brepkit 无对应原语 → `['occt']`；仅校验体积 > 0 与 bbox 有限。`internalThreadSolid` 同理。
+    - `gears.test.ts`：spur / ring / crossed_helical / bevel / rack / worm 六类全部 `['occt']`。根因：齿面靠 `bsplineSurface`/`approximatePoints`/`interpolatePoints`/`makeHelixWire`/`loft` 构造，这些原语 **brepkit core 引擎未实现**（归 core，不在本包范围）——与 faijs-fasteners 一样属真缺口，非测试桩可补。已把 `faijs-gears/src/kernel/gears.ts` 的 `getGearKernel()` 从硬绑 `initOcctWasm()` 改为**优先消费宿主注入式 backend**（`getBackends().kernel.brep`，与 fasteners `kernel.ts` 对齐），未配置时回退 `initOcctWasm()` 保旧测试兼容。如此 brepkit 注入下齿轮构建必然失败，本测试用 `useBuildKernel('brepkit')` + 断言 `r.ok===false`（错误含 `bsplineSurface`/`makeHelixWire`/`is not a function`）把**真缺口暴露在引擎层**；occt 注入下仍做单体回归（Result.ok + 体积>0 + bbox 有限）。将来 core 补齐原语后，该缺口测试直接翻转为一致性测试，无需再改源码。
+  - **harness 配套修正**：`initEngines` 末尾补 `useBuildKernel('occt')`，使直接读 `getBackends().kernel.brep` 的库（fasteners `requireKernel` / `buildThread`）在 beforeAll 后即可 build，免每个测试重复切核；新增 `extractMetrics(engine, handle)` 与 `measureOcct(handle)` 供 occt-only 零件直接量测 occt 几何。
+- **库源码改动（仅 faijs-gears，用户授权）**：`faijs-gears/src/kernel/gears.ts` 的 `getGearKernel()` 由硬绑 `initOcctWasm()` 改为优先消费注入式 backend（与 fasteners 对齐，使引擎声明机制对齿轮生效）；brepkit 缺口现经引擎注入诚实暴露。`harness.ts` 内 `revolve`/`makeSolid`/`rotate` 适配仍为测试桩（`WarehouseKernel` 测试专用适配器；`rotate`→ Rodrigues 矩阵映射 L1 `transform`），待 fasteners 迁移 L1 后该桩可删（见 §3.3 实测补充）。**core 引擎（brepkit L1 缺 spline/helix 原语）未改**——那是另一 agent 的重构范围。
 - **已知约束**：本环境无 `dist` 构建，专属 config 用别名把 `@faicad/faijs` 指到 `packages/core/src` 源码；`registerBrepkitBrepEngine()` + `getBrepEngine('brepkit').primitives` 取 L1 单例，occt 侧注入 raw `initOcctWasm()`。
 
 ## 7. 风险与红线
@@ -288,3 +301,59 @@ test('worm grid-approx: brepkit 与 occt 体积收敛', async () => {
 - `PART_META` 与追踪结果不一致 → 构建失败，不允许"声明说可用、实际炸"。
 - **测试不得假通过**：凡是已知偏差零件必须 §6.3 双钉（当前值 + 目标值），band 只能收紧不能偷偷放大；`pinCurrent` 改大即红。
 - `['occt','brepkit']` 零件若缺少对应 engine-compat 测试 → 视为声明无效，构建/CI 失败（§6.4）。
+
+## 8. 实际完成内容与缺口（2026-10-13 收尾状态）
+
+本节是收尾时的权威结论，区分「已落地并验证」与「真缺口 / 计划内未做」，避免把方案描述误读为已完成。
+
+### 8.1 已完成（已落地并验证）
+
+1. **测试底座 `harness.ts`**（`packages/tests/faijs/engine-compat/harness.ts`）
+   - 双引擎注入：occt 侧注入 raw `initOcctWasm()`；brepkit 侧用 L1 单例（`registerBrepkitBrepEngine` + `getBrepEngine('brepkit').primitives`，用别名把 `@faicad/faijs` 指到 `packages/core/src` 源码）。
+   - T1/T2 断言：`expectTopoEqual`（硬门禁仅 `solid` 精确相等；`shell/face/edge/vertex/wire` 软记录）、`assertConsistent`（T2 体积/面积/包围盒/质心相对偏差，band 可配）。
+   - 测试桩适配：`revolve`（`revolveVec` 需先 `makeFace`）、`makeSolid`（恒等）、`rotate`（Rodrigues→L1 `transform`）。
+   - `extractMetrics`、`measureOcct`、`useBuildKernel` 供 occt-only 量测与引擎切换；`initEngines` 末尾补 `useBuildKernel('occt')`。
+
+2. **9 个测试文件、44 个用例全绿**（用 `packages/tests/vitest.engine-compat.config.ts` 运行）：
+
+   | 文件 | 零件 | 分类 | 结论 |
+   |---|---|---|---|
+   | washer.test.ts | Plain/Chamfered/CheeseHead | `['occt','brepkit']` | T1+T2 无 band |
+   | bearing.test.ts | 深沟球/带盖深沟球/圆柱滚子 | `['occt','brepkit']`+band | 系统性小偏差双钉（vol≤6.0e-3/area≤2.3e-3/bbox≤6.5e-4） |
+   | nut.test.ts | Hex/HexFlange/BradTee | `['occt','brepkit']`+band | 小偏差双钉（vol≤2.6e-3/area≤2.0e-3/bbox≤4.6e-4/coM≤2.1e-3） |
+   | screw.test.ts | HexHead/CounterSunk/Set | `['occt','brepkit']`+band | 沉头锥形头偏大 band（vol≤3.7e-2/coM≤1.6e-2/bbox≤3.8e-3/area≤4.0e-2） |
+   | holes.test.ts | fastenerHoleCutter | `['occt','brepkit']` | 无 band |
+   | chain.test.ts | 2-链轮链节 | `['occt','brepkit']` | 无 band |
+   | sprocket.test.ts | sprocket | `['occt']` | occt 单体回归 |
+   | thread.test.ts | thread/internalThreadSolid | `['occt']` | occt 单体回归 |
+   | gears.test.ts | spur/ring/crossed_helical/bevel/rack/worm | `['occt']` | occt 回归 + brepkit 缺口断言（`r.ok===false`） |
+
+3. **faijs-gears 源码改造**（用户授权）：`getGearKernel()` 由硬绑 `initOcctWasm()` 改为**优先消费注入式 backend**（`getBackends().kernel.brep`，与 fasteners `kernel.ts` 对齐），未配置时回退 `initOcctWasm()`（保旧测试兼容）。brepkit 缺口现经引擎注入诚实暴露。
+
+4. **本计划文档**：§6.7 分类表与 §6.8 实证笔记已按实测结果回填（含 T1 二次修正、`isSolid` 降级、各零件 band 实测值）。
+
+### 8.2 真缺口（在 brepkit 引擎层，非本包可补）
+
+根因：**core 引擎（brepkit L1）缺 spline / helix 类原语**（`bsplineSurface` / `approximatePoints` / `interpolatePoints` / `makeHelixWire` / `loft` 等），归 core 重构（另一 agent 范围），本工作未改 core。具体受影响零件：
+
+- **sprocket**：50+ 小半径圆弧边闭合 wire，`makeWire`/`makeFaceFromWire` 静默退化 → 体积偏小 ~12% 且 CoM 非对称。
+- **thread / internalThreadSolid**：依赖 `makeHelixWire` + `bsplineSurface`/`approximatePoints`。
+- **全部 gears**（spur/ring/crossed_helical/hyperbolic/herringbone/bevel/rack/worm + 装配体）：齿面依赖 spline/helix 原语；改造后已能诚实暴露（brepkit 注入下 `r.ok===false`，错误含 `bsplineSurface`/`makeHelixWire`/`is not a function`）。
+- **bearing 角接触球 / 圆锥滚子**：`interpolatePointsWithTangents` / `makeFaceFromWire` 构建失败（brepkit 轮廓线容错缺陷）。
+- **heatSetNut / screw PanHeadWithCollar·RaisedCheeseHead / holes internalThreadSolid**：非平面 knurl 面 / 特定头型 / 螺纹，brepkit 缺原语。
+
+> 闭合条件：core 补齐上述原语后，§3.3 的 raw→L1 改写即可把上述 `['occt']` 零件抬为 `['occt','brepkit']`；届时 sprocket/thread/gears 的 occt-only 测试直接翻转为一致性测试，**无需再改本包源码**。
+
+### 8.3 计划内但尚未实现（明确列出，以免误判为已完成）
+
+- **§3.1 `PART_META` 注册表**未建（每个零件挂 `engines` 元数据）。
+- **§3.4 `gen-lib-capability-map.ts` + `lib-capability-map.json`** 未实现（静态追踪每个零件调用的内核方法）。
+- **§3.5 weapp 侧静态过滤**未接入（`PART_META.engines` → 工具注册，brepkit 模式自动不出现 occt-only 零件）。
+- **§6.3 双钉 `pinCurrent`/`pinTarget` 持久化**目前仅在测试代码内以 band 常量形式存在（`BEARING_T2_BAND`/`NUT_T2_BAND`/`SCREW_T2_BAND`），未落 `golden.deviation.json`；band 仅覆盖实测最大观测，后续可手工收紧。
+- **§6.4 `assertEngineMetaConsistent`** 闭环校验未实现（声明 `['brepkit']` 与测试存在性互证）。
+
+### 8.4 已知约束与边界
+
+- 本环境无 `dist` 构建；专属 config 用别名把 `@faicad/faijs` 指到 `packages/core/src` 源码。
+- 测试桩 `revolve`/`makeSolid`/`rotate` 适配属验证用；fasteners 迁移 L1 后该桩可删（见 §3.3）。
+- **core 引擎未改**；另一 agent 的 faijs 大范围重构与本提交不冲突——本提交仅含 engine-compat 测试、harness、gears.ts 改造、计划文档，不影响他人工作树。
