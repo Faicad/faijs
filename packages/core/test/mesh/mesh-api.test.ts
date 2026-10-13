@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * mesh API 单元测试
  *
  * 验证 mesh 的每个 API 正确包装了底层纯函数。
@@ -18,12 +18,12 @@ import * as meshEngrave from '../../src/mesh/engrave'
 import * as meshQuery from '../../src/mesh/query'
 import * as meshIo from '../../src/mesh/io'
 import type { Shape } from '../../src/mesh/types'
-// A/B 组（`fai_*` / `text` / `svgExtrude`）的 mesh 实现已迁到 @faicad/faijs-extra；
+// A/B 组（`fai_*` / `text` / `svgExtrude`）的 mesh 实现已在 2026-10-13 合并到 core/src/extra；
 // 本文件覆盖「平台面 ∪ 编辑器面」的 mesh 契约：按模块导入实现，不再聚合。
 import {
   meshText, meshSvgExtrude, meshSplit, meshExtrude, drill,
   dovetailSplit, dowelSplit, tenonSplit,
-} from '@faicad/faijs-extra'
+} from '../../src/extra'
 
 // ── 工具函数 ──
 

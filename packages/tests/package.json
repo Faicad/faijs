@@ -6,8 +6,7 @@
   "type": "module",
   "dependencies": {
     "@faicad/faijs-gears": "^0.33.0",
-    "@faicad/faijs-fixtures": "^0.33.0",
-    "@faicad/faijs-sketch": "^0.33.0"
+    "@faicad/faijs-fixtures": "^0.33.0"
   },
   "devDependencies": {
     "typescript": "*",

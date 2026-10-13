@@ -418,6 +418,21 @@ export class CadRuntime {
   /** warn 档位下收集的确定性警告，合并进最终 ExecutionResult.infos。 */
   private determinismWarnings: string[] = []
 
+  /**
+   * Reserved binding names — only `'cad'`. Once the engine registers `cad`
+   * (inside `createRuntime`), any subsequent `registerLib('cad', ...)` from
+   * the host is rejected. The `_cadReserved` flag is set by `createRuntime`
+   * immediately after the internal registration so the guard can distinguish
+   * the engine's own first registration from a host's attempt to override.
+   */
+  private static readonly RESERVED_BINDINGS = new Set(['cad'])
+  /**
+   * Reserved marker for the `cad` binding: set right after the engine's own
+   * registration so the guard can tell it apart from a host override attempt.
+   * @internal
+   */
+  _cadReserved = false
+
   /** 宿主注册库（含 cad：由根门面 createRuntime 包装注入；注入编译产物 fn 的第二参 ns） */
   private readonly libs: Record<string, LibNamespace>
   /** 库内容身份表 (binding → content hash)，增量 key 用（B2，§7.3） */
@@ -463,6 +478,17 @@ export class CadRuntime {
 
    */
   registerLib(binding: string, ns: LibNamespace, options?: { default?: boolean; autoLift?: boolean; packageName?: string }): void {
+    // Reserved binding guard (2026-10-13): `cad` is the only reserved name.
+    // The engine's own first registration (from `createRuntime`) sets the
+    // `_cadReserved` flag; any subsequent attempt to register or override
+    // `cad` from the host is rejected.
+    if (CadRuntime.RESERVED_BINDINGS.has(binding) && this._cadReserved) {
+      throw new Error(
+        `E_CAD_RESERVED: "${binding}" is an engine-built-in reserved namespace. ` +
+        'Hosts cannot register or override it. Use a different binding name ' +
+        'for your custom library.',
+      )
+    }
     assertContractVersion(ns as unknown as { contractVersion?: number })
     // B4: admit bare (non-dual-op) library functions through compatOp when
     // autoLift is true (or inferred true — the library has no dual-op).
@@ -1828,24 +1854,33 @@ import { createApiNamespace } from '../api/api-namespace'
  * default library.
  *
  * This is the single public `createRuntime` entry point. Hosts get "engine +
- * standard library" in one call. If `libs` already contains a `cad` key, that
- * caller-supplied namespace is kept (not overwritten).
+ * standard library" in one call. The `cad` binding name is **reserved** —
+ * passing `libs.cad` throws (cad is engine-built-in and cannot be overridden).
+ * Hosts may still register third-party libraries under any other name.
  *
  * @param ports - the host-injected environment capabilities.
  * @param mode - the execution mode (default 'auto').
- * @param libs - the host-injected library namespaces. If `libs.cad` is omitted,
- *   the built-in cad namespace is auto-registered as the default lib.
+ * @param libs - the host-injected library namespaces. Must NOT contain `cad`.
  * @param options - optional runtime options (e.g. `execBackend`, `tessellation`).
  * @returns a new CadRuntime with `cad` registered as the default namespace.
+ * @throws if `libs.cad` is present (cad is a reserved binding name).
  */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, LibNamespace>, options?: CadRuntimeOptions): CadRuntime {
-  const rt = new CadRuntime(ports, mode, libs, options)
-  if (!libs?.cad) {
-    rt.registerLib('cad', createApiNamespace(), {
-      default: true,
-      packageName: '@faicad/faijs',
-    })
+  if (libs && 'cad' in libs) {
+    throw new Error(
+      'E_CAD_RESERVED: "cad" is an engine-built-in reserved namespace. ' +
+      'Hosts cannot override or replace it. Use a different name for your ' +
+      'custom library, or omit libs.cad to use the built-in cad namespace.',
+    )
   }
+  const rt = new CadRuntime(ports, mode, libs, options)
+  rt.registerLib('cad', createApiNamespace(), {
+    default: true,
+    packageName: '@faicad/faijs',
+  })
+  // Mark `cad` as reserved — any subsequent `registerLib('cad', ...)` from the
+  // host will be rejected by the guard at the top of registerLib.
+  rt._cadReserved = true
   return rt
 }
 

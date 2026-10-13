@@ -29,10 +29,9 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 /** Directories to scan for defineOp/compatOp call sites. */
 const SCAN_DIRS = [
   join(repoRoot, 'packages/core/src/api'),
-  join(repoRoot, 'packages/faijs-extra/src/ops'),
-  join(repoRoot, 'packages/sketch/src'),
+  join(repoRoot, 'packages/core/src/extra/ops'),
+  join(repoRoot, 'packages/core/src/sketch'),
   join(repoRoot, 'packages/sheetmetal/src'),
-  join(repoRoot, 'packages/draw/src'),
   join(repoRoot, 'packages/faijs-gears/src'),
   join(repoRoot, 'packages/faijs-fasteners/src'),
 ]

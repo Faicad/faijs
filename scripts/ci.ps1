@@ -69,16 +69,15 @@ Step -Label '2/9  npm run typecheck（根 + workspaces）' -Block {
     npm run typecheck --workspaces --if-present
 }
 
-Step -Label '3/9  npm run build（core → draw → sketch → extra → viewer → sheetmetal → gears）' -Block {
+Step -Label '3/9  npm run build（core → viewer → sheetmetal → gears）' -Block {
     # Ensure workspace junctions exist (npm workspaces may fail to create them on Windows)
     if (-not (Test-Path "node_modules/@faicad/faijs/package.json")) {
         Write-Host "    [ci] workspace junction missing — running npm install" -ForegroundColor Yellow
         npm install
     }
     # demo 以「workspace 内消费 dist」独立化：dev/e2e 通过 workspace 链接解析 @faicad/* 到各包 dist/。
-    # 因此 demo e2e 前必须先把 demo 声明依赖的 @faicad/*（core/faijs-extra/sheetmetal/faijs-gears）构建出 dist。
-    # faijs-sketch 也在链上：cq-compat-compare 的 pretest 构建经 node_modules 解析
-    # @faicad/faijs-sketch → dist，fresh checkout 无此步则 TS2307。
+    # 因此 demo e2e 前必须先把 demo 声明依赖的 @faicad/*（core/sheetmetal/faijs-gears）构建出 dist。
+    # cq-compat-compare 的 pretest 构建经 node_modules 解析 @faicad/faijs → dist，fresh checkout 无此步则 TS2307。
     # 根 build 已覆盖它们；dist 在 git 上被忽略，fresh checkout 全靠此步产出。
     npm run build
 }
@@ -101,7 +100,7 @@ $testBudgetOverrides = @{
 # （profile，1e-9 级最灵敏信号）、新增 5 类纯数学装配量（new-gear-math）、裸齿轮实体体积
 # 对比（spur-gear-build）。实测 3.86s / 159 passed。完整套件仍可 `npm test -w @faicad/faijs-gears` 单独跑。
 $gearsSubset = 'src/index.test.ts src/profile.test.ts src/new-gear-math.test.ts src/spur-gear-build.test.ts'
-$testPackages = @('@faicad/faijs','@faicad/faijs-sketch','@faicad/faijs-extra','@faicad/sheetmetal','@faicad/faijs-gears','@faicad/faijs-fasteners','@faicad/faijs-draw','@faicad/faijs-tests','@faicad/faijs-demo')
+$testPackages = @('@faicad/faijs','@faicad/sheetmetal','@faicad/faijs-gears','@faicad/faijs-fasteners','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
     $pkgBudget = if ($env:FAIJS_TEST_BUDGET_MS) { $testBudgetMs } elseif ($testBudgetOverrides.ContainsKey($pkg)) { $testBudgetOverrides[$pkg] } else { $testBudgetMs }
@@ -154,12 +153,12 @@ $elapsed3 = (Get-Date) - $start3
 $total3 = (Get-Date) - $script:globalStart
 Write-Host "    ($($elapsed3.TotalSeconds.ToString('0.0'))s / 累计 $($total3.TotalSeconds.ToString('0.0'))s)" -ForegroundColor DarkGray
 
-# publish-state smoke: pack + install + run (§8 of sketch plan)
-Write-Host "    -- @faicad/faijs-sketch test:install（publish-state 冒烟）"
-node scripts/run-tests-with-watchdog.mjs --budget-ms 600000 -- npm run test:install -w @faicad/faijs-sketch 2>&1 | ForEach-Object { Write-Host $_ }
+# publish-state smoke: pack + install + run (sketch + extra now in core)
+Write-Host "    -- @faicad/faijs test:install（publish-state 冒烟）"
+node scripts/run-tests-with-watchdog.mjs --budget-ms 600000 -- npm run test:install -w @faicad/faijs 2>&1 | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) {
     if ($allMode) {
-        $script:failures.Add('4/9  @faicad/faijs-sketch test:install')
+        $script:failures.Add('4/9  @faicad/faijs test:install')
     } else {
         exit 1
     }
@@ -174,7 +173,7 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-facade.mjs
     if ($LASTEXITCODE -ne 0) { return }
-    npx madge --circular packages/core/src packages/faijs-extra/src
+    npx madge --circular packages/core/src
     if ($LASTEXITCODE -ne 0) { return }
     # 平台 import 隔离（narrowing plan Phase 8）：中立模块不得静态 import occt/brepkit 平台模块
     node scripts/check-platform-imports.mjs
@@ -203,7 +202,7 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     if ($LASTEXITCODE -ne 0) { return }
     # API 测试覆盖门禁：每个可发布包的导出 API 必须被本包测试引用（L1），
     # 且每个参数必须在调用点被覆盖（L2）。基于源码 AST，不依赖 build。
-    foreach ($pkg in @('core','faijs-extra','sheetmetal','sketch','draw','faijs-gears','faijs-fasteners','faijs-viewer')) {
+    foreach ($pkg in @('core','sheetmetal','faijs-gears','faijs-fasteners','faijs-viewer')) {
         npx tsx scripts/check-api-test-coverage.ts --package=$pkg
         if ($LASTEXITCODE -ne 0) { return }
     }

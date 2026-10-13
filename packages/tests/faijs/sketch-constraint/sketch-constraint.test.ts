@@ -19,22 +19,19 @@ import { createRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
 import {
-  createSketchCadNamespace, registerSketchSymbols, unregisterSketchSymbols,
   installSketchSolver, uninstallSketchSolver, setSketchDiagnosticSink,
-} from '@faicad/faijs-sketch'
-import type { SolveOutcome } from '@faicad/faijs-sketch'
-import { createNodePlanegcsSolver } from '@faicad/faijs-sketch/node'
+} from '@faicad/faijs/sketch'
+import type { SolveOutcome } from '@faicad/faijs/sketch'
+import { createNodePlanegcsSolver } from '@faicad/faijs/sketch/node'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  registerSketchSymbols()
   installSketchSolver(createNodePlanegcsSolver)
 }, 120000)
 
 afterAll(() => {
-  unregisterSketchSymbols()
   uninstallSketchSolver()
 })
 
@@ -42,9 +39,7 @@ async function runScript(code: string): Promise<{
   shape: Shape | undefined
   failedAt: unknown
 }> {
-  const runtime = createRuntime(createNodePorts(), 'brep', {
-    cad: createSketchCadNamespace(),
-  })
+  const runtime = createRuntime(createNodePorts(), 'brep')
   const result = await runtime.execute(code)
   const outputs = Array.from(result.outputs.entries())
   const last = outputs[outputs.length - 1]

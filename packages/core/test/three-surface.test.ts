@@ -12,10 +12,11 @@
  *  - R1 (built): the static import closure of core's built entries is `three`-free.
  *  - M4: `three` is absent from `dependencies`, `peerDependencies`, and
  *    `devDependencies` (the r184 install is gone; only `three-162` stays).
- *  - The extension library may not leak back in: core must not import
- *    `@faicad/faijs-extra` (that would be a cycle: extra peer-depends on core).
  *
  * Precedent: `sdk.test.ts` scans a built entry's static specifiers the same way.
+ *
+ * 2026-10-13: the `@faicad/faijs-extra` import guard was removed (the package
+ * was merged into core; the guard's object no longer exists).
  */
 
 import { describe, it, expect } from 'vitest'
@@ -122,12 +123,6 @@ describe('R1 — core source is three-free', () => {
     ).toEqual([])
   })
 
-  it('core never imports the extension library (that would be a dependency cycle)', () => {
-    const offenders = sourceFiles.filter((f) =>
-      /from\s+['"]@faicad\/faijs-extra/.test(readFileSync(f, 'utf-8')),
-    )
-    expect(offenders.map((f) => relative(pkgRoot, f))).toEqual([])
-  })
 })
 
 describe('M4 — three is absent from core runtime deps', () => {
@@ -161,12 +156,10 @@ describe('M4 — three is absent from core runtime deps', () => {
 describe('R1 (built) — dist entry closures are three-free', () => {
   for (const entry of ENTRY_POINTS) {
     const entryPath = join(distRoot, entry)
-    it.skipIf(!existsSync(entryPath))(`${entry}: no three, no @faicad/faijs-extra`, () => {
+    it.skipIf(!existsSync(entryPath))(`${entry}: no three`, () => {
       const { specifiers } = distClosure(entryPath)
       const threeSpecs = specifiers.filter(isThreeSpecifier)
       expect(threeSpecs, `built dist must not reference three:\n${threeSpecs.join('\n')}`).toEqual([])
-      const leaks = specifiers.filter((s) => s.startsWith('@faicad/faijs-extra'))
-      expect(leaks).toEqual([])
     })
   }
 })

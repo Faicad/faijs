@@ -1,22 +1,22 @@
 /**
- * api-namespace — 把 L3 API 面（api/ 层的 fp操作）装配为 cad 命名空间（统一 ABI，B2 消灭）
+ * api-namespace — the complete cad namespace (platform + sketch + extra).
  *
+ * Assembles the full `cad` namespace: platform ops + sketch op + editor ops.
+ * This namespace is registered by `createRuntime` as the `cad` default library;
+ * `cad` is a reserved binding name — hosts cannot override it.
  *
- * 库函数签名 = .fai.js 源码形态（无隐式参数）；本文件无任何 per-函数逻辑。
+ * 2026-10-13 merge: sketch and faijs-extra were absorbed into core. Their ops
+ * are now listed explicitly in the return literal below (not merged by the
+ * host). The `cad` binding is reserved (see runtime.ts reserved-binding guard).
  *
- * 归属（monorepo P5/E-a-1）：本文件随 core 出包，是 faijs 默认库函数
- * （cad 命名空间）的装配点。K5（引擎零函数知识）的准确含义是：parser / compile /
- * runtime 不按函数名分支、不区分函数类别，函数信息统一以 defineOp 元数据（均匀数据）
- * 承载。把 cad 这套库数据内置进引擎，与第三方库走完全相同的 registerLib 路径，
- * 引擎并未对 cad 特判，因此不构成 K5 违反。cad 在 core 的 createRuntime 包装中
- * 被注册为 default 命名空间（见 cad-runtime/runtime.ts 的 createRuntime）。
+ * K5 (引擎零函数知识) compliance: parser/compile/runtime does not branch on
+ * function names — all op metadata is carried by defineOp (uniform data).
+ * Builtin cad data going through registerLib with the same path as third-party
+ * libs does not violate K5.
  *
- * D1（2026-09-23 扩展库拆分）：本命名空间只装配**平台面**。编辑器专属 op
- * （`fai_*` / `group` / `assembly` / `copy` / `load`）与两个非基础 three 链的创建 op
- * （`text` / `svgExtrude`）已迁到 `@faicad/faijs-extra`，由宿主经
- * `mergeEditorNamespace()` 合并后注册——键名与拆分前完全一致，存量 `.fai.js` 零迁移。
- * 四个 transform op（translate/rotate_euler/scale/scale3d）按 D1 选项 C 留在此处：
- * `translate` 是通用几何变换，且是小程序端唯一在用的 transform op。
+ * IMPORTANT: gen-symbol-table.ts only discovers ShorthandPropertyAssignment
+ * and PropertyAssignment in this literal — it does NOT discover SpreadAssignment.
+ * Never use `...spread` for ops that must appear in the symbol table.
  */
 
 import { box, sphere, cylinder, cone, wedge } from './primitives'
@@ -122,6 +122,19 @@ import { scriptFaceOps } from './generated/script-face'
 import { revolve } from './revolve'
 import { CONTRACT_VERSION } from '../runtime-state'
 import type { LibNamespace } from '../runtime-state'
+// Merged sketch + extra ops (2026-10-13): sketch and faijs-extra were absorbed
+// into core. These ops are now part of the cad namespace directly, not
+// assembled by the host. Do NOT use spread — list each op explicitly so
+// gen-symbol-table can discover them (it ignores SpreadAssignment).
+import { sketch } from '../sketch/op'
+import { fai_drill } from '../extra/ops/fai_drill'
+import { fai_extrude } from '../extra/ops/fai_extrude'
+import { fai_split } from '../extra/ops/fai_split'
+import { group, assembly } from '../extra/ops/compound'
+import { copy } from '../extra/ops/copy'
+import { load } from '../extra/ops/load'
+import { text } from '../extra/ops/text'
+import { svgExtrude } from '../extra/ops/svg-extrude'
 
 /**
  * Assemble api functions into the cad namespace.
@@ -206,6 +219,19 @@ export function createApiNamespace(): LibNamespace {
     import_step,
     compound: geometricCompound,
     place,
+    // Merged sketch + extra ops (2026-10-13): these 10 ops were previously
+    // assembled by the host via merge*Namespace + register*Symbols.
+    // They are now part of the built-in cad namespace directly.
+    sketch,
+    fai_drill,
+    fai_extrude,
+    fai_split,
+    group,
+    assembly,
+    copy,
+    load,
+    text,
+    svgExtrude,
     ...scriptFaceOps,
     // Phase 3: override generated cut (compatOp, no roleTable propagation) with
     // handwritten cut from boolean.ts (does roleTable propagation via booleanBrep).

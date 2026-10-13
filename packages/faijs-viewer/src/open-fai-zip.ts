@@ -20,9 +20,7 @@
 
 import { createBrowserPorts, createRuntime, isMeshShape } from '@faicad/faijs/browser'
 import type { AssetResolver, ExecutionResult } from '@faicad/faijs'
-import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
-import { mergeSketchNamespace, installSketchSolver, registerSketchSymbols } from '@faicad/faijs-sketch'
-import { mergeEditorNamespace, registerEditorSymbols } from '@faicad/faijs-extra'
+import { setSketchSolverInitFn } from '@faicad/faijs/sketch'
 import { openContainer, type OpenContainerResult } from '@faicad/faijs/io/fai-zip'
 import { installEngine } from './engine'
 import { createViewerLibLoader } from './libs'
@@ -137,7 +135,7 @@ function inNodeEnv(): boolean {
  * bundle its node:* into a browser build. A Node host resolves it normally; a
  * browser host never reaches that branch.
  */
-const NODE_SKETCH_SOLVER_SPECIFIER = '@faicad/faijs-sketch/node'
+const NODE_SKETCH_SOLVER_SPECIFIER = '@faicad/faijs/sketch/node'
 
 async function ensureSketchSolver(opts: OpenFaiZipOptions): Promise<void> {
   if (inNodeEnv()) {
@@ -148,7 +146,7 @@ async function ensureSketchSolver(opts: OpenFaiZipOptions): Promise<void> {
       const nodeSolver = (await import(/* @vite-ignore */ NODE_SKETCH_SOLVER_SPECIFIER)) as {
         createNodePlanegcsSolver: unknown
       }
-      installSketchSolver(nodeSolver.createNodePlanegcsSolver as Parameters<typeof installSketchSolver>[0])
+      setSketchSolverInitFn(nodeSolver.createNodePlanegcsSolver as Parameters<typeof setSketchSolverInitFn>[0])
     } catch {
       // The solver package is not installed in this process — sketch models
       // will surface E_SKETCHC_NO_SOLVER. Core mesh-only containers are unaffected.
@@ -161,8 +159,8 @@ async function ensureSketchSolver(opts: OpenFaiZipOptions): Promise<void> {
     const res = await fetch(planegcsUrl)
     if (!res.ok) throw new Error(`planegcs fetch failed: ${planegcsUrl} (${res.status})`)
     const wasmBytes = new Uint8Array(await res.arrayBuffer())
-    const { createPlanegcsSolver } = await import('@faicad/faijs-sketch')
-    installSketchSolver(async () => createPlanegcsSolver({ wasmBytes }))
+    const { createPlanegcsSolver } = await import('@faicad/faijs/sketch')
+    setSketchSolverInitFn(async () => createPlanegcsSolver({ wasmBytes }))
   } catch (e) {
     // Degrade, mirroring the Node branch: an unreachable solver (offline CDN,
     // network policy, …) must not sink every `.fai.zip` open — models that
@@ -214,17 +212,9 @@ export async function openFaiZip(bytes: Uint8Array, opts: OpenFaiZipOptions): Pr
   })
 
   // 4. Assemble a runtime bound to those ports, then execute the active model.
+  // After the 2026-10-13 merge, `createRuntime(ports)` provides the full cad
+  // namespace (platform + sketch + extra) built-in — no host assembly needed.
   const runtime = createRuntime(ports, opts?.mode ?? 'auto')
-  // Real converted containers call `cad.sketch` and editor-extension ops
-  // (`cad.fai_drill` / `cad.group` / `cad.text` / …), which live in the sketch
-  // and faijs-extra libraries rather than core. Re-register the default `cad`
-  // binding with those merged in so such models execute without any import
-  // statement. The symbol-table entries are also registered so static analysis
-  // recognises them. (`@faicad/faijs-draw` is deprecated and deliberately not
-  // merged: a `cad.draw` call fails as an unknown callee.)
-  registerSketchSymbols()
-  registerEditorSymbols()
-  runtime.registerLib('cad', mergeEditorNamespace(mergeSketchNamespace(createApiNamespace())), { default: true })
   const entryKey = container.activeModel.entry.slice('model/'.length)
   const entrySource = await container.loader.readSource(entryKey)
   const result = await runtime.execute(entrySource, { entryKey })

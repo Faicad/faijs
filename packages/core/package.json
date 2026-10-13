@@ -86,14 +86,6 @@
       "types": "./dist/mesh/boolean.d.ts",
       "default": "./dist/mesh/boolean.js"
     },
-    "./mesh/decoration-provider": {
-      "types": "./dist/mesh/decoration-provider.d.ts",
-      "default": "./dist/mesh/decoration-provider.js"
-    },
-    "./mesh/engrave": {
-      "types": "./dist/mesh/engrave.d.ts",
-      "default": "./dist/mesh/engrave.js"
-    },
     "./mesh/stl-loader": {
       "types": "./dist/mesh/stl-loader.d.ts",
       "default": "./dist/mesh/stl-loader.js"
@@ -409,6 +401,26 @@
     "./units": {
       "types": "./dist/units.d.ts",
       "default": "./dist/units.js"
+    },
+    "./sketch": {
+      "types": "./dist/sketch/index.d.ts",
+      "default": "./dist/sketch/index.js"
+    },
+    "./sketch/node": {
+      "types": "./dist/sketch/node.d.ts",
+      "default": "./dist/sketch/node.js"
+    },
+    "./extra": {
+      "types": "./dist/extra/index.d.ts",
+      "default": "./dist/extra/index.js"
+    },
+    "./extra/browser": {
+      "types": "./dist/extra/browser.d.ts",
+      "default": "./dist/extra/browser.js"
+    },
+    "./extra/editor-ops": {
+      "types": "./dist/extra/editor-ops.d.ts",
+      "default": "./dist/extra/editor-ops.js"
     }
   },
   "files": [
@@ -420,14 +432,16 @@
     "@xmldom/xmldom": "^0.9.8",
     "acorn": "^8.18.0",
     "fflate": "^0.8.3",
+    "@salusoft89/planegcs": "^1.2.0",
     "manifold-3d": "^3.5.1",
-    "opentype.js": "^1.3.4"
+    "opentype.js": "^1.3.4",
+    "brepkit-wasm": "^4.1.49"
   },
   "peerDependencies": {
     "occt-wasm": "^5.6.0"
   },
   "devDependencies": {
-    "brepkit-wasm": "^4.1.49",
+    "@faicad/brepkit2-wasm": "^2.131.0",
     "@types/three": "^0.184.1",
     "sucrase": "^3.35.1",
     "three-162": "npm:three@^0.162.0",

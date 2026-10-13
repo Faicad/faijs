@@ -50,14 +50,14 @@ function selfTest() {
       title: 'aligned family passes',
       family: new Map([
         mk('@faicad/faijs', '0.20.0'),
-        mk('@faicad/faijs-extra', '0.20.0', { peerDependencies: { '@faicad/faijs': '^0.20.0' } }),
+        mk('@faicad/faijs-gears', '0.20.0', { peerDependencies: { '@faicad/faijs': '^0.20.0' } }),
       ]),
       declared: '0.20.0',
       expect: 0,
     },
     {
       title: 'forked version line is caught',
-      family: new Map([mk('@faicad/faijs', '0.20.0'), mk('@faicad/faijs-draw', '0.18.3')]),
+      family: new Map([mk('@faicad/faijs', '0.20.0'), mk('@faicad/faijs-gears', '0.18.3')]),
       declared: '0.20.0',
       expect: 1,
     },
@@ -98,7 +98,7 @@ function selfTest() {
       title: 'devDependencies ranges are covered too',
       family: new Map([
         mk('@faicad/faijs', '0.20.0'),
-        mk('@faicad/faijs-sketch', '0.20.0', { devDependencies: { '@faicad/faijs': '^0.19.0' } }),
+        mk('@faicad/faijs-fasteners', '0.20.0', { devDependencies: { '@faicad/faijs': '^0.19.0' } }),
       ]),
       declared: '0.20.0',
       expect: 1,
@@ -112,7 +112,7 @@ function selfTest() {
     },
     {
       title: 'family member missing from cdn/versions.json is caught',
-      family: new Map([mk('@faicad/faijs', '0.20.0'), mk('@faicad/faijs-draw', '0.20.0')]),
+      family: new Map([mk('@faicad/faijs', '0.20.0'), mk('@faicad/faijs-gears', '0.20.0')]),
       declared: '0.20.0',
       cdn: { '@faicad/faijs': '0.20.0' },
       expect: 1,

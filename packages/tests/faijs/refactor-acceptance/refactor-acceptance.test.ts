@@ -79,8 +79,8 @@ describe('上层契约：宿主可读代码文本 API', () => {
   it('D1-⓪ 桥接：编辑器 op 已从核心门面迁到扩展库，engrave 仍是平台 op', async () => {
     const root = await import('@faicad/faijs')
     const browser = await import('@faicad/faijs/browser')
-    const extra = await import('@faicad/faijs-extra')
-    const extraBrowser = await import('@faicad/faijs-extra/browser')
+    const extra = await import('@faicad/faijs/extra')
+    const extraBrowser = await import('@faicad/faijs/extra/browser')
     // 编辑器专属 op 迁出 core（键名不变，宿主合并后 `.fai.js` 零改动）。
     expect('fai_drill' in root).toBe(false)
     expect('fai_drill' in browser).toBe(false)

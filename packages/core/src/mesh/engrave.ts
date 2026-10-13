@@ -16,7 +16,7 @@ import { Vec3 as Vec3C, Quat, Mat4 } from '../math3d'
 import { transformShape, translateShape } from './meshdata/ops'
 import { computeBoolean, geoToManifoldMesh, manifoldMeshToGeo } from '../boolean/csg-backend'
 import { boundingBox } from './query'
-import { getEngraveDecorationProvider } from './decoration-provider'
+import { createEngraveDecorationProvider } from '../extra/mesh/engrave-decoration'
 import type { Shape, EngraveParams, KnurlParams } from './types'
 
 /**
@@ -24,9 +24,8 @@ import type { Shape, EngraveParams, KnurlParams } from './types'
  * position it onto a face, then run a boolean union (convex) or subtract
  * (concave).
  *
- * The decoration geometry itself comes from the host-installed provider
- * (`setEngraveDecorationProvider`) — three's `Shape`/`ExtrudeGeometry`/`SVGLoader`
- * chain belongs to `@faicad/faijs-extra`, not to the platform surface.
+ * The decoration geometry itself is produced internally (the text/SVG geometry
+ * chain was absorbed into core as `extra/mesh/engrave-decoration`).
  *
  * @param shape - the world-space target shape.
  * @param params - engrave parameters (text/svg, depth, face, mode).
@@ -37,15 +36,7 @@ export async function engrave(shape: Shape, params: EngraveParams): Promise<Shap
   if (!params.text && !params.svg) {
     throw new Error('engrave requires either text or svg')
   }
-  const provider = getEngraveDecorationProvider()
-  if (!provider) {
-    throw new Error(
-      'engrave: no mesh decoration provider installed — the text/SVG geometry chain ' +
-      'lives in @faicad/faijs-extra; call setEngraveDecorationProvider() (or ' +
-      'installEditorMeshProviders() from @faicad/faijs-extra) before engraving in mesh mode, ' +
-      'or run the op on the BREP path',
-    )
-  }
+  const provider = createEngraveDecorationProvider()
   let decoration = await provider({
     text: params.text,
     textSize: params.textSize,

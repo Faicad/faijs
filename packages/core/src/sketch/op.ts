@@ -1,0 +1,239 @@
+/**
+ * op — the `cad.sketch` script-face op (sketch geometry + constraints → face).
+ *
+ * This op is provided by the sketch library, not core: a host merges it into
+ * the `cad` namespace (see `./namespace`) only when it wants sketch support.
+ * The planegcs solver is host-injected (`installSketchSolver`) because the wasm
+ * source differs between Node and browser hosts — the library itself never
+ * imports `node:*`.
+ */
+import { defineOp } from '../sdk'
+import { fromBase } from '../units'
+import type { Provenance } from '../topology/naming'
+import type { Shape } from '../mesh/types'
+import type { SketchConstraint, SketchGeom, SolveOutcome } from './canonical.js'
+import { sketchFaces } from './faces.js'
+import { expandShapes, type SketchShape } from './shapes.js'
+import { sketchDimSpec } from './dim-spec.js'
+import type { SketchSolver, ExternalFixedSeg } from './solver.js'
+import { setSketchSolverInitFn, initSketchSolver } from './solver-loader.js'
+
+/** The op name `cad.sketch`. */
+export const SKETCH_OP_NAME = 'sketch' as const
+
+// ── degree → radian boundary (unit-system D8) ─────────────────────────────
+// The script face declares every angle field `dim: 'angle'` whose base unit is
+// DEGREE, so the runtime hands numbers here in degrees. The sketch library
+// internals (expandShapes, planegcs, Math.cos/sin) all work in radians. This
+// boundary converts once, at op entry — internals never see degrees. The
+// conversion goes through the unit system (`fromBase`), not a local constant.
+
+function degToRad(angle: number): number {
+  return fromBase(angle, 'radian', 'angle')
+}
+
+/** Convert a plain record in place, returning it for chaining. */
+function convertAngles<T extends Record<string, unknown>>(obj: T, keys: readonly string[]): T {
+  for (const k of keys) {
+    if (typeof obj[k] === 'number') (obj as Record<string, unknown>)[k] = degToRad(obj[k] as number)
+  }
+  return obj
+}
+
+/** Angle-bearing fields per semantic shape kind (see `dim-spec.ts` shapeCases). */
+const SHAPE_ANGLE_KEYS: Record<string, readonly string[]> = {
+  rect: ['angle'], roundedRect: ['angle'], ellipse: ['angle'], polygon: ['angle'],
+  slot: ['angle'], trapezoid: ['a1', 'a2'], arc: ['a0', 'a1'],
+}
+
+/** Angle-bearing fields per canonical geom kind (see `dim-spec.ts` geomCases). */
+const GEOM_ANGLE_KEYS: Record<string, readonly string[]> = {
+  arc: ['a0', 'a1'], ellipse: ['angle', 'a0', 'a1'],
+}
+
+/** Constraint kinds whose `value` is an angle (see `dim-spec.ts` constraintCases). */
+const ANGLE_VALUE_CONSTRAINTS: ReadonlySet<string> = new Set(['angle', 'arcAngle'])
+
+/**
+ * Convert script-face angle values (degrees) into library-internal radians,
+ * mutating the given arrays' entries in place. Unknown kinds pass through
+ * untouched (the library validates them downstream).
+ */
+function anglesToRadians(
+  shapes: Array<Record<string, unknown>> | undefined,
+  geoms: Array<Record<string, unknown>> | undefined,
+  constraints: Array<Record<string, unknown>> | undefined,
+): void {
+  for (const s of shapes ?? []) convertAngles(s, SHAPE_ANGLE_KEYS[s.kind as string] ?? [])
+  for (const g of geoms ?? []) convertAngles(g, GEOM_ANGLE_KEYS[g.kind as string] ?? [])
+  for (const c of constraints ?? []) {
+    if (ANGLE_VALUE_CONSTRAINTS.has(c.kind as string)) convertAngles(c, ['value'])
+  }
+}
+
+let diagnosticSink: ((outcome: SolveOutcome) => void) | undefined
+
+/**
+ * Install the host's planegcs solver factory (deprecated alias).
+ *
+ * Use `setSketchSolverInitFn` from `./solver-loader` instead. This alias
+ * is retained for one release to avoid breaking downstream call sites.
+ *
+ * @param factory - async factory returning a `SketchSolver`.
+ */
+export function installSketchSolver(factory: () => Promise<SketchSolver>): void {
+  setSketchSolverInitFn(factory)
+}
+
+/** Undo {@link installSketchSolver}. */
+export function uninstallSketchSolver(): void {
+  setSketchSolverInitFn(null)
+}
+
+/**
+ * Install a diagnostics sink for non-`solved` outcomes (§5: allow ≠ silent).
+ *
+ * Hosts bridge this to their `HostPorts.events` sink / UI. Under-, redundant-
+ * and conflicting-constraint sketches still produce geometry, but the
+ * diagnostic must reach the host.
+ *
+ * @param sink - receives every non-`solved` solve outcome; `null` clears it.
+ */
+export function setSketchDiagnosticSink(sink: ((outcome: SolveOutcome) => void) | null): void {
+  diagnosticSink = sink ?? undefined
+}
+
+/** `cad.sketch` parameters. */
+export interface SketchParams {
+  /**
+   * 语义图元清单（**与 `geoms` 二选一**）：矩形/圆/圆角矩形/椭圆/正多边形/长圆槽/梯形
+   * + 画笔图元（线/弧/样条/点）+ `close`。脚本面推荐这一形态——"画矩形"在语句里
+   * 就是矩形，而不是 4 条线 + 8 条约束（铺开由库面 `expandShapes` 一处负责）。
+   */
+  shapes?: SketchShape[]
+  /** 展开后的 canonical 几何（**与 `shapes` 二选一**；存量语句继续用这一形态）。 */
+  geoms?: SketchGeom[]
+  /** Optional — a constraint-free sketch is equivalent to `cad.profile` usage. */
+  constraints?: SketchConstraint[]
+  /** Product form: `'face'` (default) or `'wire'` (outer wire for sweep spines). */
+  as?: 'face' | 'wire'
+  /**
+   * Named plane (`'XY'` default; e.g. `'XZ'` / `'YZ'`) or an explicit plane
+   * frame (A3, 2026-09-28): `{ origin, normal, xAxis? }` — places the solved
+   * contours on an arbitrary plane in one step (the sketchOnPlane hand-off;
+   * no post-hoc `cad.place` needed).
+   */
+  plane?: string | { origin: [number, number, number]; normal: [number, number, number]; xAxis?: [number, number, number] }
+  /**
+   * Fixed external geometry the constraints may reference (IRON RULE patch,
+   * 2026-10-04): each entry is the converter-resolved polyline of one external
+   * geoId (geoId <= -3), pinned as fixed solver points so external refs
+   * resolve STATICALLY — a ref with no matching entry here is an unresolvable
+   * constraint, not a run-time guess.
+   */
+  external?: ExternalFixedSeg[]
+}
+
+/**
+ * Validate `cad.sketch` parameters: **exactly one** of `shapes` / `geoms` must be a
+ * non-empty array, `constraints` (when present) an array, `plane` a named plane or
+ * an explicit frame.
+ *
+ * @param params - the raw sketch operation parameters.
+ */
+export function assertSketchParams(params: Record<string, unknown>): void {
+  const hasShapes = params.shapes !== undefined
+  const hasGeoms = params.geoms !== undefined
+  if (hasShapes && hasGeoms) {
+    throw new Error(
+      'E_SKETCHC_BOTH_ENTRIES: sketch takes either `shapes` (semantic primitives) or `geoms` (expanded geometry), not both',
+    )
+  }
+  const entry = hasShapes ? params.shapes : params.geoms
+  if (!Array.isArray(entry) || entry.length === 0) {
+    throw new Error('E_SKETCHC_NO_GEOMS: sketch requires at least one geometry')
+  }
+  if (params.constraints !== undefined && !Array.isArray(params.constraints)) {
+    throw new Error('E_SKETCHC_BAD_CONSTRAINTS: constraints must be an array')
+  }
+  if (params.plane !== undefined && typeof params.plane !== 'string' &&
+      (typeof params.plane !== 'object' || params.plane === null ||
+        !Array.isArray((params.plane as { origin?: unknown }).origin) ||
+        !Array.isArray((params.plane as { normal?: unknown }).normal))) {
+    throw new Error('E_SKETCHC_BAD_PLANE: plane must be a named plane string or an explicit frame { origin, normal, xAxis? }')
+  }
+}
+
+async function resolveSolver(): Promise<SketchSolver> {
+  return initSketchSolver()
+}
+
+/**
+ * Sketch (semantic shapes / geometry + constraints) → solve → face / outer wire.
+ *
+ * 两条入口（二选一）：
+ * - `shapes`：语义图元（矩形/圆/……/画笔图元/close）→ 库面 `expandShapes` 展开成
+ *   canonical 几何 + 形状自带约束，再与调用方给的 `constraints` 合并求解；
+ * - `geoms`：直接给展开后的 canonical 几何（存量语句形态）。
+ *
+ * Permanently brep-only (D5, 2026-09-27): the mesh path reports
+ * `E_MESH_UNSUPPORTED`. Sketch APIs never get a mesh path — industry
+ * precedent (CadQuery, FreeCAD) solves sketches onto exact BREP edges.
+ *
+ * @group 创建
+ * @inputs 0
+ * @async true
+ * @qual ok
+ * @name sketch
+ * @returns Shape 平面几何（求解后构面）；`as:'wire'` 时返回外环 1D 曲线。
+ * @param params.shapes - 语义图元清单（与 geoms 二选一）。type:SketchShape[] required:false
+ * @param params.geoms - 展开后的草图几何（线段/圆/圆弧，与 shapes 二选一）。type:SketchGeom[] required:false
+ * @param params.constraints - 草图约束（可空；追加在形状自带约束之后）。type:SketchConstraint[] required:false
+ * @param params.as - 产物形态：'face'（默认）构面；'wire' 只交外环 wire。type:'face'|'wire' required:false
+ * @param params.plane - 放置目标命名平面（默认 'XY'；如 'XZ' / 'YZ'）。type:string required:false
+ * @example
+ * const plate = cad.sketch({
+ *   plane: 'XY',
+ *   shapes: [
+ *     { kind: 'rect', w: 100, d: 60, tag: 'g0' },
+ *     { kind: 'circle', r: 10, cx: 30, cy: 20, tag: 'hole', mode: 's' },
+ *   ],
+ *   constraints: [{ kind: 'length', of: { tag: 'g0.0' }, value: 100 }],
+ * })
+ * @example
+ * const f = cad.sketch({
+ *   geoms: [{ tag:'bottom', kind:'line', x1:0, y1:0, x2:80, y2:3 }],
+ *   constraints: [{ kind:'horizontal', of: { tag:'bottom' } }, { kind:'length', of: { tag:'bottom' }, value: 80 }],
+ * })
+ */
+export const sketch = defineOp({
+  name: SKETCH_OP_NAME,
+  async brep(params: Record<string, unknown>): Promise<Shape> {
+    assertSketchParams(params)
+    const solver = await resolveSolver()
+    const p = params as unknown as SketchParams
+    // Unit boundary: script-face angles arrive in degrees (angle base unit);
+    // library internals work in radians. Mutates the caller's arrays — safe
+    // because params are per-execution, never retained by the host.
+    anglesToRadians(
+      p.shapes as Array<Record<string, unknown>> | undefined,
+      p.geoms as Array<Record<string, unknown>> | undefined,
+      p.constraints as Array<Record<string, unknown>> | undefined,
+    )
+    const expansion = p.shapes ? expandShapes(p.shapes) : undefined
+    const geoms = expansion ? expansion.geoms : p.geoms!
+    const constraints = [...(expansion ? expansion.constraints : []), ...(p.constraints ?? [])]
+    return sketchFaces(geoms, constraints, {
+      solver,
+      as: p.as,
+      plane: p.plane,
+      external: p.external,
+      expectHoles: (expansion?.subtractRanges.length ?? 0) > 0,
+      onDiagnostic: (outcome) => {
+        if (outcome.status !== 'solved') diagnosticSink?.(outcome)
+      },
+    })
+  },
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
+  spec: sketchDimSpec(),
+})

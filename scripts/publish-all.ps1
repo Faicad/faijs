@@ -8,7 +8,7 @@
   -> npm view verification -> emit a publish record.
 
   Publish scope:
-    @faicad/faijs (core) -> @faicad/faijs-extra -> @faicad/cq-compat-compare
+    @faicad/faijs (core) -> @faicad/cq-compat-compare
     -> @faicad/faijs-gears -> @faicad/faijs-fasteners -> @faicad/sheetmetal
 
 .PARAMETER DryRun
@@ -80,10 +80,7 @@ function Run-Npm {
 # that needs a different version line cannot live in this list.
 $Packages = @(
   @{ Name = '@faicad/faijs';           Path = 'packages/core' },
-  @{ Name = '@faicad/faijs-sketch';    Path = 'packages/sketch' },
-  @{ Name = '@faicad/faijs-extra';     Path = 'packages/faijs-extra' },
-  @{ Name = '@faicad/faijs-draw';      Path = 'packages/draw' },
-  @{ Name = '@faicad/faijs-viewer';   Path = 'packages/faijs-viewer' },
+  @{ Name = '@faicad/faijs-viewer';     Path = 'packages/faijs-viewer' },
   @{ Name = '@faicad/cq-compat-compare'; Path = 'packages/cq-compat-compare' },
   @{ Name = '@faicad/faijs-gears';     Path = 'packages/faijs-gears' },
   @{ Name = '@faicad/faijs-fasteners'; Path = 'packages/faijs-fasteners' },

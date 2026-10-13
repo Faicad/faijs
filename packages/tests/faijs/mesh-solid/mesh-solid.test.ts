@@ -8,7 +8,7 @@
  *
  * 与 core 侧 `mesh-solid-scenario.test.ts` 的分工：那边把场景拆成 5 步、逐步断言
  * 中间态（拓扑读数 / 体积解析值 / 导出行为），宿主用的是 core 的测试宿主、STL 由
- * 测试内存构造；这里只跑**一份真实 .fai.js**，宿主是 `@faicad/faijs-extra` 的编辑器
+ * 测试内存构造；这里只跑**一份真实 .fai.js**，宿主是 `@faicad/faijs/extra` 的编辑器
  * 宿主，STL 是磁盘上的夹具 `packages/fixtures/data/cube-10x5x5.stl`（走 `assetsDir`
  * 端口读字节）。因此本文件钉的是**脚本面**这条链路，两点：
  *

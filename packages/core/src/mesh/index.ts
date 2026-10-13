@@ -27,10 +27,6 @@ export { isMeshShape } from './types'
 // ── stl-unit ──
 export { guessStlUnit } from './stl-unit'
 
-// ── decoration-provider ──
-export { setEngraveDecorationProvider, getEngraveDecorationProvider } from './decoration-provider'
-export type { EngraveDecorationProvider, EngraveDecorationParams } from './decoration-provider'
-
 // ── manifold-loader ──
 export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './manifold-loader'
 

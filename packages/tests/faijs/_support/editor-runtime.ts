@@ -1,37 +1,33 @@
 /**
- * editor-runtime — mount the editor extension library in the integration suite.
+ * editor-runtime — create a runtime for the integration suite.
  *
- * Since D1 (2026-09-23) the editor-owned ops (`fai_*` / `group` / `assembly` /
- * `copy` / `load`, plus `text` / `svgExtrude`) live in `@faicad/faijs-extra`, and
- * the host — not the engine — assembles the `cad` namespace. Integration tests
- * are hosts, so they assemble it here.
+ * After the 2026-10-13 merge, `createRuntime(ports)` provides the full cad
+ * namespace (platform + sketch + extra) directly. Integration tests no
+ * longer need to assemble the cad namespace — they just call
+ * `createRuntime`.
  */
-import { createRuntime as createRuntimeCore, type CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import { createRuntime, type CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { ExecutionMode, HostPorts } from '@faicad/faijs/cad-runtime/ports'
-import type { LibNamespace } from '@faicad/faijs'
-import {
-  createEditorCadNamespace, installEditorMeshProviders, registerEditorSymbols,
-} from '@faicad/faijs-extra'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
+import type { LibNamespace } from '@faicad/faijs/runtime-state'
 
-/** Platform surface + editor ops: the `cad` namespace a host registers. */
-export function createApiNamespaceWithEditorOps(): LibNamespace {
-  return createEditorCadNamespace()
-}
-
-/** Register the static-analysis extensions the editor ops need. */
-export function registerEditorExtensions(): void {
-  registerEditorSymbols()
-  installEditorMeshProviders()
+/**
+ * Create a runtime with the full cad namespace (platform + sketch + extra).
+ * @param ports - host ports.
+ * @param mode - execution mode.
+ * @returns a runtime carrying the complete cad namespace.
+ */
+export function createEditorRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime {
+  return createRuntime(ports, mode)
 }
 
 /**
- * Drop-in replacement for `createRuntime` that mounts the editor ops too.
- * @param ports - host ports.
- * @param mode - execution mode.
- * @returns a runtime carrying platform + editor ops.
+ * Returns the full cad namespace (platform + sketch + extra).
+ *
+ * Compatibility wrapper: after the merge, `createApiNamespace()` already
+ * contains all ops. Tests that used to pass this to `new CadRuntime(…, { cad: … })`
+ * can continue using it.
  */
-export function createEditorRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime {
-  const rt = createRuntimeCore(ports, mode, { cad: createApiNamespaceWithEditorOps() })
-  registerEditorExtensions()
-  return rt
+export function createApiNamespaceWithEditorOps(): LibNamespace {
+  return createApiNamespace()
 }
