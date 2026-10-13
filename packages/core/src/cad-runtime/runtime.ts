@@ -1899,5 +1899,12 @@ export function createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Rec
  * @returns a new CadRuntime without cad registered.
  */
 export function createBareRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, LibNamespace>, options?: CadRuntimeOptions): CadRuntime {
+  if (libs && 'cad' in libs) {
+    throw new Error(
+      'E_CAD_RESERVED: "cad" is an engine-built-in reserved namespace. ' +
+      'Hosts cannot register or override it. Use a different name for your ' +
+      'custom library, or use createRuntime() to get the built-in cad namespace.',
+    )
+  }
   return new CadRuntime(ports, mode, libs, options)
 }

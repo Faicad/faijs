@@ -117,11 +117,11 @@ function inNodeEnv(): boolean {
 }
 
 /**
- * Make the `cad.sketch` / `cad.draw` constraint solver available to the
+ * Make the `cad.sketch` constraint solver available to the
  * shared, module-global sketch op.
  *
- * The solver lives in `@faicad/faijs-sketch` and is host-injected via
- * `installSketchSolver`, because the planegcs wasm source differs between Node
+ * The solver lives in `@faicad/faijs/sketch` and is host-injected via
+ * `setSketchSolverInitFn`, because the planegcs wasm source differs between Node
  * and browser hosts. Node auto-loads the solver (its wasm ships in
  * `@salusoft89/planegcs`); a browser host self-hosts `planegcs.wasm` and passes
  * `opts.sketch.planegcsUrl`. The `E_SKETCH_NO_SOLVER` error is surfaced through

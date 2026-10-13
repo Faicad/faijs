@@ -94,8 +94,8 @@ export { sdf } from './sdf'
 // 引擎不得 import api/compound；公共 API 经本 re-export 保持）。
 export { applyTransform } from '../mesh/rigid-transform'
 // P2-f3：装配子层全量导出（solvePreview/entityFromGeometry 等经此到门面）。
-// A/B 组 op（fai_* / group / assembly / copy / load / text / svgExtrude）已迁出
-// core，见 @faicad/faijs-extra；装配**求解器**（solve/validate/joints/solvers）
+// A/B 组 op（fai_* / group / assembly / copy / load / text / svgExtrude）现已
+// 并入 core（core/src/extra）；装配**求解器**（solve/validate/joints/solvers）
 // 仍是平台能力，留在此处。
 export * from './assembly'
 // ── H11：平台几何 op（方案 §4，替代 FCStd 迁移对编辑器 op 的借用）──

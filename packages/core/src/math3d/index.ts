@@ -1,7 +1,7 @@
 /**
  * math3d — three.js math 子集的零依赖移植层（L0 数学层）。
  *
- * 用途：替换 core / `@faicad/faijs-extra` 对 three.js `Vector2` / `Vector3` /
+ * 用途：替换 core / `core/src/extra` 对 three.js `Vector2` / `Vector3` /
  * `Matrix4` / `Quaternion` / `Euler` / `Plane` / `Box3` 的依赖。所有类的公式与
  * 运算顺序逐行移植自 three r162（MIT License, © 2010-2024 three.js authors），
  * 由 `test/math3d/three-parity.test.ts` 逐位对照钉死。

@@ -143,7 +143,7 @@ export interface CliCheckOptions {
   fontsDir?: string
   /**
    * Extra cad-namespace entries the host merges at run time (`cad.sketch`
-   * from @faicad/faijs-sketch).
+   * built into core).
    *
    * I-group (2026-10-03): the unknown-op guard compares the script's callees
    * against `symbolTableNames()`, which knows only the STATIC table. A host
@@ -337,14 +337,6 @@ export async function cliRun(
     projectRoot,
   )
   const runtime = createRuntime(ports, opts?.mode ?? 'auto', opts?.libs)
-  // Part 1.4：cad 经 registerLib 声明 packageName（脚本可 `import * as cad from
-  // '@faicad/faijs'`，check ①.5 据此校验 specifier——不 declare 则 import 被拒）。
-  if (opts?.libs?.cad) {
-    runtime.registerLib('cad', opts.libs.cad, {
-      default: true,
-      packageName: '@faicad/faijs',
-    })
-  }
 
   // Execute（T5 后：direct 路径，源码文本直通执行）
   const execResult = await runtime.execute(code, { entryKey })
@@ -692,12 +684,6 @@ export async function cliView(
     projectRoot,
   )
   const runtime = createRuntime(ports, opts?.mode ?? 'auto', opts?.libs)
-  if (opts?.libs?.cad) {
-    runtime.registerLib('cad', opts.libs.cad, {
-      default: true,
-      packageName: '@faicad/faijs',
-    })
-  }
 
   const execResult = await runtime.execute(code, { entryKey })
 

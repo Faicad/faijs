@@ -12,9 +12,9 @@
  * 生成文件：src/lang/symbol-table.generated.ts（由 scripts/gen-symbol-table.ts 生成，禁手改）。
  *
  * P5（2026-09-23 扩展库拆分）：符号表额外接受**宿主注册的扩展条目**
- * （`registerSymbolTableEntries`）。扩展库（如 `@faicad/faijs-extra`）的 op 不在
- * 生成表里——生成表的唯一来源是 core 的 `createApiNamespace()` 平台面；扩展库由
- * 宿主在装配时注入名字清单，使静态分析同样能查到 `cad.fai_drill`。
+ * （`registerSymbolTableEntries`）。扩展库（如 `core/src/extra`）的 op 现已
+ * 在生成表里——生成表的来源是 core 的 `createApiNamespace()` 完整 cad 面（平台 +
+ * sketch + extra）；静态分析可直接查到 `cad.fai_drill` 等全部 op。
  * 扩展条目**不得**覆盖平台函数（真重名即抛错，不静默覆盖）。
  */
 

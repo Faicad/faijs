@@ -604,20 +604,20 @@ Every `defineOp` / `compatOp` **must** declare `paramDims` (or `spec` for struct
 
 > ⚠️ **Removed (2026-09-23)**: the faqts/faits whole-module `.ts` execution path has been deleted under the iron rule "scripts must be plain JS, libraries must be TS". Scripts are `.fai.js` only (executed by faijs); library code is TS source compiled to JS by `tsc` at build time — the runtime performs no type stripping. This section is kept only as a historical record.
 
-### 10.6 The editor extension library (`@faicad/faijs-extra`)
+### 10.6 The editor ops domain (`@faicad/faijs/extra`)
 
-`@faicad/faijs-extra` carries the ops that serve the sibling editor application rather than the platform.
+> 2026-10-13 merge: the former `@faicad/faijs-extra` package was absorbed into core as `core/src/extra/`. The ops are now part of the built-in cad namespace (assembled in `createApiNamespace()` and registered by `createRuntime`). Hosts no longer need to register, merge, or install anything — `cad.fai_drill` etc. work out of the box.
 
 | Group | Ops |
 |---|---|
 | Editor-owned | `fai_drill` `fai_extrude` `fai_split` `group` `assembly` `copy` `load` |
 | Creators | `text` `svgExtrude` |
 
-A host that wants them registers `createEditorCadNamespace()` — the platform surface joined with these ops — as its `cad` library, then calls `registerEditorSymbols()` (static-analysis names) and `installEditorMeshProviders()` (the `cad.engrave` mesh decoration provider). Script text does not change: the op names, parameters and semantics are the ones these ops had inside core.
+The `cad` binding name is **reserved**: hosts cannot register or override it (`E_CAD_RESERVED`). Third-party libraries can still be registered under any other name via `registerLib('<name>', ns)` or `createRuntime(ports, mode, { <name>: ns })`.
 
-The library has two entries with different dependency closures. The root and `./browser` entries also carry the svg + 3D-text geometry chain (`three/examples`' `SVGLoader`, `Shape`/`ExtrudeGeometry`); `@faicad/faijs-extra/editor-ops` never reaches that chain, and is the entry for a host that must not bundle it (a mini-program worker).
+The `@faicad/faijs/extra` sub-path carries the full editor op set. The `@faicad/faijs/extra/editor-ops` entry is the lightweight closure (A group only, no text/SVG geometry chain) for hosts that must not bundle the heavy dependency chain (e.g. mini-program worker). `@faicad/faijs/extra/browser` is the browser-oriented entry.
 
-`three` is a **peer** of both packages, with the range `^0.162.0 || ^0.184.0`. Neither package takes a three version position, because its hosts' versions cannot converge: the mini-program canvas is WebGL1-only and therefore pinned below r163, while the web host follows the current line. Core restricts itself to the three API subset that is stable across the range and imports no `three/examples` addon; a host resolves `three` for its own bundles.
+The planegcs sketch solver is injected via `setSketchSolverInitFn(fn)` (aligned with `setOcctWasmInitFn` / `setBrepkitWasmInitFn`): Node auto-resolves the wasm; browser/weapp hosts inject a factory that knows the wasm URL. `installSketchSolver` is retained as a deprecated alias.
 
 ---
 
@@ -657,7 +657,7 @@ The library has two entries with different dependency closures. The root and `./
 
 ### 12.1 Multi-part file import (`cad.load`)
 
-`cad.load({ file })` is the single import entry (editor-owned op, `@faicad/faijs-extra`). For a multi-part file it returns a **`CompoundShape`** (`children` order = file declaration order); single-part files return a plain `Shape` unchanged (zero regression). The structure side of the import travels on `ExecutionResult.importModels: Map<PartName, ImportModel>`:
+`cad.load({ file })` is the single import entry (editor-owned op, part of the built-in cad namespace). For a multi-part file it returns a **`CompoundShape`** (`children` order = file declaration order); single-part files return a plain `Shape` unchanged (zero regression). The structure side of the import travels on `ExecutionResult.importModels: Map<PartName, ImportModel>`:
 
 - `ImportModel.parts: ImportPart[]` — identity table (`index` = `compound.children` index, `name`, `color`, `objectId`/`partId`/`plateId`/`extruder` for Bambu 3MF, `exportable` for display-only geometry such as sketches — default `true`).
 - `ImportModel.assembly?: ImportAssemblyNode` — STEP XCAF hierarchy (`partIndex` leaves, DFS order aligned with `parts`).

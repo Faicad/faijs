@@ -6,7 +6,7 @@
  * - screw ← engine/primitives/screw/screw.ts (makeScrew)
  *
  * `text` / `svgExtrude`（three 的 Shape / ExtrudeGeometry / SVGLoader 链）已随
- * B 组迁到 `@faicad/faijs-extra` 的 `mesh/primitives.ts`，core 的 mesh 面不再
+ * B 组迁到 `core/src/extra` 的 `mesh/primitives.ts`，core 的 mesh 面不再
  * 承载 three 的非基础几何生成链。
  *
  * 所有函数返回 Shape (ManifoldMeshData)：parametric GeoData → geoToManifoldMesh 转换。

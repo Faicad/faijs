@@ -8,9 +8,13 @@
 
 Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。
 
-**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core）、`packages/faijs-extra`（`@faicad/faijs-extra` 编辑器扩展库，2026-09-24 D1 拆分：`fai_drill`/`fai_extrude`/`fai_split`/`group`/`assembly`/`copy`/`load`/`text`/`svgExtrude` 与 svg／文字预览辅助；`/editor-ops` 子入口只含 A 组、不触达 `three/examples`，供小程序 worker 使用。**它不是标准库、也不属于 faijs 语言核心库——原本只是为 3d_editor 应用提供的一组 op，其他应用原则上不应依赖**）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包；`packages/demo` 例外——独立化后经 workspace 依赖消费各包 `dist/`，见下）。
+**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包；`packages/demo` 例外——独立化后经 workspace 依赖消费各包 `dist/`，见下）。
+
+> 2026-10-13 合并：原 `packages/sketch`（`@faicad/faijs-sketch`）、`packages/faijs-extra`（`@faicad/faijs-extra`）、`packages/draw`（`@faicad/faijs-draw`，private）已整体并入 `packages/core`。sketch 源码落 `core/src/sketch/`，extra 源码落 `core/src/extra/`，draw 已删除（能力由 `cad.sketchOnPlane` / `cad.profile` 取代）。cad 命名空间现在由 `createRuntime` 内置且不可被宿主修改（`cad` 是唯一保留绑定名）。子路径：`@faicad/faijs/sketch`、`@faicad/faijs/sketch/node`、`@faicad/faijs/extra`、`@faicad/faijs/extra/browser`、`@faicad/faijs/extra/editor-ops`（全部公开发布）。
 
 > 包架构再设计（2026-09-19）：原根门面 `@faicad/faijs`（仅注入 cad + `export *`）已删除，其公开名 `@faicad/faijs` 由 core 升格继承（D2-A）；`cad` 默认命名空间内置引擎（D1，`createRuntime` 自带注册，不违反 K5）。
+>
+> 2026-10-13 装配单点化：`createRuntime(ports)` 是**唯一 cad 装配点**——内置完整 cad 面（平台 + sketch + extra），`cad` 是**唯一保留绑定名**，宿主不得注册或覆盖。宿主仍可注册第三方库（`registerLib('<other>', ns)` 或 `createRuntime(ports, mode, { myLib: ns })`）。旧装配入口（`createSketchCadNamespace`/`mergeSketchNamespace`/`createEditorCadNamespace`/`registerSketchSymbols`/`registerEditorSymbols`/`installEditorMeshProviders`）已删除。planegcs 求解器经 `setSketchSolverInitFn` 注入（对齐 occt/brepkit 的 `setXxxWasmInitFn` 模式）。
 
 ## 开发完成后的测试步骤
 
@@ -45,13 +49,13 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 | 命令 | 说明 |
 |---|---|
-| `npm run build` | 按序构建：`core` → `faijs-draw` → `faijs-sketch` → `faijs-extra` → `sheetmetal`（`tsc` 编译各包 src → dist；demo e2e 与 faijs-cadquery / cq-compat-compare 的 pretest 构建消费这些包的 dist） |
+| `npm run build` | 按序构建：`core` → `sheetmetal` → `gears` → `fasteners` 等（`tsc` 编译各包 src → dist；demo e2e 与 faijs-cadquery / cq-compat-compare 的 pretest 构建消费这些包的 dist） |
 | `npm run build -w <pkg>` | 单包构建，如 `npm run build -w @faicad/faijs` |
 | `npm run pack` | 构建（workspaces 顺序即依赖拓扑）+ 逐包 `npm pack`，tgz 落在各包目录。开关：`--only <pkg>`、`--no-build`、`--dry-run`、`--strict-lockstep` |
 | `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
 | `npm run test --workspaces` | 全量测试（stderr 零容忍由 CI 检查） |
 | `npm run typecheck` | 根 `tsc --noEmit`（tsconfig paths 跟随检查 core 源码）+ `--workspaces` 逐包 |
-| `npm run lint` | `eslint packages/core/src packages/faijs-extra/src`（`scripts/`、`docs/`、`demo/`、`packages/demo/` 被 ignore） |
+| `npm run lint` | `eslint packages/core/src`（`scripts/`、`docs/`、`demo/`、`packages/demo/` 被 ignore） |
 | `node scripts/check-ghost-deps.mjs` | 幽灵依赖守卫（每包 import 必须声明在自身 package.json） |
 | `node scripts/check-workspaces-order.mjs` | workspaces 数组顺序 == 依赖拓扑断言 |
 | `node scripts/set-version.mjs <ver>` | 包族版本对齐**写入端**（升级版本号就走它，见上面「版本号升级流程」）：把 root `config.faijsVersion` + 全部可发布包 `version` + 全部 @faicad/* registry range 一次改成同一版本线（`--dry-run` 只打印、`--no-lock` 跳过 lock 刷新、`--include-private` 把 fixtures/tests/demo 一起对齐） |
@@ -68,7 +72,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 ## 架构（L0–L3 分层，全部位于 `packages/core/src/`）
 
 - **L0 文本层** `lang/`：parser（acorn，**先解析后编译，执行交给 JS 虚拟机**）、codegen、args-schema。`.fai.js` 是合法 JS 子集，语句 id 用 `sN`（StmtId），产出变量名用词法名（UI 自动生成代码采用 `partN` 形式，见 `lang/allocate-id.ts`）。
-- **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径，按模块具名导出，**无任何聚合门面**）、`boolean/`、`primitives/`、`sdf/`、`topology/`；**L3 API 库面在 `api/`（core 内）——库函数经 `@faicad/faijs/api` 导入，`cad` 命名空间经门面 `createRuntime` 注入**。
+- **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径，按模块具名导出，**无任何聚合门面**）、`boolean/`、`primitives/`、`sdf/`、`topology/`、`sketch/`（planegcs 草图求解）、`extra/`（编辑器 op：`fai_drill`/`fai_extrude`/`fai_split`/`group`/`assembly`/`copy`/`load`/`text`/`svgExtrude`）；**L3 API 库面在 `api/`（core 内）——库函数经 `@faicad/faijs/api` 导入，`cad` 命名空间经 `createRuntime` 内置注入（保留绑定，不可被宿主修改）**。
 - **L2 编排** `cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`node-host/`（fs）+ `browser-host/`（worker）。
 - **双链路执行**：每个 op 必支持 mesh（默认路径），可选支持 brep——库函数经 `defineOp` 声明实现集（`@faicad/faijs/sdk`），`cad-runtime/backend-dispatch.ts` 按静态规则分派，无运行时回退；BREP 链状态在 `brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
@@ -86,7 +90,7 @@ faijs 同时服务两类人，他们看到的是**不同的 API 面**。混为�
 - **只面对一样东西：`cad` 命名空间**（`cad.box(...)`、`cad.union(a, b)`、`cad.engrave(...)`）。它由宿主在运行时经 `registerLib('cad', namespace, { default: true })` 注入；脚本面可见的 op 名以 `lang/symbol-table.generated.ts` 为权威清单。
 - **`cad.<op>` 是语言/运行时契约，不是模块路径**：它解析到 `api/` 里的 op 定义对象（`defineOp({ mesh, brep })`），再由 `cad-runtime/backend-dispatch.ts` 按静态规则分派到 mesh 或 brep 实现。
 - **不受本仓文件组织变化影响**：op 名、签名、语义不变，存量 `.fai.js` 一律无需改写。
-- 编辑器专用 op（`fai_drill` / `fai_extrude` / `fai_split` / `group` / `assembly` / `copy` / `load` / `text` / `svgExtrude`）由 `@faicad/faijs-extra` 装配进同一个 `cad` 命名空间——脚本开发者只需知道它们可用，不需要知道包结构。
+- 编辑器专用 op（`fai_drill` / `fai_extrude` / `fai_split` / `group` / `assembly` / `copy` / `load` / `text` / `svgExtrude`）以及 `sketch` 由 `createRuntime` 内置进 `cad` 命名空间——脚本开发者只需知道它们可用，不需要知道包结构。
 
 ### 二、库开发者（写 TS：核心、扩展库、宿主、下游工具的人）
 
@@ -95,7 +99,7 @@ faijs 同时服务两类人，他们看到的是**不同的 API 面**。混为�
   - 几何内核：`@faicad/faijs/mesh/{primitives,transform,boolean,engrave,query,io}`、`@faicad/faijs/brep/*`、`@faicad/faijs/primitives/*`
   - 运行时 / 解析：`@faicad/faijs/runtime-state`、`@faicad/faijs/symbol-table`、`@faicad/faijs/identity`、`@faicad/faijs/shape`、`@faicad/faijs/api/api-namespace`
 - **⛔ 禁止把 `packages/core/src/mesh/` 的内核门面当公开 API。** 该目录**不提供**任何 `cad` / `meshCad` 形状的聚合对象（2026-10-06 B3 补正已整体删除）。要 `box` 就 `import { box } from '@faicad/faijs/mesh/primitives'`；找不到「什么都有的那个对象」是**预期行为**，不是缺 API。
-- **需要用「脚本面那套 op 对象」时，拿命名空间本身**：平台面 `createApiNamespace()`（`@faicad/faijs/api/api-namespace`）、编辑器面 `createEditorCadNamespace()`（`@faicad/faijs-extra`）。core 内部就是这么做的（见 `api/cadquery-selectors/face.ts`）。
+- **需要用「脚本面那套 op 对象」时，拿命名空间本身**：`createApiNamespace()`（`@faicad/faijs/api/api-namespace`）——这是完整的 cad 面（平台 + sketch + extra），不再有独立的编辑器面装配入口。core 内部就是这么做的（见 `api/cadquery-selectors/face.ts`）。
 - **命名纪律**：`cad` 这个名字只属于脚本面。库层面再出现 `cad` / `xxxCad` 形状的聚合对象，一律视为设计缺陷。
 - 用自己的库扩展 faijs（写 op、做下游库）另见 `docs/library-dev-guide.md`。
 

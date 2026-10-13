@@ -41,8 +41,8 @@ export interface ExportMember {
 }
 
 /**
- * 装配 behavior 里与导出相关的两个字段（`@faicad/faijs-extra` 的 `assembly` op 写入；
- * 本文件只读不写，也不 import 扩展库——core 不得依赖 extra）。
+ * 装配 behavior 里与导出相关的两个字段（`core/src/extra` 的 `assembly` op 写入；
+ * 本文件只读不写，也不 import extra 域——core 内部模块不应跨域依赖）。
  */
 interface ExportBehavior {
   memberNames?: string[]

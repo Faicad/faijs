@@ -1,20 +1,21 @@
 /**
  * op-names — the editor-owned op name lists (single source).
  *
- * These names live in `@faicad/faijs-extra`; core's `createApiNamespace()`
- * carries the platform surface only. The lists serve two consumers:
+ * 2026-10-13 merge: these names now live in core (`packages/core/src/extra/`).
+ * `createApiNamespace()` carries the complete cad surface (platform + sketch
+ * + extra ops). The lists serve two consumers:
  *
- * 1. the cad-namespace membership guards (platform keys ∪ editor keys), and
- * 2. `registerEditorSymbols()` — the static symbol-table extension, so
- *    `cad.fai_drill` stays queryable by static analysis that reads the table
- *    (the runtime `check()` deliberately does not validate callee existence).
+ * 1. the cad-namespace membership guards (all ops are in `createApiNamespace`),
+ *    and
+ * 2. the symbol table (gen-symbol-table discovers each op from the explicit
+ *    keys in `createApiNamespace()`; no separate `registerEditorSymbols()`
+ *    call is needed).
  *
  * `EDITOR_OPS` is the editor-owned op group (plan §4.2 A) and `CREATOR_OPS` the
  * svg / 3D-text creator group (plan §4.2 B). The split is not cosmetic: the A
- * group uses three's basic API only, so the weapp worker can mount it (see the
- * `@faicad/faijs-extra/editor-ops` entry) while the B group — which carries
- * `three/examples`' `SVGLoader` and the `Shape`/`ExtrudeGeometry` chain — stays
- * off the end-side bundle.
+ * group is lightweight (no heavy deps), so the weapp worker can mount it via
+ * the `@faicad/faijs/extra/editor-ops` entry while the B group — which carries
+ * the opentype.js / SVG / text-geometry chain — stays off the end-side bundle.
  */
 
 /** A group (plan §4.2): editor-owned ops, three basic API only. */
@@ -34,7 +35,7 @@ export const CREATOR_OPS = [
   'svgExtrude',
 ] as const
 
-/** Every op name `createEditorNamespace()` carries, in assembly order. */
+/** Every op name the editor ops group carries, in assembly order. */
 export const ALL_EDITOR_OPS = [...EDITOR_OPS, ...CREATOR_OPS] as const
 
 /** Name of an editor-owned op (`cad.<name>`). */

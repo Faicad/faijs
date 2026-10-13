@@ -97,7 +97,7 @@ describe('删除守卫：capabilities 声明轴不再出现', () => {
     for (const f of files) {
       expect(srcOf(f), `${f} 仍有 capabilities 声明`).not.toMatch(CAPABILITY_DECL)
     }
-    expect(srcOf('../sketch/src/op.ts'), '../sketch/src/op.ts 仍有 capabilities 声明').not.toMatch(
+    expect(srcOf('src/sketch/op.ts'), 'src/sketch/op.ts 仍有 capabilities 声明').not.toMatch(
       CAPABILITY_DECL,
     )
   })

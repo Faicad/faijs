@@ -1,8 +1,8 @@
 /**
  * api assert — per-op 参数自校验测试（Phase 2.2）
  *
- * A 组 / B 组 op（fai_* / text / svgExtrude）的断言随 op 迁到
- * `@faicad/faijs-extra`，其测试在 `packages/faijs-extra/src/ops/assert.test.ts`。
+ * A 组 / B 组 op（fai_* / text / svgExtrude）的断言随 op 并入
+ * `core/src/extra`，其测试在 `packages/core/test/extra/`。
  *
  * Run: npx vitest run src/api/assert.test.ts
  */

@@ -56,10 +56,32 @@ describe('D1 — built-in cad namespace', () => {
     expect(libsOf(rt).cad).toBeUndefined();
   });
 
-  it('createRuntime does not overwrite a caller-supplied cad namespace', () => {
-    const customCad = { contractVersion: 1, box: () => 'custom' } as unknown as Record<string, unknown>;
-    const rt = createRuntime(ports(), undefined, { cad: customCad as never });
-    const cad = libsOf(rt).cad;
-    expect(cad).toBe(customCad);
+  it('createRuntime rejects libs.cad (cad is a reserved binding)', () => {
+    const customCad = { box: () => 'custom' } as unknown as Record<string, unknown>;
+    expect(() => createRuntime(ports(), undefined, { cad: customCad as never })).toThrow(
+      /E_CAD_RESERVED/,
+    );
+  });
+
+  it('createRuntime accepts third-party libs (non-cad binding)', () => {
+    const myLib = { hello: () => 'world' } as unknown as Record<string, unknown>;
+    const rt = createRuntime(ports(), undefined, { mylib: myLib as never });
+    expect(libsOf(rt).cad).toBeDefined();
+    expect(libsOf(rt).mylib).toBeDefined();
+  });
+
+  it('registerLib("cad", ...) after createRuntime throws (reserved binding)', () => {
+    const rt = createRuntime(ports());
+    const fakeCad = { box: () => 'fake' } as unknown as Record<string, unknown>;
+    expect(() => rt.registerLib('cad', fakeCad as never)).toThrow(
+      /E_CAD_RESERVED/,
+    );
+  });
+
+  it('registerLib with non-cad name still works after createRuntime', () => {
+    const rt = createRuntime(ports());
+    const myLib = { foo: () => 42 } as unknown as Record<string, unknown>;
+    rt.registerLib('mylib', myLib as never);
+    expect(libsOf(rt).mylib).toBeDefined();
   });
 });

@@ -1,7 +1,7 @@
 # 把 sketch、faijs-extra 收入 core，并删除 draw — 变更实施方案
 
 - 日期：2026-10-13
-- 状态：方案（未实施）
+- 状态：已落地
 - 影响范围：`packages/core`（@faicad/faijs）、`packages/sketch`（@faicad/faijs-sketch，删除）、`packages/faijs-extra`（@faicad/faijs-extra，删除）、`packages/draw`（@faicad/faijs-draw，删除）；根构建/发布/CI 脚本；monorepo 内测试；9 个下游仓库（3d_editor、3d_viewer_web、3d_viewer_electron、faijs-cadquery、faijs-freecad、faijs-openscad、fcstd-port、__convtest，以及 3d_viewer_tauri/cadquery-port 复核）
 - 前置决策（用户已定）：**零兼容，一次性改完**——不保留转发壳、不保留旧包名、不保留旧子路径；**draw 包一并删除**
 

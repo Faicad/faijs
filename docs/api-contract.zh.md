@@ -605,20 +605,20 @@ export const myOp = defineOp({
 
 > ⚠️ **已删除（2026-09-23）**：faqts/faits 的 `.ts` 整段执行路径已随「脚本必须纯 JS、库必须 TS」红线移除。脚本只允许 `.fai.js`（经 faijs 执行）；库代码为 TS 源、构建期由 tsc 编译为 JS——运行时不做任何类型剥离。本节仅作为历史记录保留。
 
-### 10.6 编辑器扩展库（`@faicad/faijs-extra`）
+### 10.6 编辑器 op 域（`@faicad/faijs/extra`）
 
-`@faicad/faijs-extra` 承载服务于姊妹编辑器应用、而非平台面的 op。
+> 2026-10-13 合并：原 `@faicad/faijs-extra` 包已整体并入 core（`core/src/extra/`）。这些 op 现在是内置 cad 命名空间的一部分（在 `createApiNamespace()` 中装配，由 `createRuntime` 注册）。宿主不再需要注册、合并或安装任何东西——`cad.fai_drill` 等开箱即用。
 
 | 分组 | op |
 |---|---|
 | 编辑器专属 | `fai_drill` `fai_extrude` `fai_split` `group` `assembly` `copy` `load` |
 | 创建器 | `text` `svgExtrude` |
 
-需要它们的宿主把 `createEditorCadNamespace()`——平台面与这些 op 的并集——注册为 `cad` 库，再调用 `registerEditorSymbols()`（静态分析名字）与 `installEditorMeshProviders()`（`cad.engrave` 的 mesh 装饰 provider）。脚本文本不变：op 名字、参数与语义就是它们在 core 内时的那些。
+`cad` 绑定名是**保留绑定**：宿主无法注册或覆盖它（`E_CAD_RESERVED`）。第三方库仍可以用任意其他名字注册（`registerLib('<name>', ns)` 或 `createRuntime(ports, mode, { <name>: ns })`）。
 
-该库有两个入口，依赖闭包不同。根入口与 `./browser` 入口还承载 svg 与 3D 文字几何链（`three/examples` 的 `SVGLoader`、`Shape`/`ExtrudeGeometry`）；`@faicad/faijs-extra/editor-ops` 永不触达该链，是「不得打包它」的宿主（小程序 worker）所使用的入口。
+`@faicad/faijs/extra` 子路径承载完整编辑器 op 集。`@faicad/faijs/extra/editor-ops` 入口是轻闭包（仅 A 组、不含文字/SVG 几何链），供不得打包重依赖链的宿主（如小程序 worker）使用。`@faicad/faijs/extra/browser` 是浏览器导向入口。
 
-`three` 是两个包的 **peer**，范围为 `^0.162.0 || ^0.184.0`。两个包都不对 three 作版本主张，因为其宿主的版本无法收敛：小程序 canvas 只有 WebGL1，因而被锁在 r163 以下；web 宿主跟随当前线。core 把自己限制在该范围上稳定的 three API 子集内，且不 import 任何 `three/examples` addon；three 由宿主为自己的产物解析。
+planegcs 草图求解器经 `setSketchSolverInitFn(fn)` 注入（对齐 `setOcctWasmInitFn` / `setBrepkitWasmInitFn`）：Node 自动解析 wasm；browser/weapp 宿主注入知道 wasm URL 的 factory。`installSketchSolver` 保留为弃用别名。
 
 ---
 
@@ -658,7 +658,7 @@ export const myOp = defineOp({
 
 ### 12.1 多部件文件导入（`cad.load`）
 
-`cad.load({ file })` 是唯一的导入入口（编辑器专属 op，`@faicad/faijs-extra`）。多部件文件返回 **`CompoundShape`**（`children` 顺序 = 文件声明顺序）；单部件文件原样返回普通 `Shape`（零回归）。导入的结构侧经 `ExecutionResult.importModels: Map<PartName, ImportModel>` 传递：
+`cad.load({ file })` 是唯一的导入入口（编辑器专属 op，内置 cad 命名空间的一部分）。多部件文件返回 **`CompoundShape`**（`children` 顺序 = 文件声明顺序）；单部件文件原样返回普通 `Shape`（零回归）。导入的结构侧经 `ExecutionResult.importModels: Map<PartName, ImportModel>` 传递：
 
 - `ImportModel.parts: ImportPart[]` — 身份表（`index` = `compound.children` 下标、`name`、`color`、Bambu 3MF 的 `objectId`/`partId`/`plateId`/`extruder`、仅展示几何（如草图）的 `exportable` — 默认 `true`）。
 - `ImportModel.assembly?: ImportAssemblyNode` — STEP XCAF 层级（`partIndex` 叶子，DFS 顺序与 `parts` 对齐）。

@@ -18,7 +18,6 @@ import { describe, it, expect } from 'vitest'
 import { asPartName } from '../../src/identity'
 import { createRuntime } from '../../src/cad-runtime/runtime'
 import type { HostPorts, EventSink } from '../../src/cad-runtime/ports'
-import { createApiNamespaceWithEditorOps, registerEditorExtensions } from '../support/editor-ops'
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
@@ -29,8 +28,7 @@ class TestEventSink implements EventSink {
 
 function makeRuntime() {
   const ports: HostPorts = { events: new TestEventSink() }
-  registerEditorExtensions()
-  return createRuntime(ports, undefined, { cad: createApiNamespaceWithEditorOps() })
+  return createRuntime(ports)
 }
 
 describe('CadRuntime.check() — dryRun validation', () => {

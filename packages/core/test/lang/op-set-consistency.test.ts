@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * op-set-consistency — 双源一致守卫（P23 §6.1 B1 / §4.2 ②；2026-10-08 §2.7 校正）
  *
  * P23 之前：符号表 ↔ api 签名一致性（阶段 1，§3.6）；键集合 == cad 命名空间。
@@ -89,6 +89,16 @@ describe('op-set-consistency: 双源一致（check() 符号表 ≡ cad 面）', 
       const sym = SYMBOL_TABLE[fn]
       expect(sym!.readonlyPositions, `${fn} should not carry readonlyPositions`).toBeUndefined()
       expect(sym!.readonlyPaths, `${fn} should not carry readonlyPaths`).toBeUndefined()
+    }
+  })
+
+  it('merged sketch + extra ops are in symbol table (guard against spread trap, §6.6)', () => {
+    // gen-symbol-table does NOT discover SpreadAssignment. If someone replaces
+    // explicit keys with ...spread in createApiNamespace(), the symbol table
+    // would miss them. This explicit assertion catches that regression.
+    const mergedOps = ['sketch', 'fai_drill', 'fai_extrude', 'fai_split', 'group', 'assembly', 'copy', 'load', 'text', 'svgExtrude']
+    for (const op of mergedOps) {
+      expect(SYMBOL_TABLE[op], `merged op "${op}" missing from symbol table (was spread used in createApiNamespace?)`).toBeDefined()
     }
   })
 

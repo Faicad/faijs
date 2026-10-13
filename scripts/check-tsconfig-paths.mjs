@@ -2,9 +2,9 @@
 /**
  * check-tsconfig-paths — tsconfig paths 完整性守卫
  *
- * 背景：packages/cq-compat-compare 的源码 import `@faicad/faijs-sketch`，
- * 但其 tsconfig 的 paths 没有该包名映射。本地 tsc 静默退回 node_modules →
- * workspace 链接 → packages/sketch/dist（本地已构建的旧产物）所以通过；
+ * 背景：packages/cq-compat-compare 的源码 import `@faicad/faijs/sketch`，
+ * 但其 tsconfig 的 paths 没有该子路径映射。本地 tsc 静默退回 node_modules →
+ * workspace 链接 → packages/core/dist（本地已构建的旧产物）所以通过；
  * CI 的 fresh checkout 无 dist，typecheck 报 TS2307（GitHub run 37125314076）。
  *
  * 规则：每个 workspace 包的 src/ 里出现的每个 `@faicad/<name>`（裸名或子路径）

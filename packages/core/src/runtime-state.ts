@@ -704,7 +704,7 @@ export function takePendingImportModels(): Map<PartName, ImportModel> {
 }
 
 // ── 网格实体登记（方案 2026-10-01 §3.3：load 的 mesh 路径产出网格实体 + 近似拓扑）──
-// 与 pendingDetectedUnits 同模式：load op（在 @faicad/faijs-extra）不能直接持有
+// 与 pendingDetectedUnits 同模式：load op（在 core/src/extra）不能直接持有
 // CadRuntime 实例，故把"规范化得到的句柄"与"近似拓扑数据"登记到这里，引擎在语句
 // 执行后取走：句柄进 MeshSolidRegistry + 写 Shape 槽，拓扑进 topologyCache。
 //

@@ -22,8 +22,8 @@ import { cliCheck, cliRun, cliView, parseArgs, selectExportableTerminals, isExpo
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '@faicad/faijs/brep/text/fontTestHelper'
 
-// CLI 测试注入 cad（L3 api/ 层）
-const CAD_LIBS = { cad: createApiNamespaceWithEditorOps() }
+// CLI 测试：cad 命名空间已内置 createRuntime，无需额外注入
+const CAD_LIBS = undefined
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -53,7 +53,6 @@ afterAll(() => {
 
 // Need to import afterAll
 import { afterAll } from 'vitest'
-import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
 
 describe('cliCheck: dryRun validation', () => {
   it('valid .fai.js file → ok=true', () => {
@@ -115,48 +114,43 @@ describe('cliCheck: dryRun validation', () => {
     expect(sym!.message).toContain('cad.bogusFn')
   })
 
-  it('cliCheck with a host-missing library op (cad.sketch, unmerged host) → ok=false', () => {
-    // The A1 regression shape: generated code calls cad.sketch but the host
-    // never merged @faicad/faijs-sketch, so `sketch` is not in the symbol
-    // table union. cliCheck must catch it statically.
+  it('cliCheck catches a genuinely unknown op → ok=false', () => {
+    // After the 2026-10-13 merge, cad.sketch is built-in and in the symbol
+    // table. Test with a truly non-existent op.
     const code = `export default async (cad) => {
-  const s0 = cad.sketch({ geoms: [] })
+  const s0 = cad.bogusFn({ size: 20 })
   return { shape: s0 }
 }`
-    const tmpFile = resolve(TMP_DIR, 'cli-unmerged-sketch.fai.js')
+    const tmpFile = resolve(TMP_DIR, 'cli-unknown-op.fai.js')
     writeFileSync(tmpFile, code)
     const result = cliCheck(tmpFile)
     expect(result.ok).toBe(false)
-    expect(result.errors.some((e) => e.stage === 'symbol' && e.message.includes('cad.sketch'))).toBe(true)
+    expect(result.errors.some((e) => e.stage === 'symbol' && e.message.includes('cad.bogusFn'))).toBe(true)
   })
 
-  // I-group (2026-10-03): the guard above is right about a MISSING op but
-  // wrong about a host-MERGED one. `rebased-sweep.ts` merges the sketch and
-  // draw namespaces and hands them to cliRun, yet every product's checkErrors
-  // carried `unknown op: cad.sketch ...` because cliCheck had no way to learn
-  // what the host merges — it only reads the static symbol table. A sweep that
-  // trusts checkErrors then reads every runnable product as broken.
-  it('cliCheck accepts an op the host declares via opts.libs (same namespace cliRun gets)', () => {
+  // After the 2026-10-13 merge, cad.sketch is built-in — cliCheck recognizes
+  // it from the symbol table without any host-side merging.
+  it('cliCheck accepts built-in ops like cad.sketch (no host merge needed)', () => {
     const code = `export default async (cad) => {
   const s0 = cad.sketch({ geoms: [] })
   return { shape: s0 }
 }`
-    const tmpFile = resolve(TMP_DIR, 'cli-merged-sketch.fai.js')
+    const tmpFile = resolve(TMP_DIR, 'cli-builtin-sketch.fai.js')
     writeFileSync(tmpFile, code)
-    const result = cliCheck(tmpFile, { libs: { cad: { sketch: () => ({}) } } })
+    const result = cliCheck(tmpFile)
     expect(result.errors.filter((e) => e.stage === 'symbol')).toEqual([])
     expect(result.ok).toBe(true)
   })
 
-  it('opts.libs does not mask a genuinely absent op', () => {
+  it('cliCheck catches unknown op alongside a known one', () => {
     const code = `export default async (cad) => {
   const s0 = cad.sketch({ geoms: [] })
   const p0 = cad.bogusFn({ size: 20 })
   return { shape: p0 }
 }`
-    const tmpFile = resolve(TMP_DIR, 'cli-merged-partial.fai.js')
+    const tmpFile = resolve(TMP_DIR, 'cli-partial-unknown.fai.js')
     writeFileSync(tmpFile, code)
-    const result = cliCheck(tmpFile, { libs: { cad: { sketch: () => ({}) } } })
+    const result = cliCheck(tmpFile)
     expect(result.ok).toBe(false)
     const sym = result.errors.find((e) => e.stage === 'symbol')
     expect(sym!.message).toContain('cad.bogusFn')

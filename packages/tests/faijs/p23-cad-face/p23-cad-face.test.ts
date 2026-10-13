@@ -8,7 +8,7 @@
  *     src/lang/op-set-consistency.test.ts；这里在**根门面 runtime 的 libs.cad**
  *     上再断言一次）。2026-10-08（§2.7 / DEC-6、DEC-7）：原「cad 面 ⊆ 根门面导出面」
  *     的第三源已删除——库面公开什么只看库的作者是否需要；脚本面专属名字不得残留
- *     在入口面的反向守卫落在 `packages/faijs-extra/test/core-surface.test.ts`。
+ *     在入口面的反向守卫已随 2026-10-13 合并删除（原 `packages/faijs-extra/test/core-surface.test.ts` 已不存在）。
  *  ② D11 双形态（§6.3 box 样本）：`cad.box(10, 20, 30)`（位置形态）与
  *     `cad.box({ width: 10, depth: 20, height: 30 })`（对象形态）归一到同一实现，产物几何一致；
  *     primitives / transforms 抽样同规则。

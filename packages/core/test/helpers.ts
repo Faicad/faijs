@@ -12,18 +12,7 @@ import type { Shape } from '../src/mesh/types'
 import type { BrepChainState } from '../src/brep/brep-chain'
 import { createRuntime } from '../src/cad-runtime/runtime'
 import { computeContentKey } from '../src/cad-runtime/runtime'
-import type { LibNamespace } from '../src/runtime-state'
 import type { HostPorts, ExecutionMode } from '../src/cad-runtime/ports'
-// 库函数位于 core 的 api/ 层。
-// D1（2026-09-23）：编辑器专属 op（fai_* / group / assembly / copy / load / text /
-// svgExtrude）已迁到 @faicad/faijs-extra，测试辅助经 test-support 装配同一份
-// 「平台面 ∪ 编辑器面」命名空间（test-support/ 不进 dist）。
-import { createApiNamespaceWithEditorOps, registerEditorExtensions } from './support/editor-ops'
-
-async function getCadLib(): Promise<LibNamespace> {
-  registerEditorExtensions()
-  return createApiNamespaceWithEditorOps()
-}
 
 /** Result of executing a script via the test helper. */
 export interface ExecuteOutput {
@@ -55,9 +44,8 @@ export async function executeScript(
   mode?: ExecutionMode,
   _brepChain?: BrepChainState,
 ): Promise<ExecuteOutput> {
-  // P5/E-a-1：测试辅助注入编辑器扩展的 cad 命名空间（createRuntime 自动注册平台 cad
-  // 仅在 libs.cad 缺省时触发；这里传入自定义 cad 覆盖之）
-  const runtime = createRuntime(ports ?? defaultPorts(), mode, { cad: await getCadLib() })
+  // cad 命名空间已内置 createRuntime（平台 + sketch + extra 全量），无需手动注入
+  const runtime = createRuntime(ports ?? defaultPorts(), mode)
   const result = await runtime.execute(code, { params })
 
   // 从 outputs 中取最后一个 shape（与原逻辑一致）
