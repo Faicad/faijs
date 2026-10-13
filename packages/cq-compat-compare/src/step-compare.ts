@@ -262,19 +262,33 @@ export async function compareStepFiles(
       // For grouped members pair by group: build the A-side bbox from the
       // corresponding group of A solids (same relative layout).
       const aIdxs = group.map((gi) => ai + gi - group[0])
-      const bboxMemberA = kernel.getBoundingBox(
-        aIdxs.length === 1 ? solidsA[aIdxs[0]] : kernel.makeCompound(aIdxs.map((i) => solidsA[i])),
-      )
+      const aCompound = aIdxs.length === 1 ? null : kernel.makeCompound(aIdxs.map((i) => solidsA[i]))
+      const bboxMemberA = kernel.getBoundingBox(aCompound ?? solidsA[aIdxs[0]])
+      const comMemberA = kernel.getCenterOfMass(aCompound ?? solidsA[aIdxs[0]])
+      if (aCompound) kernel.release(aCompound)
       const diffAtDeg = (deg: number): number => {
         // Rotate the WHOLE group as one rigid unit and measure its combined bbox.
+        // PLUS the group-COM distance: bbox diff is EVEN in the twist angle
+        // (±θ give identical bboxes) and the ascending grid scan picks the
+        // wrong sign on ties (observed: subassy2 boolean diff 0.21 after a
+        // "perfect" bbox 1e-7 alignment — geometry twisted the wrong way).
+        // The member COM orbits the axis for off-axis members, so |ΔCOM| has a
+        // unique minimum at the true angle (odd component breaks the tie);
+        // on-axis members (COM on the twist axis) give ΔCOM ≈ 0 for both signs
+        // and are unaffected.
         const rotHandles = group.map((gi) => rotAbout(solidsB[gi], deg, pv))
-        const b = kernel.getBoundingBox(rotHandles.length === 1 ? rotHandles[0] : kernel.makeCompound(rotHandles))
+        const rotCompound = rotHandles.length === 1 ? null : kernel.makeCompound(rotHandles)
+        const b = kernel.getBoundingBox(rotCompound ?? rotHandles[0])
+        const c = kernel.getCenterOfMass(rotCompound ?? rotHandles[0])
+        if (rotCompound) kernel.release(rotCompound)
         for (const h of rotHandles) kernel.release(h)
-        return Math.max(
+        const bboxDiffLocal = Math.max(
           Math.abs(bboxMemberA.xmin - b.xmin), Math.abs(bboxMemberA.xmax - b.xmax),
           Math.abs(bboxMemberA.ymin - b.ymin), Math.abs(bboxMemberA.ymax - b.ymax),
           Math.abs(bboxMemberA.zmin - b.zmin), Math.abs(bboxMemberA.zmax - b.zmax),
         )
+        const comDist = Math.hypot(comMemberA.x - c.x, comMemberA.y - c.y, comMemberA.z - c.z)
+        return Math.max(bboxDiffLocal, comDist)
       }
       let bestDeg = 0
       let bestDiff = diffAtDeg(0)
