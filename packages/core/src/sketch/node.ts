@@ -9,6 +9,11 @@
  *
  * Browser/worker hosts must NOT import this subpath — they call
  * `setSketchSolverInitFn()` with a factory that knows the wasm URL.
+ *
+ * This module is NOT re-exported from `./index.ts` (the main `@faicad/faijs/sketch`
+ * entry): its top-level `node:module` / `node:path` imports would leak into
+ * browser bundles through a static re-export. It is reachable only via the
+ * dedicated `@faicad/faijs/sketch/node` subpath.
  */
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'

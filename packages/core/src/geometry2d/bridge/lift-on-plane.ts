@@ -40,11 +40,14 @@ export type PlaneWireKernel = Pick<
  * lift points; ellipse falls back to a dense sampled polyline (no exact
  * ellipse-edge primitive on the contract yet).
  *
- * GOTCHA (brepkit, 2026-09-30 实证): a closed wire built from exactly TWO
- * half-arcs (`makeArcEdge`) makes brepkit's `makeFaceFromWire` produce a face
- * covering only 1/3 of the disc (measured extrude volume 523.6 vs πr²·5 = 1570.8),
- * while 3- or 4-arc wires and a single closed `makeCircleEdge` are exact. The
- * full-circle case therefore emits one `makeCircleEdge` rather than two arcs.
+ * Full-circle handling: the lift always emits ONE closed kernel circle edge
+ * (`makeCircleEdge`) for a whole circle, never two half-arcs. This started as a
+ * workaround for a brepkit limitation (2026-09-30 实证: a closed wire built from
+ * exactly TWO `makeArcEdge` halves made `makeFaceFromWire` cover only 1/3 of the
+ * disc — measured extrude volume 523.6 vs πr²·5 = 1570.8 — while 3-/4-arc wires
+ * and one `makeCircleEdge` were exact). That limitation has since been fixed by
+ * brepkit (2026-10-13 实测: the two-half-arc wire is exact), but the single-edge
+ * lift is kept: one edge, one seam, no endpoint concatenation.
  * @param kernel - the kernel edge primitives.
  * @param plane - the target plane frame.
  * @param c - the ordered 2D curve to lift.

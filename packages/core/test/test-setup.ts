@@ -11,5 +11,13 @@
 import { initOcctWasm } from '../src/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '../src/brep/engine/adapters/occt'
 
-await initOcctWasm()
-await registerOcctBrepEngine()
+// jsdom worker（extra 收编带入的 svg mesh 测试，`@vitest-environment jsdom`）跳过
+// occt 装配：occt-wasm 的 `init({ wasm: ArrayBuffer })` 在 browser-like 环境走
+// URL/fetch 路径，把 ArrayBuffer 当 filename → `isFileURI: filename.startsWith is
+// not a function`（TypeError，2026-10-13 实证）。jsdom 测试只跑纯 JS mesh 路径
+// （svgExtrude），不需要 occt；若未来出现确实需要 BREP 引擎的 jsdom 测试，应改为
+// 在该测试内显式 setOcctWasmInitFn（jsdom 无真实 fetch/fs 语义，occt-wasm 不能裸跑）。
+if (typeof document === 'undefined') {
+  await initOcctWasm()
+  await registerOcctBrepEngine()
+}

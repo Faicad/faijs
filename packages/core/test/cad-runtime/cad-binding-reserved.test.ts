@@ -86,4 +86,4 @@ describe('cad-binding-reserved: `cad` is the only reserved binding', () => {
     rt.registerLib('cad', fakeNs as never)
     expect(libsOf(rt).cad).toBeDefined()
   })
-})`n
+})

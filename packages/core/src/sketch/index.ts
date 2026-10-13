@@ -10,6 +10,13 @@
  * The cad namespace is now fully assembled inside `createApiNamespace()`;
  * hosts no longer need to merge/register sketch symbols. Solver wasm is
  * injected via `setSketchSolverInitFn()` (see `./solver-loader`).
+ *
+ * Node-only symbols (`planegcsWasmPath`, `createNodePlanegcsSolver`) are
+ * deliberately NOT re-exported from this entry — `./node.js` statically
+ * imports `node:module` / `node:path`, and a static re-export would drag
+ * `node:*` into browser/worker bundles. They live on the dedicated
+ * `@faicad/faijs/sketch/node` subpath (guarded by
+ * `test/sketch/sketch-entry-browser.test.ts`).
  */
 
 // ── canonical model (§4) ──
@@ -79,4 +86,3 @@ export type { SketchParams } from './op.js'
 export {
   setSketchSolverInitFn, initSketchSolver,
 } from './solver-loader.js'
-export { planegcsWasmPath, createNodePlanegcsSolver } from './node.js'

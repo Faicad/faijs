@@ -33,10 +33,13 @@
  * is `|center−a| = |center−b| = |center−c|`.
  *
  * A second, independent brepkit limitation surfaced after the fix: a closed wire
- * of EXACTLY two half-arcs makes `makeFaceFromWire` cover only 1/3 of the disc
+ * of EXACTLY two half-arcs made `makeFaceFromWire` cover only 1/3 of the disc
  * (extrude volume 523.6 vs 1570.8), while 3- or 4-arc wires and a single closed
- * `makeCircleEdge` are exact. `liftCurve2dToPlane` therefore emits one
- * `makeCircleEdge` for a full circle instead of two arcs (GOTCHA recorded there).
+ * `makeCircleEdge` were exact. `liftCurve2dToPlane` therefore emits one
+ * `makeCircleEdge` for a full circle (GOTCHA recorded there). The two-arc
+ * limitation has since been fixed by brepkit (2026-10-13 measurement: the
+ * two-half-arc wire extrudes to the exact full cylinder); the single-edge lift
+ * stays as an implementation choice.
  *
  * ## Measurement traps this file records
  *
@@ -253,20 +256,24 @@ describe('brepkit arcs: fixed — spans and full-circle faces are exact', () => 
       .toBeCloseTo((Math.PI * R * R / 2) * 5, 0)
   })
 
-  it('GOTCHA: a closed wire of exactly TWO half-arcs is NOT used — the circle path uses makeCircleEdge', async () => {
-    // Rules out a future "fix" that goes back to two `makeArcEdge` halves: that
-    // construction makes brepkit's makeFaceFromWire cover only ~1/3 of the disc
-    // (or degenerate to 0 when the shared endpoint is not bit-identical). Three
-    // and four arc halves are exact — so it is a special case of the two-arc
-    // wire, not "arcs don't work". `liftCurve2dToPlane`'s circle branch emits one
-    // closed `makeCircleEdge` for this reason.
+  it('CONSEQUENCE: a closed wire of EXACTLY two half-arcs is now exact (brepkit fixed 2026-10-13)', async () => {
+    // History: 2026-09-30 (brepkit arc-defect fix day) a closed wire of exactly
+    // two `makeArcEdge` halves made `makeFaceFromWire` cover only 1/3 of the disc
+    // (extrude volume 523.6 vs πr²·5 = 1570.8), so `liftCurve2dToPlane` emits one
+    // closed `makeCircleEdge` for a full circle (GOTCHA recorded there).
+    // 2026-10-13 measurement: the two-half-arc wire now extrudes to the exact
+    // full cylinder (1570.7963267948971 vs πr²·5 = 1570.7963267948967). The
+    // kernel limitation is gone; the lift still emits a single `makeCircleEdge`
+    // (one edge, one seam — a deliberate implementation choice, not a
+    // workaround). If a future brepkit regresses to the 1/3 behaviour, this
+    // assertion turns red again — that is what it is for.
     const brepkit = await useEngine(registerBrepkitBrepEngine)
     const twoArc = brepkit.makeFace(brepkit.makeWire([
       brepkit.makeArcEdge(at(0), at(Math.PI / 2), at(Math.PI)),
       brepkit.makeArcEdge(at(Math.PI), at((3 * Math.PI) / 2), at(2 * Math.PI)),
     ]))
     expect(brepkit.getVolume(brepkit.extrude(twoArc, 0, 0, 5)))
-      .not.toBeCloseTo(Math.PI * R * R * 5, 0)
+      .toBeCloseTo(Math.PI * R * R * 5, 0)
     const fourArc = brepkit.makeFace(brepkit.makeWire([
       brepkit.makeArcEdge(at(0), at(Math.PI / 4), at(Math.PI / 2)),
       brepkit.makeArcEdge(at(Math.PI / 2), at((3 * Math.PI) / 4), at(Math.PI)),
