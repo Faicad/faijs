@@ -136,15 +136,11 @@ core 已有三个 wasm 装载点，同构地遵循"`setXxxWasmInitFn` 宿主注�
 | 仓库 | 依赖声明 | 源码 import | 说明 |
 |---|---|---|---|
 | 3d_editor | `file:` tgz，根 + app + platform + weapp 四份 | 83 处（下文清单） | 主消费者，三个宿主 |
-| 3d_viewer_web | `file:` tgz 0.32.3 | 83 处（与 3d_editor 同源副本） | 旧副本，同改 |
 | 3d_viewer_electron | `^0.29.3`（registry） | 源码 0（经 `@faicad/faijs-viewer` 间接） | 只需改 package.json + lock |
 | faijs-cadquery | `^0.33.0` peer | `src/assembly/assembly.ts:31`（extra/editor-ops）、`src/sketch.ts:26,29`（sketch） | 独立仓库 |
 | faijs-freecad | `^0.32.0` | 67 处 sketch（scripts/* + src/*），并对部分符号对外 re-export | 独立仓库 |
 | faijs-openscad | optional peer `^0.32.0` | 1 处注释；运行时经客户端字符串判断 extra 可用性 | 独立仓库 |
-| fcstd-port | `file:` tgz 0.27.0（sketch + **draw**） | `tools/lib/cad-namespace.ts:36,37`（sketch、sketch/node）、`:38`（`mergeDrawNamespace`/`registerDrawSymbols`） | 独立仓库；**有 draw 消费者** |
-| __convtest | `file:` tgz 0.29.1（sketch + **draw**） | 0 处源码 | 仅 package.json |
-| 3d_viewer_tauri / cadquery-port / 3d_viewer | 无 | 0 | 无需改 |
-
+| fcstd-port | `file:` tgz 0.27.0（sketch + **draw**） | `tools/lib/cad-namespace.ts:36,37`（sketch、sketch/node）、`:38`（`mergeDrawNamespace`/`registerDrawSymbols`） | 独立仓库；|
 3d_editor 关键装配与 import（本次要改的核心）：
 
 - `packages/platform/src/web/faijs.worker.ts:16-30`：`createRuntime` + `@faicad/faijs-sketch` + `@faicad/faijs-extra/browser` 的三件套装配。
