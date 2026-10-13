@@ -86,6 +86,19 @@ const withKind = (kind: number, n: number): BrepHandle => {
 }
 const arr = (x: ArrayLike<number> | number[]): number[] => Array.from(x as ArrayLike<number>)
 
+/**
+ * L1 向量形参的静态校验：`BrepVec3 = {x,y,z}` **对象**，不是元组、更不是布尔。
+ *
+ * 包侧旧口径（`loft(wires, isSolid?, ruled?)` 之类）会把标量/布尔塞进向量位，进内核
+ * 后只剩一句无指向的 wasm 报错（实测 `cannot normalize zero vector`）。编译期管不住的
+ * 调用点（跨包 `as unknown as` 注入）在此静态判一次，给可指路的错误。
+ */
+const isBrepVec3 = (v: unknown): boolean => {
+  if (typeof v !== 'object' || v === null) return false
+  const o = v as { x?: unknown; y?: unknown; z?: unknown }
+  return typeof o.x === 'number' && typeof o.y === 'number' && typeof o.z === 'number'
+}
+
 /** 适配器内部的显式失败（替代旧 unsupported 桩：能力缺失一律在静态判定拦截，不在实现体里伪装）。 */
 function fail(detail: string): never {
   throw new Error(`[brepkit-kernel] ${detail}`)
@@ -757,13 +770,13 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return asHandle(markSolid(kernel.extrude(s, dx / len, dy / len, dz / len, len)))
     },
     revolveVec(shape: BrepHandle, center: BrepVec3, direction: BrepVec3, angleDeg: number): BrepHandle {
-      // 方言归一：brepkit revolve 只吃 face（与 extrude 同族断言）。
-      const s = asNum(shape)
-      if (!knownFaces.has(s)) {
-        fail('revolveVec requires a face input; got a handle that is not a known face')
-      }
+      // 方言归一（与 sweep / loft 同款）：brepkit 原生 revolve 只吃 face，而 L1 调用方
+      // 传的是**闭合轮廓 wire**（如 faijs-fasteners 的 revolveProfile 直传 wire）；
+      // occt 侧原生 revolve 两者都吃。方言在适配器消化：wire → makeFaceFromWire 升面，
+      // 升面失败（开口 wire）由内核报错，不在适配器预判（与 sweep 同一纪律）。
+      const faceNum = profileFaceOf(shape, 'revolveVec')
       return asHandle(markSolid(kernel.revolve(
-        s, center.x, center.y, center.z, direction.x, direction.y, direction.z, angleDeg,
+        faceNum, center.x, center.y, center.z, direction.x, direction.y, direction.z, angleDeg,
       )))
     },
     sweep(profile: BrepHandle, spine: BrepHandle): BrepHandle {
@@ -799,6 +812,14 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       const farr = Uint32Array.from(faces)
       // ③ 选项映射：endPoint → loftWithOptions；ruled=false → loftSmooth。
       if (endPoint !== undefined) {
+        // 契约守卫：L1 的第三参是 `endPoint: BrepVec3`，而包侧旧口径是
+        // `loft(wires, isSolid?, ruled?)`（faijs-gears `kernel/gears.ts` 的
+        // `loft(wires, false, false)` 即如此）。布尔量落进 endPoint 位后会一路进内核，
+        // 只得到一句无指向的 wasm 报错（实测 `cannot normalize zero vector`）——
+        // 静态可判的输入约束必须在执行前显式失败（方案 §5② 红线），不进内核猜。
+        if (!isBrepVec3(endPoint)) {
+          fail(`E_LOFT_BAD_ENDPOINT: loft endPoint must be a BrepVec3 ({x,y,z}), got ${JSON.stringify(endPoint)}`)
+        }
         return asHandle(markSolid(kernel.loftWithOptions(
           farr, JSON.stringify({ ruled, endPoint: [endPoint.x, endPoint.y, endPoint.z] }),
         )))
@@ -818,6 +839,37 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     },
     hullFromPoints(points: BrepVec3[], _tolerance: number): BrepHandle {
       return asHandle(markSolid(kernel.convexHull(flattenPoints(points))))
+    },
+    // ── 样条面 / 体构造补缺（2026-10-13 进 L1）──
+    bsplineSurface(points: BrepVec3[], rows: number, cols: number): BrepHandle {
+      // §7 决策点 1 选**插值**（interpolateSurface）：L1 语义锚是 occt 的过点
+      // GeomAPI_PointsToBSplineSurface。不用 approximateSurfaceLspia——那是逼近，语义不同。
+      // 阶数：brepkit 要求 degree < 该方向点数，缺省 3 并夹紧（点少时降阶，不崩）。
+      const degU = Math.max(1, Math.min(3, rows - 1))
+      const degV = Math.max(1, Math.min(3, cols - 1))
+      if (points.length !== rows * cols) {
+        fail(`bsplineSurface: expected ${rows * cols} points (${rows}×${cols}), got ${points.length}`)
+      }
+      const f = kernel.interpolateSurface(flattenPoints(points), rows, cols, degU, degV)
+      knownFaces.add(f)
+      return asFace(f)
+    },
+    makeSolid(shell: BrepHandle): BrepHandle {
+      const n = asNum(shell)
+      // 方言归一：brepkit 的 revolve / extrude / loft 已直接产出实体（markSolid 登记），
+      // 而 occt 的 revolve 产 shell、须 MakeSolid 固化。中立调用方统一写成
+      // `makeSolid(revolve(...))`（faijs-fasteners 的 revolveProfile 即如此），故此处对
+      // **已是实体**的输入幂等返回——不是吞错：非 shell 的输入仍交给内核报错。
+      if (knownSolids.has(n)) return shell
+      return asHandle(markSolid(kernel.solidFromShell(n)))
+    },
+    thicken(shape: BrepHandle, thickness: number, tolerance?: number): BrepHandle {
+      // brepkit 原生 thicken 只有 (face, thickness)，**无 tolerance 参数** ——
+      // 传非零容差即显式失败，不静默丢弃（与 sweep/loft 的显式失败同一纪律）。
+      if (tolerance !== undefined && tolerance !== 0) {
+        fail(`thicken: brepkit has no tolerance parameter (got ${tolerance}); pass 0 or omit it`)
+      }
+      return asHandle(markSolid(kernel.thicken(asNum(shape), thickness)))
     },
 
     // ── 布尔与分割 ──
@@ -927,6 +979,14 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     mirror(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle {
       return withKind(kindOf(shape), kernel.mirror(asNum(shape), point.x, point.y, point.z, normal.x, normal.y, normal.z))
     },
+    rotate(shape: BrepHandle, axis: { point: BrepVec3; direction: BrepVec3 }, angleRad: number): BrepHandle {
+      // brepkit 无 rotate 原语 → 适配器组 Rodrigues 3×4 矩阵后走既有 cloneAndTransform
+      // （toKernelMatrix 仍是唯一方言转换点；与 translate/scale 同一条路径）。
+      return withKind(
+        kindOf(shape),
+        cloneAndTransform(asNum(shape), toKernelMatrix(rotationMatrix(axis.point, axis.direction, angleRad)), kindOf(shape)),
+      )
+    },
 
     // ── 阵列 ──
     // brepkit wasm 的 pattern 内核函数都返回 compound（含全部副本）→ 经 getCompoundSolids 拆成数组。
@@ -1033,6 +1093,99 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       knownEdges.add(e)
       return asEdge(e)
     },
+    makeCircleArc(
+      center: BrepVec3,
+      normal: BrepVec3,
+      radius: number,
+      startAngle: number,
+      endAngle: number,
+    ): BrepHandle {
+      // 方言消化：L1 吃 (圆心, 法向, 半径, 起止角)；brepkit makeCircleArc3d 吃
+      // (start, end, center, axis)。先在法向的垂直平面里建正交基 (u,v)，
+      // 起点/终点由角度算，axis 取归一化法向（右手：θ 增大绕 axis 逆时针）。
+      const len = Math.hypot(normal.x, normal.y, normal.z)
+      if (!(len > 0)) fail('makeCircleArc: normal must be a non-zero vector')
+      const n: BrepVec3 = { x: normal.x / len, y: normal.y / len, z: normal.z / len }
+      let u: BrepVec3
+      const ax = Math.abs(n.x)
+      const ay = Math.abs(n.y)
+      const az = Math.abs(n.z)
+      if (ax <= ay && ax <= az) u = { x: 0, y: -n.z, z: n.y }
+      else if (ay <= az) u = { x: -n.z, y: 0, z: n.x }
+      else u = { x: n.y, y: -n.x, z: 0 }
+      const ul = Math.hypot(u.x, u.y, u.z)
+      u = { x: u.x / ul, y: u.y / ul, z: u.z / ul }
+      const v: BrepVec3 = {
+        x: n.y * u.z - n.z * u.y,
+        y: n.z * u.x - n.x * u.z,
+        z: n.x * u.y - n.y * u.x,
+      }
+      const at = (ang: number): BrepVec3 => {
+        const cs = Math.cos(ang) * radius
+        const sn = Math.sin(ang) * radius
+        return {
+          x: center.x + u.x * cs + v.x * sn,
+          y: center.y + u.y * cs + v.y * sn,
+          z: center.z + u.z * cs + v.z * sn,
+        }
+      }
+      const start = at(startAngle)
+      const end = at(endAngle)
+      const e = kernel.makeCircleArc3d(
+        start.x, start.y, start.z,
+        end.x, end.y, end.z,
+        center.x, center.y, center.z,
+        n.x, n.y, n.z,
+      )
+      knownEdges.add(e)
+      return asEdge(e)
+    },
+    makeHelixWire(
+      origin: BrepVec3,
+      axis: BrepVec3,
+      pitch: number,
+      height: number,
+      radius: number,
+    ): BrepHandle {
+      // §7 决策点 2 选 (a)：解析螺旋采样 → interpolatePoints 造 NURBS edge → makeWire。
+      // brepkit 的 helicalSweep 是**扫掠成体**，不能用于 1D wire。
+      // 偏差 = 采样弦高（近似，非解析），由 helix 一致性测试钉 band。
+      const pts = sampleHelixPoints(origin, axis, pitch, height, radius)
+      const degree = Math.min(3, pts.length - 1)
+      const e = kernel.interpolatePoints(flattenPoints(pts), degree)
+      knownEdges.add(e)
+      const w = kernel.makeWire(Int32Array.from([e]), false)
+      knownWires.add(w)
+      return asWire(w)
+    },
+    approximatePoints(points: BrepVec3[], tolerance?: number): BrepHandle {
+      // 方言消化：L1 吃 (点列, 容差)；brepkit approximateCurveLspia 还要
+      // degree / num_control_points / max_iterations —— 由适配器给缺省
+      // （degree 3 夹紧、numCps 取点数、迭代 100），容差直接落 tolerance。
+      const n = points.length
+      if (n < 2) fail(`approximatePoints: need at least 2 points, got ${n}`)
+      const degree = Math.max(1, Math.min(3, n - 1))
+      const e = kernel.approximateCurveLspia(
+        flattenPoints(points), degree, n, tolerance ?? 1e-2, 100,
+      )
+      knownEdges.add(e)
+      return asEdge(e)
+    },
+    interpolatePointsWithTangents(
+      points: BrepVec3[],
+      _startTangent: BrepVec3,
+      _endTangent: BrepVec3,
+    ): BrepHandle {
+      // ⚠️ 退化实现（§7 决策点 3 选 (a)）：brepkit 无「带端点切向约束的插值」原语，
+      // 这里退化为普通 interpolatePoints（degree 3）—— **两端切向被丢弃**，端点
+      // 斜率与 occt 的 GeomAPI_Interpolate(scale=True) 不同。这是有记录的近似
+      // （HAND_MAP note + 偏差 band 双钉），不是静默降级。
+      const n = points.length
+      if (n < 2) fail(`interpolatePointsWithTangents: need at least 2 points, got ${n}`)
+      const e = kernel.interpolatePoints(flattenPoints(points), Math.min(3, n - 1))
+      knownEdges.add(e)
+      return asEdge(e)
+    },
 
     // ── 拓扑构造 ──
     makeWire(edges: BrepHandle[]): BrepHandle {
@@ -1066,6 +1219,13 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     },
     buildTriFace(a: BrepVec3, b: BrepVec3, c: BrepVec3): BrepHandle {
       const f = kernel.makePolygon(flattenPoints([a, b, c]))
+      knownFaces.add(f)
+      return asFace(f)
+    },
+    makeNonPlanarFace(wire: BrepHandle): BrepHandle {
+      // brepkit 的 makeFaceFromWire 不区分平面/非平面（与 makeFace 同一原生），
+      // 但 L1 保留独立中立名：occt 侧 makeFace 是平面路径，语义不同。
+      const f = kernel.makeFaceFromWire(asNum(wire))
       knownFaces.add(f)
       return asFace(f)
     },
@@ -1304,6 +1464,9 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     isSolid(shape: BrepHandle): boolean {
       try { return arr(kernel.getSolidFaces(asNum(shape))).length > 0 } catch { return false }
     },
+    subShapeCount(shape: BrepHandle, type: BrepSubShapeType): number {
+      return api.getSubShapes(shape, type).length
+    },
     shapeType(shape: BrepHandle): string {
       try {
         const s = arr(kernel.getSolidFaces(asNum(shape)))
@@ -1520,7 +1683,14 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     },
     getSurfaceArea(shape: BrepHandle): number {
       // 方言映射：L1 getSurfaceArea ↔ brepkit surfaceArea(solid, deflection)。
-      return Number(kernel.surfaceArea(asNum(shape), 0.05))
+      // ⚠️ brepkit 的 surfaceArea **只吃 solid**（传 face 报 `invalid solid handle:
+      // index 0 is out of bounds`），而 L1 的语义锚（occt getSurfaceArea）也吃 face
+      // —— gears / fasteners 大量对面调 getSurfaceArea。故 face 走 brepkit 原生
+      // faceArea（同名不同参，属方言消化，不是静默降级）。
+      const n = asNum(shape)
+      // faceArea(face, deflection) —— deflection 与 surfaceArea 同一口径（0.05）。
+      if (resolveKind(shape, n) === KIND_FACE) return Number(kernel.faceArea(n, 0.05))
+      return Number(kernel.surfaceArea(n, 0.05))
     },
     getLength(shape: BrepHandle): number {
       // 唯一 edge 弧长之和（与 occt 适配器同口径，D5）。
@@ -1661,6 +1831,91 @@ function translationMatrix(dx: number, dy: number, dz: number): number[] {
     0, 1, 0, dy,
     0, 0, 1, dz,
   ]
+}
+
+/**
+ * 3×4 行主序旋转矩阵（绕**任意轴** axis={point,direction} 转 angleRad，右手）。
+ *
+ * 与 `engine-compat/harness.ts` 的 rotate 测试桩同算法（Rodrigues），保证 brepkit
+ * 侧与 occt 侧 `rotate` 可对照：
+ *   R = I·cosθ + (d⊗d)(1−cosθ) + [d]×·sinθ ，平移 t = P − R·P（轴上的点不动）。
+ */
+function rotationMatrix(point: BrepVec3, direction: BrepVec3, angleRad: number): number[] {
+  const len = Math.hypot(direction.x, direction.y, direction.z)
+  if (!(len > 0)) fail('rotate: axis direction must be a non-zero vector')
+  const d: BrepVec3 = { x: direction.x / len, y: direction.y / len, z: direction.z / len }
+  const c = Math.cos(angleRad)
+  const s = Math.sin(angleRad)
+  const t = 1 - c
+  const r00 = c + d.x * d.x * t
+  const r01 = d.x * d.y * t - d.z * s
+  const r02 = d.x * d.z * t + d.y * s
+  const r10 = d.x * d.y * t + d.z * s
+  const r11 = c + d.y * d.y * t
+  const r12 = d.y * d.z * t - d.x * s
+  const r20 = d.x * d.z * t - d.y * s
+  const r21 = d.y * d.z * t + d.x * s
+  const r22 = c + d.z * d.z * t
+  return [
+    r00, r01, r02, point.x - (r00 * point.x + r01 * point.y + r02 * point.z),
+    r10, r11, r12, point.y - (r10 * point.x + r11 * point.y + r12 * point.z),
+    r20, r21, r22, point.z - (r20 * point.x + r21 * point.y + r22 * point.z),
+  ]
+}
+
+/**
+ * 右手圆柱螺旋线采样点（解析式，供 brepkit 侧 makeHelixWire 拟合用）。
+ *
+ * 参数化：θ ∈ [0, 2π·turns]，turns = height / pitch；
+ *   P(θ) = origin + u·r·cosθ + v·r·sinθ + â·(pitch·θ / 2π)
+ * 其中 (u, v, â) 是右手正交基，â = axis/|axis|。θ 到终点时沿轴推进量恰为 height。
+ *
+ * 段数按圈数取（每圈 `SEGMENTS_PER_TURN` 段，下限 8 段）—— 采样弦高即偏差来源，
+ * 由 helix 一致性测试钉 band。
+ */
+function sampleHelixPoints(
+  origin: BrepVec3,
+  axis: BrepVec3,
+  pitch: number,
+  height: number,
+  radius: number,
+  segmentsPerTurn = 36,
+): BrepVec3[] {
+  const len = Math.hypot(axis.x, axis.y, axis.z)
+  if (!(len > 0)) fail('makeHelixWire: axis must be a non-zero vector')
+  if (!(pitch !== 0)) fail('makeHelixWire: pitch must be non-zero')
+  const a: BrepVec3 = { x: axis.x / len, y: axis.y / len, z: axis.z / len }
+  // 与 makePlanarFaceTool（occt 侧）同一取轴策略：取分量绝对值最小的坐标构造正交基，
+  // 避免 axis 轴对齐时退化。
+  const ax = Math.abs(a.x)
+  const ay = Math.abs(a.y)
+  const az = Math.abs(a.z)
+  let u: BrepVec3
+  if (ax <= ay && ax <= az) u = { x: 0, y: -a.z, z: a.y }
+  else if (ay <= az) u = { x: -a.z, y: 0, z: a.x }
+  else u = { x: a.y, y: -a.x, z: 0 }
+  const ul = Math.hypot(u.x, u.y, u.z)
+  u = { x: u.x / ul, y: u.y / ul, z: u.z / ul }
+  const v: BrepVec3 = {
+    x: a.y * u.z - a.z * u.y,
+    y: a.z * u.x - a.x * u.z,
+    z: a.x * u.y - a.y * u.x,
+  }
+  const turns = height / pitch
+  const total = Math.max(8, Math.ceil(Math.abs(turns) * segmentsPerTurn))
+  const out: BrepVec3[] = []
+  for (let i = 0; i <= total; i++) {
+    const th = (2 * Math.PI * turns * i) / total
+    const cs = Math.cos(th)
+    const sn = Math.sin(th)
+    const axial = (pitch * th) / (2 * Math.PI)
+    out.push({
+      x: origin.x + (u.x * cs + v.x * sn) * radius + a.x * axial,
+      y: origin.y + (u.y * cs + v.y * sn) * radius + a.y * axial,
+      z: origin.z + (u.z * cs + v.z * sn) * radius + a.z * axial,
+    })
+  }
+  return out
 }
 
 /** 3×4 行主序缩放矩阵（绕 center 缩放；faijs 接口方言，12 元素）。 */

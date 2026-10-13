@@ -76,17 +76,22 @@ describe('Phase 0 brepkit-wasm 导出面基线', () => {
   it('*WithHistory 族除 fuse/cut/fillet/intersect 外未导出（能力表不声明依据）', () => {
     for (const m of ['mirrorWithHistory', 'rotateWithHistory', 'translateWithHistory', 'scaleWithHistory', 'shellWithHistory', 'offsetWithHistory', 'thickenWithHistory']) {
       expect(brepkitSurface.methods, `${m} 不应在 brepkit wasm 导出面`).not.toContain(m)
-      expect(brepkitSurface.notExported, `${m} 应在 notExported`).toContain(m)
     }
+    // ⚠️ 2026-10-13 实测修正（重生成 4.1.49 快照时暴露）：`notExported` 是从
+    // brepkitKernel.ts 里 `unsupported('<name>')` 桩提取的名单。Phase 4 全面接线后
+    // 适配器**已无任何 unsupported 桩**（能力缺失一律 fail() 显式抛错），故该集合
+    // 恒为空——「*WithHistory 未导出」的真依据是上面 `methods` 的断言，不是这里。
+    // 谁加回 unsupported 桩，此断言立即红（守卫价值不变）。
+    expect(brepkitSurface.notExported, 'brepkit 适配器已无 unsupported 桩').toEqual([])
     // 4 个 WithEvolution 是 brepkit 的演化能力全集
     expect(brepkitSurface.evolutionMethods.sort()).toEqual(
       ['cutWithEvolution', 'filletWithEvolution', 'fuseWithEvolution', 'intersectWithEvolution'].sort(),
     )
   })
 
-  it('wasm 已导出但 brepkit 适配器仍是 unsupported 桩的接线候选集合固定', () => {
-    expect(brepkitSurface.wasmExportedButUnwired.sort()).toEqual(
-      ['extrude', 'importStl', 'loft', 'makeRectangle', 'removeDegenerateEdges', 'section'].sort(),
-    )
+  it('brepkit 适配器已无 unsupported 桩（Phase 4 全面接线的完成度钉子）', () => {
+    // 历史断言钉的是「wasm 已导出但适配器仍是桩」的接线候选集合（extrude/loft/…）。
+    // 那些方法已全部接线 → 候选集合为空。改为钉住空集合：回归引入桩即刻红。
+    expect(brepkitSurface.wasmExportedButUnwired.sort()).toEqual([])
   })
 })

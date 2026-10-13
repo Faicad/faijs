@@ -294,9 +294,16 @@ describe('brepkit measurement traps', () => {
     await useEngine(registerBrepkitBrepEngine)
   }, 120000)
 
-  it('getSurfaceArea on a face throws "invalid solid handle" (solid-only API)', async () => {
+  it('getSurfaceArea on a face returns the face area (2026-10-13：不再是 solid-only)', async () => {
+    // 缺陷留档（修复前的行为）：brepkit 的 surfaceArea 是 **solid-only**，传 face
+    // 报 `invalid solid handle: index 0 is out of bounds` —— 而 L1 的语义锚（occt
+    // getSurfaceArea）也吃 face，gears / fasteners 大量对面调它。
+    // 修复：brepkit 适配器对 face 走原生 faceArea(face, deflection)。
+    // 本用例由「应当抛错」翻转为「应当给出正面积」，防止回退。
     const shape = await sketchFaces(LINES, [], { solver })
-    expect(() => api.getSurfaceArea(brepOf(shape) as never)).toThrow(/invalid solid handle/)
+    const area = api.getSurfaceArea(brepOf(shape) as never)
+    expect(Number.isFinite(area)).toBe(true)
+    expect(area).toBeGreaterThan(0)
   })
 
   it("getSubShapes(face, 'face') returns [face]; 'solid' returns []", async () => {

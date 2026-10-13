@@ -25,71 +25,41 @@ export interface GearAxis {
 }
 
 /**
- * Raw occt-wasm capability surface — superset of `BrepEngineApi`.
+ * faijs-gears 内核面 = `BrepEngineApi`（L1 契约，2026-10-13 已将 10 个样条/螺旋
+ * 原语接进 L1，见方案 §7 决策点 1/2/3）+ **occt 平台扩展**（L1 契约之外、brepkit
+ * 核心未实现的原语，共 15 个）。gears 通过 `getGearKernel()` 消费宿主注入的
+ * backend：
+ *  - 注入 occt（生产由宿主注入 `createOcctPrimitives()` + 必要的 occt 平台扩展）→ 走通；
+ *  - 注入 brepkit → 15 个 occt 平台扩展缺失（sew 族 / split / loft-shell / healWire /
+ *    isFace 族 / projectPointOnFace / revolve / buildSolidFromFaces / makeFaceOnSurface /
+ *    outerWire / getShapeType / interpolatePoints(periodic)）→ 构建必然失败（显式缺口）。
  *
- * Declares exactly the methods the cq_gears port consumes; the probe test in
- * faijs-gears asserts each one exists on the live kernel, so a kernel upgrade
- * that renames a binding turns red immediately instead of failing at runtime
- * with `undefined is not a function`.
+ * occt 平台扩展列表（探活测试钉死每个是否存在于运行内核，内核升级改名即红）：
  */
-export type GearKernel = Omit<BrepEngineApi, 'interpolatePoints'> & {
-  // ── surface / curve construction (CadQuery makeSplineApprox family) ──
-  /** `GeomAPI_PointsToBSplineSurface`: point grid → B-spline surface → Face. */
-  bsplineSurface(points: BrepVec3[], rows: number, cols: number): BrepHandle
-  /** `GeomAPI_PointsToBSpline`: point list → approximated B-spline curve (with Tol3D). */
-  approximatePoints(points: BrepVec3[], tolerance?: number): BrepHandle
-  /** Cubic B-spline interpolation curve through all points (occt periodic 语义).
-   *  ⚠️ 收窄后（2026-09-24）：type 交叉继承全部 L1 方法，仅 Omit 掉
-   *  `interpolatePoints`（L1 是 brepkit degree 语义）并覆盖为本包 occt 原生
-   *  periodic 语义。运行时 kernel 是 raw occt-wasm 平台面，调用不变。 */
+export type GearKernel = BrepEngineApi & {
+  // ── 语义分歧：L1 同名但口径不同，必须走 occt 平台 ──
+  /** `GeomAPI_PointsToBSpline` periodic 语义；L1 `interpolatePoints(points, degree)` 是 degree 语义。 */
   interpolatePoints(points: BrepVec3[], periodic?: boolean): BrepHandle
+  /** `BRepOffsetAPI_ThruSections`：wires → **壳**（occt 平台）；L1 `loft` 恒产实体。 */
+  loft(wires: BrepHandle[], isSolid?: boolean, ruled?: boolean): BrepHandle
 
-  // ── topology construction ──
-  /** `BRepBuilderAPI_Sewing`: faces → sewn shell (cq `make_shell` analogue). */
-  sew(shapes: BrepHandle[], tolerance?: number): BrepHandle
-  makeSolid(shell: BrepHandle): BrepHandle
+  // ── 拓扑 / 查询：L1 未暴露 ──
   /** TopAbs_ShapeEnum type name ("solid" / "shell" / "face" …, for diagnostics/assertions). */
   getShapeType(shape: BrepHandle): string
   buildSolidFromFaces(faces: BrepHandle[], tolerance?: number): BrepHandle
-  makeNonPlanarFace(wire: BrepHandle): BrepHandle
   makeFaceOnSurface(face: BrepHandle, wire: BrepHandle): BrepHandle
   outerWire(face: BrepHandle): BrepHandle
-
-  // ── healing ──
   healWire(wire: BrepHandle, tolerance?: number): BrepHandle
   healFace(face: BrepHandle, tolerance?: number): BrepHandle
-
-  // ── transforms / booleans ──
-  rotate(shape: BrepHandle, axis: GearAxis, angleRad: number): BrepHandle
   /** `BRepPrimAPI_MakeRevol`: face/wire revolved around `axis` (cq `Workplane.revolve`, 360°=2π). */
   revolve(shape: BrepHandle, axis: GearAxis, angleRad: number): BrepHandle
-  mirror(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle
-  reverseShape(shape: BrepHandle): BrepHandle
-  vertexPosition(vertex: BrepHandle): BrepVec3
+  /** Boolean split by tool solids (cq `split`); L1 只有 `splitByPlane`，口径不同。 */
   split(shape: BrepHandle, tools: BrepHandle[]): BrepHandle
-  fillet(solid: BrepHandle, edges: BrepHandle[], radius: number): BrepHandle
-  shell(
-    solid: BrepHandle, facesToRemove: BrepHandle[], thickness: number, tolerance: number,
-  ): BrepHandle
-  thicken(shape: BrepHandle, thickness: number, tolerance: number): BrepHandle
-  makeCircleArc(
-    center: BrepVec3, normal: BrepVec3, radius: number, startAngle: number, endAngle: number,
-  ): BrepHandle
-  makeHelixWire(
-    origin: BrepVec3, axis: BrepVec3, pitch: number, height: number, radius: number,
-  ): BrepHandle
-
-  // ── queries ──
-  getSurfaceArea(shape: BrepHandle): number
   projectPointOnFace(face: BrepHandle, point: BrepVec3): BrepVec3
-  surfaceType(face: BrepHandle): string
-  subShapeCount(shape: BrepHandle, type: 'vertex' | 'edge' | 'wire' | 'face' | 'shell' | 'solid'): number
   isFace(shape: BrepHandle): boolean
   isWire(shape: BrepHandle): boolean
   isShell(shape: BrepHandle): boolean
   isEdge(shape: BrepHandle): boolean
-  /** `BRepOffsetAPI_ThruSections`: wires → shell（occt 平台方法，收窄后不在 L1）。 */
-  loft(wires: BrepHandle[], isSolid?: boolean, ruled?: boolean): BrepHandle
 }
 
 let legacyKernelPromise: Promise<GearKernel> | null = null

@@ -95,6 +95,26 @@ export interface BrepEngineApi {
   shell(solid: BrepHandle, facesToRemove: BrepHandle[], thickness: number, tolerance: number): BrepHandle
   /** 点集凸包（tolerance 为容差）。 */
   hullFromPoints(points: BrepVec3[], tolerance: number): BrepHandle
+  /**
+   * 点阵 (rows×cols) → B 样条曲面 → Face。语义锚 = occt `GeomAPI_PointsToBSplineSurface`
+   * （**过点**插值，非逼近）。
+   *
+   * - occt 侧直连原生 `bsplineSurface`（吃 `Vec3[]`，内核自定阶）；
+   * - brepkit 侧走 `interpolateSurface`（同为过点插值），阶数由适配器给缺省 3/3
+   *   —— 不用 `approximateSurfaceLspia`：那是可控逼近，语义不同（§7 决策点 1 选插值）。
+   *
+   * `points` 是按行主序铺平的点阵（rows 行、cols 列）。
+   */
+  bsplineSurface(points: BrepVec3[], rows: number, cols: number): BrepHandle
+  /** shell → solid。语义锚 = occt `BRepBuilderAPI_MakeSolid`；brepkit 走 `solidFromShell`。 */
+  makeSolid(shell: BrepHandle): BrepHandle
+  /**
+   * 面加厚（tolerance 仅 occt 消费）。
+   *
+   * ⚠️ brepkit 原生 `thicken(face, thickness)` **无 tolerance 参数**：适配器对非零
+   * tolerance 显式抛错（不静默丢弃，§3.6-1 同纪律）。
+   */
+  thicken(shape: BrepHandle, thickness: number, tolerance?: number): BrepHandle
 
   // ── 布尔与分割 ──
   fuse(a: BrepHandle, b: BrepHandle): BrepHandle
@@ -168,6 +188,13 @@ export interface BrepEngineApi {
   composeTransform(m1: number[], m2: number[]): number[]
   /** 镜像（过 point、法向 normal 的平面）。 */
   mirror(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle
+  /**
+   * 绕任意轴旋转（右手，弧度）。语义锚 = occt `rotate`。
+   *
+   * brepkit 侧无 rotate 原语 → 适配器组 Rodrigues 3×4 矩阵后走既有 `transform`
+   * （`toKernelMatrix` 仍是唯一方言转换点）。
+   */
+  rotate(shape: BrepHandle, axis: { point: BrepVec3; direction: BrepVec3 }, angleRad: number): BrepHandle
 
   // ── 阵列 ──
   // 口径：两内核的 pattern 内核函数都返回 compound（含全部副本），适配器负责拆成数组。
@@ -216,6 +243,56 @@ export interface BrepEngineApi {
   ): BrepHandle
   makeCircleEdge(center: BrepVec3, normal: BrepVec3, radius: number): BrepHandle
   /**
+   * 圆心 + 法向 + 半径 + 起止角（弧度）→ 圆弧 edge。语义锚 = occt `makeCircleArc`。
+   *
+   * brepkit 方言：`makeCircleArc3d(start, end, center, axis)` 吃起止点与绕轴方向，
+   * 由 (center, normal, radius, a0, a1) 换算（与 `makeArcEdge` 的 3 点换算同一族）。
+   */
+  makeCircleArc(
+    center: BrepVec3,
+    normal: BrepVec3,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+  ): BrepHandle
+  /**
+   * 右手圆柱螺旋线（1D wire）。origin/axis 定轴，pitch 每圈推进、height 总高、radius 半径。
+   *
+   * - occt 侧直连原生 `makeHelixWire`（解析螺旋）；
+   * - brepkit 侧无 1D 螺旋原语（`helicalSweep` 是**扫掠成体**，不可用于 1D），
+   *   走「解析螺旋采样 → `interpolatePoints` 造 NURBS edge → `makeWire`」——
+   *   **近似**，偏差 = 采样弦高，实测后钉 band（§7 决策点 2 选 (a)）。
+   *
+   * ⚠️ 只暴露右手：左手由调用方镜像实现（与 fasteners `WarehouseKernel` 既有口径一致）。
+   */
+  makeHelixWire(
+    origin: BrepVec3,
+    axis: BrepVec3,
+    pitch: number,
+    height: number,
+    radius: number,
+  ): BrepHandle
+  /**
+   * 点列 → 逼近 B 样条曲线（tolerance 为逼近容差）。语义锚 = occt `GeomAPI_PointsToBSpline`。
+   *
+   * brepkit 侧走 `approximateCurveLspia`（degree/numCps 由适配器给缺省：degree=3、
+   * numCps=points.length），tolerance 直接落 Lspia 的 tolerance 参数。
+   */
+  approximatePoints(points: BrepVec3[], tolerance?: number): BrepHandle
+  /**
+   * 点列 + 两端切向 → 插值三次 B 样条曲线。
+   * 语义锚 = occt `GeomAPI_Interpolate(scale=True)`（切向量按弦长缩放）。
+   *
+   * ⚠️ **brepkit 侧是退化实现**：brepkit 无带切向约束的插值原语，适配器退化为
+   * `interpolatePoints`（丢两端切向），端点斜率与 occt 不同 —— 这是**有记录的近似**
+   * （HAND_MAP note + 偏差 band 双钉），不是静默降级（§7 决策点 3 选 (a)）。
+   */
+  interpolatePointsWithTangents(
+    points: BrepVec3[],
+    startTangent: BrepVec3,
+    endTangent: BrepVec3,
+  ): BrepHandle
+  /**
    * Split an edge at an interior parameter into its two sub-edges, in order.
    * The parameter must be STRICTLY inside the edge's domain — splitting at an
    * end is rejected by the kernel rather than returning a degenerate pair.
@@ -229,6 +306,13 @@ export interface BrepEngineApi {
   addHolesInFace(face: BrepHandle, holeWires: BrepHandle[]): BrepHandle
   /** 三角面（三顶点）。 */
   buildTriFace(a: BrepVec3, b: BrepVec3, c: BrepVec3): BrepHandle
+  /**
+   * 任意 wire → face（含**非平面** wire）。语义锚 = occt `makeNonPlanarFace`。
+   *
+   * brepkit 侧走 `makeFaceFromWire`（与 `makeFace` 同一原生，但保留独立中立名：
+   * `makeFace` 在 occt 侧是 `BRepBuilderAPI_MakeFace` 的平面路径，语义不同）。
+   */
+  makeNonPlanarFace(wire: BrepHandle): BrepHandle
 
   // ── 三角化（BREP→mesh 唯一出口，断链物化依赖，硬必需） ──
   meshShape(shape: BrepHandle, options?: BrepTessellateOptions): BrepMeshResult
@@ -240,6 +324,8 @@ export interface BrepEngineApi {
   hashCode(shape: BrepHandle, upperBound: number): number
   isSame(a: BrepHandle, b: BrepHandle): boolean
   isSolid(shape: BrepHandle): boolean
+  /** 指定类型子形状数量（组合实现：`getSubShapes(shape, type).length`）。 */
+  subShapeCount(shape: BrepHandle, type: BrepSubShapeType): number
   /** 形状类型名（'SOLID' / 'FACE' / 'EDGE' / 'WIRE' / 'COMPOUND' 等；引擎方言归一）。
    * 库桥（l3-bridge）收编产物时判类型读；brepkit/mock 按能力防御返回。 */
   shapeType(shape: BrepHandle): string

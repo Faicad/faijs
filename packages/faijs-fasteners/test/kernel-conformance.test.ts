@@ -12,6 +12,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { BrepHandle } from '@faicad/faijs'
+import { getOcctKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import { requireKernel, type WarehouseKernel } from '../src/kernel'
 import { setupWarehouseKernel } from '../src/test-setup'
 
@@ -22,26 +23,21 @@ beforeAll(async () => {
   k = requireKernel() as unknown as WarehouseKernel
 })
 
-/** probe 清单：WarehouseKernel 超出 BrepEngineApi 的全部成员 + §6 的 loft 退化路径前提。 */
+/**
+ * probe 清单：**仅** WarehouseKernel 超出 `BrepEngineApi` 的成员
+ * （已进 L1 的名字由 core 的三处编译期守卫 + 双引擎契约测试保证，
+ * 见 `core/test/brep/engine/spline-primitive-l1-parity.test.ts`）。
+ *
+ * 2026-10-13 收敛后本包只剩 occt 平台面能力需要在此 probe。
+ */
 const PROBED = [
-  'makeHelixWire',
-  'approximatePoints',
-  'bsplineSurface',
-  'sew',
-  'makeSolid',
-  'revolve',
-  'thicken',
-  'makeNonPlanarFace',
-  'getSurfaceArea',
-  'reverseShape',
-  'tessellate', // 体积真值基准：GProps 对螺旋 B 样条面求积混叠（W3 仲裁），mesh 才是真值
-  'loft', // §6：makeRuledSurface 缺失期的退化路径——存在与否直接决定 W3 路线
-  'vertexPosition', // W5：fillet2D / edge 级 rotate 定位
-  'rotate', // W5：绕任意轴旋转（弧度，右手）；hexalobular polarArray 合成
-  'mirror', // W5：锥度切割器向上收锥后镜像翻转
+  'getNurbsCurveData', // W5：样条极点提取（PanHead 对表探针用；平台返回结构比 L1 声明更宽）
+] as const
+
+/** occt 平台面能力清单（brepkit 无对应原语 → 走 getOcctKernel()，不进 L1）。 */
+const PROBED_OCCT_PLATFORM = [
   'draftPrism', // W5：沉孔锥度切割器（taper 退化时抛错 → cross/R 沉孔显式缺口）
-  'interpolatePointsWithTangents', // W5：PanHead 头型样条（GeomAPI_Interpolate scale=True 语义，极点已与 A 侧逐位对表）
-  'getNurbsCurveData', // W5：样条极点提取（PanHead 对表探针用）
+  'loft', // 需要 isSolid=false 的单张直纹面（L1 loft 恒建实体，语义不同）
 ] as const
 
 function assertHandle(h: unknown, where: string): BrepHandle {
@@ -93,6 +89,22 @@ function rectWire(w: number, h: number, z = 0): BrepHandle {
 describe('第 1 级：方法存在性（kernel 升级改名立即红）', () => {
   it.each(PROBED)('%s 存在于活内核', (name) => {
     expect(typeof Reflect.get(k, name), `k.${name}`).toBe('function')
+  })
+
+  it.each(PROBED_OCCT_PLATFORM)('occt 平台面 %s 存在于活内核', (name) => {
+    expect(typeof Reflect.get(getOcctKernel(), name), `occt.${name}`).toBe('function')
+  })
+
+  it('L1 注入面：host 注入的是 BrepEngineApi 而非 raw 内核（2026-10-13）', () => {
+    // 收敛后 test-setup 注入 createOcctPrimitives()：raw occt 平台名应当**不在**
+    // 注入面上（否则说明又退回 raw 内核，L1 收敛形同虚设）。
+    for (const raw of ['draftPrism', 'tessellate', 'revolve'] as const) {
+      expect(Reflect.get(k, raw), `注入面不应暴露 raw 名 ${raw}`).toBeUndefined()
+    }
+    // L1 名必须都在。
+    for (const l1 of ['revolveVec', 'meshShape', 'loft', 'makeHelixWire', 'bsplineSurface'] as const) {
+      expect(typeof Reflect.get(k, l1), `k.${l1}`).toBe('function')
+    }
   })
 })
 
@@ -152,38 +164,42 @@ describe('第 2 级：契约 smoke（每个方法真调一次，验返回形态�
 
     const wireA = k.makeWire([k.approximatePoints(a, 1e-6)])
     const wireB = k.makeWire([k.approximatePoints(b, 1e-6)])
-    const byLoft = k.getBoundingBox(k.loft([wireA, wireB], false, true))
+    // isSolid=false 的单张直纹面是 occt 平台口径（L1 loft 恒建实体）。
+    const byLoft = k.getBoundingBox(
+      getOcctKernel().loft([wireA, wireB] as never, false, true) as unknown as BrepHandle,
+    )
     const loftDev = byLoft.xmax - R
     expect(loftDev, 'loft(ruled) 直纹带拟合误差应紧得多').toBeLessThan(1e-5)
     expect(surfaceDev).toBeGreaterThan(100 * loftDev)
   })
 
-  it('revolve：含轴平面的 wire 绕 Z 轴 360° → 内核自动闭合成环体（实测行为）', () => {
-    // 轮廓必须在含轴平面（XZ）：XY 圆盘绕过其圆心的 Z 轴旋转是退化输入
+  it('revolveVec（L1 名，角度**度**）：wire 绕 Z 轴 360° → 环体', () => {
+    // 轮廓必须在含轴平面（XZ）：XY 圆盘绕过其圆心的 Z 轴旋转是退化输入。
+    // L1 中立名是 revolveVec，角度单位是**度**（raw occt 的 revolve 用弧度）——
+    // primitives.revolveProfile 内部换算。
     const axis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
     // ⚠️ 实测行为（probe 发现）：本内核对 wire 旋转直接闭合成实体，
     // 体积 = 2π²·R·r²（R=10, r=1）——与 cq 的「wire 旋转得旋转面」语义不同。
-    // primitives.ts 封装时按此行为使用，不再额外 makeFace。
     const solid = assertHandle(
-      k.revolve(circleWire(1, 'xz', 10), axis, Math.PI * 2),
-      'revolve wire',
+      k.revolveVec(circleWire(1, 'xz', 10), axis.point, axis.direction, 360),
+      'revolveVec wire',
     )
     expect(k.getVolume(solid)).toBeCloseTo(2 * Math.PI * Math.PI * 10 * 1, 3)
   })
 
-  it('loft：两矩形 wire ruled=true → 体（§6 退化路径前提验证）', () => {
-    const solid = assertHandle(
-      k.loft([rectWire(4, 2, 0), rectWire(4, 2, 1)], true, true),
-      'loft',
-    )
+  it('loft（L1 口径 sections+ruled）：两矩形 wire → 体', () => {
+    const solid = assertHandle(k.loft([rectWire(4, 2, 0), rectWire(4, 2, 1)], true), 'loft')
     expect(k.getVolume(solid)).toBeCloseTo(8, 3) // 4×2×1 直壁
   })
 
-  it('loft(isSolid=false, ruled=true)：开放 wire → 直纹面/shell（ruledFace 生产路径）', () => {
+  it('occt 平台 loft(isSolid=false, ruled=true)：开放 wire → 直纹面/shell', () => {
+    // ⚠️ 这条是**平台面**用例：L1 `loft` 恒建实体（occt 适配器写死 isSolid=true），
+    // 而 `ruledFace` 要的是开放曲线之间的**单张直纹面**，故走 getOcctKernel()。
     // ⚠️ 形态实测：多边 wire 会**逐边配对**出一张面（4 边矩形 × 2 → 4 张侧壁面，
     // 总侧面积 = 2(4+2)·1 = 12）；生产路径 ruledFace 传的是**单边** wire，得 1 张面。
+    const occt = getOcctKernel()
     const shell = assertHandle(
-      k.loft([rectWire(4, 2, 0), rectWire(4, 2, 1)], false, true),
+      occt.loft([rectWire(4, 2, 0), rectWire(4, 2, 1)] as never, false, true) as unknown as BrepHandle,
       'loft ruled (multi-edge wires)',
     )
     const walls = k.getSubShapes(shell, 'face')
@@ -195,7 +211,7 @@ describe('第 2 级：契约 smoke（每个方法真调一次，验返回形态�
     const e0 = k.makeLineEdge({ x: 0, y: 0, z: 0 }, { x: 4, y: 0, z: 0 })
     const e1 = k.makeLineEdge({ x: 0, y: 0, z: 1 }, { x: 4, y: 0, z: 1 })
     const single = assertHandle(
-      k.loft([k.makeWire([e0]), k.makeWire([e1])], false, true),
+      occt.loft([k.makeWire([e0]), k.makeWire([e1])] as never, false, true) as unknown as BrepHandle,
       'loft ruled (single-edge wires)',
     )
     const faces = k.getSubShapes(single, 'face')
@@ -203,8 +219,8 @@ describe('第 2 级：契约 smoke（每个方法真调一次，验返回形态�
     expect(k.getSurfaceArea(faces[0]!)).toBeCloseTo(4, 3) // 4×1 平面带
   })
 
-  it('tessellate：2×2×2 box → 三角化非空、有符号体积 = 8（朝向被遵循）', () => {
-    const mesh = k.tessellate(k.makeBox(2, 2, 2))
+  it('meshShape（L1 名）：2×2×2 box → 三角化非空、有符号体积 = 8（朝向被遵循）', () => {
+    const mesh = k.meshShape(k.makeBox(2, 2, 2))
     expect(mesh.triangleCount).toBeGreaterThan(0)
     expect(mesh.positions.length).toBe(mesh.vertexCount * 3)
     expect(mesh.indices.length).toBe(mesh.triangleCount * 3)
@@ -234,7 +250,7 @@ describe('第 2 级：契约 smoke（每个方法真调一次，验返回形态�
     const exactLen = exact.xmax - exact.xmin
     expect(exactLen).toBeCloseTo(6, 6) // 精确路径：解析圆柱 = 6
 
-    k.tessellate(cyl)
+    k.meshShape(cyl)
     const stillExact = k.getBoundingBox(cyl)
     expect(stillExact.xmax - stillExact.xmin, '默认（false）应与三角化状态无关').toBeCloseTo(6, 6)
 
@@ -258,7 +274,7 @@ describe('第 2 级：契约 smoke（每个方法真调一次，验返回形态�
     // 用 loft 出的实体反查 makeSolid 签名形态：直接对开壳调 makeSolid 验证参数顺序
     const w0 = rectWire(4, 2, 0)
     const w1 = rectWire(4, 2, 1)
-    const solid = assertHandle(k.loft([w0, w1], true, true), 'loft for sew check')
+    const solid = assertHandle(k.loft([w0, w1], true), 'loft for sew check')
     expect(k.getVolume(solid)).toBeGreaterThan(0)
   })
 

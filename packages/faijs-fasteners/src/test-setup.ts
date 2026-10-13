@@ -7,16 +7,23 @@
  * texture/assets/events 必填；本包用不到的端口置 null 并注明）。
  */
 
-import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
+import { createOcctPrimitives } from '@faicad/faijs/occt-kernel/occt-primitives'
 import { configureBackends, CONTRACT_VERSION } from '@faicad/faijs'
 import type { Backends } from '@faicad/faijs'
 
 let configured = false
 
-/** 初始化 occt-wasm 并注入 Backends（幂等：重复调用只装配一次）。 */
+/**
+ * 初始化 occt 并注入 Backends（幂等：重复调用只装配一次）。
+ *
+ * 2026-10-13：注入的是 **L1 适配器** `createOcctPrimitives()`，不再是 raw
+ * `initOcctWasm()` 平台面 —— 本包的 `WarehouseKernel` 已收敛为 `BrepEngineApi`
+ * 的真子集，注入 raw 内核会让「类型说有、运行时没有」的偏差无法被测试发现
+ * （方案 §7 决策点 5 选 (a)）。
+ */
 export async function setupWarehouseKernel(): Promise<void> {
   if (configured) return
-  const kernel = await initOcctWasm()
+  const kernel = await createOcctPrimitives()
   // 本包只消费 kernel.brep；fonts/texture/assets/events 等端口测试用不到，置 null
   const backends: Backends = {
     contractVersion: CONTRACT_VERSION,

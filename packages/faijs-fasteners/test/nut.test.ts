@@ -78,7 +78,7 @@ const geoCases: ManifestCase[] = comparable(cases)
  * @returns 三角化体积与质心 `[x,y,z]`。
  */
 function meshVolumeAndCentroid(h: BrepHandle): { v: number; c: [number, number, number] } {
-  const mesh = k.tessellate(h, {
+  const mesh = k.meshShape(h, {
     linearDeflection: MESH_LINEAR_DEFLECTION,
     angularDeflection: MESH_ANGULAR_DEFLECTION,
   })

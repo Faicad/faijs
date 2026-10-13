@@ -170,7 +170,7 @@ describe('陷阱 5：revolve 轮廓必须在含轴平面（XY 圆盘绕过心 Z 
     // 错误认知：拿 XY 平面圆盘绕圆心 Z 轴旋转求环体（probe 首版即踩此坑）。
     let degenerate = 0
     try {
-      degenerate = k.getVolume(k.revolve(circleWireXY(1, V(0, 0, 0)), axis, 2 * Math.PI))
+      degenerate = k.getVolume(k.revolveVec(circleWireXY(1, V(0, 0, 0)), axis.point, axis.direction, 360))
     } catch {
       // 抛错同样视为退化（不同内核版本表现可能不同）：保持 0，无需再赋值。
     }
@@ -178,7 +178,7 @@ describe('陷阱 5：revolve 轮廓必须在含轴平面（XY 圆盘绕过心 Z 
 
     const R = 10
     const r = 1
-    expect(k.getVolume(k.revolve(circleWireXZ(r, R), axis, 2 * Math.PI))).toBeCloseTo(
+    expect(k.getVolume(k.revolveVec(circleWireXZ(r, R), axis.point, axis.direction, 360))).toBeCloseTo(
       2 * Math.PI * Math.PI * R * r * r,
       3,
     )
@@ -222,10 +222,11 @@ describe('陷阱 8：revolve 的拓扑是 SHELL 不是 SOLID —— 布尔会静
     // 错误认知（W4 初版即按此写）：`revolve(闭合 wire)` 得到实体 —— 因为
     // `getVolume` 对闭合壳给出的值**恰好正确**（实心柱 π·9·5 = 141.371669），
     // 掩盖了拓扑是壳而非体。
-    const rev = k.revolve(
+    const rev = k.revolveVec(
       polygonWire([V(0, 0, 0), V(3, 0, 0), V(3, 0, 5), V(0, 0, 5)]),
-      AXIS_Z,
-      2 * Math.PI,
+      AXIS_Z.point,
+      AXIS_Z.direction,
+      360,
     )
     expect(k.getVolume(rev), '体积看起来完全正确').toBeCloseTo(141.371669, 5)
     expect(k.getSubShapes(rev, 'solid').length, '真相：不是实体').toBe(0)
@@ -257,7 +258,7 @@ describe('陷阱 8：revolve 的拓扑是 SHELL 不是 SOLID —— 布尔会静
       k.extrude(k.makeFace(polygonWire(hex)), 0, 0, 5.2),
       k.makeCylinder(3, 5.2),
     )
-    const shell = k.revolve(profile, AXIS_Z, 2 * Math.PI)
+    const shell = k.revolveVec(profile, AXIS_Z.point, AXIS_Z.direction, 360)
 
     // 错误路径：壳直接进 common
     const wrong = k.common(shell, blank)
@@ -271,10 +272,11 @@ describe('陷阱 8：revolve 的拓扑是 SHELL 不是 SOLID —— 布尔会静
   })
 
   it('拿壳当 fuse 的操作数会直接抛错（不是静默）', () => {
-    const rev = k.revolve(
+    const rev = k.revolveVec(
       polygonWire([V(0, 0, 0), V(3, 0, 0), V(3, 0, 5), V(0, 0, 5)]),
-      AXIS_Z,
-      2 * Math.PI,
+      AXIS_Z.point,
+      AXIS_Z.direction,
+      360,
     )
     const big = k.translate(k.makeBox(40, 40, 40), -20, -20, -10)
     expect(() => k.fuse(rev, big), 'fuse(壳, 体) 抛 boolean operation failed').toThrow()

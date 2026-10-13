@@ -318,6 +318,10 @@
       "types": "./dist/occt-kernel/occtKernel.d.ts",
       "default": "./dist/occt-kernel/occtKernel.js"
     },
+    "./occt-kernel/occt-primitives": {
+      "types": "./dist/occt-kernel/occt-primitives.d.ts",
+      "default": "./dist/occt-kernel/occt-primitives.js"
+    },
     "./occt-kernel/topologyExt": {
       "types": "./dist/occt-kernel/topologyExt.d.ts",
       "default": "./dist/occt-kernel/topologyExt.js"

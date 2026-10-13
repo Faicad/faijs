@@ -6,17 +6,26 @@
  *    `requireKernel()` 读 `getBackends().kernel.brep`；gears 走 `getGearKernel()`
  *    （优先注入式 backend，未配置时回退 `initOcctWasm()`）。
  *  - 本 harness 通过 `configureBackends({ kernel: { brep } })` 把指定引擎注入
- *    `getBackends().kernel.brep`：occt 侧注入 raw occt-wasm（与生产一致）；
- *    brepkit 侧注入 L1 单例 + 测试桩（`revolve`→`revolveVec` / `makeSolid` /
- *    `rotate`）。两部分零件（washer/nut/screw/holes/chain/bearing）由此在
- *    brepkit 下也能构建并通过 T1+T2 一致性。
+ *    `getBackends().kernel.brep`：**两侧都注入 L1 适配器**——occt 侧
+ *    `createOcctPrimitives()`、brepkit 侧 `getBrepEngine('brepkit').primitives`。
+ *    ⚠️ 2026-10-13 起 fasteners 的 `WarehouseKernel` 已收敛为 `BrepEngineApi` 子集
+ *    （§7 决策点 5）：它只说 L1 名（`revolveVec` / `meshShape` / `loft(sections,ruled)`），
+ *    raw occt-wasm **没有**这些名（raw 是 `revolve` / `tessellate`），注入 raw 会
+ *    在 `revolveProfile` 处报 `kern.revolveVec is not a function`。故 occt 侧也
+ *    必须注入 L1，与生产注入口径一致（生产同样注入 L1，见 faijs-fasteners 的
+ *    `src/test-setup.ts`）。
+ *  - brepkit 侧仅保留一个测试桩 `revolve`（`{point,direction}` → `revolveVec`），
+ *    供尚未迁 L1 的调用点（faijs-gears）使用；`makeSolid` / `rotate` 桩已于
+ *    2026-10-13 移除——两者现在都由 brepkit L1 适配器原生提供（`makeSolid` 对
+ *    已是实体的输入幂等；`rotate` 走 Rodrigues 矩阵 + `transform`）。
  *  - 指标（volume/表面积/包围盒/质心/拓扑）统一用 L1 适配器抽取（raw occt 与
  *    brepkit 的 `getSubShapes` 约定不同，L1 已归一化；句柄在同引擎单例内可互通）。
  *
- * 真缺口根因在 core 引擎：brepkit 未实现 `bsplineSurface` / `makeHelixWire` /
- * `approximatePoints` / `loft` 等 B 样条/螺旋原语（归 core，不在本包范围）。
- * thread / gears 在 brepkit 注入下构建必然失败——用 `useBuildKernel('brepkit')`
- * + 断言抛错把缺口**暴露在引擎层**，而非绕过。
+ * 真缺口在 core 引擎：gears 收敛到 L1 后，brepkit 下构建失败点落在 **15 个 occt 平台
+ * 扩展**上（`sew` / `split` / `loft-shell` / `healWire` / `isFace` 族 / `projectPointOnFace`
+ * / `revolve` / `buildSolidFromFaces` / `makeFaceOnSurface` / `outerWire` / `getShapeType` /
+ * `interpolatePoints(periodic)`）——这些 brepkit 核心未实现。用 `useGearKernel('brepkit')`
+ * + 断言把当前真实失败点钉住，而非绕过。
  */
 
 import type { BrepEngineApi, BrepHandle, BrepVec3 } from '../../../core/src/brep/engine/primitives'
@@ -24,8 +33,8 @@ import type { Backends } from '../../../core/src/runtime-state'
 import { configureBackends, CONTRACT_VERSION } from '../../../core/src/runtime-state'
 import { getBrepEngine } from '../../../core/src/brep/engine/registry'
 import { registerBrepkitBrepEngine } from '../../../core/src/brep/engine/adapters/brepkit'
-import { initOcctWasm } from '../../../core/src/occt-kernel/occtKernel'
 import { createOcctPrimitives } from '../../../core/src/occt-kernel/occt-primitives'
+import { initOcctWasm } from '../../../core/src/occt-kernel/occtKernel'
 import type { WarehouseAxis, WarehouseKernel } from '../../../faijs-fasteners/src/kernel'
 
 export type BrepEngineId = 'occt' | 'brepkit'
@@ -45,77 +54,90 @@ export interface EngineMetrics {
   unsupported: string[]
 }
 
-/** 构建用内核：库需要的 `WarehouseKernel` 形态。 */
+/** 构建用内核：库需要的 `WarehouseKernel` 形态（fasteners / washer / bearing / holes / nut / screw / thread / chain 共用纯 L1）。 */
 const buildKernel: Record<BrepEngineId, WarehouseKernel> = {} as Record<BrepEngineId, WarehouseKernel>
+/**
+ * raw occt-wasm 平台面（occt 独有原语：sew / split / fillet / loft-shell / makeCylinder …）。
+ * 用于给 faijs-gears 拼出「L1 优先 + raw occt 平台原语兜底」的 occt 构建面（见 gearOcctKernel）。
+ */
+let rawOcctKernel: WarehouseKernel | null = null
+/**
+ * gears 的 occt 构建面 = **L1 适配器优先** + raw occt 平台原语兜底。
+ *  - 10 个 L1 方法（bsplineSurface / makeSolid / thicken / makeCircleArc / makeHelixWire /
+ *    approximatePoints / makeNonPlanarFace / rotate / subShapeCount / getSurfaceArea / surfaceType /
+ *    sew / sewAndSolidify / mirror / reverseShape / vertexPosition / fillet / shell / translate /
+ *    getBoundingBox / isSolid / getSubShapes / makeWire / cut / isValid / makeCylinder / makeArcEdge /
+ *    fixFaceOrientations / curvePointAtParam / curveParameters / fuse / curveType / copy /
+ *    addHolesInFace / makeFace / extrude）走 L1 适配器（与 brepkit 同契约口径，几何等价）；
+ *  - 15 个 occt 平台扩展（loft-shell / split-by-tools / healWire / isFace 族 / projectPointOnFace /
+ *    revolve / buildSolidFromFaces / makeFaceOnSurface / outerWire / getShapeType /
+ *    interpolatePoints(periodic)）由 raw occt 兜底；
+ *  - 语义分歧两处强制 raw occt：`loft`（L1 第三参是 endPoint，旧口径布尔触发守卫）、
+ *    `interpolatePoints`（periodic vs degree）。
+ *  - 这是测试注入面；生产由宿主注入（纯 L1 + 必要的 occt 平台扩展），gears 自己的单测走
+ *    `getGearKernel()` 的 `getOcctKernel()` 回退。
+ */
+let gearOcctKernel: WarehouseKernel | null = null
 /** 指标用内核：归一化的 L1 适配器（raw occt / brepkit 共用同一 wasm 单例，句柄互通）。 */
 const metricKernel: Record<BrepEngineId, BrepEngineApi> = {} as Record<BrepEngineId, BrepEngineApi>
 
 /**
  * 注册并解析两个引擎。应在 `beforeAll` 中调用一次。
- * occt 侧用 raw occt-wasm（生产一致）；brepkit 侧用 L1 单例 + 测试桩 `revolve` 适配。
+ * 两侧都注入 L1 适配器（fasteners 的 `WarehouseKernel` = `BrepEngineApi` 子集，
+ * 只说 L1 名；raw occt-wasm 不满足，见文件头）。
  */
 export async function initEngines(): Promise<void> {
-  // occt：raw 内核用于构建，L1 适配器用于指标（同一 wasm 单例）
-  const occtRaw = (await initOcctWasm()) as unknown as WarehouseKernel
+  // occt：L1 适配器（同一 wasm 单例，句柄与 raw 互通）；构建与指标共用同一 L1 面。
   const occtL1 = await createOcctPrimitives()
-  buildKernel.occt = occtRaw
+  buildKernel.occt = occtL1 as unknown as WarehouseKernel
   metricKernel.occt = occtL1
+  // raw 平台面：给 faijs-gears 拼装 occt 构建面（见 gearOcctKernel）。
+  rawOcctKernel = (await initOcctWasm()) as unknown as WarehouseKernel
+  // gears 的 occt 构建面：默认转发 raw occt（brepkit 未实现的原语都在这里），仅把 10 个
+  // L1 方法覆盖为 L1 适配器实现（与 brepkit 同契约口径），并把语义分歧两处强制回 raw：
+  //   - `loft`（L1 第三参是 endPoint，旧口径布尔触发守卫）；
+  //   - `interpolatePoints`（periodic vs degree）。
+  // ⚠️ 用 Proxy 而非 `{...raw}`：occt-wasm 模块方法不可枚举，spread 会整包丢方法。
+  {
+    const l1 = occtL1 as unknown as Record<string, (...a: unknown[]) => unknown>
+    const raw = rawOcctKernel as unknown as Record<string, unknown>
+    const L1_OVERRIDE = [
+      'bsplineSurface', 'makeSolid', 'thicken', 'makeCircleArc', 'makeHelixWire',
+      'approximatePoints', 'makeNonPlanarFace', 'rotate', 'subShapeCount', 'getSurfaceArea',
+      'surfaceType', 'sew', 'sewAndSolidify', 'mirror', 'reverseShape', 'vertexPosition',
+      'fillet', 'shell', 'translate', 'getBoundingBox', 'isSolid', 'getSubShapes', 'makeWire',
+      'cut', 'isValid', 'makeCylinder', 'makeArcEdge', 'fixFaceOrientations',
+      'curvePointAtParam', 'curveParameters', 'fuse', 'curveType', 'copy', 'addHolesInFace',
+      'makeFace', 'extrude',
+    ]
+    const gear = new Proxy(raw, {
+      get(target, prop, recv) {
+        const key = prop as string
+        // 语义分歧两处强制 raw occt，且必须绑定到 raw 实例（occt-wasm 方法要求
+        // `this` 为 OcctKernel 实例，Proxy 透传会让 `this` 指向 Proxy 本身而报错）。
+        if (key === 'loft' || key === 'interpolatePoints') {
+          const v = (target as Record<string, unknown>)[key]
+          return typeof v === 'function' ? v.bind(target) : v
+        }
+        if (L1_OVERRIDE.includes(key) && typeof l1[key] === 'function') return l1[key]
+        const v = Reflect.get(target, prop, recv)
+        return typeof v === 'function' ? v.bind(target) : v
+      },
+    })
+    gearOcctKernel = gear as unknown as WarehouseKernel
+  }
 
-  // brepkit：L1 单例（带 memo）；构建桩补 `revolve` → `revolveVec`
+  // brepkit：L1 单例（带 memo）；仅补一个 `revolve` 桩给未迁 L1 的调用点（gears）。
   await registerBrepkitBrepEngine()
   const brepL1 = (await getBrepEngine('brepkit')).primitives
   const brepWk = {
     ...brepL1,
-    // §3.3 映射桩：brepkit 的 `revolveVec` 只吃 face，而 fasteners 当前仍走 raw occt
-    // 的 `revolve(wire, …)`（见 `primitives.ts`）。库里 `revolveProfile` 接到的可能是
-    // wire（washer 直传）也可能是已 `planarFace` 的 face（bearing 经 `planarFace` 预升面）。
-    // ⚠️ brepkit `shapeType` 对 wire 与 face **都回 'COMPOUND'**（face 调 getSolidFaces 抛错
-    // 被 catch、wire 调 getFaces 回 0），故不能靠 `=== 'FACE'` 区分——否则对 face 会错误地
-    // 再 makeFace 一次 → makeFaceFromWire 拿到 face 句柄报 "invalid wire handle"。
-    // 策略：先按 face 直接 `revolveVec`；若抛错（说明是 wire）再 `makeFace` 升面后旋。
-    // 这正是 fasteners 迁移 L1 后该做的归一（归另一个 agent 的源码工作），此处仅作 seed
-    // 验证桩，不改动任何库源码。
-    revolve: (shape: BrepHandle, axis: WarehouseAxis, angleRad: number): BrepHandle => {
-      const deg = (angleRad * 180) / Math.PI
-      try {
-        return brepL1.revolveVec(shape, axis.point, axis.direction, deg)
-      } catch {
-        const face = brepL1.makeFace(shape)
-        return brepL1.revolveVec(face, axis.point, axis.direction, deg)
-      }
-    },
-    // §3.3 映射桩：`makeSolid` 在 raw occt 里把 revolve 产出的 shell 包成 solid；
-    // brepkit 的 `revolveVec` 经 markSolid 已直接产出 solid，故此处为恒等（不二次固化）。
-    // 若将来 brepkit 侧出现非 solid 输入，应改用 `sewAndSolidify([shape])` 而非裸 identity。
-    makeSolid: (shape: BrepHandle): BrepHandle => shape,
-    // §3.3 映射桩：`rotate(shape, axis, angleRad)` 在 raw occt 是原生旋转；brepkit 无原生
-    // `rotate`，但 L1 `transform` 接受 3×4 行主序矩阵，旋转可用 Rodrigues 矩阵精确表达
-    // （绕任意点 = T(c)·R·T(-c)）。这是 faithful 映射，不引入近似。
-    rotate: (shape: BrepHandle, axis: WarehouseAxis, angleRad: number): BrepHandle => {
-      const d = axis.direction
-      const len = Math.hypot(d.x, d.y, d.z) || 1
-      const ux = d.x / len
-      const uy = d.y / len
-      const uz = d.z / len
-      const ct = Math.cos(angleRad)
-      const st = Math.sin(angleRad)
-      const omc = 1 - ct
-      const R = [
-        ct + ux * ux * omc, ux * uy * omc - uz * st, ux * uz * omc + uy * st,
-        uy * ux * omc + uz * st, ct + uy * uy * omc, uy * uz * omc - ux * st,
-        uz * ux * omc - uy * st, uz * uy * omc + ux * st, ct + uz * uz * omc,
-      ]
-      const c = axis.point
-      const tx = c.x - (R[0] * c.x + R[1] * c.y + R[2] * c.z)
-      const ty = c.y - (R[3] * c.x + R[4] * c.y + R[5] * c.z)
-      const tz = c.z - (R[6] * c.x + R[7] * c.y + R[8] * c.z)
-      const m = [
-        R[0], R[1], R[2], tx,
-        R[3], R[4], R[5], ty,
-        R[6], R[7], R[8], tz,
-      ]
-      return brepL1.transform(shape, m)
-    },
+    // 桩：`revolve(shape, {point,direction}, angleRad)` 是 raw occt 口径，L1 里叫
+    // `revolveVec(shape, center, direction, angleDeg)`。2026-10-13 起 brepkit L1 的
+    // `revolveVec` 自己消化 wire→face 方言（`profileFaceOf`），故此处只做名与角度
+    // 单位的换算，不再有 try/catch 猜类型。
+    revolve: (shape: BrepHandle, axis: WarehouseAxis, angleRad: number): BrepHandle =>
+      brepL1.revolveVec(shape, axis.point, axis.direction, (angleRad * 180) / Math.PI),
   } as unknown as WarehouseKernel
   buildKernel.brepkit = brepWk
   metricKernel.brepkit = brepL1
@@ -124,17 +146,41 @@ export async function initEngines(): Promise<void> {
   useBuildKernel('occt')
 }
 
-/** 切换当前活动内核：把对应 `WarehouseKernel` 注入 `getBackends().kernel.brep`。 */
-export function useBuildKernel(id: BrepEngineId): void {
+/** 把任意内核注入 `getBackends().kernel.brep`（两个入口共用）。 */
+function injectKernel(id: BrepEngineId, brep: WarehouseKernel): void {
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'brep', brepEngineId: id },
-    kernel: { brep: buildKernel[id] },
+    kernel: { brep },
     fonts: undefined,
     texture: undefined,
     assets: undefined,
     events: undefined,
   } as unknown as Backends)
+}
+
+/** 切换当前活动内核：把对应 `WarehouseKernel` 注入 `getBackends().kernel.brep`。 */
+export function useBuildKernel(id: BrepEngineId): void {
+  injectKernel(id, buildKernel[id])
+}
+
+/**
+ * faijs-gears 专用：注入 occt 构建面（L1 优先 + raw occt 平台原语兜底）。
+ *
+ * 与 fasteners 的 `useBuildKernel('occt')`（纯 L1）不同，gears 仍依赖若干 L1 契约
+ * 之外的 occt 平台原语（loft-shell / split / healWire / isFace 族 …），这些在
+ * brepkit 核心里不存在 → 故 brepkit 注入下 gears 必失败（显性缺口，非静默降级）。
+ *
+ * @param id 目标引擎；`'occt'` 注入合并面、`'brepkit'` 注入纯 L1 brepkit（缺口暴露）。
+ */
+export function useGearKernel(id: BrepEngineId): void {
+  if (id === 'occt') {
+    if (!gearOcctKernel) throw new Error('useGearKernel: call initEngines() first')
+    injectKernel('occt', gearOcctKernel)
+  } else {
+    // brepkit：纯 L1 brepkit 适配器 → gears 的 occt 平台原语缺失，构建必然失败。
+    useBuildKernel('brepkit')
+  }
 }
 
 export interface BuiltPart {

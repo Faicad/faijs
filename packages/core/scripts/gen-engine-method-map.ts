@@ -75,6 +75,11 @@ const HAND_MAP: MapEntry[] = [
   { core: 'simplify', occt: 'simplify', brepkit: null, status: 'occt-only', platform: 'occt' },
   { core: 'hullFromPoints', occt: null, brepkit: 'convexHull', status: 'dialect', note: 'occt 适配器组合实现；brepkit wasm 已有，适配器待接线' },
 
+  // ── 样条面 / 体构造补缺（2026-10-13 进 L1：spline/helix 族接线）──
+  { core: 'bsplineSurface', occt: 'bsplineSurface', brepkit: 'interpolateSurface', status: 'dialect', note: 'occt 吃 Vec3[] 且内核自定阶；brepkit interpolateSurface 吃扁平点阵 + (degU,degV) → 适配器补缺省阶 3/3 并按点数夹紧。§7 决策点 1：选**插值**不用 approximateSurfaceLspia（后者是逼近，语义不同）' },
+  { core: 'makeSolid', occt: 'makeSolid', brepkit: 'solidFromShell', status: 'dialect', note: 'shell → solid' },
+  { core: 'thicken', occt: 'thicken', brepkit: 'thicken', status: 'dialect', note: 'brepkit 原生无 tolerance 参数 → 适配器对非零 tolerance 显式抛错（不静默丢弃）；occt 缺省取 1e-6（brepjs 默认）' },
+
   // ── 布尔与分割 ──
   { core: 'fuse', occt: 'fuse', brepkit: 'fuse', status: 'aligned' },
   { core: 'cut', occt: 'cut', brepkit: 'cut', status: 'aligned' },
@@ -106,6 +111,7 @@ const HAND_MAP: MapEntry[] = [
   { core: 'copyShape', occt: 'copy', brepkit: 'copySolid', status: 'dialect' },
   { core: 'composeTransform', occt: 'composeTransform', brepkit: 'composeTransforms', status: 'dialect', note: 'brepkit wasm 已有，适配器待接线' },
   { core: 'mirror', occt: 'mirror', brepkit: 'mirror', status: 'aligned' },
+  { core: 'rotate', occt: 'rotate', brepkit: null, status: 'dialect', note: 'brepkit 无 rotate 原语 → 适配器组 Rodrigues 3×4 矩阵后走既有 transform（toKernelMatrix 仍是唯一方言转换点）' },
   { core: 'downcast', occt: 'downcast', brepkit: null, status: 'occt-only', platform: 'occt' },
 
   // ── 阵列 ──
@@ -125,7 +131,12 @@ const HAND_MAP: MapEntry[] = [
   { core: 'makeCompound', occt: 'makeCompound', brepkit: 'makeCompound', status: 'aligned' },
   { core: 'addHolesInFace', occt: 'addHolesInFace', brepkit: 'addHolesToFace', status: 'dialect' },
   { core: 'buildTriFace', occt: 'buildTriFace', brepkit: 'makePolygon', status: 'dialect', note: 'brepkit 适配器 makePolygon+makePlanarFaceFromWire 组合，待接线' },
+  { core: 'makeNonPlanarFace', occt: 'makeNonPlanarFace', brepkit: 'makeFaceFromWire', status: 'dialect', note: 'brepkit 不区分平面/非平面（与 makeFace 同一原生）；L1 保留独立中立名——occt 侧 makeFace 是平面路径，语义不同' },
   { core: 'makeCircleEdge', occt: 'makeCircleEdge', brepkit: 'makeCircleEdge', status: 'dialect', note: '签名形态不同（occt 3 点 vs brepkit 圆心+法向+半径），接线时对齐口径' },
+  { core: 'makeCircleArc', occt: 'makeCircleArc', brepkit: 'makeCircleArc3d', status: 'dialect', note: 'L1 吃 (center,normal,radius,起止角)；brepkit 吃 (start,end,center,axis) → 适配器由法向建正交基算起止点' },
+  { core: 'makeHelixWire', occt: 'makeHelixWire', brepkit: null, status: 'dialect', note: 'brepkit 无 1D 螺旋 wire 原语（helicalSweep 是扫掠成体，不可用于 1D）→ 适配器解析螺旋采样 → interpolatePoints → makeWire。§7 决策点 2 选 (a)：NURBS 光滑近似，偏差 = 采样弦高，已钉 band' },
+  { core: 'approximatePoints', occt: 'approximatePoints', brepkit: 'approximateCurveLspia', status: 'dialect', note: 'brepkit 需 degree/numCps/maxIterations → 适配器给缺省（degree 3 夹紧、numCps=点数、iter=100）；tolerance 直接落 Lspia' },
+  { core: 'interpolatePointsWithTangents', occt: 'interpolatePointsWithTangents', brepkit: null, status: 'dialect', note: '⚠️ brepkit 无带端点切向约束的插值原语 → 适配器退化为 interpolatePoints（**丢两端切向**）。§7 决策点 3 选 (a)：有记录的近似，偏差进 band，不是静默降级' },
 
   // ── 三角化 ──
   { core: 'meshShape', occt: 'meshShape', brepkit: 'tessellateSolid', status: 'dialect' },
@@ -137,6 +148,7 @@ const HAND_MAP: MapEntry[] = [
   { core: 'hashCode', occt: 'hashCode', brepkit: null, status: 'dialect', note: 'brepkit 适配器组合实现（现有）' },
   { core: 'isSame', occt: 'isSame', brepkit: null, status: 'dialect', note: 'brepkit 适配器指针相等比较' },
   { core: 'isSolid', occt: 'isSolid', brepkit: 'getSolidShells', status: 'dialect' },
+  { core: 'subShapeCount', occt: 'subShapeCount', brepkit: null, status: 'dialect', note: 'occt 原生同名同签名直连；brepkit 无此原语 → 适配器组合实现（getSubShapes 长度）' },
   { core: 'shapeOrientation', occt: 'shapeOrientation', brepkit: 'getShapeOrientation', status: 'dialect' },
   { core: 'shapeType', occt: 'getShapeType', brepkit: null, status: 'occt-only', platform: 'occt' },
   { core: 'isNull', occt: 'isNull', brepkit: null, status: 'occt-only', platform: 'occt' },

@@ -1,18 +1,15 @@
 /**
- * api helix — 螺旋线（1D 曲线，平台 op engines:['occt']）
+ * api helix — 螺旋线（1D 曲线，全平台中立 op）
  *
- * @platform occt — 本文件 import occt-kernel：螺旋线用 `makeHelixWire` 构造
- * （occt-wasm 原生有，L1 无）。守卫 ① 要求平台 import 自证身份；调用方 op 声明
- * `engines: ['occt']` 由守卫 ② 校验。
+ * 2026-10-13：`makeHelixWire` 已进 L1 中立面（`BrepEngineApi`），本 op 由
+ * 「occt 平台 op」升为**全平台中立 op** —— 不再声明 `engines: ['occt']`。
  *
- * 用途：G-D 门控层的 1D 造线能力（Phase 3）。下游 sweep / loft 等可用螺旋线作 spine。
- *
- * 设计：
- * - 平台 op：occt 原生 makeHelixWire（occt-wasm 有，L1 无）→ 声明 engines:['occt']（D11）。
- *   实现直连平台原生方法，能力由引擎身份本身界定（无第二个声明轴）。
+ * - 右手（默认 `'right'`）：走 `getBrepApi().makeHelixWire`（L1）。
+ *   brepkit 侧是采样拟合近似（无 1D 螺旋原语），偏差已钉 band。
+ * - 左手（`handed: 'left'`）：仍是 **occt 平台路径**（`getOcctKernel().makeHelixWireHanded`）
+ *   —— brepkit 无带手性的螺旋原语。非 occt 引擎下该分支由 `getOcctKernel()` 抛错，
+ *   不做镜像兜底（静默换算法比报错更危险）。
  * - 1D 产物：经 fromBrepCurve 登记，kind='curve'。
- * - 非 occt 引擎（brepkit）→ 执行前 BrepUnsupportedError（D11-4）；brep_mock 受 D11-3
- *   豁免不拦截（且 getOcctKernel 为全局 occt 实例，brep_mock 下仍可真实出线）。
  */
 
 import type { Shape } from '../mesh/types'
@@ -60,14 +57,13 @@ function helixBrep(opts: HelixOptions): Shape {
   const origin = opts.origin ?? [0, 0, 0]
   const height = pitch * turns
   const kernel = getBrepApi()
-  const occt = getOcctKernel()
   const o = { x: origin[0], y: origin[1], z: origin[2] }
   const a = { x: axis[0], y: axis[1], z: axis[2] }
-  // 右手默认沿用 makeHelixWire（保持两个原生入口都可达）；左手走带手性的显式入口。
+  // 右手（默认）= L1 中立名，两引擎都能建；左手仍是 occt 平台原语（无镜像兜底）。
   const handle = (
     handed === 'left'
-      ? occt.makeHelixWireHanded(o, a, pitch, height, radius, true)
-      : occt.makeHelixWire(o, a, pitch, height, radius)
+      ? getOcctKernel().makeHelixWireHanded(o, a, pitch, height, radius, true)
+      : kernel.makeHelixWire(o, a, pitch, height, radius)
   ) as unknown as BrepHandle
   return fromBrepCurve(solidToShape(kernel, handle), { solid: handle })
 }
@@ -79,7 +75,7 @@ function helixBrep(opts: HelixOptions): Shape {
  * @async false
  * @qual ok
  * @name helix
- * @note 平台 op：仅 occt 引擎（原生 makeHelixWire / makeHelixWireHanded）。非 occt 引擎执行前报错；brep_mock 不拦截。
+ * @note 全平台中立 op：右手走 L1 makeHelixWire（brepkit 侧为采样拟合近似）；左手 handed:'left' 仍仅 occt（平台原语 makeHelixWireHanded）。
  * @returns Shape 1D 螺旋线（kind:'curve'）。
  * @param options.radius - 螺旋半径（mm，>0）。type:number required:true
  * @param options.pitch - 螺距（mm，≠0）。type:number required:true
@@ -100,7 +96,6 @@ export const helix = defineOp({
   brep(opts: HelixOptions) {
     return helixBrep(opts)
   },
-  engines: ['occt'],
   naming: { kind: 'unmodeled', reason: 'construct vocabulary pending Phase 3' } as Provenance,
 
   paramDims: {},

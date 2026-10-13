@@ -189,6 +189,30 @@ export function createBrepMockApi(): BrepEngineApi {
       }
       return alloc({ kind: 'solid', bbox: { xmin, ymin, zmin, xmax, ymax, zmax }, tag: `hullFromPoints(n=${points.length})` })
     },
+    bsplineSurface: (points) => {
+      // Mock approximation: bbox of the point grid as a face (同 hullFromPoints 口径)。
+      if (points.length === 0) return unsupported('bsplineSurface: empty point grid')
+      let xmin = Infinity, ymin = Infinity, zmin = Infinity
+      let xmax = -Infinity, ymax = -Infinity, zmax = -Infinity
+      for (const p of points) {
+        xmin = Math.min(xmin, p.x); ymin = Math.min(ymin, p.y); zmin = Math.min(zmin, p.z)
+        xmax = Math.max(xmax, p.x); ymax = Math.max(ymax, p.y); zmax = Math.max(zmax, p.z)
+      }
+      return alloc({ kind: 'face', bbox: { xmin, ymin, zmin, xmax, ymax, zmax }, tag: `bsplineSurface(n=${points.length})` })
+    },
+    makeSolid: (shell) => alloc({ kind: 'solid', bbox: { ...need(shell, 'makeSolid').bbox }, tag: `solid(#${shell})` }),
+    thicken: (shape, thickness) => {
+      const s = need(shape, 'thicken')
+      // 沿三轴各外扩 thickness（mock 近似：不区分正负厚度方向）。
+      return alloc({
+        kind: 'solid',
+        bbox: {
+          xmin: s.bbox.xmin - thickness, ymin: s.bbox.ymin - thickness, zmin: s.bbox.zmin - thickness,
+          xmax: s.bbox.xmax + thickness, ymax: s.bbox.ymax + thickness, zmax: s.bbox.zmax + thickness,
+        },
+        tag: `thicken(${s.tag},t=${thickness})`,
+      })
+    },
 
     // ── 倒角与圆角（mock：只重打标签/复制，不做真几何；引擎切换测试覆盖签名面） ──
     chamfer: (solid, edges, distance) => {
@@ -364,6 +388,18 @@ export function createBrepMockApi(): BrepEngineApi {
       ]
     },
     makeCircleEdge: (center, _normal, radius) => alloc({ kind: 'edge', bbox: bboxOf('edge', [radius * 2, radius * 2, 0]), tag: `circle(${center.x},${center.y},${center.z},r=${radius})` }),
+    makeCircleArc: (center, _normal, radius, a0, a1) => alloc({ kind: 'edge', bbox: bboxOf('edge', [radius * 2, radius * 2, 0]), tag: `arc(${center.x},${center.y},${center.z},r=${radius},${a0}..${a1})` }),
+    makeHelixWire: (_origin, _axis, pitch, height, radius) => {
+      // 每圈沿轴推进 pitch → 圈数 = height/pitch；轴向跨度取总高的绝对值。
+      const turns = pitch !== 0 ? Math.abs(height / pitch) : 0
+      return alloc({
+        kind: 'wire',
+        bbox: bboxOf('wire', [radius * 2, radius * 2, Math.abs(height)]),
+        tag: `helix(r=${radius},h=${height},p=${pitch},turns=${turns})`,
+      })
+    },
+    approximatePoints: (points) => alloc({ kind: 'edge', bbox: bboxOf('edge', [1, 1, 1]), tag: `approximatePoints(n=${points.length})` }),
+    interpolatePointsWithTangents: (points) => alloc({ kind: 'edge', bbox: bboxOf('edge', [1, 1, 1]), tag: `interpolatePointsWithTangents(n=${points.length})` }),
 
     // ── 拓扑构造 ──
     makeWire: (edges) => alloc({ kind: 'wire', bbox: edges.length > 0 ? { ...need(edges[0], 'makeWire').bbox } : bboxOf('wire', [0, 0, 0]), tag: `wire(${edges.length})` }),
@@ -378,6 +414,7 @@ export function createBrepMockApi(): BrepEngineApi {
     },
 
     buildTriFace: () => alloc({ kind: 'face', bbox: bboxOf('face', [1, 1, 0]), tag: 'triFace' }),
+    makeNonPlanarFace: (wire) => alloc({ kind: 'face', bbox: { ...need(wire, 'makeNonPlanarFace').bbox }, tag: `nonPlanarFace(#${wire})` }),
     addHolesInFace: (face) => alloc({ kind: 'face', bbox: { ...need(face, 'addHolesInFace').bbox }, tag: `holedFace(#${face})` }),
 
     // ── 三角化（BREP→mesh 唯一出口） ──
@@ -390,6 +427,7 @@ export function createBrepMockApi(): BrepEngineApi {
     hashCode: (shape) => shape % 2147483647,
     isSame: (a, b) => a === b,
     isSolid: () => true,
+    subShapeCount: () => 0,
     shapeType: () => 'SOLID',
     shapeOrientation: () => 'forward',
     edgeToFaceMap: () => ({}),
@@ -472,6 +510,7 @@ export function createBrepMockApi(): BrepEngineApi {
     makeTorus: () => unsupported('makeTorus'),
     makeVertex: (x, y, z) => alloc({ kind: 'edge', bbox: { xmin: x, ymin: y, zmin: z, xmax: x, ymax: y, zmax: z }, tag: `vertex(${x},${y},${z})` }),
     mirror: (shape) => alloc({ kind: need(shape, 'mirror').kind, bbox: { ...need(shape, 'mirror').bbox }, tag: `mirror(#${shape})` }),
+    rotate: (shape, axis, angleRad) => alloc({ kind: need(shape, 'rotate').kind, bbox: { ...need(shape, 'rotate').bbox }, tag: `rotate(#${shape},${axis.direction.x},${axis.direction.y},${axis.direction.z},${angleRad})` }),
     surfaceCenterOfMass: (shape) => { const b = need(shape, 'surfaceCenterOfMass').bbox; return { x: (b.xmin + b.xmax) / 2, y: (b.ymin + b.ymax) / 2, z: (b.zmin + b.zmax) / 2 } },
     locate: (shape) => alloc({ kind: need(shape, 'locate').kind, bbox: { ...need(shape, 'locate').bbox }, tag: `locate(#${shape})` }),
     copyShape: (shape) => alloc({ kind: need(shape, 'copyShape').kind, bbox: { ...need(shape, 'copyShape').bbox }, tag: `copy(#${shape})` }),

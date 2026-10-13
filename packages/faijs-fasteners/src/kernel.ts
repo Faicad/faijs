@@ -35,73 +35,29 @@ export interface WarehouseAxis {
 }
 
 /**
- * WarehouseKernel extends BrepEngineApi — 只声明本包真正用到的成员
- * （方案 §5.5.2 第 ② 层：结构性匹配，不 import occt-wasm）。
+ * WarehouseKernel — `BrepEngineApi` 的**真子集** + occt 平台面补声明。
+ *
+ * 2026-10-13 收敛（方案 2026-10-13-brepkit-l1-spline-primitive-wiring-plan §5.1）：
+ * 原先「`Omit<BrepEngineApi, …>` + 19 个私有扩展重声明」的形态已不需要——
+ * 样条/螺旋族（`makeHelixWire` / `approximatePoints` / `bsplineSurface` /
+ * `makeSolid` / `thicken` / `makeNonPlanarFace` / `rotate` /
+ * `interpolatePointsWithTangents`）全部进了 L1，直接继承；包内调用点同步改名：
+ *   `revolve` → `revolveVec`（角度**度**，包内自行换算）、
+ *   `tessellate` → `meshShape`、
+ *   `loft(wires, isSolid, ruled)` → `loft(sections, ruled)`。
+ *
+ * 剩下**不在** L1 的只有 brepkit 侧确实没有 / 同名不同义的 occt 平台能力（C 类），
+ * 它们在包内经 `getOcctKernel()` 取用，不在本类型里声明：
+ *   · `draftPrism`（taper 沉孔切割器；brepkit 无）
+ *   · `loft(wires, isSolid=false, ruled)`（`ruledFace` 要的是开放曲线间的**单张
+ *     直纹面**，而 L1 loft 恒建实体 —— 语义不同，不能换成 L1）
  *
  * ⚠️ 关键认知：这一层是「我认为应该有」的**声明**，不是证明——它只换来
  * 编辑器补全，不提供任何正确性保证。正确性由 kernel-conformance.test.ts
  * （第 ③ 层，两级断言：存在性 + 契约 smoke）兜住；新增成员必须先加进
  * 该测试的清单（§10 内核契约门禁）。
  */
-export type WarehouseKernel = Omit<BrepEngineApi, 'interpolatePoints' | 'getNurbsCurveData'> & {
-  // ── 构造原语（W3 thread / W4 nut knurl / W6 bearing 依赖）──
-  /** cq `Wire.makeHelix` 等价：**右手**圆柱螺旋线。
-   *  ⚠️ 实测（occtWasmAdapter:430）：raw wasm 仅 9 参，无 taper/lefthand——
-   *  锥螺旋上游 5 类用不到（taper 默认 360°=圆柱）；左手螺纹由调用方镜像实现。 */
-  makeHelixWire(origin: BrepVec3, axis: BrepVec3, pitch: number, height: number, radius: number): BrepHandle
-  /** 点列 → 逼近 B 样条曲线（thread 端部 fade 的参数曲线，cq parametricCurve 等价）。 */
-  approximatePoints(points: BrepVec3[], tolerance?: number): BrepHandle
-  /** 点列 → 插值 B 样条曲线（cq `Workplane.spline` 的内核等价：过点插值，
-   *  非逼近；PanHead 等头型轮廓用）。
-   *  ⚠️ 收窄后（2026-09-24）：type 交叉继承全部 L1 方法，仅 Omit 掉
-   *  `interpolatePoints`（L1 是 brepkit degree 语义）并覆盖为本包 occt 原生
-   *  periodic 语义。运行时 kernel 是 host 注入的 raw occt-wasm 平台面，调用不变。 */
-  interpolatePoints(points: BrepVec3[], options?: { periodic?: boolean; tolerance?: number }): BrepHandle
-  /** 点列 + 端点切向 → 插值三次 B 样条（`GeomAPI_Interpolate.Load(t0, t1, scale=True)`
-   *  等价：切向量按弦长缩放，PanHead 头型样条复刻用）。 */
-  interpolatePointsWithTangents(points: BrepVec3[], startTangent: BrepVec3, endTangent: BrepVec3): BrepHandle
-  /** 点阵 → B 样条曲面 → Face（齿廓/螺纹曲面逼近）。 */
-  bsplineSurface(points: BrepVec3[], rows: number, cols: number): BrepHandle
-  /** `BRepBuilderAPI_Sewing`：faces → shell（thread 的 make_shell 步骤）。 */
-  sew(shapes: BrepHandle[], tolerance?: number): BrepHandle
-  /** shell → solid（thread 的 make_solid 步骤）。 */
-  makeSolid(shell: BrepHandle): BrepHandle
-  /** face/wire 绕轴旋转扫掠（nut/screw/bearing 的 revolve 轮廓）。 */
-  revolve(shape: BrepHandle, axis: WarehouseAxis, angleRad: number): BrepHandle
-  /** 退化为厚度的面拉伸（fastener knurl 面；makeNSidedSurface 缺失期的路径之一）。 */
-  thicken(shape: BrepHandle, thickness: number, tolerance: number): BrepHandle
-  /** 非平面 wire → face（HeatSetNut knurl，kernel 层原语——注意与
-   *  extensions.py 的 Workplane 级 makeNonPlanarFace 封装是两个层，§3.4）。 */
-  makeNonPlanarFace(wire: BrepHandle): BrepHandle
-  /** 带拔模角的棱柱拉伸（LocOpe_DPrism 等价，screw 沉孔锥度切割器）。
-   *  ⚠️ 实测：截面随锥度收缩到自交（如 cross 沉孔臂宽退化）时**直接抛错**——
-   *  A 侧 LocOpe_DPrism 容忍退化并续生锥面，本内核不能；故 taper=30° 的
-   *  cross/R 沉孔是 W5 显式缺口（见 recess.ts 文件头）。 */
-  draftPrism(shape: BrepHandle, dx: number, dy: number, dz: number, angleDeg: number): BrepHandle
-
-  // ── 朝向（thread 的缝合实体定向）──
-  /** 反转 shape 的朝向。实测：2×2×2 box 体积 8 → -8，即 getVolume 随之变号；
-   *  用于把 sew 得到的反向实体翻正（`primitives.orientOutward`）。 */
-  reverseShape(shape: BrepHandle): BrepHandle
-
-  // ── 查询（度量自检 / conformance smoke）──
-  getSurfaceArea(shape: BrepHandle): number
-  /** 顶点坐标（fillet2D / edge 级 rotate 定位用）。 */
-  vertexPosition(vertex: BrepHandle): BrepVec3
-  /** 绕任意轴旋转（右手，弧度）。实测 box 绕 Z 转 π/2 精确落位；
-   *  edge/vertex 同样可旋转（hexalobular 六分之一轮廓的 polarArray 合成）。 */
-  rotate(shape: BrepHandle, axis: WarehouseAxis, angleRad: number): BrepHandle
-  /** 关于平面镜像（point + 法向）。锥度沉孔切割器 = draftPrism 向上收锥后镜像翻转。 */
-  mirror(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle
-  /** 三角化（mesh 体积基准）。A 侧 `Shape.tessellate(tol, angular=0.1)` 的等价物。
-   *  ⚠️ 与 core `getVolume`（BRepGProp 精确曲面积分）并存不是冗余：后者对螺旋
-   *  B 样条面存在**求积混叠**（A 侧 Thread raw/raw 差 14%），三角化才是真值基准。
-   *  ⚠️ `tessellate` 会**原地**给 shape 建三角化，之后的 `getBoundingBox` 若按
-   *  `useTriangulation=true` 取盒会被污染（A 侧 manifest 已因此错 0.0126 mm）——
-   *  先量 bbox 再三角化。 */
-  tessellate(shape: BrepHandle, options?: TessellateOptionsLite): TessellateResultLite
-  /** `BRepOffsetAPI_ThruSections`: wires → shell（occt 平台方法，收窄后不在 L1）。 */
-  loft(wires: BrepHandle[], isSolid?: boolean, ruled?: boolean): BrepHandle
+export type WarehouseKernel = Omit<BrepEngineApi, 'getNurbsCurveData'> & {
   /** NURBS 曲线数据（探针取极点对表用，如 PanHead 样条 vs `GeomAPI_Interpolate`）。
    *  ⚠️ 平台契约 `BrepEngineApi.getNurbsCurveData` 只声明了
    *  `{degree, periodic, rational}`（core 的类型欠账，已记 backlog）；
@@ -122,14 +78,14 @@ export interface NurbsCurveDataLite {
   weights: number[]
 }
 
-/** `tessellate` 参数（结构性声明，不 import occt-wasm）。 */
+/** `meshShape` 参数（结构性声明，不 import occt-wasm）。 */
 export interface TessellateOptionsLite {
   linearDeflection?: number
   angularDeflection?: number
   relative?: boolean
 }
 
-/** `tessellate` 返回值的最小结构面。 */
+/** `meshShape` 返回值中本包用到的最小结构面。 */
 export interface TessellateResultLite {
   positions: Float32Array
   indices: Uint32Array

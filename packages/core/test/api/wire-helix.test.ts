@@ -74,6 +74,8 @@ const kindOf = (s: Shape): string | undefined => (s as { kind?: string }).kind
 const WIRE_CODE =
   'let part0 = cad.wire([[0,0,0],[10,0,0],[10,10,0],[0,10,0]], { closed: true })\n'
 const HELIX_CODE = 'let part0 = cad.helix({ radius: 5, pitch: 2, turns: 3 })\n'
+const LEFT_HELIX_CODE =
+  "let part0 = cad.helix({ radius: 5, pitch: 2, turns: 3, handed: 'left' })\n"
 
 describe('wire — 1D 造线（中立 dual op）', () => {
   it('brep 模式：可达，产出 kind="curve"（无三角载荷）', async () => {
@@ -203,15 +205,30 @@ describe('helix — 螺旋线（平台 op engines:["occt"]）', () => {
     expect(JSON.stringify(result.failedAt)).toMatch(/E_HELIX_BAD_HANDED/)
   })
 
-  it('brepkit 引擎：非目标引擎执行前报 E_BREP_UNSUPPORTED（D11-4）', async () => {    __resetEngineRegistriesForTests()
+  it('brepkit 引擎：helix 是中立 op，可直接建线（2026-10-13 收窄解除）', async () => {
+    // 2026-10-13：`makeHelixWire` 进 L1 后 helix 不再是 occt-only op
+    // （方案 2026-10-13-brepkit-l1-spline-primitive-wiring-plan §4）—— 原
+    // 「brepkit 下执行前报 op 'helix' requires engine occt」断言已翻转为一致性断言。
+    // brepkit 侧是采样拟合近似（无 1D 螺旋原语），偏差 band 见
+    // test/brep/engine/spline-primitive-l1-parity.test.ts 偏差钉 2。
+    __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
-    const result = await exec('brep', HELIX_CODE)
+    const s = await shapeOf('brep', HELIX_CODE, 'part0')
+    expect(kindOf(s)).toBe('curve')
+    // r=5 / pitch=2 / turns=3 → 直径 10、高 6（brepkit 的 getBoundingBox 对 wire
+    // 走 16 点采样，故径向给 1.0 容差、轴向给 1e-2）。
+    const bb = getBrepApi().getBoundingBox(brepOf(s) as never)
+    expect(bb.xmax - bb.xmin).toBeGreaterThan(10 - 1.0)
+    expect(bb.zmax - bb.zmin).toBeCloseTo(6, 2)
+  })
+
+  it('brepkit 引擎：左手 handed 仍报 occt 平台缺失（不静默换算法）', async () => {
+    // 左手走 occt 平台原语 makeHelixWireHanded；brepkit 下该分支必须显式失败，
+    // 不做镜像兜底（静默换算法比报错更危险）。
+    __resetEngineRegistriesForTests()
+    await registerBrepkitBrepEngine()
+    const result = await exec('brep', LEFT_HELIX_CODE)
     expect(result.failedAt).toBeDefined()
-    const msg = JSON.stringify(result.failedAt)
-    expect(msg).toMatch(/helix/)
-    // op 现声明了 name ⇒ 文案是带名形态（GOTCHA-3：断言用 `/op '<name>' …`）。
-    expect(msg).toMatch(/op 'helix' requires engine occt/)
-    expect(msg).toMatch(/brepkit/)
   })
 
   it('brep_mock 引擎：不被平台身份判定拦截（D11-3 豁免）', async () => {

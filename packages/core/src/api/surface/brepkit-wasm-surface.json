@@ -1,7 +1,7 @@
 {
   "generatedBy": "packages/core/scripts/gen-brepkit-surface.ts",
   "package": "brepkit-wasm",
-  "version": "3.4.18",
+  "version": "4.1.49",
   "dtsFile": "node_modules/brepkit-wasm/brepkit_wasm.d.ts",
   "methodCount": 229,
   "methods": [
@@ -251,29 +251,6 @@
     "fuseWithEvolution",
     "intersectWithEvolution"
   ],
-  "wasmExportedButUnwired": [
-    "extrude",
-    "importStl",
-    "loft",
-    "makeRectangle",
-    "removeDegenerateEdges",
-    "section"
-  ],
-  "notExported": [
-    "buildTriFace",
-    "chamferWithHistory",
-    "createXCAFDocument",
-    "importXCAFFromSTEP",
-    "intersectWithHistory",
-    "isValid",
-    "makeArcEdge",
-    "makeBezierEdge",
-    "mirrorWithHistory",
-    "offsetWithHistory",
-    "rotateWithHistory",
-    "scaleWithHistory",
-    "shellWithHistory",
-    "thickenWithHistory",
-    "translateWithHistory"
-  ]
+  "wasmExportedButUnwired": [],
+  "notExported": []
 }

@@ -40,6 +40,19 @@ const shapes = (hs: BrepHandle[]): ShapeHandle[] => hs.map(asShape)
 const v3 = (v: Vec3): BrepVec3 => ({ x: v.x, y: v.y, z: v.z })
 const rad = (deg: number): number => (deg * Math.PI) / 180
 
+/**
+ * L1 向量形参的静态校验：`BrepVec3 = {x,y,z}` **对象**，不是元组、更不是布尔。
+ *
+ * 包侧旧口径（`loft(wires, isSolid?, ruled?)`）把布尔塞进 endPoint 位时，occt 会走
+ * `loftWithVertices` 并 wasm 硬 abort（进程直接退出、JS 层捕不到）；brepkit 则抛
+ * `cannot normalize zero vector`。两者都无指向——静态可判的约束必须在执行前拦下。
+ */
+const isBrepVec3 = (v: unknown): boolean => {
+  if (typeof v !== 'object' || v === null) return false
+  const o = v as { x?: unknown; y?: unknown; z?: unknown }
+  return typeof o.x === 'number' && typeof o.y === 'number' && typeof o.z === 'number'
+}
+
 /** Topology layer uses this upper bound for face hashes (HASH_CODE_MAX). */
 const HASH_UPPER_BOUND = 2 ** 24
 
@@ -158,6 +171,15 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     loft: (sections, ruled, endPoint) => {
       const wires = shapes(sections)
       if (endPoint === undefined) return asHandle(k.loft(wires, true, ruled))
+      // 契约守卫：第三参是 `endPoint: BrepVec3`，不是布尔/标量。包侧旧口径
+      // `loft(wires, isSolid?, ruled?)`（faijs-gears `loft(wires, false, false)`）会把
+      // 布尔塞进这个位置 → occt 走 loftWithVertices 而 wasm 硬 abort（进程直接退出、
+      // JS 层捕不到）。静态可判的输入约束必须在执行前显式失败。
+      if (!isBrepVec3(endPoint)) {
+        throw new Error(
+          `E_LOFT_BAD_ENDPOINT: loft endPoint must be a BrepVec3 ({x,y,z}), got ${JSON.stringify(endPoint)}`,
+        )
+      }
       const end = k.makeVertex(endPoint.x, endPoint.y, endPoint.z)
       try {
         return asHandle(k.loftWithVertices(wires, true, ruled, undefined as never, end))
@@ -170,6 +192,14 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     shell: (solid, facesToRemove, thickness, tolerance) =>
       asHandle(k.shell(asShape(solid), shapes(facesToRemove), thickness, tolerance)),
     hullFromPoints: (points, tolerance) => hullFromPointsCore(k, points as never, tolerance),
+    // 样条面 / 体构造补缺（2026-10-13 进 L1）：occt 侧全部直连原生，签名同形。
+    bsplineSurface: (points, rows, cols) =>
+      asHandle(k.bsplineSurface(points as never, rows, cols)),
+    makeSolid: (shell) => asHandle(k.makeSolid(asShape(shell))),
+    // tolerance 在 occt 是必填（OCCT 偏移重建精度）；L1 让它可选，缺省取 brepjs
+    // 默认 1e-6（occt-wasm index.d.ts 注释：`1e-3` 是更粗的历史值）——不静默取 0。
+    thicken: (shape, thickness, tolerance) =>
+      asHandle(k.thicken(asShape(shape), thickness, tolerance ?? 1e-6)),
 
     // ── booleans & splitting ──
     fuse: (a, b) => asHandle(k.fuse(asShape(a), asShape(b))),
@@ -277,6 +307,7 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     copyShape: (shape) => asHandle(k.copy(asShape(shape))),
     composeTransform: (m1, m2) => k.composeTransform(m1, m2),
     mirror: (shape, point, normal) => asHandle(k.mirror(asShape(shape), point, normal)),
+    rotate: (shape, axis, angleRad) => asHandle(k.rotate(asShape(shape), axis, angleRad)),
 
     // ── patterns ──
     // GOTCHA: occt-wasm native linearPattern/circularPattern return ONE compound
@@ -324,6 +355,18 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
       asHandle(k.makeBSplineEdge(poles, weights, knots, multiplicities, degree, periodic ?? false)),
     makeCircleEdge: (center, normal, radius) =>
       asHandle(k.makeCircleEdge(center, normal, radius)),
+    makeCircleArc: (center, normal, radius, startAngle, endAngle) =>
+      asHandle(k.makeCircleArc(center, normal, radius, startAngle, endAngle)),
+    // 螺旋线：L1 只暴露右手。左手由调用方镜像实现（fasteners WarehouseKernel 同口径），
+    // occt 的 makeHelixWireHanded 留在平台面 getOcctKernel()。
+    makeHelixWire: (origin, axis, pitch, height, radius) =>
+      asHandle(k.makeHelixWire(origin, axis, pitch, height, radius)),
+    // 逼近容差：occt 原生 tolerance 可选，缺省由内核定；这里显式给 1e-2
+    // （与 faijs-fasteners / cq 的 spline_approx_tol 同口径），不依赖内核默认。
+    approximatePoints: (points, tolerance) =>
+      asHandle(k.approximatePoints(points as never, tolerance ?? 1e-2)),
+    interpolatePointsWithTangents: (points, startTangent, endTangent) =>
+      asHandle(k.interpolatePointsWithTangents(points as never, startTangent, endTangent)),
 
     // ── topology construction ──
     makeWire: (edgesList) => asHandle(k.makeWire(shapes(edgesList))),
@@ -332,6 +375,7 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     addHolesInFace: (face, holeWires) =>
       asHandle(k.addHolesInFace(asShape(face), shapes(holeWires))),
     buildTriFace: (a, b, c) => asHandle(k.buildTriFace(a, b, c)),
+    makeNonPlanarFace: (wire) => asHandle(k.makeNonPlanarFace(asShape(wire))),
 
     // ── tessellation (the only BREP→mesh exit) ──
     meshShape: (shape, options): BrepMeshResult => {
@@ -363,6 +407,7 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     hashCode: (shape, upperBound) => k.hashCode(asShape(shape), upperBound),
     isSame: (a, b) => k.isSame(asShape(a), asShape(b)),
     isSolid: (shape) => k.isSolid(asShape(shape)),
+    subShapeCount: (shape, type) => k.subShapeCount(asShape(shape), type),
     shapeType: (shape) => k.getShapeType(asShape(shape)),
     shapeOrientation: (shape) => String(k.shapeOrientation(asShape(shape))),
     edgeToFaceMap: (shape) => k.edgeToFaceMap(asShape(shape), HASH_UPPER_BOUND),

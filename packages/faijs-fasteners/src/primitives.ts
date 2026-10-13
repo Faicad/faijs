@@ -13,6 +13,7 @@
  */
 
 import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
+import { getOcctKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import {
   requireKernel,
   type TessellateOptionsLite,
@@ -72,7 +73,10 @@ export function revolveProfile(
   angleRad: number,
 ): BrepHandle {
   const kern = k()
-  return orientOutward(kern.makeSolid(kern.revolve(profile, axis, angleRad)))
+  // L1 中立名是 `revolveVec`（角度**度**），本包内部口径是弧度 → 显式换算。
+  return orientOutward(
+    kern.makeSolid(kern.revolveVec(profile, axis.point, axis.direction, (angleRad * 180) / Math.PI)),
+  )
 }
 
 /**
@@ -81,7 +85,10 @@ export function revolveProfile(
  * @returns 直纹放样实体句柄。
  */
 export function loftRuled(wires: BrepHandle[]): BrepHandle {
-  return k().loft(wires, true, true)
+  // L1 `loft(sections, ruled, endPoint?)` —— 第三参是 endPoint，不是 isSolid；
+  // 口径错位会让 occt 走 loftWithVertices 而崩（见 core 的
+  // spline-primitive-l1-parity.test.ts 的 GOTCHA）。
+  return k().loft(wires, true)
 }
 
 /**
@@ -268,7 +275,13 @@ export function ruledFace(
   const kern = k()
   const wireA = kern.makeWire([kern.approximatePoints(rowA, tolerance)])
   const wireB = kern.makeWire([kern.approximatePoints(rowB, tolerance)])
-  const shell = kern.loft([wireA, wireB], false, true)
+  // ⚠️ 走 occt 平台面而不是 L1 `loft`：L1 的 loft 恒建**实体**（occt 适配器写死
+  // isSolid=true），而本处要的是两条开放曲线之间的**单张直纹面**（isSolid=false）。
+  // 下面 `faces.length !== 1` 的断言正是这一形态的守卫——用 L1 loft 会拿到封闭体
+  // 的多张面。这是本包保留的 occt 平台能力（方案 §7 决策点 4 选 (a)）。
+  // 句柄是 branded number：BrepHandle ↔ occt ShapeHandle 互转（`getOcctKernel()`
+  // 吃 ShapeHandle，`getSubShapes` 吃 BrepHandle）。
+  const shell = getOcctKernel().loft([wireA, wireB] as never, false, true) as unknown as BrepHandle
   const faces = kern.getSubShapes(shell, 'face')
   if (faces.length !== 1)
     throw new Error(`ruledFace: expected a single face from ruled loft, got ${faces.length}`)
@@ -473,7 +486,8 @@ export function meshVolume(
   shape: BrepHandle,
   options: TessellateOptionsLite = {},
 ): number {
-  const mesh = k().tessellate(shape, {
+  // L1 中立名是 `meshShape`（raw occt 平台面叫 `tessellate`），参数字段同名同义。
+  const mesh = k().meshShape(shape, {
     linearDeflection: MESH_LINEAR_DEFLECTION,
     angularDeflection: MESH_ANGULAR_DEFLECTION,
     ...options,
@@ -574,7 +588,12 @@ export function vertexAt(vertex: BrepHandle): BrepVec3 {
 }
 
 /**
- * 带拔模角的棱柱拉伸（内核 `draftPrism`，角度**度**）。
+ * 带拔模角的棱柱拉伸（occt 平台原语 `draftPrism`，角度**度**）。
+ *
+ * ⚠️ **occt-only**：brepkit 无 draftPrism（方案 §1.3 C 类），故走平台面
+ * `getOcctKernel()` 而不是 L1 —— 依赖本函数的零件（taper 沉孔）在 brepkit
+ * 下不可用，这是显式的能力边界，不是静默降级。
+ *
  * ⚠️ 截面随锥度收缩到自交时内核直接抛错（A 侧 LocOpe_DPrism 容忍退化）——
  * taper=30° 的 cross/R 沉孔因此是 W5 显式缺口（见 recess.ts 文件头）。
  * @param face - 拉伸截面（平面 face）。
@@ -583,7 +602,7 @@ export function vertexAt(vertex: BrepHandle): BrepVec3 {
  * @returns 拉伸实体。
  */
 export function draftPrismFace(face: BrepHandle, dz: number, angleDeg: number): BrepHandle {
-  return k().draftPrism(face, 0, 0, dz, angleDeg)
+  return getOcctKernel().draftPrism(face as never, 0, 0, dz, angleDeg) as unknown as BrepHandle
 }
 
 /**
@@ -593,7 +612,9 @@ export function draftPrismFace(face: BrepHandle, dz: number, angleDeg: number): 
  * @returns B 样条 edge handle。
  */
 export function interpolateEdge(points: BrepVec3[]): BrepHandle {
-  return k().interpolatePoints(points)
+  // L1 的 `interpolatePoints(points, degree)` 需显式阶数（brepkit 语义）；
+  // 本函数的语义锚是 occt 的「过点三次插值」→ degree 3。
+  return k().interpolatePoints(points, 3)
 }
 
 /**
