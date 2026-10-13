@@ -352,6 +352,12 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
   const derivedFaces = new Set<number>()
   // 虚拟 compound 句柄计数器（非实体子句柄不进内核 makeCompound，见 makeCompound GOTCHA）。
   const knownCompounds = new Map<number, number[]>()
+  // 虚拟 compound 句柄 → 真内核 compound 句柄（exportStep 等 IO 需要真句柄；几何分发全走虚拟句柄）。
+  // 2026-10-13：brepkit 句柄按**类型分命名空间**（同文件 356 行 GOTCHA），compound 命名空间从 0 计数，
+  // 与 solid 命名空间**重号**（实测 5 成员 solid [0..4] 的 compound 句柄 = 0）——knownCompounds 以
+  // 内核句柄为 key 会在「查询同号的另一 solid」时误判成 compound（textToSolid 'Hello' translate 后
+  // 只剩 1 成员即此：copySolid(0) 被当成员 solid 复制）。故 compound 一律用 0x20000000+ 虚拟句柄。
+  const kernelCompoundHandles = new Map<number, number>()
   let virtualCompoundCounter = 0
   // GOTCHA（2026-09-26）：brepkit 句柄按**类型分命名空间**——solid/face/wire/edge 各自从 0 计数
   // （实测 edge=wire=face=solid=0 可共存）。因此「某编号 N 在 knownFaces」与「某编号 N 是 solid」
@@ -558,8 +564,44 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     return markSolid(kernel.copySolid(shape))
   }
 
-  /** 深拷贝 + 原地仿射变换（matrix 已经 toKernelMatrix 归一为 16 元素 4×4）。 */
+  /** 成员句柄数组 → compound（solid-only 内核直通；face/wire/edge 混合走虚拟句柄）。
+   *  makeCompound 适配器与 cloneAndTransform 的 compound 分支共用（同一分发逻辑一份）。
+   *
+   *  GOTCHA（2026-10-13）：**所有** compound 一律返回虚拟句柄（0x20000000+）——brepkit
+   *  的 compound 句柄与 solid 句柄**分命名空间且可重号**（见 356 行 GOTCHA：实测成员
+   *  [0..4] 的 compound 内核句柄 = 0），knownCompounds 若以内核句柄为 key，查询同号的
+   *  另一 solid 时会误判成 compound（'Hello' translate 后只剩 1 成员的根因）。真内核
+   *  compound 句柄仅保留在 kernelCompoundHandles，供 exportStep 等 IO 使用。 */
+  const compoundOf = (kids: number[]): number => {
+    virtualCompoundCounter++
+    const v = 0x20000000 + virtualCompoundCounter
+    const hasNonSolid = kids.some(
+      (k) => knownFaces.has(k) || knownWires.has(k) || knownEdges.has(k) || knownCompounds.has(k),
+    )
+    if (!hasNonSolid) {
+      const c = kernel.makeCompound(Int32Array.from(kids))
+      kernelCompoundHandles.set(v, c)
+    }
+    knownCompounds.set(v, kids)
+    return v
+  }
+
+  /**
+   * 深拷贝 + 原地仿射变换（matrix 已经 toKernelMatrix 归一为 16 元素 4×4）。
+   *
+   * compound 分支（2026-10-13 修复）：brepkit 的 copySolid/transformSolid 只吃
+   * **solid** 句柄——整体传 compound 会静默丢成员（实测 textToSolid 的 'Hello'
+   * 5 成员 compound 经 translate 居中后只剩 1 个，真机 3D 文字只剩最后一个字符）。
+   * 必须逐成员深拷贝 + 变换后再 compoundOf 重组。
+   */
   const cloneAndTransform = (shape: number, matrix16: number[], kind: number = KIND_SOLID): number => {
+    const kids = knownCompounds.get(shape)
+    if (kids) {
+      // kids 是裸句柄号（无类型标签，kindOf 恒 0）；子成员类型由 cloneShape 的
+      // knownFaces/knownWires 集合兜底分发（集合 key 即裸号），故递归传默认 kind。
+      const t = kids.map((k) => cloneAndTransform(k, matrix16))
+      return compoundOf(t)
+    }
     const c = cloneShape(shape, kind)
     const m = Float64Array.from(matrix16)
     if (kind === KIND_FACE || knownFaces.has(c)) kernel.transformFace(c, m)
@@ -1007,18 +1049,13 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       const kids = arr(shapesList.map(asNum))
       // GOTCHA（2026-09-26）：brepkit makeCompound 只接受 **solid** 句柄——把 face/wire
       // （sectionByPlane 截面面组）塞进去即抛 "invalid solid handle"。非实体子句柄时
-      // 不调内核，改用高段虚拟句柄（0x20000000+，避开类型标签 bit26..28），仅靠 knownCompounds 表分发
-      // meshShape/wireframe/getSubShapes/getBoundingBox，不触达内核。
-      const hasNonSolid = kids.some((k) => knownFaces.has(k) || knownWires.has(k) || knownEdges.has(k) || knownCompounds.has(k))
-      if (hasNonSolid) {
-        virtualCompoundCounter++
-        const v = 0x20000000 + virtualCompoundCounter
-        knownCompounds.set(v, kids)
-        return asHandle(v)
-      }
-      const c = kernel.makeCompound(Int32Array.from(kids))
-      knownCompounds.set(c, kids)
-      return asHandle(c)
+      // 不调内核；且 compound 与 solid 分命名空间会**重号**（2026-10-13 实测成员 [0..4]
+      // 的 compound 内核句柄 = 0），真句柄进 knownCompounds 会让同号 solid 查询误判。
+      // 故**一律**走高段虚拟句柄（0x20000000+），仅靠 knownCompounds 表分发
+      // meshShape/wireframe/getSubShapes/getBoundingBox，不触达内核；真内核句柄由
+      // compoundOf 保留在 kernelCompoundHandles 供 exportStep 映射。分发逻辑与
+      // cloneAndTransform 的 compound 分支共用 compoundOf（一份实现）。
+      return asHandle(compoundOf(kids))
     },
     addHolesInFace(face: BrepHandle, holeWires: BrepHandle[]): BrepHandle {
       // addHolesToFace 返回**新 face 句柄**（同曲面 + 内孔 wire），必须登记进 knownFaces，
@@ -1542,13 +1579,18 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
       const solids = arr(kernel.importStep(bytes))
       if (solids.length === 0) fail('importStep: kernel returned no solid')
-      const c = solids.length === 1 ? solids[0] : kernel.makeCompound(Uint32Array.from(solids))
-      if (solids.length > 1) knownCompounds.set(c, solids)
-      return asHandle(markSolid(c))
+      // 多实体 → compoundOf（虚拟句柄）：compound 与 solid 分命名空间会重号，真句柄
+      // 登记 knownCompounds 会在查询同号 solid 时误判（2026-10-13 修复，同 makeCompound）。
+      if (solids.length > 1) return asHandle(compoundOf(solids))
+      return asHandle(markSolid(solids[0]))
     },
     exportStep(shape: BrepHandle): string {
+      // 虚拟 compound（0x20000000+）需映射回真内核句柄——compound 与 solid 分命名空间，
+      // 内核 exportStep 不认虚拟句柄（2026-10-13 compoundOf 虚拟化后补映射）。
+      const s = asNum(shape)
+      const real = kernelCompoundHandles.get(s) ?? s
       // brepkit exportStep 返回 UTF-8 字节（Uint8Array），需解码为 STEP 文本（2026-09-19 实测）
-      const bytes = kernel.exportStep(asNum(shape))
+      const bytes = kernel.exportStep(real)
       return typeof bytes === 'string' ? bytes : new TextDecoder().decode(bytes)
     },
     importStl(data: string | ArrayBuffer): BrepHandle {

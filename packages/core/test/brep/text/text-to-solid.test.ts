@@ -32,7 +32,12 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../../../src/occt-kernel/occtKernel'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
 import { setupTestFont } from '@faicad/faijs/brep/text/fontTestHelper'
-import { textBlueprints, textToSolid } from '../../../src/brep/text/text-to-solid'
+import { textBlueprints, textBlueprintsDetailed, textToSolid } from '../../../src/brep/text/text-to-solid'
+import {
+  classifyNested,
+  computeBBox,
+  computeSignedArea,
+} from '../../../src/primitives/svg/svg-path'
 import { solidToShape } from '../../../src/brep/brep-ops'
 
 let kernel: BrepEngineApi
@@ -140,5 +145,61 @@ describe('fontRegistry', () => {
     const { getFont } = await import('../../../src/brep/text/fontRegistry')
     const font = getFont('nonexistent')
     expect(font).toBeUndefined()
+  })
+})
+
+// ─── 孔洞与组合修复（2026-10-13）：见 .agents/notes/ 对应 Agent Note ───
+// 旧实现把每个闭合轮廓独立 extrude 后逐个 fuse：带孔字符（'o'/'A'/'O'）的
+// 外轮廓体与内孔体布尔并成一个实心体（孔被填实，与 mesh 路径 evenodd 分类不一致）；
+// 且 fuse 次数 = 轮廓数，是文字建模 10 秒级耗时的主因。新实现按包含关系分组
+// （复用 svg 共享 classifyNested）+ addHolesInFace 挖孔，字符间 makeCompound。
+describe('textToSolid 孔洞与 compound（2026-10-13 修复）', () => {
+  /** 理论体积 = (外轮廓面积 − 孔面积) × depth（空心判据；旧 fuse 实心会多出孔体积）。 */
+  function expectHollowVolume(ch: string) {
+    const solid = textToSolid(kernel, ch, { fontSize: 20, depth: 5 })
+    const detailed = textBlueprintsDetailed(kernel, ch, { fontSize: 20 })
+    const subpaths = detailed.map((d) => ({
+      points: d.points,
+      bbox: computeBBox(d.points),
+      signedArea: computeSignedArea(d.points),
+    }))
+    const groups = classifyNested(subpaths)
+    expect(groups).toHaveLength(1)
+    const aOuter = Math.abs(subpaths[groups[0].outerIdx].signedArea)
+    const aHoles = groups[0].holes.reduce((s, h) => s + Math.abs(subpaths[h].signedArea), 0)
+    const expected = (aOuter - aHoles) * 5
+    const actual = kernel.getVolume(solid)
+    expect(Math.abs(actual - expected) / expected).toBeLessThan(0.05)
+    kernel.release(solid)
+  }
+
+  it("'o' 带孔字符是空心：体积 = (外轮廓 − 孔) × depth（旧 fuse 实现把孔填实）", () => {
+    expectHollowVolume('o')
+  })
+
+  it("'A'/'O' 大写字母同样空心（三角孔 / 椭圆孔）", () => {
+    for (const ch of ['A', 'O']) expectHollowVolume(ch)
+  })
+
+  it("'Hello' 多字符 = COMPOUND，5 个 solid 成员（不再逐个 fuse）", () => {
+    const solid = textToSolid(kernel, 'Hello', { fontSize: 20, depth: 5 })
+    const members = kernel.getSubShapes(solid, 'solid')
+    expect(members.length).toBe(5) // H e l l o 各一组，'o' 带孔
+    kernel.release(solid)
+  })
+
+  it("'i' 的点与杆是独立轮廓 → COMPOUND 两个成员（与 mesh 路径一致，点浮在杆上方）", () => {
+    const solid = textToSolid(kernel, 'i', { fontSize: 20, depth: 5 })
+    const members = kernel.getSubShapes(solid, 'solid')
+    expect(members.length).toBe(2)
+    kernel.release(solid)
+  })
+
+  it("'AB' 多字符仍产出有效几何（旧用例语义兼容）", () => {
+    const solid = textToSolid(kernel, 'AB', { fontSize: 16, depth: 2 })
+    const shape = solidToShape(kernel, solid)
+    expect(shape.positions.length).toBeGreaterThan(0)
+    expect(shape.indices.length).toBeGreaterThan(0)
+    kernel.release(solid)
   })
 })
