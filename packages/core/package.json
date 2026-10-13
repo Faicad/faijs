@@ -427,7 +427,7 @@
     "occt-wasm": "^5.6.0"
   },
   "devDependencies": {
-    "@faicad/brepkit2-wasm": "^2.130.0",
+    "brepkit-wasm": "^4.1.49",
     "@types/three": "^0.184.1",
     "sucrase": "^3.35.1",
     "three-162": "npm:three@^0.162.0",

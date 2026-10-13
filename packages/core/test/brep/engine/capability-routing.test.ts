@@ -140,7 +140,7 @@ describe('D11-3 豁免 + 中立 op：brep_mock 替身', () => {
 const require = createRequire(import.meta.url)
 let brepkitAvailable: boolean
 try {
-  require.resolve('@faicad/brepkit2-wasm')
+  require.resolve('brepkit-wasm')
   brepkitAvailable = true
 } catch {
   brepkitAvailable = false

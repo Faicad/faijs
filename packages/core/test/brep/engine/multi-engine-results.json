@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-12T04:14:40.827Z",
+  "generatedAt": "2026-10-13T02:08:59.395Z",
   "results": [
     {
       "op": "box",
@@ -287,7 +287,7 @@
       "bbox": [
         40,
         40,
-        20
+        20.0000001
       ],
       "status": "pass"
     },
@@ -943,7 +943,7 @@
     },
     {
       "op": "box",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         10,
@@ -953,7 +953,7 @@
     },
     {
       "op": "sphere",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -963,7 +963,7 @@
     },
     {
       "op": "cylinder",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         10,
@@ -973,7 +973,7 @@
     },
     {
       "op": "cone",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -983,7 +983,7 @@
     },
     {
       "op": "wedge",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         15,
         20,
@@ -993,7 +993,7 @@
     },
     {
       "op": "torus",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         50,
         50,
@@ -1003,7 +1003,7 @@
     },
     {
       "op": "rotate_euler",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         21.213203435596427,
         21.213203435596427,
@@ -1013,7 +1013,7 @@
     },
     {
       "op": "scale3d",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         10,
@@ -1023,7 +1023,7 @@
     },
     {
       "op": "union",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         30,
         20,
@@ -1033,7 +1033,7 @@
     },
     {
       "op": "cut",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1043,7 +1043,7 @@
     },
     {
       "op": "subtract",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1053,7 +1053,7 @@
     },
     {
       "op": "intersect",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         16,
         16,
@@ -1063,7 +1063,7 @@
     },
     {
       "op": "linearPattern",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         67,
         10,
@@ -1073,7 +1073,7 @@
     },
     {
       "op": "circularPattern",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         56.83012701892221,
         65.6217782649107,
@@ -1083,7 +1083,7 @@
     },
     {
       "op": "gridPattern",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         10,
@@ -1093,7 +1093,7 @@
     },
     {
       "op": "rectangularPattern",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         30,
         30,
@@ -1103,7 +1103,7 @@
     },
     {
       "op": "clone",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         10,
@@ -1113,7 +1113,7 @@
     },
     {
       "op": "fillet",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1123,7 +1123,7 @@
     },
     {
       "op": "filletVariable",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1133,7 +1133,7 @@
     },
     {
       "op": "shell",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1143,7 +1143,7 @@
     },
     {
       "op": "splitByPlane",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1153,7 +1153,7 @@
     },
     {
       "op": "sectionByPlane",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1163,7 +1163,7 @@
     },
     {
       "op": "extrude",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         10,
@@ -1173,17 +1173,17 @@
     },
     {
       "op": "revolve",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
-        35.35533905932738,
-        35.35533905932738,
+        36.08757210636101,
+        36.08757210636101,
         0
       ],
       "status": "pass"
     },
     {
       "op": "sweep",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         8,
         8,
@@ -1193,7 +1193,7 @@
     },
     {
       "op": "loft",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         10,
@@ -1203,7 +1203,7 @@
     },
     {
       "op": "wire",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         10,
@@ -1213,7 +1213,7 @@
     },
     {
       "op": "profile",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         10,
@@ -1223,17 +1223,17 @@
     },
     {
       "op": "engrave",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         40,
         40,
-        20
+        20.000000000000004
       ],
       "status": "pass"
     },
     {
       "op": "place",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         10,
@@ -1243,7 +1243,7 @@
     },
     {
       "op": "unifySameDomain",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1253,7 +1253,7 @@
     },
     {
       "op": "defeature",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1263,7 +1263,7 @@
     },
     {
       "op": "sew",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         10,
@@ -1273,7 +1273,7 @@
     },
     {
       "op": "sewAndSolidify",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         10,
@@ -1283,7 +1283,7 @@
     },
     {
       "op": "removeHolesFromFace",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1293,17 +1293,17 @@
     },
     {
       "op": "ellipsoid",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         6,
         4,
-        0.9606046984843457
+        1.8595766021248603
       ],
       "status": "pass"
     },
     {
       "op": "makeBaseBox",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         10,
@@ -1313,7 +1313,7 @@
     },
     {
       "op": "rotate",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10.000000000000002,
         20,
@@ -1323,7 +1323,7 @@
     },
     {
       "op": "mirror",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         10,
@@ -1333,7 +1333,7 @@
     },
     {
       "op": "applyMatrix",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         20,
@@ -1343,7 +1343,7 @@
     },
     {
       "op": "healSolid",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         10,
@@ -1353,7 +1353,7 @@
     },
     {
       "op": "convexHull",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         10,
@@ -1363,7 +1363,7 @@
     },
     {
       "op": "chamfer",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         10,
         10,
@@ -1373,7 +1373,7 @@
     },
     {
       "op": "drill",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         30,
         30,
@@ -1383,7 +1383,7 @@
     },
     {
       "op": "pocket",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1393,7 +1393,7 @@
     },
     {
       "op": "boss",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1403,7 +1403,7 @@
     },
     {
       "op": "mirrorJoin",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "bbox": [
         20,
         20,
@@ -1697,7 +1697,7 @@
       "bbox": [
         40,
         40,
-        20
+        20.000000000000004
       ],
       "status": "pass"
     },
@@ -1933,49 +1933,49 @@
     },
     {
       "op": "loftAdvanced",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "error": "loftAdvanced: E_BREP_UNSUPPORTED: op 'loftAdvanced' requires engine occt (current=brepkit)",
       "expected": true
     },
     {
       "op": "sweepAdvanced",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "error": "sweepAdvanced: E_BREP_UNSUPPORTED: op 'sweepAdvanced' requires engine occt (current=brepkit)",
       "expected": true
     },
     {
       "op": "screw",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "error": "screw: E_BREP_UNSUPPORTED: op requires engine occt (current=brepkit)",
       "expected": true
     },
     {
       "op": "draft",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "error": "draft: E_BREP_UNSUPPORTED: op requires engine occt (current=brepkit)",
       "expected": true
     },
     {
       "op": "thicken",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "error": "thicken: E_BREP_UNSUPPORTED: op 'thicken' requires engine occt (current=brepkit)",
       "expected": true
     },
     {
       "op": "split",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "error": "split: E_BREP_UNSUPPORTED: op requires engine occt (current=brepkit)",
       "expected": true
     },
     {
       "op": "knurl",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "error": "knurl: E_BREP_UNSUPPORTED: function has no BREP implementation",
       "expected": true
     },
     {
       "op": "sdf",
-      "engine": "brepkit-2.130.0",
+      "engine": "brepkit-4.1.49",
       "error": "sdf: E_BREP_UNSUPPORTED: function has no BREP implementation",
       "expected": true
     },

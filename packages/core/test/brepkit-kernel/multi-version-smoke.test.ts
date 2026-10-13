@@ -3,7 +3,7 @@
  *
  * multi-version-smoke — 同进程切换三个 brepkit 内核版本的装载/注册/基础几何冒烟
  *
- * 钉死的事实：每个版本（2.129.15 上游基线、2.130.0 fork 当前依赖、4.0.32 上游 latest）都能
+ * 钉死的事实：每个版本（2.129.15 上游基线、4.1.49 上游当前依赖、4.0.32 上游 latest）都能
  *   1. 被装载（setBrepkitWasmInitFn 注入的 customFn new 出 BrepKernel 实例）；
  *   2. 注册为 id='brepkit' 的 BREP 引擎；
  *   3. 用该引擎 makeBox(20,10,5) 且 getVolume ≈ 1000（1% 容差）。
@@ -50,8 +50,8 @@ describe('brepkit 多版本同进程装载冒烟', () => {
     await smokeOneVersion('2.129.15')
   }, 120000)
 
-  it('2.130.0 (当前依赖 @faicad/brepkit2-wasm / node_modules) 装载+注册+makeBox 体积正确', async () => {
-    await smokeOneVersion('2.130.0')
+  it('4.1.49 (当前依赖 brepkit-wasm / node_modules) 装载+注册+makeBox 体积正确', async () => {
+    await smokeOneVersion('4.1.49')
   }, 120000)
 
   it('4.0.32 (上游 npm latest) 装载+注册+makeBox 体积正确', async () => {

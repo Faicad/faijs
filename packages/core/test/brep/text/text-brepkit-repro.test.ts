@@ -18,7 +18,7 @@ import { classifyNested, computeBBox, computeSignedArea } from '../../../src/pri
 const require = createRequire(import.meta.url)
 let brepkitAvailable = false
 try {
-  require.resolve('@faicad/brepkit2-wasm')
+  require.resolve('brepkit-wasm')
   brepkitAvailable = true
 } catch {
   brepkitAvailable = false

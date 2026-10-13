@@ -40,7 +40,7 @@ import { disposeBrepkit } from '../../../src/brepkit-kernel/brepkitKernel'
 const require = createRequire(import.meta.url)
 let brepkitAvailable = false
 try {
-  require.resolve('@faicad/brepkit2-wasm')
+  require.resolve('brepkit-wasm')
   brepkitAvailable = true
 } catch {
   brepkitAvailable = false
@@ -116,7 +116,7 @@ describe('brepkit intersect fix（裸 intersect 降级 + occt 历史路径不回
 
   // ── brepkit：三版本裸 intersect 降级，几何正确、无面演化 ──
   const suite = brepkitAvailable ? describe : describe.skipIf(!brepkitAvailable)
-  const VERSIONS: BrepkitTestVersion[] = ['2.129.15', '2.130.0', '4.0.32']
+  const VERSIONS: BrepkitTestVersion[] = ['2.129.15', '4.1.49', '4.0.32']
 
   for (const version of VERSIONS) {
     suite(`brepkit ${version}`, () => {

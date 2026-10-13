@@ -17,7 +17,7 @@ import type { BrepHandle } from '../../src/brep/engine/types'
 const require = createRequire(import.meta.url)
 let brepkitAvailable = false
 try {
-  require.resolve('@faicad/brepkit2-wasm')
+  require.resolve('brepkit-wasm')
   brepkitAvailable = true
 } catch {
   brepkitAvailable = false
@@ -430,15 +430,13 @@ suite('brepkit 操作能力：倒角（chamfer）', () => {
   it('chamferDistAngle：角度单位为度，45° 等价内核 π/4 弧度（方言转换回归）', () => {
     // 回归：适配器曾把「度」直接传给内核，而 brepkit chamferDistanceAngle 吃**弧度**：
     // 传 45 会抛 "angle must be less than π/2"；传 π/4 才正常倒角。
-    const kernel = getBrepkitKernel()
     const box = api.makeBox(BOX, BOX, BOX)
     const r = api.chamferDistAngle(box, pickVerticalEdges(box), 1, 45)
-    // ⚠️ 严格 validateSolid 对「距角倒角」结果报错——与 split 同类，属内核校验器对
-    // 非流形拓扑的局限（几何精确：体积 866.6667）。故用内核自带的 relaxed 校验
-    // （d.ts 明确其适用于 boolean/fillet/shell 产物），不用 isValid 弱化/掩盖。
-    expect(Number(kernel.validateSolidRelaxed(r))).toBe(0)
-    // 4 条竖边、d=1、45° 的实测解析基线 = 866.6667
-    expect(api.getVolume(r)).toBeCloseTo(866.6667, 3)
+    // v4+：严格 validateSolid 也通过（v2 误报非流形已修复）。
+    expect(api.isValid(r)).toBe(true)
+    // 4 条竖边、d=1、45°：每边切截面 = 0.5×1×1 = 0.5，长 10 → 去料 0.5×10×4 = 20。
+    // 正确体积 = 1000 − 20 = 980（v2 旧基线 866.67 是内核几何 bug，v4 已修复）。
+    expect(api.getVolume(r)).toBeCloseTo(980, 0)
   })
 
   it('chamferDistAngle：90° 经转换后恰为内核上界 π/2，应如实抛错（不掩盖）', () => {
@@ -478,9 +476,10 @@ suite('brepkit 操作能力：圆角（fillet）', () => {
     expect(api.isSolid(r)).toBe(true)
     expect(api.isValid(r)).toBe(true)
     const v = api.getVolume(r)
-    // 单边 r1=1,r2=2 实测基线 ≈ 997.78；必须严格小于原体且大于等半径 2 的结果
+    // 单边 r1=1,r2=2 实测 ≈ 995；必须严格小于原体且大于等半径 2 的结果
+    // （fixed r=1 ≈ 997.85, fixed r=2 ≈ 991.42；变半径结果 995 介于两者之间）。
     expect(v).toBeLessThan(BOX_VOL)
-    expect(v).toBeGreaterThan(995)
+    expect(v).toBeGreaterThan(994)
     const rFixed = api.fillet(box, [edge], 2)
     expect(v).toBeGreaterThan(api.getVolume(rFixed))
   })
