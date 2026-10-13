@@ -61,6 +61,15 @@ export interface CompareOptions {
    * member's internal rigid relations. Default: every solid is its own group.
    */
   canonicalRigidGroups?: number[][]
+  /**
+   * P7/D5: per-member pivots indexed BY SOLID INDEX (same layout as
+   * canonicalRigidGroups covers): memberPivots[i] is the twist-axis point for
+   * the solid at index i (or null to fall back to that solid's COM). Overrides
+   * canonicalPivot. Needed when one export mixes members with different
+   * anchors (root compound exporting b1+b2+b3: b2 pivots at its loc origin,
+   * b3 at its own) — a single canonicalPivot can only align one member.
+   */
+  canonicalMemberPivots?: Array<BrepVec3 | null>
 }
 
 /** Per-metric comparison result. */
@@ -243,7 +252,13 @@ export async function compareStepFiles(
       // against the whole-assembly bbox would chase the wrong optimum. For
       // multi-solid groups the member's bbox spans all its solids.
       // 2° grid + golden-section refine.
-      const pv = opts.canonicalPivot ?? com
+      // Pivot resolution (P7/D5): per-solid annotation (canonicalMemberPivots
+      // at the group's first solid index) overrides the single canonicalPivot,
+      // which overrides the group's first-solid COM. Mixed-member exports
+      // (root compound with b1+b2+b3) need per-member anchors — one pivot
+      // cannot align members anchored at different points.
+      const mp = opts.canonicalMemberPivots?.[group[0]]
+      const pv = mp ?? opts.canonicalPivot ?? com
       // For grouped members pair by group: build the A-side bbox from the
       // corresponding group of A solids (same relative layout).
       const aIdxs = group.map((gi) => ai + gi - group[0])
