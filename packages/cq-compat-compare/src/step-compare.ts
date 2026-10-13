@@ -53,6 +53,14 @@ export interface CompareOptions {
    * behind). Pass the anchor point of the constrained member here.
    */
   canonicalPivot?: BrepVec3
+  /**
+   * P7/D4: rigid groups over the split solids (indices into the compounds'
+   * solid lists, both sides share the layout). Solids in one group are a
+   * single assembly member (e.g. a multi-solid compound member) and MUST be
+   * rotated together about one pivot — scanning them independently breaks the
+   * member's internal rigid relations. Default: every solid is its own group.
+   */
+  canonicalRigidGroups?: number[][]
 }
 
 /** Per-metric comparison result. */
@@ -211,12 +219,17 @@ export async function compareStepFiles(
 
     // Pair each B solid with its nearest A solid (COM distance) — ordering in
     // a STEP compound is not guaranteed to match the solver's member order.
+    // Rigid groups (canonicalRigidGroups, default singleton per solid) are
+    // paired and rotated AS A UNIT: one angle about one pivot for all group
+    // members, preserving each member's internal rigid relations.
+    const groups = opts.canonicalRigidGroups ?? solidsB.map((_, i) => [i])
     const comA = solidsA.map((s) => kernel.getCenterOfMass(s))
     const aligned: ShapeHandle[] = new Array(solidsB.length)
     const usedA = new Set<number>()
     let maxAbsTwist = 0
-    for (const sb of solidsB) {
-      const com = kernel.getCenterOfMass(sb)
+    for (const group of groups) {
+      const sbFirst = solidsB[group[0]]
+      const com = kernel.getCenterOfMass(sbFirst)
       let ai = -1
       let best = Infinity
       for (let i = 0; i < comA.length; i++) {
@@ -224,21 +237,28 @@ export async function compareStepFiles(
         const d = Math.hypot(comA[i].x - com.x, comA[i].y - com.y, comA[i].z - com.z)
         if (d < best) { best = d; ai = i }
       }
-      usedA.add(ai)
+      for (const gi of group) usedA.add(gi)
       // Scan the twist about the member's own COM (pivot override applies when
       // the anchor is off-COM); MEMBER-vs-MEMBER bbox — aligning one member
-      // against the whole-assembly bbox would chase the wrong optimum.
+      // against the whole-assembly bbox would chase the wrong optimum. For
+      // multi-solid groups the member's bbox spans all its solids.
       // 2° grid + golden-section refine.
       const pv = opts.canonicalPivot ?? com
-      const bboxAi = kernel.getBoundingBox(solidsA[ai])
+      // For grouped members pair by group: build the A-side bbox from the
+      // corresponding group of A solids (same relative layout).
+      const aIdxs = group.map((gi) => ai + gi - group[0])
+      const bboxMemberA = kernel.getBoundingBox(
+        aIdxs.length === 1 ? solidsA[aIdxs[0]] : kernel.makeCompound(aIdxs.map((i) => solidsA[i])),
+      )
       const diffAtDeg = (deg: number): number => {
-        const rot = rotAbout(sb, deg, pv)
-        const b = kernel.getBoundingBox(rot)
-        kernel.release(rot)
+        // Rotate the WHOLE group as one rigid unit and measure its combined bbox.
+        const rotHandles = group.map((gi) => rotAbout(solidsB[gi], deg, pv))
+        const b = kernel.getBoundingBox(rotHandles.length === 1 ? rotHandles[0] : kernel.makeCompound(rotHandles))
+        for (const h of rotHandles) kernel.release(h)
         return Math.max(
-          Math.abs(bboxAi.xmin - b.xmin), Math.abs(bboxAi.xmax - b.xmax),
-          Math.abs(bboxAi.ymin - b.ymin), Math.abs(bboxAi.ymax - b.ymax),
-          Math.abs(bboxAi.zmin - b.zmin), Math.abs(bboxAi.zmax - b.zmax),
+          Math.abs(bboxMemberA.xmin - b.xmin), Math.abs(bboxMemberA.xmax - b.xmax),
+          Math.abs(bboxMemberA.ymin - b.ymin), Math.abs(bboxMemberA.ymax - b.ymax),
+          Math.abs(bboxMemberA.zmin - b.zmin), Math.abs(bboxMemberA.zmax - b.zmax),
         )
       }
       let bestDeg = 0
@@ -255,10 +275,26 @@ export async function compareStepFiles(
         if (diffAtDeg(m1) < diffAtDeg(m2)) hi = m2
         else lo = m1
       }
-      const angle = (lo + hi) / 2
+      let angle = (lo + hi) / 2
+      // P7/D4 refine ①: if the refined optimum still misses the tolerance,
+      // the coarse 2° grid may have bracketed the wrong cell (bbox diff is
+      // not unimodal in the twist angle). Re-scan ±1° around the current
+      // best at 0.02° steps to catch a sharper minimum nearby.
+      let fine = diffAtDeg(angle)
+      if (fine > 1e-3) {
+        const base = angle
+        for (let d = -1; d <= 1; d += 0.02) {
+          const cand = base + d
+          const dd = diffAtDeg(cand)
+          if (dd < fine) { fine = dd; angle = cand }
+        }
+      }
       if (Math.abs(angle) > Math.abs(maxAbsTwist)) maxAbsTwist = angle
-      aligned[ai] = rotAbout(sb, angle, pv)
-      kernel.release(sb)
+      // One angle about one pivot for the WHOLE group (rigid unit).
+      for (const gi of group) {
+        aligned[gi] = rotAbout(solidsB[gi], angle, pv)
+        kernel.release(solidsB[gi])
+      }
     }
     for (const s of solidsA) kernel.release(s)
     kernel.release(shapeB)
