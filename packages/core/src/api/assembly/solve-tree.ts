@@ -18,7 +18,7 @@ import type { AssemblyConstraint } from './types'
 import type { SolveOptions } from './solvers/types'
 import type { AssemblyNode } from './solvers/assembly-tree'
 import { solveGlobal } from './solvers/global-solver'
-import { poseToAssemblyTransform, toBrepjsQuat, isIdentityPose, type SolverPose } from './pose'
+import { poseToAssemblyTransform, isIdentityPose, type SolverPose } from './pose'
 import { quatFromAxisAngle, quatRotate, quatMultiply } from './solvers/quat'
 
 const DEG2RAD = Math.PI / 180
@@ -77,6 +77,8 @@ interface FlatAssembly {
   constraints: AssemblyConstraint[]
   /** 每个叶节点的累积父 pose（从 root 到该叶，含该叶自身 translate/rotate）。 */
   parentPoses: Map<string, SolverPose>
+  /** P8：刚体分组（成员下标）——同一子装配的叶共享一个刚体块。 */
+  rigidGroups: number[][]
 }
 
 /**
@@ -90,36 +92,47 @@ function flattenTree(root: AssemblyNode): FlatAssembly {
   const memberNames: string[] = []
   const constraints: AssemblyConstraint[] = []
   const parentPoses = new Map<string, SolverPose>()
+  // P8：子装配 → 叶下标分组（叶序号在收集时递增，组按收集序记录）。
+  const rigidGroups: number[][] = []
 
   if (root.constraints) {
     for (const c of root.constraints) constraints.push(c)
   }
 
-  function walk(node: AssemblyNode, prefix: string, accumulated: SolverPose): void {
+  function walk(node: AssemblyNode, prefix: string, accumulated: SolverPose, groupId: number | null): void {
     for (const child of node.children) {
       const qName = prefix ? `${prefix}.${child.name}` : child.name
       const childPose = nodeToPose(child)
       const childAccumulated = composePose(accumulated, childPose)
 
+      // P8：子装配节点（有 children）开一个新刚体组——其自身 shape 叶（root 件）
+      // 与全部成员叶同组。必须在建组后再 push 自身叶，否则 root 件落在外层
+      // groupId（null）下、组内只剩成员叶，length>1 过滤会把整组丢掉
+      // （nested_assy 实测：组 [b3] 被滤掉，b2 仍自由漂移）。
+      const isSub = child.children.length > 0
+      const myGroup = isSub ? rigidGroups.length : groupId
+      if (isSub) rigidGroups.push([])
+
       if (child.shape) {
         members.push(child.shape)
         memberNames.push(qName)
         parentPoses.set(qName, childAccumulated)
+        if (myGroup !== null) rigidGroups[myGroup].push(members.length - 1)
       }
 
       if (child.constraints) {
         for (const c of child.constraints) constraints.push(c)
       }
 
-      if (child.children.length > 0) {
-        walk(child, qName, childAccumulated)
+      if (isSub) {
+        walk(child, qName, childAccumulated, myGroup)
       }
     }
   }
 
   const rootPose = nodeToPose(root)
-  walk(root, '', rootPose)
-  return { members, memberNames, constraints, parentPoses }
+  walk(root, '', rootPose, null)
+  return { members, memberNames, constraints, parentPoses, rigidGroups }
 }
 
 /**
@@ -140,6 +153,25 @@ export function solveAssemblyTree(
   }
 
   const solveOpts: SolveOptions = { solver: 'global', ...opts }
+  // P8：子装配刚体分组传入求解器（同组叶共享一个 6 维状态块）。
+  const groups = flat.rigidGroups.filter((g) => g.length > 1)
+  if (groups.length > 0) solveOpts.rigidGroups = groups
+  // P8 方案 A（CQ sublocs）：叶的累积 loc（含自身 translate/rotate）作为求解
+  // 初位姿传入——约束 marker 取自成员本地系，绝对位姿 = initial ∘ delta 在
+  // 求解器内部合成。无累积位姿（恒等）的叶不注入，保持旧语义。
+  const initPoses: SolveOptions['initialPoses'] = []
+  let hasInit = false
+  for (let i = 0; i < flat.memberNames.length; i++) {
+    const pp = flat.parentPoses.get(flat.memberNames[i]!)
+    if (pp && !isIdentityPose(pp)) {
+      initPoses[i] = {
+        translation: [pp.position[0], pp.position[1], pp.position[2]],
+        rotation: [pp.rotation[0], pp.rotation[1], pp.rotation[2], pp.rotation[3]],
+      }
+      hasInit = true
+    }
+  }
+  if (hasInit) solveOpts.initialPoses = initPoses
   const result = solveGlobal(flat.members, flat.memberNames, flat.constraints, solveOpts)
   if (!result.converged) {
     throw new Error(
@@ -161,17 +193,9 @@ export function solveAssemblyTree(
   for (const t of result.transforms) {
     const name = flat.memberNames[t.index]
     if (!name) continue
-    const parentPose = flat.parentPoses.get(name)
-    if (!parentPose || isIdentityPose(parentPose)) {
-      transforms[name] = t
-      continue
-    }
-    const solverPose: SolverPose = {
-      position: [t.translation[0], t.translation[1], t.translation[2]],
-      rotation: toBrepjsQuat(t.quaternion as [number, number, number, number]),
-    }
-    const composed = composePose(parentPose, solverPose)
-    transforms[name] = poseToAssemblyTransform(composed, [0, 0, 0], t.index)
+    // P8 方案 A：solver 发射的已是绝对位姿（initial ∘ delta 在求解器内合成），
+    // 直接采用——若再 compose parentPose 会把初 loc 算两遍。
+    transforms[name] = t
   }
 
   return {

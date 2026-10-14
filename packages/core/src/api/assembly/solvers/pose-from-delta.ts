@@ -63,3 +63,27 @@ export function quatFromR(a: number, b: number, c: number): [number, number, num
   const denom = 1 + m
   return [(1 - m) / denom, 2 * a / denom, 2 * b / denom, 2 * c / denom]
 }
+
+/**
+ * `quatFromR` 的逆映射：单位四元数 [w,x,y,z] → 模长参数化 ΔR=(a,b,c)。
+ * 由 s=(1-m)/(1+m)、u=2R/(1+m) 反解：R = u/(1+s)。
+ * 用于 P8 方案 A：绝对位姿（初 loc ∘ delta）合成后的四元数折回 R 约定，
+ * 供 termResidual/markerPoint 的 rotateByR 复用。
+ * @param q - unit quaternion [w, x, y, z].
+ * @returns the magnitude-parameterized rotation (a, b, c).
+ */
+export function quatToRvec(q: readonly [number, number, number, number]): Vec3 {
+  const w = q[0]
+  const x = q[1]
+  const y = q[2]
+  const z = q[3]
+  // 180° 附近 s→−1 分母趋 0；delta 参数化本就不表达 180°（CQ 同限制），
+  // 返回近似轴角大模长即可（数值上 clamp，避免除零）。
+  const denom = 1 + w
+  if (Math.abs(denom) < 1e-12) {
+    const n = Math.hypot(x, y, z) || 1
+    const big = 1e6
+    return [(x / n) * big, (y / n) * big, (z / n) * big]
+  }
+  return [x / denom, y / denom, z / denom]
+}

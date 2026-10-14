@@ -19,6 +19,19 @@ export interface SolveOptions {
   solver?: SolverStyle
   /** 装配名（B4 锚定用；cq-compat 的 buildAssembly 注入）。 */
   name?: string
+  /**
+   * P8：刚体分组（成员下标分组，如 [[0],[1,2],[3]]）。同组成员在求解变量系中
+   * 共享一个 6 维状态块——子装配在 CQ 语义里是刚体（其成员相对位姿恒定），
+   * 拆成独立自由成员会让未约束成员漂移（nested_assy 实测：b2 恒等漂离 ref）。
+   */
+  rigidGroups?: number[][]
+  /**
+   * P8 方案 A：成员初始位姿（下标 → 平移 + 四元数 [x,y,z,w]）。语义 = CQ sublocs：
+   * 成员建模坐标是「装配前的本地系」，约束 marker 取自该本地系；求解器状态是
+   * delta（初 loc 之上的增量），绝对位姿 = initialPose ∘ delta，penalty 拉 delta→0
+   * 即倾向保持初 loc。solve-tree flatten 时把每叶的累积 parentPose 传入。
+   */
+  initialPoses?: { translation: [number, number, number]; rotation: [number, number, number, number] }[]
 }
 
 /**

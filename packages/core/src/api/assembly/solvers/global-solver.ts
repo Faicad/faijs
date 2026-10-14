@@ -43,7 +43,8 @@ import {
   atb,
   solveDampedNormal,
 } from './linalg'
-import { rotateByR, quatFromR } from './pose-from-delta'
+import { rotateByR, quatFromR, quatToRvec } from './pose-from-delta'
+import { quatMultiply, quatRotate } from './quat'
 
 const DEG2RAD = Math.PI / 180
 const R_INIT = 1e-2 // B3
@@ -524,13 +525,28 @@ export function solveGlobal(
   const scale = computeScale(scalePts)
 
   // ── 自由成员与变量 ──
+  // P8 刚体分组：同组成员共享一个 6 维状态块（子装配在 CQ 语义里是刚体）。
+  // freeIdx 每项是一个块的"代表成员"下标；blockOf 把每个自由成员映射到其块位置 k
+  // （代表自身与跟随者都映射到同一 k——stateOf 按成员直接查块，无需二次 rep 解析）。
   const freeIdx: number[] = []
-  const blockMap = new Map<number, number>()
-  memberNames.forEach((_, i) => {
-    if (!lockedSet.has(i)) {
-      blockMap.set(i, freeIdx.length)
-      freeIdx.push(i)
+  const blockOf = new Map<number, number>()
+  const groupOf = new Map<number, number>() // member idx -> 代表成员 idx
+  if (opts?.rigidGroups) {
+    for (const g of opts.rigidGroups) {
+      for (const m of g) groupOf.set(m, g[0])
     }
+  }
+  memberNames.forEach((_, i) => {
+    if (lockedSet.has(i)) return
+    const rep = groupOf.get(i) ?? i
+    // 组代表被锁：整组随锁（跟随者也不进自由集）。
+    if (lockedSet.has(rep)) return
+    let k = freeIdx.indexOf(rep)
+    if (k < 0) {
+      k = freeIdx.length
+      freeIdx.push(rep)
+    }
+    blockOf.set(i, k)
   })
   const n = freeIdx.length * 6
   const x = new Array(n).fill(0)
@@ -540,15 +556,41 @@ export function solveGlobal(
     x[6 * k + 5] = R_INIT
   }
 
+  // P8 方案 A（CQ sublocs 语义）：成员建模坐标是装配前本地系，约束 marker 取自
+  // 该本地系；求解器状态是 delta，绝对位姿 = initialPose ∘ delta（penalty 拉
+  // delta→0 = 倾向保持初 loc）。未传 initialPoses 时初位姿为恒等——与旧 delta
+  // 语义完全一致（回归零影响）。
+  // 关键：init 按【成员下标】存，delta 按块共享——刚体组成员初位各不同
+  // （nested_assy：b2 初 (0,4,0)、b3 初 (0,8,0)），同一 delta 下绝对位姿各异；
+  // 若 init 按块存，跟随者会错拿代表的初位（实测 b2 错落 (2,0,0.75)，ref (2,−4,0.75)）。
+  const initT = new Map<number, Vec3>()
+  const initQ = new Map<number, [number, number, number, number]>()
+  if (opts?.initialPoses) {
+    opts.initialPoses.forEach((ip, i) => {
+      if (!ip) return
+      initT.set(i, [ip.translation[0], ip.translation[1], ip.translation[2]])
+      initQ.set(i, [ip.rotation[0], ip.rotation[1], ip.rotation[2], ip.rotation[3]])
+    })
+  }
+
   const stateOf = (xx: number[], i: number): { T: Vec3; R: Vec3 } => {
     // 世界哨兵 i = -1：identity（世界系 marker 已存字面坐标，不再施加成员变换）
     if (i < 0) return { T: [0, 0, 0], R: [0, 0, 0] }
     if (lockedSet.has(i)) return { T: [0, 0, 0], R: [0, 0, 0] }
-    const k = blockMap.get(i)!
-    return {
-      T: [xx[6 * k], xx[6 * k + 1], xx[6 * k + 2]],
-      R: [xx[6 * k + 3], xx[6 * k + 4], xx[6 * k + 5]],
-    }
+    const k = blockOf.get(i)
+    if (k === undefined) return { T: [0, 0, 0], R: [0, 0, 0] }
+    const dT: Vec3 = [xx[6 * k], xx[6 * k + 1], xx[6 * k + 2]]
+    const dR: Vec3 = [xx[6 * k + 3], xx[6 * k + 4], xx[6 * k + 5]]
+    const it = initT.get(i)
+    const iq = initQ.get(i)
+    if (!it || !iq) return { T: dT, R: dR }
+    // absolute = initial ∘ delta：先转 delta 再平移初 loc。
+    const qd = quatFromR(dR[0], dR[1], dR[2])
+    const at = vadd(it, quatRotate(iq, dT))
+    const aq = quatMultiply(iq, qd)
+    // 绝对四元数 → 旋转向量（pose-from-delta 的 R 约定），供 markerPoint 复用。
+    const Rm = quatToRvec(aq)
+    return { T: at, R: Rm }
   }
 
   const residual = (xx: number[]): number[] => {
@@ -630,12 +672,22 @@ export function solveGlobal(
 
   // ── 组装结果 ──
   const transforms: AssemblyTransform[] = []
+  // P8 方案 A：发射绝对位姿 = initial ∘ delta（stateOf 终态），不再裸发 delta。
   for (let k = 0; k < freeIdx.length; k++) {
     const i = freeIdx[k]
-    const T: Vec3 = [x[6 * k], x[6 * k + 1], x[6 * k + 2]]
-    const R: Vec3 = [x[6 * k + 3], x[6 * k + 4], x[6 * k + 5]]
-    const pose: SolverPose = { position: T, rotation: quatFromR(R[0], R[1], R[2]) }
+    const st = stateOf(x, i)
+    const pose: SolverPose = { position: st.T, rotation: quatFromR(st.R[0], st.R[1], st.R[2]) }
     transforms.push(poseToAssemblyTransform(pose, [0, 0, 0], i))
+  }
+  // P8 刚体分组：跟随成员与组代表共享同一刚体位姿——为每个跟随者补一条
+  // 同 pose 的 transform（index=跟随者），否则 solve-tree 的 recompose 拿不到
+  // 组员的变换（nested_assy 的 b3 叶会缺条目）。
+  for (const [member, rep] of groupOf) {
+    if (member === rep) continue
+    if (lockedSet.has(member)) continue
+    const st = stateOf(x, rep)
+    const pose: SolverPose = { position: st.T, rotation: quatFromR(st.R[0], st.R[1], st.R[2]) }
+    transforms.push(poseToAssemblyTransform(pose, [0, 0, 0], member))
   }
 
   // 逐约束残差（诊断）

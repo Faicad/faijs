@@ -90,7 +90,7 @@ describe('solve-tree: flatten + solve + recompose', () => {
     expectVecNear(applyTransform(tB!, [0, 0, 5]), [0, 0, 0], 1e-4)
   })
 
-  it('parent translate → world transform = parent ∘ solver', () => {
+  it('parent translate → initial loc folds into solve (CQ sublocs, P8 plan A)', () => {
     const partA = createAssemblyNode('partA', { shape: dummy })
     const partB = createAssemblyNode('partB', { shape: dummy })
     const subassy = addChild(
@@ -110,10 +110,15 @@ describe('solve-tree: flatten + solve + recompose', () => {
     const res = solveAssemblyTree(root)
     expect(res.converged).toBe(true)
 
+    // P8 plan A (CQ sublocs semantics): the member's accumulated loc [10,0,0]
+    // is its INITIAL pose in the solve state — markers come from local frames,
+    // so the coincident constraint DRIVES partB from x=10 to the world origin.
+    // (Pre-P8 the solver solved in local coords — constraint trivially met at
+    // identity — and the parent offset was re-applied on output: world x=10.)
     const tB = res.transforms['subassy.partB']
     expect(tB).toBeDefined()
     const worldOrigin = applyTransform(tB!, [0, 0, 0])
-    expectNear(worldOrigin[0], 10)
+    expectNear(worldOrigin[0], 0)
   })
 
   it('constraints at subassy level — qualified names', () => {

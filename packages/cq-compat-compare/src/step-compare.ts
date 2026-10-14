@@ -54,6 +54,13 @@ export interface CompareOptions {
    */
   canonicalPivot?: BrepVec3
   /**
+   * P8: underdetermined free TRANSLATION direction (unit-ish; normalized
+   * internally). When set the canonical channel scans a TRANSLATION along
+   * this axis instead of a twist — used when the solver's freeDirs indicate a
+   * sliding DOF (nested_assy: unconstrained y translation of the sub-assembly).
+   */
+  canonicalFreeTranslation?: BrepVec3
+  /**
    * P7/D4: rigid groups over the split solids (indices into the compounds'
    * solid lists, both sides share the layout). Solids in one group are a
    * single assembly member (e.g. a multi-solid compound member) and MUST be
@@ -187,9 +194,117 @@ export async function compareStepFiles(
   // shape's own volume, probe-verified) while solid-vs-solid cuts are exact.
   let pairing: number[] | null = null
   if (opts.poseMode === 'canonical-pose') {
-    if (!opts.canonicalFreeAxis) {
-      throw new Error("poseMode 'canonical-pose' requires canonicalFreeAxis (the solver's underdetermined free direction)")
+    if (!opts.canonicalFreeAxis && !opts.canonicalFreeTranslation) {
+      throw new Error("poseMode 'canonical-pose' requires canonicalFreeAxis (or canonicalFreeTranslation for a sliding DOF)")
     }
+  }
+  // P8 translation mode (sliding DOF): scan offsets along the free axis
+  // instead of twists. PER-MEMBER-GROUP like the twist scan — the fixed root
+  // members must NOT ride (nested_assy: sliding everything moved the anchored
+  // b1 too and only half the bbox matched). Split into solids, pair by COM,
+  // slide each group independently to the minimal member-bbox diff.
+  if (opts.poseMode === 'canonical-pose' && opts.canonicalFreeTranslation) {
+    const fx = opts.canonicalFreeTranslation.x
+    const fy = opts.canonicalFreeTranslation.y
+    const fz = opts.canonicalFreeTranslation.z
+    const flen = Math.hypot(fx, fy, fz)
+    if (!(flen > 0)) throw new Error('canonicalFreeTranslation must be a nonzero direction')
+    const dir: BrepVec3 = { x: fx / flen, y: fy / flen, z: fz / flen }
+    const slideBy = (shape: ShapeHandle, t: number): ShapeHandle =>
+      kernel.transform(shape, [1, 0, 0, dir.x * t, 0, 1, 0, dir.y * t, 0, 0, 1, dir.z * t])
+
+    const solidsA = kernel.getSubShapes(shapeA, 'solid')
+    const solidsB = kernel.getSubShapes(shapeB, 'solid')
+    if (solidsA.length !== solidsB.length || solidsA.length === 0) {
+      throw new Error(`canonical-pose: solid count mismatch (A=${solidsA.length}, B=${solidsB.length}) — per-group alignment needs 1:1 solids`)
+    }
+    const groups = opts.canonicalRigidGroups ?? solidsB.map((_, i) => [i])
+    const aligned: ShapeHandle[] = new Array(solidsB.length)
+    const usedA = new Set<number>()
+    const bboxWhole = kernel.getBoundingBox(shapeA)
+    const span = Math.max(
+      bboxWhole.xmax - bboxWhole.xmin, bboxWhole.ymax - bboxWhole.ymin, bboxWhole.zmax - bboxWhole.zmin,
+    ) * 2
+    for (const group of groups) {
+      // Translation-mode pairing CANNOT use nearest-COM: a sliding DOF moves
+      // members farther than their mutual spacing (nested_assy: cand b2 sits
+      // 2.3 from ref b1 but 4 from its true partner ref b2) — pair by BEST
+      // SLIDE instead: for each unused A candidate, scan the slide and keep
+      // the (candidate, offset) with the minimal member-bbox diff.
+      const aCompound0 = group.length === 1 ? null : kernel.makeCompound(group.map((gi) => solidsB[gi]!))
+      const bboxB0 = kernel.getBoundingBox(aCompound0 ?? solidsB[group[0]!]!)
+      if (aCompound0) kernel.release(aCompound0)
+      let ai = -1
+      let bestT = 0
+      let bestDiff = Infinity
+      for (let cand0 = 0; cand0 < solidsA.length; cand0++) {
+        if (usedA.has(cand0)) continue
+        const aIdxs = group.map((gi) => cand0 + gi - group[0]!)
+        if (aIdxs[aIdxs.length - 1]! >= solidsA.length) continue
+        const aC = aIdxs.length === 1 ? null : kernel.makeCompound(aIdxs.map((i) => solidsA[i]!))
+        const bboxA = kernel.getBoundingBox(aC ?? solidsA[aIdxs[0]!]!)
+        if (aC) kernel.release(aC)
+        const diffTo = (t: number): number => Math.max(
+          Math.abs(bboxA.xmin - (bboxB0.xmin + dir.x * t)), Math.abs(bboxA.xmax - (bboxB0.xmax + dir.x * t)),
+          Math.abs(bboxA.ymin - (bboxB0.ymin + dir.y * t)), Math.abs(bboxA.ymax - (bboxB0.ymax + dir.y * t)),
+          Math.abs(bboxA.zmin - (bboxB0.zmin + dir.z * t)), Math.abs(bboxA.zmax - (bboxB0.zmax + dir.z * t)),
+        )
+        let localT = 0
+        let localD = diffTo(0)
+        for (let t = -span; t <= span; t += 0.05) {
+          const d = diffTo(t)
+          if (d < localD - 1e-12) { localD = d; localT = t }
+        }
+        if (localD < bestDiff - 1e-12) { bestDiff = localD; bestT = localT; ai = cand0 }
+      }
+      for (let gi = 0; gi < group.length; gi++) {
+        usedA.add(ai! + gi)
+        if (!pairing) pairing = new Array(solidsB.length)
+        pairing[group[gi]!] = ai! + gi
+      }
+      const aIdxs = group.map((gi) => ai! + gi - group[0]!)
+      const aCompound = aIdxs.length === 1 ? null : kernel.makeCompound(aIdxs.map((i) => solidsA[i]!))
+      const bboxMemberA = kernel.getBoundingBox(aCompound ?? solidsA[aIdxs[0]!]!)
+      if (aCompound) kernel.release(aCompound)
+      const diffAt = (t: number): number => {
+        const handles = group.map((gi) => slideBy(solidsB[gi]!, t))
+        const moved = handles.length === 1 ? null : kernel.makeCompound(handles)
+        const b = kernel.getBoundingBox(moved ?? handles[0]!)
+        if (moved) kernel.release(moved)
+        for (const h of handles) kernel.release(h)
+        return Math.max(
+          Math.abs(bboxMemberA.xmin - b.xmin), Math.abs(bboxMemberA.xmax - b.xmax),
+          Math.abs(bboxMemberA.ymin - b.ymin), Math.abs(bboxMemberA.ymax - b.ymax),
+          Math.abs(bboxMemberA.zmin - b.zmin), Math.abs(bboxMemberA.zmax - b.zmax),
+        )
+      }
+      // Refine the paired (candidate, offset) with the kernel-measured diff,
+      // then skip the slide entirely if it doesn't beat the un-moved pose
+      // (avoid chasing noise on already-aligned members).
+      let lo = bestT - 0.1
+      let hi = bestT + 0.1
+      for (let i = 0; i < 40; i++) {
+        const m1 = lo + (hi - lo) * 0.382
+        const m2 = lo + (hi - lo) * 0.618
+        if (diffAt(m1) < diffAt(m2)) hi = m2
+        else lo = m1
+      }
+      bestT = (lo + hi) / 2
+      const d0 = diffAt(0)
+      if (d0 <= diffAt(bestT) + 1e-12) bestT = 0 // already aligned: no slide (avoid chasing noise)
+      details.push(`canonical-pose: translation B${JSON.stringify(group)} -> A offset ${ai}, slide ${bestT.toFixed(4)} along (${dir.x.toFixed(3)},${dir.y.toFixed(3)},${dir.z.toFixed(3)})`)
+      for (const gi of group) {
+        aligned[gi] = slideBy(solidsB[gi]!, bestT)
+        kernel.release(solidsB[gi]!)
+      }
+    }
+    for (const s of solidsA) kernel.release(s)
+    kernel.release(shapeB)
+    shapeB = solidsB.length === 1 ? aligned[0]! : kernel.makeCompound(aligned)
+    canonicalTwistAngle = 0
+  }
+
+  if (opts.poseMode === 'canonical-pose' && opts.canonicalFreeAxis) {
     const ux = opts.canonicalFreeAxis.x
     const uy = opts.canonicalFreeAxis.y
     const uz = opts.canonicalFreeAxis.z
@@ -423,7 +538,13 @@ export async function compareStepFiles(
     comMatch = comDiff <= opts.linearTolerance
     details.push(`center-of-mass diff: ${comDiff.toExponential(3)} mm (tol ${opts.linearTolerance})`)
 
-    if (pairing) {
+    // canonical-pose pairing is only meaningful for SOLID compounds — a wire/
+    // edge compound (2D parametric curves) has no solids; cutting those
+    // HANGS the kernel (testParametricCurve__res_closed probe). hasMass
+    // already admits face-only shapes, so require pairing AND solids on both
+    // sides before the per-member path.
+    const solidCountA = pairing ? kernel.getSubShapes(shapeA, 'solid').length : 0
+    if (pairing && solidCountA === pairing.length && solidCountA > 0) {
       // canonical-pose path: PER-MEMBER paired cuts. The kernel's
       // compound-vs-compound cut returns impossible volumes under 0.33.6
       // (probe: cut > the shape's own volume) while solid-vs-solid cuts are
