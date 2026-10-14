@@ -257,3 +257,110 @@ describe('exec-backend differential: functions, blocks, control flow', () => {
     expect(itp.error?.name).toBe(vm.error?.name)
   })
 })
+/**
+ * Constraint 2 regression: namespace calls in non-statement positions.
+ *
+ * Before the fix, `hoistText` (used for top-level value-expression RHS that
+ * are not bare CallExpression) did not rewrite `cad`/`anim` to `__ns.<binding>`,
+ * so the vm backend emitted a bare namespace name → ReferenceError at runtime.
+ * The interpreter backend used the original AST and resolved ns via env, so it
+ * worked — a vm/interp differential.
+ *
+ * Each case below places a `cad.<op>(...)` call inside a non-call expression
+ * (array literal, object value, conditional, member chain, template literal,
+ * sequence) and asserts both backends succeed with identical results.
+ */
+describe('exec-backend differential: constraint 2 — namespace binding in non-statement positions', () => {
+  it('array literal: [cad.box(...)] — identical geometry', async () => {
+    const code = [
+      'let arr = [cad.box(4, 4, 4, { centered: true })]',
+      'let b = arr[0]',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('object literal value: { s: cad.sphere(...) } — identical geometry', async () => {
+    const code = [
+      'let obj = { s: cad.sphere({ radius: 4 }) }',
+      'let b = obj.s',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('conditional expression: cond ? cad.box(...) : cad.sphere(...)', async () => {
+    const code = [
+      'let pick = 1',
+      'let s = pick > 0 ? cad.box(5, 5, 5, { centered: true }) : cad.sphere({ radius: 3 })',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('member access chain: [cad.box(...)].length — identical values', async () => {
+    const code = [
+      'let arr = [cad.box(2, 2, 2, { centered: true })]',
+      'let n = arr.length',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+  })
+
+  it('template literal with ns call in interpolation — identical values', async () => {
+    const code = [
+      'let a = cad.box(2, 2, 2, { centered: true })',
+      'let tag = `has:${a === null ? "no" : "yes"}`',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+  })
+
+  it('binary expression with ns call operand — identical values', async () => {
+    const code = [
+      'let a = cad.box(5, 5, 5, { centered: true })',
+      'let kind = a === null ? 0 : 1',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+  })
+
+  it('unary expression bracket fix: (-a) ** 2 — identical values', async () => {
+    const code = [
+      'let a = 3',
+      'let b = (-a) ** 2',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+  })
+
+  it('nested array + object + conditional combined — identical geometry', async () => {
+    const code = [
+      'let parts = [{ box: cad.box(3, 3, 3, { centered: true }) }, { sph: cad.sphere({ radius: 2 }) }]',
+      'let pick = 0',
+      'let extra = pick === 0 ? parts[0].box : parts[1].sph',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+})

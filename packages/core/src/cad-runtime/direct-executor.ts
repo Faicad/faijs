@@ -822,9 +822,18 @@ export class DirectExecutor {
     const { nodes, lineOffset, parseText } = this.parseBody(code)
     const declared = new Set<string>() // 累积：参数名 + outputs + 函数名
     const units: TransformedUnit[] = []
+    const seenLines = new Set<number>()
     for (const node of nodes) {
       if (node.type === 'ImportDeclaration') continue // import 行不执行
       const rawLine = (node?.loc?.start?.line ?? 1) - lineOffset
+      if (seenLines.has(rawLine)) {
+        throw new ParseError(
+          `multiple statements on line ${rawLine}: faijs requires one statement per line (use newline instead of ';')`,
+          rawLine,
+          'E_SYNTAX',
+        )
+      }
+      seenLines.add(rawLine)
       const unit = this.transformTopNode(node, parseText, declared, rawLine, lineOffset)
       if (unit) units.push(unit)
     }
@@ -1071,8 +1080,11 @@ export class DirectExecutor {
       return { lineNo, body: `__ctx.${name} = ${call}`, writes: [name], refs: this.collectRefs(init), callee: this.calleeOf(init), endLine: 0 }
     }
     if (init) {
-      // 参数行（字面量/数组/对象）或派生常量：求值后写入 ctx（引用走 __ctx 提升）
-      const exprText = this.hoistText(code.slice(init.start, init.end), declared)
+      // 参数行（字面量/数组/对象）或派生常量：AST 变换后写入 ctx。
+      // 用 transformArg 而非整段 hoistText——数组/对象/成员/条件/二元里的命名空间
+      // 调用与 ctx 引用才能正确发射（约束 2：顶层值表达式不得绕过 AST 变换走上
+      // 「文本同构」快路径）。
+      const exprText = this.transformArg(init, code, declared, lineNo)
       declared.add(name)
       return { lineNo, body: `__ctx.${name} = ${exprText}`, writes: [name], refs: [], callee: undefined, endLine: 0 }
     }
@@ -1097,8 +1109,8 @@ export class DirectExecutor {
         return { lineNo, body: `__ctx.${varName} = ${call}`, writes: [varName], refs: this.collectRefs(init), callee: this.calleeOf(init), endLine: 0 }
       }
       // 变量→变量重赋值 / 表达式重赋值（`bp = bp2` / `x = a + b`）：合法 JS，
-      // 直接提升自由标识符写回 ctx（A-15 最后写者语义）。
-      const rhsText = this.hoistText(code.slice(init?.start ?? expr.right.start, expr.right.end), declared)
+      // 走 AST 变换提升自由标识符写回 ctx（A-15 最后写者语义）。
+      const rhsText = this.transformArg(expr.right, code, declared, lineNo)
       return { lineNo, body: `__ctx.${varName} = ${rhsText}`, writes: [varName], refs: [], callee: undefined, endLine: 0 }
     }
     if (expr?.type === 'CallExpression') {
@@ -1247,14 +1259,21 @@ export class DirectExecutor {
     switch (node.type) {
       case 'Literal':
         return JSON.stringify(node.value)
-      case 'Identifier':
+      case 'Identifier': {
         // P6/D7 + 2026-10-06：免 import 安全全局（单位常量 MM / INCH / DEGREE / … 以及
         // Math / JSON / Number / Infinity / …）从 globalThis 解析，保持裸名发射；否则会被
         // 写成 `__ctx.Math`（undefined），求值结果静默变错。
         // 已声明变量优先提升为 __ctx.<name>，使同名遮蔽（如 `let Math = 5`）仍按用户变量解析。
         if (declared.has(node.name)) return `__ctx.${node.name}`
+        // ctx 键（import 预置 / append 跨文件产出）优先于命名空间——与 emitCall 的
+        // `declared || ctxHas ? __ctx : __ns` 判定同序（约束 2：命名空间绑定不是顶层标识符）。
+        if (this.ctxHas(node.name)) return `__ctx.${node.name}`
+        if (node.name !== 'contractVersion' && Object.hasOwn(this.namespaces, node.name)) {
+          return `__ns.${node.name}`
+        }
         if (isSafeGlobalIdent(node.name)) return node.name
         return `__ctx.${node.name}`
+      }
       case 'CallExpression':
         return this.emitCall(node, code, declared, lineNo)
       case 'ArrayExpression': {
@@ -1271,6 +1290,12 @@ export class DirectExecutor {
             parts.push(`...${this.transformArg(prop.argument, code, declared, lineNo)}`)
             continue
           }
+          if (prop.method === true || (prop.kind && prop.kind !== 'init')) {
+            // 方法简写 / getter / setter：AST 没有「属性名: 函数值」的对等再现形态，
+            // 保留原文本片段（内部 ctx/ns 引用仍走 hoistText 提升）。
+            parts.push(this.hoistText(code.slice(prop.start, prop.end), declared))
+            continue
+          }
           const key = prop.key?.type === 'Identifier' ? prop.key.name
             : prop.key?.type === 'Literal' ? JSON.stringify(String(prop.key.value))
             : null
@@ -1282,7 +1307,9 @@ export class DirectExecutor {
         return `{ ${parts.join(', ')} }`
       }
       case 'UnaryExpression':
-        return `${node.operator}(${this.transformArg(node.argument, code, declared, lineNo)})`
+        // 外层括号：AST 发射丢弃了源括号，一元运算符紧邻 `**` 左操作数时 JS 要求
+        // 显式括号（`(-a) ** 2` 合法，`-a ** 2` 抛 SyntaxError）。
+        return `(${node.operator}(${this.transformArg(node.argument, code, declared, lineNo)}))`
       case 'BinaryExpression':
       case 'LogicalExpression':
         // Parenthesize both operands: the AST emission drops the source's
@@ -1291,16 +1318,52 @@ export class DirectExecutor {
         return `(${this.transformArg(node.left, code, declared, lineNo)} ${node.operator} ${this.transformArg(node.right, code, declared, lineNo)})`
       case 'ConditionalExpression':
         return `(${this.transformArg(node.test, code, declared, lineNo)} ? ${this.transformArg(node.consequent, code, declared, lineNo)} : ${this.transformArg(node.alternate, code, declared, lineNo)})`
-      case 'MemberExpression':
-        return this.hoistText(code.slice(node.start, node.end), declared)
+      case 'TemplateLiteral': {
+        // AST 重建模板：默认分支的 hoistText 会把模板「文本部分」里的标识符也做词边界
+        // 替换（`n=${n}` 的文本 n 与变量 n 同名 → `__ctx.n=${__ctx.n}`，求值错）。
+        const quasis = node.quasis ?? []
+        const exprs = node.expressions ?? []
+        let out = '`'
+        for (let i = 0; i < quasis.length; i++) {
+          out += quasis[i].value.raw ?? quasis[i].value.cooked ?? ''
+          if (i < exprs.length) out += '${' + this.transformArg(exprs[i], code, declared, lineNo) + '}'
+        }
+        return out + '`'
+      }
+      case 'SequenceExpression':
+        // AST 序号表达式丢弃了源括号（node.start 不含 `(`），必须补回，
+        // 否则 `x = (1, 2)` 被发射成 `x = 1, 2` → 只赋 1（两后端不一致）。
+        return `(${(node.expressions ?? [])
+          .map((e: ASTNode) => this.transformArg(e, code, declared, lineNo))
+          .join(', ')})`
+      case 'MemberExpression': {
+        // 可选链保持文本兜底（递归会丢 `?.`）。
+        if (node.optional) return this.hoistText(code.slice(node.start, node.end), declared)
+        // 递归 object（而非整段 hoistText）：object 可能是命名空间调用（cad.box(…).x）
+        // 或 ctx 成员链。始终给 object 加括号，保证 await/调用/二元结果的成员访问优先级
+        // 正确——`await __ns.cad.box(x).y` 会先取 `.y` 再 await（错），
+        // 必须 `(await __ns.cad.box(x)).y`（约束 2 的链式形态）。
+        const objText = this.transformArg(node.object, code, declared, lineNo)
+        if (node.computed) {
+          return `(${objText})[${this.transformArg(node.property, code, declared, lineNo)}]`
+        }
+        return `(${objText}).${node.property.name}`
+      }
       default:
         return this.hoistText(code.slice(node.start, node.end), declared)
     }
   }
 
   /** 文本级自由标识符提升：把已声明变量名 + 当前 ctx 键（import 预置/先前执行产出）
-   *  替换为 __ctx.<name>（词边界）。含 ctx 键 → append 跨文件引用（D6）与模块命名空间
-   *  成员（cfg.OUTX）在实参文本中同样可解析。 */
+   *  替换为 __ctx.<name>（词边界）；命名空间绑定（cad + registerLib 注册库）替换为
+   *  __ns.<binding>（调用形态前置 await），与 hoistBlockText 步骤 ③ 同语义。
+   *
+   *  含 ctx 键 → append 跨文件引用（D6）与模块命名空间成员（cfg.OUTX）在实参文本中
+   *  同样可解析。命名空间分支不可省：该函数服务顶层**值表达式**（数组/对象/成员/条件/
+   *  二元等非调用 RHS）与 transformArg 的 MemberExpression/default 兜底，这些位置不经过
+   *  emitCall，若不在此发射 __ns.<binding>，裸名在 vm 包装（只注入 __ctx/__ns/__isGeom）
+   *  内即是自由标识符 → ReferenceError（`cad is not defined`）；而执行同段文本的
+   *  interpreter 后端靠 env 的 ns 查找能解析，形成两后端差分（约束 2）。 */
   private hoistText(text: string, declared: Set<string>): string {
     let out = text
     const names = new Set<string>(declared)
@@ -1308,6 +1371,24 @@ export class DirectExecutor {
     for (const name of names) {
       out = out.replace(new RegExp(`\\b${name}\\b`, 'g'), `__ctx.${name}`)
     }
+    // 命名空间绑定（排除 contractVersion / 已声明同名遮蔽 / 已由 import 预置进 ctx 的绑定）
+    const nsNames = Object.keys(this.namespaces).filter((k) => k !== 'contractVersion')
+    for (const nsName of nsNames) {
+      if (names.has(nsName)) continue
+      // 调用形态：`cad.box(` → `await __ns.cad.box(`
+      out = out.replace(
+        new RegExp(`(?<![.\\w])\\b${nsName}\\s*\\.\\s*(\\w+)\\s*\\(`, 'g'),
+        `await __ns.${nsName}.$1(`,
+      )
+      // 裸成员访问（非调用）：`cad.foo` → `__ns.cad.foo`（非调用不加 await）
+      out = out.replace(
+        new RegExp(`(?<![.\\w])\\b${nsName}\\s*\\.`, 'g'),
+        `__ns.${nsName}.`,
+      )
+    }
+    // 双前缀修正（与 hoistBlockText 尾部一致）
+    out = out.replace(/__ns\.__ns\./g, '__ns.')
+    out = out.replace(/await\s+await\s+__ns\./g, 'await __ns.')
     return out
   }
 

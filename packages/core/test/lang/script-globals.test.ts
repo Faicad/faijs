@@ -32,15 +32,15 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { extractMetadata } from './metadata-extractor'
-import { isSafeGlobalIdent, S4_SAFE_GLOBALS } from './security-scanner'
-import { validateExpression } from './expr-validate'
-import { codeToArgs } from './code-to-args'
-import { SCRIPT_UNIT_NAMES } from '../units'
-import { CadRuntime } from '../cad-runtime/runtime'
-import { DirectExecutor } from '../cad-runtime/direct-executor'
-import type { HostPorts } from '../cad-runtime/ports'
-import { createApiNamespaceWithEditorOps } from '../../test/support/editor-ops'
+import { extractMetadata } from '../../src/lang/metadata-extractor'
+import { isSafeGlobalIdent, S4_SAFE_GLOBALS } from '../../src/lang/security-scanner'
+import { validateExpression } from '../../src/lang/expr-validate'
+import { codeToArgs } from '../../src/lang/code-to-args'
+import { SCRIPT_UNIT_NAMES } from '../../src/units'
+import { CadRuntime } from '../../src/cad-runtime/runtime'
+import { DirectExecutor } from '../../src/cad-runtime/direct-executor'
+import type { HostPorts } from '../../src/cad-runtime/ports'
+import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as unknown as HostPorts
