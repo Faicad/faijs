@@ -181,6 +181,11 @@ export async function compareStepFiles(
   // by a rotation about the axis through B's COM, so computing them before or
   // after this alignment is equivalent — do it before, once.
   let canonicalTwistAngle: number | undefined
+  // Pairing map from the canonical scan (B-side solid index → A-side index):
+  // the final boolean diff uses PER-MEMBER paired cuts — the occt-wasm kernel's
+  // compound-vs-compound cut returns IMPOSSIBLE volumes under 0.33.6 (> the
+  // shape's own volume, probe-verified) while solid-vs-solid cuts are exact.
+  let pairing: number[] | null = null
   if (opts.poseMode === 'canonical-pose') {
     if (!opts.canonicalFreeAxis) {
       throw new Error("poseMode 'canonical-pose' requires canonicalFreeAxis (the solver's underdetermined free direction)")
@@ -246,7 +251,17 @@ export async function compareStepFiles(
         const d = Math.hypot(comA[i].x - com.x, comA[i].y - com.y, comA[i].z - com.z)
         if (d < best) { best = d; ai = i }
       }
-      for (const gi of group) usedA.add(gi)
+      // Mark the A-side solids this group consumes (ai + the group's relative
+      // offsets). GOTCHA (0.33.6 regression): marking the B-side indices (gi)
+      // corrupted the pairing — usedA was checked against A-side indices but
+      // filled with B-side ones, so later groups matched already-consumed A
+      // members (simple_assy: b1's group paired to b3b's A solid and got
+      // twisted to chase its bbox → boolean diff = whole-member volume).
+      for (let gi = 0; gi < group.length; gi++) {
+        usedA.add(ai + gi)
+        if (!pairing) pairing = new Array(solidsB.length)
+        pairing[group[gi]] = ai + gi
+      }
       // Scan the twist about the member's own COM (pivot override applies when
       // the anchor is off-COM); MEMBER-vs-MEMBER bbox — aligning one member
       // against the whole-assembly bbox would chase the wrong optimum. For
@@ -280,6 +295,24 @@ export async function compareStepFiles(
         const rotCompound = rotHandles.length === 1 ? null : kernel.makeCompound(rotHandles)
         const b = kernel.getBoundingBox(rotCompound ?? rotHandles[0])
         const c = kernel.getCenterOfMass(rotCompound ?? rotHandles[0])
+        // Boolean cut is the DECISIVE objective: the bbox objective is
+        // degenerate for prismatic members (a 1x1x2 box's bbox is nearly
+        // invariant under ~90° twist about its long axis — the sharp true
+        // minimum at 9.31° loses to the flat degenerate basin at 80.7° on a
+        // 2° grid), while cut volume is ~0 only where the geometry ACTUALLY
+        // coincides. MUST run before the releases below (cutting released
+        // handles raises INVALID_SHAPE_ID).
+        const aC = aIdxs.length === 1 ? solidsA[aIdxs[0]] : kernel.makeCompound(aIdxs.map((i) => solidsA[i]))
+        const bC = rotCompound ?? rotHandles[0]
+        const cutAB = kernel.cut(aC as never, bC as never)
+        const cutBA = kernel.cut(bC as never, aC as never)
+        const cutVol = kernel.getVolume(cutAB) + kernel.getVolume(cutBA)
+        // Release the cut results — the scan evaluates ~1800 cuts per case;
+        // leaking them floods the handle table (occt-wasm may recycle IDs,
+        // silently corrupting later cuts).
+        kernel.release(cutAB)
+        kernel.release(cutBA)
+        if (aIdxs.length > 1) kernel.release(aC)
         if (rotCompound) kernel.release(rotCompound)
         for (const h of rotHandles) kernel.release(h)
         const bboxDiffLocal = Math.max(
@@ -288,13 +321,24 @@ export async function compareStepFiles(
           Math.abs(bboxMemberA.zmin - b.zmin), Math.abs(bboxMemberA.zmax - b.zmax),
         )
         const comDist = Math.hypot(comMemberA.x - c.x, comMemberA.y - c.y, comMemberA.z - c.z)
-        return Math.max(bboxDiffLocal, comDist)
+        return Math.max(bboxDiffLocal, comDist, cutVol)
       }
       let bestDeg = 0
       let bestDiff = diffAtDeg(0)
       for (let deg = 2; deg < 360; deg += 2) {
         const d = diffAtDeg(deg)
-        if (d < bestDiff) { bestDiff = d; bestDeg = deg }
+        if (d < bestDiff - 1e-12) { bestDiff = d; bestDeg = deg }
+        // Tie-break (0.33.6 regression): the bbox objective is degenerate for
+        // prismatic members — a 1x1x2 box at ±small twist and at ~90° give
+        // EQUAL minima (COM tie-break is void when the COM sits ON the pivot).
+        // Among equal-minimum candidates prefer the SMALLEST |angle|: the free
+        // twist is by definition a small pose correction, while the ~90°
+        // twin is a bbox-simplicity illusion that misaligns the actual
+        // geometry (boolean diff 5 mm³ despite a "perfect" 8.6e-8 bbox).
+        else if (Math.abs(d - bestDiff) <= 1e-12 && Math.min(Math.abs(deg), Math.abs(deg - 360)) < Math.min(Math.abs(bestDeg), Math.abs(bestDeg - 360))) {
+          bestDiff = Math.min(bestDiff, d)
+          bestDeg = deg
+        }
       }
       let lo = bestDeg - 2
       let hi = bestDeg + 2
@@ -319,6 +363,9 @@ export async function compareStepFiles(
         }
       }
       if (Math.abs(angle) > Math.abs(maxAbsTwist)) maxAbsTwist = angle
+      details.push(
+        `canonical-pose: group B${JSON.stringify(group)} -> A offset ${ai}, twist ${angle.toFixed(3)}° about pivot (${pv.x.toFixed(3)},${pv.y.toFixed(3)},${pv.z.toFixed(3)}), scan min diff ${fine.toExponential(3)}`,
+      )
       // One angle about one pivot for the WHOLE group (rigid unit).
       for (const gi of group) {
         aligned[gi] = rotAbout(solidsB[gi], angle, pv)
@@ -376,14 +423,34 @@ export async function compareStepFiles(
     comMatch = comDiff <= opts.linearTolerance
     details.push(`center-of-mass diff: ${comDiff.toExponential(3)} mm (tol ${opts.linearTolerance})`)
 
-    const aMinusB = kernel.cut(shapeA, shapeB)
-    const bMinusA = kernel.cut(shapeB, shapeA)
-    volAB = kernel.getVolume(aMinusB)
-    volBA = kernel.getVolume(bMinusA)
-    boolMatch = volAB <= opts.booleanVolumeTolerance && volBA <= opts.booleanVolumeTolerance
-    details.push(`boolean diff: A-B=${volAB.toExponential(3)} mm³, B-A=${volBA.toExponential(3)} mm³ (tol ${opts.booleanVolumeTolerance})`)
-    kernel.release(aMinusB)
-    kernel.release(bMinusA)
+    if (pairing) {
+      // canonical-pose path: PER-MEMBER paired cuts. The kernel's
+      // compound-vs-compound cut returns impossible volumes under 0.33.6
+      // (probe: cut > the shape's own volume) while solid-vs-solid cuts are
+      // exact — sum the paired residuals instead of cutting whole compounds.
+      const solidsA = kernel.getSubShapes(shapeA, 'solid')
+      const solidsB = kernel.getSubShapes(shapeB, 'solid')
+      for (let bi = 0; bi < pairing.length; bi++) {
+        const ai = pairing[bi]
+        if (ai === undefined) continue
+        const cAB = kernel.cut(solidsA[ai] as never, solidsB[bi] as never)
+        const cBA = kernel.cut(solidsB[bi] as never, solidsA[ai] as never)
+        volAB += kernel.getVolume(cAB)
+        volBA += kernel.getVolume(cBA)
+        kernel.release(cAB)
+        kernel.release(cBA)
+      }
+      for (const s of solidsA) kernel.release(s)
+      for (const s of solidsB) kernel.release(s)
+      details.push(`boolean diff (per-member paired): A-B=${volAB.toExponential(3)} mm³, B-A=${volBA.toExponential(3)} mm³ (tol ${opts.booleanVolumeTolerance})`)
+    } else {
+      const aMinusB = kernel.cut(shapeA, shapeB)
+      const bMinusA = kernel.cut(shapeB, shapeA)
+      volAB = kernel.getVolume(aMinusB)
+      volBA = kernel.getVolume(bMinusA)
+      kernel.release(aMinusB)
+      kernel.release(bMinusA)
+    }
   } else {
     details.push('volume/COM/boolean: skipped (no solid or face topology in either shape)')
   }
