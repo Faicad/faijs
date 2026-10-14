@@ -8,9 +8,11 @@
  *   npx tsx scripts/probe-spline-face.ts [--case spur-basic] [--strategy grid-approx]
  */
 
-import { loadManifest } from '../src/fixtures'
-import { getGearKernel } from '@faicad/faijs-cadquery'
+import { loadManifest } from '../test/fixtures'
+import { gearKernel } from '../src/kernel'
+import { initOCCT } from '../src/test-setup'
 import { buildSplineFace, SPLINE_FACE_STRATEGIES, type SplineFaceStrategy } from '../src/spline-face'
+import { gearIsFace } from '../src/kernel'
 import { spurGearGeometry, toothFaceGrids } from '../src/profile'
 import type { SpurGearParams } from '../src/profile'
 
@@ -20,7 +22,8 @@ function arg(name: string): string | undefined {
 }
 
 async function main(): Promise<void> {
-  const kernel = await getGearKernel()
+  await initOCCT()
+  const kernel = gearKernel()
   const caseId = arg('case') ?? 'spur-basic'
   const strategy = arg('strategy') as SplineFaceStrategy | undefined
 
@@ -38,18 +41,18 @@ async function main(): Promise<void> {
       let line = `   ${grid.segment.padEnd(7)}`
       try {
         const shape = buildSplineFace(kernel, grid, s)
-        const type = kernel.getShapeType(shape)
-        line += ` type=${String(type).padEnd(10)} isFace=${kernel.isFace(shape)}`
-        line += ` isValid=${kernel.isValid(shape)}`
-        line += ` faces=${kernel.subShapeCount(shape, 'face')} edges=${kernel.subShapeCount(shape, 'edge')}`
+        const type = kernel.l1.shapeType(shape)
+        line += ` type=${String(type).padEnd(10)} isFace=${gearIsFace(kernel, shape)}`
+        line += ` isValid=${kernel.l1.isValid(shape)}`
+        line += ` faces=${kernel.l1.subShapeCount(shape, 'face')} edges=${kernel.l1.subShapeCount(shape, 'edge')}`
         try {
-          line += ` area=${kernel.getSurfaceArea(shape).toFixed(6)}`
+          line += ` area=${kernel.l1.getSurfaceArea(shape).toFixed(6)}`
         } catch (e) {
           line += ` area=<err ${(e as Error).message}>`
         }
         for (const p of grid.points.flat().slice(0, 1)) {
           try {
-            const q = kernel.projectPointOnFace(shape, p)
+            const q = kernel.occt.projectPointOnFace(shape, p)
             line += ` proj(0)=${Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z).toExponential(2)}`
           } catch (e) {
             line += ` proj(0)=<err ${(e as Error).message}>`

@@ -13,8 +13,9 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { exportStepFromSolids, type StepExportEntry } from '@faicad/faijs'
-import { loadManifest, OUT_DIR, type ReferenceCase } from '../src/fixtures'
-import { getGearKernel } from '@faicad/faijs-cadquery'
+import { loadManifest, OUT_DIR, type ReferenceCase } from '../test/fixtures'
+import { gearKernel } from '../src/kernel'
+import { initOCCT } from '../src/test-setup'
 import { buildSpurGearSolid, buildHerringboneGearSolid, buildHyperbolicGearSolid, type BuildSpurGearOptions } from '../src/spur_gear'
 import {
   buildRingGearSolid, buildHerringboneRingGearSolid,
@@ -34,13 +35,13 @@ import {
 import {
   buildPlanetaryGearset, planetaryExportParts, type PlanetaryGearsetParams,
 } from '../src/planetary'
-import { bevelGearOptionsFromArgs, bevelPairOptionsFromArgs, gearFeatureOptionsFromArgs } from '../src/testing/reference-options'
+import { bevelGearOptionsFromArgs, bevelPairOptionsFromArgs, gearFeatureOptionsFromArgs } from '../test/support/reference-options'
 import type {
   SpurGearParams, RingGearParams, CrossedHelicalGearParams, RackGearParams, BevelGearParams,
   HyperbolicGearParams, WormParams,
 } from '../src/profile'
 import type { SplineFaceStrategy } from '../src/spline-face'
-import type { GearKernel } from '@faicad/faijs-cadquery'
+import type { GearKernel } from '../src/kernel'
 import type { BrepHandle } from '@faicad/faijs'
 
 function arg(name: string): string | undefined {
@@ -126,7 +127,7 @@ export function buildOurShape(
   switch (c.class) {
     case 'Box': {
       const { width = 10, depth = 20, height = 30 } = c.args as Record<string, number>
-      return kernel.makeBoxFromCorners(
+      return kernel.l1.makeBoxFromCorners(
         { x: -width / 2, y: -depth / 2, z: -height / 2 },
         { x: width / 2, y: depth / 2, z: height / 2 },
       )
@@ -169,7 +170,8 @@ export function buildOurShape(
 }
 
 async function main(): Promise<void> {
-  const kernel = await getGearKernel()
+  await initOCCT()
+  const kernel = gearKernel()
   const outDir = arg('out') ?? OUT_DIR
   const strategy = (arg('strategy') ?? 'row-approx-loft') as SplineFaceStrategy
   const only = arg('case')
@@ -186,16 +188,16 @@ async function main(): Promise<void> {
     // bbox = 各件的并集（与 Compound.BoundingBox() 同定义）。
     let volume = 0
     const boxes = parts.map((p) => {
-      const v = kernel.getVolume(p.solid)
+      const v = kernel.l1.getVolume(p.solid)
       volume += v
-      return kernel.getBoundingBox(p.solid)
+      return kernel.l1.getBoundingBox(p.solid)
     })
     const bbox = [
       Math.max(...boxes.map((b) => b.xmax)) - Math.min(...boxes.map((b) => b.xmin)),
       Math.max(...boxes.map((b) => b.ymax)) - Math.min(...boxes.map((b) => b.ymin)),
       Math.max(...boxes.map((b) => b.zmax)) - Math.min(...boxes.map((b) => b.zmin)),
     ]
-    const step = exportStepFromSolids(kernel, parts)
+    const step = exportStepFromSolids(kernel.l1, parts)
     const file = `${outDir}/${c.id}.step`
     writeFileSync(file, Buffer.from(step))
     const ms = Date.now() - t0

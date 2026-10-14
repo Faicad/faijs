@@ -18,7 +18,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../src/runtime-state'
 import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { cylinder } from '../../src/api/primitives'
 import type { Shape } from '../../src/mesh/types'
 
@@ -29,7 +29,7 @@ beforeAll(async () => {
 }, 120000)
 
 async function setBackend(mode: 'mesh' | 'brep'): Promise<void> {
-  const kernel = (await getBrepEngine()).primitives
+  const kernel = (await getActiveBrepEngine()).primitives
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode },

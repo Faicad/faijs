@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getGearKernel, type GearKernel } from '../src/kernel'
+import { gearKernel, type GearKernel } from '../src/kernel'
 import { buildHerringboneGearSolid } from '../src/spur_gear'
 import { buildHerringboneRingGearSolid } from '../src/ring_gear'
 import type { SpurGearParams, RingGearParams } from '../src/profile'
@@ -27,22 +27,22 @@ const CASE_ARGS: Record<string, SpurGearParams | RingGearParams> = {
 describe('HerringboneGear 实体构造 vs cq_gears（裸齿轮体积）', () => {
   let kernel: GearKernel
   it('内核就绪', async () => {
-    kernel = await getGearKernel()
+    kernel = await gearKernel()
     expect(kernel).toBeDefined()
   })
 
   it('hb-basic 体积与 Python 裸人字齿一致', () => {
     const solid = buildHerringboneGearSolid(kernel, CASE_ARGS['hb-basic'] as SpurGearParams)
-    expect(kernel.isSolid(solid), 'hb-basic: 结果不是 solid').toBe(true)
-    const vol = kernel.getVolume(solid)
+    expect(kernel.l1.isSolid(solid), 'hb-basic: 结果不是 solid').toBe(true)
+    const vol = kernel.l1.getVolume(solid)
     const rel = Math.abs(vol - BARE_VOLUME['hb-basic']) / BARE_VOLUME['hb-basic']
     expect(rel, `hb-basic: 体积相对差 ${rel.toExponential(3)} (got ${vol.toFixed(3)} vs ref ${BARE_VOLUME['hb-basic']})`).toBeLessThan(1e-3)
   })
 
   it('hbring-basic 体积与 Python 裸人字内齿一致', () => {
     const solid = buildHerringboneRingGearSolid(kernel, CASE_ARGS['hbring-basic'] as RingGearParams)
-    expect(kernel.isSolid(solid), 'hbring-basic: 结果不是 solid').toBe(true)
-    const vol = kernel.getVolume(solid)
+    expect(kernel.l1.isSolid(solid), 'hbring-basic: 结果不是 solid').toBe(true)
+    const vol = kernel.l1.getVolume(solid)
     const rel = Math.abs(vol - BARE_VOLUME['hbring-basic']) / BARE_VOLUME['hbring-basic']
     expect(rel, `hbring-basic: 体积相对差 ${rel.toExponential(3)} (got ${vol.toFixed(3)} vs ref ${BARE_VOLUME['hbring-basic']})`).toBeLessThan(1e-3)
   })

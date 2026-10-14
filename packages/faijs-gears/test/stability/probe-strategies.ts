@@ -1,5 +1,6 @@
 /** One-off probe: failing spur case bbox across the 3 spline-face strategies. */
-import { getGearKernel } from '../../src/kernel'
+import { gearKernel } from '../../src/kernel'
+import { initOCCT } from '../../src/test-setup'
 import { buildSpurGearSolid } from '../../src/spur_gear'
 import { spurGearGeometry } from '../../src/profile'
 import { GEAR_SPLINE_FACE_STRATEGIES } from '../../src/kernel'
@@ -11,10 +12,12 @@ const params = {
 const g = spurGearGeometry(params)
 console.log(`ra*2=${g.ra * 2}`)
 
-const kernel = await getGearKernel()
+await initOCCT()
+
+const kernel = gearKernel()
 for (const s of GEAR_SPLINE_FACE_STRATEGIES) {
   const solid = buildSpurGearSolid(kernel, params, { strategy: s })
-  const bb = kernel.getBoundingBox(solid, false)
+  const bb = kernel.l1.getBoundingBox(solid, false)
   const maxd = Math.max(bb.xmax - bb.xmin, bb.ymax - bb.ymin)
-  console.log(`${s}: maxd=${maxd} delta=${maxd - g.ra * 2} vol=${kernel.getVolume(solid)}`)
+  console.log(`${s}: maxd=${maxd} delta=${maxd - g.ra * 2} vol=${kernel.l1.getVolume(solid)}`)
 }

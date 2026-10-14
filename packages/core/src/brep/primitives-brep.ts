@@ -19,7 +19,7 @@
  * 坐标系：Z-up、毫米，与 mesh 路径一致。
  */
 
-import { getBrepEngine } from './engine/registry'
+import { getActiveBrepEngine } from './engine/registry'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
 import type { BrepHandle } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
@@ -63,7 +63,7 @@ async function brepToShape(
   params: BoxParams | SphereParams | CylinderParams | ConeParams | WedgeParams,
   segments?: number,
 ): Promise<Shape> {
-  const kernel: BrepEngineApi = (await getBrepEngine()).primitives
+  const kernel: BrepEngineApi = (await getActiveBrepEngine()).primitives
 
   // 用升级后的 primitiveToBrepSolid 构造 OCCT 精确实体
   const result = primitiveToBrepSolid(kernel, type, params)

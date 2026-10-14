@@ -87,8 +87,8 @@ describe('P0: segments 统一契约', () => {
   })
 
   it('solidToShape 显式 segments 也驱动三角化（brep-ops 消费点）', async () => {
-    const { getBrepEngine } = await import('../../src/brep/engine/registry')
-    const kernel = (await getBrepEngine()).primitives
+    const { getActiveBrepEngine } = await import('../../src/brep/engine/registry')
+    const kernel = (await getActiveBrepEngine()).primitives
     // 每个 segments 用独立实体构造（同一句柄的 tessellation 会被 OCCT 缓存）
     const low = primitiveToBrepSolid(kernel, 'sphere', { radius: 10 })
     const shape8 = solidToShape(kernel, low.solid, 8)

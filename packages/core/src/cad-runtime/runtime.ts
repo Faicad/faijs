@@ -22,7 +22,7 @@ import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
-import { getBrepEngine, hasBrepEngine, getActiveBrepEngineId, getMeshSolidBackend } from '../brep/engine/registry'
+import { getActiveBrepEngine, hasBrepEngine, getActiveBrepEngineId, getMeshSolidBackend } from '../brep/engine/registry'
 import { ensureOcctDefaultEngine } from '../brep/engine/adapters/occt'
 import { MeshSolidRegistry } from '../brep/mesh-solid'
 import { ParseError } from '../lang/parse-error'
@@ -49,6 +49,13 @@ import {
   configureTessellation, type TessellationDensity,
 } from '../runtime-state'
 import { admitCompatLib } from './admit-compat-lib'
+import {
+  assertLibDecl,
+  type LibDecl,
+  type LibDescription,
+  type LibFunctionView,
+  type LibsUnderEngine,
+} from './lib-decl'
 import { hasDualOp, dualOpMetaOf } from '../define-op'
 import { computeLibId } from './lib-id'
 import { computeContentKey, stableFingerprint } from './content-key'
@@ -439,6 +446,8 @@ export class CadRuntime {
   private readonly libIds = new Map<string, string>()
   /** import specifier → binding 映射（registerLib 的 packageName 声明；check ①.5 校验 specifier） */
   private readonly specifierToBinding = new Map<string, string>()
+  /** 库级定位声明与来源（binding → { packageName, decl }），describeLib / libsUnder 读。 */
+  private readonly libDecls = new Map<string, { packageName?: string; decl?: LibDecl }>()
   private readonly namespaces: Namespaces
   /** 默认命名空间绑定名（U10/R2）：根门面经 registerLib(binding, ns, {default: true}) 显式声明；
    *  缺省 'cad'（与 parser 缺省 defaultNs 一致）。namespace 字段缺省的语句归属该绑定。 */
@@ -475,9 +484,15 @@ export class CadRuntime {
    * @param options - registration hints. `packageName` declares the npm package
    *   backing this binding so `check()` can validate script import specifiers
    *   against registered libraries (specifier mismatch = hard check error).
-
+   *   `lib` / `peers` carry the library-level `faijs.lib` declaration (定位属性)
+   *   and its `peerDependencies`; they are validated at assembly time
+   *   (`assertLibDecl`) and feed `fn.engines ?? lib.platform` resolution.
+   *   Engine constraints are resolved at admission, i.e. only on the lifted path,
+   *   so two unhonourable shapes are rejected: (a) any declaration while admitted
+   *   WITHOUT lifting, (b) a non-empty `lib.platform` when the library also
+   *   exports a dual-op without its own `engines`.
    */
-  registerLib(binding: string, ns: LibNamespace, options?: { default?: boolean; autoLift?: boolean; packageName?: string }): void {
+  registerLib(binding: string, ns: LibNamespace, options?: { default?: boolean; autoLift?: boolean; packageName?: string; lib?: unknown; peers?: Readonly<Record<string, string>> }): void {
     // Reserved binding guard (2026-10-13): `cad` is the only reserved name.
     // The engine's own first registration (from `createRuntime`) sets the
     // `_cadReserved` flag; any subsequent attempt to register or override
@@ -490,6 +505,23 @@ export class CadRuntime {
       )
     }
     assertContractVersion(ns as unknown as { contractVersion?: number })
+    // 库级定位声明：装配期校验（形态 / 引擎 id / 单向 peer 约束）后再解析函数级有效引擎。
+    //
+    // 来源两条：调用方显式传入（`lib` / `peers`），或按 `packageName` 走 loader 的既有
+    // 读盘通道（`libMetaFor`，与自动装载同源同一次读盘）。显式传入优先——那是宿主覆盖
+    // 声明的手段。少了这条回落，`registerLib(ns, { packageName })` 这条同样合法的装配
+    // 路径会静默丢掉库自身 `package.json` 里的定位声明，`describeLib` 于是对调用方撒谎
+    // ——「声明了却不生效」正是本批要消灭的那类 bug。
+    const pkgName = options?.packageName
+    const fromLoader =
+      options?.lib === undefined && pkgName !== undefined
+        ? this.ports.libLoader?.libMetaFor?.(pkgName)
+        : undefined
+    const decl = assertLibDecl(
+      options?.lib ?? fromLoader?.lib,
+      options?.peers ?? fromLoader?.peers,
+      options?.packageName ?? binding,
+    )
     // B4: admit bare (non-dual-op) library functions through compatOp when
     // autoLift is true (or inferred true — the library has no dual-op).
     // Hard ordering: assertLibConforms runs inside admitCompatLib BEFORE
@@ -500,10 +532,64 @@ export class CadRuntime {
     // bare function is admitted with the default unmodeled provenance (see
     // admit-compat-lib.ts).
     const lift = options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>)
+    // 引擎约束（库级 `faijs.lib.platform` 与函数级 `fn.engines`）只在**提升通路**上落地：
+    // admitCompatLib 包装裸函数并把解析后的有效引擎写进 op 元数据，分派侧只读元数据。
+    // 于是有两种「声明了却无法兑现」的形态，都在装配期当场拒绝——静默放行会让声明变成
+    // 空话，而这正是本批要消灭的那类 bug。
+    const nsEntries = Object.entries(ns as unknown as Record<string, unknown>)
+    /**
+     * **裸函数**上的 `fn.engines`（`typeof v === 'function'` 且不带 `DUAL_OP_META`）。
+     *
+     * dual-op 的引擎声明长在 op 自己的元数据里，由分派侧直接读——它**不经过**提升
+     * 通路，所以与本开关无关，不能算进下面的「死声明」判定。把两者混在一起会误拒
+     * 自带元数据的宿主命名空间：内置 `cad` 正是这种形态（46 个平台 op 各有
+     * `engines`，而它以 `autoLift=false` 注册）。
+     */
+    const bareDeclared = nsEntries
+      .filter(([, v]) => {
+        if (typeof v !== 'function' || dualOpMetaOf(v) !== undefined) return false
+        const e = (v as { engines?: readonly unknown[] }).engines
+        return e !== undefined && e.length > 0
+      })
+      .map(([name]) => name)
+    const libPlatform = decl?.platform ?? []
+    if (!lift) {
+      // 不提升 ⇒ 裸函数不是 op，没有元数据可挂 ⇒ 它的 `fn.engines` 与库级 `platform`
+      // 都是死声明（dual-op 不在此列，见上）。
+      if (libPlatform.length > 0 || bareDeclared.length > 0) {
+        const what = [
+          ...(libPlatform.length > 0 ? [`faijs.lib.platform = [${libPlatform.join('/')}]`] : []),
+          ...(bareDeclared.length > 0 ? [`fn.engines on ${bareDeclared.join(', ')}`] : []),
+        ].join(' and ')
+        throw new Error(
+          `[faijs] lib '${options?.packageName ?? binding}': ${what} declared, but the library is admitted ` +
+            'WITHOUT lifting (autoLift=false) — the effective engine set is resolved at admission, which only ' +
+            'exists on the lifted path. Register with autoLift: true (or declare faijs.autoLift: true), or drop ' +
+            'the engine declarations.',
+        )
+      }
+    } else if (libPlatform.length > 0) {
+      // 提升通路只包装裸函数：dual-op 自带元数据、注入不进去，所以它们必须自己声明 engines。
+      const uncovered = nsEntries
+        .filter(([, v]) => {
+          const meta = dualOpMetaOf(v)
+          return meta !== undefined && meta.engines === undefined
+        })
+        .map(([name]) => name)
+      if (uncovered.length > 0) {
+        throw new Error(
+          `[faijs] lib '${options?.packageName ?? binding}': faijs.lib.platform = [${libPlatform.join('/')}] ` +
+            `cannot cover dual-op function(s) ${uncovered.join(', ')} — a library-level platform is injected ` +
+            'at admission, which only wraps bare functions; ops keep their own metadata. Declare `engines` ' +
+            'on those ops (or drop the library-level platform).',
+        )
+      }
+    }
     const admitted = lift
-      ? (admitCompatLib(ns as unknown as Record<string, unknown>) as LibNamespace)
+      ? (admitCompatLib(ns as unknown as Record<string, unknown>, decl?.platform) as LibNamespace)
       : ns
     this.libs[binding] = admitted
+    this.libDecls.set(binding, { packageName: options?.packageName, decl })
     this.libIds.set(binding, computeLibId(binding, ns as unknown as Record<string, unknown>))
     if (options?.packageName) {
       this.specifierToBinding.set(options.packageName, binding)
@@ -517,6 +603,72 @@ export class CadRuntime {
   /** The runtime's default namespace binding name (host-declared; 'cad' by default). */
   get defaultNs(): string {
     return this.defaultNsName
+  }
+
+  /**
+   * 库调用方查询面（2026-10-14 §3.3 第 3 项）：回答「这个库需要什么内核」。
+   *
+   * 返回该库的库级定位（`role` / `conformsTo` / `platform`）+ 逐函数的**有效**引擎
+   * 与产物名。`engines` 是装配期已解析的值（`fn.engines ?? lib.platform ?? 中立`），
+   * 所以「未写 `fn.engines` 的函数回报继承来的库级平台」是自动成立的——同一份声明
+   * 只有一个视图，不存在两处各自维护。
+   *
+   * @param binding - the statement-level binding name used at registration.
+   * @returns the library description, or `undefined` when no such binding is registered.
+   */
+  describeLib(binding: string): LibDescription | undefined {
+    const ns = this.libs[binding]
+    if (!ns) return undefined
+    const meta = this.libDecls.get(binding)
+    const functions: LibFunctionView[] = []
+    for (const [name, value] of Object.entries(ns)) {
+      if (typeof value !== 'function') continue
+      const opMeta = dualOpMetaOf(value)
+      functions.push({
+        name,
+        engines: opMeta?.engines,
+        outputs: opMeta?.outputs,
+      })
+    }
+    return {
+      binding,
+      packageName: meta?.packageName,
+      role: meta?.decl?.role ?? 'library',
+      conformsTo: meta?.decl?.conformsTo,
+      platform: meta?.decl?.platform ?? [],
+      functions,
+    }
+  }
+
+  /**
+   * 库调用方查询面（2026-10-14 §3.3 第 3 项）：回答「给定引擎，这个库的哪些函数可以调用」。
+   *
+   * 判定与 `backend-dispatch.ts#decidePath` 的静态规则同源（中立 op = 全引擎可调；
+   * 声明了 `engines` 的 op 只在该集合内可调），因此拒绝项与实际执行前的拒绝**必然一致**。
+   * 只在确实被拒时给出 `reason`，可调项不带噪音字段。
+   *
+   * @param engineId - the BREP engine id to test against (e.g. `'occt'` / `'brepkit'`).
+   * @returns callable / statically-rejected split for the given engine.
+   */
+  libsUnder(engineId: string): LibsUnderEngine {
+    const callable: LibsUnderEngine['callable'] = []
+    const rejected: LibsUnderEngine['rejected'] = []
+    for (const [binding, ns] of Object.entries(this.libs)) {
+      for (const [name, value] of Object.entries(ns ?? {})) {
+        if (typeof value !== 'function') continue
+        const engines = dualOpMetaOf(value)?.engines
+        if (engines === undefined || engines.length === 0 || engines.includes(engineId as never)) {
+          callable.push({ binding, name })
+        } else {
+          rejected.push({
+            binding,
+            name,
+            reason: `requires engine ${engines.join('/')} (requested=${engineId})`,
+          })
+        }
+      }
+    }
+    return { engineId, callable, rejected }
   }
 
   /**
@@ -659,7 +811,7 @@ export class CadRuntime {
     }
     const engine = this.mode === 'mesh' || !hasBrepEngine()
       ? null
-      : await getBrepEngine()
+      : await getActiveBrepEngine()
     const kernel = engine?.primitives ?? null
     this.kernel = kernel
     this.brepChain = {
@@ -1248,7 +1400,8 @@ export class CadRuntime {
   private async autoLoadLibsFromImports(
     imports: ReadonlyArray<{ kind?: string; localName?: string; packageName?: string; specifier?: string }>,
   ): Promise<ExecutionResult | undefined> {
-    if (!this.ports.libLoader) return undefined
+    const loader = this.ports.libLoader
+    if (!loader) return undefined
     for (const imp of imports) {
       if (imp.kind !== 'namespace') continue // named/default import 不作语句级绑定，不在此装载
       // 相对 specifier 属多文件通道（§4.5），不是库——留给 ModuleRegistry 处理，
@@ -1258,7 +1411,7 @@ export class CadRuntime {
       if (this.libs[imp.localName]) continue  // 已注册（宿主注入或此前自动装载）→ 不覆盖
       let ns: LibNamespace
       try {
-        ns = await this.ports.libLoader.loadLib(imp.packageName ?? imp.specifier ?? '')
+        ns = await loader.loadLib(imp.packageName ?? imp.specifier ?? '')
       } catch (err) {
         return {
           outputs: new Map(),
@@ -1273,9 +1426,16 @@ export class CadRuntime {
         }
       }
       const resolved = imp.packageName ?? imp.specifier ?? ''
+      // 库级定位声明（§3.3 第 1 项）：来源是库自身 package.json 的 `faijs.lib` +
+      // `peerDependencies`，与下面逐函数的实现事实是**两个不同维度**（`autoLiftFor`
+      // 与 `libMetaFor` 同源同一次读盘）。此处只搬运原始值，校验与解析在
+      // registerLib → assertLibDecl / admitCompatLib 里做，装配期一次完成。
+      const libMeta = loader.libMetaFor?.(resolved)
       this.registerLib(imp.localName, ns, {
-        autoLift: this.ports.libLoader.options?.autoLiftFor?.(resolved) ?? this.ports.libLoader.options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>),
+        autoLift: loader.options?.autoLiftFor?.(resolved) ?? loader.options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>),
         packageName: imp.packageName,
+        lib: libMeta?.lib,
+        peers: libMeta?.peers,
       })
     }
     return undefined

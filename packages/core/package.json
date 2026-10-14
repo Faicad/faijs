@@ -1,6 +1,11 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.34.2",
+  "version": "0.34.3",
+  "faijs": {
+    "lib": {
+      "role": "host"
+    }
+  },
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -245,6 +250,10 @@
     "./brepkit-kernel/brepkitWasm": {
       "types": "./dist/brepkit-kernel/brepkitWasm.d.ts",
       "default": "./dist/brepkit-kernel/brepkitWasm.js"
+    },
+    "./brepkit-kernel/brepkitKernel": {
+      "types": "./dist/brepkit-kernel/brepkitKernel.d.ts",
+      "default": "./dist/brepkit-kernel/brepkitKernel.js"
     },
     "./primitives/brep-primitives": {
       "types": "./dist/primitives/brep-primitives.d.ts",

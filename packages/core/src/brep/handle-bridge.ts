@@ -24,20 +24,33 @@ interface MeshableKernel {
   ): { positions: ArrayLike<number>; indices: ArrayLike<number> }
 }
 
+/** The slot value as stored by the runtime — `unknown` because the slot type is dependency-free. */
+function rawKernelOrNull(): unknown {
+  return getBackends().kernel.brep
+}
+
 /**
- * Get the currently injected BREP kernel instance (untyped escape hatch).
- * @deprecated D12: this exit predates the engine-neutral L1 surface and its name
- * ("OCCT kernel") no longer matches what it returns — the current engine's raw
- * kernel, whatever engine that is. Prefer `getBrepApi()` (typed, engine-neutral,
- * same file) for neutral ops; platform-only code (L2 face) should use
- * `getOcctKernel()` (D3). Kept for compat-face bridging and existing tests.
+ * The current engine's raw kernel instance (untyped) — **internal to this file**.
+ *
+ * This is NOT an exit. The "current engine's raw kernel" is whatever the current
+ * engine happens to be (occt today, brepkit in a weapp session) and carries no
+ * contract; the former exported `getKernel()` was deleted (2026-10-14) because its
+ * name claimed OCCT while its value was engine-dependent, colliding with
+ * `occt-kernel/occtKernel.ts`'s `getKernel()` (the real OCCT platform face). The
+ * error message below was engine-neutralised for the same reason.
+ *
+ * Only `meshHandle` uses it, to call the kernel's own `meshShape` — a kernel-level
+ * method every engine must have (it is what materialises a handle into a Shape).
+ *
  * @returns the current BREP engine's kernel instance.
  * @throws when the kernel is not ready (mesh mode or uninitialized) — never silently returns null.
  */
-export function getKernel(): unknown {
-  const kernel = getBackends().kernel.brep
+function requireRawKernel(): unknown {
+  const kernel = rawKernelOrNull()
   if (!kernel) {
-    throw new Error('[faijs/bridge] OCCT kernel not available: BREP operations require an initialized kernel')
+    throw new Error(
+      '[faijs/bridge] BREP kernel not available: tessellating a handle requires an initialized kernel',
+    )
   }
   return kernel
 }
@@ -45,16 +58,26 @@ export function getKernel(): unknown {
 /**
  * Get the current BREP engine as the **L1 core surface** (`BrepEngineApi`).
  *
- * 2026-09-24 narrowing plan（D12）：中立 op 的取内核唯一出口——取代
- * `getBackends().kernel.brep as BrepEngineApi` 的逐点断言。本文件是 L1 契约
- * 的注册点（`registerBrepEngine` 注入的就是 `BrepEngineApi` 实例），此处断言
- * 诚实；平台面（L1 之外的 occt 独有能力）仍走 `getOcctKernel()`（D3）。
+ * The one exit for neutral op code to reach the kernel: replaces the
+ * `getBackends().kernel.brep as BrepEngineApi` assertion at every call site.
+ *
+ * Why the `as` here is honest (and stays): this file is the L1 contract's
+ * registration point — `registerBrepEngine(id, provider)` is only ever handed a
+ * `BrepEngineApi` instance (`brep/engine/adapters/occt.ts` and `.../brepkit.ts`
+ * build theirs via `createOcctPrimitives()` / `createBrepkitPrimitives()`, both
+ * typed against `BrepEngineApi`), and `brep-chain.ts` stores exactly
+ * `engine.primitives` into the slot this reads. So the slot's value IS the L1
+ * surface; the cast removes the `unknown` the zero-dependency slot type must use.
+ * Platform-only code (whatever L1 does not expose) goes through
+ * `getOcctKernel()` / `getBrepKitKernel()` instead.
+ *
+ * The slot restriction above is pinned by `test/brep/l1-slot-provenance.test.ts`.
  *
  * @returns the current engine's L1 contract surface (`BrepEngineApi`) — typed, engine-neutral.
  * @throws when no BREP engine is registered (uninitialized) — never silently returns null.
  */
 export function getBrepApi(): BrepEngineApi {
-  const kernel = getBackends().kernel.brep
+  const kernel = rawKernelOrNull()
   if (!kernel) {
     throw new Error(
       '[faijs/bridge] BREP engine API not available: BREP operations require an initialized engine',
@@ -119,7 +142,7 @@ function requireHandle(handle: unknown, caller: string): void {
  */
 export function meshHandle(handle: unknown, opts?: MeshHandleOptions): Shape {
   requireHandle(handle, 'meshHandle')
-  const kernel = getKernel() as MeshableKernel
+  const kernel = requireRawKernel() as MeshableKernel
   const mesh = kernel.meshShape(handle, {
     linearDeflection: opts?.linearDeflection ?? 0.1,
     angularDeflection: (2 * Math.PI) / Math.max(3, opts?.segments ?? 32),

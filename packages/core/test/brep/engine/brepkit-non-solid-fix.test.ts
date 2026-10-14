@@ -23,7 +23,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createRequire } from 'node:module'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
 import { analyzeCode } from '../../../src/lang/statement-summary'
@@ -81,7 +81,7 @@ async function runShape(code: string, varName?: string): Promise<Shape> {
 async function expectMeshNonEmpty(shape: Shape): Promise<void> {
   const handle = brepOf(shape)
   if (handle === undefined) throw new Error('shape has no brep handle')
-  const engine = (await getBrepEngine()).primitives
+  const engine = (await getActiveBrepEngine()).primitives
   const mesh = engine.meshShape(handle as never)
   expect(mesh.positions.length, 'mesh positions should be non-empty').toBeGreaterThan(0)
   expect(mesh.indices.length, 'mesh indices should be non-empty').toBeGreaterThan(0)
@@ -117,7 +117,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
     it('profile（face 形态）：不崩，face mesh 三角形非空', async () => {
       const shape = await runShape(`const p = cad.profile(${SQUARE})`)
       await expectMeshNonEmpty(shape)
-      const engine = (await getBrepEngine()).primitives
+      const engine = (await getActiveBrepEngine()).primitives
       const handle = brepOf(shape)
       const mesh = engine.meshShape(handle as never)
       // face 应有三角形（triangleCount>0）
@@ -132,7 +132,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
     it('extrude：profile face → solid，volume>0', async () => {
       const code = `const f = cad.profile(${SQUARE})\nconst p = await cad.extrude(f, { length: 15 })`
       const shape = await runShape(code, 'p')
-      const engine = (await getBrepEngine()).primitives
+      const engine = (await getActiveBrepEngine()).primitives
       const handle = brepOf(shape)
       expect(engine.getVolume(handle as never)).toBeGreaterThan(1000) // 10*10*15=1500
       // solid mesh 应非空
@@ -152,7 +152,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
         `]}] })\n` +
         `const p = await cad.revolve(f, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })`
       const shape = await runShape(code, 'p')
-      const engine = (await getBrepEngine()).primitives
+      const engine = (await getActiveBrepEngine()).primitives
       const handle = brepOf(shape)
       expect(handle, 'revolve should return a brep handle').toBeDefined()
       // meshShape 不崩即可（退化体可能 mesh 为空）
@@ -193,7 +193,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
 
     it('profile/extrude/revolve 在 occt 上仍正常', async () => {
       const extr = await runShape(`const f = cad.profile(${SQUARE})\nconst p = await cad.extrude(f, { length: 15 })`, 'p')
-      const engine = (await getBrepEngine()).primitives
+      const engine = (await getActiveBrepEngine()).primitives
       expect(engine.getVolume(brepOf(extr) as never)).toBeGreaterThan(1000)
       const wire = await runShape('const p = cad.wire([[0,0,0],[10,0,0],[10,10,0],[0,10,0]], { closed: true })')
       expect(brepOf(wire)).toBeDefined()

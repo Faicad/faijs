@@ -21,18 +21,16 @@ import {
   type DowelOrTenonParams,
 } from '../../api/brep-operations/joinery-brep'
 import { computeBasisFromNormal } from '../mesh/fai_split'
-import { getBackends } from '../../runtime-state'
+import { getBrepApi } from '../../brep/handle-bridge'
 import { solid, fromBrep, brepOf } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { assertNonZeroVec3 } from '../../api/assert'
 import type { BrepHandle } from '../../brep/engine/types'
-import type { BrepEngineApi } from '../../brep/engine/primitives'
 
 /** BREP 路径：OCCT 平面/榫卯分割 + 分离位移。 */
 function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: Shape; back: Shape } {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[extra/split] no OCCT kernel')
+  const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (inputSolid === undefined) throw new Error('[extra/split] input is not BREP')
 

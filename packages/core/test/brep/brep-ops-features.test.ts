@@ -34,7 +34,7 @@ console.log = (...args: unknown[]) => {
 import { describe, it, expect, beforeAll } from 'vitest'
 import { getBrepApi } from '../../src/brep/handle-bridge'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
-import { getBrepEngine } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine } from '../../src/brep/engine/registry'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../src/runtime-state'
 import { primitiveToBrepSolid, brepSolidToStep } from '../../src/primitives/brep-primitives'
 import type { BrepHandle } from '../../src/brep/engine/types'
@@ -57,7 +57,7 @@ let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  const brep = await getBrepEngine()
+  const brep = await getActiveBrepEngine()
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'auto', brepEngineId: 'occt' },

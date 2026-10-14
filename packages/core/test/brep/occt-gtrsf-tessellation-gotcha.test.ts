@@ -48,7 +48,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { getBrepApi } from '../../src/brep/handle-bridge'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
-import { getBrepEngine } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine } from '../../src/brep/engine/registry'
 import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../src/runtime-state'
 import type { BrepEngineApi } from '../../src/brep/engine/primitives'
@@ -79,7 +79,7 @@ let native: NativeOcctFace
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  const brep = await getBrepEngine()
+  const brep = await getActiveBrepEngine()
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'auto', brepEngineId: 'occt' },

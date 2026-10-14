@@ -21,7 +21,7 @@ import { CadRuntime } from '../../../src/cad-runtime/runtime'
 import type { ExecutionResult } from '../../../src/cad-runtime/runtime'
 import { createApiNamespaceWithEditorOps } from '../../support/editor-ops'
 import { asPartName } from '../../../src/identity'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
@@ -41,7 +41,7 @@ async function runBreps(code: string): Promise<ExecutionResult> {
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  occtApi = (await getBrepEngine()).primitives
+  occtApi = (await getActiveBrepEngine()).primitives
 }, 120000)
 
 afterAll(() => {
@@ -106,7 +106,7 @@ describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
     const r2 = await runBreps('const b = cad.box(20, 10, 5)')
     expect(r2.failedAt).toBeUndefined()
     const shape = r2.outputs.get(asPartName('b'))! as Shape
-    const bkApi = (await getBrepEngine()).primitives
+    const bkApi = (await getActiveBrepEngine()).primitives
     expect(await area(shape)).toBeCloseTo(700, -1)
     // getLength 归一化后两引擎同口径（唯一 edge 弧长之和）：brepkit 下同样 == 140，
     // 与 occt 逐位一致（旧实现的「首条边」漂移与 occt 的「Σ面周长」已成历史）。

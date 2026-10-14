@@ -48,6 +48,13 @@ export { createBrowserLibLoader, DEFAULT_CDN_BASE } from './cad-runtime/browser-
 export type {
   BrowserLibLoader, BrowserLibMeta, CreateBrowserLibLoaderOptions,
 } from './cad-runtime/browser-lib-loader'
+// 两级声明契约（2026-10-14 §3.3）的**类型面**：`BrowserLibMeta = LibMeta`，宿主写
+// `lib-meta.json` / 读 `describeLib` / `libsUnder` 时要能命名这些形状。运行期函数
+// （assertLibDecl 等）只在 @faicad/faijs 主入口导出，浏览器包不带。
+export type {
+  LibRole, LibDecl, LibMeta,
+  LibFunctionView, LibDescription, LibCallableView, LibRejectedView, LibsUnderEngine,
+} from './cad-runtime/lib-decl'
 export { BrowserEventSink } from './browser-host/browser-event-sink'
 export { BrowserFontProvider } from './browser-host/browser-font-provider'
 export type { BrowserFontProviderOptions } from './browser-host/browser-font-provider'
@@ -64,8 +71,8 @@ export type { OcctKernel, ShapeHandle, WasmTessellatedMesh, Mesh, MeshDeflection
 // ── BREP 引擎注册（宿主装配；引擎可切换——occt 只是默认实现） ──
 export { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './brep/engine/adapters/occt'
 export {
-  registerBrepEngine, getBrepEngine, hasBrepEngine, getActiveBrepEngineId, freezeEngineRegistries,
-  registerMeshEngine, getMeshEngine, getActiveMeshEngineId, isMeshEngineRegistered, getMeshSolidBackend,
+  registerBrepEngine, getBrepEngine, getActiveBrepEngine, hasBrepEngine, getActiveBrepEngineId, freezeEngineRegistries,
+  registerMeshEngine, getMeshEngine, getActiveMeshEngine, getActiveMeshEngineId, isMeshEngineRegistered, getMeshSolidBackend,
 } from './brep/engine/registry'
 export type { BrepEngine, BrepEngineProvider, MeshEngine } from './brep/engine/registry'
 export { MeshSolidRegistry, normalizeMeshSolid, describeMeshSolid, buildMeshSolidTopology, weldToleranceFor } from './brep/mesh-solid'

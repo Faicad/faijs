@@ -39,7 +39,7 @@ interface BrepkitKernelSharedState {
  *
  * @returns the shared brepkit kernel state singleton.
  */
-function getBrepkitKernelSharedState(): BrepkitKernelSharedState {
+function getBrepKitKernelSharedState(): BrepkitKernelSharedState {
   const g = globalThis as unknown as Record<string, unknown>
   const existing = g[BREPKIT_KERNEL_KEY] as BrepkitKernelSharedState | undefined
   if (existing) {
@@ -65,7 +65,7 @@ function getBrepkitKernelSharedState(): BrepkitKernelSharedState {
  * @param fn - the initialization function to use, or null to clear
  */
 export function setBrepkitWasmInitFn(fn: (() => Promise<BrepKitKernel>) | null): void {
-  const s = getBrepkitKernelSharedState()
+  const s = getBrepKitKernelSharedState()
   s.customInitFn = fn
   // 挂点变化后丢弃进行中的初始化（下一次 init 用新挂点重来）。
   s.initPromise = null
@@ -76,7 +76,7 @@ export function setBrepkitWasmInitFn(fn: (() => Promise<BrepKitKernel>) | null):
  * @returns Promise 解析为 BrepKernel 实例。
  */
 export function initBrepkitWasm(): Promise<BrepKitKernel> {
-  const s = getBrepkitKernelSharedState()
+  const s = getBrepKitKernelSharedState()
   if (s.initPromise) return s.initPromise
   s.initPromise = (async (): Promise<BrepKitKernel> => {
     if (s.customInitFn) return await s.customInitFn()
@@ -104,7 +104,7 @@ export function initBrepkitWasm(): Promise<BrepKitKernel> {
 /** 是否已初始化完成（测试诊断用）。
  * @returns true 表示 init 已启动/完成。 */
 export function isBrepkitInitialized(): boolean {
-  return getBrepkitKernelSharedState().initPromise !== null
+  return getBrepKitKernelSharedState().initPromise !== null
 }
 
 /**
@@ -115,5 +115,5 @@ export function isBrepkitInitialized(): boolean {
  * to rust`）。`customInitFn` 不受影响（宿主注入的装载路径仍在）。
  */
 export function resetBrepkitWasm(): void {
-  getBrepkitKernelSharedState().initPromise = null
+  getBrepKitKernelSharedState().initPromise = null
 }

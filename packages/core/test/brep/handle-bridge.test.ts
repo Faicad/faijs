@@ -3,7 +3,7 @@
  *
  *
  * 四条不变量：
- * 1. `getKernel()` 在 mesh 模式（kernel 为 null）抛错，不返回 null
+ * 1. `getBrepApi()` 在 mesh 模式（kernel 为 null）抛错，不返回 null（三角化入口同样不静默返回 null）
  * 2. `fromHandle(h)` 产出的 Shape 满足 `hasBrep(shape) === true`
  * 3. `dist/sdk.js` 静态 import 扫描仍然零 heavy 依赖（src/sdk.test.ts 守卫，独立验证）
  * 4. `meshHandle` 默认参数与内置 op 一致：linearDeflection = 0.1、segments = 32
@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getKernel, meshHandle, fromHandle, isOcctHandle } from '../../src/brep/handle-bridge'
+import { getBrepApi, meshHandle, fromHandle, isOcctHandle } from '../../src/brep/handle-bridge'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { hasBrep } from '../../src/shape'
 import { configureBackends } from '../../src/runtime-state'
@@ -20,9 +20,9 @@ import { createNodePorts } from '../../src/node-host'
 import { createRuntime } from '@faicad/faijs'
 import { createEditorRuntime } from '../support/editor-ops'
 
-describe('handle-bridge: getKernel', () => {
-  it('throws when kernel is not available (mesh mode / not initialized)', () => {
-    // 显式装配 mesh 模式（kernel.brep = null）→ getKernel 必须抛错，不静默返回 null
+describe('handle-bridge: getBrepApi 与 raw 内核可用性', () => {
+  it('throws when the engine is not available (mesh mode / not initialized)', () => {
+    // 显式装配 mesh 模式（kernel.brep = null）→ getBrepApi 必须抛错，不静默返回 null
     configureBackends({
       contractVersion: 1,
       config: { mode: 'mesh' },
@@ -33,7 +33,13 @@ describe('handle-bridge: getKernel', () => {
       events: undefined,
       cad: {} as never,
     })
-    expect(() => getKernel()).toThrow(/OCCT kernel not available/)
+    expect(() => getBrepApi()).toThrow(/BREP engine API not available/)
+    // 三角化入口（meshHandle / fromHandle）读 raw 内核：缺位时报错，同样不静默返回 null。
+    // 文案于 2026-10-14 从 `OCCT kernel not available` 改为 `BREP kernel not available`：
+    // 该槽位是**当前引擎**的原生内核（occt 今天、brepkit 在 weapp 会话），写死 "OCCT"
+    // 与 `getKernel()` 被删的理由同源（名字声称 OCCT，值由引擎决定）。
+    expect(() => meshHandle(42)).not.toThrow(/OCCT kernel not available/)
+    expect(() => meshHandle(42)).toThrow(/BREP kernel not available/)
   })
 })
 
@@ -46,7 +52,7 @@ describe('handle-bridge: OCC handle identity contract (isOcctHandle)', () => {
   })
 
   it('fromHandle/meshHandle reject plain data records at the boundary (E_BAD_HANDLE), not at kernel depth', () => {
-    // 断言在 getKernel 之前执行；配 fake kernel 让合法路径（number / 标记对象）真实跑通
+    // 断言在取内核之前执行；配 fake kernel 让合法路径（number / 标记对象）真实跑通
     configureBackends({
       contractVersion: 1,
       config: { mode: 'auto' },

@@ -36,7 +36,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { CadRuntime } from '../../../src/cad-runtime/runtime'
 import type { ExecutionResult } from '../../../src/cad-runtime/runtime'
@@ -93,7 +93,7 @@ async function measureBBox(result: ExecutionResult, varName: string): Promise<BB
   if (!shape) throw new Error(`output "${varName}" not found`)
   const handle = brepOf(shape)
   if (handle === undefined) throw new Error(`"${varName}" has no brep handle`)
-  const engine = await getBrepEngine()
+  const engine = await getActiveBrepEngine()
   const bb = engine.primitives.getBoundingBox(handle as never)
   const vol = engine.primitives.getVolume(handle as never)
   return { dx: bb.xmax - bb.xmin, dy: bb.ymax - bb.ymin, dz: bb.zmax - bb.zmin, volume: vol }

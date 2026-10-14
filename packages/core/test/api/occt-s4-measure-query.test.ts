@@ -26,7 +26,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { CadRuntime } from '../../src/cad-runtime/runtime'
 import type { ExecutionMode, HostPorts } from '../../src/cad-runtime/ports'
 import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../src/brep/engine/adapters/brepkit'
 import { getBrepApi } from '../../src/brep/handle-bridge'
@@ -51,7 +51,7 @@ beforeAll(async () => {
   __resetEngineRegistriesForTests()
   await registerOcctBrepEngine()
   await initOcctWasm()
-  const brep = await getBrepEngine()
+  const brep = await getActiveBrepEngine()
   backends = {
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'auto', brepEngineId: 'occt' },

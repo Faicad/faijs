@@ -21,7 +21,7 @@ import { CadRuntime } from '../../src/cad-runtime/runtime'
 import type { ExecutionResult } from '../../src/cad-runtime/runtime'
 import type { ExecutionMode, HostPorts } from '../../src/cad-runtime/ports'
 import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
-import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { registerBrepMockEngine } from '../../src/brep/engine/adapters/brep-mock'
 import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
@@ -96,7 +96,7 @@ async function execViaNs<T>(fn: (cad: Record<string, (...a: unknown[]) => unknow
   await useOcct()
   const { getBrepEngine } = await import('../../src/brep/engine/registry')
   const { configureBackends } = await import('../../src/runtime-state')
-  const prim = (await getBrepEngine()).primitives
+  const prim = (await getActiveBrepEngine()).primitives
   configureBackends({
     contractVersion: 1,
     config: { mode: 'brep', brepEngineId: 'occt' },

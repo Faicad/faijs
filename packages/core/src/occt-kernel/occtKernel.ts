@@ -190,7 +190,7 @@ export function getKernel(): OcctKernel {
 
 /**
  * Native-face alias for getKernel() (plan D3 ②): symmetric with
- * getBrepkitKernel() on the brepkit side. Platform-specific code uses this
+ * getBrepKitKernel() on the brepkit side. Platform-specific code uses this
  * name; the original getKernel() stays for existing host code.
  */
 export const getOcctKernel = getKernel

@@ -12,11 +12,11 @@
  */
 
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { dirname, resolve, join, extname } from 'node:path'
 import { parse as acornParse } from 'acorn'
 import { transform as sucraseTransform } from 'sucrase'
 import { scanDeterminism, type DeterminismViolation } from '../src/lang/determinism-scanner.ts'
+import { resolveLibPackageJsonPath } from '../src/node-host/lib-package-json.ts'
 
 // ── shared types ──
 
@@ -85,15 +85,15 @@ function isEnginePackage(specifier: string): boolean {
   return false
 }
 
-/** Locate a library's source entry (prefer `src/*.ts`, fall back to `dist/*.js`). */
-function resolveLibraryEntry(specifier: string, fromPath: string): { path: string; isTs: boolean } | null {
-  const req = createRequire(fromPath)
-  let pjPath: string
-  try {
-    pjPath = req.resolve(`${specifier}/package.json`)
-  } catch {
-    return null
-  }
+/** Locate a library's source entry (prefer `src/*.ts`, fall back to `dist/*.js`).
+ *
+ * `package.json` 的定位走 `resolveLibPackageJsonPath`（与 CLI host 同一处）：不能直接用
+ * `req.resolve(`${specifier}/package.json`)` —— Node 的 `exports` 门禁对未列出
+ * `./package.json` 的包恒抛 `ERR_PACKAGE_PATH_NOT_EXPORTED`，而本仓全部库都没列，
+ * 于是这里会静默返回 null（库源码永远扫不到）。 */
+function resolveLibraryEntry(specifier: string): { path: string; isTs: boolean } | null {
+  const pjPath = resolveLibPackageJsonPath(specifier)
+  if (pjPath === undefined) return null
   const pkgDir = dirname(pjPath)
   let pj: any
   try {
@@ -182,7 +182,7 @@ function scanSource(code: string, file: string, ctx: ScanContext): void {
     if (ctx.visited.has(normalized)) continue
     ctx.visited.add(normalized)
 
-    const entry = resolveLibraryEntry(normalized, file)
+    const entry = resolveLibraryEntry(normalized)
     if (!entry) continue
     let libCode: string
     try {

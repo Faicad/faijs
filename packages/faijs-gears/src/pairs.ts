@@ -163,7 +163,7 @@ export function bevelPairConeAngles(params: BevelGearPairParams): { gearDeg: num
  * 先绕 Z 转（仅齿数为偶）、再沿 Z 平移 `-pinionConeH`、
  * 再绕 Y 转过原点转 `axisAngle`、最后沿 Z 平移 `+gearConeH`。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param pinion 小轮 solid
  * @param place 定位链输入量
  * @returns 定位后的小轮 solid
@@ -174,13 +174,13 @@ export function placePinion(
   let s = pinion
   if (place.pinionTeeth % 2 === 0) {
     // C：`degrees(pi/z)` 传进 `Location` 后被 radians() 转回，净效果 = π/z 弧度。
-    s = kernel.rotate(s, Z_AXIS, Math.PI / place.pinionTeeth)
+    s = kernel.l1.rotate(s, Z_AXIS, Math.PI / place.pinionTeeth)
   }
   // B
-  s = kernel.translate(s, 0, 0, -place.pinionConeH)
+  s = kernel.l1.translate(s, 0, 0, -place.pinionConeH)
   // A：绕 Y（过原点）转轴交角，再沿 Z 平移 gear.cone_h
-  s = kernel.rotate(s, Y_AXIS, (place.axisAngleDeg * Math.PI) / 180.0)
-  return kernel.translate(s, 0, 0, place.gearConeH)
+  s = kernel.l1.rotate(s, Y_AXIS, (place.axisAngleDeg * Math.PI) / 180.0)
+  return kernel.l1.translate(s, 0, 0, place.gearConeH)
 }
 
 /**
@@ -189,7 +189,7 @@ export function placePinion(
  * 两件都走 `buildBevelGearSolid`；差异只在参数：pinion 拿 `-helix_angle`，
  * 且**不传** `clearance`（逐字复刻 Python 的不对称传参）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 齿轮副参数
  * @param options 构造选项
  * @returns 两件 solid（pinion 默认已定位）与两件几何量

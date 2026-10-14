@@ -164,7 +164,7 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / 平台 import 隔离 / API 测试覆盖 / dist 脱节' -Block {
+Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / 平台 import 隔离 / 库分层 / API 测试覆盖 / dist 脱节' -Block {
     node scripts/check-ghost-deps.mjs
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
@@ -177,6 +177,10 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     if ($LASTEXITCODE -ne 0) { return }
     # 平台 import 隔离（narrowing plan Phase 8）：中立模块不得静态 import occt/brepkit 平台模块
     node scripts/check-platform-imports.mjs
+    if ($LASTEXITCODE -ne 0) { return }
+    # 库分层门禁（2026-10-14 §3.4）：按各包 package.json 的 faijs.lib.role 检查内核取用面
+    # （library/declaration 禁裸槽位、禁自装配内核、禁跨内核面假断言；host 按声明放行）
+    node scripts/check-lib-layering.mjs
     if ($LASTEXITCODE -ne 0) { return }
     # 导出面：10 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
     node scripts/api-surface-snapshot.mjs

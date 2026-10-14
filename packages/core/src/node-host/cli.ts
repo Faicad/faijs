@@ -19,14 +19,18 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { resolve, extname, dirname, join } from 'node:path'
 import { createRuntime } from '../cad-runtime/runtime'
 import type { CadRuntime } from '../cad-runtime/runtime'
 import type { LibNamespace } from '../runtime-state'
 import type { ExecutionMode, HostPorts, LibLoader } from '../cad-runtime/ports'
+import type { LibMeta } from '../cad-runtime/lib-decl'
 import { createNodePorts } from './index'
 import { createFsProjectLoader, findProjectRoot, projectKeyOf } from './fs-project-loader'
+import {
+  readLibPackageJson as readLibPackageJsonShared,
+  resolveLibPackageJsonPath,
+} from './lib-package-json'
 import { exportModelSync } from '../brep/export/export-model'
 import { exportStepFromSolids, type StepExportEntry } from '../brep/export/step'
 import { solidToShape } from '../brep/brep-ops'
@@ -58,22 +62,56 @@ const CLI_SHORT_NAMES: Record<string, string> = {
 }
 
 /**
+ * 库 package.json 中 faijs 消费的字段（D3-autoLift + §3.3 库级定位声明）。
+ * `lib` 故意留 `unknown`：磁盘 JSON 不可信，校验在装配期 `assertLibDecl`。
+ */
+interface LibPackageJson {
+  faijs?: { autoLift?: boolean; lib?: unknown }
+  peerDependencies?: Record<string, string>
+}
+
+/**
+ * 读库自身的 `package.json`（`faijs.autoLift` + `faijs.lib` + `peerDependencies`）。
+ * 包未安装 / JSON 非法 → `undefined`（按未声明处理，回落 runtime 推断式 / 中立）。
+ */
+/**
+ * 读库自身的 `package.json`（`faijs.autoLift` + `faijs.lib` + `peerDependencies`）。
+ * 包未安装 / JSON 非法 → `undefined`（按未声明处理，回落 runtime 推断式 / 中立）。
+ *
+ * 解析与缓存归 `lib-package-json.ts`（唯一归属）：那里记着为什么不能用
+ * `require.resolve(`${pkg}/package.json`)`（Node 的 exports 门禁会让它恒抛）。
+ */
+function readLibPackageJson(pkg: string): LibPackageJson | undefined {
+  return readLibPackageJsonShared<LibPackageJson>(pkg)
+}
+
+/**
  * 读库 package.json 的 `faijs.autoLift` 字段（D3-autoLift 外置，§9.4）：
  * 逐库 autoLift 约定从 host 写死改为由各库自身 package.json 声明，loader 此处读取。
  * 未声明 → 返回 undefined（回落到 runtime 的推断式 `!hasDualOp(ns)`）；
  * 声明为布尔 → 直接采用（如 cq-compat 声明 false，因其函数以 faijs Shape 为受众，
  * 被 compat 边界整体提升会破坏内部借面逻辑）。
  */
-const requireNode = createRequire(import.meta.url)
 function readLibAutoLift(pkg: string): boolean | undefined {
-  try {
-    const pjPath = requireNode.resolve(`${pkg}/package.json`)
-    const pj = JSON.parse(readFileSync(pjPath, 'utf8')) as { faijs?: { autoLift?: boolean } }
-    const v = pj.faijs?.autoLift
-    return typeof v === 'boolean' ? v : undefined
-  } catch {
-    return undefined
-  }
+  const v = readLibPackageJson(pkg)?.faijs?.autoLift
+  return typeof v === 'boolean' ? v : undefined
+}
+
+/**
+ * 读库的**库级定位声明**（§3.3 第 1 项）：`faijs.lib` 原值 + `peerDependencies`。
+ * 这是与 `autoLiftFor` 同源（同一份 package.json）的第二个事实，装配期由
+ * `registerLib` → `assertLibDecl` 校验（含 platform 含 occt ⟹ 有 occt-wasm peer）。
+ * 只有 scoped 库能进 CLI 白名单，所以非 scoped 一律视为无声明。
+ */
+function readLibMeta(pkg: string): LibMeta | undefined {
+  const pj = readLibPackageJson(pkg)
+  if (!pj) return undefined
+  const meta: LibMeta = {}
+  if (pj.faijs?.lib !== undefined) meta.lib = pj.faijs.lib
+  // 读到 package.json 就给出 peer 事实：无 `peerDependencies` → `{}`（明确「没有」），
+  // 而不是 `undefined`（「不知道」）——否则磁盘上的缺位会被单向校验放过。
+  meta.peers = pj.peerDependencies ?? {}
+  return meta
 }
 
 /** specifier → scoped 全名归一：scoped 名原样，已登记短名映射，其余原样交 import 解析。 */
@@ -93,9 +131,9 @@ const cliPortsLibLoader: LibLoader = {
   loadSource: async (name) => {
     const pkg = normalizeCliSpecifier(name)
     if (!pkg.startsWith(CLI_SCOPED_PREFIX)) return undefined
+    const pkgJsonPath = resolveLibPackageJsonPath(pkg)
+    if (pkgJsonPath === undefined) return undefined
     try {
-      const req = createRequire(import.meta.url)
-      const pkgJsonPath = req.resolve(`${pkg}/package.json`)
       const pkgDir = dirname(pkgJsonPath)
       for (const p of [join(pkgDir, 'src', 'index.ts'), join(pkgDir, 'dist', 'index.js'), join(pkgDir, 'src', 'index.js')]) {
         if (existsSync(p)) return readFileSync(p, 'utf-8')
@@ -112,6 +150,11 @@ const cliPortsLibLoader: LibLoader = {
       const pkg = normalizeCliSpecifier(name)
       return pkg.startsWith(CLI_SCOPED_PREFIX) ? readLibAutoLift(pkg) : undefined
     },
+  },
+  // 库级定位声明（§3.3 第 1 项）：与 autoLiftFor 同源读盘，装配期校验。
+  libMetaFor: (name) => {
+    const pkg = normalizeCliSpecifier(name)
+    return pkg.startsWith(CLI_SCOPED_PREFIX) ? readLibMeta(pkg) : undefined
   },
 }
 

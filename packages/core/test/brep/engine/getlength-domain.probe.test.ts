@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, afterAll } from 'vitest'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
@@ -36,7 +36,7 @@ interface Row {
 async function probeEngine(register: () => Promise<void>): Promise<Map<string, Row>> {
   __resetEngineRegistriesForTests()
   await register()
-  const api: BrepEngineApi = (await getBrepEngine()).primitives
+  const api: BrepEngineApi = (await getActiveBrepEngine()).primitives
   const rows: Row[] = []
 
   const box = api.makeBox(20, 10, 5)

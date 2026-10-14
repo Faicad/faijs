@@ -21,7 +21,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { BrepHandle } from '@faicad/faijs'
-import { getGearKernel, type GearKernel } from '../src/kernel'
+import { gearKernel, type GearKernel } from '../src/kernel'
 import { buildBevelGearPair, type BevelGearPairParams } from '../src/pairs'
 import { bevelPairOptionsFromArgs } from './support/reference-options'
 import { loadManifest, type ReferenceCase, type ReferencePart } from './fixtures'
@@ -41,7 +41,7 @@ const BBOX_ABS_TOL = 1e-3
 let kernel: GearKernel
 
 beforeAll(async () => {
-  kernel = await getGearKernel()
+  kernel = await gearKernel()
 })
 
 function refOf(id: string): ReferenceCase {
@@ -110,16 +110,16 @@ describe('BevelGearPair 实体构造 vs cq_gears（逐件体积 + bbox）', () =
  * @param ref manifest 里该件的参考值
  */
 function assertPart(id: string, name: string, solid: BrepHandle, ref: ReferencePart): void {
-  expect(kernel.isSolid(solid), `${id}/${name}: 结果不是 solid`).toBe(true)
+  expect(kernel.l1.isSolid(solid), `${id}/${name}: 结果不是 solid`).toBe(true)
 
-  const vol = kernel.getVolume(solid)
+  const vol = kernel.l1.getVolume(solid)
   const rel = Math.abs(vol - ref.volume) / ref.volume
   expect(
     rel,
     `${id}/${name}: 体积相对差 ${rel.toExponential(3)} (got ${vol.toFixed(3)} vs ref ${ref.volume.toFixed(3)})`,
   ).toBeLessThan(VOLUME_REL_TOL)
 
-  const bb = kernel.getBoundingBox(solid)
+  const bb = kernel.l1.getBoundingBox(solid)
   const got = [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin]
   got.forEach((v, i) => {
     expect(

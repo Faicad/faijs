@@ -7,8 +7,9 @@
  *                      直接解析裸 specifier；loader 走 plan-a 模式 `import('@faicad/x')`。
  *   - versions.json : 方案 b（release 兜底，精确 pin 到已安装版）。`{ "@faicad/x": "0.13.0" }`，
  *                      loader 拼 `CDN_BASE + pkg + '@' + version + '/+esm'` 直链导入。
- *   - lib-meta.json : 逐库 `faijs.autoLift` 外置字段（D3-autoLift），`{ "@faicad/x": { "autoLift": bool } }`，
- *                     host 据此构建 loader 的 `autoLiftFor` 闭包。
+ *   - lib-meta.json : 逐库外置元数据，`{ "@faicad/x": { "autoLift": bool, "lib": {...}, "peers": {...} } }`。
+ *                     host 据此构建 loader 的 `autoLiftFor` 闭包与 `libMetaFor`
+ *                     （§3.3 库级定位声明 + peer 事实，供装配期 `assertLibDecl` 校验）。
  *
  * 两方案共用 CDN_BASE（C-CDN 拍板 2026-09-19）：jsDelivr `https://cdn.jsdelivr.net/npm/`，
  * ESM 经 `+esm` 取。dev 走 a、CI 发包渠道走 b。
@@ -64,6 +65,8 @@ for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
     version: String(pj.version ?? ''),
     autoLift: pj.faijs?.autoLift, // undefined 表示回落到 runtime 推断式 !hasDualOp(ns)
     naming: pj.faijs?.naming, // Phase 2.11-②：库级 provenance 声明；undefined → blanket 兜底
+    lib: pj.faijs?.lib, // §3.3 库级定位声明（role / conformsTo / platform）；undefined → 中立
+    peers: pj.peerDependencies, // §3.3 单向 peer 校验的事实来源（platform 含 occt ⟹ 有 occt-wasm）
   })
 }
 
@@ -85,12 +88,18 @@ for (const lib of libs) {
   versions[lib.name] = lib.version
 }
 
-// --- lib-meta.json（autoLift / naming 外置） ---
+// --- lib-meta.json（autoLift / naming / faijs.lib 外置） ---
 const libMeta = {}
 for (const lib of libs) {
   const entry = {}
   if (typeof lib.autoLift === 'boolean') entry.autoLift = lib.autoLift
   if (lib.naming && typeof lib.naming === 'object' && typeof lib.naming.kind === 'string') entry.naming = lib.naming
+  // §3.3 库级定位声明 + peer 事实：装配期 assertLibDecl 校验（含单向 peer 约束）。
+  // `peers` 一律写出（无 peerDependencies → `{}`）：`{}` 表示「确实没有 peer」，
+  // `undefined` 表示「不知道」—— 后者会让单向校验放过磁盘上的缺位。
+  if (lib.lib && typeof lib.lib === 'object') entry.lib = lib.lib
+  if (lib.peers && typeof lib.peers === 'object') entry.peers = lib.peers
+  else entry.peers = {}
   if (Object.keys(entry).length > 0) libMeta[lib.name] = entry
 }
 
@@ -101,7 +110,7 @@ writeFileSync(join(outDir, 'lib-meta.json'), JSON.stringify(libMeta, null, 2) + 
 
 console.log(
   `gen-importmap: wrote ${libs.length} libs -> ${outDir}\n` +
-    `  importmap.json (plan a, latest)  versions.json (plan b, pinned)  lib-meta.json (autoLift)\n` +
+    `  importmap.json (plan a, latest)  versions.json (plan b, pinned)  lib-meta.json (autoLift + faijs.lib)\n` +
     `  CDN_BASE=${cdnBase}\n` +
     `  libs: ${libs.map((l) => l.name + '@' + l.version).join(', ')}`,
 )

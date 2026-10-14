@@ -12,6 +12,7 @@
 
 import type { PartName } from '../identity'
 import type { LibNamespace } from '../runtime-state'
+import type { LibMeta } from './lib-decl'
 
 // ── 共享类型 ──
 
@@ -201,6 +202,17 @@ export interface LibLoader {
      */
     autoLiftFor?: (packageName: string) => boolean | undefined
   }
+  /**
+   * 按 packageName 取库自身的**装配元数据**（`package.json` 的 `faijs.lib` 定位声明
+   * + `peerDependencies`）。逐库自动装载时由 runtime 读一次，喂给
+   * `registerLib({ lib, peers })` 的装配期校验（§3.3 第 1 项）。
+   *
+   * 与 `options.autoLiftFor` 同源（都出自库的 `package.json`），但**必须同步**——
+   * `autoLoadLibsFromImports` 在装载后立即调用，没有 await 的余地。
+   *
+   * 缺省 / 返回 `undefined` = 该来源不提供库声明事实 → 按中立处理（今日行为）。
+   */
+  libMetaFor?(packageName: string): LibMeta | undefined
   /**
    * 可选源码扫描钩子（§6.2 ②）：宿主返回库源码时走同一 SecurityScanner（A4，固定 strict）；
    * 不提供或返回 undefined 则跳过。不改 loadLib 返回值——返回 LibNamespace，

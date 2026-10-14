@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { analyzeCode } from '../../../src/lang/statement-summary'
 import { CadRuntime, type ExecutionResult } from '../../../src/cad-runtime/runtime'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { createApiNamespaceWithEditorOps, registerEditorExtensions } from '../../support/editor-ops'
 import { brepOf } from '../../../src/shape'
@@ -534,7 +534,7 @@ async function measure(code: string, outputVar?: string): Promise<Measured> {
   if (!shape) return { result, error: `output "${varName}" not found` }
   const handle = brepOf(shape)
   if (handle !== undefined) {
-    const engine = await getBrepEngine()
+    const engine = await getActiveBrepEngine()
     const bb = engine.primitives.getBoundingBox(handle as never)
     return { result, bbox: [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin] }
   }

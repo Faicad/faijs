@@ -37,7 +37,7 @@ import {
   buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY,
   type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
-import { connectEdgesToWires } from './kernel'
+import { connectEdgesToWires, gearIsFace } from './kernel'
 
 /** 判定「边上所有采样点是否落在 z 平面内」的容差（mm）。 */
 const PLANE_PICK_TOL = 1e-6
@@ -110,15 +110,15 @@ function squarePlaneAtZ(kernel: GearKernel, z: number, size: number): BrepHandle
     { x: half, y: half, z },
     { x: -half, y: half, z },
   ]
-  const edges = c.map((p, i) => kernel.makeLineEdge(p, c[(i + 1) % 4]))
-  return kernel.makeFace(kernel.makeWire(edges))
+  const edges = c.map((p, i) => kernel.l1.makeLineEdge(p, c[(i + 1) % 4]))
+  return kernel.l1.makeFace(kernel.l1.makeWire(edges))
 }
 
 /**
  * 复刻 cq `Face.split(plane)` + 「按 zmax 取片」的选择规则。
  *
  * cq 侧：`cpd = face.split(plane)`，若返回 Compound 则取 `max/min(list(cpd), key=zmax)`，
- * 否则（平面没切到面）直接用原面。内核的 `split` 同样在「没切到」时原样返回该面。
+ * 否则（平面没切到面）直接用原面。`occt.split` 同样在「没切到」时原样返回该面。
  *
  * @param which `'top'` 取 zmax 最大的片（裁顶）、`'bottom'` 取 zmax 最小的片（裁底）
  * @returns 保留的那一片
@@ -126,9 +126,9 @@ function squarePlaneAtZ(kernel: GearKernel, z: number, size: number): BrepHandle
 function splitFaceKeep(
   kernel: GearKernel, face: BrepHandle, plane: BrepHandle, which: 'top' | 'bottom',
 ): BrepHandle {
-  const res = kernel.split(face, [plane])
-  if (kernel.isFace(res)) return res
-  const pieces = kernel.getSubShapes(res, 'face')
+  const res = kernel.occt.split(face, [plane])
+  if (gearIsFace(kernel, res)) return res
+  const pieces = kernel.l1.getSubShapes(res, 'face')
   if (pieces.length === 0) {
     throw new Error(`splitFaceKeep: split produced no face fragment (which=${which})`)
   }
@@ -136,7 +136,7 @@ function splitFaceKeep(
   let best = pieces[0]
   let bestZ = which === 'top' ? -Infinity : Infinity
   for (const p of pieces) {
-    const z = kernel.getBoundingBox(p).zmax
+    const z = kernel.l1.getBoundingBox(p).zmax
     if (which === 'top' ? z > bestZ : z < bestZ) {
       bestZ = z
       best = p
@@ -151,7 +151,7 @@ function splitFaceKeep(
  * 复刻 `_build_tooth_faces`：行参数 `spline_tf = linspace((pc_f, ta1), (tc_f − 0.01, ta2), n)`
  * 给出每行的锥距 `r` 与扭转角 `a`，行点 = 「单位球面齿廓 @ rotation_matrix(轴 Z, a)」× r。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 锥齿轮几何量
  * @param strategy 齿面建面策略
  * @param options 容差/次数选项
@@ -203,7 +203,7 @@ export function buildBevelToothFaces(
  * + `Face.makeFromWires`。判据用「边上采样点全部落在该平面 ±PLANE_PICK_TOL」——
  * 两条裁切边是 split 产生的、精确落在 z = tc_h / z = pc_h 上，故与极值选择器等价。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param faces 全部齿面
  * @param z 目标平面高度
  * @param wireCombTol 组线容差
@@ -217,9 +217,9 @@ export function capBevelAtZ(
 ): BrepHandle {
   const edges: BrepHandle[] = []
   for (const f of faces) {
-    for (const e of kernel.getSubShapes(f, 'edge')) {
-      const { first, last } = kernel.curveParameters(e)
-      const samples = [first, (first + last) / 2, last].map((t) => kernel.curvePointAtParam(e, t))
+    for (const e of kernel.l1.getSubShapes(f, 'edge')) {
+      const { first, last } = kernel.l1.curveParameters(e)
+      const samples = [first, (first + last) / 2, last].map((t) => kernel.l1.curvePointAtParam(e, t))
       if (samples.every((p) => Math.abs(p.z - z) <= PLANE_PICK_TOL)) edges.push(e)
     }
   }
@@ -235,12 +235,12 @@ export function capBevelAtZ(
   if (wires.length > 1) {
     let bestArea = -1
     for (const w of wires) {
-      const bb = kernel.getBoundingBox(w)
+      const bb = kernel.l1.getBoundingBox(w)
       const area = (bb.xmax - bb.xmin) * (bb.ymax - bb.ymin)
       if (area > bestArea) { bestArea = area; cap = w }
     }
   }
-  return kernel.makeFace(kernel.healWire(cap, wireCombTol))
+  return kernel.l1.makeFace(kernel.occt.healWire(cap, wireCombTol))
 }
 
 /**
@@ -249,7 +249,7 @@ export function capBevelAtZ(
  * 复刻 `_build_gear_faces`：每张齿面绕 Z 转 tau·i，然后按 `edges('<Z')`（z 最小 = tc_h）
  * 与 `edges('>Z')`（z 最大 = pc_h）组线成端盖。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 锥齿轮几何量
  * @param strategy 齿面建面策略
  * @param options 容差/次数选项
@@ -269,7 +269,7 @@ export function buildBevelGearFaces(
   for (let i = 0; i < geom.z; i++) {
     const angle = geom.tau * i
     for (const tf of tFaces) {
-      faces.push(i === 0 ? tf : kernel.rotate(tf, axisZ, angle))
+      faces.push(i === 0 ? tf : kernel.l1.rotate(tf, axisZ, angle))
     }
   }
   faces.push(capBevelAtZ(kernel, faces, f.tcH, options.wireCombTol))
@@ -283,22 +283,22 @@ function revolveProfile(
 ): BrepHandle {
   // pts = [起点, 弧中点, 弧终点, 拐点1, 拐点2]，最后自动闭合回起点。
   const edges: BrepHandle[] = [
-    kernel.makeArcEdge(pts[0], pts[arcMid], pts[2]),
-    kernel.makeLineEdge(pts[2], pts[3]),
-    kernel.makeLineEdge(pts[3], pts[4]),
-    kernel.makeLineEdge(pts[4], pts[0]),
+    kernel.l1.makeArcEdge(pts[0], pts[arcMid], pts[2]),
+    kernel.l1.makeLineEdge(pts[2], pts[3]),
+    kernel.l1.makeLineEdge(pts[3], pts[4]),
+    kernel.l1.makeLineEdge(pts[4], pts[0]),
   ]
-  const face = kernel.makeFace(kernel.makeWire(edges))
-  return kernel.revolve(
-    face, { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }, Math.PI * 2,
-  )
+  const face = kernel.l1.makeFace(kernel.l1.makeWire(edges))
+  // L1 中立名是 `revolveVec(shape, center, direction, angleDeg)`：角度单位随之从弧度
+  // 换成度（§3.5 第 2 项的口径换算）。
+  return kernel.l1.revolveVec(face, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 360)
 }
 
 /**
  * 复刻 `BevelGear._trim_bottom`：半径 gs_r 上的三点圆弧轮廓绕 Z 回转成 cutter，
  * 再从实体上布尔差。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 锥齿轮几何量
  * @returns cutter（旋转体）
  */
@@ -322,7 +322,7 @@ export function makeTrimBottomCutter(
  * 复刻 `BevelGear._trim_top`：半径 gs_r − face_width 上的圆弧轮廓（内边界落在轴上）
  * 绕 Z 回转成 cutter，再从实体上布尔差。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 锥齿轮几何量
  * @returns cutter（旋转体）
  */
@@ -346,9 +346,9 @@ export function makeTrimTopCutter(
  * 解包成 solid（与 `features.ts::asSolid` 同思路）。
  */
 function asSolid(kernel: GearKernel, shape: BrepHandle): BrepHandle {
-  if (kernel.isSolid(shape)) return shape
-  if (kernel.getShapeType(shape) === 'compound') {
-    const solids = kernel.getSubShapes(shape, 'solid')
+  if (kernel.l1.isSolid(shape)) return shape
+  if (kernel.l1.shapeType(shape) === 'compound') {
+    const solids = kernel.l1.getSubShapes(shape, 'solid')
     if (solids.length === 1) return solids[0]
   }
   return shape
@@ -357,7 +357,7 @@ function asSolid(kernel: GearKernel, shape: BrepHandle): BrepHandle {
 /**
  * ①–⑦：完整 BevelGear 实体。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 锥齿轮参数（逐字沿用 Python 构造参数名）
  * @param build 构造选项（策略/容差/裁切/轴孔）
  * @returns 朝向归一化（齿轮轴 = +Z、底面 z = 0）后的 solid
@@ -372,33 +372,33 @@ export function buildBevelGearSolid(
   const faces = buildBevelGearFaces(kernel, geom, strategy, build)
 
   // cq `make_shell(faces)`（BRepBuilderAPI_Sewing，tol = shell_sewing_tol）+ `Solid.makeSolid`
-  const shell = kernel.sew(faces, build.shellSewingTol ?? GEAR_BASE_CONSTANTS.shell_sewing_tol)
-  const solid = kernel.makeSolid(shell)
-  let body = kernel.fixFaceOrientations(solid)
-  if (!kernel.isSolid(body)) {
+  const shell = kernel.l1.sew(faces, build.shellSewingTol ?? GEAR_BASE_CONSTANTS.shell_sewing_tol)
+  const solid = kernel.l1.makeSolid(shell)
+  let body = kernel.l1.fixFaceOrientations(solid)
+  if (!kernel.l1.isSolid(body)) {
     throw new Error(
-      `buildBevelGearSolid: result is not a solid (got ${String(kernel.getShapeType(body))})`,
+      `buildBevelGearSolid: result is not a solid (got ${String(kernel.l1.shapeType(body))})`,
     )
   }
 
   // ⑤ 裁底 / 裁顶（cq 顺序：先 bottom 后 top）
   if (build.trimBottom !== false) {
-    body = asSolid(kernel, kernel.cut(body, makeTrimBottomCutter(kernel, geom)))
+    body = asSolid(kernel, kernel.l1.cut(body, makeTrimBottomCutter(kernel, geom)))
   }
   if (build.trimTop !== false) {
-    body = asSolid(kernel, kernel.cut(body, makeTrimTopCutter(kernel, geom)))
+    body = asSolid(kernel, kernel.l1.cut(body, makeTrimTopCutter(kernel, geom)))
   }
-  if (!kernel.isSolid(body)) {
+  if (!kernel.l1.isSolid(body)) {
     throw new Error('buildBevelGearSolid: result is not a solid after trims')
   }
 
   // ⑥ 把齿轮摆正：绕 X 转 180° → 沿 Z 平移 cone_h → 绕 Z 转 t_align_angle
   const tAlignAngle = -geom.mpTheta / 2.0 - Math.PI / 2.0 + Math.PI / geom.z
-  body = kernel.rotate(
+  body = kernel.l1.rotate(
     body, { point: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 } }, Math.PI,
   )
-  body = kernel.translate(body, 0, 0, geom.coneH)
-  body = kernel.rotate(
+  body = kernel.l1.translate(body, 0, 0, geom.coneH)
+  body = kernel.l1.rotate(
     body, { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }, tAlignAngle,
   )
 
@@ -406,11 +406,11 @@ export function buildBevelGearSolid(
   // 缺省 centerOption='ProjectedOrigin' ⇒ 圆的圆心落在齿轮轴上（x=y=0），故等价于
   // 「沿 Z 轴、从实体 zmin 下方贯穿到 zmax 上方」的圆柱差。
   if (build.boreD !== undefined) {
-    const bb = kernel.getBoundingBox(body)
+    const bb = kernel.l1.getBoundingBox(body)
     const height = (bb.zmax - bb.zmin) + 2 * BORE_E
-    const cyl = kernel.makeCylinder(build.boreD / 2, height)
-    body = asSolid(kernel, kernel.cut(body, kernel.translate(cyl, 0, 0, bb.zmin - BORE_E)))
-    if (!kernel.isSolid(body)) {
+    const cyl = kernel.l1.makeCylinder(build.boreD / 2, height)
+    body = asSolid(kernel, kernel.l1.cut(body, kernel.l1.translate(cyl, 0, 0, bb.zmin - BORE_E)))
+    if (!kernel.l1.isSolid(body)) {
       throw new Error('buildBevelGearSolid: result is not a solid after bore')
     }
   }

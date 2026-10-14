@@ -48,7 +48,7 @@ export interface BuildSpurGearOptions extends SplineFaceOptions, GearFeatureOpti
  *
  * @throws 内核抛错时原样上抛
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param faces 齿面集合（已含 z 向厚度）
  * @param z 目标平面高度
  * @param wireCombTol 组线容差（mm）
@@ -62,8 +62,8 @@ export function planarCapAtZ(
 ): BrepHandle {
   const edges: BrepHandle[] = []
   for (const f of faces) {
-    for (const e of kernel.getSubShapes(f, 'edge')) {
-      const bb = kernel.getBoundingBox(e)
+    for (const e of kernel.l1.getSubShapes(f, 'edge')) {
+      const bb = kernel.l1.getBoundingBox(e)
       if (Math.abs(bb.zmin - z) <= PLANAR_PICK_TOL && Math.abs(bb.zmax - z) <= PLANAR_PICK_TOL) {
         edges.push(e)
       }
@@ -78,12 +78,12 @@ export function planarCapAtZ(
       `planarCapAtZ: expected one closed loop at z=${z}, got ${wires.length} wires from ${edges.length} edges`,
     )
   }
-  return kernel.makeFace(kernel.healWire(wires[0], wireCombTol))
+  return kernel.l1.makeFace(kernel.occt.healWire(wires[0], wireCombTol))
 }
 
 /** ①+②：4z 个齿面（不含顶/底面）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 齿轮几何量
  * @param strategy 齿面建面策略
  * @param options 容差/次数选项
@@ -103,7 +103,7 @@ export function buildToothFaces(
   for (let i = 0; i < geom.z; i++) {
     const angle = geom.tau * i
     for (const f of base) {
-      faces.push(i === 0 ? f : kernel.rotate(f, axis, angle))
+      faces.push(i === 0 ? f : kernel.l1.rotate(f, axis, angle))
     }
   }
   return faces
@@ -116,7 +116,7 @@ export function buildToothFaces(
  * 上半 `(0, +twist, 0, w/2)`、下半 `(+twist, 0, w/2, w/2)`，两半在 z=w/2 处
  * 以相同扭转角衔接（点集重合，sew 自动并合）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 齿廓几何量
  * @param strategy 齿面建面策略
  * @param options 容差/次数选项
@@ -139,8 +139,8 @@ export function buildHerringboneToothFaces(
   const axis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
   for (let i = 0; i < geom.z; i++) {
     const angle = geom.tau * i
-    for (const f of base1) faces.push(i === 0 ? f : kernel.rotate(f, axis, angle))
-    for (const f of base2) faces.push(i === 0 ? f : kernel.rotate(f, axis, angle))
+    for (const f of base1) faces.push(i === 0 ? f : kernel.l1.rotate(f, axis, angle))
+    for (const f of base2) faces.push(i === 0 ? f : kernel.l1.rotate(f, axis, angle))
   }
   return faces
 }
@@ -150,7 +150,7 @@ export function buildHerringboneToothFaces(
  * 与类无关：只吃 `SpurGearGeometry`（Spur / Herringbone / CrossedHelical 的齿廓布局
  * 同构），所以子类（如 CrossedHelical）只要先用自己的公式算出 `geom`，即可复用它。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 齿廓几何量（`spurGearGeometry` / `crossedHelicalGearGeometry` 的产物）
  * @param build 构造选项（策略/容差覆盖）
  * @returns 朝向归一化后的 solid
@@ -169,16 +169,16 @@ export function buildGearSolid(
   const top = planarCapAtZ(kernel, faces, geom.width, build.wireCombTol)
   const all = [...faces, top, bottom]
 
-  const shell = kernel.sew(all, build.shellSewingTol ?? GEAR_BASE_CONSTANTS.shell_sewing_tol)
-  const solid = kernel.makeSolid(shell)
+  const shell = kernel.l1.sew(all, build.shellSewingTol ?? GEAR_BASE_CONSTANTS.shell_sewing_tol)
+  const solid = kernel.l1.makeSolid(shell)
 
   // `sew` 不保证面朝向一致（实测 2026-09-08：loft 蒙皮得到的齿面法向朝内，
   // 缝出的实体体积为 −1111.7107）。`fixFaceOrientations` 是拓扑朝向归一化，
   // 不改变几何——用它而不是去改面的构造方式。
-  const oriented = kernel.fixFaceOrientations(solid)
-  if (!kernel.isSolid(oriented)) {
+  const oriented = kernel.l1.fixFaceOrientations(solid)
+  if (!kernel.l1.isSolid(oriented)) {
     throw new Error(
-      `buildGearSolid: result is not a solid (got ${String(kernel.getShapeType(oriented))})`,
+      `buildGearSolid: result is not a solid (got ${String(kernel.l1.shapeType(oriented))})`,
     )
   }
 
@@ -210,9 +210,9 @@ export function buildGearSolid(
       spokesOd: build.spokesOd ?? build.recessD,
     })
   }
-  if (!kernel.isSolid(result)) {
+  if (!kernel.l1.isSolid(result)) {
     throw new Error(
-      `buildGearSolid: result is not a solid after features (got ${String(kernel.getShapeType(result))})`,
+      `buildGearSolid: result is not a solid after features (got ${String(kernel.l1.shapeType(result))})`,
     )
   }
   return result
@@ -220,7 +220,7 @@ export function buildGearSolid(
 
 /** ①–④：完整 SpurGear 实体（裸齿轮）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 齿轮参数
  * @param build 构造选项（策略/容差覆盖）
  * @returns 朝向归一化后的 solid
@@ -240,7 +240,7 @@ export function buildSpurGearSolid(
  * `buildHerringboneToothFaces` 实现；顶/底盖面与 SpurGear 一致（z=0 与 z=width 处
  * 截面均为基准渐开线，净扭转回零）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 齿轮参数（逐字沿用 Python 构造参数名）
  * @param build 构造选项（策略/容差覆盖）
  * @returns 朝向归一化后的 solid
@@ -260,7 +260,7 @@ export function buildHerringboneGearSolid(
  * `hyperbolicGearGeometry`）、`surfaceSplines=2`；实体构造完全复用通用的
  * `buildGearSolid`。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 双曲面齿轮参数（逐字沿用 Python 构造参数名）
  * @param build 构造选项（策略/容差覆盖）
  * @returns 朝向归一化后的 solid

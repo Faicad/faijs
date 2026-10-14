@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createRequire } from 'node:module'
-import { createBrepkitPrimitives, disposeBrepkit, getBrepkitKernel, type BrepkitPrimitives } from '../../src/brepkit-kernel/brepkitKernel'
+import { createBrepkitPrimitives, disposeBrepkit, getBrepKitKernel, type BrepkitPrimitives } from '../../src/brepkit-kernel/brepkitKernel'
 import { drillBrep, splitBrep } from '../../src/brep/brep-ops'
 import type { BrepHandle } from '../../src/brep/engine/types'
 
@@ -200,7 +200,7 @@ suite('brepkit IO', () => {
   })
 
   it('fromBREP：接受 brepkit 原生 toBrepJson 输出（内核自动判别格式）', () => {
-    const kernel = getBrepkitKernel()
+    const kernel = getBrepKitKernel()
     const h = api.makeBox(BOX, BOX, BOX)
     const json = kernel.toBrepJson(h) as string
     const r = api.fromBREP(json)
@@ -368,7 +368,7 @@ suite('brepkit 操作能力：分割（split）', () => {
   })
 
   it('原生 kernel.split 直接返回 2 个半实体（内核级分割能力）', () => {
-    const kernel = getBrepkitKernel()
+    const kernel = getBrepKitKernel()
     const box = api.makeBox(BOX, BOX, BOX)
     const parts = Array.from(
       kernel.split(box, 5, 0, 0, 1, 0, 0) as ArrayLike<number>,

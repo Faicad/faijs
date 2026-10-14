@@ -23,7 +23,8 @@ import { drillBrepWithRoleTable } from '../../brep/face-evolution'
 import { threadBrep } from '../../api/brep-operations/threadFns'
 import { getScrewSpec, threadToPitchMm } from '../../primitives/screw/screw-db'
 import { Vec3 as Vec3C, Mat4, Quat } from '../../math3d'
-import { getBackends, getCurrentStmt } from '../../runtime-state'
+import { getCurrentStmt } from '../../runtime-state'
+import { getBrepApi } from '../../brep/handle-bridge'
 import { fromBrep, brepOf, inputRoleTable, resolveCompoundMember, replaceCompoundMember } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
@@ -78,7 +79,7 @@ function faceNormalFrom(input: Shape, params: Record<string, unknown>): Vec3 {
   }
   const face = params.face as FaceTopoRef | undefined
   if (face && typeof face === 'object' && face.kind === 'face') {
-    const kernel = getBackends().kernel.brep as BrepEngineApi | null
+    const kernel = getBrepApi()
     const geom = resolveFaceGeometry(kernel, input, face)
     return geom.normal
   }
@@ -148,8 +149,7 @@ function screwHoleBrep(
 
 /** BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。带 roleTable 传播。 */
 function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[extra/drill] no OCCT kernel')
+  const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (inputSolid === undefined) throw new Error('[extra/drill] input is not BREP')
 

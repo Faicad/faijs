@@ -15,19 +15,18 @@
 import type { Shape } from '../../mesh/types'
 import { solidToShape } from '../../brep/brep-ops'
 import { identityEvolution, identityHashEvolution } from '../../brep/face-evolution'
-import { getBackends, keep } from '../../runtime-state'
+import { getBrepApi } from '../../brep/handle-bridge'
+import { keep } from '../../runtime-state'
 import { fromBrep, brepOf, inputRoleTable } from '../../shape'
 import { propagateAllOrigins } from '../../topology/naming/roles'
 import type { RoleTable } from '../../topology/naming/types'
 import type { Provenance } from '../../topology/naming/lineage'
 import { defineOp } from '../../sdk'
 import type { BrepHandle } from '../../brep/engine/types'
-import type { BrepEngineApi } from '../../brep/engine/primitives'
 
 /** BREP 路径：kernel.copy 深拷贝实体 + 恒等面演化 + 恒等 roleTable 传播 + fromBrep 一次登记。 */
 function copyBrep(input: Shape): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[extra/copy] no OCCT kernel')
+  const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (inputSolid === undefined) throw new Error('[extra/copy] input is not BREP')
 

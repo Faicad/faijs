@@ -171,3 +171,52 @@ describe('createBrowserLibLoader — autoLiftFor / prefetchMeta', () => {
     await expect(loader.prefetchMeta()).resolves.toBeUndefined()
   })
 })
+
+describe('createBrowserLibLoader — libMetaFor（§3.3 库级定位声明）', () => {
+  it('读 meta 的 lib / peers（别名与全名两种写法都命中）', () => {
+    const loader = createBrowserLibLoader({
+      aliases: { 'test-fixture-lib': '@faicad/test-fixture-lib' },
+      meta: {
+        '@faicad/test-fixture-lib': {
+          lib: { role: 'library', conformsTo: 'cadquery', platform: ['occt'] },
+          peers: { 'occt-wasm': '^5.6.0' },
+        },
+        '@faicad/other': {},
+      },
+    })
+    expect(loader.libMetaFor?.('test-fixture-lib')?.lib).toEqual({
+      role: 'library', conformsTo: 'cadquery', platform: ['occt'],
+    })
+    expect(loader.libMetaFor?.('test-fixture-lib')?.peers).toEqual({ 'occt-wasm': '^5.6.0' })
+    // 未声明 → undefined（来源不提供该项事实 → 装配期按中立处理），不是空对象
+    expect(loader.libMetaFor?.('@faicad/unknown')).toBeUndefined()
+    // 有记录但无 lib → 返回该记录（lib 缺省 = 未声明）
+    expect(loader.libMetaFor?.('@faicad/other')?.lib).toBeUndefined()
+  })
+
+  it('prefetchMeta：抓 faijs.lib 与 peerDependencies 填入 meta；无 peerDependencies → peers = {}', async () => {
+    const fetchImpl = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        String(url).includes('with-lib')
+          ? {
+              faijs: { autoLift: false, lib: { role: 'library', conformsTo: 'cadquery', platform: ['occt'] } },
+              peerDependencies: { 'occt-wasm': '^5.6.0' },
+            }
+          : { faijs: { autoLift: true } },
+    })) as unknown as typeof fetch
+    const loader = createBrowserLibLoader({
+      cdnBase: CDN,
+      versions: { '@faicad/with-lib': '1.0.0', '@faicad/no-peer': '1.0.0' },
+      fetchImpl,
+    })
+    await loader.prefetchMeta()
+    expect(loader.libMetaFor?.('@faicad/with-lib')?.lib).toEqual({
+      role: 'library', conformsTo: 'cadquery', platform: ['occt'],
+    })
+    expect(loader.libMetaFor?.('@faicad/with-lib')?.peers).toEqual({ 'occt-wasm': '^5.6.0' })
+    // `{}` = 查过了、确实没有 peer（单向校验照常生效）；`undefined` = 不知道（跳过）。
+    expect(loader.libMetaFor?.('@faicad/no-peer')?.peers).toEqual({})
+    expect(loader.libMetaFor?.('@faicad/no-peer')?.lib).toBeUndefined()
+  })
+})

@@ -9,6 +9,11 @@
  *
  * Multi-output annotation: the only contract name is `fn.outputs` (the
  * `outputs` defineOp option); the legacy name is deleted repo-wide.
+ * Engine annotation: `fn.engines` (2026-10-14). A bare function's effective engine
+ * set is `fn.engines ?? libPlatform ?? neutral` — resolved HERE, once, so the
+ * dispatch layer keeps reading only op metadata. `libPlatform` comes from the
+ * library-level `faijs.lib.platform` declaration (see `lib-decl.ts`): a library
+ * whose platform is `['occt']` needs no per-function `fn.engines`.
  *
  * Naming (2026-09-23): library authors no longer declare face naming
  * (`faijs.naming` / `fn.naming` / `namingFor` removed). A library is a black-box
@@ -25,9 +30,12 @@
 
 import { assertLibConforms, DUAL_OP_META } from '../define-op'
 import { compatOp } from '../api/internal/compat-op'
+import { resolveFunctionEngines } from './lib-decl'
+import type { BrepEngineId } from '../brep/engine/types'
 import type { Provenance } from '../topology/naming/lineage'
 
 type OutputsCarrier = { outputs?: string[] }
+type EngineCarrier = { engines?: readonly BrepEngineId[] }
 
 /**
  * Default provenance for every bare library function (2026-09-23).
@@ -55,10 +63,13 @@ const BARE_LIFT_DEFAULT_NAMING: Provenance = {
  * (unmodeled); no naming declaration is read or required (2026-09-23).
  *
  * @param ns the library namespace object being registered.
+ * @param libPlatform the library-level engine constraint (`faijs.lib.platform`).
+ *   A function's own `fn.engines` wins over it; both absent = neutral (§3.3).
  * @returns the admitted namespace (bare functions replaced by compatOp facades).
  */
 export function admitCompatLib(
   ns: Record<string, unknown>,
+  libPlatform?: readonly BrepEngineId[],
 ): Record<string, unknown> {
   assertLibConforms(ns)
   const out: Record<string, unknown> = {}
@@ -68,6 +79,8 @@ export function admitCompatLib(
     out[name] = compatOp(v as (...a: unknown[]) => unknown, {
       name,
       outputs: (v as OutputsCarrier).outputs, // only fn.outputs; no other annotation name is recognized (§3.6)
+      // 有效引擎 = fn.engines ?? libPlatform ?? 中立（在此一次解析完，分派侧只读元数据）
+      engines: resolveFunctionEngines((v as EngineCarrier).engines, libPlatform),
       naming: BARE_LIFT_DEFAULT_NAMING,
     })
   }

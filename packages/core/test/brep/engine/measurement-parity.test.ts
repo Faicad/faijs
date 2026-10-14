@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
@@ -28,11 +28,11 @@ beforeAll(async () => {
   // occt 先（2026-09-25 core-decouple Phase 2：注册只管 core 引擎注册表，
   // 不再向旧 registry 注入）
   await registerOcctBrepEngine()
-  occtApi = (await getBrepEngine()).primitives
+  occtApi = (await getActiveBrepEngine()).primitives
 
   __resetEngineRegistriesForTests()
   await registerBrepkitBrepEngine()
-  brepkitApi = (await getBrepEngine()).primitives
+  brepkitApi = (await getActiveBrepEngine()).primitives
 
   // 恢复 occt 为默认（其它测试文件不受影响）
   __resetEngineRegistriesForTests()

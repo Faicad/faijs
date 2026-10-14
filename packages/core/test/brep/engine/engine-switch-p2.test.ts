@@ -16,9 +16,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import {
+import { getActiveBrepEngine,
   __resetEngineRegistriesForTests,
-  getBrepEngine,
 } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
@@ -52,12 +51,12 @@ async function runBreps(code: string): Promise<ExecutionResult> {
 beforeAll(async () => {
   // occt 引擎（默认），取 BrepEngineApi
   await registerOcctBrepEngine()
-  occtApi = (await getBrepEngine()).primitives
+  occtApi = (await getActiveBrepEngine()).primitives
 
   // brepkit 引擎：重置注册表后注册（brepkit 成为默认）
   __resetEngineRegistriesForTests()
   await registerBrepkitBrepEngine()
-  brepkitApi = (await getBrepEngine()).primitives
+  brepkitApi = (await getActiveBrepEngine()).primitives
 
   // 恢复 occt 为默认（本文件用例按需切换；其它测试文件不受影响）
   __resetEngineRegistriesForTests()

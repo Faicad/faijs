@@ -10,9 +10,9 @@
  *
  * | strategy | how | semantic delta vs cq |
  * |---|---|---|
- * | `grid-approx` | `kernel.bsplineSurface(flat, rows, cols)` | OCCT default DegMin/DegMax/Tol3D; cq passes 3/8/1e-2 explicitly |
- * | `row-approx-loft` | per-row `approximatePoints(row, tol)` → `loft(wires, false, false)` | curve-level tol same name/meaning; surface is skinned, not fitted at once |
- * | `row-interp-loft` | per-row `interpolatePoints(row)` → `loft` | passes through every sample point (interpolation) |
+ * | `grid-approx` | `l1.bsplineSurface(flat, rows, cols)` | OCCT default DegMin/DegMax/Tol3D; cq passes 3/8/1e-2 explicitly |
+ * | `row-approx-loft` | per-row `l1.approximatePoints(row, tol)` → `occt.loft(wires, false, false)` | curve-level tol same name/meaning; surface is skinned, not fitted at once |
+ * | `row-interp-loft` | per-row `l1.interpolatePoints(row, 3)` → `occt.loft` | passes through every sample point (interpolation) |
  */
 
 import type { BrepHandle } from '@faicad/faijs'
@@ -20,6 +20,7 @@ import {
   buildGearSplineFace,
   gearDistanceToFace,
   gearFaceDeviation,
+  gearIsFace,
   soleGearFace as soleFace,
   DEFAULT_GEAR_SPLINE_FACE_STRATEGY,
   GEAR_SPLINE_FACE_STRATEGIES,
@@ -57,7 +58,7 @@ export const SPLINE_FACE_STRATEGIES = GEAR_SPLINE_FACE_STRATEGIES
  *
  * @throws 内核抛错时原样上抛（不吞错误——这是红线）
  *
- * @param kernel 原始 OCCT 内核（经 cq-compat 的 `GearKernel`）
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param grid row×col 点阵
  * @param strategy 建面策略
  * @param options 容差/次数选项
@@ -74,7 +75,7 @@ export function buildSplineFace(
 
 /** 点到面的最近距离（`projectPointOnFace`）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param face 目标面
  * @param p 查询点
  * @returns 欧氏距离（mm）
@@ -90,7 +91,7 @@ export function distanceToFace(kernel: GearKernel, face: BrepHandle, p: Vec3): n
  *
  * 参数化无关：采样点取自 cq 侧的 (u,v) 网格，两侧曲面参数化不同也能比。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param face 本侧面
  * @param samplePoints 参考采样点（3D）
  * @returns 最大距离 / RMS / 样本数
@@ -122,7 +123,7 @@ export interface SplineFaceMeasurement {
 /**
  * 建面并测量（参考面积与采样点由 Python 侧 manifest 提供）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param grid row×col 点阵
  * @param strategy 建面策略
  * @param ref 参考面积与采样点
@@ -137,7 +138,7 @@ export function measureSplineFace(
   options: SplineFaceOptions = {},
 ): SplineFaceMeasurement {
   const face = buildSplineFace(kernel, grid, strategy, options)
-  const area = kernel.getSurfaceArea(face)
+  const area = kernel.l1.getSurfaceArea(face)
   const deviation = faceDeviation(
     kernel,
     face,
@@ -149,8 +150,8 @@ export function measureSplineFace(
     rows: grid.rows,
     cols: grid.cols,
     area,
-    isFace: kernel.isFace(face),
-    isValid: kernel.isValid(face),
+    isFace: gearIsFace(kernel, face),
+    isValid: kernel.l1.isValid(face),
     deviation,
     refArea: ref.area,
     areaRelDiff: Math.abs(area - ref.area) / ref.area,

@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
-import { getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine } from '../../../src/brep/engine/registry'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../../src/runtime-state'
 import { box } from '../../../src/api/primitives'
 import { measureArea, measureLength, measureVolume } from '../../../src/api/generated/measurement'
@@ -17,7 +17,7 @@ const BOX_AREA = 2 * (20 * 10 + 20 * 5 + 10 * 5) // 700
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  const brep = await getBrepEngine()
+  const brep = await getActiveBrepEngine()
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'auto', brepEngineId: 'occt' },

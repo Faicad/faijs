@@ -34,6 +34,7 @@
  * 不做启发式实现（方案 §5.4 红线）。
  */
 
+import type { BrepEngineId } from '@faicad/faijs/sdk'
 import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import {
   orientOutward,
@@ -350,6 +351,13 @@ export function buildThread(spec: ThreadSpec): ThreadResult {
   return { ...result, handle: orientOutward(solid) }
 }
 
+// 引擎约束（`fn.engines`，内核取用面收敛 2026-10-14 §3.3 第 2 项）：螺纹族的齿面直纹带
+// 经 `primitives.ruledFace` → occt 平台面 `loft(wires, isSolid=false, ruled=true)`
+// （L1 的 `loft` 恒建实体，语义不符），所以**整族**在非 occt 引擎下于**执行前**被拒
+// （`E_BREP_UNSUPPORTED`）。这就是库级 `faijs.lib.platform` 保持中立（`[]`）时，
+// 用函数级声明记下的那条例外——本包其余零件在 brepkit 下照常可建。
+;(buildThread as { engines?: readonly BrepEngineId[] }).engines = ['occt']
+
 /** `Thread.square_off_ends`（thread.py:212）——立方体裁掉 z<0 / z>length 的两端。
  *
  *  ⚠️ 复刻上游 bug：两端都是 "square" 时结果取**后一次**切割（每次以传入的
@@ -432,6 +440,8 @@ export function isoThread(p: IsoThreadParams): ThreadResult {
     simple: p.simple,
   })
 }
+// 同上（经 buildThread 的直纹带）。
+;(isoThread as { engines?: readonly BrepEngineId[] }).engines = ['occt']
 
 // ── TrapezoidalThread 基类 + AcmeThread / MetricTrapezoidalThread ──────────
 
@@ -517,6 +527,8 @@ export function acmeThread(p: TrapezoidalParams): ThreadResult {
   const [diameter, pitch] = acmeThreadParseSize(p.size)
   return buildTrapezoidal('AcmeThread', p, 29.0, diameter, pitch)
 }
+// 同上（经 buildTrapezoidal → buildThread 的直纹带）。
+;(acmeThread as { engines?: readonly BrepEngineId[] }).engines = ['occt']
 
 /** `MetricTrapezoidalThread.standard_sizes`（thread.py:746）——ISO 2904 公制规格表。 */
 export const METRIC_TRAPEZOIDAL_SIZES: readonly string[] = [
@@ -580,6 +592,8 @@ export function metricTrapezoidalThread(p: TrapezoidalParams): ThreadResult {
   const [diameter, pitch] = metricTrapezoidalThreadParseSize(p.size)
   return buildTrapezoidal('MetricTrapezoidalThread', p, 30.0, diameter, pitch)
 }
+// 同上（经 buildTrapezoidal → buildThread 的直纹带）。
+;(metricTrapezoidalThread as { engines?: readonly BrepEngineId[] }).engines = ['occt']
 
 // ── PlasticBottleThread（thread.py:926）────────────────────────────────────
 
@@ -707,3 +721,5 @@ export function plasticBottleThread(p: PlasticBottleThreadParams): ThreadResult 
     hand: p.hand ?? 'right', end_finishes: ['fade', 'fade'],
   })
 }
+// 同上（直接经 buildThread 的直纹带）。
+;(plasticBottleThread as { engines?: readonly BrepEngineId[] }).engines = ['occt']

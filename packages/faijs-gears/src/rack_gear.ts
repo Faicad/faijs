@@ -25,7 +25,10 @@ import {
   type RackGearGeometry, type RackGearParams, type ToothGrid, type ToothSegment,
 } from './profile'
 import { buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY, type SplineFaceStrategy } from './spline-face'
-import { connectEdgesToWires, gearEdgeEnds as edgeEnds, gearShellToSolid as shellToSolid } from './kernel'
+import {
+  connectEdgesToWires, gearEdgeEnds as edgeEnds, gearShellToSolid as shellToSolid,
+  gearIsFace,
+} from './kernel'
 import { vec3, type Vec3 } from './math'
 
 /** 侧端裁剪平面比齿廓超出的余量（Python `cp_ext`）。 */
@@ -72,7 +75,7 @@ function rackFaceGrid(
 /**
  * ① 基础齿面（单个齿位，未平移）：普通 4 面，Herringbone 上下两半共 8 面。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 齿条几何量
  * @param herringbone 是否人字齿（上下两半螺旋方向相反）
  * @param strategy 样条建面策略
@@ -115,7 +118,7 @@ export function rackToothFaces(
  * - 工具平面与面相交 → compound，碎片按 bbox.xmax / xmin 取
  * - 不相交 → 原面单返回（cq 返回 face 本身），再按 bbox 判断丢弃
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param base 基础齿面数组（rackToothFaces 的产物）
  * @param dx 齿位沿 X 的平移量（π·m·i）
  * @param i 齿位序号（决定触发哪一侧裁剪分支）
@@ -137,35 +140,35 @@ export function toothAtPosition(
 ): BrepHandle[] {
   const faces: BrepHandle[] = []
   for (const tf of base) {
-    let face = kernel.translate(tf, dx, 0, 0)
+    let face = kernel.l1.translate(tf, dx, 0, 0)
     if (i <= extra + 1) {
-      const cpd = kernel.split(face, [cutL])
-      const frags = kernel.isFace(cpd) ? [cpd] : kernel.getSubShapes(cpd, 'face')
+      const cpd = kernel.occt.split(face, [cutL])
+      const frags = gearIsFace(kernel, cpd) ? [cpd] : kernel.l1.getSubShapes(cpd, 'face')
       if (frags.length > 1) {
         // compound：取 bbox.xmax 最大的碎片（cq max(key=get_xmax)）
         let best = frags[0]
         for (const f of frags) {
-          if (kernel.getBoundingBox(f).xmax > kernel.getBoundingBox(best).xmax) best = f
+          if (kernel.l1.getBoundingBox(f).xmax > kernel.l1.getBoundingBox(best).xmax) best = f
         }
         face = best
       } else {
         face = frags[0]
-        if (kernel.getBoundingBox(face).xmax < 0.0) continue
+        if (kernel.l1.getBoundingBox(face).xmax < 0.0) continue
       }
     }
     if (i >= geom.z - extra - 1) {
-      const cpd = kernel.split(face, [cutR])
-      const frags = kernel.isFace(cpd) ? [cpd] : kernel.getSubShapes(cpd, 'face')
+      const cpd = kernel.occt.split(face, [cutR])
+      const frags = gearIsFace(kernel, cpd) ? [cpd] : kernel.l1.getSubShapes(cpd, 'face')
       if (frags.length > 1) {
         // compound：取 bbox.xmin 最小的碎片（cq min(key=get_xmin)）
         let best = frags[0]
         for (const f of frags) {
-          if (kernel.getBoundingBox(f).xmin < kernel.getBoundingBox(best).xmin) best = f
+          if (kernel.l1.getBoundingBox(f).xmin < kernel.l1.getBoundingBox(best).xmin) best = f
         }
         face = best
       } else {
         face = frags[0]
-        if (kernel.getBoundingBox(face).xmin > geom.length) continue
+        if (kernel.l1.getBoundingBox(face).xmin > geom.length) continue
       }
     }
     faces.push(face)
@@ -176,7 +179,7 @@ export function toothAtPosition(
 /**
  * 大平面工具（cq `Face.makePlane(length, width, basePnt, dir)` 的等价物）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param length 平面在局部 u 方向的长度
  * @param width 平面在局部 v 方向的宽度
  * @param basePnt 平面中心点
@@ -206,18 +209,18 @@ export function cutPlane(
     basePnt.z + u.z * a + v.z * b,
   )
   const es = [
-    kernel.makeLineEdge(p(-h, -w), p(h, -w)),
-    kernel.makeLineEdge(p(h, -w), p(h, w)),
-    kernel.makeLineEdge(p(h, w), p(-h, w)),
-    kernel.makeLineEdge(p(-h, w), p(-h, -w)),
+    kernel.l1.makeLineEdge(p(-h, -w), p(h, -w)),
+    kernel.l1.makeLineEdge(p(h, -w), p(h, w)),
+    kernel.l1.makeLineEdge(p(h, w), p(-h, w)),
+    kernel.l1.makeLineEdge(p(-h, w), p(-h, -w)),
   ]
-  return kernel.makeFace(kernel.makeWire(es))
+  return kernel.l1.makeFace(kernel.l1.makeWire(es))
 }
 
 /**
  * 收集边集合里「边中心 X 为极值」的边（cq `edges('<X'/'>X')` 语义）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param faces 候选面集合
  * @param side 取最小（left）还是最大（right）
  * @returns 中心落在极值 ±容差内的边
@@ -228,8 +231,8 @@ export function extremeXEdges(
   let extreme = side === 'left' ? Infinity : -Infinity
   const centers: Array<{ e: BrepHandle; cx: number }> = []
   for (const f of faces) {
-    for (const e of kernel.getSubShapes(f, 'edge')) {
-      const bb = kernel.getBoundingBox(e)
+    for (const e of kernel.l1.getSubShapes(f, 'edge')) {
+      const bb = kernel.l1.getBoundingBox(e)
       const cx = (bb.xmin + bb.xmax) / 2
       centers.push({ e, cx })
       extreme = side === 'left' ? Math.min(extreme, cx) : Math.max(extreme, cx)
@@ -246,7 +249,7 @@ export function extremeXEdges(
  * cq 的辅助线从 `vertices('<Z')` / `vertices('>Z')` 出发——即截面链上 **z 最小/
  * 最大的端点**（其 y 未必是链上 y 的极值，螺旋齿条下两者不同）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param toothFaces 裁剪后的齿面集合
  * @param side 左端（x=0）还是右端（x=length）
  * @param geom 齿条几何量
@@ -277,21 +280,21 @@ export function endCapFace(
   const backY = geom.ld - geom.height
   const pt = (y: number, z: number): Vec3 => vec3(side === 'left' ? 0 : geom.length, y, z)
   const lines = [
-    kernel.makeLineEdge(pt(pt1!.y, pt1!.z), pt(backY, pt1!.z)),
-    kernel.makeLineEdge(pt(backY, pt1!.z), pt(backY, pt2!.z)),
-    kernel.makeLineEdge(pt(backY, pt2!.z), pt(pt2!.y, pt2!.z)),
+    kernel.l1.makeLineEdge(pt(pt1!.y, pt1!.z), pt(backY, pt1!.z)),
+    kernel.l1.makeLineEdge(pt(backY, pt1!.z), pt(backY, pt2!.z)),
+    kernel.l1.makeLineEdge(pt(backY, pt2!.z), pt(pt2!.y, pt2!.z)),
   ]
   const wires = connectEdgesToWires(kernel, [...picked, ...lines], wireCombTol)
   if (wires.length !== 1) {
     throw new Error(`endCapFace(${side}): expected 1 closed loop, got ${wires.length}`)
   }
-  return kernel.makeFace(wires[0])
+  return kernel.l1.makeFace(wires[0])
 }
 
 /**
  * ④ 背面：y = ld−height 平面上的 length×width 矩形（cq `.rect(length, width, centered=False)`）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 齿条几何量
  * @returns 背面 Face
  */
@@ -299,19 +302,19 @@ export function backFace(kernel: GearKernel, geom: RackGearGeometry): BrepHandle
   const y = geom.ld - geom.height
   const p = (a: number, b: number): Vec3 => vec3(a, y, b)
   const es = [
-    kernel.makeLineEdge(p(0, 0), p(geom.length, 0)),
-    kernel.makeLineEdge(p(geom.length, 0), p(geom.length, geom.width)),
-    kernel.makeLineEdge(p(geom.length, geom.width), p(0, geom.width)),
-    kernel.makeLineEdge(p(0, geom.width), p(0, 0)),
+    kernel.l1.makeLineEdge(p(0, 0), p(geom.length, 0)),
+    kernel.l1.makeLineEdge(p(geom.length, 0), p(geom.length, geom.width)),
+    kernel.l1.makeLineEdge(p(geom.length, geom.width), p(0, geom.width)),
+    kernel.l1.makeLineEdge(p(0, geom.width), p(0, 0)),
   ]
-  return kernel.makeFace(kernel.makeWire(es))
+  return kernel.l1.makeFace(kernel.l1.makeWire(es))
 }
 
 /**
  * ④ 顶/底盖面：收所有面在 z=const 平面上的边界边 → 组线（外轮廓 1 条，含齿谷
  * 波形与两侧背线）→ 平面。cq `.edges('>Z'/ '<Z').consolidateWires()` 后取第一条。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param faces 候选面集合（齿面 + 端面 + 背面）
  * @param z 盖面所在高度（width 或 0）
  * @returns 盖面 Face（开环 wire 建面，与 cq 语义一致）
@@ -323,8 +326,8 @@ export function planarCapAtZ(
 ): BrepHandle {
   const edges: BrepHandle[] = []
   for (const f of faces) {
-    for (const e of kernel.getSubShapes(f, 'edge')) {
-      const bb = kernel.getBoundingBox(e)
+    for (const e of kernel.l1.getSubShapes(f, 'edge')) {
+      const bb = kernel.l1.getBoundingBox(e)
       if (Math.abs(bb.zmin - z) <= PLANAR_PICK_TOL && Math.abs(bb.zmax - z) <= PLANAR_PICK_TOL) {
         edges.push(e)
       }
@@ -339,13 +342,13 @@ export function planarCapAtZ(
   if (wires.length === 0) {
     throw new Error(`planarCapAtZ(z=${z}): no wires consolidated from ${edges.length} edges`)
   }
-  return kernel.makeFace(wires[0])
+  return kernel.l1.makeFace(wires[0])
 }
 
 /**
  * ①–⑤：完整 RackGear / HerringboneRackGear 实体。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 齿条参数（逐字沿用 Python 构造参数名）
  * @param build 构造选项（策略/容差覆盖）
  * @returns solid
@@ -401,17 +404,17 @@ export function buildRackGearSolid(
   // 靠 sew 容差吸收）上会把 solid 拆回 shell（debug-rack-cap.ts 实测）。退化路径：
   // makeSolid 的产物直接按体积符号归一化朝向。
   let oriented = solid
-  if (kernel.isSolid(solid)) {
-    const fixed = kernel.fixFaceOrientations(solid)
-    if (kernel.isSolid(fixed)) oriented = fixed
+  if (kernel.l1.isSolid(solid)) {
+    const fixed = kernel.l1.fixFaceOrientations(solid)
+    if (kernel.l1.isSolid(fixed)) oriented = fixed
   }
-  if (!kernel.isSolid(oriented)) {
+  if (!kernel.l1.isSolid(oriented)) {
     throw new Error(
-      `buildRackGearSolid: result is not a solid (got ${String(kernel.getShapeType(oriented))})`,
+      `buildRackGearSolid: result is not a solid (got ${String(kernel.l1.shapeType(oriented))})`,
     )
   }
-  if (kernel.getVolume(oriented) < 0) {
-    oriented = kernel.reverseShape(oriented)
+  if (kernel.l1.getVolume(oriented) < 0) {
+    oriented = kernel.l1.reverseShape(oriented)
   }
   return oriented
 }

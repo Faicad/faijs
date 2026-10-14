@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getGearKernel, type GearKernel } from '../src/kernel'
+import { gearKernel, type GearKernel } from '../src/kernel'
 import { buildSpurGearSolid } from '../src/spur_gear'
 import type { SpurGearParams } from '../src/profile'
 
@@ -25,16 +25,16 @@ const CASE_ARGS: Record<string, SpurGearParams> = {
 describe('SpurGear 实体构造 vs cq_gears（裸齿轮体积）', () => {
   let kernel: GearKernel
   it('内核就绪', async () => {
-    kernel = await getGearKernel()
+    kernel = await gearKernel()
     expect(kernel).toBeDefined()
   })
 
   for (const [id, args] of Object.entries(CASE_ARGS)) {
     it(`${id} 体积与 Python 裸齿轮一致`, async () => {
       const solid = buildSpurGearSolid(kernel, args)
-      expect(kernel.isSolid(solid), `${id}: 结果不是 solid`).toBe(true)
+      expect(kernel.l1.isSolid(solid), `${id}: 结果不是 solid`).toBe(true)
 
-      const vol = kernel.getVolume(solid)
+      const vol = kernel.l1.getVolume(solid)
       const ref = BARE_VOLUME[id]
       const rel = Math.abs(vol - ref) / ref
       expect(rel, `${id}: 体积相对差 ${rel.toExponential(3)} (got ${vol.toFixed(3)} vs ref ${ref})`).toBeLessThan(1e-3)

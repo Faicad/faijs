@@ -1,12 +1,14 @@
 /**
  * probe-worm2.ts — 诊断 Worm 端盖 section 边的端点间隙（为何组不成一条闭环）
  */
-import { getGearKernel } from '@faicad/faijs-cadquery'
+import { gearKernel } from '../src/kernel'
+import { initOCCT } from '../src/test-setup'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'
 
 async function main(): Promise<void> {
-  const kernel = await getGearKernel()
+  await initOCCT()
+  const kernel = gearKernel()
   const geom = wormGeometry({ module: 1.0, lead_angle: 20.0, n_threads: 1, length: 10.0 })
 
   const step = Math.PI * geom.m * geom.nThreads
@@ -17,30 +19,24 @@ async function main(): Promise<void> {
 
   const nfaces = []
   for (let th = 0; th < geom.nThreads; th++) {
-    const rot = th === 0 ? tFaces : tFaces.map((f) => kernel.rotate(f, axisX, tauOf(geom.nThreads) * th))
+    const rot = th === 0 ? tFaces : tFaces.map((f) => kernel.l1.rotate(f, axisX, tauOf(geom.nThreads) * th))
     for (let i = 0; i < turns; i++) {
       const dx = step / 2.0 + xStart + i * step
-      for (const f of rot) nfaces.push(kernel.translate(f, dx, 0, 0))
+      for (const f of rot) nfaces.push(kernel.l1.translate(f, dx, 0, 0))
     }
   }
 
-  const half = geom.ra + 1.0
   const cpX = geom.length / 2
-  const plane = (() => {
-    const c = { x: -cpX, y: -half, z: -half }
-    const edges = [
-      kernel.makeLineEdge(c, { x: -cpX, y: half, z: -half }),
-      kernel.makeLineEdge({ x: -cpX, y: half, z: -half }, { x: -cpX, y: half, z: half }),
-      kernel.makeLineEdge({ x: -cpX, y: half, z: half }, { x: -cpX, y: -half, z: half }),
-      kernel.makeLineEdge({ x: -cpX, y: -half, z: half }, c),
-    ]
-    return kernel.makeFace(kernel.makeWire(edges))
-  })()
 
   const allEdges = []
   for (let i = 0; i < nfaces.length; i++) {
-    const sec = kernel.section(nfaces[i], plane)
-    const es = kernel.getSubShapes(sec, 'edge')
+    // L1 中立名 `sectionByPlane(shape, point, normal)`：内核自建「过 point、按 normal」
+    // 的大平面作 tool（occt 侧固定 500×500），返回交线句柄数组。旧写法手搓了一块
+    // 2·half 见方的平面再调原生 `section` —— 同一件事，故 `half` 与手搓平面一并删掉。
+    // 结果里只取 edge（其余可能是 wire），与原 `getSubShapes(sec, 'edge')` 同口径。
+    const es = kernel.l1
+      .sectionByPlane(nfaces[i], { x: -cpX, y: 0, z: 0 }, { x: 1, y: 0, z: 0 })
+      .filter((s) => kernel.l1.shapeType(s) === 'edge')
     if (es.length > 0) console.log(`face[${i}] → ${es.length} edge(s)`)
     for (const e of es) allEdges.push(e)
   }
@@ -50,9 +46,9 @@ async function main(): Promise<void> {
     Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 
   const ends = allEdges.map((e, i) => {
-    const { first, last } = kernel.curveParameters(e)
-    const a = kernel.curvePointAtParam(e, first)
-    const b = kernel.curvePointAtParam(e, last)
+    const { first, last } = kernel.l1.curveParameters(e)
+    const a = kernel.l1.curvePointAtParam(e, first)
+    const b = kernel.l1.curvePointAtParam(e, last)
     return { i, a, b }
   })
   for (const { i, a, b } of ends) {

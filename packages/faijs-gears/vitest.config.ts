@@ -13,6 +13,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    // 宿主装配（initOcctWasm + 注册 occt 引擎 + 注入 Backends）：库代码不装配内核，
+    // 由测试扮演宿主。见 test/setup.ts 头注。
+    setupFiles: ['test/setup.ts'],
     testTimeout: 600000,
     hookTimeout: 600000,
   },

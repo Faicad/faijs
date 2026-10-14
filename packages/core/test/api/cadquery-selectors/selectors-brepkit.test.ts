@@ -18,7 +18,7 @@
  * 只断言几何身份（center 集合）。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../../src/runtime-state'
 import { getBrepApi } from '../../../src/brep/handle-bridge'
@@ -34,7 +34,7 @@ import { disposeBrepkit } from '../../../src/brepkit-kernel/brepkitKernel'
 async function assemble(): Promise<BrepEngineApi> {
   __resetEngineRegistriesForTests()
   await registerBrepkitBrepEngine()
-  const brep = await getBrepEngine()
+  const brep = await getActiveBrepEngine()
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'auto', brepEngineId: 'brepkit' },

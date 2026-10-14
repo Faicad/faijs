@@ -31,7 +31,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createRequire } from 'node:module'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { analyzeCode } from '../../../src/lang/statement-summary'
 import { CadRuntime } from '../../../src/cad-runtime/runtime'
@@ -89,7 +89,7 @@ async function runMeasure(code: string): Promise<Measured> {
   if (!shape) throw new Error(`output "${String(varName)}" not found`)
   const handle = brepOf(shape)
   if (handle === undefined) throw new Error('result has no brep handle')
-  const engine = (await getBrepEngine()).primitives
+  const engine = (await getActiveBrepEngine()).primitives
   const bb = engine.getBoundingBox(handle as never)
   return {
     bbox: [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin],

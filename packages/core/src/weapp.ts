@@ -26,7 +26,7 @@ export { registerBrepkitBrepEngine, BREPKIT_BREP_ENGINE_ID, ensureBrepkitDefault
 export { registerBrepkitMeshEngine, BREPKIT_MESH_ENGINE_ID, ensureBrepkitMeshBackend } from './brep/engine/adapters/brepkit'
 
 // BREP 引擎注册表（环境无关；ensureBrepChain 见已注册引擎即跳过 OCCT）
-export { registerBrepEngine, hasBrepEngine, getBrepEngine, getActiveBrepEngineId, freezeEngineRegistries, registerMeshEngine, getMeshEngine, getActiveMeshEngineId, isMeshEngineRegistered, getMeshSolidBackend } from './brep/engine/registry'
+export { registerBrepEngine, getBrepEngine, getActiveBrepEngine, hasBrepEngine, getActiveBrepEngineId, freezeEngineRegistries, registerMeshEngine, getMeshEngine, getActiveMeshEngine, getActiveMeshEngineId, isMeshEngineRegistered, getMeshSolidBackend } from './brep/engine/registry'
 export type { BrepEngine, BrepEngineProvider, MeshEngine } from './brep/engine/registry'
 export type { BrepEngineApi } from './brep/engine/primitives'
 // 网格实体（近似拓扑的载体）：端口 + 注册表 + 驱动。

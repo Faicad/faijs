@@ -113,39 +113,72 @@ export function isBrepEngineRegistered(id: string): boolean {
 }
 
 /**
- * Resolve a BREP engine (asynchronously, resolving its provider; throws when not registered).
- * Omitting id uses the default (the first registrant).
- * @param id - optional engine registration id; defaults to the active engine.
+ * Resolve a **named** BREP engine (asynchronously, resolving its provider; throws
+ * when not registered). Assembly-time and diagnostic use only — library code must
+ * take the neutral surface via `getBrepApi()` or the platform face via
+ * `getOcctKernel()` / `getBrepKitKernel()`, never an engine by id.
+ *
+ * `id` is REQUIRED: this function means exactly one thing — "look up the engine
+ * registered under this id". Taking the current engine is a different intent and
+ * has its own exit, {@link getActiveBrepEngine} (symmetric with
+ * {@link getActiveBrepEngineId}).
+ *
+ * @param id - the engine registration id to resolve.
  * @returns a Promise resolving to the BREP engine instance.
  */
-export async function getBrepEngine(id?: string): Promise<BrepEngine> {
-  const key = id ?? defaultBrepId
-  if (key === null) {
-    throw new Error('[engine/registry] no BREP engine registered — call registerBrepEngine() during host assembly (R8)')
-  }
-  const cached = brepEngineCache.get(key)
+export async function getBrepEngine(id: string): Promise<BrepEngine> {
+  const cached = brepEngineCache.get(id)
   if (cached) return cached
-  const provider = brepEngineProviders.get(key)
+  const provider = brepEngineProviders.get(id)
   if (!provider) {
-    throw new Error(`[engine/registry] BREP engine '${key}' not registered`)
+    throw new Error(`[engine/registry] BREP engine '${id}' not registered`)
   }
   const engine = await provider()
-  brepEngineCache.set(key, engine)
+  brepEngineCache.set(id, engine)
   return engine
 }
 
 /**
- * Get a mesh engine (throws when not registered). Omitting id uses the default (the first registrant).
- * @param id - optional engine registration id; defaults to the active engine.
+ * Resolve the **current** BREP engine (the first registrant, R8).
+ *
+ * The single way to ask "which engine is this session running on": symmetric with
+ * {@link getActiveBrepEngineId}, which answers the same question with the id only.
+ *
+ * @returns a Promise resolving to the active BREP engine instance.
+ * @throws when no BREP engine is registered (mesh mode / host not assembled).
+ */
+export async function getActiveBrepEngine(): Promise<BrepEngine> {
+  if (defaultBrepId === null) {
+    throw new Error('[engine/registry] no BREP engine registered — call registerBrepEngine() during host assembly (R8)')
+  }
+  return getBrepEngine(defaultBrepId)
+}
+
+/**
+ * Get a **named** mesh engine (throws when not registered). Assembly-time and
+ * diagnostic use; `id` is required for the same reason as {@link getBrepEngine}
+ * — taking the current engine is {@link getActiveMeshEngine}'s job.
+ * @param id - the mesh engine registration id to resolve.
  * @returns the mesh engine instance.
  */
-export function getMeshEngine(id?: string): MeshEngine {
-  const key = id ?? defaultMeshId
-  const engine = key === null ? undefined : meshEngines.get(key)
+export function getMeshEngine(id: string): MeshEngine {
+  const engine = meshEngines.get(id)
   if (!engine) {
-    throw new Error(`[engine/registry] mesh engine '${key ?? '<none>'}' not registered`)
+    throw new Error(`[engine/registry] mesh engine '${id}' not registered`)
   }
   return engine
+}
+
+/**
+ * Get the **current** mesh engine (the first registrant).
+ * @returns the active mesh engine instance.
+ * @throws when no mesh engine is registered.
+ */
+export function getActiveMeshEngine(): MeshEngine {
+  if (defaultMeshId === null) {
+    throw new Error('[engine/registry] mesh engine \'<none>\' not registered')
+  }
+  return getMeshEngine(defaultMeshId)
 }
 
 /**

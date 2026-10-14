@@ -10,8 +10,9 @@
  * 用法：npx tsx scripts/spike-chamfer.ts [--case case00-SpurGear]
  */
 
-import { loadManifest } from '../src/fixtures'
-import { getGearKernel } from '@faicad/faijs-cadquery'
+import { loadManifest } from '../test/fixtures'
+import { gearKernel } from '../src/kernel'
+import { initOCCT } from '../src/test-setup'
 import { buildSpurGearSolid } from '../src/spur_gear'
 import { spurGearGeometry } from '../src/profile'
 import type { SpurGearParams } from '../src/profile'
@@ -30,7 +31,7 @@ const E = 0.01
  * cadquery 里是 XZ 平面（法向 -Y）上的轮廓 revolve 360°。
  */
 function chamferCutter(
-  kernel: Awaited<ReturnType<typeof getGearKernel>>,
+  kernel: ReturnType<typeof gearKernel>,
   ra: number, width: number, wx: number, wy: number, which: 'top' | 'bottom',
 ): BrepHandle {
   // cq XZ 工作面局部坐标 (u, v) → 世界 (u, 0, v)（XZ 面 normal=-Y，v 轴即 +Z）
@@ -41,14 +42,17 @@ function chamferCutter(
         [pt(ra - wx, width + E), pt(ra + E, width + E), pt(ra + E, width + E - wy - E), pt(ra - wx, width + E)]
       : // moveTo(ra+E, wy) → vLine(-wy-E) → hLine(-wx-E) → close
         [pt(ra + E, wy), pt(ra + E, -E), pt(ra + E - wx - E, -E), pt(ra + E, wy)]
-  const edges = pts.slice(0, 3).map((p, i) => kernel.makeLineEdge(p, pts[i + 1]))
-  const wire = kernel.makeWire(edges)
-  const face = kernel.makeFace(wire)
-  return kernel.revolve(face, { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }, Math.PI * 2)
+  const edges = pts.slice(0, 3).map((p, i) => kernel.l1.makeLineEdge(p, pts[i + 1]))
+  const wire = kernel.l1.makeWire(edges)
+  const face = kernel.l1.makeFace(wire)
+  // L1 中立名 `revolveVec(shape, center, direction, angleDeg)`：角度单位是**度**
+  // （旧写法直调原生 `revolve`，吃的是弧度 `Math.PI * 2`）。
+  return kernel.l1.revolveVec(face, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 360)
 }
 
 async function main(): Promise<void> {
-  const kernel = await getGearKernel()
+  await initOCCT()
+  const kernel = gearKernel()
   const caseId = arg('case') ?? 'case00-SpurGear'
   const strategy = (arg('strategy') ?? 'row-approx-loft') as SplineFaceStrategy
   const c = loadManifest().cases.find((x) => x.id === caseId)
@@ -58,7 +62,7 @@ async function main(): Promise<void> {
 
   // 裸齿轮
   const bare = buildSpurGearSolid(kernel, c.args as unknown as SpurGearParams, { strategy })
-  const vBare = kernel.getVolume(bare)
+  const vBare = kernel.l1.getVolume(bare)
   console.log(`bare volume   = ${vBare.toFixed(6)}`)
 
   // 官方 expected 里的倒角/bore 参数（regression json 与 manifest args 同源）
@@ -73,22 +77,22 @@ async function main(): Promise<void> {
   // ① chamfer（cq: _make_chamfer 在 _make_bore 之前）
   if (chamfer !== undefined && chamfer !== null) {
     const cutter = chamferCutter(kernel, geom.ra, geom.width, chamfer, chamfer, 'top')
-    console.log(`cutter vol=${kernel.getVolume(cutter).toFixed(4)} valid=${kernel.isValid(cutter)}`)
-    body = kernel.cut(body, cutter)
+    console.log(`cutter vol=${kernel.l1.getVolume(cutter).toFixed(4)} valid=${kernel.l1.isValid(cutter)}`)
+    body = kernel.l1.cut(body, cutter)
     const cutterB = chamferCutter(kernel, geom.ra, geom.width, chamfer, chamfer, 'bottom')
-    body = kernel.cut(body, cutterB)
-    console.log(`after chamfer = ${kernel.getVolume(body).toFixed(6)} valid=${kernel.isValid(body)}`)
+    body = kernel.l1.cut(body, cutterB)
+    console.log(`after chamfer = ${kernel.l1.getVolume(body).toFixed(6)} valid=${kernel.l1.isValid(body)}`)
   }
 
   // ② bore
   if (boreD !== undefined && boreD !== null) {
-    const cyl = kernel.makeCylinder(boreD / 2, geom.width + 2 * E)
-    const moved = kernel.translate(cyl, 0, 0, -E)
-    body = kernel.cut(body, moved)
-    console.log(`after bore    = ${kernel.getVolume(body).toFixed(6)} valid=${kernel.isValid(body)}`)
+    const cyl = kernel.l1.makeCylinder(boreD / 2, geom.width + 2 * E)
+    const moved = kernel.l1.translate(cyl, 0, 0, -E)
+    body = kernel.l1.cut(body, moved)
+    console.log(`after bore    = ${kernel.l1.getVolume(body).toFixed(6)} valid=${kernel.l1.isValid(body)}`)
   }
 
-  const vFinal = kernel.getVolume(body)
+  const vFinal = kernel.l1.getVolume(body)
   const rel = Math.abs(vFinal - expected) / expected
   console.log(`\nfinal volume  = ${vFinal.toFixed(6)}`)
   console.log(`expected      = ${expected}`)

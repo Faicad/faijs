@@ -80,7 +80,7 @@ export interface PlanetaryGearsetBuild {
 /**
  * 构建行星轮系（PlanetaryGearset / HerringbonePlanetaryGearset 共用）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 轮系参数
  * @param options 构造选项（`herringbone` 控制是否人字齿）
  * @returns 太阳 / 行星数组 / 内齿圈 solid 与几何量
@@ -139,7 +139,7 @@ export function buildPlanetaryGearset(
       ? buildHerringboneGearSolid(kernel, sunParams, options)
       : buildSpurGearSolid(kernel, sunParams, options)
     if (params.planet_teeth_number % 2 !== 0) {
-      sun = kernel.rotate(sun, Z_AXIS, sunGeom.tau / 2)
+      sun = kernel.l1.rotate(sun, Z_AXIS, sunGeom.tau / 2)
     }
     out.sun = sun
   }
@@ -151,8 +151,8 @@ export function buildPlanetaryGearset(
       let p = herringbone
         ? buildHerringboneGearSolid(kernel, planetParams, options)
         : buildSpurGearSolid(kernel, planetParams, options)
-      p = kernel.rotate(p, Z_AXIS, planetGeom.tau / 2)
-      p = kernel.translate(
+      p = kernel.l1.rotate(p, Z_AXIS, planetGeom.tau / 2)
+      p = kernel.l1.translate(
         p, Math.cos(i * planetA) * orbitR, Math.sin(i * planetA) * orbitR, 0,
       )
       out.planets.push(p)
@@ -164,7 +164,7 @@ export function buildPlanetaryGearset(
     let ring = herringbone
       ? buildHerringboneRingGearSolid(kernel, ringParams, options)
       : buildRingGearSolid(kernel, ringParams, options)
-    ring = kernel.rotate(ring, Z_AXIS, ringGeom.tau / 2)
+    ring = kernel.l1.rotate(ring, Z_AXIS, ringGeom.tau / 2)
     out.ring = ring
   }
 
@@ -174,7 +174,7 @@ export function buildPlanetaryGearset(
 /**
  * 人字行星轮系（HerringbonePlanetaryGearset）——三件全部人字齿。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 行星轮系参数（逐字沿用 Python `HerringbonePlanetaryGearset.__init__`）
  * @param options 构建选项（strategy / 特征字段，透传单体构造）
  * @returns sun + planets[] + ring 的构建记录

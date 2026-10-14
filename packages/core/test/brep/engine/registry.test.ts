@@ -8,7 +8,9 @@ import {
   registerBrepEngine,
   registerMeshEngine,
   getBrepEngine,
+  getActiveBrepEngine,
   getMeshEngine,
+  getActiveMeshEngine,
   getActiveBrepEngineId,
   getActiveMeshEngineId,
   hasBrepEngine,
@@ -48,7 +50,7 @@ describe('BREP 槽（槽位 1，异步 provider）', () => {
     registerMock('occt')
     registerMock('remus')
     expect(getActiveBrepEngineId()).toBe('occt')
-    expect((await getBrepEngine()).id).toBe('occt')
+    expect((await getActiveBrepEngine()).id).toBe('occt')
   })
 
   it('可按 id 取指定引擎', async () => {
@@ -56,6 +58,18 @@ describe('BREP 槽（槽位 1，异步 provider）', () => {
     registerMock('remus')
     expect((await getBrepEngine('remus')).id).toBe('remus')
     expect((await getBrepEngine('occt')).id).toBe('occt')
+  })
+
+  it('getActiveBrepEngine 与 getActiveBrepEngineId 同源（同一默认槽）', async () => {
+    registerMock('occt')
+    registerMock('remus')
+    expect((await getActiveBrepEngine()).id).toBe(getActiveBrepEngineId())
+  })
+
+  it('id 必填（2026-10-14 内核取用面收敛）：无参调用只在编译期被拒', async () => {
+    registerMock('occt')
+    // @ts-expect-error getBrepEngine(id) 的 id 必填——取当前引擎用 getActiveBrepEngine()
+    await expect(getBrepEngine()).rejects.toThrow(/not registered/)
   })
 
   it('provider 只解析一次（结果缓存，幂等）', async () => {
@@ -69,10 +83,10 @@ describe('BREP 槽（槽位 1，异步 provider）', () => {
     expect(resolves).toBe(1)
   })
 
-  it('未注册 id 抛错；未注册任何引擎时 getBrepEngine() 抛错且 hasBrepEngine() 为 false', async () => {
+  it('未注册 id 抛错；未注册任何引擎时 getActiveBrepEngine() 抛错且 hasBrepEngine() 为 false', async () => {
     expect(hasBrepEngine()).toBe(false)
     await expect(getBrepEngine('nope')).rejects.toThrow(/not registered/)
-    await expect(getBrepEngine()).rejects.toThrow(/no BREP engine registered/)
+    await expect(getActiveBrepEngine()).rejects.toThrow(/no BREP engine registered/)
     expect(getActiveBrepEngineId()).toBeNull()
   })
 
@@ -101,11 +115,18 @@ describe('mesh 槽（槽位 2）与 R2 正交性', () => {
     registerMeshEngine('manifold', mockMesh('manifold'))
     expect(getActiveBrepEngineId()).toBe('occt')
     expect(getActiveMeshEngineId()).toBe('manifold')
-    expect(getMeshEngine().id).toBe('manifold')
-    expect((await getBrepEngine()).id).toBe('occt')
+    expect(getActiveMeshEngine().id).toBe('manifold')
+    expect((await getActiveBrepEngine()).id).toBe('occt')
   })
 
-  it('mesh 槽未注册时 getMeshEngine() 抛错', () => {
+  it('mesh 槽未注册时 getActiveMeshEngine() 抛错', () => {
+    expect(() => getActiveMeshEngine()).toThrow(/not registered/)
+  })
+
+  it('mesh 侧同构：id 必填 + getActiveMeshEngine 取当前槽', () => {
+    registerMeshEngine('manifold', mockMesh('manifold'))
+    expect(getActiveMeshEngine().id).toBe(getActiveMeshEngineId())
+    // @ts-expect-error getMeshEngine(id) 的 id 必填——取当前引擎用 getActiveMeshEngine()
     expect(() => getMeshEngine()).toThrow(/not registered/)
   })
 })

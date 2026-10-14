@@ -17,7 +17,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { loadManifest, OUT_DIR, type ReferenceGrid } from './fixtures'
-import { getGearKernel } from '../src/kernel'
+import { gearKernel } from '../src/kernel'
 import {
   measureSplineFace,
   SPLINE_FACE_STRATEGIES,
@@ -52,7 +52,7 @@ describe('B-spline 齿面三方案 vs cq makeSplineApprox', () => {
   expect(cases.length, 'manifest 里没有可用的齿面点阵，先跑 scripts/gen-reference.py').toBeGreaterThan(0)
 
   it('三方案实测偏差表', async () => {
-    const kernel = await getGearKernel()
+    const kernel = await gearKernel()
     const rows: Row[] = []
 
     for (const c of cases) {

@@ -18,7 +18,7 @@
  * Run: npx vitest run src/brep/engine/wire-1d-payload.test.ts
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
 
@@ -29,7 +29,7 @@ let k: BrepEngineApi
 beforeAll(async () => {
   __resetEngineRegistriesForTests()
   await registerOcctBrepEngine()
-  k = (await getBrepEngine()).primitives
+  k = (await getActiveBrepEngine()).primitives
 })
 
 describe('1D wire 与 2D face 的载荷（Phase 3 1D 决策基线）', () => {

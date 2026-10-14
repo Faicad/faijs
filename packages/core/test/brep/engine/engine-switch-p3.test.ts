@@ -14,9 +14,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import {
+import { getActiveBrepEngine,
   __resetEngineRegistriesForTests,
-  getBrepEngine,
 } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
@@ -200,7 +199,7 @@ let nativeKernel: Record<string, unknown>
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  occtApi = (await getBrepEngine()).primitives
+  occtApi = (await getActiveBrepEngine()).primitives
   const { getOcctKernel } = await import('../../../src/occt-kernel/occtKernel')
   nativeKernel = getOcctKernel() as unknown as Record<string, unknown>
 }, 120000)
@@ -287,7 +286,7 @@ describe('Phase 3 brepkit 适配器：实例完整 + 原生历史面 = 三员', 
   it('brepkit 真实现接线冒烟：5 个新声明方法真可用（不崩、返回有效句柄）', async () => {
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
-    const engine = await getBrepEngine()
+    const engine = await getActiveBrepEngine()
     try {
       const api = engine.primitives
       const box = api.makeBox(10, 10, 10)
@@ -307,14 +306,14 @@ describe('Phase 3 brepkit 适配器：实例完整 + 原生历史面 = 三员', 
     } finally {
       __resetEngineRegistriesForTests()
       await registerOcctBrepEngine()
-      occtApi = (await getBrepEngine()).primitives
+      occtApi = (await getActiveBrepEngine()).primitives
     }
   })
 
   it('brepkit primitives 覆盖全部 L1 方法（适配器不得漏面：未原生实现的以显式桩存在）', async () => {
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
-    const engine = await getBrepEngine()
+    const engine = await getActiveBrepEngine()
     try {
       for (const m of L1_METHODS) {
         expect(typeof engine.primitives[m], `brepkit primitives 缺 L1 方法: ${m}`).toBe('function')
@@ -322,7 +321,7 @@ describe('Phase 3 brepkit 适配器：实例完整 + 原生历史面 = 三员', 
     } finally {
       __resetEngineRegistriesForTests()
       await registerOcctBrepEngine()
-      occtApi = (await getBrepEngine()).primitives
+      occtApi = (await getActiveBrepEngine()).primitives
     }
   })
 

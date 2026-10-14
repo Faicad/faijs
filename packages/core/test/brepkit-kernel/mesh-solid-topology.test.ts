@@ -26,7 +26,7 @@
  * 恰好落在合法句柄区间里的数字，后续全部查询打在一个**无关实体**上且不报错。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { createBrepkitPrimitives, disposeBrepkit, getBrepkitKernel, type BrepkitPrimitives } from '../../src/brepkit-kernel/brepkitKernel'
+import { createBrepkitPrimitives, disposeBrepkit, getBrepKitKernel, type BrepkitPrimitives } from '../../src/brepkit-kernel/brepkitKernel'
 
 /** STL 焊接容差：与模型尺度绑定（10mm 盒用 1e-4），不写死极小值。 */
 const WELD_TOL = 1e-4
@@ -43,8 +43,8 @@ interface RawSolid {
 
 describe('mesh solid：STL → 规范化 → 近似拓扑可用', () => {
   let api: BrepkitPrimitives
-  let k: ReturnType<typeof getBrepkitKernel>
-  beforeAll(async () => { api = await createBrepkitPrimitives(); k = getBrepkitKernel() })
+  let k: ReturnType<typeof getBrepKitKernel>
+  beforeAll(async () => { api = await createBrepkitPrimitives(); k = getBrepKitKernel() })
   afterAll(() => { disposeBrepkit() })
 
   const describeRaw = (handle: number): RawSolid => ({

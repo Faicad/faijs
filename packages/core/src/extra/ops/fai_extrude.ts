@@ -8,13 +8,12 @@
 import type { Shape, Vec3 } from '../../mesh/types'
 import { extrude as meshExtrude } from '../mesh/fai_extrude'
 import { extrudeBrep, solidToShape } from '../../brep/brep-ops'
-import { getBackends } from '../../runtime-state'
+import { getBrepApi } from '../../brep/handle-bridge'
 import { fromBrep, brepOf, resolveCompoundMember, replaceCompoundMember } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { assertPositiveNumber } from '../../api/assert'
 import type { BrepHandle } from '../../brep/engine/types'
-import type { BrepEngineApi } from '../../brep/engine/primitives'
 
 // ── per-op 参数自校验（Phase 2.2；op 被直接 import 时的防御层） ──
 
@@ -28,8 +27,7 @@ export function assertExtrudeParams(params: Record<string, unknown>): void {
 
 /** BREP 路径：OCCT extrude + 三角化 + fromBrep 登记。 */
 function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[extra/extrude] no OCCT kernel')
+  const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (inputSolid === undefined) throw new Error('[extra/extrude] input is not BREP')
 

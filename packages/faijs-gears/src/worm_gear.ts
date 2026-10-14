@@ -16,7 +16,7 @@
  * 与 Python 的差异（有意为之，几何等价）：
  * - 端面截面不用 `GeomAPI_IntSS` 曲面求交：修剪后的面在 x=±L/2 处的边界边
  *   就是 IntSS 的交线，直接收集修剪面的平面边组线成面，曲线集相同。
- * - 越界修剪用 `kernel.split`（BRepAlgoAPI_Splitter）复刻 `face.split`：
+ * - 越界修剪用 `kernel.occt.split`（BRepAlgoAPI_Splitter）复刻 `face.split`：
  *   只在 bbox 越界时分割，按 Python 的选择规则取内侧片（左端取 xmax 最大片、
  *   右端取 xmin 最小片）。
  */
@@ -73,7 +73,7 @@ function segmentPoints(geom: WormGeometry, seg: (typeof WORM_SEGMENTS)[number]) 
  * 平移 `(tx, r0, 0)` 后绕 X 旋转（行向量左乘约定，见 `math.ts` 顶部说明），
  * 8×2 点阵建面；再按 part 拆分旋转/平移。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 蜗杆几何量
  * @param strategy 齿面建面策略
  * @param options 容差/次数选项
@@ -119,8 +119,8 @@ export function buildWormToothFaces(
   for (let n = 0; n < WORM_T_FACE_PARTS; n++) {
     for (const tf of tFaces) {
       let f = tf
-      if (n !== 0) f = kernel.rotate(f, axisX, -n * partTurn)
-      if (n !== 0) f = kernel.translate(f, stepX * n, 0, 0)
+      if (n !== 0) f = kernel.l1.rotate(f, axisX, -n * partTurn)
+      if (n !== 0) f = kernel.l1.translate(f, stepX * n, 0, 0)
       faces.push(f)
     }
   }
@@ -137,7 +137,7 @@ export function buildWormToothFaces(
  * - x=±length/2 处修剪越界面（左端取 xmax 最大片 / 右端取 xmin 最小片，
  *   与 Python `max(get_xmax)` / `min(get_xmin)` 一致），并补两端盖面。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param geom 蜗杆几何量
  * @param strategy 齿面建面策略
  * @param options 容差/次数选项
@@ -162,10 +162,10 @@ export function buildWormGearFaces(
   //    不能像旋转 tau·0=0 那样跳过，否则第一组齿面整体错位。
   const nfaces: BrepHandle[] = []
   for (let th = 0; th < geom.nThreads; th++) {
-    const rot = th === 0 ? tFaces : tFaces.map((f) => kernel.rotate(f, axisX, tau * th))
+    const rot = th === 0 ? tFaces : tFaces.map((f) => kernel.l1.rotate(f, axisX, tau * th))
     for (let i = 0; i < turns; i++) {
       const dx = step / 2.0 + xStart + i * step
-      for (const f of rot) nfaces.push(kernel.translate(f, dx, 0, 0))
+      for (const f of rot) nfaces.push(kernel.l1.translate(f, dx, 0, 0))
     }
   }
 
@@ -175,19 +175,19 @@ export function buildWormGearFaces(
   const cutPlaneAt = (x: number): BrepHandle => {
     const c = vec3(x, -half, -half)
     const edges = [
-      kernel.makeLineEdge(c, vec3(x, half, -half)),
-      kernel.makeLineEdge(vec3(x, half, -half), vec3(x, half, half)),
-      kernel.makeLineEdge(vec3(x, half, half), vec3(x, -half, half)),
-      kernel.makeLineEdge(vec3(x, -half, half), c),
+      kernel.l1.makeLineEdge(c, vec3(x, half, -half)),
+      kernel.l1.makeLineEdge(vec3(x, half, -half), vec3(x, half, half)),
+      kernel.l1.makeLineEdge(vec3(x, half, half), vec3(x, -half, half)),
+      kernel.l1.makeLineEdge(vec3(x, -half, half), c),
     ]
-    return kernel.makeFace(kernel.makeWire(edges))
+    return kernel.l1.makeFace(kernel.l1.makeWire(edges))
   }
   const leftPlane = cutPlaneAt(-cpX)
   const rightPlane = cutPlaneAt(cpX)
 
   const gFaces: BrepHandle[] = []
   for (const face of nfaces) {
-    const bb = kernel.getBoundingBox(face)
+    const bb = kernel.l1.getBoundingBox(face)
     if (bb.xmin > -cpX && bb.xmax < cpX) {
       gFaces.push(face)
       continue
@@ -196,21 +196,21 @@ export function buildWormGearFaces(
     // 完全在端面之外的面被静默跳过——这里必须同样跳过，否则外部散面会撑破 shell。
     if (bb.xmin < -cpX && bb.xmax > -cpX) {
       // 左端越界：split 后取 xmax 最大的片（Python `max(list(cpd), key=get_xmax)`）
-      const pieces = kernel.getSubShapes(kernel.split(face, [leftPlane]), 'face')
+      const pieces = kernel.l1.getSubShapes(kernel.occt.split(face, [leftPlane]), 'face')
       let best: BrepHandle | undefined
       let bestX = -Infinity
       for (const p of pieces) {
-        const x = kernel.getBoundingBox(p).xmax
+        const x = kernel.l1.getBoundingBox(p).xmax
         if (x > bestX) { bestX = x; best = p }
       }
       if (best) gFaces.push(best)
     } else if (bb.xmax > cpX && bb.xmin < cpX) {
       // 右端越界：取 xmin 最小的片（Python `min(list(cpd), key=get_xmin)`）
-      const pieces = kernel.getSubShapes(kernel.split(face, [rightPlane]), 'face')
+      const pieces = kernel.l1.getSubShapes(kernel.occt.split(face, [rightPlane]), 'face')
       let best: BrepHandle | undefined
       let bestX = Infinity
       for (const p of pieces) {
-        const x = kernel.getBoundingBox(p).xmin
+        const x = kernel.l1.getBoundingBox(p).xmin
         if (x < bestX) { bestX = x; best = p }
       }
       if (best) gFaces.push(best)
@@ -218,13 +218,13 @@ export function buildWormGearFaces(
   }
 
   // 端盖面：从修剪后的保留面收集位于 x=±cpX 平面上的边界边 → 组线 → 成面。
-  // split 生成的切边界边共享顶点、几何精确，比 kernel.section（对右端平面
+  // split 生成的切边界边共享顶点、几何精确，比原生的 `section`（对右端平面
   // 实测会漏交线）可靠；4 段 × 2 part 的截面曲线恰构成一条闭环。
   const capAt = (x: number): BrepHandle => {
     const edges: BrepHandle[] = []
     for (const f of gFaces) {
-      for (const e of kernel.getSubShapes(f, 'edge')) {
-        const bb = kernel.getBoundingBox(e)
+      for (const e of kernel.l1.getSubShapes(f, 'edge')) {
+        const bb = kernel.l1.getBoundingBox(e)
         if (Math.abs(bb.xmin - x) <= PLANAR_PICK_TOL && Math.abs(bb.xmax - x) <= PLANAR_PICK_TOL) {
           edges.push(e)
         }
@@ -242,12 +242,12 @@ export function buildWormGearFaces(
     if (wires.length > 1) {
       let bestArea = -1
       for (const w of wires) {
-        const bb = kernel.getBoundingBox(w)
+        const bb = kernel.l1.getBoundingBox(w)
         const area = (bb.ymax - bb.ymin) * (bb.zmax - bb.zmin)
         if (area > bestArea) { bestArea = area; cap = w }
       }
     }
-    return kernel.makeFace(kernel.healWire(cap, WORM_WIRE_COMB_TOL))
+    return kernel.l1.makeFace(kernel.occt.healWire(cap, WORM_WIRE_COMB_TOL))
   }
 
   gFaces.push(capAt(-cpX))
@@ -258,7 +258,7 @@ export function buildWormGearFaces(
 /**
  * ①–⑤：完整 Worm 实体（裸蜗杆，可选轴孔）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 蜗杆参数（逐字沿用 Python 构造参数名）
  * @param build 构造选项（策略/容差覆盖）
  * @returns 朝向归一化后的 solid
@@ -278,11 +278,11 @@ export function buildWormSolid(
   // 蜗杆齿面是逐段独立逼近的 B-spline 面，相邻面边界只有 ~spline_approx_tol
   // （0.01）量级的贴合度，实测接缝间隙 ≈0.0105 恰好卡在 cq shell_sewing_tol=0.01
   // 之上导致 sew 不封闭，故把缝合容差放宽到 0.05（几何不变，仅拓扑容差）。
-  const solid = kernel.sewAndSolidify(faces, build.shellSewingTol ?? 0.05)
-  const oriented = kernel.fixFaceOrientations(solid)
-  if (!kernel.isSolid(oriented)) {
+  const solid = kernel.l1.sewAndSolidify(faces, build.shellSewingTol ?? 0.05)
+  const oriented = kernel.l1.fixFaceOrientations(solid)
+  if (!kernel.l1.isSolid(oriented)) {
     throw new Error(
-      `buildWormSolid: result is not a solid (got ${String(kernel.getShapeType(oriented))})`,
+      `buildWormSolid: result is not a solid (got ${String(kernel.l1.shapeType(oriented))})`,
     )
   }
 
@@ -290,14 +290,14 @@ export function buildWormSolid(
   let result = oriented
   if (build.boreD !== undefined) {
     const eps = 0.1
-    const cyl = kernel.makeCylinder(build.boreD / 2, geom.length + 2 * eps)
-    const alongX = kernel.rotate(
+    const cyl = kernel.l1.makeCylinder(build.boreD / 2, geom.length + 2 * eps)
+    const alongX = kernel.l1.rotate(
       cyl,
       { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 1, z: 0 } },
       Math.PI / 2,
     )
-    result = kernel.cut(result, kernel.translate(alongX, -(geom.length / 2 + eps), 0, 0))
-    if (!kernel.isSolid(result)) {
+    result = kernel.l1.cut(result, kernel.l1.translate(alongX, -(geom.length / 2 + eps), 0, 0))
+    if (!kernel.l1.isSolid(result)) {
       throw new Error('buildWormSolid: result is not a solid after bore')
     }
   }

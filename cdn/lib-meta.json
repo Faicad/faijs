@@ -1,5 +1,67 @@
 {
+  "@faicad/faijs": {
+    "lib": {
+      "role": "host"
+    },
+    "peers": {
+      "occt-wasm": "^5.6.0"
+    }
+  },
   "@faicad/cq-compat-compare": {
-    "autoLift": false
+    "autoLift": false,
+    "lib": {
+      "role": "host"
+    },
+    "peers": {
+      "@faicad/faijs": "^0.34.0",
+      "occt-wasm": "^5.6.0"
+    }
+  },
+  "@faicad/faijs-fasteners": {
+    "autoLift": true,
+    "lib": {
+      "role": "library",
+      "conformsTo": "faijs",
+      "platform": []
+    },
+    "peers": {
+      "@faicad/faijs": "^0.34.0",
+      "occt-wasm": "^5.6.0"
+    }
+  },
+  "@faicad/faijs-gears": {
+    "autoLift": true,
+    "lib": {
+      "role": "library",
+      "conformsTo": "cadquery",
+      "platform": [
+        "occt"
+      ]
+    },
+    "peers": {
+      "@faicad/faijs": "^0.34.0",
+      "occt-wasm": "^5.6.0"
+    }
+  },
+  "@faicad/faijs-viewer": {
+    "lib": {
+      "role": "host"
+    },
+    "peers": {
+      "@faicad/faijs": "^0.34.0",
+      "occt-wasm": "5.6.0",
+      "three": "^0.162.0 || ^0.184.0"
+    }
+  },
+  "@faicad/sheetmetal": {
+    "autoLift": true,
+    "lib": {
+      "role": "library",
+      "conformsTo": "faijs",
+      "platform": []
+    },
+    "peers": {
+      "@faicad/faijs": "^0.34.0"
+    }
   }
 }

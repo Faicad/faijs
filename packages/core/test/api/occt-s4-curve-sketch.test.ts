@@ -27,7 +27,7 @@ import type { ExecutionMode, HostPorts } from '../../src/cad-runtime/ports'
 import { asPartName } from '../../src/identity'
 import { initOcctWasm, getOcctKernel } from '../../src/occt-kernel/occtKernel'
 import type { Shape } from '../../src/mesh/types'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 
 import { getBrepApi } from '../../src/brep/handle-bridge'
@@ -187,7 +187,7 @@ describe('S4 曲线草图族 — NURBS 精修（TS 直连，输入为 B 样条�
   beforeAll(async () => {
     __resetEngineRegistriesForTests()
     await registerOcctBrepEngine()
-    const brep = await getBrepEngine()
+    const brep = await getActiveBrepEngine()
     configureBackends({
       contractVersion: CONTRACT_VERSION,
       config: { mode: 'auto', brepEngineId: 'occt' },
@@ -247,7 +247,7 @@ describe('S4 曲线草图族 — TS 级直连（L1 覆盖门禁 + vertex 入参�
   beforeAll(async () => {
     __resetEngineRegistriesForTests()
     await registerOcctBrepEngine()
-    const brep = await getBrepEngine()
+    const brep = await getActiveBrepEngine()
     configureBackends({
       contractVersion: CONTRACT_VERSION,
       config: { mode: 'auto', brepEngineId: 'occt' },

@@ -31,6 +31,7 @@
  *    `src/holes.ts`。两节之间**禁止互相引用**。
  */
 
+import type { BrepEngineId } from '@faicad/faijs/sdk'
 import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import { requireKernel } from './kernel'
 import {
@@ -307,6 +308,11 @@ export function recessCutter(spec: RecessSpec, topZ: number): BrepHandle {
   const flipped = mirrorAbout(up, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 })
   return k().translate(flipped, 0, 0, topZ)
 }
+// 引擎约束：`taperDeg === 0` 走 L1 `extrude`（中立），否则走 occt 平台原语
+// `draftPrism`（brepkit 无此能力）。声明只能覆盖整函数，故取**保守值** occt——
+// 于是无 taper 的情形也被一并拒。要让无 taper 的情形在 brepkit 下可用，需把两条
+// 分支拆成两个函数（不在内核取用面收敛 2026-10-14 的范围内）。
+;(recessCutter as { engines?: readonly BrepEngineId[] }).engines = ['occt']
 
 /** SQUARE_DEPTHS 仅 square_recess 用；导出供测试对表。 */
 export { SQUARE_DEPTHS, CROSS_DEPTHS }

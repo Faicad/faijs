@@ -56,10 +56,17 @@ export type {
   StraightTenonSplitParams as PortStraightTenonSplitParams,
   LibLoader, ProjectLoader,
 } from './cad-runtime/ports'
+// 两级声明契约（2026-10-14 §3.3）：库级定位属性（`faijs.lib`）+ 函数级实现事实
+// （`fn.engines`）。`LibLoader.libMetaFor` / `registerLib({ lib, peers })` 的声明形状。
+export { LIB_ROLES, assertLibDecl, resolveFunctionEngines } from './cad-runtime/lib-decl'
+export type {
+  LibRole, LibDecl, LibMeta,
+  LibFunctionView, LibDescription, LibCallableView, LibRejectedView, LibsUnderEngine,
+} from './cad-runtime/lib-decl'
 
 // ── OCCT Kernel ──
 export {
-  initOcctWasm, getKernel, disposeOcctWasm, setOcctWasmInitFn,
+  initOcctWasm, getOcctKernel, disposeOcctWasm, setOcctWasmInitFn,
   computeEffectiveDeflection, importStepToMesh, importBrepToMesh,
   meshesToStep, releaseShape,
   importAssemblyFromStep, releaseAssemblyTree, collectLeafParts,
@@ -90,9 +97,13 @@ export { registerBrepkitBrepEngine, BREPKIT_BREP_ENGINE_ID, ensureBrepkitDefault
 // 的 STL/3MF 路径才产出「网格实体 + 近似拓扑」；不装则维持裸网格的历史行为。
 export { registerBrepkitMeshEngine, BREPKIT_MESH_ENGINE_ID, ensureBrepkitMeshBackend } from './brep/engine/adapters/brepkit'
 export { setBrepkitWasmInitFn, initBrepkitWasm, isBrepkitInitialized } from './brepkit-kernel/brepkitWasm'
+export type { BrepKitKernel } from './brepkit-kernel/brepkitWasm'
+// brepkit 平台面（D3）：平台特定代码访问 brepkit 独有能力的唯一出口——与 occt 侧
+// `getOcctKernel()` 对称。库代码 import 它即声明「这段代码只跑在 brepkit 引擎下」。
+export { getBrepKitKernel } from './brepkit-kernel/brepkitKernel'
 export {
-  registerBrepEngine, getBrepEngine, hasBrepEngine, getActiveBrepEngineId,
-  registerMeshEngine, getMeshEngine, getActiveMeshEngineId, freezeEngineRegistries,
+  registerBrepEngine, getBrepEngine, getActiveBrepEngine, hasBrepEngine, getActiveBrepEngineId,
+  registerMeshEngine, getMeshEngine, getActiveMeshEngine, getActiveMeshEngineId, freezeEngineRegistries,
   isMeshEngineRegistered, getMeshSolidBackend,
 } from './brep/engine/registry'
 export type { BrepEngine, BrepEngineProvider, MeshEngine } from './brep/engine/registry'

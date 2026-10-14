@@ -1,31 +1,35 @@
 /**
- * kernel.ts — 本包私有 raw 内核访问层（方案 §5.5.2 第 ①② 层）。
+ * kernel.ts — 本包私有内核访问层（内核取用面收敛 2026-10-14 §3.1）。
  *
- * 红线（§5.1 约束 2/3）：
- *  - 本包不 initOcctWasm()、不持有 kernel 单例——内核由 host 经
- *    getBackends().kernel.brep 注入；未配置即抛错、禁止兜底。
- *  - 全包**只有本文件**调 getBackends()；其余文件一律 import { requireKernel }。
- *    将来 core 的 KernelBase backlog（§5.5.1 / D3）修复后只需改这里 1 行。
+ * 红线：
+ *  - 本包不 initOcctWasm()、不持有 kernel 单例——内核由 host 注入；未配置即抛错、
+ *    禁止兜底。取内核的唯一出口是 `getBrepApi()`（L1 中立面），本包**不读**裸槽位
+ *    `getBackends().kernel.*`（库分层门禁 `scripts/check-lib-layering.mjs` 第 4 条）。
+ *  - 仅 occt 平台专属能力走 `getOcctKernel()`（见 primitives.ts 的 `ruledFace` /
+ *    `draftPrismFace`）。这两条支路在库级声明里如实体现：本包 `faijs.lib.platform`
+ *    是 `[]`（中立，多数零件在 brepkit 下照常可建），受影响的构形函数逐个标
+ *    `fn.engines = ['occt']`。
  *  - 不 import occt-wasm / GearKernel（那是另一个第三方库的私有接口）。
  */
 
-import { getBackends } from '@faicad/faijs'
+// 中立内核出口住在 SDK 入口（`@faicad/faijs/sdk`）——那是库作者的开发面
+// （`docs/library-dev-guide.md` §1 的分工表）。主入口没有它，只有裸槽位 `getBackends`。
+import { getBrepApi } from '@faicad/faijs/sdk'
 import type { BrepEngineApi, BrepHandle, BrepVec3 } from '@faicad/faijs'
 
 /**
- * Get the BREP kernel injected by the host.
- * 与 core 自身消费点同构（`core/src/api/*.ts` 等 19 处同一模式）。
- * @throws when the kernel is absent — never silently falls back to null or a stub
- *         (aligned with `runtime-state.ts:364-368`).
- * @returns host 注入的 BREP 引擎 API。
+ * Get the host-injected BREP kernel as the L1 neutral surface.
+ *
+ * 包内其余文件一律 import 本函数，不各自取内核。`getBrepApi()` 在无引擎时抛
+ * engine-neutral 的错（`BREP engine API not available`），所以这里不再自造消息、
+ * 也不返回 null 兜底。
+ *
+ * @returns host 注入的 L1 BREP 引擎面。
+ * @throws when no BREP engine is registered — never silently falls back to null or a stub
+ *         (aligned with `runtime-state.ts`).
  */
 export function requireKernel(): BrepEngineApi {
-  const k = getBackends().kernel.brep as BrepEngineApi | null
-  if (!k)
-    throw new Error(
-      '[fai-cq-warehouse] BREP kernel unavailable: call configureBackends({ kernel: { brep } }) first',
-    )
-  return k
+  return getBrepApi()
 }
 
 /** Rotation axis (point + direction), mirroring cq `Workplane` axis semantics. */

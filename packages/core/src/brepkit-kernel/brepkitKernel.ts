@@ -9,7 +9,7 @@
  * `api/surface/engine-method-map.json` 的 aligned/dialect 条目）。brepkit 独有
  * 能力（chamfer2d/chamferV2/filletV2/sketch* 族、serializeSolid、meshBoolean、
  * minkowskiSum …）与单方语义（loft、平面 section/split 之外的 splitter 语义…）
- * 都不在本对象里——平台代码经原生面 `getBrepkitKernel()`（D3）访问。
+ * 都不在本对象里——平台代码经原生面 `getBrepKitKernel()`（D3）访问。
  *
  * 设计要点（对应 3d_editor 项目的 weapp-voice-ai-modeling 设计计划 §5）：
  * - 句柄：brepkit u32 句柄与 faijs BrepHandle(number) 同构，直通零转换；
@@ -1962,7 +1962,7 @@ let memoizedKernel: BrepKitKernel | null = null
  *
  * @returns the live brepkit wasm kernel singleton.
  */
-export function getBrepkitKernel(): BrepKitKernel {
+export function getBrepKitKernel(): BrepKitKernel {
   if (!liveKernel) {
     throw new Error('[brepkit-kernel] kernel not initialized: call createBrepkitPrimitives() first')
   }

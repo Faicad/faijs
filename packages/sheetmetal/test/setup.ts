@@ -7,14 +7,14 @@
 
 import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '@faicad/faijs/brep/engine/adapters/occt'
-import { getBrepEngine } from '@faicad/faijs/brep/engine/registry'
+import { getActiveBrepEngine } from '@faicad/faijs/brep/engine/registry'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '@faicad/faijs'
 
 /** 与原版 morph tests/setup.ts 同名：初始化内核（幂等自装配）。 */
 export async function initOCCT(): Promise<void> {
   await initOcctWasm()
   await registerOcctBrepEngine()
-  const engine = await getBrepEngine()
+  const engine = await getActiveBrepEngine()
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: {

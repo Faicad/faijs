@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, afterAll } from 'vitest'
-import { getBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import {
   loadBrepkitVersion,
   resetToDefaultBrepkit,
@@ -31,7 +31,7 @@ const EXPECTED_VOLUME = BOX_DX * BOX_DY * BOX_DZ // 1000
 async function smokeOneVersion(version: BrepkitTestVersion): Promise<void> {
   await loadBrepkitVersion(version)
 
-  const engine = await getBrepEngine()
+  const engine = await getActiveBrepEngine()
   expect(engine.id, `engine id for brepkit@${version}`).toBe('brepkit')
 
   const box = engine.primitives.makeBox(BOX_DX, BOX_DY, BOX_DZ)

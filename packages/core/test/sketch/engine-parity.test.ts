@@ -60,7 +60,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '@faicad/faijs/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '@faicad/faijs/brep/engine/adapters/brepkit'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '@faicad/faijs/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '@faicad/faijs/brep/engine/registry'
 import { configureBackends, CONTRACT_VERSION } from '@faicad/faijs/runtime-state'
 import { brepOf } from '@faicad/faijs/shape'
 import type { Shape } from '@faicad/faijs/mesh/types'
@@ -92,7 +92,7 @@ let api: BrepEngineApi
 async function useEngine(register: () => Promise<void>): Promise<BrepEngineApi> {
   __resetEngineRegistriesForTests()
   await register()
-  const engine = await getBrepEngine()
+  const engine = await getActiveBrepEngine()
   api = engine.primitives
   configureBackends({
     contractVersion: CONTRACT_VERSION,

@@ -11,13 +11,13 @@ import { svgExtrude as meshSvgExtrude } from '../mesh/primitives'
 import { parseSvgNaturalSize } from '../../primitives/parse-svg-size'
 import { svgToSolid } from '../../brep/svg/svg-to-solid'
 import { solidToShape } from '../../brep/brep-ops'
+import { getBrepApi } from '../../brep/handle-bridge'
 import { resolveSvgArg } from '../../api/internal/svg-asset-resolver'
 import { getBackends } from '../../runtime-state'
 import { fromBrep } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { assertPositiveNumber } from '../../api/assert'
-import type { BrepEngineApi } from '../../brep/engine/primitives'
 
 /**
  * Validate svgExtrude parameters: `svg` is required and `depth` must be a
@@ -33,8 +33,7 @@ export function assertSvgExtrudeParams(params: Record<string, unknown>): void {
 
 /** BREP 路径：SVG path 解析 → OCCT wire/face → extrude + fromBrep 登记。 */
 function svgExtrudeBrep(params: Record<string, unknown>, svgText: string): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[extra/svgExtrude] no OCCT kernel')
+  const kernel = getBrepApi()
 
   const solidHandle = svgToSolid(kernel, svgText, {
     depth: params.depth as number,

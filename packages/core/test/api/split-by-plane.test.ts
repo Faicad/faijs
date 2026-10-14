@@ -17,7 +17,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { getBrepApi } from '../../src/brep/handle-bridge'
 import { configureBackends } from '../../src/runtime-state'
@@ -34,7 +34,7 @@ beforeAll(async () => {
   configureBackends({
     contractVersion: 1,
     config: { mode: 'brep', brepEngineId: 'occt' },
-    kernel: { brep: (await getBrepEngine()).primitives, csg: undefined, sdf: undefined },
+    kernel: { brep: (await getActiveBrepEngine()).primitives, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,
     assets: undefined,

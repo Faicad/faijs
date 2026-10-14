@@ -37,7 +37,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { CadRuntime } from '../../../src/cad-runtime/runtime'
 import type { ExecutionResult } from '../../../src/cad-runtime/runtime'
@@ -96,7 +96,7 @@ async function measure(result: ExecutionResult, varName: string): Promise<Measur
   if (!shape) throw new Error(`output "${varName}" not found`)
   const handle = brepOf(shape) as number | undefined
   if (handle === undefined) throw new Error(`"${varName}" has no brep handle`)
-  const engine = await getBrepEngine()
+  const engine = await getActiveBrepEngine()
   const bb = engine.primitives.getBoundingBox(handle as never)
   let volume = 0
   try { volume = engine.primitives.getVolume(handle as never) } catch { /* face/compound 无体积 */ }

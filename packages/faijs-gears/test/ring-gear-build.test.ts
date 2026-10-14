@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getGearKernel, type GearKernel } from '../src/kernel'
+import { gearKernel, type GearKernel } from '../src/kernel'
 import { buildRingGearSolid } from '../src/ring_gear'
 import type { RingGearParams } from '../src/profile'
 
@@ -35,16 +35,16 @@ const CASE_ARGS: Record<string, RingGearParams> = {
 describe('RingGear 实体构造 vs cq_gears（非倒角体积）', () => {
   let kernel: GearKernel
   it('内核就绪', async () => {
-    kernel = await getGearKernel()
+    kernel = await gearKernel()
     expect(kernel).toBeDefined()
   })
 
   for (const [id, args] of Object.entries(CASE_ARGS)) {
     it(`${id} 体积与 Python 非倒角一致`, async () => {
       const solid = buildRingGearSolid(kernel, args)
-      expect(kernel.isSolid(solid), `${id}: 结果不是 solid`).toBe(true)
+      expect(kernel.l1.isSolid(solid), `${id}: 结果不是 solid`).toBe(true)
 
-      const vol = kernel.getVolume(solid)
+      const vol = kernel.l1.getVolume(solid)
       const ref = NON_CHAMFERED_VOLUME[id]
       const rel = Math.abs(vol - ref) / ref
       // 体积相对差：齿面是 B-spline 逼近（tol 1e-2），环形盖面/rim 是精确面，

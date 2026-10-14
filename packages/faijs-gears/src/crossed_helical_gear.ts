@@ -19,7 +19,7 @@ import { buildGearSolid, type BuildSpurGearOptions } from './spur_gear'
 /**
  * CrossedHelicalGear 裸实体（无 bore / hub / recess / chamfer）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 交错轴斜齿轮参数（模数/齿数/宽度/螺旋角等）
  * @param build 构造选项（策略/容差覆盖）
  * @returns 朝向归一化后的 solid

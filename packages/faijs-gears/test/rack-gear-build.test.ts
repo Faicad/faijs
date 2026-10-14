@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getGearKernel, type GearKernel } from '../src/kernel'
+import { gearKernel, type GearKernel } from '../src/kernel'
 import { buildRackGearSolid } from '../src/rack_gear'
 import type { RackGearParams } from '../src/profile'
 
@@ -30,16 +30,16 @@ const CASES: Array<{ id: string; herringbone: boolean; args: RackGearParams; vol
 describe('RackGear 实体构造 vs cq_gears', () => {
   let kernel: GearKernel
   it('内核就绪', async () => {
-    kernel = await getGearKernel()
+    kernel = await gearKernel()
     expect(kernel).toBeDefined()
   })
 
   for (const c of CASES) {
     it(`${c.id} 体积与 Python 一致`, () => {
       const solid = buildRackGearSolid(kernel, c.args, { herringbone: c.herringbone })
-      expect(kernel.isSolid(solid), `${c.id}: 结果不是 solid`).toBe(true)
+      expect(kernel.l1.isSolid(solid), `${c.id}: 结果不是 solid`).toBe(true)
 
-      const vol = kernel.getVolume(solid)
+      const vol = kernel.l1.getVolume(solid)
       const rel = Math.abs(vol - c.volume) / c.volume
       // 齿面是 spline 廓形（直线廓形的 2×2 阵拟合），端面/盖面是精确平面，
       // 预期 1e-3 量级以内；超界说明裁剪/组线/缝合有误。

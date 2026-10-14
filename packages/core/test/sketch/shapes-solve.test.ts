@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '@faicad/faijs/brep/engine/adapters/occt'
-import { getBrepEngine } from '@faicad/faijs/brep/engine/registry'
+import { getActiveBrepEngine } from '@faicad/faijs/brep/engine/registry'
 import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
 import { configureBackends, CONTRACT_VERSION } from '@faicad/faijs/runtime-state'
 import { brepOf } from '@faicad/faijs/shape'
@@ -31,7 +31,7 @@ let solver: SketchSolver
 beforeAll(async () => {
   await initOcctWasm()
   await registerOcctBrepEngine()
-  const brep = (await getBrepEngine()).primitives
+  const brep = (await getActiveBrepEngine()).primitives
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'brep' },

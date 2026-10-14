@@ -94,7 +94,7 @@ export const intersect = defineOp({
 ```
 
 - **`mesh` / `brep`**: the two engine paths. `mesh` is the default; `brep` is optional. A brep-only op raises `E_MESH_UNSUPPORTED` on the mesh path.
-- **`engines`** (not in the example above — `intersect` is neutral): required only for a *platform op*, i.e. an implementation that statically imports `occt-kernel/*` or `brepkit-kernel/*`. It names the engines the op was written for (`engines: ['occt']`). Every other op omits it and must stay on L1 (`getBrepApi()`). There is no second declaration axis: what a kernel can do is read from the engine itself (see pitfall 2 below), never listed in op metadata.
+- **`engines`** (not in the example above — `intersect` is neutral): required only for a *platform op*, i.e. an implementation that statically imports `occt-kernel/*` or `brepkit-kernel/*`. It names the engines the op was written for (`engines: ['occt']`). Every other op omits it and must stay on L1 (`getBrepApi()`). There is no second declaration axis inside op metadata: what a kernel can do is read from the engine itself (see pitfall 2 below), never listed in op metadata. The *library* level is a separate axis that records positioning rather than implementation (§2.11).
 - **`outputs`**: named multi-product fields (the only recognized multi-output contract name; array fields adopted element-by-element).
 - **`schema` / `slotMap`**: L3 metadata — parameter types for the UI panel, and the positional → object boxing table for brepjs-style calls.
 
@@ -139,6 +139,8 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 1. **`contractVersion`**: match the runtime's (`assertContractVersion`); dual-ops are rejected without it.
 2. **No engine internals**: no access to engine-internal mutable state (`currentStmt` / `script` / `outputCache` / `brepChain`), no DAG queries or mutation of published `Shape`s.
 3. **Handle ownership**: once a returned handle is adopted by the engine, do not `delete()` it afterward (return = transfer).
+4. **No kernel bootstrapping**: no `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()` calls and no `import 'occt-wasm'` — starting a kernel belongs to the Host (§3.1.1). A host-role package's own `test-setup.ts` is the sole exception.
+5. **No raw kernel slot**: never read `getBackends().kernel.*`; take the neutral face (`getBrepApi()`) or a platform face (`getOcctKernel()` / `getBrepKitKernel()`) as §2.11 lays out.
 
 ### 2.9 Every export is script-face API
 
@@ -147,6 +149,90 @@ Admission walks `Object.entries(ns)` — there is no notion of an internal or ho
 ### 2.10 What the author produces
 
 A plain module namespace: exported functions, optional annotations (`fn.outputs` on bare functions), optional `defineOp` declarations, and `contractVersion`. The Host receives this namespace as-is — it never rewrites the author's code.
+
+### 2.11 Kernel access and the two-level engine declaration
+
+Library code never reaches for a kernel by id and never reads a raw kernel slot. There are exactly three exits, and which one your code uses **is** its engine declaration:
+
+| Your code is | Kernel access | Must declare | Must not |
+|---|---|---|---|
+| a neutral op / neutral library | `getBrepApi()` | nothing | any platform symbol |
+| a platform op / platform library | `getBrepApi()` (the L1 part) plus `getOcctKernel()` / `getBrepKitKernel()` (the platform part) | `engines` (per op) / the library-level platform constraint | reading a raw kernel slot |
+| a data / declaration library | nothing | nothing | any kernel symbol at all |
+
+`getBrepApi()` is the engine-neutral L1 face (`BrepEngineApi`): the same call works under OCCT, brepkit and the mesh stand-in. `getOcctKernel()` and `getBrepKitKernel()` are the platform faces — importing one of them is what makes your code platform-bound, and that fact has to be declared (this section) as well as guarded (`check-lib-layering.mjs`). The neutral exit is exported by the library entry `@faicad/faijs/sdk` (§1); the main entry exposes `getBackends()` — the raw slot — but not this exit, so importing from the library entry is what keeps you on the neutral face.
+
+#### Two levels — a positioning property and an implementation fact
+
+The two levels answer different questions, so they are **not** a coarse and a fine version of the same thing:
+
+- **Library level — a positioning property.** Written in the library's own `package.json` under `faijs.lib`, and read from there at admission — both when the Host auto-loads the library from a script `import` and when it registers the namespace explicitly with `packageName`. It answers "can this library exist on this engine at all?", judged from the library's semantic baseline (`conformsTo`) rather than by enumerating what its functions call: `faijs-freecad`'s geometry has to agree with FreeCAD, and FreeCAD's geometry is defined by OCCT, so it can only run there — a constraint no `fn.engines` can express.
+- **Function level — an implementation fact** (`fn.engines`). It answers "which kernel does *this function's* implementation touch?". It is an annotation on the function object, the same shape as `fn.outputs` (§2.6).
+
+```json
+{
+  "faijs": {
+    "autoLift": false,
+    "lib": {
+      "role": "library",
+      "conformsTo": "cadquery",
+      "platform": ["occt"]
+    }
+  }
+}
+```
+
+| Field | Meaning | Values |
+|---|---|---|
+| `role` | the library's role in the system | `library` (default) / `host` / `declaration` / `adapter` |
+| `conformsTo` | **semantic baseline**: whose geometry semantics this library matches | `faijs` (native) / `cadquery` / `freecad` / `openscad` / … |
+| `platform` | the engine constraint derived from that baseline, written out so guards can read it statically | `['occt']` / `['brepkit']` / `[]` (neutral) |
+
+Judge `platform` with one question: **does the capability L1 does not cover sit on the construction main path, or on a branch?**
+
+| Library | Where the beyond-L1 capability sits | `platform` |
+|---|---|---|
+| gears | capping, tooth cutting, point projection — every gear goes through them | `['occt']` |
+| fasteners | ruled thread surfaces, taper counterbores — two branches only | `[]` (neutral), with `fn.engines = ['occt']` on those two branches' functions |
+| sheetmetal | nowhere | `[]` |
+
+Two checks run at assembly time:
+
+- `platform` containing `occt` ⟹ the package must declare an `occt-wasm` `peerDependency` (**one-directional**). The reverse does not hold: `faijs-fasteners` has that peer yet declares a neutral platform, so a peer can never be used to infer `platform`.
+- `platform` must agree with where the beyond-L1 capability actually sits, with `conformsTo` giving the semantic reason for it.
+
+#### Function level — the annotation records the exceptions
+
+A bare function declares its engines the same way it declares outputs: as a property on the function object. Nothing else changes — the chain is resolved once at admission (`registerLib`), so the dispatch layer only ever reads op metadata.
+
+```ts ignore-check
+import type { BrepEngineId } from '@faicad/faijs/sdk'
+
+export function buildThread(params: ThreadParams): Result<Solid> { … }
+;(buildThread as { engines?: readonly BrepEngineId[] }).engines = ['occt']
+```
+
+**The effective engine set is `fn.engines ?? lib.platform ?? neutral`.** With `platform: ['occt']` at library level, every function is OCCT automatically and no per-function `engines` is needed — that is how the gear library is written. With `platform: []`, only the few functions that need the platform carry `fn.engines` — that is how `faijs-fasteners` is written. Declaring nothing at either level means **neutral**, which is today's behaviour and keeps every existing library unchanged.
+
+Two consequences worth knowing before you declare:
+
+- The effective engine set is resolved at admission, which only exists on the **lifted** path, and a library-level `platform` is injected into bare functions only. So a declaration that cannot be honoured is refused at registration, never silently dropped: a bare function's `engines` or a non-empty `platform` while the library is admitted `autoLift: false`, and a non-empty `platform` when the library also exports a dual-op that carries no `engines` of its own. Declare `"faijs": { "autoLift": true }` in the library's `package.json` (or register with `autoLift: true`) so the declaration has somewhere to land.
+- A declaration covers a whole function. Where the platform dependency forks on a parameter, declare the conservative value (the function is platform-bound) or split it into two functions — there is no per-call-site declaration.
+
+#### The Host's query surface
+
+Both questions a caller can have are answered from the same single declaration, so the two views can never disagree with each other or with the dispatcher:
+
+| Query | Answers |
+|---|---|
+| `runtime.describeLib(binding)` | the library's `{ role, conformsTo, platform }` plus per-function `{ engines, outputs }`; a function with no `fn.engines` reports the inherited library platform |
+| `runtime.libsUnder(engineId)` | given an engine, which functions are callable and which are statically rejected, each rejection carrying its reason |
+
+#### Prohibited in library code
+
+1. `import 'occt-wasm'` / `import 'brepkit-wasm'`, and calling `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()`. Booting a kernel belongs to the Host (§3.1.1); a library that does it creates a second kernel instance that collides with the Host's. A host-role package's own `test-setup.ts` is the sole exception.
+2. Reading `getBackends().kernel.*`. That slot is `@internal` and holds whatever the current engine put there — take the neutral face (`getBrepApi()`) or a platform face (`getOcctKernel()` / `getBrepKitKernel()`) instead.
+3. Resolving an engine yourself with `getBrepEngine(id)` / `getActiveBrepEngine()`. Those are assembly-time and diagnostic APIs; a library states its engine requirement through a declaration and lets the Host resolve it.
 
 ---
 
@@ -317,7 +403,7 @@ Verified against `@faicad/sheetmetal` (whole-package registration, `{ autoLift: 
 `solidOf` remains as an explicit terminal for the TS compat face and library-side use; on the script face it is no longer *required* — member access (`p.solid`) reaches the field directly.
 ### 4.4 Platform ops and the `engines` declaration
 
-A library op is a **platform op** when its implementation statically imports a platform module (`occt-kernel/*` or `brepkit-kernel/*`) — the import is the sole judge (§1.1 of the narrowing plan). Such an op must declare its platform identity in `defineOp`:
+A library op is a **platform op** when its implementation statically imports a platform module (`occt-kernel/*` or `brepkit-kernel/*`) — the import is the sole judge. Such an op must declare its platform identity in `defineOp`:
 
 ```ts ignore-check
 import { defineOp } from '@faicad/faijs/sdk'
@@ -333,10 +419,10 @@ export const myOp = defineOp({
 Rules (D11, checked by `assertLibConforms` + the `check-platform-imports.mjs` CI guard):
 
 1. **`engines` lists real engine ids** — `'occt'` / `'brepkit'` / `'brep_mock'` (never a bare string).
-2. **`engines` is the whole declaration** — it is the only narrowing axis; there is nothing else to declare alongside it. An op names its engines, or it is neutral. Both empty is allowed only for mesh-only ops.
+2. **`engines` is the whole op-level declaration** — at op level it is the only narrowing axis, with nothing to declare alongside it. An op names its engines, or it is neutral. Both empty is allowed only for mesh-only ops. The library level is a *separate* axis that records positioning rather than implementation (§2.11).
 3. **Interception happens at execution** — under a non-listed engine the op fails before touching the kernel (`BrepUnsupportedError` → `ExecutionResult.failedAt`). The static guard only enforces the declaration, it does not substitute for it.
 4. **`brep_mock` is exempt** from the interception (test stand-in, D11-3) — declared `engines` are still honored for parity/switch tests.
-5. **Library dual-ops that import a platform module are bound by the same rule** — write `engines` in `defineOp`, interception occurs in `dispatchPath` at execution time, no registration-time validation.
+5. **Library dual-ops that import a platform module are bound by the same rule** — write `engines` in `defineOp`; interception occurs in `dispatchPath` at execution time. The library-level `platform` in `package.json` is validated at registration instead; engine *matching* is still not a registration-time concern.
 
 A neutral op (implementation uses only `getBrepApi()` L1 methods) must *not* write `engines` — the L1 contract face is engine-agnostic by construction.
 

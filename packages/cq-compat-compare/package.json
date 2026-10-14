@@ -1,6 +1,6 @@
 {
   "name": "@faicad/cq-compat-compare",
-  "version": "0.34.2",
+  "version": "0.34.3",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -28,7 +28,10 @@
     "dist"
   ],
   "faijs": {
-    "autoLift": false
+    "autoLift": false,
+    "lib": {
+      "role": "host"
+    }
   },
   "dependencies": {},
   "peerDependencies": {

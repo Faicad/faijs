@@ -61,7 +61,7 @@ export interface SecondGearPlacement {
  * 施加顺序 **D → C → B → A**：先绕原点 Z 转 `alignAngle`，再沿 Z 平移 `-w2/2`，
  * 再绕原点 X 转 `shaftAngle`，最后沿 X 平移 `offsetX`、沿 Z 平移 `w1/2`。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param g2 第二齿轮 solid
  * @param place 定位链输入量
  * @returns 定位后的第二齿轮 solid
@@ -70,10 +70,10 @@ export function placeSecondGear(
   kernel: GearKernel, g2: BrepHandle, place: SecondGearPlacement,
 ): BrepHandle {
   let s = g2
-  s = kernel.rotate(s, Z_AXIS, place.alignAngleRad) // D
-  s = kernel.translate(s, 0, 0, -place.gear2Width / 2) // C
-  s = kernel.rotate(s, X_AXIS, place.shaftAngleRad) // B
-  return kernel.translate(s, place.offsetX, 0, place.gear1Width / 2) // A
+  s = kernel.l1.rotate(s, Z_AXIS, place.alignAngleRad) // D
+  s = kernel.l1.translate(s, 0, 0, -place.gear2Width / 2) // C
+  s = kernel.l1.rotate(s, X_AXIS, place.shaftAngleRad) // B
+  return kernel.l1.translate(s, place.offsetX, 0, place.gear1Width / 2) // A
 }
 
 /**
@@ -147,7 +147,7 @@ export interface CrossedGearPairBuild {
  * 两件都走 `buildCrossedHelicalSolid`（用各自的 helix 角），差异只在参数：gear2 的
  * helix 由 `shaft_angle − gear1_helix` 决定；gear2 默认按轴交角定位到与第一齿轮啮合。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 齿轮对参数
  * @param options 构造选项
  * @returns 两件 solid（gear2 默认已定位）与两件几何量
@@ -264,7 +264,7 @@ export interface HyperbolicGearPairBuild {
  *
  * @throws 扭转角无法计算（NaN，齿数/轴交角/齿宽组合不合法）时抛 Error
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 齿轮对参数
  * @param options 构造选项
  * @returns 两件 solid（gear2 默认已定位）与两件几何量

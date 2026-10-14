@@ -47,20 +47,20 @@ export interface BuildRingGearOptions extends SplineFaceOptions, GearFeatureOpti
 /**
  * 一个半径 `radius`、圆心在 `(0,0,z)`、法向 +Z 的整圆 wire。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param radius 圆半径
  * @param z 圆所在高度
  * @returns 闭合圆 wire
  */
 function circleWire(kernel: GearKernel, radius: number, z: number): BrepHandle {
-  const arc = kernel.makeCircleArc({ x: 0, y: 0, z }, { x: 0, y: 0, z: 1 }, radius, 0, Math.PI * 2)
-  return kernel.makeWire([arc])
+  const arc = kernel.l1.makeCircleArc({ x: 0, y: 0, z }, { x: 0, y: 0, z: 1 }, radius, 0, Math.PI * 2)
+  return kernel.l1.makeWire([arc])
 }
 
 /**
  * 外圈 rim 圆柱面（cq `Face.makeRuledSurface(w1, w2)` 的等价物）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param rimR 外圈半径（`rd + rim_width`）
  * @param width 齿宽
  * @returns 圆柱侧面（Face）
@@ -68,14 +68,17 @@ function circleWire(kernel: GearKernel, radius: number, z: number): BrepHandle {
 function buildRimFace(kernel: GearKernel, rimR: number, width: number): BrepHandle {
   const w0 = circleWire(kernel, rimR, 0)
   const w1 = circleWire(kernel, rimR, width)
-  // `loft(wires, isSolid=false, ruled=true)` 在两圈之间蒙出 ruled 圆柱面
-  return soleFace(kernel, kernel.loft([w0, w1], false, true))
+  // `occt.loft(wires, isSolid=false, ruled=true)` 在两圈之间蒙出 ruled 圆柱面。
+  // ⚠️ 必须走 occt 平台面而不是 L1 `loft`：L1 的 loft 恒产**实体**（适配器写死
+  // isSolid=true），而这里要的是两圆之间的**单张面**——实体的面数不为 1，
+  // `soleFace` 会当场抛错。见 `kernel/gears.ts` 的 `GearOcct.loft`。
+  return soleFace(kernel, kernel.occt.loft([w0, w1], false, true))
 }
 
 /**
  * 在高度 `z` 收齿面边界边 → 组线成内孔 wire，与外圈 rim 圆合成**环形**盖面。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param toothFaces 全部齿面（含 z 向厚度）
  * @param rimR 外圈半径
  * @param z 目标平面高度
@@ -91,8 +94,8 @@ function ringCapAtZ(
 ): BrepHandle {
   const edges: BrepHandle[] = []
   for (const f of toothFaces) {
-    for (const e of kernel.getSubShapes(f, 'edge')) {
-      const bb = kernel.getBoundingBox(e)
+    for (const e of kernel.l1.getSubShapes(f, 'edge')) {
+      const bb = kernel.l1.getBoundingBox(e)
       if (Math.abs(bb.zmin - z) <= PLANAR_PICK_TOL && Math.abs(bb.zmax - z) <= PLANAR_PICK_TOL) {
         edges.push(e)
       }
@@ -113,7 +116,7 @@ function ringCapAtZ(
 
 /** ①–④：完整 RingGear 实体（内部齿，非倒角）。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 齿轮参数
  * @param build 构造选项（策略/容差覆盖）
  * @returns 朝向归一化后的 solid
@@ -136,12 +139,12 @@ export function buildRingGearSolid(
 
   const all = [...toothFaces, rimFace, top, bottom]
 
-  const shell = kernel.sew(all, build.shellSewingTol ?? GEAR_BASE_CONSTANTS.shell_sewing_tol)
-  const solid = kernel.makeSolid(shell)
-  const oriented = kernel.fixFaceOrientations(solid)
-  if (!kernel.isSolid(oriented)) {
+  const shell = kernel.l1.sew(all, build.shellSewingTol ?? GEAR_BASE_CONSTANTS.shell_sewing_tol)
+  const solid = kernel.l1.makeSolid(shell)
+  const oriented = kernel.l1.fixFaceOrientations(solid)
+  if (!kernel.l1.isSolid(oriented)) {
     throw new Error(
-      `buildRingGearSolid: result is not a solid (got ${String(kernel.getShapeType(oriented))})`,
+      `buildRingGearSolid: result is not a solid (got ${String(kernel.l1.shapeType(oriented))})`,
     )
   }
 
@@ -153,9 +156,9 @@ export function buildRingGearSolid(
   if (build.boreD !== undefined) {
     result = applyBore(kernel, result, build.boreD, geom.width)
   }
-  if (!kernel.isSolid(result)) {
+  if (!kernel.l1.isSolid(result)) {
     throw new Error(
-      `buildRingGearSolid: result is not a solid after features (got ${String(kernel.getShapeType(result))})`,
+      `buildRingGearSolid: result is not a solid after features (got ${String(kernel.l1.shapeType(result))})`,
     )
   }
   return result
@@ -167,7 +170,7 @@ export function buildRingGearSolid(
  * 差异只在建面阶段：齿面拆成上下两半、反向螺旋形成 V 形（复用
  * `buildHerringboneToothFaces`）；rim 圆柱面与环形盖面与 RingGear 一致。
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 双句柄（`GearKernel`：L1 面 + occt 平台面，见 `kernel/gears.ts`）
  * @param params 内齿参数（逐字沿用 Python 构造参数名）
  * @param build 构造选项（策略/容差覆盖）
  * @returns 朝向归一化后的 solid

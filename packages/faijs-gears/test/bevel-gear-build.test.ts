@@ -15,7 +15,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { getGearKernel, type GearKernel } from '../src/kernel'
+import { gearKernel, type GearKernel } from '../src/kernel'
 import { buildBevelGearSolid } from '../src/bevel_gear'
 import { loadManifest } from './fixtures'
 import { bevelGearOptionsFromArgs } from './support/reference-options'
@@ -27,7 +27,7 @@ const CASES = ['case08-BevelGear', 'case11-BevelGear'] as const
 let kernel: GearKernel
 
 beforeAll(async () => {
-  kernel = await getGearKernel()
+  kernel = await gearKernel()
 })
 
 describe('BevelGear 实体构造 vs cq_gears（体积 + bbox）', () => {
@@ -43,9 +43,9 @@ describe('BevelGear 实体构造 vs cq_gears（体积 + bbox）', () => {
       const build = bevelGearOptionsFromArgs(c.args, 'row-approx-loft')
 
       const solid = buildBevelGearSolid(kernel, args, build)
-      expect(kernel.isSolid(solid), `${id}: 结果不是 solid`).toBe(true)
+      expect(kernel.l1.isSolid(solid), `${id}: 结果不是 solid`).toBe(true)
 
-      const vol = kernel.getVolume(solid)
+      const vol = kernel.l1.getVolume(solid)
       const rel = Math.abs(vol - c.volume!) / c.volume!
       // 齿面是 B-spline 逼近（tol 1e-2），两端裁切/回转体布尔差为精确运算，
       // 实测 rel：case08 5.1e-5、case11 1.9e-4 → 门禁 1e-3 留 5 倍余量。
@@ -54,7 +54,7 @@ describe('BevelGear 实体构造 vs cq_gears（体积 + bbox）', () => {
         `${id}: 体积相对差 ${rel.toExponential(3)} (got ${vol.toFixed(3)} vs ref ${c.volume})`,
       ).toBeLessThan(1e-3)
 
-      const bb = kernel.getBoundingBox(solid)
+      const bb = kernel.l1.getBoundingBox(solid)
       const got = [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin]
       const ref = c.bbox!
       got.forEach((v, i) => {

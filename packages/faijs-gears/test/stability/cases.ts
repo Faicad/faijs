@@ -180,7 +180,7 @@ export const STABILITY_SUITES: StabilitySuite[] = [
         },
       }))
     },
-    run(k, p) { checkSpur(spurGearGeometry(p as never), k.getVolume(buildSpurGearSolid(k, p as never)), k.getBoundingBox(buildSpurGearSolid(k, p as never), false)) },
+    run(k, p) { checkSpur(spurGearGeometry(p as never), k.l1.getVolume(buildSpurGearSolid(k, p as never)), k.l1.getBoundingBox(buildSpurGearSolid(k, p as never), false)) },
   },
   {
     id: 'herringbone',
@@ -195,7 +195,7 @@ export const STABILITY_SUITES: StabilitySuite[] = [
         },
       }))
     },
-    run(k, p) { checkSpur(spurGearGeometry(p as never), k.getVolume(buildHerringboneGearSolid(k, p as never)), k.getBoundingBox(buildHerringboneGearSolid(k, p as never), false)) },
+    run(k, p) { checkSpur(spurGearGeometry(p as never), k.l1.getVolume(buildHerringboneGearSolid(k, p as never)), k.l1.getBoundingBox(buildHerringboneGearSolid(k, p as never), false)) },
   },
   {
     id: 'ring',
@@ -213,7 +213,7 @@ export const STABILITY_SUITES: StabilitySuite[] = [
     run(k, p) {
       const g = ringGearGeometry(p as never)
       const s = buildRingGearSolid(k, p as never)
-      checkRing({ ...g, rimR: g.rd + p.rim_width }, k.getVolume(s), k.getBoundingBox(s, true))
+      checkRing({ ...g, rimR: g.rd + p.rim_width }, k.l1.getVolume(s), k.l1.getBoundingBox(s, true))
     },
   },
   {
@@ -232,7 +232,7 @@ export const STABILITY_SUITES: StabilitySuite[] = [
     run(k, p) {
       const g = ringGearGeometry(p as never)
       const s = buildHerringboneRingGearSolid(k, p as never)
-      checkRing({ ...g, rimR: g.rd + p.rim_width }, k.getVolume(s), k.getBoundingBox(s, true))
+      checkRing({ ...g, rimR: g.rd + p.rim_width }, k.l1.getVolume(s), k.l1.getBoundingBox(s, true))
     },
   },
   {
@@ -251,7 +251,7 @@ export const STABILITY_SUITES: StabilitySuite[] = [
     run(k, p) {
       const g = rackGearGeometry(p as never)
       const s = buildRackGearSolid(k, p as never)
-      checkRack({ ...g, toothHeight: g.toothHeight }, k.getVolume(s), k.getBoundingBox(s, true))
+      checkRack({ ...g, toothHeight: g.toothHeight }, k.l1.getVolume(s), k.l1.getBoundingBox(s, true))
     },
   },
   {
@@ -270,7 +270,7 @@ export const STABILITY_SUITES: StabilitySuite[] = [
     run(k, p) {
       const g = rackGearGeometry(p as never)
       const s = buildRackGearSolid(k, p as never, { herringbone: true })
-      checkRack({ ...g, toothHeight: g.toothHeight }, k.getVolume(s), k.getBoundingBox(s, true))
+      checkRack({ ...g, toothHeight: g.toothHeight }, k.l1.getVolume(s), k.l1.getBoundingBox(s, true))
     },
   },
   {
@@ -297,7 +297,7 @@ export const STABILITY_SUITES: StabilitySuite[] = [
     },
     run(k, p) {
       const s = buildWormSolid(k, p as never)
-      checkWorm(wormGeometry(p as never), k.getVolume(s), k.getBoundingBox(s, true))
+      checkWorm(wormGeometry(p as never), k.l1.getVolume(s), k.l1.getBoundingBox(s, true))
     },
   },
   {
@@ -318,7 +318,7 @@ export const STABILITY_SUITES: StabilitySuite[] = [
     },
     run(k, p) {
       const s = buildBevelGearSolid(k, p as never)
-      checkBevel(bevelGearGeometry(p as never), k.getVolume(s), k.getBoundingBox(s, true))
+      checkBevel(bevelGearGeometry(p as never), k.l1.getVolume(s), k.l1.getBoundingBox(s, true))
     },
   },
 ]

@@ -17,26 +17,30 @@
  * 是 npm 全名（`@faicad/sheetmetal`）。`aliases` 把 specifier 映到包名后再装载，
  * 与 node 侧 `CLI_SHORT_NAMES` 归一同一职责。
  *
- * `autoLiftFor` 是**同步**回调（`runtime.ts` 在装载后立即取值），所以逐库
- * `faijs.autoLift` 必须**预先**可用：主机从构建期产物 `lib-meta.json`
- * （`scripts/gen-importmap.mjs` 生成）经 `meta` 传入；也可调 `prefetchMeta()`
- * 在网络可达时抓各库 `package.json` 预热（失败静默回落推断式）。
+ * `autoLiftFor` 与 `libMetaFor` 都是**同步**回调（`runtime.ts` 在装载后立即取值），
+ * 所以逐库 `faijs.autoLift` 与 `faijs.lib` 必须**预先**可用：主机从构建期产物
+ * `lib-meta.json`（`scripts/gen-importmap.mjs` 生成）经 `meta` 传入；也可调
+ * `prefetchMeta()` 在网络可达时抓各库 `package.json` 预热（失败静默回落推断式 /
+ * 中立）。
  *
  * 本工厂**不**被 `createBrowserPorts` 默认装配——demo 走源码 alias 的 HMR 路径
  * 必须保持零网络；CDN 装载仅服务「从 npm 消费已发布包」的场景，由主机显式注入。
  */
 
 import type { LibLoader } from './ports'
+import type { LibMeta } from './lib-decl'
 import type { LibNamespace } from '../runtime-state'
 
 /** 默认 CDN base（Q8 定稿：jsDelivr npm 镜像；ESM 取 `+esm`）。 */
 export const DEFAULT_CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
 
-/** 逐库元数据（与 `lib-meta.json` 键形一致）。 */
-export interface BrowserLibMeta {
-  /** `package.json` 的 `faijs.autoLift` 外置字段（D3-autoLift）。 */
-  autoLift?: boolean
-}
+/**
+ * 逐库元数据（与 `lib-meta.json` 键形一致）。
+ *
+ * 是 `package.json` 的**原始投影**：`autoLift` 喂 `options.autoLiftFor`，
+ * `lib` / `peers` 喂 `libMetaFor`（§3.3 库级定位声明）。校验在装配期。
+ */
+export type BrowserLibMeta = LibMeta
 
 /** `createBrowserLibLoader` 的选项。 */
 export interface CreateBrowserLibLoaderOptions {
@@ -63,8 +67,9 @@ export interface CreateBrowserLibLoaderOptions {
 /** 浏览器 `LibLoader`（在契约上附加元数据预热）。 */
 export interface BrowserLibLoader extends LibLoader {
   /**
-   * 抓取已知各库的 `package.json`，把 `faijs.autoLift` 填进内部 meta 缓存。
-   * 网络失败静默跳过（保持未声明 → 回落推断式）。在 `execute` 前 await 一次即可。
+   * 抓取已知各库的 `package.json`，把 `faijs.autoLift` / `faijs.lib` /
+   * `peerDependencies` 填进内部 meta 缓存。网络失败静默跳过（保持未声明 →
+   * 回落推断式 / 中立）。在 `execute` 前 await 一次即可。
    * @returns promise resolving when all known libs have been probed.
    */
   prefetchMeta(): Promise<void>
@@ -139,6 +144,10 @@ export function createBrowserLibLoader(opts: CreateBrowserLibLoaderOptions = {})
       autoLiftFor: (name: string) => meta[pkgOf(name)]?.autoLift,
     },
 
+    // 库级定位声明（§3.3 第 1 项）：与 autoLiftFor 同源（同一 meta 缓存），
+    // 未预热 / 未声明 → undefined → 装配期按中立处理。
+    libMetaFor: (name: string): LibMeta | undefined => meta[pkgOf(name)],
+
     prefetchMeta: async (): Promise<void> => {
       if (!fetchImpl) return
       const pkgs = new Set<string>([...specifiers].map(pkgOf))
@@ -149,11 +158,17 @@ export function createBrowserLibLoader(opts: CreateBrowserLibLoaderOptions = {})
           try {
             const res = await fetchImpl(`${cdnBase}${pkg}${v ? `@${v}` : ''}/package.json`)
             if (!res.ok) return
-            const pj = (await res.json()) as { faijs?: { autoLift?: boolean } }
-            const lifted = pj.faijs?.autoLift
+            const pj = (await res.json()) as {
+              faijs?: { autoLift?: boolean; lib?: unknown }
+              peerDependencies?: Record<string, string>
+            }
             const entry: BrowserLibMeta = {}
-            if (typeof lifted === 'boolean') entry.autoLift = lifted
-            if (entry.autoLift !== undefined) meta[pkg] = entry
+            if (typeof pj.faijs?.autoLift === 'boolean') entry.autoLift = pj.faijs.autoLift
+            if (pj.faijs?.lib !== undefined) entry.lib = pj.faijs.lib
+            // 抓到 package.json 就给出 peer 事实：无 `peerDependencies` → `{}`（明确
+            // 「没有」），而不是 `undefined`（「不知道」）——否则单向校验会被放过。
+            entry.peers = pj.peerDependencies ?? {}
+            if (Object.keys(entry).length > 0) meta[pkg] = entry
           } catch {
             // 网络不可达 / 非法 JSON → 保持未声明，交由 runtime 推断式。
           }

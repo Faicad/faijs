@@ -8,16 +8,15 @@
 import type { Shape } from '../../mesh/types'
 import { text as meshText } from '../mesh/primitives'
 import { solidToShape } from '../../brep/brep-ops'
+import { getBrepApi } from '../../brep/handle-bridge'
 import { textToSolid } from '../../brep/text/text-to-solid'
 import { ensureDefaultFont } from '../../brep/text/fontRegistry'
 import { getSolidBoundingBox } from '../../brep/brep-utils'
 import { containsCjk, loadSystemCjkFont } from '../../primitives/text/cjk-font'
-import { getBackends } from '../../runtime-state'
 import { fromBrep } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { assertPositiveNumber } from '../../api/assert'
-import type { BrepEngineApi } from '../../brep/engine/primitives'
 
 /**
  * Validate text parameters: `text` must be a non-empty string, and `size` and
@@ -39,8 +38,7 @@ export function assertTextParams(params: Record<string, unknown>): void {
  * 将 CJK 字符替换为 '?' 以实现优雅降级。
  */
 async function textBrep(params: Record<string, unknown>): Promise<Shape> {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[extra/text] no OCCT kernel')
+  const kernel = getBrepApi()
 
   await ensureDefaultFont()
 

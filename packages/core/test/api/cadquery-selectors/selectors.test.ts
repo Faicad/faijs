@@ -15,7 +15,7 @@
  * both X faces. `>X[k]` first applies a parallel pre-filter THEN the Nth step.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../../src/runtime-state'
 import { getBrepApi } from '../../../src/brep/handle-bridge'
@@ -34,7 +34,7 @@ beforeAll(async () => {
   // `getBrepApi()`——直连 `getKernel()` 的旧装配已移除）。
   __resetEngineRegistriesForTests()
   await registerOcctBrepEngine()
-  const brep = await getBrepEngine()
+  const brep = await getActiveBrepEngine()
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'auto', brepEngineId: 'occt' },

@@ -14,7 +14,7 @@
 
 import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
-import { getBrepEngine } from './engine/registry'
+import { getActiveBrepEngine } from './engine/registry'
 import { ensureOcctDefaultEngine } from './engine/adapters/occt'
 import type { PartName } from '../identity'
 
@@ -129,7 +129,7 @@ export function createBrepChainState(): BrepChainState {
  */
 export async function initBrepChainState(): Promise<BrepChainState> {
   await ensureOcctDefaultEngine()
-  const engine = await getBrepEngine()
+  const engine = await getActiveBrepEngine()
   return {
     solidCache: new Map(),
     kernel: engine.primitives,

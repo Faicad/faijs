@@ -6,7 +6,7 @@
  * `api/surface/engine-method-map.json`（status ∈ {aligned, dialect} 的条目）。
  *
  * - 移出 L1 的方法（occt-only 语义）不再有中立名，平台代码直接走原生面：
- *   `getOcctKernel()` / `getBrepkitKernel()`（D3），op 侧用 `engines: ['occt']` 声明（D11）。
+ *   `getOcctKernel()` / `getBrepKitKernel()`（D3），op 侧用 `engines: ['occt']` 声明（D11）。
  * - 禁止任何 `as BrepEngineApi` 跨层断言（守卫见 §5 守卫清单）。
  * - 三个适配器的编译期断言 `_Assert*Api` 由此全部获得真校验力。
  */

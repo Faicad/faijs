@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createRequire } from 'node:module'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
 import { analyzeCode } from '../../../src/lang/statement-summary'
@@ -46,7 +46,7 @@ async function runMeasure(code: string, outputVar?: string): Promise<{ volume: n
   if (!shape) throw new Error(`output "${varName}" not found`)
   const handle = brepOf(shape)
   if (handle === undefined) throw new Error('result has no brep handle')
-  const engine = (await getBrepEngine()).primitives
+  const engine = (await getActiveBrepEngine()).primitives
   const volume = engine.getVolume(handle as never)
   const bb = engine.getBoundingBox(handle as never)
   return { volume, bbox: [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin] }
@@ -118,7 +118,7 @@ describe('brepkit boolean fix（union/cut/subtract 不崩 + occt 不回退）', 
       const result = await rt.execute(code)
       expect(result.failedAt).toBeUndefined()
       // 直接再走一次适配器级 fuseWithHistory，断言 modified 分段解码正常
-      const engine = (await getBrepEngine()).primitives
+      const engine = (await getActiveBrepEngine()).primitives
       const aHandle = brepOf(result.outputs.get('a' as never) as Shape) as unknown as BrepHandle
       const bHandle = brepOf(result.outputs.get('b' as never) as Shape) as unknown as BrepHandle
       const aHashes = Array.from(engine.subShapeHashes(aHandle, 'face', HASH_UPPER_BOUND))

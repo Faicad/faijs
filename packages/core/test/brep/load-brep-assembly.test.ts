@@ -10,7 +10,7 @@
  */
 import { describe, expect, it, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import type { BrepEngineApi } from '../../src/brep/engine/primitives'
 import {
@@ -40,7 +40,7 @@ beforeEach(() => {
 describe('T0 探针：XCAF 原生句柄与注入 BrepEngineApi 互通', () => {
   it('importAssemblyFromStep 的 leaf shapeHandle 可被 BrepEngineApi.meshShape/release 消费', async () => {
     await registerOcctBrepEngine()
-    const engine = await getBrepEngine()
+    const engine = await getActiveBrepEngine()
     kernel = engine.primitives as BrepEngineApi
 
     // 原生面（initOcctWasm 单例）解析 XCAF 装配树
@@ -68,7 +68,7 @@ describe('T0 探针：XCAF 原生句柄与注入 BrepEngineApi 互通', () => {
 describe('loadBrepAssembly — 多零件 STEP（P0 §5.3）', () => {
   beforeEach(async () => {
     await registerOcctBrepEngine()
-    const engine = await getBrepEngine()
+    const engine = await getActiveBrepEngine()
     kernel = engine.primitives as BrepEngineApi
   })
 

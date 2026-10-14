@@ -24,7 +24,7 @@ import type { ExecutionMode, HostPorts } from '../../src/cad-runtime/ports'
 import { asPartName } from '../../src/identity'
 import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
 import type { Shape } from '../../src/mesh/types'
-import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../src/brep/engine/adapters/brepkit'
 import { registerBrepMockEngine } from '../../src/brep/engine/adapters/brep-mock'
@@ -184,7 +184,7 @@ describe('cad.solidFromFaces — TS 级直连（L1 覆盖）', () => {
   beforeAll(async () => {
     __resetEngineRegistriesForTests()
     await registerOcctBrepEngine()
-    const brep = await getBrepEngine()
+    const brep = await getActiveBrepEngine()
     configureBackends({
       contractVersion: CONTRACT_VERSION,
       config: { mode: 'auto', brepEngineId: 'occt' },

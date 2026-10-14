@@ -8,10 +8,10 @@
  */
 
 import { writeFileSync } from 'node:fs'
-import { loadManifest, OUT_DIR, stepPath } from '../src/fixtures'
+import { loadManifest, OUT_DIR, stepPath } from '../test/fixtures'
 import {
   compareCase, formatCompareLine, type CaseCompareInput,
-} from '../src/testing/compare'
+} from '../test/support/compare'
 import type { AssemblyCompareResult } from '@faicad/cq-compat-compare'
 
 function arg(name: string): string | undefined {

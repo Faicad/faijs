@@ -7,7 +7,7 @@
  * - worm-2threads：双头、lead_angle=15°（多头 tau 分度 + 圈间平移）
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import { getGearKernel, type GearKernel } from '../src/kernel'
+import { gearKernel, type GearKernel } from '../src/kernel'
 import { buildWormSolid } from '../src/worm_gear'
 import { loadManifest } from './fixtures'
 import type { WormParams } from '../src/profile'
@@ -15,7 +15,7 @@ import type { WormParams } from '../src/profile'
 let kernel: GearKernel
 
 beforeAll(async () => {
-  kernel = await getGearKernel()
+  kernel = await gearKernel()
 })
 
 function rel(a: number, b: number): number {
@@ -30,16 +30,16 @@ describe('worm_gear: volume lock vs cadquery reference', () => {
   it('Worm single thread matches cq_gears worm-basic', () => {
     const c = loadManifest().cases.find((x) => x.id === 'worm-basic')!
     const solid = buildWormSolid(kernel, c.args as unknown as WormParams)
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(2e-3)
   })
 
   it('Worm two threads matches cq_gears worm-2threads', () => {
     const c = loadManifest().cases.find((x) => x.id === 'worm-2threads')!
     const solid = buildWormSolid(kernel, c.args as unknown as WormParams)
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(2e-3)
   })
 })

@@ -94,7 +94,7 @@ export const intersect = defineOp({
 ```
 
 - **`mesh` / `brep`**：两条引擎路径。`mesh` 是默认；`brep` 可选。brep-only op 在 mesh 路径抛 `E_MESH_UNSUPPORTED`。
-- **`engines`**（上例没有它——`intersect` 是中立 op）：只有**平台 op**才需要，即实现里静态 import 了 `occt-kernel/*` 或 `brepkit-kernel/*` 的 op。它点名这个 op 为哪些引擎而写（`engines: ['occt']`）。其余 op 一律不写它，且只能停留在 L1（`getBrepApi()`）。没有第二条声明轴：内核能做什么从引擎本身读（见下方陷阱 2），绝不写在 op 元数据里。
+- **`engines`**（上例没有它——`intersect` 是中立 op）：只有**平台 op**才需要，即实现里静态 import 了 `occt-kernel/*` 或 `brepkit-kernel/*` 的 op。它点名这个 op 为哪些引擎而写（`engines: ['occt']`）。其余 op 一律不写它，且只能停留在 L1（`getBrepApi()`）。op 元数据里没有第二条声明轴：内核能做什么从引擎本身读（见下方陷阱 2），绝不写在 op 元数据里。**库级**是另一条轴，记的是定位而非实现（§2.11）。
 - **`outputs`**：命名多产物字段（唯一被识别的多产物契约名；数组字段逐元素收养）。
 - **`schema` / `slotMap`**：L3 元数据——UI 面板的参数类型，以及 brepjs 风格调用所需的位置 → 对象装箱表。
 
@@ -139,6 +139,8 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 1. **`contractVersion`**：与运行时匹配（`assertContractVersion`）；双路径 op 缺它会被拒绝。
 2. **不碰引擎内部**：不得访问引擎内部可变状态（`currentStmt` / `script` / `outputCache` / `brepChain`），不得查询或修改 DAG，不得原地修改已发布的 `Shape`。
 3. **句柄所有权**：返回的句柄一旦被引擎收养，之后不得再 `delete()`（返回即转移）。
+4. **不启动内核**：不得调用 `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()`，不得 `import 'occt-wasm'`——启动内核是 Host 的职责（§3.1.1）。唯一例外是宿主角色包自己的 `test-setup.ts`。
+5. **不读裸槽位**：不得读 `getBackends().kernel.*`；按 §2.11 的三分表取中立法（`getBrepApi()`）或平台法（`getOcctKernel()` / `getBrepKitKernel()`）。
 
 ### 2.9 每个导出都是脚本面 API
 
@@ -147,6 +149,90 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 ### 2.10 库作者产出什么
 
 一个普通模块命名空间：导出函数、可选标注（裸函数上的 `fn.outputs`）、可选 `defineOp` 声明、`contractVersion`。Host 原样接收这个命名空间——它从不改写库作者的代码。
+
+### 2.11 内核取用与两级引擎声明
+
+库代码永远不按 id 去要内核，也永远不读裸内核槽位。出口只有三个，而你的代码用哪一个，**就是**它的引擎声明：
+
+| 你的代码是 | 取内核 | 必须声明 | 禁止 |
+|---|---|---|---|
+| 中立 op / 中立库 | `getBrepApi()` | 不写引擎约束 | 任何平台符号 |
+| 平台 op / 平台库 | `getBrepApi()`（L1 部分）加 `getOcctKernel()` / `getBrepKitKernel()`（平台部分） | `engines`（op 级）/ 库级平台约束 | 读裸内核槽位 |
+| 数据 / 声明库 | 什么都不取 | 不写引擎约束 | 出现任何内核符号 |
+
+`getBrepApi()` 是引擎中立的 L1 契约面（`BrepEngineApi`）：同一个调用在 OCCT、brepkit 和网格替身下都成立。`getOcctKernel()` 与 `getBrepKitKernel()` 是平台面——import 其中之一，就等于把这段代码绑到某个平台；这件事既要声明（本节），也要被门禁守（`check-lib-layering.mjs`）。中立法由**库作者入口** `@faicad/faijs/sdk` 导出（§1）；主入口给的是裸槽位 `getBackends()`，没有这个出口——所以从库作者入口导入，才是站在中立法上的写法。
+
+#### 两级——定位属性与实现事实
+
+两级回答的是不同的问题，所以它们**不是**同一件事的粗细两层：
+
+- **库级——定位属性。** 写在库自身 `package.json` 的 `faijs.lib` 里，装配期从那里读——无论是 Host 按脚本 `import` 自动装载该库，还是用 `packageName` 显式注册它的命名空间。它回答「这个库能不能在某个内核上成立」，判据是库的语义基准（`conformsTo`），而不是逐个枚举它的函数调了什么：`faijs-freecad` 的几何必须与 FreeCAD 一致，而 FreeCAD 的几何由 OCCT 定义，所以它只能跑在 OCCT 上——这条约束任何 `fn.engines` 都写不出来。
+- **函数级——实现事实**（`fn.engines`）。它回答「**这个函数的实现**碰了哪个内核」。它是挂在函数对象上的标注，形制与 `fn.outputs` 相同（§2.6）。
+
+```json
+{
+  "faijs": {
+    "autoLift": false,
+    "lib": {
+      "role": "library",
+      "conformsTo": "cadquery",
+      "platform": ["occt"]
+    }
+  }
+}
+```
+
+| 字段 | 含义 | 取值 |
+|---|---|---|
+| `role` | 库在系统中的角色 | `library`（默认）/ `host` / `declaration` / `adapter` |
+| `conformsTo` | **语义基准**：本库的几何语义以谁为准 | `faijs`（原生）/ `cadquery` / `freecad` / `openscad` / … |
+| `platform` | 由基准推导出的引擎约束（显式写出，供门禁静态读） | `['occt']` / `['brepkit']` / `[]`（中立） |
+
+`platform` 的判定只问一件事：**L1 覆盖不到的能力，落在构建主路径上，还是落在支路上？**
+
+| 库 | L1 之外能力的位置 | `platform` |
+|---|---|---|
+| gears | 封盖、切齿、投影求点——每个齿轮都要走 | `['occt']` |
+| fasteners | 螺纹直纹面、taper 沉孔——只有两条支路 | `[]`（中立），那两条支路的函数单独标 `fn.engines = ['occt']` |
+| sheetmetal | 没有 | `[]` |
+
+装配期跑两条校验：
+
+- `platform` 含 `occt` ⟹ 该包必须声明 `occt-wasm` 的 `peerDependency`（**单向**）。反向不成立：`faijs-fasteners` 有该 peer，库级 platform 却是中立的，所以 peer 永远不能用来反推 `platform`。
+- `platform` 必须与 L1 之外能力的实际分布相符，`conformsTo` 给出这条约束的语义理由。
+
+#### 函数级——注解只记例外
+
+裸函数声明引擎的方式与声明产物一样：挂在函数对象上的属性。其余什么都不用改——判定链在装配期（`registerLib`）一次解析完，分派侧只读 op 元数据。
+
+```ts ignore-check
+import type { BrepEngineId } from '@faicad/faijs/sdk'
+
+export function buildThread(params: ThreadParams): Result<Solid> { … }
+;(buildThread as { engines?: readonly BrepEngineId[] }).engines = ['occt']
+```
+
+**有效引擎 = `fn.engines ?? lib.platform ?? 中立`。** 库级写 `platform: ['occt']` 时，全部函数自动为 OCCT，**无需**逐个写 `fn.engines`——齿轮库就是这么写的。库级写 `platform: []` 时，只有少数需要平台能力的函数带 `fn.engines`——`faijs-fasteners` 就是这么写的。两级都不写 = **中立**，也就是今日行为，存量库一个都不用改。
+
+声明前有两点要知道：
+
+- 有效引擎是在**接纳**时解析的，而接纳只存在于**提升**通路上，且库级 `platform` 只注入给裸函数。所以无法兑现的声明一律在装配期被拒，绝不静默丢掉：库以 `autoLift: false` 被接纳，而函数带 `engines` 或库级 `platform` 非空；或者库级 `platform` 非空、库里又导出了未带自身 `engines` 的 dual-op。请在库的 `package.json` 里写 `"faijs": { "autoLift": true }`（或以 `autoLift: true` 注册），让声明有落脚处。
+- 一条声明覆盖整个函数。平台依赖按参数分叉时，要么取保守值（整个函数算平台函数），要么把它拆成两个函数——没有按调用点声明的余地。
+
+#### Host 侧的查询面
+
+调用方的两个问题都由**同一份声明**回答，所以两个视图既不会互相矛盾，也不会与实际分派矛盾：
+
+| 查询 | 回答 |
+|---|---|
+| `runtime.describeLib(binding)` | 该库的 `{ role, conformsTo, platform }` 加逐函数的 `{ engines, outputs }`；未写 `fn.engines` 的函数回报继承来的库级平台 |
+| `runtime.libsUnder(engineId)` | 给定引擎，哪些函数可调用、哪些被静态拒绝，每条拒绝都带原因 |
+
+#### 库代码里禁止做的事
+
+1. `import 'occt-wasm'` / `import 'brepkit-wasm'`，以及调用 `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()`。启动内核是 Host 的职责（§3.1.1）；库自己启动会造出第二个内核实例，与 Host 的实例冲突。唯一例外是宿主角色包自己的 `test-setup.ts`。
+2. 读 `getBackends().kernel.*`。那个槽位是 `@internal`，里面是当前引擎放进去的东西——要取就取中立法（`getBrepApi()`）或平台法（`getOcctKernel()` / `getBrepKitKernel()`）。
+3. 自己用 `getBrepEngine(id)` / `getActiveBrepEngine()` 解析引擎。那些是装配期与诊断用的 API；库应该用声明说明自己需要哪个引擎，由 Host 去解析。
 
 ---
 
@@ -317,7 +403,7 @@ let u1 = cad.union(g1, b0)
 `solidOf` 作为显式终端保留，供 TS 兼容面与库侧使用；脚本面上它不再是*必需*的——成员访问（`p.solid`）可以直接取到该字段。
 ### 4.4 平台 op 与 `engines` 声明
 
-库里的 op 只要**静态 import 了平台模块**（`occt-kernel/*` 或 `brepkit-kernel/*`），就是**平台 op**——import 是唯一判据（narrowing plan §1.1）。平台 op 必须在 `defineOp` 里声明平台身份：
+库里的 op 只要**静态 import 了平台模块**（`occt-kernel/*` 或 `brepkit-kernel/*`），就是**平台 op**——import 是唯一判据。平台 op 必须在 `defineOp` 里声明平台身份：
 
 ```ts ignore-check
 import { defineOp } from '@faicad/faijs/sdk'
@@ -333,10 +419,10 @@ export const myOp = defineOp({
 规则（D11，由 `assertLibConforms` + CI 守卫 `check-platform-imports.mjs` 检查）：
 
 1. **`engines` 只写真实引擎 id**——`'occt'` / `'brepkit'` / `'brep_mock'`（禁止裸 `string`）。
-2. **`engines` 就是全部声明**——它是唯一的收窄轴，没有别的东西与它并列可声明。op 要么点名自己的引擎，要么是中立 op。两者皆空只允许 mesh-only op。
+2. **`engines` 就是全部 op 级声明**——在 op 这一级它是唯一的收窄轴，没有别的东西与它并列可声明。op 要么点名自己的引擎，要么是中立 op。两者皆空只允许 mesh-only op。库级是**另一条**轴，记的是定位而非实现（§2.11）。
 3. **拦截发生在执行期**——非目标引擎下 op 在触碰内核之前失败（`BrepUnsupportedError` → `ExecutionResult.failedAt`）。静态守卫只强制声明本身，不能替代声明。
 4. **`brep_mock` 豁免拦截**（测试替身，D11-3）——但声明的 `engines` 仍参与 parity / engine-switch 测试。
-5. **库的 dual-op 若 import 了平台模块，同样受此约束**——在 `defineOp` 写 `engines`，拦截发生在执行期 `dispatchPath`，不依赖注册期校验。
+5. **库的 dual-op 若 import 了平台模块，同样受此约束**——在 `defineOp` 写 `engines`，拦截发生在执行期 `dispatchPath`。`package.json` 的库级 `platform` 则在注册期校验；引擎**匹配**依旧不是注册期的事。
 
 中立 op（实现只经 `getBrepApi()` L1 方法）*不得*写 `engines`——L1 契约面天然与引擎无关。
 

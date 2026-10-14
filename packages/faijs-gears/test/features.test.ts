@@ -11,7 +11,7 @@
  * - HerringboneGear + 全套特征（case05 / case06）
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import { getGearKernel, type GearKernel } from '../src/kernel'
+import { gearKernel, type GearKernel } from '../src/kernel'
 import { buildSpurGearSolid, buildHerringboneGearSolid, type BuildSpurGearOptions } from '../src/spur_gear'
 import { buildRingGearSolid, type BuildRingGearOptions } from '../src/ring_gear'
 import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
@@ -21,7 +21,7 @@ import type { SpurGearParams, RingGearParams, CrossedHelicalGearParams } from '.
 let kernel: GearKernel
 
 beforeAll(async () => {
-  kernel = await getGearKernel()
+  kernel = await gearKernel()
 })
 
 function rel(a: number, b: number): number {
@@ -54,8 +54,8 @@ describe('features: chamfer + bore', () => {
     const c = loadManifest().cases.find((x) => x.id === 'case00-SpurGear')!
     const params = c.args as unknown as SpurGearParams
     const solid = buildSpurGearSolid(kernel, params, featureBuild(c.args))
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
@@ -63,8 +63,8 @@ describe('features: chamfer + bore', () => {
     const c = loadManifest().cases.find((x) => x.id === 'case14-RingGear')!
     const params = c.args as unknown as RingGearParams
     const solid = buildRingGearSolid(kernel, params, featureBuild(c.args) as BuildRingGearOptions)
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
@@ -74,8 +74,8 @@ describe('features: chamfer + bore', () => {
     const c = loadManifest().cases.find((x) => x.id === 'case29-CrossedHelicalGear')!
     const params = c.args as unknown as CrossedHelicalGearParams
     const bare = buildCrossedHelicalSolid(kernel, params, {})
-    const vol = kernel.getVolume(bare)
-    expect(kernel.isSolid(bare)).toBe(true)
+    const vol = kernel.l1.getVolume(bare)
+    expect(kernel.l1.isSolid(bare)).toBe(true)
     // cq 裸体体积（gen-crossed-bare.py）：6704.196564
     expect(rel(vol, 6704.196564)).toBeLessThan(1e-3)
 
@@ -86,8 +86,8 @@ describe('features: chamfer + bore', () => {
       chamfer: typeof a.chamfer === 'number' ? a.chamfer : undefined,
       boreD: typeof a.bore_d === 'number' ? a.bore_d : undefined,
     })
-    expect(kernel.isSolid(fe)).toBe(true)
-    expect(kernel.getVolume(fe)).toBeLessThan(vol)
+    expect(kernel.l1.isSolid(fe)).toBe(true)
+    expect(kernel.l1.getVolume(fe)).toBeLessThan(vol)
   })
 })
 
@@ -95,24 +95,24 @@ describe('features: hub + recess + spokes', () => {
   it('SpurGear hub+recess matches cq_gears case01', () => {
     const c = loadManifest().cases.find((x) => x.id === 'case01-SpurGear')!
     const solid = buildSpurGearSolid(kernel, c.args as unknown as SpurGearParams, featureBuild(c.args))
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
   it('SpurGear hub+recess (no bore) matches cq_gears case07', () => {
     const c = loadManifest().cases.find((x) => x.id === 'case07-SpurGear')!
     const solid = buildSpurGearSolid(kernel, c.args as unknown as SpurGearParams, featureBuild(c.args))
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
   it('SpurGear spokes+fillet matches cq_gears case02 (n=5)', () => {
     const c = loadManifest().cases.find((x) => x.id === 'case02-SpurGear')!
     const solid = buildSpurGearSolid(kernel, c.args as unknown as SpurGearParams, featureBuild(c.args))
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
@@ -122,16 +122,16 @@ describe('features: hub + recess + spokes', () => {
     // 直接锁定完整体体积。
     const c = loadManifest().cases.find((x) => x.id === 'case04-SpurGear')!
     const solid = buildSpurGearSolid(kernel, c.args as unknown as SpurGearParams, featureBuild(c.args))
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
   it('HerringboneGear full features matches cq_gears case05 (n=5, fillet=5)', () => {
     const c = loadManifest().cases.find((x) => x.id === 'case05-HerringboneGear')!
     const solid = buildHerringboneGearSolid(kernel, c.args as unknown as SpurGearParams, featureBuild(c.args))
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
@@ -141,8 +141,8 @@ describe('features: hub + recess + spokes', () => {
     // 直接锁定完整体体积。
     const c = loadManifest().cases.find((x) => x.id === 'case06-HerringboneGear')!
     const solid = buildHerringboneGearSolid(kernel, c.args as unknown as SpurGearParams, featureBuild(c.args))
-    const vol = kernel.getVolume(solid)
-    expect(kernel.isSolid(solid)).toBe(true)
+    const vol = kernel.l1.getVolume(solid)
+    expect(kernel.l1.isSolid(solid)).toBe(true)
     expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
@@ -157,8 +157,8 @@ describe('features: hub + recess + spokes', () => {
       const solid = buildCrossedHelicalSolid(
         kernel, c.args as unknown as CrossedHelicalGearParams, featureBuild(c.args),
       )
-      const vol = kernel.getVolume(solid)
-      expect(kernel.isSolid(solid)).toBe(true)
+      const vol = kernel.l1.getVolume(solid)
+      expect(kernel.l1.isSolid(solid)).toBe(true)
       expect(rel(vol, c.volume!)).toBeLessThan(1e-3)
     }
   })

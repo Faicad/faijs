@@ -1,24 +1,26 @@
 /**
  * probe-worm4.ts — 定位 Worm 壳不封闭的自由边（只被一个面使用的边）
  */
-import { getGearKernel } from '@faicad/faijs-cadquery'
+import { gearKernel } from '../src/kernel'
+import { initOCCT } from '../src/test-setup'
 import { wormGeometry } from '../src/profile'
 import { buildWormGearFaces } from '../src/worm_gear'
 
 async function main(): Promise<void> {
-  const kernel = await getGearKernel()
+  await initOCCT()
+  const kernel = gearKernel()
   const geom = wormGeometry({ module: 1.0, lead_angle: 20.0, n_threads: 1, length: 10.0 })
   const faces = buildWormGearFaces(kernel, geom, 'grid-approx')
   console.log('total faces:', faces.length)
 
   // 统计每条边被多少个面使用
-  const use = new Map<string, { n: number; edge: number; bb: ReturnType<typeof kernel.getBoundingBox> }>()
+  const use = new Map<string, { n: number; edge: number; bb: ReturnType<typeof kernel.l1.getBoundingBox> }>()
   for (let fi = 0; fi < faces.length; fi++) {
-    for (const e of kernel.getSubShapes(faces[fi], 'edge')) {
-      const key = `${kernel.hashCode(e, 2147483647)}`
+    for (const e of kernel.l1.getSubShapes(faces[fi], 'edge')) {
+      const key = `${kernel.l1.hashCode(e, 2147483647)}`
       const rec = use.get(key)
       if (rec) rec.n++
-      else use.set(key, { n: 1, edge: fi, bb: kernel.getBoundingBox(e) })
+      else use.set(key, { n: 1, edge: fi, bb: kernel.l1.getBoundingBox(e) })
     }
   }
   let free = 0
@@ -33,10 +35,10 @@ async function main(): Promise<void> {
   }
   console.log('free edges:', free)
 
-  const shell = kernel.sew(faces, 0.01)
-  console.log('sew →', kernel.getShapeType(shell), '| faces:', kernel.subShapeCount(shell, 'face'))
-  const solid = kernel.makeSolid(shell)
-  console.log('makeSolid →', kernel.getShapeType(solid), '| vol:', kernel.isSolid(solid) ? kernel.getVolume(solid).toFixed(4) : 'n/a')
+  const shell = kernel.l1.sew(faces, 0.01)
+  console.log('sew →', kernel.l1.shapeType(shell), '| faces:', kernel.l1.subShapeCount(shell, 'face'))
+  const solid = kernel.l1.makeSolid(shell)
+  console.log('makeSolid →', kernel.l1.shapeType(solid), '| vol:', kernel.l1.isSolid(solid) ? kernel.l1.getVolume(solid).toFixed(4) : 'n/a')
 }
 
 main().catch((err) => { console.error(err); process.exit(1) })

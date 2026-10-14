@@ -23,7 +23,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { __resetEngineRegistriesForTests, getBrepEngine } from '../../../src/brep/engine/registry'
+import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../../src/brep/engine/adapters/brepkit'
 import type { BrepEngineApi } from '../../../src/brep/engine/primitives'
@@ -63,11 +63,11 @@ function assertHandle(h: BrepHandle, where: string): void {
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  occtApi = (await getBrepEngine()).primitives
+  occtApi = (await getActiveBrepEngine()).primitives
 
   __resetEngineRegistriesForTests()
   await registerBrepkitBrepEngine()
-  brepkitApi = (await getBrepEngine()).primitives
+  brepkitApi = (await getActiveBrepEngine()).primitives
 
   // 恢复 occt 为默认（其它测试文件不受影响）
   __resetEngineRegistriesForTests()

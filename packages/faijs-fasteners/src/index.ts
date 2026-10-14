@@ -11,6 +11,18 @@
  *   形态的行为契约版本；与内核契约对齐（照 faijs-gears，勿硬编码）。
  * - P1 增项已落地：孔系列（holes.ts，函数式）与 Chain（chain.ts，平面 2+ 链轮），
  *   见 Agent Note 2026-09-15-fai-cq-warehouse-w9-p1-chain-holes。
+ *
+ * ## 内核要求（两级声明，内核取用面收敛 2026-10-14 §3.3）
+ *
+ * 本包是**中立库**：库级 `package.json` 的 `faijs.lib` 声明 `platform: []`——除下列
+ * 例外，其余零件在 occt 与 brepkit 上都可建。引擎约束唯一的事实来源是**函数对象上的
+ * `fn.engines`**（声明在各自的定义处），调用方可用 `runtime.describeLib(binding)` /
+ * `runtime.libsUnder(engineId)` 反问：
+ *
+ * | 函数 | 为什么必须 occt |
+ * |---|---|
+ * | `buildThread` / `isoThread` / `acmeThread` / `metricTrapezoidalThread` / `plasticBottleThread` | 齿面直纹带要的是两条开放曲线之间的**单张直纹面**，只有 occt 平台面 `loft(wires, isSolid=false, ruled=true)` 给得出（L1 `loft` 恒建实体） |
+ * | `recessCutter` | `taperDeg !== 0` 的支路走 occt 平台原语 `draftPrism`（brepkit 无）；声明取保守值，故无 taper 的情形也一并被拒 |
  */
 
 export { contractVersion } from './contract'

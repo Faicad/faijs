@@ -1,14 +1,16 @@
 import { writeFileSync } from 'node:fs'
-import { getGearKernel } from '@faicad/faijs-cadquery'
+import { gearKernel } from '../src/kernel'
+import { initOCCT } from '../src/test-setup'
 import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
 import { placeSecondGear } from '../src/crossed_pair'
 import { crossedHelicalGearGeometry } from '../src/profile'
 import { exportStepFromSolids } from '@faicad/faijs'
 import { compareAssemblyFiles } from '@faicad/cq-compat-compare'
-import { loadManifest } from '../src/fixtures'
+import { loadManifest } from '../test/fixtures'
 
 async function main() {
-  const kernel = await getGearKernel()
+  await initOCCT()
+  const kernel = gearKernel()
   const c = loadManifest().cases.find((x) => x.id === 'cgp-basic')!
   const p: any = c.args
   const shaftAngleDeg: number = p.shaft_angle ?? 90
@@ -33,7 +35,7 @@ async function main() {
       gear2Width: p.gear2_width,
     })
     const out = `out/cgp-d${deltaDeg}.step`
-    const buf = exportStepFromSolids(kernel, [{ name: 'gear1', solid: gear1 }, { name: 'gear2', solid: placed }])
+    const buf = exportStepFromSolids(kernel.l1, [{ name: 'gear1', solid: gear1 }, { name: 'gear2', solid: placed }])
     writeFileSync(out, Buffer.from(buf))
     const r = await compareAssemblyFiles('fixtures/reference/cgp-basic.step', out, opts)
     console.log(`delta=${deltaDeg}\tboolAB=${r.overall.booleanDiff.aMinusB.toExponential(3)}\tboolBA=${r.overall.booleanDiff.bMinusA.toExponential(3)}\tequiv=${r.equivalent}`)
