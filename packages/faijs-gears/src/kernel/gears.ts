@@ -12,91 +12,166 @@
  *
  * Everything here is a verbatim port of the proven v1 implementations (same
  * kernel call sequence → bit-identical geometry).
+ *
+ * ## 内核取用（内核取用面收敛 2026-10-14 §3.1 / §3.5）
+ *
+ * 本包是**平台库**（`package.json`：`faijs.lib = { role:'library', conformsTo:'cadquery',
+ * platform:['occt'] }`），故按 §3.1 三分表的「平台库」行取内核，得到**双句柄**
+ * `GearKernel = { l1, occt }`：
+ *
+ * | 面 | 出口 | 装什么 |
+ * |---|---|---|
+ * | `l1` | `getBrepApi()` | L1 中立面 `BrepEngineApi`——本包用到 37 个方法 |
+ * | `occt` | `getOcctKernel()` | L1 **无法表达**的四件事（见 `GearOcct`） |
+ *
+ * 本包不再读裸槽位（`getBackends().kernel.brep`）、不再自装配内核（`initOcctWasm`），
+ * 也不再返回「L1 + 平台扩展」的合并句柄——那种句柄缺的方法只在构建深处以
+ * `kernel.X is not a function` 爆出（§2.2 的标本）。用错面现在是**编译期**错误：
+ * `k.l1.split` 与 `k.occt.makeFace` 都不存在。
+ *
+ * 口径差异（L1 同名但语义不符，故走平台面）只有一处：`loft`——见
+ * {@link GearOcct.loft}。这不是「平台库就可以随便用平台方法」，而是 L1 契约
+ * 对该能力另有所指（L1 `loft` 恒产实体），本包要的是壳/单张面。
  */
 
-import { getBackends, initOcctWasm } from '@faicad/faijs'
+import { getBrepApi, getConfiguredBrepEngineId } from '@faicad/faijs/sdk'
+import { getOcctKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import type { BrepEngineApi, BrepHandle, BrepVec3 } from '@faicad/faijs'
 import type { Vec3 } from '../math'
 
-/** Rotation/mirror axis (occt-wasm shape). */
+/** Rotation/mirror axis (L1 `rotate` 的轴形态). */
 export interface GearAxis {
   point: BrepVec3
   direction: BrepVec3
 }
 
 /**
- * faijs-gears 内核面 = `BrepEngineApi`（L1 契约，2026-10-13 已将 10 个样条/螺旋
- * 原语接进 L1，见方案 §7 决策点 1/2/3）+ **occt 平台扩展**（L1 契约之外、brepkit
- * 核心未实现的原语，共 15 个）。gears 通过 `getGearKernel()` 消费宿主注入的
- * backend：
- *  - 注入 occt（生产由宿主注入 `createOcctPrimitives()` + 必要的 occt 平台扩展）→ 走通；
- *  - 注入 brepkit → 15 个 occt 平台扩展缺失（sew 族 / split / loft-shell / healWire /
- *    isFace 族 / projectPointOnFace / revolve / buildSolidFromFaces / makeFaceOnSurface /
- *    outerWire / getShapeType / interpolatePoints(periodic)）→ 构建必然失败（显式缺口）。
+ * occt 平台面：L1（`BrepEngineApi`）**无法表达**的四件事。
  *
- * occt 平台扩展列表（探活测试钉死每个是否存在于运行内核，内核升级改名即红）：
+ * 四件全部落在**构建主路径**上——封盖（`healWire`）、切齿/越界修剪（`split`）、
+ * 齿面蒙皮（`loft` 的壳形态）、齿面偏差量测（`projectPointOnFace`）。因此齿轮库
+ * 整体是 occt-only，而不是个别函数的例外（§3.5 第 2 项）。
  */
-export type GearKernel = BrepEngineApi & {
-  // ── 语义分歧：L1 同名但口径不同，必须走 occt 平台 ──
-  /** `GeomAPI_PointsToBSpline` periodic 语义；L1 `interpolatePoints(points, degree)` 是 degree 语义。 */
-  interpolatePoints(points: BrepVec3[], periodic?: boolean): BrepHandle
-  /** `BRepOffsetAPI_ThruSections`：wires → **壳**（occt 平台）；L1 `loft` 恒产实体。 */
-  loft(wires: BrepHandle[], isSolid?: boolean, ruled?: boolean): BrepHandle
-
-  // ── 拓扑 / 查询：L1 未暴露 ──
-  /** TopAbs_ShapeEnum type name ("solid" / "shell" / "face" …, for diagnostics/assertions). */
-  getShapeType(shape: BrepHandle): string
-  buildSolidFromFaces(faces: BrepHandle[], tolerance?: number): BrepHandle
-  makeFaceOnSurface(face: BrepHandle, wire: BrepHandle): BrepHandle
-  outerWire(face: BrepHandle): BrepHandle
+export interface GearOcct {
+  /**
+   * `BRepOffsetAPI_ThruSections`：wires → **壳**（`isSolid=false`）。
+   *
+   * ⚠️ 不能换 L1 `loft`：L1 的 `loft(sections, ruled, endPoint?)` 在 occt 适配器里
+   * 写死 `isSolid=true`（`packages/core/src/occt-kernel/occt-primitives.ts:172`），
+   * **恒产实体**。本包两处要的是两个截面之间的**单张面**——`ring_gear.ts` 的外圈
+   * 圆柱面、本文件 `buildGearRowLoft` 的齿面蒙皮——拿实体会在下游 `soleGearFace`
+   * 处因面数不为 1 而失败。同款口径分歧见 faijs-fasteners `primitives.ruledFace`。
+   */
+  loft(wires: BrepHandle[], isSolid: boolean, ruled: boolean): BrepHandle
+  /** 线修复（端盖组线成 wire 之后、`makeFace` 之前）。L1 无此能力。 */
   healWire(wire: BrepHandle, tolerance?: number): BrepHandle
-  healFace(face: BrepHandle, tolerance?: number): BrepHandle
-  /** `BRepPrimAPI_MakeRevol`: face/wire revolved around `axis` (cq `Workplane.revolve`, 360°=2π). */
-  revolve(shape: BrepHandle, axis: GearAxis, angleRad: number): BrepHandle
-  /** Boolean split by tool solids (cq `split`); L1 只有 `splitByPlane`，口径不同。 */
+  /**
+   * 工具实体分割（cq `Face.split(plane)`，`BRepAlgoAPI_Splitter`）。
+   * L1 只有 `splitByPlane`（无限平面二分），工具实体语义不同——切齿与越界修剪都用它。
+   */
   split(shape: BrepHandle, tools: BrepHandle[]): BrepHandle
+  /** 点到面的投影（齿面偏差量测）。L1 无此能力。 */
   projectPointOnFace(face: BrepHandle, point: BrepVec3): BrepVec3
-  isFace(shape: BrepHandle): boolean
-  isWire(shape: BrepHandle): boolean
-  isShell(shape: BrepHandle): boolean
-  isEdge(shape: BrepHandle): boolean
 }
 
-let legacyKernelPromise: Promise<GearKernel> | null = null
+/** 真实 occt 平台面的类型（库不得 `import type ... from 'occt-wasm'`，故经出口推导）。 */
+type RawOcctFace = ReturnType<typeof getOcctKernel>
 
 /**
- * Get the BREP kernel this gear builder should use.
+ * `GearOcct` 的成员名清单。
  *
- * Resolution order (aligned with faijs-fasteners `kernel.ts`, the canonical
- * injection pattern — this closes the architectural gap where gears used to
- * hard-bind `initOcctWasm()` and bypass the host-injected backend):
- *   1. Host-injected backend `getBackends().kernel.brep` — what makes gears
- *      engine-declarable. When the host injects brepkit, gears receive the
- *      brepkit kernel and surface the genuine primitive gap (brepkit core
- *      lacks `bsplineSurface` / `makeHelixWire` / `approximatePoints` / `loft`)
- *      instead of silently assuming occt.
- *   2. Legacy self-init `initOcctWasm()` — only when the host has NOT
- *      configured backends (e.g. the package's own unit tests that call
- *      `spurGear` directly). Transitional fallback for backward compatibility;
- *      not the preferred path.
- *
- * The injected backend is re-read on every call (never cached as a singleton
- * that could go stale across engine switches), so the harness can flip
- * occt↔brepkit between tests and gears always see the current kernel.
- *
- * @returns the kernel (promise; initializes wasm only on legacy fallback)
+ * 两处自证都用它：
+ *  - **编译期**：`satisfies` 保证四个名字在真实 occt 平台上存在——内核升级改名即 `tsc` 红；
+ *  - **运行期**：{@link gearKernel} 逐个 `typeof === 'function'` 探活，报出缺哪一个。
  */
-export function getGearKernel(): Promise<GearKernel> {
-  try {
-    const injected = getBackends().kernel?.brep
-    if (injected) return Promise.resolve(injected as unknown as GearKernel)
-  } catch {
-    // backends not configured by host → fall through to legacy self-init
+const GEAR_OCCT_NAMES = [
+  'loft',
+  'healWire',
+  'split',
+  'projectPointOnFace',
+] as const satisfies readonly (keyof RawOcctFace)[]
+
+/** 齿轮构建用的**双句柄**：中立面 + 平台面。 */
+export interface GearKernel {
+  /** L1 中立面（`BrepEngineApi`）。 */
+  l1: BrepEngineApi
+  /** occt 平台面（{@link GearOcct}）。 */
+  occt: GearOcct
+}
+
+/**
+ * 取齿轮构建用的双句柄。
+ *
+ * 每次调用**重新取**（不缓存）——引擎在会话中途可切，缓存会让句柄跨引擎串味。
+ * 两个出口都在未就绪时显式抛错，不返回半成品：`getBrepApi()` 抛
+ * 「BREP engine API not available」，`getOcctKernel()` 抛「occt-wasm kernel not
+ * initialized」。
+ *
+ * **平台库门禁（方案 §3.5 第 5 项 / §2.2 标本）**：faijs-gears 全库 occt-only——构建
+ * 主路径上的四件能力 L1 无法表达（`GearOcct`：封盖 `healWire`、切齿/越界修剪
+ * `split`、齿面蒙皮 `loft(壳)`、齿面偏差 `projectPointOnFace`），约束因此是**库级**
+ * 的（`package.json` 的 `faijs.lib.platform`）而非函数级。故取句柄前先校验当前活动
+ * 引擎 id（`config.brepEngineId`）：非 `occt` 即**执行前**抛 `E_BREP_UNSUPPORTED`——
+ * 文案与 core `api/internal/l3-bridge` 的 `assertEngineFor` 同构，含引擎名，可定位，
+ * 不补桩、不静默降级。brepkit 等其它引擎下构建必然失败，落在这道门禁而不是构建深处
+ * 的随机失败点。
+ *
+ * `occt` 的那一次断言只吸收**句柄品牌**：`BrepHandle` 与 occt 的 `ShapeHandle`
+ * 都是 `number & { readonly [brand]: never }`（`brep/engine/types.ts:34` /
+ * occt-wasm `types.d.ts:6`），运行期同一批数字，差别只在编译期品牌；成员名由
+ * {@link GEAR_OCCT_NAMES} 的 `satisfies` 静态钉住、并在下面逐个探活。
+ *
+ * @returns `{ l1, occt }` 双句柄
+ * @throws 当前引擎不是 `occt` 时抛 `E_BREP_UNSUPPORTED`；内核未就绪时原样上抛出口自己的错误
+ */
+export function gearKernel(): GearKernel {
+  // 平台库门禁：当前活动引擎必须 ∈ 库级声明 `platform`（['occt']）。读配置的活动引擎
+  // （而非注册表默认），与宿主 `configureBackends({ config: { brepEngineId } })` 的意图一致。
+  const activeId = getConfiguredBrepEngineId()
+  if (activeId !== 'occt') {
+    const e = new Error(
+      `E_BREP_UNSUPPORTED: lib 'faijs-gears' requires engine occt (current=${activeId ?? '<none>'})`,
+    )
+    e.name = 'BrepUnsupportedError'
+    throw e
   }
-  if (!legacyKernelPromise) {
-    legacyKernelPromise = initOcctWasm().then((k) => k as unknown as GearKernel)
+  const raw = getOcctKernel() as unknown as Record<string, unknown>
+  for (const name of GEAR_OCCT_NAMES) {
+    if (typeof raw[name] !== 'function') {
+      throw new Error(
+        `[faijs-gears] occt platform face changed: '${name}' is not a function on the kernel ` +
+          `(GearOcct needs ${GEAR_OCCT_NAMES.join(' / ')})`,
+      )
+    }
   }
-  return legacyKernelPromise
+  return { l1: getBrepApi(), occt: getOcctKernel() as unknown as GearOcct }
+}
+
+// ── L1 派生判定（§3.5 第 2 项：L1 无 isFace / isShell，按 `shapeType` 派生）─────
+//
+// `shapeType` 在 occt 适配器里是原生 `getShapeType` 直通，取值小写
+// （occt-wasm `SHAPE_TYPES`: 'compound' | 'solid' | 'shell' | 'face' | …）。
+
+/**
+ * 形状是不是一个面（L1 `shapeType` 派生）。
+ *
+ * @param kernel 双句柄
+ * @param shape 待判形状
+ * @returns 当且仅当类型名为 `'face'`
+ */
+export function gearIsFace(kernel: GearKernel, shape: BrepHandle): boolean {
+  return kernel.l1.shapeType(shape) === 'face'
+}
+
+/**
+ * 形状是不是一个壳（L1 `shapeType` 派生）。
+ *
+ * @param kernel 双句柄
+ * @param shape 待判形状
+ * @returns 当且仅当类型名为 `'shell'`
+ */
+export function gearIsShell(kernel: GearKernel, shape: BrepHandle): boolean {
+  return kernel.l1.shapeType(shape) === 'shell'
 }
 
 // ── tolerant edge chaining (port of faijs-gears v1 geom-build.ts) ─────────
@@ -123,26 +198,30 @@ function gearDist(a: Vec3, b: Vec3): number {
  * B-spline); the vertex fallback only covers degenerate edges without an
  * underlying curve.
  *
- * @param kernel raw OCCT kernel
+ * @param kernel 双句柄
  * @param edge edge handle
  * @returns both endpoints (closed edges: first == last)
  */
 export function gearEdgeEnds(kernel: GearKernel, edge: BrepHandle): GearEdgeEnds {
   try {
-    const { first, last } = kernel.curveParameters(edge)
+    const { first, last } = kernel.l1.curveParameters(edge)
     return {
       edge,
-      a: kernel.curvePointAtParam(edge, first),
-      b: kernel.curvePointAtParam(edge, last),
+      a: kernel.l1.curvePointAtParam(edge, first),
+      b: kernel.l1.curvePointAtParam(edge, last),
     }
   } catch {
     // Fallback: rare degenerate edges without an underlying curve.
-    const vs = kernel.getSubShapes(edge, 'vertex')
+    const vs = kernel.l1.getSubShapes(edge, 'vertex')
     if (vs.length < 2) {
-      const p = kernel.vertexPosition(vs[0])
+      const p = kernel.l1.vertexPosition(vs[0])
       return { edge, a: p, b: p }
     }
-    return { edge, a: kernel.vertexPosition(vs[0]), b: kernel.vertexPosition(vs[1]) }
+    return {
+      edge,
+      a: kernel.l1.vertexPosition(vs[0]),
+      b: kernel.l1.vertexPosition(vs[1]),
+    }
   }
 }
 
@@ -158,7 +237,7 @@ export function gearEdgeEnds(kernel: GearKernel, edge: BrepHandle): GearEdgeEnds
  * Gaps above OCCT precision (~1e-7) get a bridging line segment, matching
  * upstream ConnectEdgesToWires behaviour.
  *
- * @param kernel raw OCCT kernel
+ * @param kernel 双句柄
  * @param edges unordered edge set
  * @param tol endpoint pairing tolerance (mm); cq uses `wire_comb_tol = 1e-2`
  * @returns one or more wires, each with its edges chained head-to-tail
@@ -202,10 +281,10 @@ export function connectEdgesToWires(
       const e = pool[found]
       const flip = gearDist(e.a, tail) <= gearDist(e.b, tail)
       if (best > 1e-7) {
-        chain.push(kernel.makeLineEdge(tail, flip ? e.a : e.b))
+        chain.push(kernel.l1.makeLineEdge(tail, flip ? e.a : e.b))
       }
       // Edge points the wrong way: reverseShape makes a reversed copy.
-      chain.push(flip ? e.edge : kernel.reverseShape(e.edge))
+      chain.push(flip ? e.edge : kernel.l1.reverseShape(e.edge))
       tail = flip ? e.b : e.a
       // Back at the start ⇒ closed loop, stop.
       if (gearDist(tail, head) <= tol) break
@@ -214,10 +293,10 @@ export function connectEdgesToWires(
     // Close the loop: bridge the tail-to-head gap too.
     const endGap = gearDist(tail, head)
     if (chain.length > 1 && endGap > 1e-7 && endGap <= tol) {
-      chain.push(kernel.makeLineEdge(tail, head))
+      chain.push(kernel.l1.makeLineEdge(tail, head))
     }
 
-    wires.push(kernel.makeWire(chain))
+    wires.push(kernel.l1.makeWire(chain))
   }
   return wires
 }
@@ -225,7 +304,7 @@ export function connectEdgesToWires(
 /**
  * cq `Face.makeFromWires(outer, holes)` analogue.
  *
- * @param kernel raw OCCT kernel
+ * @param kernel 双句柄
  * @param outer outer wire
  * @param holes inner hole wires (may be empty)
  * @returns face handle
@@ -235,8 +314,8 @@ export function gearFaceFromWires(
   outer: BrepHandle,
   holes: BrepHandle[] = [],
 ): BrepHandle {
-  const f = kernel.makeFace(outer)
-  return holes.length > 0 ? kernel.addHolesInFace(f, holes) : f
+  const f = kernel.l1.makeFace(outer)
+  return holes.length > 0 ? kernel.l1.addHolesInFace(f, holes) : f
 }
 
 /**
@@ -245,7 +324,7 @@ export function gearFaceFromWires(
  * A non-shell sew result is NOT silently swallowed — that is a construction
  * failure signal.
  *
- * @param kernel raw OCCT kernel
+ * @param kernel 双句柄
  * @param faces faces to sew
  * @param sewingTol sewing tolerance (mm, cq `shell_sewing_tol`)
  * @returns solid built from the sewn shell
@@ -255,13 +334,13 @@ export function gearShellToSolid(
   faces: BrepHandle[],
   sewingTol: number,
 ): BrepHandle {
-  const shell = kernel.sew(faces, sewingTol)
-  if (!kernel.isShell(shell) && !kernel.isSolid(shell)) {
+  const shell = kernel.l1.sew(faces, sewingTol)
+  if (!gearIsShell(kernel, shell) && !kernel.l1.isSolid(shell)) {
     throw new Error(
-      `gearShellToSolid: sew did not produce a shell (got ${String(kernel.getShapeType(shell))})`,
+      `gearShellToSolid: sew did not produce a shell (got ${String(kernel.l1.shapeType(shell))})`,
     )
   }
-  return kernel.makeSolid(shell)
+  return kernel.l1.makeSolid(shell)
 }
 
 // ── spline tooth faces (port of faijs-gears v1 spline-face.ts) ────────────
@@ -271,9 +350,9 @@ export function gearShellToSolid(
  *
  * | strategy | how | semantic delta vs cq |
  * |---|---|---|
- * | `grid-approx` | `kernel.bsplineSurface(flat, rows, cols)` (also `GeomAPI_PointsToBSplineSurface`) | OCCT default DegMin/DegMax/Tol3D; cq passes 3/8/1e-2 explicitly |
- * | `row-approx-loft` | per-row `approximatePoints(row, tol)` → `loft(wires, false, false)` | curve-level tol same name/meaning; surface is skinned, not fitted at once |
- * | `row-interp-loft` | per-row `interpolatePoints(row)` → `loft` | passes through every sample point (interpolation) |
+ * | `grid-approx` | `l1.bsplineSurface(flat, rows, cols)` (also `GeomAPI_PointsToBSplineSurface`) | OCCT default DegMin/DegMax/Tol3D; cq passes 3/8/1e-2 explicitly |
+ * | `row-approx-loft` | per-row `l1.approximatePoints(row, tol)` → platform `loft` | curve-level tol same name/meaning; surface is skinned, not fitted at once |
+ * | `row-interp-loft` | per-row `l1.interpolatePoints(row, 3)` → platform `loft` | passes through every sample point (interpolation) |
  */
 export type GearSplineFaceStrategy = 'grid-approx' | 'row-approx-loft' | 'row-interp-loft'
 
@@ -317,7 +396,7 @@ export interface GearSplineGrid {
  *
  * @throws kernel errors propagate verbatim (never swallowed — red line)
  *
- * @param kernel raw OCCT kernel
+ * @param kernel 双句柄
  * @param grid row×col point grid
  * @param strategy face building strategy
  * @param options tolerance/degree options
@@ -334,9 +413,13 @@ export function buildGearSplineFace(
     case 'grid-approx':
       return buildGearGridApprox(kernel, grid)
     case 'row-approx-loft':
-      return buildGearRowLoft(kernel, grid, (row) => kernel.approximatePoints(row, tol))
+      return buildGearRowLoft(kernel, grid, (row) => kernel.l1.approximatePoints(row, tol))
     case 'row-interp-loft':
-      return buildGearRowLoft(kernel, grid, (row) => kernel.interpolatePoints(row, false))
+      // L1 `interpolatePoints(points, degree)` 与 occt 原生 `interpolatePoints(points, periodic?)`
+      // 的第二参**同位置不同义**：L1 是次数，原生是周期性。occt 适配器只认 degree=3
+      // （其余显式抛错），而 3 正是原生缺省的三次有理/非周期插值——故 degree=3 与
+      // 旧口径 `interpolatePoints(row, false)` 等价（§3.5 第 2 项的那个调用点）。
+      return buildGearRowLoft(kernel, grid, (row) => kernel.l1.interpolatePoints(row, 3))
   }
 }
 
@@ -344,20 +427,22 @@ export function buildGearSplineFace(
 function buildGearGridApprox(kernel: GearKernel, grid: GearSplineGrid): BrepHandle {
   const flat: Vec3[] = []
   for (const row of grid.points) for (const p of row) flat.push(p)
-  return kernel.bsplineSurface(flat, grid.rows, grid.cols)
+  return kernel.l1.bsplineSurface(flat, grid.rows, grid.cols)
 }
 
-/** S2/S3: per-row curve → `loft` skinning. */
+/** S2/S3: per-row curve → platform `loft` skinning. */
 function buildGearRowLoft(
   kernel: GearKernel,
   grid: GearSplineGrid,
   makeCurve: (row: Vec3[]) => BrepHandle,
 ): BrepHandle {
-  const wires = grid.points.map((row) => kernel.makeWire([makeCurve(row)]))
-  // `loft(wires, isSolid=false, ruled=false)` returns a **shell** (measured
+  const wires = grid.points.map((row) => kernel.l1.makeWire([makeCurve(row)]))
+  // `occt.loft(wires, isSolid=false, ruled=false)` returns a **shell** (measured
   // 2026-09-08), while cq's tooth face is a TopoDS_Face; downstream sew /
   // projectPointOnFace require a Face, so extract the sole face.
-  return soleGearFace(kernel, kernel.loft(wires, false, false))
+  // 走平台面而不是 L1 `loft`：L1 恒产实体（见 `GearOcct.loft`），实体的面数不为 1，
+  // `soleGearFace` 会直接抛错。
+  return soleGearFace(kernel, kernel.occt.loft(wires, false, false))
 }
 
 /**
@@ -365,30 +450,30 @@ function buildGearRowLoft(
  *
  * @throws when the face count is not 1 (silently taking the first would mask problems)
  *
- * @param kernel raw OCCT kernel
+ * @param kernel 双句柄
  * @param shape any shape (Face / single-face shell / …)
  * @returns the sole Face
  */
 export function soleGearFace(kernel: GearKernel, shape: BrepHandle): BrepHandle {
-  if (kernel.isFace(shape)) return shape
-  const faces = kernel.getSubShapes(shape, 'face')
+  if (gearIsFace(kernel, shape)) return shape
+  const faces = kernel.l1.getSubShapes(shape, 'face')
   if (faces.length !== 1) {
     throw new Error(
-      `soleGearFace: expected a single face, got ${faces.length} (shapeType=${String(kernel.getShapeType(shape))})`,
+      `soleGearFace: expected a single face, got ${faces.length} (shapeType=${String(kernel.l1.shapeType(shape))})`,
     )
   }
-  return faces[0]
+  return faces[0]!
 }
 
-/** Distance from a point to a face (`projectPointOnFace`).
+/** Distance from a point to a face (platform `projectPointOnFace`).
  *
- * @param kernel raw OCCT kernel
+ * @param kernel 双句柄
  * @param face target face
  * @param p query point
  * @returns euclidean distance (mm)
  */
 export function gearDistanceToFace(kernel: GearKernel, face: BrepHandle, p: Vec3): number {
-  const q = kernel.projectPointOnFace(face, p)
+  const q = kernel.occt.projectPointOnFace(face, p)
   return Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z)
 }
 
@@ -405,7 +490,7 @@ export interface GearDeviationStats {
  * Parameterization-independent: samples come from the cq side's (u,v) grid, so
  * the two surfaces may have different parameterizations.
  *
- * @param kernel raw OCCT kernel
+ * @param kernel 双句柄
  * @param face face under test
  * @param samplePoints reference sample points (3D)
  * @returns max distance / RMS / sample count

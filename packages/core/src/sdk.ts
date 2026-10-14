@@ -47,6 +47,7 @@ export {
   keep,
   keepHidden,
   getBackends,
+  getConfiguredBrepEngineId,
   configureBackends,
   assertContractVersion,
   CONTRACT_VERSION,
@@ -65,8 +66,17 @@ export type {
 // ── BREP 桥接（B1：第三方库造 BREP 产物的三角化入口） ──
 // handle-bridge 只 import runtime-state / api/shape / type-only mesh/types，
 // 零 heavy 依赖——dist/sdk.js 守卫测试继续通过。
+//
+// 内核取用三分（一个出口对应一种代码，见 docs/library-dev-guide.md「内核取用」）：
+//   · 中立 op / 中立库 → `getBrepApi()`（本文件，L1 契约面）；
+//   · 平台 op / 平台库 → 上面的 `getBrepApi()` 取 L1 部分，
+//     `getOcctKernel()` / `getBrepKitKernel()` 取平台部分。平台面不在本文件导出
+//     ——它会 import occt-wasm（heavy），只能从 `@faicad/faijs/occt-kernel/occtKernel`
+//     / `@faicad/faijs/brepkit-kernel/brepkitKernel` 子路径取。
+//   · 数据 / 声明库 → 什么都不取。
+// `getBackends().kernel.*` 裸槽位是 core 内部实现细节，库代码不得读。
 
-export { getKernel, getBrepApi, meshHandle, fromHandle } from './brep/handle-bridge'
+export { getBrepApi, meshHandle, fromHandle } from './brep/handle-bridge'
 export type { MeshHandleOptions } from './brep/handle-bridge'
 export { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engine/types'
 export type { BrepEngineApi } from './brep/engine/primitives'

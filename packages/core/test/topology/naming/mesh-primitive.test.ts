@@ -188,6 +188,16 @@ function fakeKernel(faces: Array<{ surfaceType: string; normal: [number, number,
     removeHolesFromFace: () => 1 as BrepHandle,
     reverseShape: (s) => s,
     projectEdges: () => ({}),
+    bsplineSurface: (_points, _rows, _cols) => 1 as BrepHandle,
+    makeSolid: (shell) => shell,
+    thicken: (shape, _thickness) => shape,
+    rotate: (shape) => shape,
+    makeCircleArc: () => 1 as BrepHandle,
+    makeHelixWire: () => 1 as BrepHandle,
+    approximatePoints: (_points, _tolerance) => 1 as BrepHandle,
+    interpolatePointsWithTangents: () => 1 as BrepHandle,
+    makeNonPlanarFace: (wire) => 1 as BrepHandle,
+    subShapeCount: () => 0,
 } as BrepEngineApi
 }
 

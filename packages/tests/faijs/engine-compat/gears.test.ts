@@ -1,18 +1,18 @@
 /**
- * gears.test.ts — 齿轮引擎兼容性（方案 §6.7 / §6.3）
+ * gears.test.ts — 齿轮引擎兼容性（方案 §6.7 / §6.3 / §3.5 第 5 项）
  *
- * 分类：brepkit 真缺口。gears 已收敛到 L1（`GearKernel = BrepEngineApi & {15 个
- * occt 平台扩展}`，见 `packages/faijs-gears/src/kernel/gears.ts`）：10 个样条/螺旋
- * 原语走 L1，其余 15 个 occt 平台扩展（sew / split / loft-shell / healWire / isFace 族
- * / projectPointOnFace / revolve / buildSolidFromFaces / makeFaceOnSurface / outerWire /
- * getShapeType / interpolatePoints(periodic)）brepkit 核心未实现。
+ * 分类：brepkit 真缺口，且是**库级** occt-only。faijs-gears 是平台库
+ * （`package.json` 的 `faijs.lib.platform = ['occt']`）：其构建主路径依赖四件
+ * L1 无法表达的能力（`loft-shell` / `healWire` / `split(工具实体)` /
+ * `projectPointOnFace`，见 `src/kernel/gears.ts` 的 `GearOcct`），故整体 occt-only。
  *
- * faijs-gears 与 faijs-fasteners 对齐：`getGearKernel()` 消费宿主注入的 backend
- * （`getBackends().kernel.brep`）。因此：
- *  - occt 注入（L1 优先 + raw occt 平台原语兜底，见 `useGearKernel('occt')`）时
- *    构建正常（几何与旧 raw occt 路径等价）——单体回归；
- *  - brepkit 注入（纯 L1 brepkit，见 `useGearKernel('brepkit')`）构建必然失败——
- *    本文件用断言把这一**真实引擎缺口**暴露在引擎层。
+ * faijs-gears 现已收敛为**双句柄** `gearKernel()`（`l1 = getBrepApi()` + `occt = getOcctKernel()`）。
+ * 入口处按活动引擎 id（`config.brepEngineId`）做平台库门禁：非 `occt` 即在触碰内核前抛
+ * `E_BREP_UNSUPPORTED`（与 core `api/internal/l3-bridge` 的 `assertEngineFor` 文案同构，含引擎名）。
+ * 因此：
+ *  - occt 活动（`useGearKernel('occt')`）时构建正常（几何与旧 occt 路径等价）——单体回归；
+ *  - brepkit 活动（`useGearKernel('brepkit')`）时 `gearKernel()` 在执行前拒绝——本文件第二
+ *    组 describe 把这道门禁钉住（断言 `E_BREP_UNSUPPORTED` + 引擎名），而非构建深处的随机失败。
  *
  * 运行：
  *   npx vitest run --config packages/tests/vitest.engine-compat.config.ts faijs/engine-compat/gears.test.ts
@@ -66,33 +66,29 @@ describe('gears: occt builds valid geometry (regression)', () => {
 
 describe('gears: brepkit cannot build (genuine engine gap)', () => {
   /**
-   * 缺口断言（2026-10-13 重钉）：
+   * 门禁断言（方案 §3.5 第 5 项，2026-10-14 翻转）：
    *
-   * §7 决策点 1/2/3 把 `bsplineSurface` / `makeHelixWire` / `approximatePoints` /
-   * `interpolatePoints` 接进 L1 后，brepkit 侧**不再缺这些原语**——缺口因此向下游
-   * 移动，失败文案也随之改变：
-   *   旧（缺原语）: /bsplineSurface|makeHelixWire|approximatePoints|loft|is not a function/
-   *   新（缺口下游）: `E_LOFT_BAD_ENDPOINT: loft endPoint must be a BrepVec3 ({x,y,z}), got false`
-   * 新文案是 L1 `loft` 的契约守卫在拦：gears 的齿面走包侧旧口径
-   * `loft(wires, isSolid=false, ruled=false)`，布尔 `false` 落在 L1 的 `endPoint` 位。
-   * 守卫把它挡在进内核之前（旧行为是 brepkit 抛 `cannot normalize zero vector`、
-   * occt 直接 wasm 硬 abort），错误可指路，正合方案 §4-① 的要求。
+   * faijs-gears 是 occt-only 平台库（`faijs.lib.platform = ['occt']`）。`gearKernel()`
+   * 在取双句柄之前先校验活动引擎 id（读 `config.brepEngineId`）：非 `occt` 即**执行前**
+   * 抛 `E_BREP_UNSUPPORTED`——文案与 core `api/internal/l3-bridge` 的 `assertEngineFor`
+   * 同构（含引擎名、可定位），不补桩、不静默降级、更不进内核。
    *
-   * 目标值：gears 收敛到 L1 口径（齿面改 ruled-face 原语或改走 occt 平台面）后，
-   * 本用例翻转为「brepkit 构建成功 + T1/T2 一致性」。
+   * 这是 declaratively 正确的失败：平台库在 brepkit 下构建必然失败，落在这道门禁而不是
+   * 构建深处的随机失败点（旧口径是 `E_LOFT_BAD_ENDPOINT`，那是 L1 `loft` 的 endPoint
+   * 守卫在 brepkit 侧最先暴露的下游症状，不是根因）。
    */
-  it('[occt-only gap] injecting brepkit makes gear build fail (genuine engine gap)', async () => {
+  it('[occt-only gap] injecting brepkit makes gear build fail (pre-execution E_BREP_UNSUPPORTED)', async () => {
     useGearKernel('brepkit')
     const r = await spurGear({ module: 2, teeth_number: 24, width: 8 })
     expect(r.ok).toBe(false)
     const msg = (r as { error?: string }).error ?? ''
-    // 当前值（错）：纯 L1 brepkit 缺 gear 的 occt 平台扩展。默认策略 row-approx-loft
-    // 先调用 `loft(wires, false, false)`，L1 `loft` 第三参是 endPoint，布尔触发守卫
-    // `E_LOFT_BAD_ENDPOINT`（这是 brepkit 侧最先暴露的真缺口）。
-    expect(msg).toMatch(/E_LOFT_BAD_ENDPOINT/)
-    expect(msg).toMatch(/got false/)
-    // 应无的正确值：既不再是「缺原语」，也不再是无指向的 wasm 报错。
+    // 当前值（正确）：执行前引擎身份拒绝，含引擎名，可定位——这正是平台库门禁该有的形态。
+    expect(msg).toMatch(/E_BREP_UNSUPPORTED/)
+    expect(msg).toMatch(/requires engine occt/)
+    expect(msg).toMatch(/current=brepkit/)
+    // 不应再是旧口径的任何症状（缺原语 / L1 loft endPoint 守卫 / 已进内核的报错）。
     expect(msg).not.toMatch(/is not a function/)
-    expect(msg).not.toMatch(/cannot normalize zero vector/)
+    expect(msg).not.toMatch(/E_LOFT_BAD_ENDPOINT/)
+    expect(msg).not.toMatch(/not initialized/)
   })
 })

@@ -1,7 +1,15 @@
 {
   "name": "@faicad/faijs-fasteners",
-  "version": "0.34.2",
+  "version": "0.34.3",
   "type": "module",
+  "faijs": {
+    "autoLift": true,
+    "lib": {
+      "role": "library",
+      "conformsTo": "faijs",
+      "platform": []
+    }
+  },
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

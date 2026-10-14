@@ -71,8 +71,19 @@ export interface Backends {
      */
     hostEnv?: RuntimeHostEnv
   }
-  /** 几何后端。brep 引擎异步初始化 → 用 getter。 */
+  /**
+   * 几何后端。brep 引擎异步初始化 → 用 getter。
+   *
+   * ⚠️ `kernel.brep` 是 **core 内部槽位**（`@internal`）：值是当前引擎的 `BrepEngineApi`
+   * 实例（由 `brep-chain.ts` 从 `engine.primitives` 写入）。库代码与 op 代码一律不得直读
+   * 本槽位——中立代码经 `getBrepApi()`（`brep/handle-bridge.ts`，本文件是零依赖层，
+   * 不能 import 它），平台代码经 `getOcctKernel()` / `getBrepKitKernel()`。直读该槽位
+   * 会拿到 `unknown` 并需要一次断言，那正是「假装统一内核」事故的成因。
+   *
+   * @internal
+   */
   readonly kernel: {
+    /** @internal 当前引擎的 L1 契约面实例；库/op 代码请用 `getBrepApi()`。 */
     readonly brep: unknown | null
     readonly csg: unknown | undefined
     readonly sdf: unknown | undefined
@@ -493,6 +504,20 @@ export function getBackends(): Backends {
     throw new Error('[faijs] backends not configured: call configureBackends() before executing')
   }
   return b
+}
+
+/**
+ * 当前**配置**的活动 BREP 引擎 id（宿主经 `configureBackends({ config: { brepEngineId } })`
+ * 声明）。库级引擎门禁用——它读的是宿主声明的活动引擎，而非注册表默认（注册表默认
+ * 是装配期第一个注册者，二者可能不同；见 `brep/engine/registry.ts` 的 `getActiveBrepEngineId`）。
+ *
+ * 这是库代码在不触碰裸槽位（`getBackends().kernel.brep` 被分层门禁禁止）的前提下，
+ * 唯一能拿到的「当前活动引擎」信息。未配置返回 `null`。
+ *
+ * @returns 活动引擎 id，或 `null`（未配置）。
+ */
+export function getConfiguredBrepEngineId(): string | null {
+  return getBackends().config.brepEngineId ?? null
 }
 
 // ── 当前执行语句（引擎内部状态）──

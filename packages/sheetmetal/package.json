@@ -1,6 +1,6 @@
 {
   "name": "@faicad/sheetmetal",
-  "version": "0.34.2",
+  "version": "0.34.3",
   "description": "Sheet-metal CAD domain for faijs - flange authoring, fold/unfold flat patterns (ported from brepjs-sheetmetal)",
   "keywords": [
     "sheet-metal",
@@ -17,6 +17,14 @@
   },
   "type": "module",
   "sideEffects": false,
+  "faijs": {
+    "autoLift": true,
+    "lib": {
+      "role": "library",
+      "conformsTo": "faijs",
+      "platform": []
+    }
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

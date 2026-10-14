@@ -1,7 +1,17 @@
 {
   "name": "@faicad/faijs-gears",
-  "version": "0.34.2",
+  "version": "0.34.3",
   "type": "module",
+  "faijs": {
+    "autoLift": true,
+    "lib": {
+      "role": "library",
+      "conformsTo": "cadquery",
+      "platform": [
+        "occt"
+      ]
+    }
+  },
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
