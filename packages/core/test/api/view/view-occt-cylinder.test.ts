@@ -87,4 +87,31 @@ describe('occt × 圆柱投影（母线存在 + y 向上契约留档）', () => 
     expect(Math.max(...ysVisible)).toBeGreaterThanOrEqual(17) // 顶圆顶部可见
     expect(Math.max(...ysHidden)).toBeLessThan(0) // 隐藏全部在 y<0（下半区）
   })
+
+  it('曲线轮廓采样密度：top 圆环与 iso 椭圆各折线点数 ≥ 12 —— 不呈多面体/菱形', async () => {
+    // 2026-10-14 复现：EDGE_SAMPLES=5 时 top 圆环被离散成 5 点折线（实测
+    // visible/hidden 各 5 点），web 端工程图呈现「top 俯视图是菱形、iso 轴测图
+    // 像多面体」。修复后每条曲线边 ≥ 12 点，圆/椭圆视觉光滑（直线母线不受影响）。
+    const s = await cylinderShape()
+
+    const top = projectViewSvg(s, 'top')
+    const topPoints = [...top.paths.visible, ...top.paths.hidden].flatMap((d) => pointsOf(d))
+    const xs = topPoints.map(([x]) => x)
+    const ys = topPoints.map(([, y]) => y)
+    // 圆环 bbox 是 20×20 方形（半径 10 的正交俯视，无方向变形）
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(20, 1)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(20, 1)
+    for (const d of [...top.paths.visible, ...top.paths.hidden]) {
+      expect(pointsOf(d).length).toBeGreaterThanOrEqual(12)
+    }
+
+    const iso = projectViewSvg(s, 'iso')
+    // iso 顶椭圆轮廓（y≈12.25 那条）点数足够
+    const topEllipse = iso.paths.visible.find((d) => {
+      const ys2 = pointsOf(d).map(([, y]) => y)
+      return Math.max(...ys2) > 10
+    })
+    expect(topEllipse).toBeDefined()
+    expect(pointsOf(topEllipse!).length).toBeGreaterThanOrEqual(12)
+  })
 })

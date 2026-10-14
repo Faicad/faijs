@@ -69,8 +69,15 @@ export interface ProjectionSvg {
   height: number
 }
 
-/** 每条边的 3D 采样点数（直线 2 点；曲线分段近似）。 */
-const EDGE_SAMPLES = 5
+/**
+ * 每条边的 3D 采样点数（occt compound 通道的曲线分段近似；brepkit 原生
+ * 通道由内核输出折线，不经本参数）。
+ *
+ * 2026-10-14 修复：5 点时圆/椭圆轮廓被离散成五边形/八边形级折线——web 端
+ * 工程图实测圆柱 iso 轴测图呈多面体感、top 俯视图圆环呈菱形。提高到 48 点
+ * 后椭圆视觉光滑。直线边多点采样点仍共线，无视觉差异，故不做边类型分流。
+ */
+const EDGE_SAMPLES = 48
 
 type Vec3 = readonly [number, number, number]
 
