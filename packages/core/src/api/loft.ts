@@ -7,8 +7,9 @@
  * `loftWithOptions`；差异（brepkit 只吃 face）由适配器消化，op 层只看到中立名
  * `BrepEngineApi#loft`。
  *
- * ⚠️ brepkit 的后端要求各截面**顶点数一致**，不一致时执行前报
- * `E_LOFT_SECTION_MISMATCH`（不静默降级、不换引擎）。`startPoint`（起点退化）与
+ * ⚠️ brepkit 的后端对**顶点数不一致**的截面（如圆 → 方）会把所有截面重采样到
+ * 最大顶点数再蒙皮（operations/loft.rs），2026-10-14 起直接放行，不再执行前报
+ * `E_LOFT_SECTION_MISMATCH`。`startPoint`（起点退化）与
  * `tolerance` 只有 occt 有 → 归 `cad.loftAdvanced`。
  */
 
@@ -75,7 +76,8 @@ function loftBrep(sections: Shape[], opts?: LoftOptions): Shape {
  *       brepkit `loft` / `loftSmooth` / `loftWithOptions`）。截面可为 wire 或面
  *       （面取其外环），至少 2 个；`endPoint` 可做终点退化到点的蒙皮。选项集 =
  *       两内核交集 = `{ ruled, endPoint }` —— `startPoint` 与 `tolerance` 只有 occt
- *       有，用 `cad.loftAdvanced`。brepkit 链要求各截面顶点数一致。
+ *       有，用 `cad.loftAdvanced`。brepkit 链对顶点数不一致的截面（如圆 → 方）
+ *       由内核重采样兜底，直接可达。
  * @returns Shape 放样体。
  * @param sections - 有序截面集合（wire 或面；面取其外环）。type:Shape[] required:true
  * @param opts - 放样配置（ruled / endPoint）。type:LoftOptions required:false

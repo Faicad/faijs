@@ -1323,7 +1323,7 @@ const body = await cad.loft([bottom, top])
 
 **异步**。Shape 放样体。
 
-> 基础 op：**occt 与 brepkit 两内核都支持**（occt `BRepOffsetAPI_ThruSections`； brepkit `loft` / `loftSmooth` / `loftWithOptions`）。截面可为 wire 或面 （面取其外环），至少 2 个；`endPoint` 可做终点退化到点的蒙皮。选项集 = 两内核交集 = `{ ruled, endPoint }` —— `startPoint` 与 `tolerance` 只有 occt 有，用 `cad.loftAdvanced`。brepkit 链要求各截面顶点数一致。
+> 基础 op：**occt 与 brepkit 两内核都支持**（occt `BRepOffsetAPI_ThruSections`； brepkit `loft` / `loftSmooth` / `loftWithOptions`）。截面可为 wire 或面 （面取其外环），至少 2 个；`endPoint` 可做终点退化到点的蒙皮。选项集 = 两内核交集 = `{ ruled, endPoint }` —— `startPoint` 与 `tolerance` 只有 occt 有，用 `cad.loftAdvanced`。brepkit 链对顶点数不一致的截面（如圆 → 方）由内核重采样兜底，直接可达（2026-10-14 移除原 `E_LOFT_SECTION_MISMATCH` 执行前门禁）。
 
 ### 5.20 `loftAdvanced` ✅
 

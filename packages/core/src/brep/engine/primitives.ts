@@ -81,8 +81,9 @@ export interface BrepEngineApi {
    * `sections` 是面或闭合 wire（面取外环）；`ruled` 直线插值；`endPoint` 终点退化收口。
    *
    * - occt 适配器映射原生 `loft`（`endPoint` 经 `loftWithVertices` 退化段）；
-   * - brepkit 适配器 `wire → face` 后用 `loft` / `loftSmooth`（`endPoint` 走 `loftWithOptions`），
-   *   并要求各截面**顶点数一致** —— 不一致在执行前报 `E_LOFT_SECTION_MISMATCH`（不静默降级）。
+   * - brepkit 适配器 `wire → face` 后用 `loft` / `loftSmooth`（`endPoint` 走 `loftWithOptions`）；
+   *   顶点数不一致的截面（如圆 → 方）由内核重采样兜底，直接可达
+   *   （2026-10-14 移除原 `E_LOFT_SECTION_MISMATCH` 执行前门禁）。
    *
    * `startPoint`（起点退化）与 `tolerance` 只有 occt 有 → 归 `cad.loftAdvanced`。
    */

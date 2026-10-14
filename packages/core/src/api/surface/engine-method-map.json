@@ -88,7 +88,7 @@
       "occt": "loft",
       "brepkit": "loft",
       "status": "dialect",
-      "note": "brepkit loft 吃 faces 且要求各截面顶点数一致；适配器做 wire→face 升格与一致性检查（不一致报 E_LOFT_SECTION_MISMATCH，不静默降级）。endPoint 走 loftWithOptions，ruled=false 走 loftSmooth"
+      "note": "brepkit loft 吃 faces；适配器做 wire→face 升格。顶点数不一致的截面（如圆→方）由内核重采样兜底，直接可达（2026-10-14 移除原 E_LOFT_SECTION_MISMATCH 执行前门禁）。endPoint 走 loftWithOptions，ruled=false 走 loftSmooth"
     },
     {
       "core": "loftAdvanced",

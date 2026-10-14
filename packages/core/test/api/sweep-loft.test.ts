@@ -236,7 +236,7 @@ describe('loft — 多截面蒙皮（基础 op：两内核都支持）', () => {
 
   it('brepkit 引擎：**可达**（两内核交集，2026-10-10 双引擎化）—— 真出实体', async () => {
     await useBrepkit()
-    // 两截面顶点数一致（brepkit loft 的硬约束，见 BREPKIT `E_LOFT_SECTION_MISMATCH`）。
+    // 顶点数不一致的截面（如圆 → 方）由 brepkit 内核重采样兜底（2026-10-14 起）。
     const code =
       `let part0 = ${closedWire(5)}\n` +
       `let part1 = ${closedWire(2, 10)}\n` +
@@ -454,11 +454,10 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
 /**
  * 双引擎化 GOTCHA（方案 2026-10-10-sweep-loft-dual-engine-plan §7.7）。
  *
- * 钉住三条**执行前可静态判**的约束与其后果——每条都同时钉住「当前值」与
- * 「应有值」，将来适配器行为变化时断言会翻面：
- * 1. brepkit `loft` 要求各截面顶点数一致（`E_LOFT_SECTION_MISMATCH`，指路
- *    `cad.loftAdvanced`）；同一输入在 occt 上**可达**——约束是 brepkit 内核的，
- *    不是 op 的（对照用例钉住这个不对称，防有人把检查上移到 op 层把 occt 也限死）；
+ * 钉住适配器行为与内核能力——将来适配器行为变化时断言会翻面：
+ * 1. 顶点数不一致的截面（如圆 → 方、方 → 三角）在**两内核上都可达**：
+ *    brepkit 内核把所有截面重采样到最大顶点数再蒙皮（operations/loft.rs），
+ *    occt 原生支持 —— 2026-10-14 移除原 `E_LOFT_SECTION_MISMATCH` 执行前门禁；
  * 2. 脊柱是**解析边**（line/circle）时 `getEdgeNurbsData` 会抛错 ⇒ 适配器
  *    必须先判 `getEdgeCurveType` 再选拟合路线（`wireToSpineEdge` 的 GOTCHA-1）；
  * 3. 脊柱是**折线 wire** 时适配器走「顶点列 + degree=1 插值」的精确表示路线，
@@ -471,16 +470,36 @@ describe('sweep/loft 双引擎化 GOTCHA（方案 §7.7）', () => {
     `let s0 = ${closedWire(4)}\n` +
     'let s1 = cad.wire([[0,0,10],[5,0,10],[2.5,5,10]], { closed: true })\n'
 
-  it('brepkit loft：截面顶点数不一致 → 执行前 E_LOFT_SECTION_MISMATCH（指路 loftAdvanced）', async () => {
+  it('brepkit loft：截面顶点数不一致（方 → 三角）→ 内核重采样兜底，真出实体（2026-10-14 门禁移除）', async () => {
     await useBrepkit()
-    const result = await exec('brep', MISMATCHED + 'let part2 = cad.loft([s0, s1])\n')
-    expect(result.failedAt).toBeDefined()
-    const msg = JSON.stringify(result.failedAt)
-    expect(msg).toMatch(/E_LOFT_SECTION_MISMATCH/)
-    // 报错必须指路 advanced op（不静默降级、不换引擎）。
-    expect(msg).toMatch(/loftAdvanced/)
-    // 且必须是「执行前」判定：失败点落在 loft 本身。
-    expect(result.failedAt!.callee).toBe('loft')
+    const s = await shapeOf('brep', MISMATCHED + 'let part2 = cad.loft([s0, s1])\n', 'part2')
+    const b = bboxOf(s)
+    // 4×4 方（z=0）→ 三角（z=10）：z 跨度 10，xy 由宽的一侧决定（±4）。
+    expect(b.zmax).toBeGreaterThanOrEqual(9.9)
+    expect(b.zmax).toBeLessThanOrEqual(10.1)
+    expect(b.xmax).toBeGreaterThanOrEqual(3.9)
+  })
+
+  it('brepkit loft：圆 → 方（1 顶点闭环 vs 4 顶点方框）→ 重采样兜底可达', async () => {
+    await useBrepkit()
+    // 整圆 sketch 面（4 段 90° 圆弧，r=4，z=0）→ 方框 wire（half=3，z=10）。
+    const circleSketch =
+      'cad.profile({ contours: [{ segments: [ ' +
+      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 0, endAngle: 1.5707963267948966, ccw: true, x1: 4, y1: 0, x2: 0, y2: 4 }, ' +
+      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 1.5707963267948966, endAngle: 3.141592653589793, ccw: true, x1: 0, y1: 4, x2: -4, y2: 0 }, ' +
+      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 3.141592653589793, endAngle: 4.71238898038469, ccw: true, x1: -4, y1: 0, x2: 0, y2: -4 }, ' +
+      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 4.71238898038469, endAngle: 6.283185307179586, ccw: true, x1: 0, y1: -4, x2: 4, y2: 0 } ] }] })'
+    const code =
+      `let s0 = ${circleSketch}\n` +
+      `let s1 = ${closedWire(3, 10)}\n` +
+      'let part2 = cad.loft([s0, s1])\n'
+    const s = await shapeOf('brep', code, 'part2')
+    const b = bboxOf(s)
+    // 圆 r=4（z=0）→ 方 ±3（z=10）：z 跨度 10；圆侧重采样后极值仍在半径处。
+    expect(b.zmax).toBeGreaterThanOrEqual(9.9)
+    expect(b.zmax).toBeLessThanOrEqual(10.1)
+    expect(b.xmax).toBeGreaterThanOrEqual(3.5)
+    expect(b.xmax).toBeLessThanOrEqual(4.1)
   })
 
   it('occt loft：同一组不等顶点数截面 → **可达**（约束属 brepkit 内核，不是 op 层）', async () => {

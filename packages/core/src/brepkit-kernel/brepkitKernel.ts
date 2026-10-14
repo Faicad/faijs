@@ -797,18 +797,10 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       }
       // ① 各截面 → face。
       const faces = sections.map((s) => profileFaceOf(s, 'loft'))
-      // ② brepkit loft 要求各截面**顶点数一致**。内核自己也会抛，但报错不含「哪几个
-      //    截面、差多少」——执行前静态判一次，给出可指路的错误；不静默降级、不换引擎
-      //    （方案 §5②，红线：静态可判的输入约束必须在执行前报错）。
-      const counts = faces.map((f) => arr(kernel.getFaceVertices(f)).length)
-      const ref = counts[0]!
-      if (counts.some((c) => c !== ref)) {
-        fail(
-          'E_LOFT_SECTION_MISMATCH: brepkit loft requires every section to have the same ' +
-            `vertex count, got [${counts.join(', ')}] — use cad.loftAdvanced (occt) for ` +
-            'sections with different vertex counts',
-        )
-      }
+      // ② 顶点数不一致的截面（如圆 → 方）直接放行：brepkit 内核
+      //    （operations/loft.rs）会把所有截面重采样到最大顶点数再蒙皮，
+      //    wasm 绑定层无额外校验。不再执行前拦截（原 E_LOFT_SECTION_MISMATCH
+      //    门禁已移除，2026-10-14）。
       const farr = Uint32Array.from(faces)
       // ③ 选项映射：endPoint → loftWithOptions；ruled=false → loftSmooth。
       if (endPoint !== undefined) {
