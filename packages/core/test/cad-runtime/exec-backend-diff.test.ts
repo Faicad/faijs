@@ -364,3 +364,206 @@ describe('exec-backend differential: constraint 2 — namespace binding in non-s
     expect(r.interp.fp).toEqual(r.vm.fp)
   })
 })
+
+describe('exec-backend differential: constraint 1 — function body reads top-level vars', () => {
+  it('function reads top-level const: identical geometry', async () => {
+    const code = [
+      'const SIZE = 5',
+      'function mk(d) {',
+      '  return cad.box(SIZE + d, SIZE, SIZE, { centered: true })',
+      '}',
+      'let part = mk(2)',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('function reads top-level let; call-time snapshot tracks value changes', async () => {
+    const code = [
+      'let W = 5',
+      'function mk() {',
+      '  return cad.box(W, W, W, { centered: true })',
+      '}',
+      'let a = mk()',
+      'W = 8',
+      'let b = mk()',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+    // 两次调用取到不同值（5 与 8）→ 两个不同 content key
+    expect(r.vm.fp.length).toBe(2)
+  })
+
+  it('function calls top-level function (caller defined before callee)', async () => {
+    const code = [
+      'function mk() {',
+      '  return helper()',
+      '}',
+      'function helper() {',
+      '  return cad.box(3, 3, 3, { centered: true })',
+      '}',
+      'let part = mk()',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('function defined before top-level const (forward reference to variable)', async () => {
+    const code = [
+      'function mk(d) {',
+      '  return cad.box(SIZE + d, SIZE, SIZE, { centered: true })',
+      '}',
+      'const SIZE = 5',
+      'let part = mk(2)',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('function-local let shadows top-level const', async () => {
+    const code = [
+      'const SIZE = 5',
+      'function mk() {',
+      '  let SIZE = 10',
+      '  return cad.box(SIZE, SIZE, SIZE, { centered: true })',
+      '}',
+      'let part = mk()',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('nested function local shadow does not block outer top-level read', async () => {
+    // mk() 期望 15：外层 SIZE=5（嵌套函数本地遮蔽不阻止注入），helper 返回 10
+    const code = [
+      'const SIZE = 5',
+      'function mk() {',
+      '  const helper = () => {',
+      '    let SIZE = 10',
+      '    return SIZE',
+      '  }',
+      '  return SIZE + helper()',
+      '}',
+      'let n = mk()',
+      'let part = cad.box(n, 1, 1, { centered: true })',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('block-level shadow does not block injection (unexecuted block keeps top-level value)', async () => {
+    // a=100（块内局部遮蔽，块内 return），b=5（块未执行，读注入的顶层值）
+    const code = [
+      'const SIZE = 5',
+      'function mk(flag) {',
+      '  if (flag) {',
+      '    let SIZE = 100',
+      '    return SIZE',
+      '  }',
+      '  return SIZE',
+      '}',
+      'let a = mk(true)',
+      'let b = mk(false)',
+      'let part = cad.box(a + b, 1, 1, { centered: true })',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('object literal shorthand in function body reads top-level const', async () => {
+    const code = [
+      'const SIZE = 5',
+      'function mk() {',
+      '  let dims = { SIZE }',
+      '  return cad.box(dims.SIZE, dims.SIZE, dims.SIZE, { centered: true })',
+      '}',
+      'let part = mk()',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('function body assignment stays local: top-level const unchanged (both backends)', async () => {
+    const code = [
+      'const SIZE = 5',
+      'function mk() {',
+      '  SIZE = 20',
+      '  return cad.box(SIZE, 1, 1, { centered: true })',
+      '}',
+      'let p = mk()',
+      'let q = SIZE',
+      'let outer = cad.box(q, 1, 1, { centered: true })',
+    ].join('\n')
+    // fp：p = 20×1×1（写本地后同调用内可见），outer = 5×1×1（顶层不变）
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+    expect(r.vm.fp.length).toBe(2)
+    // 直接钉住顶层值不被函数体写入污染
+    for (const backend of ['vm', 'interp'] as const) {
+      const ex = new DirectExecutor({
+        namespaces: { cad: createApiNamespaceWithEditorOps() },
+        execBackend: backend === 'vm' ? 'vm' : 'interpreter',
+      })
+      await ex.execute(code)
+      expect(ex.ctx.q).toBe(5)
+    }
+  })
+
+  it('recursive self-name resolves with injected destructure: identical values', async () => {
+    const code = [
+      'function fib(n) {',
+      '  if (n <= 1) { return n }',
+      '  return fib(n - 1) + fib(n - 2)',
+      '}',
+      'let f10 = fib(10)',
+      'let part = cad.box(f10, 1, 1, { centered: true })',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('param default referencing top-level var: both backends fail', async () => {
+    // vm：默认值先于注入解构求值 → ReferenceError；
+    // interp：非 Identifier 形参 → E_UNSUPPORTED_SYNTAX。两后端都失败（§5.5 契约）。
+    const code = [
+      'const SIZE = 5',
+      'function mk(d = SIZE) {',
+      '  return cad.box(d, 1, 1, { centered: true })',
+      '}',
+      'let part = mk()',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeDefined()
+    expect(r.interp.failedAt).toBeDefined()
+  })
+})

@@ -4,8 +4,9 @@
  * Corresponds to the vm backend's `__ctx.<name> = async function <name>(...)`
  * hoisting: every user function becomes an async callable stored in ctx.
  * Visible bindings inside the body = params + namespace bindings + S4 safe
- * globals (D2) — never top-level ctx variables. Nested closures additionally
- * see the enclosing function's locals (D3 lexical capture).
+ * globals + top-level ctx variables/functions (constraint 1: call-time reads;
+ * writes stay local per env.assign) + enclosing function locals for nested
+ * closures (D3 lexical capture).
  *
  * Module-graph note: this file must NOT import eval-expr/exec-stmt (they
  * import this file); body execution goes through the lazily wired

@@ -4,10 +4,10 @@
  * Env kinds (design D1/D2):
  * - root: the persistent ctx IS the variable container — reads resolve ctx,
  *   writes go to ctx (block-level const/let included, R-5 semantics per D1).
- * - function: params + function-local let/const only; a function body CANNOT
- *   see top-level ctx variables (D2 — matches the vm backend, where the
- *   function body is embedded verbatim inside `new Function`, so ctx
- *   identifiers are free identifiers there and ReferenceError).
+ * - function: params + function-local let/const, plus call-time READ access to
+ *   top-level ctx variables/functions (constraint 1 contract — matches the vm
+ *   backend's injected `let { ... } = __ctx` destructuring). Writes stay
+ *   local (assign): function bodies never modify top-level variables.
  * - overlay: catch-clause scope — local vars, reads fall through to parent,
  *   writes stay local (matches the vm path where the catch param is a plain
  *   function-scope binding, not hoisted to ctx).
@@ -15,7 +15,8 @@
  * Root identifier resolution order (matches hoistText: declared/ctx names are
  * rewritten to `__ctx.<name>`, so ctx wins over ns): overlay vars → ctx →
  * namespace bindings → S4 safe globals → ReferenceError.
- * Function env: vars → parent function vars → ns → globals (never ctx, D2).
+ * Function env: vars → parent function vars → ctx → ns → globals (ctx reads
+ * are call-time; ctx writes from function bodies land in local vars).
  */
 import type { ExecHost, ASTNode } from '../exec-backend'
 import { S4_SAFE_GLOBALS } from '../../lang/security-scanner'
@@ -72,7 +73,9 @@ export class InterpEnv {
   }
 
   /**
-   * Resolve an identifier through vars → ctx → ns → S4 globals.
+   * Resolve an identifier through vars → parent vars → ctx → ns → S4 globals.
+   * Function envs read top-level ctx bindings at call time (constraint 1);
+   * writes from function envs never reach ctx (see assign).
    * @param name - identifier to resolve.
    * @returns the binding, or undefined when unresolvable (caller throws ReferenceError).
    */
@@ -83,7 +86,7 @@ export class InterpEnv {
       if (p.vars.has(name)) return { where: 'local', value: p.vars.get(name) }
       p = p.parent
     }
-    if (this.kind !== 'function' && Object.prototype.hasOwnProperty.call(this.ctx, name)) {
+    if (Object.prototype.hasOwnProperty.call(this.ctx, name)) {
       return { where: 'ctx', value: this.ctx[name] }
     }
     if (this.hasNs(name)) {

@@ -12,7 +12,9 @@
  *   被 await 是合法 JS）；
  * - keep/keepHidden 尾随键剥离（行内 keep 由 MetadataExtractor 的 metadata.keep
  *   表另存，§4.4 消费判定用——执行侧不传）；
- * - 顶层函数定义提升到 `__ctx.<name>`（函数体 cad 等经命名空间绑定注入）；
+ * - 顶层函数定义提升到 `__ctx.<name>`（函数体 cad 等经命名空间绑定注入；函数体
+ *   引用到的顶层变量/函数经 call-time 守卫 + `let { ... } = __ctx` 解构注入——
+ *   约束 1：读顶层 call-time 取值，函数体内赋值写本地副本不落顶层）；
  * - import 行不执行（库装载在 runtime 层；`ns.<binding>` 经命名空间对象访问）。
  *
  * 错误定位：单行单元失败记 failedAt（{ index, callee, message } + lineNo）。
@@ -321,7 +323,8 @@ export class DirectExecutor {
     for (const node of nodes) {
       if (node.type === 'ImportDeclaration') continue
       const rawLine = (node?.loc?.start?.line ?? 1) - lineOffset
-      const unit = this.transformTopNode(node, parseText, declared, rawLine, lineOffset)
+      // 仅取行区间（lineNo/endLine），注入内容不消费——候选全集传空集即可。
+      const unit = this.transformTopNode(node, parseText, declared, rawLine, lineOffset, new Set<string>())
       if (unit) ranges.push({ lineNo: unit.lineNo, endLine: unit.endLine })
     }
     return { ranges, lineOffset }
@@ -821,6 +824,10 @@ export class DirectExecutor {
     }
     const { nodes, lineOffset, parseText } = this.parseBody(code)
     const declared = new Set<string>() // 累积：参数名 + outputs + 函数名
+    // 约束 1：函数体外层引用注入的候选全集（逐语句变换前一次预扫）。
+    // 不能用逐语句累积的 declared——函数定义在顶层声明之前（前向引用）时该名
+    // 尚未入集 → 漏注入 → vm 调用失败而 interp call-time 查 ctx 成功 → 双后端分叉。
+    const allCtxNames = this.collectAllCtxNames(nodes)
     const units: TransformedUnit[] = []
     const seenLines = new Set<number>()
     for (const node of nodes) {
@@ -834,10 +841,67 @@ export class DirectExecutor {
         )
       }
       seenLines.add(rawLine)
-      const unit = this.transformTopNode(node, parseText, declared, rawLine, lineOffset)
+      const unit = this.transformTopNode(node, parseText, declared, rawLine, lineOffset, allCtxNames)
       if (unit) units.push(unit)
     }
     return units
+  }
+
+  /**
+   * 约束 1 候选全集预扫：本脚本全部声明名（含块内声明——vm 的块单元经
+   * hoistBlockText 把块内 let/const/function 提升写 ctx，interp 的 root env
+   * 块级写入同样落 ctx）∪ 现有 ctx 键（params/imports 预置键 + append 场景
+   * 先前执行产出）。不下潜函数体——函数局部量永不入 ctx。
+   * 命名空间名从候选剔除（函数体的 ns 绑定由 transformFunction 的 binds 提供）。
+   */
+  private collectAllCtxNames(nodes: ASTNode[]): Set<string> {
+    const names = new Set<string>(Object.keys(this.ctx))
+    const walk = (n: ASTNode): void => {
+      if (!n || typeof n !== 'object') return
+      if (n.type === 'VariableDeclarator') {
+        this.collectPatternNames(n.id, names)
+      } else if (n.type === 'FunctionDeclaration') {
+        if (n.id?.type === 'Identifier') names.add(n.id.name)
+        return // 函数体内声明是函数局部量，不入 ctx
+      } else if (n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression') {
+        return // 函数表达式/箭头函数体同样不下潜
+      }
+      for (const k of Object.keys(n)) {
+        if (k === 'loc' || k === 'start' || k === 'end' || k === 'range' || k === 'parent' || k === 'type') continue
+        const v = n[k]
+        if (Array.isArray(v)) for (const item of v) walk(item)
+        else if (v && typeof v === 'object') walk(v)
+      }
+    }
+    for (const node of nodes) walk(node)
+    for (const k of Object.keys(this.namespaces)) {
+      if (k !== 'contractVersion') names.delete(k)
+    }
+    return names
+  }
+
+  /** 解构模式绑定名收集（Identifier / ObjectPattern / ArrayPattern / AssignmentPattern / RestElement）。 */
+  private collectPatternNames(pattern: ASTNode, names: Set<string>): void {
+    if (!pattern || typeof pattern !== 'object') return
+    switch (pattern.type) {
+      case 'Identifier':
+        names.add(pattern.name)
+        return
+      case 'ObjectPattern':
+        for (const prop of pattern.properties ?? []) {
+          if (prop.type === 'Property') this.collectPatternNames(prop.value, names)
+          else if (prop.type === 'RestElement') this.collectPatternNames(prop.argument, names)
+        }
+        return
+      case 'ArrayPattern':
+        for (const el of pattern.elements ?? []) this.collectPatternNames(el, names)
+        return
+      case 'AssignmentPattern':
+        this.collectPatternNames(pattern.left, names)
+        return
+      default:
+        return
+    }
   }
 
   private transformTopNode(
@@ -846,11 +910,12 @@ export class DirectExecutor {
     declared: Set<string>,
     lineNo: number,
     lineOffset: number,
+    allCtxNames: Set<string>,
   ): TransformedUnit | null {
     let unit: TransformedUnit | null
     switch (node.type) {
       case 'FunctionDeclaration':
-        unit = this.transformFunction(node, code, declared, lineNo)
+        unit = this.transformFunction(node, code, declared, lineNo, allCtxNames)
         break
       case 'VariableDeclaration':
         unit = this.transformVariable(node, code, declared, lineNo)
@@ -1018,24 +1083,285 @@ export class DirectExecutor {
     return out
   }
 
-  /** 顶层函数提升：`__ctx.<name> = async function <name>(...) { 命名空间绑定; 体 }`。 */
-  private transformFunction(node: ASTNode, code: string, declared: Set<string>, lineNo: number): TransformedUnit {
+  /** 顶层函数提升：`__ctx.<name> = async function <name>(...) { 命名空间绑定; 外层引用守卫+解构; 体 }`。 */
+  private transformFunction(node: ASTNode, code: string, declared: Set<string>, lineNo: number, allCtxNames: Set<string>): TransformedUnit {
     const name = node.id?.name
     if (!name) throw new ParseError('function declaration must have a name', lineNo, 'E_STATEMENT')
+    // 形参名单（fnParams / 遮蔽集用）；默认值等非 Identifier 形参不在此列。
     const params = (node.params ?? []).map((p: ASTNode) => p?.name).filter((x: unknown): x is string => typeof x === 'string')
-    const bodyText = code.slice(node.body.start + 1, node.body.end - 1)
+    // 形参保留源文（含默认值表达式）——默认值在 call-time 求值。此前只取 p.name
+    // 会把默认值静默剥离（`d = SIZE` 变成 `d`），与 interp 的 E_UNSUPPORTED_SYNTAX
+    // 形成静默/报错分叉；保留原文后，默认值引用顶层变量在 call 时 ReferenceError
+    // （默认值先于注入解构求值），两后端都失败（constraint 1 差分测试钉住）。
+    let paramsText = (node.params ?? []).map((p: ASTNode) => code.slice(p.start, p.end)).join(', ')
+    let bodyText = code.slice(node.body.start + 1, node.body.end - 1)
     const nsNames = Object.keys(this.namespaces).filter((k) => k !== 'contractVersion')
+    // 约束 1 配套：函数体直接作用域内「返回 Promise 的调用」（顶层本机函数 /
+    // 命名空间 op）注入 await——与 emitCall 给顶层调用行加 await 的语义一致。
+    // 缺此注入时 vm 对 `fib(n-1) + fib(n-2)` 之类组合运算拿到 Promise（既有缺陷，
+    // 旧测试只断言不失败未暴露）；interp 的 evalExpr 原生 await 无此问题。
+    // 编辑点分两区：参数默认值（签名区）与函数体（体区），右→左插入保持偏移有效。
+    const awaitCalls = this.collectFnAwaitEdits(node, allCtxNames, nsNames)
+    awaitCalls.sort((a, b) => b.start - a.start)
+    const bodyStart = node.body.start + 1
+    const paramsStart = (node.params?.[0]?.start ?? bodyStart)
+    for (const c of awaitCalls) {
+      if (c.start < bodyStart) {
+        const rel = c.start - paramsStart
+        paramsText = `${paramsText.slice(0, rel)}await ${paramsText.slice(rel)}`
+      } else {
+        const rel = c.start - bodyStart
+        bodyText = `${bodyText.slice(0, rel)}await ${bodyText.slice(rel)}`
+      }
+    }
     const binds = nsNames.map((n) => `  const ${n} = __ns.${n}`).join('\n')
+    // 约束 1：函数体读顶层变量——把函数体引用到的顶层名注入 call-time 守卫 + let 解构。
+    // 读：call-time 取当前值（与 interp 的 ctx 查找同语义，含前向引用）；
+    // 写：解构用 let，函数体内赋值写本地副本，不落顶层（与 interp 的 function env
+    // assign 写本地 vars 同语义）。
+    const outerVars = this.collectFnBodyOuterRefs(node, allCtxNames, params, nsNames)
+    const guards = outerVars.map(
+      (v) => `  if (!Object.prototype.hasOwnProperty.call(__ctx, '${v}')) throw new ReferenceError('${v} is not defined')`,
+    )
     const body = [
-      `__ctx.${name} = async function ${name}(${params.join(', ')}) {`,
+      `__ctx.${name} = async function ${name}(${paramsText}) {`,
       binds,
+      ...guards,
+      ...(outerVars.length > 0 ? [`  let { ${outerVars.join(', ')} } = __ctx`] : []),
       bodyText,
       '}',
     ].join('\n')
-    // 本机函数体引用其它本机函数/变量走 __ctx（与顶层一致）
+    // 本机函数体引用其它本机函数/变量走外层引用注入（call-time 读 __ctx，与顶层一致）
     declared.add(name)
     this.fnParams.set(name, params)
     return { lineNo, body, writes: [name], refs: [], callee: name, endLine: 0 }
+  }
+
+  /**
+   * 约束 1 配套：收集函数体直接作用域内需要注入 await 的调用节点。
+   * 资格：callee 是 Identifier 且属于候选全集（顶层本机函数），或 callee 是
+   * MemberExpression 且 object 是命名空间名（cad.box 等）。已显式 await 的调用
+   * 不重复注入（其参数里的调用仍递归处理）。不下潜嵌套函数——嵌套 sync function
+   * 体内 await 是 SyntaxError，维持既有行为。参数默认值表达式同样覆盖
+   * （默认值在 async 函数作用域求值，await 合法）。
+   */
+  private collectFnAwaitEdits(fnNode: ASTNode, allCtxNames: Set<string>, nsNames: string[]): ASTNode[] {
+    const edits: ASTNode[] = []
+    const ns = new Set<string>(nsNames)
+    const qualifies = (call: ASTNode): boolean => {
+      const callee = call.callee
+      if (callee?.type === 'Identifier') return allCtxNames.has(callee.name)
+      if (callee?.type === 'MemberExpression' && callee.object?.type === 'Identifier') {
+        return ns.has(callee.object.name)
+      }
+      return false
+    }
+    const walk = (n: ASTNode): void => {
+      if (!n || typeof n !== 'object') return
+      if (n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression') {
+        return
+      }
+      if (n.type === 'AwaitExpression') {
+        // 已显式 await：调用本身不重复注入；实参/实参表达式里的调用仍递归处理
+        const arg = n.argument
+        if (arg?.type === 'CallExpression') {
+          this.walkChildNodes(arg.callee, walk)
+          for (const a of arg.arguments ?? []) walk(a)
+        } else {
+          walk(arg)
+        }
+        return
+      }
+      if (n.type === 'CallExpression') {
+        if (qualifies(n)) edits.push(n)
+        this.walkChildNodes(n.callee, walk)
+        for (const a of n.arguments ?? []) walk(a)
+        return
+      }
+      this.walkChildNodes(n, walk)
+    }
+    const stmts: ASTNode[] = fnNode.body?.type === 'BlockStatement' ? (fnNode.body.body ?? []) : []
+    for (const s of stmts) walk(s)
+    for (const p of fnNode.params ?? []) walk(p) // 参数默认值表达式（call-time 求值）
+    return edits
+  }  /** 遍历节点全部子节点（跳过元数据键），逐个交给 walk。 */
+  private walkChildNodes(n: ASTNode, walk: (c: ASTNode) => void): void {
+    if (!n || typeof n !== 'object') return
+    for (const k of Object.keys(n)) {
+      if (k === 'loc' || k === 'start' || k === 'end' || k === 'range' || k === 'parent' || k === 'type') continue
+      const v = n[k]
+      if (Array.isArray(v)) for (const item of v) walk(item)
+      else if (v && typeof v === 'object') walk(v)
+    }
+  }
+
+  /**
+   * 约束 1：函数体引用到的顶层名（注入候选）= 候选全集 ∩ 函数体引用集
+   * − 本函数作用域遮蔽集 − 命名空间名。
+   */
+  private collectFnBodyOuterRefs(
+    node: ASTNode,
+    allCtxNames: Set<string>,
+    params: string[],
+    nsNames: string[],
+  ): string[] {
+    const shadow = new Set<string>(params)
+    this.collectFnShadowNames(node.body, shadow)
+    const referenced = new Set<string>()
+    this.collectFnReferences(node.body, referenced)
+    const ns = new Set<string>(nsNames)
+    return [...referenced]
+      .filter((v) => allCtxNames.has(v) && !shadow.has(v) && !ns.has(v))
+      .sort()
+  }
+
+  /**
+   * 本函数「函数作用域」遮蔽集：决定哪些名不注入（函数体内的同名绑定优先于
+   * 注入的顶层解构）。收集规则：
+   * - 函数体**顶层语句列表**直接声明的 let/const/function 名（函数级作用域）；
+   * - 任意块深的 `var` 声明名（var 是函数级；若块内 var 与注入解构同名会
+   *   SyntaxError，必须让位）；
+   * - 任意块深的 function 声明名（vm 的 new Function 体是 sloppy 模式，块内
+   *   function 声明经 Annex B 提升到函数级）；
+   * - **不下潜嵌套函数体**：嵌套函数自己的声明只遮蔽它内部，不应阻止外层注入
+   *   （否则嵌套函数本地遮蔽会让外层同名顶层引用解析失败）。
+   * 块级 let/const 不入遮蔽集：它们是块作用域，与注入的函数级 `let { ... }`
+   * 并存是合法遮蔽，语义正确。
+   */
+  private collectFnShadowNames(body: ASTNode, shadow: Set<string>): void {
+    const stmts: ASTNode[] = body?.type === 'BlockStatement' ? (body.body ?? []) : []
+    for (const stmt of stmts) {
+      if (stmt.type === 'FunctionDeclaration') {
+        if (stmt.id?.type === 'Identifier') shadow.add(stmt.id.name)
+      } else if (stmt.type === 'VariableDeclaration' && (stmt.kind === 'let' || stmt.kind === 'const')) {
+        for (const d of stmt.declarations ?? []) this.collectPatternNames(d.id, shadow)
+      }
+    }
+    const walk = (n: ASTNode): void => {
+      if (!n || typeof n !== 'object') return
+      if (n.type === 'FunctionDeclaration') {
+        if (n.id?.type === 'Identifier') shadow.add(n.id.name)
+        return // 不下潜嵌套函数体
+      }
+      if (n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression') return
+      if (n.type === 'VariableDeclaration' && n.kind === 'var') {
+        for (const d of n.declarations ?? []) this.collectPatternNames(d.id, shadow)
+      }
+      for (const k of Object.keys(n)) {
+        if (k === 'loc' || k === 'start' || k === 'end' || k === 'range' || k === 'parent' || k === 'type') continue
+        const v = n[k]
+        if (Array.isArray(v)) for (const item of v) walk(item)
+        else if (v && typeof v === 'object') walk(v)
+      }
+    }
+    for (const stmt of stmts) walk(stmt)
+  }
+
+  /**
+   * 函数体引用位置标识符收集（含嵌套函数体——嵌套函数引用的顶层名注入到外层
+   * 函数作用域后经闭包可见）。排除声明/绑定位置与非 computed 成员属性、
+   * 非 shorthand 对象键、label。
+   */
+  private collectFnReferences(n: ASTNode | null | undefined, refs: Set<string>): void {
+    if (!n || typeof n !== 'object') return
+    switch (n.type) {
+      case 'Identifier':
+        refs.add(n.name)
+        return
+      case 'MemberExpression':
+        this.collectFnReferences(n.object, refs)
+        if (n.computed) this.collectFnReferences(n.property, refs)
+        return
+      case 'Property':
+        // shorthand `{ SIZE }`：key 同时是引用；computed `{ [SIZE]: 1 }`：key 是引用；
+        // 普通键 `{ SIZE: 1 }`：key 不是引用。
+        if (n.shorthand || n.computed) this.collectFnReferences(n.key, refs)
+        this.collectFnReferences(n.value, refs)
+        return
+      case 'VariableDeclaration':
+        for (const d of n.declarations ?? []) {
+          this.walkFnPattern(d.id, refs) // 绑定名跳过；模式内默认值是引用
+          this.collectFnReferences(d.init, refs)
+        }
+        return
+      case 'FunctionDeclaration':
+      case 'FunctionExpression':
+      case 'ArrowFunctionExpression':
+        for (const p of n.params ?? []) this.walkFnPattern(p, refs)
+        this.collectFnReferences(n.body, refs)
+        return
+      case 'CatchClause':
+        this.walkFnPattern(n.param, refs)
+        this.collectFnReferences(n.body, refs)
+        return
+      case 'ForStatement':
+        if (n.init?.type === 'VariableDeclaration') {
+          for (const d of n.init.declarations ?? []) {
+            this.walkFnPattern(d.id, refs)
+            this.collectFnReferences(d.init, refs)
+          }
+        } else {
+          this.collectFnReferences(n.init, refs)
+        }
+        this.collectFnReferences(n.test, refs)
+        this.collectFnReferences(n.update, refs)
+        this.collectFnReferences(n.body, refs)
+        return
+      case 'ForInStatement':
+      case 'ForOfStatement':
+        if (n.left?.type === 'VariableDeclaration') {
+          for (const d of n.left.declarations ?? []) this.walkFnPattern(d.id, refs)
+        } else {
+          this.walkFnPattern(n.left, refs) // for (x of ...)——左值是赋值目标（引用）
+        }
+        this.collectFnReferences(n.right, refs)
+        this.collectFnReferences(n.body, refs)
+        return
+      case 'LabeledStatement':
+        this.collectFnReferences(n.body, refs)
+        return
+      case 'BreakStatement':
+      case 'ContinueStatement':
+        return // label 不是引用
+      default:
+        for (const k of Object.keys(n)) {
+          if (k === 'loc' || k === 'start' || k === 'end' || k === 'range' || k === 'parent' || k === 'type') continue
+          const v = n[k]
+          if (Array.isArray(v)) for (const item of v) this.collectFnReferences(item, refs)
+          else if (v && typeof v === 'object') this.collectFnReferences(v, refs)
+        }
+    }
+  }
+
+  /** 绑定模式遍历：绑定名跳过；模式内默认值表达式（AssignmentPattern.right）按引用收集。 */
+  private walkFnPattern(n: ASTNode | null | undefined, refs: Set<string>): void {
+    if (!n || typeof n !== 'object') return
+    switch (n.type) {
+      case 'Identifier':
+        return // 绑定名，不是引用
+      case 'AssignmentPattern':
+        this.collectFnReferences(n.right, refs)
+        this.walkFnPattern(n.left, refs)
+        return
+      case 'ObjectPattern':
+        for (const prop of n.properties ?? []) {
+          if (prop.type === 'Property') {
+            if (prop.computed) this.collectFnReferences(prop.key, refs)
+            this.walkFnPattern(prop.value, refs)
+          } else if (prop.type === 'RestElement') {
+            this.walkFnPattern(prop.argument, refs)
+          }
+        }
+        return
+      case 'ArrayPattern':
+        for (const el of n.elements ?? []) this.walkFnPattern(el, refs)
+        return
+      case 'RestElement':
+        this.walkFnPattern(n.argument, refs)
+        return
+      default:
+        this.collectFnReferences(n, refs)
+    }
   }
 
   /** const/let 行：参数（字面量）直接进 ctx；op 行变换调用；派生常量求值。 */
