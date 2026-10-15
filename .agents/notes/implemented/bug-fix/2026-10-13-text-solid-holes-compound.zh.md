@@ -1,9 +1,8 @@
-# textToSolid：addHolesInFace 保孔洞、makeCompound 组合字形
+# Agent Note：textToSolid 保孔洞——addHolesInFace + makeCompound 组合字形
 
 [English](2026-10-13-text-solid-holes-compound.md) | 中文
 
-**Date**: 2026-10-13
-**Status**: implemented
+Status: implemented
 
 ## Problem
 
@@ -70,3 +69,9 @@
 
 - faijs 预存失败 `entry-boundary.test.ts`（three/examples 断言过时）仍红，与本次无关（pack 重建 dist 后仍红可证）。
 - brepkit 全量 4 个 pre-existing 失败（drill/fillet/importStl isValid 判据）未在本任务范围处理，需另行排查。
+
+## Alternatives considered
+
+- **保持逐个 fuse 轮廓**：拒绝——正确性问题（fuse 填实孔洞）加性能问题（每次 text 调用 7-11 次 OCCT 布尔，「Hello」约 3.5 秒）。
+- **用 svgToSolid 的 evenodd 方案**：拒绝——svgToSolid 仍逐个 fuse solid（同类慢问题）；分类→挤出→compound 的方案对字形互不重叠的 text 场景严格更优。
+- **只修 occt 路径、推迟 brepkit**：拒绝——真机（微信小程序 worker）跑 brepkit，只修 occt 会让生产路径保持损坏。

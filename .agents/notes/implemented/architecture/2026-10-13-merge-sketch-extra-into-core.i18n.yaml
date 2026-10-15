@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-13-merge-sketch-extra-into-core.md
+2026-10-13-merge-sketch-extra-into-core.md: 02956380097b9c83c864b25c609fceeffdc9384b
+2026-10-13-merge-sketch-extra-into-core.zh.md: b69581da12f8f3eaf72dcfb4b5adbd6107dae245

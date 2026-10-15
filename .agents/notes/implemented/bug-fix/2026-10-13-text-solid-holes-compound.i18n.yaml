@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   npm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-13-text-solid-holes-compound.md
-2026-10-13-text-solid-holes-compound.md: cfc50f9882388e6641f29f00759a906e1f2b4b79
-2026-10-13-text-solid-holes-compound.zh.md: 9d2e6f886a2d1a596d53acd361806f4ac58c930e
+2026-10-13-text-solid-holes-compound.md: 60ca67bb1bd9b8e508bfcdad033b48d54816d97c
+2026-10-13-text-solid-holes-compound.zh.md: 15eccd198cc15839ce3c7120064cc33c476c7180

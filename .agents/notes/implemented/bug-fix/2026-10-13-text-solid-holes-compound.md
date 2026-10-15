@@ -1,9 +1,8 @@
-# textToSolid: holes preserved via addHolesInFace, glyphs combined via makeCompound
+# Agent Note: textToSolid holes preserved via addHolesInFace, glyphs combined via makeCompound
+
+Status: implemented
 
 English | [中文](2026-10-13-text-solid-holes-compound.zh.md)
-
-**Date**: 2026-10-13
-**Status**: implemented
 
 ## Problem
 
@@ -139,3 +138,9 @@ New `packages/core/test/brep/text/text-brepkit-repro.test.ts`
   is stale) is still red, unrelated (pack-rebuilt dist stays red — proof).
 - The 4 pre-existing brepkit failures (drill/fillet/importStl isValid criteria)
   are out of scope here; track separately.
+
+## Alternatives considered
+
+- **Keep fusing contours one by one**: rejected — correctness issue (holes filled in by fuse) and performance (7-11 OCCT booleans per text call, ~3.5s for "Hello").
+- **Use svgToSolid's evenodd approach**: rejected — svgToSolid still fuses its solids one by one (same slowness class); the classify-then-extrude-then-compound approach is strictly better for text where glyphs never overlap.
+- **Fix only the occt path, defer brepkit**: rejected — the real device (WeChat mini-program worker) runs brepkit, so fixing only occt would leave the production path broken.

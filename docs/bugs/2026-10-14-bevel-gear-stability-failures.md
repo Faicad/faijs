@@ -1,5 +1,7 @@
 # Bug: bevel 齿轮稳定性测试 20/20 用例全部失败
 
+English | [中文](2026-10-14-bevel-gear-stability-failures.zh.md)
+
 > 方案出处：WorkBuddy + faijs 仓库（2026-10-14 由 Agent 整理，基于稳定性测试单线程实跑输出与当前源码）
 >
 > 状态：**待处理**（非本次 L1 spline/helix 接线任务引入，属预先存在的 bevel 几何/测试域问题）

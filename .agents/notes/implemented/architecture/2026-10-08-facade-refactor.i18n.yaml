@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-08-facade-refactor.md
+2026-10-08-facade-refactor.md: 53d7803bf1e5eb3ff5af490106031941486f82de
+2026-10-08-facade-refactor.zh.md: d7da8162c27c25b501b709ec008c62ffa6e9e566

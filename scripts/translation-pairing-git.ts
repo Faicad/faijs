@@ -149,12 +149,13 @@ export function readGitIndexBlob(root: string, path: string): GitIndexBlob | und
  * @returns The blob object ID reported and verified by Git.
  */
 export function storeGitBlob(root: string, content: Buffer): string {
+  const normalized = lfNormalize(content)
   const expected = gitBlobHash(content)
   const scratchDir = mkdtempSync(join(tmpdir(), 'faijs-pairing-blob-'))
   const scratchFile = join(scratchDir, 'blob')
   let stored: string
   try {
-    writeFileSync(scratchFile, content)
+    writeFileSync(scratchFile, normalized)
     stored = runGit(
       root,
       ['hash-object', '-w', '--no-filters', '--', scratchFile],

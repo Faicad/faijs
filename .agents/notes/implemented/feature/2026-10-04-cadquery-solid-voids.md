@@ -1,12 +1,12 @@
-# CadQuery free-function solid + solidWithInner (B2-2)
+# Agent Note: CadQuery free-function solid + solidWithInner
 
-**Date**: 2026-10-04
-**Batch**: B2-2 (G-C8 partial)
-**Status**: Implemented, 12/12 parity PASS
+Status: implemented
 
-## Context
+English | [中文](2026-10-04-cadquery-solid-voids.zh.md)
 
-CadQuery's `Workplane.solid()` and `Workplane.solid(inner=...)` build a solid from a collection of faces, handling internal voids (cavities). The upstream `test_solid` has 12 exported variables; 8 were blocked by `solid` and 4 by `op:solid-voids`.
+## Problem
+
+CadQuery's `Workplane.solid()` and `Workplane.solid(inner=...)` build a solid from a collection of faces, handling internal voids (cavities). The upstream `test_solid` had 12 exported variables; 8 were blocked by `solid` and 4 by `op:solid-voids`. These functions were not implemented in faijs.
 
 ## Decision
 
@@ -37,6 +37,13 @@ All 12 variables PASS (volΔ=0, comΔ=0, topo full match):
 - s3/s4/s6: f18/e36/v24
 - s5: f8/e18/v12
 
-## Manifest impact
+## Alternatives considered
 
-ported 476→488, blocked 166→154. Tags `solid`(8) and `op:solid-voids`(4) eliminated. Remaining G-C8: 3 `addCavity` cases (deferred to B4).
+- **Use `buildSolidFromFaces` / `sewAndSolidify`**: rejected — they treat inner faces as outer faces and add void volumes instead of subtracting them.
+- **Re-sew inner faces instead of using `wp.baseShape`**: rejected — `kernel.sew([sphereFace], 1e-6)` returns a Face, not a Shell, so `makeSolid` cannot wrap it; `wp.baseShape` gets the original solid handle directly.
+
+## Consequences
+
+- Ported 476→488, blocked 166→154. Tags `solid`(8) and `op:solid-voids`(4) eliminated.
+- Remaining G-C8: 3 `addCavity` cases (deferred to B4).
+- Manifest impact: 12 variables unblocked.

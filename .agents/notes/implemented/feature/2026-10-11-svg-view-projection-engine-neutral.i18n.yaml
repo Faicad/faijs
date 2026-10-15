@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   npm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-11-svg-view-projection-engine-neutral.md
-2026-10-11-svg-view-projection-engine-neutral.md: d7947fa6c55490373f1bb2befae95a9a7b5cf888
+2026-10-11-svg-view-projection-engine-neutral.md: b09db848521d88af20ca8d3b564223f47f7834f8
 2026-10-11-svg-view-projection-engine-neutral.zh.md: 68b753db5d66d10af6cbc3caf356dc99e6fbf607

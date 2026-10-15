@@ -1,8 +1,8 @@
 # Agent Note: SVG view projection is engine-neutral (dual dialect channels, no gates)
 
-English | [中文](2026-10-11-svg-view-projection-engine-neutral.zh.md)
-
 Status: implemented
+
+English | [中文](2026-10-11-svg-view-projection-engine-neutral.zh.md)
 
 ## Problem
 

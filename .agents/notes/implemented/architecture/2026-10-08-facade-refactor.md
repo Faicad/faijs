@@ -1,9 +1,12 @@
-# Facade Refactor: createRuntime Unification and Subpath Enumeration
+# Agent Note: Facade Refactor — createRuntime Unification and Subpath Enumeration
 
-**Date:** 2026-10-08
-**Status:** implemented
-**Class:** architecture
-**Plan:** `docs/plans/2026-10-08-facade-refactor-plan.md`
+Status: implemented
+
+English | [中文](2026-10-08-facade-refactor.zh.md)
+
+## Problem
+
+There were two same-name `createRuntime` functions with different signatures and behaviors, the umbrella facade (`index.ts`) had 252 lines of hand-listed re-exports that drifted from actual exports, and `package.json` used wildcard subpath patterns that could silently expose internal modules.
 
 ## Decision
 
@@ -47,3 +50,17 @@ Unified the two same-name `createRuntime` functions into a single implementation
 - 13 `api/*/index.ts` directory facades not audited (listed as follow-up in the plan).
 - 3d_editor weapp worker 3-arg call site not modified (external repo; plan §4.1).
 - Optional optimizations (3d_editor cad override → one-step, faijs-freecad `new CadRuntime` → `createRuntime`) deferred.
+
+## Alternatives considered
+
+- **Keep two `createRuntime` functions**: rejected — same-name functions with different signatures confused downstream consumers and made it impossible to add a guard for signature divergence.
+- **Keep hand-listed re-exports with a test**: rejected — 252 lines of manual listing was already drifting; a guard script is more maintainable.
+- **Keep wildcard subpath exports**: rejected — wildcards could silently expose internal modules not intended for public consumption; explicit enumeration makes the public surface auditable.
+
+## Consequences
+
+- Single `createRuntime(ports, mode?, libs?, options?)` entry point with auto-registration of the built-in cad namespace.
+- `index.ts` collapsed from 252 to ~130 lines using `export *` from sub-module index files.
+- `package.json` exports use explicit path entries (only `./api/*` wildcard retained).
+- `scripts/check-facade.mjs` guard prevents facade drift and signature divergence.
+- Guard added to both `ci.ps1` and `ci.yml`.

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-10-13-merge-sketch-extra-into-core.zh.md)
+
 ## Problem
 
 The cad namespace (`cad.*`) was assembled by the host at runtime via a three-step
@@ -30,20 +32,21 @@ Additionally, the `cad` binding could be overridden by the host via `libs.cad` o
    After `createRuntime` sets `_cadReserved = true`, `registerLib('cad', ...)`
    is rejected. Third-party libraries under any other name are unaffected.
 
-4. **Solver injection**: `installSketchSolver` replaced by `setSketchSolverInitFn`
-   + `initSketchSolver` three-stage pattern (aligned with `setOcctWasmInitFn` /
-   `setBrepkitWasmInitFn`): ① host-injected factory, ② Node auto-resolve,
-   ③ throw. globalThis sharing for CDN multi-instance.
+4. **Solver injection**: `installSketchSolver` replaced by
+   `setSketchSolverInitFn` + `initSketchSolver` three-stage pattern (aligned
+   with `setOcctWasmInitFn` / `setBrepkitWasmInitFn`): ① host-injected
+   factory, ② Node auto-resolve, ③ throw. globalThis sharing for CDN
+   multi-instance.
 
 5. **Engrave provider**: `decoration-provider.ts` deleted; `mesh/engrave.ts`
    directly calls `createEngraveDecorationProvider()` from `extra/mesh/`.
 
 6. **Sub-path contracts** (all public, published with core):
-   - `@faicad/faijs/sketch` (was `@faicad/faijs-sketch`)
-   - `@faicad/faijs/sketch/node` (was `@faicad/faijs-sketch/node`)
-   - `@faicad/faijs/extra` (was `@faicad/faijs-extra`)
-   - `@faicad/faijs/extra/browser` (was `@faicad/faijs-extra/browser`)
-   - `@faicad/faijs/extra/editor-ops` (was `@faicad/faijs-extra/editor-ops`)
+    - `@faicad/faijs/sketch` (was `@faicad/faijs-sketch`)
+    - `@faicad/faijs/sketch/node` (was `@faicad/faijs-sketch/node`)
+    - `@faicad/faijs/extra` (was `@faicad/faijs-extra`)
+    - `@faicad/faijs/extra/browser` (was `@faicad/faijs-extra/browser`)
+    - `@faicad/faijs/extra/editor-ops` (was `@faicad/faijs-extra/editor-ops`)
 
 ## Alternatives considered
 

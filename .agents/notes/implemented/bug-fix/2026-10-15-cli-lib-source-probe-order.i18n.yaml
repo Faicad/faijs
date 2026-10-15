@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-15-cli-lib-source-probe-order.md
+2026-10-15-cli-lib-source-probe-order.md: cd1a8ab28456bb890c5d42636ed8bc8d301048c8
+2026-10-15-cli-lib-source-probe-order.zh.md: 751e742831d7dcd3106b71a9f81f074ab3c451ba
