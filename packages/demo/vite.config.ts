@@ -97,6 +97,16 @@ export default defineConfig({
     // （manifold-3d 不再需要 dedupe：demo 不再直接 import 它，
     //  仅 faijs 经 loader 根裸导入，Workder/Inline 后端共用。）
     dedupe: ['occt-wasm'],
+    // faijs-cadquery 0.29.x dist still imports old package names that were merged
+    // into core (2026-10-13: sketch/extra → core subpaths, brep-mirror → brep-operations).
+    // Map them to the new dist files so esbuild/vite can resolve at dev time.
+    // @faicad/faijs is a workspace junction → packages/core, so node_modules/@faicad/faijs/dist
+    // is the same as packages/core/dist.
+    alias: {
+      '@faicad/faijs-sketch': resolve(__dirname, 'node_modules/@faicad/faijs/dist/sketch/index.js'),
+      '@faicad/faijs-extra': resolve(__dirname, 'node_modules/@faicad/faijs/dist/extra/index.js'),
+      '@faicad/faijs/api/brep-mirror/topologyFns': resolve(__dirname, 'node_modules/@faicad/faijs/dist/api/brep-operations/topologyFns.js'),
+    },
   },
   plugins: [cdnExternalPlugin(), wasmAssets()],
   // Worker 后端（csg-worker/sdf-worker）打包为 ES module worker。

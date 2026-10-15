@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-fixtures",
-  "version": "0.33.2",
+  "version": "0.35.2",
   "private": true,
   "type": "module",
   "exports": {
