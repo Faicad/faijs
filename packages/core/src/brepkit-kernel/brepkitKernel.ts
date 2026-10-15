@@ -1754,7 +1754,11 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       if (solids.length === 0) fail('importStep: kernel returned no solid')
       // 多实体 → compoundOf（虚拟句柄）：compound 与 solid 分命名空间会重号，真句柄
       // 登记 knownCompounds 会在查询同号 solid 时误判（2026-10-13 修复，同 makeCompound）。
-      if (solids.length > 1) return asHandle(compoundOf(solids))
+      // ⚠️ 每个成员 solid 必须先 markSolid：否则 buildCompoundTopologyRuntime 枚举成员面
+      // （面号进 derivedFaces）后再 getSubShapes(member,'edge')，isFaceLike 会因成员号撞
+      // 面号且不在 knownSolids 而误判 → getFaceEdges 只回一个面的 4 条边（faceCount=0，
+      // edgeNaming.faces=null），真机选成员2 的边倒角报「no adjacent-face lineage」。
+      if (solids.length > 1) return asHandle(compoundOf(markSolids(solids)))
       return asHandle(markSolid(solids[0]))
     },
     exportStep(shape: BrepHandle): string {
