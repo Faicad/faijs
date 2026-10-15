@@ -13,7 +13,7 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
+import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape, solidToShape } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult, LibLoader, LibNamespace } from '@faicad/faijs/browser'
 // 2026-10-13 merge：编辑器扩展库（fai_* / group / assembly / copy / load / text /
 // svgExtrude）与 sketch 已并入 core，由 `createRuntime` 在**单点**装配进内置的
@@ -404,17 +404,22 @@ function renderShapes(view: Viewer3D, shapes: Array<{ id: string; positions: Flo
   clearMeshes(view)
 
   for (const shape of shapes) {
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(shape.positions, 3))
-    geo.setIndex(new THREE.BufferAttribute(shape.indices, 1))
     // Derive creased normals so sharp edges stay sharp. The old
     // computeVertexNormals() averaged normals on the welded shared-vertex
     // topology of manifold (mesh chain) results and rounded edges off — the
     // same root cause fixed in 3d_editor (ba5e6441). deriveNormals uses
     // toCreasedNormals: only faces meeting at more than the crease angle get
     // per-face normals, so curved surfaces stay smooth.
-    const finalGeo = deriveNormals(geo)
-    geo.dispose()
+    //
+    // deriveNormals accepts a Shape ({positions, indices}) and returns a
+    // Shape with normals — NOT a THREE.BufferGeometry (changed in
+    // 4a1620f when three was removed from core). We pass the raw shape data
+    // and then build the BufferGeometry from the result.
+    const normShape = deriveNormals(shape)
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(normShape.positions, 3))
+    geo.setIndex(new THREE.BufferAttribute(normShape.indices, 1))
+    geo.setAttribute('normal', new THREE.BufferAttribute(normShape.normals, 3, false))
 
     const material = new THREE.MeshStandardMaterial({
       color: 0x4a90d9,
@@ -423,7 +428,7 @@ function renderShapes(view: Viewer3D, shapes: Array<{ id: string; positions: Flo
       flatShading: false,
     })
 
-    const mesh = new THREE.Mesh(finalGeo, material)
+    const mesh = new THREE.Mesh(geo, material)
     mesh.castShadow = true
     mesh.receiveShadow = true
     view.meshGroup.add(mesh)
@@ -508,7 +513,24 @@ async function runMode(
     return `Failed at op "${result.failedAt.op}": ${result.failedAt.message}`
   }
 
-  const shapes = extractShapes(result)
+  let shapes = extractShapes(result)
+
+  // BREP-only shapes (e.g. sheetmetal solidOf) have empty positions because
+  // their brep ops (fuse/cut) return BrepHandle without tessellation.
+  // When extractShapes finds no mesh data but brepSolids is non-empty,
+  // tessellate the solid on the fly to get renderable mesh data.
+  if (shapes.length === 0 && result.brepSolids && result.brepSolids.size > 0) {
+    for (const [partName, { solid, kernel }] of result.brepSolids) {
+      try {
+        const tessellated = solidToShape(kernel, solid)
+        if (tessellated.positions.length > 0) {
+          shapes.push({ id: partName, positions: tessellated.positions, indices: tessellated.indices })
+        }
+      } catch (err) {
+        console.error(`[runMode] tessellation failed for ${partName}:`, err)
+      }
+    }
+  }
 
   if (shapes.length === 0) {
     clearMeshes(view)
