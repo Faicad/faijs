@@ -10,10 +10,11 @@
  * 撞面号、又不在 knownSolids）→ 走 getFaceEdges 只回一个面的 4 条边，且这些边的
  * faceCount=0 → edgeNaming.faces=null。修复：compoundOf(markSolids(solids))。
  *
- * 用真实 Cube334.step（用户 Downloads）。
+ * 用真实 Cube334.step（packages/fixtures/data/Cube334.step）。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import type { HostPorts } from '../../src/cad-runtime/ports'
 import { createEditorRuntime } from '../support/editor-ops'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
@@ -25,6 +26,8 @@ function toArrayBuffer(buf: Buffer): ArrayBuffer {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
 }
 
+const cube334StepPath = fileURLToPath(new URL('../../../fixtures/data/Cube334.step', import.meta.url))
+
 describe('brepkit: 多实体 STEP 每条边都有邻接面 lineage', () => {
   beforeAll(async () => {
     __resetEngineRegistriesForTests()
@@ -35,7 +38,7 @@ describe('brepkit: 多实体 STEP 每条边都有邻接面 lineage', () => {
   afterAll(() => disposeBrepkit())
 
   it('Cube334.step: 所有 edgeNaming.faces 非 null（成员2 不再 faceCount=0）', async () => {
-    const bytes = toArrayBuffer(readFileSync('C:/Users/yuan_/Downloads/Cube334.step'))
+    const bytes = toArrayBuffer(readFileSync(cube334StepPath))
     const ports = {
       events: { emit: () => undefined },
       assets: {
@@ -57,7 +60,7 @@ describe('brepkit: 多实体 STEP 每条边都有邻接面 lineage', () => {
   })
 
   it('Cube334.step: 挑出一条边能构造 EdgeTopoRef（不再 faces=null）', async () => {
-    const bytes = toArrayBuffer(readFileSync('C:/Users/yuan_/Downloads/Cube334.step'))
+    const bytes = toArrayBuffer(readFileSync(cube334StepPath))
     const ports = {
       events: { emit: () => undefined },
       assets: {
