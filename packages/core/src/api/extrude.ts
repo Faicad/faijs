@@ -612,7 +612,10 @@ export const extrude = defineOp({
     let kernel: BrepEngineApi | null = null
     try { kernel = getBrepApi() } catch { /* no engine -> skip role table */ }
     const solid = kernel ? (brepOf(result) as BrepHandle | undefined) : undefined
-    if (kernel && solid) {
+    // D13（2026-10-15）：solid 是 brepkit 0 基句柄，0 是合法实体句柄（首个实体恰为 0）。
+    // 必须用 `!== undefined` 判定存在性，禁止真值判断（真值判断在「草图拉伸为首个
+    // 实体语句」时跳过登记，下游 fillet/chamfer 的 edgeRef 报 nameless shape）。
+    if (kernel && solid !== undefined) {
       const origin = String(getCurrentStmt()?.id ?? '')
       const table = new Map([[origin, extrudeConstructRoles(kernel, solid, normal.toArray() as Vec3)]])
       const part = getCurrentStmt()?.outputs?.[0]
