@@ -1,6 +1,7 @@
 # Bug: bevel 齿轮稳定性测试 20/20 用例全部失败
 
 > 方案出处：WorkBuddy + faijs 仓库（2026-10-14 由 Agent 整理，基于稳定性测试单线程实跑输出与当前源码）
+>
 > 状态：**待处理**（非本次 L1 spline/helix 接线任务引入，属预先存在的 bevel 几何/测试域问题）
 
 | 字段 | 内容 |
@@ -56,7 +57,7 @@ case 19 [VOLUME]    v=17549945.704444807 not in (37515892.191391595, 51087401.33
 
 `packages/faijs-gears/src/profile.ts:617`（在 `bevelGearGeometry` 内）：
 
-```ts
+```ts ignore-check
 const beta = Math.atan((faceWidth * Math.tan(helixAngle)) / (2.0 * gsR - faceWidth))
 twistAngle = Math.asin((gsR / rp) * Math.sin(beta)) * 2.0   // :617
 // ...
@@ -75,7 +76,7 @@ if (Number.isNaN(twistAngle)) {                              // :623
 
 `packages/faijs-gears/src/bevel_gear.ts`：
 
-```ts
+```ts ignore-check
 const shell = kernel.sew(faces, build.shellSewingTol ?? GEAR_BASE_CONSTANTS.shell_sewing_tol) // :375
 const solid = kernel.makeSolid(shell)                                                      // :376
 let body = kernel.fixFaceOrientations(solid)                                               // :377
@@ -94,7 +95,7 @@ if (!kernel.isSolid(body)) {
 
 `packages/faijs-gears/test/stability/cases.ts:131-151` 的 `checkBevel` 把建成实体与**解析截锥模型**（半径 `fconeR = coneH·tan(gammaF)` 等）比对：
 
-```ts
+```ts ignore-check
 const fconeR = coneH * Math.tan(gammaF)
 // ...
 const vmax = (π * (coneH/3) * fconeR²) - (π * (tcH/3) * tfconeR²)

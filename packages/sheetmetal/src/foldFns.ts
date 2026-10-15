@@ -41,6 +41,8 @@ export interface FoldResult {
  *
  * @param input - the flat pattern input to fold.
  * @returns the folded sheet metal part, or an error.
+ * @example
+ * const part = await fold(input)
  */
 export async function fold(input: FlatInput): Promise<Result<SheetMetalPart>> {
   const result = await foldWithWarnings(input);
@@ -52,6 +54,8 @@ export async function fold(input: FlatInput): Promise<Result<SheetMetalPart>> {
  * {@link fold} that also surfaces the fold warnings alongside the part.
  * @param input - the flat pattern input to fold.
  * @returns the fold result with warnings, or an error.
+ * @example
+ * const result = await foldWithWarnings(input)
  */
 export async function foldWithWarnings(input: FlatInput): Promise<Result<FoldResult>> {
   const spec: AuthorSpec = {
@@ -180,6 +184,8 @@ export interface PatternToFlatInputOptions {
  * @param pattern - the flat pattern to convert.
  * @param opts - options (thickness, ruleFor, material).
  * @returns the flat input, or an error.
+ * @example
+ * const input = patternToFlatInput(pattern, { thickness: 1.2, ruleFor: () => ({ innerRadius: 1.2, kFactor: 0.44 }) })
  */
 export function patternToFlatInput(
   pattern: FlatPattern,
@@ -228,6 +234,8 @@ export function patternToFlatInput(
  *
  * @param part - the sheet metal part to recover a flat input from.
  * @returns the flat input, or an error.
+ * @example
+ * const input = partToFlatInput(part)
  */
 export function partToFlatInput(part: SheetMetalPart): Result<FlatInput> {
   const unfolded = unfold(part);

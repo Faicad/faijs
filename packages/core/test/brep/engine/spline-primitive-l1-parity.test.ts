@@ -16,6 +16,9 @@
  * brepkit 侧三个**近似**实现（螺旋采样拟合 / 切向丢失 / 曲面插值定阶）不是同一算法，
  * 偏差必须实测钉住「当前偏差上限 + 目标 0」，band 只能收紧不能放大：
  *   · makeHelixWire          → 采样弦高
+ *   · makeHelixWire(leftHanded) → **形参级**缺口：occt 两侧都走原生入口
+ *     （makeHelixWireHanded），brepkit 无带手性原语 → 显式拒绝（不镜像）。缺口在
+ *     实现体内报错，不透传到 op 声明（右手在 brepkit 上仍可用 ⇒ 不能声明 engines:['occt']）。
  *   · interpolatePointsWithTangents → 两端切向被丢弃
  *   · bsplineSurface         → brepkit 定阶 3/3（occt 由内核自定阶）
  *
@@ -380,5 +383,42 @@ describe('偏差钉 2：makeHelixWire（brepkit 是采样拟合，非解析螺�
     const rel = Math.abs(EXACT - lb) / EXACT
     // 实测（2026-10-13，每圈 36 段采样 + degree 3 插值）：相对偏差 < 1e-4。
     expect(rel, `brepkit 螺旋弧长相对偏差（解析 ${EXACT.toFixed(3)}，实测 ${lb.toFixed(3)}）`).toBeLessThan(1e-3)
+  })
+
+  it('occt：leftHanded=true 与缺省右旋互为镜像（逐点 (x,-y,z)，非退化）', () => {
+    // 左手是 L1 形参，不是调用方镜像：occt 适配器在实现体内直调原生
+    // makeHelixWireHanded(..., true)。这里钉住「形参语义 == 镜像」。
+    const right = occtApi.makeHelixWire(v(0, 0, 0), v(0, 0, 1), P.pitch, P.height, P.radius)
+    const left = occtApi.makeHelixWire(v(0, 0, 0), v(0, 0, 1), P.pitch, P.height, P.radius, true)
+    const fr = occtApi.wireframe(right)
+    const fl = occtApi.wireframe(left)
+    expect(fl.edgeCount).toBe(fr.edgeCount)
+    expect(fl.points.length).toBe(fr.points.length)
+    let maxDelta = 0
+    for (let i = 0; i < fr.points.length; i += 3) {
+      maxDelta = Math.max(
+        maxDelta,
+        Math.abs(fr.points[i]! - fl.points[i]!),
+        Math.abs(fr.points[i + 1]! + fl.points[i + 1]!),
+        Math.abs(fr.points[i + 2]! - fl.points[i + 2]!),
+      )
+    }
+    expect(maxDelta, `左右旋逐点镜像偏差（当前实测 ${maxDelta}）`).toBeLessThan(1e-5)
+    // 非退化：y 不恒为零 ⇒ 确实写成了螺旋，而不是退化成直线。
+    const maxAbsY = Math.max(...Array.from(fr.points).filter((_, i) => i % 3 === 1).map(Math.abs))
+    expect(maxAbsY).toBeGreaterThan(1)
+  })
+
+  it('brepkit：leftHanded=true 显式失败，而右手不受影响（形参级缺口，不镜像）', () => {
+    // 两值并钉：当前值 = 显式拒绝（本断言）；应有值 = 若 brepkit 补上带手性原语，
+    // 断言翻转为镜像一致性，且偏差 band 必须钉进「偏差钉 2」。
+    expect(() =>
+      brepkitApi.makeHelixWire(v(0, 0, 0), v(0, 0, 1), P.pitch, P.height, P.radius, true),
+    ).toThrow(/left-handed helix requires the occt engine/)
+    // 形参缺省 false ⇒ 右手路径完全不受影响。
+    assertHandle(
+      brepkitApi.makeHelixWire(v(0, 0, 0), v(0, 0, 1), P.pitch, P.height, P.radius),
+      'brepkit makeHelixWire(right)',
+    )
   })
 })

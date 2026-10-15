@@ -368,6 +368,9 @@ export function buildSketchOnFaceMesh(params: SketchOnFaceParams): Shape {
  * @param params.face - the host face: FaceTopoRef（UI 拾取产物字面量）| 面选择器字符串（如 ">Z"，在 on 上解析，多面命中抛错）| 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本）。type:any required:true
  * @param params.scaleMode - UV mapping: 'original' (identity) | 'bounds'/'native' (affine-fit; OCCT planar only).type:string required:false
  * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
+ * @example
+ * // loop = 一个闭合 2D 轮廓：{ segments: [{ kind: 'line', x1, y1, x2, y2 }, ...] }
+ * const face = cad.sketchOnFace({ contours: [loop], on: cad.box(20, 20, 10), face: '>Z' })
  */
 export const sketchOnFace = defineOp({
   meshEngines: ['brepkit'],

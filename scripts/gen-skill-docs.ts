@@ -32,8 +32,8 @@ import ts from 'typescript'
 import { createApiNamespace } from '../packages/core/src/api/api-namespace'
 import { dualOpMetaOf } from '../packages/core/src/define-op'
 import { SCRIPT_FACE_OPS } from '../packages/core/src/api/generated/script-face-manifest'
-import { ALL_EDITOR_OPS } from '../packages/faijs-extra/src/op-names'
-import { SKETCH_OPS } from '../packages/sketch/src/namespace'
+import { ALL_EDITOR_OPS } from '../packages/core/src/extra/op-names'
+import { SKETCH_OP_NAME } from '../packages/core/src/sketch/op'
 
 // ── paths ───────────────────────────────────────────────────────────────────
 
@@ -41,11 +41,22 @@ const root = resolve(import.meta.dirname, '..')
 const skillsDir = join(root, 'skills')
 const apiSrcDir = join(root, 'packages/core/src/api')
 const coreSrcDir = join(root, 'packages/core/src')
-const extraSrcDir = join(root, 'packages/faijs-extra/src')
-const sketchSrcDir = join(root, 'packages/sketch/src')
+const extraSrcDir = join(root, 'packages/core/src/extra')
+const sketchSrcDir = join(root, 'packages/core/src/sketch')
 const sheetmetalSrcDir = join(root, 'packages/sheetmetal/src')
 const gearsSrcDir = join(root, 'packages/faijs-gears/src')
 const fastenersSrcDir = join(root, 'packages/faijs-fasteners/src')
+
+/**
+ * The op names the sketch library contributes to the `cad` namespace.
+ *
+ * 2026-10-13 merge: `packages/sketch` was folded into core and its
+ * `namespace.ts` (which exported `SKETCH_OPS`) was removed — the cad namespace
+ * is now assembled inside `createApiNamespace()`. The sketch library carries
+ * exactly one op, so the list is derived from that op's own name constant
+ * (`packages/core/src/sketch/op.ts`) instead of a hand-maintained list.
+ */
+const SKETCH_OPS = [SKETCH_OP_NAME] as const
 
 // ── 1. Engine bucket classification (reused from gen-engine-skill-docs) ────
 
@@ -706,7 +717,7 @@ function extractSketchOpDoc(): OpDocEntry | null {
 
 // ── 7. Editor op extraction ─────────────────────────────────────────────────
 
-/** Extract editor op JSDoc from faijs-extra source files. */
+/** Extract editor op JSDoc from the merged core extra ops (`packages/core/src/extra/ops`). */
 function extractEditorOpDocs(): Map<string, OpDocEntry> {
   const docs = new Map<string, OpDocEntry>()
   const opFiles = [

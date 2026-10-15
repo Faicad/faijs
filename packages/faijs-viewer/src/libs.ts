@@ -4,8 +4,9 @@
  *
  * The engine loads a model's namespace imports lazily at execute time
  * (`autoLoadLibsFromImports` → `HostPorts.libLoader.loadLib`). This module
- * builds that loader for the viewer. Preset libraries (core, sketch,
- * faijs-extra — merged into the default `cad` namespace) never pass through it;
+ * builds that loader for the viewer. Preset libraries (core, which since the
+ * 2026-10-13 merge carries the former sketch + faijs-extra ops inside the
+ * default `cad` namespace) never pass through it;
  * it serves scripts like `import * as gears from "@faicad/faijs-gears"` only.
  *
  * Dispatch follows the environment:

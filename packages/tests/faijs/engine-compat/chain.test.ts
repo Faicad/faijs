@@ -14,13 +14,8 @@
 
 import { describe, it, beforeAll, expect } from 'vitest'
 import { initEngines, buildOn, assertConsistent } from './harness'
-import { buildChain } from '../../../faijs-fasteners/src/chain'
+import { buildChain, type ChainParams } from '../../../faijs-fasteners/src/chain'
 import type { BrepHandle } from '../../../core/src/brep/engine/primitives'
-
-interface ChainParams {
-  spkt_teeth: number[]
-  spkt_locations: [number, number][]
-}
 
 interface Fixture {
   name: string

@@ -63,17 +63,53 @@ export interface FileMeta {
 
 /** Shape 元数据方法签名（运行时由 attachMetaMethods 挂载；纯数据判定不受影响）。 */
 export interface ShapeMetaMethods {
-  /** 合并 meta：`{...cur, ...spec}`，spec 中 undefined 字段保留旧值。 */
+  /**
+   * 合并 meta：`{...cur, ...spec}`，spec 中 undefined 字段保留旧值。
+   * @param spec - 待合并的元数据字段（空串 = 显式清除该字段）。
+   * @returns this（可链式调用）。
+   * @example
+   * part0.setMeta({ partNumber: 'PN-1001', designer: 'ada' })
+   */
   setMeta(spec: ShapeMeta): this
-  /** 便捷：等价 setMeta({ name })（空串视为清除）。 */
+  /**
+   * 便捷：等价 setMeta({ name })（空串视为清除）。
+   * @param name - 零件名。
+   * @returns this（可链式调用）。
+   * @example
+   * part0.setName('bracket')
+   */
   setName(name: string): this
-  /** 便捷：等价 setMeta({ description })（空串视为清除）。 */
+  /**
+   * 便捷：等价 setMeta({ description })（空串视为清除）。
+   * @param description - 描述文本（导出到 3MF Description / STEP FILE_DESCRIPTION）。
+   * @returns this（可链式调用）。
+   * @example
+   * part0.setDescription('left-hand bracket')
+   */
   setDescription(description: string): this
-  /** 便捷：等价 setMeta({ partNumber }）。 */
+  /**
+   * 便捷：等价 setMeta({ partNumber }）。
+   * @param partNumber - 零件号。
+   * @returns this（可链式调用）。
+   * @example
+   * part0.setPartNumber('PN-1001')
+   */
   setPartNumber(partNumber: string): this
-  /** 便捷：等价 setMeta({ metadata: {...cur.metadata, ...kv} })；值为空串的键删除。 */
+  /**
+   * 便捷：等价 setMeta({ metadata: {...cur.metadata, ...kv} })；值为空串的键删除。
+   * @param key - 自定义 metadata 键（3MF 带前缀名 / STEP header 其余字段）。
+   * @param value - 键值；空串删除该键。
+   * @returns this（可链式调用）。
+   * @example
+   * part0.setMetaField('Material', 'AL-6061')
+   */
   setMetaField(key: string, value: string): this
-  /** 读取当前 meta（可能 undefined）。 */
+  /**
+   * 读取当前 meta（可能 undefined）。
+   * @returns 当前元数据的只读快照；从未设置过时为 `undefined`。
+   * @example
+   * const meta = part0.getMeta()
+   */
   getMeta(): Readonly<ShapeMeta> | undefined
 }
 

@@ -53,6 +53,8 @@ interface HemPlan {
  * @param part - the sheet metal part to attach a hem to.
  * @param spec - the hem specification.
  * @returns the updated part with the hem feature recorded, or an error.
+ * @example
+ * const hemmed = await hem(part, { region: 'base', side: 'xmax', type: 'closed', length: 5 })
  */
 export async function hem(part: SheetMetalPart, spec: HemSpec): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {

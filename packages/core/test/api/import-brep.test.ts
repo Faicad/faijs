@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { configureBackends, CONTRACT_VERSION, BrepUnsupportedError, type Backends } from '../../src/runtime-state'
+import { configureBackends, CONTRACT_VERSION, BrepUnsupportedError, MeshUnsupportedError, type Backends } from '../../src/runtime-state'
 import { OpError } from '../../src/api/internal/result-unwrap'
 import { import_brep } from '../../src/api/import-brep'
 // GOTCHA（2026-09-30）：import_brep 现为 defineOp 包装（part 键 roleTable 在包装层
@@ -65,6 +65,21 @@ describe('import_brep: contract errors', () => {
   it('empty asset name → OpError E_ARGS', async () => {
     configureBackends(makeBackends('auto', undefined, fakeAssets))
     await expect(importBrepImpl({ asset: '' })).rejects.toThrow(/asset name \(string\) is required/)
+  })
+})
+
+// ── L2：导出 op（defineOp 包装层）的参数覆盖 ──
+
+// 上面的用例全部直调裸实现 `importBrepImpl`（见文件头 GOTCHA），因此 `asset`
+// 这个参数名从不出现在**调用点**上，而契约面覆盖门禁
+// （`scripts/check-api-test-coverage.ts` 的 L2）要求每个 schema 参数在调用点被覆盖。
+// 这里补一次对导出 op 的直接调用：既覆盖 `asset`，也钉住「brep 专属 op 在
+// mesh 模式下按 E_MESH_UNSUPPORTED 明确拒绝，绝不静默回退」这条静态分派事实。
+describe('import_brep: exported op — mesh mode refuses (E_MESH_UNSUPPORTED)', () => {
+  it('cad.import_brep({ asset }) rejects when no mesh implementation exists', async () => {
+    configureBackends(makeBackends('mesh', undefined, fakeAssets))
+    await expect(import_brep({ asset: 'Array001.Shape' })).rejects.toThrow(MeshUnsupportedError)
+    await expect(import_brep({ asset: 'Array001.Shape' })).rejects.toThrow(/E_MESH_UNSUPPORTED/)
   })
 })
 

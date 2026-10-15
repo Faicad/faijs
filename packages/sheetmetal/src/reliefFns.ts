@@ -34,6 +34,8 @@ type NotchRect = [number, number, number, number];
  * @param flangeId - the flange (bend) ID to relieve.
  * @param spec - the relief specification (default rectangular).
  * @returns the updated part with the bend relief recorded, or an error.
+ * @example
+ * const relieved = await addBendRelief(part, 'f1')
  */
 export async function addBendRelief(
   part: SheetMetalPart,
@@ -100,6 +102,8 @@ export async function addBendRelief(
  * @param part - the sheet metal part to process.
  * @param spec - the relief specification (default rectangular).
  * @returns the updated part with all needed bend reliefs, or an error.
+ * @example
+ * const relieved = await autoBendReliefs(part)
  */
 export async function autoBendReliefs(
   part: SheetMetalPart,
@@ -131,6 +135,8 @@ export async function autoBendReliefs(
  * @param flangeIdB - the second flange ID.
  * @param spec - the relief specification (default rectangular).
  * @returns the updated part with the corner relief recorded, or an error.
+ * @example
+ * const relieved = await cornerRelief(part, 'f1', 'f2')
  */
 export async function cornerRelief(
   part: SheetMetalPart,

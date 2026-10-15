@@ -15,6 +15,7 @@ import {
   configureBackends,
   CONTRACT_VERSION,
   BrepUnsupportedError,
+  MeshUnsupportedError,
   type Backends,
 } from '../../src/runtime-state'
 import { OpError } from '../../src/api/internal/result-unwrap'
@@ -74,6 +75,21 @@ describe('import_step: contract errors', () => {
   it('empty path → OpError E_ARGS', async () => {
     configureBackends(makeBackends('auto', undefined, fakeAssets))
     await expect(importStepImpl({ path: '' })).rejects.toThrow(/path \(string\) is required/)
+  })
+})
+
+// ── L2：导出 op（defineOp 包装层）的参数覆盖 ──
+
+// 上面的用例全部直调裸实现 `importStepImpl`（见文件头 / import-brep 的同款
+// GOTCHA），因此 `path` 这个参数名从不出现在**调用点**上，而契约面覆盖门禁
+// （`scripts/check-api-test-coverage.ts` 的 L2）要求每个 schema 参数在调用点被覆盖。
+// 这里补一次对导出 op 的直接调用：既覆盖 `path`，也钉住「STEP 是 BREP 专属格式，
+// mesh 模式下按 E_MESH_UNSUPPORTED 明确拒绝，绝不静默回退」这条静态分派事实。
+describe('import_step: exported op — mesh mode refuses (E_MESH_UNSUPPORTED)', () => {
+  it('cad.import_step({ path }) rejects when no mesh implementation exists', async () => {
+    configureBackends(makeBackends('mesh', undefined, fakeAssets))
+    await expect(import_step({ path: 'x.step' })).rejects.toThrow(MeshUnsupportedError)
+    await expect(import_step({ path: 'x.step' })).rejects.toThrow(/E_MESH_UNSUPPORTED/)
   })
 })
 

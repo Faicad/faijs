@@ -28,6 +28,8 @@ function validateRule(rule: BendRule): Result<void> {
  * falls outside its tabulated range
  * @returns a `Result<number>` — `ok` with the computed bend allowance on success,
  * or `err` with a `validationError` when the inputs are invalid
+ * @example
+ * const ba = bendAllowance(90, 1.2, { innerRadius: 1.2, kFactor: 0.44 })
  */
 export function bendAllowance(
   angleDeg: number,
@@ -51,6 +53,8 @@ export function bendAllowance(
  * falls outside its tabulated range
  * @returns a `Result<number>` — `ok` with the developed length on success,
  * or `err` with a `validationError` when the inputs are invalid
+ * @example
+ * const len = developedLength(90, 1.2, { innerRadius: 1.2, kFactor: 0.44 })
  */
 export function developedLength(
   angleDeg: number,
@@ -67,6 +71,8 @@ export function developedLength(
  * @param rule the bend rule providing `innerRadius` and `kFactor`
  * @returns a `Result<number>` — `ok` with the neutral-axis radius on success,
  * or `err` with a `validationError` when the inputs are invalid
+ * @example
+ * const r = neutralRadius(1.2, { innerRadius: 1.2, kFactor: 0.44 })
  */
 export function neutralRadius(thickness: number, rule: BendRule): Result<number> {
   if (!Number.isFinite(thickness) || thickness <= 0) {

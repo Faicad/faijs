@@ -99,7 +99,10 @@ $testBudgetOverrides = @{
 # 进过 CI；这里只跑轻量但灵敏的核心子集：API 面装载自检（index）、齿廓数学层 vs cq_gears
 # （profile，1e-9 级最灵敏信号）、新增 5 类纯数学装配量（new-gear-math）、裸齿轮实体体积
 # 对比（spur-gear-build）。实测 3.86s / 159 passed。完整套件仍可 `npm test -w @faicad/faijs-gears` 单独跑。
-$gearsSubset = 'src/index.test.ts src/profile.test.ts src/new-gear-math.test.ts src/spur-gear-build.test.ts'
+# GOTCHA（2026-10-14）：路径是 `test/` 不是 `src/`——测试已迁到 test/ 目录
+# （commit 9129bbf），旧 `src/...` 前缀会让 vitest 报 "No test files found" 并以 1 退出，
+# 即 4/9 整步失败（selector 与实际布局脱节，不是测试失败）。
+$gearsSubset = 'test/index.test.ts test/profile.test.ts test/new-gear-math.test.ts test/spur-gear-build.test.ts'
 $testPackages = @('@faicad/faijs','@faicad/sheetmetal','@faicad/faijs-gears','@faicad/faijs-fasteners','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
@@ -125,15 +128,24 @@ if ($stepFail) {
 # Rule: If a test intentionally triggers an error condition, it must
 # spy on console.warn/error within that test and assert the message
 # was captured. Global suppression of stderr is prohibited.
+#
+# GOTCHA (2026-10-14): vitest colourises the reporter header, so the captured
+# line is actually "<ESC>[90mstderr<ESC>[2m | <file> > <test>" — matching
+# '^stderr \|' against the raw line never fired (the GitHub track captures
+# uncoloured output and did fire), i.e. this gate was silently toothless here.
+# Strip ANSI SGR sequences first, then match, so the gate bites exactly where
+# .github/workflows/ci.yml bites.
+$esc = [char]27
 $stderrLines = [System.Collections.Generic.List[string]]::new()
 $inStderr = $false
 Get-Content $tmpVitest | ForEach-Object {
-    if ($_ -match '^stderr \|') {
+    $line = $_ -replace "$esc\[[0-9;]*m", ''
+    if ($line -match '^stderr \|') {
         $inStderr = $true
-        $stderrLines.Add($_)
+        $stderrLines.Add($line)
     } elseif ($inStderr) {
-        if ($_ -match '^\s') {
-            $stderrLines.Add($_)
+        if ($line -match '^\s') {
+            $stderrLines.Add($line)
         } else {
             $inStderr = $false
         }

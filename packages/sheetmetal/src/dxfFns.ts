@@ -45,6 +45,8 @@ const IDENTITY: Transform2 = (p) => p;
  * @param pattern - the flat pattern to serialize.
  * @param options - writer options (e.g. {@link DxfOptions.textHeight}).
  * @returns `Result<string>` — the complete DXF file text when `ok`.
+ * @example
+ * const dxf = flatPatternToDXF(pattern)
  */
 export function flatPatternToDXF(pattern: FlatPattern, options: DxfOptions = {}): Result<string> {
   return multiPatternToDXF([{ pattern, transform: IDENTITY }], options);
@@ -66,6 +68,8 @@ export interface PlacedPattern {
  * @param placed - the patterns to serialize, each with its sheet-placement transform.
  * @param options - writer options (e.g. {@link DxfOptions.textHeight}).
  * @returns `Result<string>` — the complete DXF file text when `ok`.
+ * @example
+ * const dxf = multiPatternToDXF([{ pattern, transform: (p) => p }])
  */
 export function multiPatternToDXF(placed: PlacedPattern[], options: DxfOptions = {}): Result<string> {
   const textHeight = options.textHeight ?? DEFAULT_TEXT_HEIGHT;

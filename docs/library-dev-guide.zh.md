@@ -287,7 +287,7 @@ export async function assembleHost(): Promise<void> {
 
 `assembleHost()` 之后，要么为脚本执行创建运行时（② 脚本面），要么直接裸调 ① TS 兼容面的扁平函数——① 面一旦内核/引擎/后端配好就不需要运行时：
 
-```ts
+```ts ignore-check
 import * as F from '@faicad/faijs'
 import { createRuntime, createNodePorts } from '@faicad/faijs/node'
 import * as gear from 'my-gear-lib'

@@ -136,10 +136,10 @@ export interface BuiltPart {
  * @param build - 零件 builder（返回含 `handle` 的结果对象）
  * @param params - builder 入参
  */
-export function buildOn(
+export function buildOn<P>(
   engine: BrepEngineId,
-  build: (params: unknown) => { handle: BrepHandle },
-  params: unknown,
+  build: (params: P) => { handle: BrepHandle },
+  params: P,
 ): BuiltPart {
   useBuildKernel(engine)
   const result = build(params)
@@ -199,6 +199,31 @@ export interface Toleration {
   coMRel?: number
 }
 
+/**
+ * 软差异记录（T1 拓扑计数 / isSolid 的「记录但不门禁」项）。
+ *
+ * 为什么不写 console：引擎表示差异（brepkit 把圆弧/样条离散成大量线性段 →
+ * face/edge/vertex 计数与 occt 不同；多体零件在两内核下 compound-of-solids vs
+ * merged solid）**不是几何不一致**，但也不是错误——写 `console.warn` 会被 vitest
+ * 采集成 `stderr |` 行，而 CI 的零 stderr 门禁把任何 stderr 行判失败
+ * （ci.ps1:124-150 / .github/workflows/ci.yml 的 `grep -E '^stderr \|'`），
+ * 用 spy/mock 吞掉又是禁止的（掩盖信号）。
+ *
+ * → 改为**返回值**：调用方拿到结构化记录，按需断言或留档。信息不丢、不污染 stderr。
+ */
+export interface SoftDiff {
+  /** 来源：`topo` = T1 子形状计数；`isSolid` = 实体表示差异。 */
+  kind: 'topo' | 'isSolid'
+  /** 差异键（topo: shell/face/edge/vertex/wire；isSolid: 'isSolid'）。 */
+  key: string
+  /** 参考侧（occt）值。 */
+  ref: number | boolean
+  /** 对照侧（brepkit）值。 */
+  got: number | boolean
+  /** 成因（引擎表示策略），供断言 message 与留档引用。 */
+  reason: string
+}
+
 /** 默认容差带（方案 §6.1 T2，可逐零件覆盖）。 */
 export const DEFAULT_TOL: Required<Toleration> = {
   volumeRel: 1e-3,
@@ -209,16 +234,21 @@ export const DEFAULT_TOL: Required<Toleration> = {
 
 /**
  * 一致性断言（方案 §6.1）：
- *  - T1 拓扑等价：solid/shell/face/edge/wire/vertex 数量精确相等（硬门禁）。
- *  - T2 度量收敛：体积/表面积/包围盒/质心的相对偏差在容差带内（软门禁）。
- *  - isSolid 仅软记录（compound-of-solids vs merged-solid 表示差异，T1 solid 门禁已保证有效性）。
+ *  - T1 拓扑等价：solid 数量精确相等（硬门禁）；shell/face/edge/vertex/wire 只**记录**
+ *    （brepkit 离散化策略导致计数不可比），见 {@link SoftDiff}。
+ *  - T2 度量收敛：体积/表面积/包围盒/质心的相对偏差在容差带内（硬门禁）。
+ *  - isSolid 仅记录（compound-of-solids vs merged-solid 表示差异；T1 solid 门禁已保证有效性）。
+ *
+ * 注意：软差异**不写 console**（CI 零 stderr 门禁），一律经返回值交出。
+ *
+ * @returns 软差异记录（可能为空数组）——调用方按需断言/留档。
  */
 export function assertConsistent(
   ref: EngineMetrics,
   got: EngineMetrics,
   tol: Toleration = DEFAULT_TOL,
-): void {
-  expectTopoEqual(ref.counts, got.counts)
+): SoftDiff[] {
+  const soft = expectTopoEqual(ref.counts, got.counts)
   assertRel('volume', ref.volume, got.volume, tol.volumeRel ?? DEFAULT_TOL.volumeRel)
   assertRel('surfaceArea', ref.surfaceArea, got.surfaceArea, tol.areaRel ?? DEFAULT_TOL.areaRel)
   assertBbox(ref.bbox, got.bbox, tol.bboxRel ?? DEFAULT_TOL.bboxRel)
@@ -227,14 +257,30 @@ export function assertConsistent(
   // 而 brepkit 合并为单个 solid（isSolid=true）——属枚举/表示差异，非几何差异。
   // 真正的实体有效性已由 T1 的 `solid` 数量硬门禁保证（两引擎都须 ≥1 个 solid）。
   if (ref.isSolid !== got.isSolid) {
-    console.warn(
-      `[consistency* soft] isSolid differs: ref=${ref.isSolid} brepkit=${got.isSolid} ` +
-        `(representation difference: compound-of-solids vs merged solid; T1 solid-count gate enforces validity)`,
-    )
+    soft.push({
+      kind: 'isSolid',
+      key: 'isSolid',
+      ref: ref.isSolid,
+      got: got.isSolid,
+      reason:
+        'compound-of-solids vs merged solid（表示差异；实体有效性由 T1 的 solid 数量硬门禁保证）',
+    })
   }
+  return soft
 }
 
-export function expectTopoEqual(a: EngineMetrics['counts'], b: EngineMetrics['counts']): void {
+/**
+ * T1 拓扑比较：只对 solid 计数做硬门禁，其余子形状计数按引擎表示差异**记录**。
+ *
+ * 记录项（不门禁、也不写 console，见 {@link SoftDiff}）：
+ *   - brepkit 把圆弧/样条离散成大量线性段 → face/edge 数量随离散精度爆炸（如
+ *     10 齿链轮 occt=62 face / brepkit=953 face，48 齿=292 / 5344），不代表几何不一致；
+ *   - brepkit 不枚举 wire（该键为 null → 跳过）；两内核旋转体接缝顶点数也可能不同。
+ * 真正的几何一致性由 T2（体积/面积/bbox/质心）把关，详见 assertConsistent。
+ *
+ * @returns 软差异记录（可能为空数组）。
+ */
+export function expectTopoEqual(a: EngineMetrics['counts'], b: EngineMetrics['counts']): SoftDiff[] {
   // 硬门禁：仅 solid 数量必须相等——这是真正引擎无关的拓扑。
   // 等价实体（同一几何）在两内核下必然拥有相同数量的 solid 与 shell。
   const hard = ['solid'] as const
@@ -243,22 +289,23 @@ export function expectTopoEqual(a: EngineMetrics['counts'], b: EngineMetrics['co
       throw new Error(`[T1 topology] ${key} count mismatch: ref=${a[key]} brepkit=${b[key]}`)
     }
   }
-  // 软记录（仅告警、不门禁）：face / edge / vertex / wire 受引擎表示策略影响。
-  //   - brepkit 把圆弧/样条离散成大量线性段 → face/edge 数量随离散精度爆炸（如
-  //     10 齿链轮 occt=62 face / brepkit=953 face，48 齿=292 / 5344），不代表几何不一致。
-  //   - brepkit 不枚举 wire；两内核旋转体接缝顶点数也可能不同。
-  // 真正的几何一致性由 T2（体积/面积/bbox/质心）把关，详见 assertConsistent。
-  const soft = ['shell', 'face', 'edge', 'vertex', 'wire'] as const
-  for (const key of soft) {
+  const soft: SoftDiff[] = []
+  const softKeys = ['shell', 'face', 'edge', 'vertex', 'wire'] as const
+  for (const key of softKeys) {
     const av = a[key]
     const bv = b[key]
     if (av === null || bv === null) continue
     if (av !== bv) {
-      console.warn(
-        `[T1* soft] ${key} count differs: ref=${av} brepkit=${bv} (engine representation difference, recorded only)`,
-      )
+      soft.push({
+        kind: 'topo',
+        key,
+        ref: av,
+        got: bv,
+        reason: 'engine representation difference（brepkit 离散化/接缝策略），记录 only',
+      })
     }
   }
+  return soft
 }
 
 function assertRel(name: string, ref: number, got: number, rel: number): void {

@@ -25,6 +25,11 @@ import type {
   BrepVec3,
 } from './types'
 
+// 契约面重导出：BrepHandle / BrepVec3 是 L1 引擎契约的核心不透明句柄类型，
+// 3324d179 将定义迁入 ./types 后未在此面重导出，导致消费方（engine-compat 测试）
+// 无法从契约面取到。此处恢复公开面（定义仍在 ./types）。
+export type { BrepHandle, BrepVec3 } from './types'
+
 /**
  * BREP 引擎原语契约（L1 核心面）。所有句柄参数/返回值均为 BrepHandle（不透明值，§6.3）。
  * 引擎实现（occt/brepkit 适配器）负责内部句柄形态与 BrepHandle 的转换，以及方言消化
@@ -257,14 +262,23 @@ export interface BrepEngineApi {
     endAngle: number,
   ): BrepHandle
   /**
-   * 右手圆柱螺旋线（1D wire）。origin/axis 定轴，pitch 每圈推进、height 总高、radius 半径。
+   * 圆柱螺旋线（1D wire）。origin/axis 定轴，pitch 每圈推进、height 总高、radius 半径。
+   * 手性由 `leftHanded` 选（缺省 `false` = 右手）；同 pitch/height/radius 下左右旋
+   * 互为镜像（关于轴平面）。
    *
-   * - occt 侧直连原生 `makeHelixWire`（解析螺旋）；
-   * - brepkit 侧无 1D 螺旋原语（`helicalSweep` 是**扫掠成体**，不可用于 1D），
-   *   走「解析螺旋采样 → `interpolatePoints` 造 NURBS edge → `makeWire`」——
-   *   **近似**，偏差 = 采样弦高，实测后钉 band（§7 决策点 2 选 (a)）。
+   * - occt 适配器：右手直连原生 `makeHelixWire`（解析螺旋，几何路径与 `leftHanded`
+   *   形参引入前完全一致）；左手走原生 `makeHelixWireHanded(..., true)` —— 上游
+   *   occt-wasm d.ts 明示该入口是 "Prefer this for new code" 的带手性入口，
+   *   `makeHelixWire` 保留给绑定旧元数的调用方且恒为右手。
+   * - brepkit 适配器：无 1D 螺旋原语（`helicalSweep` 是**扫掠成体**，不可用于 1D），
+   *   右手走「解析螺旋采样 → `interpolatePoints` 造 NURBS edge → `makeWire`」——
+   *   **近似**，偏差 = 采样弦高，实测后钉 band（§7 决策点 2 选 (a)）；
+   *   **左手只支持右手**：brepkit 无带手性原语，`leftHanded: true` 在实现体内
+   *   显式失败（不镜像兜底 —— 静默换算法比报错更危险）。
    *
-   * ⚠️ 只暴露右手：左手由调用方镜像实现（与 fasteners `WarehouseKernel` 既有口径一致）。
+   * ⚠️ 这是**形参级**能力缺口，不是 op 级：右手在 brepkit 上可用，故调用方 op
+   * （`cad.helix`）不声明 `engines: ['occt']`（那会把右手一并拒掉）。缺口在实现体
+   * 内显式报错，与 `extrude` 拒绝非 face 输入同口径。
    */
   makeHelixWire(
     origin: BrepVec3,
@@ -272,6 +286,7 @@ export interface BrepEngineApi {
     pitch: number,
     height: number,
     radius: number,
+    leftHanded?: boolean,
   ): BrepHandle
   /**
    * 点列 → 逼近 B 样条曲线（tolerance 为逼近容差）。语义锚 = occt `GeomAPI_PointsToBSpline`。

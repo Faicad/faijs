@@ -32,6 +32,8 @@ type Pt2 = [number, number];
  * @returns the flat pattern (outline, bend lines, holes, form cuts/markers/hinges,
  *   lofted developments, developed area), the bend report, and any warnings — or
  *   an error if the part cannot be unfolded
+ * @example
+ * const flat = unfold(part)
  */
 export function unfold(part: SheetMetalPart): Result<UnfoldResult> {
   const treeResult = featureTree(part);

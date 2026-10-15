@@ -578,6 +578,8 @@ function tryPlace(
  * @param pattern - the flat pattern whose outer outline is measured.
  * @returns `Result<Bbox>` - the axis-aligned bounding box of the outer outline, or an
  *   error if the outline is empty or degenerate.
+ * @example
+ * const box = patternBbox(pattern)
  */
 export function patternBbox(pattern: FlatPattern): Result<Bbox> {
   const edges = getEdges(pattern.outline);

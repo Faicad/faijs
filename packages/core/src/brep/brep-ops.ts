@@ -1058,7 +1058,7 @@ export async function loadBrepAssembly(
  *
  * 分派规则（静态，无运行时回退）：XCAF（`STEPCAFControl_Reader`）是 occt 内核的
  * 装配读取器，brepkit 没有；调用方按当前引擎 id 选择本函数还是 XCAF 版本
- * （`cad.load` 见 `packages/faijs-extra/src/ops/load.ts`），不靠 try-catch 探测。
+ * （`cad.load` 见 `packages/core/src/extra/ops/load.ts`），不靠 try-catch 探测。
  *
  * 句柄归属：返回的每个 `part.solid` 即内核枚举出的实体本身（生命周期交给调用方，
  * `fromBrep` 绑定后归 brepChain）。顶层包装句柄在本函数内释放——但**若顶层句柄

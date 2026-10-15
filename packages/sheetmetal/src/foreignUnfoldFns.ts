@@ -72,6 +72,8 @@ function sampleFace(face: Face, n: number): Sample[] {
  *
  * @param face - the B-rep face to fit.
  * @returns the fitted cylinder, or null if the face is not cylindrical.
+ * @example
+ * const cyl = fitCylinder(face)
  */
 export function fitCylinder(face: Face): FittedCylinder | null {
   const surf = getSurfaceType(face);
@@ -302,6 +304,8 @@ interface DetectedBend {
  * @param solid - the foreign solid to unfold.
  * @param opts - optional k-factor override.
  * @returns the unfold result, or an error.
+ * @example
+ * const flat = unfoldForeignSolid(solid, { kFactor: 0.44 })
  */
 export function unfoldForeignSolid(
   solid: Solid,

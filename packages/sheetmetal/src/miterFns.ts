@@ -19,6 +19,8 @@ export interface MiterPlane {
  * @param part - the sheet metal part to cut.
  * @param plane - the miter plane definition.
  * @returns the updated part with the miter cut applied, or an error.
+ * @example
+ * const cut = await miterCut(part, { origin: [0, 0, 0], normal: [1, 0, 0] })
  */
 export async function miterCut(part: SheetMetalPart, plane: MiterPlane): Promise<Result<SheetMetalPart>> {
   const solid = part.solid;
@@ -48,6 +50,8 @@ export async function miterCut(part: SheetMetalPart, plane: MiterPlane): Promise
  * @param flangeIdB - the second flange ID.
  * @param gap - the gap between flanges (default 0).
  * @returns the updated part with the miter corner applied, or an error.
+ * @example
+ * const mitered = await autoMiterCorner(part, 'f1', 'f2')
  */
 export async function autoMiterCorner(
   part: SheetMetalPart,

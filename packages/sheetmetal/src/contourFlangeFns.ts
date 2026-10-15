@@ -41,6 +41,8 @@ export interface SegmentFrame {
  * @param spec the contour-flange specification: profile segments, side, offset, width and optional bend rule
  * @returns a `Result<SheetMetalPart>` — `ok` with the part plus the fused solid and the recorded
  * {@link ContourFlangeFeature}, or `err` with a `validationError` on invalid input
+ * @example
+ * const cf = await authorContourFlange(part, { id: 'cf1', side: 'xmax', profile: [{ kind: 'arc', radius: 2, angleDeg: 90, direction: 'up' }] })
  */
 export async function authorContourFlange(
   part: SheetMetalPart,

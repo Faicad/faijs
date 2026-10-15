@@ -135,7 +135,16 @@ const cliPortsLibLoader: LibLoader = {
     if (pkgJsonPath === undefined) return undefined
     try {
       const pkgDir = dirname(pkgJsonPath)
-      for (const p of [join(pkgDir, 'src', 'index.ts'), join(pkgDir, 'dist', 'index.js'), join(pkgDir, 'src', 'index.js')]) {
+      // Probe order is part of the scan contract: the runtime determinism gate
+      // scans library source with `strict: true`, which throws on TS syntax
+      // ("libraries must ship compiled JS"). Handing it `src/index.ts` while a
+      // compiled artifact exists therefore failed every repo whose package dir
+      // contains the TS sources — the normal case for a workspace package or a
+      // `file:` self-link (the package dir IS the repo root). Ship-first means
+      // the scanner sees the artifact that actually runs; a TS-only library
+      // (no dist, no JS) still falls through to `src/index.ts` and still trips
+      // the strict throw, which is the contract's intent.
+      for (const p of [join(pkgDir, 'dist', 'index.js'), join(pkgDir, 'src', 'index.js'), join(pkgDir, 'src', 'index.ts')]) {
         if (existsSync(p)) return readFileSync(p, 'utf-8')
       }
       return undefined
@@ -209,7 +218,14 @@ export interface CliRunOptions {
   fontsDir?: string
   /** Default font path used by the node ports. */
   defaultFontPath?: string
-  /** Host-injected library namespace (includes cad — the CLI entry faijs-cli.ts passes createApiNamespace; core does not assemble it by default). */
+  /**
+   * Host-injected library namespaces, forwarded to `createRuntime`.
+   *
+   * `cad` is engine-built-in and RESERVED: `createRuntime` registers it (the
+   * full platform ∪ sketch ∪ editor surface) as the default namespace and
+   * rejects `libs.cad` with `E_CAD_RESERVED`. Hosts register only third-party
+   * libraries here, under any other name.
+   */
   libs?: Record<string, LibNamespace>
   /**
    * 项目根（多文件 §4.5）：相对 import 的解析基准，moduleKey = 相对它的路径。
@@ -268,7 +284,7 @@ export interface CliViewOptions {
   fontsDir?: string
   /** Default font path used by the node ports. */
   defaultFontPath?: string
-  /** Host-injected library namespace (includes cad). */
+  /** Host-injected library namespaces (third-party libs only — `cad` is engine-built-in and reserved). */
   libs?: Record<string, LibNamespace>
   /** Project root for relative .fai.js imports. */
   projectRoot?: string
@@ -993,7 +1009,7 @@ export function parseArgs(argv: string[]): {
  * CLI main entry point (called by scripts/faijs-cli.ts).
  *
  * @param argv - the raw process argument list
- * @param libs - host-injected library namespace (includes cad — faijs-cli.ts passes createApiNamespace; core does not assemble it by default)
+ * @param libs - host-injected library namespaces, forwarded to `cliRun`; `cad` is engine-built-in and reserved, so callers pass third-party libraries only
  * @returns the process exit code (0 on success, non-zero on failure)
  */
 export async function cliMain(argv: string[], libs?: Record<string, LibNamespace>): Promise<number> {

@@ -23,8 +23,8 @@ export interface FaiZipViewerWasmOptions {
  * Options for the `cad.sketch` constraint solver that real FreeCAD-converted
  * `.fai.zip` models require.
  *
- * The sketch op folds `@faicad/faijs-sketch` into the `cad` namespace and needs
- * the planegcs constraint solver. In a Node runner the solver auto-loads its
+ * The sketch op is built into core (`cad.sketch`, folded in by the 2026-10-13
+ * merge) and needs the planegcs constraint solver. In a Node runner the solver auto-loads its
  * wasm from the installed `@salusoft89/planegcs` package; a browser host must
  * self-host the `planegcs.wasm` binary and supply its URL here. When running in
  * a browser without `planegcsUrl`, sketch-based models fail with
@@ -43,8 +43,8 @@ export interface SketchSolverOptions {
  * `import * as gears from "@faicad/faijs-gears"` triggers a lazy
  * `libLoader.loadLib(packageName)` at execute time, and only for the libraries
  * that model actually imports. This option configures the loader the viewer
- * builds for that purpose — preset libraries (core, sketch, faijs-extra, merged
- * into the default `cad` namespace) never go through it.
+ * builds for that purpose — preset libraries (core; its `cad` namespace already
+ * carries the former sketch + faijs-extra ops) never go through it.
  *
  * Loader dispatch follows the environment: a browser host dynamic-imports from
  * the CDN (jsDelivr), a Node host resolves installed packages. Loading or

@@ -44,6 +44,8 @@ export const MATERIALS: Readonly<Record<string, MaterialSpec>> = {
  * Look up a material by its name.
  * @param name - The material name to look up.
  * @returns The matching material spec, or undefined if not found.
+ * @example
+ * const steel20 = getMaterial('steel-20ga')
  */
 export function getMaterial(name: string): MaterialSpec | undefined {
   return MATERIALS[name];

@@ -5,7 +5,7 @@
  *   npx tsx scripts/faijs-cli.ts run <file.fai.js> --out <output.stl|step> [--mode auto|brep|mesh]
  */
 import { cliMain } from '../src/node-host/cli.ts'
-import { createApiNamespace } from '../src/api/api-namespace.ts'
 
-// cad 命名空间由 CLI 入口注入（L3 api/ 层）。
-cliMain(process.argv, { cad: createApiNamespace() }).then((code) => process.exit(code))
+// 不注入任何 libs：`cad` 是引擎内置的保留命名空间，createRuntime 已装配
+// （传 `libs.cad` 会抛 E_CAD_RESERVED）。
+cliMain(process.argv).then((code) => process.exit(code))

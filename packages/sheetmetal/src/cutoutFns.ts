@@ -27,6 +27,8 @@ type Pt2 = [number, number];
  * @param part - the sheet metal part to cut.
  * @param spec - the cutout specification (kind, region, geometry).
  * @returns the updated part with the cutout feature recorded, or an error.
+ * @example
+ * const cut = await addCutout(part, { kind: 'hole', region: 'base', x: 20, y: 20, diameter: 6 })
  */
 export async function addCutout(part: SheetMetalPart, spec: CutoutSpec): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
@@ -95,6 +97,8 @@ export async function addCutout(part: SheetMetalPart, spec: CutoutSpec): Promise
  * @param y - the region-local y coordinate of the hole centre.
  * @param diameter - the hole diameter.
  * @returns the updated part with the hole feature recorded, or an error.
+ * @example
+ * const holed = await addHole(part, 'base', 20, 20, 6)
  */
 export async function addHole(
   part: SheetMetalPart,
@@ -112,6 +116,8 @@ export async function addHole(
  * @param region - the region name to cut into.
  * @param opts - slot geometry (x, y, length, width, angleDeg?, round?).
  * @returns the updated part with the slot feature recorded, or an error.
+ * @example
+ * const slotted = await addSlot(part, 'base', { x: 20, y: 20, length: 10, width: 4 })
  */
 export async function addSlot(
   part: SheetMetalPart,
@@ -127,6 +133,8 @@ export async function addSlot(
  * @param region - the region name to cut into.
  * @param points - the polygon vertices in region-local coordinates (≥ 3).
  * @returns the updated part with the polygon cutout feature recorded, or an error.
+ * @example
+ * const cut = await addPolygonCutout(part, 'base', [[0, 0], [10, 0], [10, 10]])
  */
 export async function addPolygonCutout(
   part: SheetMetalPart,

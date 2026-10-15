@@ -357,10 +357,14 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
       asHandle(k.makeCircleEdge(center, normal, radius)),
     makeCircleArc: (center, normal, radius, startAngle, endAngle) =>
       asHandle(k.makeCircleArc(center, normal, radius, startAngle, endAngle)),
-    // 螺旋线：L1 只暴露右手。左手由调用方镜像实现（fasteners WarehouseKernel 同口径），
-    // occt 的 makeHelixWireHanded 留在平台面 getOcctKernel()。
-    makeHelixWire: (origin, axis, pitch, height, radius) =>
-      asHandle(k.makeHelixWire(origin, axis, pitch, height, radius)),
+    // 螺旋线：右手走原生 makeHelixWire（保持既有几何路径不变）；左手走带手性入口
+    // makeHelixWireHanded(..., true) —— occt-wasm d.ts 明示后者才是 "Prefer this for
+    // new code" 的入口。两侧都在本契约实现层直调，故 cad.helix 无需 import 平台模块、
+    // 也不必声明 engines:['occt']（右手在 brepkit 上同样可用）。
+    makeHelixWire: (origin, axis, pitch, height, radius, leftHanded) =>
+      leftHanded
+        ? asHandle(k.makeHelixWireHanded(origin, axis, pitch, height, radius, true))
+        : asHandle(k.makeHelixWire(origin, axis, pitch, height, radius)),
     // 逼近容差：occt 原生 tolerance 可选，缺省由内核定；这里显式给 1e-2
     // （与 faijs-fasteners / cq 的 spline_approx_tol 同口径），不依赖内核默认。
     approximatePoints: (points, tolerance) =>

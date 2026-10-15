@@ -62,7 +62,8 @@ import { computeContentKey, stableFingerprint } from './content-key'
 import { SCRIPT_UNIT_CONSTANTS } from '../units'
 export { computeContentKey } from './content-key'
 export { stableFingerprint } from './content-key'
-import { isCompoundLike, getSlot, ensureSlot, type CompoundShape } from '../shape'
+import { isCompoundLike, brepOf, getSlot, ensureSlot, type CompoundShape } from '../shape'
+import type { AssemblyBehavior, AssemblyDecl } from '../extra/ops/compound'
 import type { PartNaming } from '../topology/naming/types'
 import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-naming'
 import { faceRowToHint } from '../topology/naming/geom-hint'
@@ -167,6 +168,16 @@ export interface ExecutionResult {
    * key 为 compound 变量名（PartName），value 为成员变量名列表。
    */
   compounds?: Map<PartName, PartName[]>
+  /**
+   * F3（2026-10-15）：`cad.assembly` 声明面 — 脚本里每个 assembly 语句的声明
+   * （name / memberNames / constraints / joints / solver + compound 引用）。
+   *
+   * 此前的缺口：约束/关节声明只存在 compound 的 behavior 槽，而 `getSlot` 未公开
+   * 导出 → 宿主持不到声明。本字段把声明面提到结果一级，宿主据此做**纯求解**
+   * （禁烘焙：不调 asm.solve()/do_assemble()，位姿只以 transform 数据在宿主侧
+   * 流动）。`group` 产物（无约束/关节）不进本字段；无 assembly 语句时为 undefined。
+   */
+  assemblies?: AssemblyDecl[]
   /** 被 touch 声明的原地修改 Shape 的持有变量名（装配变换后 collectResult 填充，去重） */
   changed?: PartName[]
   /**
@@ -1170,14 +1181,27 @@ export class CadRuntime {
     const outputs = new Map<PartName, Shape | CompoundShape>()
     const shapeVarNames = new Set<PartName>()
     const compounds = new Map<PartName, PartName[]>()
+    // F3：cad.assembly 声明面（behavior.kind === 'assembly' 的 compound）
+    const assemblies: AssemblyDecl[] = []
     for (const name of de.listCtxKeys()) {
       const v = de.getCtxVar(name)
       if (!isShapeLike(v) && !isCompoundLike(v)) continue
       outputs.set(asPartName(name), v as Shape | CompoundShape)
       shapeVarNames.add(asPartName(name))
       if (isCompoundLike(v)) {
-        const behavior = getSlot(v)?.behavior as { memberNames?: string[] } | undefined
+        const behavior = getSlot(v)?.behavior as AssemblyBehavior | undefined
         compounds.set(asPartName(name), (behavior?.memberNames ?? []).map(asPartName))
+        // F3：只收 assembly 声明（group 无约束/关节，进声明面会让消费方对空约束集求解）
+        if (behavior?.kind === 'assembly') {
+          assemblies.push({
+            ...(behavior.name !== undefined ? { name: behavior.name } : {}),
+            memberNames: behavior.memberNames,
+            constraints: behavior.constraints,
+            joints: behavior.joints ?? [],
+            ...(behavior.solver !== undefined ? { solver: behavior.solver } : {}),
+            compound: v as CompoundShape,
+          })
+        }
       }
     }
     // statementCache 同步（E8 getCachedOutput）：direct 无语句 key——用行级身份键填
@@ -1291,6 +1315,7 @@ export class CadRuntime {
       topology: topology.size > 0 ? topology : undefined,
       naming: naming.size > 0 ? naming : undefined,
       compounds: compounds.size > 0 ? compounds : undefined,
+      assemblies: assemblies.length > 0 ? assemblies : undefined,
       kinematics: de.kinematicsSnapshot.size > 0 ? de.kinematicsSnapshot : undefined,
       detectedUnits: de.detectedUnitsSnapshot.size > 0 ? de.detectedUnitsSnapshot : undefined,
       multiPartCounts: de.multiPartCountSnapshot.size > 0 ? de.multiPartCountSnapshot : undefined,
@@ -1464,6 +1489,25 @@ export class CadRuntime {
       let ordinalToHash: readonly number[] | undefined
       if (solid !== undefined && this.kernel) {
         ordinalToHash = Array.from(this.kernel.subShapeHashes(solid, 'face', HASH_UPPER_BOUND))
+      } else if (this.kernel) {
+        // compound 终端（多零件 load / 装配）：无单一 solidCache 键——按 children
+        // 声明序逐成员 subShapeHashes 拼接（与 buildCompoundTopologyRuntime 的合并
+        // 面序同源：buildAssemblySelectorManifest 按 parts 数组序拼 face 行，序号
+        // 对齐合并拓扑的 ordinal）。任一成员无 BREP solid → 放弃（保持 undefined，
+        // 面/边行 role 显式 null，不伪造）。
+        const v = this.directExecutor.getCtxVar(partName)
+        if (isCompoundLike(v)) {
+          const merged: number[] = []
+          for (const child of (v as CompoundShape).children ?? []) {
+            const cs = brepOf(child) as BrepHandle | undefined
+            if (cs === undefined) {
+              merged.length = 0
+              break
+            }
+            merged.push(...Array.from(this.kernel.subShapeHashes(cs, 'face', HASH_UPPER_BOUND)))
+          }
+          if (merged.length > 0) ordinalToHash = merged
+        }
       }
       return {
         source: 'brep',

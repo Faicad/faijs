@@ -13,9 +13,11 @@
  *   - at least one @example
  *
  * Scope (mirrors gen-skill-docs.ts data sources):
- *   1. core cad.* ops (defineOp call sites in packages/core/src/api/*.ts)
- *   2. cad.sketch (packages/sketch/src/op.ts)
- *   3. editor ops (packages/faijs-extra/src)
+ *   1. core cad.* ops (defineOp call sites in packages/core/src/api/*.ts and
+ *      packages/core/src/extra/ops/*.ts — the editor ops merged into core on
+ *      2026-10-13)
+ *   2. cad.sketch (packages/core/src/sketch/op.ts)
+ *   3. editor ops (packages/core/src/extra)
  *   4. Shape instance methods (ShapeAppearanceMethods / ShapeMetaMethods)
  *   5. domain library exports (sheetmetal / gears / fasteners index.ts)
  *
@@ -34,7 +36,7 @@ import {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const coreSrcDir = join(root, 'packages/core/src')
-const extraSrcDir = join(root, 'packages/faijs-extra/src')
+const extraSrcDir = join(root, 'packages/core/src/extra')
 
 interface Violation {
   api: string
@@ -142,7 +144,10 @@ const violations: Violation[] = []
 
 // 1. core cad.* ops — locate defineOp sites for precise file:line.
 {
-  const apiDir = join(coreSrcDir, 'api')
+  // 2026-10-13 merge: the editor ops moved from `packages/faijs-extra/src/ops`
+  // into `packages/core/src/extra/ops`; walk both roots so their JSDoc stays
+  // gated (before the merge these files were the `faijs-extra` scan root).
+  const apiDirs = [join(coreSrcDir, 'api'), join(extraSrcDir, 'ops')]
   const files: string[] = []
   const walk = (dir: string) => {
     if (!existsSync(dir)) return
@@ -152,7 +157,7 @@ const violations: Violation[] = []
       else if (ent.name.endsWith('.ts') && !ent.name.endsWith('.test.ts') && !ent.name.endsWith('.d.ts')) files.push(p)
     }
   }
-  walk(apiDir)
+  for (const dir of apiDirs) walk(dir)
 
   // Generated projection files (gen-l3-surface.ts output) are machine-written:
   // their doc completeness is owned by the arg-spec source, not this gate.
@@ -224,7 +229,7 @@ const violations: Violation[] = []
 
 // 2 + 3. sketch / editor ops — reuse extracted docs; find source location via op.ts scan.
 for (const [label, doc, file] of [
-  ['cad.sketch', data.sketchDoc, join(root, 'packages/sketch/src/op.ts')],
+  ['cad.sketch', data.sketchDoc, join(root, 'packages/core/src/sketch/op.ts')],
 ] as const) {
   if (!doc) continue
   const { sf, text } = parse(file)

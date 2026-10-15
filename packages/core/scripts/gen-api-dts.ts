@@ -49,9 +49,12 @@ interface ApiEntry {
  * ⚠️ 措辞于 2026-09-22 校正（D8）：它们**不是废弃项**。
  *
  * D1（2026-09-23 扩展库拆分，选项 C）：transform 家族留 core（`translate` 是通用
- * 几何变换，且是小程序端唯一在用的 transform op）。其余编辑器 op（`fai_*` /
- * `group` / `assembly` / `copy` / `load`）与 svg/文字创建 op（`text` /
- * `svgExtrude`）已迁到 `@faicad/faijs-extra`，不在本目录（core 的 cad 面）内。
+ * 几何变换，且是小程序端唯一在用的 transform op）。
+ *
+ * 2026-10-13 merge：编辑器 op（`fai_*` / `group` / `assembly` / `copy` / `load`）与
+ * svg/文字创建 op（`text` / `svgExtrude`）已并入 core（`src/extra/ops/**`），
+ * 成为内置 `cad` 面的一部分；但它们不在本脚本的扫描目录（`src/api/**`）内，
+ * 故仍不出现在本文件生成的 CadAPI 里。
  */
 const EDITOR_OWNED_DEPRECATED =
   '**`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。'
@@ -286,7 +289,8 @@ function generate(): string {
   lines.push(` * The \`cad\` object's runtime API surface: every callable available to a`)
   lines.push(` * \`.fai.js\` model on the faijs platform surface, grouped by category (creation,`)
   lines.push(` * transform, boolean, extrude, engrave, chamfer, structure, geometry queries,`)
-  lines.push(` * assets). Editor-owned ops live in @faicad/faijs-extra and are not listed here.`)
+  lines.push(` * assets). Editor ops (fai_* / group / assembly / copy / load / text / svgExtrude)
+ * ship inside core as well but are not listed in this generated platform-api view.`)
   lines.push(` */`)
   lines.push(`export interface CadAPI {`)
 

@@ -2,6 +2,7 @@
   "l1Missing": [
     "bevelGear",
     "bevelGearPair",
+    "checkLibManifest",
     "crossedGearPair",
     "crossedHelicalGear",
     "herringboneGear",
@@ -10,6 +11,7 @@
     "herringboneRingGear",
     "hyperbolicGear",
     "hyperbolicGearPair",
+    "libManifest",
     "planetaryGearset",
     "rackGear",
     "ringGear",

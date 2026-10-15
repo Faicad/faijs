@@ -58,6 +58,7 @@ import {
   type ParamRow,
   type ScrewClassName,
 } from './params'
+export type { ScrewClassName } from './params'
 import { defaultHeadRecess, recessCutter, type RecessSpec } from './recess'
 import { isoThread, isoThreadDimensions, type Hand } from './thread'
 import { decodeImperialSize, polygonDiagonal } from './nut'

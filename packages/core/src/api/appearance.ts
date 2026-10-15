@@ -90,23 +90,64 @@ export type MaterialSpec = Omit<PbrAppearance, 'color' | 'opacity'>
 
 /** Shape 外观方法签名（运行时由 attachAppearanceMethods 挂载；纯数据判定不受影响）。 */
 export interface ShapeAppearanceMethods {
-  /** 合并外观：`{...cur, ...spec}`，spec 中 undefined 字段保留旧值。 */
+  /**
+   * 合并外观：`{...cur, ...spec}`，spec 中 undefined 字段保留旧值。
+   * @param spec - 待合并的外观字段（color / opacity / roughness / metalness / …）。
+   * @returns this（可链式调用）。
+   * @example
+   * part0.setAppearance({ roughness: 0.4, metalness: 0.8 })
+   */
   setAppearance(spec: PbrAppearance): this
-  /** 便捷：等价 setAppearance({ color })；#rrggbbaa / [r,g,b,a] 的 alpha 归一为 opacity。 */
+  /**
+   * 便捷：等价 setAppearance({ color })；#rrggbbaa / [r,g,b,a] 的 alpha 归一为 opacity。
+   * @param color - `#rgb` / `#rrggbb` / `#rrggbbaa` 十六进制串，或 `[r,g,b]` / `[r,g,b,a]`（0–1）。
+   * @returns this（可链式调用）。
+   * @example
+   * part0.setColor('#2e8b57')
+   */
   setColor(color: PbrColor): this
-  /** 便捷：等价 setAppearance(spec)。 */
+  /**
+   * 便捷：等价 setAppearance(spec)。
+   * @param spec - 材质参数（不含 color / opacity）。
+   * @returns this（可链式调用）。
+   * @example
+   * part0.setMaterial({ metalness: 0.9, roughness: 0.2 })
+   */
   setMaterial(spec: MaterialSpec): this
-  /** 便捷：透明度权威字段（0–1）。 */
+  /**
+   * 便捷：透明度权威字段（0–1）。
+   * @param opacity - 0（全透明）–1（不透明）。
+   * @returns this（可链式调用）。
+   * @example
+   * part0.setOpacity(0.5)
+   */
   setOpacity(opacity: number): this
-  /** 读取当前外观（可能 undefined）。 */
+  /**
+   * 读取当前外观（可能 undefined）。
+   * @returns 当前外观的只读快照；从未设置过时为 `undefined`。
+   * @example
+   * const appearance = part0.getAppearance()
+   */
   getAppearance(): Readonly<PbrAppearance> | undefined
   /**
    * 面级设色：把 faceIds 指定的面（面序号契约见 `Shape.faceRanges`，参数化
    * primitives 才有）写入 `materialGroups`。无面结构（布尔/组合/导入产物）抛
    * `E_FACE_UNAVAILABLE`；面序号越界抛 `E_FACE_INDEX`。
+   * @param faces - 面序号数组（0 起，契约见 `Shape.faceRanges`）。
+   * @param color - 同 setColor 的颜色入参。
+   * @returns this（可链式调用）。
+   * @example
+   * box(20, 20, 20).setFaceColor([0], '#c0392b')
    */
   setFaceColor(faces: number[], color: PbrColor): this
-  /** 面级材质：等价 setFaceColor 的 material 版本。 */
+  /**
+   * 面级材质：等价 setFaceColor 的 material 版本。
+   * @param faces - 面序号数组（0 起，契约见 `Shape.faceRanges`）。
+   * @param spec - 材质参数（不含 color / opacity）。
+   * @returns this（可链式调用）。
+   * @example
+   * box(20, 20, 20).setFaceMaterial([0], { roughness: 0.1 })
+   */
   setFaceMaterial(faces: number[], spec: MaterialSpec): this
 }
 

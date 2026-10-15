@@ -55,6 +55,9 @@ export const bendTables: { readonly byId: Map<string, BendTable> } = {
  * @param table - the bend table to register.
  * @returns a {@link Result} carrying the stored (copied) table on success, or a
  *   validation error when the id, kind, or any row is invalid.
+ * @example
+ * const t = { id: 'shop-a', kind: 'allowance', rows: [{ thickness: 1.2, radius: 1.2, angleDeg: 90, value: 2.6 }] }
+ * const stored = registerBendTable(t)
  */
 export function registerBendTable(table: BendTable): Result<BendTable> {
   if (typeof table.id !== 'string' || table.id.length === 0) {
@@ -95,6 +98,8 @@ export function registerBendTable(table: BendTable): Result<BendTable> {
  * @param id - the bend table id to look up.
  * @returns the registered {@link BendTable}, or `undefined` when no table is
  *   registered under `id`.
+ * @example
+ * const table = getBendTable('steel-airbend')
  */
 export function getBendTable(id: string): BendTable | undefined {
   ensureStarterTables();
@@ -272,6 +277,8 @@ function allowanceFromDeduction(deduction: number, radius: number, thickness: nu
  *   when a table lookup clamped to the nearest breakpoint outside the tabulated range.
  * @returns a {@link Result} carrying the resolved bend allowance on success, or a
  *   validation error for an unknown table / non-positive input / failed lookup.
+ * @example
+ * const ba = resolveBendAllowance({ innerRadius: 1.2, kFactor: 0.44 }, 90, 1.2)
  */
 export function resolveBendAllowance(
   rule: BendRule,

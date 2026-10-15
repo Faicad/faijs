@@ -20,6 +20,8 @@ const OVERLAP_TOL = 1e-6;
  *
  * @param part - the sheet metal part to validate.
  * @returns the list of warnings (empty if valid).
+ * @example
+ * const warnings = validatePart(part)
  */
 export function validatePart(part: SheetMetalPart): SheetMetalWarning[] {
   const warnings: SheetMetalWarning[] = [];

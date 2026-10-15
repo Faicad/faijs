@@ -10,6 +10,10 @@
  *
  * 实现走 core 直连 occt `loft` / `loftWithVertices`（`BRepOffsetAPI_ThruSections`），
  * 产物经 `fromBrep` 收养。
+ *
+ * @platform occt — 本文件 import `occt-kernel/occtKernel`（`getOcctKernel()` 的
+ * `loft` / `loftWithVertices` 平台面）；op 已声明 `engines: ['occt']`，非 occt 引擎
+ * 执行前拒绝。文件级标注让守卫①（平台 import 自证身份）识别本文件。
  */
 
 import type { Shape } from '../mesh/types'

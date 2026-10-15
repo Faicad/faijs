@@ -7,9 +7,10 @@
  * 1. wire 可达 + kind='curve'（1D 产物，无三角载荷）；
  * 2. wire 的 kind 不随 mode 漂移（brep=curve / mesh=curve）——§7.1 建议 1 附带子项②；
  * 3. 1D 产物喂给 extrude（面 op）→ 执行前报错（不许运行时报错）；
- * 4. helix 可达（occt 原生 makeHelixWire）+ kind='curve'；
- * 4b. helix handed：'left' 走 makeHelixWireHanded(..., true)，与右旋互为镜像；非法值报 E_HELIX_BAD_HANDED；
- * 5. helix 平台身份：brepkit 下执行前报 E_BREP_UNSUPPORTED（D11-4）；
+ * 4. helix 可达 + kind='curve'；
+ * 4b. helix handed：手性是 L1 makeHelixWire(..., leftHanded) 形参 —— occt 侧 'left' 走
+ *     原生 makeHelixWireHanded(..., true)，与右旋互为镜像；非法值报 E_HELIX_BAD_HANDED；
+ * 5. helix 中立性：brepkit 右手可建；左手由 brepkit 适配器**显式失败**（无镜像兜底）；
  * 6. helix 在 brep_mock 下不被引擎判定拦截（D11-3 豁免）；
  * 7. sketch as:'wire' 交出 1D 曲线形态。
  *
@@ -146,7 +147,7 @@ describe('Phase 3 验收：1D 产物喂给面 op 必须执行前报错', () => {
   })
 })
 
-describe('helix — 螺旋线（平台 op engines:["occt"]）', () => {
+describe('helix — 螺旋线（中立 op：手性是 L1 形参，平台差异由适配器消化）', () => {
   it('occt 引擎：可达，产出 kind="curve"', async () => {
     await useOcct()
     const s = await shapeOf('brep', HELIX_CODE, 'part0')
@@ -222,13 +223,18 @@ describe('helix — 螺旋线（平台 op engines:["occt"]）', () => {
     expect(bb.zmax - bb.zmin).toBeCloseTo(6, 2)
   })
 
-  it('brepkit 引擎：左手 handed 仍报 occt 平台缺失（不静默换算法）', async () => {
-    // 左手走 occt 平台原语 makeHelixWireHanded；brepkit 下该分支必须显式失败，
-    // 不做镜像兜底（静默换算法比报错更危险）。
+  it('brepkit 引擎：左手 handed 由适配器显式失败（不镜像兜底）', async () => {
+    // 左手经 L1 形参 makeHelixWire(..., leftHanded=true) 送达 brepkit 适配器。
+    // brepkit 无带手性螺旋原语 → 适配器**显式失败**，不镜像兜底
+    // （同 pitch/height/radius 下左右旋互为镜像；静默换算法比报错更危险）。
+    // 两值并钉：当前值 = 适配器显式拒绝（本断言）；应有值 = 若日后 brepkit 补上带手性
+    // 原语（或契约决定以采样拟合补镜像），需翻转本断言并把偏差 band 钉进
+    // test/brep/engine/spline-primitive-l1-parity.test.ts 的「偏差钉 2」。
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
     const result = await exec('brep', LEFT_HELIX_CODE)
     expect(result.failedAt).toBeDefined()
+    expect(JSON.stringify(result.failedAt)).toMatch(/left-handed helix requires the occt engine/)
   })
 
   it('brep_mock 引擎：不被平台身份判定拦截（D11-3 豁免）', async () => {

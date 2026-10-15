@@ -68,7 +68,7 @@ node scripts/check-op-dims.mjs
 
 # API 测试覆盖门禁：每个可发布包的导出 API 必须被本包测试引用（L1），
 # 且每个参数必须在调用点被覆盖（L2）。基于源码 AST，不依赖 build。
-for pkg in core faijs-extra sheetmetal sketch draw faijs-gears faijs-fasteners faijs-viewer; do
+for pkg in core sheetmetal faijs-gears faijs-fasteners faijs-viewer; do
   npx tsx scripts/check-api-test-coverage.ts --package="$pkg"
 done
 

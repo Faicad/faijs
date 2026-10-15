@@ -32,6 +32,8 @@ import {
  * @param part - the sheet metal part to attach a jog to.
  * @param spec - the jog specification.
  * @returns the updated part with the jog feature recorded, or an error.
+ * @example
+ * const jogged = await jog(part, { region: 'base', side: 'xmax', position: 20, offsetHeight: 3 })
  */
 export async function jog(part: SheetMetalPart, spec: JogSpec): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {

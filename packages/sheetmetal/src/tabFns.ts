@@ -23,6 +23,8 @@ type Pt2 = [number, number];
  * @param part - the sheet metal part to attach a tab to.
  * @param spec - the tab specification.
  * @returns the updated part with the tab feature recorded, or an error.
+ * @example
+ * const tabbed = await addTab(part, { region: 'base', side: 'xmax', offset: 0, width: 10, length: 5 })
  */
 export async function addTab(part: SheetMetalPart, spec: TabSpec): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
@@ -109,6 +111,8 @@ export interface SlotPlacement {
  * @param tab - the tab specification.
  * @param slot - the slot placement.
  * @returns the updated part with the tab-and-slot feature recorded, or an error.
+ * @example
+ * const joint = await tabAndSlot(part, { region: 'base', side: 'xmax', offset: 0, width: 10, length: 5 }, { region: 'f1', x: 20, y: 20 })
  */
 export async function tabAndSlot(
   part: SheetMetalPart,

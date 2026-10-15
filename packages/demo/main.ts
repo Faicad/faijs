@@ -15,9 +15,11 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult, LibLoader, LibNamespace } from '@faicad/faijs/browser'
-// D1（2026-09-23）：编辑器扩展库（fai_* / group / assembly / copy / load / text /
-// svgExtrude）已从 @faicad/faijs 迁出，宿主负责把它合并进 `cad` 命名空间。
-import { createEditorCadNamespace, installEditorMeshProviders, registerEditorSymbols } from '@faicad/faijs-extra'
+// 2026-10-13 merge：编辑器扩展库（fai_* / group / assembly / copy / load / text /
+// svgExtrude）与 sketch 已并入 core，由 `createRuntime` 在**单点**装配进内置的
+// `cad` 命名空间。宿主不再有 `createEditorCadNamespace` / `registerEditorSymbols`
+// / `installEditorMeshProviders` 这类装配入口（core 的 assembly-single-point
+// 守卫禁止它们重新出现），`cad` 也是保留绑定名，宿主不得覆盖注册。
 // 项目加载器（folder 通道）：自 core 迁入 demo 应用层（§1，P1 搬家）
 import { createFolderProjectLoader } from './src/project/folder-loader'
 import { createZipProjectLoader } from './src/project/zip-loader'
@@ -488,25 +490,15 @@ function extractShapes(result: ExecutionResult): ShapeSummary[] {
   return shapes
 }
 
-/**
- * 把宿主 `cad` 命名空间装配为「平台面 ∪ 编辑器扩展面」（D1）。
- * `createRuntime` 已注册平台面，这里以同一 binding 重新注册合并后的完整面。
- * @param rt - the demo runtime to extend.
- */
-function installEditorCad(rt: ReturnType<typeof createRuntime>): void {
-  rt.registerLib('cad', createEditorCadNamespace(), { default: true, packageName: '@faicad/faijs' })
-  registerEditorSymbols()
-  installEditorMeshProviders()
-}
-
 async function runMode(
   view: Viewer3D,
   code: string,
   ports: HostPorts,
   entryKey?: string,
 ): Promise<string> {
+  // createRuntime 是唯一的 cad 装配点：平台面 ∪ 编辑器扩展面（fai_* / group /
+  // assembly / copy / load / text / svgExtrude）∪ sketch 全部内置，宿主不再二次注册。
   const runtime = createRuntime(ports, view.mode)
-  installEditorCad(runtime)
   const result = await runtime.execute(code, entryKey ? { entryKey } : undefined)
 
   if (result.failedAt) {

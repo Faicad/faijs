@@ -120,8 +120,10 @@ describe('C5 默认消费（无 keep、无声明）', () => {
   it('无任何保留声明 → 上游被消费，只剩末位终端', async () => {
     const absorb = defineOp({ naming: NAMING, mesh: (_s) => cubeMesh(1) })
     const box = defineOp({ naming: NAMING, mesh: (_p: Record<string, unknown>) => cubeMesh(20) })
-    const rt = coreCreateRuntime(createNodePorts(), 'auto', { cad: lib({ box, absorb }) })
-    const result: ExecutionResult = await rt.execute('let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.absorb(part0)')
+    // 2026-10-13 装配单点化后 `cad` 是唯一保留绑定名，宿主不得注册或覆盖；
+    // 自定义库须用非保留名（此处 `demo`）。脚本内以 `demo.box` / `demo.absorb` 引用。
+    const rt = coreCreateRuntime(createNodePorts(), 'auto', { demo: lib({ box, absorb }) })
+    const result: ExecutionResult = await rt.execute('let part0 = demo.box(20, 20, 20, { centered: true })\nlet part1 = demo.absorb(part0)')
     try {
       const terms = result.terminals.map((t) => String(t.id))
       expect(terms).toEqual(['part1'])

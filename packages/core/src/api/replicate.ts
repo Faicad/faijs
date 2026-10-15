@@ -2,11 +2,10 @@
  * replicate — handwritten overrides for the copy-family ops (keep semantics +
  * replica[k] role tables).
  *
- * @platform occt — 本文件 import occt-kernel（mirrorJoin 走 `mirrorWithHistory`
- * 平台面，D3）。文件级标注满足守卫①（平台 import 自证身份）；文件内的**中立 op**
- * （circularPattern/gridPattern/rectangularPattern/clone 只用 L1 核心面）不声明
- * engines，运行时不拦截——标注只约束平台 import，不改变函数级中立性
- * （与 face-evolution.ts 同口径）。
+ * 平台分层（narrowing plan Phase 5，D11）：本文件是**纯中立面**——不 import 任何平台
+ * 模块，所有 op 只看 L1 核心面（`getBrepApi()`），故无 `@platform` 标注、也不声明
+ * `engines`。面演化轨由 `hasNativeHistory` 在 mirrorBrep 内部按引擎事实静态分叉
+ * （详见文末「平台分层」段）。
  *
  * All 9 copy-like ops must NOT consume their input (same as `copy`): each brep
  * body declares `keep(input)` (function-body keep → KeepRegistry → live-shapes),

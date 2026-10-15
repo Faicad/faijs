@@ -62,6 +62,106 @@ function resolveExecBackend(choice: ExecBackendChoice): ExecBackend {
   return new VmBackend()
 }
 
+/**
+ * F1（2026-10-15）：标识符提升的**保护区间**——字符串字面量 / 模板文本 / 注释。
+ *
+ * 根因：hoistBlockText ② 与 hoistText 用文本级 `\b<name>\b` 全局替换做标识符提升，
+ * 不区分代码与字符串。for 循环体内与顶层标识符同名的字符串字面量被改写成
+ * `__ctx.<name>`（`parent: 'carrier'` → `'__ctx.carrier'`），装配侧按「父级不存在」
+ * 静默挂错父级——animation 钉子 `test/p2-child-ref.test.ts:83-105` 的上游根因。
+ *
+ * 区间来自 acorn AST（ranges 已开）：字符串 Literal 全区间、TemplateLiteral 的
+ * quasis（模板**文本**部分；`${…}` 表达式是代码，不保护）、onComment 收集的注释
+ * 区间。解析策略与 hoistBlockText 一致（module 直解 → `(function(){ … })` 回退，
+ * 放行 break/continue/return）；回退包装的前缀长度逐区间扣减，保持原文本基准。
+ * 两轮都解析失败（调用方传入的不是合法 JS 片段，如对象方法简写）时返回空数组
+ * = 无保护，维持修复前行为。
+ */
+function collectHoistProtectedRanges(text: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = []
+  const comments: Array<[number, number]> = []
+  const parseOpts = {
+    ecmaVersion: 'latest' as const,
+    sourceType: 'module' as const,
+    locations: false,
+    ranges: true,
+    onComment: (_block: boolean, _text: string, start: number, end: number): void => {
+      comments.push([start, end])
+    },
+  }
+  let ast: ASTNode
+  let shift = 0
+  try {
+    ast = acornParse(text, parseOpts) as unknown as ASTNode
+  } catch {
+    const wrapped = `(function(){ ${text} })`
+    try {
+      ast = acornParse(wrapped, parseOpts) as unknown as ASTNode
+      shift = '(function(){ '.length
+    } catch {
+      return []
+    }
+  }
+  const walk = (n: ASTNode): void => {
+    if (!n || typeof n !== 'object') return
+    if (n.type === 'Literal' && typeof n.value === 'string') {
+      ranges.push([n.start - shift, n.end - shift])
+    } else if (n.type === 'TemplateLiteral') {
+      for (const q of n.quasis ?? []) {
+        if (typeof q?.start === 'number' && typeof q?.end === 'number') {
+          ranges.push([q.start - shift, q.end - shift])
+        }
+      }
+    }
+    for (const k of Object.keys(n)) {
+      if (k === 'loc' || k === 'start' || k === 'end' || k === 'range' || k === 'parent' || k === 'type') continue
+      const v = n[k]
+      if (Array.isArray(v)) for (const item of v) walk(item)
+      else if (v && typeof v === 'object') walk(v)
+    }
+  }
+  walk(ast)
+  for (const [s, e] of comments) ranges.push([s - shift, e - shift])
+  return ranges
+}
+
+/**
+ * F1：带保护区间的顺序文本替换（标识符 / 命名空间提升专用）。
+ *
+ * `subs` 每条 { re, emit } 依次作用于 text（后者看到前者的输出，与既有顺序替换
+ * 语义一致）；匹配整体落在保护区间（字符串 / 模板文本 / 注释）内时原样保留。
+ * 保护区间按**当前** text 重算（前一条 sub 会改变偏移），text 未变时复用。
+ * 无保护区间（解析失败）时退化为普通替换——与修复前完全一致。
+ *
+ * `re` 必须带 `g` 标志；`emit(groups)` 接收捕获组（$1 起），返回替换文本。
+ */
+function replaceOutsideProtected(
+  text: string,
+  subs: ReadonlyArray<{ re: RegExp; emit: (groups: string[]) => string }>,
+): string {
+  let out = text
+  let ranges: Array<[number, number]> = []
+  let rangesFor: string | null = null
+  for (const sub of subs) {
+    if (!sub.re.global) throw new Error('replaceOutsideProtected: sub.re must carry the g flag')
+    if (rangesFor !== out) {
+      ranges = collectHoistProtectedRanges(out)
+      rangesFor = out
+    }
+    const rr = ranges
+    out = out.replace(sub.re, (...args: unknown[]) => {
+      const match = args[0] as string
+      const groups = args.slice(1, -2) as string[]
+      const offset = args[args.length - 2] as number
+      for (const [s, e] of rr) {
+        if (offset >= s && offset + match.length <= e) return match
+      }
+      return sub.emit(groups)
+    })
+  }
+  return out
+}
+
 // ── Namespaces ──
 
 /**
@@ -992,7 +1092,8 @@ export class DirectExecutor {
    * ctx 键，不会导致错误）。v2 可加 AST walk 精确跳过嵌套作用域。
    *
    * 实现策略：先收集块内所有声明名（acorn 扫描 VariableDeclarator + 函数名），
-   * 再做两步文本替换：① 声明 LHS 提升写 __ctx 赋值；② 自由引用提升走 hoistText。
+   * 再做文本替换（⓪ for-of 头 ① 声明 LHS ② 自由引用 ③ 命名空间绑定），全部经
+   * replaceOutsideProtected 跳过字符串 / 模板文本 / 注释区间（F1，2026-10-15）。
    */
   private hoistBlockText(text: string, declared: Set<string>): string {
     // 收集块内所有声明名（用于引用提升与声明改写）
@@ -1046,34 +1147,45 @@ export class DirectExecutor {
     // 从提升集合中移除命名空间名（cad 等留在 __ns）
     for (const nsName of nsNames) names.delete(nsName)
 
-    // 声明 LHS 改写 + 自由引用提升（词法级，两步替换）
-    let out = text
-    // ⓪ for-of/in 头部声明：`for (const x of/in ...)` → `for (__ctx.x of/in ...)`。
-    //   步骤①的 `\w+\s*=` 形态匹配不到 of/in 头部，若不先行改写，步骤②会把
-    //   声明名提升为 `const __ctx.x` → SyntaxError。双前缀由下方修正兜底。
-    out = out.replace(/\bfor\s*\(\s*(?:const|let)\s+(\w+)\s+(of|in)\b/g, 'for (__ctx.$1 $2 ')
-    // ① const/let x = ... → __ctx.x = ...（去关键字 + LHS 加 __ctx.）
-    out = out.replace(/\b(?:const|let)\s+(\w+)\s*=/g, '__ctx.$1 =')
-    // ② 自由引用提升（与 hoistText 同逻辑，但含块内声明名；排除命名空间名）
-    for (const name of names) {
-      out = out.replace(new RegExp(`\\b${name}\\b`, 'g'), `__ctx.${name}`)
+    // ⓪ for-of/in 头部声明 + ① 声明 LHS 改写 + ② 自由引用提升 + ③ 命名空间绑定：
+    // 统一走 replaceOutsideProtected（F1）——落在字符串 / 模板文本 / 注释区间内的
+    // 匹配原样保留。修复前循环体内 `parent: 'carrier'` 被改写成 `'__ctx.carrier'`，
+    // 装配侧静默挂错父级（animation 钉子 test/p2-child-ref.test.ts:83-105）。
+    const subs: Array<{ re: RegExp; emit: (groups: string[]) => string }> = [
+      // ⓪ for-of/in 头部声明：`for (const x of/in ...)` → `for (__ctx.x of/in ...)`。
+      //    ① 的 `\w+\s*=` 形态匹配不到 of/in 头部，若不先行改写，② 会把声明名
+      //    提升为 `const __ctx.x` → SyntaxError。双前缀由下方修正兜底。
+      {
+        re: /\bfor\s*\(\s*(?:const|let)\s+(\w+)\s+(of|in)\b/g,
+        emit: (g) => `for (__ctx.${g[0]} ${g[1]} `,
+      },
+      // ① const/let x = ... → __ctx.x = ...（去关键字 + LHS 加 __ctx.）
+      { re: /\b(?:const|let)\s+(\w+)\s*=/g, emit: (g) => `__ctx.${g[0]} =` },
+    ]
+    // ② 自由引用提升（与 hoistText 同逻辑，但含块内声明名；排除命名空间名）。
+    //    合并为单趟交替替换：插入的 `__ctx.` 前缀不会让其它名字被二次匹配
+    //    （`_`/`.` 都是词边界断点），与逐名顺序替换等价。
+    if (names.size > 0) {
+      subs.push({
+        re: new RegExp(`\\b(${[...names].join('|')})\\b`, 'g'),
+        emit: (g) => `__ctx.${g[0]}`,
+      })
     }
     // ③ 命名空间名 → __ns.<name> + await 调用
-    // 块内 cad.xxx(...) 调用需要 await（与扁平行式 emitCall 的 await 语义一致）。
-    // 分两步：先替换调用形态 `<ns>.<member>(` → `await __ns.<ns>.<member>(`，
-    // 再替换裸引用 `<ns>`（非成员访问）→ `__ns.<ns>`。
-    for (const nsName of nsNames) {
+    if (nsNames.size > 0) {
+      const alt = [...nsNames].join('|')
       // 调用形态：`cad.box(` → `await __ns.cad.box(`
-      out = out.replace(
-        new RegExp(`(?<![.\\w])\\b${nsName}\\s*\\.\\s*(\\w+)\\s*\\(`, 'g'),
-        `await __ns.${nsName}.$1(`,
-      )
+      subs.push({
+        re: new RegExp(`(?<![.\\w])\\b(${alt})\\s*\\.\\s*(\\w+)\\s*\\(`, 'g'),
+        emit: (g) => `await __ns.${g[0]}.${g[1]}(`,
+      })
       // 裸成员访问（非调用）：`cad.foo` → `__ns.cad.foo`（非调用不加 await）
-      out = out.replace(
-        new RegExp(`(?<![.\\w])\\b${nsName}\\s*\\.`, 'g'),
-        `__ns.${nsName}.`,
-      )
+      subs.push({
+        re: new RegExp(`(?<![.\\w])\\b(${alt})\\s*\\.`, 'g'),
+        emit: (g) => `__ns.${g[0]}.`,
+      })
     }
+    let out = replaceOutsideProtected(text, subs)
     // __ctx.__ctx.x → __ctx.x（双前缀修正：LHS 改写后 name 又被提升替换）
     out = out.replace(/__ctx\.__ctx\./g, '__ctx.')
     // __ns.__ns.cad → __ns.cad（命名空间双前缀修正）
@@ -1691,31 +1803,36 @@ export class DirectExecutor {
    *  内即是自由标识符 → ReferenceError（`cad is not defined`）；而执行同段文本的
    *  interpreter 后端靠 env 的 ns 查找能解析，形成两后端差分（约束 2）。 */
   private hoistText(text: string, declared: Set<string>): string {
-    let out = text
     const names = new Set<string>(declared)
     for (const key of Object.keys(this.ctx)) names.add(key)
-    for (const name of names) {
-      out = out.replace(new RegExp(`\\b${name}\\b`, 'g'), `__ctx.${name}`)
-    }
     // 命名空间绑定（排除 contractVersion / 已声明同名遮蔽 / 已由 import 预置进 ctx 的绑定）
-    const nsNames = Object.keys(this.namespaces).filter((k) => k !== 'contractVersion')
-    for (const nsName of nsNames) {
-      if (names.has(nsName)) continue
-      // 调用形态：`cad.box(` → `await __ns.cad.box(`
-      out = out.replace(
-        new RegExp(`(?<![.\\w])\\b${nsName}\\s*\\.\\s*(\\w+)\\s*\\(`, 'g'),
-        `await __ns.${nsName}.$1(`,
-      )
-      // 裸成员访问（非调用）：`cad.foo` → `__ns.cad.foo`（非调用不加 await）
-      out = out.replace(
-        new RegExp(`(?<![.\\w])\\b${nsName}\\s*\\.`, 'g'),
-        `__ns.${nsName}.`,
-      )
+    const nsNames = Object.keys(this.namespaces).filter((k) => k !== 'contractVersion' && !names.has(k))
+    // 标识符 + 命名空间提升统一走 replaceOutsideProtected（F1）：字符串 / 模板文本 /
+    // 注释区间内的匹配原样保留（修复前实参文本里的 `'carrier'` 会被改写成
+    // `'__ctx.carrier'`，与 hoistBlockText 同根因）。
+    const subs: Array<{ re: RegExp; emit: (groups: string[]) => string }> = []
+    if (names.size > 0) {
+      subs.push({
+        re: new RegExp(`\\b(${[...names].join('|')})\\b`, 'g'),
+        emit: (g) => `__ctx.${g[0]}`,
+      })
     }
+    if (nsNames.length > 0) {
+      const alt = nsNames.join('|')
+      // 调用形态：`cad.box(` → `await __ns.cad.box(`
+      subs.push({
+        re: new RegExp(`(?<![.\\w])\\b(${alt})\\s*\\.\\s*(\\w+)\\s*\\(`, 'g'),
+        emit: (g) => `await __ns.${g[0]}.${g[1]}(`,
+      })
+      // 裸成员访问（非调用）：`cad.foo` → `__ns.cad.foo`（非调用不加 await）
+      subs.push({
+        re: new RegExp(`(?<![.\\w])\\b(${alt})\\s*\\.`, 'g'),
+        emit: (g) => `__ns.${g[0]}.`,
+      })
+    }
+    const out = replaceOutsideProtected(text, subs)
     // 双前缀修正（与 hoistBlockText 尾部一致）
-    out = out.replace(/__ns\.__ns\./g, '__ns.')
-    out = out.replace(/await\s+await\s+__ns\./g, 'await __ns.')
-    return out
+    return out.replace(/__ns\.__ns\./g, '__ns.').replace(/await\s+await\s+__ns\./g, 'await __ns.')
   }
 
   private calleeOf(callNode: ASTNode | undefined): string | undefined {

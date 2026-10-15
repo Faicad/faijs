@@ -71,4 +71,23 @@ describe('washer: brepkit ↔ occt consistency', () => {
       assertConsistent(occt.metrics, brep.metrics)
     })
   }
+
+  it('软差异经**返回值**记录，不写 console/stderr（两值并钉）', () => {
+    // 2026-10-14：harness 的软记录项（T1 子形状计数 / isSolid 表示差异）此前用
+    // console.warn 输出 → 被 vitest 采集成 `stderr |` 行 → CI 零 stderr 门禁判失败。
+    // 根因修法 = 改成返回值（见 harness.ts 的 SoftDiff），本用例把记录内容钉住：
+    //   当前值（首例 PlainWasher 实测）：只有 vertex 计数 4 → 5
+    //     （brepkit 旋转体接缝多一个顶点；face/edge/shell 已对齐）
+    //   应有值 = 空数组（两引擎拓扑计数完全对齐）。
+    // band 只准收紧：计数对齐后本断言必须翻转成 expect(seen).toEqual([])，
+    // 不得放宽成「允许任意差异」。
+    const fx = fixtures[0]!
+    const occt = buildOn('occt', fx.build, fx.params)
+    const brep = buildOn('brepkit', fx.build, fx.params)
+    const soft = assertConsistent(occt.metrics, brep.metrics)
+    const seen = soft.map((d) => `${d.kind}:${d.key}:${d.ref}->${d.got}`).sort()
+    expect(seen).toEqual(['topo:vertex:4->5'])
+    // 记录必须带成因（记录 ≠ 沉默）：每条软差异都要有非空 reason。
+    for (const d of soft) expect(d.reason.length).toBeGreaterThan(0)
+  })
 })

@@ -13,6 +13,8 @@ import { layoutTree, reportFromLayout } from './unfoldFns.js';
  * @param part - the authored part to build the report from.
  * @returns the bend-table report, or an error if the part tree or layout cannot
  * be built.
+ * @example
+ * const report = buildReport(part)
  */
 export function buildReport(part: SheetMetalPart): Result<BendReport> {
   const treeResult = featureTree(part);
@@ -42,6 +44,8 @@ export function buildReport(part: SheetMetalPart): Result<BendReport> {
  * @param result - the unfold result whose report is projected.
  * @returns the standalone `BendReport`, or an error if a numeric field is not
  * finite or positive.
+ * @example
+ * const report = reportFromUnfold(unfoldResult)
  */
 export function reportFromUnfold(result: UnfoldResult): Result<BendReport> {
   const { report } = result;
@@ -76,6 +80,8 @@ export function reportFromUnfold(result: UnfoldResult): Result<BendReport> {
  *
  * @param report - the bend report to serialize.
  * @returns the pretty-printed JSON string.
+ * @example
+ * const json = reportToJSON(report)
  */
 export function reportToJSON(report: BendReport): string {
   return JSON.stringify(report, null, 2);

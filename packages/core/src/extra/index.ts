@@ -26,7 +26,7 @@ export { fai_drill, assertDrillParams } from './ops/fai_drill'
 export { fai_extrude, assertExtrudeParams } from './ops/fai_extrude'
 export { fai_split } from './ops/fai_split'
 export { group, assembly } from './ops/compound'
-export type { GroupParams, AssemblyParams, AssemblyBehavior } from './ops/compound'
+export type { GroupParams, AssemblyParams, AssemblyBehavior, AssemblyDecl } from './ops/compound'
 export { copy } from './ops/copy'
 export { load } from './ops/load'
 export type {

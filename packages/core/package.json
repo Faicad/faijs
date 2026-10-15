@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.34.3",
+  "version": "0.35.0",
   "faijs": {
     "lib": {
       "role": "host"
@@ -469,6 +469,7 @@
     "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:install": "vitest run -c vitest.install.config.ts",
     "lint": "eslint src",
     "gen:capability-map": "tsx scripts/gen-capability-map.ts",
     "gen:brepkit-surface": "tsx scripts/gen-brepkit-surface.ts",

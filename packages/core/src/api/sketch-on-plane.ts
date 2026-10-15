@@ -146,6 +146,9 @@ export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPl
  * @param params.contours - ordered 2D contours (same shape as `cad.profile`: segment loops, or a drawn `Blueprint`).type:any required:true
  * @param params.plane - named plane (`'XY'` / `'XZ'`…) or `{ origin, normal, xAxis }`.type:any required:true
  * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
+ * @example
+ * // loop = 一个闭合 2D 轮廓：{ segments: [{ kind: 'line', x1, y1, x2, y2 }, ...] }
+ * const face = cad.sketchOnPlane({ contours: [loop], plane: 'XY' })
  */
 export const sketchOnPlane = defineOp({
 

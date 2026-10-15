@@ -25,24 +25,6 @@ import type { Provenance } from '../topology/naming/lineage'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
 /**
- * 平台 BREP 资产导入：把容器 `assets/` 里的冻结 BREP 载体装成持 OCCT 句柄的 Shape。
- *
- * `asset` = 资产名（去扩展名，沿用 `FsAssetResolver` 的 `key = basename(file)` 规则），
- * 由宿主资产解析器按 key 解析（与 `cad.load` 同套解析器）。
- *
- * @group 创建
- * @inputs 0
- * @async true
- * @qual ok
- * @name import_brep
- * @param params.asset - 容器资产名（去扩展名）。type:string required:true
- * @note 非实体一等（C6）：wire/face/shell 一律可导入，本 op 不设 `allowNonSolid` 一类开关。需要实体的 op（布尔、up-to 目标面）在**使用点**报错，而不是在导入点拒绝。
- * @note 这是**平台**资产导入 op。编辑器 `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流 + 画布语句位置语义），平台侧不要复用它（C7）。
- * @returns Promise<Shape> 持 OCCT 句柄的几何（非实体亦可）。
- * @example
- * const a = await cad.import_brep({ asset: 'Array001.Shape' })
- */
-/**
  * 裸实现：契约层测试直调（不经 defineOp 的 dispatch 拦截）。
  *
  * @param params - op 参数对象；`asset` 为容器资产名（去扩展名）。
@@ -94,13 +76,23 @@ export async function importBrepImpl(params: Record<string, unknown>): Promise<S
 }
 
 /**
- * GOTCHA（2026-09-30）：import_brep / import_step 必须经 defineOp 包装进入 cad
- * 命名空间，不能是裸 async 函数。part 键 roleTable（outputTablesByPart）只在
- * define-op.ts 包装层的 brep 分支登记（shape.ts attachBrep 只落语句键表，因为
- * fromBrep 时刻 shape 还没被 executor 命名）。裸函数产物没有 part 键表 → 下游
- * place 的 inputRoleTable（tableOfPart）拿到 undefined → place 产物 roleTable
- * 断流 → edgeRef 报 "input shape has no role table (nameless shape)"
- * （fcstd 语料 43 例，如 ISO4032_Hex_Nut_M10 的 chamfer(Pocket001__place)）。
+ * 平台 BREP 资产导入：把容器 `assets/` 里的冻结 BREP 载体装成持 OCCT 句柄的 Shape。
+ *
+ * `asset` = 资产名（去扩展名，沿用 `FsAssetResolver` 的 `key = basename(file)` 规则），
+ * 由宿主资产解析器按 key 解析（与 `cad.load` 同套解析器）。
+ *
+ * @group 创建
+ * @inputs 0
+ * @async true
+ * @qual ok
+ * @name import_brep
+ * @param params.asset - 容器资产名（去扩展名）。type:string required:true
+ * @returns Promise<Shape> 持 OCCT 句柄的几何（非实体亦可）。
+ * @example
+ * const a = await cad.import_brep({ asset: 'Array001.Shape' })
+ * @note 非实体一等（C6）：wire/face/shell 一律可导入，本 op 不设 `allowNonSolid` 一类开关。需要实体的 op（布尔、up-to 目标面）在**使用点**报错，而不是在导入点拒绝。
+ * @note 这是**平台**资产导入 op。编辑器 `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流 + 画布语句位置语义），平台侧不要复用它（C7）。
+ * @note GOTCHA（2026-09-30）：必须经 defineOp 包装进入 cad 命名空间，不能是裸 async 函数。part 键 roleTable（outputTablesByPart）只在 define-op.ts 包装层的 brep 分支登记（shape.ts attachBrep 只落语句键表，因为 fromBrep 时刻 shape 还没被 executor 命名）。裸函数产物没有 part 键表 → 下游 place 的 inputRoleTable（tableOfPart）拿到 undefined → place 产物 roleTable 断流 → edgeRef 报 "input shape has no role table (nameless shape)"（fcstd 语料 43 例，如 ISO4032_Hex_Nut_M10 的 chamfer(Pocket001__place)）。
  */
 export const import_brep = defineOp({
   name: 'import_brep',

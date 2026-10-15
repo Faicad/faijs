@@ -72,18 +72,23 @@ export interface Backends {
     hostEnv?: RuntimeHostEnv
   }
   /**
-   * 几何后端。brep 引擎异步初始化 → 用 getter。
+   * 几何后端（**宿主装配槽**）。brep 引擎异步初始化 → 用 getter。
    *
-   * ⚠️ `kernel.brep` 是 **core 内部槽位**（`@internal`）：值是当前引擎的 `BrepEngineApi`
-   * 实例（由 `brep-chain.ts` 从 `engine.primitives` 写入）。库代码与 op 代码一律不得直读
-   * 本槽位——中立代码经 `getBrepApi()`（`brep/handle-bridge.ts`，本文件是零依赖层，
-   * 不能 import 它），平台代码经 `getOcctKernel()` / `getBrepKitKernel()`。直读该槽位
-   * 会拿到 `unknown` 并需要一次断言，那正是「假装统一内核」事故的成因。
+   * ⚠️ **库代码与 op 代码一律不得直读 `kernel.brep`**：值是当前引擎的 `BrepEngineApi`
+   * 实例（由 `brep-chain.ts` 从 `engine.primitives` 写入）——中立代码经 `getBrepApi()`
+   * （`brep/handle-bridge.ts`，本文件是零依赖层，不能 import 它），平台代码经
+   * `getOcctKernel()` / `getBrepKitKernel()`。直读该槽位会拿到 `unknown` 并需要一次
+   * 断言，那正是「假装统一内核」事故的成因。
    *
-   * @internal
+   * 为什么本字段必须留在**公开类型**里（不能用 JSDoc 的内部标记 + stripInternal 隐藏）：
+   * `Backends` 是宿主装配契约（公开的 `configureBackends` 的入参），宿主必须能给 `kernel`
+   * 赋值——一旦隐藏，连 core 自己的 `test/support/host-env.ts` 都得靠 `as unknown as`
+   * 才能调用公开 API。「库不得读」是**读侧**约束，由
+   * `scripts/check-lib-layering.mjs` 的 `raw-kernel-slot` 规则（禁 `getBackends`）在 CI
+   * 层强制——用类型隐藏来表达「禁止读」是错的工具（它同时禁掉了写）。
    */
   readonly kernel: {
-    /** @internal 当前引擎的 L1 契约面实例；库/op 代码请用 `getBrepApi()`。 */
+    /** 当前引擎的 L1 契约面实例；库/op 代码请用 `getBrepApi()`（见本字段上方说明）。 */
     readonly brep: unknown | null
     readonly csg: unknown | undefined
     readonly sdf: unknown | undefined

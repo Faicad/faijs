@@ -22,7 +22,7 @@ import type { Shape } from '@faicad/faijs/mesh/types'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  const brep = await getBrepEngine()
+  const brep = await getBrepEngine('occt')
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'auto', brepEngineId: 'occt' },

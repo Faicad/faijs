@@ -389,13 +389,14 @@ export function createBrepMockApi(): BrepEngineApi {
     },
     makeCircleEdge: (center, _normal, radius) => alloc({ kind: 'edge', bbox: bboxOf('edge', [radius * 2, radius * 2, 0]), tag: `circle(${center.x},${center.y},${center.z},r=${radius})` }),
     makeCircleArc: (center, _normal, radius, a0, a1) => alloc({ kind: 'edge', bbox: bboxOf('edge', [radius * 2, radius * 2, 0]), tag: `arc(${center.x},${center.y},${center.z},r=${radius},${a0}..${a1})` }),
-    makeHelixWire: (_origin, _axis, pitch, height, radius) => {
+    makeHelixWire: (_origin, _axis, pitch, height, radius, leftHanded) => {
       // 每圈沿轴推进 pitch → 圈数 = height/pitch；轴向跨度取总高的绝对值。
       const turns = pitch !== 0 ? Math.abs(height / pitch) : 0
       return alloc({
         kind: 'wire',
         bbox: bboxOf('wire', [radius * 2, radius * 2, Math.abs(height)]),
-        tag: `helix(r=${radius},h=${height},p=${pitch},turns=${turns})`,
+        // 手性只入 tag（替身不做几何，但参数不许被静默吞掉）。
+        tag: `helix(r=${radius},h=${height},p=${pitch},turns=${turns},handed=${leftHanded ? 'left' : 'right'})`,
       })
     },
     approximatePoints: (points) => alloc({ kind: 'edge', bbox: bboxOf('edge', [1, 1, 1]), tag: `approximatePoints(n=${points.length})` }),

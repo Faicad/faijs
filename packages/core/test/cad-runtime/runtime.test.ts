@@ -592,6 +592,84 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     expect(result.compounds!.get(asPartName('asm1'))).toEqual([asPartName('s1'), asPartName('s2')])
   })
 
+  it('F3: ExecutionResult.assemblies 暴露 cad.assembly 声明（name/成员/约束/ joints/solver/compound）', async () => {
+    const runtime = makeRuntime()
+    // 不调 do_assemble——声明面与求解/烘焙解耦（宿主侧纯求解，禁烘焙）
+    const code = [
+      'const s1 = cad.box(10, 10, 10, { centered: true })',
+      'const s2 = cad.box(10, 10, 10, { centered: true })',
+      'const asm1 = cad.assembly({',
+      '  name: "testAssembly",',
+      '  members: [s1, s2],',
+      '  solver: "global",',
+      '  constraints: [{',
+      '    type: "fixed", part: "s1",',
+      '  }, {',
+      '    type: "coincident",',
+      '    a: { part: "s2", point: [0, 0, 0] },',
+      '    b: { part: "s1", point: [5, 0, 0] },',
+      '  }],',
+      '})',
+    ].join('\n')
+
+    const result = await runtime.execute(code)
+    expect(result.failedAt).toBeUndefined()
+
+    const decls = result.assemblies
+    expect(decls, 'assemblies 应存在').toHaveLength(1)
+    const d = decls![0]!
+    expect(d.name).toBe('testAssembly')
+    expect(d.memberNames).toEqual(['s1', 's2'])
+    expect(d.solver).toBe('global')
+    expect(d.joints).toEqual([])
+    // 约束原样携带（未经求解、未经规范化）——宿主据此自行 solveAssembly
+    expect(d.constraints).toHaveLength(2)
+    expect(d.constraints[0]).toMatchObject({ type: 'fixed', part: 's1' })
+    expect(d.constraints[1]).toMatchObject({
+      type: 'coincident',
+      a: { part: 's2', point: [0, 0, 0] },
+      b: { part: 's1', point: [5, 0, 0] },
+    })
+    // compound 引用即 outputs 里的 asm1（成员 Shape 经其 children 取用）
+    expect(d.compound).toBe(result.outputs.get(asPartName('asm1')))
+    // 与 compounds 面一致（F3 不改变既有结构输出）
+    expect(result.compounds!.get(asPartName('asm1'))).toEqual([asPartName('s1'), asPartName('s2')])
+  })
+
+  it('F3: group 产物不进 assemblies（无约束/关节），多 assembly 按声明序产出', async () => {
+    const runtime = makeRuntime()
+    const code = [
+      'const s1 = cad.box(10, 10, 10, { centered: true })',
+      'const s2 = cad.box(10, 10, 10, { centered: true })',
+      'const s3 = cad.box(10, 10, 10, { centered: true })',
+      'const grp1 = cad.group({ name: "g", members: [s3] })',
+      'const asmA = cad.assembly({',
+      '  name: "A",',
+      '  members: [s1, s2],',
+      '  constraints: [{ type: "fixed", part: "s1" }],',
+      '})',
+      'const asmB = cad.assembly({',
+      '  name: "B",',
+      '  members: [s2, s3],',
+      '  constraints: [{ type: "fixed", part: "s2" }],',
+      '})',
+    ].join('\n')
+
+    const result = await runtime.execute(code)
+    expect(result.failedAt).toBeUndefined()
+
+    const decls = result.assemblies
+    expect(decls, '两个 assembly 声明').toHaveLength(2)
+    expect(decls!.map((d) => d.name)).toEqual(['A', 'B'])
+    expect(decls!.map((d) => d.memberNames)).toEqual([
+      ['s1', 's2'],
+      ['s2', 's3'],
+    ])
+    // group 仍在 compounds 结构面，但不出现在 assemblies 声明面
+    expect(result.compounds!.get(asPartName('grp1'))).toEqual([asPartName('s3')])
+    expect(decls!.some((d) => d.compound === result.outputs.get(asPartName('grp1')))).toBe(false)
+  })
+
   it('append: do_assemble 后 brepSolids 返回有效新 handle（T6.5 槽位反同步）', async () => {
     const runtime = makeRuntime()
     const baseCode = [

@@ -62,7 +62,7 @@ const HAND_MAP: MapEntry[] = [
 
   // ── 造型运算 ──
   { core: 'extrude', occt: 'extrude', brepkit: 'extrude', status: 'dialect', note: 'occt 向量分量 vs brepkit 方向+距离且只吃 face；适配器归一 + face 断言（§3.6-1）' },
-  { core: 'loft', occt: 'loft', brepkit: 'loft', status: 'dialect', note: 'brepkit loft 吃 faces 且要求各截面顶点数一致；适配器做 wire→face 升格与一致性检查（不一致报 E_LOFT_SECTION_MISMATCH，不静默降级）。endPoint 走 loftWithOptions，ruled=false 走 loftSmooth' },
+  { core: 'loft', occt: 'loft', brepkit: 'loft', status: 'dialect', note: 'brepkit loft 吃 faces；适配器做 wire→face 升格。顶点数不一致的截面（如圆→方）由内核重采样兜底，直接可达（2026-10-14 移除原 E_LOFT_SECTION_MISMATCH 执行前门禁）。endPoint 走 loftWithOptions，ruled=false 走 loftSmooth' },
   { core: 'loftAdvanced', occt: null, brepkit: null, status: 'occt-only', platform: 'occt', note: 'occt 适配器组合实现（原生 loft + startPoint/tolerance）' },
   { core: 'revolveVec', occt: 'revolve', brepkit: 'revolve', status: 'dialect', note: 'occt 原生 revolve 吃对象参数（适配器组合名 revolveVec）；brepkit 只吃 face → 适配器 face 断言' },
   { core: 'sweep', occt: 'sweepPipeShell', brepkit: 'sweep', status: 'dialect', note: 'occt 侧适配器用原生 sweepPipeShell（补两个默认开关 false），**不用 simplePipe**：实测 simplePipe 对 8×8 方截面沿 +Z 扫 50 产出体积 2133.33，sweepPipeShell 为解析值 3200。brepkit sweep 只吃 (face, NURBS 四数组)——适配器把 spine 折线采样 → interpolatePoints 拟合 → getEdgeNurbsData 拆 (degree,knots,controlPoints,weights)' },
@@ -134,7 +134,7 @@ const HAND_MAP: MapEntry[] = [
   { core: 'makeNonPlanarFace', occt: 'makeNonPlanarFace', brepkit: 'makeFaceFromWire', status: 'dialect', note: 'brepkit 不区分平面/非平面（与 makeFace 同一原生）；L1 保留独立中立名——occt 侧 makeFace 是平面路径，语义不同' },
   { core: 'makeCircleEdge', occt: 'makeCircleEdge', brepkit: 'makeCircleEdge', status: 'dialect', note: '签名形态不同（occt 3 点 vs brepkit 圆心+法向+半径），接线时对齐口径' },
   { core: 'makeCircleArc', occt: 'makeCircleArc', brepkit: 'makeCircleArc3d', status: 'dialect', note: 'L1 吃 (center,normal,radius,起止角)；brepkit 吃 (start,end,center,axis) → 适配器由法向建正交基算起止点' },
-  { core: 'makeHelixWire', occt: 'makeHelixWire', brepkit: null, status: 'dialect', note: 'brepkit 无 1D 螺旋 wire 原语（helicalSweep 是扫掠成体，不可用于 1D）→ 适配器解析螺旋采样 → interpolatePoints → makeWire。§7 决策点 2 选 (a)：NURBS 光滑近似，偏差 = 采样弦高，已钉 band' },
+  { core: 'makeHelixWire', occt: 'makeHelixWire', brepkit: null, status: 'dialect', note: 'brepkit 无 1D 螺旋 wire 原语（helicalSweep 是扫掠成体，不可用于 1D）→ 适配器解析螺旋采样 → interpolatePoints → makeWire。§7 决策点 2 选 (a)：NURBS 光滑近似，偏差 = 采样弦高，已钉 band。手性经 L1 形参 leftHanded：occt 侧左手直调原生 makeHelixWireHanded（上游 d.ts 的 prefer-this-for-new-code 入口），brepkit 侧无带手性原语 → 显式拒绝（不镜像）' },
   { core: 'approximatePoints', occt: 'approximatePoints', brepkit: 'approximateCurveLspia', status: 'dialect', note: 'brepkit 需 degree/numCps/maxIterations → 适配器给缺省（degree 3 夹紧、numCps=点数、iter=100）；tolerance 直接落 Lspia' },
   { core: 'interpolatePointsWithTangents', occt: 'interpolatePointsWithTangents', brepkit: null, status: 'dialect', note: '⚠️ brepkit 无带端点切向约束的插值原语 → 适配器退化为 interpolatePoints（**丢两端切向**）。§7 决策点 3 选 (a)：有记录的近似，偏差进 band，不是静默降级' },
 

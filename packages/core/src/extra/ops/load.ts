@@ -4,6 +4,10 @@
  * file 指定资产名（用户上传文件名，不含路径、含后缀），经宿主资产解析器按名解析；
  * 格式由 file 后缀白名单自判（不依赖宿主 format 参数），isCadFormat 静态判定 brep/mesh，
  * 产物经 solid()/fromBrep() 构造器创建。
+ *
+ * @platform occt — 本文件 import `occt-kernel/occtKernel`（BREP 路径的 XCAF /
+ * `importBrepToMesh` 平台面）。mesh 路径（STL/3MF）不依赖平台模块；本 op 无
+ * `engines` 声明（不按 op 整体做引擎门，运行时按引擎能力静态分派，见下方注释）。
  */
 
 import type { Shape } from '../../mesh/types'
@@ -26,6 +30,9 @@ import {
 import { solid, compound, fromBrep, fromMeshSolid } from '../../shape'
 import { UNIT_DIM, type UnitName } from '../../units'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
+import { runtimeLineage } from '../../topology/naming/lineage'
+import { asStmtId, type PartName } from '../../identity'
+import { HASH_UPPER_BOUND } from '../../brep/face-evolution'
 // 只取**类型**：后端实现的运行时依赖（内核、拓扑构建器）留在 core，不进扩展库。
 import type { MeshSolidBackend } from '../../brep/mesh-solid'
 
@@ -200,10 +207,80 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
   registerImportModel(importModel)
   if (brepParts.length === 1) {
     const p = brepParts[0]
-    return fromBrep(p.shape, { solid: p.solid })
+    return buildBrepPart(kernel, p, getCurrentStmt()?.outputs[0])
   }
-  // 多零件：每个 child 带自己的 BREP solid（宿主经 brepOf(child) 读取）。
-  return compound(brepParts.map((p) => fromBrep(p.shape, { solid: p.solid })))
+  // 多零件：每个 child 带自己的 BREP solid（宿主经 brepOf(child) 读取）+
+  // 逐成员 roleTable；终端合并表按同一 StmtId 落 statement 键 + part 键。
+  const stmtId = String(getCurrentStmt()?.id ?? '')
+  const mergedRoles = new Map<string, number[]>()
+  const children = brepParts.map((p, idx) => {
+    const memberRoles = buildImportedRoles(kernel, p.solid, idx)
+    for (const [role, hashes] of memberRoles) mergedRoles.set(role, hashes)
+    return fromBrep(p.shape, {
+      solid: p.solid,
+      roleTable: new Map([[stmtId, memberRoles]]),
+    })
+  })
+  const out = compound(children)
+  if (stmtId) {
+    const part = getCurrentStmt()?.outputs[0]
+    // load 是裸 async 函数（不经 defineOp 包装），part 键 roleTable 不会由
+    // 包装层登记（import-step.ts GOTCHA 注释）——必须手动落 part 键，否则
+    // 下游 edgeRef/chamfer 报 "input shape has no role table (nameless shape)"。
+    runtimeLineage.recordOutput(asStmtId(stmtId), new Map([[stmtId, mergedRoles]]), undefined, part)
+  }
+  return out
+}
+
+/**
+ * 单零件 BREP 链根：fromBrep + roleTable，statement 键与 part 键同时登记。
+ *
+ * 与 `import-step.ts:74-80` 同构（方案 2026-09-18 §5.1：链根建 roleTable——
+ * 导入文件的面没有语义名，按枚举序命名 `imported:<i>`，同一文件重复导入
+ * 枚举序稳定，role 名跨次导入保持一致）。与 import_step 的差异：load 是裸
+ * async 函数（不经 defineOp），part 键 roleTable（outputTablesByPart）不会
+ * 由包装层登记，必须在此手动 `runtimeLineage.recordOutput(..., part)` 落
+ * part 键——否则 `buildNamingInput` 的 roleTableCache 为空、`edgeRef` 的
+ * `tableOfPart` 为空，STEP 导入件所有边 faces===null（倒角/圆角被禁用）。
+ */
+function buildBrepPart(
+  kernel: BrepEngineApi,
+  p: LoadBrepAssemblyPart,
+  part: PartName | undefined,
+): Shape {
+  const stmtId = String(getCurrentStmt()?.id ?? '')
+  const roles = buildImportedRoles(kernel, p.solid)
+  // recordOutput 的 roleTable 形参外层键是 string（宽松 map），不声明成
+  // RoleTable（外层键 StmtId）——避免空 stmt 时 '' 键触发类型不符。
+  const table = new Map<string, Map<string, number[]>>([[stmtId, roles]])
+  const shape = fromBrep(p.shape, { solid: p.solid, roleTable: table })
+  if (stmtId) {
+    runtimeLineage.recordOutput(asStmtId(stmtId), table, p.solid, part)
+  }
+  return shape
+}
+
+/**
+ * 导入面按枚举序命名（E3 / H12，与 import-step.ts 同构）。
+ *
+ * - 单零件：`imported:<i>`（i = 内核面枚举序，0 起）；
+ * - 多零件 compound 成员：`imported:<memberIdx>:<i>`——同一 StmtId 下
+ *   逐成员 role 键唯一（方案 2026-09-18 §7.5 的 origin 撞名红线 / 评审
+ *   P0-2）：几何相同的成员（如装配中两个同型件）面 hash 会相同，若都用
+ *   裸 `imported:<i>` 会在合并表的 `roleOfOrdinal` 里撞名。
+ */
+function buildImportedRoles(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  memberIdx?: number,
+): Map<string, number[]> {
+  const hashes = kernel.subShapeHashes(solid, 'face', HASH_UPPER_BOUND)
+  const prefix = memberIdx === undefined ? '' : `${memberIdx}:`
+  const roles = new Map<string, number[]>()
+  for (let i = 0; i < hashes.length; i++) {
+    roles.set(`imported:${prefix}${i}`, [hashes[i]!])
+  }
+  return roles
 }
 
 /**

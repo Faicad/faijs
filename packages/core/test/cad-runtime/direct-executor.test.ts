@@ -472,3 +472,95 @@ describe('DirectExecutor: P25 裸调用原地写回（§3.7 规则 2）', () => 
     expect(fingerprint(ex.ctx)).toHaveLength(1)
   })
 })
+
+describe('DirectExecutor: F1 字符串/模板/注释保护（标识符提升不改写非代码片段）', () => {
+  const cadNs = createApiNamespaceWithEditorOps()
+
+  /**
+   * 白盒取发射文本（TS `private` 在运行时抹除；与 script-globals.test.ts 同法）。
+   * F1 的缺陷只在**发射文本**里可见（运行时表现是静默挂错父级），故以文本断言为主。
+   */
+  function emitted(code: string): string {
+    const de = new DirectExecutor({ namespaces: { cad: cadNs } })
+    const internals = de as unknown as {
+      parseAndTransform(code: string): Array<{ body: string }>
+    }
+    return internals.parseAndTransform(code).map((u) => u.body).join('\n')
+  }
+
+  it('循环体内与顶层标识符同名的字符串字面量保持原样（animation 钉子 p2-child-ref:83-105 的上游根因）', () => {
+    // 修复前：`label = 'carrier'` 在 for 循环体内被发射成 `__ctx.label = '__ctx.carrier'`
+    const body = emitted([
+      'let carrier = 1',
+      "let label = 'empty'",
+      'for (let i = 0; i < 1; i++) {',
+      "  label = 'carrier'",
+      '}',
+    ].join('\n'))
+    expect(body).toContain("__ctx.label = 'carrier'")
+    expect(body).not.toContain("'__ctx.carrier'")
+  })
+
+  it('模板字面量：文本部分受保护，${…} 表达式仍照常提升', () => {
+    const body = emitted([
+      'let carrier = 1',
+      "let label = 'empty'",
+      'for (let i = 0; i < 1; i++) {',
+      '  label = `carrier-${i}`',
+      '}',
+    ].join('\n'))
+    expect(body).toContain('`carrier-')
+    expect(body).not.toContain('__ctx.carrier-')
+    expect(body).toContain('${__ctx.i}')
+  })
+
+  it('注释内的标识符不改写', () => {
+    const body = emitted([
+      'let carrier = 1',
+      "let label = 'empty'",
+      'for (let i = 0; i < 1; i++) {',
+      '  // carrier stays a comment',
+      "  label = 'ok'",
+      '}',
+    ].join('\n'))
+    expect(body).toContain('// carrier stays a comment')
+  })
+
+  it('字符串里的命名空间成员形态不被改写（cad.box 文本原样保留）', () => {
+    const body = emitted([
+      "let label = 'empty'",
+      'for (let i = 0; i < 1; i++) {',
+      "  label = 'cad.box'",
+      '}',
+    ].join('\n'))
+    expect(body).toContain("__ctx.label = 'cad.box'")
+    expect(body).not.toContain("'__ns.cad.box'")
+  })
+
+  it('代码位置的真实引用仍照常提升（保护不误伤）', () => {
+    const body = emitted([
+      'let carrier = 1',
+      'let n = 0',
+      'for (let i = 0; i < 3; i++) {',
+      '  n = n + 1',
+      '}',
+    ].join('\n'))
+    expect(body).toContain('__ctx.n = __ctx.n + 1')
+  })
+
+  it('端到端：循环体内给同名变量赋字符串，ctx 拿到原样值（vm + interp 双后端一致）', async () => {
+    for (const backend of ['vm', 'interpreter'] as const) {
+      const ex = new DirectExecutor({ namespaces: { cad: cadNs }, execBackend: backend })
+      const out = await ex.execute([
+        'let carrier = 1',
+        "let label = 'empty'",
+        'for (let i = 0; i < 1; i++) {',
+        "  label = 'carrier'",
+        '}',
+      ].join('\n'))
+      expect(out.failedAt, backend).toBeUndefined()
+      expect(ex.ctx.label, backend).toBe('carrier')
+      expect(ex.ctx.carrier, backend).toBe(1)
+    }
+  }, 180_000)
+})

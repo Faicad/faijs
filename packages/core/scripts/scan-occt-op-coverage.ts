@@ -24,7 +24,7 @@
  *
  * 用法：
  *   npm run scan:occt-ops
- *   npm run scan:occt-ops -- --md docs/occt-op-coverage.md   # 可选落 md
+ *   npm run scan:occt-ops -- --md <out.md>   # 可选落 md（默认只写 occt-op-coverage.json）
  */
 
 import fs from 'node:fs'
@@ -402,6 +402,11 @@ for (const op of ops) {
 // 「api-namespace 注册的普通函数」，本清单应随之删除。
 //   toBREP    — export-brep.ts（返回文本）
 //   isEdge/isFace/isShell/isVertex/isWire/isCompound/isCompSolid/isEqual — shape-type（返回布尔）
+// 口径：本清单是**补充**，不是覆盖——已进 L1 契约的方法（C1）一律归 C1，不从本清单
+// 重复计入 C2（六类必须两两不交，见 test/occt-scan/coverage-baseline.test.ts）。
+// 例：containsPoint / subShapeCount / vertexPosition 随 2026-10-13 的 L1 接线升为
+// 契约成员后即归 C1；它们仍在本表内不会造成重数（下方 filter 去重），但新接线的方法
+// 若留在此表，请删除对应行——本表只装「未被契约覆盖」的平台可达项。
 const PLAN_C2_EXTRA = [
   'toBREP',
   'isEdge', 'isFace', 'isShell', 'isVertex', 'isWire', 'isCompound', 'isCompSolid', 'isEqual',
@@ -421,7 +426,11 @@ const PLAN_C2_EXTRA = [
   'projectPointOnEdge', 'projectPointOnFace', 'classifyPointOnFace', 'uvFromPoint',
   'vertexPosition', 'subShapeCount', 'iterShapes',
 ]
-const C2 = new Set<string>([...c2Reach, ...PLAN_C2_EXTRA])
+// C1 优先去重（§3.7 交集为空的判定）：契约可达的方法只算 C1。人工补充清单与 op 直调
+// 面都可能含已经升进 L1 契约的方法（2026-10-13 一波接线后 containsPoint /
+// subShapeCount / vertexPosition 正是如此），不去重就会 C1 ∩ C2 ≠ ∅、且 sum 双重计数
+// ——快照重新生成即触发 coverage-baseline 的两两不交断言。
+const C2 = new Set<string>([...c2Reach, ...PLAN_C2_EXTRA].filter((m) => !C1.has(m)))
 const L3 = new Set([...l3Reach].filter((m) => !c2Reach.has(m)))
 
 const reached = new Set([...C1, ...C2, ...L3])
@@ -528,14 +537,36 @@ const snapshot = {
   contractMap: Object.fromEntries([...cmap.map].map(([k, v]) => [k, [...v].sort()])),
 }
 // §3.7 穷尽性：六类方法名（覆盖 211）两两不交 = C1+C2+L3（本轮扫描）+ C3+C4+C5+C6（未达集判定）
+// `disjoint` 必须**真算**，不能硬编码：本字段曾写死 true，而 2026-10-14 重新生成时
+// C1 ∩ C2 = 3（人工补充清单里的契约方法，见上方 C2 去重）—— 冻结的快照与事实相反，
+// coverage-baseline 的两两不交断言只在快照陈旧时才"看起来通过"。
+// 真穷尽的判据 = 六类去重后 union == occtNames.length（sum == union 由不交保证）。
 const planAssign = new Set([...PLAN_C3, ...PLAN_C5, ...PLAN_C6, ...C4m])
-const sixSum = C1.size + C2.size + L3.size + C3.length + C4m.length + C5m.length + C6.length
+const classes: Array<[string, Set<string>]> = [
+  ['C1', new Set(C1)], ['C2', C2], ['L3', L3], ['C3', new Set(C3)],
+  ['C4', new Set(C4m)], ['C5', new Set(C5m)], ['C6', new Set(C6)],
+]
+const sixSum = classes.reduce((n, [, s]) => n + s.size, 0)
+const unionAll = new Set<string>()
+for (const [, s] of classes) for (const m of s) unionAll.add(m)
+const overlaps: string[] = []
+for (let i = 0; i < classes.length; i++) {
+  for (let j = i + 1; j < classes.length; j++) {
+    const hit = [...classes[i]![1]].filter((m) => classes[j]![1].has(m))
+    if (hit.length > 0) overlaps.push(`${classes[i]![0]}∩${classes[j]![0]}: ${hit.sort().join(', ')}`)
+  }
+}
+if (overlaps.length > 0) {
+  say()
+  say(`- ⚠️ 六类存在交集（应清零，否则 sum 双重计数）：${overlaps.join(' | ')}`)
+}
 const exhaust = Object.fromEntries([
   ['sum', sixSum],
-  ['equalsUpstream', sixSum === occtNames.length],
-  ['disjoint', true],
+  ['equalsUpstream', unionAll.size === occtNames.length],
+  ['disjoint', overlaps.length === 0],
+  ['overlaps', overlaps],
   ['allUnreachedAssigned', unReached.every((m) => planAssign.has(m))],
-  ['unionCoverage', sixSum === occtNames.length],
+  ['unionCoverage', unionAll.size === occtNames.length],
 ])
 snapshot.exhaustiveness = exhaust
 fs.writeFileSync(OUT_JSON, JSON.stringify(snapshot, null, 2) + '\n', 'utf8')

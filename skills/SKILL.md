@@ -89,17 +89,13 @@ The following packages provide capabilities usable in `.fai.js` scripts.
 |---------|-------------|
 | **@faicad/faijs** (core) | The platform `cad.*` namespace: primitives (box, sphere, cylinder, cone, wedge), boolean ops (union, subtract, intersect, cut), feature ops (extrude, fillet, chamfer, shell, draft, sweep, loft, revolve, etc.), pattern ops, transform ops, query ops, Shape instance methods (appearance, metadata), and more. Always available — no import needed. |
 
-### Editor Extension Library (merged into `cad` namespace)
+### Editor Ops (built into `cad` namespace)
 
-| Package | Import Specifier | Description |
-|---------|------------------|-------------|
-| **@faicad/faijs-extra** | (merged into `cad`) | Editor ops merged into `cad.*`: `fai_drill`, `fai_extrude`, `fai_split`, `group`, `assembly`, `copy`, `load`, `text`, `svgExtrude`. |
+Editor ops are built into core (`@faicad/faijs`) and available via `cad.*`: `fai_drill`, `fai_extrude`, `fai_split`, `group`, `assembly`, `copy`, `load`, `text`, `svgExtrude`.
 
-### Sketch Library (merged into `cad` namespace)
+### Sketch Op (built into `cad` namespace)
 
-| Package | Import Specifier | Description |
-|---------|------------------|-------------|
-| **@faicad/faijs-sketch** | (merged into `cad`) | `cad.sketch` — constraint-based sketching with planegcs solver. Merged into `cad` namespace. |
+`cad.sketch` — constraint-based sketching with planegcs solver. Built into core (`@faicad/faijs`).
 
 ### Domain Libraries (imported via `import * as <binding> from '<specifier>'`)
 

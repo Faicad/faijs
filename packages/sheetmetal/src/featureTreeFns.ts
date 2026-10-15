@@ -58,6 +58,8 @@ export interface FeatureTree {
  * @returns a `Result<FeatureGraph>` — `ok` with `{ nodes, edges }` on success,
  * or `err` with a `validationError` for a non-positive thickness, duplicate
  * flange/bend ids, or bends that resolve to no flange flat.
+ * @example
+ * const graph = buildFeatureGraph(part)
  */
 export function buildFeatureGraph(part: SheetMetalPart): Result<FeatureGraph> {
   if (!Number.isFinite(part.thickness) || part.thickness <= 0) {
@@ -159,6 +161,8 @@ function resolveParentFlat(flange: FlangeFeature | undefined, nodes: Map<string,
  * @returns a `Result<FeatureTree>` — `ok` with the BFS-ordered tree bends, seam
  * cuts, flat nodes, and warnings, or `err` with a `validationError` when the
  * root is unknown or some flat is unreachable from the root.
+ * @example
+ * const tree = buildFeatureTree(graph)
  */
 export function buildFeatureTree(graph: FeatureGraph, rootId: string = ROOT_FLAT_ID): Result<FeatureTree> {
   if (!graph.nodes.has(rootId)) {
@@ -238,6 +242,8 @@ export function buildFeatureTree(graph: FeatureGraph, rootId: string = ROOT_FLAT
  * @param rootId - the flat id to root the tree at; defaults to {@link ROOT_FLAT_ID}.
  * @returns a `Result<FeatureTree>` — `ok` with the feature tree, or the first
  * `err` produced by {@link buildFeatureGraph} or {@link buildFeatureTree}.
+ * @example
+ * const tree = featureTree(part)
  */
 export function featureTree(part: SheetMetalPart, rootId: string = ROOT_FLAT_ID): Result<FeatureTree> {
   const graph = buildFeatureGraph(part);

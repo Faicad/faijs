@@ -2,111 +2,183 @@
   "l1Missing": [
     "AMBIGUITY_THRESHOLD",
     "AXIS_THRESHOLD",
+    "BREPKIT_BREP_ENGINE_ID",
     "BREPKIT_MESH_ENGINE_ID",
-    "BREP_ENGINE_IDS",
     "BlueprintSketcher",
     "Blueprints",
+    "CONSTRAINT_NAMES",
     "CURRENT",
     "CliEventSink",
     "DEFAULT_SDF_TEMPLATE",
+    "DEFAULT_ZIP_LEVEL",
     "DEG2RAD",
-    "DEGREE",
     "FsAssetResolver",
+    "GeoId",
     "ImportVersionError",
-    "LENGTH",
+    "LIB_ROLES",
     "ModuleResolverError",
     "NRAD_DEFAULT",
+    "PlanegcsSolver",
+    "PointPos",
     "RAD2DEG",
+    "RESERVED_UNIT_NAMES",
     "SCRIPT_UNIT_CONSTANTS",
-    "SCRIPT_UNIT_NAMES",
     "SCRIPT_UNIT_TO_NAME",
+    "SKETCH_OP_NAME",
+    "STEP_UNIT_SCAN_PREFIX",
+    "SUPPORTED_CONSTRAINT_TYPES",
+    "SimpleUnionFind",
     "TEMPERATURE",
     "UnresolvedImportError",
     "ValueWithUnits",
     "WorkerCsgBackend",
     "WorkerSdfBackend",
+    "XCAFDocument",
     "YARD",
     "addPoints",
+    "allConstraintsSupported",
+    "anchorPoints",
     "andThen",
     "applyTransformBrep",
+    "arcPoints",
     "assertSatisfies",
+    "atFromCadQuery",
+    "atFromFreeCad",
+    "atToCadQuery",
+    "atToFreeCad",
+    "bakeMatrix12ToPositions",
+    "bboxContains",
+    "blockConsumes",
     "boundsOf",
+    "bsplineToSegments",
+    "buildDrillToolSolid",
     "buildMeshSolidTopology",
     "buildSelectorManifest",
+    "buildSketchOnSurfaceWith",
+    "buildTagIndex",
     "centerOf",
     "chainBoolean",
+    "chamferWithRoleTable",
+    "classifyContours",
+    "classifySketch",
     "cliMain",
-    "complexExtrude",
+    "composeMatrix12",
+    "computeCrossSectionCentroid",
+    "computeDovetailSplit",
+    "computeDowelSplit",
+    "computeDrillGeometry",
+    "computeStraightTenonSplit",
     "containsCjk",
-    "containsPoint",
     "convertSvgEllipseParams",
     "createBBox2d",
+    "createDowel",
     "createNamedPlane",
     "createPlane",
+    "createStraightTenon",
     "curve",
+    "decodeDeleted",
+    "decodeEvolution",
     "decodeMemberText",
     "describeMeshSolid",
+    "detectCapComponents",
+    "directEditWithRoleTable",
     "disposeOcct",
     "distance2d",
+    "drillBrepWithRoleTable",
+    "emptyKeepView",
     "encodeMemberText",
     "ensureBrepkitDefaultEngine",
     "ensureBrepkitMeshBackend",
     "ensureDefaultFont",
+    "ensureOcctDefaultEngine",
     "ensureOcctKernel",
     "enterFunctionBrep",
+    "evalBSpline",
     "exitFunctionBrep",
     "exportModel",
+    "extractVerticesFromEdges",
+    "faceRunColumnIndexes",
+    "filletWithRoleTable",
     "fmtNum",
     "foot",
     "fromBrepCurve",
     "fromMeshFace",
     "fromMeshSolid",
-    "getEngraveDecorationProvider",
+    "getConfiguredBrepEngineId",
     "hasDualOp",
     "heightOf",
     "helix",
+    "identityEvolution",
+    "identityHashEvolution",
     "importBrepToMesh",
     "importStepMultiPart",
     "initBrepkitWasm",
     "inputRoleTable",
+    "intersectWithHistoryBrep",
     "isBBoxOut",
+    "isBrepEngineRegistered",
     "isBrepkitInitialized",
     "isCjkChar",
+    "isEditorOp",
     "isErr",
     "isHostExprRef",
     "isMeshEngineRegistered",
     "isOnCurve",
     "kernelError",
+    "lineConsumes",
+    "loadBrepAssemblyNative",
     "loadSystemCjkFont",
     "lowerEntities",
     "makeBSpline2d",
     "makeEllipseArcFromCenter",
+    "makeTranslationMatrix",
+    "maxPointDistance",
     "mergeBBox",
+    "mergeShapes",
     "meshFaceOf",
     "meshSolidOf",
     "meshToManifold",
+    "mirrorWithHashEvolution",
     "nameOfShapes",
     "normalize2d",
     "outsidePointOf",
+    "parse3mfBuild",
+    "parseModelMeta",
     "parseVersion",
+    "pointInPolygon",
     "polarAngle2d",
     "polarToCartesian",
+    "polygonCentroid",
     "propagateAllOrigins",
     "punchHole",
     "reconstructSolidFromMesh",
+    "refToFreeCad",
+    "refsOfConstraint",
     "registerFunctionBrep",
-    "registerSymbolTableEntries",
     "releaseShape",
-    "roof",
+    "replaceCompoundMember",
+    "resolveCamera",
+    "resolveCompoundMember",
+    "rotateWithHashEvolution",
     "runSdfMain",
     "samePoint",
+    "sampleBSpline",
     "satisfies",
-    "setEngraveDecorationProvider",
+    "scaleWithHashEvolution",
+    "setSketchDiagnosticSink",
+    "shapeFromMesh",
+    "shapeFromSolved",
+    "shellWithHashEvolution",
     "sketchOnPlane",
+    "sketchOnSurface",
     "splitVersionRange",
-    "symbolTableNames",
+    "stripExtension",
     "takeFunctionBrepDomain",
-    "twistExtrude",
+    "terminateWorker",
+    "toNonIndexed",
+    "toVec3",
+    "transformToMatrix12",
+    "translateWithHashEvolution",
     "unregisterSymbolTableEntries",
     "unwrapOr",
     "validationError",
@@ -120,6 +192,12 @@
     "widthOf"
   ],
   "l2Missing": [
+    {
+      "name": "alignTo",
+      "missing": [
+        "axis"
+      ]
+    },
     {
       "name": "applyDisplacement",
       "missing": [
@@ -161,6 +239,22 @@
       ]
     },
     {
+      "name": "approximatePoints",
+      "missing": [
+        "points",
+        "tolerance"
+      ]
+    },
+    {
+      "name": "assembly",
+      "missing": [
+        "drive",
+        "joints",
+        "memberColors",
+        "solver"
+      ]
+    },
+    {
       "name": "assertSecure",
       "missing": [
         "defaultNs",
@@ -168,8 +262,24 @@
       ]
     },
     {
+      "name": "booleanOp",
+      "missing": [
+        "glue",
+        "kind",
+        "simplifyAngularTolerance",
+        "tools"
+      ]
+    },
+    {
       "name": "box",
       "missing": [
+        "segments"
+      ]
+    },
+    {
+      "name": "boxBrep",
+      "missing": [
+        "nRad",
         "segments"
       ]
     },
@@ -218,7 +328,8 @@
       "missing": [
         "determinism",
         "execBackend",
-        "security"
+        "security",
+        "tessellation"
       ]
     },
     {
@@ -230,6 +341,16 @@
         "width",
         "width1",
         "width2"
+      ]
+    },
+    {
+      "name": "circleArc",
+      "missing": [
+        "center",
+        "endAngle",
+        "normal",
+        "radius",
+        "startAngle"
       ]
     },
     {
@@ -262,10 +383,47 @@
       ]
     },
     {
+      "name": "computeViewDelta",
+      "missing": [
+        "assembleTransforms",
+        "buildItems",
+        "importTransforms"
+      ]
+    },
+    {
       "name": "cone",
       "missing": [
         "at",
         "segments"
+      ]
+    },
+    {
+      "name": "coneBrep",
+      "missing": [
+        "nRad"
+      ]
+    },
+    {
+      "name": "curveDegreeElevate",
+      "missing": [
+        "curve",
+        "elevateBy"
+      ]
+    },
+    {
+      "name": "curveKnotInsert",
+      "missing": [
+        "curve",
+        "knot",
+        "times"
+      ]
+    },
+    {
+      "name": "curveKnotRemove",
+      "missing": [
+        "curve",
+        "knot",
+        "tolerance"
       ]
     },
     {
@@ -282,9 +440,53 @@
       ]
     },
     {
+      "name": "cylinderBrep",
+      "missing": [
+        "nRad"
+      ]
+    },
+    {
       "name": "defeature",
       "missing": [
         "faces"
+      ]
+    },
+    {
+      "name": "DirectExecutor",
+      "missing": [
+        "execBackend",
+        "namespaces",
+        "security",
+        "setFaceEvolution",
+        "setRoleTable",
+        "setSolid"
+      ]
+    },
+    {
+      "name": "dispatchPath",
+      "missing": [
+        "meshEngines",
+        "name"
+      ]
+    },
+    {
+      "name": "dovetailSplit",
+      "missing": [
+        "bboxWidthOnWidthDir",
+        "groove",
+        "plane",
+        "planeCenter",
+        "widthDir"
+      ]
+    },
+    {
+      "name": "dowelSplit",
+      "missing": [
+        "dowel",
+        "plane",
+        "planeCenter",
+        "selectedSections",
+        "widthDir"
       ]
     },
     {
@@ -297,9 +499,56 @@
       ]
     },
     {
+      "name": "draftPrism",
+      "missing": [
+        "angleDeg",
+        "base",
+        "direction"
+      ]
+    },
+    {
+      "name": "drill",
+      "missing": [
+        "depth",
+        "holeType",
+        "screwHead",
+        "screwSpecIdx",
+        "screwSystem",
+        "screwThread",
+        "tolerance"
+      ]
+    },
+    {
+      "name": "edge",
+      "missing": [
+        "v1",
+        "v2"
+      ]
+    },
+    {
       "name": "edgeRowToHint",
       "missing": [
         "axis"
+      ]
+    },
+    {
+      "name": "ellipseArc",
+      "missing": [
+        "center",
+        "endAngle",
+        "majorRadius",
+        "minorRadius",
+        "normal",
+        "startAngle"
+      ]
+    },
+    {
+      "name": "ellipseEdge",
+      "missing": [
+        "center",
+        "majorRadius",
+        "minorRadius",
+        "normal"
       ]
     },
     {
@@ -316,11 +565,21 @@
       "name": "extrude",
       "missing": [
         "baseFeature",
-        "length",
-        "mode",
-        "normal",
         "offset",
         "upTo"
+      ]
+    },
+    {
+      "name": "extrudeShapes",
+      "missing": [
+        "targetLongSide"
+      ]
+    },
+    {
+      "name": "faceOnSurface",
+      "missing": [
+        "hostFace",
+        "wire"
       ]
     },
     {
@@ -330,11 +589,99 @@
       ]
     },
     {
+      "name": "fai_drill",
+      "missing": [
+        "depth",
+        "diameter",
+        "direction",
+        "face",
+        "faceNormal",
+        "holeType",
+        "position",
+        "screwHead",
+        "screwSpecIdx",
+        "screwSystem",
+        "screwThread",
+        "tolerance"
+      ]
+    },
+    {
+      "name": "fai_extrude",
+      "missing": [
+        "mode",
+        "normal",
+        "planeDistance",
+        "space"
+      ]
+    },
+    {
+      "name": "fai_split",
+      "missing": [
+        "applyExplode",
+        "bbCenter",
+        "bboxSize",
+        "cutMode",
+        "dowelDiameter",
+        "dowelDiameterTolerance",
+        "dowelHeight",
+        "dowelHeightTolerance",
+        "grooveDepth",
+        "grooveDepthTolerance",
+        "grooveFlapsAngle",
+        "grooveWidth",
+        "grooveWidthTolerance",
+        "inPlaneAngle",
+        "normal",
+        "offset",
+        "selectedSections",
+        "tenonHeight",
+        "tenonHeightTolerance",
+        "tenonSideLength",
+        "tenonSideLengthTolerance"
+      ]
+    },
+    {
       "name": "filletVariable",
       "missing": [
         "edge",
         "r1",
         "r2"
+      ]
+    },
+    {
+      "name": "geoToManifoldMesh",
+      "missing": [
+        "indices",
+        "positions"
+      ]
+    },
+    {
+      "name": "group",
+      "missing": [
+        "memberNames",
+        "members",
+        "name"
+      ]
+    },
+    {
+      "name": "hasViewData",
+      "missing": [
+        "assembleTransforms",
+        "importTransforms"
+      ]
+    },
+    {
+      "name": "interpolateWithTangents",
+      "missing": [
+        "endTangent",
+        "points",
+        "startTangent"
+      ]
+    },
+    {
+      "name": "keepViewFromMetadata",
+      "missing": [
+        "keep"
       ]
     },
     {
@@ -348,6 +695,15 @@
         "knurlScaleU",
         "knurlScaleV",
         "knurlTextureHeight"
+      ]
+    },
+    {
+      "name": "liftCurve2d",
+      "missing": [
+        "planeOrigin",
+        "planeX",
+        "planeZ",
+        "points2d"
       ]
     },
     {
@@ -365,10 +721,43 @@
       ]
     },
     {
+      "name": "makeSolid",
+      "missing": [
+        "shell"
+      ]
+    },
+    {
+      "name": "meshText",
+      "missing": [
+        "depth",
+        "size",
+        "text"
+      ]
+    },
+    {
+      "name": "nonPlanarFace",
+      "missing": [
+        "wire"
+      ]
+    },
+    {
       "name": "offset2d",
       "missing": [
         "delta",
         "profile"
+      ]
+    },
+    {
+      "name": "outerWire",
+      "missing": [
+        "face"
+      ]
+    },
+    {
+      "name": "pipe",
+      "missing": [
+        "profile",
+        "spine"
       ]
     },
     {
@@ -387,6 +776,17 @@
         "labelFontSize",
         "margin",
         "padding",
+        "strokeWidth",
+        "width"
+      ]
+    },
+    {
+      "name": "projectViewSvg",
+      "missing": [
+        "dash",
+        "height",
+        "hiddenOpacity",
+        "margin",
         "strokeWidth",
         "width"
       ]
@@ -427,6 +827,12 @@
         "reservedPrefixes",
         "scopes",
         "slices"
+      ]
+    },
+    {
+      "name": "reverseSurfaceU",
+      "missing": [
+        "face"
       ]
     },
     {
@@ -491,13 +897,6 @@
       ]
     },
     {
-      "name": "sketchOnSurface",
-      "missing": [
-        "as",
-        "scaleMode"
-      ]
-    },
-    {
       "name": "solidFromFaces",
       "missing": [
         "faces",
@@ -520,7 +919,6 @@
     {
       "name": "sweep",
       "missing": [
-        "opts",
         "profile",
         "spine"
       ]
@@ -531,6 +929,52 @@
         "opts",
         "profile",
         "spine"
+      ]
+    },
+    {
+      "name": "tangentArc",
+      "missing": [
+        "end",
+        "start",
+        "tangent"
+      ]
+    },
+    {
+      "name": "tenonSplit",
+      "missing": [
+        "plane",
+        "planeCenter",
+        "selectedSections",
+        "tenon",
+        "widthDir"
+      ]
+    },
+    {
+      "name": "text",
+      "missing": [
+        "font"
+      ]
+    },
+    {
+      "name": "textBlueprints",
+      "missing": [
+        "fontFamily",
+        "startX",
+        "startY"
+      ]
+    },
+    {
+      "name": "textBlueprintsDetailed",
+      "missing": [
+        "fontFamily",
+        "startX",
+        "startY"
+      ]
+    },
+    {
+      "name": "textToSolid",
+      "missing": [
+        "fontFamily"
       ]
     },
     {
@@ -552,6 +996,13 @@
         "current",
         "temperature",
         "temperature"
+      ]
+    },
+    {
+      "name": "wedgeBrep",
+      "missing": [
+        "center",
+        "nRad"
       ]
     },
     {

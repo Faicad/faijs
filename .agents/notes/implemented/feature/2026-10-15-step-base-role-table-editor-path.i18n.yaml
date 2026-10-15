@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-15-step-base-role-table-editor-path.md
+2026-10-15-step-base-role-table-editor-path.md: 7fbd3ad16e823668e5381183cdc603a65371bb92
+2026-10-15-step-base-role-table-editor-path.zh.md: 3ca50b29680e83b0698052fb3d06b561e34c37d4

@@ -640,6 +640,8 @@ class SheetMetalBuilder {
  * @param base - the base flat definition (length × width).
  * @param thickness - the sheet material thickness in millimetres.
  * @returns a `SheetMetalBuilder` ready for authoring steps like `flange`/`seam`/`material`.
+ * @example
+ * const sm = sheetMetal({ length: 100, width: 50 }, 1.2)
  */
 export function sheetMetal(base: BaseFlatSpec, thickness: number): SheetMetalBuilder {
   return new SheetMetalBuilder({ thickness, base, flanges: [] });
@@ -649,6 +651,8 @@ export function sheetMetal(base: BaseFlatSpec, thickness: number): SheetMetalBui
  * Re-enter the fluent chain from an already-authored part.
  * @param part - an authored sheet-metal part to operate on.
  * @returns a `SheetMetalPartHandle` wrapping the part.
+ * @example
+ * const handle = fromPart(part)
  */
 export function fromPart(part: SheetMetalPart): SheetMetalPartHandle {
   return new SheetMetalPartHandle(part);
@@ -658,6 +662,8 @@ export function fromPart(part: SheetMetalPart): SheetMetalPartHandle {
  * Fold a flat pattern up into a part and re-enter the fluent chain.
  * @param input - the flat pattern (region tree) to fold up.
  * @returns a `SheetMetalPartHandle` carrying the folded part.
+ * @example
+ * const handle = await foldFlat(input)
  */
 export async function foldFlat(input: FlatInput): Promise<SheetMetalPartHandle> {
   return new SheetMetalPartHandle(unwrapOrThrow(await fold(input)));
@@ -668,6 +674,8 @@ export async function foldFlat(input: FlatInput): Promise<SheetMetalPartHandle> 
  * @param solid - the imported solid (B-rep) to unfold.
  * @param opts - optional overrides; `opts.kFactor` sets the K-factor used for the bend allowance.
  * @returns a `ForeignSolidHandle` for detecting and unfolding the solid.
+ * @example
+ * const handle = fromSolid(solid, { kFactor: 0.44 })
  */
 export function fromSolid(solid: Solid, opts?: { kFactor?: number }): ForeignSolidHandle {
   return new ForeignSolidHandle(solid, opts);

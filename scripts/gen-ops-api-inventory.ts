@@ -37,6 +37,18 @@ import SYMBOL_TABLE from '../packages/core/src/lang/symbol-table.generated'
 
 const root = resolve(import.meta.dirname, '..')
 const API_SRC = join(root, 'packages/core/src/api')
+/**
+ * 手写 op 的 `@group` JSDoc 源码根（`collectChapters` 用）。
+ *
+ * GOTCHA（2026-10-14）：2026-10-13 `faijs-extra` 并入 core 后，op 源码不再只在
+ * `api/**`——`extra/ops/**`（group / assembly / copy / fai_drill / fai_extrude /
+ * fai_split / load / svgExtrude / text）与 `sketch/op.ts`（sketch）也是脚本面 op 的
+ * 手写契约面。旧实现只扫 `API_SRC`，这 10 个 op 整章从手册消失，并以
+ * 「逐 op 章节符号集 ≠ 符号表键集」的形式直接报错（生成器不肯写坏手册）。
+ */
+const OP_SOURCE_ROOTS = [API_SRC, join(root, 'packages/core/src/extra/ops')]
+/** 单文件形态的 op 契约面（目录内其余文件不定义脚本面 op，整目录扫会误收）。 */
+const OP_SOURCE_FILES = [join(root, 'packages/core/src/sketch/op.ts')]
 const EN_TARGET = join(root, 'docs/ops-api-inventory.md')
 const ZH_TARGET = join(root, 'docs/ops-api-inventory.zh.md')
 
@@ -452,8 +464,8 @@ function walkApiSources(dir: string, files: string[]): void {
  *      （符号表 = `cad` 命名空间可调用键集，即脚本面真实 op 全集）。
  */
 function collectChapters(): Chapter[] {
-  const files: string[] = []
-  walkApiSources(API_SRC, files)
+  const files: string[] = [...OP_SOURCE_FILES]
+  for (const dir of OP_SOURCE_ROOTS) walkApiSources(dir, files)
   const handwritten = files.flatMap((f) => collectOps(f)).map(chapterFromOp)
 
   const covered = new Set(handwritten.map((c) => c.name))

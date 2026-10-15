@@ -11,7 +11,8 @@ import type { Shape } from './types'
  * The `cad` object's runtime API surface: every callable available to a
  * `.fai.js` model on the faijs platform surface, grouped by category (creation,
  * transform, boolean, extrude, engrave, chamfer, structure, geometry queries,
- * assets). Editor-owned ops live in @faicad/faijs-extra and are not listed here.
+ * assets). Editor ops (fai_* / group / assembly / copy / load / text / svgExtrude)
+ * ship inside core as well but are not listed in this generated platform-api view.
  */
 export interface CadAPI {
   // ── 创建 ──

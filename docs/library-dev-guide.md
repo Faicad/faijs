@@ -287,7 +287,7 @@ export async function assembleHost(): Promise<void> {
 
 After `assembleHost()`, create a runtime for script execution (② script face) or call the ① TS-compat flat functions directly — the ① face needs no runtime once the kernel/engine/backends are configured:
 
-```ts
+```ts ignore-check
 import * as F from '@faicad/faijs'
 import { createRuntime, createNodePorts } from '@faicad/faijs/node'
 import * as gear from 'my-gear-lib'

@@ -1138,7 +1138,18 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       pitch: number,
       height: number,
       radius: number,
+      leftHanded?: boolean,
     ): BrepHandle {
+      // 左手显式失败：brepkit 无带手性螺旋原语，而采样拟合补镜像属「静默换算法」
+      // （同 pitch/height/radius 下左右旋互为镜像，报错比悄悄换构造更安全）。
+      // 这是**形参级**缺口：右手在 brepkit 上仍然可用，故 op 侧不声明 engines:['occt']
+      // ——声明了会把右手一并拒掉。缺口在实现体内显式报错（同 extrude 拒绝非 face 输入）。
+      if (leftHanded) {
+        fail(
+          'makeHelixWire: left-handed helix requires the occt engine ' +
+            '(brepkit has no handed helix primitive; no mirror fallback by design)',
+        )
+      }
       // §7 决策点 2 选 (a)：解析螺旋采样 → interpolatePoints 造 NURBS edge → makeWire。
       // brepkit 的 helicalSweep 是**扫掠成体**，不能用于 1D wire。
       // 偏差 = 采样弦高（近似，非解析），由 helix 一致性测试钉 band。

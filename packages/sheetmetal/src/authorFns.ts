@@ -81,6 +81,8 @@ export interface AuthorSpec {
  * @param faceIndex - the face index of the flat: `0` for the base, `n+1` for the
  *   flange authored in the `n`-th position.
  * @returns an {@link EdgeRef} pointing at the flat's leading edge (`edgeIndex 0`).
+ * @example
+ * const ref = baseEdgeRef(0)
  */
 export function baseEdgeRef(faceIndex: number): EdgeRef {
   return { kind: 'index', faceIndex, edgeIndex: 0 };
@@ -119,6 +121,8 @@ export interface FlatFrame {
  * @returns a `Result<SheetMetalPart>` — `ok` with the folded part on success, or
  *   `err` with a `validationError` for an invalid thickness / base / flange /
  *   seam specification.
+ * @example
+ * const part = await authorPart({ thickness: 1.2, base: { length: 100, width: 50 }, flanges: [] })
  */
 export async function authorPart(spec: AuthorSpec): Promise<Result<SheetMetalPart>> {
   const { thickness } = spec;

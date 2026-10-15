@@ -128,7 +128,7 @@ function termResidual(t: CostTerm, sa: { T: Vec3; R: Vec3 }, sb: { T: Vec3; R: V
       const pb = markerPoint(t.mb, sb.R, sb.T)
       const d = vscale(vsub(pa, pb), inv)
       if (Math.abs(t.val) < 1e-12) return d // 3-vec，val=0
-      return [vsumsqr(d) - (t.val / scale) ** 2] // 1-vec，val≠0
+      return [vsumsqr(d) - (t.val * inv) ** 2] // 1-vec，val≠0（目标值与残差同除 scale）
     }
     case 'axis': {
       const d1 = markerDir(t.ma, sa.R)
@@ -152,7 +152,11 @@ function termResidual(t: CostTerm, sa: { T: Vec3; R: Vec3 }, sb: { T: Vec3; R: V
       const delta = vsub(p1, o)
       const perp = vscale(vsub(delta, vscale(dln, vdot(delta, dln))), inv)
       if (Math.abs(t.val) < 1e-12) return perp // 3-vec，val=0
-      return [vsumsqr(perp) - t.val] // 1-vec，val≠0（注意 val 不缩放）
+      // 1-vec，val≠0：perp 已除 scale → vsumsqr(perp) = (dist/scale)²；
+      // 目标值必须同尺度（t.val·inv）²，否则实际满足 dist = scale·√val。
+      // （历史缺陷：此处曾写 `vsumsqr(perp) - t.val`，val 不缩放——金丝雀见
+      // planetary-static.test.ts distance 用例，修复后该断言已翻转为 ORBIT_R。）
+      return [vsumsqr(perp) - (t.val * inv) ** 2]
     }
   }
 }

@@ -33,6 +33,8 @@ const EPS = 1e-9;
  * @param outline - the closed outline wire to read into a vertex loop.
  * @returns a `Result<Polygon>` — `ok` with the ordered vertex loop, or `err` with a
  *   `validationError` when the outline is empty or has fewer than 3 vertices.
+ * @example
+ * const poly = wireToPolygon(outline)
  */
 export function wireToPolygon(outline: Wire): Result<Polygon> {
   const edges = getEdges(outline);
@@ -106,6 +108,8 @@ function wireToOpenPolyline(wire: Wire): Pt2[] {
  * @param pattern - the flat pattern to reduce to 2D polylines.
  * @returns a {@link FlatPatternPolylines} with the outline, holes, bend lines,
  *   form cuts, and form hinges as plain 2D vertex loops.
+ * @example
+ * const lines = flatPatternToPolylines(pattern)
  */
 export function flatPatternToPolylines(pattern: FlatPattern): FlatPatternPolylines {
   const outlineResult = wireToPolygon(pattern.outline);
@@ -139,6 +143,8 @@ export function flatPatternToPolylines(pattern: FlatPattern): FlatPatternPolylin
  * @param poly - the polygon to measure.
  * @returns the signed area in square units: positive for counter-clockwise vertex
  *   order, negative for clockwise.
+ * @example
+ * const area = signedArea([[0, 0], [10, 0], [10, 10], [0, 10]])
  */
 export function signedArea(poly: Polygon): number {
   let a = 0;
@@ -156,6 +162,8 @@ export function signedArea(poly: Polygon): number {
  *
  * @param poly - the polygon to bound.
  * @returns the axis-aligned bounding box as `[minX, minY, maxX, maxY]`.
+ * @example
+ * const bounds = polygonBounds([[0, 0], [10, 5]])
  */
 export function polygonBounds(poly: Polygon): [number, number, number, number] {
   let minX = Infinity;
@@ -179,6 +187,8 @@ export function polygonBounds(poly: Polygon): [number, number, number, number] {
  * @param dy - the translation along Y applied after rotation.
  * @param rotationDeg - the counter-clockwise rotation angle in degrees.
  * @returns a new `Polygon` with every vertex rotated then translated.
+ * @example
+ * const moved = transformPolygon(poly, 10, 0, 90)
  */
 export function transformPolygon(poly: Polygon, dx: number, dy: number, rotationDeg: number): Polygon {
   const rad = (rotationDeg * Math.PI) / 180;
@@ -200,6 +210,8 @@ export function transformPolygon(poly: Polygon, dx: number, dy: number, rotation
  * @param x - the point's X coordinate.
  * @param y - the point's Y coordinate.
  * @returns `true` when the point is strictly inside the polygon.
+ * @example
+ * const inside = pointInPolygon(poly, 5, 5)
  */
 export function pointInPolygon(poly: Polygon, x: number, y: number): boolean {
   let inside = false;
@@ -237,6 +249,8 @@ function onSegment(ax: number, ay: number, bx: number, by: number, px: number, p
  * @param p3 - first endpoint of the second segment.
  * @param p4 - second endpoint of the second segment.
  * @returns `true` when the two segments cross or touch, `false` otherwise.
+ * @example
+ * const cross = segmentsIntersect([0, 0], [10, 10], [0, 10], [10, 0])
  */
 export function segmentsIntersect(p1: Pt2, p2: Pt2, p3: Pt2, p4: Pt2): boolean {
   const d1 = orient(p3[0], p3[1], p4[0], p4[1], p1[0], p1[1]);
@@ -272,6 +286,8 @@ export function segmentsIntersect(p1: Pt2, p2: Pt2, p3: Pt2, p4: Pt2): boolean {
  * @param b - the second polygon.
  * @returns `true` when the polygons overlap (including edge touch), `false` when they
  *   are disjoint.
+ * @example
+ * const hit = polygonsOverlap(a, b)
  */
 export function polygonsOverlap(a: Polygon, b: Polygon): boolean {
   for (let i = 0; i < a.length; i += 1) {
@@ -307,6 +323,8 @@ export function polygonsOverlap(a: Polygon, b: Polygon): boolean {
  * @param b - the second polygon.
  * @param clearance - the minimum required gap between the polygons.
  * @returns `true` when the polygons overlap or come closer than `clearance`.
+ * @example
+ * const hit = polygonsOverlapWithClearance(a, b, 2)
  */
 export function polygonsOverlapWithClearance(a: Polygon, b: Polygon, clearance: number): boolean {
   if (polygonsOverlap(a, b)) return true;

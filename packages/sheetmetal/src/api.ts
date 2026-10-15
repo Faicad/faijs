@@ -84,6 +84,8 @@ import type {
  * Author a straight-bend part: a base flat plus folded-up flanges.
  * @param spec - the part definition: base flat, material thickness, and the flange list to fold up.
  * @returns a `Result<SheetMetalPart>` carrying the authored part, or the first error encountered.
+ * @example
+ * const part = await author({ thickness: 1.2, base: { length: 100, width: 50 }, flanges: [] })
  */
 export async function author(spec: AuthorSpec): Promise<Result<SheetMetalPart>> {
   return authorPartFn(spec);
@@ -99,6 +101,8 @@ export async function author(spec: AuthorSpec): Promise<Result<SheetMetalPart>> 
  * @param part - the sheet-metal part carrying the authored solid.
  * @returns `Ok` with the part's surface, or `Err` (`NO_SOLID`) when the part
  * has no authored solid yet (e.g. it was only built by `flatPattern`).
+ * @example
+ * const solid = solidOf(part)
  */
 export function solidOf(part: SheetMetalPart): Result<Solid> {
   return part.solid ? ok(part.solid) : err(validationError('NO_SOLID', 'part has no authored solid'));
@@ -121,6 +125,8 @@ export function unfold(part: SheetMetalPart): Result<UnfoldResult> {
  * @param solid - the imported solid (B-rep) to unfold.
  * @param opts - optional overrides; `opts.kFactor` sets the K-factor used for the bend allowance.
  * @returns a `Result<UnfoldResult>` with the detected flat pattern, report, and any warnings.
+ * @example
+ * const flat = unfoldSolid(solid, { kFactor: 0.44 })
  */
 export function unfoldSolid(solid: Solid, opts?: { kFactor?: number }): Result<UnfoldResult> {
   return unfoldForeignSolidFn(solid, opts);
@@ -140,6 +146,8 @@ export async function fold(input: FlatInput): Promise<Result<SheetMetalPart>> {
  * @param part - the sheet-metal part to cut.
  * @param plane - the oriented cutting plane; material on the plane's `+normal` side is removed.
  * @returns a `Result<SheetMetalPart>` carrying the mitered part, or the first error.
+ * @example
+ * const cut = await miter(part, { origin: [0, 0, 0], normal: [1, 0, 0] })
  */
 export async function miter(part: SheetMetalPart, plane: MiterPlane): Promise<Result<SheetMetalPart>> {
   return miterCutFn(part, plane);
@@ -152,6 +160,8 @@ export async function miter(part: SheetMetalPart, plane: MiterPlane): Promise<Re
  * @param flangeIdB - id of the second flange meeting at the corner.
  * @param gap - optional gap (in millimetres) left between the two mitered edges; defaults to 0.
  * @returns a `Result<SheetMetalPart>` carrying the mitered part, or the first error.
+ * @example
+ * const mitered = await miterCorner(part, 'f1', 'f2')
  */
 export async function miterCorner(
   part: SheetMetalPart,
@@ -168,6 +178,8 @@ export async function miterCorner(
  * @param flangeId - id of the partial flange whose bend-line ends get the relief.
  * @param spec - optional relief specification overriding the defaults.
  * @returns a `Result<SheetMetalPart>` carrying the part with the relief added, or the first error.
+ * @example
+ * const relieved = await bendRelief(part, 'f1')
  */
 export async function bendRelief(
   part: SheetMetalPart,
@@ -182,6 +194,8 @@ export async function bendRelief(
  * @param part - the sheet-metal part to modify.
  * @param spec - optional relief specification applied to every partial bend.
  * @returns a `Result<SheetMetalPart>` carrying the part with all reliefs added, or the first error.
+ * @example
+ * const relieved = await autoReliefs(part)
  */
 export async function autoReliefs(part: SheetMetalPart, spec?: ReliefSpec): Promise<Result<SheetMetalPart>> {
   return autoBendReliefsFn(part, spec);
@@ -194,6 +208,8 @@ export async function autoReliefs(part: SheetMetalPart, spec?: ReliefSpec): Prom
  * @param flangeIdB - id of the second flange forming the corner.
  * @param spec - optional relief specification overriding the defaults.
  * @returns a `Result<SheetMetalPart>` carrying the part with the corner relief added, or the first error.
+ * @example
+ * const relieved = await relieveCorner(part, 'f1', 'f2')
  */
 export async function relieveCorner(
   part: SheetMetalPart,
@@ -328,6 +344,8 @@ export async function emboss(
  * @param part - the sheet-metal part the flange is added to.
  * @param spec - contour flange definition: profile, base edge, and bend parameters.
  * @returns a `Result<SheetMetalPart>` carrying the part with the contour flange added, or the first error.
+ * @example
+ * const cf = await contourFlange(part, { id: 'cf1', side: 'xmax', profile: [{ kind: 'arc', radius: 2, angleDeg: 90, direction: 'up' }] })
  */
 export async function contourFlange(part: SheetMetalPart, spec: ContourFlangeSpec): Promise<Result<SheetMetalPart>> {
   return authorContourFlangeFn(part, spec);
@@ -340,6 +358,8 @@ export async function contourFlange(part: SheetMetalPart, spec: ContourFlangeSpe
  * @param part - the sheet-metal part the flange is added to.
  * @param spec - lofted flange definition: the two open profiles and their alignment.
  * @returns a `Result<SheetMetalPart>` carrying the part with the lofted flange added, or the first error.
+ * @example
+ * const lf = await loftedFlange(part, { id: 'lf1', profileA: [[0, 0], [50, 0]], profileB: [[0, 0], [40, 20]], height: 30 })
  */
 export async function loftedFlange(part: SheetMetalPart, spec: LoftedFlangeSpec): Promise<Result<SheetMetalPart>> {
   return authorLoftedFlangeFn(part, spec);
@@ -372,6 +392,8 @@ export async function jog(part: SheetMetalPart, spec: JogSpec): Promise<Result<S
  * @param pattern - the flat pattern to serialize.
  * @param options - optional DXF output options (layers, precision, units).
  * @returns a `Result<string>` carrying the DXF text, or the first error.
+ * @example
+ * const dxf = toDXF(pattern)
  */
 export function toDXF(pattern: FlatPattern, options?: DxfOptions): Result<string> {
   return flatPatternToDXFFn(pattern, options);
@@ -387,6 +409,8 @@ export function toDXF(pattern: FlatPattern, options?: DxfOptions): Result<string
  * @param patterns - the flat patterns to place onto stock sheets.
  * @param options - nesting configuration: stock sheet size, strategy, and spacing.
  * @returns a `Result<NestResult>` carrying the placed sheets and part transforms, or the first error.
+ * @example
+ * const result = nest(patterns, { sheet: { width: 1000, height: 500 } })
  */
 export function nest(patterns: FlatPattern[], options: NestOptions): Result<NestResult> {
   return nestFn(patterns, options);
@@ -399,6 +423,8 @@ export function nest(patterns: FlatPattern[], options: NestOptions): Result<Nest
  * @param sheetIndex - index of the nested sheet to emit.
  * @param options - optional DXF output options (layers, precision, units).
  * @returns a `Result<string>` carrying the DXF text, or the first error.
+ * @example
+ * const dxf = nestToDXF(result, patterns, 0)
  */
 export function nestToDXF(
   result: NestResult,
@@ -413,6 +439,8 @@ export function nestToDXF(
  * Build a bend report by walking the part's feature tree.
  * @param part - the sheet-metal part to report on.
  * @returns a `Result<BendReport>` carrying the computed bend report, or the first error.
+ * @example
+ * const report = report(part)
  */
 export function report(part: SheetMetalPart): Result<BendReport> {
   return buildReportFn(part);
@@ -422,6 +450,8 @@ export function report(part: SheetMetalPart): Result<BendReport> {
  * Project the report already computed by {@link unfold} without re-walking the tree.
  * @param result - the unfold result whose bend report is to be projected.
  * @returns a `Result<BendReport>` carrying the projected bend report, or the first error.
+ * @example
+ * const report = reportFrom(unfoldResult)
  */
 export function reportFrom(result: UnfoldResult): Result<BendReport> {
   return reportFromUnfoldFn(result);
@@ -431,6 +461,8 @@ export function reportFrom(result: UnfoldResult): Result<BendReport> {
  * Serialize a bend report to stable pretty-printed JSON.
  * @param report - the bend report to serialize.
  * @returns the stable pretty-printed JSON string.
+ * @example
+ * const json = reportJSON(report)
  */
 export function reportJSON(report: BendReport): string {
   return reportToJSONFn(report);
@@ -440,6 +472,8 @@ export function reportJSON(report: BendReport): string {
  * Manufacturability checks — advisory warnings, never errors.
  * @param part - the sheet-metal part to check.
  * @returns the list of manufacturability warnings (empty when the part is clean).
+ * @example
+ * const warnings = validate(part)
  */
 export function validate(part: SheetMetalPart): SheetMetalWarning[] {
   return validatePartFn(part);
@@ -452,6 +486,8 @@ export function validate(part: SheetMetalPart): SheetMetalWarning[] {
  * @param rule - the bend rule (K-factor, inner radius, or a bend-table reference) to apply.
  * @param onWarning - optional callback invoked for non-fatal warnings during the computation.
  * @returns a `Result<number>` carrying the bend allowance, or the first error.
+ * @example
+ * const ba = allowance(90, 1.2, { innerRadius: 1.2, kFactor: 0.44 })
  */
 export function allowance(
   angleDeg: number,
@@ -469,6 +505,8 @@ export function allowance(
  * @param rule - the bend rule (K-factor, inner radius, or a bend-table reference) to apply.
  * @param onWarning - optional callback invoked for non-fatal warnings during the computation.
  * @returns a `Result<number>` carrying the developed length, or the first error.
+ * @example
+ * const len = developed(90, 1.2, { innerRadius: 1.2, kFactor: 0.44 })
  */
 export function developed(
   angleDeg: number,
@@ -483,6 +521,9 @@ export function developed(
  * Register (or replace) a shop bend table so rules can reference it by id.
  * @param table - the bend table to register.
  * @returns a `Result<BendTable>` carrying the registered table, or the first error.
+ * @example
+ * const t = { id: 'shop-a', kind: 'allowance', rows: [{ thickness: 1.2, radius: 1.2, angleDeg: 90, value: 2.6 }] }
+ * const stored = addBendTable(t)
  */
 export function addBendTable(table: BendTable): Result<BendTable> {
   return registerBendTableFn(table);
@@ -492,6 +533,8 @@ export function addBendTable(table: BendTable): Result<BendTable> {
  * Look up a registered bend table by id (starter tables included).
  * @param id - the bend table id to look up.
  * @returns the matching `BendTable`, or `undefined` when no such table is registered.
+ * @example
+ * const table = bendTable('steel-airbend')
  */
 export function bendTable(id: string): BendTable | undefined {
   return getBendTableFn(id);
@@ -506,6 +549,8 @@ export function bendTable(id: string): BendTable | undefined {
  * @param thickness - the material thickness, in the same units as the rule radii.
  * @param onWarning - optional callback invoked for non-fatal warnings during the computation.
  * @returns a `Result<number>` carrying the resolved allowance, or the first error.
+ * @example
+ * const ba = resolveAllowance({ innerRadius: 1.2, kFactor: 0.44 }, 90, 1.2)
  */
 export function resolveAllowance(
   rule: BendRule,

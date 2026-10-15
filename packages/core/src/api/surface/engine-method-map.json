@@ -499,7 +499,7 @@
       "occt": "makeHelixWire",
       "brepkit": null,
       "status": "dialect",
-      "note": "brepkit 无 1D 螺旋 wire 原语（helicalSweep 是扫掠成体，不可用于 1D）→ 适配器解析螺旋采样 → interpolatePoints → makeWire。§7 决策点 2 选 (a)：NURBS 光滑近似，偏差 = 采样弦高，已钉 band"
+      "note": "brepkit 无 1D 螺旋 wire 原语（helicalSweep 是扫掠成体，不可用于 1D）→ 适配器解析螺旋采样 → interpolatePoints → makeWire。§7 决策点 2 选 (a)：NURBS 光滑近似，偏差 = 采样弦高，已钉 band。手性经 L1 形参 leftHanded：occt 侧左手直调原生 makeHelixWireHanded（上游 d.ts 的 prefer-this-for-new-code 入口），brepkit 侧无带手性原语 → 显式拒绝（不镜像）"
     },
     {
       "core": "approximatePoints",

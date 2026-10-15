@@ -82,8 +82,8 @@ Selector strings are **precision-chain only**: the mesh chain has no role layer,
 > **Engine-specific skill doc — auto-generated** by `scripts/gen-skill-docs.ts` (do not edit by hand; regenerate via `npm run gen:skill-docs`).
 >
 > This doc lists the APIs available when the runtime BREP engine is **brepkit**.
-> It contains the **78 engine-neutral (common) ops** plus the **0 brepkit-only ops** (currently none).
-> OCCT-only ops (73: alignTo, approximatePoints, autoHeal, boolean, circleArc, classifyPointOnFace, commonCells, complexExtrude, containsPoint, curveDegreeElevate, curveIsPeriodic, curveKnotInsert, curveKnotRemove, distanceBetween, draft, draftPrism, edge, ellipseArc, ellipseEdge, exportBrep, faceOnSurface, fixSelfIntersection, fuse, halfSpace, heal, helix, import_brep, inertia, inspectMassProps, interpolateWithTangents, isCompSolid, isCompound, isEdge, isEqual, isFace, isShell, isVertex, isWire, iterShapes, liftCurve2d, linearCenterOfMass, locate, loftAdvanced, makeSolid, nonPlanarFace, offset, offset2d, outerWire, pipe, projectPointOnEdge, projectPointOnFace, punchHole, reverseShape, reverseSurfaceU, roof, screw, simplify, sketchOnSurface, solidFromFaces, split, subShapeCount, surface, sweepAdvanced, tangentArc, thicken, thread, toMultiviewPNG, toMultiviewSVG, toPNG, toSVG, twistExtrude, uvFromPoint, vertexPosition) are **excluded** from the brepkit doc;
+> It contains the **89 engine-neutral (common) ops** plus the **0 brepkit-only ops** (currently none).
+> OCCT-only ops (72: alignTo, approximatePoints, autoHeal, boolean, circleArc, classifyPointOnFace, commonCells, complexExtrude, containsPoint, curveDegreeElevate, curveIsPeriodic, curveKnotInsert, curveKnotRemove, distanceBetween, draft, draftPrism, edge, ellipseArc, ellipseEdge, exportBrep, faceOnSurface, fixSelfIntersection, fuse, halfSpace, heal, import_brep, inertia, inspectMassProps, interpolateWithTangents, isCompSolid, isCompound, isEdge, isEqual, isFace, isShell, isVertex, isWire, iterShapes, liftCurve2d, linearCenterOfMass, locate, loftAdvanced, makeSolid, nonPlanarFace, offset, offset2d, outerWire, pipe, projectPointOnEdge, projectPointOnFace, punchHole, reverseShape, reverseSurfaceU, roof, screw, simplify, sketchOnSurface, solidFromFaces, split, subShapeCount, surface, sweepAdvanced, tangentArc, thicken, thread, toMultiviewPNG, toMultiviewSVG, toPNG, toSVG, twistExtrude, uvFromPoint, vertexPosition) are **excluded** from the brepkit doc;
 > brepkit-only ops (0: none) are excluded from the OCCT doc.
 
 
@@ -242,6 +242,12 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 
  **Sync**.
 
+**Examples**:
+```js
+// loop = 一个闭合 2D 轮廓：{ segments: [{ kind: 'line', x1, y1, x2, y2 }, ...] }
+const face = cad.sketchOnPlane({ contours: [loop], plane: 'XY' })
+```
+
 ### `sketchOnFace(...)`
 `cad.sketchOnFace`: place 2D contours on a **planar** face of a solid and construct a Shape. Engine-neutral (no `engines` declaration): works on the OCCT BREP engine, the brepkit BREP engine, and the brepkit mesh backend. **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：`on` 是网格实体 时，轮廓按面自己的**平面框**铺放（原点 = 面包围盒中心、法向 = 面法向），产物是一张 网格链面，可直接交给 `cad.extrude` 拉伸。该分支只接受平面面、只接受默认 `scaleMode`（`'bounds'`/`'native'` 相对 UV 域定义，网格链上没有 UV 域）、只接受 `as:'face'`、且只接受单个轮廓岛——每一条越界都以 `E_MESH_SOLID_UNSUPPORTED` 说明原因。
 
@@ -255,6 +261,12 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 **Returns**: Shape on the target face (face, or a wire curve when `as:'wire'`).
 
  **Sync**.
+
+**Examples**:
+```js
+// loop = 一个闭合 2D 轮廓：{ segments: [{ kind: 'line', x1, y1, x2, y2 }, ...] }
+const face = cad.sketchOnFace({ contours: [loop], on: cad.box(20, 20, 10), face: '>Z' })
+```
 
 ### `wire(...)`
 从点列构造 1D 曲线（折线 / 闭合轮廓 / 平滑样条）。
@@ -274,6 +286,27 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 const w = cad.wire([[0,0,0],[10,0,0],[10,10,0]], { closed: true })
 ```
 
+### `helix(...)`
+构造螺旋线（1D 曲线）。
+
+**Parameters**:
+- `options.radius`: 螺旋半径（mm，>0）。type:number required:true
+- `options.pitch`: 螺距（mm，≠0）。type:number required:true
+- `options.turns`: 圈数（>0）。type:number required:true
+- `options.axis`: 螺旋轴方向（默认 +Z）。type:Vec3 required:false
+- `options.origin`: 起点（默认原点）。type:Vec3 required:false
+- `options.handed`: 手性：'right'（默认）或 'left'。type:HelixHanded required:false
+
+**Returns**: Shape 1D 螺旋线（kind:'curve'）。
+
+ **Sync**.
+
+**Examples**:
+```js
+const h = cad.helix({ radius: 5, pitch: 2, turns: 3 })
+const lh = cad.helix({ radius: 5, pitch: 2, turns: 3, handed: 'left' })
+```
+
 ### `sdf(...)`
 用 SDF（符号距离场）函数生成网格体（mesh-only）。
 
@@ -290,6 +323,21 @@ const w = cad.wire([[0,0,0],[10,0,0],[10,10,0]], { closed: true })
 **Examples**:
 ```js
 const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: [[-20,-20,-20],[30,20,20]], resolution: 1 })
+```
+
+### `import_step(...)`
+api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
+
+**Parameters**:
+- `params.path`: 本地绝对路径（宿主 resolveFile 解析）。type:string required:true
+
+**Returns**: Promise<Shape> 持 OCCT 句柄的几何（非实体亦可）。
+
+ **Async**.
+
+**Examples**:
+```js
+const a = await cad.import_step({ path: 'D:/models/box.step' })
 ```
 
 ---
@@ -334,11 +382,6 @@ Open-chain mobility — the number of independent degrees of freedom, summing ea
 - `assembly`: AssemblyNode — The assembly to analyze.
 
 **Returns**: Total number of independent degrees of freedom.
-
- **Sync**.
-
-### `import_step(...)`
-GOTCHA（2026-09-30）：与 import_brep 同——必须经 defineOp 包装进入 cad 命名空间， 不能是裸 async 函数。part 键 roleTable（outputTablesByPart）只在 define-op.ts 包装层的 brep 分支登记；裸 async 函数产物没有 part 键表，下游 place/edgeRef 报 "input shape has no role table (nameless shape)"。
 
  **Sync**.
 
@@ -698,7 +741,7 @@ const body = await cad.sweep(section, path)
 ```
 
 ### `loft(...)`
-放样：按给定顺序在截面之间蒙皮生成体。 brepkit `loft` / `loftSmooth` / `loftWithOptions`）。截面可为 wire 或面 （面取其外环），至少 2 个；`endPoint` 可做终点退化到点的蒙皮。选项集 = 两内核交集 = `{ ruled, endPoint }` —— `startPoint` 与 `tolerance` 只有 occt 有，用 `cad.loftAdvanced`。brepkit 链要求各截面顶点数一致。
+放样：按给定顺序在截面之间蒙皮生成体。 brepkit `loft` / `loftSmooth` / `loftWithOptions`）。截面可为 wire 或面 （面取其外环），至少 2 个；`endPoint` 可做终点退化到点的蒙皮。选项集 = 两内核交集 = `{ ruled, endPoint }` —— `startPoint` 与 `tolerance` 只有 occt 有，用 `cad.loftAdvanced`。brepkit 链对顶点数不一致的截面（如圆 → 方） 由内核重采样兜底，直接可达。
 
 **Parameters**:
 - `sections`: 有序截面集合（wire 或面；面取其外环）。type:Shape[] required:true
@@ -1013,7 +1056,7 @@ These ops are generated from the L3 surface specification and merged into the `c
 
 ## Sketch
 
-The `cad.sketch` op is provided by the `@faicad/faijs-sketch` library, merged into the `cad` namespace.
+The `cad.sketch` op is built into core (`@faicad/faijs`) and available in the `cad` namespace.
 
 ### `sketch(...)`
 Sketch (semantic shapes / geometry + constraints) → solve → face / outer wire. 两条入口（二选一）： - `shapes`：语义图元（矩形/圆/……/画笔图元/close）→ 库面 `expandShapes` 展开成 canonical 几何 + 形状自带约束，再与调用方给的 `constraints` 合并求解； - `geoms`：直接给展开后的 canonical 几何（存量语句形态）。 Permanently brep-only (D5, 2026-09-27): the mesh path reports `E_MESH_UNSUPPORTED`. Sketch APIs never get a mesh path — industry precedent (CadQuery, FreeCAD) solves sketches onto exact BREP edges.
@@ -1051,7 +1094,7 @@ constraints: [{ kind:'horizontal', of: { tag:'bottom' } }, { kind:'length', of: 
 
 ## Editor Extension Ops
 
-These ops are provided by `@faicad/faijs-extra` and merged into the `cad` namespace.
+These ops are built into core (`@faicad/faijs`) and available in the `cad` namespace.
 
 ### Editor Ops
 
@@ -1206,43 +1249,170 @@ Shape instances returned by `cad.*` ops carry instance methods for appearance an
 #### `setAppearance(spec: PbrAppearance): this`
 合并外观：`{...cur, ...spec}`，spec 中 undefined 字段保留旧值。
 
+**Parameters**:
+- `spec`: 待合并的外观字段（color / opacity / roughness / metalness / …）。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+part0.setAppearance({ roughness: 0.4, metalness: 0.8 })
+```
+
 #### `setColor(color: PbrColor): this`
 便捷：等价 setAppearance({ color })；#rrggbbaa / [r,g,b,a] 的 alpha 归一为 opacity。
+
+**Parameters**:
+- `color`: `#rgb` / `#rrggbb` / `#rrggbbaa` 十六进制串，或 `[r,g,b]` / `[r,g,b,a]`（0–1）。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+part0.setColor('#2e8b57')
+```
 
 #### `setMaterial(spec: MaterialSpec): this`
 便捷：等价 setAppearance(spec)。
 
+**Parameters**:
+- `spec`: 材质参数（不含 color / opacity）。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+part0.setMaterial({ metalness: 0.9, roughness: 0.2 })
+```
+
 #### `setOpacity(opacity: number): this`
 便捷：透明度权威字段（0–1）。
+
+**Parameters**:
+- `opacity`: 0（全透明）–1（不透明）。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+part0.setOpacity(0.5)
+```
 
 #### `getAppearance(): Readonly<PbrAppearance> | undefined`
 读取当前外观（可能 undefined）。
 
+**Returns**: 当前外观的只读快照；从未设置过时为 `undefined`。
+
+**Examples**:
+```js
+const appearance = part0.getAppearance()
+```
+
 #### `setFaceColor(faces: number[], color: PbrColor): this`
 面级设色：把 faceIds 指定的面（面序号契约见 `Shape.faceRanges`，参数化 primitives 才有）写入 `materialGroups`。无面结构（布尔/组合/导入产物）抛 `E_FACE_UNAVAILABLE`；面序号越界抛 `E_FACE_INDEX`。
 
+**Parameters**:
+- `faces`: 面序号数组（0 起，契约见 `Shape.faceRanges`）。
+- `color`: 同 setColor 的颜色入参。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+box(20, 20, 20).setFaceColor([0], '#c0392b')
+```
+
 #### `setFaceMaterial(faces: number[], spec: MaterialSpec): this`
 面级材质：等价 setFaceColor 的 material 版本。
+
+**Parameters**:
+- `faces`: 面序号数组（0 起，契约见 `Shape.faceRanges`）。
+- `spec`: 材质参数（不含 color / opacity）。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+box(20, 20, 20).setFaceMaterial([0], { roughness: 0.1 })
+```
 
 ### Metadata Methods (Name / Description / Part Number)
 
 #### `setMeta(spec: ShapeMeta): this`
 合并 meta：`{...cur, ...spec}`，spec 中 undefined 字段保留旧值。
 
+**Parameters**:
+- `spec`: 待合并的元数据字段（空串 = 显式清除该字段）。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+part0.setMeta({ partNumber: 'PN-1001', designer: 'ada' })
+```
+
 #### `setName(name: string): this`
 便捷：等价 setMeta({ name })（空串视为清除）。
+
+**Parameters**:
+- `name`: 零件名。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+part0.setName('bracket')
+```
 
 #### `setDescription(description: string): this`
 便捷：等价 setMeta({ description })（空串视为清除）。
 
+**Parameters**:
+- `description`: 描述文本（导出到 3MF Description / STEP FILE_DESCRIPTION）。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+part0.setDescription('left-hand bracket')
+```
+
 #### `setPartNumber(partNumber: string): this`
 便捷：等价 setMeta({ partNumber }）。
+
+**Parameters**:
+- `partNumber`: 零件号。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+part0.setPartNumber('PN-1001')
+```
 
 #### `setMetaField(key: string, value: string): this`
 便捷：等价 setMeta({ metadata: {...cur.metadata, ...kv} })；值为空串的键删除。
 
+**Parameters**:
+- `key`: 自定义 metadata 键（3MF 带前缀名 / STEP header 其余字段）。
+- `value`: 键值；空串删除该键。
+
+**Returns**: this（可链式调用）。
+
+**Examples**:
+```js
+part0.setMetaField('Material', 'AL-6061')
+```
+
 #### `getMeta(): Readonly<ShapeMeta> | undefined`
 读取当前 meta（可能 undefined）。
+
+**Returns**: 当前元数据的只读快照；从未设置过时为 `undefined`。
+
+**Examples**:
+```js
+const meta = part0.getMeta()
+```
 
 ---
 
@@ -1263,6 +1433,11 @@ Look up a material by its name.
 
 **Returns**: The matching material spec, or undefined if not found.
 
+**Examples**:
+```js
+const steel20 = getMaterial('steel-20ga')
+```
+
 #### `bendAllowance(angleDeg: number, thickness: number, rule: BendRule, onWarning?: (warning: SheetMetalWarning) => void): Result<number>`
 Bend allowance — the developed (flat) length of material consumed by a bend, measured along the neutral axis. Resolution precedence (see {@link resolveBendAllowance}): a referenced bend table, then an explicit `rule.allowance` override, then the K-factor formula BA = (π/180)·|angle|·(R + K·T). An optional `onWarning` receives the clamp warning when a table query falls outside its tabulated range.
 
@@ -1273,6 +1448,11 @@ Bend allowance — the developed (flat) length of material consumed by a bend, m
 - `onWarning`: optional callback receiving a clamp warning when a table query falls outside its tabulated range
 
 **Returns**: a `Result<number>` — `ok` with the computed bend allowance on success, or `err` with a `validationError` when the inputs are invalid
+
+**Examples**:
+```js
+const ba = bendAllowance(90, 1.2, { innerRadius: 1.2, kFactor: 0.44 })
+```
 
 #### `developedLength(angleDeg: number, thickness: number, rule: BendRule, onWarning?: (warning: SheetMetalWarning) => void): Result<number>`
 Developed length of the bend region when flattened — the neutral-axis arc length that replaces the curved patch in the flat pattern. Identical to the bend allowance (kept distinct in name for the unfold call sites that consume it as a strip width), and routed through the same {@link resolveBendAllowance} resolution (table → explicit allowance → K-factor).
@@ -1285,6 +1465,11 @@ Developed length of the bend region when flattened — the neutral-axis arc leng
 
 **Returns**: a `Result<number>` — `ok` with the developed length on success, or `err` with a `validationError` when the inputs are invalid
 
+**Examples**:
+```js
+const len = developedLength(90, 1.2, { innerRadius: 1.2, kFactor: 0.44 })
+```
+
 #### `neutralRadius(thickness: number, rule: BendRule): Result<number>`
 Neutral-axis radius R + K·T (the radius the developed arc length is measured at).
 
@@ -1294,6 +1479,11 @@ Neutral-axis radius R + K·T (the radius the developed arc length is measured at
 
 **Returns**: a `Result<number>` — `ok` with the neutral-axis radius on success, or `err` with a `validationError` when the inputs are invalid
 
+**Examples**:
+```js
+const r = neutralRadius(1.2, { innerRadius: 1.2, kFactor: 0.44 })
+```
+
 #### `registerBendTable(table: BendTable): Result<BendTable>`
 Register (or replace) a bend table under its id, so a {@link BendRule} with a matching `bendTableRef` resolves against it. Returns the registered table.
 
@@ -1302,6 +1492,12 @@ Register (or replace) a bend table under its id, so a {@link BendRule} with a ma
 
 **Returns**: a {@link Result} carrying the stored (copied) table on success, or a validation error when the id, kind, or any row is invalid.
 
+**Examples**:
+```js
+const t = { id: 'shop-a', kind: 'allowance', rows: [{ thickness: 1.2, radius: 1.2, angleDeg: 90, value: 2.6 }] }
+const stored = registerBendTable(t)
+```
+
 #### `getBendTable(id: string): BendTable | undefined`
 Look up a registered bend table by id (registers the starter tables on first use).
 
@@ -1309,6 +1505,11 @@ Look up a registered bend table by id (registers the starter tables on first use
 - `id`: the bend table id to look up.
 
 **Returns**: the registered {@link BendTable}, or `undefined` when no table is registered under `id`.
+
+**Examples**:
+```js
+const table = getBendTable('steel-airbend')
+```
 
 #### `resolveBendAllowance(rule: BendRule, angleDeg: number, thickness: number, onWarning?: (warning: SheetMetalWarning) => void): Result<number>`
 The single source of truth for a bend's developed (neutral-axis) length. Precedence: 1. `rule.bendTableRef` — look up the table and interpolate it (linear in angle, bilinear across thickness × radius), converting a deduction table to an allowance via {@link allowanceFromDeduction}. Outside the table extents the lookup clamps to the nearest breakpoint and reports a `MIN_RADIUS`-class warning through `onWarning` rather than extrapolating. 2. `rule.allowance` — an explicit per-bend override, returned verbatim. 3. The K-factor formula BA = (π/180)·|angle|·(R + K·T). The returned value is in the same units and sense the rest of the package's `developedLength` consumes (a strip width along the developed pattern).
@@ -1321,6 +1522,11 @@ The single source of truth for a bend's developed (neutral-axis) length. Precede
 
 **Returns**: a {@link Result} carrying the resolved bend allowance on success, or a validation error for an unknown table / non-positive input / failed lookup.
 
+**Examples**:
+```js
+const ba = resolveBendAllowance({ innerRadius: 1.2, kFactor: 0.44 }, 90, 1.2)
+```
+
 #### `buildFeatureGraph(part: SheetMetalPart): Result<FeatureGraph>`
 Build the feature graph for an authored part. Each flange contributes a flat node `flange.id`; bends connect a parent flat to a child flat. A bend whose id matches a flange id (the flange's own fold) is wired parent→flange; any other bend is matched to a flange by id suffix `<flange>::<n>` or defaults to a root-anchored edge so authored parts always produce a connected graph.
 
@@ -1328,6 +1534,11 @@ Build the feature graph for an authored part. Each flange contributes a flat nod
 - `part`: the authored sheet-metal part to graph.
 
 **Returns**: a `Result<FeatureGraph>` — `ok` with `{ nodes, edges }` on success, or `err` with a `validationError` for a non-positive thickness, duplicate flange/bend ids, or bends that resolve to no flange flat.
+
+**Examples**:
+```js
+const graph = buildFeatureGraph(part)
+```
 
 #### `buildFeatureTree(graph: FeatureGraph, rootId: string): Result<FeatureTree>`
 Spanning tree over the feature graph, rooted at the base flat. Tree edges are returned BFS-ordered (every parent appears before its children); edges that would close a cycle (box/closed profiles) become seam cuts with a warning.
@@ -1338,6 +1549,11 @@ Spanning tree over the feature graph, rooted at the base flat. Tree edges are re
 
 **Returns**: a `Result<FeatureTree>` — `ok` with the BFS-ordered tree bends, seam cuts, flat nodes, and warnings, or `err` with a `validationError` when the root is unknown or some flat is unreachable from the root.
 
+**Examples**:
+```js
+const tree = buildFeatureTree(graph)
+```
+
 #### `featureTree(part: SheetMetalPart, rootId: string): Result<FeatureTree>`
 Convenience: graph + spanning tree in one call.
 
@@ -1346,6 +1562,11 @@ Convenience: graph + spanning tree in one call.
 - `rootId`: the flat id to root the tree at; defaults to {@link ROOT_FLAT_ID}.
 
 **Returns**: a `Result<FeatureTree>` — `ok` with the feature tree, or the first `err` produced by {@link buildFeatureGraph} or {@link buildFeatureTree}.
+
+**Examples**:
+```js
+const tree = featureTree(part)
+```
 
 #### `unfold(part: SheetMetalPart): Result<UnfoldResult>`
 Flatten an authored part into a developed flat pattern + bend report + warnings.
@@ -1364,6 +1585,11 @@ Unfold an ARBITRARY imported sheet-metal solid with no feature tree, by detectin
 
 **Returns**: the unfold result, or an error.
 
+**Examples**:
+```js
+const flat = unfoldForeignSolid(solid, { kFactor: 0.44 })
+```
+
 #### `fitCylinder(face: Face): FittedCylinder | null`
 Numerically fit a cylinder to a face. Every normal of a cylinder is perpendicular to the axis, so the axis direction is the common perpendicular of the sampled normals: it is recovered as the sign-aligned average of the cross products of pairs of non-parallel sampled normals (each such cross product lies along ±axis). The axis LINE and RADIUS are then found by projecting the sample points onto the plane ⟂ axis and fitting a circle (algebraic least squares); the radius is the mean distance from the axis line to the points. The angular span is the extent of the projected points about the fitted centre. Returns `null` when the surface does not fit a cylinder within {@link FIT_RESIDUAL_TOL}.
 
@@ -1371,6 +1597,11 @@ Numerically fit a cylinder to a face. Every normal of a cylinder is perpendicula
 - `face`: the B-rep face to fit.
 
 **Returns**: the fitted cylinder, or null if the face is not cylindrical.
+
+**Examples**:
+```js
+const cyl = fitCylinder(face)
+```
 
 #### `fold(input: FlatInput): Promise<Result<SheetMetalPart>>`
 Fold a flat pattern (region-tree) up into a 3D part — the inverse of {@link unfold}.
@@ -1388,6 +1619,11 @@ Fold a flat pattern (region-tree) up into a 3D part — the inverse of {@link un
 
 **Returns**: the fold result with warnings, or an error.
 
+**Examples**:
+```js
+const result = await foldWithWarnings(input)
+```
+
 #### `patternToFlatInput(pattern: FlatPattern, opts: PatternToFlatInputOptions): Result<FlatInput>`
 Reconstruct a {@link FlatInput} region-tree from the *2D flat-pattern geometry* alone — `pattern.outline` (a closed 2D wire) and `pattern.bendLines` (each a 2D segment + fold angle/direction). Nothing is read from a feature tree or a 3D solid: the regions, sides, offsets, spans and flat lengths are all recovered by reading real 2D coordinates back out of the wire/edges via the public morph geometry readers (`getEdges`, `curveStartPoint`, `curveEndPoint`). This is the non-circular round-trip bridge: feeding `unfold(part).pattern` through here and into {@link fold} exercises unfold's 2D placement, this parser, and the forward fold geometry — a bug in any of them breaks the round-trip. Algorithm (rectilinear families — PR1 develops only axis-aligned rectangles): every bend line is an axis-aligned segment lying on the shared edge between a parent region and a child's developed strip. The developed strip width is `developedLength(angle, thickness, ruleFor(i))` (the supplied rule). BFS outward from the base region (the one anchored at the origin): a bend line on a known region's edge spawns a child region whose far edge is the next outward bend line (a grandchild) or the outline boundary; `length = far-extent − dev`, `span` = bend-line length, `offset`/`side` are the bend line's position on the parent edge.
 
@@ -1397,6 +1633,11 @@ Reconstruct a {@link FlatInput} region-tree from the *2D flat-pattern geometry* 
 
 **Returns**: the flat input, or an error.
 
+**Examples**:
+```js
+const input = patternToFlatInput(pattern, { thickness: 1.2, ruleFor: () => ({ innerRadius: 1.2, kFactor: 0.44 }) })
+```
+
 #### `partToFlatInput(part: SheetMetalPart): Result<FlatInput>`
 Convert an authored {@link SheetMetalPart} into the {@link FlatInput} that folds back into it, going strictly through the 2D flat pattern: `unfold(part)` produces the developed wire + bend lines, and {@link patternToFlatInput} recovers the region tree from that 2D geometry. Only the bend *rule* is read off the part (by matching bend id), which a flat pattern legitimately cannot encode; every geometric attribute is parsed from the wire/edges. This makes the round-trip oracle non-circular — a bug in unfold's 2D placement or in the parser breaks it. Seam bends (closed profiles) are left unfolded by `unfold`, so the recovered part is the open spanning-tree shape, not the re-closed box.
 
@@ -1404,6 +1645,11 @@ Convert an authored {@link SheetMetalPart} into the {@link FlatInput} that folds
 - `part`: the sheet metal part to recover a flat input from.
 
 **Returns**: the flat input, or an error.
+
+**Examples**:
+```js
+const input = partToFlatInput(part)
+```
 
 #### `authorPart(spec: AuthorSpec): Promise<Result<SheetMetalPart>>`
 Author a sheet-metal part: a base flat plus an arbitrary tree of flanges. Each flange folds off one of the four edges of its parent flat (the base by default, or another flange via `parent`), in the requested direction (up/down), over an optional sub-span of that edge (`offset`/`width`). Returns a {@link SheetMetalPart} carrying the folded 3D solid and the recorded bend feature tree the unfold consumes. All construction stays on the public, OCCT-WASM-safe API.
@@ -1413,6 +1659,11 @@ Author a sheet-metal part: a base flat plus an arbitrary tree of flanges. Each f
 
 **Returns**: a `Result<SheetMetalPart>` — `ok` with the folded part on success, or `err` with a `validationError` for an invalid thickness / base / flange / seam specification.
 
+**Examples**:
+```js
+const part = await authorPart({ thickness: 1.2, base: { length: 100, width: 50 }, flanges: [] })
+```
+
 #### `baseEdgeRef(faceIndex: number): EdgeRef`
 Stable edge reference for flange attachment. The base flat is `face-0`; every flange face is `face-<n+1>` in authoring order. The leading edge of a flat is `edgeIndex 0`. The reference also carries `parentId`/`side`/`offset`/`extent` so the feature tree and recursive unfold can resolve the exact parent edge a flange folds from without reading topology back out of the B-rep.
 
@@ -1420,6 +1671,11 @@ Stable edge reference for flange attachment. The base flat is `face-0`; every fl
 - `faceIndex`: the face index of the flat: `0` for the base, `n+1` for the flange authored in the `n`-th position.
 
 **Returns**: an {@link EdgeRef} pointing at the flat's leading edge (`edgeIndex 0`).
+
+**Examples**:
+```js
+const ref = baseEdgeRef(0)
+```
 
 #### `miterCut(part: SheetMetalPart, plane: MiterPlane): Promise<Result<SheetMetalPart>>`
 General miter primitive: cut a sheet-metal part by a plane, removing the material on the `+normal` side. The tool is a half-space block sized to the part's bounding box, so the cut is exact regardless of part extent.
@@ -1429,6 +1685,11 @@ General miter primitive: cut a sheet-metal part by a plane, removing the materia
 - `plane`: the miter plane definition.
 
 **Returns**: the updated part with the miter cut applied, or an error.
+
+**Examples**:
+```js
+const cut = await miterCut(part, { origin: [0, 0, 0], normal: [1, 0, 0] })
+```
 
 #### `autoMiterCorner(part: SheetMetalPart, flangeIdA: string, flangeIdB: string, gap: any): Promise<Result<SheetMetalPart>>`
 Auto corner-miter between two adjacent flanges. The miter plane bisects the two flanges' fold-up directions at their shared corner and is offset by half the gap, so the cut falls on the flat/flange regions and never crosses a bend patch. The single bisector cut trims both flanges to a clean mitered corner.
@@ -1441,6 +1702,11 @@ Auto corner-miter between two adjacent flanges. The miter plane bisects the two 
 
 **Returns**: the updated part with the miter corner applied, or an error.
 
+**Examples**:
+```js
+const mitered = await autoMiterCorner(part, 'f1', 'f2')
+```
+
 #### `addBendRelief(part: SheetMetalPart, flangeId: string, spec: ReliefSpec): Promise<Result<SheetMetalPart>>`
 Add a bend relief to a flange: a small slot cut into the PARENT flat at each end of the bend line that does not reach the parent edge endpoint (a partial/offset flange). Without it the parent material tears at the corner where the bend terminates mid-edge. Each slot is `width` (≈ thickness) along the parent edge by `depth` (≈ developed length + clearance) into the parent flat, cut from the 3D solid and recorded so {@link unfold} replays the 2D notch. A relief is a recorded feature replayed by unfold — exactly the pattern {@link autoMiterCorner} establishes for corner miters.
 
@@ -1451,6 +1717,11 @@ Add a bend relief to a flange: a small slot cut into the PARENT flat at each end
 
 **Returns**: the updated part with the bend relief recorded, or an error.
 
+**Examples**:
+```js
+const relieved = await addBendRelief(part, 'f1')
+```
+
 #### `autoBendReliefs(part: SheetMetalPart, spec: ReliefSpec): Promise<Result<SheetMetalPart>>`
 Add a bend relief to every partial-span bend (a flange that does not span its full parent edge). Full-span flanges are skipped — they have no mid-edge bend terminus to relieve. Convenience over calling {@link addBendRelief} per flange.
 
@@ -1459,6 +1730,11 @@ Add a bend relief to every partial-span bend (a flange that does not span its fu
 - `spec`: the relief specification (default rectangular).
 
 **Returns**: the updated part with all needed bend reliefs, or an error.
+
+**Examples**:
+```js
+const relieved = await autoBendReliefs(part)
+```
 
 #### `cornerRelief(part: SheetMetalPart, flangeIdA: string, flangeIdB: string, spec: ReliefSpec): Promise<Result<SheetMetalPart>>`
 Corner relief between two adjacent flanges: a notch cut at their shared corner so the two upright flanges clear each other once folded — the alternative to a 45° miter for the same corner {@link autoMiterCorner} handles. The notch is cut from the solid and recorded as a {@link ReliefFeature}; the corner is also recorded in `miters` (gap 0) so the collision check treats the interference as resolved.
@@ -1471,6 +1747,11 @@ Corner relief between two adjacent flanges: a notch cut at their shared corner s
 
 **Returns**: the updated part with the corner relief recorded, or an error.
 
+**Examples**:
+```js
+const relieved = await cornerRelief(part, 'f1', 'f2')
+```
+
 #### `addCutout(part: SheetMetalPart, spec: CutoutSpec): Promise<Result<SheetMetalPart>>`
 Punch a cutout (hole / slot / polygon) through a named flat region's thickness. The 2D profile is built in the region's LOCAL frame, then placed onto the correct folded face via the region's world {@link FlatFrame} (origin/u/v/n) and extruded through the sheet, so a feature authored at local `(x, y)` lands on the matching face whether the region is the base or a folded flange. The same local profile is mapped through the region's developed {@link Frame2} and recorded as a {@link CutoutFeature}, so {@link unfold} emits the matching loop in the flat pattern and {@link fold} can replay it. Guards a valid, single-bodied solid.
 
@@ -1479,6 +1760,11 @@ Punch a cutout (hole / slot / polygon) through a named flat region's thickness. 
 - `spec`: the cutout specification (kind, region, geometry).
 
 **Returns**: the updated part with the cutout feature recorded, or an error.
+
+**Examples**:
+```js
+const cut = await addCutout(part, { kind: 'hole', region: 'base', x: 20, y: 20, diameter: 6 })
+```
 
 #### `addHole(part: SheetMetalPart, region: string, x: number, y: number, diameter: number): Promise<Result<SheetMetalPart>>`
 Punch a circular hole of `diameter` centred at region-local `(x, y)`.
@@ -1492,6 +1778,11 @@ Punch a circular hole of `diameter` centred at region-local `(x, y)`.
 
 **Returns**: the updated part with the hole feature recorded, or an error.
 
+**Examples**:
+```js
+const holed = await addHole(part, 'base', 20, 20, 6)
+```
+
 #### `addSlot(part: SheetMetalPart, region: string, opts: { x: number; y: number; length: number; width: number; angleDeg?: number; round?: boolean }): Promise<Result<SheetMetalPart>>`
 Punch a slot centred at `(x, y)`: `length` along the slot axis by `width` across.
 
@@ -1501,6 +1792,11 @@ Punch a slot centred at `(x, y)`: `length` along the slot axis by `width` across
 - `opts`: slot geometry (x, y, length, width, angleDeg?, round?).
 
 **Returns**: the updated part with the slot feature recorded, or an error.
+
+**Examples**:
+```js
+const slotted = await addSlot(part, 'base', { x: 20, y: 20, length: 10, width: 4 })
+```
 
 #### `addPolygonCutout(part: SheetMetalPart, region: string, points: [number, number][]): Promise<Result<SheetMetalPart>>`
 Punch an arbitrary polygon cutout from its region-local `points` (≥ 3).
@@ -1512,6 +1808,11 @@ Punch an arbitrary polygon cutout from its region-local `points` (≥ 3).
 
 **Returns**: the updated part with the polygon cutout feature recorded, or an error.
 
+**Examples**:
+```js
+const cut = await addPolygonCutout(part, 'base', [[0, 0], [10, 0], [10, 10]])
+```
+
 #### `addTab(part: SheetMetalPart, spec: TabSpec): Promise<Result<SheetMetalPart>>`
 Fuse a rectangular tab onto a named flat region's edge — additive material (the counterpart of a cutout). The tab is built as a region-local rectangle just past the chosen `side`, placed onto the correct folded face via the region's world {@link FlatFrame}, extruded through the sheet thickness and fused to the solid. The same local rectangle, mapped through the region's developed {@link Frame2}, is recorded as a {@link TabFeature} so {@link unfold} extends the OUTER outline by the protrusion (tabs add material, so the developed area grows). Guards a valid, single-bodied solid.
 
@@ -1520,6 +1821,11 @@ Fuse a rectangular tab onto a named flat region's edge — additive material (th
 - `spec`: the tab specification.
 
 **Returns**: the updated part with the tab feature recorded, or an error.
+
+**Examples**:
+```js
+const tabbed = await addTab(part, { region: 'base', side: 'xmax', offset: 0, width: 10, length: 5 })
+```
 
 #### `tabAndSlot(part: SheetMetalPart, tab: TabSpec, slot: SlotPlacement): Promise<Result<SheetMetalPart>>`
 Self-fixturing tab-and-slot joint: fuse a tab on one region and punch a matching SLOT CUTOUT on the mating region, sized so the tab's cross-section (`width × thickness`) inserts into the slot. The slot is `tab.width + clearance` long by `thickness + clearance` wide, centred at the mating region's local `(x, y)`. The slot is always strictly larger than the tab cross-section, so the joint mates (verified numerically by callers). Clearance defaults to `0.1` mm.
@@ -1531,6 +1837,11 @@ Self-fixturing tab-and-slot joint: fuse a tab on one region and punch a matching
 
 **Returns**: the updated part with the tab-and-slot feature recorded, or an error.
 
+**Examples**:
+```js
+const joint = await tabAndSlot(part, { region: 'base', side: 'xmax', offset: 0, width: 10, length: 5 }, { region: 'f1', x: 20, y: 20 })
+```
+
 #### `addForm(part: SheetMetalPart, spec: FormSpec): Promise<Result<SheetMetalPart>>`
 Add a form feature (louver or emboss/dimple) to a named flat region. 3D FIDELITY (simplified, by design — the public CSG-only API makes true forming impractical): - LOUVER: the vent opening (`length × width`) is cut fully through the sheet, and the formed flap is represented as a thin box hinged on one side and tilted up to `height`, fused so it stays connected to the body at the hinge. True forming keeps the flap continuous with the parent and bends it; the cut+tilted-flap representation captures the vent geometry while keeping a single valid solid. - EMBOSS: a short cylinder fused onto the formed face (raised by `height`). DIMPLE: a shallow cylindrical recess cut into the formed face (recessed by `height`, never through). A true spherical/conical form is approximated by the flat-topped round so the result stays a valid single body. FLAT PATTERN (the fabrication-critical representation): the louver emits its footprint as an OPEN three-side cut path (the fabricator cuts three of its four sides — all but the hinge) plus the hinge fold line; the emboss emits its footprint circle as a marker. Forming removes no net material, so the developed outline and area are unchanged. Guards a valid, single-bodied solid.
 
@@ -1539,6 +1850,11 @@ Add a form feature (louver or emboss/dimple) to a named flat region. 3D FIDELITY
 - `spec`: the form specification.
 
 **Returns**: the updated part with the form feature recorded, or an error.
+
+**Examples**:
+```js
+const formed = await addForm(part, { kind: 'louver', region: 'base', x: 20, y: 20, length: 10, width: 5, height: 2 })
+```
 
 #### `louver(part: SheetMetalPart, opts: {
     region: string;
@@ -1557,6 +1873,11 @@ A louver vent on a region; see {@link addForm}.
 
 **Returns**: the updated part with the louver feature recorded, or an error.
 
+**Examples**:
+```js
+const vent = await louver(part, { region: 'base', x: 20, y: 20, length: 10, width: 5, height: 2 })
+```
+
 #### `emboss(part: SheetMetalPart, opts: { region: string; x: number; y: number; diameter: number; height: number; kind: 'dimple' | 'emboss' }): Promise<Result<SheetMetalPart>>`
 An emboss (raised) or dimple (recessed) round form on a region; see {@link addForm}.
 
@@ -1565,6 +1886,11 @@ An emboss (raised) or dimple (recessed) round form on a region; see {@link addFo
 - `opts`: emboss geometry (region, x, y, diameter, height, direction?).
 
 **Returns**: the updated part with the emboss feature recorded, or an error.
+
+**Examples**:
+```js
+const bump = await emboss(part, { region: 'base', x: 20, y: 20, diameter: 8, height: 1, kind: 'emboss' })
+```
 
 #### `authorContourFlange(part: SheetMetalPart, spec: ContourFlangeSpec): Promise<Result<SheetMetalPart>>`
 Author a contour flange: an OPEN 2D profile (alternating line/arc segments) swept along one straight edge of the base flat. Each arc is a cylindrical bend, each line a flat leg; consecutive segments chain frame-to-frame exactly as {@link authorPart} chains flanges, building one connected multi-bend cross-section (a return, a hat, a J). The recorded {@link ContourFlangeFeature} carries each segment's EXACT developed length (lines: `length`; arcs: the canonical {@link developedLength}) so the unfold lays the strip out straight with no error. Construction stays on the public, OCCT-WASM-safe API.
@@ -1575,6 +1901,11 @@ Author a contour flange: an OPEN 2D profile (alternating line/arc segments) swep
 
 **Returns**: a `Result<SheetMetalPart>` — `ok` with the part plus the fused solid and the recorded {@link ContourFlangeFeature}, or `err` with a `validationError` on invalid input
 
+**Examples**:
+```js
+const cf = await authorContourFlange(part, { id: 'cf1', side: 'xmax', profile: [{ kind: 'arc', radius: 2, angleDeg: 90, direction: 'up' }] })
+```
+
 #### `authorLoftedFlange(part: SheetMetalPart, spec: LoftedFlangeSpec): Promise<Result<SheetMetalPart>>`
 Author a lofted / ruled transition flange between two parallel OPEN profiles. The two profiles are lofted (ruled, straight generators) into a transition surface and thickened to a valid solid; the result is fused onto the part. The developed pattern is produced by TRIANGULATION (the standard transition development): each quad between consecutive vertex pairs is split into two triangles laid flat edge-length-preserving and accumulated into a developed boundary. The triangulated development is EXACT (to tolerance) when the ruled surface is developable — every quad is planar, so the two triangles share their diagonal in 3D and the flat layout preserves all lengths and angles. When a quad is non-planar (twisted ruling) the surface is not developable and the flat layout is an approximation; {@link approximate} is set and the unfold emits a `DEVELOPMENT_APPROXIMATE` warning.
 
@@ -1583,6 +1914,11 @@ Author a lofted / ruled transition flange between two parallel OPEN profiles. Th
 - `spec`: the lofted flange specification.
 
 **Returns**: the updated part with the lofted flange feature recorded, or an error.
+
+**Examples**:
+```js
+const lf = await authorLoftedFlange(part, { id: 'lf1', profileA: [[0, 0], [50, 0]], profileB: [[0, 0], [40, 20]], height: 30 })
+```
 
 #### `hem(part: SheetMetalPart, spec: HemSpec): Promise<Result<SheetMetalPart>>`
 Author a hem: fold a region edge back ~180°+ onto its parent flat, then run a short return leg. Built on the contour-flange segment chainer — the curl is one or more ≤120° sub-arcs (each a recorded `hem::<id>::<n>` bend) followed by a flat return — so the development is EXACT: Σ curl bend allowances (via the table-aware {@link developedLength}) + the return length, laid out straight past the edge. Four `type`s set the curl/gap geometry (see {@link HemSpec}). Construction stays on the public, OCCT-WASM-safe API; the result is guarded to a valid single solid.
@@ -1593,6 +1929,11 @@ Author a hem: fold a region edge back ~180°+ onto its parent flat, then run a s
 
 **Returns**: the updated part with the hem feature recorded, or an error.
 
+**Examples**:
+```js
+const hemmed = await hem(part, { region: 'base', side: 'xmax', type: 'closed', length: 5 })
+```
+
 #### `jog(part: SheetMetalPart, spec: JogSpec): Promise<Result<SheetMetalPart>>`
 Author a jog (joggle): two opposite bends (`+θ` then `−θ`) that step a flat by `offsetHeight` perpendicular to its plane, then continue parallel past the step. Built on the contour-flange chainer: a flat position leg, a `+θ` up bend (`jog::<id>::0`), the connecting step run, a `−θ` down bend (`jog::<id>::1`), and a flat run-out leg. The development is EXACT (Σ legs + Σ bend allowances, via the table-aware {@link developedLength}). The connecting step run is `offsetHeight / sin(θ)` so the two bends realize the requested perpendicular step; the result is guarded to a valid single solid. OCCT-WASM-safe construction only.
 
@@ -1601,6 +1942,11 @@ Author a jog (joggle): two opposite bends (`+θ` then `−θ`) that step a flat 
 - `spec`: the jog specification.
 
 **Returns**: the updated part with the jog feature recorded, or an error.
+
+**Examples**:
+```js
+const jogged = await jog(part, { region: 'base', side: 'xmax', position: 20, offsetHeight: 3 })
+```
 
 #### `flatPatternToDXF(pattern: FlatPattern, options: DxfOptions): Result<string>`
 Package-local DXF writer for sheet-metal flat patterns. The core public writer (`blueprintToDXF`) is R12 LINE/POLYLINE-only with no MTEXT, layer color, or INSUNITS, so it cannot carry the annotated multi-layer output required here. Emits a strict AC1015 (R2000) DXF: `INSUNITS=4` (mm), the outline polyline on layer OUTLINE, each bend line on BEND_UP / BEND_DOWN, and an MTEXT angle/direction annotation (e.g. "∠90° U") at each bend-line midpoint. Every table record and entity carries a unique handle and the AcDb subclass markers R13+ readers (AutoCAD AUDIT, ODA/Teigha) require to parse the file cleanly.
@@ -1611,6 +1957,11 @@ Package-local DXF writer for sheet-metal flat patterns. The core public writer (
 
 **Returns**: `Result<string>` — the complete DXF file text when `ok`.
 
+**Examples**:
+```js
+const dxf = flatPatternToDXF(pattern)
+```
+
 #### `multiPatternToDXF(placed: PlacedPattern[], options: DxfOptions): Result<string>`
 Emit one DXF for any number of placed patterns (the nesting per-sheet writer). Each pattern's outline / bend lines / holes / forms are run through its own {@link Transform2} (translate + rotate onto the sheet) before being written, so the nested file is fabrication-ready. Layers/colors/handle scheme match the single-pattern writer exactly.
 
@@ -1620,6 +1971,11 @@ Emit one DXF for any number of placed patterns (the nesting per-sheet writer). E
 
 **Returns**: `Result<string>` — the complete DXF file text when `ok`.
 
+**Examples**:
+```js
+const dxf = multiPatternToDXF([{ pattern, transform: (p) => p }])
+```
+
 #### `patternBbox(pattern: FlatPattern): Result<Bbox>`
 Axis-aligned bounding box of a pattern's OUTER outline wire, read from the wire vertices (each edge start point) — the same 2D-coordinate read the DXF/SVG writers use. Only the outer outline is packed; holes ride inside it.
 
@@ -1627,6 +1983,11 @@ Axis-aligned bounding box of a pattern's OUTER outline wire, read from the wire 
 - `pattern`: the flat pattern whose outer outline is measured.
 
 **Returns**: `Result<Bbox>` - the axis-aligned bounding box of the outer outline, or an error if the outline is empty or degenerate.
+
+**Examples**:
+```js
+const box = patternBbox(pattern)
+```
 
 #### `wireToPolygon(outline: Wire): Result<Polygon>`
 Ordered vertex loop of a closed outline wire — one vertex per edge start point, the same 2D read the DXF writer (`outlinePoints`) and the bbox nester (`patternBbox`) use. The loop is NOT closed (the last vertex is not repeated); edges are taken as `v[i] → v[(i+1) % n]`.
@@ -1636,6 +1997,11 @@ Ordered vertex loop of a closed outline wire — one vertex per edge start point
 
 **Returns**: a `Result<Polygon>` — `ok` with the ordered vertex loop, or `err` with a `validationError` when the outline is empty or has fewer than 3 vertices.
 
+**Examples**:
+```js
+const poly = wireToPolygon(outline)
+```
+
 #### `flatPatternToPolylines(pattern: FlatPattern): FlatPatternPolylines`
 Reduce a {@link FlatPattern} to serializable 2D polylines (outline, holes, bend lines) for a developed-pattern overlay. Best-effort: a wire that fails to read is dropped rather than throwing, so a partial pattern still yields what it can. Arc edges are approximated by endpoints, the same assumption {@link wireToPolygon} and the DXF writer make.
 
@@ -1643,6 +2009,11 @@ Reduce a {@link FlatPattern} to serializable 2D polylines (outline, holes, bend 
 - `pattern`: the flat pattern to reduce to 2D polylines.
 
 **Returns**: a {@link FlatPatternPolylines} with the outline, holes, bend lines, form cuts, and form hinges as plain 2D vertex loops.
+
+**Examples**:
+```js
+const lines = flatPatternToPolylines(pattern)
+```
 
 #### `polygonsOverlap(a: Polygon, b: Polygon): boolean`
 Do two simple polygons overlap? True iff any edge of `a` intersects any edge of `b`, or one polygon fully contains a vertex of the other. This pair of conditions is exhaustive for simple polygons: a disjoint pair has no crossing edges and no mutually-contained vertex; a touching-but-non-overlapping pair (shared edge/vertex, zero interior overlap) is caught by `segmentsIntersect` and so is reported as overlapping — callers wanting a clearance gap should inflate via {@link polygonsOverlapWithClearance}. Centroid containment is NOT sufficient on its own (a concave part's centroid can lie outside it), so a representative INTERIOR vertex of each polygon is tested for containment in the other — combined with the edge-crossing test this covers the nested-without-crossing case.
@@ -1653,6 +2024,11 @@ Do two simple polygons overlap? True iff any edge of `a` intersects any edge of 
 
 **Returns**: `true` when the polygons overlap (including edge touch), `false` when they are disjoint.
 
+**Examples**:
+```js
+const hit = polygonsOverlap(a, b)
+```
+
 #### `polygonsOverlapWithClearance(a: Polygon, b: Polygon, clearance: number): boolean`
 Overlap test honoring a clearance gap: the two polygons must stay at least `clearance` apart. Implemented by testing raw overlap and, when disjoint, the minimum edge-to-edge distance against the clearance. `clearance <= 0` is the plain {@link polygonsOverlap}.
 
@@ -1662,6 +2038,11 @@ Overlap test honoring a clearance gap: the two polygons must stay at least `clea
 - `clearance`: the minimum required gap between the polygons.
 
 **Returns**: `true` when the polygons overlap or come closer than `clearance`.
+
+**Examples**:
+```js
+const hit = polygonsOverlapWithClearance(a, b, 2)
+```
 
 #### `segmentsIntersect(p1: Pt2, p2: Pt2, p3: Pt2, p4: Pt2): boolean`
 Proper-or-improper segment intersection (`p1p2` vs `p3p4`). Returns true when the segments cross OR touch (collinear overlap or a shared endpoint), so it is conservative for the overlap test — never a false negative.
@@ -1674,6 +2055,11 @@ Proper-or-improper segment intersection (`p1p2` vs `p3p4`). Returns true when th
 
 **Returns**: `true` when the two segments cross or touch, `false` otherwise.
 
+**Examples**:
+```js
+const cross = segmentsIntersect([0, 0], [10, 10], [0, 10], [10, 0])
+```
+
 #### `pointInPolygon(poly: Polygon, x: number, y: number): boolean`
 Ray-cast point-in-polygon: points strictly inside return true; behaviour for a point exactly on the boundary is undefined (the overlap predicate handles edge contact separately via segment-intersection).
 
@@ -1683,6 +2069,11 @@ Ray-cast point-in-polygon: points strictly inside return true; behaviour for a p
 - `y`: the point's Y coordinate.
 
 **Returns**: `true` when the point is strictly inside the polygon.
+
+**Examples**:
+```js
+const inside = pointInPolygon(poly, 5, 5)
+```
 
 #### `transformPolygon(poly: Polygon, dx: number, dy: number, rotationDeg: number): Polygon`
 Rotate every vertex (CCW, degrees, about the origin), then translate by (dx, dy).
@@ -1695,6 +2086,11 @@ Rotate every vertex (CCW, degrees, about the origin), then translate by (dx, dy)
 
 **Returns**: a new `Polygon` with every vertex rotated then translated.
 
+**Examples**:
+```js
+const moved = transformPolygon(poly, 10, 0, 90)
+```
+
 #### `polygonBounds(poly: Polygon): [number, number, number, number]`
 Axis-aligned bounds of a polygon.
 
@@ -1702,6 +2098,11 @@ Axis-aligned bounds of a polygon.
 - `poly`: the polygon to bound.
 
 **Returns**: the axis-aligned bounding box as `[minX, minY, maxX, maxY]`.
+
+**Examples**:
+```js
+const bounds = polygonBounds([[0, 0], [10, 5]])
+```
 
 #### `signedArea(poly: Polygon): number`
 Signed area (CCW positive) — used to normalise orientation and reject degenerates.
@@ -1711,6 +2112,11 @@ Signed area (CCW positive) — used to normalise orientation and reject degenera
 
 **Returns**: the signed area in square units: positive for counter-clockwise vertex order, negative for clockwise.
 
+**Examples**:
+```js
+const area = signedArea([[0, 0], [10, 0], [10, 10], [0, 10]])
+```
+
 #### `buildReport(part: SheetMetalPart): Result<BendReport>`
 Build the bend-table JSON report directly from an authored part. Walks the same tree layout the unfold consumes so the per-bend values and the total flat size agree with the flat pattern. `allowance` is the consumed neutral-axis arc length (the bend allowance); `flatLength` is the straight flange leg past the bend — distinct values a downstream nesting/cut-list tool needs separately.
 
@@ -1718,6 +2124,11 @@ Build the bend-table JSON report directly from an authored part. Walks the same 
 - `part`: the authored part to build the report from.
 
 **Returns**: the bend-table report, or an error if the part tree or layout cannot be built.
+
+**Examples**:
+```js
+const report = buildReport(part)
+```
 
 #### `reportFromUnfold(result: UnfoldResult): Result<BendReport>`
 Project the report already computed by `unfold` into the standalone `BendReport` shape, defensively re-validating its numeric fields. This keeps the report a pure function of a previously-unfolded result without re-walking the tree.
@@ -1727,6 +2138,11 @@ Project the report already computed by `unfold` into the standalone `BendReport`
 
 **Returns**: the standalone `BendReport`, or an error if a numeric field is not finite or positive.
 
+**Examples**:
+```js
+const report = reportFromUnfold(unfoldResult)
+```
+
 #### `reportToJSON(report: BendReport): string`
 Serialize a `BendReport` to a stable, pretty-printed JSON string.
 
@@ -1734,6 +2150,11 @@ Serialize a `BendReport` to a stable, pretty-printed JSON string.
 - `report`: the bend report to serialize.
 
 **Returns**: the pretty-printed JSON string.
+
+**Examples**:
+```js
+const json = reportToJSON(report)
+```
 
 #### `validatePart(part: SheetMetalPart): SheetMetalWarning[]`
 Manufacturability checks for an authored sheet-metal part. Returns a list of {@link SheetMetalWarning} — these are advisory, never errors: a part with warnings is still produced and exportable. Three checks per plan §6: - `INVALID_SOLID`: the folded solid is missing, fails kernel validity, or has no positive volume. - `COLLISION`: two flanges' axis-aligned bounding boxes overlap once folded — the cheap interference signal for corners that need a miter or relief cut. - `MIN_RADIUS`: a bend's inner radius is below one material thickness (`R < 1×T`), the standard minimum-bend-radius rule of thumb.
@@ -1743,6 +2164,11 @@ Manufacturability checks for an authored sheet-metal part. Returns a list of {@l
 
 **Returns**: the list of warnings (empty if valid).
 
+**Examples**:
+```js
+const warnings = validatePart(part)
+```
+
 #### `author(spec: AuthorSpec): Promise<Result<SheetMetalPart>>`
 Author a straight-bend part: a base flat plus folded-up flanges.
 
@@ -1750,6 +2176,11 @@ Author a straight-bend part: a base flat plus folded-up flanges.
 - `spec`: the part definition: base flat, material thickness, and the flange list to fold up.
 
 **Returns**: a `Result<SheetMetalPart>` carrying the authored part, or the first error encountered.
+
+**Examples**:
+```js
+const part = await author({ thickness: 1.2, base: { length: 100, width: 50 }, flanges: [] })
+```
 
 #### `unfoldSolid(solid: Solid, opts?: { kFactor?: number }): Result<UnfoldResult>`
 Unfold an imported sheet-metal solid that has no feature tree, by detecting its geometry (planar panels + cylindrical bends) numerically. `kFactor` defaults to the mid-surface neutral axis (0.5); supply a known material's K-factor to match its development.
@@ -1760,6 +2191,11 @@ Unfold an imported sheet-metal solid that has no feature tree, by detecting its 
 
 **Returns**: a `Result<UnfoldResult>` with the detected flat pattern, report, and any warnings.
 
+**Examples**:
+```js
+const flat = unfoldSolid(solid, { kFactor: 0.44 })
+```
+
 #### `miter(part: SheetMetalPart, plane: MiterPlane): Promise<Result<SheetMetalPart>>`
 Cut a part by an oriented plane, removing material on the `+normal` side.
 
@@ -1768,6 +2204,11 @@ Cut a part by an oriented plane, removing material on the `+normal` side.
 - `plane`: the oriented cutting plane; material on the plane's `+normal` side is removed.
 
 **Returns**: a `Result<SheetMetalPart>` carrying the mitered part, or the first error.
+
+**Examples**:
+```js
+const cut = await miter(part, { origin: [0, 0, 0], normal: [1, 0, 0] })
+```
 
 #### `miterCorner(part: SheetMetalPart, flangeIdA: string, flangeIdB: string, gap: any): Promise<Result<SheetMetalPart>>`
 Auto-miter the shared corner of two flanges with an optional gap.
@@ -1780,6 +2221,11 @@ Auto-miter the shared corner of two flanges with an optional gap.
 
 **Returns**: a `Result<SheetMetalPart>` carrying the mitered part, or the first error.
 
+**Examples**:
+```js
+const mitered = await miterCorner(part, 'f1', 'f2')
+```
+
 #### `bendRelief(part: SheetMetalPart, flangeId: string, spec?: ReliefSpec): Promise<Result<SheetMetalPart>>`
 Add a bend relief slot at each mid-edge end of a partial flange's bend line.
 
@@ -1790,6 +2236,11 @@ Add a bend relief slot at each mid-edge end of a partial flange's bend line.
 
 **Returns**: a `Result<SheetMetalPart>` carrying the part with the relief added, or the first error.
 
+**Examples**:
+```js
+const relieved = await bendRelief(part, 'f1')
+```
+
 #### `autoReliefs(part: SheetMetalPart, spec?: ReliefSpec): Promise<Result<SheetMetalPart>>`
 Add a bend relief to every partial-span bend in the part.
 
@@ -1798,6 +2249,11 @@ Add a bend relief to every partial-span bend in the part.
 - `spec`: optional relief specification applied to every partial bend.
 
 **Returns**: a `Result<SheetMetalPart>` carrying the part with all reliefs added, or the first error.
+
+**Examples**:
+```js
+const relieved = await autoReliefs(part)
+```
 
 #### `relieveCorner(part: SheetMetalPart, flangeIdA: string, flangeIdB: string, spec?: ReliefSpec): Promise<Result<SheetMetalPart>>`
 Cut a corner relief notch at the shared corner of two adjacent flanges.
@@ -1810,6 +2266,11 @@ Cut a corner relief notch at the shared corner of two adjacent flanges.
 
 **Returns**: a `Result<SheetMetalPart>` carrying the part with the corner relief added, or the first error.
 
+**Examples**:
+```js
+const relieved = await relieveCorner(part, 'f1', 'f2')
+```
+
 #### `toDXF(pattern: FlatPattern, options?: DxfOptions): Result<string>`
 Emit an annotated multi-layer DXF string for a flat pattern.
 
@@ -1819,6 +2280,11 @@ Emit an annotated multi-layer DXF string for a flat pattern.
 
 **Returns**: a `Result<string>` carrying the DXF text, or the first error.
 
+**Examples**:
+```js
+const dxf = toDXF(pattern)
+```
+
 #### `report(part: SheetMetalPart): Result<BendReport>`
 Build a bend report by walking the part's feature tree.
 
@@ -1826,6 +2292,11 @@ Build a bend report by walking the part's feature tree.
 - `part`: the sheet-metal part to report on.
 
 **Returns**: a `Result<BendReport>` carrying the computed bend report, or the first error.
+
+**Examples**:
+```js
+const report = report(part)
+```
 
 #### `reportFrom(result: UnfoldResult): Result<BendReport>`
 Project the report already computed by {@link unfold} without re-walking the tree.
@@ -1835,6 +2306,11 @@ Project the report already computed by {@link unfold} without re-walking the tre
 
 **Returns**: a `Result<BendReport>` carrying the projected bend report, or the first error.
 
+**Examples**:
+```js
+const report = reportFrom(unfoldResult)
+```
+
 #### `reportJSON(report: BendReport): string`
 Serialize a bend report to stable pretty-printed JSON.
 
@@ -1843,6 +2319,11 @@ Serialize a bend report to stable pretty-printed JSON.
 
 **Returns**: the stable pretty-printed JSON string.
 
+**Examples**:
+```js
+const json = reportJSON(report)
+```
+
 #### `validate(part: SheetMetalPart): SheetMetalWarning[]`
 Manufacturability checks — advisory warnings, never errors.
 
@@ -1850,6 +2331,11 @@ Manufacturability checks — advisory warnings, never errors.
 - `part`: the sheet-metal part to check.
 
 **Returns**: the list of manufacturability warnings (empty when the part is clean).
+
+**Examples**:
+```js
+const warnings = validate(part)
+```
 
 #### `allowance(angleDeg: number, thickness: number, rule: BendRule, onWarning?: (warning: SheetMetalWarning) => void): Result<number>`
 Bend allowance `BA = (π/180)·|angle|·(R + K·T)` for a single bend.
@@ -1862,6 +2348,11 @@ Bend allowance `BA = (π/180)·|angle|·(R + K·T)` for a single bend.
 
 **Returns**: a `Result<number>` carrying the bend allowance, or the first error.
 
+**Examples**:
+```js
+const ba = allowance(90, 1.2, { innerRadius: 1.2, kFactor: 0.44 })
+```
+
 #### `developed(angleDeg: number, thickness: number, rule: BendRule, onWarning?: (warning: SheetMetalWarning) => void): Result<number>`
 Neutral-axis developed length of a bend region (numerically equal to the allowance).
 
@@ -1873,6 +2364,11 @@ Neutral-axis developed length of a bend region (numerically equal to the allowan
 
 **Returns**: a `Result<number>` carrying the developed length, or the first error.
 
+**Examples**:
+```js
+const len = developed(90, 1.2, { innerRadius: 1.2, kFactor: 0.44 })
+```
+
 #### `addBendTable(table: BendTable): Result<BendTable>`
 Register (or replace) a shop bend table so rules can reference it by id.
 
@@ -1881,6 +2377,12 @@ Register (or replace) a shop bend table so rules can reference it by id.
 
 **Returns**: a `Result<BendTable>` carrying the registered table, or the first error.
 
+**Examples**:
+```js
+const t = { id: 'shop-a', kind: 'allowance', rows: [{ thickness: 1.2, radius: 1.2, angleDeg: 90, value: 2.6 }] }
+const stored = addBendTable(t)
+```
+
 #### `bendTable(id: string): BendTable | undefined`
 Look up a registered bend table by id (starter tables included).
 
@@ -1888,6 +2390,11 @@ Look up a registered bend table by id (starter tables included).
 - `id`: the bend table id to look up.
 
 **Returns**: the matching `BendTable`, or `undefined` when no such table is registered.
+
+**Examples**:
+```js
+const table = bendTable('steel-airbend')
+```
 
 #### `resolveAllowance(rule: BendRule, angleDeg: number, thickness: number, onWarning?: (warning: SheetMetalWarning) => void): Result<number>`
 Resolve a bend's developed allowance through the single resolution point: a referenced bend table, then an explicit `rule.allowance`, then the K-factor formula. This is what {@link developed} delegates to.
@@ -1900,6 +2407,11 @@ Resolve a bend's developed allowance through the single resolution point: a refe
 
 **Returns**: a `Result<number>` carrying the resolved allowance, or the first error.
 
+**Examples**:
+```js
+const ba = resolveAllowance({ innerRadius: 1.2, kFactor: 0.44 }, 90, 1.2)
+```
+
 #### `contourFlange(part: SheetMetalPart, spec: ContourFlangeSpec): Promise<Result<SheetMetalPart>>`
 Author a contour flange: an open line/arc profile swept along a base edge into a multi-bend cross-section. The development is exact (Σ segment developed lengths).
 
@@ -1908,6 +2420,11 @@ Author a contour flange: an open line/arc profile swept along a base edge into a
 - `spec`: contour flange definition: profile, base edge, and bend parameters.
 
 **Returns**: a `Result<SheetMetalPart>` carrying the part with the contour flange added, or the first error.
+
+**Examples**:
+```js
+const cf = await contourFlange(part, { id: 'cf1', side: 'xmax', profile: [{ kind: 'arc', radius: 2, angleDeg: 90, direction: 'up' }] })
+```
 
 #### `loftedFlange(part: SheetMetalPart, spec: LoftedFlangeSpec): Promise<Result<SheetMetalPart>>`
 Author a lofted / ruled transition flange between two parallel open profiles. The development is by triangulation — exact for a developable transition, an approximation (with a `DEVELOPMENT_APPROXIMATE` unfold warning) otherwise.
@@ -1918,6 +2435,11 @@ Author a lofted / ruled transition flange between two parallel open profiles. Th
 
 **Returns**: a `Result<SheetMetalPart>` carrying the part with the lofted flange added, or the first error.
 
+**Examples**:
+```js
+const lf = await loftedFlange(part, { id: 'lf1', profileA: [[0, 0], [50, 0]], profileB: [[0, 0], [40, 20]], height: 30 })
+```
+
 #### `nest(patterns: FlatPattern[], options: NestOptions): Result<NestResult>`
 Nest developed flat patterns onto stock sheets to reduce waste. The default `strategy: "bbox"` packs each part as its outline bounding box (fast, no interlocking). `strategy: "nfp"` is true-shape / no-fit-polygon nesting: the actual outline polygons are packed so concave (L-shaped) parts interlock for higher utilization. The NFP packer is a HEURISTIC (bottom-left-fill) — not provably optimal — but never overlaps parts and never drops a part silently.
 
@@ -1926,6 +2448,11 @@ Nest developed flat patterns onto stock sheets to reduce waste. The default `str
 - `options`: nesting configuration: stock sheet size, strategy, and spacing.
 
 **Returns**: a `Result<NestResult>` carrying the placed sheets and part transforms, or the first error.
+
+**Examples**:
+```js
+const result = nest(patterns, { sheet: { width: 1000, height: 500 } })
+```
 
 #### `nestToDXF(result: NestResult, patterns: FlatPattern[], sheetIndex: number, options?: DxfOptions): Result<string>`
 Emit one fabrication-ready DXF for a single nested sheet (all parts placed).
@@ -1938,6 +2465,11 @@ Emit one fabrication-ready DXF for a single nested sheet (all parts placed).
 
 **Returns**: a `Result<string>` carrying the DXF text, or the first error.
 
+**Examples**:
+```js
+const dxf = nestToDXF(result, patterns, 0)
+```
+
 #### `solidOf(part: SheetMetalPart): Result<Solid>`
 Extract the lone 3D solid of an authored part as its own `Result` terminal. `author`/`fold`/`hem` return the data model `SheetMetalPart`; its `.solid` field is the authored BREP solid. `.fai.js` statements cannot read nested member expressions (`p1.solid`), so this explicit terminal is the sanctioned way to pull the geometry out of a part.
 
@@ -1945,6 +2477,11 @@ Extract the lone 3D solid of an authored part as its own `Result` terminal. `aut
 - `part`: the sheet-metal part carrying the authored solid.
 
 **Returns**: `Ok` with the part's surface, or `Err` (`NO_SOLID`) when the part has no authored solid yet (e.g. it was only built by `flatPattern`).
+
+**Examples**:
+```js
+const solid = solidOf(part)
+```
 
 #### `sheetMetal(base: BaseFlatSpec, thickness: number): SheetMetalBuilder`
 Start a fluent sheet-metal chain from a base flat (`length × width`).
@@ -1955,6 +2492,11 @@ Start a fluent sheet-metal chain from a base flat (`length × width`).
 
 **Returns**: a `SheetMetalBuilder` ready for authoring steps like `flange`/`seam`/`material`.
 
+**Examples**:
+```js
+const sm = sheetMetal({ length: 100, width: 50 }, 1.2)
+```
+
 #### `fromPart(part: SheetMetalPart): SheetMetalPartHandle`
 Re-enter the fluent chain from an already-authored part.
 
@@ -1962,6 +2504,11 @@ Re-enter the fluent chain from an already-authored part.
 - `part`: an authored sheet-metal part to operate on.
 
 **Returns**: a `SheetMetalPartHandle` wrapping the part.
+
+**Examples**:
+```js
+const handle = fromPart(part)
+```
 
 #### `foldFlat(input: FlatInput): Promise<SheetMetalPartHandle>`
 Fold a flat pattern up into a part and re-enter the fluent chain.
@@ -1971,6 +2518,11 @@ Fold a flat pattern up into a part and re-enter the fluent chain.
 
 **Returns**: a `SheetMetalPartHandle` carrying the folded part.
 
+**Examples**:
+```js
+const handle = await foldFlat(input)
+```
+
 #### `fromSolid(solid: Solid, opts?: { kFactor?: number }): ForeignSolidHandle`
 Detect and unfold an imported foreign sheet-metal solid (no feature tree).
 
@@ -1979,6 +2531,11 @@ Detect and unfold an imported foreign sheet-metal solid (no feature tree).
 - `opts`: optional overrides; `opts.kFactor` sets the K-factor used for the bend allowance.
 
 **Returns**: a `ForeignSolidHandle` for detecting and unfolding the solid.
+
+**Examples**:
+```js
+const handle = fromSolid(solid, { kFactor: 0.44 })
+```
 
 **Notes**:
 - Functions from @faicad/sheetmetal return `Promise<Result<T>>`. In `.fai.js` scripts, `err` is unwrapped at the statement boundary.
@@ -2129,6 +2686,12 @@ HerringbonePlanetaryGearset（人字行星轮系，装配体）。
 - `options`: 构建选项（齿面策略 / 特征字段）
 
 **Returns**: `Result<PlanetaryGearsetOutput>`——具名记录，失败转 `err`
+
+#### `checkLibManifest(ns: Record<string, unknown>): void`
+清单自校：`libManifest` 与实际模块的双源一致性。 检查三件事： 1. 清单里每个函数都在 `ns` 里（登记了不存在的导出 → 报错）； 2. 清单项的 `engines` / `outputs` 与该函数对象上的注解**逐位一致**（清单不得与实现漂移）； 3. `ns` 里任何**带注解**的函数都必须在清单里（新增导出忘了登记 → 报错）。
+
+**Parameters**:
+- `ns`: 运行时命名空间（`import * as gear from '…/src/index'`）
 
 **Notes**:
 - Functions from @faicad/faijs-gears return `Promise<Result<T>>`. In `.fai.js` scripts, `err` is unwrapped at the statement boundary.

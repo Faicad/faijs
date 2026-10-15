@@ -4,22 +4,22 @@
  * 2026-10-13：`makeHelixWire` 已进 L1 中立面（`BrepEngineApi`），本 op 由
  * 「occt 平台 op」升为**全平台中立 op** —— 不再声明 `engines: ['occt']`。
  *
- * - 右手（默认 `'right'`）：走 `getBrepApi().makeHelixWire`（L1）。
- *   brepkit 侧是采样拟合近似（无 1D 螺旋原语），偏差已钉 band。
- * - 左手（`handed: 'left'`）：仍是 **occt 平台路径**（`getOcctKernel().makeHelixWireHanded`）
- *   —— brepkit 无带手性的螺旋原语。非 occt 引擎下该分支由 `getOcctKernel()` 抛错，
- *   不做镜像兜底（静默换算法比报错更危险）。
+ * 手性是 `makeHelixWire` 的**形参**（`leftHanded`），由引擎适配器消化，本文件只看 L1：
+ * - 右手（默认 `'right'`）：两引擎都可建。brepkit 侧是采样拟合近似
+ *   （无 1D 螺旋原语），偏差已钉 band。
+ * - 左手（`handed: 'left'`）：occt 侧走原生带手性入口（`makeHelixWireHanded`）；
+ *   brepkit 无带手性原语 → 适配器**显式失败**，不做镜像兜底
+ *   （静默换算法比报错更危险）。故本文件不 import 平台模块、也不按 op 声明
+ *   `engines: ['occt']`——那会把右手一并拒掉。
  * - 1D 产物：经 fromBrepCurve 登记，kind='curve'。
  */
 
 import type { Shape } from '../mesh/types'
-import type { BrepHandle } from '../brep/engine/types'
 import { solidToShape } from '../brep/brep-ops'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrepCurve } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
-import { getOcctKernel } from '../occt-kernel/occtKernel'
 
 /** 螺旋手性：`'right'`（右手，逆时针上旋）或 `'left'`（左手，顺时针上旋）。 */
 export type HelixHanded = 'right' | 'left'
@@ -38,12 +38,13 @@ export interface HelixOptions {
   origin?: [number, number, number]
   /**
    * 手性（默认 `'right'`）。同 pitch/height/radius 下左右旋互为镜像。
-   * `'right'` 走 `makeHelixWire`，`'left'` 走 `makeHelixWireHanded(..., true)`。
+   * 经 L1 `makeHelixWire(..., leftHanded)` 送达引擎适配器：occt 两侧都原生支持；
+   * brepkit 只有右手（左手显式失败，不镜像）。
    */
   handed?: HelixHanded
 }
 
-/** BREP 路径：用 occt 原生 makeHelixWire / makeHelixWireHanded 构造螺旋线，登记 1D 句柄。 */
+/** BREP 路径：经 L1 `makeHelixWire` 构造螺旋线（手性作为形参），登记 1D 句柄。 */
 function helixBrep(opts: HelixOptions): Shape {
   const { radius, pitch, turns } = opts
   if (!(radius > 0)) throw new Error('E_HELIX_BAD_RADIUS: radius must be > 0')
@@ -59,12 +60,9 @@ function helixBrep(opts: HelixOptions): Shape {
   const kernel = getBrepApi()
   const o = { x: origin[0], y: origin[1], z: origin[2] }
   const a = { x: axis[0], y: axis[1], z: axis[2] }
-  // 右手（默认）= L1 中立名，两引擎都能建；左手仍是 occt 平台原语（无镜像兜底）。
-  const handle = (
-    handed === 'left'
-      ? getOcctKernel().makeHelixWireHanded(o, a, pitch, height, radius, true)
-      : kernel.makeHelixWire(o, a, pitch, height, radius)
-  ) as unknown as BrepHandle
+  // 手性是 L1 形参：occt 侧左右手都是原生路径；brepkit 侧右手采样拟合、左手由
+  // 适配器显式拒绝（无镜像兜底）。本文件因此不需要任何平台 import。
+  const handle = kernel.makeHelixWire(o, a, pitch, height, radius, handed === 'left')
   return fromBrepCurve(solidToShape(kernel, handle), { solid: handle })
 }
 
@@ -75,7 +73,7 @@ function helixBrep(opts: HelixOptions): Shape {
  * @async false
  * @qual ok
  * @name helix
- * @note 全平台中立 op：右手走 L1 makeHelixWire（brepkit 侧为采样拟合近似）；左手 handed:'left' 仍仅 occt（平台原语 makeHelixWireHanded）。
+ * @note 全平台中立 op：手性是 L1 `makeHelixWire` 的形参（`leftHanded`）——右手两引擎都可建（brepkit 侧为采样拟合近似）；左手仅 occt 原生支持，brepkit 适配器显式失败（不镜像兜底）。
  * @returns Shape 1D 螺旋线（kind:'curve'）。
  * @param options.radius - 螺旋半径（mm，>0）。type:number required:true
  * @param options.pitch - 螺距（mm，≠0）。type:number required:true
@@ -88,10 +86,10 @@ function helixBrep(opts: HelixOptions): Shape {
  * const lh = cad.helix({ radius: 5, pitch: 2, turns: 3, handed: 'left' })
  */
 export const helix = defineOp({
-  // name 必填：① 引擎门文案携带 op 名（`op 'helix' requires engine occt`，见
-  // test/api/sweep-loft.test.ts GOTCHA-3 对该形态的要求）；② occt op 覆盖率扫描器
-  // 的 op 全集只收 `export const X = defineOp({ name: '…' })`——缺 name 的 op
-  // 不可见，其直调的 occt 方法（makeHelixWireHanded）会被误判为「未接入」。
+  // name 必填：occt op 覆盖率扫描器的 op 全集只收
+  // `export const X = defineOp({ name: '…' })`——缺 name 的 op 在报告里不可见。
+  // （本 op 无平台直调：左手经 L1 形参送达，原生 makeHelixWireHanded 由契约实现层
+  //   直调，见 occt-kernel/occt-primitives.ts。）
   name: 'helix',
   brep(opts: HelixOptions) {
     return helixBrep(opts)

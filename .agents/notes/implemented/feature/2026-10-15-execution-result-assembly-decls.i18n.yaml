@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-15-execution-result-assembly-decls.md
+2026-10-15-execution-result-assembly-decls.md: 9a9af60371d6c1960fbee2abf5958c613198fad0
+2026-10-15-execution-result-assembly-decls.zh.md: 0d1464869bbd6e63af5ee5a184e501a62b084676

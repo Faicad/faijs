@@ -33,6 +33,8 @@ const DEVELOPABLE_MIN_SCALE = 1e-9;
  * @param part - the sheet metal part to attach a lofted flange to.
  * @param spec - the lofted flange specification.
  * @returns the updated part with the lofted flange feature recorded, or an error.
+ * @example
+ * const lf = await authorLoftedFlange(part, { id: 'lf1', profileA: [[0, 0], [50, 0]], profileB: [[0, 0], [40, 20]], height: 30 })
  */
 export async function authorLoftedFlange(
   part: SheetMetalPart,

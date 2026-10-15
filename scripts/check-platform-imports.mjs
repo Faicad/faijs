@@ -101,7 +101,7 @@ const violations = []
 let checkedFiles = 0
 let platformFiles = 0
 
-const roots = ['packages/core/src', 'packages/faijs-extra/src']
+const roots = ['packages/core/src']
 for (const root of roots) {
   const absRoot = join(repoRoot, root)
   for (const file of collectTs(absRoot)) {

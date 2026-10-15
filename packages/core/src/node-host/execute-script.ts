@@ -67,10 +67,9 @@ export async function executeScript(
   const ports = withCliLibLoader(createNodePorts())
   const runtime = createRuntime(ports, opts?.mode ?? 'auto', opts?.libs)
 
-  // cad 经 registerLib 声明 packageName，脚本可 `import * as cad from '@faicad/faijs'`。
-  if (opts?.libs?.cad) {
-    runtime.registerLib('cad', opts.libs.cad, { default: true, packageName: '@faicad/faijs' })
-  }
+  // `cad` needs no host wiring: createRuntime registers the built-in namespace
+  // (default binding, packageName '@faicad/faijs') and reserves the name, so
+  // scripts may `import * as cad from '@faicad/faijs'` out of the box.
 
   const execResult: ExecutionResult = await runtime.execute(code)
   return {

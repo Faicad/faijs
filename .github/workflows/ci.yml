@@ -8,11 +8,17 @@ on:
 
 # Keep this workflow STEP-ALIGNED with scripts/ci.ps1 (local Windows CI).
 # Both pipelines must run the same logical stages in the same order:
-#   lint -> typecheck -> build -> per-package tests (+stderr zero tolerance
-#   + test:install) -> guards -> demo e2e x2 -> doc-sync -> pack.
+#   lint -> typecheck(root+workspaces) -> build -> per-package tests
+#   (+stderr zero tolerance + gears subset + test:install) -> guards ->
+#   demo e2e x2 -> doc-sync -> pack.
 # If you add/remove/reorder a step here, mirror it in ci.ps1 (and vice versa).
-# History: demo tests repeatedly failed on CI because this file lacked the
-# build step while ci.ps1 had it — demo consumes @faicad/* via workspace dist.
+# History:
+#   - demo tests repeatedly failed on CI because this file lacked the build step
+#     while ci.ps1 had it — demo consumes @faicad/* via workspace dist.
+#   - 2026-10-14: this file still listed the packages deleted by the 2026-10-13
+#     merge (faijs-sketch / faijs-extra / faijs-draw are now part of core), and
+#     its guard list / per-package budgets / stderr scan had drifted from ci.ps1.
+#     Rewritten to mirror ci.ps1 1/9..9/9 exactly.
 jobs:
   build-and-test:
     strategy:
@@ -50,38 +56,44 @@ jobs:
           npm run typecheck --workspaces --if-present
 
       # 3/9 — build every dist needed before tests: demo consumes @faicad/*
-      # through each package's dist/ (no src aliases), and per-package
-      # pretest builds (cq-compat-compare) resolve
-      # @faicad/faijs-sketch via node_modules -> dist. A fresh checkout has
-      # nothing until this runs.
-      - name: Build (core → draw → sketch → extra → viewer → sheetmetal → gears)
+      # through each package's dist/ (no src aliases), and per-package pretest
+      # builds (cq-compat-compare) resolve @faicad/* via node_modules -> dist.
+      # A fresh checkout has nothing until this runs.
+      # `npm run build` = core -> viewer -> sheetmetal -> gears (see root package.json).
+      - name: Build (core → viewer → sheetmetal → gears)
         run: npm run build
 
-      # 4/9 — per-package tests. faijs-gears only runs its lightweight core
-      # subset (full BREP parity suite >900s, never fit for CI). Any `stderr |`
-      # line in test output fails the job (zero tolerance, same as ci.ps1).
+      # 4/9 — per-package tests, each under its own hard process watchdog budget
+      # (a synchronously deadlocked native test freezes vitest's own timers, so
+      # the budget is enforced by scripts/run-tests-with-watchdog.mjs). faijs-gears
+      # only runs its lightweight core subset (full BREP parity suite >900s, never
+      # fit for CI). Any `stderr |` line in test output fails the job (zero
+      # tolerance, same rule as ci.ps1 — ANSI stripped first: vitest colourises the
+      # reporter header, so the raw line is "\e[90mstderr\e[2m | <file> > <test>").
       - name: Test workspaces (per package, stderr zero tolerance)
         run: |
           set -o pipefail
           packages=(
-            @faicad/faijs
-            @faicad/faijs-sketch
-            @faicad/faijs-extra
-            @faicad/sheetmetal
-            @faicad/faijs-gears
-            @faicad/faijs-fasteners
-            @faicad/faijs-draw
-            @faicad/faijs-tests
-            @faicad/faijs-demo
+            "@faicad/faijs"
+            "@faicad/sheetmetal"
+            "@faicad/faijs-gears"
+            "@faicad/faijs-fasteners"
+            "@faicad/faijs-tests"
+            "@faicad/faijs-demo"
           )
-          gears_subset="src/index.test.ts src/profile.test.ts src/new-gear-math.test.ts src/spur-gear-build.test.ts"
+          gears_subset="test/index.test.ts test/profile.test.ts test/new-gear-math.test.ts test/spur-gear-build.test.ts"
+          default_budget=300000
+          fasteners_budget=600000
           failed=0
+          : > vitest-ci.log
           for pkg in "${packages[@]}"; do
-            echo "::group::tests $pkg"
+            budget=$default_budget
+            if [ "$pkg" = "@faicad/faijs-fasteners" ]; then budget=$fasteners_budget; fi
+            echo "::group::tests $pkg (budget=${budget}ms)"
             if [ "$pkg" = "@faicad/faijs-gears" ]; then
-              (cd packages/faijs-gears && npx vitest run $gears_subset) | tee -a vitest-ci.log
+              (cd packages/faijs-gears && node ../../scripts/run-tests-with-watchdog.mjs --budget-ms "$budget" -- npx vitest run $gears_subset) | tee -a vitest-ci.log
             else
-              npm run test -w "$pkg" | tee -a vitest-ci.log
+              node scripts/run-tests-with-watchdog.mjs --budget-ms "$budget" -- npm run test -w "$pkg" | tee -a vitest-ci.log
             fi
             rc=$?
             echo "::endgroup::"
@@ -91,30 +103,39 @@ jobs:
             fi
           done
           # Zero stderr tolerance: any test writing "stderr |" lines fails CI.
-          if grep -E '^stderr \|' vitest-ci.log; then
+          # Strip ANSI SGR sequences before matching (see step comment above).
+          if sed -E 's/\x1b\[[0-9;]*m//g' vitest-ci.log | grep -E '^stderr \|'; then
             echo "::error::Tests produced stderr output — all test stderr must be resolved."
             failed=1
           fi
           rm -f vitest-ci.log
           exit $failed
 
-      # 4/9 (publish-state smoke)
-      - name: faijs-sketch test:install (publish-state smoke)
-        run: npm run test:install -w @faicad/faijs-sketch
+      # 4/9 (publish-state smoke) — core owns the published face after the
+      # 2026-10-13 merge (sketch/extra/draw are no longer separate packages).
+      - name: faijs test:install (publish-state smoke)
+        run: node scripts/run-tests-with-watchdog.mjs --budget-ms 600000 -- npm run test:install -w @faicad/faijs
 
-      # 5/9
-      - name: Guards (ghost deps / workspace order / lockstep / cycles / platform imports / api surface / no-brepjs / lib language / no out-of-repo test reads)
+      # 5/9 — mirrors ci.ps1 `5/9` in order and coverage.
+      - name: Guards (ghost deps / workspace order / lockstep / facade / cycles / platform imports / lib layering / api surface / dist sync / no-brepjs / lib language / test fs scope / tsconfig paths / op dims / api test coverage)
         run: |
           node scripts/check-ghost-deps.mjs
           node scripts/check-workspaces-order.mjs
           node scripts/check-lockstep.mjs
-          npx madge --circular packages/core/src packages/faijs-extra/src
+          node scripts/check-facade.mjs
+          npx madge --circular packages/core/src
           node scripts/check-platform-imports.mjs
+          node scripts/check-lib-layering.mjs
           node scripts/api-surface-snapshot.mjs
+          node scripts/check-dist-sync.mjs
           node scripts/check-core-no-brepjs.mjs
           node scripts/check-lib-src-language.mjs
           node scripts/check-test-fs-scope.mjs
           node scripts/check-tsconfig-paths.mjs
+          node scripts/check-op-dims.mjs
+          for pkg in core sheetmetal faijs-gears faijs-fasteners faijs-viewer; do
+            npx tsx scripts/check-api-test-coverage.ts --package=$pkg
+          done
 
       # 6/9
       - name: Demo e2e (dev server, workspace dist)

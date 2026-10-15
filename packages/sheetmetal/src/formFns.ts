@@ -37,6 +37,8 @@ type Pt2 = [number, number];
  * @param part - the sheet metal part to form.
  * @param spec - the form specification.
  * @returns the updated part with the form feature recorded, or an error.
+ * @example
+ * const formed = await addForm(part, { kind: 'louver', region: 'base', x: 20, y: 20, length: 10, width: 5, height: 2 })
  */
 export async function addForm(part: SheetMetalPart, spec: FormSpec): Promise<Result<SheetMetalPart>> {
   const solid = part.solid;
@@ -217,6 +219,8 @@ async function embossForm(
  * @param part - the sheet metal part to form.
  * @param opts - louver geometry (region, x, y, length, width, height, direction?).
  * @returns the updated part with the louver feature recorded, or an error.
+ * @example
+ * const vent = await louver(part, { region: 'base', x: 20, y: 20, length: 10, width: 5, height: 2 })
  */
 export async function louver(
   part: SheetMetalPart,
@@ -238,6 +242,8 @@ export async function louver(
  * @param part - the sheet metal part to form.
  * @param opts - emboss geometry (region, x, y, diameter, height, direction?).
  * @returns the updated part with the emboss feature recorded, or an error.
+ * @example
+ * const bump = await emboss(part, { region: 'base', x: 20, y: 20, diameter: 8, height: 1, kind: 'emboss' })
  */
 export async function emboss(
   part: SheetMetalPart,

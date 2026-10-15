@@ -86,6 +86,13 @@ export { applyTransform } from '../../mesh/rigid-transform'
 
 /** Behavior attached to an assembly compound: its members, constraints, and solver. */
 export interface AssemblyBehavior {
+  /**
+   * F3：声明来源判别符（`group` → 'group'，`assembly` → 'assembly'）。
+   * `ExecutionResult.assemblies` 只收 'assembly'——group 无约束/关节，进装配声明面
+   * 会让消费方（animation 宿主）对空约束集求解并撞欠定诊断。历史 behavior 无此字段
+   * （旧持久化 compound）→ 视为非 assembly 声明。
+   */
+  kind?: 'group' | 'assembly'
   name?: string
   memberNames: string[]
   constraints: AssemblyConstraint[]
@@ -101,6 +108,30 @@ export interface AssemblyBehavior {
   solve(): AssemblyTransform[]
   /** 只求解并带诊断量（P1）：transforms + dof/converged/unsupported（方案 P1⑤）；P3 增 kinematics/warnings。 */
   solveDetailed(): AssemblySolveResult
+}
+
+/**
+ * F3：装配声明的**宿主消费形态**（`ExecutionResult.assemblies` 的元素，2026-10-15）。
+ *
+ * = AssemblyBehavior 的声明字段（去掉 solve/solveDetailed 方法）+ CompoundShape 引用。
+ * 存在的理由：约束/关节声明此前只活在 compound 的 behavior 槽里，而 `getSlot` 未公开
+ * 导出——宿主持不到声明，只能在 outputs 里逆结构。本类型把声明面提到 ExecutionResult
+ * 一级字段，宿主据此在**自己的侧**做纯求解（禁烘焙：不调 asm.solve()/do_assemble()，
+ * 不触发 applyPendingAssemblyTransforms），位姿只以 transform 数据在宿主侧流动。
+ */
+export interface AssemblyDecl {
+  /** 装配名（cad.assembly 的 name 参数；未给则 undefined）。 */
+  name?: string
+  /** 成员变量名（声明序，与 compound children 同序）。 */
+  memberNames: string[]
+  /** 约束声明（原样携带，未经求解）。 */
+  constraints: AssemblyConstraint[]
+  /** 运动副声明（无 joints 时为空数组）。 */
+  joints: JointSpec[]
+  /** 求解风格（'chain' 缺省 | 'global'）。 */
+  solver?: SolverStyle
+  /** 装配 compound 本体（成员 Shape 经其 children 取用；也出现在 outputs 里）。 */
+  compound: CompoundShape
 }
 
 /**
@@ -171,6 +202,7 @@ export function group(params: GroupParams): CompoundShape {
   const c = makeCompound(members)
   // 挂最小 behavior（memberNames 供 ExecutionResult.compounds 结构输出；group 无约束）
   ensureSlot(c).behavior = {
+    kind: 'group',
     memberNames,
     constraints: [],
     joints: [],
@@ -218,6 +250,7 @@ export function assembly(params: AssemblyParams): CompoundShape {
   if (members.length > 0) keep(...members)
   const c = makeCompound(members)
   const behavior: AssemblyBehavior = {
+    kind: 'assembly',
     name: params.name as string | undefined,
     memberNames,
     constraints,
