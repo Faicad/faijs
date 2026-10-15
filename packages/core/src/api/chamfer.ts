@@ -27,9 +27,9 @@ import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { chamferWithRoleTable, identityEvolution } from '../brep/face-evolution'
 import { getBrepApi } from '../brep/handle-bridge'
-import { getCurrentStmt } from '../runtime-state'
+import { getCurrentStmt, nameOf, setName } from '../runtime-state'
 import { hasNativeHistory } from '../brep/engine/native-history'
-import { fromBrep, brepOf, inputRoleTable } from '../shape'
+import { fromBrep, brepOf, inputRoleTable, resolveCompoundMember, replaceCompoundMember } from '../shape'
 import { defineOp } from '../sdk'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
@@ -364,6 +364,22 @@ function chamferMeshSolid(input: Shape, params: Record<string, unknown>): Shape 
 }
 
 /**
+ * 多零件 load 的 compound 成员是匿名 Shape：其面 role（`imported:<memberIdx>:<i>`）
+ * 记录在父 compound 变量名（part 键）的合并表里，成员自身没有 part 名。解包后
+ * 若直接把匿名 target 喂给 chamferBrep，`buildEdgeResolutionContext` 经
+ * `nameOf(target)` 查 part 键表会得到 undefined → E_TOPO_NOT_FOUND。
+ *
+ * 这里让 target 继承父 part 名（仅当 target 尚未命名时），使其 part 键表命中父
+ * compound 的合并表——合并表包含该成员全部面的 role→hash，几何上正确。单零件
+ * 路径 input===target 且 target 已被执行器命名，`!nameOf(target)` 守卫使其空转。
+ */
+function adoptParentPartName(input: Shape, target: Shape): void {
+  if (target === input) return
+  const parentName = nameOf(input)
+  if (parentName && !nameOf(target)) setName(target, parentName)
+}
+
+/**
  * 在几何体上倒角（等距 / 双距 / 距角）。
  * @group 特征
  * @inputs 1
@@ -394,11 +410,21 @@ export const chamfer = defineOp({
   meshEngines: ['brepkit'],
   mesh(input: Shape, params: Record<string, unknown>) {
     assertChamferParams(params, { allowOrdinals: true })
-    return chamferMeshSolid(input, params)
+    // P2：多零件 load 输入是 compound——按 partIndex 取目标成员，结果替换回原
+    // compound（其余 children 原样），与 fai_extrude/fai_drill 同构。
+    const target = resolveCompoundMember(input, params.partIndex, 'chamfer')
+    const result = chamferMeshSolid(target, params)
+    return replaceCompoundMember(input, params.partIndex, result)
   },
   brep(input: Shape, params: Record<string, unknown>) {
     assertChamferParams(params)
-    return chamferBrep(input, params)
+    const target = resolveCompoundMember(input, params.partIndex, 'chamfer')
+    // 多零件 load 的成员匿名：其面 role 记录在父 compound 的 part 键合并表里。
+    // 解包后让 target 继承父 part 名，buildEdgeResolutionContext/inputRoleTable
+    // 才能按 part 名查到表（单零件 input===target 且已命名，无副作用）。
+    adoptParentPartName(input, target)
+    const result = chamferBrep(target, params)
+    return replaceCompoundMember(input, params.partIndex, result)
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 

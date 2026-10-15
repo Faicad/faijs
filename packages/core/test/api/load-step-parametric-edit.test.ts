@@ -162,3 +162,40 @@ describe('P4: 多零件 compound — 各成员 role 唯一，逐成员编辑互�
     expect(naming.edgeNaming.some((e) => e.faces !== null)).toBe(true)
   })
 })
+
+describe('P5: 多零件 compound 成员上 chamfer/fillet（partIndex 解包）', () => {
+  beforeEach(() => {
+    __resetEngineRegistriesForTests()
+  })
+
+  it('load(test-model.step) compound → chamfer(part0,{partIndex:0}) 成功（不再 E_CHAMFER_NO_BREP）', async () => {
+    await registerOcctBrepEngine()
+    const runtime = createEditorRuntime(stepPorts('test-model.step'), 'brep')
+    // 先 load 一次：从合并命名里找一条「两邻面都属 member0」的边行。
+    const base = await runtime.execute(`let part0 = await cad.load({ file: 'test-model.step' })`)
+    expect(base.failedAt).toBeUndefined()
+    const naming = assertUsableEdgeNaming(base, 'part0')
+    const row = naming.edgeNaming.find(
+      (e) =>
+        e.faces &&
+        e.faces[0].role.startsWith('imported:0:') &&
+        e.faces[1].role.startsWith('imported:0:'),
+    )
+    expect(row).toBeDefined()
+    expect(row!.faces).not.toBeNull()
+    const edgeRef = { kind: 'edge', faces: row!.faces, hint: row!.hint }
+
+    // 复现用户脚本：多零件 load 产物是 compound，宿主按 partIndex 选 member0。
+    // 修复前：chamfer 直接 brepOf(compound)===undefined → E_CHAMFER_NO_BREP。
+    const c1 = await runtime.execute(
+      `let part0 = await cad.load({ file: 'test-model.step' })\n` +
+        `let part1 = cad.chamfer(part0, { edges: [${JSON.stringify(edgeRef)}], partIndex: 0, type: 'equal', width: 1 })\n`,
+    )
+    expect(c1.failedAt).toBeUndefined()
+    expect(c1.outputs.get(asPartName('part1'))).toBeDefined()
+    // chamfer 作用在 member0 上：产物仍是 compound（其余成员原样），且 member0 带 BREP 句柄。
+    const out = c1.outputs.get(asPartName('part1')) as { kind?: string; children?: unknown[] }
+    expect(out.kind).toBe('compound')
+    expect(out.children?.length).toBeGreaterThanOrEqual(2)
+  })
+})

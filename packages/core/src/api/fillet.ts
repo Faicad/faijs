@@ -22,8 +22,8 @@ import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { filletWithRoleTable } from '../brep/face-evolution'
 import { getBrepApi } from '../brep/handle-bridge'
-import { getCurrentStmt } from '../runtime-state'
-import { fromBrep, brepOf, inputRoleTable } from '../shape'
+import { getCurrentStmt, nameOf, setName } from '../runtime-state'
+import { fromBrep, brepOf, inputRoleTable, resolveCompoundMember, replaceCompoundMember } from '../shape'
 import { defineOp } from '../sdk'
 import type { BrepHandle } from '../brep/engine/types'
 import type { EdgeTopoRef, ResolutionContext } from '../topology/naming'
@@ -208,6 +208,17 @@ function filletMeshSolid(input: Shape, params: Record<string, unknown>): Shape {
 }
 
 /**
+ * 多零件 compound 成员是匿名 Shape：其面 role 记录在父 compound 的 part 键合并表里。
+ * 解包后让 target 继承父 part 名，buildEdgeResolutionContext/inputRoleTable 才能按
+ * part 名查到表（与 chamfer 同构）。单零件路径 input===target 已命名，守卫使其空转。
+ */
+function adoptParentPartName(input: Shape, target: Shape): void {
+  if (target === input) return
+  const parentName = nameOf(input)
+  if (parentName && !nameOf(target)) setName(target, parentName)
+}
+
+/**
  * 在几何体上做圆角（等半径）。
  *
  * 两条路径都以 `meshEngines: ['brepkit']` 之外的事实为界：BREP 输入走
@@ -236,11 +247,17 @@ export const fillet = defineOp({
   meshEngines: ['brepkit'],
   mesh(input: Shape, params: Record<string, unknown>) {
     assertFilletParams(params, { allowOrdinals: true })
-    return filletMeshSolid(input, params)
+    // P2：多零件 load 输入是 compound——按 partIndex 取目标成员，结果替换回原 compound。
+    const target = resolveCompoundMember(input, params.partIndex, 'fillet')
+    const result = filletMeshSolid(target, params)
+    return replaceCompoundMember(input, params.partIndex, result)
   },
   brep(input: Shape, params: Record<string, unknown>) {
     assertFilletParams(params)
-    return filletBrep(input, params)
+    const target = resolveCompoundMember(input, params.partIndex, 'fillet')
+    adoptParentPartName(input, target)
+    const result = filletBrep(target, params)
+    return replaceCompoundMember(input, params.partIndex, result)
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
