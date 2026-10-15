@@ -100,12 +100,10 @@ export default defineConfig({
     // faijs-cadquery 0.29.x dist still imports old package names that were merged
     // into core (2026-10-13: sketch/extra → core subpaths, brep-mirror → brep-operations).
     // Map them to the new dist files so esbuild/vite can resolve at dev time.
-    // @faicad/faijs is a workspace junction → packages/core, so node_modules/@faicad/faijs/dist
-    // is the same as packages/core/dist.
     alias: {
-      '@faicad/faijs-sketch': resolve(__dirname, 'node_modules/@faicad/faijs/dist/sketch/index.js'),
-      '@faicad/faijs-extra': resolve(__dirname, 'node_modules/@faicad/faijs/dist/extra/index.js'),
-      '@faicad/faijs/api/brep-mirror/topologyFns': resolve(__dirname, 'node_modules/@faicad/faijs/dist/api/brep-operations/topologyFns.js'),
+      '@faicad/faijs-sketch': require_.resolve('@faicad/faijs/sketch'),
+      '@faicad/faijs-extra': require_.resolve('@faicad/faijs/extra'),
+      '@faicad/faijs/api/brep-mirror/topologyFns': require_.resolve('@faicad/faijs/api/brep-operations/topologyFns'),
     },
   },
   plugins: [cdnExternalPlugin(), wasmAssets()],
