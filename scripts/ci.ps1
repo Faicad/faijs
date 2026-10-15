@@ -93,6 +93,7 @@ $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS 
 # faijs-gears / faijs-fasteners 同为 BREP parity 大套件（gears 全套 >900s，CI 只跑其
 # 轻量子集，见下方 $gearsSubset 注释；fasteners 全量实测 139s，600s 留足慢机余量）。
 $testBudgetOverrides = @{
+  '@faicad/faijs'            = 600000
   '@faicad/faijs-fasteners'  = 600000
 }
 # faijs-gears 全套 BREP parity 测试 >900s（features.test.ts 单文件 240s+），历史上从未
