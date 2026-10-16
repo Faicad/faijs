@@ -1283,7 +1283,21 @@ export class CadRuntime {
           return
         }
         const rt = this.buildBrepTopology(partName)
-        if (rt) topology.set(partName, { partName, source: 'brep', data: runtimeToData(rt) })
+        if (rt) {
+          const data = runtimeToData(rt)
+          topology.set(partName, { partName, source: 'brep', data })
+          // §3.6 行 hint 快照：与 `setTopology` 同构，但从「宿主调才写」改为
+          // 「执行时自写」。原因：BREP 路径宿主不一定调 setTopology（实测
+          // weapp worker / animation 都不调），槽里 faceHints 就是空的 → 解析侧
+          // （buildShapeResolutionContext 的 BREP 分支）只能拿 kernel 现场，而
+          // brepkit 的 uvBounds 对平面返回 ±1e6 哨兵、surfaceCenterOfMass 退化
+          // 成参数原点求值 → 非居中模型上 center 全错 → 兜底打分全拒 →
+          // `topo ref (face) not found in the current shape`。
+          // 行数据与 handle 同一次 execute 产出，同帧不陈旧。
+          if (v && typeof v === 'object') {
+            ensureSlot(v).faceHints = (data.faces ?? []).map((f) => faceRowToHint(f))
+          }
+        }
       }
       if (topoMode === 'brep') {
         for (const name of shapeVarNames) {

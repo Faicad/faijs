@@ -556,8 +556,48 @@ function sameIdentity(a: LineageNode, b: LineageNode): boolean {
 }
 
 /**
+ * globalThis 上的血缘图共享键与版本（见 `sharedLineageGraph`）。
+ */
+const LINEAGE_KEY = '__FAICAD_FAIJS_LINEAGE__'
+const LINEAGE_VERSION = 1
+
+/**
+ * 取（或建）挂在 globalThis 上的血缘图。
+ *
+ * **为什么必须挂 globalThis**：宿主 bundle 与第三方库（如 animation）可能各打一份
+ * faijs 代码（node_modules 里 animation 内嵌一份、宿主一份）。模块级单例会让
+ * 「建命名的一方」与「解析的一方」看到两张不同的表——求解侧 `roleTable` 恒空，
+ * exact 路径永不命中，只剩几何兜底；而 brepkit 的 `uvBounds` 对平面返回 ±1e6
+ * 哨兵，`surfaceCenterOfMass` 退化成参数原点求值，非居中模型上兜底全拒 →
+ * `topo ref (face) not found in the current shape`（2026-10-16 装配选面 bug 实锤）。
+ *
+ * 与 `runtime-state.ts` 的 `getRuntimeState()` 同一机制——那边早就是 globalThis
+ * （注释原话"让两份 faijs 代码共享同一份状态……构建期去重是主手段，这里是兜底"），
+ * 血缘图是漏补的那一块。版本不符直接抛错，不静默错乱（与 N1/N2/N3 同精神：
+ * 宁可在执行期就炸）。
+ *
+ * @returns the shared lineage graph singleton.
+ */
+function sharedLineageGraph(): LineageGraph {
+  const g = globalThis as unknown as Record<string, unknown>
+  const existing = g[LINEAGE_KEY] as { version: number; graph: LineageGraph } | undefined
+  if (existing) {
+    if (existing.version !== LINEAGE_VERSION) {
+      throw new Error(
+        `[faijs] lineage version mismatch: loaded=${existing.version}, expected=${LINEAGE_VERSION}`,
+      )
+    }
+    return existing.graph
+  }
+  const created = { version: LINEAGE_VERSION, graph: new LineageGraph() }
+  g[LINEAGE_KEY] = created
+  return created.graph
+}
+
+/**
  * 执行期共用的血缘图实例。
  *
  * 唯一性由约束 C1（禁止并发多 runtime）保证；测试请自建 `new LineageGraph()`。
+ * **跨 faijs 实例共享**（globalThis），见 `sharedLineageGraph`。
  */
-export const runtimeLineage = new LineageGraph()
+export const runtimeLineage: LineageGraph = sharedLineageGraph()

@@ -23,14 +23,22 @@ export interface FaceCandidateEntry {
   ordinal: number
   /** 会话内 hash（BREP：subShapeHashes；exact 匹配用）。 */
   hash?: number
-  /** BREP 现场句柄（存在 → 打分走 kernel 现场几何）。 */
+  /** BREP 现场句柄（exact 匹配 + 命中后回传活句柄用；打分不再优先走它）。 */
   handle?: BrepHandle
-  /** mesh/primitive 面行快照（存在 → 打分走 scoreCandidate row 路径）。 */
+  /**
+   * 面行快照（存在 → 打分走 scoreCandidate row 路径）。
+   *
+   * BREP 路径也带（slot.faceHints，§3.6）：行几何与 handle 同一次 execute 产出
+   * （同帧），且 brepkit 的 kernel 现场 center 会退化（uvBounds ±1e6 哨兵 →
+   * surfaceCenterOfMass 在参数原点求值），故 `toScoringCandidate` 改为 row 优先。
+   * `axis` 与 `faceRowToHint` 入参对齐——圆柱面的轴 hint 不能丢。
+   */
   row?: Readonly<{
     surfaceType?: string
     normal?: readonly number[]
     center?: readonly number[]
     area?: number
+    axis?: { origin?: readonly number[] | null; direction?: readonly number[] | null }
   }>
 }
 
@@ -83,9 +91,25 @@ export interface VertexCandidateEntry {
   position?: readonly number[]
 }
 
-/** 打分候选 → 候选条目（handle 优先、row 兜底，与 score.ts FaceCandidate 同构）。 */
+/**
+ * 打分候选 → 候选条目（**row 优先**、kernel 现场兜底，与 score.ts FaceCandidate 同构）。
+ *
+ * 曾经是 handle 优先（`c.handle !== undefined ? { handle } : { row }`），那让 BREP
+ * 路径的打分一律走 kernel 现场——而 brepkit 的 `uvBounds` 对平面返回 ±1e6 哨兵，
+ * `surfaceCenterOfMass` 在参数原点求值：非居中模型上 center 全错（`[20,20,0]` 退
+ * 化成 `[0,0,0]`），距 hint 质心 28mm > 10mm 硬门 → 全候选被拒 →
+ * `topo ref (face) not found in the current shape`（2026-10-16 装配选面 bug）。
+ * 居中模型只因"参数原点恰好等于质心"而侥幸通过——是巧合，不是正确性。
+ *
+ * 行快照与 handle 同一次 execute 产出（同帧不陈旧），几何就是命名行的同一来源
+ * （`geom-hint.ts` 的 `faceRowToHint`），且 derived 解析（`resolve-derived.ts` 的
+ * `normalOf`）早已走 row——这里把主解析路径对齐过来。
+ *
+ * @param c - the face candidate entry.
+ * @returns the scoring candidate (row first, live handle as fallback).
+ */
 function toScoringCandidate(c: FaceCandidateEntry): { handle?: BrepHandle; row?: FaceCandidateEntry['row'] } {
-  return c.handle !== undefined ? { handle: c.handle } : { row: c.row }
+  return c.row !== undefined ? { row: c.row } : { handle: c.handle }
 }
 
 /** 一组候选对 hint 打分：best / secondBest / scored。 */

@@ -25,6 +25,7 @@ import { asStmtId, type PartName, type StmtId } from '../identity'
 import {
   resolveTopoRef,
   captureFaceHint,
+  captureCylinderFaceAxis,
   captureEdgeHint,
   faceRowToHint,
   TopoRefError,
@@ -230,7 +231,16 @@ export function buildShapeResolutionContext(
   if (kernel && solid !== undefined) {
     const handles = kernel.getSubShapes(solid, 'face')
     const hashes = Array.from(kernel.subShapeHashes(solid, 'face', HASH_UPPER_BOUND))
-    const faces = handles.map((handle, i) => ({ ordinal: i + 1, hash: hashes[i] ?? 0, handle }))
+    // 行 hint 快照同带（§3.6）：brepkit 的 uvBounds 对平面返回 ±1e6 哨兵，
+    // kernel 现场的 surfaceCenterOfMass 退化成参数原点求值——center 错（法向
+    // 碰巧对，因为平面法向在参数域是常数）→ 非居中模型上兜底打分全拒 →
+    // `topo ref (face) not found`。故打分与 exact 后取几何一律 row 优先
+    // （toScoringCandidate / 本文件 resolveFaceGeometry）。
+    // 序号同序：TopExp 枚举序 ↔ FaceRow 的 o1.fN（FaceCandidateEntry.ordinal
+    // 注释即此约定），2026-10-16 实测逐字一致。handle 仍保留——exact 命中后
+    // 要回传活句柄给调用方（resolver.ts 的 entity.handle）。
+    const rows = slot.faceHints as FaceHint[] | undefined
+    const faces = handles.map((handle, i) => ({ ordinal: i + 1, hash: hashes[i] ?? 0, handle, row: rows?.[i] }))
     return { kernel, faces, roleTable }
   }
 
@@ -464,8 +474,10 @@ export function resolveFaceGeometry(
       `resolved ordinal ${entity.ordinal} has no candidate in context (origin=${ref.origin}, role=${ref.role})`,
     )
   }
-  // BREAK 现场：capture 出当前法向/中心（圆柱面含轴）
-  if (entry.handle && ctx.kernel) {
+  // 行快照优先：与打分同口径（toScoringCandidate），同帧且几何正确——
+  // brepkit 的 kernel 现场 center 会退化（uvBounds ±1e6 哨兵 → 参数原点求值），
+  // 2026-10-16 实测非居中盒上 `[20,20,0]` 退化成 `[0,0,0]`。
+  if (entry.row === undefined && entry.handle && ctx.kernel) {
     const hint = captureFaceHint(ctx.kernel, entry.handle)
     return {
       surfaceType: hint.surfaceType,
@@ -477,11 +489,19 @@ export function resolveFaceGeometry(
   // mesh/行快照：直接用行几何（axis 由宿主行注入，缺省 undefined）
   const ext = entry.row
   const hint = ext ? faceRowToHint(ext) : undefined
+  // 圆柱轴补采：行快照不带 axis，而圆柱的轴一向现场采（captureFaceHint 的
+  // cylinder 分支）——它由 pointOnSurface + getFaceCylinderData 量出，**不经
+  // 过退化的 surfaceCenterOfMass**，现场值可靠。故 row 优先只管 center/normal，
+  // 圆柱轴缺行值时补采，守住 P0①（圆柱侧壁 hint 含 axis）。
+  let axis = hint?.axis
+  if (axis === undefined && hint?.surfaceType === 'cylinder' && entry.handle && ctx.kernel) {
+    axis = captureCylinderFaceAxis(ctx.kernel, entry.handle)
+  }
   return {
     surfaceType: hint?.surfaceType,
     center: hint?.center ?? [0, 0, 0],
     normal: hint?.normal ?? [0, 0, 1],
-    ...(hint?.axis ? { axis: hint.axis } : {}),
+    ...(axis ? { axis } : {}),
   }
 }
 

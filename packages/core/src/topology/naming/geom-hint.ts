@@ -31,7 +31,7 @@ function normalizedAxis(v: [number, number, number]): [number, number, number] |
  * @param face - the cylindrical face handle.
  * @returns the axis hint, or undefined when the axis cannot be derived.
  */
-function captureCylinderFaceAxis(kernel: BrepEngineApi, face: BrepHandle): AxisHint | undefined {
+export function captureCylinderFaceAxis(kernel: BrepEngineApi, face: BrepHandle): AxisHint | undefined {
   try {
     const uv = kernel.uvBounds(face)
     const p0 = kernel.pointOnSurface(face, uv.uMin, uv.vMin)

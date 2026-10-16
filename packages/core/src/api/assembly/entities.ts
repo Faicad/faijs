@@ -19,7 +19,7 @@ import type { BrepEngineApi } from '../../brep/engine/primitives'
 import type { PartName } from '../../identity'
 import type { SolverEntity } from './solvers/types'
 import { TopoRefError, type AxisHint } from '../../topology/naming'
-import { resolveTopoRef, captureEdgeAxis, captureFaceHint } from '../../topology/naming'
+import { resolveTopoRef, captureEdgeAxis, captureFaceHint, captureCylinderFaceAxis } from '../../topology/naming'
 import {
   buildShapeResolutionContext,
   buildEdgeResolutionContext,
@@ -189,14 +189,17 @@ export function resolveSolverEntity(ref: EntityRef, env: EntityResolutionEnv): S
 
 /**
  * faceIndex 简写的面几何（从解析上下文候选行直接取）：
- * BREP 候选（活句柄）→ captureFaceHint 现场；行快照候选 → 行几何。
+ * **行快照优先**（与 `toScoringCandidate` / `resolveFaceGeometry` 同口径——
+ * brepkit 的 kernel 现场 center 会退化：uvBounds ±1e6 哨兵 → surfaceCenterOfMass
+ * 在参数原点求值，非居中模型上 center 全错 → 装配解算拿错面几何）；无行快照才
+ * captureFaceHint 现场。
  */
 function faceGeometryFromContextEntry(
   env: EntityResolutionEnv,
   entry: { handle?: unknown; row?: unknown },
   part: PartName,
 ): ResolvedFaceGeometry {
-  if (entry.handle && env.kernel) {
+  if (entry.row === undefined && entry.handle && env.kernel) {
     const hint = captureFaceHint(env.kernel, entry.handle as Parameters<typeof captureFaceHint>[1])
     return {
       surfaceType: hint.surfaceType,
@@ -211,10 +214,17 @@ function faceGeometryFromContextEntry(
   if (!hint?.center || !hint?.normal) {
     throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', `faceIndex row has no geometry (part=${part})`)
   }
+  // 圆柱轴补采（同 resolveFaceGeometry）：行快照不带 axis，圆柱轴一向现场采，
+  // 由 pointOnSurface + getFaceCylinderData 量出——不经过退化的
+  // surfaceCenterOfMass，现场值可靠。守住 P0①。
+  let axis = hint.axis
+  if (axis === undefined && hint.surfaceType === 'cylinder' && entry.handle && env.kernel) {
+    axis = captureCylinderFaceAxis(env.kernel, entry.handle as Parameters<typeof captureCylinderFaceAxis>[1])
+  }
   return {
     surfaceType: hint.surfaceType,
     center: hint.center,
     normal: hint.normal,
-    ...(hint.axis ? { axis: hint.axis } : {}),
+    ...(axis ? { axis } : {}),
   }
 }
