@@ -50,7 +50,7 @@ export const torus = defineOp({
  */
 export const fuse = defineOp({
   brep: __own_fuseBrep,
-  name: 'fuse', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"], paramDims: {},
+  name: 'fuse', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**

@@ -180,9 +180,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'fuse',
     source: 'brep-operations/booleanFns.ts#fuseBrep',
     kind: 'brep-op',
-    // Phase 5 补漏（§1.5 推论 1 / D11）：来源实现 fuse 默认 trackEvolution 路径依赖
-    // kernel.isNull / kernel.dispose（occt 平台面）→ 平台 op，声明 engines: ['occt']
-    // 在 brepkit 下执行前报错（D11-4）。
+    // 来源实现 fuseBrep 仅经 getBrepApi().fuse（L1 裸方法，引擎无关）：brepkit 内核
+    // L1 有 fuse（brepkitKernel.ts）。曾以"依赖 kernel.isNull / kernel.dispose（occt
+    // 平台面）"为由声明 engines:['occt']（Phase 5 补漏），2026-10-17 实证当前
+    // fuseBrep 无此依赖 → 移除门禁。两引擎下均无面演化（裸 fuse；naming 仅作溯源
+    // 标注，同 intersect 的"几何正确、无面演化"处理）。
     args: '(a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>',
     // 两个输入都是 faijs Shape → 原样直传给来源实现（引擎不改写入参）；第三参 options 透传。
     geometryArgs: [0, 1],
@@ -190,9 +192,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     params: ['a', 'b', 'options'],
     formClass: 'A',
     scriptFace: true,
-    // 依赖声明（诚实原则）：来源实现 fuse 依赖 kernel.isNull / kernel.dispose（occt
-    // 平台面）→ 平台 op，声明 engines: ['occt']，在 brepkit / 其它引擎下执行前报错（D11-4）。
-    engines: ['occt'],
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
