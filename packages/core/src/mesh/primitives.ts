@@ -38,10 +38,12 @@ const ROT_Y_TO_Z = new Mat4().makeRotationX(Math.PI / 2)
  * Create a box solid (brepjs contract, §4.1 A 决策).
  *
  * `box(width, depth, height)` — X=width, Y=depth, Z=height — places the
- * min-corner at the origin by default (`centered:false`). `centered: true`
- * centers the box at the origin; `at` is CENTER semantics and takes precedence
- * over `centered`. The `segments` option is consumed by the tessellation
- * caller (this mesh builder keeps it via clampNRad when present).
+ * min-corner at the origin by default (`centered:false`), bottom flush at
+ * z=0. `centered: true` centers the box at the origin; `at` is BASE
+ * semantics (bottom-center, same as cylinder/cone) — with `centered: true`
+ * given together, `at` is the box center. The `segments` option is consumed
+ * by the tessellation caller (this mesh builder keeps it via clampNRad when
+ * present).
  *
  * @param params - box parameters (width/depth/height, optional at/centered/segments).
  * @returns the box shape.
@@ -52,14 +54,20 @@ export function box(params: BoxParams): Shape {
   // after the +90° rotateX the dims map to X=width, Y=depth, Z=height.
   const geo = boxGeometry(width, height, depth)
   const rotated = transformShape(geo, ROT_Y_TO_Z)
-  // 原 brepjs box semantics: corner at origin by default; centered at origin when
-  // `centered` (no `at`); `at` (CENTER semantics) takes precedence.
+  // brepjs box semantics (2026-10-16 统一 BASE 锚点，与 cylinder/cone 一致):
+  // 几何以原点为中心（底面中心在 (0,0,-h/2)）：
+  // - at（无 centered）：底面中心落在 at → t = at + [0,0,h/2]；
+  // - at + centered：以 at 为中心 → t = at；
+  // - centered（无 at）：居中到原点 → t = [0,0,0]；
+  // - 默认：角点在原点 → t = [w/2, d/2, h/2]。
   const at = params.at
   let tx = 0
   let ty = 0
   let tz = 0
   if (at !== undefined) {
-    ;[tx, ty, tz] = at
+    tx = at[0]
+    ty = at[1]
+    tz = at[2] + (params.centered === true ? 0 : height / 2)
   } else if (!params.centered) {
     tx = width / 2
     ty = depth / 2

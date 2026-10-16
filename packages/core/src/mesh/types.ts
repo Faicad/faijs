@@ -134,8 +134,9 @@ export function clampNRad(n: number | undefined): number {
 
 /**
  * Parameters for creating a box (原 brepjs `box(width, depth, height, {at?, centered?, segments?})`
- * contract, §4.1 A 决策). Default: min-corner at the origin. `centered: true` shifts so the
- * box is centered at the origin; `at` is CENTER semantics and takes precedence over `centered`.
+ * contract, §4.1 A 决策). Default: min-corner at the origin, bottom flush at z=0.
+ * `centered: true` shifts so the box is centered at the origin; `at` is BASE semantics
+ * (bottom-center, same as cylinder/cone); with `centered: true` given together, `at` is the center.
  */
 export interface BoxParams {
   /** Side length along X (mm). */
@@ -144,7 +145,7 @@ export interface BoxParams {
   depth: number
   /** Side length along Z (mm). */
   height: number
-  /** Center position (原 brepjs `at`, CENTER semantics); takes precedence over `centered`. */
+  /** Bottom-center position (原 brepjs `at`, BASE semantics, same as cylinder/cone); with `centered` it is the center. */
   at?: Vec3
   /** Center the box at the origin when `at` is absent. Default: false (min-corner at origin). */
   centered?: boolean

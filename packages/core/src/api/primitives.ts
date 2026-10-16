@@ -233,17 +233,18 @@ function brepPrimitiveMesh(
  * @param params.width - X 方向边长（mm）。type:number required:true
  * @param params.depth - Y 方向边长（mm）。type:number required:true
  * @param params.height - Z 方向边长（mm）。type:number required:true
- * @param params.at - 中心点（CENTER 语义，优先于 centered）。type:[x,y,z] 可选
+ * @param params.at - 底面中心（BASE 语义，与 cylinder/cone 一致；与 centered 同给时以 at 为中心）。type:[x,y,z] 可选
  * @param params.centered - 无 at 时是否居中到原点（type:boolean 默认 false，角点在原点）。
  * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @example
  * const part0 = cad.box(10 * MM, 20 * MM, 30 * MM)
- * const part1 = cad.box(30 * MM, 20 * MM, 10 * MM, { at: [1, 2, 3], segments: 64 })
+ * const part1 = cad.box(30 * MM, 20 * MM, 10 * MM, { at: [15 * MM, 10 * MM, 0], segments: 64 })
  *
  * 位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10 * MM, 20 * MM, 30 * MM, { at: [1, 2, 3] })`
  * 有量纲位必须写单位字面量（基准单位亦然，`10` 裸数字被 D8 R2 拒）。
  * 归一到同一对象（D11 位置→对象 + 尾参 options 合并）。旧 `{ size }` 对象形态已废弃（裁决 3），
  * 传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.1）。
+ * 锚点（2026-10-16 统一 BASE）：默认角点在原点、底面贴地，`box(w, d, h)` ≡ `box(w, d, h, { at: [w/2, d/2, 0] })`。
    */
 export const box = defineOp({
   name: 'box',

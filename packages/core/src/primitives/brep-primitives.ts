@@ -68,26 +68,51 @@ function applyCenter(kernel: BrepEngineApi, solid: BrepHandle, center?: [number,
  * 用 OCCT 直接构造一个长方体 Solid（原 brepjs `box(width, depth, height,
  * {at?, centered?})` 契约，§4.1 A 决策；与 mesh 路径逐点对齐）。
  *
- * 几何语义与旧 `primitiveFns.box` 完全一致：
- * 默认 min 角点在原点；`centered:true`（无 at 时）居中到原点；`at` 为中心
- * 语义且优先于 `centered`。
+ * 锚点（2026-10-16 与 cylinder/cone 统一为 BASE 语义）：
+ * - 默认（无 at、无 centered）：角点在原点，底面贴地（z∈[0,h]）；
+ * - `centered:true`（无 at）：居中到原点；
+ * - `at`：底面中心落在 at（BASE 语义，与 cylinder/cone 一致）；
+ *   与 `centered:true` 同给时以 at 为中心。
+ * 等价写法：`box(w, d, h)` ≡ `box(w, d, h, { at: [w/2, d/2, 0] })`。
  */
 function cubeToCadSolid(kernel: BrepEngineApi, params: BoxParams): BrepHandle {
   const w = params.width
   const d = params.depth
   const h = params.height
-  // 原 brepjs box: center = at ?? (centered ? [0,0,0] : undefined)；未给 center →
-  // 构造角点实体不平移（这里统一中心构造 + 平移量，等价）。
-  const center = params.at !== undefined
-    ? params.at
-    : params.centered
-      ? ([0, 0, 0] as [number, number, number])
-      : ([w / 2, d / 2, h / 2] as [number, number, number])
+  // 底面中心的目标位置（BASE 锚点）：
+  // - at 给定：at（at + centered 时再下移 h/2，使 at 成为中心）；
+  // - 仅 centered：原点居中 → 底面中心 (0, 0, -h/2)；
+  // - 默认：角点在原点 → 底面中心 (w/2, d/2, 0)。
+  let baseX: number
+  let baseY: number
+  let baseZ: number
+  if (params.at !== undefined) {
+    baseX = params.at[0]
+    baseY = params.at[1]
+    baseZ = params.at[2] - (params.centered === true ? h / 2 : 0)
+  } else if (params.centered === true) {
+    baseX = 0
+    baseY = 0
+    baseZ = -h / 2
+  } else {
+    baseX = w / 2
+    baseY = d / 2
+    baseZ = 0
+  }
+  // 角点实体 (0,0,0)-(w,d,h)，平移到「底面中心落在 (baseX, baseY, baseZ)」。
   const solid = kernel.makeBoxFromCorners(
-    { x: -w / 2, y: -d / 2, z: -h / 2 },
-    { x: w / 2, y: d / 2, z: h / 2 },
+    { x: 0, y: 0, z: 0 },
+    { x: w, y: d, z: h },
   )
-  return applyCenter(kernel, solid, center)
+  const dx = baseX - w / 2
+  const dy = baseY - d / 2
+  const dz = baseZ
+  if (dx !== 0 || dy !== 0 || dz !== 0) {
+    const translated = kernel.translate(solid, dx, dy, dz)
+    kernel.release(solid)
+    return translated
+  }
+  return solid
 }
 
 /**
