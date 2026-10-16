@@ -29,10 +29,9 @@
   "files": [
     "dist"
   ],
-  "dependencies": {},
   "peerDependencies": {
     "@faicad/faijs": "^0.30.0",
-    "occt-wasm": "^5.6.0"
+    "occt-wasm": "^5.6.1"
   },
   "devDependencies": {
     "@faicad/cq-compat-compare": "file:../cq-compat-compare",
