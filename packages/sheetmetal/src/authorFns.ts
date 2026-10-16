@@ -30,7 +30,7 @@ export interface FlangeSpec {
   id: string;
   /** Flat length measured from the end of the bend along the flange plane. */
   length: number;
-  /** Signed fold angle in degrees. */
+  /** Fold angle in degrees — required, no default, must be in (0, 180]. */
   angleDeg: number;
   rule: BendRule;
   /** Parent edge to attach to. Default `'xmax'` (the leading +X edge). */
@@ -116,13 +116,30 @@ export interface FlatFrame {
  * carrying the folded 3D solid and the recorded bend feature tree the unfold
  * consumes. All construction stays on the public, OCCT-WASM-safe API.
  *
+ * Every flange **requires** `angleDeg` — the fold angle in degrees, with **no
+ * default**, must be in **(0, 180]**. `side` is one of `xmin` | `xmax` | `ymin` |
+ * `ymax` (the parent edge to fold off; default `'xmax'`). `direction` is `'up'` |
+ * `'down'` (fold direction relative to the parent face normal; default `'up'`).
+ * Omitting `angleDeg` fails validation with `INVALID_FLANGE_ANGLE`.
+ *
  * @param spec - the authoring spec: sheet thickness, base flat dimensions, the
- *   flange list, optional material, and optional closing seams.
+ *   flange list, optional material, and optional closing seams. Every flange must
+ *   carry `angleDeg` (required, in (0, 180]), a `side` of `xmin` | `xmax` |
+ *   `ymin` | `ymax`, and `direction` `'up'` | `'down'`.
  * @returns a `Result<SheetMetalPart>` — `ok` with the folded part on success, or
  *   `err` with a `validationError` for an invalid thickness / base / flange /
  *   seam specification.
  * @example
- * const part = await authorPart({ thickness: 1.2, base: { length: 100, width: 50 }, flanges: [] })
+ * // 一块 50×60 平板，xmax 边向上折弯 90°（内侧半径 1.5、kFactor 0.44）。
+ * const part = await authorPart({
+ *   thickness: 1.5,
+ *   base: { length: 50, width: 60 },
+ *   flanges: [{
+ *     id: 'fold', side: 'xmax', length: 50, angleDeg: 90, direction: 'up',
+ *     rule: { innerRadius: 1.5, kFactor: 0.44 },
+ *   }],
+ * })
+ * const solid = solidOf(part) // 折弯后的实体
  */
 export async function authorPart(spec: AuthorSpec): Promise<Result<SheetMetalPart>> {
   const { thickness } = spec;
