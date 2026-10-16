@@ -4,6 +4,8 @@
 - 状态：待评审
 - 背景：外观 API（`setColor`/`setMaterial` 等）已实现但从未出现在 skill 文档中，暴露了手写文档链路的结构性问题。
 
+> **补注（2026-10-16）**：按「提示词保密」要求，`skills/*.md` 成品文件已从 faijs 仓库移除（不再落盘/提交）。生成器 `scripts/gen-skill-docs.ts` 重构为**基础提示词生成 API**：导出 `generateApiManual('brepkit'|'occt')` / `generateSkillOverview()`，CLI 用 `--emit <kernel>` 输出到 stdout（不再写文件、不再有 `--check`）。手册的组装、存放与版本化由 ai-gateway 项目掌控（其 `sync:faijs` 以子进程消费 `--emit`）。输出不变式（章节齐全、bucket 过滤、无 `{{`、无 `cad.edgeRef(`/`cad.faceRef(` 调用形态、标题标记、确定性）由 `packages/tests/faijs/promptgen/gen-skill-docs.test.ts` 锁定。`prompts/` 目录保留，与本次需求无关。
+
 ## 0. 用户原话（逐字）
 
 > 分析../faijs项目生成的skill文件里，为何没有设置颜色、材质这类的api？

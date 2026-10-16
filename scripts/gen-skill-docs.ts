@@ -1,15 +1,11 @@
 /**
  * gen-skill-docs.ts
  *
- * Full-auto skill doc generator — replaces the hand-written `skills/*.md` files
- * and the old `gen-engine-skill-docs.ts` (which only filtered hand-written
- * core.md). This generator produces three files:
+ * faijs 基础提示词生成 API —— 生成 .fai.js 脚本 API 手册（提示词原始材料）。
+ * 本文件只提供「生成能力」，不落任何提示词成品文件（保密要求：提示词的
+ * 组装与存放由 ai-gateway 项目掌控；faijs 仓库不提交 skills/*.md）。
  *
- *   skills/SKILL.md       — overview + unit system + script structure + library directory
- *   skills/all_occt.md    — full API manual (OCCT engine perspective)
- *   skills/all_brepkit.md — full API manual (brepkit engine perspective)
- *
- * Data sources (zero hand-written lists):
+ * 数据源（零手写清单）：
  *   1. Runtime: assemble the full cad namespace via
  *      mergeEditorNamespace(mergeSketchNamespace(createApiNamespace()))
  *      → enumerate op names + engine buckets via DUAL_OP_META.
@@ -19,13 +15,20 @@
  *      index.ts exports.
  *   3. SCRIPT_FACE_OPS manifest for generated op engines.
  *
- * Usage:
- *   npx tsx scripts/gen-skill-docs.ts            # write all three docs
- *   npx tsx scripts/gen-skill-docs.ts --check    # fail if stale (CI gate)
- *   npx tsx scripts/gen-skill-docs.ts --print    # print bucket report
+ * API:
+ *   generateApiManual('brepkit' | 'occt')  → 完整 API 手册 markdown（字符串）
+ *   generateSkillOverview()                → SKILL.md 概述（字符串）
+ *   collectSkillDocData()                  → 结构化采集层（verify-script-face-jsdoc 复用）
+ *
+ * CLI:
+ *   npx tsx scripts/gen-skill-docs.ts --emit <brepkit|occt|all>   # 手册 → stdout
+ *   npx tsx scripts/gen-skill-docs.ts --print                     # bucket 报告
+ *   npx tsx scripts/gen-skill-docs.ts                              # 默认 = --print
+ *
+ * 消费方（ai-gateway sync:faijs）以 `--emit <kernel>` 子进程方式取手册。
  */
 
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { resolve, join, relative } from 'node:path'
 import ts from 'typescript'
 
@@ -38,7 +41,6 @@ import { SKETCH_OP_NAME } from '../packages/core/src/sketch/op'
 // ── paths ───────────────────────────────────────────────────────────────────
 
 const root = resolve(import.meta.dirname, '..')
-const skillsDir = join(root, 'skills')
 const apiSrcDir = join(root, 'packages/core/src/api')
 const coreSrcDir = join(root, 'packages/core/src')
 const extraSrcDir = join(root, 'packages/core/src/extra')
@@ -775,7 +777,7 @@ const stripTrailingWs = (s: string): string => s.split('\n').map(l => l.replace(
 
 const BANNER = (target: 'occt' | 'brepkit', commonCount: number, occtOnly: string[], brepkitOnly: string[]): string => {
   const lines = [
-    `> **Engine-specific skill doc — auto-generated** by \`scripts/gen-skill-docs.ts\` (do not edit by hand; regenerate via \`npm run gen:skill-docs\`).`,
+    `> **Engine-specific skill doc — auto-generated** by \`scripts/gen-skill-docs.ts\` (do not edit by hand; regenerate via \`npm run gen:skill-docs -- --emit <kernel>\`).`,
     '>',
     `> This doc lists the APIs available when the runtime BREP engine is **${target}**.`,
     `> It contains the **${commonCount} engine-neutral (common) ops**${target === 'occt'
@@ -1291,61 +1293,75 @@ if (import.meta.main) {
   main()
 }
 
-function main(): void {
-  const data = collectSkillDocData()
-  const buckets = data.buckets
-  const opDocs = data.opDocs
-  const sketchDoc = data.sketchDoc
-  const editorDocs = data.editorDocs
-  const shapeMethods = data.shapeMethods
-  const domainLibs = data.domainLibs
+/**
+ * 生成 SKILL.md 概述（概述 + 单位制 + 脚本结构 + 库目录表）。
+ * faijs 内部/调试用；ai-gateway 消费的是 `generateApiManual`。
+ */
+export function generateSkillOverview(): string {
+  return stripTrailingWs(OVERVIEW_TEXT + '\n\n---\n\n' + renderLibraryTable() + '\n')
+}
 
+/**
+ * 生成指定内核视角的完整 API 手册（基础提示词生成 API）。
+ * - 输出即 ai-gateway `prompts/partials/all_<kernel>_<version>.md` 的内容来源；
+ * - 保留 `(brepkit engine skill)` / `(OCCT engine skill)` 标题标记（sync 守卫依赖）；
+ * - 内容守卫（无 `{{`、无 `cad.edgeRef(`/`cad.faceRef(` 调用形态）由
+ *   `packages/tests/faijs/promptgen/gen-skill-docs.test.ts` 锁定。
+ */
+export function generateApiManual(kernel: 'brepkit' | 'occt'): string {
+  const data = collectSkillDocData()
+  return stripTrailingWs(renderAllDoc(kernel, data.buckets, data.opDocs, data.sketchDoc, data.editorDocs, data.shapeMethods, data.domainLibs))
+}
+
+function printBucketReport(data: SkillDocData): void {
+  const buckets = data.buckets
+  const groups: Record<string, string[]> = { 'common': [], 'occt-only': [], 'brepkit-only': [] }
+  for (const [n, b] of buckets) groups[b].push(n)
+  for (const k of Object.keys(groups)) groups[k].sort()
+  console.log(`total ops: ${buckets.size}`)
+  for (const k of Object.keys(groups)) console.log(`\n=== ${k} [${groups[k].length}] ===\n${groups[k].join(', ')}`)
+
+  console.log(`\nshape methods: ${data.shapeMethods.length}`)
+  console.log(`domain exports: sheetmetal=${data.domainLibs[0].exports.length}, gears=${data.domainLibs[1].exports.length}, fasteners=${data.domainLibs[2].exports.length}`)
+
+  // Op coverage check
+  const ns = createApiNamespace()
+  const nsKeys = new Set(Object.keys(ns).filter(k => k !== 'contractVersion' && typeof (ns as Record<string, unknown>)[k] === 'function'))
+  const documentedOps = new Set<string>([...data.opDocs.keys(), ...data.editorDocs.keys(), ...(data.sketchDoc ? [data.sketchDoc.name] : [])])
+  const missing = [...nsKeys].filter(k => !documentedOps.has(k) && !buckets.has(k))
+  if (missing.length) console.log(`\nWARNING: ops in namespace but no JSDoc: ${missing.join(', ')}`)
+}
+
+function main(): void {
   const args = process.argv.slice(2)
 
-  if (args.includes('--print')) {
-    const groups: Record<string, string[]> = { 'common': [], 'occt-only': [], 'brepkit-only': [] }
-    for (const [n, b] of buckets) groups[b].push(n)
-    for (const k of Object.keys(groups)) groups[k].sort()
-    console.log(`total ops: ${buckets.size}`)
-    for (const k of Object.keys(groups)) console.log(`\n=== ${k} [${groups[k].length}] ===\n${groups[k].join(', ')}`)
-
-    console.log(`\nshape methods: ${shapeMethods.length}`)
-    console.log(`domain exports: sheetmetal=${domainLibs[0].exports.length}, gears=${domainLibs[1].exports.length}, fasteners=${domainLibs[2].exports.length}`)
-
-    // Op coverage check
-    const ns = createApiNamespace()
-    const nsKeys = new Set(Object.keys(ns).filter(k => k !== 'contractVersion' && typeof (ns as Record<string, unknown>)[k] === 'function'))
-    const documentedOps = new Set<string>([...opDocs.keys(), ...editorDocs.keys(), ...(sketchDoc ? [sketchDoc.name] : [])])
-    const missing = [...nsKeys].filter(k => !documentedOps.has(k) && !buckets.has(k))
-    if (missing.length) console.log(`\nWARNING: ops in namespace but no JSDoc: ${missing.join(', ')}`)
+  if (args.includes('--print') || args.length === 0) {
+    printBucketReport(collectSkillDocData())
     process.exit(0)
   }
 
-  // Build all three docs
-  const skillMd = OVERVIEW_TEXT + '\n\n---\n\n' + renderLibraryTable() + '\n'
-  const occtDoc = renderAllDoc('occt', buckets, opDocs, sketchDoc, editorDocs, shapeMethods, domainLibs)
-  const brepkitDoc = renderAllDoc('brepkit', buckets, opDocs, sketchDoc, editorDocs, shapeMethods, domainLibs)
-
-  const skillPath = join(skillsDir, 'SKILL.md')
-  const occtPath = join(skillsDir, 'all_occt.md')
-  const brepkitPath = join(skillsDir, 'all_brepkit.md')
-
-  if (args.includes('--check')) {
-    const read = (p: string): string => { try { return readFileSync(p, 'utf8') } catch { return '' } }
-    const errs: string[] = []
-    if (read(skillPath) !== stripTrailingWs(skillMd)) errs.push('skills/SKILL.md is stale')
-    if (read(occtPath) !== stripTrailingWs(occtDoc)) errs.push('skills/all_occt.md is stale')
-    if (read(brepkitPath) !== stripTrailingWs(brepkitDoc)) errs.push('skills/all_brepkit.md is stale')
-    if (errs.length) {
-      console.error(`gen-skill-docs: ${errs.join('; ')} — run \`npm run gen:skill-docs\`.`)
-      process.exit(1)
+  const emitIdx = args.indexOf('--emit')
+  if (emitIdx !== -1) {
+    const target = args[emitIdx + 1]
+    if (target === 'brepkit') {
+      console.log(generateApiManual('brepkit'))
+      process.exit(0)
     }
-    console.log('gen-skill-docs: in sync.')
-    process.exit(0)
+    if (target === 'occt') {
+      console.log(generateApiManual('occt'))
+      process.exit(0)
+    }
+    if (target === 'all') {
+      // 人工查看用：两份手册连续输出（消费方必须用单内核 --emit，勿解析 all）。
+      console.log(generateApiManual('brepkit'))
+      console.log('')
+      console.log(generateApiManual('occt'))
+      process.exit(0)
+    }
+    console.error('gen-skill-docs: unknown --emit target (expected brepkit | occt | all)')
+    process.exit(1)
   }
 
-  writeFileSync(skillPath, stripTrailingWs(skillMd))
-  writeFileSync(occtPath, stripTrailingWs(occtDoc))
-  writeFileSync(brepkitPath, stripTrailingWs(brepkitDoc))
-  console.log(`gen-skill-docs: wrote skills/SKILL.md (${skillMd.length} chars), skills/all_occt.md (${occtDoc.length} chars), skills/all_brepkit.md (${brepkitDoc.length} chars)`)
+  console.error(`gen-skill-docs: unknown option(s): ${args.join(' ')} (use --emit <brepkit|occt|all> or --print)`)
+  process.exit(1)
 }
