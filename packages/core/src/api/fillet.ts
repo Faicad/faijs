@@ -152,10 +152,62 @@ function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
     throw translateOcctError(err)
   }
 
+  // 如实报告内核缺陷（2026-10-16 主线 bug「圆角预览模型消失」）：brepkit
+  // FilletBuilder 对部分边输出**退化几何**（显示 deflection 下 bbox 压扁成线/单点、
+  // 顶点骤减）——execute 若放行，结果 mesh 不可见 =「物体消失」且 UI 无报错。
+  // 这里用与显示三角化同口径的 meshShape 度量（线性 deflection 0.1），退化即抛错，
+  // 绝不静默放行；失败时场景保持操作前状态（物体不消失）。
+  assertNonDegenerateFilletMesh(kernel, resultSolid, radius, edgeHandles.length)
+
   return fromBrep(
     solidToShape(kernel, resultSolid),
     { solid: resultSolid, faceEvolution, roleTable },
   )
+}
+
+/**
+ * 检查 fillet 结果是否退化（mesh 层面，与显示三角化同口径）。
+ *
+ * 内核失败（E_FILLET_RADIUS_TOO_LARGE 等）走 translateOcctError 已如实报错；
+ * 但「execute 成功 + 退化几何」此前是静默的——mesh bbox 压扁成线/单点时渲染
+ * 不可见，UI 无任何提示。本检查把它变成显式错误：报错好于掩盖（项目红线）。
+ *
+ * 阈值：顶点数 < 4（连一个完整三角形都构不成），或 bbox 任一维跨度 ≤ 1e-6
+ * （压扁成线/单点）。OCCT 内核同场景 12 边全健康（fillet-per-edge-occt.test.ts），
+ * 本检查不会误伤健康结果。
+ */
+function assertNonDegenerateFilletMesh(
+  kernel: ReturnType<typeof getBrepApi>,
+  solid: BrepHandle,
+  radius: number,
+  edgeCount: number,
+): void {
+  const mesh = kernel.meshShape(solid)
+  const pos = mesh.positions
+  if (pos.length < 12) {
+    throw new Error(
+      `E_FILLET_DEGENERATE_MESH: brepkit FilletBuilder produced degenerate geometry for fillet(r=${radius}, edges=${edgeCount}): vertices=${pos.length / 3} (< 4). Refusing to render a vanished solid.`,
+    )
+  }
+  let minX = Infinity, minY = Infinity, minZ = Infinity
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
+  for (let i = 0; i < pos.length; i += 3) {
+    const x = pos[i]!, y = pos[i + 1]!, z = pos[i + 2]!
+    if (x < minX) minX = x
+    if (y < minY) minY = y
+    if (z < minZ) minZ = z
+    if (x > maxX) maxX = x
+    if (y > maxY) maxY = y
+    if (z > maxZ) maxZ = z
+  }
+  const sx = maxX - minX
+  const sy = maxY - minY
+  const sz = maxZ - minZ
+  if (!(sx > 1e-6 && sy > 1e-6 && sz > 1e-6)) {
+    throw new Error(
+      `E_FILLET_DEGENERATE_MESH: brepkit FilletBuilder produced degenerate geometry for fillet(r=${radius}, edges=${edgeCount}): bbox=${sx.toFixed(4)}×${sy.toFixed(4)}×${sz.toFixed(4)} (flattened). Refusing to render a vanished solid.`,
+    )
+  }
 }
 
 /**

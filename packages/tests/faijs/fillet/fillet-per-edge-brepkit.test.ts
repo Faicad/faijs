@@ -51,53 +51,55 @@ describe('fillet per-edge breakdown（brepkit 内核 = weapp worker）', () => {
   })
   afterEach(() => runtime.dispose())
 
-  it('T-K1: 12 条边逐条圆角——钉住已知内核缺陷清单（失败边 + 退化边）', async () => {
+  it('T-K1: 12 条边逐条圆角——失败/退化边必须如实报错（物体不消失）', async () => {
     const refs = await edgeRefsOf(runtime, SKETCH_EXTRUDE)
     expect(refs.length).toBe(12)
     const failures: number[] = []
-    const degenerates: number[] = []
+    const degenerateErrors: number[] = []
     for (const { ei, faces } of refs) {
       const code = `${SKETCH_EXTRUDE}\nconst part1 = cad.fillet(part0, { edges: [{kind:'edge',faces:${JSON.stringify(faces)},hint:{kind:'edge'}}], radius: 2 })`
       const res = await runtime.execute(code, { topology: 'auto' })
       if (res.failedAt) {
-        console.log(`[T-K1] edge#${ei} 失败: ${res.failedAt.message}`)
-        failures.push(ei)
+        const msg = res.failedAt.message
+        if (msg.includes('E_FILLET_DEGENERATE_MESH')) {
+          // 2026-10-16 契约翻转：退化几何必须如实报错（fillet.ts
+          // assertNonDegenerateFilletMesh），绝不静默放行 —— 否则渲染不可见
+          // =「物体消失」且 UI 无提示。报错时 execute 失败、场景保持操作前状态。
+          console.log(`[T-K1] edge#${ei} 如实报错（退化几何）: ${msg}`)
+          degenerateErrors.push(ei)
+        } else {
+          console.log(`[T-K1] edge#${ei} 失败: ${msg}`)
+          failures.push(ei)
+        }
         continue
       }
-      // 与 weapp 协议层同度量：outputs mesh（positions/indices）的退化检查。
-      // weapp 渲染只用 mesh（applyExecuteResult → versionStore → 渲染），brepChain 体积
-      // 健康不代表画布可见 —— 2026-10-16 协议层实证：edge#0/#7/#10 brepChain 体积正常但
-      // mesh bbox 压扁成线段/单点（三角化输出坏）→ 渲染不可见 = 用户看到的「模型消失」。
+      // 未报错 → 结果必须健康（内核修复后的契约）：outputs mesh bbox 三维非退化。
       const out = res.outputs?.get(asPartName('part1'))
-      let degenerate = false
-      if (out) {
-        const pos = out.positions
-        const triCount = out.indices.length / 3
-        let minX = Infinity, minY = Infinity, minZ = Infinity
-        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
-        for (let i = 0; i < pos.length; i += 3) {
-          const x = pos[i], y = pos[i + 1], z = pos[i + 2]
-          if (x < minX) minX = x; if (x > maxX) maxX = x
-          if (y < minY) minY = y; if (y > maxY) maxY = y
-          if (z < minZ) minZ = z; if (z > maxZ) maxZ = z
-        }
-        const sx = maxX - minX, sy = maxY - minY, sz = maxZ - minZ
-        degenerate = !(sx > 1e-6 && sy > 1e-6 && sz > 1e-6)
-        console.log(
-          `[T-K1] edge#${ei} mesh: verts=${pos.length / 3} tris=${triCount} bbox=[${minX.toFixed(2)},${minY.toFixed(2)},${minZ.toFixed(2)}]..[${maxX.toFixed(2)},${maxY.toFixed(2)},${maxZ.toFixed(2)}] ${degenerate ? '← 退化' : ''}`,
-        )
-      } else {
-        console.log(`[T-K1] edge#${ei} outputs 无 part1`)
-        degenerate = true
+      expect(out, `edge#${ei} 未报错但 outputs 无 part1`).toBeTruthy()
+      const pos = out!.positions
+      const triCount = out!.indices.length / 3
+      let minX = Infinity, minY = Infinity, minZ = Infinity
+      let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
+      for (let i = 0; i < pos.length; i += 3) {
+        const x = pos[i], y = pos[i + 1], z = pos[i + 2]
+        if (x < minX) minX = x; if (x > maxX) maxX = x
+        if (y < minY) minY = y; if (y > maxY) maxY = y
+        if (z < minZ) minZ = z; if (z > maxZ) maxZ = z
       }
-      if (degenerate) degenerates.push(ei)
+      const sx = maxX - minX, sy = maxY - minY, sz = maxZ - minZ
+      const degenerate = !(sx > 1e-6 && sy > 1e-6 && sz > 1e-6)
+      console.log(
+        `[T-K1] edge#${ei} 健康: verts=${pos.length / 3} tris=${triCount} bbox=[${minX.toFixed(2)},${minY.toFixed(2)},${minZ.toFixed(2)}]..[${maxX.toFixed(2)},${maxY.toFixed(2)},${maxZ.toFixed(2)}]`,
+      )
+      expect(degenerate, `edge#${ei} 未报错但 mesh 退化（bbox 压扁）`).toBe(false)
     }
-    console.log(`[T-K1] failures=${JSON.stringify(failures)} degenerates=${JSON.stringify(degenerates)}`)
-    // 已知缺陷清单（2026-10-16 协议层诊断，weapp bundle）：
-    //   失败边：edge#3、edge#6（E_FILLET_RADIUS_TOO_LARGE）；
-    //   退化边：edge#0、edge#7、edge#10（mesh bbox 压扁/单点）。
-    // 断言「缺陷存在且不扩散」：清单以外必须全部健康；内核修复后翻转此断言。
+    console.log(`[T-K1] failures=${JSON.stringify(failures)} degenerateErrors=${JSON.stringify(degenerateErrors)}`)
+    // 已知内核缺陷清单（2026-10-16 协议层诊断，weapp bundle = brepkit-wasm 4.1.49）：
+    //   失败边：edge#3、edge#6（E_FILLET_RADIUS_TOO_LARGE，内核直接拒绝）；
+    //   退化边：edge#0、edge#7、edge#10（FilletBuilder 输出退化几何——现在必须
+    //   E_FILLET_DEGENERATE_MESH 如实报错，而非静默输出不可见 mesh）。
+    // 断言「缺陷存在、如实暴露且不扩散」：清单以外必须全部健康；内核修复后翻转此断言。
     expect(failures.sort((a, b) => a - b)).toEqual([3, 6])
-    expect(degenerates.sort((a, b) => a - b)).toEqual([0, 7, 10])
+    expect(degenerateErrors.sort((a, b) => a - b)).toEqual([0, 7, 10])
   })
 })

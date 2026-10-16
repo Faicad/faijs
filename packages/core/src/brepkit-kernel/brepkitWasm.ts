@@ -4,7 +4,9 @@
  * 装载策略（与 occt-kernel 一致）：
  * - 宿主可调用 setBrepkitWasmInitFn(fn) 注入自定义初始化函数
  *   （小程序 Worker 传 WXWebAssembly 实例化路径；node 测试走 npm 包默认 init）；
- * - 未注入时，node 环境直接 require('@faicad/brepkit2-wasm')（该包胶水零 eval，可直接装载）；
+ * - 未注入时，node 环境直接 require('brepkit-wasm')（v4.x 官方包，胶水零 eval，可直接装载）；
+ *   注意：不是 @faicad/brepkit2-wasm（v2 fork 已弃用，见 weapp scripts/rebuild-brepkit-wasm.mjs
+ *   的「VENDOR WASM 来源」注释）——两者 fillet/chamfer 内核行为不同。
  * - 两边都没有 → 抛带上下文的错误（报错好于掩盖，禁止静默回退）。
  */
 
@@ -83,10 +85,12 @@ export function initBrepkitWasm(): Promise<BrepKitKernel> {
     // node 环境（单测 / CLI）：npm 包默认装载路径
 
     if (typeof process !== 'undefined' && process.versions?.node) {
-      // Non-literal specifier: @faicad/brepkit2-wasm is an optional runtime
+      // Non-literal specifier: brepkit-wasm is an optional runtime
       // injection (a devDependency for tests; hosts inject their own loader) —
       // a literal would make tsc fail with TS2307 when the package is absent.
       // A missing package surfaces at runtime (below).
+      // ⚠️ 版本线：v4 官方包（C:/git/opencascade/brepkit 源码，见 weapp
+      // rebuild-brepkit-wasm.mjs「VENDOR WASM 来源」）。勿换回 @faicad/brepkit2-wasm。
       const specifier = 'brepkit-wasm'
       const mod = (await import(/* @vite-ignore */ specifier)) as {
         BrepKernel: new () => BrepKitKernel
