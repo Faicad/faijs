@@ -18,7 +18,10 @@ import { isCadFormat } from '../../brep/brep-chain'
 import {
   loadBrepAssembly, loadBrepAssemblyNative, solidToShape, type LoadBrepAssemblyPart,
 } from '../../brep/brep-ops'
+import { weldToleranceFor } from '../../brep/mesh-solid'
 import { importBrepToMesh } from '../../occt-kernel/occtKernel'
+import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
+import { parseStl } from '../../mesh/stl-loader'
 import { OCCT_BREP_ENGINE_ID } from '../../brep/engine/adapters/occt'
 import type { BrepHandle } from '../../brep/engine/types'
 import { OpError } from '../../api/internal/result-unwrap'
@@ -97,9 +100,16 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
   assertFileMagic(fmt, buffer, file)
 
   // 静态判定路径：mesh 模式 / 无 kernel / 非 CAD 源 → mesh 路径；否则 BREP 路径
+  // STL 特例（2026-10-17）：brepkit/occt 的 L1 面都有 importStl——STL 可以在内核里
+  // 直接构造成**真 BREP 实体**（带面-边邻接），而不是走 importIndexedMesh→weld 的
+  // 网格路径。网格路径的产物在 brepkit 下无任何特征操作能力（边无邻接面、钻孔/分割
+  // 无实现）；BREP 路径则圆角可选边、钻孔/分割走内核布尔，全链可用。**3MF 仍走 mesh
+  // 路径**（内核无 import3mf，三角网格只能 importIndexedMesh）。
   const { config, kernel: kernels } = getBackends()
   const kernel = kernels.brep as BrepEngineApi | null
-  const useBrep = config.mode !== 'mesh' && !!kernel && isCadFormat({ format: fmt }, true)
+  const useBrep =
+    config.mode !== 'mesh' && !!kernel &&
+    (isCadFormat({ format: fmt }, true) || fmt === 'stl')
 
   // brep 模式且将走 mesh-only 路径 → 调用前抛错，不静默回退
   if (!useBrep && config.mode === 'brep') {
@@ -167,7 +177,34 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
   }
   let brepParts: LoadBrepAssemblyPart[]
   let assembly: ImportAssemblyNode | undefined
-  if (fmt === 'brep' && hasXcafChannel) {
+  if (fmt === 'stl') {
+    // STL 原生 BREP 通道：kernel.importStl → 单实体（无装配层级；成员名 imported:0）。
+    // 与 loadBrepAssemblyNative 同一 L1 契约面；STL 无内部单位声明 → 默认 mm
+    // （detectStepUnit 对 STL 文本必然返回 null，registerDetectedUnit 落到 'mm'）。
+    //
+    // importStl 的实体**逐面独立、边不共享**——直接用它，edge naming 没有邻接面
+    // （圆角选不了边）。缝合方式按内核分派（mesh 后端与 brep 引擎**同内核**才可用
+    // 其私有 weld 原语，句柄域必须一致）：
+    //   · brepkit（weapp）：importStl → weld（缝共享边）→ unify（合并共面）——与
+    //     mesh 路径 normalizeMeshSolid 同一规范化管线；
+    //   · occt（web）：网格 → OCCT 愈合管线 reconstructSolidFromMesh（importStl →
+    //     fixShape → healSolid → unifySameDomain，见 occt-kernel/meshReconstruct.ts）——
+    //     brepkit 的 weld 吃 brepkit 句柄，不能处理 occt 句柄。
+    const meshBackend = getBackends().kernel.meshSolid as MeshSolidBackend | undefined
+    const canWeld = meshBackend !== undefined && meshBackend.kernel === kernel
+    let solid: BrepHandle
+    if (canWeld) {
+      const imported = kernel!.importStl(buffer)
+      const faces = kernel!.getSubShapes(imported, 'face')
+      solid = meshBackend!.ops.weld(faces, weldToleranceFor(kernel!, imported))
+      meshBackend!.ops.unify(solid)
+      kernel!.release(imported)
+    } else {
+      const parsed = parseStl(buffer)
+      solid = reconstructSolidFromMesh(kernel!, parsed.positions, parsed.indices)
+    }
+    brepParts = [{ index: 0, name: file, shape: solidToShape(kernel!, solid), solid, color: null }]
+  } else if (fmt === 'brep' && hasXcafChannel) {
     // CASCADE BREP 文本（单 solid，无装配树）：XCAF（STEPCAFControl_Reader）
     // 读不了 BREP 语法——occt 下唯一读取实现是 kernel.fromBREP（importBrepToMesh）。
     // 非 occt 引擎走下方 `loadBrepAssemblyNative`（同一 kernel.fromBREP，走契约面）。
