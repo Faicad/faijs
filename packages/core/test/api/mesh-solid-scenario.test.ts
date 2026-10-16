@@ -205,8 +205,11 @@ describe('场景：上传 STL → 识别边倒圆角 → 识别面草图 → 拉
       expect(f.surfaceType).toBe('plane')
       expect(f.area).toBeCloseTo(100, 3)
     }
+    // curveType 契约为小写中立形态（与 occt-wasm 对齐）：brepkit 的
+    // getEdgeCurveType 曾泄漏 OCCT GeomAbs_* 大写枚举名，已在适配层归一
+    // （brepkitKernel.ts curveType），此处断言归一后的契约值。
     for (const e of edges) {
-      expect(e.curveType).toBe('LINE')
+      expect(e.curveType).toBe('line')
       expect(e.length).toBeCloseTo(10, 3)
       expect(e.faceCount, '每条识别边邻接两面').toBe(2)
     }

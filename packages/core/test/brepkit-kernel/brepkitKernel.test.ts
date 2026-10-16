@@ -812,3 +812,34 @@ suite('brepkit 适配器覆盖：IO 与形态演化', () => {
     expect(api.getVolume(box)).toBeCloseTo(8, 6)
   })
 })
+
+suite('curveType 契约：适配层必须返回小写（与 occt-wasm 对齐）', () => {
+  // GOTCHA（2026-10-16 实测）：wasm 的 getEdgeCurveType 返回 OCCT GeomAbs_*
+  // 枚举名——大写 'LINE'/'CIRCLE'。而 BrepEngineApi 的调用方一律按小写比对
+  // （captureEdgeAxis 的 line/circle、topologyExt.getCurveParams 的
+  // line/circle/ellipse/…），那是 occt-wasm 的返回形态。漏了归一的后果：
+  // brepkit 上所有 curveType 分支恒不命中——边轴采不到（concentric 端侧
+  // 不可用）、曲线参数恒空。同一适配器的 surfaceType 本就返回小写（'plane'），
+  // curveType 是漏网的那一处。
+  it('box 的直边 → line；cylinder 的底/顶圆边 → circle（均小写）', () => {
+    const box = api.makeBox(BOX, BOX, BOX)
+    for (const e of api.getSubShapes(box, 'edge')) {
+      expect(api.curveType(e), `box 边 ${e} 的 curveType 应为小写 line`).toBe('line')
+    }
+    const cyl = api.makeCylinder(BOX / 2, BOX)
+    const types = api.getSubShapes(cyl, 'edge').map((e) => api.curveType(e))
+    expect(types.filter((t) => t === 'circle').length, '圆柱应有圆边（circle）').toBeGreaterThan(0)
+    for (const t of types) {
+      expect(['line', 'circle'], `圆柱边类型 ${t} 不在期望集（应为小写）`).toContain(t)
+    }
+  })
+
+  it('大写形态不再泄漏：任何边都不会返回 LINE/CIRCLE 这类枚举名', () => {
+    const box = api.makeBox(BOX, BOX, BOX)
+    const cyl = api.makeCylinder(BOX / 2, BOX)
+    for (const e of [...api.getSubShapes(box, 'edge'), ...api.getSubShapes(cyl, 'edge')]) {
+      const t = api.curveType(e)
+      expect(t, `curveType 泄漏大写形态：${t}`).toBe(t.toLowerCase())
+    }
+  })
+})

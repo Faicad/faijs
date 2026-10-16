@@ -1491,8 +1491,19 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return arr(kernel.sharedEdges(asNum(a), asNum(b))).map(asEdge)
     },
 
-    // ── 几何求值 ──
-    curveType(edge: BrepHandle): string { return String(kernel.getEdgeCurveType(asNum(edge))) },
+    // ── 几何求值 ─
+    // curveType 归一为小写：wasm 的 getEdgeCurveType 返回 OCCT GeomAbs_* 枚举名
+    // （大写 'LINE'/'CIRCLE'），而 BrepEngineApi 的调用方一律按小写比对
+    // （captureEdgeAxis 的 line/circle 分支、topologyExt.getCurveParams 的
+    // line/circle/ellipse/… 分支）——那是 **occt-wasm 的返回形态**（小写），
+    // 适配层必须把两个内核的契约对齐。漏了这一步的后果：brepkit 上所有
+    // curveType 分支恒不命中——边轴采不到（captureEdgeAxis 返 undefined →
+    // `edge ordinal N is not a line or circle`，concentric 端侧不可用）、
+    // getCurveParams 的曲线参数恒空。
+    // 同一适配器的 surfaceType 本就返回小写（'plane'），curveType 是漏网的
+    // 那一处。2026-10-16 实测：归一后 assembly-pick-refs A3（concentric）
+    // 从"解析不了"变为求解收敛。
+    curveType(edge: BrepHandle): string { return String(kernel.getEdgeCurveType(asNum(edge))).toLowerCase() },
     curvePointAtParam(edge: BrepHandle, param: number): BrepVec3 {
       // evaluateEdgeCurve 返回 Float64Array [x,y,z]（非 JSON 字符串）
       return vec3Of(toNumArray(kernel.evaluateEdgeCurve(asNum(edge), param)))

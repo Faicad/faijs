@@ -140,9 +140,11 @@ describe('场景脚本 .fai.js：上传 STL → 识别边倒圆角 → 识别面
     const areas = faces.map((f) => f.area).sort((x, y) => x! - y!)
     expect(areas).toEqual([100, 100, 200, 200, 200, 200])
     for (const f of faces) expect(f.surfaceType).toBe('plane')
-    // 逐边：LINE、邻接两面，长度二值分布（8 条 10、4 条 20）
+    // 逐边：line（curveType 契约为小写中立形态，与 occt-wasm 对齐；brepkit 的
+    // getEdgeCurveType 曾泄漏大写 GeomAbs_* 枚举名，已在适配层归一）、邻接两面，
+    // 长度二值分布（8 条 10、4 条 20）
     for (const e of edges) {
-      expect(e.curveType).toBe('LINE')
+      expect(e.curveType).toBe('line')
       expect(e.faceCount, '每条识别边邻接两面').toBe(2)
     }
     const lengths = edges.map((e) => e.length).sort((x, y) => x! - y!)

@@ -152,9 +152,12 @@ describe('cad.load（STL）→ 网格实体 + 近似拓扑（Phase 1 验收）',
     const normals = faces.map((f) => (f.normal as number[]).map((v) => Math.round(v)).join(','))
     expect(new Set(normals).size).toBe(6)
 
-    // ── 边行：12 条 LINE、每条长 10、每条恰邻接 2 个面 ──
+    // ── 边行：12 条 line、每条长 10、每条恰邻接 2 个面 ──
+    // curveType 契约为小写中立形态（与 occt-wasm 对齐）：brepkit 的
+    // getEdgeCurveType 曾泄漏 OCCT GeomAbs_* 大写枚举名，已在适配层归一
+    // （brepkitKernel.ts curveType），此处断言归一后的契约值。
     for (const e of edges) {
-      expect(e.curveType).toBe('LINE')
+      expect(e.curveType).toBe('line')
       expect(e.length).toBeCloseTo(10, 6)
       expect(e.faceCount, '每条识别边邻接两个面（双角色限定符的前提）').toBe(2)
     }
