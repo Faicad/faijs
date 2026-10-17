@@ -243,6 +243,45 @@ describe('dxfEntitiesToWires（内核组线）', () => {
     expect(calls.filter((c) => c === 'makeLineEdge')).toHaveLength(4)
     expect(calls.filter((c) => c === 'makeCircleEdge')).toHaveLength(0)
   })
+
+  it('GOTCHA(insert): BLOCK 定义 + INSERT 引用 → 成员按插入点变换展开（example013 根因）', async () => {
+    // 块 sub1: LINE (-10,0)->(-10,10)；INSERT at (0,10) 无旋转缩放
+    // → 展开后 LINE 应为 (-10,10)->(-10,20)。早期实现把块头过滤掉导致
+    // blockDefs 恒空、INSERT 展开全部落空（输出未变换的块定义坐标）。
+    const dxf = [
+      '0', 'SECTION', '2', 'HEADER', '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'BLOCKS',
+      '0', 'BLOCK', '2', 'sub1', '10', '0.0', '20', '0.0', '30', '0.0',
+      '0', 'LINE', '8', '0', '10', '-10.0', '20', '0.0', '30', '0.0', '11', '-10.0', '21', '10.0', '31', '0.0',
+      '0', 'ENDBLK',
+      '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'INSERT', '2', 'sub1', '10', '0.0', '20', '10.0', '30', '0.0',
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\r\n')
+    const parsed = parseDxfEntities(dxf)
+    expect(parsed.lines).toHaveLength(1)
+    expect(parsed.lines[0].data.get(10)).toBe('-10')
+    expect(parsed.lines[0].data.get(20)).toBe('10')
+    expect(parsed.lines[0].data.get(21)).toBe('20')
+  })
+
+  it('GOTCHA(chain): 方向混杂的散边 LINE 按端点链式组环（一次 makeWire 会产出错误形状）', async () => {
+    // 三角形 3 条 LINE，其中 1 条方向与链走向相反——链式组环必须容错反向
+    const dxf = [
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'LINE', '8', '0', '10', '0', '20', '0', '11', '10', '21', '0',
+      '0', 'LINE', '8', '0', '10', '10', '20', '0', '11', '10', '21', '10',
+      '0', 'LINE', '8', '0', '10', '0', '20', '10', '11', '10', '21', '10', // 反向
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\r\n')
+    const { initOcctWasm, getKernel } = await import('../src/occt-kernel/occtKernel')
+    await initOcctWasm()
+    const kernel = getKernel() as unknown as BrepEngineApi
+    const result = importDxf(kernel, dxf)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value).toHaveLength(1)
+  }, 120_000)
 })
 
 describe('importDxfProfiles（嵌套分组挖孔，真内核）', () => {

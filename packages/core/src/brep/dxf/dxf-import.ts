@@ -48,12 +48,18 @@ interface DxfParsed {
 // ─── 解析器 ───
 
 /**
- * 解析 ASCII DXF 的 ENTITIES 段，把实体按类型分组。
+ * 解析 ASCII DXF 的 BLOCKS + ENTITIES 段，把实体按类型分组。
  *
- * 结构约定（与 brepjs 一致）：
- * - 先跳到 `2 ENTITIES` 段标记；
- * - `0 <TYPE>` 开启新实体，其后组码/值对存入该实体的 data；
- * - `0 ENDSEC` / `0 EOF` 结束。
+ * 结构约定（与 brepjs 一致 + 本仓扩展）：
+ * - 严格两行一组配对遍历；
+ * - `0 SECTION` / `2 NAME` 进入段，`0 ENDSEC` 退出（BLOCKS 与 ENTITIES 都扫）；
+ * - `0 <TYPE>` 开启新实体，其后组码/值对存入该实体的 data。
+ *
+ * INSERT/BLOCKS 语义（2026-10-17，example013 根因）：dxflib 等工具把几何放进
+ * BLOCKS 段的块定义，ENTITIES 段只留 INSERT 引用（带插入点/缩放/旋转/行列）。
+ * 只扫 BLOCKS 会得到「一份未变换的块定义」，只扫 ENTITIES 会得到 0 实体——
+ * 都不完整。本解析器：BLOCK 定义收集进块表，INSERT 按变换展开成具体实体；
+ * 无 INSERT 引用时退回旧行为（块内几何直接作为图形输出）。
  *
  * @param text - ASCII DXF 文件全文
  * @returns 按类型分组的实体（LINE/CIRCLE/ARC 各自的组码表 + polyline 顶点序列）
@@ -63,9 +69,17 @@ export function parseDxfEntities(text: string): DxfParsed {
   // 实体与（polyline 的）顶点序列在实体边界处配对收集——顶点不能挂共享变量
   // 在分组循环里引用：那样每条 polyline 都会拿到**最后一条**的顶点
   //（2026-10-17 实证：example「回」字形 DXF 两条 polyline 产出两个相同内圈 wire）。
-  const collected: Array<{ entity: DxfEntity; vertices?: DxfPolylineVertex[] }> = [];
+  const collected: Array<{
+    entity: DxfEntity;
+    vertices?: DxfPolylineVertex[];
+    section: 'BLOCKS' | 'ENTITIES' | undefined;
+    /** 实体落在哪个块定义内（BLOCK…ENDBLK 之间）；块定义自身（type BLOCK/ENDBLK）除外 */
+    blockName?: string;
+  }> = [];
 
-  let inEntities = false;
+  let section: 'BLOCKS' | 'ENTITIES' | undefined;
+  let pendingSection = false;
+  let currentBlockName: string | undefined;
   let current: { type: string; layer: string; data: Map<number, string> } | undefined;
   // polyline 顶点的 10/20/42 组码成组重复，Map 会覆盖——单独收集。
   let polylineVertices: DxfPolylineVertex[] | undefined;
@@ -82,12 +96,17 @@ export function parseDxfEntities(text: string): DxfParsed {
     pendingVertex = undefined;
   };
 
-  /** 把当前实体连同其顶点序列（若有）落库。 */
+  /** 把当前实体连同其顶点序列（若有）落库。落库后必须清空 current——
+   *  跨段扫描（BLOCKS→ENTITIES）时 ENDSEC 不再 break，残留的 current 会被
+   *  下一个 `0 <TYPE>` 再次 push（2026-10-17 实证：CIRCLE 双份）。
+   *  BLOCK/ENDBLK 实体必须保留：后面的块收集循环靠它们开启/关闭块定义
+   *  （2026-10-17 实证：过滤掉它们会让 blockDefs 恒空、INSERT 展开全部落空）。 */
   const flushEntity = (): void => {
     flushVertex();
     if (current) {
-      collected.push({ entity: current, vertices: polylineVertices });
+      collected.push({ entity: current, vertices: polylineVertices, section, blockName: currentBlockName });
     }
+    current = undefined;
     polylineVertices = undefined;
   };
 
@@ -99,22 +118,36 @@ export function parseDxfEntities(text: string): DxfParsed {
     const value = valueLine.trim();
     if (Number.isNaN(code)) continue;
 
-    if (code === 2 && (value === 'ENTITIES' || value === 'BLOCKS') && !inEntities) {
-      // BLOCKS 也要扫：dxflib 等工具常把几何放进 BLOCKS 段、ENTITIES 段只留
-      // INSERT 引用（faijs-openscad example013 的实际形态）。
-      inEntities = true;
+    if (code === 0 && value === 'SECTION') {
+      pendingSection = true;
       continue;
     }
-    if (!inEntities) continue;
+    if (pendingSection && code === 2) {
+      section = value === 'BLOCKS' || value === 'ENTITIES' ? (value as 'BLOCKS' | 'ENTITIES') : undefined;
+      pendingSection = false;
+      continue;
+    }
+    if (code === 0 && value === 'ENDSEC') {
+      flushEntity();
+      section = undefined;
+      currentBlockName = undefined;
+      continue;
+    }
+    if (code === 0 && value === 'EOF') {
+      flushEntity();
+      break;
+    }
+    if (section === undefined) continue;
 
     if (code === 0) {
-      if (value === 'ENDSEC' || value === 'EOF') {
-        flushEntity();
-        break;
-      }
       flushEntity();
       current = { type: value, layer: '0', data: new Map() };
       if (value === 'LWPOLYLINE' || value === 'POLYLINE') polylineVertices = [];
+      // 进入/退出块定义：BLOCK 头本身记入 collected 前已跳过；用它的 data（下次
+      // flush 时已填好）取块名——这里先把 currentBlockName 清掉，由 BLOCK 实体
+      // 完成时（下一轮 flush）再设。简化：块定义内的实体打上「待定」标记，
+      // 在分组后处理时按 BLOCK 实体名归属。
+      if (value === 'ENDBLK') currentBlockName = undefined;
       continue;
     }
 
@@ -141,18 +174,143 @@ export function parseDxfEntities(text: string): DxfParsed {
     current.data.set(code, value);
   }
 
+  // ── 块定义收集与 INSERT 展开 ──
+  interface BlockDef { base: { x: number; y: number }; members: Array<{ entity: DxfEntity; vertices?: DxfPolylineVertex[] }> }
+  const blockDefs = new Map<string, BlockDef>();
+  const placedEntities: Array<{ entity: DxfEntity; vertices?: DxfPolylineVertex[] }> = [];
+  let hasInsert = false;
+
+  // 先按顺序走一遍：BLOCK 实体（data 已含 2=块名、10/20=基点）开启一个块定义，
+  // 其后直到 ENDBLK 的 collected 条目都归属该块；ENTITIES 段实体直接落 placed。
+  {
+    let currentDef: BlockDef | undefined;
+    for (const entry of collected) {
+      const t = entry.entity.type;
+      if (entry.section === 'BLOCKS') {
+        if (t === 'BLOCK') {
+          const name = entry.entity.data.get(2);
+          currentDef = name
+            ? { base: { x: getNum(entry.entity.data, 10), y: getNum(entry.entity.data, 20) }, members: [] }
+            : undefined;
+          if (name && currentDef) blockDefs.set(name, currentDef);
+          continue;
+        }
+        if (t === 'ENDBLK') { currentDef = undefined; continue; }
+        if (currentDef && entry.blockName === undefined) {
+          // BLOCK 与 ENDBLK 之间的成员——归属当前块定义
+          currentDef.members.push({ entity: entry.entity, vertices: entry.vertices });
+          continue;
+        }
+        // 不在 BLOCK…ENDBLK 定义内的裸实体（部分导出器不写块头）——按图纸几何输出
+        placedEntities.push(entry);
+        continue;
+      }
+      // ENTITIES 段
+      if (t === 'INSERT') { hasInsert = true; placedEntities.push(entry); continue; }
+      placedEntities.push(entry);
+    }
+  }
+
+  /**
+   * INSERT 展开：块成员实体按 (缩放 → 旋转 → 平移到插入点) 变换到图纸坐标。
+   * 支持行列阵列（70/71 行列数 × 44/45 间距）。旋转/缩放对 bulge 无损
+   * （相似变换保持圆弧凸度）。
+   */
+  const expandInsert = (insert: DxfEntity): Array<{ entity: DxfEntity; vertices?: DxfPolylineVertex[] }> => {
+    const name = insert.data.get(2);
+    const def = name ? blockDefs.get(name) : undefined;
+    if (!def) return [];
+    const insertPt = { x: getNum(insert.data, 10), y: getNum(insert.data, 20) };
+    const sx = getNum(insert.data, 41, 1);
+    const sy = getNum(insert.data, 42, 1);
+    const rot = (getNum(insert.data, 50) * Math.PI) / 180;
+    const rows = Math.max(1, getNum(insert.data, 70, 1));
+    const cols = Math.max(1, getNum(insert.data, 71, 1));
+    const rowSpacing = getNum(insert.data, 44, 0);
+    const colSpacing = getNum(insert.data, 45, 0);
+    const cos = Math.cos(rot);
+    const sin = Math.sin(rot);
+    const xf = (x: number, y: number, ox: number, oy: number): { x: number; y: number } => {
+      const dx = (x - ox) * sx;
+      const dy = (y - oy) * sy;
+      return { x: insertPt.x + dx * cos - dy * sin, y: insertPt.y + dx * sin + dy * cos };
+    };
+    const out: Array<{ entity: DxfEntity; vertices?: DxfPolylineVertex[] }> = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const off = { x: c * colSpacing, y: r * rowSpacing };
+        for (const member of def.members) {
+          const e = member.entity;
+          const T = (x: number, y: number): { x: number; y: number } => {
+            const p = xf(x, y, def.base.x, def.base.y);
+            return { x: p.x + off.x, y: p.y + off.y };
+          };
+          const data = new Map<number, string>();
+          if (e.type === 'LINE') {
+            const p1 = T(getNum(e.data, 10), getNum(e.data, 20));
+            const p2 = T(getNum(e.data, 11), getNum(e.data, 21));
+            data.set(10, String(p1.x)); data.set(20, String(p1.y)); data.set(30, '0');
+            data.set(11, String(p2.x)); data.set(21, String(p2.y)); data.set(31, '0');
+          } else if (e.type === 'CIRCLE' || e.type === 'ARC') {
+            const c0 = T(getNum(e.data, 10), getNum(e.data, 20));
+            data.set(10, String(c0.x)); data.set(20, String(c0.y)); data.set(30, '0');
+            const uniformScale = Math.sqrt(Math.abs(sx * sy));
+            data.set(40, String(getNum(e.data, 40) * uniformScale));
+            if (e.type === 'ARC') {
+              const rotDeg = getNum(insert.data, 50);
+              data.set(50, String(getNum(e.data, 50) + rotDeg));
+              data.set(51, String(getNum(e.data, 51) + rotDeg));
+            }
+          } else if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
+            const vertices = (member.vertices ?? []).map((v) => {
+              const p = T(v.x, v.y);
+              return { x: p.x, y: p.y, bulge: v.bulge };
+            });
+            data.set(90, String(vertices.length));
+            out.push({ entity: { type: e.type, layer: e.layer, data }, vertices });
+            continue;
+          } else {
+            continue; // 其它类型暂不支持展开
+          }
+          out.push({ entity: { type: e.type, layer: e.layer, data } });
+        }
+      }
+    }
+    return out;
+  };
+
+  // ── 最终分组：ENTITIES 段 + INSERT 展开；无 INSERT 时块内几何直接输出（旧行为） ──
   const linesOut: DxfEntity[] = [];
   const circles: DxfEntity[] = [];
   const arcs: DxfEntity[] = [];
   const polylines: DxfPolylineVertex[][] = [];
-  for (const { entity: e, vertices } of collected) {
+
+  const pushEntry = (entry: { entity: DxfEntity; vertices?: DxfPolylineVertex[] }): void => {
+    const e = entry.entity;
     if (e.type === 'LINE') linesOut.push(e);
     else if (e.type === 'CIRCLE') circles.push(e);
     else if (e.type === 'ARC') arcs.push(e);
-    else if ((e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') && vertices && vertices.length > 0) {
-      polylines.push(vertices);
+    else if ((e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') && entry.vertices && entry.vertices.length > 0) {
+      polylines.push(entry.vertices);
+    }
+  };
+
+  if (hasInsert) {
+    for (const entry of placedEntities) {
+      if (entry.entity.type === 'INSERT') {
+        for (const expanded of expandInsert(entry.entity)) pushEntry(expanded);
+      } else {
+        pushEntry(entry);
+      }
+    }
+  } else {
+    // 无 INSERT：块内几何直接输出（历史行为——部分导出器直接把图形放 BLOCKS）
+    for (const entry of placedEntities) pushEntry(entry);
+    for (const def of blockDefs.values()) {
+      for (const member of def.members) pushEntry(member);
     }
   }
+
   return { lines: linesOut, circles, arcs, polylines };
 }
 
@@ -185,55 +343,129 @@ function vec3(x: number, y: number, z = 0): BrepVec3 {
  */
 export function dxfEntitiesToWires(kernel: BrepEngineApi, parsed: DxfParsed): Result<BrepHandle[], BrepError> {
   const polylineWires: BrepHandle[] = [];
-  const singleEdges: BrepHandle[] = [];
+  const circleWires: BrepHandle[] = [];
 
-  for (const e of parsed.lines) {
-    try {
-      singleEdges.push(
-        kernel.makeLineEdge(
-          vec3(getNum(e.data, 10), getNum(e.data, 20), getNum(e.data, 30)),
-          vec3(getNum(e.data, 11), getNum(e.data, 21), getNum(e.data, 31)),
-        ),
-      );
-    } catch {
-      // 个别坏实体跳过，不让一个坏 LINE 弄死整张图
-    }
-  }
-
+  // 圆：自身就是闭合环——单边成 wire，不进散边池（混入会破坏链式组环）。
   for (const e of parsed.circles) {
     try {
-      singleEdges.push(
-        kernel.makeCircleEdge(
-          vec3(getNum(e.data, 10), getNum(e.data, 20), getNum(e.data, 30)),
-          vec3(0, 0, 1),
-          getNum(e.data, 40),
-        ),
+      circleWires.push(
+        kernel.makeWire([
+          kernel.makeCircleEdge(
+            vec3(getNum(e.data, 10), getNum(e.data, 20), getNum(e.data, 30)),
+            vec3(0, 0, 1),
+            getNum(e.data, 40),
+          ),
+        ]),
       );
     } catch {
       // 跳过
     }
   }
 
+  // LINE/ARC → 端点描述段（内核 edge 延迟到环确定后按链向创建——反向只是
+  // 数据层面的方向翻转，不浪费内核调用，也避免 arc 反向时角度对调取到补弧）。
+  interface DxfSeg { ax: number; ay: number; bx: number; by: number; entity: DxfEntity }
+  const segs: DxfSeg[] = [];
+  for (const e of parsed.lines) {
+    segs.push({
+      ax: getNum(e.data, 10), ay: getNum(e.data, 20),
+      bx: getNum(e.data, 11), by: getNum(e.data, 21),
+      entity: e,
+    });
+  }
   for (const e of parsed.arcs) {
-    try {
-      const startAngle = (getNum(e.data, 50) * Math.PI) / 180;
-      const endAngle = (getNum(e.data, 51) * Math.PI) / 180;
-      singleEdges.push(
-        kernel.makeCircleArc(
-          vec3(getNum(e.data, 10), getNum(e.data, 20), getNum(e.data, 30)),
-          vec3(0, 0, 1),
-          getNum(e.data, 40),
-          startAngle,
-          endAngle,
-        ),
-      );
-    } catch {
-      // 跳过
+    const cx = getNum(e.data, 10);
+    const cy = getNum(e.data, 20);
+    const r = getNum(e.data, 40);
+    // DXF 圆弧固定从角 50 逆时针到角 51；51 < 50 时按 DXF 规范绕 360°
+    const a0 = (getNum(e.data, 50) * Math.PI) / 180;
+    let a1 = (getNum(e.data, 51) * Math.PI) / 180;
+    if (a1 <= a0) a1 += 2 * Math.PI;
+    segs.push({
+      ax: cx + r * Math.cos(a0), ay: cy + r * Math.sin(a0),
+      bx: cx + r * Math.cos(a1), by: cy + r * Math.sin(a1),
+      entity: e,
+    });
+  }
+
+  /**
+   * 贪心端点链式组环（OpenSCAD DXF 导入同语义）：DXF 轮廓常被拆成一段段
+   * LINE/ARC 散实体，把全部散边一次性丢给 makeWire 会因拓扑不连续产出错误
+   * 形状（2026-10-17 实证：example013 的 16 条边一把梭 → 体积 86500 vs
+   * 参考 61333）。链式：从任一段出发按端点匹配延伸，回到起点即成环。
+   */
+  const TOL = 1e-6;
+  const dist = (x1: number, y1: number, x2: number, y2: number): number => Math.hypot(x1 - x2, y1 - y2);
+  const arcPoint = (e: DxfEntity, angleRad: number): { x: number; y: number } => ({
+    x: getNum(e.data, 10) + getNum(e.data, 40) * Math.cos(angleRad),
+    y: getNum(e.data, 20) + getNum(e.data, 40) * Math.sin(angleRad),
+  });
+  const buildEdge = (s: DxfSeg, forward: boolean): BrepHandle => {
+    const e = s.entity;
+    if (e.type === 'LINE') {
+      return forward
+        ? kernel.makeLineEdge(vec3(s.ax, s.ay), vec3(s.bx, s.by))
+        : kernel.makeLineEdge(vec3(s.bx, s.by), vec3(s.ax, s.ay));
     }
+    // ARC：三点弧（makeArcEdge）——正向 (a0, mid, a1)，反向 (a1, mid, a0)。
+    // 同一组三点，几何完全一致，只有端点序不同；避免 (a1,a0) 角度对调取到补弧。
+    const a0 = (getNum(e.data, 50) * Math.PI) / 180;
+    let a1 = (getNum(e.data, 51) * Math.PI) / 180;
+    if (a1 <= a0) a1 += 2 * Math.PI;
+    const p0 = arcPoint(e, a0);
+    const pm = arcPoint(e, (a0 + a1) / 2);
+    const p1 = arcPoint(e, a1);
+    return forward
+      ? kernel.makeArcEdge(vec3(p0.x, p0.y), vec3(pm.x, pm.y), vec3(p1.x, p1.y))
+      : kernel.makeArcEdge(vec3(p1.x, p1.y), vec3(pm.x, pm.y), vec3(p0.x, p0.y));
+  };
+
+  const loopWires: BrepHandle[] = [];
+  const chainEdges: BrepHandle[] = [];
+  while (segs.length > 0) {
+    const first = segs.shift()!;
+    const chain: Array<{ seg: DxfSeg; forward: boolean }> = [{ seg: first, forward: true }];
+    const start = { x: first.ax, y: first.ay };
+    let endX = first.bx;
+    let endY = first.by;
+    let extended = true;
+    while (extended && dist(endX, endY, start.x, start.y) > TOL) {
+      extended = false;
+      for (let i = 0; i < segs.length; i++) {
+        const s = segs[i]!;
+        if (dist(s.ax, s.ay, endX, endY) <= TOL) {
+          chain.push({ seg: s, forward: true });
+          endX = s.bx; endY = s.by;
+        } else if (dist(s.bx, s.by, endX, endY) <= TOL) {
+          chain.push({ seg: s, forward: false });
+          endX = s.ax; endY = s.ay;
+        } else {
+          continue;
+        }
+        segs.splice(i, 1);
+        extended = true;
+        break;
+      }
+    }
+    for (const { seg, forward } of chain) {
+      try {
+        chainEdges.push(buildEdge(seg, forward));
+      } catch {
+        // 坏边跳过（环缺边 → makeWire 失败 → 整环丢弃）
+      }
+    }
+    if (chainEdges.length > 0) {
+      try {
+        loopWires.push(kernel.makeWire(chainEdges));
+      } catch {
+        // 环不闭合/坏边 → 整环丢弃
+      }
+    }
+    chainEdges.length = 0;
   }
 
   for (const vertices of parsed.polylines) {
-    // polyline → Curve2dObj 序列（bulge≠0 的段是真实三点圆弧，不再退化成弦线），
+    // polyline → Curve2dObj 序列（bulge≠0 的段是真实三点圆弧，不退化成弦线），
     // 经 geometry2d 桥 assembleWire 在 XY 平面落成 wire——与 sketch/profile 同一管线。
     const curves: Curve2dObj[] = [];
     for (let i = 0; i < vertices.length - 1; i++) {
@@ -266,15 +498,8 @@ export function dxfEntitiesToWires(kernel: BrepEngineApi, parsed: DxfParsed): Re
     }
   }
 
-  // 组线：polyline 已是成品 wire；散边合并成一组由内核自组。
-  const wires: BrepHandle[] = [...polylineWires];
-  if (singleEdges.length > 0) {
-    try {
-      wires.push(kernel.makeWire(singleEdges));
-    } catch {
-      // 散边不闭合时可能失败——返回已有 wire
-    }
-  }
+  // polyline 已是成品 wire；圆是单边闭合 wire；LINE/ARC 已链式组环。
+  const wires: BrepHandle[] = [...polylineWires, ...circleWires, ...loopWires];
 
   if (wires.length === 0) {
     return err(
