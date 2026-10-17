@@ -83,7 +83,9 @@ export function parseDxfEntities(text: string): DxfParsed {
     const value = valueLine.trim();
     if (Number.isNaN(code)) continue;
 
-    if (code === 2 && value === 'ENTITIES' && !inEntities) {
+    if (code === 2 && (value === 'ENTITIES' || value === 'BLOCKS') && !inEntities) {
+      // BLOCKS 也要扫：dxflib 等工具常把几何放进 BLOCKS 段、ENTITIES 段只留
+      // INSERT 引用（faijs-openscad example013 的实际形态）。
       inEntities = true;
       continue;
     }

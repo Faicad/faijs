@@ -140,6 +140,24 @@ describe('parseDxfEntities（严格配对遍历）', () => {
     expect(parsed.circles).toHaveLength(0)
   })
 
+  it('GOTCHA: 几何在 BLOCKS 段（dxflib 导出形态）也要能提取——ENTITIES 只留 INSERT', () => {
+    const dxf = [
+      '999', 'dxflib 2.0.4.8',
+      '0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1015', '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'BLOCKS',
+      '0', 'LINE', '8', 'OUTLINE', '10', '0', '20', '0', '11', '10', '21', '0',
+      '0', 'LINE', '8', 'OUTLINE', '10', '10', '20', '0', '11', '10', '21', '10',
+      '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'INSERT', '8', 'OUTLINE', '2', 'SOME_BLOCK',
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\n')
+    const parsed = parseDxfEntities(dxf)
+    expect(parsed.lines).toHaveLength(2)
+    const result = dxfEntitiesToWires(mockKernel().kernel, parsed)
+    expect(result.ok).toBe(true)
+  })
+
   it('LWPOLYLINE 顶点序列（10/20 重复组码）不被 Map 覆盖', () => {
     const dxf = [
       '0', 'SECTION', '2', 'ENTITIES',
