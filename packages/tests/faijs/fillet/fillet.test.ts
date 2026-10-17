@@ -198,4 +198,21 @@ describe('fillet e2e (BREP/OCCT)', () => {
     expect(warnSpy).not.toHaveBeenCalled()
     expect(errorSpy).not.toHaveBeenCalled()
   })
+
+  it('T-F5: 单位字面量乘法形态（radius: 2 * MM，宿主 UI 实际发射形态）必须同样可解析', async () => {
+    // 宿主端（3d_editor web/weapp）fillet 发射 radius 为 `n * MM`（MM === 1，数值不变）。
+    // weapp worker 真实 bundle 上该形态抛 [parser] SyntaxError（edges 数组 + 乘法参数组合，
+    // 见 weapp diag F12），导致圆角预览失败 → 画布消失。本用例钉死乘法形态在 faijs 层
+    // 必须可解析可执行（与裸数字 T-F1 同结果）。
+    const code = `
+      const part0 = cad.box(20, 20, 20, { centered: true })
+      const part1 = cad.fillet(part0, { edges: [${BOX_EDGE}], radius: 2 * MM })
+    `
+    const result = await runtime.execute(code, { topology: 'auto' })
+    expect(result.failedAt).toBeUndefined()
+    expect(result.brepChain.solidCache.has(asPartName('part1'))).toBe(true)
+    expect(faceCountOf(result, asPartName('part1'))).toBe(7)
+    const removed = 8000 - volumeOf(result, asPartName('part1'))
+    expect(removed).toBeCloseTo(17.168, 1)
+  })
 })

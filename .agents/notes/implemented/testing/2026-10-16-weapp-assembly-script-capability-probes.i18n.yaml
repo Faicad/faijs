@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-10-16-weapp-assembly-script-capability-probes.md
+2026-10-16-weapp-assembly-script-capability-probes.md: 1089df586cf5ca93790940ecb08d8b9bf69b9039
+2026-10-16-weapp-assembly-script-capability-probes.zh.md: ea6c293dc97f96cc1ec79f9599664c9c1fc1de3f

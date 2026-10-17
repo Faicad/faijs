@@ -178,3 +178,67 @@ describe('A-9/A-10：引用判定与显示判定一致；跨文件引用不取�
     expect(term(r)).toContain('part')
   })
 })
+
+/**
+ * A-11：`cad.assembly({ members })` **不**消费成员的导出面 —— 与修饰型 op 相反。
+ *
+ * 实测（本 describe 两个方向都钉住）：本模块声明的 shape 被 `cad.assembly` 引用后，
+ * **仍可**被下游模块 import；import 绑定同理。这与 `translate` 那类修饰型 op 的消费完全不同
+ * ——`live-shapes.test.ts` 的 compound 用例早有注释：「compound members 组装不是消费」，而
+ * `cad.assembly` 走的正是 compound 路径。
+ *
+ * 这条结论**修正了 3d_editor 装配/动画方案 §3.2 第 2 点**：原表述「`cad.assembly` 会消费
+ * 成员 shape，拆脚本后动画脚本再也拿不到成员几何」是错误类比（把 translate 的消费语义套到
+ * assembly 上）。「装配 + 动画必须同脚本」的真实依据是 §3.2 第 1、3 点：
+ *   1. `validateJointRefs` 需要成员集与关节集在同一份声明里闭合（`../animation/src/scene/
+ *      fai-model-builder.ts` 的构建期硬校验）；
+ *   3. `ExecutionResult.assemblies` 只从**主模块 ctx** 收集（依赖模块的装配声明不进主模块
+ *      结果），所以装配声明只能写在被执行的那个 entry 里。
+ */
+describe('A-11：cad.assembly 不消费成员导出面（与修饰型 op 的消费相反）', () => {
+  const MAIN = [
+    'let partA = cad.box(10, 10, 10, { centered: true })',
+    'let partB = cad.box(10, 10, 10, { centered: true })',
+  ].join('\n')
+  const ASSEMBLY = [
+    "import { partA, partB } from './main.fai.js'",
+    "let asm = cad.assembly({ name: 'A', members: [partA, partB], memberNames: ['partA', 'partB'] })",
+  ].join('\n')
+
+  it('装配模块执行正常并产出装配声明', async () => {
+    const rt = mkRuntime(memLoader({ 'main.fai.js': MAIN, 'assembly.fai.js': ASSEMBLY }))
+    const r = await rt.execute(ASSEMBLY, { entryKey: 'assembly.fai.js' })
+    expect(r.failedAt).toBeUndefined()
+    expect(r.assemblies).toHaveLength(1)
+    expect(r.assemblies?.[0]?.memberNames).toEqual(['partA', 'partB'])
+  })
+
+  it('本模块声明的 shape 被 cad.assembly 引用后仍可被下游 import（不是消费）', async () => {
+    const SELF = [
+      'let a = cad.box(10, 10, 10, { centered: true })',
+      'let b = cad.box(10, 10, 10, { centered: true })',
+      "let asm = cad.assembly({ name: 'S', members: [a, b], memberNames: ['a', 'b'] })",
+    ].join('\n')
+    const rt = mkRuntime(memLoader({ 'self.fai.js': SELF }))
+    const r = await rt.execute("import { a } from './self.fai.js'\nlet t = a")
+    expect(r.failedAt).toBeUndefined()
+  })
+
+  it('import 绑定被 cad.assembly 引用后同样仍可被下游 import', async () => {
+    const rt = mkRuntime(memLoader({ 'main.fai.js': MAIN, 'assembly.fai.js': ASSEMBLY }))
+    const r = await rt.execute("import { partA } from './assembly.fai.js'\nlet t = partA")
+    expect(r.failedAt).toBeUndefined()
+  })
+
+  it('对照：修饰型 op（translate）的消费确实取消导出面（证明消费规则本身有效，只是不适用于 assembly）', async () => {
+    const MODIFIED = [
+      'let a = cad.box(10, 10, 10, { centered: true })',
+      'let moved = cad.translate(a, [0, 0, 5])',
+    ].join('\n')
+    const rt = mkRuntime(memLoader({ 'mod.fai.js': MODIFIED }))
+    const bad = await rt.execute("import { a } from './mod.fai.js'\nlet t = a")
+    expect(bad.failedAt).toBeDefined()
+    expect(bad.failedAt?.message).toContain('a')
+    expect(bad.failedAt?.message).toContain('not exported')
+  })
+})
