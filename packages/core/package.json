@@ -239,6 +239,10 @@
       "types": "./dist/brep/svg/svg-to-solid.d.ts",
       "default": "./dist/brep/svg/svg-to-solid.js"
     },
+    "./brep/dxf/dxf-import": {
+      "types": "./dist/brep/dxf/dxf-import.d.ts",
+      "default": "./dist/brep/dxf/dxf-import.js"
+    },
     "./brep/text/fontRegistry": {
       "types": "./dist/brep/text/fontRegistry.d.ts",
       "default": "./dist/brep/text/fontRegistry.js"
