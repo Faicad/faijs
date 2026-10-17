@@ -179,6 +179,37 @@ describe('parseSVGPathToWires', () => {
     expect(subpaths[0].bbox.maxY).toBeCloseTo(0, 5)
     for (const sp of subpaths) kernel.release(sp.wire)
   })
+
+  // ─── geometry2d 迁移后的几何精度（2026-10-17） ───
+
+  it('GOTCHA(arc): A 命令半圆弧 + 弦闭合 → 体积 = πr²/2·depth（三点弧经 geometry2d，精确非采样）', () => {
+    const svg = '<svg><path d="M 0 0 A 5 5 0 0 1 10 0 Z"/></svg>'
+    const solid = svgToSolid(kernel, svg, { depth: 2 })
+    const volume = kernel.getVolume(solid)
+    // 半圆面积 π·5²/2 = 39.2699，extrude depth 2
+    const expected = (Math.PI * 25) / 2 * 2
+    expect(volume).toBeCloseTo(expected, 1)
+    kernel.release(solid)
+  })
+
+  it('GOTCHA(arc): A 命令起终点重合 → 整圆（两段三点弧）→ 体积 = πr²·depth', () => {
+    const svg = '<svg><path d="M 0 -5 A 5 5 0 1 1 0 -5 Z"/></svg>'
+    const solid = svgToSolid(kernel, svg, { depth: 2 })
+    const volume = kernel.getVolume(solid)
+    const expected = Math.PI * 25 * 2
+    expect(volume).toBeCloseTo(expected, 1)
+    kernel.release(solid)
+  })
+
+  it('GOTCHA(bezier): Q/T 平滑贝塞尔与 C 端点一致（相对坐标路径）', () => {
+    const subpaths = parseSVGPathToWires(kernel, 'M 0 0 q 5 10 10 0 t 10 0 z')
+    expect(subpaths.length).toBe(1)
+    // 端点：SVG (0,0)→(10,0)→(20,0)，flipY 后 y=0 不变；z 闭合后末点回起点
+    const xs = subpaths[0].points.map((p) => p.x)
+    expect(subpaths[0].points[0].x).toBeCloseTo(0, 5)
+    expect(xs[xs.length - 2]).toBeCloseTo(20, 5)
+    for (const sp of subpaths) kernel.release(sp.wire)
+  })
 })
 
 // ─── classifyHoles ───

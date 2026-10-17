@@ -3,7 +3,6 @@
  *
  * 适配自 brepjs `src/io/svgImportFns.ts`，保留核心算法和命名。
  * 与 brepjs 的差异：
- * - brepjs 用 Curve2D / Blueprint / sketchOnPlane → 本项目直接用 3D edge / makeWire / makeFace
  * - brepjs 不处理孔洞 → 本项目用 kernel.addHolesInFace 处理外轮廓+内孔
  * - brepjs 仅解析 <path> → 本项目额外转换 <rect>/<circle>/<ellipse>/<line>/<polyline>/<polygon>
  *
@@ -11,16 +10,14 @@
  * - text 的 glyph 互不嵌套，各自 makeFace→extrude→fuse
  * - SVG 路径常有外轮廓+内孔，需 addHolesInFace 挖孔后再 extrude
  *
- * SVG path 命令 → OCCT edge 映射：
+ * SVG path 命令 → Curve2dObj 映射（2026-10-17 起 geometry2d 迁移完成）：
  * - M (moveTo) → 开始新子路径
- * - L (lineTo) → kernel.makeLineEdge
- * - H/V → 转 makeLineEdge
- * - C (cubicBezier) → kernel.makeBezierEdge
- * - S (smoothCubicBezier) → 反射控制点 → makeBezierEdge
- * - Q (quadraticBezier) → 转三次贝塞尔 → makeBezierEdge
- * - T (smoothQuadraticBezier) → 反射控制点 → 转三次 → makeBezierEdge
- * - A (arc) → 计算 sagitta 中点 → kernel.makeArcEdge(start, mid, end)
- * - Z (closePath) → 闭合 wire
+ * - L/H/V → makeLine2d
+ * - C/S/Q/T → makeBezier2d（S/T 反射控制点；Q/T 经 quadToCubic 转三次）
+ * - A (arc) → sagitta 中点 → makeArc2dThreePoints（算法与 brepjs createStandardArc 一致）
+ * - Z (closePath) → 闭合线段
+ * wire 组装统一经 geometry2d 桥 assembleWire（'XY' 平面）——与 sketch/profile/DXF
+ * 同一管线；本文件不再直接调用内核建边原语（face/extrude/fuse 仍在内核层）。
  */
 
 import type { BrepHandle } from '../engine/types'
@@ -36,6 +33,9 @@ import {
   computeSignedArea,
 } from '../../primitives/svg/svg-path'
 import type { SvgTransform } from '../../primitives/svg/svg-path'
+import { makeLine2d, makeBezier2d, makeArc2dThreePoints, type Curve2dObj } from '../../geometry2d/curve2d'
+import { Blueprint } from '../../geometry2d/blueprint'
+import { assembleWire } from '../../geometry2d/bridge/lift-on-plane'
 
 export { parseSvgNaturalSize }
 
@@ -167,29 +167,29 @@ export function parseSVGPathToWires(
     prevControlX: 0, prevControlY: 0, lastCmd: '',
   }
 
-  let currentEdges: BrepHandle[] = []
+  // geometry2d 迁移（2026-10-17）：各 case 只产出 Curve2dObj（flipY 在构造点时
+  // 一次性应用），wire 组装统一经 assembleWire——与 sketch/profile/DXF 同一管线。
+  // 曲线→edge 的内核调用全部收敛到 liftCurve2dToPlane，本文件不再直接调内核。
+  let currentCurves: Curve2dObj[] = []
   let currentPoints: Pt[] = []
   let lastPt: Pt | null = null
   let subpathStart: Pt | null = null
 
   function flushWire(closed: boolean): void {
-    if (currentEdges.length === 0) {
+    if (currentCurves.length === 0) {
       currentPoints = []
       return
     }
-    // 如果闭合且终点≠起点，补一条闭合边
+    // 如果闭合且终点≠起点，补一条闭合线段（Curve2d 层）
     if (closed && subpathStart && lastPt &&
         (Math.abs(subpathStart.x - lastPt.x) > 1e-9 ||
          Math.abs(subpathStart.y - lastPt.y) > 1e-9)) {
-      const edge = kernel.makeLineEdge(lastPt, subpathStart)
-      currentEdges.push(edge)
+      currentCurves.push(makeLine2d(lastPt.x, lastPt.y, subpathStart.x, subpathStart.y))
       currentPoints.push(subpathStart)
     }
 
     try {
-      const wire = kernel.makeWire(currentEdges)
-      // 释放 edges（wire 已共享 TShape）
-      for (const e of currentEdges) kernel.release(e)
+      const wire = assembleWire(kernel, 'XY', new Blueprint(currentCurves))
 
       const pts = closed ? currentPoints : [...currentPoints]
       // 如果未闭合但有点，尝试闭合以计算 bbox/area
@@ -210,11 +210,10 @@ export function parseSVGPathToWires(
         })
       }
     } catch {
-      // makeWire 失败 → 释放 edges
-      for (const e of currentEdges) kernel.release(e)
+      // Blueprint 组线失败 → 丢弃该子路径（曲线未落成 edge，无需 release）
     }
 
-    currentEdges = []
+    currentCurves = []
     currentPoints = []
   }
 
@@ -224,8 +223,8 @@ export function parseSVGPathToWires(
 
     switch (cmd) {
       case 'M': {
-        // 如果有当前 edges，先 flush（隐式闭合不补线）
-        if (currentEdges.length > 0) flushWire(false)
+        // 如果有当前曲线，先 flush（隐式闭合不补线）
+        if (currentCurves.length > 0) flushWire(false)
 
         let i = 0
         while (i + 1 < args.length) {
@@ -241,8 +240,7 @@ export function parseSVGPathToWires(
             // 隐式 L
             const curr = flipY(x, y)
             if (lastPt && (Math.abs(curr.x - lastPt.x) > 1e-9 || Math.abs(curr.y - lastPt.y) > 1e-9)) {
-              const edge = kernel.makeLineEdge(lastPt, curr)
-              currentEdges.push(edge)
+              currentCurves.push(makeLine2d(lastPt.x, lastPt.y, curr.x, curr.y))
               currentPoints.push(curr)
             }
             lastPt = curr
@@ -260,8 +258,7 @@ export function parseSVGPathToWires(
           const y = (isRelative ? cursor.cy : 0) + (args[i + 1] ?? 0)
           const curr = flipY(x, y)
           if (lastPt && (Math.abs(curr.x - lastPt.x) > 1e-9 || Math.abs(curr.y - lastPt.y) > 1e-9)) {
-            const edge = kernel.makeLineEdge(lastPt, curr)
-            currentEdges.push(edge)
+            currentCurves.push(makeLine2d(lastPt.x, lastPt.y, curr.x, curr.y))
             currentPoints.push(curr)
           }
           lastPt = curr
@@ -276,8 +273,7 @@ export function parseSVGPathToWires(
           const x = isRelative ? cursor.cx + arg : arg
           const curr = flipY(x, cursor.cy)
           if (lastPt && (Math.abs(curr.x - lastPt.x) > 1e-9 || Math.abs(curr.y - lastPt.y) > 1e-9)) {
-            const edge = kernel.makeLineEdge(lastPt, curr)
-            currentEdges.push(edge)
+            currentCurves.push(makeLine2d(lastPt.x, lastPt.y, curr.x, curr.y))
             currentPoints.push(curr)
           }
           lastPt = curr
@@ -290,8 +286,7 @@ export function parseSVGPathToWires(
           const y = isRelative ? cursor.cy + arg : arg
           const curr = flipY(cursor.cx, y)
           if (lastPt && (Math.abs(curr.x - lastPt.x) > 1e-9 || Math.abs(curr.y - lastPt.y) > 1e-9)) {
-            const edge = kernel.makeLineEdge(lastPt, curr)
-            currentEdges.push(edge)
+            currentCurves.push(makeLine2d(lastPt.x, lastPt.y, curr.x, curr.y))
             currentPoints.push(curr)
           }
           lastPt = curr
@@ -308,8 +303,9 @@ export function parseSVGPathToWires(
           const cp2 = flipY(ox + (args[i + 2] ?? 0), oy + (args[i + 3] ?? 0))
           const endPt = flipY(ox + (args[i + 4] ?? 0), oy + (args[i + 5] ?? 0))
           if (lastPt) {
-            const edge = kernel.makeBezierEdge([lastPt, cp1, cp2, endPt])
-            currentEdges.push(edge)
+            currentCurves.push(makeBezier2d([
+              [lastPt.x, lastPt.y], [cp1.x, cp1.y], [cp2.x, cp2.y], [endPt.x, endPt.y],
+            ]))
             currentPoints.push(endPt)
           }
           cursor.prevControlX = ox + (args[i + 2] ?? 0)
@@ -333,8 +329,9 @@ export function parseSVGPathToWires(
           const endPt = flipY(ox + (args[i + 2] ?? 0), oy + (args[i + 3] ?? 0))
           if (lastPt) {
             const cp1 = flipY(cp1x, cp1y)
-            const edge = kernel.makeBezierEdge([lastPt, cp1, cp2, endPt])
-            currentEdges.push(edge)
+            currentCurves.push(makeBezier2d([
+              [lastPt.x, lastPt.y], [cp1.x, cp1.y], [cp2.x, cp2.y], [endPt.x, endPt.y],
+            ]))
             currentPoints.push(endPt)
           }
           cursor.prevControlX = ox + (args[i] ?? 0)
@@ -356,8 +353,9 @@ export function parseSVGPathToWires(
           const endPt = flipY(ox + (args[i + 2] ?? 0), oy + (args[i + 3] ?? 0))
           if (lastPt) {
             const [c1, c2] = quadToCubic(lastPt, cp, endPt)
-            const edge = kernel.makeBezierEdge([lastPt, c1, c2, endPt])
-            currentEdges.push(edge)
+            currentCurves.push(makeBezier2d([
+              [lastPt.x, lastPt.y], [c1.x, c1.y], [c2.x, c2.y], [endPt.x, endPt.y],
+            ]))
             currentPoints.push(endPt)
           }
           cursor.prevControlX = ox + (args[i] ?? 0)
@@ -381,8 +379,9 @@ export function parseSVGPathToWires(
           if (lastPt) {
             const cp = flipY(cpx, cpy)
             const [c1, c2] = quadToCubic(lastPt, cp, endPt)
-            const edge = kernel.makeBezierEdge([lastPt, c1, c2, endPt])
-            currentEdges.push(edge)
+            currentCurves.push(makeBezier2d([
+              [lastPt.x, lastPt.y], [c1.x, c1.y], [c2.x, c2.y], [endPt.x, endPt.y],
+            ]))
             currentPoints.push(endPt)
           }
           cursor.prevControlX = cpx
@@ -409,8 +408,7 @@ export function parseSVGPathToWires(
             // 退化为直线
             const curr = flipY(x, y)
             if (lastPt) {
-              const edge = kernel.makeLineEdge(lastPt, curr)
-              currentEdges.push(edge)
+              currentCurves.push(makeLine2d(lastPt.x, lastPt.y, curr.x, curr.y))
               currentPoints.push(curr)
             }
             lastPt = curr
@@ -419,25 +417,23 @@ export function parseSVGPathToWires(
             const dy = y - cursor.cy
             const dist = Math.sqrt(dx * dx + dy * dy)
             if (dist < 1e-10) {
-              // 完整圆 → 两段半圆
+              // 完整圆 → 两段半圆（三点弧）
               const r = Math.max(rx, ry)
               const sweep = sweepFlag ? 1 : -1
               const mid1 = flipY(cursor.cx - sweep * r, cursor.cy + sweep * r)
               const opposite = flipY(cursor.cx, cursor.cy + 2 * sweep * r)
               const mid2 = flipY(cursor.cx + sweep * r, cursor.cy + sweep * r)
               if (lastPt) {
-                const e1 = kernel.makeArcEdge(lastPt, mid1, opposite)
-                const e2 = kernel.makeArcEdge(opposite, mid2, lastPt)
-                currentEdges.push(e1, e2)
+                currentCurves.push(makeArc2dThreePoints(lastPt.x, lastPt.y, mid1.x, mid1.y, opposite.x, opposite.y))
+                currentCurves.push(makeArc2dThreePoints(opposite.x, opposite.y, mid2.x, mid2.y, lastPt.x, lastPt.y))
                 currentPoints.push(opposite, lastPt)
               }
             } else {
-              // 标准圆弧 → sagitta 中点
+              // 标准圆弧 → sagitta 中点（算法与 brepjs createStandardArc 一致）
               const mid = arcMidPoint(cursor.cx, cursor.cy, x, y, rx, ry, largeArc, sweepFlag)
               const endPt = flipY(x, y)
               if (lastPt) {
-                const edge = kernel.makeArcEdge(lastPt, mid, endPt)
-                currentEdges.push(edge)
+                currentCurves.push(makeArc2dThreePoints(lastPt.x, lastPt.y, mid.x, mid.y, endPt.x, endPt.y))
                 currentPoints.push(endPt)
               }
               lastPt = endPt
@@ -450,14 +446,8 @@ export function parseSVGPathToWires(
         break
       }
       case 'Z': {
-        // 闭合
-        if (subpathStart && lastPt &&
-            (Math.abs(subpathStart.x - lastPt.x) > 1e-9 ||
-             Math.abs(subpathStart.y - lastPt.y) > 1e-9)) {
-          const edge = kernel.makeLineEdge(lastPt, subpathStart)
-          currentEdges.push(edge)
-          currentPoints.push(subpathStart)
-        }
+        // 闭合（终点≠起点的闭合线段由 flushWire 统一补——2026-10-17 起 Z 不再
+        // 自行补线，修掉旧实现「Z 补一次 + flushWire 再补一次」的双重闭合）
         flushWire(true)
         lastPt = subpathStart
         cursor.cx = cursor.sx
@@ -472,7 +462,7 @@ export function parseSVGPathToWires(
   }
 
   // 处理最后一个未闭合的子路径
-  if (currentEdges.length > 0) {
+  if (currentCurves.length > 0) {
     flushWire(false)
   }
 
