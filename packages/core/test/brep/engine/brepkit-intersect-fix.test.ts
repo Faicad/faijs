@@ -25,7 +25,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createRequire } from 'node:module'
 import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
-import { analyzeCode } from '../../../src/lang/statement-summary'
+import { extractMetadata } from '../../../src/lang/metadata-extractor'
+
+/** `analyzeCode` 已迁至宿主层；旧实现即 extractMetadata(code).lines。 */
+const analyzeCode = (code: string) => extractMetadata(code).lines
 import { CadRuntime } from '../../../src/cad-runtime/runtime'
 import { createApiNamespaceWithEditorOps, registerEditorExtensions } from '../../support/editor-ops'
 import { brepOf, getSlot } from '../../../src/shape'

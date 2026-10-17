@@ -46,11 +46,17 @@ beforeAll(async () => {
  * 引擎内部符号不得出现在根门面（V5 · 零引擎内部依赖红线）。
  */
 describe('上层契约：宿主可读代码文本 API', () => {
-  it('根门面导出文本级 API：analyzeCode / codeToArgs / formatCodeLine', async () => {
+  it('根门面导出文本级 API：extractMetadata（编辑器类函数已迁出，不再导出）', async () => {
     const facade = await import('@faicad/faijs')
-    expect(typeof facade.analyzeCode).toBe('function')
-    expect(typeof facade.codeToArgs).toBe('function')
-    expect(typeof facade.formatCodeLine).toBe('function')
+    expect(typeof facade.extractMetadata).toBe('function')
+    // 2026-10-17（A4）：analyzeCode / codeToArgs / formatCodeLine / validateExpression /
+    // editArgSource 是**编辑器**能力，迁至 `@faicad/scene-kernel/feature-tree`。
+    // 本包不再导出它们 —— 这条反向断言防止「顺手再 re-export 一份」把两份实现带回来。
+    expect('analyzeCode' in facade).toBe(false)
+    expect('codeToArgs' in facade).toBe(false)
+    expect('formatCodeLine' in facade).toBe(false)
+    expect('validateExpression' in facade).toBe(false)
+    expect('editArgSource' in facade).toBe(false)
   })
 
   it('根门面导出 HostArg 辅助函数：isHostVarRef / isHostParamRef / isHostCallRef / isHostExprRef / isHostRef / hostArgToDisplay / hostArgToLiteral / HOST_REF_KINDS', async () => {
@@ -70,10 +76,14 @@ describe('上层契约：宿主可读代码文本 API', () => {
     expect('parseScript' in facade).toBe(false)
   })
 
-  it('U1 链路：codeToArgs 能解析回 cad.box 的参数（UI 面板回填前提）', async () => {
+  it('U1 链路：extractMetadata 能解析回 cad.box 的参数（UI 面板回填前提）', async () => {
+    // 编辑器回填链路现在由宿主层承担；本包要保证的是「文本 → 结构化 args」这一步
+    // 仍然只经公开面（extractMetadata），宿主不需要接触任何引擎内部符号。
     const facade = await import('@faicad/faijs')
-    const args = facade.codeToArgs('let part0 = cad.box(20, 20, 20, { centered: true })')
-    expect(args).toBeTruthy()
+    const meta = facade.extractMetadata('let part0 = cad.box(20, 20, 20, { centered: true })')
+    expect(meta.lines).toHaveLength(1)
+    expect(meta.lines[0].positional.slice(0, 3)).toEqual([20, 20, 20])
+    expect(meta.lines[0].args).toEqual({ centered: true })
   })
 
   it('D1-⓪ 桥接：编辑器 op 已从核心门面迁到扩展库，engrave 仍是平台 op', async () => {

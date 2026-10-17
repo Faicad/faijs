@@ -1,0 +1,191 @@
+[
+  {
+    "code": "let part0 = cad.box(20, 20, 20, { centered: true })",
+    "lines": [
+      {
+        "id": "s1",
+        "callee": "box",
+        "positional": [
+          20,
+          20,
+          20,
+          {
+            "centered": true
+          }
+        ],
+        "args": {
+          "centered": true
+        },
+        "outputs": [
+          "part0"
+        ],
+        "hasAssignment": true,
+        "hasComputedArgs": false,
+        "line": 1,
+        "refs": []
+      }
+    ]
+  },
+  {
+    "code": "const size = 20\nlet part0 = cad.box(size, size, size, { centered: true })",
+    "lines": [
+      {
+        "id": "s2",
+        "callee": "box",
+        "positional": [
+          {
+            "kind": "var-ref",
+            "name": "size"
+          },
+          {
+            "kind": "var-ref",
+            "name": "size"
+          },
+          {
+            "kind": "var-ref",
+            "name": "size"
+          },
+          {
+            "centered": true
+          }
+        ],
+        "args": {
+          "centered": true
+        },
+        "outputs": [
+          "part0"
+        ],
+        "hasAssignment": true,
+        "hasComputedArgs": false,
+        "line": 2,
+        "refs": [
+          "size"
+        ]
+      }
+    ]
+  },
+  {
+    "code": "let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.translate(part0, { offset: [5, 0, 0] })",
+    "lines": [
+      {
+        "id": "s1",
+        "callee": "box",
+        "positional": [
+          20,
+          20,
+          20,
+          {
+            "centered": true
+          }
+        ],
+        "args": {
+          "centered": true
+        },
+        "outputs": [
+          "part0"
+        ],
+        "hasAssignment": true,
+        "hasComputedArgs": false,
+        "line": 1,
+        "refs": []
+      },
+      {
+        "id": "s2",
+        "callee": "translate",
+        "positional": [
+          {
+            "kind": "var-ref",
+            "name": "part0"
+          },
+          {
+            "offset": [
+              5,
+              0,
+              0
+            ]
+          }
+        ],
+        "args": {
+          "offset": [
+            5,
+            0,
+            0
+          ]
+        },
+        "outputs": [
+          "part1"
+        ],
+        "hasAssignment": true,
+        "hasComputedArgs": false,
+        "line": 2,
+        "refs": [
+          "part0"
+        ]
+      }
+    ]
+  },
+  {
+    "code": "let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.union(part0, { keep: [part0], keepHidden: true })",
+    "lines": [
+      {
+        "id": "s1",
+        "callee": "box",
+        "positional": [
+          20,
+          20,
+          20,
+          {
+            "centered": true
+          }
+        ],
+        "args": {
+          "centered": true
+        },
+        "outputs": [
+          "part0"
+        ],
+        "hasAssignment": true,
+        "hasComputedArgs": false,
+        "line": 1,
+        "refs": []
+      },
+      {
+        "id": "s2",
+        "callee": "union",
+        "positional": [
+          {
+            "kind": "var-ref",
+            "name": "part0"
+          },
+          {
+            "keep": [
+              {
+                "kind": "var-ref",
+                "name": "part0"
+              }
+            ],
+            "keepHidden": true
+          }
+        ],
+        "args": {
+          "keep": [
+            {
+              "kind": "var-ref",
+              "name": "part0"
+            }
+          ],
+          "keepHidden": true
+        },
+        "outputs": [
+          "part1"
+        ],
+        "hasAssignment": true,
+        "hasComputedArgs": false,
+        "line": 2,
+        "refs": [
+          "part0"
+        ]
+      }
+    ]
+  }
+]

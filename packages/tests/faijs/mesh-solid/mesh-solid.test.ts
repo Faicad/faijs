@@ -33,7 +33,10 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { analyzeCode } from '@faicad/faijs/lang/statement-summary'
+import { extractMetadata } from '@faicad/faijs/lang/metadata-extractor'
+
+/** `analyzeCode` 已迁至宿主层（A4）；旧实现即 extractMetadata(code).lines。 */
+const analyzeCode = (code: string) => extractMetadata(code).lines
 import { registerOcctBrepEngine, registerBrepkitMeshEngine, getMeshSolidBackend } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { hasMeshSolid } from '@faicad/faijs/shape'

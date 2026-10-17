@@ -27,7 +27,10 @@ import { fileBlobStore } from '../blob-store'
 import { exportStepFromSolid } from '../../src/brep/export/step'
 import { exportStep } from '../../src/occt-kernel/highLevelApi'
 import { asPartName } from '../../src/identity'
-import { analyzeCode } from '../../src/lang/statement-summary'
+import { extractMetadata } from '../../src/lang/metadata-extractor'
+
+/** `analyzeCode` 已迁至宿主层；旧实现即 extractMetadata(code).lines。 */
+const analyzeCode = (code: string) => extractMetadata(code).lines
 import { createEditorRuntime } from '../support/editor-ops'
 
 let stlBuffer: ArrayBuffer

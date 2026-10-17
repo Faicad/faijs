@@ -1,20 +1,29 @@
 /**
- * statement-summary — 语句平铺摘要（宿主展示/编排用，非 IR 类型）
+ * statement-summary — 语句平铺摘要的**类型契约**（宿主展示/编排用，非 IR 类型）
  *
  * See docs/language-design.md §3 (statement model ↔ StatementSummary mapping).
  *
- * `analyzeCode(code)` 是宿主消费语句信息的唯一形态（IR 已删除）。摘要只含展示/编排所需的标量字段：
- * Timeline 一行一节点、场景树分组推导、FeatureTree 识别、编辑回填定位。
+ * 摘要只含展示/编排所需的标量字段：Timeline 一行一节点、场景树分组推导、
+ * FeatureTree 识别、编辑回填定位。
  *
- * 无 IR 双通道方案（2026-09-06）后实现换 MetadataExtractor：lines 面直接
- * 产出 StatementSummary 原样（无投影层），与 MetadataExtractor 投影逐字相等
+ * ── 为什么这里只剩类型（2026-10-17，A4）────────────────────────────────────
+ * `analyzeCode(code)` 曾住在本文件，实现只有一行 `extractMetadata(code).lines`。
+ * 它是**编辑器**的数据源（宿主把脚本拆成行来显示与编辑），已迁至
+ * `@faicad/scene-kernel/feature-tree` 的 `analyzeCode`（与 3d_editor 的
+ * FeatureTree / TimelinePanel 同一份实现）。
+ *
+ * 类型留在这里的理由：faijs 自己的运行时（`cad-runtime/live-shapes.ts`）以
+ * `import type` 消费 `StatementSummary`；把它搬进宿主层会形成 faijs → 宿主的
+ * 反向依赖。宿主侧从 `@faicad/scene-kernel/feature-tree` 取同名类型转发即可。
+ *
+ * 无 IR 双通道方案（2026-09-06）后，产出方是 MetadataExtractor：lines 面直接
+ * 给出 StatementSummary 原样（无投影层），与 MetadataExtractor 投影逐字相等
  * （A-16 对拍），仅 id = `'s' + lineNo` 语义变化（append 场景稳定，宿主按
  * 字符串使用不破裂）。
  */
 
 import type { StmtId, PartName } from '../identity'
 import type { HostArg } from './host-arg'
-import { extractMetadata } from './metadata-extractor'
 
 /**
  * A flat scalar projection of one statement for host display and orchestration
@@ -72,18 +81,4 @@ export interface StatementSummary {
   }
   /** 源码行号（1-based） */
   line: number
-}
-
-/**
- * 解析代码文本，返回语句平铺摘要（非 IR 类型）。
- *
- * 实现：MetadataExtractor.lines 直接产出（无投影层），与 MetadataExtractor
- * 投影逐字相等（A-16 对拍），id 语义 = `'s' + lineNo`。
- *
- * @param code - the faijs source text to parse and summarize.
- * @returns a flat statement summary for every parsed statement.
- * @throws ParseError — 含行号
- */
-export function analyzeCode(code: string): StatementSummary[] {
-  return extractMetadata(code).lines
 }

@@ -7,7 +7,10 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { analyzeCode } from '@faicad/faijs/lang/statement-summary'
+import { extractMetadata } from '@faicad/faijs/lang/metadata-extractor'
+
+/** `analyzeCode` 已迁至宿主层（A4）；旧实现即 extractMetadata(code).lines。 */
+const analyzeCode = (code: string) => extractMetadata(code).lines
 import { ParseError } from '@faicad/faijs/lang/parse-error'
 
 describe('faijs source code: parse error handling', () => {

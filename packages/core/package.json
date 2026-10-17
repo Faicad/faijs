@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.35.8",
+  "version": "0.36.0",
   "faijs": {
     "lib": {
       "role": "host"

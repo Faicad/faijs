@@ -27,7 +27,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { analyzeCode } from '../../../src/lang/statement-summary'
+import { extractMetadata } from '../../../src/lang/metadata-extractor'
+
+/** `analyzeCode` 已迁至宿主层；旧实现即 extractMetadata(code).lines。 */
+const analyzeCode = (code: string) => extractMetadata(code).lines
 import { CadRuntime, type ExecutionResult } from '../../../src/cad-runtime/runtime'
 import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'

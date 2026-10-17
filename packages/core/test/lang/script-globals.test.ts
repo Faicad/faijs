@@ -34,8 +34,6 @@
 import { describe, it, expect } from 'vitest'
 import { extractMetadata } from '../../src/lang/metadata-extractor'
 import { isSafeGlobalIdent, S4_SAFE_GLOBALS } from '../../src/lang/security-scanner'
-import { validateExpression } from '../../src/lang/expr-validate'
-import { codeToArgs } from '../../src/lang/code-to-args'
 import { SCRIPT_UNIT_NAMES } from '../../src/units'
 import { CadRuntime } from '../../src/cad-runtime/runtime'
 import { DirectExecutor } from '../../src/cad-runtime/direct-executor'
@@ -146,41 +144,13 @@ describe('script-globals: 提取层（裸标识符作实参）', () => {
   })
 })
 
-describe('script-globals: 单行提取（codeToArgs）不得把全局当幻影参数', () => {
-  it('Math 不入 params；真正的参数照常记录', () => {
-    const a = codeToArgs('let p = cad.box(Math.PI, 1, 1)')
-    expect(a.positional[0]).toEqual({ kind: 'expr-ref', text: 'Math.PI', refs: [], params: [] })
-
-    const b = codeToArgs('let p = cad.box(Math.max(size, 20), 1, 1)')
-    expect(b.positional[0]).toMatchObject({ kind: 'expr-ref', text: 'Math.max(size, 20)', params: ['size'] })
-  })
-
-  it('单位常量在单行提取里同样不入 params（保持既有折叠行为）', () => {
-    const a = codeToArgs('let p = cad.box(10 * MM, 1, 1)')
-    expect(a.positional[0]).toBe(10)
-  })
-})
-
-describe('script-globals: 宿主实时校验（validateExpression）', () => {
-  const meta = extractMetadata('const w = 10\nlet p = cad.box(w, 1, 1)')
-
-  it('meta.names 作 knownNames 时 Math 表达式通过', () => {
-    for (const text of ['Math.PI * w', 'Math.max(w, 20)', 'JSON.parse("{}").length', 'Number("1") + w']) {
-      expect(validateExpression({ text, knownNames: meta.names }), text).toEqual({ ok: true })
-    }
-  })
-
-  it('无需把 S4 全局塞进 names：空 knownNames 也通过（它们是全局，与脚本无关）', () => {
-    expect(validateExpression({ text: 'Math.PI * 2', knownNames: [] })).toEqual({ ok: true })
-  })
-
-  it('未知名字仍被驳回', () => {
-    const r = validateExpression({ text: 'zzz + 1', knownNames: meta.names })
-    expect(r.ok).toBe(false)
-    if (r.ok) return
-    expect(r.code).toBe('E_REFERENCE')
-  })
-})
+// ── 已迁出的两段（2026-10-17，A4）──────────────────────────────────────────
+// 「单行提取不得把全局当幻影参数」（codeToArgs）与「宿主实时校验」
+// （validateExpression）测的是**编辑器**能力，已随实现迁至
+// `@faicad/scene-kernel/feature-tree`，由那边的 golden 断言守（见 3d_editor 仓
+// `packages/scene-kernel/src/feature-tree/code-layer-golden.test.ts` 的
+// 「单行提取不得把全局当幻影参数」一组）。本文件只保留 faijs 自己还拥有的
+// 提取层与安全名单断言。
 
 describe('script-globals: append 前缀校验（missingPrefixVar）', () => {
   const de = new DirectExecutor({ namespaces: { cad: createApiNamespaceWithEditorOps() } })
@@ -365,11 +335,13 @@ describe('script-globals: 六处判定点 · 全集驱动不变量（A1）', () 
     expect(callFailed).toEqual([])
   })
 
-  it('判定点 6：code-to-args.extractIdentifiers —— 全集不得造幻影参数', () => {
+  it('判定点 6：extractMetadata.lines —— 全集不得造幻影参数', () => {
+    // 原先这一条跑 `codeToArgs`（单行提取）。该函数已迁至宿主层 scene-kernel，
+    // 这里改钉**同一份提取器**的行面：结论必须一样（全局名不产生 param 槽）。
     const failed: string[] = []
     for (const name of GLOBALS) {
-      const a = codeToArgs(`let p = cad.box(${name}, 1, 1)`)
-      const slot = a.positional[0] as { kind?: string; params?: string[] } | number | undefined
+      const lines = extractMetadata(`let p = cad.box(${name}, 1, 1)`).lines
+      const slot = lines[0]?.positional[0] as { kind?: string; params?: string[] } | number | undefined
       // 单位常量折叠为数字（无 params 可言）；其余全局为引用形态，params 必须为空。
       if (slot !== null && typeof slot === 'object' && Array.isArray(slot.params) && slot.params.includes(name)) {
         failed.push(`${name}: phantom param in ${JSON.stringify(slot)}`)
@@ -389,9 +361,8 @@ describe('script-globals: 六处判定点 · 全集驱动不变量（A1）', () 
       // 4 append 前缀校验 → 报缺失引用
       const de = new DirectExecutor({ namespaces: { cad: createApiNamespaceWithEditorOps() } })
       expect(de.missingPrefixVar(`let p1 = cad.box(${name}, 1, 1)`), name).toEqual({ unitLine: 1, varName: name })
-      // 6 单行提取 → 必须被前置哨兵声明（未知名当参数，测出的是「未知」而非「全局」）
-      const a = codeToArgs(`let p = cad.box(${name}, 1, 1)`)
-      expect(a.positional[0], name).toMatchObject({ kind: 'var-ref', name })
+      // 原第 6 处（单行提取 codeToArgs）随函数迁出本包；它在宿主层由
+      // scene-kernel 的 golden 断言守。上面 1–3 已覆盖「未知标识符必须报错」。
     }
   })
 

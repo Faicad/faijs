@@ -10,7 +10,6 @@
  */
 import { describe, expect, it } from 'vitest'
 import { extractMetadata } from '../../src/lang/metadata-extractor'
-import { codeToArgs } from '../../src/lang/code-to-args'
 import { dualOpMetaOf, defineOp } from '../../src/define-op'
 import type { BrepHandle } from '../../src/brep/engine/types'
 
@@ -22,16 +21,6 @@ describe('opDims option accepts dimension declarations (P4/D8)', () => {
     const without = extractMetadata('const p = cad.box(10, 20, 30)\n')
     expect(withDims.lines.length).toBe(without.lines.length)
     expect(withDims.lines[0].positional).toEqual(without.lines[0].positional)
-  })
-
-  it('codeToArgs forwards opDims without changing bounds the parse result', () => {
-    const withOpts = codeToArgs('const p = cad.box(10, 20, 30)', {
-      namespaces: ['cad'],
-      opDims: { 'cad.box': { paramDims: { width: 'length', depth: 'length', height: 'length' } } },
-    })
-    const bare = codeToArgs('const p = cad.box(10, 20, 30)', { namespaces: ['cad'] })
-    expect(withOpts.positional).toEqual(bare.positional)
-    expect(withOpts.args).toEqual(bare.args)
   })
 
   it('dualOpMetaOf surfaces paramDims/retDim for threaded ops to consume', () => {

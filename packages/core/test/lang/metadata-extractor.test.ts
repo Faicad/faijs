@@ -8,7 +8,13 @@
 
 import { describe, it, expect } from 'vitest'
 import { extractMetadata, throwReferenceError } from '../../src/lang/metadata-extractor'
-import { analyzeCode } from '../../src/lang/statement-summary'
+import LINES_GOLDEN from './__fixtures__/lines-golden.json'
+
+/**
+ * `analyzeCode` 已迁至 `@faicad/scene-kernel/feature-tree`（2026-10-17，A4）。
+ * 旧实现就是 `extractMetadata(code).lines`，此处 helper 与其逐字等价。
+ */
+const analyzeCode = (code: string) => extractMetadata(code).lines
 import { asStmtId } from '../../src/identity'
 import { ParseError } from '../../src/lang/parse-error'
 import { S4_SAFE_GLOBALS } from '../../src/lang/security-scanner'
@@ -276,35 +282,18 @@ describe('extractMetadata: 语法自由回归（A-6/A-7/A-11）', () => {
   })
 })
 
-describe('extractMetadata: lines 与 analyzeCode 逐字相等（A-16 抽样）', () => {
-  it('抽样语句行：除 id 外逐字段相等', () => {
-    const codes = [
-      'let part0 = cad.box(20, 20, 20, { centered: true })',
-      [
-        'const size = 20',
-        'let part0 = cad.box(size, size, size, { centered: true })',
-      ].join('\n'),
-      [
-        'let part0 = cad.box(20, 20, 20, { centered: true })',
-        'let part1 = cad.translate(part0, { offset: [5, 0, 0] })',
-      ].join('\n'),
-      [
-        'let part0 = cad.box(20, 20, 20, { centered: true })',
-        'let part1 = cad.union(part0, { keep: [part0], keepHidden: true })',
-      ].join('\n'),
-    ]
-    for (const code of codes) {
-      const oldLines = analyzeCode(code)
-      const newLines = extractMetadata(code).lines
-      expect(oldLines.length).toBe(newLines.length)
-      for (let i = 0; i < oldLines.length; i++) {
-        const o = oldLines[i]
-        const n = newLines[i]
-        const { id: _oId, ...oRest } = o
-        const { id: _nId, ...nRest } = n
-        expect(nRest).toEqual(oRest)
-        // id = 's' + lineNo
-        expect(String(n.id)).toBe(`s${n.line}`)
+describe('extractMetadata: lines 与固定 fixture 逐字相等（原 A-16 抽样）', () => {
+  // `analyzeCode` 已随实现迁出本包，这条断言不再能「与另一个函数对拍」——
+  // 它现在与**固化下来的期望值**对拍（`__fixtures__/lines-golden.json`，
+  // A4 之前用同一份提取器生成）。形状一旦漂移，这里先红。
+  it('抽样语句行：字段逐字相等、id = s + lineNo', () => {
+    const golden = LINES_GOLDEN as { code: string; lines: unknown[] }[]
+    for (const { code, lines: expected } of golden) {
+      const actual = extractMetadata(code).lines
+      expect(actual.length, code).toBe(expected.length)
+      for (let i = 0; i < actual.length; i++) {
+        expect(actual[i], `${code} #${i}`).toEqual(expected[i])
+        expect(String(actual[i].id)).toBe(`s${actual[i].line}`)
       }
     }
   })

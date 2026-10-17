@@ -53,12 +53,19 @@ export {
   derivePartName, getMaxModelNum,
 } from './lang/allocate-id'
 export type { DerivePartNameInput, DerivePartNameResult } from './lang/allocate-id'
-export { fmtNum, formatCodeLine, fmtUnitNum, formatUnitLiteral } from './lang/codegen'
-export type { FormatCodeLineInput, UnitSerializeOptions } from './lang/codegen'
-export { analyzeCode } from './lang/statement-summary'
+// ── 代码文本工具已迁至宿主层（2026-10-17）──────────────────────────────────
+// `fmtNum` / `formatCodeLine` / `fmtUnitNum` / `formatUnitLiteral` /
+// `analyzeCode` / `codeToArgs` / `parseUnitLiteral` / `validateExpression` /
+// `editArgSource` 原本在这里 re-export。它们全是**编辑器**能力（生成语句文本、
+// 把文本读回参数、精确改写一个参数槽），唯一消费方是 3d_editor 的特征树与参数
+// 面板；迁到 `@faicad/scene-kernel/feature-tree` 后本包不再导出，避免两份实现
+// 各自演化（迁移期用 42 条对拍测试证明过逐字等价，A4 起由共享层的 golden 断言
+// 接手）。
+//
+// `StatementSummary` **留在这里**：它是语句摘要的类型契约，faijs 运行时
+// （`cad-runtime/live-shapes.ts`）以 `import type` 消费，搬走会形成 faijs → 宿主
+// 的反向依赖。宿主侧从 `@faicad/scene-kernel/feature-tree` 取同名类型转发。
 export type { StatementSummary } from './lang/statement-summary'
-export { codeToArgs, parseUnitLiteral } from './lang/code-to-args'
-export type { CodeToArgsResult, CodeToArgsOptions } from './lang/code-to-args'
 // MetadataExtractor — 无 IR 元数据提取器（UI 通道语义源；UiMetadata 全量）
 export { extractMetadata } from './lang/metadata-extractor'
 export type {
@@ -71,11 +78,18 @@ export type {
   SecurityPolicy, SecurityRuleId, SecurityViolation,
   SecurityScanOptions, SecurityScanResult,
 } from './lang/security-scanner'
-// 参数表达式编辑（P0-C/P0-D）：实时校验层 + 编辑面板纯函数
-export { validateExpression } from './lang/expr-validate'
-export type { ExprValidateInput, ExprValidateResult } from './lang/expr-validate'
-export { editArgSource } from './lang/source-edit'
-export type { EditSourceError } from './lang/source-edit'
+// 参数表达式编辑（P0-C/P0-D）的校验层与槽改写函数同样已迁至宿主层（见上）。
+// ── 表达式判定的共享零件（2026-10-17）───────────────────────────────────────
+// 宿主的 feature-tree 层（3d_editor 的 @faicad/scene-kernel/feature-tree）在
+// 「参数表达式编辑」里必须用**与执行侧同一份**结构白名单与引用收集：这几条判定
+// 回答的是「这段脚本能不能跑」，不是「怎么显示」。复制一份到宿主会让
+// 「能编辑」和「能执行」各自演化（历史事故：白名单漏了 Math，整个脚本进不去）。
+// 因此把零件本身公开，而不是把实现搬走。
+export { isSafeGlobalIdent, S4_SAFE_GLOBALS } from './lang/security-scanner'
+export { isExprWhitelist, collectExprIdentifiers } from './lang/metadata-extractor'
+export type { SymbolTable } from './lang/metadata-extractor'
+export { ParseError } from './lang/parse-error'
+export type { ParseErrorCode } from './lang/parse-error'
 // HostArg — 宿主友好位置参数类型（IR 屏蔽层）
 export type {
   HostArg, HostRef, HostVarRef, HostParamRef, HostCallRef, HostExprRef, HostRefKind,

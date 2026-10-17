@@ -6,7 +6,7 @@
  * extractMetadata 行为基线快照断言：
  * - lines 产出的 StatementSummary[] 字段完整性
  * - id = 's'+lineNo 规则
- * - keep 表与 analyzeCode 一致性
+ * - keep 表与 lines 一致性
  * - params/imports 正确性
  *
  * 语料：
@@ -18,7 +18,6 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { extractMetadata, type UiMetadata } from '@faicad/faijs/lang/metadata-extractor'
-import { analyzeCode } from '@faicad/faijs/lang/statement-summary'
 import type { StatementSummary } from '@faicad/faijs/lang/statement-summary'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
@@ -35,20 +34,28 @@ function collectFiles(dir: string, out: string[]): void {
 const fixtureFiles: string[] = []
 collectFiles(fixturesRoot, fixtureFiles)
 
-/** 验证 extractor.lines 与 analyzeCode 逐字段一致（A-16 行为基线）。 */
+/**
+ * 验证 `meta.lines` 的形状不变量（A-16 行为基线）。
+ *
+ * 原先这里拿 `analyzeCode(code)` 与 `meta.lines` 对拍 —— 但 `analyzeCode` 就是
+ * `extractMetadata(code).lines`，A4 把它迁到宿主层之后那条断言成了同义反复。
+ * 现在改钉**不变量本身**：id 规则、行号单调、每条都有 callee、有赋值的行有输出。
+ */
 function expectLinesConsistent(meta: UiMetadata, code: string): void {
-  const summaries = analyzeCode(code)
-  expect(meta.lines.length).toBe(summaries.length)
-  for (let i = 0; i < summaries.length; i++) {
-    const m = meta.lines[i]
-    const s = summaries[i]
+  let prevLine = 0
+  for (const m of meta.lines) {
     // id = 's'+lineNo 规则
     expect(String(m.id)).toBe(`s${m.line}`)
-    expect(m.line).toBe(s.line)
-    expect(m.callee).toBe(s.callee)
-    expect(m.outputs).toEqual(s.outputs)
-    expect(m.hasAssignment).toBe(s.hasAssignment)
+    expect(m.line).toBeGreaterThan(prevLine)
+    prevLine = m.line
+    expect(typeof m.callee).toBe('string')
+    expect(m.callee.length).toBeGreaterThan(0)
+    expect(Array.isArray(m.positional)).toBe(true)
+    if (m.hasAssignment) expect(m.outputs.length).toBeGreaterThan(0)
   }
+  // 行号不得越过脚本实际行数（封装偏移扣减正确）。
+  const lineCount = code.split('\n').length
+  for (const m of meta.lines) expect(m.line).toBeLessThanOrEqual(lineCount)
 }
 
 /** 验证 keep 表结构正确（有 keep 的行才有条目）。 */
