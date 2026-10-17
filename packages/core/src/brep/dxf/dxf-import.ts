@@ -16,6 +16,9 @@
 import type { BrepEngineApi, BrepHandle, BrepVec3 } from '../engine/primitives';
 import { ioError, BrepErrorCode, type BrepError } from '../../result/errors';
 import { ok, err, type Result } from '../../result/result';
+import { makeLine2d, makeArc2dThreePoints, type Curve2dObj } from '../../geometry2d/curve2d';
+import { Blueprint } from '../../geometry2d/blueprint';
+import { assembleWire } from '../../geometry2d/bridge/lift-on-plane';
 
 // ─── DXF 实体模型 ───
 
@@ -170,7 +173,7 @@ function vec3(x: number, y: number, z = 0): BrepVec3 {
  * @returns 组装出的 wire 数组；一条 wire 都没组出来时 `DXF_IMPORT_FAILED`
  */
 export function dxfEntitiesToWires(kernel: BrepEngineApi, parsed: DxfParsed): Result<BrepHandle[], BrepError> {
-  const edgeGroups: BrepHandle[][] = [];
+  const polylineWires: BrepHandle[] = [];
   const singleEdges: BrepHandle[] = [];
 
   for (const e of parsed.lines) {
@@ -219,35 +222,41 @@ export function dxfEntitiesToWires(kernel: BrepEngineApi, parsed: DxfParsed): Re
   }
 
   for (const vertices of parsed.polylines) {
-    const group: BrepHandle[] = [];
+    // polyline → Curve2dObj 序列（bulge≠0 的段是真实三点圆弧，不再退化成弦线），
+    // 经 geometry2d 桥 assembleWire 在 XY 平面落成 wire——与 sketch/profile 同一管线。
+    const curves: Curve2dObj[] = [];
     for (let i = 0; i < vertices.length - 1; i++) {
       const a = vertices[i];
       const b = vertices[i + 1];
-      try {
-        if (a.bulge === 0) {
-          group.push(kernel.makeLineEdge(vec3(a.x, a.y), vec3(b.x, b.y)));
-        } else {
-          // TODO(dxf): bulge 圆弧需要三点圆弧入口（brepjs 经 2D Curve2D 处理）。
-          // BrepEngineApi 暂无该入口，bulge≠0 的段退化为弦线——轮廓闭合性
-          // 不受影响，弧段精度损失留待内核补 `makeArc3Point` 后对齐 brepjs。
-          group.push(kernel.makeLineEdge(vec3(a.x, a.y), vec3(b.x, b.y)));
-        }
-      } catch {
-        // 跳过坏段
+      if (a.bulge === 0) {
+        curves.push(makeLine2d(a.x, a.y, b.x, b.y));
+      } else {
+        // bulge → 三点圆弧：拱点 = 弦中点沿行进方向左侧法向抬升 sagitta
+        // （bulge>0 逆时针，弧凸向行进方向左侧）。|bulge|>1 时 θ>π，
+        // 公式 sagitta = bulge·chord/2 依然成立。
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const chord = Math.hypot(dx, dy);
+        if (chord === 0) continue;
+        const sagitta = (a.bulge * chord) / 2;
+        const apexX = mx + (-dy / chord) * sagitta;
+        const apexY = my + (dx / chord) * sagitta;
+        curves.push(makeArc2dThreePoints(a.x, a.y, apexX, apexY, b.x, b.y));
       }
     }
-    if (group.length > 0) edgeGroups.push(group);
-  }
-
-  // 组线：polyline 逐组 makeWire；散边合并成一组由内核自组。
-  const wires: BrepHandle[] = [];
-  for (const group of edgeGroups) {
-    try {
-      wires.push(kernel.makeWire(group));
-    } catch {
-      // 组线失败的组跳过
+    if (curves.length > 0) {
+      try {
+        polylineWires.push(assembleWire(kernel, 'XY', new Blueprint(curves)));
+      } catch {
+        // 单条 polyline 组线失败跳过（内含坏段时 assembleWire 可能抛）
+      }
     }
   }
+
+  // 组线：polyline 已是成品 wire；散边合并成一组由内核自组。
+  const wires: BrepHandle[] = [...polylineWires];
   if (singleEdges.length > 0) {
     try {
       wires.push(kernel.makeWire(singleEdges));

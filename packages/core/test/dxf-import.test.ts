@@ -30,6 +30,11 @@ function mockKernel() {
       edgesMade.push({ kind: 'arc', center, r })
       return handle++ as unknown as BrepHandle
     },
+    makeArcEdge(start: unknown, mid: unknown, end: unknown) {
+      calls.push('makeArcEdge')
+      edgesMade.push({ kind: 'arc3pt', a: start, b: mid, center: end })
+      return handle++ as unknown as BrepHandle
+    },
     makeWire(edges: BrepHandle[]) {
       calls.push(`makeWire(${edges.length})`)
       return handle++ as unknown as BrepHandle
@@ -170,6 +175,30 @@ describe('parseDxfEntities（严格配对遍历）', () => {
     const parsed = parseDxfEntities(dxf)
     expect(parsed.polylines).toHaveLength(1)
     expect(parsed.polylines[0]).toHaveLength(3)
+  })
+
+  it('bulge≠0 的段走 geometry2d 三点圆弧（makeArcEdge），不再退化为弦线', () => {
+    // 正方形 + 一条 bulge=0.5 的弧边（0,0)→(4,0)，拱点在 (2,1)
+    const dxf = [
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+      '10', '0', '20', '0', '42', '0.5',
+      '10', '4', '20', '0',
+      '10', '4', '20', '4',
+      '10', '0', '20', '4',
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\n')
+    const parsed = parseDxfEntities(dxf)
+    expect(parsed.polylines).toHaveLength(1)
+    const { kernel, calls, edgesMade } = mockKernel()
+    const result = dxfEntitiesToWires(kernel, parsed)
+    expect(result.ok).toBe(true)
+    expect(calls.filter((c) => c === 'makeArcEdge')).toHaveLength(1)
+    expect(calls.filter((c) => c === 'makeLineEdge')).toHaveLength(2)
+    // 三点弧的中点必须是拱点 (2,1)：从弦 (0,0)→(4,0) + bulge=0.5 → sagitta=1
+    const arc = edgesMade.find((e) => e.kind === 'arc3pt') as { a: { x: number; y: number }; b: { x: number; y: number }; center: { x: number; y: number } }
+    expect(arc.b.x).toBeCloseTo(2)
+    expect(arc.b.y).toBeCloseTo(1)
   })
 })
 
