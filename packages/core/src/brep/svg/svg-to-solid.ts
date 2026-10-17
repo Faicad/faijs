@@ -28,10 +28,10 @@ import {
   extractSvgPaths,
   tokenizeSvgPath,
   extractGroupTransform,
-  classifyNested,
   computeBBox,
   computeSignedArea,
 } from '../../primitives/svg/svg-path'
+import { classifyNested } from '../../geometry2d/nesting'
 import type { SvgTransform } from '../../primitives/svg/svg-path'
 import { makeLine2d, makeBezier2d, makeArc2dThreePoints, type Curve2dObj } from '../../geometry2d/curve2d'
 import { Blueprint } from '../../geometry2d/blueprint'

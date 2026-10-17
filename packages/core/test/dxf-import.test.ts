@@ -6,7 +6,7 @@
  * `999` 注释头、HEADER 变量段时会游标错位，实体整段漏读 → "no wires"。
  */
 import { describe, expect, it } from 'vitest'
-import { parseDxfEntities, dxfEntitiesToWires, importDxf } from '../src/brep/dxf/dxf-import'
+import { parseDxfEntities, dxfEntitiesToWires, importDxf, importDxfProfiles } from '../src/brep/dxf/dxf-import'
 import type { BrepEngineApi, BrepHandle } from '../src/brep/engine/primitives'
 
 /** 最小 mock 内核：记录调用，makeWire 返回递增句柄。 */
@@ -38,6 +38,19 @@ function mockKernel() {
     makeWire(edges: BrepHandle[]) {
       calls.push(`makeWire(${edges.length})`)
       return handle++ as unknown as BrepHandle
+    },
+    getSubShapes(shape: BrepHandle, _type: string) {
+      calls.push(`getSubShapes`)
+      return [shape] // 简化：把 wire 自身当唯一「边」返回
+    },
+    curveParameters(_edge: BrepHandle) {
+      calls.push('curveParameters')
+      return { first: 0, last: 1 }
+    },
+    curvePointAtParam(edge: BrepHandle, param: number) {
+      // 简化采样：返回与句柄相关的固定点（分类只需非空点集）
+      const h = Number(edge)
+      return { x: h * 10 + param, y: h, z: 0 }
     },
   } as unknown as BrepEngineApi
   return { kernel, calls, edgesMade }
@@ -230,4 +243,65 @@ describe('dxfEntitiesToWires（内核组线）', () => {
     expect(calls.filter((c) => c === 'makeLineEdge')).toHaveLength(4)
     expect(calls.filter((c) => c === 'makeCircleEdge')).toHaveLength(0)
   })
+})
+
+describe('importDxfProfiles（嵌套分组挖孔，真内核）', () => {
+  /** 「回」字形：外圈 10×10 + 内孔 4×4（两段 LWPOLYLINE）。 */
+  const DONUT_DXF = [
+    '0', 'SECTION', '2', 'ENTITIES',
+    // 外圈（逆时针）
+    '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+    '10', '0', '20', '0',
+    '10', '10', '20', '0',
+    '10', '10', '20', '10',
+    '10', '0', '20', '10',
+    // 内孔（顺时针）
+    '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+    '10', '3', '20', '3',
+    '10', '3', '20', '7',
+    '10', '7', '20', '7',
+    '10', '7', '20', '3',
+    '0', 'ENDSEC', '0', 'EOF',
+  ].join('\n')
+
+  /** 两个不相交的圈：10×10 与 4×4（平移到 (30,0) 起）。 */
+  const TWO_SQUARES_DXF = [
+    '0', 'SECTION', '2', 'ENTITIES',
+    '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+    '10', '0', '20', '0',
+    '10', '10', '20', '0',
+    '10', '10', '20', '10',
+    '10', '0', '20', '10',
+    '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+    '10', '30', '20', '0',
+    '10', '34', '20', '0',
+    '10', '34', '20', '4',
+    '10', '30', '20', '4',
+    '0', 'ENDSEC', '0', 'EOF',
+  ].join('\n')
+
+  it('外圈 + 内孔 → 1 组 {outer, holes:[hole]}（evenodd 分组经 geometry2d/nesting）', async () => {
+    const { initOcctWasm } = await import('../src/occt-kernel/occtKernel')
+    const { getKernel } = await import('../src/occt-kernel/occtKernel')
+    await initOcctWasm()
+    const kernel = getKernel() as unknown as BrepEngineApi
+    const result = importDxfProfiles(kernel, DONUT_DXF)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value).toHaveLength(1)
+      expect(result.value[0].holes).toHaveLength(1)
+    }
+  }, 120_000)
+
+  it('两个不相交的圈 → 2 组、各组无孔', async () => {
+    const { initOcctWasm, getKernel } = await import('../src/occt-kernel/occtKernel')
+    await initOcctWasm()
+    const kernel = getKernel() as unknown as BrepEngineApi
+    const result = importDxfProfiles(kernel, TWO_SQUARES_DXF)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value).toHaveLength(2)
+      for (const profile of result.value) expect(profile.holes).toHaveLength(0)
+    }
+  }, 120_000)
 })

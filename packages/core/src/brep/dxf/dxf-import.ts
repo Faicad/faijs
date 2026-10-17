@@ -19,6 +19,7 @@ import { ok, err, type Result } from '../../result/result';
 import { makeLine2d, makeArc2dThreePoints, type Curve2dObj } from '../../geometry2d/curve2d';
 import { Blueprint } from '../../geometry2d/blueprint';
 import { assembleWire } from '../../geometry2d/bridge/lift-on-plane';
+import { classifyNested, computeSignedArea } from '../../geometry2d/nesting';
 
 // ─── DXF 实体模型 ───
 
@@ -59,7 +60,10 @@ interface DxfParsed {
  */
 export function parseDxfEntities(text: string): DxfParsed {
   const lines = text.split(/\r?\n/);
-  const entities: DxfEntity[] = [];
+  // 实体与（polyline 的）顶点序列在实体边界处配对收集——顶点不能挂共享变量
+  // 在分组循环里引用：那样每条 polyline 都会拿到**最后一条**的顶点
+  //（2026-10-17 实证：example「回」字形 DXF 两条 polyline 产出两个相同内圈 wire）。
+  const collected: Array<{ entity: DxfEntity; vertices?: DxfPolylineVertex[] }> = [];
 
   let inEntities = false;
   let current: { type: string; layer: string; data: Map<number, string> } | undefined;
@@ -76,6 +80,15 @@ export function parseDxfEntities(text: string): DxfParsed {
       });
     }
     pendingVertex = undefined;
+  };
+
+  /** 把当前实体连同其顶点序列（若有）落库。 */
+  const flushEntity = (): void => {
+    flushVertex();
+    if (current) {
+      collected.push({ entity: current, vertices: polylineVertices });
+    }
+    polylineVertices = undefined;
   };
 
   for (let i = 0; i < lines.length - 1; i += 2) {
@@ -96,12 +109,10 @@ export function parseDxfEntities(text: string): DxfParsed {
 
     if (code === 0) {
       if (value === 'ENDSEC' || value === 'EOF') {
-        flushVertex();
-        if (current) entities.push(current);
+        flushEntity();
         break;
       }
-      flushVertex();
-      if (current) entities.push(current);
+      flushEntity();
       current = { type: value, layer: '0', data: new Map() };
       if (value === 'LWPOLYLINE' || value === 'POLYLINE') polylineVertices = [];
       continue;
@@ -134,12 +145,12 @@ export function parseDxfEntities(text: string): DxfParsed {
   const circles: DxfEntity[] = [];
   const arcs: DxfEntity[] = [];
   const polylines: DxfPolylineVertex[][] = [];
-  for (const e of entities) {
+  for (const { entity: e, vertices } of collected) {
     if (e.type === 'LINE') linesOut.push(e);
     else if (e.type === 'CIRCLE') circles.push(e);
     else if (e.type === 'ARC') arcs.push(e);
-    else if ((e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') && polylineVertices && polylineVertices.length > 0) {
-      polylines.push(polylineVertices);
+    else if ((e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') && vertices && vertices.length > 0) {
+      polylines.push(vertices);
     }
   }
   return { lines: linesOut, circles, arcs, polylines };
@@ -296,4 +307,84 @@ export function importDxf(
     return dxfEntitiesToWires(kernel, filtered);
   }
   return dxfEntitiesToWires(kernel, parsed);
+}
+
+/** 每个 wire 的采样点数（嵌套分类用：bbox/质心判定足够，不需高密度）。 */
+const WIRE_SAMPLE_POINTS = 32;
+
+/**
+ * 从内核 wire 采样 2D 点集（XY 平面，忽略 Z）。
+ *
+ * 组合 `getSubShapes(wire,'edge')` + `curveParameters` + `curvePointAtParam`：
+ * 每条边等参数取 `WIRE_SAMPLE_POINTS` 个点。点的环绕方向跟随边的参数方向，
+ * 与 wire 拓扑序一致——分类只用绝对面积与包含关系，方向无关紧要。
+ *
+ * @param kernel - BREP 引擎契约面（需含 getSubShapes/curveParameters/curvePointAtParam）
+ * @param wire - 待采样的闭合 wire
+ * @returns 采样点列表（{x,y}，XY 平面）
+ */
+function sampleWirePoints(kernel: BrepEngineApi, wire: BrepHandle): { x: number; y: number }[] {
+  const points: { x: number; y: number }[] = [];
+  const edges = kernel.getSubShapes(wire, 'edge');
+  for (const edge of edges) {
+    try {
+      const { first, last } = kernel.curveParameters(edge);
+      for (let s = 0; s < WIRE_SAMPLE_POINTS; s++) {
+        const t = first + ((last - first) * s) / WIRE_SAMPLE_POINTS;
+        const p = kernel.curvePointAtParam(edge, t);
+        points.push({ x: p.x, y: p.y });
+      }
+    } catch {
+      // 坏边跳过——采样点少一组不影响整体分类
+    }
+  }
+  return points;
+}
+
+/**
+ * 导入 DXF 文本 → **外轮廓/孔洞分组**的 wire（嵌套分类经 geometry2d/nesting）。
+ *
+ * 相比 `importDxf`（平面 wire 列表，不区分包含关系），本函数把每条 wire 采样成
+ * 点集后做 evenodd 嵌套分组，返回 `{outer, holes}`——调用方直接
+ * `makeFace(outer)` + `addHolesInFace(holes)`，无需自己判断包含关系。
+ * 「回」字形（外圈 + 内孔）与孔中岛（深度 2 的独立外轮廓）都被正确分组。
+ *
+ * @param kernel - BREP 引擎契约面
+ * @param text   - ASCII DXF 文件全文
+ * @param layer  - 可选图层过滤（组码 8）
+ * @returns 分组结果；解析不出闭合 wire 时 `DXF_IMPORT_FAILED`
+ */
+export function importDxfProfiles(
+  kernel: BrepEngineApi,
+  text: string,
+  layer?: string,
+): Result<{ outer: BrepHandle; holes: BrepHandle[] }[], BrepError> {
+  const wiresResult = importDxf(kernel, text, layer);
+  if (!wiresResult.ok) return wiresResult;
+  const wires = wiresResult.value;
+
+  // wire → 采样点 → ClassifiableSubpath
+  const subpaths = wires.map((wire) => {
+    const points = sampleWirePoints(kernel, wire);
+    const bbox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    for (const p of points) {
+      if (p.x < bbox.minX) bbox.minX = p.x;
+      if (p.y < bbox.minY) bbox.minY = p.y;
+      if (p.x > bbox.maxX) bbox.maxX = p.x;
+      if (p.y > bbox.maxY) bbox.maxY = p.y;
+    }
+    return { wire, points, bbox, signedArea: computeSignedArea(points) };
+  });
+
+  const groups = classifyNested(subpaths);
+  const profiles = groups.map((g) => ({
+    outer: subpaths[g.outerIdx].wire,
+    holes: g.holes.map((h) => subpaths[h].wire),
+  }));
+  if (profiles.length === 0) {
+    return err(
+      ioError(BrepErrorCode.DXF_IMPORT_FAILED, 'DXF wires classified into no profiles', undefined),
+    );
+  }
+  return ok(profiles);
 }
