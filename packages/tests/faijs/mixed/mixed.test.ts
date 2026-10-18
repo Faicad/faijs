@@ -3,15 +3,20 @@
  *
  * These are the "test first" baseline for the mixed-modeling contract
  *
- *   M1  load(stl) + box      → union   (user-named scenario, mixed → mesh)
- *   M2  load(stl) + cylinder → union   (curved BREP triangulation, mixed → mesh)
+ *   M1  load(stl) + box      → union   (user-named scenario, mixed → brep)
+ *   M2  load(stl) + cylinder → union   (curved BREP triangulation, mixed → brep)
  *   M3  sdf + box            → union   (BREP × SDF, mixed → mesh)
  *   M4  box + box            → union   (all-BREP control → brep, zero change)
- *   M5  load(stl) + load(stl) → union  (all-mesh control → mesh, zero change)
+ *   M5  load(stl) + load(stl) → union  (all-imported control → brep)
  *
- * Judgment (per plan): M4/M5 must be byte-identical to pre-change behavior;
- * M1–M3 must produce a valid result with assertable geometry. Any failure
- * here is a real bug to fix with P0-1b/P0-1c.
+ * Design change (2026-10-18): STL import no longer stays on the mesh path.
+ * Since v0.35.6 (28c2811) `load` dispatches STL to the BREP path on both
+ * engines (brepkit importStl / occt reconstructSolidFromMesh) so the editor
+ * can fillet/chamfer/drill imported STL — a mesh-solid edge has no
+ * adjacent-face lineage, which made those features impossible. Therefore M1,
+ * M2 and M5 now expect the union to carry a BREP slot. A future refinement
+ * (not yet implemented) may add a triangle-count pre-check (e.g. > 10k
+ * triangles stays mesh); until then ALL STL imports convert to BREP.
  *
  * Run: npx vitest run test/faijs/mixed/mixed.test.ts
  */
@@ -41,11 +46,11 @@ const FIXTURES_DIR = fileURLToPath(new URL('../../../fixtures/data', import.meta
 
 /** Per-fixture expectation: which path the union must take. */
 const EXPECTED_PATH: Record<string, 'brep' | 'mesh'> = {
-  'm1-stl-box-union.fai.js': 'mesh',
-  'm2-stl-cylinder-union.fai.js': 'mesh',
+  'm1-stl-box-union.fai.js': 'brep',
+  'm2-stl-cylinder-union.fai.js': 'brep',
   'm3-sdf-box-union.fai.js': 'mesh',
   'm4-box-box-union.fai.js': 'brep',
-  'm5-stl-stl-union.fai.js': 'mesh',
+  'm5-stl-stl-union.fai.js': 'brep',
 }
 
 function listFaijsFiles(): string[] {

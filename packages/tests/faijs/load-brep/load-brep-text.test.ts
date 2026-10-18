@@ -9,7 +9,8 @@
  * unit 拒绝契约（unit-system §5.2）：STEP/.brep 走 OCCT 链，单位由文件内部
  * 声明决定（读取时折算），OCCT **不支持强制设置单位**——load op 对 BREP 路径
  * + 用户显式 unit 直接**明确报错**（E_ARGS_FORM），不缩放、不 workaround。
- * STL/3MF（mesh 路径，importFile）支持 opts.unit 强制折算。
+ * 3MF（mesh 链，importFile）支持 opts.unit 强制折算；STL 自 v0.35.6 起走
+ * BREP 路径（转 BREP 实体），但 opts.unit 折算在转换前生效，语义不变。
  *
  * 验证点：
  * - cad.load({ file: 'Motor-c.brep' }) 成功（不抛 load failed）；

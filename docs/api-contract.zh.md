@@ -636,7 +636,7 @@ planegcs 草图求解器经 `setSketchSolverInitFn(fn)` 注入（对齐 `setOcct
 - **`ExecutionResult.naming: Map<PartName, {source, faceNaming, edgeNaming}>`** 与 `topology` 并列携带命名行（序号 1 起 ↔ 下标）；宿主把拾取到的 Reference 序号反查到命名行，经 `captureTopoRef(row)` 造 `TopoRef`。
 - **`RoleTable` 只是执行内状态**（Shape 身份槽 + runtime 持久 `roleTableCache`，与 `faceEvolutionCache` 同生命周期）；绝不序列化。hash 是会话内活句柄；跨会话整体重建，`TopoRef` 的稳定性来自 role/hint 数据。
 - **解析显式三态**：成功 `exact` / `geometric-fallback`；失败抛 `TopoRefError`（`E_TOPO_DELETED` / `E_TOPO_AMBIGUOUS` / `E_TOPO_NOT_FOUND`）——绝不静默拿序号硬取。
-- **来源能力分级**：BREP part 带沿演化传播的语义+位置 role；primitive 假拓扑用与 BREP 同一套命名器按固定面序给语义 role；mesh（STL/3MF）part 只给 hint（`role=''`），恒走几何解析。
+- **来源能力分级**：BREP part 带沿演化传播的语义+位置 role；primitive 假拓扑用与 BREP 同一套命名器按固定面序给语义 role；mesh 链（3MF）part 只给 hint（`role=''`），恒走几何解析。**STL 不在 mesh 链上**：自 v0.35.6 起 `load` 把 STL 分派到 BREP 路径（brepkit `importStl` / occt `reconstructSolidFromMesh`，双引擎一致），使编辑器特征（圆角/倒角/钻孔）对导入 STL 可用——STL 导入的 Shape 因此带 BREP 身份，与其它 BREP part 一样参与拓扑命名。
 - **链切换降级**：part 在链中途从 BREP 降级 mesh 时，已累积的 `{origin, role}` 与 hint 作为纯数据保留，解析回落到面 hint 快照（几何兜底）——引用层面的降级，不是引擎路径运行时回退。
 - **身份坐标 = `(StmtId, RoleName)`**（Phase 1.6/1.7）：`origin` 是产出语句的 StmtId（不是 PartName）；`role` 是结构化 RoleName，序列化为规范串（`top` / `wall:3` / `replica[2]/wall:3` / `splinter(top)#1` / `gen:fillet:0` / `imported:5`）。`.fai.js` 里的线形态是字符串对 `{origin, role}`；display（PartName）仅用于 UI，不参与身份、不参与解析。
 
