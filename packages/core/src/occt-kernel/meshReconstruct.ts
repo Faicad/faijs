@@ -95,6 +95,68 @@ export function meshToAsciiStl(positions: Float32Array, indices: Uint32Array): s
   return lines.join('\n')
 }
 
+// ─── 多壳实体化 ───
+
+/**
+ * 把「缝合产物」整理成可参与布尔运算的实体。
+ *
+ * ⚠️ GOTCHA（2026-10-17）：`sewAndSolidify()` 对**多个互不相连的闭合壳**返回的
+ * 是 **compound of shells**（`isSolid() === false`、`getSubShapes('solid')` 为空），
+ * 而不是 compound of solids。直接拿它当布尔工具会失败：
+ *   `cut: boolean operation failed`
+ * （实证：example016.stl —— 由 LetterBlock 切出的 **2 个互不相接的块**，
+ * 128 三角形、流形且闭合，但 `sewAndSolidify` 只给出 2 个 shell）。
+ *
+ * 修法：逐 shell `makeSolid()`，再 `fuseAll()`。单个 shell 时直接返回该 solid。
+ *
+ * @param kernel - the initialized OCCT kernel
+ * @param sewed - 缝合产物（solid / compound of shells / shell）
+ * @returns 实体句柄；无法实体化时返回 null（调用方负责释放传入句柄）
+ */
+function solidifyShells(kernel: BrepEngineApi, sewed: BrepHandle): BrepHandle | null {
+  if (kernel.isSolid(sewed)) return sewed
+
+  let shells: BrepHandle[]
+  try {
+    shells = kernel.getSubShapes(sewed, 'shell')
+  } catch {
+    return null
+  }
+  if (shells.length === 0) return null
+
+  const solids: BrepHandle[] = []
+  for (const shell of shells) {
+    try {
+      solids.push(kernel.makeSolid(shell))
+    } catch {
+      // 退化/开口 shell —— 跳过（不整体失败，尽量保住可用部分）
+    }
+  }
+  if (solids.length === 0) return null
+  if (solids.length === 1) return solids[0]
+
+  try {
+    return kernel.fuseAll(solids)
+  } catch {
+    return solids[0]
+  }
+}
+
+/**
+ * 校验重建产物：单一 solid 直接 `isValid`；compound（多块）要求**每个** solid 合法。
+ */
+function allSolidsValid(kernel: BrepEngineApi, shape: BrepHandle): boolean {
+  if (kernel.isSolid(shape)) return cadShapeIsValid(kernel, shape)
+  let solids: BrepHandle[]
+  try {
+    solids = kernel.getSubShapes(shape, 'solid')
+  } catch {
+    return false
+  }
+  if (solids.length === 0) return false
+  return solids.every((s) => cadShapeIsValid(kernel, s))
+}
+
 // ─── 重建管线 ───
 
 /**
@@ -140,6 +202,20 @@ export function reconstructSolidFromMesh(
     }
   }
 
+  // 步骤③b: 单壳/多壳实体化（`sewAndSolidify` 对多块网格只给 shell，见
+  // solidifyShells 的 GOTCHA 注释）。importStl 的产物偶已是闭合壳，此处先救一次，
+  // 避免为了「本来就能用」的形状白跑一遍面缝合。
+  {
+    const solidified = solidifyShells(kernel, shape)
+    if (solidified !== null && allSolidsValid(kernel, solidified)) {
+      kernel.release(imported)
+      if (solidified !== shape) {
+        try { kernel.release(shape) } catch { /* 已释放 */ }
+      }
+      return solidified
+    }
+  }
+
   // 步骤④: 面缝合管线（多容差尝试）
   const faces = kernel.getSubShapes(imported, 'face')
   if (faces.length === 0) {
@@ -151,13 +227,25 @@ export function reconstructSolidFromMesh(
   try {
     for (const tolerance of [1e-5, 1e-4, 1e-3, 1e-2]) {
       try {
-        let candidate = kernel.sewAndSolidify(faces, tolerance)
-        candidate = kernel.fixShape(candidate)
-        if (kernel.isSolid(candidate)) candidate = kernel.healSolid(candidate, tolerance)
-        candidate = kernel.fixFaceOrientations(candidate)
-        candidate = kernel.removeDegenerateEdges(candidate)
-        candidate = kernel.unifySameDomain(candidate)
-        if (kernel.isSolid(candidate) && cadShapeIsValid(kernel, candidate)) {
+        let sewed = kernel.sewAndSolidify(faces, tolerance)
+        sewed = kernel.fixShape(sewed)
+        // 多块网格：`sewAndSolidify` 给的是 shell 复合体 —— 逐块 makeSolid + fuse
+        const solidified = solidifyShells(kernel, sewed) ?? sewed
+        let candidate = solidified
+        try {
+          if (kernel.isSolid(candidate)) candidate = kernel.healSolid(candidate, tolerance)
+          candidate = kernel.fixFaceOrientations(candidate)
+          candidate = kernel.removeDegenerateEdges(candidate)
+          candidate = kernel.unifySameDomain(candidate)
+        } catch {
+          // 愈合失败 → 退回未愈合版本（布尔运算只要拓扑闭合即可用）
+          candidate = solidified
+        }
+        // 愈合反而把形状弄坏时，用未愈合版本兜底
+        if (!allSolidsValid(kernel, candidate) && solidified !== candidate) {
+          candidate = solidified
+        }
+        if (allSolidsValid(kernel, candidate)) {
           kernel.release(imported)
           try { kernel.release(shape) } catch { /* 已释放 */ }
           return candidate
