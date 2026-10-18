@@ -76,8 +76,10 @@ describe('fillet per-edge breakdown（brepkit 内核 = weapp worker）', () => {
       // 未报错 → 结果必须健康（内核修复后的契约）：outputs mesh bbox 三维非退化。
       const out = res.outputs?.get(asPartName('part1'))
       expect(out, `edge#${ei} 未报错但 outputs 无 part1`).toBeTruthy()
-      const pos = out!.positions
-      const triCount = out!.indices.length / 3
+      // part1 是单实体 mesh 输出（非 compound）；in 判定同时完成类型窄化
+      if (!('positions' in out!)) throw new Error(`edge#${ei} 输出不是 mesh Shape`)
+      const pos = out.positions
+      const triCount = out.indices.length / 3
       let minX = Infinity, minY = Infinity, minZ = Infinity
       let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
       for (let i = 0; i < pos.length; i += 3) {

@@ -189,7 +189,7 @@ describe('box at 锚点语义 — 脚本执行（mesh 与 brep 双模式）', ()
 
   it('mesh 与 brep 双模式产出的最终 mesh 包围盒一致（用户原始场景）', async () => {
     // 单语句逐条跑（runtime 为进程级单例，必须串行）：语句 i 的 bbox 即对应 part 的 bbox
-    const bbs: Record<ExecutionMode, BBox[]> = { mesh: [], brep: [] }
+    const bbs: Record<ExecutionMode, BBox[]> = { mesh: [], brep: [], auto: [] }
     for (const mode of ['mesh', 'brep'] as ExecutionMode[]) {
       for (const line of USER_SCENARIO.split('\n')) {
         bbs[mode].push(await bboxOfScript(line, mode))

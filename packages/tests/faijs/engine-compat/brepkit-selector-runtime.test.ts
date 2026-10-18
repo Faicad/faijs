@@ -21,6 +21,7 @@ import { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from '@faicad/faijs/brep/
 import { __resetEngineRegistriesForTests } from '@faicad/faijs/brep/engine/registry'
 import { buildSelectorRuntimeMaps } from '@faicad/faijs/topology/build-selector-runtime'
 import { captureTopoRef } from '@faicad/faijs/topology/naming'
+import { asPartName } from '@faicad/faijs/identity'
 import type { SelectorRuntimeData } from '@faicad/faijs/topology/build-selector-runtime'
 import type { PartNaming } from '@faicad/faijs/topology/naming'
 
@@ -51,11 +52,11 @@ async function pickChain(engineLabel: string): Promise<PickChain> {
   const runtime = createRuntime(createNodePorts(), 'brep', undefined, { execBackend: 'interpreter' })
   const result = await runtime.execute(WEB_CODE, { topology: 'auto' })
   expect(result.failedAt, `[${engineLabel}] execute 失败`).toBeUndefined()
-  const topo = result.topology?.get('part1') ?? result.topology?.get('part0')
+  const topo = result.topology?.get(asPartName('part1')) ?? result.topology?.get(asPartName('part0'))
   expect(topo, `[${engineLabel}] topology 缺失（outputs=${[...(result.outputs?.keys() ?? [])].join(',')}）`).toBeTruthy()
   const data: SelectorRuntimeData = topo!.data
   const maps = buildSelectorRuntimeMaps(data)
-  const naming = (result.naming?.get('part1') ?? result.naming?.get('part0')) as PartNaming | undefined
+  const naming = (result.naming?.get(asPartName('part1')) ?? result.naming?.get(asPartName('part0'))) as PartNaming | undefined
 
   const faceRefs = [...maps.faceReferenceByRowIndex.entries()]
   const edgeRefs = [...maps.edgeReferenceByRowIndex.entries()]

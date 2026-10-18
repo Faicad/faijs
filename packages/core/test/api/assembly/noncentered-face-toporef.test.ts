@@ -42,6 +42,7 @@ import { captureTopoRef } from '../../../src/topology/naming'
 import type { FaceNaming, FaceTopoRef } from '../../../src/topology/naming'
 import { buildShapeResolutionContext, resolveFaceGeometry } from '../../../src/api/topo-resolve'
 import { runtimeLineage } from '../../../src/topology/naming/lineage'
+import type { Shape } from '../../../src/mesh/types'
 import { scoreCandidate, MIN_SCORE } from '../../../src/topology/naming/score'
 import type { FaceHint } from '../../../src/topology/naming/types'
 
@@ -88,7 +89,7 @@ async function execNonCentered(): Promise<{
     expect(naming, 'part a 无命名数据').toBeDefined()
     const shape = (r1.outputs as unknown as Map<string, object>).get('a')
     expect(shape, 'part a 无输出 shape').toBeDefined()
-    return { kernel, shape, rows: naming!.faceNaming }
+    return { kernel, shape: shape!, rows: naming!.faceNaming }
   } finally {
     runtime.dispose()
   }
@@ -101,7 +102,7 @@ describe('A. 非居中盒的面 TopoRef 端到端解析（brepkit 真内核）',
       const row = rows[i]!
       if (row.origin === null || row.role === null) continue
       const ref = captureTopoRef(row) as FaceTopoRef
-      const got = resolveFaceGeometry(kernel, shape, ref)
+      const got = resolveFaceGeometry(kernel, shape as Shape, ref)
       const hintCenter = row.hint?.center as number[] | undefined
       expect(got.center, `面 #${i}（${String(row.role)}）center 与命名行不一致`).toBeDefined()
       expect(hintCenter, `面 #${i} 命名行无 hint.center`).toBeDefined()
@@ -193,7 +194,7 @@ describe('B. row 优先于 kernel 现场（fake 坏内核，层 1③）', () => 
       // roleTable 缺省 → exact 路径不可用（层 2 失效 / 血缘未登记的模拟），
       // 只剩几何兜底——这正是 2026-10-16 之前非居中盒的处境。
     }
-    const ref: FaceTopoRef = { kind: 'face', origin: 's1', role: 'top', hint }
+    const ref: FaceTopoRef = { kind: 'face', origin: 's1' as never, role: 'top', hint }
     // resolveTopoRef 成功返回 {handle, ordinal}；失败抛 TopoRefError
     //（`topo ref (face) not found in the current shape` —— 用户原话）。
     const got = resolveTopoRef(ref, ctx as unknown as Parameters<typeof resolveTopoRef>[1])
@@ -206,8 +207,8 @@ describe('C. lineage 挂 globalThis 共享（层 2）', () => {
     const g = globalThis as unknown as Record<string, unknown>
     const entry = g.__FAICAD_FAIJS_LINEAGE__ as { version: number; graph: unknown } | undefined
     expect(entry, 'lineage 未挂 globalOther/globalThis（层 2 回归）').toBeDefined()
-    expect(entry.version).toBe(1)
-    expect(entry.graph).toBe(runtimeLineage)
+    expect(entry!.version).toBe(1)
+    expect(entry!.graph).toBe(runtimeLineage)
   })
 
   it('C2：血缘图跨模块实例共享——同一进程内重复取到的仍是同一张表', async () => {

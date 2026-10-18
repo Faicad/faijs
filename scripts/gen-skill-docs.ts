@@ -1270,9 +1270,9 @@ export interface SkillDocData {
 
 /** Collect every script-face API doc entry (ops + shape methods + domain libs). */
 export function collectSkillDocData(): SkillDocData {
-  const sheetmetalExports = extractDomainLibExports(sheetmetalSrcDir, '@faicad/sheetmetal', '@faicad/sheetmetal', '@faicad/sheetmetal — Sheet-Metal CAD Domain')
-  const gearsExports = extractDomainLibExports(gearsSrcDir, '@faicad/faijs-gears', '@faicad/faijs-gears', '@faicad/faijs-gears — Gear Generation Library')
-  const fastenersExports = extractDomainLibExports(fastenersSrcDir, '@faicad/faijs-fasteners', '@faicad/faijs-fasteners', '@faicad/faijs-fasteners — Fastener Generation Library')
+  const sheetmetalExports = extractDomainLibExports(sheetmetalSrcDir, '@faicad/sheetmetal', '@faicad/sheetmetal')
+  const gearsExports = extractDomainLibExports(gearsSrcDir, '@faicad/faijs-gears', '@faicad/faijs-gears')
+  const fastenersExports = extractDomainLibExports(fastenersSrcDir, '@faicad/faijs-fasteners', '@faicad/faijs-fasteners')
   return {
     buckets: buildEngineBuckets(),
     opDocs: extractOpDocs(),
