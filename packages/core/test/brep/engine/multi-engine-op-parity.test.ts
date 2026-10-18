@@ -614,8 +614,8 @@ describe('multi-engine op parity（occt × brepkit 2.129.15/2.130.0/4.0.32）', 
         }
       }
 
-      // 写 JSON 结果。
-      const out = { generatedAt: new Date().toISOString(), results: pass, errors: errs }
+      // 写 JSON 结果。不含时间戳：结果不变时重写为 no-op，避免工作区每次跑测试都变脏。
+      const out = { results: pass, errors: errs }
       writeFileSync(RESULTS_PATH, JSON.stringify(out, null, 2), 'utf-8')
 
       // ── 断言：以 occt 为基准，找意外分歧 ──
