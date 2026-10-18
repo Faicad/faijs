@@ -40,17 +40,18 @@
 | `-SkipBuild` | 跳过逐包 build（已手工构建时用） |
 | `-Provenance` | 加 `--provenance`（需要 OIDC CI 环境，本地不可用） |
 
-### 五步流程（对应脚本逐段）
+### 六步流程（对应脚本逐段）
 
-1. **[1/5] 版本 lockstep 硬门禁**：`node scripts/check-lockstep.mjs`。断言①所有可发布包 `version` == root `config.faijsVersion`；②所有 `@faicad/*` registry range 指向该版本线。失败即 `throw`，**发布前中止**。
-2. **[2/5] 全量 CI（可选）**：`-SkipCI` 跳过；否则直接调 `scripts/ci.ps1` / `ci.sh`。
-3. **[3/5] 逐包（拓扑序 10 包，见脚本 `$Packages`）**：
+1. **[1/6] 版本 lockstep 硬门禁**：`node scripts/check-lockstep.mjs`。断言①所有可发布包 `version` == root `config.faijsVersion`；②所有 `@faicad/*` registry range 指向该版本线。失败即 `throw`，**发布前中止**。
+2. **[2/6] 全量 CI（可选）**：`-SkipCI` 跳过；否则直接调 `scripts/ci.ps1` / `ci.sh`。
+3. **[3/6] 逐包（拓扑序，见脚本 `$Packages`）**：
    - 每包 `npm run build` → **必须在包目录内**执行 `npm pack --dry-run --json .`（路径必须是 `.`，从仓库根传路径会被当 package spec 触发 GitHub shorthand 解析）→ `Assert-Tarball` 白名单断言；
    - **Tarball 白名单**：禁止 `(^|/)src/`、`tests?/`、`__tests__/`、`out/`、`fixtures/`、`scripts/`、`out-`、`probe-`、`node_modules/`、`*.test.*`、`*.spec.*`、`*.fai.js`、`*.brp`、`*.step`、`*.log`；必须含 `package.json`；必须含 `dist/` 内容（缺则视为空构建）；
    - 非 DryRun 时：`npm publish --access public [--tag] [--otp] --registry https://registry.npmjs.org/`（**固定官方 registry**）；失败即 `throw`；
    - **验证延迟到 Step 4**（不在循环内卡等 CDN 传播）。
-4. **[4/5] 发布后验证（warn-only，绝不 abort）**：对每个已发包 `curl.exe -s https://registry.npmjs.org/<urlencoded-name>/<version>` 最多 5 次重试，响应 `name`+`version` 匹配即通过；CDN 传播延迟未命中只 warn，不视为失败。
-5. **[5/5] 发布记录**：写 `out-publish-<YYYYMMDD-HHMMSS>.json`。
+4. **[4/6] 发布后验证（warn-only，绝不 abort）**：对每个已发包 `curl.exe -s https://registry.npmjs.org/<urlencoded-name>/<version>` 最多 5 次重试，响应 `name`+`version` 匹配即通过；CDN 传播延迟未命中只 warn，不视为失败。
+5. **[5/6] 提交版本改动 + git tag（仅真实发布，DryRun 不做）**：把 set-version 产出（root/各包 `package.json`、`package-lock.json`、`cdn/versions.json`）提交为 `chore(release): v<版本号>`，再打本地 annotated tag `v<版本号>`。**只提交版本文件**，其它未提交改动原样保留并 warn；**commit/tag 只落本地，不自动 push**（push 需显式 `git push origin v<版本>`）；tag 已存在时保留旧 tag 只 warn。tag 名写入发布记录 JSON 的 `gitTag` 字段。
+6. **[6/6] 发布记录**：写 `out-publish-<YYYYMMDD-HHMMSS>.json`。
 
 ### 判定发布成功
 

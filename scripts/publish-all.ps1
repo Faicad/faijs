@@ -5,7 +5,7 @@
 .DESCRIPTION
   Topological order, per package: family version lockstep check -> (optional) full CI
   -> (build) -> npm pack --dry-run white-list assertion (E2) -> npm publish
-  -> npm view verification -> emit a publish record.
+  -> npm view verification -> git tag v<Version> (local only) -> emit a publish record.
 
   Publish scope:
     @faicad/faijs (core) -> @faicad/cq-compat-compare
@@ -92,19 +92,19 @@ $Packages = @(
 # equals the root config.faijsVersion, and every inter-package registry range
 # points at that version line (a stale range like "^0.14.0" would make the CDN
 # build resolve an old package and break the graph). Fail BEFORE publishing.
-Write-Host "-> [1/5] checking family version lockstep ..." -ForegroundColor Cyan
+Write-Host "-> [1/6] checking family version lockstep ..." -ForegroundColor Cyan
 node (Join-Path $PSScriptRoot 'check-lockstep.mjs')
 if ($LASTEXITCODE -ne 0) { throw "lockstep check failed; aborting publish" }
 $Version = (Get-Content (Join-Path $RepoRoot 'package.json') -Raw | ConvertFrom-Json).config.faijsVersion
 if (-not $Version) { throw 'root package.json config.faijsVersion is missing; run `node scripts/set-version.mjs <version>`' }
-Write-Host "   OK [1/5] version lockstep passed: all packages = $Version" -ForegroundColor Green
+Write-Host "   OK [1/6] version lockstep passed: all packages = $Version" -ForegroundColor Green
 
 # Step 2: full CI (optional).
 # The repo CI entry is scripts/ci.ps1 (documented in AGENTS.md); the root
 # package.json has no "ci" script, so invoke the script directly instead of
 # `npm run ci` (which would fail with "Missing script: ci").
 if (-not $SkipCI) {
-  Write-Host "-> [2/5] running repo CI ..." -ForegroundColor Cyan
+  Write-Host "-> [2/6] running repo CI ..." -ForegroundColor Cyan
   $ciPs1 = Join-Path $RepoRoot 'scripts/ci.ps1'
   $ciSh = Join-Path $RepoRoot 'scripts/ci.sh'
   $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
@@ -157,7 +157,7 @@ foreach ($p in $Packages) {
     continue
   }
   $dir = Join-Path $RepoRoot $p.Path
-  Write-Host "-> [3/5] processing $($p.Name) ..." -ForegroundColor Cyan
+  Write-Host "-> [3/6] processing $($p.Name) ..." -ForegroundColor Cyan
 
   if (-not $SkipBuild) {
     Write-Host "   -> build ..." -ForegroundColor DarkGray
@@ -211,7 +211,7 @@ foreach ($p in $Packages) {
 # not a publish failure, so mismatches only warn. curl.exe is used because
 # Invoke-RestMethod hangs >90s under .NET HttpClient on these endpoints.
 if (-not $DryRun) {
-  Write-Host "-> [4/5] verifying published packages ..." -ForegroundColor Cyan
+  Write-Host "-> [4/6] verifying published packages ..." -ForegroundColor Cyan
   foreach ($p in $Packages) {
     if ($Packages.IndexOf($p) -lt ($From - 1)) { continue }
     $encoded = [uri]::EscapeDataString($p.Name)
@@ -235,8 +235,46 @@ if (-not $DryRun) {
   }
 }
 
-# Step 5: publish record.
+# Step 5: commit the version bump + git tag. A real release must leave the repo
+# traceable: the set-version output (package.json / lock / cdn versions) is
+# committed as "chore(release): v<Version>" and the commit is tagged with an
+# annotated `v<Version>` tag. DryRun does neither. Only the known version files
+# are committed — unrelated dirty files are left untouched (reported as a
+# warning). The tag/commit stay local; pushing is a separate explicit git push.
+# If the tag already exists (re-run after a partial failure), keep it and warn.
+$VersionFiles = @('package.json', 'package-lock.json', 'cdn/versions.json') + @($Packages | ForEach-Object { Join-Path $_.Path 'package.json' })
+if (-not $DryRun) {
+  Write-Host "-> [5/6] committing release $Version and tagging v$Version ..." -ForegroundColor Cyan
+  foreach ($f in $VersionFiles) {
+    if (Test-Path (Join-Path $RepoRoot $f)) { & git add -- $f }
+  }
+  if ($LASTEXITCODE -ne 0) { throw "git add version files failed (exit $LASTEXITCODE)" }
+  $staged = & git diff --cached --name-only
+  if ($LASTEXITCODE -ne 0) { throw "git diff --cached failed (exit $LASTEXITCODE)" }
+  if ($staged) {
+    & git commit -m "chore(release): v$Version"
+    if ($LASTEXITCODE -ne 0) { throw "release commit failed (exit $LASTEXITCODE)" }
+    Write-Host "   OK committed version bump ($($staged.Count) files)" -ForegroundColor Green
+  } else {
+    Write-Host "   version files already committed; nothing to commit" -ForegroundColor DarkGray
+  }
+  $dirty = & git status --porcelain
+  if ($dirty) { Write-Warning "unrelated uncommitted changes left untouched: $(($dirty -split "`n").Count) path(s)" }
+
+  $tagName = "v$Version"
+  $existing = & git rev-parse -q --verify "refs/tags/$tagName" 2>$null
+  if ($LASTEXITCODE -eq 0 -and $existing) {
+    Write-Warning "tag $tagName already exists; keeping it (not re-tagging)"
+  } else {
+    & git tag -a $tagName -m "Release $Version"
+    if ($LASTEXITCODE -ne 0) { throw "git tag $tagName failed (exit $LASTEXITCODE)" }
+    Write-Host "   OK created tag $tagName (local only; push with: git push origin $tagName)" -ForegroundColor Green
+  }
+  $record.gitTag = $tagName
+}
+
+# Step 6: publish record.
 $recordPath = Join-Path $RepoRoot "out-publish-$(Get-Date -UFormat '%Y%m%d-%H%M%S').json"
 $record | ConvertTo-Json -Depth 5 | Set-Content $recordPath
-Write-Host "OK [5/5] publish record: $recordPath" -ForegroundColor Green
+Write-Host "OK [6/6] publish record: $recordPath" -ForegroundColor Green
 if ($DryRun) { Write-Host "(DRY-RUN: not published. Remove -DryRun after npm account + 2FA are ready.)" -ForegroundColor Yellow }
