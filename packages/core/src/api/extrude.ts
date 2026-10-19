@@ -31,6 +31,7 @@ import { runtimeLineage } from '../topology/naming/lineage'
 import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
+import { OpError } from './internal/result-unwrap'
 import { assertPositiveNumber } from './assert'
 import { resolveSelectorToFaceRefs } from './selectors-to-refs'
 import { meshFaceEntry, meshKernelFailure, meshSolidProductWithBackend } from './internal/mesh-solid-op'
@@ -196,6 +197,10 @@ export interface ExtrudeOptions {
   normal?: Vec3
   /** 沿 normal 的前进方向；缺省 'forward'（'backward' 等价于方向取反）。 */
   mode?: 'forward' | 'backward'
+  /** 负向长度（mm，≥0，缺省 0 = 单向，现状不变）。>0 时与 length 组成双向拉伸：
+   * 沿 normal 正向 length、反向 backwardLength，输入面成为棱柱的**内部平面**（非端面）。
+   * 与 `mode:'backward'`（仅反向）及 `upTo` 互斥（assertExtrudeOptions 显式抛错）。 */
+  backwardLength?: number
   /** 拉伸到面 / 到支持体端面；提供时忽略 length。字符串 `'last'`/`'first'` 取支持体端面；其它字符串为 CadQuery 面选择器（在 baseFeature 上解析，多面命中抛错）。 */
   upTo?: ExtrudeUpTo
   /** upTo 'last'/'first' 的支持体（累积支持体，由转换器显式传入）。 */
@@ -236,11 +241,37 @@ function normalizeExtrudeOptions(params: unknown): ExtrudeOptions {
 
 /**
  * 参数自校验：up-to 模式下无需 length；否则 length 必须为正数。
+ * `backwardLength`（双向负向长度）：≥0；>0 时与 `mode:'backward'`、`upTo` 互斥
+ * （双向语义与「仅反向」/「拉伸到面」不可叠加，显式抛错、不静默降级）。
  *
  * @param o - 归一化后的参数。
  */
 function assertExtrudeOptions(o: ExtrudeOptions): void {
-  if (o.upTo !== undefined) return // up-to 模式：长度由目标面决定
+  const back = o.backwardLength ?? 0
+  if (back < 0) {
+    throw new OpError(
+      'extrude',
+      'E_EXTRUDE_BACKWARD_NEGATIVE',
+      `[api/extrude] backwardLength must be >= 0, got ${back}`,
+    )
+  }
+  if (back > 0 && o.mode === 'backward') {
+    throw new OpError(
+      'extrude',
+      'E_EXTRUDE_BACKWARD_CONFLICT',
+      '[api/extrude] backwardLength cannot be combined with mode:"backward" — bidirectional and reverse-only are mutually exclusive',
+    )
+  }
+  if (o.upTo !== undefined) {
+    if (back > 0) {
+      throw new OpError(
+        'extrude',
+        'E_EXTRUDE_BACKWARD_UPTO',
+        '[api/extrude] backwardLength is mutually exclusive with upTo',
+      )
+    }
+    return // up-to 模式：长度由目标面决定
+  }
   assertPositiveNumber(o.length, 'extrude.length')
 }
 
@@ -497,6 +528,13 @@ function extrudeMeshChain(input: Shape, params: unknown): Shape {
       getCurrentStmt(),
     )
   }
+  if ((o.backwardLength ?? 0) > 0) {
+    throw new MeshUnsupportedError(
+      'E_MESH_SOLID_UNSUPPORTED: extrude backwardLength is not available on the mesh path — ' +
+      'bidirectional extrusion needs the precision chain (translate + extrude). Give a single direction instead',
+      getCurrentStmt(),
+    )
+  }
 
   const normal = new Vec3C(...(o.normal ?? [0, 0, 1])).normalize()
   const sign = o.mode === 'backward' ? -1 : 1
@@ -537,6 +575,7 @@ function extrudeMeshChain(input: Shape, params: unknown): Shape {
  * @param params.length - 总拉伸量（mm，>0）。up-to 模式下无需给。type:number
  * @param params.normal - 拉伸方向（世界坐标）。type:[x,y,z] 默认 [0,0,1]
  * @param params.mode - 沿 normal 的前进方向：forward 正向 / backward 反向。type:'forward' | 'backward' 默认 'forward'
+ * @param params.backwardLength - 负向长度（mm，≥0，缺省 0 = 单向）。>0 时与 length 组成双向拉伸（输入面成为棱柱内部平面）；与 mode:'backward' / upTo 互斥。type:number 默认 0
  * @param params.upTo - 拉伸到面：FaceTopoRef（UI 拾取产物字面量）指定面 / 'last' 支持体远端面 / 'first' 近端面 / 面选择器字符串（如 ">Z"，在 baseFeature 上解析，多面命中抛错）。提供时忽略 length。❌ 禁止 cad.faceRef 序号。type:'last' | 'first' | FaceTopoRef | string
  * @param params.baseFeature - upTo 'last'/'first'/面选择器的支持体几何（累积支持体）。type:Shape
  * @param params.offset - 截断面沿其法向的偏移（mm）。type:number 默认 0
@@ -588,20 +627,35 @@ export const extrude = defineOp({
 
     // 长度形态：委托生成投影（生成投影自带 Result 翻转 / adopt 收养）
     const sign = o.mode === 'backward' ? -1 : 1
-    const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
+    const back = o.backwardLength ?? 0
+    const total = o.length! + back
     let result: Shape
-    // GOTCHA：projectedExtrude 是 occt-gated 的生成投影 op，
-    // 在 brepkit 引擎下执行前即抛 E_BREP_UNSUPPORTED。brepkit 有原生 L1 extrude
-    // （face→solid），直接走 kernel.extrude——与 revolve.ts 同路径（不经生成投影）。
-    // occt 路径保持 projectedExtrude 不变，不回退既有几何/命名行为。
-    if (getBackends().config.brepEngineId === 'brepkit') {
+    // 双向（backwardLength > 0；校验已保证 mode==='forward'、无 upTo）：输入面是棱柱的
+    // 内部平面。实现：面先沿 −normal·backwardLength 平移，再沿 normal·(length+backwardLength)
+    // 拉伸。L1 的 translate + extrude 两引擎（occt / brepkit）都实现，统一走内核；
+    // 现状单向两条路径一字不改（backwardLength 缺省 / 0 行为与现在逐字节一致）。
+    if (back > 0) {
       const kernel = getBrepApi()
       const faceHandle = brepOf(input) as BrepHandle | undefined
-      if (faceHandle === undefined) throw new Error('[api/extrude] brepkit path: input is not BREP')
-      const solid = kernel.extrude(faceHandle, v[0]!, v[1]!, v[2]!)
+      if (faceHandle === undefined) throw new Error('[api/extrude] bidirectional path: input is not BREP')
+      const moved = kernel.translate(faceHandle, -normal.x * back, -normal.y * back, -normal.z * back)
+      const solid = kernel.extrude(moved, normal.x * total, normal.y * total, normal.z * total)
       result = fromBrep(solidToShape(kernel, solid), { solid })
     } else {
-      result = (await projectedExtrude(input, v)) as Shape
+      const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
+      // GOTCHA：projectedExtrude 是 occt-gated 的生成投影 op，
+      // 在 brepkit 引擎下执行前即抛 E_BREP_UNSUPPORTED。brepkit 有原生 L1 extrude
+      // （face→solid），直接走 kernel.extrude——与 revolve.ts 同路径（不经生成投影）。
+      // occt 路径保持 projectedExtrude 不变，不回退既有几何/命名行为。
+      if (getBackends().config.brepEngineId === 'brepkit') {
+        const kernel = getBrepApi()
+        const faceHandle = brepOf(input) as BrepHandle | undefined
+        if (faceHandle === undefined) throw new Error('[api/extrude] brepkit path: input is not BREP')
+        const solid = kernel.extrude(faceHandle, v[0]!, v[1]!, v[2]!)
+        result = fromBrep(solidToShape(kernel, solid), { solid })
+      } else {
+        result = (await projectedExtrude(input, v)) as Shape
+      }
     }
     // E3 后续：委托路径同样要建链根表（投影只给几何，命名是 faijs 语义）。
     // E3-b（2026-09-23，同 revolve 修法）：不能对投影产物再走一次 fromBrep——
@@ -625,5 +679,5 @@ export const extrude = defineOp({
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'wall', index: 0 }] } } as Provenance,
 
-  paramDims: { length: 'length', offset: 'length', normal: 'plain' },
+  paramDims: { length: 'length', offset: 'length', backwardLength: 'length', normal: 'plain' },
 })
