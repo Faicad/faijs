@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-viewer",
-  "version": "0.36.2",
+  "version": "0.36.3",
   "faijs": {
     "lib": {
       "role": "host"

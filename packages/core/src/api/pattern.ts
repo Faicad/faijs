@@ -100,7 +100,7 @@ function linearPatternMeshSolid(input: Shape, direction: Vec3, count: number, sp
  * @param count - 副本总数（含原位置）。type:number required:true
  * @param spacing - 副本间距。type:number required:true
  * @example
- * const p = await cad.linearPattern(part0, [1, 0, 0], 3, 20)
+ * const p = cad.linearPattern(part0, [1, 0, 0], 3, 20)
  */
 export const linearPattern = defineOp({
   meshEngines: ['brepkit'],

@@ -143,8 +143,8 @@ const CUBE_STL = binaryStl(boxTriangles(10, 10, 10))
 const PRISM_STL = binaryStl(prismTriangles(5, 10, 32))
 const PORTS = () => portsFor({ 'cube.stl': CUBE_STL, 'prism.stl': PRISM_STL })
 
-const LOAD_CUBE = "let a = await cad.load({ file: 'cube.stl' })"
-const LOAD_PRISM = "let a = await cad.load({ file: 'prism.stl' })"
+const LOAD_CUBE = "let a = cad.load({ file: 'cube.stl' })"
+const LOAD_PRISM = "let a = cad.load({ file: 'prism.stl' })"
 
 type Exec = Awaited<ReturnType<CadRuntime['execute']>>
 
@@ -250,9 +250,9 @@ describe('场景：上传 STL → 识别边倒圆角 → 识别面草图 → 拉
     const result = await runtime.execute(
       `${LOAD_CUBE}\n` +
       `let b = cad.fillet(a, { edges: [${bottomEdge + 1}], radius: 1 })\n` +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: b, face: ${topIndex + 1} })\n` +
-      'let p = await cad.extrude(s, 5)\n' +
-      'let u = await cad.union(b, p)',
+      `let s = cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: b, face: ${topIndex + 1} })\n` +
+      'let p = cad.extrude(s, 5)\n' +
+      'let u = cad.union(b, p)',
     )
     expect(NO_FAIL(result)).toBe('no failure')
 
@@ -281,9 +281,9 @@ describe('场景：上传 STL → 识别边倒圆角 → 识别面草图 → 拉
     const result = await runtime.execute(
       `${LOAD_CUBE}\n` +
       `let b = cad.fillet(a, { edges: [${bottomEdge + 1}], radius: 1 })\n` +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: b, face: ${topIndex + 1} })\n` +
-      "let p = await cad.extrude(s, { length: 5, mode: 'backward' })\n" +
-      'let c = await cad.cut(b, p)',
+      `let s = cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: b, face: ${topIndex + 1} })\n` +
+      "let p = cad.extrude(s, { length: 5, mode: 'backward' })\n" +
+      'let c = cad.cut(b, p)',
     )
     expect(NO_FAIL(result)).toBe('no failure')
     expectMeshPart(runtime, result, 'c')

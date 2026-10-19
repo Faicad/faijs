@@ -12,8 +12,8 @@ P8 decision), the editor `cad.load` op (in `@faicad/faijs-extra`) drops the
 three-key surface `{ key | path | url, format? }` and converges to:
 
 ```js
-const p = await cad.load({ file: 'vise.3mf' })   // asset file name, no path, with extension
-const p = await cad.load({ file: 'box.stl', unit: 'mm' })  // unit kept for STL only (R17)
+const p = cad.load({ file: 'vise.3mf' })   // asset file name, no path, with extension
+const p = cad.load({ file: 'box.stl', unit: 'mm' })  // unit kept for STL only (R17)
 ```
 
 - **`file`** is the user-uploaded file name (basename, extension included). The

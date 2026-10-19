@@ -56,7 +56,7 @@ function svgExtrudeBrep(params: Record<string, unknown>, svgText: string): Shape
  * @param params.depth - 挤出深度（mm）。type:number required:true
  * @param params.targetLongSide - 长边目标尺寸（mm）。type:number 默认 20
  * @example
- * const s = await cad.svgExtrude({ svg: 'logo.svg', depth: 5, targetLongSide: 20 })
+ * const s = cad.svgExtrude({ svg: 'logo.svg', depth: 5, targetLongSide: 20 })
   */
 export const svgExtrude = defineOp({
   mesh: async (params: Record<string, unknown>) => {

@@ -38,7 +38,7 @@ import type { BrepHandle, BrepEvolutionData } from '../brep/engine/types'
  *   { kind: 'line', x1: 10, y1: 10, x2: -10, y2: 10 },
  *   { kind: 'line', x1: -10, y1: 10, x2: -10, y2: -10 },
  * ] }] })
- * const solid = await cad.thicken(face, 2)
+ * const solid = cad.thicken(face, 2)
  */
 export const thicken = defineOp({
   name: 'thicken',

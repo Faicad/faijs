@@ -109,7 +109,7 @@ function splitBrep(input: Shape, tools: Shape[]): Shape {
  * @param input - 目标几何。type:Shape required:true
  * @param tools - 切刀几何（数组）。type:Shape[] required:true
  * @example
- * const pieces = await cad.split(part0, [part1])
+ * const pieces = cad.split(part0, [part1])
  */
 export const split = defineOp({
   brep(input: Shape, tools: Shape[]) {

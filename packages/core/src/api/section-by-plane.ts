@@ -65,7 +65,7 @@ function sectionByPlaneBrep(input: Shape, params: SectionByPlaneParams): Shape {
  * @param params.point - 平面上一点 [x,y,z]（mm）。type:Vec3 required:true
  * @param params.normal - 平面法向 [x,y,z]。type:Vec3 required:true
  * @example
- * const sec = await cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
+ * const sec = cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
  */
 export const sectionByPlane = defineOp({
   paramDims: { 'params.point': 'length', 'params.normal': 'length' },

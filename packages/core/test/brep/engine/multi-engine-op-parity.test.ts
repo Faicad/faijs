@@ -124,7 +124,7 @@ const CASES: Case[] = [
     code:
       'const a = cad.box(20, 20, 20, { centered: true })\n' +
       'const b = cad.box(20, 20, 20, { centered: true, at: [10, 0, 0] })\n' +
-      'const p = await cad.union(a, b)',
+      'const p = cad.union(a, b)',
     category: 'parity',
   },
   {
@@ -132,7 +132,7 @@ const CASES: Case[] = [
     code:
       'const a = cad.box(20, 20, 20, { centered: true })\n' +
       'const b = cad.cylinder(5, 30, { centered: true })\n' +
-      'const p = await cad.cut(a, b)',
+      'const p = cad.cut(a, b)',
     category: 'parity',
   },
   {
@@ -140,7 +140,7 @@ const CASES: Case[] = [
     code:
       'const a = cad.box(20, 20, 20, { centered: true })\n' +
       'const b = cad.cylinder(5, 30, { centered: true })\n' +
-      'const p = await cad.subtract(a, b)',
+      'const p = cad.subtract(a, b)',
     category: 'parity',
   },
   {
@@ -148,7 +148,7 @@ const CASES: Case[] = [
     code:
       'const a = cad.box(20, 20, 20, { centered: true })\n' +
       'const b = cad.cylinder(8, 30, { centered: true })\n' +
-      'const p = await cad.intersect(a, b)',
+      'const p = cad.intersect(a, b)',
     category: 'parity',
     note: 'brepkit 走裸 kernel.intersect（无面演化降级），occt 走 intersectWithHistory——几何 bbox 对拍；z 受盒限 20、xy 受圆柱 r=8 限 ≈[16,16,20]',
   },
@@ -158,14 +158,14 @@ const CASES: Case[] = [
     name: 'linearPattern',
     code:
       'const b = cad.box(10, 10, 10, { centered: true })\n' +
-      'const p = await cad.linearPattern(b, [1, 0, 0], 20, 3)',
+      'const p = cad.linearPattern(b, [1, 0, 0], 20, 3)',
     category: 'parity',
   },
   {
     name: 'circularPattern',
     code:
       'const b = cad.box(10, 10, 10, { centered: true, at: [30, 0, 0] })\n' +
-      'const p = await cad.circularPattern(b, [0, 0, 1], 3)',
+      'const p = cad.circularPattern(b, [0, 0, 1], 3)',
     category: 'parity',
     note: '盒平移到旋转半径外（center 在原点会原地旋转重叠），与 engine-switch-p2 同口径',
   },
@@ -173,19 +173,19 @@ const CASES: Case[] = [
     name: 'gridPattern',
     code:
       'const b = cad.box(10, 10, 10, { centered: true })\n' +
-      'const p = await cad.gridPattern(b, [1, 0, 0], [0, 1, 0], 2, 2, 20, 20)',
+      'const p = cad.gridPattern(b, [1, 0, 0], [0, 1, 0], 2, 2, 20, 20)',
     category: 'parity',
   },
   {
     name: 'rectangularPattern',
     code:
       'const b = cad.box(10, 10, 10, { centered: true })\n' +
-      'const p = await cad.rectangularPattern(b, { xDir: [1, 0, 0], xCount: 2, xSpacing: 20, yDir: [0, 1, 0], yCount: 2, ySpacing: 20 })',
+      'const p = cad.rectangularPattern(b, { xDir: [1, 0, 0], xCount: 2, xSpacing: 20, yDir: [0, 1, 0], yCount: 2, ySpacing: 20 })',
     category: 'parity',
   },
   {
     name: 'clone',
-    code: 'const b = cad.box(20, 10, 5, { centered: true })\nconst p = await cad.clone(b)',
+    code: 'const b = cad.box(20, 10, 5, { centered: true })\nconst p = cad.clone(b)',
     category: 'parity',
   },
 
@@ -194,7 +194,7 @@ const CASES: Case[] = [
     name: 'fillet',
     code:
       'const b = cad.box(20, 20, 20, { centered: true })\n' +
-      'const p = await cad.fillet(b, { edges: [cad.edgeRef(b, 1)], radius: 2 })',
+      'const p = cad.fillet(b, { edges: [cad.edgeRef(b, 1)], radius: 2 })',
     category: 'parity',
     note: '简化输入：仅圆第 1 条边',
   },
@@ -202,7 +202,7 @@ const CASES: Case[] = [
     name: 'filletVariable',
     code:
       'const b = cad.box(20, 20, 20, { centered: true })\n' +
-      'const p = await cad.filletVariable(b, cad.edgeRef(b, 1), 1, 3)',
+      'const p = cad.filletVariable(b, cad.edgeRef(b, 1), 1, 3)',
     category: 'parity',
     note: '简化输入：仅第 1 条边，r1=1 r2=3',
   },
@@ -210,7 +210,7 @@ const CASES: Case[] = [
     name: 'shell',
     code:
       'const b = cad.box(20, 20, 20, { centered: true })\n' +
-      'const p = await cad.shell(b, { openFaces: [cad.faceRef(b, 1)], thickness: 2 })',
+      'const p = cad.shell(b, { openFaces: [cad.faceRef(b, 1)], thickness: 2 })',
     category: 'parity',
     note: '简化输入：开口面 = 第 1 张面',
   },
@@ -220,7 +220,7 @@ const CASES: Case[] = [
     name: 'splitByPlane',
     code:
       'const b = cad.box(20, 20, 20, { centered: true })\n' +
-      'const { positive, negative } = await cad.splitByPlane(b, { point: [0, 0, 0], normal: [0, 0, 1] })',
+      'const { positive, negative } = cad.splitByPlane(b, { point: [0, 0, 0], normal: [0, 0, 1] })',
     category: 'parity',
     outputVar: 'positive',
     note: '测法向正侧那一半',
@@ -229,7 +229,7 @@ const CASES: Case[] = [
     name: 'sectionByPlane',
     code:
       'const b = cad.box(20, 20, 20, { centered: true })\n' +
-      'const p = await cad.sectionByPlane(b, { point: [0, 0, 0], normal: [0, 0, 1] })',
+      'const p = cad.sectionByPlane(b, { point: [0, 0, 0], normal: [0, 0, 1] })',
     category: 'parity',
     note: '1D 截面曲线，z 尺寸≈0',
   },
@@ -237,7 +237,7 @@ const CASES: Case[] = [
   // ── A. 创建（extrude/revolve 需 face 输入，先用 profile 构面） ──
   {
     name: 'extrude',
-    code: `const f = cad.profile(${SQUARE})\nconst p = await cad.extrude(f, { length: 15 })`,
+    code: `const f = cad.profile(${SQUARE})\nconst p = cad.extrude(f, { length: 15 })`,
     category: 'parity',
   },
   {
@@ -249,7 +249,7 @@ const CASES: Case[] = [
       `  {kind:'line',x1:15,y1:10,x2:5,y2:10},\n` +
       `  {kind:'line',x1:5,y1:10,x2:5,y2:0}\n` +
       `]}] })\n` +
-      `const p = await cad.revolve(f, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })`,
+      `const p = cad.revolve(f, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })`,
     category: 'parity',
   },
   // ── A. 创建 · 扫掠 / 放样（2026-10-10 双引擎化：基础 op 两内核都跑） ──
@@ -258,7 +258,7 @@ const CASES: Case[] = [
     code:
       `const s = cad.wire([[-4,-4,0],[4,-4,0],[4,4,0],[-4,4,0]], { closed: true })\n` +
       `const sp = cad.wire([[0,0,0],[0,0,25]])\n` +
-      `const p = await cad.sweep(s, sp)`,
+      `const p = cad.sweep(s, sp)`,
     category: 'parity',
     note: '基础扫掠两内核都跑：8×8 方截面沿 +Z 扫 25 → [8,8,25]；occt 走 sweepPipeShell，brepkit 走 sweep(face, NURBS path)',
   },
@@ -267,7 +267,7 @@ const CASES: Case[] = [
     code:
       `const s0 = cad.wire([[-5,-5,0],[5,-5,0],[5,5,0],[-5,5,0]], { closed: true })\n` +
       `const s1 = cad.wire([[-2,-2,10],[2,-2,10],[2,2,10],[-2,2,10]], { closed: true })\n` +
-      `const p = await cad.loft([s0, s1])`,
+      `const p = cad.loft([s0, s1])`,
     category: 'parity',
     note: '基础放样两内核都跑：两个**等顶点数**方截面（brepkit loft 硬约束）→ [10,10,10]；occt 走 ThruSections',
   },
@@ -289,7 +289,7 @@ const CASES: Case[] = [
     name: 'engrave',
     code:
       'const b = cad.box(40, 40, 20, { centered: true })\n' +
-      "const p = await cad.engrave(b, { mode: 'concave', depth: 2, text: 'A', textSize: 10, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })",
+      "const p = cad.engrave(b, { mode: 'concave', depth: 2, text: 'A', textSize: 10, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })",
     category: 'parity',
     note: '需测试字体加载器',
   },
@@ -305,14 +305,14 @@ const CASES: Case[] = [
   // ── A. 修复 ──
   {
     name: 'unifySameDomain',
-    code: 'const b = cad.box(20, 20, 20, { centered: true })\nconst p = await cad.unifySameDomain(b)',
+    code: 'const b = cad.box(20, 20, 20, { centered: true })\nconst p = cad.unifySameDomain(b)',
     category: 'parity',
   },
   {
     name: 'defeature',
     code:
       'const b = cad.box(20, 20, 20, { centered: true })\n' +
-      'const p = await cad.defeature(b, [cad.faceRef(b, 1)])',
+      'const p = cad.defeature(b, [cad.faceRef(b, 1)])',
     category: 'parity',
     note: '简化输入：移除第 1 张面',
   },
@@ -321,7 +321,7 @@ const CASES: Case[] = [
     code:
       `const f1 = cad.profile(${SQUARE})\n` +
       'const f2 = cad.place(f1, { position: [10, 0, 0] })\n' +
-      'const p = await cad.sew([f1, f2])',
+      'const p = cad.sew([f1, f2])',
     category: 'parity',
     note: '两张相邻正方形面缝成壳',
   },
@@ -330,7 +330,7 @@ const CASES: Case[] = [
     code:
       `const f1 = cad.profile(${SQUARE})\n` +
       'const f2 = cad.place(f1, { position: [10, 0, 0] })\n' +
-      'const p = await cad.sewAndSolidify([f1, f2])',
+      'const p = cad.sewAndSolidify([f1, f2])',
     category: 'parity',
     note: '简化输入：两张相邻面缝合并固化',
   },
@@ -351,7 +351,7 @@ const CASES: Case[] = [
     {kind:'line',x1:5,y1:15,x2:5,y2:5}
   ] }\n` +
       `] })\n` +
-      'const p = await cad.removeHolesFromFace(f)',
+      'const p = cad.removeHolesFromFace(f)',
     category: 'parity',
     note: '带方孔的面 → 去孔',
   },
@@ -389,12 +389,12 @@ const CASES: Case[] = [
       'const p = cad.healSolid(b)',
     category: 'parity',
   },
-  { name: 'convexHull', code: 'const p = await cad.convexHull([[0,0,0],[10,0,0],[0,10,0],[0,0,10]])', category: 'parity', note: '四面体，体积≈166.67' },
+  { name: 'convexHull', code: 'const p = cad.convexHull([[0,0,0],[10,0,0],[0,10,0],[0,0,10]])', category: 'parity', note: '四面体，体积≈166.67' },
   {
     name: 'chamfer',
     code:
       'const b = cad.box(10, 10, 10)\n' +
-      'const p = await cad.chamfer(b, { edges: [cad.edgeRef(b, 1)], type: "equal", width: 1 })',
+      'const p = cad.chamfer(b, { edges: [cad.edgeRef(b, 1)], type: "equal", width: 1 })',
     category: 'parity',
     note: 'occt 走 chamferWithHistory（带面演化），brepkit 走裸 kernel.chamfer（降级，无面演化）',
   },
@@ -402,7 +402,7 @@ const CASES: Case[] = [
     name: 'drill',
     code:
       'const b = cad.box(30, 30, 30, { centered: true })\n' +
-      'const p = await cad.drill(b, { at: [0, 0], radius: 3 })',
+      'const p = cad.drill(b, { at: [0, 0], radius: 3 })',
     category: 'parity',
     note: '钻孔=makeCylinder+cut，bbox 不变体积略减',
   },
@@ -411,7 +411,7 @@ const CASES: Case[] = [
     code:
       'const b = cad.box(20, 20, 10, { centered: true })\n' +
       'const w = cad.wire([[-2,-2,0],[2,-2,0],[2,2,0],[-2,2,0]], { closed: true })\n' +
-      'const p = await cad.pocket(b, { profile: w, depth: 3 })',
+      'const p = cad.pocket(b, { profile: w, depth: 3 })',
     category: 'parity',
     note: '口袋=选面+extrude+cut，体积略减',
   },
@@ -420,7 +420,7 @@ const CASES: Case[] = [
     code:
       'const b = cad.box(20, 20, 10, { centered: true })\n' +
       'const w = cad.wire([[-2,-2,0],[2,-2,0],[2,2,0],[-2,2,0]], { closed: true })\n' +
-      'const p = await cad.boss(b, { profile: w, height: 3 })',
+      'const p = cad.boss(b, { profile: w, height: 3 })',
     category: 'parity',
     note: '凸台=选面+extrude+fuse，体积略增',
   },
@@ -428,7 +428,7 @@ const CASES: Case[] = [
     name: 'mirrorJoin',
     code:
       'const b = cad.box(10, 20, 20)\n' +
-      'const p = await cad.mirrorJoin(b, { normal: [1, 0, 0] })',
+      'const p = cad.mirrorJoin(b, { normal: [1, 0, 0] })',
     category: 'parity',
     note: '镜像+合并，bbox≈20×20×20 体积≈8000',
   },
@@ -474,7 +474,7 @@ const CASES: Case[] = [
     code:
       'const b = cad.box(20, 20, 20, { centered: true })\n' +
       'const t = cad.box(10, 10, 10, { centered: true })\n' +
-      'const s = await cad.split(b, [t])',
+      'const s = cad.split(b, [t])',
     category: 'expect-error',
     expectErrorRe: 'split|requires engine occt',
     note: '不可降级：splitBrep 直调 getOcctKernel().split 任意 tool 形状，brepkit 只有 splitByPlane',
@@ -485,14 +485,14 @@ const CASES: Case[] = [
     name: 'knurl',
     code:
       'const b = cad.box(20, 20, 20, { centered: true })\n' +
-      'const p = await cad.knurl(b, { knurlTextureHeight: 0.5 })',
+      'const p = cad.knurl(b, { knurlTextureHeight: 0.5 })',
     category: 'expect-error',
     expectErrorRe: 'E_BREP_UNSUPPORTED',
   },
   {
     name: 'sdf',
     code:
-      "const p = await cad.sdf({ code: 'return sphere(10)', box: [[-15,-15,-15],[15,15,15]], resolution: 2 })",
+      "const p = cad.sdf({ code: 'return sphere(10)', box: [[-15,-15,-15],[15,15,15]], resolution: 2 })",
     category: 'expect-error',
     expectErrorRe: 'E_BREP_UNSUPPORTED',
   },

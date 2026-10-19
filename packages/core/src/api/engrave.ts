@@ -181,7 +181,7 @@ async function resolveEngraveSvg(params: Record<string, unknown>): Promise<strin
  * @param params.faceNormal - 面法向。type:[x,y,z] 默认 [0,0,1]
  * @note 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照。
  * @example
- * const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', textSize: 10, faceCenter: [0, 0, 0], faceNormal: [0, 0, -1] })
+ * const p = cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', textSize: 10, faceCenter: [0, 0, 0], faceNormal: [0, 0, -1] })
   */
 export const engrave = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {

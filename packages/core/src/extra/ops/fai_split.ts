@@ -201,7 +201,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @qual warn
  * @name fai_split
  * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
- * @returns { front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = await cad.fai_split(...)` 取出两个零件。
+ * @returns { front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = cad.fai_split(...)` 取出两个零件。
  * @param input - 目标几何。type:Shape required:true
  * @param params.cutMode - 切割模式。type:'plane' | 'dovetail' | 'dowel' | 'tenon' | 'straight-tenon' | 'straight' 默认 'plane'
  * @param params.normal - 切割面法向。type:[x,y,z] 默认 [0,0,1]
@@ -226,7 +226,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.selectedSections - 参与榫卯的截面下标。type:number[]
  * @note 切割面统一用 `normal`/`offset`/`inPlaneAngle` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
  * @example
- * const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
+ * const { front: part1, back: part2 } = cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
   */
 export const fai_split = defineOp({
   mesh: (input: Shape, params: Record<string, unknown> = {}) => {

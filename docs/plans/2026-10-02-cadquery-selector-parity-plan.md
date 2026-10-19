@@ -82,7 +82,7 @@ tests/gen-manifest.ts           # 三态清单（ported / blocked / skipped）�
 **盲区**：该通道只比对"最终导出的那个实体"，进程内的选择结果完全不可见。证据：
 
 - `out/report.json` 当前计数 `pass 294 / passNt 5 / fail 5 / blocked 346`，其中 `test_selectors` 相关 **46 条全部 PASS**；
-- 但 46 个镜像文件里，凡涉及选择器断言的**全部**是同一形态——注释写明"选择是进程内断言，导出的是输入立方体"，正文只有 `let c = await cq.box(...)` + `let result = cq.val(c)`。例：`tests/test_selectors/TestCQSelectors__testVertexFilter__c.fai.js` 的注释是 `vertices("<XY") pick in-process; exports centred cube`；
+- 但 46 个镜像文件里，凡涉及选择器断言的**全部**是同一形态——注释写明"选择是进程内断言，导出的是输入立方体"，正文只有 `let c = cq.box(...)` + `let result = cq.val(c)`。例：`tests/test_selectors/TestCQSelectors__testVertexFilter__c.fai.js` 的注释是 `vertices("<XY") pick in-process; exports centred cube`；
 - 所以 `vertices()` 是空操作，STEP 报告照样 PASS。**这不是误报，是通道的能力边界**——它按设计只验几何产物。
 
 **镜像覆盖**：上游 `TestCQSelectors` 有 45 个 test 方法，`tests/test_selectors/` 下缺 16 个（无任何镜像文件）：`testVertices`、`testWorkplaneCenter`、`testEnd`、`testCompounds`、`testParallelPlaneFaceFilter`、`testGrammar`、全部 `testLengthNthSelector_*`（6 个）、全部 `testAreaNthSelector_Vertices/Edges/NestedWires/Faces`（4 个）。另有 1 个 `.blocked`（`testEdgeTypesFilter`，`blockedBy: kernel:ellipse-tall-axis`）。

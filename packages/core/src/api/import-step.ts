@@ -101,7 +101,7 @@ export async function importStepImpl(params: Record<string, unknown>): Promise<S
  * @param params.path - 本地绝对路径（宿主 resolveFile 解析）。type:string required:true
  * @returns Promise<Shape> 持 OCCT 句柄的几何（非实体亦可）。
  * @example
- * const a = await cad.import_step({ path: 'D:/models/box.step' })
+ * const a = cad.import_step({ path: 'D:/models/box.step' })
  * @note 平台 STEP 导入 op。读文件经宿主资产解析器（`assets.resolveFile`），与 `cad.load` 同一通道；语义为「任意路径 STEP → OCCT 读入的 Shape」。
  * @note 非实体一等（C6）：wire/face/shell 一律可导入。需要实体的 op（布尔、up-to 目标面）在**使用点**报错。
  * @note GOTCHA（2026-09-30）：与 import_brep 同——必须经 defineOp 包装进入 cad 命名空间，不能是裸 async 函数。part 键 roleTable（outputTablesByPart）只在 define-op.ts 包装层的 brep 分支登记；裸 async 函数产物没有 part 键表，下游 place/edgeRef 报 "input shape has no role table (nameless shape)"。

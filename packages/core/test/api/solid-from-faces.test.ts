@@ -95,7 +95,7 @@ const CUBE_FACES =
   `const fx1 = cad.place(sq, { rotation: [0, q, 0, q], position: [10, 0, 10] })\n`
 
 const SOLID_CODE =
-  CUBE_FACES + `let part0 = await cad.solidFromFaces([fz0, fz1, fy0, fy1, fx0, fx1])\n`
+  CUBE_FACES + `let part0 = cad.solidFromFaces([fz0, fz1, fy0, fy1, fx0, fx1])\n`
 
 describe('cad.solidFromFaces — 面集一次成型（平台 op engines:["occt"]）', () => {
   it('occt 引擎：6 面 → 实体（|volume|==1000，bbox [0,10]³）', async () => {
@@ -120,7 +120,7 @@ describe('cad.solidFromFaces — 面集一次成型（平台 op engines:["occt"]
   it('§4.5 边界：同 6 面走中立 sewAndSolidify（L1）与平台 solidFromFaces 的既有差异', async () => {
     await useOcct()
     const sff = await shapeOf('brep', SOLID_CODE, 'part0')
-    const sewCode = CUBE_FACES + `let part0 = await cad.sewAndSolidify([fz0, fz1, fy0, fy1, fx0, fx1])\n`
+    const sewCode = CUBE_FACES + `let part0 = cad.sewAndSolidify([fz0, fz1, fy0, fy1, fx0, fx1])\n`
     const sewn = await shapeOf('brep', sewCode, 'part0')
     // 两条路径的 |体积| 一致（同一几何体）；本仓 getVolume 是**有向**体积，
     // 朝向由各自内核路径的缝合结果决定 —— 差异记在这里，作为 §4.5 分工的实测依据。
@@ -134,7 +134,7 @@ describe('cad.solidFromFaces — 面集一次成型（平台 op engines:["occt"]
     await useOcct()
     const s = await shapeOf(
       'brep',
-      CUBE_FACES + `let part0 = await cad.solidFromFaces([fz0, fz1, fy0, fy1, fx0, fx1], { tolerance: 1e-6 })\n`,
+      CUBE_FACES + `let part0 = cad.solidFromFaces([fz0, fz1, fy0, fy1, fx0, fx1], { tolerance: 1e-6 })\n`,
       'part0',
     )
     expect(Math.abs(volumeOf(s))).toBeCloseTo(1000, 6)
@@ -160,7 +160,7 @@ describe('cad.solidFromFaces — 面集一次成型（平台 op engines:["occt"]
 
   it('空面表 → E_SOLID_FROM_FACES_NO_FACES（执行前）', async () => {
     await useOcct()
-    const result = await exec('brep', `let part0 = await cad.solidFromFaces([])\n`)
+    const result = await exec('brep', `let part0 = cad.solidFromFaces([])\n`)
     expect(result.failedAt).toBeDefined()
     expect(JSON.stringify(result.failedAt)).toMatch(/E_SOLID_FROM_FACES_NO_FACES/)
   })
@@ -169,7 +169,7 @@ describe('cad.solidFromFaces — 面集一次成型（平台 op engines:["occt"]
     await useOcct()
     const result = await exec(
       'brep',
-      CUBE_FACES + `let part0 = await cad.solidFromFaces([fz0, fz1, fy0, fy1, fx0, fx1], { tolerance: 0 })\n`,
+      CUBE_FACES + `let part0 = cad.solidFromFaces([fz0, fz1, fy0, fy1, fx0, fx1], { tolerance: 0 })\n`,
     )
     expect(result.failedAt).toBeDefined()
     expect(JSON.stringify(result.failedAt)).toMatch(/E_SOLID_FROM_FACES_BAD_TOLERANCE/)

@@ -35,7 +35,7 @@ export function assertSdfParams(params: Record<string, unknown>): void {
  * @param params.resolution - 网格单元边长（越小越精细）。type:number 默认 1.0
  * @param params.params - 参数数值表（SDF 里引用的变量值）。type:object
  * @example
- * const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: [[-20,-20,-20],[30,20,20]], resolution: 1 })
+ * const s = cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: [[-20,-20,-20],[30,20,20]], resolution: 1 })
   */
 export const sdf = defineOp({
   mesh: async (params: Record<string, unknown>) => {

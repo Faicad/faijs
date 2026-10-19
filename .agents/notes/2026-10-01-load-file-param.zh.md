@@ -12,8 +12,8 @@
 `{ key | path | url, format? }`，收敛为：
 
 ```js
-const p = await cad.load({ file: 'vise.3mf' })   // asset file name, no path, with extension
-const p = await cad.load({ file: 'box.stl', unit: 'mm' })  // unit kept for STL only (R17)
+const p = cad.load({ file: 'vise.3mf' })   // asset file name, no path, with extension
+const p = cad.load({ file: 'box.stl', unit: 'mm' })  // unit kept for STL only (R17)
 ```
 
 - **`file`** = 用户上传文件名（basename、含扩展名）。宿主资产库**按文件名**注册资产；

@@ -88,9 +88,9 @@ function filletVariableBrep(input: Shape, edge: FilletVariableEdge, startRadius:
  * @param r1 - 起点半径（mm，>0）。type:number required:true
  * @param r2 - 终点半径（mm，>0）。type:number required:true
  * @example
- * const v = await cad.filletVariable(part0, partEdges[0], 1, 4)
+ * const v = cad.filletVariable(part0, partEdges[0], 1, 4)
  * // AI 生成可写 CadQuery 边选择器字符串
- * const v2 = await cad.filletVariable(part0, "|Z", 1, 4)
+ * const v2 = cad.filletVariable(part0, "|Z", 1, 4)
  */
 export const filletVariable = defineOp({
   brep(input: Shape, edge: FilletVariableEdge, r1: number, r2: number) {

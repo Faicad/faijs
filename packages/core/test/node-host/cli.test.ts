@@ -206,7 +206,7 @@ describe('cliRun: execute and export', () => {
     // 结构性拒绝导出 STEP。该改动已撤销——脚本面纯网格模型导 STEP 必须照旧可用，
     // 本用例钉住它，防止再次被无声摘掉。
     const tmpFile = resolve(TMP_DIR, 'mesh-load.fai.js')
-    writeFileSync(tmpFile, "let a = await cad.load({ file: 'cube-10x5x5.stl' })")
+    writeFileSync(tmpFile, "let a = cad.load({ file: 'cube-10x5x5.stl' })")
     const outPath = resolve(TMP_DIR, 'mesh-load.step')
     const meshAssets = fileURLToPath(new URL('../../../fixtures/data', import.meta.url))
 

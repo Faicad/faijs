@@ -59,7 +59,7 @@ describe('brepkit: STL 走 BREP 路径后特征操作全链路可用（白名单
 
   it('load cube.stl → naming.source = brep，全部边都有邻接面 lineage（圆角可选边）', async () => {
     const runtime = createEditorRuntime(stlPorts(), 'auto')
-    const base = await runtime.execute(`let part0 = await cad.load({ file: 'cube-10x5x5.stl' })`)
+    const base = await runtime.execute(`let part0 = cad.load({ file: 'cube-10x5x5.stl' })`)
     expect(base.failedAt, `load failed: ${JSON.stringify(base.failedAt)}`).toBeUndefined()
 
     const naming = base.naming?.get('part0' as never)
@@ -74,7 +74,7 @@ describe('brepkit: STL 走 BREP 路径后特征操作全链路可用（白名单
 
   it('chamfer（圆角）：挑一条边走 BREP 链 → 成功（不再 E_TOPO_NOT_FOUND）', async () => {
     const runtime = createEditorRuntime(stlPorts(), 'auto')
-    const base = await runtime.execute(`let part0 = await cad.load({ file: 'cube-10x5x5.stl' })`)
+    const base = await runtime.execute(`let part0 = cad.load({ file: 'cube-10x5x5.stl' })`)
     expect(base.failedAt).toBeUndefined()
     const naming = base.naming?.get('part0' as never)
     const row = naming!.edgeNaming.find((e) => e.faces !== null)!
@@ -82,7 +82,7 @@ describe('brepkit: STL 走 BREP 路径后特征操作全链路可用（白名单
 
     const edgeRef = { kind: 'edge', faces: row.faces, hint: row.hint }
     const c = await runtime.execute(
-      `let part0 = await cad.load({ file: 'cube-10x5x5.stl' })\n` +
+      `let part0 = cad.load({ file: 'cube-10x5x5.stl' })\n` +
         `let part1 = cad.chamfer(part0, { edges: [${JSON.stringify(edgeRef)}], partIndex: 0, type: 'equal', width: 1 })\n`,
     )
     expect(c.failedAt, `chamfer failed: ${JSON.stringify(c.failedAt)}`).toBeUndefined()
@@ -92,7 +92,7 @@ describe('brepkit: STL 走 BREP 路径后特征操作全链路可用（白名单
   it('fai_drill（钻孔）：BREP cut → 成功（不再 E_MESH_SOLID_UNSUPPORTED）', async () => {
     const runtime = createEditorRuntime(stlPorts(), 'auto')
     const d = await runtime.execute(
-      `let part0 = await cad.load({ file: 'cube-10x5x5.stl' })\n` +
+      `let part0 = cad.load({ file: 'cube-10x5x5.stl' })\n` +
         `let part1 = cad.fai_drill(part0, { diameter: 2, depth: 0, position: [0, 0, 5], direction: "normal", faceNormal: [0, 0, 1], holeType: "simple" })\n`,
     )
     expect(d.failedAt, `drill failed: ${JSON.stringify(d.failedAt)}`).toBeUndefined()
@@ -102,7 +102,7 @@ describe('brepkit: STL 走 BREP 路径后特征操作全链路可用（白名单
   it('fai_split（平面分割）：BREP split → 成功', async () => {
     const runtime = createEditorRuntime(stlPorts(), 'auto')
     const s = await runtime.execute(
-      `let part0 = await cad.load({ file: 'cube-10x5x5.stl' })\n` +
+      `let part0 = cad.load({ file: 'cube-10x5x5.stl' })\n` +
         `let { front, back } = cad.fai_split(part0, { cutMode: 'plane', normal: [0, 0, 1], offset: 0 })\n`,
     )
     expect(s.failedAt, `split failed: ${JSON.stringify(s.failedAt)}`).toBeUndefined()

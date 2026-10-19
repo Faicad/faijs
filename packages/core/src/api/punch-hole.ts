@@ -257,7 +257,7 @@ export function buildPunchHole(kernel: BrepEngineApi, params: PunchHoleParams): 
  * @param params.scaleMode - UV mapping: 'original' | 'bounds' | 'native'.type:string required:false
  * @example
  * // loop = 一个闭合 2D 轮廓：{ segments: [{ kind: 'line', x1, y1, x2, y2 }, ...] }
- * const plate = await cad.punchHole({ contours: [loop], on: cad.box(40, 40, 4), face: '>Z' })
+ * const plate = cad.punchHole({ contours: [loop], on: cad.box(40, 40, 4), face: '>Z' })
  */
 export const punchHole = defineOp({
   engines: ['occt'],

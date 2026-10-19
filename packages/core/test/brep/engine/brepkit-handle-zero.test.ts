@@ -63,7 +63,7 @@ describe('brepkit handle 0 is a legal handle', () => {
     await registerBrepkitBrepEngine()
     const runtime = createEditorRuntime(portsFor(STEP_BUFFER), 'brep')
     const result = await runtime.execute(
-      `let a = await cad.import_step({ path: 'x.step' })\nlet r = a`,
+      `let a = cad.import_step({ path: 'x.step' })\nlet r = a`,
     )
     expect(result.failedAt).toBeUndefined()
 

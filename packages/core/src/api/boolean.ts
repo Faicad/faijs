@@ -286,7 +286,7 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
  * @param shapes - 参与运算的几何（变量引用，≥2 个）。type:Shape[] required:true
  * @returns Shape 所有输入的并集。函数名即操作，输入全是变量引用，可用 `cad.union(a, b, c)` 多输入。
  * @example
- * const a = await cad.union(part0, part1)
+ * const a = cad.union(part0, part1)
   */
 export const union = defineOp({
   meshEngines: ['brepkit'],
@@ -318,7 +318,7 @@ export const union = defineOp({
  * @param tool - the shape to subtract. type:Shape required:true
  * @returns Shape base minus tool.
  * @example
- * const b = await cad.cut(part0, part1)
+ * const b = cad.cut(part0, part1)
   */
 export const cut = defineOp({
   meshEngines: ['brepkit'],
@@ -345,7 +345,7 @@ export const cut = defineOp({
  * @param shapes - 参与运算的几何（变量引用，第一个为主体）。type:Shape[] required:true
  * @returns Shape part0 减 part1 的差集（第一个为主体）。
  * @example
- * const b = await cad.subtract(part0, part1)
+ * const b = cad.subtract(part0, part1)
   */
 export const subtract = defineOp({
   meshEngines: ['brepkit'],
@@ -372,7 +372,7 @@ export const subtract = defineOp({
  * @param shapes - 参与运算的几何（变量引用）。type:Shape[] required:true
  * @returns Shape 所有输入的交集。
  * @example
- * const c = await cad.intersect(part0, part1)
+ * const c = cad.intersect(part0, part1)
   */
 export const intersect = defineOp({
   meshEngines: ['brepkit'],

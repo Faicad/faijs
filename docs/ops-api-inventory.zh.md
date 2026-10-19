@@ -365,7 +365,7 @@ const lh = cad.helix({ radius: 5, pitch: 2, turns: 3, handed: 'left' })
 平台 BREP 资产导入：把容器 `assets/` 里的冻结 BREP 载体装成持 OCCT 句柄的 Shape。 `asset` = 资产名（去扩展名，沿用 `FsAssetResolver` 的 `key = basename(file)` 规则）， 由宿主资产解析器按 key 解析（与 `cad.load` 同套解析器）。
 
 ```js
-const a = await cad.import_brep({ asset: 'Array001.Shape' })
+const a = cad.import_brep({ asset: 'Array001.Shape' })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -383,7 +383,7 @@ const a = await cad.import_brep({ asset: 'Array001.Shape' })
 api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
 
 ```js
-const a = await cad.import_step({ path: 'D:/models/box.step' })
+const a = cad.import_step({ path: 'D:/models/box.step' })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -440,9 +440,9 @@ const w = cad.liftCurve2d([[0,0],[10,0],[10,5]], [0,0,0], [0,0,1], [1,0,0])
 > 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——`file` 读的是应用侧资产库（按用户上传文件名注册），产物语句位置与命名都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。2026-10-06 起多零件文件不再单零件收敛——全量以 compound + `ExecutionResult.importModels` 返回；宿主按 `importModel.parts` 身份批量建 part。
 
 ```js
-const p = await cad.load({ file: 'box.stl' })
-const p = await cad.load({ file: 'box.3mf' })
-const p = await cad.load({ file: 'model.step' })
+const p = cad.load({ file: 'box.stl' })
+const p = cad.load({ file: 'box.3mf' })
+const p = cad.load({ file: 'model.step' })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -563,8 +563,8 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 生成螺丝零件（螺纹 + 头型）。
 
 ```js
-const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex' })
-const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex', nRad: 64 })
+const s = cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex' })
+const s = cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex', nRad: 64 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -588,7 +588,7 @@ const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', leng
 用 SDF（符号距离场）函数生成网格体（mesh-only）。
 
 ```js
-const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: [[-20,-20,-20],[30,20,20]], resolution: 1 })
+const s = cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: [[-20,-20,-20],[30,20,20]], resolution: 1 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -716,7 +716,7 @@ const s = cad.surface({ points: [[-5,-5,0],[5,-5,0],[-5,5,0],[5,5,0]], rows: 2, 
 从二维 SVG 轮廓挤出零件（拓扑操作）。
 
 ```js
-const s = await cad.svgExtrude({ svg: 'logo.svg', depth: 5, targetLongSide: 20 })
+const s = cad.svgExtrude({ svg: 'logo.svg', depth: 5, targetLongSide: 20 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -752,7 +752,7 @@ const a = cad.tangentArc([0,0,0], [1,0,0], [5,5,0])
 生成文字零件（文字轮廓挤出，X/Z 居中、Y 底部对齐原点）。
 
 ```js
-const t = await cad.text({ text: 'Hello', size: 20, depth: 5 })
+const t = cad.text({ text: 'Hello', size: 20, depth: 5 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1086,10 +1086,10 @@ boss(shape: Shape, options: BossOptions): Shape
 在几何体上倒角（等距 / 双距 / 距角）。
 
 ```js
-const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
+const p = cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
 // AI 生成可写 CadQuery 边选择器字符串
-const p2 = await cad.chamfer(part0, { edges: "|Z", type:'equal', width:1 })
-const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
+const p2 = cad.chamfer(part0, { edges: "|Z", type:'equal', width:1 })
+const q = cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1110,7 +1110,7 @@ const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
 环形阵列：绕 axis 均分 fullAngle（度，缺省 360）复制 count 份（含原位置）。
 
 ```js
-const p = await cad.circularPattern(part0, [0, 0, 1], 6)
+const p = cad.circularPattern(part0, [0, 0, 1], 6)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1129,7 +1129,7 @@ const p = await cad.circularPattern(part0, [0, 0, 1], 6)
 深拷贝句柄：返回独立副本（源保留）。
 
 ```js
-const p = await cad.clone(part0)
+const p = cad.clone(part0)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1182,7 +1182,7 @@ const part1 = cad.copy(part0)
 Boolean cut (subtract): remove `tool` from `base`. Same semantics as {@link subtract} but with the brepjs-compatible `(base, tool, options?)` signature. Overrides the generated projection (compatOp) to do roleTable propagation (Phase 3: L2 requires wall:<i> to survive cut).
 
 ```js
-const b = await cad.cut(part0, part1)
+const b = cad.cut(part0, part1)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1198,9 +1198,9 @@ const b = await cad.cut(part0, part1)
 
 ```js
 // faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
-const d = await cad.draft(part0, { faces: pickedFaces, angleDeg: 3 })
+const d = cad.draft(part0, { faces: pickedFaces, angleDeg: 3 })
 // AI 生成可写 CadQuery 面选择器字符串（"|Z" 法向平行 Z 的面）
-const d2 = await cad.draft(part0, { faces: "|Z", angleDeg: 3 })
+const d2 = cad.draft(part0, { faces: "|Z", angleDeg: 3 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1238,7 +1238,7 @@ drill(shape: Shape, options: DrillOptions): Shape
 在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
 
 ```js
-const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', textSize: 10, faceCenter: [0, 0, 0], faceNormal: [0, 0, -1] })
+const p = cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', textSize: 10, faceCenter: [0, 0, 0], faceNormal: [0, 0, -1] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1261,13 +1261,13 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （brepjs extrude 为唯一引擎），up-to 模式走半空间组合。 **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：输入是 `cad.sketchOnFace` 在网格实体识别面上铺出的网格链面时，本 op 沿同一份方向语义 拉伸出**一个新的网格零件**。网格链上不支持 `upTo` （需精度链求交裁切）——会以 `E_MESH_SOLID_UNSUPPORTED` 明确拒绝，不静默当定长拉伸。
 
 ```js
-const p = await cad.extrude(part0, [0, 0, 10])
-const p = await cad.extrude(part0, { length: 10 })
+const p = cad.extrude(part0, [0, 0, 10])
+const p = cad.extrude(part0, { length: 10 })
 // upTo 接受 FaceTopoRef（UI 拾取产物字面量）；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
-const p = await cad.extrude(sk, { upTo: pickedUpToFace })
-const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
+const p = cad.extrude(sk, { upTo: pickedUpToFace })
+const p = cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
 // AI 生成可写 CadQuery 面选择器字符串（在 baseFeature 上解析）
-const p = await cad.extrude(sk, { upTo: '>Z', baseFeature: part0 })
+const p = cad.extrude(sk, { upTo: '>Z', baseFeature: part0 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1288,9 +1288,9 @@ const p = await cad.extrude(sk, { upTo: '>Z', baseFeature: part0 })
 > 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载（3d_editor 38 个文件在用）。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
-const p = await cad.fai_drill(part0, { diameter: 5 })
-const p = await cad.fai_drill(part0, { diameter: 5, depth: 3 })
-const p = await cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
+const p = cad.fai_drill(part0, { diameter: 5 })
+const p = cad.fai_drill(part0, { diameter: 5, depth: 3 })
+const p = cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1319,9 +1319,9 @@ const p = await cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw
 > 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
-const p = await cad.fai_extrude(part0, { length: 10 })
-const p = await cad.fai_extrude(part0, { length: 10, mode: 'forward' })
-const p = await cad.fai_extrude(part0, { length: 10, normal: [0,0,1], planeDistance: 2 })
+const p = cad.fai_extrude(part0, { length: 10 })
+const p = cad.fai_extrude(part0, { length: 10, mode: 'forward' })
+const p = cad.fai_extrude(part0, { length: 10, normal: [0,0,1], planeDistance: 2 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1341,7 +1341,7 @@ const p = await cad.fai_extrude(part0, { length: 10, normal: [0,0,1], planeDista
 > 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
-const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
+const { front: part1, back: part2 } = cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1368,7 +1368,7 @@ const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0
 | `tenonHeightTolerance` | `number` |  | — | 直榫高度公差 |
 | `selectedSections` | `number[]` |  | — | 参与榫卯的截面下标 |
 
-**异步**。{ front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = await cad.fai_split(...)` 取出两个零件。
+**异步**。{ front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = cad.fai_split(...)` 取出两个零件。
 
 > 切割面统一用 `normal`/`offset`/`inPlaneAngle` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
 
@@ -1377,10 +1377,10 @@ const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0
 在几何体上做圆角（等半径）。 两条路径都以 `meshEngines: ['brepkit']` 之外的事实为界：BREP 输入走 `filletWithHistory`（带面演化与 roleTable 传播）；**网格实体**输入走网格后端 （近似拓扑无 role，边按几何或序号解析，无面演化）。非 BREP 的**裸网格**输入仍抛 `E_MESH_SOLID_UNSUPPORTED`——裸网格没有近似拓扑，没有边可选。
 
 ```js
-const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], radius:2 })
+const p = cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], radius:2 })
 // AI 生成可写 CadQuery 边选择器字符串（"|Z" 切线平行 Z 的边）
-const p2 = await cad.fillet(part0, { edges: "|Z", radius: 2 })
-const q = await cad.fillet(meshPart, { edges: [3], radius: 1 })
+const p2 = cad.fillet(part0, { edges: "|Z", radius: 2 })
+const q = cad.fillet(meshPart, { edges: [3], radius: 1 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1397,9 +1397,9 @@ const q = await cad.fillet(meshPart, { edges: [3], radius: 1 })
 变半径圆角：对单条边施加从起点到终点的线性变半径圆角。
 
 ```js
-const v = await cad.filletVariable(part0, partEdges[0], 1, 4)
+const v = cad.filletVariable(part0, partEdges[0], 1, 4)
 // AI 生成可写 CadQuery 边选择器字符串
-const v2 = await cad.filletVariable(part0, "|Z", 1, 4)
+const v2 = cad.filletVariable(part0, "|Z", 1, 4)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1437,7 +1437,7 @@ const v2 = await cad.filletVariable(part0, "|Z", 1, 4)
 二维栅格阵列：沿 directionX × directionY 复制 countX×countY 份（含原位置）。
 
 ```js
-const p = await cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
+const p = cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1458,7 +1458,7 @@ const p = await cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
 布尔交集：所有输入的重叠部分。
 
 ```js
-const c = await cad.intersect(part0, part1)
+const c = cad.intersect(part0, part1)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1472,7 +1472,7 @@ const c = await cad.intersect(part0, part1)
 施加滚花（顶点位移，非布尔）。mesh-only。
 
 ```js
-const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, knurlScaleV: 0.15, knurlInvertDisplacement: false, knurlRefineLength: 1.0, knurlMappingMode: 5 })
+const p = cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, knurlScaleV: 0.15, knurlInvertDisplacement: false, knurlRefineLength: 1.0, knurlMappingMode: 5 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1495,7 +1495,7 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 线性阵列：沿 direction 复制 count 份（含原位置）。
 
 ```js
-const p = await cad.linearPattern(part0, [1, 0, 0], 3, 20)
+const p = cad.linearPattern(part0, [1, 0, 0], 3, 20)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1525,7 +1525,7 @@ const top = cad.translate(cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: 3, y1: 3, x2: -3, y2: 3 },
 { kind: 'line', x1: -3, y1: 3, x2: -3, y2: -3 },
 ] }] }), [0, 0, 20])
-const body = await cad.loft([bottom, top])
+const body = cad.loft([bottom, top])
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1554,7 +1554,7 @@ const top = cad.translate(cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: 3, y1: 3, x2: -3, y2: 3 },
 { kind: 'line', x1: -3, y1: 3, x2: -3, y2: -3 },
 ] }] }), [0, 0, 20])
-const body = await cad.loftAdvanced([bottom, top], { endPoint: [0, 0, 30] })
+const body = cad.loftAdvanced([bottom, top], { endPoint: [0, 0, 30] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1571,7 +1571,7 @@ const body = await cad.loftAdvanced([bottom, top], { endPoint: [0, 0, 30] })
 镜像：返回镜像后的新 Shape（源保留）。
 
 ```js
-const p = await cad.mirror(part0, { normal: [1, 0, 0] })
+const p = cad.mirror(part0, { normal: [1, 0, 0] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1587,7 +1587,7 @@ const p = await cad.mirror(part0, { normal: [1, 0, 0] })
 镜像并融合：原物（replica[0]）+ 沿平面镜像（replica[1]）fuse 成一体。
 
 ```js
-const p = await cad.mirrorJoin(part0, { normal: [1, 0, 0] })
+const p = cad.mirrorJoin(part0, { normal: [1, 0, 0] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1604,7 +1604,7 @@ const p = await cad.mirrorJoin(part0, { normal: [1, 0, 0] })
 
 ```js
 const c = cad.wire([[0,0,0],[10,0,0],[10,10,0],[0,10,0]], { closed: true })
-const outer = await cad.offset2d(c, 2)
+const outer = cad.offset2d(c, 2)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1641,7 +1641,7 @@ pocket(shape: Shape, options: PocketOptions): Shape
 矩形阵列：按 options（xDir/xCount/xSpacing/yDir/yCount/ySpacing）复制并 fuse。
 
 ```js
-const p = await cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpacing: 20, yDir: [0,1,0], yCount: 2, ySpacing: 15 })
+const p = cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpacing: 20, yDir: [0,1,0], yCount: 2, ySpacing: 15 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1657,7 +1657,7 @@ const p = await cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpaci
 旋转成形：把平面轮廓绕轴旋转（兼容生成投影签名）。
 
 ```js
-const p1 = await cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
+const p1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1693,7 +1693,7 @@ roof(wire: Shape, options?: RoofOptions): Shape
 求实体与无限平面的精确截面线（1D 曲线，可继续建模/导出 STEP）。
 
 ```js
-const sec = await cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
+const sec = cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1712,11 +1712,11 @@ const sec = await cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
 ```js
 // openFaces 取 UI 拾取产物的 FaceTopoRef 字面量（origin/role 由命名层分配，不手写）；
 // ❌ 不要用 cad.faceRef 序号——跨内核不可移植
-const sh = await cad.shell(part0, { openFaces: pickedFaces, thickness: 2 })
+const sh = cad.shell(part0, { openFaces: pickedFaces, thickness: 2 })
 // AI 生成可写 CadQuery 面选择器字符串（"|Z" 法向平行 Z 的面、"top" 命名视图）
-const sh2 = await cad.shell(part0, { openFaces: "|Z", thickness: 2 })
+const sh2 = cad.shell(part0, { openFaces: "|Z", thickness: 2 })
 // 网格链（3MF mesh-solid）：无 role 层，序号是唯一无歧义指认（仅当前内核快照）
-const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
+const sm = cad.shell(meshPart, { openFaces: [4], thickness: 2 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1734,7 +1734,7 @@ const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
 面集一次成型为实体：把一组共享边界的面缝合成一个实体（occt 原生一次构造）。
 
 ```js
-const solid = await cad.solidFromFaces([f0, f1, f2, f3, f4, f5])
+const solid = cad.solidFromFaces([f0, f1, f2, f3, f4, f5])
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1751,7 +1751,7 @@ const solid = await cad.solidFromFaces([f0, f1, f2, f3, f4, f5])
 用工具几何切分目标几何（BRepAlgoAPI_Splitter），返回所有碎片组成的几何。
 
 ```js
-const pieces = await cad.split(part0, [part1])
+const pieces = cad.split(part0, [part1])
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1767,7 +1767,7 @@ const pieces = await cad.split(part0, [part1])
 沿无限平面把实体切成两半，返回法向正/负两半（具名产物）。
 
 ```js
-const { positive, negative } = await cad.splitByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
+const { positive, negative } = cad.splitByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1784,7 +1784,7 @@ const { positive, negative } = await cad.splitByPlane(part0, { point: [0,0,5], n
 布尔差集：第一个为主体，减去其余输入。
 
 ```js
-const b = await cad.subtract(part0, part1)
+const b = cad.subtract(part0, part1)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1805,7 +1805,7 @@ const section = cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
 { kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
 ] }] })
-const body = await cad.sweep(section, path)
+const body = cad.sweep(section, path)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1829,7 +1829,7 @@ const section = cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
 { kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
 ] }] })
-const body = await cad.sweepAdvanced(section, path, { orientation: 'frenet' })
+const body = cad.sweepAdvanced(section, path, { orientation: 'frenet' })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1853,7 +1853,7 @@ const face = cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: 10, y1: 10, x2: -10, y2: 10 },
 { kind: 'line', x1: -10, y1: 10, x2: -10, y2: -10 },
 ] }] })
-const solid = await cad.thicken(face, 2)
+const solid = cad.thicken(face, 2)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1892,7 +1892,7 @@ twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Sha
 布尔并集：合并所有输入几何（≥2 个输入）。
 
 ```js
-const a = await cad.union(part0, part1)
+const a = cad.union(part0, part1)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -1932,9 +1932,9 @@ autoHeal(shape: Shape, options?: AutoHealOptions): { shape: Shape, report }
 
 ```js
 // faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
-const base = await cad.defeature(part0, pickedFaces)
+const base = cad.defeature(part0, pickedFaces)
 // AI 生成可写 CadQuery 面选择器字符串
-const base2 = await cad.defeature(part0, "|Z")
+const base2 = cad.defeature(part0, "|Z")
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -2024,7 +2024,7 @@ healSolid(solid: Shape): Shape
 移除面（或实体某面）上的孔。
 
 ```js
-const plain = await cad.removeHolesFromFace(faceWithHoles)
+const plain = cad.removeHolesFromFace(faceWithHoles)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -2040,7 +2040,7 @@ const plain = await cad.removeHolesFromFace(faceWithHoles)
 反转壳体朝向（内表面 ↔ 外表面）。
 
 ```js
-const flipped = await cad.reverseShape(sh)
+const flipped = cad.reverseShape(sh)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -2055,7 +2055,7 @@ const flipped = await cad.reverseShape(sh)
 缝合：把一组面/壳沿公共边缝成一张壳。
 
 ```js
-const shellShape = await cad.sew([f1, f2, f3], { tolerance: 1e-5 })
+const shellShape = cad.sew([f1, f2, f3], { tolerance: 1e-5 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -2072,7 +2072,7 @@ const shellShape = await cad.sew([f1, f2, f3], { tolerance: 1e-5 })
 缝合并固化为实体：缝合后若闭合则生成 solid。
 
 ```js
-const solid = await cad.sewAndSolidify([f1, f2, f3, f4, f5, f6])
+const solid = cad.sewAndSolidify([f1, f2, f3, f4, f5, f6])
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -2109,7 +2109,7 @@ simplify(shape: Shape): Shape
 合并同域面/边（去除被分割成多片的冗余细分）。
 
 ```js
-const merged = await cad.unifySameDomain(part0)
+const merged = cad.unifySameDomain(part0)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -2214,7 +2214,7 @@ cad.group({ name: '底板组', members: [part0] })
 查询资产 key 内容为 UTF-8 字符串（SVG 等文本资产）。嵌套调用，供 text/svg 类 op 作资产引用。
 
 ```js
-const svg = await cad.asset('logo_cfg')
+const svg = cad.asset('logo_cfg')
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -3017,7 +3017,7 @@ const text = cad.exportStl(part0, { ascii: true, name: 'bracket' })
 将形状栅格化为多视图 PNG 字节（与 toMultiviewSVG 同绘制）。
 
 ```js
-const sheet = await cad.toMultiviewPNG(box)
+const sheet = cad.toMultiviewPNG(box)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -3051,7 +3051,7 @@ const sheet = cad.toMultiviewSVG(box)
 将形状栅格化为 PNG 字节（与 toSVG 同绘制，经 CompressionStream 压缩）。
 
 ```js
-const png = await cad.toPNG(box, 'iso')
+const png = cad.toPNG(box, 'iso')
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |

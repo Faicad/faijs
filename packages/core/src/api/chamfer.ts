@@ -398,10 +398,10 @@ function adoptParentPartName(input: Shape, target: Shape): void {
  * @param params.width2 - type=twoDistances: 沿 faces[1] 侧距离（mm）。type:number
  * @param params.angle - type=distanceAngle: 与参考面夹角（度，(0,90)）。type:number
  * @example
- * const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
+ * const p = cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
  * // AI 生成可写 CadQuery 边选择器字符串
- * const p2 = await cad.chamfer(part0, { edges: "|Z", type:'equal', width:1 })
- * const q = await cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
+ * const p2 = cad.chamfer(part0, { edges: "|Z", type:'equal', width:1 })
+ * const q = cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
  */
 export const chamfer = defineOp({
   // 中立 op（2026-09-26 B 批）：不再声明 engines——equal 路径按引擎事实静态分派

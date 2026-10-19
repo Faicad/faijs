@@ -140,7 +140,7 @@ function reflectAcrossPlane(p: BrepVec3, o: BrepVec3, n: Vec3): BrepVec3 {
  * @param fullAngle - 总角度（度，缺省 360）。type:number required:false
  * @param center - 旋转轴上一点（缺省原点）。type:[x,y,z] required:false
  * @example
- * const p = await cad.circularPattern(part0, [0, 0, 1], 6)
+ * const p = cad.circularPattern(part0, [0, 0, 1], 6)
  */
 export const circularPattern = defineOp({
   meshEngines: ['brepkit'],
@@ -205,7 +205,7 @@ export const circularPattern = defineOp({
  * @param spacingX - X 向间距。type:number required:true
  * @param spacingY - Y 向间距。type:number required:true
  * @example
- * const p = await cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
+ * const p = cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
  */
 export const gridPattern = defineOp({
   meshEngines: ['brepkit'],
@@ -312,7 +312,7 @@ interface RectangularPatternOptions {
  * @param input - 目标几何。type:Shape required:true
  * @param options - 阵列参数。type:RectangularPatternOptions required:true
  * @example
- * const p = await cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpacing: 20, yDir: [0,1,0], yCount: 2, ySpacing: 15 })
+ * const p = cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpacing: 20, yDir: [0,1,0], yCount: 2, ySpacing: 15 })
  */
 export const rectangularPattern = defineOp({
   meshEngines: ['brepkit'],
@@ -404,7 +404,7 @@ interface MirrorJoinOptions {
  * @param input - 目标几何。type:Shape required:true
  * @param options - { normal?, at? } 镜像面法向与面上一点。type:MirrorJoinOptions required:false
  * @example
- * const p = await cad.mirrorJoin(part0, { normal: [1, 0, 0] })
+ * const p = cad.mirrorJoin(part0, { normal: [1, 0, 0] })
  */
 export const mirrorJoin = defineOp({
   meshEngines: ['brepkit'],
@@ -472,7 +472,7 @@ export const mirrorJoin = defineOp({
  * @param input - 目标几何。type:Shape required:true
  * @param options - { normal?, at? } 镜像面。type:MirrorOptions required:false
  * @example
- * const p = await cad.mirror(part0, { normal: [1, 0, 0] })
+ * const p = cad.mirror(part0, { normal: [1, 0, 0] })
  */
 export const mirror = defineOp({
   meshEngines: ['brepkit'],
@@ -511,7 +511,7 @@ export const mirror = defineOp({
  * @returns Shape 克隆的新几何。
  * @param input - 目标几何。type:Shape required:true
  * @example
- * const p = await cad.clone(part0)
+ * const p = cad.clone(part0)
  */
 export const clone = defineOp({
   meshEngines: ['brepkit'],

@@ -260,16 +260,16 @@ keepSink(String(stmt.id), names, hidden)     // 归属到语句 id
 
 wrapper 现在无条件 `async`（`define-op.ts:180`），原因是「The compiled .fai.js product always awaits the call」——**这是 codegen 的约定，不是几何的需要**。
 
-路线 A 下用户手写代码，`await` 由用户自己写。若保持 wrapper `async`，用户必须每行都写 `await`：
+路线 A 下用户手写代码，`await` 可选（codegen 自动注入）。若保持 wrapper `async`，用户也可写 `await`：
 
 ```js
-part1 = await cad.box({size: 10})
-part2 = await cad.fillet(part1, {r: 2})
+part1 = cad.box({size: 10})
+part2 = cad.fillet(part1, {r: 2})
 ```
 
 若让 wrapper 在实现同步时返回同步值，可写成 `part1 = cad.box({size: 10})`。代价是 wrapper 内部要判断实现返回值是否 thenable，且**同一个 op 在不同路径下同步性可能不同**（mesh 同步、brep 异步）——这会让用户代码的 `await` 需求随执行模式变化，是真隐患。
 
-**建议保持全 async**：`await` 是显式的、可预测的，且 JS 里 `await` 一个非 Promise 值是合法的。这条列在这里只为说明"同步化是可选项，不是路线 A 的必要条件"。
+**建议保持全 async**：`await` 是显式的、可预测的，且 JS 里 `await` 一个非 Promise 值是合法的。这条列在这里只为说明“同步化是可选项，不是路线 A 的必要条件”。
 
 ### 5.4 参数 schema 校验消失
 

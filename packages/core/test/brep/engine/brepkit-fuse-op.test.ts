@@ -56,7 +56,7 @@ async function runMeasure(code: string): Promise<{ volume: number; bbox: [number
 const FUSE_CODE =
   'const a = cad.box(10, 10, 10, { centered: true })\n' +
   'const b = cad.box(10, 10, 10, { centered: true, at: [5, 5, 5] })\n' +
-  'const p = await cad.fuse(a, b)'
+  'const p = cad.fuse(a, b)'
 
 describe('脚本面 fuse op：brepkit 门禁放开（几何真值判据）', () => {
   beforeAll(() => { registerEditorExtensions() }, 30000)

@@ -54,7 +54,7 @@ try {
 const INTERSECT_CODE =
   'const a = cad.box(20, 20, 20, { centered: true })\n' +
   'const b = cad.box(20, 20, 20, { centered: true, at: [10, 0, 0] })\n' +
-  'const p = await cad.intersect(a, b)'
+  'const p = cad.intersect(a, b)'
 
 interface Measured {
   volume: number

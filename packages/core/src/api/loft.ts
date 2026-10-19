@@ -94,7 +94,7 @@ function loftBrep(sections: Shape[], opts?: LoftOptions): Shape {
  *   { kind: 'line', x1: 3, y1: 3, x2: -3, y2: 3 },
  *   { kind: 'line', x1: -3, y1: 3, x2: -3, y2: -3 },
  * ] }] }), [0, 0, 20])
- * const body = await cad.loft([bottom, top])
+ * const body = cad.loft([bottom, top])
  */
 export const loft = defineOp({
   name: 'loft',

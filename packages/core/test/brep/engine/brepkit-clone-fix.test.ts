@@ -110,7 +110,7 @@ describe('brepkit-clone-fix（clone 能力路由回归）', () => {
       // 20×10×5 box → clone；期望 clone 与源同尺寸同体积。
       const code = [
         'const b = cad.box(20, 10, 5, { centered: true })',
-        'const c = await cad.clone(b)',
+        'const c = cad.clone(b)',
       ].join('\n')
 
       for (const engine of ENGINES) {
@@ -145,7 +145,7 @@ describe('brepkit-clone-fix（clone 能力路由回归）', () => {
       // clone 产物无名，edgeRef 必须结构化报错 E_TOPO_NOT_FOUND，绝不静默选错面。
       const code = [
         'const b = cad.box(20, 20, 20, { centered: true })',
-        'const c = await cad.clone(b)',
+        'const c = cad.clone(b)',
         'const e = cad.edgeRef(c, 1)',
       ].join('\n')
 

@@ -91,7 +91,7 @@ const stepBuf = toArrayBuffer(
 describe('cad.load file 参数面 + 后缀自判（P8 §4.2/§4.3）— mesh 路径', () => {
   it('STL：file 后缀 .stl → mesh 路径成功，无需 format', async () => {
     const runtime = createEditorRuntime(portsFor({ 'cube-10x5x5.stl': stlBuf }), 'mesh')
-    const result = await runtime.execute('let a = await cad.load({ file: \'cube-10x5x5.stl\' })')
+    const result = await runtime.execute('let a = cad.load({ file: \'cube-10x5x5.stl\' })')
     expect(result.failedAt).toBeUndefined()
     const entry = result.outputs.get(asPartName('a'))
     expect(entry).toBeDefined()
@@ -100,14 +100,14 @@ describe('cad.load file 参数面 + 后缀自判（P8 §4.2/§4.3）— mesh 路
 
   it('3MF：file 后缀 .3mf → mesh 路径成功（无 format）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'cube334.3mf': threemfBuf }), 'mesh')
-    const result = await runtime.execute('let a = await cad.load({ file: \'cube334.3mf\' })')
+    const result = await runtime.execute('let a = cad.load({ file: \'cube334.3mf\' })')
     expect(result.failedAt).toBeUndefined()
     expect(result.outputs.get(asPartName('a'))).toBeDefined()
   })
 
   it('多对象 3MF → CompoundShape（children = 声明序）+ importModels（P0 契约）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'multi.3mf': threemfBytes(3, 10) }), 'mesh')
-    const result = await runtime.execute('let a = await cad.load({ file: \'multi.3mf\' })')
+    const result = await runtime.execute('let a = cad.load({ file: \'multi.3mf\' })')
     expect(result.failedAt).toBeUndefined()
     // 多零件不再折叠：multiPartCounts 不再登记
     expect(result.multiPartCounts).toBeUndefined()
@@ -129,7 +129,7 @@ describe('cad.load file 参数面 + 后缀自判（P8 §4.2/§4.3）— mesh 路
   it('STL：unit 参数保留（R17 固化进语句行）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'cube-10x5x5.stl': stlBuf }), 'mesh')
     const result = await runtime.execute(
-      'let a = await cad.load({ file: \'cube-10x5x5.stl\', unit: \'mm\' })',
+      'let a = cad.load({ file: \'cube-10x5x5.stl\', unit: \'mm\' })',
     )
     expect(result.failedAt).toBeUndefined()
     expect(result.outputs.get(asPartName('a'))).toBeDefined()
@@ -137,13 +137,13 @@ describe('cad.load file 参数面 + 后缀自判（P8 §4.2/§4.3）— mesh 路
 
   it('后缀白名单外 → 报错（不猜格式）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'box.xyz': stlBuf }), 'mesh')
-    const result = await runtime.execute('let a = await cad.load({ file: \'box.xyz\' })')
+    const result = await runtime.execute('let a = cad.load({ file: \'box.xyz\' })')
     expect(result.failedAt).toBeDefined()
   })
 
   it('魔数 sanity：后缀 .3mf 但字节非 3MF 头 → 报错（后缀定格式后校验文件头）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'fake.3mf': stlBuf }), 'mesh')
-    const result = await runtime.execute('let a = await cad.load({ file: \'fake.3mf\' })')
+    const result = await runtime.execute('let a = cad.load({ file: \'fake.3mf\' })')
     expect(result.failedAt).toBeDefined()
   })
 })
@@ -160,7 +160,7 @@ describe('cad.load file 参数面 — BREP 路径', () => {
       readFileSync(new URL('../../../fixtures/data/box_boss.step', import.meta.url)),
     )
     const runtime = createEditorRuntime(portsFor({ 'box_boss.step': singleStepBuf }), 'brep')
-    const result = await runtime.execute('let a = await cad.load({ file: \'box_boss.step\' })')
+    const result = await runtime.execute('let a = cad.load({ file: \'box_boss.step\' })')
     expect(result.failedAt).toBeUndefined()
     const solidEntry = result.brepSolids?.get(asPartName('a'))
     expect(solidEntry, 'BREP load lands in brepSolids').toBeDefined()
@@ -169,7 +169,7 @@ describe('cad.load file 参数面 — BREP 路径', () => {
   it('多 solid STEP → CompoundShape（children = 声明序）+ importModels（P0 契约）', async () => {
     await registerOcctBrepEngine()
     const runtime = createEditorRuntime(portsFor({ 'test-model.step': stepBuf }), 'brep')
-    const result = await runtime.execute('let a = await cad.load({ file: \'test-model.step\' })')
+    const result = await runtime.execute('let a = cad.load({ file: \'test-model.step\' })')
     expect(result.failedAt).toBeUndefined()
     // 多零件不再折叠：multiPartCounts 不再登记
     expect(result.multiPartCounts).toBeUndefined()

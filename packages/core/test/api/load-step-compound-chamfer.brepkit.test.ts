@@ -68,7 +68,7 @@ describe('brepkit: 多实体 STEP compound 成员上 chamfer（小程序端内�
   it('brepkit: load(test-model.step) compound → chamfer(part0,{partIndex:0}) 成功', async () => {
     const runtime = createEditorRuntime(stepPorts('test-model.step'), 'brep')
     // 先 load：从合并命名里找一条两邻面都属 member0 的边行。
-    const base = await runtime.execute(`let part0 = await cad.load({ file: 'test-model.step' })`)
+    const base = await runtime.execute(`let part0 = cad.load({ file: 'test-model.step' })`)
     expect(base.failedAt).toBeUndefined()
     const naming = assertUsableEdgeNaming(base, 'part0')
     const row = naming.edgeNaming.find(
@@ -83,7 +83,7 @@ describe('brepkit: 多实体 STEP compound 成员上 chamfer（小程序端内�
 
     // 复现用户脚本：多零件 load 产物是 compound，按 partIndex 选 member0 倒角。
     const c1 = await runtime.execute(
-      `let part0 = await cad.load({ file: 'test-model.step' })\n` +
+      `let part0 = cad.load({ file: 'test-model.step' })\n` +
         `let part1 = cad.chamfer(part0, { edges: [${JSON.stringify(edgeRef)}], partIndex: 0, type: 'equal', width: 1 })\n`,
     )
     expect(c1.failedAt).toBeUndefined()
@@ -96,7 +96,7 @@ describe('brepkit: 多实体 STEP compound 成员上 chamfer（小程序端内�
 
   it('brepkit: 多实体 compound 成员上 fillet 同样按 partIndex 解包成功', async () => {
     const runtime = createEditorRuntime(stepPorts('test-model.step'), 'brep')
-    const base = await runtime.execute(`let part0 = await cad.load({ file: 'test-model.step' })`)
+    const base = await runtime.execute(`let part0 = cad.load({ file: 'test-model.step' })`)
     expect(base.failedAt).toBeUndefined()
     const naming = assertUsableEdgeNaming(base, 'part0')
     const row = naming.edgeNaming.find(
@@ -109,7 +109,7 @@ describe('brepkit: 多实体 STEP compound 成员上 chamfer（小程序端内�
     const edgeRef = { kind: 'edge', faces: row!.faces, hint: row!.hint }
 
     const c1 = await runtime.execute(
-      `let part0 = await cad.load({ file: 'test-model.step' })\n` +
+      `let part0 = cad.load({ file: 'test-model.step' })\n` +
         `let part1 = cad.fillet(part0, { edges: [${JSON.stringify(edgeRef)}], partIndex: 0, radius: 1 })\n`,
     )
     expect(c1.failedAt).toBeUndefined()

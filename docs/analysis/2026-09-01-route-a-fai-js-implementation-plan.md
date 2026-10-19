@@ -125,19 +125,19 @@ import * as mech from 'mech-lib'          // 普通 ESM import，第三方库
 
 const n = 4                                // const / 模板字符串 / class 全部可用
 
-let base = await cad.box({ size: 20 })
+let base = cad.box({ size: 20 })
 
 for (let i = 0; i < n; i++) {              // 循环：现状 parser 直接拒绝
-  const hole = await cad.cylinder({ radius: 3, height: 20, center: [i * 10 - 15, 0, 0] })
-  base = await cad.subtract(base, hole)
+  const hole = cad.cylinder({ radius: 3, height: 20, center: [i * 10 - 15, 0, 0] })
+  base = cad.subtract(base, hole)
 }
 
 if (n > 3) {                               // 条件：现状 parser 直接拒绝
-  const rim = await cad.cylinder({ radius: 9, height: 4, center: [0, 0, 0] })
-  base = await cad.union(base, rim)
+  const rim = cad.cylinder({ radius: 9, height: 4, center: [0, 0, 0] })
+  base = cad.union(base, rim)
 }
 
-let gear = await mech.makeGear({ teeth: 12 })   // 第三方库，binding 名随意
+let gear = mech.makeGear({ teeth: 12 })   // 第三方库，binding 名随意
 ```
 
 对照现状 fixture（`packages/tests/faijs/boolean/boolean-ops.fai.js`）：

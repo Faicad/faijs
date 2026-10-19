@@ -81,7 +81,7 @@ function meshPorts(n: number): HostPorts {
 describe('cad.load multi-part contract (P0) — mesh 3MF', () => {
   it('single-object 3MF → single part, no multiPartCounts', async () => {
     const runtime = createEditorRuntime(meshPorts(1), 'mesh')
-    const result = await runtime.execute('let a = await cad.load({ file: \'k.3mf\' })')
+    const result = await runtime.execute('let a = cad.load({ file: \'k.3mf\' })')
     expect(result.failedAt).toBeUndefined()
     expect(result.multiPartCounts).toBeUndefined()
     const entry = result.outputs.get(asPartName('a'))
@@ -93,7 +93,7 @@ describe('cad.load multi-part contract (P0) — mesh 3MF', () => {
 
   it('multi-object 3MF → compound of all parts + importModels, no downgrade', async () => {
     const runtime = createEditorRuntime(meshPorts(3), 'mesh')
-    const result = await runtime.execute('let a = await cad.load({ file: \'k.3mf\' })')
+    const result = await runtime.execute('let a = cad.load({ file: \'k.3mf\' })')
     expect(result.failedAt).toBeUndefined()
     // multiPartCounts 退役：不再登记降级
     expect(result.multiPartCounts).toBeUndefined()
@@ -132,7 +132,7 @@ describe('cad.load multi-solid STEP multi-part contract (P0) — BREP', () => {
     }
     const runtime = createEditorRuntime(ports, 'brep')
     const result = await runtime.execute(
-      `let a = await cad.load({ file: 'test-model.step' })\nlet r = a`,
+      `let a = cad.load({ file: 'test-model.step' })\nlet r = a`,
     )
     expect(result.failedAt).toBeUndefined()
     expect(result.multiPartCounts).toBeUndefined()
@@ -180,11 +180,11 @@ describe('cad.load multi-solid STEP multi-part contract (P0) — BREP', () => {
     const runtime = createEditorRuntime({ events: { emit: () => undefined }, assets } as unknown as HostPorts, 'brep')
     // 复刻宿主 recordLoadFromRef 的多文件同载场景：单零件 + 多零件先后 load，
     // 各自终端都必须有 BREP 拓扑（dropdown 回归中 cube5 零件因缺拓扑而无 overlay）。
-    let result = await runtime.execute(`let part0 = await cad.load({ file: 'box_boss.step' })`)
+    let result = await runtime.execute(`let part0 = cad.load({ file: 'box_boss.step' })`)
     expect(result.failedAt).toBeUndefined()
     expect(result.topology?.get(asPartName('part0'))).toBeDefined()
     result = await runtime.execute(
-      `let part0 = await cad.load({ file: 'box_boss.step' })\nlet part1 = await cad.load({ file: 'test-model.step' })`,
+      `let part0 = cad.load({ file: 'box_boss.step' })\nlet part1 = cad.load({ file: 'test-model.step' })`,
     )
     expect(result.failedAt).toBeUndefined()
     const topo1 = result.topology?.get(asPartName('part1'))
@@ -232,7 +232,7 @@ describe('cad.load multi-solid STEP — brepkit（无 XCAF 引擎的原生装配
     } as unknown as HostPorts
     const runtime = createEditorRuntime(ports, 'brep')
     const result = await runtime.execute(
-      `let a = await cad.load({ file: 'test-model.step' })\nlet r = a`,
+      `let a = cad.load({ file: 'test-model.step' })\nlet r = a`,
     )
     expect(result.failedAt).toBeUndefined()
     // compound：children = 全部 solid 零件（内核枚举序）
@@ -272,7 +272,7 @@ describe('cad.load multi-solid STEP — brepkit（无 XCAF 引擎的原生装配
     } as unknown as HostPorts
     const runtime = createEditorRuntime(ports, 'brep')
     const result = await runtime.execute(
-      `let a = await cad.load({ file: 'box_boss.step' })\nlet r = a`,
+      `let a = cad.load({ file: 'box_boss.step' })\nlet r = a`,
     )
     expect(result.failedAt).toBeUndefined()
     const entry = result.outputs.get(asPartName('a'))

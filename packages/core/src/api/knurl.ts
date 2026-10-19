@@ -42,7 +42,7 @@ export function assertKnurlParams(params: Record<string, unknown>): void {
  * @param params.faceCenter - 面锚点中心。type:[x,y,z] 默认 bboxCenter
  * @param params.faceNormal - 面法向。type:[x,y,z] 默认 [0,0,1]
  * @example
- * const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, knurlScaleV: 0.15, knurlInvertDisplacement: false, knurlRefineLength: 1.0, knurlMappingMode: 5 })
+ * const p = cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, knurlScaleV: 0.15, knurlInvertDisplacement: false, knurlRefineLength: 1.0, knurlMappingMode: 5 })
   */
 export const knurl = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {

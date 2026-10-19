@@ -180,7 +180,7 @@ describe('网格实体的 mesh op（Phase 2 验收：B1 批）', () => {
   it('立方体 STL 的一条识别边 fillet(r=1) → 合法网格实体，体积落在解析预期区间', async () => {
     // 第一趟：只为读出识别边的几何 hint（load 是确定性的，第二趟拿到同一条边）。
     const probe = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
-    const loaded = await probe.execute("let a = await cad.load({ file: 'cube10.stl' })")
+    const loaded = await probe.execute("let a = cad.load({ file: 'cube10.stl' })")
     expect(loaded.failedAt).toBeUndefined()
     const edges = edgeRowsOf(loaded, 'a')
     expect(edges.length).toBe(12)
@@ -188,8 +188,8 @@ describe('网格实体的 mesh op（Phase 2 验收：B1 批）', () => {
 
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let b = await cad.fillet(a, { edges: [${ref}], radius: 1 })`,
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let b = cad.fillet(a, { edges: [${ref}], radius: 1 })`,
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
 
@@ -220,13 +220,13 @@ describe('网格实体的 mesh op（Phase 2 验收：B1 批）', () => {
 
   it('网格实体路径如实不产出面演化 / roleTable（近似拓扑没有 hash 演化）', async () => {
     const probe = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
-    const loaded = await probe.execute("let a = await cad.load({ file: 'cube10.stl' })")
+    const loaded = await probe.execute("let a = cad.load({ file: 'cube10.stl' })")
     const ref = edgeRefLiteral(edgeRowsOf(loaded, 'a')[0]!)
 
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let b = await cad.fillet(a, { edges: [${ref}], radius: 1 })`,
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let b = cad.fillet(a, { edges: [${ref}], radius: 1 })`,
     )
     expect(result.failedAt).toBeUndefined()
     const shape = result.outputs.get(asPartName('b')) as Shape
@@ -236,7 +236,7 @@ describe('网格实体的 mesh op（Phase 2 验收：B1 批）', () => {
 
   it('圆柱 STL 的 96 条识别边逐条可倒角（同一输入零件，每次一条）', async () => {
     const probe = createEditorRuntime(portsFor({ 'cyl.stl': CYL_STL }), 'mesh')
-    const loaded = await probe.execute("let a = await cad.load({ file: 'cyl.stl' })")
+    const loaded = await probe.execute("let a = cad.load({ file: 'cyl.stl' })")
     expect(loaded.failedAt).toBeUndefined()
     const edges = edgeRowsOf(loaded, 'a')
     // 32 边形棱柱的解析边数：32 竖向棱 + 上下端盖各 32 条
@@ -245,9 +245,9 @@ describe('网格实体的 mesh op（Phase 2 验收：B1 批）', () => {
     // 一次程序里 96 条语句，每条都从**同一个未变的** a 出发（op 不改写输入）。
     // 这也正是实测口径：逐条边倒圆角 96/96 成功，而 96 条**一次性**交给内核会被
     // 整体拒绝（共面边链自交）——所以验收按"逐条"来，不假装一次性可行。
-    const lines = ["let a = await cad.load({ file: 'cyl.stl' })"]
+    const lines = ["let a = cad.load({ file: 'cyl.stl' })"]
     edges.forEach((e, i) => {
-      lines.push(`let f${i} = await cad.fillet(a, { edges: [${edgeRefLiteral(e)}], radius: 1 })`)
+      lines.push(`let f${i} = cad.fillet(a, { edges: [${edgeRefLiteral(e)}], radius: 1 })`)
     })
     const runtime = createEditorRuntime(portsFor({ 'cyl.stl': CYL_STL }), 'mesh')
     const result = await runtime.execute(lines.join('\n'))
@@ -269,9 +269,9 @@ describe('网格实体的 mesh op（Phase 2 验收：B1 批）', () => {
   it('网格实体与链外几何混进同一次布尔 → 静态报错 E_MESH_SOLID_MIXED', async () => {
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
       'let b = cad.box(5, 5, 5)\n' +
-      'let c = await cad.union(a, b)',
+      'let c = cad.union(a, b)',
     )
     expect(result.failedAt, '混链必须静态失败').toBeDefined()
     expect(result.failedAt!.message).toContain('E_MESH_SOLID_MIXED')
@@ -280,9 +280,9 @@ describe('网格实体的 mesh op（Phase 2 验收：B1 批）', () => {
   it('两个网格实体的 union → 合法网格实体（brepkit 网格内核真在跑）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      "let b = await cad.load({ file: 'cube10.stl' })\n" +
-      'let c = await cad.union(a, b)',
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      "let b = cad.load({ file: 'cube10.stl' })\n" +
+      'let c = cad.union(a, b)',
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
     const shape = result.outputs.get(asPartName('c')) as Shape

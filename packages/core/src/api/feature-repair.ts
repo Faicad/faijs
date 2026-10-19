@@ -94,9 +94,9 @@ const kernelNaming = { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Pro
  * @param faces - 要移除的面：面选择器字符串（如 "|Z"，AI 生成）或 FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号）。type:FaceTopoRef[]|string required:true
  * @example
  * // faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
- * const base = await cad.defeature(part0, pickedFaces)
+ * const base = cad.defeature(part0, pickedFaces)
  * // AI 生成可写 CadQuery 面选择器字符串
- * const base2 = await cad.defeature(part0, "|Z")
+ * const base2 = cad.defeature(part0, "|Z")
  */
 export const defeature = defineOp({
   brep(input: Shape, faces: FaceTopoRef[] | string) {
@@ -127,7 +127,7 @@ export const defeature = defineOp({
  * @returns Shape 朝向反转后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @example
- * const flipped = await cad.reverseShape(sh)
+ * const flipped = cad.reverseShape(sh)
  */
 export const reverseShape = defineOp({
   // 实证收窄（2026-09-24）：brepkit op 级失败 → 静态门提前拒绝。
@@ -153,7 +153,7 @@ export const reverseShape = defineOp({
  * @returns Shape 合并后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @example
- * const merged = await cad.unifySameDomain(part0)
+ * const merged = cad.unifySameDomain(part0)
  */
 export const unifySameDomain = defineOp({
   brep(input: Shape) {
@@ -184,7 +184,7 @@ export interface SewParams {
  * @param shapes - 面/壳集合。type:Shape[] required:true
  * @param params.tolerance - 缝合容差（mm）。type:number required:false
  * @example
- * const shellShape = await cad.sew([f1, f2, f3], { tolerance: 1e-5 })
+ * const shellShape = cad.sew([f1, f2, f3], { tolerance: 1e-5 })
  */
 export const sew = defineOp({
   brep(shapes: Shape[], params?: SewParams) {
@@ -209,7 +209,7 @@ export const sew = defineOp({
  * @param shapes - 面/壳集合。type:Shape[] required:true
  * @param params.tolerance - 缝合容差（mm）。type:number required:false
  * @example
- * const solid = await cad.sewAndSolidify([f1, f2, f3, f4, f5, f6])
+ * const solid = cad.sewAndSolidify([f1, f2, f3, f4, f5, f6])
  */
 export const sewAndSolidify = defineOp({
   brep(shapes: Shape[], params?: SewParams) {
@@ -234,7 +234,7 @@ export const sewAndSolidify = defineOp({
  * @returns Shape 去孔后的面。
  * @param face - 含孔的面几何。type:Shape required:true
  * @example
- * const plain = await cad.removeHolesFromFace(faceWithHoles)
+ * const plain = cad.removeHolesFromFace(faceWithHoles)
  */
 export const removeHolesFromFace = defineOp({
   brep(face: Shape) {

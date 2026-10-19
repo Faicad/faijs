@@ -48,7 +48,7 @@ describe('brepkit: 多实体 STEP 每条边都有邻接面 lineage', () => {
       },
     } as unknown as HostPorts
     const runtime = createEditorRuntime(ports, 'brep')
-    const r = await runtime.execute(`let part0 = await cad.load({ file: 'Cube334.step' })`)
+    const r = await runtime.execute(`let part0 = cad.load({ file: 'Cube334.step' })`)
     expect(r.failedAt).toBeUndefined()
     const naming = r.naming?.get('part0' as never)
     expect(naming).toBeDefined()
@@ -70,7 +70,7 @@ describe('brepkit: 多实体 STEP 每条边都有邻接面 lineage', () => {
       },
     } as unknown as HostPorts
     const runtime = createEditorRuntime(ports, 'brep')
-    const base = await runtime.execute(`let part0 = await cad.load({ file: 'Cube334.step' })`)
+    const base = await runtime.execute(`let part0 = cad.load({ file: 'Cube334.step' })`)
     expect(base.failedAt).toBeUndefined()
     const naming = base.naming?.get('part0' as never)
     // 任意一条边都能构造 EdgeTopoRef（修复前成员2 的边 faces=null → captureTopoRef 抛错）。
@@ -78,7 +78,7 @@ describe('brepkit: 多实体 STEP 每条边都有邻接面 lineage', () => {
     expect(row.faces).not.toBeNull()
     const edgeRef = { kind: 'edge', faces: row.faces, hint: row.hint }
     const c = await runtime.execute(
-      `let part0 = await cad.load({ file: 'Cube334.step' })\n` +
+      `let part0 = cad.load({ file: 'Cube334.step' })\n` +
         `let part1 = cad.chamfer(part0, { edges: [${JSON.stringify(edgeRef)}], partIndex: 0, type: 'equal', width: 1 })\n`,
     )
     expect(c.failedAt).toBeUndefined()

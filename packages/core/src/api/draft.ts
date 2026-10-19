@@ -126,9 +126,9 @@ function draftBrep(input: Shape, params: DraftParams): Shape {
  * @param params.neutral - 中性面**点**（{point}；normal 无消费者）。type:{point:Vec3,normal?:Vec3} required:false
  * @example
  * // faces 取 UI 拾取产物的 FaceTopoRef 字面量；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
- * const d = await cad.draft(part0, { faces: pickedFaces, angleDeg: 3 })
+ * const d = cad.draft(part0, { faces: pickedFaces, angleDeg: 3 })
  * // AI 生成可写 CadQuery 面选择器字符串（"|Z" 法向平行 Z 的面）
- * const d2 = await cad.draft(part0, { faces: "|Z", angleDeg: 3 })
+ * const d2 = cad.draft(part0, { faces: "|Z", angleDeg: 3 })
  */
 export const draft = defineOp({
   // 实证收窄（2026-09-24）：brepkit 的 L1 draft 产出错误几何（破坏对称性 / 静默无操作），

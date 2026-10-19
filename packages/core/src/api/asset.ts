@@ -17,7 +17,7 @@ import { getBackends } from '../runtime-state'
  * @returns Promise<string> 资产内容字符串（UTF-8 解码）。`cad.asset('cfg')` 返回 SVG 等文本资产，可作 svgExtrude/engrave 的 svg 参数。
  * @param key - 资产 key。type:string required:true
  * @example
- * const svg = await cad.asset('logo_cfg')
+ * const svg = cad.asset('logo_cfg')
  */
 export async function asset(key: string): Promise<string> {
   const assets = getBackends().assets as { resolveByKey(key: string): Promise<{ bytes: ArrayBuffer }> } | undefined

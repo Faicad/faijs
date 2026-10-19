@@ -71,7 +71,7 @@ function solidFromFacesBrep(faces: Shape[], params?: SolidFromFacesParams): Shap
  * @param faces - 面集合（共享边界、构成闭合壳）。type:Shape[] required:true
  * @param params.tolerance - 缝合容差（mm，默认 occt 1e-6）。type:number required:false
  * @example
- * const solid = await cad.solidFromFaces([f0, f1, f2, f3, f4, f5])
+ * const solid = cad.solidFromFaces([f0, f1, f2, f3, f4, f5])
  */
 export const solidFromFaces = defineOp({
   name: 'solidFromFaces',

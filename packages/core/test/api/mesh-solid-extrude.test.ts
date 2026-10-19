@@ -148,7 +148,7 @@ const PORTS = () => portsFor({ 'cube10.stl': BOX_STL })
 
 /** 读一遍加载结果，按法向挑出 +Z 的那张面（顶面）并造出它的 FaceTopoRef 字面量。 */
 async function topFaceRefOf(runtime: CadRuntime): Promise<string> {
-  const loaded = await runtime.execute("let a = await cad.load({ file: 'cube10.stl' })")
+  const loaded = await runtime.execute("let a = cad.load({ file: 'cube10.stl' })")
   expect(loaded.failedAt?.message ?? 'no failure').toBe('no failure')
   const faces = faceRowsOf(loaded, 'a')
   expect(faces.length).toBe(6)
@@ -172,9 +172,9 @@ describe('网格链上的草图 + 拉伸（Phase 3 验收：B2 批）', () => {
 
     const runtime = createEditorRuntime(PORTS(), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })\n` +
-      'let p = await cad.extrude(s, 5)',
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let s = cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })\n` +
+      'let p = cad.extrude(s, 5)',
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
 
@@ -201,10 +201,10 @@ describe('网格链上的草图 + 拉伸（Phase 3 验收：B2 批）', () => {
 
     const runtime = createEditorRuntime(PORTS(), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })\n` +
-      'let p = await cad.extrude(s, 5)\n' +
-      'let u = await cad.union(a, p)',
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let s = cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })\n` +
+      'let p = cad.extrude(s, 5)\n' +
+      'let u = cad.union(a, p)',
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
     expect(hasMeshSolid(result.outputs.get(asPartName('u')) as Shape)).toBe(true)
@@ -217,10 +217,10 @@ describe('网格链上的草图 + 拉伸（Phase 3 验收：B2 批）', () => {
 
     const runtime = createEditorRuntime(PORTS(), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })\n` +
-      "let p = await cad.extrude(s, { length: 5, mode: 'backward' })\n" +
-      'let c = await cad.cut(a, p)',
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let s = cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })\n` +
+      "let p = cad.extrude(s, { length: 5, mode: 'backward' })\n" +
+      'let c = cad.cut(a, p)',
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
     expect(hasMeshSolid(result.outputs.get(asPartName('c')) as Shape)).toBe(true)
@@ -233,8 +233,8 @@ describe('网格链上的草图 + 拉伸（Phase 3 验收：B2 批）', () => {
     const ref = await topFaceRefOf(runtime)
     // 序号越界：立方体只有 6 张面
     const out = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: 99 })`,
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let s = cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: 99 })`,
     )
     expect(out.failedAt, '越界序号必须失败').toBeDefined()
     // OpError 把错误码放在 `failedAt.code`（消息体只带 op 名与事实）
@@ -242,8 +242,8 @@ describe('网格链上的草图 + 拉伸（Phase 3 验收：B2 批）', () => {
     expect(out.failedAt!.message).toContain('out of range')
     // 正面用例仍可用（门禁不是把所有调用都拒了）
     const ok = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })`,
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let s = cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })`,
     )
     expect(ok.failedAt?.message ?? 'no failure').toBe('no failure')
   })
@@ -254,9 +254,9 @@ describe('网格链上的草图 + 拉伸（Phase 3 验收：B2 批）', () => {
 
     const runtime = createEditorRuntime(PORTS(), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })\n` +
-      "let p = await cad.extrude(s, { upTo: 'last', baseFeature: a })",
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let s = cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref} })\n` +
+      "let p = cad.extrude(s, { upTo: 'last', baseFeature: a })",
     )
     expect(result.failedAt, 'upTo 在网格链上必须静态失败').toBeDefined()
     expect(result.failedAt!.message).toContain('E_MESH_SOLID_UNSUPPORTED')
@@ -268,8 +268,8 @@ describe('网格链上的草图 + 拉伸（Phase 3 验收：B2 批）', () => {
 
     const runtime = createEditorRuntime(PORTS(), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let s = await cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref}, scaleMode: 'bounds' })`,
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let s = cad.sketchOnFace({ contours: [{ segments: ${JSON.stringify(RECT)} }], on: a, face: ${ref}, scaleMode: 'bounds' })`,
     )
     expect(result.failedAt, 'scaleMode 分歧必须报错而不是静默按 original 处理').toBeDefined()
     expect(result.failedAt!.message).toContain('E_MESH_SOLID_UNSUPPORTED')

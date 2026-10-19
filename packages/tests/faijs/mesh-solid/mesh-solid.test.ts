@@ -66,7 +66,7 @@ const BOSS_VOLUME = (2 - -2) * (3 - -3) * 5            // 4 × 6 × 5 = 120
 const FILLET_EDGE_ORDINAL = 9   // 在 `a`（刚 load 完）的拓扑上读
 const SKETCH_FACE_ORDINAL = 4   // 在 `b`（倒圆角之后）的拓扑上读
 
-const LOAD_STMT = "let a = await cad.load({ file: 'cube-10x5x5.stl' })"
+const LOAD_STMT = "let a = cad.load({ file: 'cube-10x5x5.stl' })"
 const FILLET_STMT = `let b = cad.fillet(a, { edges: [${FILLET_EDGE_ORDINAL}], radius: 1 })`
 
 interface FaceRow {

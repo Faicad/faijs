@@ -50,8 +50,8 @@ const PROFILE = `cad.profile({ contours: [
  */
 async function zRangeOf(tail: string, outName: string): Promise<[number, number]> {
   const code = `
-let part0 = await ${PROFILE}
-let part1 = await cad.extrude(part0, { length: 5 * MM })
+let part0 = ${PROFILE}
+let part1 = cad.extrude(part0, { length: 5 * MM })
 ${tail}
 `
   const rt = createEditorRuntime(createNodePorts(), 'brep')
@@ -78,7 +78,7 @@ describe('applyMatrix 路径分派（example023 回归）', () => {
 
   it('7 位小数打印的 60° Z 旋转：Z 范围仍为 [0, 5]（不得翻倍成 10）', async () => {
     const [min, max] = await zRangeOf(
-      `let part2 = await cad.applyMatrix(part1, [
+      `let part2 = cad.applyMatrix(part1, [
   [0.5, -0.8660254, 0, 0],
   [0.8660254, 0.5, 0, 0],
   [0, 0, 1, 0],
@@ -92,7 +92,7 @@ describe('applyMatrix 路径分派（example023 回归）', () => {
 
   it('非相似矩阵（Z×2.5）：走 GTrsf 路径，Z 范围 [0, 12.5]', async () => {
     const [min, max] = await zRangeOf(
-      `let part2 = await cad.applyMatrix(part1, [
+      `let part2 = cad.applyMatrix(part1, [
   [1, 0, 0, 0],
   [0, 1, 0, 0],
   [0, 0, 2.5, 0],
@@ -106,7 +106,7 @@ describe('applyMatrix 路径分派（example023 回归）', () => {
 
   it('平移矩阵：Z 范围随平移整体移动', async () => {
     const [min, max] = await zRangeOf(
-      `let part2 = await cad.applyMatrix(part1, [
+      `let part2 = cad.applyMatrix(part1, [
   [1, 0, 0, 0],
   [0, 1, 0, 0],
   [0, 0, 1, 3],
@@ -121,13 +121,13 @@ describe('applyMatrix 路径分派（example023 回归）', () => {
 
 describe('scale3d 路径分派（同一缺陷的第二处入口）', () => {
   it('非等比缩放 Z×2.5：Z 范围 [0, 12.5]（不得变成 17.5）', async () => {
-    const [min, max] = await zRangeOf('let part2 = await cad.scale3d(part1, [1, 1, 2.5])', 'part2')
+    const [min, max] = await zRangeOf('let part2 = cad.scale3d(part1, [1, 1, 2.5])', 'part2')
     expect(min).toBeCloseTo(0, 4)
     expect(max).toBeCloseTo(12.5, 4)
   })
 
   it('等比缩放 ×2：Z 范围 [0, 10]', async () => {
-    const [min, max] = await zRangeOf('let part2 = await cad.scale3d(part1, [2, 2, 2])', 'part2')
+    const [min, max] = await zRangeOf('let part2 = cad.scale3d(part1, [2, 2, 2])', 'part2')
     expect(min).toBeCloseTo(0, 4)
     expect(max).toBeCloseTo(10, 4)
   })

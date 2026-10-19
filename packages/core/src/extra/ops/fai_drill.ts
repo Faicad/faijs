@@ -240,9 +240,9 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.screwThread - 螺丝螺纹类型。type:'coarse' | 'fine' | 'custom' 默认 'coarse'
  * @param params.screwHead - 螺丝头型。type:'hex' | 'chc' | 'none' 默认 'none'
  * @example
- * const p = await cad.fai_drill(part0, { diameter: 5 })
- * const p = await cad.fai_drill(part0, { diameter: 5, depth: 3 })
- * const p = await cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
+ * const p = cad.fai_drill(part0, { diameter: 5 })
+ * const p = cad.fai_drill(part0, { diameter: 5, depth: 3 })
+ * const p = cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
   */
 export const fai_drill = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {

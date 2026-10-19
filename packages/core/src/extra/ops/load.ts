@@ -69,9 +69,9 @@ import type { MeshSolidBackend } from '../../brep/mesh-solid'
  * @note 本 op 要求导入物含实体（历史契约）。非实体（wire/face/shell）的导入是平台 `cad.import_brep` 的一等能力，不由本 op 承担。
  * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——`file` 读的是应用侧资产库（按用户上传文件名注册），产物语句位置与命名都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。2026-10-06 起多零件文件不再单零件收敛——全量以 compound + `ExecutionResult.importModels` 返回；宿主按 `importModel.parts` 身份批量建 part。
  * @example
- * const p = await cad.load({ file: 'box.stl' })
- * const p = await cad.load({ file: 'box.3mf' })
- * const p = await cad.load({ file: 'model.step' })
+ * const p = cad.load({ file: 'box.stl' })
+ * const p = cad.load({ file: 'box.3mf' })
+ * const p = cad.load({ file: 'model.step' })
  */
 export async function load(params: Record<string, unknown>): Promise<Shape | CompoundShape> {
   const assets = getBackends().assets as {

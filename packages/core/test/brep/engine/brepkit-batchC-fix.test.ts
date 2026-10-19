@@ -132,7 +132,7 @@ describe('brepkit-batchC-fix（section/drill/pocket/boss/mirrorJoin 降级 + spl
       // 这里通过 cad.sectionByPlane 验证 brepkit 的 L1 sectionByPlane+makeCompound 链路几何有效。
       const code = [
         'const b = cad.box(20, 10, 5, { centered: true })',
-        'const s = await cad.sectionByPlane(b, { point: [0, 0, 0], normal: [0, 0, 1] })',
+        'const s = cad.sectionByPlane(b, { point: [0, 0, 0], normal: [0, 0, 1] })',
       ].join('\n')
       for (const engine of ENGINES) {
         await engine.setup()
@@ -154,7 +154,7 @@ describe('brepkit-batchC-fix（section/drill/pocket/boss/mirrorJoin 降级 + spl
     async () => {
       const code = [
         'const b = cad.box(30, 30, 30, { centered: true })',
-        'const d = await cad.drill(b, { at: [0, 0], radius: 3 })',
+        'const d = cad.drill(b, { at: [0, 0], radius: 3 })',
       ].join('\n')
       for (const engine of ENGINES) {
         await engine.setup()
@@ -178,7 +178,7 @@ describe('brepkit-batchC-fix（section/drill/pocket/boss/mirrorJoin 降级 + spl
     async () => {
       const code = [
         'const b = cad.box(10, 20, 20)',
-        'const m = await cad.mirrorJoin(b, { normal: [1, 0, 0] })',
+        'const m = cad.mirrorJoin(b, { normal: [1, 0, 0] })',
       ].join('\n')
       for (const engine of ENGINES) {
         await engine.setup()
@@ -202,7 +202,7 @@ describe('brepkit-batchC-fix（section/drill/pocket/boss/mirrorJoin 降级 + spl
       const code = [
         'const b = cad.box(20, 20, 10, { centered: true })',
         'const w = cad.wire([[-2,-2,0],[2,-2,0],[2,2,0],[-2,2,0]], { closed: true })',
-        'const p = await cad.pocket(b, { profile: w, depth: 3 })',
+        'const p = cad.pocket(b, { profile: w, depth: 3 })',
       ].join('\n')
       for (const engine of ENGINES) {
         await engine.setup()
@@ -224,7 +224,7 @@ describe('brepkit-batchC-fix（section/drill/pocket/boss/mirrorJoin 降级 + spl
       const code = [
         'const b = cad.box(20, 20, 10, { centered: true })',
         'const w = cad.wire([[-2,-2,0],[2,-2,0],[2,2,0],[-2,2,0]], { closed: true })',
-        'const bos = await cad.boss(b, { profile: w, height: 3 })',
+        'const bos = cad.boss(b, { profile: w, height: 3 })',
       ].join('\n')
       for (const engine of ENGINES) {
         await engine.setup()
@@ -246,7 +246,7 @@ describe('brepkit-batchC-fix（section/drill/pocket/boss/mirrorJoin 降级 + spl
       const code = [
         'const b = cad.box(20, 20, 20, { centered: true })',
         'const t = cad.box(10, 10, 10, { centered: true })',
-        'const s = await cad.split(b, [t])',
+        'const s = cad.split(b, [t])',
       ].join('\n')
       for (const engine of ENGINES) {
         await engine.setup()

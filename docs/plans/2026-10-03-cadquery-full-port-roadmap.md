@@ -132,7 +132,7 @@ skipped  55 / 8        ← 判别有区分度：skipped 绝大多数无 ref
 
 > **B1-3a 对分布的影响**：关掉 `op:Solid.makeCone`(1) / `op:CQ`(1) / `op:polyline`(1，**陈旧标签** —— `Workplane.polyline` 早已存在，缺的只是镜像) ⇒ distinct 63→58、blocked 总数 190→185、ported 460→465（新增 `testCone__s` / `testCone__t` / `testIbeam__res` / `testBoundingBox__result` / `testFindSolid__s` 五条镜像）。`op:Workplane.plugin` 已于 2026-10-04 重分类为 **skipped**（out-of-scope，归 §2.3，类 VTK/GLTF）—— 非未来缺口（其底层 `eachpoint` lambda 仍由 G-C25 跟踪）。
 >
-> **B1-3a 实测订正（镜像约定，补 B0-6）**：B0-6 记「双终端是 compound 专属」——**不完整**。实测 `let s = <lib 函数产出的裸 Shape>` + `let t = await cq.CQ(s)` 也会导出 **两个终端**（`_0_s.step` + `_1_result.step`），即「被 lib 函数调用消费」不足以把裸 Shape 记为已消费（Workplane 值本来就不是终端，所以链式 Workplane 中间量没问题）。**写法纪律：裸 Shape 一律内联进消费它的调用，不单独 `let`。**（已写进 `TestCadQuery__testCone__t.fai.js` 的 GOTCHA 注释。）
+> **B1-3a 实测订正（镜像约定，补 B0-6）**：B0-6 记「双终端是 compound 专属」——**不完整**。实测 `let s = <lib 函数产出的裸 Shape>` + `let t = cq.CQ(s)` 也会导出 **两个终端**（`_0_s.step` + `_1_result.step`），即「被 lib 函数调用消费」不足以把裸 Shape 记为已消费（Workplane 值本来就不是终端，所以链式 Workplane 中间量没问题）。**写法纪律：裸 Shape 一律内联进消费它的调用，不单独 `let`。**（已写进 `TestCadQuery__testCone__t.fai.js` 的 GOTCHA 注释。）
 >
 > **B1-3a 第二条镜像约定**：`.fai.js` **不接受嵌套 `await` 作实参**（`E_VALUE: unsupported value expression: AwaitExpression`，`lang/metadata-extractor.ts:810`）。链必须摊平成逐句 `let`（Workplane 中间量是安全的），不能写 `cq.mirrorY(await cq.polyline(...))`。（已写进 `TestCadQuery__testIbeam__res.fai.js` 的 GOTCHA 注释。）
 
@@ -627,7 +627,7 @@ cd /c/Users/ylt/cadquery-env/Lib/site-packages/cadquery && grep -rn "def prism\|
 
 ⇒ `cf`/`cs` 的几何只是「对已有几何做选择 / 排序」，**不需要 lambda 就能忠实复现**，与 N1 的内联 fixture 完全同类 ⇒ 从 **C 组（语法长线）改判进 A 组（写镜像即解锁）**。旧判定「`Shape.filter` 只有 callable 签名 ⇒ 无 lambda 就写不出镜像」错在把「**表达式不可直译**」当成了「**几何不可复现**」——而 ref harness 只导出变量几何（§10 方法论），镜像只需复现几何。
 
-**原「待拍板（未擅自写 `cf`/`cs`）」已在 N3 拍板并落地**：用户选择**带后缀命名**（`filterByPredicate` / `sortByKey`）——这同时解掉了「`filter`/`sort` 是上游**三接收者重名**」这个歧义问题（见 §10.4.3）。两条镜像**都用真 op 调用**（不是手搓几何）：`__cf` 走 `await cq.filterByPredicate(c, isSmall)`、`__cs` 走 `await cq.sortByKey(c, byVolumeDesc)`，`compare-one` 两条**逐位 PASS**。
+**原「待拍板（未擅自写 `cf`/`cs`）」已在 N3 拍板并落地**：用户选择**带后缀命名**（`filterByPredicate` / `sortByKey`）——这同时解掉了「`filter`/`sort` 是上游**三接收者重名**」这个歧义问题（见 §10.4.3）。两条镜像**都用真 op 调用**（不是手搓几何）：`__cf` 走 `cq.filterByPredicate(c, isSmall)`、`__cs` 走 `cq.sortByKey(c, byVolumeDesc)`，`compare-one` 两条**逐位 PASS**。
 
 > **`cs` 的诚实边界**：comparator 对顺序零敏感（`compare.ts:117-129` 的 5 个量全与顺序无关）⇒ `cs` 的 PASS **不能证明 sort 排对了**。顺序真值（子形状体积 `[27, 8, 1]`，一次性 CadQuery 2.8.0 捕获）**钉在 `src/shape-filter.test.ts`**，不靠 parity。
 

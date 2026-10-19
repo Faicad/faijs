@@ -44,6 +44,8 @@ export type ExecutionFallbackReason =
   | 'relative-imports'
   /** 后缀重放失败 → 清 ctx 全量重试；本字段描述**被降级的那一轮** */
   | 'replay-failed'
+  /** 旧代码的后缀改写过前缀变量，且找不到可回退的 producer 行（只能全量） */
+  | 'prefix-polluted'
   /** 逐行无差异（仅 `path === 'noop'`） */
   | 'zero-change'
 

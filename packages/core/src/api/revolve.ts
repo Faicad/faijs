@@ -124,7 +124,7 @@ function revolveConstructRoles(
  * @param options - 旋转轴/点/角度（透传 compat 语义）。type:RevolveOptions
  * @returns Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
  * @example
- * const p1 = await cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
+ * const p1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
  */
 export const revolve = defineOp({
   brep: async (face: Shape, options?: { axis?: unknown }) => {

@@ -133,7 +133,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
     }, 60000)
 
     it('extrude：profile face → solid，volume>0', async () => {
-      const code = `const f = cad.profile(${SQUARE})\nconst p = await cad.extrude(f, { length: 15 })`
+      const code = `const f = cad.profile(${SQUARE})\nconst p = cad.extrude(f, { length: 15 })`
       const shape = await runShape(code, 'p')
       const engine = (await getActiveBrepEngine()).primitives
       const handle = brepOf(shape)
@@ -153,7 +153,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
         `  {kind:'line',x1:15,y1:10,x2:5,y2:10},\n` +
         `  {kind:'line',x1:5,y1:10,x2:5,y2:0}\n` +
         `]}] })\n` +
-        `const p = await cad.revolve(f, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })`
+        `const p = cad.revolve(f, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })`
       const shape = await runShape(code, 'p')
       const engine = (await getActiveBrepEngine()).primitives
       const handle = brepOf(shape)
@@ -165,7 +165,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
     it('sectionByPlane：box → 截面 compound 不崩，mesh 非空', async () => {
       const code =
         'const b = cad.box(20, 20, 20, { centered: true })\n' +
-        'const p = await cad.sectionByPlane(b, { point: [0, 0, 0], normal: [0, 0, 1] })'
+        'const p = cad.sectionByPlane(b, { point: [0, 0, 0], normal: [0, 0, 1] })'
       const shape = await runShape(code, 'p')
       await expectMeshNonEmpty(shape)
     }, 60000)
@@ -174,7 +174,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
       const code =
         `const f1 = cad.profile(${SQUARE})\n` +
         'const f2 = cad.place(f1, { position: [10, 0, 0] })\n' +
-        'const p = await cad.sewAndSolidify([f1, f2])'
+        'const p = cad.sewAndSolidify([f1, f2])'
       const shape = await runShape(code, 'p')
       // 两张共面相邻面缝合——brepkit makeSolid 要求闭合体积；若几何上不闭合会抛错。
       // 这里只断言不崩（volume 可能为 0 或抛错取决于内核），关键是 meshShape 不崩。
@@ -182,7 +182,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
     }, 60000)
 
     it('removeHolesFromFace：带方孔面 → 去孔面不崩，mesh 非空', async () => {
-      const code = `const f = cad.profile(${SQUARE_WITH_HOLE})\nconst p = await cad.removeHolesFromFace(f)`
+      const code = `const f = cad.profile(${SQUARE_WITH_HOLE})\nconst p = cad.removeHolesFromFace(f)`
       const shape = await runShape(code, 'p')
       await expectMeshNonEmpty(shape)
     }, 60000)
@@ -195,7 +195,7 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
     }, 120000)
 
     it('profile/extrude/revolve 在 occt 上仍正常', async () => {
-      const extr = await runShape(`const f = cad.profile(${SQUARE})\nconst p = await cad.extrude(f, { length: 15 })`, 'p')
+      const extr = await runShape(`const f = cad.profile(${SQUARE})\nconst p = cad.extrude(f, { length: 15 })`, 'p')
       const engine = (await getActiveBrepEngine()).primitives
       expect(engine.getVolume(brepOf(extr) as never)).toBeGreaterThan(1000)
       const wire = await runShape('const p = cad.wire([[0,0,0],[10,0,0],[10,10,0],[0,10,0]], { closed: true })')

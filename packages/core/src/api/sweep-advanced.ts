@@ -147,7 +147,7 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
  *   { kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
  *   { kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
  * ] }] })
- * const body = await cad.sweepAdvanced(section, path, { orientation: 'frenet' })
+ * const body = cad.sweepAdvanced(section, path, { orientation: 'frenet' })
  */
 export const sweepAdvanced = defineOp({
   name: 'sweepAdvanced',

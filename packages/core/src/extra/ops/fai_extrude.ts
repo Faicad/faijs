@@ -59,9 +59,9 @@ function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
  * @param params.planeDistance - 切面在法向上的偏移。type:number 默认 0
  * @param params.space - 坐标空间声明。type:'local' | 'world'
  * @example
- * const p = await cad.fai_extrude(part0, { length: 10 })
- * const p = await cad.fai_extrude(part0, { length: 10, mode: 'forward' })
- * const p = await cad.fai_extrude(part0, { length: 10, normal: [0,0,1], planeDistance: 2 })
+ * const p = cad.fai_extrude(part0, { length: 10 })
+ * const p = cad.fai_extrude(part0, { length: 10, mode: 'forward' })
+ * const p = cad.fai_extrude(part0, { length: 10, normal: [0,0,1], planeDistance: 2 })
   */
 export const fai_extrude = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {

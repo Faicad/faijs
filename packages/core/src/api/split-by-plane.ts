@@ -63,7 +63,7 @@ function splitByPlaneBrep(input: Shape, params: SplitByPlaneParams): Record<stri
  * @param params.point - 平面上一点 [x,y,z]（mm）。type:Vec3 required:true
  * @param params.normal - 平面法向 [x,y,z]。type:Vec3 required:true
  * @example
- * const { positive, negative } = await cad.splitByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
+ * const { positive, negative } = cad.splitByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
  */
 export const splitByPlane = defineOp({
   outputs: ['positive', 'negative'],

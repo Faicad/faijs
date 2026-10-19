@@ -94,7 +94,7 @@ function textParamsOf(inputOrParams: unknown, maybeParams?: Record<string, unkno
  * @param inputOrParams.font - 字体。type:string 默认 默认字体
  * @note font 语义未定（当前只有默认字体），⚠️ 暂不要传。兼容 `cad.text(part0, {...})` 带输入形态（输入被忽略），正常写 `cad.text({...})` 即可。
  * @example
- * const t = await cad.text({ text: 'Hello', size: 20, depth: 5 })
+ * const t = cad.text({ text: 'Hello', size: 20, depth: 5 })
   */
 export const text = defineOp({
   mesh: async (inputOrParams: unknown, maybeParams?: Record<string, unknown>) => {

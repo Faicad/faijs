@@ -126,7 +126,7 @@ export async function filterByPredicate(
 
 对应测试（`src/shape-filter.test.ts`）：①「箭头体失败 / `function` 声明成功」**双向**断言；②「async predicate 仍得 vol 1」防回归。
 
-- 镜像写法：`function isSmall(x) { return cq.volumeOf(x) <= 1 }` + `await cq.filterByPredicate(c, isSmall)`。
+- 镜像写法：`function isSmall(x) { return cq.volumeOf(x) <= 1 }` + `cq.filterByPredicate(c, isSmall)`。
 - λ 体内只调用**同步**测量（`volumeOf`/`areaOf`），**不 `await`**。
 
 ## 4. 实现步骤（终态回填）
@@ -145,12 +145,12 @@ export async function filterByPredicate(
 
 ```js
 import * as cq from '@faicad/faijs-cadquery'
-let b1 = await cq.box(cq.Workplane(), 1, 1, 1, { centered: [true, true, false] })
-let b2 = await cq.box(cq.Workplane(), 2, 2, 2, { centered: [true, true, false] })
-let b3 = await cq.box(cq.Workplane(), 3, 3, 3, { centered: [true, true, false] })
+let b1 = cq.box(cq.Workplane(), 1, 1, 1, { centered: [true, true, false] })
+let b2 = cq.box(cq.Workplane(), 2, 2, 2, { centered: [true, true, false] })
+let b3 = cq.box(cq.Workplane(), 3, 3, 3, { centered: [true, true, false] })
 let c = cq.compound(cq.val(b1), cq.val(b2), cq.val(b3))
 function isSmall(x) { return cq.volumeOf(x) <= 1 }
-let result = await cq.filterByPredicate(c, isSmall)
+let result = cq.filterByPredicate(c, isSmall)
 ```
 
 7. ✅ `run-cand` 导出 + `compare-one` PASS；`gen-manifest.ts` 刷新。

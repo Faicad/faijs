@@ -72,7 +72,7 @@ function sweepBrep(profile: Shape, spine: Shape): Shape {
  *   { kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
  *   { kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
  * ] }] })
- * const body = await cad.sweep(section, path)
+ * const body = cad.sweep(section, path)
  */
 export const sweep = defineOp({
   name: 'sweep',

@@ -307,6 +307,19 @@ export class DirectExecutor {
   private meshTopologyOut = new Map<PartName, unknown>()
   /** 导入模型结构（load op 登记，PartName → ImportModel，方案 2026-10-06 §5.5），collectDirectResult 消费。 */
   private importModelsOut = new Map<PartName, ImportModel>()
+  /**
+   * 当前 code **产出的 ctx 键**（= 全部单元的 writes 并集，纯由代码文本决定）。
+   *
+   * 为什么需要它（2026-10-19 切工程双缺陷）：`replayFrom` 只重放 `[startLine, ∞)`
+   * 的单元，**没有任何一步会删掉"旧代码写过、新代码不再写"的 ctx 键**。于是切换
+   * 工程后旧工程的变量还活在持久 ctx 里 —— `collectDirectResult` 扫 `listCtxKeys()`
+   * 会把它们当成 outputs/terminals 带出去（旧工程的模型留在场景树上），而且
+   * 这些"没有 producer 行"的变量在 live-shapes 判定里还会干扰终端的消费关系。
+   *
+   * 判据是代码文本而不是"上一轮执行过什么"：全量执行 = 全文 writes，重放 = 前缀
+   * writes ∪ 重放 writes，两者相同 —— 增量与全量因此天然对齐（对拍口径）。
+   */
+  private writtenKeys = new Set<string>()
   /** 执行后端（静态选定；缺省 vm） */
   private readonly execBackend: ExecBackend
 
@@ -466,7 +479,33 @@ export class DirectExecutor {
     this.changedSet.clear()
     this.fnParams.clear()
     this.inplaceWrites.clear()
+    this.writtenKeys.clear()
   }
+
+  /**
+   * 本代码产出的 ctx 键（全部单元 writes 的并集）。
+   * @returns 只读集合；增量路径据此删除"新代码不再产出"的旧键。
+   */
+  get currentWrittenKeys(): ReadonlySet<string> {
+    return this.writtenKeys
+  }
+
+  /**
+   * 删除 ctx 变量（增量路径的 stale 键收敛用）。
+   *
+   * 只删"执行器自己写进去的"键；params / import seed 不在 writtenKeys 里，调用方
+   * 只会传 stale 键，因此不会误删宿主预置量。函数形参表一并清 —— 同一个变量名当
+   * 函数用过又消失时，残留的形参表会让下一次同名调用按旧 ABI 解包实参。
+   * @param keys - 待删除的变量名。
+   */
+  deleteCtxVars(keys: readonly string[]): void {
+    for (const key of keys) {
+      delete this.ctx[key]
+      this.fnParams.delete(key)
+      this.writtenKeys.delete(key)
+    }
+  }
+
 
   /**
    * 全量执行（R3 update 语义同：清 ctx 重跑）。
@@ -701,6 +740,17 @@ export class DirectExecutor {
           this.activeLine = undefined
         }
       }
+      // ctx 产出登记（writtenKeys = 本 code 的 writes 并集）：必须在返回结果前刷新，
+      // 下一次 update 用它算 stale 键。按 `executedLines` 过滤而不是照抄全部单元：
+      //   ① 重放路径里前缀单元"本轮"没执行，但它在上一轮执行过、ctx 里确实有产出，
+      //      executedLines 里仍有它的行号 → 不会被漏算；
+      //   ② 语句级失败时只算跑到的那几条，不会把没执行的单元的写键谎报成"ctx 里有"，
+      //      否则下一次 update 会少删真正的 stale 键。
+      this.writtenKeys.clear()
+      for (const unit of units) {
+        if (!this.executedLines.has(unit.lineNo)) continue
+        for (const w of unit.writes) this.writtenKeys.add(w)
+      }
       return {
         ctxKeys: Object.keys(this.ctx),
         failedAt,
@@ -923,6 +973,18 @@ export class DirectExecutor {
       })
     }
     const { nodes, lineOffset, parseText } = this.parseBody(code)
+    // ── 变换期状态是"代码文本的纯函数"：解析前必须重建，不能累加 ──────────────
+    // `inplaceWrites`（裸调用原地写回，行号键）与 `fnParams`（本机函数形参表）都在
+    // transformTopNode/transformFunction 里 set，从不被 reset —— 唯一的清理点是
+    // `reset()`（只跑在全量执行）。于是增量重放会留下**旧代码同一行号**的登记：
+    //   · 旧代码第 2 行是 `cad.translate(part0, …)`（原地写回 part0），新代码第 2 行
+    //     是 `let part1 = …`；残留的 inplaceWrites[2]=part0 会让 live-shapes 把
+    //     part0 的 producer 认成第 2 行，与全量执行的结果不一致（对拍实测：几何错位）。
+    //   · 旧代码的函数在新代码里消失后，同名调用若再出现会按旧形参表解包实参。
+    // 两者都只由 code 决定，所以"先清后建"既正确又幂等（unitRanges /
+    // unitRangesWithWrites / replayFrom 会反复解析同一份文本）。
+    this.inplaceWrites.clear()
+    this.fnParams.clear()
     const declared = new Set<string>() // 累积：参数名 + outputs + 函数名
     // 约束 1：函数体外层引用注入的候选全集（逐语句变换前一次预扫）。
     // 不能用逐语句累积的 declared——函数定义在顶层声明之前（前向引用）时该名

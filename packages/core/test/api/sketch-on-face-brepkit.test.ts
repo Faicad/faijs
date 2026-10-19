@@ -113,7 +113,7 @@ function squareContour(): string {
 
 /** Load the box on a brepkit mesh runtime and return the +Z face ref literal. */
 async function topFaceRefOf(runtime: ReturnType<typeof createEditorRuntime>): Promise<string> {
-  const loaded = await runtime.execute("let a = await cad.load({ file: 'cube10.stl' })")
+  const loaded = await runtime.execute("let a = cad.load({ file: 'cube10.stl' })")
   expect(loaded.failedAt?.message ?? 'no failure').toBe('no failure')
   const topo = loaded.topology?.get(asPartName('a'))
   expect(topo).toBeDefined()
@@ -165,8 +165,8 @@ describe('brepkit × cad.sketchOnFace engine verdict', () => {
     const runtime = createEditorRuntime(PORTS(), 'mesh')
     const ref = await topFaceRefOf(runtime)
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
-      `let s = await cad.sketchOnFace({ contours: ${squareContour()}, on: a, face: ${ref} })\n`,
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let s = cad.sketchOnFace({ contours: ${squareContour()}, on: a, face: ${ref} })\n`,
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
     expect(result.outputs.has(asPartName('s'))).toBe(true)

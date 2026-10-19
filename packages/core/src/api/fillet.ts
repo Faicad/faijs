@@ -290,10 +290,10 @@ function adoptParentPartName(input: Shape, target: Shape): void {
  * @param params.edges - 参与圆角的边：CadQuery 边选择器字符串（如 "|Z"，AI 生成）或相邻两面的 role 线路（EdgeTopoRef[]，UI 拾取产物）；网格链上也可用 1 起序号。type:EdgeTopoRef[]|string required:true
  * @param params.radius - 圆角半径（mm，>0）。type:number required:true
  * @example
- * const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], radius:2 })
+ * const p = cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], radius:2 })
  * // AI 生成可写 CadQuery 边选择器字符串（"|Z" 切线平行 Z 的边）
- * const p2 = await cad.fillet(part0, { edges: "|Z", radius: 2 })
- * const q = await cad.fillet(meshPart, { edges: [3], radius: 1 })
+ * const p2 = cad.fillet(part0, { edges: "|Z", radius: 2 })
+ * const q = cad.fillet(meshPart, { edges: [3], radius: 1 })
  */
 export const fillet = defineOp({
   meshEngines: ['brepkit'],

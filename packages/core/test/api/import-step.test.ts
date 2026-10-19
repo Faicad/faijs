@@ -169,7 +169,7 @@ describe('import_step: real STEP file e2e (occt)', () => {
     }
     const runtime = createEditorRuntime(ports, 'brep')
     const result = await runtime.execute(
-      `let a = await cad.import_step({ path: 'fixtures/box_boss.step' })\nlet r = a`,
+      `let a = cad.import_step({ path: 'fixtures/box_boss.step' })\nlet r = a`,
     )
     expect(result.failedAt).toBeUndefined()
     expect(result.brepSolids).toBeDefined()
@@ -209,7 +209,7 @@ describe('import_step: brepkit engine (no gate)', () => {
     await registerBrepkitBrepEngine()
     const runtime = createEditorRuntime(brepkitPorts(), 'brep')
     const result = await runtime.execute(
-      `let a = await cad.import_step({ path: 'fixtures/box_boss.step' })\nlet r = a`,
+      `let a = cad.import_step({ path: 'fixtures/box_boss.step' })\nlet r = a`,
     )
     expect(result.failedAt).toBeUndefined()
     const entry = result.brepSolids!.get(asPartName('a'))
@@ -243,7 +243,7 @@ describe('import_step: brepkit engine (no gate)', () => {
       'brep',
     )
     const result = await runtimeB.execute(
-      `let b = await cad.import_step({ path: 'roundtrip.step' })\nlet r = b`,
+      `let b = cad.import_step({ path: 'roundtrip.step' })\nlet r = b`,
     )
     expect(result.failedAt).toBeUndefined()
     const entry = result.brepSolids!.get(asPartName('b'))

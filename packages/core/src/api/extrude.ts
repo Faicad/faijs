@@ -580,13 +580,13 @@ function extrudeMeshChain(input: Shape, params: unknown): Shape {
  * @param params.baseFeature - upTo 'last'/'first'/面选择器的支持体几何（累积支持体）。type:Shape
  * @param params.offset - 截断面沿其法向的偏移（mm）。type:number 默认 0
  * @example
- * const p = await cad.extrude(part0, [0, 0, 10])
- * const p = await cad.extrude(part0, { length: 10 })
+ * const p = cad.extrude(part0, [0, 0, 10])
+ * const p = cad.extrude(part0, { length: 10 })
  * // upTo 接受 FaceTopoRef（UI 拾取产物字面量）；❌ 禁止 cad.faceRef 序号（跨内核不可移植）
- * const p = await cad.extrude(sk, { upTo: pickedUpToFace })
- * const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
+ * const p = cad.extrude(sk, { upTo: pickedUpToFace })
+ * const p = cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
  * // AI 生成可写 CadQuery 面选择器字符串（在 baseFeature 上解析）
- * const p = await cad.extrude(sk, { upTo: '>Z', baseFeature: part0 })
+ * const p = cad.extrude(sk, { upTo: '>Z', baseFeature: part0 })
  */
 export const extrude = defineOp({
   name: 'extrude',

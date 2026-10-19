@@ -58,17 +58,17 @@ async function runMeasure(code: string, outputVar?: string): Promise<{ volume: n
 const UNION_CODE =
   'const a = cad.box(20, 20, 20, { centered: true })\n' +
   'const b = cad.box(20, 20, 20, { centered: true, at: [10, 0, 0] })\n' +
-  'const p = await cad.union(a, b)'
+  'const p = cad.union(a, b)'
 
 const CUT_CODE =
   'const a = cad.box(20, 20, 20, { centered: true })\n' +
   'const b = cad.cylinder(5, 30, { centered: true })\n' +
-  'const p = await cad.cut(a, b)'
+  'const p = cad.cut(a, b)'
 
 const SUBTRACT_CODE =
   'const a = cad.box(20, 20, 20, { centered: true })\n' +
   'const b = cad.cylinder(5, 30, { centered: true })\n' +
-  'const p = await cad.subtract(a, b)'
+  'const p = cad.subtract(a, b)'
 
 describe('brepkit boolean fix（union/cut/subtract 不崩 + occt 不回退）', () => {
   beforeAll(() => { registerEditorExtensions() }, 30000)
@@ -117,7 +117,7 @@ describe('brepkit boolean fix（union/cut/subtract 不崩 + occt 不回退）', 
       const code =
         'const a = cad.box(20, 20, 20, { centered: true })\n' +
         'const b = cad.box(20, 20, 20, { centered: true, at: [10, 0, 0] })\n' +
-        'const p = await cad.union(a, b)'
+        'const p = cad.union(a, b)'
       const result = await rt.execute(code)
       expect(result.failedAt).toBeUndefined()
       // 直接再走一次适配器级 fuseWithHistory，断言 modified 分段解码正常

@@ -124,7 +124,7 @@ describe('cad.load（STL）→ 网格实体 + 近似拓扑（Phase 1 验收）',
   it('装了网格后端：立方体 STL 得到 6 个平面面（area=100）+ 12 条边（length=10）', async () => {
     expect(getMeshSolidBackend(), 'mesh backend assembled').not.toBeNull()
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
-    const result = await runtime.execute("let a = await cad.load({ file: 'cube10.stl' })")
+    const result = await runtime.execute("let a = cad.load({ file: 'cube10.stl' })")
     expect(result.failedAt).toBeUndefined()
 
     // ── 拓扑来源与规模 ──
@@ -173,7 +173,7 @@ describe('cad.load（STL）→ 网格实体 + 近似拓扑（Phase 1 验收）',
 
   it('显示 mesh 与拓扑 mesh 同源：faceRuns 覆盖全部三角形（规则 1）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
-    const result = await runtime.execute("let a = await cad.load({ file: 'cube10.stl' })")
+    const result = await runtime.execute("let a = cad.load({ file: 'cube10.stl' })")
     const shape = result.outputs.get(asPartName('a')) as Shape
     const topo = result.topology!.get(asPartName('a'))!
     const faces = topo.data.faces as unknown as Array<{ triangleStart?: number; triangleCount?: number }>
@@ -199,7 +199,7 @@ describe('cad.load（STL）→ 网格实体 + 近似拓扑（Phase 1 验收）',
   it('未装配网格后端：退回裸网格、无拓扑（历史行为，非静默降级）', async () => {
     __resetEngineRegistriesForTests() // 清掉网格后端
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
-    const result = await runtime.execute("let a = await cad.load({ file: 'cube10.stl' })")
+    const result = await runtime.execute("let a = cad.load({ file: 'cube10.stl' })")
     expect(result.failedAt).toBeUndefined()
     const shape = result.outputs.get(asPartName('a')) as Shape
     expect(shape.indices.length).toBe(36)
@@ -217,7 +217,7 @@ describe('cad.load（STL）→ 网格实体 + 近似拓扑（Phase 1 验收）',
       [0, 0, 0, 10, 10, 0, 0, 10, 0],
     ])
     const runtime = createEditorRuntime(portsFor({ 'open.stl': open }), 'mesh')
-    const result = await runtime.execute("let a = await cad.load({ file: 'open.stl' })")
+    const result = await runtime.execute("let a = cad.load({ file: 'open.stl' })")
     expect(result.failedAt, '开放网格必须在导入处失败').toBeDefined()
     expect(result.failedAt!.message).toContain('E_MESH_SOLID_UNWELDABLE')
   })
@@ -225,7 +225,7 @@ describe('cad.load（STL）→ 网格实体 + 近似拓扑（Phase 1 验收）',
   it('退化网格（单个三角形，缝不上）→ 同样明确报错（内核前置条件失败）', async () => {
     const single = binaryStl([[0, 0, 0, 10, 0, 0, 0, 10, 0]])
     const runtime = createEditorRuntime(portsFor({ 'single.stl': single }), 'mesh')
-    const result = await runtime.execute("let a = await cad.load({ file: 'single.stl' })")
+    const result = await runtime.execute("let a = cad.load({ file: 'single.stl' })")
     expect(result.failedAt).toBeDefined()
     expect(result.failedAt!.message).toContain('E_MESH_SOLID_UNWELDABLE')
   })
@@ -233,7 +233,7 @@ describe('cad.load（STL）→ 网格实体 + 近似拓扑（Phase 1 验收）',
   it('PartName 被 BREP 输出顶替时，不把网格实体身份写上去（互斥不变量）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
     const result = await runtime.execute(
-      "let a = await cad.load({ file: 'cube10.stl' })\n" +
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
       "a = cad.box(1, 1, 1)",
     )
     expect(result.failedAt).toBeUndefined()

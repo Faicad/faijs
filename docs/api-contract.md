@@ -171,8 +171,8 @@ import * as mech from 'my-cad-lib'
 const size = 20
 function makeGear(count, pitch) {            // body may contain loops/branches
   let parts = []
-  for (let i = 0; i < count; i++) parts.push(await cad.box({ size: pitch }))
-  return await cad.union(parts[0], parts[1])
+  for (let i = 0; i < count; i++) parts.push(cad.box({ size: pitch }))
+  return cad.union(parts[0], parts[1])
 }
 let part0 = cad.box({ size })
 let part3 = cad.drill(part0, { diameter: 5 })

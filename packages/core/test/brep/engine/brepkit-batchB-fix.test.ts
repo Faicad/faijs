@@ -62,11 +62,11 @@ try {
 // 横截面积 1·1/2 = 0.5，棱长长 10 → 切去 ≈ 5 体积 ⇒ volume ≈ 995；整体 bbox 不变 ≈10。
 const CHAMFER_CODE =
   'const box = cad.box(10, 10, 10)\n' +
-  'const c = await cad.chamfer(box, { edges: [cad.edgeRef(box, 1)], type: \'equal\', width: 1 })\n'
+  'const c = cad.chamfer(box, { edges: [cad.edgeRef(box, 1)], type: \'equal\', width: 1 })\n'
 
 // 四面体 4 顶点（沿坐标轴），凸包 = 四面体，体积 = 10³/6 ≈ 166.67，bbox = 10×10×10。
 const HULL_CODE =
-  'const h = await cad.convexHull([[0,0,0],[10,0,0],[0,10,0],[0,0,10]])\n'
+  'const h = cad.convexHull([[0,0,0],[10,0,0],[0,10,0],[0,0,10]])\n'
 
 interface Measured {
   volume: number

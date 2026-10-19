@@ -112,7 +112,7 @@ function loftAdvancedBrep(sections: Shape[], opts?: LoftAdvancedOptions): Shape 
  *   { kind: 'line', x1: 3, y1: 3, x2: -3, y2: 3 },
  *   { kind: 'line', x1: -3, y1: 3, x2: -3, y2: -3 },
  * ] }] }), [0, 0, 20])
- * const body = await cad.loftAdvanced([bottom, top], { endPoint: [0, 0, 30] })
+ * const body = cad.loftAdvanced([bottom, top], { endPoint: [0, 0, 30] })
  */
 export const loftAdvanced = defineOp({
   name: 'loftAdvanced',

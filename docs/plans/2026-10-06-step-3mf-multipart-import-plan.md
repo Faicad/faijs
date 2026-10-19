@@ -30,7 +30,7 @@
 `../3d_editor` 当前导入一个文件同时走两条通道，**各自解析同一份文件**：
 
 - **显示通道（导入即所见）**：`useFileUpload` → `loadFormat()`（`packages/app/src/engine/formatLoaders.ts:223`）→ `LoaderResult.meshes` → `ModelGroup` 直接渲染。STEP 分支直调 faijs **lib 层** `loadBrep` 自建 mesh 并自行 `release` solid（`formatLoaders.ts:341-374`）；3MF 分支直调 `parseThreemf` 自建 group（`formatLoaders.ts:267-269`）。**这条路径不进入 faijs 脚本执行**，产出的是"宿主几何"——与脚本通道的"faijs 几何"是两套数据，正是「拓扑数据所使用的 mesh 必须是用户看到的 mesh」红线（3d_editor AGENTS.md 规则 1）的风险点。
-- **脚本通道（几何真源）**：`ModelGroup` 挂载后 `ScriptEngine.recordLoadFromRef()`（`ScriptEngine.ts:527`）向画布插入一行 `const part0 = await cad.load({ file: '…' })`（`features/load.ts:45`）→ worker 执行 faijs `load` op → 产物经 `executeScript`（`executeScript.ts:259`）→ `SceneMutator.createPart`（`scene-mutator.ts:175`）入 store / VersionStore。
+- **脚本通道（几何真源）**：`ModelGroup` 挂载后 `ScriptEngine.recordLoadFromRef()`（`ScriptEngine.ts:527`）向画布插入一行 `const part0 = cad.load({ file: '…' })`（`features/load.ts:45`）→ worker 执行 faijs `load` op → 产物经 `executeScript`（`executeScript.ts:259`）→ `SceneMutator.createPart`（`scene-mutator.ts:175`）入 store / VersionStore。
 
 ### 2.2 五处收敛——根因清单（**与 fuseAll 无关**）
 
@@ -147,7 +147,7 @@ export interface ImportModel {
 
 多零件 compound 的 children 为**匿名几何**（无变量名），因此不走现有 `ExecutionResult.compounds`（该字段语义是「具名成员变量」）；零件身份由 `ExecutionResult.importModels` 承载，几何由 `outputs.get(terminalName).children` 承载。
 
-脚本层访问单个零件：`const m = await cad.load({ file: 'x.step' })` 后，`m.children[i]` 即第 i 个零件（保持 JS 数组语义）；单零件文件 `m` 本身就是 Shape。
+脚本层访问单个零件：`const m = cad.load({ file: 'x.step' })` 后，`m.children[i]` 即第 i 个零件（保持 JS 数组语义）；单零件文件 `m` 本身就是 Shape。
 
 ### 5.3 STEP 装配导入
 

@@ -76,7 +76,7 @@ export default async (cad) => {
     const code = `// apiVersion: 1
 export default async (cad) => {
   const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
-  const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
+  const { front: part1, back: part2 } = cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
   const part3 = cad.translate({ offset: [5, 0, 0] }, part2)
   return { shape: part3 }
 }`
@@ -91,7 +91,7 @@ export default async (cad) => {
     const code = `// apiVersion: 1
 export default async (cad) => {
   const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
-  const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
+  const { front: part1, back: part2 } = cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
   const part3 = cad.translate({ offset: [5, 0, 0] }, part999)
   return { shape: part3 }
 }`

@@ -1712,7 +1712,7 @@ export class CadRuntime {
   /**
    * 收编 load op 登记的网格实体句柄 + 近似拓扑（方案 2026-10-01 §3.3）。
    *
-   * **顶替防护**：PartName 会被重写（`let a = await cad.load({…})` 之后
+   * **顶替防护**：PartName 会被重写（`let a = cad.load({…})` 之后
    * `a = cad.boxBrep(…)`）。登记前必须核对「当前 ctx 变量槽里挂的就是这个句柄」
    * （即 `fromMeshSolid` 确实为**当前**这个输出跑过）——否则会把网格实体身份写到一个
    * BREP 实体上，破坏 `solid`/`meshSolid` 互斥不变量。核不上就整条跳过（旧句柄由
@@ -2013,6 +2013,43 @@ export class CadRuntime {
 
     // ── 计算 replayKeys（与 DirectExecutor.replayFrom 同逻辑，用于 releasePartCaches） ──
     const allUnitsParsed = de.unitRangesWithWrites(newCode)
+    // ── 前缀污染检测：旧代码的后缀写过、新代码前缀仍要用的键 ─────────────────────
+    // 前缀之所以能"保留不跑"，前提是它在**新代码下的值**等于旧前缀跑出来的值。这条
+    // 前提会被一种常见写法打破：旧代码在 startLine 之后**改写了一个前缀变量**——
+    //   A: [1: `let part0 = cad.box(…)`, 2: `cad.translate(part0, …)`]   ← 裸调用原地写回
+    //   B: [1: `let part0 = cad.box(…)`, 2: `let part1 = …`, 3: `let part2 = union(…)`]
+    // 第 1 行是新代码的前缀（跳过），可 ctx 里的 part0 已经被 A 的第 2 行平移过 ——
+    // 重放出来就是一个**被平移两次 / 平移了但新代码不该平移**的几何（对拍实测错位）。
+    // 显式重赋值链（`part0 = cad.translate(part0, …)`）同样中招，不是裸调用独有的。
+    //
+    // 修法不是"看到污染就全量"，而是把起点回退到**被污染键的 producer 行**：那里重新
+    // 算出干净值，其后的行全部重放，增量收益仍然保留（回退量 = 改动点到 producer 的距离）。
+    // 找不到 producer（理论上不可能：键写在旧后缀里、又被新前缀写 ⇒ 新前缀有 producer）
+    // 时退回全量——报错好于算错。
+    const newPrefixWrites = new Set<string>()
+    for (const u of allUnitsParsed) {
+      if (u.lineNo < startLine) for (const w of u.writes) newPrefixWrites.add(w)
+    }
+    // 旧的单元表必须按旧文本解析。注意副作用：解析会重建变换期地图（inplaceWrites /
+    // fnParams），而这一步之后 replayFrom 还会用新文本再解析一次，所以最终生效的是
+    // 新代码那一份 —— 顺序不能反过来。
+    const oldUnitsParsed = de.unitRangesWithWrites(this.accumulatedCode)
+    const oldSuffixWrites = new Set<string>()
+    for (const u of oldUnitsParsed) {
+      if (u.lineNo >= startLine) for (const w of u.writes) oldSuffixWrites.add(w)
+    }
+    const polluted = [...oldSuffixWrites].filter((w) => newPrefixWrites.has(w))
+    if (polluted.length > 0) {
+      const producerLines: number[] = []
+      for (const u of allUnitsParsed) {
+        if (u.lineNo >= startLine) continue
+        if (u.writes.some((w) => polluted.includes(w))) producerLines.push(u.lineNo)
+      }
+      if (producerLines.length === 0) {
+        return this.executeDirectText(newCode, opts, 'prefix-polluted')
+      }
+      startLine = Math.min(startLine, ...producerLines)
+    }
     const replayUnits = allUnitsParsed.filter((u) => u.lineNo >= startLine)
     const suffixWrites = new Set<string>()
     for (const u of replayUnits) for (const w of u.writes) suffixWrites.add(w)
@@ -2023,6 +2060,25 @@ export class CadRuntime {
     const replayKeys: string[] = []
     for (const w of suffixWrites) {
       if (!prefixWrites.has(w)) replayKeys.push(w)
+    }
+
+    // ── ctx 收敛：新代码不再产出的键必须消失（2026-10-19 切工程缺陷）──────────
+    // 重放只跑 `[startLine, ∞)`，**没有任何一步删除旧代码写过、新代码不写的 ctx 键**。
+    // 持久 ctx 因此跨工程存活着上一个工程的产出，`collectDirectResult` 扫
+    // `listCtxKeys()` 会把它们当 outputs/terminals 带出去：
+    //   · 宿主侧表现 1：切换工程后旧工程的零件还留在画面上（旧模型的 mesh 被当终端渲染）；
+    //   · 宿主侧表现 2：这些"新代码里没有 producer 行"的变量会污染 live-shapes 的
+    //     消费关系，严重时新工程的终端被判定成"已被消费" → 一条终端都不剩（空画面）。
+    // 判据用「上一轮代码的写键 − 新代码的写键」，不是 ctx 键全集：params / import
+    // seed 由宿主预置、不属任何 code 的 writes，混进来会被误删。
+    const newWrites = new Set<string>()
+    for (const unit of allUnitsParsed) for (const w of unit.writes) newWrites.add(w)
+    const staleKeys = [...de.currentWrittenKeys].filter((key) => !newWrites.has(key))
+    if (staleKeys.length > 0) {
+      // 先释放派生缓存（solid / topology / statement）再删 ctx：句柄所有权在
+      // releasePartCaches，只删 ctx 键会把内核资源留在缓存里。
+      this.releasePartCaches(staleKeys.map((key) => asPartName(key)))
+      de.deleteCtxVars(staleKeys)
     }
 
     // ── 派生缓存失效 ──

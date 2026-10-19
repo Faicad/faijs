@@ -180,11 +180,11 @@ function shellMeshSolid(input: Shape, params: ShellParams): Shape {
  * @example
  * // openFaces 取 UI 拾取产物的 FaceTopoRef 字面量（origin/role 由命名层分配，不手写）；
  * // ❌ 不要用 cad.faceRef 序号——跨内核不可移植
- * const sh = await cad.shell(part0, { openFaces: pickedFaces, thickness: 2 })
+ * const sh = cad.shell(part0, { openFaces: pickedFaces, thickness: 2 })
  * // AI 生成可写 CadQuery 面选择器字符串（"|Z" 法向平行 Z 的面、"top" 命名视图）
- * const sh2 = await cad.shell(part0, { openFaces: "|Z", thickness: 2 })
+ * const sh2 = cad.shell(part0, { openFaces: "|Z", thickness: 2 })
  * // 网格链（3MF mesh-solid）：无 role 层，序号是唯一无歧义指认（仅当前内核快照）
- * const sm = await cad.shell(meshPart, { openFaces: [4], thickness: 2 })
+ * const sm = cad.shell(meshPart, { openFaces: [4], thickness: 2 })
  */
 export const shell = defineOp({
   meshEngines: ['brepkit'],

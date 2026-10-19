@@ -46,7 +46,7 @@ describe('occt(web 同构): STL 走 BREP 路径后特征操作可用', () => {
 
   it('load cube.stl → naming.source = brep；全部边有邻接面', async () => {
     const runtime = createEditorRuntime(stlPorts(), 'auto')
-    const base = await runtime.execute(`let part0 = await cad.load({ file: 'cube-10x5x5.stl' })`)
+    const base = await runtime.execute(`let part0 = cad.load({ file: 'cube-10x5x5.stl' })`)
     expect(base.failedAt, `load failed: ${JSON.stringify(base.failedAt)}`).toBeUndefined()
     const naming = base.naming?.get('part0' as never)
     expect(naming).toBeDefined()
@@ -58,13 +58,13 @@ describe('occt(web 同构): STL 走 BREP 路径后特征操作可用', () => {
   it('fai_drill / fai_split：BREP 路径成功（不再 E_MESH_SOLID_UNSUPPORTED）', async () => {
     const runtime = createEditorRuntime(stlPorts(), 'auto')
     const d = await runtime.execute(
-      `let part0 = await cad.load({ file: 'cube-10x5x5.stl' })\n` +
+      `let part0 = cad.load({ file: 'cube-10x5x5.stl' })\n` +
         `let part1 = cad.fai_drill(part0, { diameter: 2, depth: 0, position: [0, 0, 5], direction: "normal", faceNormal: [0, 0, 1], holeType: "simple" })\n`,
     )
     expect(d.failedAt, `drill failed: ${JSON.stringify(d.failedAt)}`).toBeUndefined()
 
     const s = await runtime.execute(
-      `let part0 = await cad.load({ file: 'cube-10x5x5.stl' })\n` +
+      `let part0 = cad.load({ file: 'cube-10x5x5.stl' })\n` +
         `let { front, back } = cad.fai_split(part0, { cutMode: 'plane', normal: [0, 0, 1], offset: 0 })\n`,
     )
     expect(s.failedAt, `split failed: ${JSON.stringify(s.failedAt)}`).toBeUndefined()

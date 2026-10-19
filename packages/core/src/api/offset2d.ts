@@ -93,7 +93,7 @@ function offset2dBrep(profile: Shape, delta: number, options?: Offset2DOptions):
  * @param options - 偏置配置（joinType）。type:Offset2DOptions required:false
  * @example
  * const c = cad.wire([[0,0,0],[10,0,0],[10,10,0],[0,10,0]], { closed: true })
- * const outer = await cad.offset2d(c, 2)
+ * const outer = cad.offset2d(c, 2)
  */
 export const offset2d = defineOp({
   name: 'offset2d',

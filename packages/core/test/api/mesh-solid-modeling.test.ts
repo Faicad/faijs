@@ -133,7 +133,7 @@ function faceRowsOf(result: Awaited<ReturnType<CadRuntime['execute']>>, part: st
   return topo!.data.faces as unknown as FaceRowLike[]
 }
 
-const LOAD = "let a = await cad.load({ file: 'cube10.stl' })"
+const LOAD = "let a = cad.load({ file: 'cube10.stl' })"
 
 describe('网格零件上的常规建模（B3 批）', () => {
   beforeAll(async () => {
@@ -348,7 +348,7 @@ describe('网格零件的只读量测（B4 批）', () => {
     const runtime = createEditorRuntime(PORTS(), 'mesh')
     const result = await runtime.execute(
       `${LOAD}\n` +
-      'let v = await cad.volume(a)\n' +
+      'let v = cad.volume(a)\n' +
       'let b = cad.scale(a, v / 500)',
     )
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')

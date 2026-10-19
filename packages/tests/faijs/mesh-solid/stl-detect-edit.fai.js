@@ -10,9 +10,9 @@
 // 注意面 4 是在**倒圆角之后**那份拓扑上读出来的：圆角新增一张面（15 条边 / 7 张面），
 // 序号是位置号、随改型重建，所以在 `a` 上读到的顶面序号（6）在 `b` 上已经不作数。
 // 该映射由 stl-detect-edit.test.ts 对同一份夹具的拓扑读数逐条断言。
-let a = await cad.load({ file: 'cube-10x5x5.stl' })
+let a = cad.load({ file: 'cube-10x5x5.stl' })
 let b = cad.fillet(a, { edges: [9], radius: 1 * MM })
-let s = await cad.sketchOnFace({
+let s = cad.sketchOnFace({
   contours: [{ segments: [
     { kind: 'line', x1: -2, y1: -3, x2: 2, y2: -3 },
     { kind: 'line', x1: 2, y1: -3, x2: 2, y2: 3 },
@@ -22,5 +22,5 @@ let s = await cad.sketchOnFace({
   on: b,
   face: 4,
 })
-let p = await cad.extrude(s, 5)
-let u = await cad.union(b, p)
+let p = cad.extrude(s, 5)
+let u = cad.union(b, p)

@@ -70,7 +70,7 @@ describe('P1/P2: cad.load 单零件 STEP — 编辑器路径产出可用边命�
   it('loadCache 未命中：cad.load(box_boss.step) → edgeNaming 含 faces !== null 的边行', async () => {
     await registerOcctBrepEngine()
     const runtime = createEditorRuntime(stepPorts('box_boss.step'), 'brep')
-    const r = await runtime.execute(`let part0 = await cad.load({ file: 'box_boss.step' })`)
+    const r = await runtime.execute(`let part0 = cad.load({ file: 'box_boss.step' })`)
     assertUsableEdgeNaming(r, 'part0')
   })
 
@@ -80,7 +80,7 @@ describe('P1/P2: cad.load 单零件 STEP — 编辑器路径产出可用边命�
     // 同 brepEngineId）写入——本次命中缓存、不重新解析，但 fromBrep 与
     // roleTable 登记在每次 execute 都会发生，命名断言不受缓存短路。
     const runtime = createEditorRuntime(stepPorts('box_boss.step'), 'brep')
-    const r = await runtime.execute(`let part0 = await cad.load({ file: 'box_boss.step' })`)
+    const r = await runtime.execute(`let part0 = cad.load({ file: 'box_boss.step' })`)
     assertUsableEdgeNaming(r, 'part0')
   })
 })
@@ -94,7 +94,7 @@ describe('P3: STEP 基座边 chamfer 成功且改参重放下游引用不断裂�
     await registerOcctBrepEngine()
     const runtime = createEditorRuntime(stepPorts('box_boss.step'), 'brep')
     // 1) 基座 load → 取第一条带两邻面血统的边行，序号 = 行下标 + 1（1 起）。
-    const base = await runtime.execute(`let part0 = await cad.load({ file: 'box_boss.step' })`)
+    const base = await runtime.execute(`let part0 = cad.load({ file: 'box_boss.step' })`)
     const naming = assertUsableEdgeNaming(base, 'part0')
     const edgeIdx = naming.edgeNaming.findIndex((e) => e.faces !== null)
     const edgeOrdinal = edgeIdx + 1
@@ -102,7 +102,7 @@ describe('P3: STEP 基座边 chamfer 成功且改参重放下游引用不断裂�
 
     // 2) 对基座边执行 chamfer（EdgeTopoRef 由 cad.edgeRef 合成——查角色表）。
     const c1 = await runtime.execute(
-      `let part0 = await cad.load({ file: 'box_boss.step' })\n` +
+      `let part0 = cad.load({ file: 'box_boss.step' })\n` +
         `let part1 = cad.chamfer(part0, { edges: [cad.edgeRef(part0, ${edgeOrdinal})], type: 'equal', width: 1 })\n`,
     )
     expect(c1.failedAt).toBeUndefined()
@@ -112,7 +112,7 @@ describe('P3: STEP 基座边 chamfer 成功且改参重放下游引用不断裂�
 
     // 3) 改参重放（基座不变、chamfer width 改 2）：同一 edgeRef 线路仍解析成功。
     const c2 = await runtime.execute(
-      `let part0 = await cad.load({ file: 'box_boss.step' })\n` +
+      `let part0 = cad.load({ file: 'box_boss.step' })\n` +
         `let part1 = cad.chamfer(part0, { edges: [cad.edgeRef(part0, ${edgeOrdinal})], type: 'equal', width: 2 })\n`,
     )
     expect(c2.failedAt).toBeUndefined()
@@ -130,7 +130,7 @@ describe('P4: 多零件 compound — 各成员 role 唯一，逐成员编辑互�
   it('cad.load(test-model.step) → 合并命名逐成员 role 前缀唯一（imported:0:* / imported:1:*）', async () => {
     await registerOcctBrepEngine()
     const runtime = createEditorRuntime(stepPorts('test-model.step'), 'brep')
-    const r = await runtime.execute(`let part0 = await cad.load({ file: 'test-model.step' })`)
+    const r = await runtime.execute(`let part0 = cad.load({ file: 'test-model.step' })`)
     expect(r.failedAt).toBeUndefined()
     // compound 终端：children = 全部 solid 零件
     const entry = r.outputs.get(asPartName('part0'))
@@ -172,7 +172,7 @@ describe('P5: 多零件 compound 成员上 chamfer/fillet（partIndex 解包）'
     await registerOcctBrepEngine()
     const runtime = createEditorRuntime(stepPorts('test-model.step'), 'brep')
     // 先 load 一次：从合并命名里找一条「两邻面都属 member0」的边行。
-    const base = await runtime.execute(`let part0 = await cad.load({ file: 'test-model.step' })`)
+    const base = await runtime.execute(`let part0 = cad.load({ file: 'test-model.step' })`)
     expect(base.failedAt).toBeUndefined()
     const naming = assertUsableEdgeNaming(base, 'part0')
     const row = naming.edgeNaming.find(
@@ -188,7 +188,7 @@ describe('P5: 多零件 compound 成员上 chamfer/fillet（partIndex 解包）'
     // 复现用户脚本：多零件 load 产物是 compound，宿主按 partIndex 选 member0。
     // 修复前：chamfer 直接 brepOf(compound)===undefined → E_CHAMFER_NO_BREP。
     const c1 = await runtime.execute(
-      `let part0 = await cad.load({ file: 'test-model.step' })\n` +
+      `let part0 = cad.load({ file: 'test-model.step' })\n` +
         `let part1 = cad.chamfer(part0, { edges: [${JSON.stringify(edgeRef)}], partIndex: 0, type: 'equal', width: 1 })\n`,
     )
     expect(c1.failedAt).toBeUndefined()

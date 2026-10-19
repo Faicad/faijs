@@ -97,7 +97,7 @@ export function toMultiviewSVG(shape: Shape, options?: MultiviewSvgOptions): str
  * @param view - 命名视图（front/top/right/iso 等）。type:string required:false
  * @param options - PNG 渲染选项。type:object required:false
  * @example
- * const png = await cad.toPNG(box, 'iso')
+ * const png = cad.toPNG(box, 'iso')
  */
 export async function toPNG(shape: Shape, view?: ViewName, options?: PngViewOptions): Promise<Uint8Array> {
   assertEngineFor('toPNG', ['occt'])
@@ -117,7 +117,7 @@ export async function toPNG(shape: Shape, view?: ViewName, options?: PngViewOpti
  * @param shape - 被渲染的形状。type:Shape required:true
  * @param options - 多视图渲染选项。type:object required:false
  * @example
- * const sheet = await cad.toMultiviewPNG(box)
+ * const sheet = cad.toMultiviewPNG(box)
  */
 export async function toMultiviewPNG(shape: Shape, options?: MultiviewPngOptions): Promise<Uint8Array> {
   assertEngineFor('toMultiviewPNG', ['occt'])
