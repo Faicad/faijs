@@ -526,7 +526,7 @@ async function measure(code: string, outputVar?: string): Promise<Measured> {
   try {
     result = await rt.execute(code)
   } catch (e) {
-    return { result: { outputs: new Map(), terminals: [], infos: [], brepChain: undefined as never } as ExecutionResult, error: e instanceof Error ? e.message : String(e) }
+    return { result: { outputs: new Map(), terminals: [], infos: [], brepChain: undefined as never, execution: { path: 'full', replayedUnits: 0, skippedUnits: 0 } } as ExecutionResult, error: e instanceof Error ? e.message : String(e) }
   }
   if (result.failedAt) {
     return { result, error: `${result.failedAt.callee}: ${result.failedAt.message}${result.failedAt.code ? ` [${result.failedAt.code}]` : ''}` }

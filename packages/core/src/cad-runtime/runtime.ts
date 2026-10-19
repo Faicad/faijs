@@ -28,6 +28,8 @@ import { MeshSolidRegistry } from '../brep/mesh-solid'
 import { ParseError } from '../lang/parse-error'
 import type { SecurityPolicy } from '../lang/security-scanner'
 import type { HostPorts, ExecutionMode } from './ports'
+import type { ExecutionStats, ExecutionFallbackReason } from './execution-stats'
+export type { ExecutionStats, ExecutionPath, ExecutionFallbackReason } from './execution-stats'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
 import { buildSolidTopologyRuntime, buildCompoundTopologyRuntime } from '../brep/brep-topology'
@@ -212,6 +214,13 @@ export interface ExecutionResult {
    * part / 消费装配结构，不再自行解析文件。
    */
   importModels?: Map<PartName, ImportModel>
+  /**
+   * 执行路径观测（2026-10-19）：本轮走的是全量 / 增量 / 零变更，以及退化原因。
+   *
+   * **必填**：宿主需要它来判断「这次 update 是真增量，还是静默退化成全量」；
+   * 可选字段会让新增构造点漏填而无人察觉（见 execution-stats.ts 文件头）。
+   */
+  execution: ExecutionStats
 }
 
 /**
@@ -952,6 +961,8 @@ export class CadRuntime {
         lineNo: first.lineNo,
         code: 'E_DETERMINISM',
       },
+      // 策略拦截先于任何单元执行：既非增量也非退化（不是闸门）。
+      execution: { path: 'full', replayedUnits: 0, skippedUnits: 0 },
     }
   }
 
@@ -983,7 +994,12 @@ export class CadRuntime {
    * and outputs/terminals are assembled from the persistent ctx +
    * extractMetadata + computeLiveShapes.
    */
-  private async executeDirectText(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+  private async executeDirectText(
+    code: string,
+    opts?: ExecuteOptions,
+    /** update 闸门退化时带上原因；普通 execute/append 不传。 */
+    fallbackReason?: ExecutionFallbackReason,
+  ): Promise<ExecutionResult> {
     const de = this.directExecutor
     // P2 修复：执行前重新认领全局 backends（本实例配置为准）。
     this.claimBackends()
@@ -1005,9 +1021,20 @@ export class CadRuntime {
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
     if (outcome.failedAt) {
-      return this.directFailedAtOrThrow(outcome.failedAt, meta)
+      return this.directFailedAtOrThrow(outcome.failedAt, meta, {
+        path: 'full',
+        ...(fallbackReason ? { reason: fallbackReason } : {}),
+        replayedUnits: outcome.executedLines.length,
+        skippedUnits: 0,
+      })
     }
-    const result = this.collectDirectResult(meta, opts)
+    const execution: ExecutionStats = {
+      path: 'full',
+      ...(fallbackReason ? { reason: fallbackReason } : {}),
+      replayedUnits: outcome.executedLines.length,
+      skippedUnits: 0,
+    }
+    const result = this.collectDirectResult(meta, opts, execution)
     if (this.determinismWarnings.length > 0) result.infos.push(...this.determinismWarnings)
     this.recordFingerprints(opts)
     return result
@@ -1033,6 +1060,7 @@ export class CadRuntime {
   private directFailedAtOrThrow(
     failedAt: { index: number; callee: string; message: string; lineNo?: number; error?: unknown },
     meta: UiMetadata,
+    execution: ExecutionStats,
   ): ExecutionResult {
     const index = this.directStmtOrdinal(meta, failedAt.lineNo) ?? failedAt.index
     const rawCode = failedAt.error instanceof Error ? (failedAt.error as { code?: unknown }).code : undefined
@@ -1043,6 +1071,7 @@ export class CadRuntime {
       terminals: [],
       infos: [],
       failedAt: { index, callee: failedAt.callee, message: failedAt.message, lineNo: failedAt.lineNo, code },
+      execution,
     }
   }
 
@@ -1091,9 +1120,19 @@ export class CadRuntime {
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
     if (outcome.failedAt) {
-      return this.directFailedAtOrThrow(outcome.failedAt, meta)
+      return this.directFailedAtOrThrow(outcome.failedAt, meta, {
+        path: 'full',
+        replayedUnits: outcome.executedLines.length,
+        skippedUnits: 0,
+      })
     }
-    const result = this.collectDirectResult(meta, opts)
+    // append 语义是「共享 ctx，只跑新单元」；它不经过 update，故按 full 记账
+    // （path 描述的是「是否复用了前缀 ctx 做差量重放」，append 的差分由调用方给定）。
+    const result = this.collectDirectResult(meta, opts, {
+      path: 'full',
+      replayedUnits: outcome.executedLines.length,
+      skippedUnits: 0,
+    })
     if (this.determinismWarnings.length > 0) result.infos.push(...this.determinismWarnings)
     this.recordFingerprints(opts)
     return result
@@ -1139,6 +1178,8 @@ export class CadRuntime {
             message: err.message,
             lineNo: err.lineNo,
           },
+          // 依赖装载失败发生在主模块执行之前 → 一个单元都没跑。
+          execution: { path: 'full', replayedUnits: 0, skippedUnits: 0 },
         }
       }
       throw err
@@ -1176,7 +1217,11 @@ export class CadRuntime {
    * brepSolids / compounds（与 collectResult 的 mesh 面同构；输入换源为
    * DirectExecutor ctx + UiMetadata + computeLiveShapes，§4.2/§4.4）。
    */
-  private collectDirectResult(meta: UiMetadata, opts?: ExecuteOptions): ExecutionResult {
+  private collectDirectResult(
+    meta: UiMetadata,
+    opts: ExecuteOptions | undefined,
+    execution: ExecutionStats,
+  ): ExecutionResult {
     const de = this.directExecutor!
     const outputs = new Map<PartName, Shape | CompoundShape>()
     const shapeVarNames = new Set<PartName>()
@@ -1336,6 +1381,7 @@ export class CadRuntime {
       importModels: de.importModelsSnapshot.size > 0 ? de.importModelsSnapshot : undefined,
       changed: deChanged ? deChanged.map(asPartName) : undefined,
       activeValues: activeValues.size > 0 ? activeValues : undefined,
+      execution,
     }
   }
 
@@ -1462,6 +1508,8 @@ export class CadRuntime {
             callee: imp.localName,
             message: `import specifier "${imp.specifier}" cannot be auto-loaded: ${err instanceof Error ? err.message : String(err)}`,
           },
+          // 库装载先于执行 → 一个单元都没跑。
+          execution: { path: 'full', replayedUnits: 0, skippedUnits: 0 },
         }
       }
       const resolved = imp.packageName ?? imp.specifier ?? ''
@@ -1871,12 +1919,12 @@ export class CadRuntime {
 
     // G1: 本实例从未执行过
     if (this.accumulatedCode === null) {
-      return this.executeDirectText(newCode, opts)
+      return this.executeDirectText(newCode, opts, 'first-run')
     }
 
     // G3: 宿主传入的 oldCode 与内部基准不一致
     if (oldCode.trim() !== this.accumulatedCode.trim()) {
-      return this.executeDirectText(newCode, opts)
+      return this.executeDirectText(newCode, opts, 'old-code-mismatch')
     }
 
     // 切分行数组（两侧均按 \r?\n 切分）
@@ -1885,19 +1933,19 @@ export class CadRuntime {
 
     // G2: 存在删除（new 比旧短）
     if (newLines.length < oldLines.length) {
-      return this.executeDirectText(newCode, opts)
+      return this.executeDirectText(newCode, opts, 'lines-decreased')
     }
 
     // G0: 非标准解析基线
     const { ranges, lineOffset } = de.unitRanges(newCode)
     if (lineOffset !== 0) {
-      return this.executeDirectText(newCode, opts)
+      return this.executeDirectText(newCode, opts, 'non-standard-baseline')
     }
 
     // G6: params 变化
     const paramsFp = stableFingerprint(opts?.params ?? null)
     if (paramsFp !== this.lastParamsFingerprint) {
-      return this.executeDirectText(newCode, opts)
+      return this.executeDirectText(newCode, opts, 'params-changed')
     }
 
     // G7: 注册库集合变化
@@ -1906,18 +1954,18 @@ export class CadRuntime {
     )
     const libIdsFp = stableFingerprint(libIdsEntries)
     if (libIdsFp !== this.lastLibIdsFingerprint) {
-      return this.executeDirectText(newCode, opts)
+      return this.executeDirectText(newCode, opts, 'libs-changed')
     }
 
     // G5: 上一轮产生了装配运动学位姿
     if (this.lastHadKinematics) {
-      return this.executeDirectText(newCode, opts)
+      return this.executeDirectText(newCode, opts, 'kinematics')
     }
 
     // G4: 含相对 import 的多文件场景
     const meta = extractMetadata(newCode, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
     if ((meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) {
-      return this.executeDirectText(newCode, opts)
+      return this.executeDirectText(newCode, opts, 'relative-imports')
     }
 
     // ── 公共前缀扫描 ──
@@ -1998,12 +2046,19 @@ export class CadRuntime {
     // ── 失败降级（§4.7）──
     if (outcome.failedAt) {
       de.reset()
-      return this.executeDirectText(newCode, opts)
+      return this.executeDirectText(newCode, opts, 'replay-failed')
     }
 
     // ── 组装结果 ──
     this.accumulatedCode = newCode
-    const result = this.collectDirectResult(meta, opts)
+    // skippedUnits 用「全文单元数 − 实际重放数」：块单元的行号可能重复（同一块内
+    // 多条语句），所以按 units 长度算，不按行号差算。
+    const result = this.collectDirectResult(meta, opts, {
+      path: 'incremental',
+      startLine,
+      replayedUnits: outcome.executedLines.length,
+      skippedUnits: Math.max(0, allUnitsParsed.length - outcome.executedLines.length),
+    })
     // Record fingerprints after successful execution
     this.recordFingerprints(opts)
     return result
@@ -2024,7 +2079,14 @@ export class CadRuntime {
     if (libLoadFailure) return libLoadFailure
     await this.ensureBrepChain()
     de.clearRoundState()
-    return this.collectDirectResult(meta, opts)
+    // 零变更：一个单元都没执行，全部单元都是复用。
+    const totalUnits = de.unitRanges(newCode).ranges.length
+    return this.collectDirectResult(meta, opts, {
+      path: 'noop',
+      reason: 'zero-change',
+      replayedUnits: 0,
+      skippedUnits: totalUnits,
+    })
   }
 
   /**

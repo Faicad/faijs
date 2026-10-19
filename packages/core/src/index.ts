@@ -47,6 +47,7 @@ export { CadRuntime, createRuntime, createBareRuntime, computeContentKey, Append
 export { createPreviewExec } from './cad-runtime/preview-exec'
 export type { PreviewExec } from './cad-runtime/preview-exec'
 export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, CadRuntimeOptions, PartTopology, TopologySource } from './cad-runtime/runtime'
+export type { ExecutionStats, ExecutionPath, ExecutionFallbackReason } from './cad-runtime/execution-stats'
 export type {
   HostPorts, CsgBackend, SdfBackend, FontProvider, TextureSampler,
   AssetResolver, EventSink, ExecutionMode, HostEnv,

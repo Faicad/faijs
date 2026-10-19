@@ -12,6 +12,7 @@ export type {
   CheckResult,
   CheckError,
 } from './runtime'
+export type { ExecutionStats, ExecutionPath, ExecutionFallbackReason } from './execution-stats'
 export type {
   HostPorts,
   CsgBackend,
