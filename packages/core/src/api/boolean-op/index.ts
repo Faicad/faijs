@@ -31,6 +31,7 @@ import { brepOf, fromBrep } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { getOcctKernel } from '../../occt-kernel/occtKernel'
+import { fromBase } from '../../units'
 
 /** 布尔算子（脚本面收字符串，映射到 occt-wasm 的 `BooleanOp` 枚举值）。 */
 export type BooleanKind = 'fuse' | 'cut' | 'common'
@@ -41,7 +42,8 @@ export interface BooleanOptions {
   glue?: 0 | 1 | 2
   /** 模糊容差（模型单位）：在此范围内的近乎重合几何会被合并。 */
   fuzzyValue?: number
-  /** 结果内同域面/边的合并角阈值（**弧度**）。 */
+  /** 结果内同域面/边的合并角阈值。脚本面写**带单位的角度量**（`1 * DEGREE`），
+   * 经 op 入口 `fromBase(…, 'radian', 'angle')` 折成内核要的**弧度**后再下发。 */
   simplifyAngularTolerance?: number
 }
 
@@ -124,7 +126,7 @@ function booleanBrep(
  * @param kind - 算子 fuse|cut|common。type:string required:true
  * @param options.glue - 共面粘连模式 0|1|2。type:number required:false
  * @param options.fuzzyValue - 模糊容差（模型单位）。type:number required:false
- * @param options.simplifyAngularTolerance - 同域合并角阈值（弧度）。type:number required:false
+ * @param options.simplifyAngularTolerance - 同域合并角阈值（ANGLE 量纲，写 `1 * DEGREE`；内核收弧度）。type:number required:false
  * @example
  * // 两盒相减（第二个盒作为工具）
  * const hollow = cad.boolean([boxA], [boxB], 'cut')
@@ -134,7 +136,16 @@ function booleanBrep(
 export const boolean = defineOp({
   name: 'boolean',
   brep(args: Shape[], tools: Shape[], kind: BooleanKind, options?: BooleanOptions) {
-    return booleanBrep(args, tools, kind, options)
+    // 单位边界：脚本面的角度量以度为基准（DEGREE=1、RADIAN=180/π），内核要弧度。
+    // 只在此处换算一次 —— booleanBrep 及其下游一律按弧度处理。
+    const opts =
+      options?.simplifyAngularTolerance === undefined
+        ? options
+        : {
+            ...options,
+            simplifyAngularTolerance: fromBase(options.simplifyAngularTolerance, 'radian', 'angle'),
+          }
+    return booleanBrep(args, tools, kind, opts)
   },
   engines: ['occt'],
   naming: {
@@ -142,5 +153,10 @@ export const boolean = defineOp({
     reason: 'booleanOp returns flat face-hash lists, not an input-face to result-face map',
   } as Provenance,
 
-  paramDims: {},
+  paramDims: {
+    glue: 'plain',
+    fuzzyValue: 'length',
+    // 脚本面写带单位的角度量（度）；booleanBrep 入口转成内核弧度。
+    simplifyAngularTolerance: 'angle',
+  },
 })

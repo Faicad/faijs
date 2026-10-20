@@ -87,7 +87,7 @@ The engine package also exposes fine-grained subpaths (`@faicad/faijs/runtime-st
 - **R-2 A library function signature is exactly what the source says.** Implicit injection is forbidden: `cad.box({ size })` compiles to `cad.box({ size })`, no more and no fewer parameters; no appending a trailing parameter at compile time, no `rest.pop()` to obtain context.
 - **R-3 User source text is never executed directly.** acorn parse (syntax gate) → engine compiles into a zero-import module → JS VM dynamic import. The security boundary is the syntax gate plus engine-generated output; **user text is never eval'd**.
 - **R-4 Naming and terminal semantics are owned by the engine.** `partN` allocation, DAG leaf detection and consumption validation all live inside the engine; the host does not reimplement them.
-- **R-5 Coordinate space**: millimeters (mm), +Z up, angles in degrees. Every `cad.*` input and output is a world-space `Shape`.
+- **R-5 Coordinate space**: millimeters (mm), +Z up, angles in degrees (the angle-unit exceptions are listed in `docs/sketch-contract.md` §2). Every `cad.*` input and output is a world-space `Shape`.
 - **R-6 The BREP chain is per part.** Whether a part is still BREP is decided solely by whether `solidCache` holds a handle for it; there is no global flag, and sibling parts never contaminate each other.
 - **R-7 Static dispatch, no runtime fallback.** An exception on the BREP path is a bug — surface it, never catch it and silently switch to mesh. An engine that cannot serve the op is rejected statically or raises a clear error; **never fake an API**.
 - **R-8 keep is the only coupling point between faijs and the UI.** faijs defines no features, UI forms, icons or edit panels — those belong to the upper-layer application (3d_editor).
@@ -415,6 +415,17 @@ The engine surface is split into three layers (narrowing plan §1, D11):
 
 **Script-face additions (2026-09-24, `engines` declarations)**: the 1D curve family (`wire`, `helix`, `sketch` `as:'wire'`) and the sweep/loft family (`sweep`, `loft`, `complexExtrude`, `twistExtrude`, `roof`) reached the cad face along these rules — `sweep`/`loft`/`helix`/`thicken`/`roof` declare `engines: ['occt']`; `wire` / `splitByPlane` (named `positive`/`negative` outputs) / `sectionByPlane` (1D section curve) / `shell` / `draft` / `filletVariable` are neutral (no `engines`, L1-only implementations via `getBrepApi()`). 1D products (`wire`, `helix`, section curves) carry `kind:'curve'` and render via `wireframe`. The parameter contract lives in `docs/ops-api-inventory.md`.
 
+### 7.12 Querying platform binding
+
+`createRuntime` registers the built-in face through `registerLib('cad', …, { default: true })` (§10.6), so `cad` is a registered binding and answers the same two queries any registered library answers:
+
+| Query | Answers |
+|---|---|
+| `runtime.describeLib('cad')` | per-op `engines` as declared in `defineOp` |
+| `runtime.libsUnder(engineId)` | callable vs. statically-rejected split over the whole registered surface — built-in `cad` included — each rejection carrying its reason |
+
+Both read the same `engines` declaration `dispatchPath` enforces, so the answer cannot disagree with what execution does. There is deliberately no separate capability matrix to maintain; per-op, the generated manual marks platform-bound ops with a platform-limitation note.
+
 
 ---
 
@@ -485,6 +496,14 @@ Three triggers: T1 a mesh-only op (such as knurl/sdf); T2 mixed inputs (`inputs.
 **Materialization entry point** `reconcileBrepInputs(inputs)` (`packages/core/src/api/reconcile.ts`): BREP-side inputs are tessellated and reduced (weld vertices → remove degenerate faces → unify orientation → assert 2-manifold), while mesh-side inputs pass through unchanged.
 
 The `part-brep-lost` event is emitted **uniformly by the engine** (libraries do not emit it): the criterion is that the statement has geometry inputs, all inputs are on the chain, but the output is not.
+
+### 8.6 BREP handle semantics
+
+A `BrepHandle` is a kernel handle — a number that indexes the engine's own object table, allocated from `0` upward. **Handle `0` is a valid handle**, so `if (!handle)` is never an existence test: it is false for the very first handle an engine returns.
+
+- Test absence explicitly — `handle === undefined`, or `Number.isInteger(handle)` where the value may also arrive as something that is not a handle.
+- `NaN` is not an absence sentinel either; treat it as a broken value and surface it.
+- The rule covers every number-domain value at the engine boundary — handles, indices and ordinals are not booleans, and truthiness is not a validity test on any of them.
 
 ---
 
@@ -593,6 +612,8 @@ Every `defineOp` / `compatOp` **must** declare `paramDims` (or `spec` for struct
 - Ops with **no numeric parameters** declare `paramDims: {}` (empty object = exhaustive declaration that there are zero numeric params).
 - The declaration is the **single source of truth** for dimension knowledge: `CadRuntime.getOpDims()` aggregates it at runtime, consumed by the dimension check pass (`extractMetadata`) and codegen unit-literal serialization (`n * MM`). No second table is maintained.
 - New op without `paramDims` (or `spec`) → `check-op-dims.mjs` fails CI.
+
+**Exhaustiveness (Rule 3, 2026-10-21).** Declaring `paramDims` is not enough — it must cover *every* numeric parameter. `check-op-dims.mjs` parses the JSDoc `@param … type:number` entries of each op and fails CI when one is missing from `paramDims`; `plain` satisfies the rule (it is the declaration for "dimensionless on purpose"). Rationale: an undeclared slot is *invisible* to the dimension pass, so bare numbers sail through and the value is consumed in whatever unit the internals happen to use — the unit system's guarantee is only as strong as its least-declared slot. A 2026-10-21 sweep found 67 such slots and declared all of them.
 
 ### 10.4 Third-party library channel
 
@@ -733,3 +754,44 @@ The IR→Host direction only recognizes `$`-prefixed marker keys (`$ref`, `$para
 - `StatementSummary`: `positional` is now `HostArg[]`; **new** `args: Record<string, HostArg>`; **removed** `inputs` (use `isHostVarRef` filter on `positional`) and `positionalKinds` (use runtime guards)
 - Exported helpers: `isHostVarRef`, `isHostParamRef`, `isHostCallRef`, `isHostExprRef`, `isHostRef`, `hostArgToDisplay`, `hostArgToLiteral`, `HOST_REF_KINDS`
 - **Not exported**: `argIRToHost`, `hostArgToIR` (IR red line)
+
+---
+
+## 15. Unit System at the Script Face
+
+### 15.1 Unit constants
+
+The `CadRuntime` constructor registers `SCRIPT_UNIT_CONSTANTS` (`packages/core/src/units.ts`) on `globalThis`, idempotently — an existing binding is never overwritten. They are **plain numbers**: `10 * MM` is an ordinary JS multiply that evaluates to `10`.
+
+| Constant | Value | Dimension |
+|---|---|---|
+| `MM` | 1 | length |
+| `CM` | 10 | length |
+| `METER` | 1000 | length |
+| `MICRON` | 0.001 | length |
+| `INCH` | 25.4 | length |
+| `FOOT` | 304.8 | length |
+| `YARD` | 914.4 | length |
+| `DEGREE` | 1 | angle |
+| `RADIAN` | 180 / π | angle |
+| `GRAM` | 1 | mass |
+| `KILOGRAM` | 1000 | mass |
+| `SECOND` | 1 | time |
+
+Base units are **mm** for length and **degree** for angle. The names are uppercase so they cannot collide with user variable names.
+
+### 15.2 Literals carry their unit
+
+A dimensioned parameter is written with its unit literal — `{ size: 20 * MM }`, not `{ size: 20 }`. The dimension pass in `extractMetadata` infers a dimension for each argument expression and reports `E_DIM_BARE_NUMBER` for a bare literal on a dimensioned slot and `E_DIM_MISMATCH` for a wrong dimension; an expression whose dimension cannot be inferred passes unchecked.
+
+A host that emits `.fai.js` text emits unit literals on the same slots. The constants are plain numbers only at runtime — the dimension pass, and every reader that expects the script to name its own dimensions, sees the unit only where it is written. Dropping `* MM` from emitted code does not simplify it; it removes the dimension from the contract.
+
+### 15.3 Angles
+
+Script-face angles are degrees (R-5). Every angle-bearing slot is declared `dim: 'angle'`, so a script must write `90 * DEGREE` or `1.5708 * RADIAN` — a bare number is `E_DIM_BARE_NUMBER`. The internal unit (radians, throughout the geometry layers and the kernels) is an implementation detail: each op converts once at its entry, so callers never see it. Per-API detail: `docs/sketch-contract.md` §2.
+
+### 15.4 Where the dimension pass runs
+
+The pass needs the op declarations, which the runtime hands it as `opDims` (`buildOpDims()`). **Only `check()` passes them.** `execute()` calls `extractMetadata` without `opDims`, so a bare number on a declared slot is caught by dry-run validation but is *not* rejected during execution.
+
+This is a live gap, not a design choice. Enabling it was measured (2026-10-21): the pass on the execute path fails **703 tests across 133 files**, because the existing corpus writes bare numbers throughout (`cad.box(20, 20, 20)` and similar) — the whole corpus violates §15.2 today, and enforcement has only ever been nominal. Closing it means migrating the corpus and every host that emits `.fai.js` text; the declarations themselves (§10.3) are already complete and are guarded against regressing by `scripts/check-op-dims.mjs` Rule 3.

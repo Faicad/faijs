@@ -75,7 +75,7 @@ function solidFromFacesBrep(faces: Shape[], params?: SolidFromFacesParams): Shap
  */
 export const solidFromFaces = defineOp({
   name: 'solidFromFaces',
-  paramDims: { 'params.tolerance': 'length' },
+  paramDims: { tolerance: 'length' },
   brep(faces: Shape[], params?: SolidFromFacesParams) {
     return solidFromFacesBrep(faces, params)
   },

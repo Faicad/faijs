@@ -182,6 +182,14 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
           startAngle: a0, endAngle: a1,
           x1: g.cx + g.r * Math.cos(a0), y1: g.cy + g.r * Math.sin(a0), z1: 0,
           x2: g.cx + g.r * Math.cos(a1), y2: g.cy + g.r * Math.sin(a1), z2: 0,
+          // Canonical → FCStd orientation carry-through (2026-10-21): FCStd arcs
+          // carry no orientation field, and contour.ts used to hard-code ccw:true,
+          // so an author-declared CW arc (`ccw:false`) came back mirrored in the
+          // extrude/sweep profile path while solveSketch preserved it. Carry the
+          // flag as an internal-only extension field (the solver ignores unknown
+          // fields); contour.ts reads it to keep the extracted profile on the
+          // author's intended side.
+          ...(g.ccw !== undefined ? { ccw: g.ccw } : {}),
           ...con(g),
         }
       }

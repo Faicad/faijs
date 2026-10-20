@@ -98,5 +98,5 @@ export const filletVariable = defineOp({
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
-  paramDims: {},
+  paramDims: { r1: 'length', r2: 'length' },
 })

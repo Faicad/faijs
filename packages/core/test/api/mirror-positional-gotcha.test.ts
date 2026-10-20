@@ -19,16 +19,18 @@ import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
 beforeAll(async () => { await initOcctWasm() }, 120000)
 
 // Futaba3003-4-arms-horn s0 Sketch profile (converted form)
+// 弧的 startAngle/endAngle 是 ANGLE 槽位（脚本面基准单位 = 度），必须写带单位的量；
+// `* RADIAN` 保持内核原值逐位不变。
 const HORN_PROFILE = `{ contours: [{ segments: [
   { kind: 'line', x1: -19.425, y1: 0, x2: 0, y2: 0 },
   { kind: 'line', x1: 0, y1: 0, x2: 0, y2: 19.425 },
-  { kind: 'arc', cx: 0, cy: 17.225, radius: 2.1999999999999993, startAngle: 1.5707963267948966, endAngle: 2.9717573568795337, ccw: true },
+  { kind: 'arc', cx: 0, cy: 17.225, radius: 2.1999999999999993, startAngle: 1.5707963267948966*RADIAN, endAngle: 2.9717573568795337*RADIAN, ccw: true },
   { kind: 'line', x1: -2.168347760594, y1: 17.596844038991, x2: -4.17, y2: 5.925 },
   { kind: 'line', x1: -4.17, y1: 5.925, x2: -4.17, y2: 5.47 },
-  { kind: 'arc', cx: -5.47, cy: 5.47, radius: 1.2999999999999998, startAngle: 4.1334457224505836e-13, endAngle: -1.570796326794587, ccw: false },
+  { kind: 'arc', cx: -5.47, cy: 5.47, radius: 1.2999999999999998, startAngle: 4.1334457224505836e-13*RADIAN, endAngle: -1.570796326794587*RADIAN, ccw: false },
   { kind: 'line', x1: -5.47, y1: 4.17, x2: -5.925, y2: 4.17 },
   { kind: 'line', x1: -5.925, y1: 4.17, x2: -17.596844177971, y2: 2.168347736715 },
-  { kind: 'arc', cx: -17.225, cy: 0, radius: 2.200000000001816, startAngle: 1.7406316876035515, endAngle: 3.141592653589793, ccw: true }
+  { kind: 'arc', cx: -17.225, cy: 0, radius: 2.200000000001816, startAngle: 1.7406316876035515*RADIAN, endAngle: 3.141592653589793*RADIAN, ccw: true }
 ], closed: true }] }`
 
 describe("GOTCHA: cad.mirror positional form (A1' Futaba3003 regression)", () => {

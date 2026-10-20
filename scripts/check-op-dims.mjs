@@ -13,6 +13,12 @@
  *      dimension. This catches silent omissions where the author wrote the
  *      JSDoc unit but forgot the dim declaration.
  *
+ *   3. **Exhaustiveness (Rule 3)** — every numeric `@param` on an op that
+ *      declares `paramDims` must appear in it. `plain` counts as declared.
+ *      This is what stops a dimensioned slot from silently escaping the unit
+ *      system: an undeclared slot is never checked, so bare numbers pass and
+ *      the value is consumed in whatever unit the internals happen to use.
+ *
  * The guard uses TypeScript AST (already a dependency via check-ghost-deps).
  * It does NOT execute any code — pure static analysis.
  *
@@ -227,6 +233,50 @@ function extractJsdocUnitHints(sf, callNode) {
   return hints
 }
 
+// ── Rule 3: exhaustiveness ─────────────────────────────────────────────────
+
+/**
+ * Parse the `@param` entries of the JSDoc block immediately preceding a call.
+ *
+ * JSDoc writes nested params with a prefix (`params.x`, `options.x`,
+ * `inputOrParams.x`); the script-side field name is the last segment.
+ *
+ * @param {ts.SourceFile} sf
+ * @param {ts.CallExpression} callNode
+ * @returns {{name: string, type: string, desc: string}[]}
+ */
+function jsdocParams(sf, callNode) {
+  const text = sf.text
+  const pos = callNode.getStart(sf)
+  const lineStart = text.lastIndexOf('\n', pos) + 1
+  let searchPos = lineStart - 1
+  while (searchPos > 0 && /\s/.test(text[searchPos])) searchPos--
+  if (searchPos < 1 || text.slice(searchPos - 1, searchPos + 1) !== '*/') return []
+  const commentEnd = searchPos + 1
+  const commentStart = text.lastIndexOf('/**', commentEnd)
+  if (commentStart === -1) return []
+  const body = text.slice(commentStart, commentEnd)
+
+  const out = []
+  const re = /@param\s+([\w.]+)\s*([\s\S]*?)(?=\n\s*[@*]|\n\s*\/|$)/g
+  let m
+  while ((m = re.exec(body)) !== null) {
+    const rest = m[2].replace(/\n\s*\*\s?/g, ' ')
+    const typeMatch = rest.match(/type:\s*([^\s]+)/)
+    out.push({
+      name: m[1].replace(/^(?:params|inputOrParams|options)\./, ''),
+      type: typeMatch ? typeMatch[1] : '',
+      desc: rest.trim(),
+    })
+  }
+  return out
+}
+
+/** True when a JSDoc `type:` marker denotes a numeric parameter. */
+function isNumericType(t) {
+  return typeof t === 'string' && /\bnumber\b/.test(t)
+}
+
 /** @type {string[]} */
 const violations = []
 
@@ -292,6 +342,23 @@ for (const scanDir of SCAN_DIRS) {
               `${relPath}:${line + 1} — ${kind}() paramDims.${paramName}='${declared}' but JSDoc says (${expectedDim}).`,
             )
           }
+        }
+      }
+      // Rule 3: exhaustiveness — every numeric @param must be declared.
+      // Only applies to ops that declare paramDims: an op using `spec` keeps its
+      // numeric fields inside the spec, which this guard cannot enumerate.
+      if (dimInfo.hasParamDims) {
+        const params = jsdocParams(opSf, node)
+        for (const p of params) {
+          if (!isNumericType(p.type)) continue
+          if (dimInfo.values.has(p.name)) continue
+          const pos = node.getStart(opSf)
+          const { line } = opSf.getLineAndCharacterOfPosition(pos)
+          const relPath = filePath.replace(repoRoot + '/', '')
+          violations.push(
+            `${relPath}:${line + 1} — ${kind}() numeric param '${p.name}' (${p.desc.split('type:')[0].trim() || p.name}) ` +
+            `is not declared in paramDims. Declare its dimension or 'plain' — an undeclared slot escapes the unit system entirely.`,
+          )
         }
       }
     }

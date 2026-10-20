@@ -87,7 +87,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 - **R-2 库函数签名 = 源码里写的样子。** 禁止隐式注入：`cad.box({ size })` 编译后就是 `cad.box({ size })`，参数一个不多一个不少；禁止编译期追加末参，禁止用 `rest.pop()` 取上下文。
 - **R-3 用户原文不直接执行。** 先 acorn 解析（语法闸门）→ 引擎编译为零 import 模块 → JS VM 动态 import 执行。安全边界 = 语法闸门 + 产物由引擎生成，**不 eval 用户文本**。
 - **R-4 命名与终端语义由引擎统一。** `partN` 分配、DAG 叶子判定、消费合法性校验全部封装在引擎内，宿主不重复实现。
-- **R-5 坐标空间**：毫米（mm）、+Z 向上、角度用度。所有 `cad.*` 输入／输出均为世界空间 `Shape`。
+- **R-5 坐标空间**：毫米（mm）、+Z 向上、角度用度（角度单位的例外逐 API 列在 `docs/sketch-contract.md` §2）。所有 `cad.*` 输入／输出均为世界空间 `Shape`。
 - **R-6 BREP 链是逐 part 的。** 一个 part 是否仍为 BREP，由 `solidCache` 中是否有它的句柄唯一决定；不存在全局标志，兄弟 part 互不污染。
 - **R-7 静态分派，禁止运行时回退。** BREP 路径执行抛异常 = bug，直接报错暴露，绝不 try-catch 后改走 mesh；引擎不能服务该 op 时按静态规则拒绝或明确报错，**绝不伪造 API**。
 - **R-8 keep 是 faijs 与 UI 的唯一耦合点。** faijs 不定义 feature／UI 表单／图标／编辑面板——它们属于上层应用（3d_editor）。
@@ -416,6 +416,17 @@ compat op（原 brepjs 投影的第一方 `brep-operations` 重实现）经共�
 
 **脚本面新增（2026-09-24，`engines` 声明）**：1D 曲线族（`wire`、`helix`、`sketch` 的 `as:'wire'`）与扫掠/放样族（`sweep`、`loft`、`complexExtrude`、`twistExtrude`、`roof`）已按上述规则进入 cad 面——`sweep`/`loft`/`helix`/`thicken`/`roof` 声明 `engines: ['occt']`；`wire` / `splitByPlane`（具名 `positive`/`negative` 产物）/ `sectionByPlane`（1D 截面曲线）/ `shell` / `draft` / `filletVariable` 是中立（无 `engines`，经 `getBrepApi()` 的纯 L1 实现）。1D 产物（`wire`、`helix`、截面曲线）带 `kind:'curve'`，经 `wireframe` 渲染。参数契约见 `docs/ops-api-inventory.md`。
 
+### 7.12 查询平台限定
+
+`createRuntime` 通过 `registerLib('cad', …, { default: true })` 注册内置面（§10.6），因此 `cad` 就是一个已注册的绑定，回答与任何已注册库相同的两个查询：
+
+| 查询 | 回答 |
+|---|---|
+| `runtime.describeLib('cad')` | 逐 op 的 `engines`（即 `defineOp` 里的声明） |
+| `runtime.libsUnder(engineId)` | 整个已注册面（含内置 `cad`）的「可调用 / 静态拒绝」两分，每条拒绝都带原因 |
+
+两者读的都是 `dispatchPath` 实际强制的那份 `engines` 声明，所以查询结果不可能与实际执行不一致。这里刻意不维护第二张能力矩阵；逐 op 层面，生成的手册会给平台限定 op 打上平台限定标记。
+
 
 ---
 
@@ -486,6 +497,14 @@ export interface BrepChainState {
 **物化入口** `reconcileBrepInputs(inputs)`（`packages/core/src/api/reconcile.ts`）：对 BREP 侧输入做三角化归约（焊接顶点 → 去退化面 → 统一朝向 → 断言 2-manifold），mesh 侧透传。
 
 `part-brep-lost` 事件由**引擎统一发送**（库不 emit）：判据是语句有几何输入、全部输入在链上、但输出不在链上。
+
+### 8.6 BREP 句柄语义
+
+`BrepHandle` 是内核句柄——一个索引引擎自身对象表的数字，从 `0` 起分配。**句柄 `0` 是合法句柄**，所以 `if (!handle)` 从来不是存在性判定：它对引擎返回的第一个句柄为假。
+
+- 判空必须显式——`handle === undefined`；当该值也可能不是句柄时，用 `Number.isInteger(handle)`。
+- `NaN` 也不是「不存在」的哨兵；它是坏值，要暴露而不是当作缺席。
+- 这条规则覆盖引擎边界上一切 number 域的值——句柄、下标、序号都不是布尔，truthiness 对其中任何一个都不是有效性判据。
 
 ---
 
@@ -594,6 +613,8 @@ export const myOp = defineOp({
 - **无数字参数的 op** 声明 `paramDims: {}`（空对象 = 穷举声明零数字参数）。
 - 该声明是量纲知识的**唯一来源**：`CadRuntime.getOpDims()` 运行时汇总，供维度校验 pass（`extractMetadata`）和 codegen 单位字面量序列化（`n * MM`）消费。不维护第二张表。
 - 新 op 未声明 `paramDims`（或 `spec`）→ `check-op-dims.mjs` CI 失败。
+
+**穷尽性（规则 3，2026-10-21）。** 光声明 `paramDims` 不够 —— 它必须覆盖**每一个**数值参数。`check-op-dims.mjs` 解析每个 op 的 JSDoc `@param … type:number` 条目，任一条不在 `paramDims` 里就 CI 失败；`plain` 视为满足（它就是"刻意无量纲"的声明）。理由：未声明的槽位对量纲通道是**不可见的**，裸数字会直接通过，值按内部碰巧使用的单位被消费 —— 量纲系统的保证强度等于它声明得最少的那个槽位。2026-10-21 的清扫查出 67 个这样的槽位，已全部声明。
 
 ### 10.4 第三方库通道
 
@@ -734,3 +755,44 @@ IR→Host 方向只识别 `$` 前缀的标记键（`$ref`、`$param`、`$call`�
 - `StatementSummary`：`positional` 现为 `HostArg[]`；**新增** `args: Record<string, HostArg>`；**移除** `inputs`（用 `isHostVarRef` 过滤 `positional` 代替）和 `positionalKinds`（用运行时守卫代替）
 - 导出辅助函数：`isHostVarRef`、`isHostParamRef`、`isHostCallRef`、`isHostExprRef`、`isHostRef`、`hostArgToDisplay`、`hostArgToLiteral`、`HOST_REF_KINDS`
 - **不导出**：`argIRToHost`、`hostArgToIR`（IR 红线）
+
+---
+
+## 15. 脚本面单位系统
+
+### 15.1 单位常量
+
+`CadRuntime` 构造函数把 `SCRIPT_UNIT_CONSTANTS`（`packages/core/src/units.ts`）注册到 `globalThis`，且是幂等的——已存在的绑定不会被覆盖。它们是**普通数字**：`10 * MM` 就是一次普通 JS 乘法，求值得到 `10`。
+
+| 常量 | 值 | 量纲 |
+|---|---|---|
+| `MM` | 1 | 长度 |
+| `CM` | 10 | 长度 |
+| `METER` | 1000 | 长度 |
+| `MICRON` | 0.001 | 长度 |
+| `INCH` | 25.4 | 长度 |
+| `FOOT` | 304.8 | 长度 |
+| `YARD` | 914.4 | 长度 |
+| `DEGREE` | 1 | 角度 |
+| `RADIAN` | 180 / π | 角度 |
+| `GRAM` | 1 | 质量 |
+| `KILOGRAM` | 1000 | 质量 |
+| `SECOND` | 1 | 时间 |
+
+基本单位是长度的 **mm** 与角度的 **度**。常量名全大写，因此不会与用户变量名冲突。
+
+### 15.2 字面量带单位
+
+带量纲的参数要写成带单位字面量——`{ size: 20 * MM }`，而不是 `{ size: 20 }`。`extractMetadata` 里的量纲校验通道对每个实参表达式推定量纲，对带量纲槽位上的裸字面量报 `E_DIM_BARE_NUMBER`，量纲不符报 `E_DIM_MISMATCH`；推不出量纲的表达式不检查。
+
+发射 `.fai.js` 文本的宿主必须在同样的槽位上发射单位字面量。常量只在运行期是普通数字——量纲校验通道、以及每一个期待脚本自己写明量纲的读取方，只在单位被写出来时才看得见它。把发射代码里的 `* MM` 删掉不是简化，而是把量纲从契约里删掉。
+
+### 15.3 角度
+
+脚本面角度是度（R-5）。每个角度槽位都声明 `dim: 'angle'`，脚本必须写 `90 * DEGREE` 或 `1.5708 * RADIAN` —— 裸数字报 `E_DIM_BARE_NUMBER`。内部单位（几何层与内核一律弧度）是实现细节：每个 op 在入口换算一次，调用方见不到。逐 API 的细节见 `docs/sketch-contract.md` §2。
+
+### 15.4 量纲通道在哪一步跑
+
+该通道需要 op 的量纲声明，由运行时以 `opDims`（`buildOpDims()`）传入。**只有 `check()` 传。** `execute()` 调 `extractMetadata` 时不带 `opDims`，因此声明槽位上的裸数字会被 dry-run 校验拦下，但**执行期不拦**。
+
+这是现存缺口，不是设计选择。实测（2026-10-21）把它接到执行路径会让 **133 个文件、703 个测试**失败 —— 现有语料通篇写裸数字（`cad.box(20, 20, 20)` 之类），即整个语料目前都违反 §15.2，此前的强制只是名义上的。要合上它，需要迁移语料以及所有产出 `.fai.js` 的宿主；声明本身（§10.3）已经补齐，并由 `scripts/check-op-dims.mjs` 规则 3 防止回归。

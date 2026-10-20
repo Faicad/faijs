@@ -34,7 +34,8 @@ import { resolveFaceHandle, type FaceSelector } from './sketch-on-face'
 import { makeUvMap, curves2dBounds, type UvMap } from '../geometry2d/bridge/on-surface'
 import { evaluateCurve2d } from '../geometry2d/curve2d'
 import { profileSegToCurve } from '../geometry2d/adapt'
-import { assertProfileParams, type ProfileLoop } from './profile'
+import { assertProfileParams, contourAnglesToRadians, type ProfileLoop } from './profile'
+import { contoursDimSpec } from '../sketch/dim-spec.js'
 
 /** Parameters for `cad.punchHole`. */
 export interface PunchHoleParams {
@@ -263,9 +264,11 @@ export const punchHole = defineOp({
   engines: ['occt'],
   brep(params: Record<string, unknown>) {
     assertProfileParams(params)
+    contourAnglesToRadians(params.contours)
     return buildPunchHole(getBrepApi(), params as unknown as PunchHoleParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 
-  paramDims: {},
+  paramDims: { height: 'length', draftAngle: 'angle' },
+  spec: contoursDimSpec(),
 })

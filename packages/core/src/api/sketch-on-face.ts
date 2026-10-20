@@ -47,7 +47,8 @@ import { organiseBlueprints } from '../geometry2d/organise'
 import { assembleWireOnFace, type FaceScaleMode } from '../geometry2d/bridge/on-surface'
 import { assembleWire, type Plane, type Vec3 } from '../geometry2d/bridge/lift-on-plane'
 import { profileSegToCurve, type ProfileSegLike } from '../geometry2d/adapt'
-import { assertProfileParams, toContourBlueprints, type ProfileLoop } from './profile'
+import { assertProfileParams, contourAnglesToRadians, toContourBlueprints, type ProfileLoop } from './profile'
+import { contoursDimSpec } from '../sketch/dim-spec.js'
 import { MeshUnsupportedError, BrepUnsupportedError, getCurrentStmt, getBackends } from '../runtime-state'
 import {
   meshBackendOrThrow,
@@ -376,13 +377,15 @@ export const sketchOnFace = defineOp({
   meshEngines: ['brepkit'],
   mesh(params: Record<string, unknown>) {
     assertProfileParams(params)
+    contourAnglesToRadians(params.contours)
     return buildSketchOnFaceMesh(params as unknown as SketchOnFaceParams)
   },
   brep(params: Record<string, unknown>) {
     assertProfileParams(params)
+    contourAnglesToRadians(params.contours)
     return buildSketchOnFaceWith(getBrepApi(), params as unknown as SketchOnFaceParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 
-  paramDims: {},
+  spec: contoursDimSpec(),
 })

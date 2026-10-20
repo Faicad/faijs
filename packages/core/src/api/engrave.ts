@@ -214,5 +214,5 @@ export const engrave = defineOp({
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
-  paramDims: {},
+  paramDims: { depth: 'length', textSize: 'length', svgSize: 'length' },
 })

@@ -354,6 +354,6 @@ describe('defineOp: dimension declaration surface (P26/unit-system D8)', () => {
 
   it('box op declares length dims (representative handwritten declaration)', () => {
     const meta = dualOpMetaOf(box)
-    expect(meta?.paramDims).toEqual({ width: 'length', depth: 'length', height: 'length' })
+    expect(meta?.paramDims).toEqual({ width: 'length', depth: 'length', height: 'length', segments: 'plain' })
   })
 })

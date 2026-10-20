@@ -70,5 +70,5 @@ export const thicken = defineOp({
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: 'thickened-body face vocabulary not defined' } as Provenance,
 
-  paramDims: {},
+  paramDims: { thickness: 'length' },
 })

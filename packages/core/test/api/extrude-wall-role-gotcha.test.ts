@@ -38,15 +38,16 @@ beforeAll(async () => {
 }, 120000)
 
 /** Square 10×10 with all four corners rounded by r=1 arcs: 4 lines + 4 arcs. */
+// 弧角度是 ANGLE 槽位：脚本面必须写带单位的量，`* RADIAN` 保持内核原值不变。
 const ROUNDED_SQUARE = `{ contours: [{ segments: [
   { kind: 'line', x1: 1, y1: 0, x2: 9, y2: 0 },
-  { kind: 'arc', cx: 9, cy: 1, radius: 1, startAngle: -1.5707963267948966, endAngle: 0, ccw: true, x1: 9, y1: 0, x2: 10, y2: 1 },
+  { kind: 'arc', cx: 9, cy: 1, radius: 1, startAngle: -1.5707963267948966*RADIAN, endAngle: 0*RADIAN, ccw: true, x1: 9, y1: 0, x2: 10, y2: 1 },
   { kind: 'line', x1: 10, y1: 1, x2: 10, y2: 9 },
-  { kind: 'arc', cx: 9, cy: 9, radius: 1, startAngle: 0, endAngle: 1.5707963267948966, ccw: true, x1: 10, y1: 9, x2: 9, y2: 10 },
+  { kind: 'arc', cx: 9, cy: 9, radius: 1, startAngle: 0*RADIAN, endAngle: 1.5707963267948966*RADIAN, ccw: true, x1: 10, y1: 9, x2: 9, y2: 10 },
   { kind: 'line', x1: 9, y1: 10, x2: 1, y2: 10 },
-  { kind: 'arc', cx: 1, cy: 9, radius: 1, startAngle: 1.5707963267948966, endAngle: 3.141592653589793, ccw: true, x1: 1, y1: 10, x2: 0, y2: 9 },
+  { kind: 'arc', cx: 1, cy: 9, radius: 1, startAngle: 1.5707963267948966*RADIAN, endAngle: 3.141592653589793*RADIAN, ccw: true, x1: 1, y1: 10, x2: 0, y2: 9 },
   { kind: 'line', x1: 0, y1: 9, x2: 0, y2: 1 },
-  { kind: 'arc', cx: 1, cy: 1, radius: 1, startAngle: 3.141592653589793, endAngle: 4.71238898038469, ccw: true, x1: 0, y1: 1, x2: 1, y2: 0 }
+  { kind: 'arc', cx: 1, cy: 1, radius: 1, startAngle: 3.141592653589793*RADIAN, endAngle: 4.71238898038469*RADIAN, ccw: true, x1: 0, y1: 1, x2: 1, y2: 0 }
 ], closed: true }] }`
 
 /** Plain square profile (the pre-A2 behaviour was already "covered" here — but wrong). */

@@ -483,12 +483,13 @@ describe('sweep/loft 双引擎化 GOTCHA（方案 §7.7）', () => {
   it('brepkit loft：圆 → 方（1 顶点闭环 vs 4 顶点方框）→ 重采样兜底可达', async () => {
     await useBrepkit()
     // 整圆 sketch 面（4 段 90° 圆弧，r=4，z=0）→ 方框 wire（half=3，z=10）。
+    // 弧角度是 ANGLE 槽位（脚本面基准单位 = 度），`* RADIAN` 保持内核原值不变。
     const circleSketch =
       'cad.profile({ contours: [{ segments: [ ' +
-      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 0, endAngle: 1.5707963267948966, ccw: true, x1: 4, y1: 0, x2: 0, y2: 4 }, ' +
-      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 1.5707963267948966, endAngle: 3.141592653589793, ccw: true, x1: 0, y1: 4, x2: -4, y2: 0 }, ' +
-      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 3.141592653589793, endAngle: 4.71238898038469, ccw: true, x1: -4, y1: 0, x2: 0, y2: -4 }, ' +
-      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 4.71238898038469, endAngle: 6.283185307179586, ccw: true, x1: 0, y1: -4, x2: 4, y2: 0 } ] }] })'
+      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 0*RADIAN, endAngle: 1.5707963267948966*RADIAN, ccw: true, x1: 4, y1: 0, x2: 0, y2: 4 }, ' +
+      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 1.5707963267948966*RADIAN, endAngle: 3.141592653589793*RADIAN, ccw: true, x1: 0, y1: 4, x2: -4, y2: 0 }, ' +
+      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 3.141592653589793*RADIAN, endAngle: 4.71238898038469*RADIAN, ccw: true, x1: -4, y1: 0, x2: 0, y2: -4 }, ' +
+      '{ kind: "arc", cx: 0, cy: 0, radius: 4, startAngle: 4.71238898038469*RADIAN, endAngle: 6.283185307179586*RADIAN, ccw: true, x1: 0, y1: -4, x2: 4, y2: 0 } ] }] })'
     const code =
       `let s0 = ${circleSketch}\n` +
       `let s1 = ${closedWire(3, 10)}\n` +

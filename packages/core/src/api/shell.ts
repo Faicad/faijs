@@ -196,5 +196,5 @@ export const shell = defineOp({
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
-  paramDims: {},
+  paramDims: { thickness: 'length', tolerance: 'length' },
 })

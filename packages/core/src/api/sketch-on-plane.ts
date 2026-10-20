@@ -23,7 +23,8 @@ import { CompoundBlueprint } from '../geometry2d/compound-blueprint'
 import { organiseBlueprints } from '../geometry2d/organise'
 import { namedPlane, makePlane, toVec3, type Plane, type Vec3Input } from '../geometry2d/bridge/plane'
 import { assembleWire } from '../geometry2d/bridge/lift-on-plane'
-import { assertProfileParams, toContourBlueprints, type DrawnContours, type ProfileLoop } from './profile'
+import { assertProfileParams, contourAnglesToRadians, toContourBlueprints, type DrawnContours, type ProfileLoop } from './profile'
+import { contoursDimSpec } from '../sketch/dim-spec.js'
 
 /** A plane given by a named plane and/or an explicit frame (coords accept both array and `{x,y,z}`). */
 export interface PlaneSpec {
@@ -162,9 +163,10 @@ export const sketchOnPlane = defineOp({
 
   brep(params: Record<string, unknown>) {
     assertProfileParams(params)
+    contourAnglesToRadians(params.contours)
     return buildSketchOnPlaneWith(getBrepApi(), params as unknown as SketchOnPlaneParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 
-  paramDims: {},
+  spec: contoursDimSpec(),
 })

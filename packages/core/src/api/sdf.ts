@@ -49,5 +49,5 @@ export const sdf = defineOp({
   },
   naming: { kind: 'unmodeled', reason: 'sdf is mesh-only, no BREP face identity' } as Provenance,
 
-  paramDims: {},
+  paramDims: { resolution: 'length' },
 })

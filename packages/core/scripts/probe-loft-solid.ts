@@ -19,7 +19,7 @@ const sketch257 = `cad.profile({ contours: [{ segments: [
   { kind: 'line', x1: -694, y1: -935, x2: -664, y2: -935 },
   { kind: 'line', x1: -664, y1: -935, x2: -664, y2: -965 },
   { kind: 'line', x1: -664, y1: -965, x2: -674, y2: -965 },
-  { kind: 'arc', cx: -674, cy: -945, radius: 20, startAngle: -1.5707963267948966, endAngle: 3.141592653589793, ccw: false, x1: -674, y1: -965, x2: -694, y2: -945 },
+  { kind: 'arc', cx: -674, cy: -945, radius: 20, startAngle: -1.5707963267948966*RADIAN, endAngle: 3.141592653589793*RADIAN, ccw: false, x1: -674, y1: -965, x2: -694, y2: -945 },
   { kind: 'line', x1: -694, y1: -945, x2: -694, y2: -935 },
 ], closed: true }] })`
 
@@ -27,7 +27,7 @@ const sketch258 = `cad.profile({ contours: [{ segments: [
   { kind: 'line', x1: -694, y1: -915, x2: -644, y2: -915 },
   { kind: 'line', x1: -644, y1: -915, x2: -644, y2: -965 },
   { kind: 'line', x1: -644, y1: -965, x2: -664, y2: -965 },
-  { kind: 'arc', cx: -664, cy: -935, radius: 30, startAngle: -1.5707963267948966, endAngle: 3.141592653589793, ccw: false, x1: -664, y1: -965, x2: -694, y2: -935 },
+  { kind: 'arc', cx: -664, cy: -935, radius: 30, startAngle: -1.5707963267948966*RADIAN, endAngle: 3.141592653589793*RADIAN, ccw: false, x1: -664, y1: -965, x2: -694, y2: -935 },
   { kind: 'line', x1: -694, y1: -935, x2: -694, y2: -915 },
 ], closed: true }] })`
 

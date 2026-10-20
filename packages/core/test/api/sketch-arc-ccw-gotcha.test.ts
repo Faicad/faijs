@@ -21,13 +21,15 @@ import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
 beforeAll(async () => { await initOcctWasm() }, 120000)
 
 // FCBL_tree_entourage s1 Sketch001（原尺寸，未缩放）
+// 弧的 startAngle/endAngle 是 ANGLE 槽位（脚本面基准单位 = 度），必须写带单位的量；
+// `* RADIAN` 保持内核原值逐位不变。
 const TREE_PROFILE = `{ contours: [{ segments: [
   { kind: 'line', x1: 0, y1: 1078.6061879890412, x2: -554.9340000000001, y2: 1078.6061879890412 },
-  { kind: 'arc', cx: -554.934, cy: 1576.61, radius: 498.00381201095877, startAngle: -1.570796326794897, endAngle: -2.7126514609372734, ccw: false, x1: -554.9340000000001, y1: 1078.606187989041, x2: -1007.8219663923912, y2: 1369.4861561905275 },
+  { kind: 'arc', cx: -554.934, cy: 1576.61, radius: 498.00381201095877, startAngle: -1.570796326794897*RADIAN, endAngle: -2.7126514609372734*RADIAN, ccw: false, x1: -554.9340000000001, y1: 1078.606187989041, x2: -1007.8219663923912, y2: 1369.4861561905275 },
   { kind: 'line', x1: -1007.8219663923912, y1: 1369.4861561905275, x2: -1073.395535969475, y2: 1512.8664644575629 },
-  { kind: 'arc', cx: 1494.060356088772, cy: 2687.0670894166183, radius: 2823.221008939762, startAngle: -2.7126514609372743, endAngle: 2.8740556782240416, ccw: false, x1: -1073.395535969475, y1: 1512.8664644575629, x2: -1228.724391685866, y2: 3433.4048699186155 },
+  { kind: 'arc', cx: 1494.060356088772, cy: 2687.0670894166183, radius: 2823.221008939762, startAngle: -2.7126514609372743*RADIAN, endAngle: 2.8740556782240416*RADIAN, ccw: false, x1: -1073.395535969475, y1: 1512.8664644575629, x2: -1228.724391685866, y2: 3433.4048699186155 },
   { kind: 'line', x1: -1228.724391685866, y1: 3433.4048699186155, x2: -779.3228279419842, y2: 5072.908798776252 },
-  { kind: 'arc', cx: 0, cy: 4859.289977025418, radius: 808.0699667465105, startAngle: 2.8740556782240416, endAngle: 1.5707963267948966, ccw: false, x1: -779.3228279419842, y1: 5072.908798776252, x2: 4.94800149131611e-14, y2: 5667.359943771929 },
+  { kind: 'arc', cx: 0, cy: 4859.289977025418, radius: 808.0699667465105, startAngle: 2.8740556782240416*RADIAN, endAngle: 1.5707963267948966*RADIAN, ccw: false, x1: -779.3228279419842, y1: 5072.908798776252, x2: 4.94800149131611e-14, y2: 5667.359943771929 },
   { kind: 'line', x1: 4.94800149131611e-14, y1: 5667.359943771929, x2: 0, y2: 1078.6061879890412 }
 ], closed: true }] }`
 
@@ -53,7 +55,7 @@ describe('GOTCHA: sketch arc ccw:false must not become a CCW long arc (A3 regres
     try {
       const result = await runtime.execute(`
         const p = cad.profile({ contours: [{ segments: [
-          { kind: 'arc', cx: 50, cy: 0, radius: 25, startAngle: 0, endAngle: 0, ccw: false }
+          { kind: 'arc', cx: 50, cy: 0, radius: 25, startAngle: 0*RADIAN, endAngle: 0*RADIAN, ccw: false }
         ], closed: false }] , as: 'wire' })
       `, { topology: 'auto' })
       expect(result.failedAt, `failed: ${result.failedAt?.message ?? ''}`).toBeUndefined()

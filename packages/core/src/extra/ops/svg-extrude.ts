@@ -79,5 +79,5 @@ export const svgExtrude = defineOp({
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 
-  paramDims: {},
+  paramDims: { depth: 'length', targetLongSide: 'length' },
 })

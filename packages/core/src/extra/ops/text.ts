@@ -109,5 +109,5 @@ export const text = defineOp({
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 
-  paramDims: { inputOrParams: 'plain', maybeParams: 'plain' },
+  paramDims: { size: 'length', depth: 'length' },
 })

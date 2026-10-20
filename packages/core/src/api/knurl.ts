@@ -64,6 +64,13 @@ export const knurl = defineOp({
       knurlMappingMode: (params.knurlMappingMode as number | undefined) ?? 5,
     })
   },
-  paramDims: { knurlTextureHeight: 'length', knurlRefineLength: 'length' },
+  paramDims: {
+    knurlTextureHeight: 'length',
+    knurlRefineLength: 'length',
+    // U/V 频率与映射模式是无量纲的着色参数。
+    knurlScaleU: 'plain',
+    knurlScaleV: 'plain',
+    knurlMappingMode: 'plain',
+  },
   naming: { kind: 'unmodeled', reason: 'knurl is mesh-only, no BREP face identity' } as Provenance,
 })

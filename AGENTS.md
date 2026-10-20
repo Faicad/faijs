@@ -120,7 +120,7 @@ faijs 同时服务两类人，他们看到的是**不同的 API 面**。混为�
 ## 文档地图
 
 - `docs/AGENTS.md`：文档标准，改文档前必读。
-- `docs/api-contract.md`、`docs/language-design.md`、`docs/ops-api-inventory.md`（写 `.fai.js` 的 API 手册）、`docs/library-dev-guide.md`（第三方库开发手册）：有效契约，改行为前必读。
+- `docs/api-contract.md`、`docs/language-design.md`、`docs/ops-api-inventory.md`（写 `.fai.js` 的 API 手册）、`docs/sketch-contract.md`（草图子系统契约：两条脚本面入口、角度单位、canonical 几何、轮廓抽取）、`docs/library-dev-guide.md`（第三方库开发手册）：有效契约，改行为前必读。
 - `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。每月 1 号归档到 `yyyy-mm/` 文件夹。**严禁修改或引用已归档的 plans 子文件夹里的文件。**
 - `docs/analysis/`：技术分析文档。
 - `.agents/notes/`：决策记录（Agent Notes），见 [.agents/notes/README.md](.agents/notes/README.md)。
@@ -164,7 +164,7 @@ Brep链可以切换，没有回退。在链上增加一个brep不支持的操作
 - 非平凡变更必须在同一 PR 中新增或更新至少一份 Agent Note（见 [.agents/notes/README.md](.agents/notes/README.md)）。
 - 代码改动和文档更新在同一 PR 中完成——配置键、默认值、错误码的变更同步更新 README 和 JSDoc。
 - 运行 `npm run doc-sync` 检查文档规范（全部 12 项门禁）。
-- 文档放置规则：方案设计→`docs/plans/`；技术分析→`docs/analysis/`；决策记录→`.agents/notes/`；接口契约→`docs/api-contract.md`；语言契约→`docs/language-design.md`；API 手册→`docs/ops-api-inventory.md`；库开发手册→`docs/library-dev-guide.md`。
+- 文档放置规则：方案设计→`docs/plans/`；技术分析→`docs/analysis/`；决策记录→`.agents/notes/`；接口契约→`docs/api-contract.md`；草图契约→`docs/sketch-contract.md`；语言契约→`docs/language-design.md`；API 手册→`docs/ops-api-inventory.md`；库开发手册→`docs/library-dev-guide.md`。
 - 一个事实一个家：每条规则只有一处权威归属，其他地方只链接不重复。
 - 记录当前状态，不写变更历史——变更历史放在 commit message 和 PR 中。
 - 双语配对：范围内文档必须配齐 `.md`（英文）、`.zh.md`（中文）、`.i18n.yaml`（一致性记录）。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。

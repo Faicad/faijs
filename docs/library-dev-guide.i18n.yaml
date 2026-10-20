@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   npm run verify-translation-pairing --write docs/library-dev-guide.md
-library-dev-guide.md: 09fc82e6dec6a421248d403bf97120774f17a235
-library-dev-guide.zh.md: cba343c28197959f4f265b9a8cee5a3af6d4a89a
+library-dev-guide.md: 8ab6b30ff3494d686a68bc5b900483db501eab28
+library-dev-guide.zh.md: 22c347ca92df8b2c08d53f2332cdfc2ef65e0f9b

@@ -117,5 +117,5 @@ export const linearPattern = defineOp({
   },
   naming: { kind: 'replicate', k: 0 } as Provenance,
 
-  paramDims: {},
+  paramDims: { count: 'plain', spacing: 'length' },
 })

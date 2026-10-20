@@ -63,10 +63,14 @@ function segEnds(g: FcstdSketchGeom): [ContourSeg, { x: number; y: number }, { x
       const y1 = g.y1 ?? g.cy + radius * Math.sin(startAngle);
       const x2 = g.x2 ?? g.cx + radius * Math.cos(endAngle);
       const y2 = g.y2 ?? g.cy + radius * Math.sin(endAngle);
+      // Orientation carry-through (2026-10-21): canonical arcs carry `ccw` through
+      // toFreeCadGeoms as an internal extension field (project.ts). FCStd-imported
+      // arcs lack it — keep the historical ccw:true default for that path.
+      const ccw = (g as { ccw?: boolean }).ccw ?? true;
       return [
         {
           kind: 'arc', cx: g.cx, cy: g.cy, radius,
-          startAngle, endAngle, ccw: true,
+          startAngle, endAngle, ccw,
           x1, y1, x2, y2,
         },
         { x: x1, y: y1 },

@@ -115,7 +115,9 @@ function alignToBrep(shape: Shape, axis: AlignAxis, options?: AlignOptions): Sha
  */
 export const alignTo = defineOp({
   name: 'alignTo',
-  paramDims: { options: 'length' },
+  // `target` 是嵌套在 options 里的坐标（length）；用 spec 而非 paramDims ——
+  // paramDims 只能声明顶层键，写 `options: 'length'` 会让量纲 pass 拿不到 target。
+  spec: { kind: 'object', fields: { target: { kind: 'dim', dim: 'length' } } },
   brep(shape: Shape, axis: AlignAxis, options?: AlignOptions) {
     return alignToBrep(shape, axis, options)
   },

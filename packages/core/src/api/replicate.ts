@@ -183,7 +183,7 @@ export const circularPattern = defineOp({
   // 中立 op（D11）：实现只用 L1 核心面（kernel.circularPattern/fuseAll）。
   naming: { kind: 'replicate', k: 0 } as Provenance,
 
-  paramDims: {},
+  paramDims: { count: 'plain', fullAngle: 'angle' },
 })
 
 // ── gridPattern ─────────────────────────────────────────────────────────────
@@ -287,7 +287,7 @@ export const gridPattern = defineOp({
   // 中立 op（D11）：实现只用 L1 核心面（kernel.gridPattern/translate/fuseAll）。
   naming: { kind: 'replicate', k: 0 } as Provenance,
 
-  paramDims: {},
+  paramDims: { countX: 'plain', countY: 'plain', spacingX: 'length', spacingY: 'length' },
 })
 // ── rectangularPattern ──────────────────────────────────────────────────────
 

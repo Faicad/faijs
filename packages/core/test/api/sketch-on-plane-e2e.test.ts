@@ -146,13 +146,12 @@ describe('cad.sketchOnPlane placement e2e (E2, occt)', () => {
   // assert those lifting paths survive a real kernel `makeFace` + `extrude` on a plane.
   it('full-circle contour on XY plane → 2-arc wire faces + extrudes (π·r²·h)', async () => {
     const r = 10
-    const circle: ProfileLoop = {
-      segments: [
-        { kind: 'arc', cx: 0, cy: 0, radius: r, startAngle: 0, endAngle: 2 * Math.PI, ccw: true, x1: r, y1: 0, x2: r, y2: 0 },
-      ],
-    }
+    // 弧角度是 ANGLE 槽位：脚本面必须写带单位的量。`* RADIAN` 保持内核原值
+    // （整圆 = 2π）逐位不变 —— 因此轮廓字面量直接写在脚本里，不走 JSON.stringify。
     const result = await exec(
-      `const part0 = cad.sketchOnPlane({ contours: ${JSON.stringify([circle])}, plane: { name: 'XY' } })\n` +
+      `const part0 = cad.sketchOnPlane({ contours: [{ segments: [` +
+        `{ kind: 'arc', cx: 0, cy: 0, radius: ${r}, startAngle: 0*RADIAN, endAngle: ${2 * Math.PI}*RADIAN, ccw: true, x1: ${r}, y1: 0, x2: ${r}, y2: 0 }` +
+        `] }], plane: { name: 'XY' } })\n` +
         `const part1 = cad.extrude(part0, [0, 0, 5])`,
     )
     if (result.failedAt) throw new Error(`sketch failed: ${result.failedAt.message}`)

@@ -255,5 +255,14 @@ export const fai_split = defineOp({
     dowelHeight: 'length',
     tenonSideLength: 'length',
     tenonHeight: 'length',
+    // 公差与主尺寸同量纲；翼角是角度；截面下标是无量纲索引。
+    grooveDepthTolerance: 'length',
+    grooveWidthTolerance: 'length',
+    grooveFlapsAngle: 'angle',
+    dowelDiameterTolerance: 'length',
+    dowelHeightTolerance: 'length',
+    tenonSideLengthTolerance: 'length',
+    tenonHeightTolerance: 'length',
+    selectedSections: 'plain',
   },
 })

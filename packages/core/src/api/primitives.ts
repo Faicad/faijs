@@ -268,7 +268,7 @@ export const box = defineOp({
   // D11 位置→对象（§4.1/§6.2）：三个标量装箱成 { width, depth, height }，尾参
   // options 经 dual-form-args 的尾参合并（§6.2）并入。
   slotMap: { keys: ['width', 'depth', 'height'] },
-  paramDims: { width: 'length', depth: 'length', height: 'length' },
+  paramDims: { width: 'length', depth: 'length', height: 'length', segments: 'plain' },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'semantic', name: 'front' }, { kind: 'semantic', name: 'back' }, { kind: 'semantic', name: 'left' }, { kind: 'semantic', name: 'right' }] } } as Provenance,
 })
 
@@ -303,7 +303,7 @@ export const sphere = defineOp({
   // D11: `sphere(10)` == `sphere({ radius: 10 })`; 尾参 options（{at, segments}）
   // 经 dual-form-args 的尾参合并规则归一（裁决 4，§6.2）。
   slotMap: { keys: ['radius'] },
-  paramDims: { radius: 'length' },
+  paramDims: { radius: 'length', segments: 'plain' },
   naming: { kind: 'unmodeled', reason: 'sphere face vocabulary pending Phase 3' } as Provenance,
 })
 
@@ -353,7 +353,7 @@ export const cylinder = defineOp({
   // D11（§4.1/§6.2）：`cylinder(5, 40)` 两个标量装箱成 { radius, height }；尾参 options
   // 经 dual-form-args 尾参合并并入。
   slotMap: { keys: ['radius', 'height'] },
-  paramDims: { radius: 'length', height: 'length' },
+  paramDims: { radius: 'length', height: 'length', segments: 'plain' },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'semantic', name: 'lateral' }] } } as Provenance,
 })
 
@@ -401,7 +401,7 @@ export const cone = defineOp({
   // D11（§4.1/§6.2）: `cone(10, 4, 30)` 三个标量装箱成 { radiusBottom, radiusTop, height }。
   // 尾参 options（{at, centered, segments}）经 dual-form-args 尾参合并并入。
   slotMap: { keys: ['radiusBottom', 'radiusTop', 'height'] },
-  paramDims: { radiusBottom: 'length', radiusTop: 'length', height: 'length' },
+  paramDims: { radiusBottom: 'length', radiusTop: 'length', height: 'length', segments: 'plain' },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'semantic', name: 'lateral' }] } } as Provenance,
 })
 

@@ -1004,6 +1004,11 @@ export class CadRuntime {
     // P2 修复：执行前重新认领全局 backends（本实例配置为准）。
     this.claimBackends()
     this.accumulatedCode = code
+    // NOTE（2026-10-21，量纲执行期门禁待办）：此处**不传** opDims，所以量纲 pass
+    // 不在 execute 路径运行，只有 `check()`（dry-run，见本文件 check()）会拦裸数字。
+    // 实测把 opDims 接上后全仓 703 个测试失败（133 文件）——现有语料普遍写裸数字
+    // （`cad.box(20, 20, 20)` 之类），与「带量纲槽位不准裸数字」的契约直接冲突。
+    // 迁移量级与是否连带改动宿主 codegen 需产品决策，故暂不改变执行期行为。
     const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
     const determinismFailure = await this.runDeterminismGate(code, meta)
     if (determinismFailure) return determinismFailure

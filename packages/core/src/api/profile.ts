@@ -27,6 +27,8 @@ import { CompoundBlueprint } from '../geometry2d/compound-blueprint'
 import { organiseBlueprints } from '../geometry2d/organise'
 import { curveBounds, evaluateCurve2d } from '../geometry2d/curve2d'
 import { profileSegToCurve, type ProfileSegLike } from '../geometry2d/adapt'
+import { fromBase } from '../units'
+import { contoursDimSpec } from '../sketch/dim-spec.js'
 
 // ── 参数形状（与 fcstd Contour 结构相同，避免引擎依赖端口层）──
 
@@ -39,15 +41,23 @@ export interface ProfileLineSeg {
   y2: number
 }
 
-/** 圆弧段（圆心 + 半径 + 起止角，弧度；z=0）。 */
+/** 圆弧段（圆心 + 半径 + 起止角；z=0）。
+
+ * ⚠️ 单位边界：`startAngle`/`endAngle` 是 ANGLE 量纲。脚本面写入的是**度**
+ * （角度基准单位：DEGREE=1、RADIAN=180/π），而 `profileSegToCurve` 及其下游
+ * 几何内部一律用**弧度**。换算只在 op 入口做一次（见
+ * {@link contourAnglesToRadians}）——直接调 `buildProfileShape` 的非脚本调用方
+ * 传的仍是弧度，两边不会互相污染。别把换算放进 `profileSegToCurve`，那会让
+ * 内核产出的（`extractContours`，弧度）再进来时被乘第二次。
+ */
 export interface ProfileArcSeg {
   kind: 'arc'
   cx: number
   cy: number
   radius: number
-  /** 起始角（弧度） */
+  /** 起始角（脚本面：度；内部：弧度，由入口换算） */
   startAngle: number
-  /** 终止角（弧度） */
+  /** 终止角（脚本面：度；内部：弧度，由入口换算） */
   endAngle: number
   ccw: boolean
   x1: number
@@ -165,6 +175,38 @@ export function toContourBlueprints(contours: unknown): Blueprint[] {
         (loop?.segments ?? []).map((s) => profileSegToCurve(s as ProfileSegLike)),
       ),
   )
+}
+
+/**
+ * 脚本面单位边界：把段环数据里 arc 的 `startAngle`/`endAngle` 从度换成弧度。
+ *
+ * 为什么必须在这里做（而不是在 `profileSegToCurve` 里）：
+ * - 量纲系统把这两个槽位声明成 `dim:'angle'`，脚本面因此**只能**写带单位的量
+ *   （`90 * DEGREE` / `1.5708 * RADIAN`），折完的基准单位是度；
+ * - 而 `geometry2d/` 的几何内部、以及内核产出的 `extractContours`（弧度）都是
+ *   弧度。换算放在 op 入口，是"脚本面 ⟷ 内部"唯一的那道门；放进共享 helper
+ *   会让内核产出回灌时被换算两次。
+ *
+ * 只认段环数据形态（`{segments:[…]}`）；已绘制轮廓（`Blueprint`）是纯几何，
+ * 无数值参数，原样放过。就地修改入参数组——与 `cad.sketch` 的
+ * `anglesToRadians` 同理：params 每次执行新建，宿主不持有。
+ *
+ * @param contours - `params.contours` 原值（`ProfileLoop[]` | `Blueprint` | `Blueprint[]`）。
+ */
+export function contourAnglesToRadians(contours: unknown): void {
+  if (!Array.isArray(contours)) return
+  for (const loop of contours) {
+    if (!loop || typeof loop !== 'object') continue
+    const segments = (loop as ProfileLoop).segments
+    if (!Array.isArray(segments)) continue
+    for (const seg of segments) {
+      if (!seg || typeof seg !== 'object') continue
+      if ((seg as ProfileSeg).kind !== 'arc') continue
+      const arc = seg as ProfileArcSeg
+      if (typeof arc.startAngle === 'number') arc.startAngle = fromBase(arc.startAngle, 'radian', 'angle')
+      if (typeof arc.endAngle === 'number') arc.endAngle = fromBase(arc.endAngle, 'radian', 'angle')
+    }
+  }
 }
 
 /**
@@ -358,9 +400,10 @@ function blueprintArea(entry: Blueprint | CompoundBlueprint): number {
 export const profile = defineOp({
   brep(params: Record<string, unknown>) {
     assertProfileParams(params)
+    contourAnglesToRadians(params.contours)
     return buildProfileShape(params as unknown as ProfileParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 
-  paramDims: {},
+  spec: contoursDimSpec(),
 })

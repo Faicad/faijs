@@ -111,5 +111,5 @@ export const wire = defineOp({
   },
   naming: { kind: 'unmodeled', reason: 'construct vocabulary pending Phase 3' } as Provenance,
 
-  paramDims: {},
+  paramDims: { degree: 'plain' },
 })

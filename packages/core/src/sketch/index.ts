@@ -57,7 +57,7 @@ export type {
 } from './shapes.js'
 
 // ── serialize dimension spec (`cad.sketch` unit-aware codegen) ──
-export { shapesDimSpec, constraintsDimSpec, sketchDimSpec } from './dim-spec.js'
+export { shapesDimSpec, constraintsDimSpec, sketchDimSpec, contoursDimSpec } from './dim-spec.js'
 
 // ── FCStd solve pipeline (consumed by the fcstd port) ──
 export type { SketchSolver, FcstdSolveOutcome, ExternalFixedSeg } from './solver.js'

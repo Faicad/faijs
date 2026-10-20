@@ -138,7 +138,7 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 
 1. **`contractVersion`**：与运行时匹配（`assertContractVersion`）；双路径 op 缺它会被拒绝。
 2. **不碰引擎内部**：不得访问引擎内部可变状态（`currentStmt` / `script` / `outputCache` / `brepChain`），不得查询或修改 DAG，不得原地修改已发布的 `Shape`。
-3. **句柄所有权**：返回的句柄一旦被引擎收养，之后不得再 `delete()`（返回即转移）。
+3. **句柄所有权**：返回的句柄一旦被引擎收养，之后不得再 `delete()`（返回即转移）。句柄是从 `0` 起分配的数字，`0` 是合法句柄——见 `docs/api-contract.md` §8.6 的引擎边界契约。
 4. **不启动内核**：不得调用 `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()`，不得 `import 'occt-wasm'`——启动内核是 Host 的职责（§3.1.1）。唯一例外是宿主角色包自己的 `test-setup.ts`。
 5. **不读裸槽位**：不得读 `getBackends().kernel.*`；按 §2.11 的三分表取中立法（`getBrepApi()`）或平台法（`getOcctKernel()` / `getBrepKitKernel()`）。
 
@@ -227,6 +227,8 @@ export function buildThread(params: ThreadParams): Result<Solid> { … }
 |---|---|
 | `runtime.describeLib(binding)` | 该库的 `{ role, conformsTo, platform }` 加逐函数的 `{ engines, outputs }`；未写 `fn.engines` 的函数回报继承来的库级平台 |
 | `runtime.libsUnder(engineId)` | 给定引擎，哪些函数可调用、哪些被静态拒绝，每条拒绝都带原因 |
+
+内置 `cad` 面也是一个已注册的绑定，因此这两个查询同样覆盖它——`runtime.libsUnder('brepkit')` 回答 brepkit 宿主能调用哪些内置 op（`docs/api-contract.md` §7.12）。
 
 #### 库代码里禁止做的事
 

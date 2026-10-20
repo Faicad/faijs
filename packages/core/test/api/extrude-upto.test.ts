@@ -163,8 +163,10 @@ describe('cad.extrude upTo { plane } 显式平面目标（PadTest Pad001 斜置�
   it('斜平面目标产生斜顶棱柱（自动朝平面方向拉伸）', async () => {
     // 圆轮廓（PadTest Sketch001，r=7.728，面积 187.6）；斜平面法向
     // n=(−0.705,0.071,0.705)，圆心处交点 z=−26.06 → 真值体积 4860.42。
+    // 弧的 startAngle/endAngle 是 ANGLE 槽位（脚本面基准单位 = 度），必须写带单位的
+    // 量；整圆 = 360 度，与内核原值 2π 等价。
     const outputs = await runCode(`
-      let sk = cad.profile({ contours: [{"segments":[{"kind":"arc","cx":-33.057236,"cy":30.001772,"radius":7.728417011119,"startAngle":0,"endAngle":6.283185307179586,"ccw":true,"x1":-25.328818988881004,"y1":30.001772,"x2":-25.328818988881004,"y2":30.001772}],"closed":true}] })
+      let sk = cad.profile({ contours: [{"segments":[{"kind":"arc","cx":-33.057236,"cy":30.001772,"radius":7.728417011119,"startAngle":0*DEGREE,"endAngle":360*DEGREE,"ccw":true,"x1":-25.328818988881004,"y1":30.001772,"x2":-25.328818988881004,"y2":30.001772}],"closed":true}] })
       let part1 = cad.extrude(sk, { upTo: { plane: { point: [-50, 100, -49.99999999999997], normal: [-0.7053456158587508, 0.07053456158639328, 0.7053456158583923] } } })
     `)
     const p1 = outputs.get(asPartName('part1'))

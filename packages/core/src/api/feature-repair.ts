@@ -194,7 +194,7 @@ export const sew = defineOp({
   },
   naming: kernelNaming,
 
-  paramDims: {},
+  paramDims: { tolerance: 'length' },
 })
 
 /**
@@ -219,7 +219,7 @@ export const sewAndSolidify = defineOp({
   },
   naming: kernelNaming,
 
-  paramDims: {},
+  paramDims: { tolerance: 'length' },
 })
 
 /**

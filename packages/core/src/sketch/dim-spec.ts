@@ -91,6 +91,44 @@ const geomCases: Record<string, DimSpec> = {
   },
 }
 
+// ── contours[] (segment loops: cad.profile / punchHole / sketchOn*) ────────
+// The segment-loop data form shared by every 2D placement entry. Coordinates
+// and radii are lengths; arc `startAngle`/`endAngle` are ANGLE — on the script
+// face that means degrees (DEGREE = 1, RADIAN = 180/π), and the entry points
+// convert once to the radians the geometry internals use. Never declare these
+// `plain`: an arc's sweep IS dimensioned, and `plain` would let a bare number
+// through — which is exactly what the unit system exists to refuse.
+//
+// `spline` carries NURBS control data: `poles` is a flat [x, y, x, y, …] run of
+// lengths, while `knots`/`multiplicities`/`degree` are curve-parameter numbers
+// (not lengths) → `plain`.
+
+const segmentCases: Record<string, DimSpec> = {
+  line: { kind: 'object', fields: { x1: LENGTH, y1: LENGTH, x2: LENGTH, y2: LENGTH } },
+  arc: {
+    kind: 'object',
+    fields: {
+      cx: LENGTH, cy: LENGTH, radius: LENGTH,
+      startAngle: ANGLE, endAngle: ANGLE,
+      ccw: PLAIN,
+      x1: LENGTH, y1: LENGTH, x2: LENGTH, y2: LENGTH,
+    },
+  },
+  spline: {
+    kind: 'object',
+    fields: {
+      degree: PLAIN,
+      poles: { kind: 'array', item: LENGTH },
+      knots: { kind: 'array', item: PLAIN },
+      multiplicities: { kind: 'array', item: PLAIN },
+      weights: { kind: 'array', item: PLAIN },
+      periodic: PLAIN,
+      first: PLAIN,
+      last: PLAIN,
+    },
+  },
+}
+
 // ── plane ─────────────────────────────────────────────────────────────────
 // origin is a 3D point (length); normal and xAxis are direction vectors (plain).
 // When plane is a string (named plane), the object spec falls through to fmtValue.
@@ -122,6 +160,34 @@ export function shapesDimSpec(): DimSpec {
  */
 export function constraintsDimSpec(): DimSpec {
   return { kind: 'array', item: { kind: 'tagged', key: 'kind', cases: constraintCases } }
+}
+
+/**
+ * DimSpec for the `contours[]` segment-loop form accepted by `cad.profile`,
+ * `cad.punchHole`, `cad.sketchOnPlane`, `cad.sketchOnFace` and
+ * `cad.sketchOnSurface`.
+ *
+ * Covers only the data form (`{ segments: […] }`). The drawn-contour form
+ * (`Blueprint`) is pure geometry with no numeric parameters, so it needs no
+ * declaration — `checkValueWithSpec` simply finds no fields to descend into.
+ *
+ * @returns an `array` of `{ segments: tagged-by-kind[] }` specs.
+ */
+export function contoursDimSpec(): DimSpec {
+  return {
+    kind: 'object',
+    fields: {
+      contours: {
+        kind: 'array',
+        item: {
+          kind: 'object',
+          fields: {
+            segments: { kind: 'array', item: { kind: 'tagged', key: 'kind', cases: segmentCases } },
+          },
+        },
+      },
+    },
+  }
 }
 
 /**

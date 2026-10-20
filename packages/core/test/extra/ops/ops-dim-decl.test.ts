@@ -36,25 +36,34 @@ describe('fai_split dimension declaration (unit-system G3; §9.2 补齐)', () =>
       dowelHeight: 'length',
       tenonSideLength: 'length',
       tenonHeight: 'length',
+      // 公差与主尺寸同量纲；翼角是角度；截面下标是无量纲索引。
+      grooveDepthTolerance: 'length',
+      grooveWidthTolerance: 'length',
+      grooveFlapsAngle: 'angle',
+      dowelDiameterTolerance: 'length',
+      dowelHeightTolerance: 'length',
+      tenonSideLengthTolerance: 'length',
+      tenonHeightTolerance: 'length',
+      selectedSections: 'plain',
     })
   })
 })
 
 describe('op paramDims declarations (unit-system G3)', () => {
   it('box', () => {
-    expect(dualOpMetaOf(box)?.paramDims).toEqual({ width: 'length', depth: 'length', height: 'length' })
+    expect(dualOpMetaOf(box)?.paramDims).toEqual({ width: 'length', depth: 'length', height: 'length', segments: 'plain' })
   })
 
   it('sphere', () => {
-    expect(dualOpMetaOf(sphere)?.paramDims).toEqual({ radius: 'length' })
+    expect(dualOpMetaOf(sphere)?.paramDims).toEqual({ radius: 'length', segments: 'plain' })
   })
 
   it('cylinder', () => {
-    expect(dualOpMetaOf(cylinder)?.paramDims).toEqual({ radius: 'length', height: 'length' })
+    expect(dualOpMetaOf(cylinder)?.paramDims).toEqual({ radius: 'length', height: 'length', segments: 'plain' })
   })
 
   it('cone', () => {
-    expect(dualOpMetaOf(cone)?.paramDims).toEqual({ radiusBottom: 'length', radiusTop: 'length', height: 'length' })
+    expect(dualOpMetaOf(cone)?.paramDims).toEqual({ radiusBottom: 'length', radiusTop: 'length', height: 'length', segments: 'plain' })
   })
 
   it('wedge', () => {
@@ -70,11 +79,17 @@ describe('op paramDims declarations (unit-system G3)', () => {
   })
 
   it('knurl', () => {
-    expect(dualOpMetaOf(knurl)?.paramDims).toEqual({ knurlTextureHeight: 'length', knurlRefineLength: 'length' })
+    expect(dualOpMetaOf(knurl)?.paramDims).toEqual({
+      knurlTextureHeight: 'length',
+      knurlRefineLength: 'length',
+      knurlScaleU: 'plain',
+      knurlScaleV: 'plain',
+      knurlMappingMode: 'plain',
+    })
   })
 
   it('fai_drill', () => {
-    expect(dualOpMetaOf(fai_drill)?.paramDims).toEqual({ diameter: 'length', depth: 'length', tolerance: 'length' })
+    expect(dualOpMetaOf(fai_drill)?.paramDims).toEqual({ diameter: 'length', depth: 'length', tolerance: 'length', screwSpecIdx: 'plain' })
   })
 
   it('scale / scale3d declare no dims (factor is dimensionless)', () => {

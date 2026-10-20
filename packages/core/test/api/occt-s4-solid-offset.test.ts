@@ -124,9 +124,10 @@ describe('S4 实体偏置族剩余 — pipe（occt 正例，脚本级）', () =>
     const s = await shapeOf(
       'brep',
       // 2D 圆盘轮廓（两段半圆弧，radius 2）→ face 截面
+      // 弧角度是 ANGLE 槽位：`* RADIAN` 保持内核原值（0/π/2π）逐位不变。
       `let part0 = cad.profile({ contours: [{"segments":[` +
-      `{"kind":"arc","cx":0,"cy":0,"radius":2,"startAngle":0,"endAngle":3.141592653589793,"ccw":true,"x1":2,"y1":0,"x2":-2,"y2":0},` +
-      `{"kind":"arc","cx":0,"cy":0,"radius":2,"startAngle":3.141592653589793,"endAngle":6.283185307179586,"ccw":true,"x1":-2,"y1":0,"x2":2,"y2":0}],"closed":true}] })\n` +
+      `{"kind":"arc","cx":0,"cy":0,"radius":2,"startAngle":0*RADIAN,"endAngle":3.141592653589793*RADIAN,"ccw":true,"x1":2,"y1":0,"x2":-2,"y2":0},` +
+      `{"kind":"arc","cx":0,"cy":0,"radius":2,"startAngle":3.141592653589793*RADIAN,"endAngle":6.283185307179586*RADIAN,"ccw":true,"x1":-2,"y1":0,"x2":2,"y2":0}],"closed":true}] })\n` +
       `let part1 = cad.wire([[0,0,0],[0,0,20]])\n` +
       `let part2 = cad.pipe(part0, part1)\n`,
       'part2',

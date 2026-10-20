@@ -38,7 +38,8 @@ import { CompoundBlueprint } from '../geometry2d/compound-blueprint'
 import { organiseBlueprints } from '../geometry2d/organise'
 import { assembleWireOnFace, type FaceScaleMode } from '../geometry2d/bridge/on-surface'
 import { profileSegToCurve, type ProfileSegLike } from '../geometry2d/adapt'
-import { assertProfileParams, type ProfileLoop } from './profile'
+import { assertProfileParams, contourAnglesToRadians, type ProfileLoop } from './profile'
+import { contoursDimSpec } from '../sketch/dim-spec.js'
 import { fixWireOnFaceBrep } from './brep-operations/healingFns'
 import { resolveFaceHandle, orientLikeHost, type SketchOnFaceParams } from './sketch-on-face'
 
@@ -139,9 +140,10 @@ export const sketchOnSurface = defineOp({
   engines: ['occt'],
   brep(params: Record<string, unknown>) {
     assertProfileParams(params)
+    contourAnglesToRadians(params.contours)
     return buildSketchOnSurfaceWith(getBrepApi(), params as unknown as SketchOnFaceParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 
-  paramDims: {},
+  spec: contoursDimSpec(),
 })

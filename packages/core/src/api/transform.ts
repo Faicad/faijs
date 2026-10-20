@@ -358,7 +358,7 @@ export const scale = defineOp({
   slotMap: { keys: ['factor'], shapeArity: 1 },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
-  paramDims: {},
+  paramDims: { factor: 'plain' },
 })
 
 /**

@@ -261,6 +261,6 @@ export const fai_drill = defineOp({
     const result = drillBrepPath(target, params)
     return replaceCompoundMember(input, params.partIndex, result)
   },
-  paramDims: { diameter: 'length', depth: 'length', tolerance: 'length' },
+  paramDims: { diameter: 'length', depth: 'length', tolerance: 'length', screwSpecIdx: 'plain' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

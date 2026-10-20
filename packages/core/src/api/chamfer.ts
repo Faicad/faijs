@@ -428,5 +428,5 @@ export const chamfer = defineOp({
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
-  paramDims: {},
+  paramDims: { width: 'length', width1: 'length', width2: 'length', angle: 'angle' },
 })

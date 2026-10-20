@@ -189,5 +189,5 @@ export const screw = defineOp({
   engines: ['occt'],
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 
-  paramDims: {},
+  paramDims: { specIdx: 'plain', length: 'length', pitchCustom: 'length', nRad: 'plain' },
 })

@@ -139,5 +139,5 @@ export const draft = defineOp({
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
-  paramDims: {},
+  paramDims: { angleDeg: 'angle' },
 })

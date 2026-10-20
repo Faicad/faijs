@@ -313,5 +313,5 @@ export const fillet = defineOp({
   },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
-  paramDims: {},
+  paramDims: { radius: 'length' },
 })

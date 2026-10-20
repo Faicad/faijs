@@ -138,7 +138,7 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 
 1. **`contractVersion`**: match the runtime's (`assertContractVersion`); dual-ops are rejected without it.
 2. **No engine internals**: no access to engine-internal mutable state (`currentStmt` / `script` / `outputCache` / `brepChain`), no DAG queries or mutation of published `Shape`s.
-3. **Handle ownership**: once a returned handle is adopted by the engine, do not `delete()` it afterward (return = transfer).
+3. **Handle ownership**: once a returned handle is adopted by the engine, do not `delete()` it afterward (return = transfer). A handle is a number allocated from `0`, so `0` is a valid handle — see the engine-boundary contract in `docs/api-contract.md` §8.6.
 4. **No kernel bootstrapping**: no `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()` calls and no `import 'occt-wasm'` — starting a kernel belongs to the Host (§3.1.1). A host-role package's own `test-setup.ts` is the sole exception.
 5. **No raw kernel slot**: never read `getBackends().kernel.*`; take the neutral face (`getBrepApi()`) or a platform face (`getOcctKernel()` / `getBrepKitKernel()`) as §2.11 lays out.
 
@@ -227,6 +227,8 @@ Both questions a caller can have are answered from the same single declaration, 
 |---|---|
 | `runtime.describeLib(binding)` | the library's `{ role, conformsTo, platform }` plus per-function `{ engines, outputs }`; a function with no `fn.engines` reports the inherited library platform |
 | `runtime.libsUnder(engineId)` | given an engine, which functions are callable and which are statically rejected, each rejection carrying its reason |
+
+The built-in `cad` face is a registered binding, so both queries cover it too — `runtime.libsUnder('brepkit')` answers which built-in ops a brepkit host can call (`docs/api-contract.md` §7.12).
 
 #### Prohibited in library code
 

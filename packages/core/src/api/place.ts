@@ -119,5 +119,5 @@ export const place = defineOp({
   schema: { position: 'vec3?', rotation: 'quat?' },
   naming: { kind: 'identity' } as Provenance,
 
-  paramDims: {},
+  paramDims: { position: 'length', rotation: 'plain' },
 })
