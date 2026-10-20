@@ -925,10 +925,40 @@ export function shapeHandles(shape: SketchShape): ShapeHandle[] {
         ...verts.map((point): ShapeHandle => ({ point, kind: 'vertex' })),
       ]
     }
-    case 'slot':
-    case 'roundedRect':
-    case 'trapezoid':
-      return [{ point: [c, y], kind: 'center' }]
+    case 'slot': {
+      // 中心（平移）+ 右端最远点（改直边 w，左端固定）+ 上边中点（改槽宽 d，下边固定）。
+      const r = shape.d / 2
+      return [
+        { point: [c, y], kind: 'center' },
+        { point: [c + shape.w / 2 + r, y], kind: 'vertex' },
+        { point: [c, y + r], kind: 'vertex' },
+      ]
+    }
+    case 'roundedRect': {
+      // 中心（平移）+ 4 个外框角（对角不动改 w/d，同 rect 语义）+ 右上圆角手柄（改 r）。
+      const corners = rectCorners(shape.w, shape.d, c, y)
+      const hw = shape.w / 2
+      const hd = shape.d / 2
+      return [
+        { point: [c, y], kind: 'center' },
+        ...corners.map((point): ShapeHandle => ({ point, kind: 'corner' })),
+        // 圆角手柄落在右上圆角弧的 135° 处（r=0 时即外角）；拖它改圆角半径。
+        {
+          point: [c + hw - shape.r + (shape.r * Math.SQRT1_2) * -1, y + hd - shape.r + shape.r * Math.SQRT1_2],
+          kind: 'radius',
+        },
+      ]
+    }
+    case 'trapezoid': {
+      // 中心（平移）+ 4 个顶点（bottom-left → bottom-right → top-right → top-left）：
+      // 拖顶角改高 + 对应底角（另一底角保持）；拖底角改高 + 对应底角（宽保持）。
+      const a2 = shape.a2 ?? shape.a1
+      const corners = trapezoidCorners(shape.w, shape.h, shape.a1, a2, c, y)
+      return [
+        { point: [c, y], kind: 'center' },
+        ...corners.map((point): ShapeHandle => ({ point, kind: 'vertex' })),
+      ]
+    }
     case 'line':
       return [
         { point: shape.from, kind: 'start' },
@@ -954,7 +984,7 @@ export function shapeHandles(shape: SketchShape): ShapeHandle[] {
 }
 
 /** 拖动矩形的角：对角不动、这一角跟手（轴对齐，靠 H/V 形状约束维持）。 */
-function dragRectCorner(shape: Extract<SketchShape, { kind: 'rect' }>, handle: number, to: Pt2): SketchShape {
+function dragRectCorner(shape: Extract<SketchShape, { kind: 'rect' }>, handle: number, to: Pt2): Extract<SketchShape, { kind: 'rect' }> {
   const [c, y] = shapeCenter(shape)
   const opposite = rectCorners(shape.w, shape.d, c, y)[(handle + 2) % 4]!
   const w = Math.abs(to[0] - opposite[0])
@@ -964,7 +994,7 @@ function dragRectCorner(shape: Extract<SketchShape, { kind: 'rect' }>, handle: n
 }
 
 /** 拖动矩形的边：那条边跟手、对边不动。 */
-function dragRectEdge(shape: Extract<SketchShape, { kind: 'rect' }>, edge: number, to: Pt2): SketchShape {
+function dragRectEdge(shape: Extract<SketchShape, { kind: 'rect' }>, edge: number, to: Pt2): Extract<SketchShape, { kind: 'rect' }> {
   const [c, y] = shapeCenter(shape)
   switch (edge) {
     case 0: { // 底边（y = cy - d/2）
@@ -1016,6 +1046,7 @@ export function dragShapeHandle(shape: SketchShape, handle: number, to: Pt2): Sk
     )
   }
   const center = shapeCenter(shape)
+  const [c, y] = center
   switch (shape.kind) {
     case 'rect': {
       if (h.kind === 'center') {
@@ -1051,11 +1082,77 @@ export function dragShapeHandle(shape: SketchShape, handle: number, to: Pt2): Sk
       while (angle > Math.PI) angle -= Math.PI * 2
       return { ...shape, r, angle }
     }
-    case 'slot':
-    case 'roundedRect':
-    case 'trapezoid':
+    case 'slot': {
+      // 0=center：平移；1=右端最远点：左端固定、改直边 w；2=上边中点：下边固定、改槽宽 d。
       if (h.kind === 'center') return { ...shape, cx: to[0], cy: to[1] }
-      return editUnsupported(shape, `${h.kind} handle`)
+      const rr = shape.d / 2
+      if (handle === 1) {
+        const leftTip = c - shape.w / 2 - rr
+        const w = to[0] - leftTip - shape.d
+        if (!(w > 0)) badParam('slot right tip drag collapsed the width to 0')
+        return { ...shape, w, cx: (leftTip + to[0]) / 2 }
+      }
+      const bottom = y - shape.d / 2
+      const d = to[1] - bottom
+      if (!(d > 0)) badParam('slot top tip drag collapsed the height to 0')
+      return { ...shape, d, cy: (bottom + to[1]) / 2 }
+    }
+    case 'roundedRect': {
+      // 0=center：平移；1-4=外框角：对角不动改 w/d（圆角半径保持，必要时钳进新框）；
+      // 5=圆角手柄：半径 = 手柄到右上外角的距离，钳到 [0, min(w,d)/2]（拖出外角 = 贴外角 = 0）。
+      if (h.kind === 'center') return { ...shape, cx: to[0], cy: to[1] }
+      if (h.kind === 'corner') {
+        // 圆角矩形拖外框角 = 矩形拖角同款语义（对角不动改 w/d），r 保持并钳进新框。
+        const base = dragRectCorner({ kind: 'rect', w: shape.w, d: shape.d, cx: c, cy: y }, handle - 1, to)
+        const r = Math.min(shape.r, base.w / 2, base.d / 2)
+        return { ...shape, w: base.w, d: base.d, cx: base.cx, cy: base.cy, r }
+      }
+      const hw = shape.w / 2
+      const hd = shape.d / 2
+      const want = Math.min(c + hw - to[0], y + hd - to[1])
+      // 下限 1e-3（expand 契约要求 r 为正；拖回/拖出外角 = 贴外角 ≈ 0）
+      const r = Math.max(1e-3, Math.min(want, shape.w / 2, shape.d / 2))
+      return { ...shape, r }
+    }
+    case 'trapezoid': {
+      // 0=center：平移；1-4=顶点（bottom-left → bottom-right → top-right → top-left）：
+      // 「对边不动、该角跟手」——拖顶角改高 + 对应底角（另一底角保持）；拖底角改高 +
+      // 对应底角（宽保持）。退化（高或底角切距 ≤ 0）显式报错。
+      if (h.kind === 'center') return { ...shape, cx: to[0], cy: to[1] }
+      const a2 = shape.a2 ?? shape.a1
+      const corners = trapezoidCorners(shape.w, shape.h, shape.a1, a2, c, y)
+      const bottomY = corners[0]![1]
+      const topY = corners[3]![1]
+      if (handle === 1 || handle === 2) {
+        const hb = topY - to[1]
+        const t = handle === 1 ? corners[3]![0] - to[0] : to[0] - corners[2]![0]
+        if (!(hb > 0)) badParam(`trapezoid bottom corner drag collapsed the height to ${hb}`)
+        if (!(t > 0)) badParam(`trapezoid bottom corner drag collapsed the base angle to ${t}`)
+        const a = Math.atan2(hb, t)
+        const cx = handle === 1 ? to[0] + shape.w / 2 : to[0] - shape.w / 2
+        return {
+          ...shape,
+          h: hb,
+          a1: handle === 1 ? a : shape.a1,
+          a2: handle === 1 ? shape.a2 ?? shape.a1 : a,
+          cx,
+          cy: (topY + to[1]) / 2,
+        }
+      }
+      const hb = to[1] - bottomY
+      const t = handle === 3 ? c + shape.w / 2 - to[0] : to[0] - (c - shape.w / 2)
+      if (!(hb > 0)) badParam(`trapezoid top corner drag collapsed the height to ${hb}`)
+      if (!(t > 0)) badParam(`trapezoid top corner drag collapsed the base angle to ${t}`)
+      const a = Math.atan2(hb, t)
+      return {
+        ...shape,
+        h: hb,
+        a1: handle === 4 ? a : shape.a1,
+        a2: handle === 3 ? a : shape.a2 ?? shape.a1,
+        cx: c,
+        cy: (bottomY + to[1]) / 2,
+      }
+    }
     case 'line': {
       if (h.kind === 'start') return { ...shape, from: [to[0], to[1]] }
       if (h.kind === 'end') return { ...shape, to: [to[0], to[1]] }

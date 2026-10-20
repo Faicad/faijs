@@ -47,12 +47,15 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
   const kernel = getBrepApi()
 
   const inputSolids = inputs.map((s) => brepOf(s) as BrepHandle | undefined)
-  if (inputSolids.some((s) => !s)) {
+  // 句柄判空必须用 undefined 比较而非 truthiness：BrepHandle 是 number，
+  // brepkit 从 0 开始分配句柄——`!0 === true` 会把合法句柄 0 误判为无句柄
+  // （用户场景「box 句柄 0 + union/subtract」稳定误报 E_BREP_UNSUPPORTED）。
+  if (inputSolids.some((s) => s === undefined)) {
     // V-C8 (C6): a non-solid import (wire/face/shell via cad.import_brep) has
     // no OCCT handle yet — booleans must fail HERE with an explicit, op-named
     // error, not with OCCT's raw "boolean operation failed" (or silently).
     const offenders = inputs
-      .map((s, i) => (inputSolids[i] ? undefined : nameOf(s) ?? `input[${i}]`))
+      .map((s, i) => (inputSolids[i] === undefined ? nameOf(s) ?? `input[${i}]` : undefined))
       .filter((x): x is string => x !== undefined)
     throw new OpError(
       `boolean/${operation}`,

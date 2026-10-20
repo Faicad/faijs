@@ -36,10 +36,10 @@ import { assertEngineFor } from '../internal/l3-bridge'
 type OcctTypePredicate =
   | 'isEdge' | 'isFace' | 'isShell' | 'isVertex' | 'isWire' | 'isCompound' | 'isCompSolid'
 
-/** 借出形状的内核句柄；无 BREP 槽（mesh-only）报错。 */
+/** 借出形状的内核句柄；无 BREP 槽（mesh-only）报错。判空用 undefined 比较：句柄可为 0。 */
 function occtHandleOf(shape: Shape, op: string): BrepHandle {
   const h = brepOf(shape) as BrepHandle | undefined
-  if (!h) {
+  if (h === undefined) {
     throw new Error(`E_SHAPE_TYPE_NO_BREP: ${op} requires a BREP handle (mesh-only shape has none)`)
   }
   return h

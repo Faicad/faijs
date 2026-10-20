@@ -366,12 +366,32 @@ describe('shapeHandles — 手柄清单', () => {
     expect(shapeHandles({ kind: 'close' })).toEqual([])
   })
 
-  it('slot / roundedRect / trapezoid 只有中心手柄（v1 只支持平移）', () => {
-    expect(shapeHandles({ kind: 'slot', w: 4, d: 2 })).toEqual([{ point: [0, 0], kind: 'center' }])
-    expect(shapeHandles({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }))
-      .toEqual([{ point: [0, 0], kind: 'center' }])
-    expect(shapeHandles({ kind: 'trapezoid', w: 4, h: 2, a1: 1 }))
-      .toEqual([{ point: [0, 0], kind: 'center' }])
+  it('slot / roundedRect / trapezoid 有尺寸手柄（v2：中心平移 + 尺寸端点）', () => {
+    // slot(w=4,d=2)：中心 + 右端最远点 (w/2+r, 0) + 上边中点 (0, r)；r = d/2 = 1
+    expect(shapeHandles({ kind: 'slot', w: 4, d: 2 })).toEqual([
+      { point: [0, 0], kind: 'center' },
+      { point: [3, 0], kind: 'vertex' },
+      { point: [0, 1], kind: 'vertex' },
+    ])
+    // roundedRect(w=4,d=2,r=0.5)：中心 + 4 外框角 + 右上圆角手柄（135° 处）
+    const rr = shapeHandles({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 })
+    expect(rr.map((x) => x.kind)).toEqual([
+      'center', 'corner', 'corner', 'corner', 'corner', 'radius',
+    ])
+    expect(rr[1]!.point).toEqual([-2, -1])
+    expect(rr[2]!.point).toEqual([2, -1])
+    expect(rr[3]!.point).toEqual([2, 1])
+    expect(rr[4]!.point).toEqual([-2, 1])
+    expect(rr[5]!.point[0]).toBeCloseTo(2 - 0.5 - 0.5 * Math.SQRT1_2, 12)
+    expect(rr[5]!.point[1]).toBeCloseTo(1 - 0.5 + 0.5 * Math.SQRT1_2, 12)
+    // trapezoid(w=4,h=2,a1=1,a2=1)：中心 + 4 顶点（左下→右下→右上→左上）
+    const tp = shapeHandles({ kind: 'trapezoid', w: 4, h: 2, a1: 1, a2: 1 })
+    expect(tp.map((x) => x.kind)).toEqual(['center', 'vertex', 'vertex', 'vertex', 'vertex'])
+    const t = 2 / Math.tan(1)
+    expect(tp[1]!.point).toEqual([-2, -1])
+    expect(tp[2]!.point).toEqual([2, -1])
+    expect(tp[3]!.point[0]).toBeCloseTo(2 - t, 12)
+    expect(tp[4]!.point[0]).toBeCloseTo(-2 + t, 12)
   })
 })
 
@@ -396,6 +416,50 @@ describe('dragShapeHandle — 拖拽写回', () => {
       .toMatchObject({ kind: 'rect', w: 10, d: 10, cx: 3, cy: 4 })
     expect(dragShapeHandle({ kind: 'slot', w: 4, d: 2 }, 0, [1, 1]))
       .toMatchObject({ kind: 'slot', w: 4, d: 2, cx: 1, cy: 1 })
+  })
+
+  it('拖 slot 的右端最远点 → 直边 w 变（左端固定）；拖上边中点 → 槽宽 d 变（下边固定）', () => {
+    // w=4,d=2：左端最远点 x = -3；拖右端到 x=5 → w' = 5 - (-3) - 2 = 6，cx' = (左端+右端)/2 = 1
+    expect(dragShapeHandle({ kind: 'slot', w: 4, d: 2 }, 1, [5, 0]))
+      .toMatchObject({ kind: 'slot', w: 6, d: 2, cx: 1 })
+    // 下边 y=-1；拖上边中点到 y=2 → d' = 3，cy' = (-1+2)/2 = 0.5
+    expect(dragShapeHandle({ kind: 'slot', w: 4, d: 2 }, 2, [0, 2]))
+      .toMatchObject({ kind: 'slot', w: 4, d: 3, cy: 0.5 })
+    // 退化：右端拖过左端 → 报错
+    expectCode(() => dragShapeHandle({ kind: 'slot', w: 4, d: 2 }, 1, [-4, 0]), 'E_SKETCHC_SHAPE_BAD_PARAM')
+  })
+
+  it('拖 roundedRect 外框角 → 对角不动改 w/d、圆角半径保持并钳进新框', () => {
+    // 角 0 = 左下 (-2,-1)，对角 = 右上 (2,1)；拖到 (-2,-3) → w 保持、d 变 4、r 钳进
+    const out = dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 1, [-2, -3])
+    expect(out).toMatchObject({ kind: 'roundedRect', w: 4, d: 4, cx: 0, cy: -1, r: 0.5 })
+  })
+
+  it('拖 roundedRect 圆角手柄 → 半径 = 手柄到右上外角的距离（钳 [0, min(w,d)/2]）', () => {
+    // 外角 (2,1)：拖到 (1.5, 0.5) → r' = min(2-1.5, 1-0.5) = 0.5
+    const out = dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 5, [1.5, 0.5])
+    expect(out).toMatchObject({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 })
+    // 拖到内侧深处 → 钳到半宽/半高
+    expect(dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 5, [1, 0])).toMatchObject({ r: 1 })
+    // 拖回外角 / 拖出外角 → 贴外角 ≈ 0（下限 1e-3，expand 契约要求 r 为正；不抛错）
+    expect(dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 5, [2, 1]).r as number).toBeLessThan(0.002)
+    expect(dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 5, [2.5, 2]).r as number).toBeLessThan(0.002)
+  })
+
+  it('拖 trapezoid 顶角 → 高与对应底角变、另一底角保持、底边不动', () => {
+    // w=4,h=2,a1=a2=1：底边 y=-1，v2(右上) = (2-t, 1)，t = 2/tan(1)
+    const t = 2 / Math.tan(1)
+    // 拖右上到 (1, 3)（手柄内侧）：t' = 2-1 = 1 → a2' = atan2(4, 1)，h'=4，a1 保持 1
+    const out = dragShapeHandle({ kind: 'trapezoid', w: 4, h: 2, a1: 1, a2: 1 }, 3, [1, 3])
+    const p = out as Extract<SketchShape, { kind: 'trapezoid' }>
+    expect(p.h).toBeCloseTo(4, 12)
+    expect(p.a2).toBeCloseTo(Math.atan2(4, 1), 12)
+    expect(p.a1).toBeCloseTo(1, 12)
+    expect(p.cx).toBe(0)
+    expect(p.cy).toBeCloseTo(1, 12)
+    // 拖成退化（高 ≤ 0）→ 报错
+    expectCode(() => dragShapeHandle({ kind: 'trapezoid', w: 4, h: 2, a1: 1, a2: 1 }, 3, [1, -2]), 'E_SKETCHC_SHAPE_BAD_PARAM')
+    void t
   })
 
   it('拖圆的半径手柄 → 半径变、圆心不动', () => {

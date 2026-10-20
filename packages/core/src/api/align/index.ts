@@ -52,10 +52,10 @@ export interface AlignOptions {
 const AXES: readonly AlignAxis[] = ['x', 'y', 'z']
 const ANCHORS: readonly AlignAnchor[] = ['min', 'center', 'max']
 
-/** 输入 Shape → 内核句柄（无 BREP 槽报错）。 */
+/** 输入 Shape → 内核句柄（无 BREP 槽报错）。判空用 undefined 比较：句柄可为 0。 */
 function handleOf(shape: Shape): BrepHandle {
   const h = brepOf(shape) as BrepHandle | undefined
-  if (!h) {
+  if (h === undefined) {
     throw new Error('E_ALIGNTO_NO_BREP: alignTo requires a BREP handle (mesh-only shape has none)')
   }
   return h

@@ -70,7 +70,7 @@ function borrowHandles(shapes: Shape[], op: string): BrepHandle[] {
   }
   return shapes.map((s) => {
     const h = brepOf(s) as BrepHandle | undefined
-    if (!h) throw new Error(`E_${op.toUpperCase()}_NO_BREP: ${op} input shape is not BREP`)
+    if (h === undefined) throw new Error(`E_${op.toUpperCase()}_NO_BREP: ${op} input shape is not BREP`)
     return h
   })
 }

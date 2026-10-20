@@ -34,10 +34,10 @@ import { brepOf } from '../../shape'
 import { getOcctKernel } from '../../occt-kernel/occtKernel'
 import { assertEngineFor } from '../internal/l3-bridge'
 
-/** 借出形状的内核句柄；无 BREP 槽（mesh-only）报错。 */
+/** 借出形状的内核句柄；无 BREP 槽（mesh-only）报错。判空用 undefined 比较：句柄可为 0。 */
 function occtHandleOf(shape: Shape, op: string): ShapeHandle {
   const h = brepOf(shape) as unknown as ShapeHandle | undefined
-  if (!h) {
+  if (h === undefined) {
     throw new Error(`E_SHAPE_TYPE_NO_BREP: ${op} requires a BREP handle (mesh-only shape has none)`)
   }
   return h

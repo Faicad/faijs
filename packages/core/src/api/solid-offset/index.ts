@@ -30,10 +30,10 @@ import { getOcctKernel } from '../../occt-kernel/occtKernel'
 
 type Vec3 = [number, number, number]
 
-/** 输入 Shape → 内核句柄（无 BREP 槁报错）。 */
+/** 输入 Shape → 内核句柄（无 BREP 槽报错）。判空用 undefined 比较：句柄可为 0。 */
 function handleOf(shape: Shape, op: string, which: string): BrepHandle {
   const h = brepOf(shape) as BrepHandle | undefined
-  if (!h) {
+  if (h === undefined) {
     throw new Error(`E_${op.toUpperCase()}_NO_BREP: ${op} requires a BREP handle for ${which} (mesh-only shape has none)`)
   }
   return h

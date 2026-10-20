@@ -50,10 +50,10 @@ export type SubShapeType = 'vertex' | 'edge' | 'wire' | 'face' | 'shell' | 'soli
 
 const SUB_SHAPE_TYPES: readonly SubShapeType[] = ['vertex', 'edge', 'wire', 'face', 'shell', 'solid']
 
-/** 输入 Shape → 内核句柄（无 BREP 槽报错）。 */
+/** 输入 Shape → 内核句柄（无 BREP 槽报错）。判空用 undefined 比较：句柄可为 0。 */
 function occtHandleOf(shape: Shape, op: string): BrepHandle {
   const h = brepOf(shape) as BrepHandle | undefined
-  if (!h) {
+  if (h === undefined) {
     throw new Error(`E_SHAPE_TYPE_NO_BREP: ${op} requires a BREP handle (mesh-only shape has none)`)
   }
   return h

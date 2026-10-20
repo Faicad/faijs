@@ -45,7 +45,7 @@ function solidFromFacesBrep(faces: Shape[], params?: SolidFromFacesParams): Shap
   }
   const handles = faces.map((s) => {
     const h = brepOf(s) as BrepHandle | undefined
-    if (!h) throw new Error('E_SOLID_FROM_FACES_NO_BREP: solidFromFaces input shape is not BREP')
+    if (h === undefined) throw new Error('E_SOLID_FROM_FACES_NO_BREP: solidFromFaces input shape is not BREP')
     return h
   })
   const kernel = getBrepApi()

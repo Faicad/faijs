@@ -48,10 +48,11 @@ export interface BooleanOptions {
 const KINDS: readonly BooleanKind[] = ['fuse', 'cut', 'common']
 const KIND_CODE: Record<BooleanKind, number> = { fuse: 0, cut: 1, common: 2 }
 
-/** 输入 Shape → 内核句柄（无 BREP 槽报错）。 */
+/** 输入 Shape → 内核句柄（无 BREP 槽报错）。句柄判空用 undefined 比较：
+ *  BrepHandle 是 number，引擎句柄可从 0 开始，truthiness 会把 0 误判为无句柄。 */
 function handleOf(shape: Shape, op: string, which: string): BrepHandle {
   const h = brepOf(shape) as BrepHandle | undefined
-  if (!h) {
+  if (h === undefined) {
     throw new Error(`E_${op}_NO_BREP: ${which} requires a BREP handle (mesh-only shape has none)`)
   }
   return h

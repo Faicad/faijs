@@ -68,10 +68,10 @@ function toNonZeroVec3(v: Vec3, op: string, which: string): { x: number; y: numb
   return out
 }
 
-/** 曲线输入 Shape → 内核句柄（无 BREP 槽报错）。 */
+/** 曲线输入 Shape → 内核句柄（无 BREP 槽报错）。判空用 undefined 比较：句柄可为 0。 */
 function curveHandleOf(shape: Shape, op: string): BrepHandle {
   const h = brepOf(shape) as BrepHandle | undefined
-  if (!h) {
+  if (h === undefined) {
     throw new Error(`E_${op.toUpperCase()}_NO_BREP: ${op} requires a BREP handle (mesh-only shape has none)`)
   }
   return h

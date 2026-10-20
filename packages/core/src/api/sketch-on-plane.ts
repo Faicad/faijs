@@ -43,6 +43,14 @@ export interface SketchOnPlaneParams {
    * Contour source: segment loops (`{segments: […]}`) or already-drawn contours
    * (a `Blueprint`, or an array of them). The drawn form is what makes the
    * "draw → place → extrude" pipeline real — see {@link DrawnContours}.
+   *
+   * Contract for `as:'wire'` with a SINGLE chain (open or closed): the returned
+   * wire is that chain itself — an open chain is accepted and becomes an open
+   * wire (this is the weapp sweep-spine path: one mixed line/arc/spline chain).
+   * With MULTIPLE disjoint chains only the FIRST one is returned. Therefore a
+   * multi-part open path must be joined into a single chain before being passed
+   * here. (`as:'face'` keeps the closed-contour semantics: open chains make no
+   * face — see `organiseBlueprints`.)
    */
   contours: ProfileLoop[] | DrawnContours
   /** Named plane or explicit `{ origin, normal, xAxis }` frame. */

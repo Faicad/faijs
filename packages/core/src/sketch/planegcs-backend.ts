@@ -8,7 +8,7 @@
  * M3.5 helper: solved params are pulled back and geometry rebuilt, so the
  * caller can compare against on-disk coordinates (D2).
  */
-import { GcsWrapper, init_planegcs_module, Algorithm } from '@salusoft89/planegcs';
+import type { Algorithm, GcsWrapper } from '@salusoft89/planegcs';
 import { ok, type Result } from '../api/result';
 import type { FcstdSketchGeom, FcstdSketchCon } from './fcstd-types.js';
 import { ConstraintType, PointPos } from './fcstd-types.js';
@@ -46,12 +46,22 @@ const PLATFORM_LOADER_WASM_BINARY = new Uint8Array(0);
 /**
  * Initialize the planegcs emscripten module and wrap it as a `GcsWrapper`.
  *
+ * The npm package is imported lazily inside this function: `sketch/index.ts`
+ * statically re-exports `createPlanegcsSolver` from this module, and browser /
+ * weapp bundles pull that entry in for the shape utilities — a top-level static
+ * import of `@salusoft89/planegcs` would leak the node-oriented npm package
+ * (plus its wasm build side effects) into those bundles. Same pattern as
+ * `solver-loader.ts` / `occt-kernel.ts`.
+ *
  * @param moduleArgs - emscripten module arguments (`locateFile` / `wasmBinary`).
- * @returns the wrapper the solver drives.
+ * @returns the wrapper the solver drives, plus the module's Algorithm enum.
  */
-async function initGcsWrapper(moduleArgs?: Record<string, unknown>): Promise<GcsWrapper> {
-  const mod = await init_planegcs_module(moduleArgs);
-  return new GcsWrapper(new mod.GcsSystem(), mod);
+async function initGcsWrapper(
+  moduleArgs?: Record<string, unknown>,
+): Promise<{ wrapper: GcsWrapper; algorithm: unknown }> {
+  const m = await import('@salusoft89/planegcs');
+  const mod = await m.init_planegcs_module(moduleArgs);
+  return { wrapper: new m.GcsWrapper(new mod.GcsSystem(), mod), algorithm: m.Algorithm.LevenbergMarquardt };
 }
 
 /**
@@ -80,19 +90,20 @@ export async function createPlanegcsSolver(options: PlanegcsSolverOptions): Prom
     );
   }
   if (wasmLoaderPath !== undefined) {
-    return new PlanegcsSolver(
-      await initGcsWrapper({
-        wasmBinary: PLATFORM_LOADER_WASM_BINARY,
-        locateFile: () => wasmLoaderPath,
-      }),
-    );
+    const { wrapper, algorithm } = await initGcsWrapper({
+      wasmBinary: PLATFORM_LOADER_WASM_BINARY,
+      locateFile: () => wasmLoaderPath,
+    });
+    return new PlanegcsSolver(wrapper, algorithm);
   }
   if (wasmBytes !== undefined) {
     // Bytes must go through emscripten's `wasmBinary`: `make_gcs_wrapper()` routes
     // its argument to `locateFile`, which only accepts a path/URL string.
-    return new PlanegcsSolver(await initGcsWrapper({ wasmBinary: toUint8Array(wasmBytes) }));
+    const { wrapper, algorithm } = await initGcsWrapper({ wasmBinary: toUint8Array(wasmBytes) });
+    return new PlanegcsSolver(wrapper, algorithm);
   }
-  return new PlanegcsSolver(await initGcsWrapper({ locateFile: () => wasmPath as string }));
+  const { wrapper, algorithm } = await initGcsWrapper({ locateFile: () => wasmPath as string });
+  return new PlanegcsSolver(wrapper, algorithm);
 }
 
 /**
@@ -117,7 +128,7 @@ const P = (geoId: number, pos: number): PtKey => `g${geoId}p${pos}`;
  * parameters back into `FcstdSketchGeom` values.
  */
 export class PlanegcsSolver implements SketchSolver {
-  constructor(private wrapper: GcsWrapper) {}
+  constructor(private wrapper: GcsWrapper, private algorithm: unknown) {}
 
   async solve(
     geoms: FcstdSketchGeom[],
@@ -354,7 +365,7 @@ export class PlanegcsSolver implements SketchSolver {
     }
 
     // --- solve (D2: initial values = on-disk coordinates) ---
-    const status = w.solve(Algorithm.LevenbergMarquardt);
+    const status = w.solve(this.algorithm as Algorithm);
     const conflicting = w.has_gcs_conflicting_constraints();
     const redundant = w.has_gcs_redundant_constraints();
 

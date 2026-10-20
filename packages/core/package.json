@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.36.3",
+  "version": "0.36.8",
   "faijs": {
     "lib": {
       "role": "host"
@@ -426,6 +426,10 @@
     "./sketch": {
       "types": "./dist/sketch/index.d.ts",
       "default": "./dist/sketch/index.js"
+    },
+    "./sketch/shapes": {
+      "types": "./dist/sketch/shapes-entry.d.ts",
+      "default": "./dist/sketch/shapes-entry.js"
     },
     "./sketch/node": {
       "types": "./dist/sketch/node.d.ts",

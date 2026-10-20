@@ -88,12 +88,24 @@ export function initSketchSolver(): Promise<SketchSolver> {
   // ② Node auto: resolve wasm from node_modules
   if (typeof process !== 'undefined' && process.versions?.node) {
     solverPromise = (async () => {
-      const { createRequire } = await import('node:module')
-      const { dirname, join } = await import('node:path')
+      // Lazy-fetch node builtins via process.getBuiltinModule (Node >= 20.16), the
+      // same pattern as occt-kernel/occtKernel.ts. A static `await import('node:module')`
+      // would be statically analyzed by bundlers (vite/esbuild) and fail while bundling
+      // this module for a non-Node target (e.g. the weapp mini program), even though
+      // this branch never runs there.
+      const nodeModule = (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule?.('node:module') as
+        | { createRequire: (filename: string) => { resolve: (id: string) => string } }
+        | undefined
+      const nodePath = (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule?.('node:path') as
+        | { dirname: (p: string) => string; join: (...parts: string[]) => string }
+        | undefined
+      if (!nodeModule || !nodePath) {
+        throw new Error('[faijs] sketch solver node auto-init requires Node.js (process.getBuiltinModule)')
+      }
       const { createPlanegcsSolver } = await import('./planegcs-backend.js')
-      const require = createRequire(import.meta.url)
-      const pkgDir = dirname(require.resolve('@salusoft89/planegcs/package.json'))
-      const wasmPath = join(pkgDir, 'dist', 'planegcs_dist', 'planegcs.wasm')
+      const require = nodeModule.createRequire(import.meta.url)
+      const pkgDir = nodePath.dirname(require.resolve('@salusoft89/planegcs/package.json'))
+      const wasmPath = nodePath.join(pkgDir, 'dist', 'planegcs_dist', 'planegcs.wasm')
       return createPlanegcsSolver({ wasmPath })
     })()
     return solverPromise
