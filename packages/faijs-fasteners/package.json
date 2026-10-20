@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-fasteners",
-  "version": "0.36.9",
+  "version": "0.36.11",
   "type": "module",
   "faijs": {
     "autoLift": true,

@@ -43,7 +43,7 @@ function convertAngles<T extends Record<string, unknown>>(obj: T, keys: readonly
 /** Angle-bearing fields per semantic shape kind (see `dim-spec.ts` shapeCases). */
 const SHAPE_ANGLE_KEYS: Record<string, readonly string[]> = {
   rect: ['angle'], roundedRect: ['angle'], ellipse: ['angle'], polygon: ['angle'],
-  slot: ['angle'], trapezoid: ['a1', 'a2'], arc: ['a0', 'a1'],
+  slot: ['angle'], trapezoid: ['angle', 'a1', 'a2'], arc: ['a0', 'a1'],
 }
 
 /** Angle-bearing fields per canonical geom kind (see `dim-spec.ts` geomCases). */

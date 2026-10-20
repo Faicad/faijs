@@ -18,6 +18,7 @@ import {
   nextShapeTag,
   rectCorners,
   regularPolygonVertices,
+  rotateAbout,
   shapeHandles,
   SketchShapeError,
   slotOutline,
@@ -25,6 +26,7 @@ import {
   type SketchShape,
 } from '../../src/sketch/shapes.js'
 import type { SketchConstraint } from '../../src/sketch/canonical.js'
+import type { Pt2 } from '../../src/sketch/shapes.js'
 
 /** 断言回调抛出的 SketchShapeError 的错误码。 */
 function expectCode(fn: () => unknown, code: string): void {
@@ -592,6 +594,89 @@ describe('拖拽 ↔ 展开闭环（每个可拖手柄都能落到展开结果�
       expect(dragged).toEqual(shape)
       expect(expandShapes([dragged]).geoms).toEqual(before.geoms)
     }
+  })
+
+  it('slot.angle：轮廓整体旋转，直边不再水平、不带 horizontal 约束', () => {
+    const a = Math.PI / 4
+    const e = expandShapes([{ kind: 'slot', w: 8, d: 4, cx: 2, cy: 2, angle: a }])
+    expect(e.geoms.map((g) => g.kind)).toEqual(['line', 'arc', 'line', 'arc'])
+    // 斜 45° 后两条直边平行于 45° 方向（不水平），端弧朝向角同步旋转。
+    const o = slotOutline(8, 4, 2, 2, a)
+    const dir = [o.bottom[1][0] - o.bottom[0][0], o.bottom[1][1] - o.bottom[0][1]]
+    const len = Math.hypot(dir[0], dir[1])
+    expect(dir[0] / len).toBeCloseTo(Math.cos(a), 9)
+    expect(dir[1] / len).toBeCloseTo(Math.sin(a), 9)
+    // 右端半圆最远点：局部 (w/2 + r, 0) 旋转 45° 后仍在槽上、且圆心距 = w/2 + r。
+    const tip = rotateAbout([2 + 4 + 2, 2], [2, 2], a)
+    expect(Math.hypot(tip[0] - o.rightArc.c[0], tip[1] - o.rightArc.c[1])).toBeCloseTo(o.rightArc.r, 9)
+    // 端弧 a0 同步 +angle：局部 -90° → 全局 -45°。
+    expect(o.rightArc.a0).toBeCloseTo(-Math.PI / 2 + a, 12)
+    expect(o.rightArc.a1).toBeCloseTo(Math.PI / 2 + a, 12)
+    // 带角度：不再自动加 horizontal（水平约束会把斜槽转回轴对齐）。
+    const horizontals = e.constraints.filter((c) => c.kind === 'horizontal')
+    expect(horizontals).toHaveLength(0)
+    expect(e.constraints.filter((c) => c.kind === 'coincident')).toHaveLength(4)
+  })
+
+  it('trapezoid.angle：四角旋转、不带 horizontal，底角 angle 约束保持（旋转不变式）', () => {
+    const a = Math.PI / 6
+    const a1 = Math.PI / 4
+    const a2 = Math.PI / 3
+    const e = expandShapes([{ kind: 'trapezoid', w: 10, h: 5, a1, a2, angle: a }])
+    expect(e.geoms).toHaveLength(4)
+    // 底边方向 = angle（底边局部沿 +X）
+    const [bl, br] = trapezoidCorners(10, 5, a1, a2, 0, 0, a)
+    const dir = [br[0] - bl[0], br[1] - bl[1]]
+    const len = Math.hypot(dir[0], dir[1])
+    expect(dir[0] / len).toBeCloseTo(Math.cos(a), 9)
+    expect(dir[1] / len).toBeCloseTo(Math.sin(a), 9)
+    // 底角 angle 约束仍原样发出（有向差在旋转下不变）。
+    expect(e.constraints.filter((c) => c.kind === 'angle')).toHaveLength(2)
+    expect(e.constraints.filter((c) => c.kind === 'horizontal')).toHaveLength(0)
+  })
+
+  it('shapeHandles：斜槽/斜梯形手柄坐标随 angle 旋转（中心不动）', () => {
+    const a = Math.PI / 4
+    const sl = shapeHandles({ kind: 'slot', w: 8, d: 4, cx: 1, cy: 1, angle: a })
+    expect(sl[0]).toEqual({ point: [1, 1], kind: 'center' })
+    expect(Math.hypot(sl[1]!.point[0] - 1, sl[1]!.point[1] - 1)).toBeCloseTo(4 + 2, 9) // 右端最远点半径
+    expect(Math.hypot(sl[2]!.point[0] - 1, sl[2]!.point[1] - 1)).toBeCloseTo(2, 9) // 上边中点半径
+    const tp = shapeHandles({ kind: 'trapezoid', w: 10, h: 5, a1: Math.PI / 4, a2: Math.PI / 4, cx: 1, cy: 1, angle: a })
+    expect(tp[0]).toEqual({ point: [1, 1], kind: 'center' })
+    for (let i = 1; i < tp.length; i++) {
+      expect(tp[i]!.point[0]).not.toBeCloseTo(1, 6) // 顶点偏离中心（斜置，不共线）
+    }
+  })
+
+  it('dragShapeHandle：斜槽拖右端改 w、拖上边改 d，中心沿 angle 方向移动（局部语义）', () => {
+    const a = Math.PI / 4
+    const base: SketchShape = { kind: 'slot', w: 8, d: 4, cx: 2, cy: 2, angle: a }
+    // 右端最远点：局部 x 为 6（= w/2 + r），沿 angle 方向拖远 2mm → w 变 10。
+    const tipLocal: Pt2 = [6 + 2, 0] // 相对局部原点（中心在局部 (0,0)）
+    const tip = rotateAbout([2 + tipLocal[0], 2 + tipLocal[1]], [2, 2], a)
+    const d1 = dragShapeHandle(base, 1, tip) as SketchShape & { w: number }
+    expect(d1.w).toBeCloseTo(10, 9)
+    // 新中心 = 左端(局部 -6) 与右端(局部 8) 的中点 → 局部 +1 → 全局 (2 + cos45, 2 + sin45)
+    expect(d1.cx).toBeCloseTo(2 + Math.cos(a), 9)
+    expect(d1.cy).toBeCloseTo(2 + Math.sin(a), 9)
+    expect(d1.angle).toBeCloseTo(a, 12)
+  })
+
+  it('dragShapeHandle：斜梯形拖顶角改高与对应底角，中心随局部移动', () => {
+    const a = Math.PI / 6
+    const a1 = Math.PI / 4
+    const base: SketchShape = { kind: 'trapezoid', w: 10, h: 5, a1, a2: a1, cx: 0, cy: 0, angle: a }
+    // 局部右下顶角（handle 3）：局部坐标 (w/2 − t2, h/2)；沿局部 +Y 拖高 → h 变大。
+    const cornersL = trapezoidCorners(10, 5, a1, a1)
+    const brTop = cornersL[2]!
+    const toL: Pt2 = [brTop[0], brTop[1] + 3]
+    const to = rotateAbout(toL, [0, 0], a)
+    const d = dragShapeHandle(base, 3, to) as SketchShape & { h: number }
+    expect(d.h).toBeCloseTo(8, 9)
+    // 拖右下顶角（handle 3）→ 改右下底角 a2（新值 atan2(hb, t)），a1 保持。
+    expect(d.a2).toBeCloseTo(Math.atan2(8, 5), 9)
+    expect(d.a1).toBeCloseTo(a1, 9)
+    expect(d.angle).toBeCloseTo(a, 12)
   })
 })
 

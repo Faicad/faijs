@@ -73,9 +73,12 @@ export interface ShapeBase {
 /**
  * 语义图元。罐头形状的 `cx`/`cy` 缺省 0（形状中心），`angle` 是**弧度**。
  *
- * axis 对齐的四个罐头（rect / roundedRect / slot / trapezoid）刻意**没有 angle**：
- * 它们靠 `horizontal`/`vertical` 形状约束保持轴对齐，给个 angle 会让约束与初值互斗
- * （求解器把形状转回去）。要摆角度就把草图放在带朝向的平面上。
+ * - `rect` / `roundedRect` 刻意**没有 angle**：它们靠 horizontal/vertical 形状约束
+ *   保持轴对齐，给个 angle 会让约束与初值互斗（求解器把形状转回去）。
+ * - `slot` / `trapezoid` 支持 `angle`（弧度，缺省 0）：带角度时**不再**自动加
+ *   horizontal 约束（水平约束会把斜槽转回轴对齐），朝向由几何初值承载 —— 形状
+ *   自带约束（首尾重合 / 端弧半径 / 底角）在任意旋转下自洽（2026-10-20）。
+ *   要摆角度也可把草图放在带朝向的平面上，两条路正交。
  */
 export type SketchShape =
   | (ShapeBase & { kind: 'rect'; w: number; d: number; cx?: number; cy?: number })
@@ -83,8 +86,8 @@ export type SketchShape =
   | (ShapeBase & { kind: 'circle'; r: number; cx?: number; cy?: number })
   | (ShapeBase & { kind: 'ellipse'; rx: number; ry: number; cx?: number; cy?: number; angle?: number })
   | (ShapeBase & { kind: 'polygon'; n: number; r: number; cx?: number; cy?: number; angle?: number })
-  | (ShapeBase & { kind: 'slot'; w: number; d: number; cx?: number; cy?: number })
-  | (ShapeBase & { kind: 'trapezoid'; w: number; h: number; a1: number; a2?: number; cx?: number; cy?: number })
+  | (ShapeBase & { kind: 'slot'; w: number; d: number; cx?: number; cy?: number; angle?: number })
+  | (ShapeBase & { kind: 'trapezoid'; w: number; h: number; a1: number; a2?: number; cx?: number; cy?: number; angle?: number })
   | (ShapeBase & { kind: 'line'; from: Pt2; to: Pt2 })
   | (ShapeBase & { kind: 'arc'; cx: number; cy: number; r: number; a0: number; a1: number; ccw?: boolean })
   | (ShapeBase & { kind: 'bspline'; pts: Pt2[]; degree?: number })
@@ -171,6 +174,26 @@ function place(p: Pt2, cx: number, cy: number): Pt2 {
 }
 
 /**
+ * 绕任意原点旋转一个点（逆时针，angle 弧度）。
+ *
+ * 斜置罐头（slot / trapezoid 的 `angle`）共用这一处旋转：几何、手柄、拖拽的
+ * 局部↔全局映射都走它，不许再各抄一份三角函数。
+ *
+ * @param p - 被旋转的点（绝对坐标）。
+ * @param origin - 旋转中心（绝对坐标）。
+ * @param angle - 旋转角（弧度，逆时针为正）。
+ * @returns 旋转后的点（绝对坐标）。
+ */
+export function rotateAbout(p: Pt2, origin: Pt2, angle: number): Pt2 {
+  if (angle === 0) return p
+  const c = Math.cos(angle)
+  const s = Math.sin(angle)
+  const dx = p[0] - origin[0]
+  const dy = p[1] - origin[1]
+  return [origin[0] + dx * c - dy * s, origin[1] + dx * s + dy * c]
+}
+
+/**
  * 矩形的四个角点（局部 + 中心平移后），顺序 `bottom-left → bottom-right →
  * top-right → top-left`（与 3d_editor 既有矩形命令的边顺序一致）。
  *
@@ -213,14 +236,18 @@ export function regularPolygonVertices(r: number, n: number, angle = 0, ccw = tr
 }
 
 /**
- * 长圆槽（stadium）：两条直边在 `y = ±d/2` 上、沿 X 跨 `w`，两端各一个半径
- * `d/2` 的半圆，圆心在 `(±w/2, 0)`。**总长 = w + d，总高 = d**（CadQuery
+ * 长圆槽（stadium）：两条直边在局部 `y = ±d/2` 上、沿局部 X 跨 `w`，两端各一个
+ * 半径 `d/2` 的半圆，圆心在局部 `(±w/2, 0)`。**总长 = w + d，总高 = d**（CadQuery
  * `Sketch.slot(w, h)` 的语义，`d` 即它的 `h`）。
+ *
+ * `angle` 把整个槽绕中心逆时针旋转（弧度，缺省 0 = 轴对齐沿 +X）。弧的起止角同步
+ * 加 `angle`（弧圆心旋转后，朝向角跟着转）。
  *
  * @param w - 直边长度（两圆心距）。
  * @param d - 槽宽（= 端部半圆直径）。
  * @param cx - 中心 x。
  * @param cy - 中心 y。
+ * @param angle - 绕中心旋转角（弧度，缺省 0）。
  * @returns 两条直边（左→右 的底边、右→左 的顶边）与两个半圆（圆心、半径、起止角）。
  */
 export function slotOutline(
@@ -228,6 +255,7 @@ export function slotOutline(
   d: number,
   cx = 0,
   cy = 0,
+  angle = 0,
 ): {
   bottom: [Pt2, Pt2]
   top: [Pt2, Pt2]
@@ -235,13 +263,25 @@ export function slotOutline(
   leftArc: { c: Pt2; r: number; a0: number; a1: number }
 } {
   const r = d / 2
+  if (angle === 0) {
+    return {
+      bottom: [place([-w / 2, -r], cx, cy), place([w / 2, -r], cx, cy)],
+      top: [place([w / 2, r], cx, cy), place([-w / 2, r], cx, cy)],
+      // 右端：-90° → 90°（逆时针，经过 +X 侧的最远点 (w/2 + r, 0)）
+      rightArc: { c: place([w / 2, 0], cx, cy), r, a0: -Math.PI / 2, a1: Math.PI / 2 },
+      // 左端：90° → 270°（逆时针，经过 -X 侧）
+      leftArc: { c: place([-w / 2, 0], cx, cy), r, a0: Math.PI / 2, a1: (3 * Math.PI) / 2 },
+    }
+  }
+  // 斜置：**局部坐标**（相对中心）绕中心旋转 —— 不能用 rotateAbout（那是绝对坐标旋转）。
+  const ca = Math.cos(angle)
+  const sa = Math.sin(angle)
+  const rot = (p: Pt2): Pt2 => [cx + p[0] * ca - p[1] * sa, cy + p[0] * sa + p[1] * ca]
   return {
-    bottom: [place([-w / 2, -r], cx, cy), place([w / 2, -r], cx, cy)],
-    top: [place([w / 2, r], cx, cy), place([-w / 2, r], cx, cy)],
-    // 右端：-90° → 90°（逆时针，经过 +X 侧的最远点 (w/2 + r, 0)）
-    rightArc: { c: place([w / 2, 0], cx, cy), r, a0: -Math.PI / 2, a1: Math.PI / 2 },
-    // 左端：90° → 270°（逆时针，经过 -X 侧）
-    leftArc: { c: place([-w / 2, 0], cx, cy), r, a0: Math.PI / 2, a1: (3 * Math.PI) / 2 },
+    bottom: [rot([-w / 2, -r]), rot([w / 2, -r])],
+    top: [rot([w / 2, r]), rot([-w / 2, r])],
+    rightArc: { c: rot([w / 2, 0]), r, a0: -Math.PI / 2 + angle, a1: Math.PI / 2 + angle },
+    leftArc: { c: rot([-w / 2, 0]), r, a0: Math.PI / 2 + angle, a1: (3 * Math.PI) / 2 + angle },
   }
 }
 
@@ -251,12 +291,15 @@ export function slotOutline(
  * 与 CadQuery `Sketch.trapezoid(w, h, a1, a2)` 同几何（它在边界把度换成弧度）：
  * 顶点按 `bottom-left → bottom-right → top-right → top-left` 排列（逆时针）。
  *
+ * `angle` 把整个梯形绕中心逆时针旋转（弧度，缺省 0 = 底边沿 +X 水平）。
+ *
  * @param w - 底宽。
  * @param h - 高。
  * @param a1 - 左下底角（弧度）。
  * @param a2 - 右下底角（弧度）。
  * @param cx - 中心 x。
  * @param cy - 中心 y。
+ * @param angle - 绕中心旋转角（弧度，缺省 0）。
  * @returns 四个角点。
  */
 export function trapezoidCorners(
@@ -266,14 +309,35 @@ export function trapezoidCorners(
   a2: number,
   cx = 0,
   cy = 0,
+  angle = 0,
 ): [Pt2, Pt2, Pt2, Pt2] {
   const t1 = h / Math.tan(a1)
   const t2 = h / Math.tan(a2)
+  if (angle === 0) {
+    return [
+      place([-w / 2, -h / 2], cx, cy),
+      place([w / 2, -h / 2], cx, cy),
+      place([w / 2 - t2, h / 2], cx, cy),
+      place([-w / 2 + t1, h / 2], cx, cy),
+    ]
+  }
+  if (angle === 0) {
+    return [
+      place([-w / 2, -h / 2], cx, cy),
+      place([w / 2, -h / 2], cx, cy),
+      place([w / 2 - t2, h / 2], cx, cy),
+      place([-w / 2 + t1, h / 2], cx, cy),
+    ]
+  }
+  // 斜置：局部坐标（相对中心）绕中心旋转（同 slot，不能用绝对坐标的 rotateAbout）。
+  const ca = Math.cos(angle)
+  const sa = Math.sin(angle)
+  const rot = (p: Pt2): Pt2 => [cx + p[0] * ca - p[1] * sa, cy + p[0] * sa + p[1] * ca]
   return [
-    place([-w / 2, -h / 2], cx, cy),
-    place([w / 2, -h / 2], cx, cy),
-    place([w / 2 - t2, h / 2], cx, cy),
-    place([-w / 2 + t1, h / 2], cx, cy),
+    rot([-w / 2, -h / 2]),
+    rot([w / 2, -h / 2]),
+    rot([w / 2 - t2, h / 2]),
+    rot([-w / 2 + t1, h / 2]),
   ]
 }
 
@@ -470,7 +534,8 @@ function expandOne(shape: SketchShape, tags: string[], construction: boolean | u
     case 'slot': {
       positive(shape.w, 'slot.w')
       positive(shape.d, 'slot.d')
-      const o = slotOutline(shape.w, shape.d, cxOf(shape), cyOf(shape))
+      const angle = shape.angle ?? 0
+      const o = slotOutline(shape.w, shape.d, cxOf(shape), cyOf(shape), angle)
       const geoms: SketchGeom[] = [
         line(o.bottom[0], o.bottom[1], tags[0]!, construction),
         {
@@ -491,8 +556,13 @@ function expandOne(shape: SketchShape, tags: string[], construction: boolean | u
           b: { tag: tags[(i + 1) % 4]!, at: 'start' },
         })
       }
-      constraints.push({ kind: 'horizontal', of: { tag: tags[0]! } })
-      constraints.push({ kind: 'horizontal', of: { tag: tags[2]! } })
+      // 轴对齐槽靠两条 horizontal 约束保持水平；**带角度槽不加 horizontal** ——
+      // 一旦加上，求解器就会把斜槽转回水平（2026-10-20 实测），朝向只由几何初值
+      // 承载，形状自带约束（闭合 + 端弧半径）在任意旋转下自洽。
+      if (angle === 0) {
+        constraints.push({ kind: 'horizontal', of: { tag: tags[0]! } })
+        constraints.push({ kind: 'horizontal', of: { tag: tags[2]! } })
+      }
       // ⚠️ 缺口（2026-10-03 实测）：**圆弧上的 `radius` 约束在 faijs 的 planegcs 后端
       // 里当前无效**——后端没 push `arc_rules`，弧的 radius/角度是只写参数，而回读
       // 半径是按 |start − centre| 算的（见 planegcs-backend.ts 的 GOTCHA、
@@ -513,7 +583,8 @@ function expandOne(shape: SketchShape, tags: string[], construction: boolean | u
           badParam(`trapezoid.${name} must be in (0, π) radians, got ${a}`)
         }
       }
-      const c = trapezoidCorners(shape.w, shape.h, shape.a1, a2, cxOf(shape), cyOf(shape))
+      const angle = shape.angle ?? 0
+      const c = trapezoidCorners(shape.w, shape.h, shape.a1, a2, cxOf(shape), cyOf(shape), angle)
       const geoms = c.map((p, i) => line(p, c[(i + 1) % 4]!, tags[i]!, construction))
       const constraints: SketchConstraint[] = []
       for (let i = 0; i < 4; i++) {
@@ -523,7 +594,11 @@ function expandOne(shape: SketchShape, tags: string[], construction: boolean | u
           b: { tag: tags[(i + 1) % 4]!, at: 'start' },
         })
       }
-      constraints.push({ kind: 'horizontal', of: { tag: tags[0]! } })
+      // 轴对齐梯形靠 horizontal 约束保持底边水平；带角度梯形不加（同上 slot）——
+      // 底角 angle 约束在旋转下不变（有向差），朝向由几何初值承载。
+      if (angle === 0) {
+        constraints.push({ kind: 'horizontal', of: { tag: tags[0]! } })
+      }
       // 两个底角：planegcs 的 l2l_angle_pppp 值是 **dir(b) − dir(a) 的有向差**
       // （实测，见 shapes-solve.test.ts 的探针；不是"两线夹角取锐角"），所以每个角
       // 都要用 `at` 把两条线的方向挑出来，值正好等于内角：
@@ -891,7 +966,8 @@ export function arcPoints(
  * - `circle`：`[中心, 半径]`；`ellipse`：`[中心, rx, ry]`；`polygon`：`[中心, 顶点0..n-1]`
  * - `line`：`[起点, 终点, 中点]`；`arc`：`[圆心, 起点, 终点, 中点]`；`point`：`[点]`
  * - `bspline`：`[控制点0..n-1]`
- * - `slot` / `roundedRect` / `trapezoid`：**只有中心**（v1 支持整体平移）
+ * - `slot`：`[中心, 右端最远点, 上边中点]`；`trapezoid`：`[中心, 4 顶点]`（底角/顶角拖改高与底角）；
+ *   `roundedRect`：**只有中心** + 外框角 ×4 + 圆角手柄 ×1（v1 支持整体平移与尺寸）
  *
  * @param shape - 语义图元。
  * @returns 手柄清单（可能为空，如 `close`）。
@@ -928,10 +1004,14 @@ export function shapeHandles(shape: SketchShape): ShapeHandle[] {
     case 'slot': {
       // 中心（平移）+ 右端最远点（改直边 w，左端固定）+ 上边中点（改槽宽 d，下边固定）。
       const r = shape.d / 2
+      const angle = shape.angle ?? 0
+      const tips: Pt2[] = angle === 0
+        ? [[c + shape.w / 2 + r, y], [c, y + r]]
+        : ([[c + shape.w / 2 + r, y], [c, y + r]] as Pt2[]).map((p) => rotateAbout(p, [c, y], angle))
       return [
         { point: [c, y], kind: 'center' },
-        { point: [c + shape.w / 2 + r, y], kind: 'vertex' },
-        { point: [c, y + r], kind: 'vertex' },
+        { point: tips[0]!, kind: 'vertex' },
+        { point: tips[1]!, kind: 'vertex' },
       ]
     }
     case 'roundedRect': {
@@ -953,7 +1033,7 @@ export function shapeHandles(shape: SketchShape): ShapeHandle[] {
       // 中心（平移）+ 4 个顶点（bottom-left → bottom-right → top-right → top-left）：
       // 拖顶角改高 + 对应底角（另一底角保持）；拖底角改高 + 对应底角（宽保持）。
       const a2 = shape.a2 ?? shape.a1
-      const corners = trapezoidCorners(shape.w, shape.h, shape.a1, a2, c, y)
+      const corners = trapezoidCorners(shape.w, shape.h, shape.a1, a2, c, y, shape.angle ?? 0)
       return [
         { point: [c, y], kind: 'center' },
         ...corners.map((point): ShapeHandle => ({ point, kind: 'vertex' })),
@@ -1086,6 +1166,25 @@ export function dragShapeHandle(shape: SketchShape, handle: number, to: Pt2): Sk
       // 0=center：平移；1=右端最远点：左端固定、改直边 w；2=上边中点：下边固定、改槽宽 d。
       if (h.kind === 'center') return { ...shape, cx: to[0], cy: to[1] }
       const rr = shape.d / 2
+      const angle = shape.angle ?? 0
+      if (angle !== 0) {
+        // 斜槽：在**局部坐标系**（原点 = 当前中心、x 轴沿槽方向）里执行轴对齐语义，
+        // 再把新中心转回全局 —— 拖拽行为与轴对齐槽一致（左端/下边固定）。
+        const [lx, ly] = rotateAbout(to, [c, y], -angle)
+        const l: Pt2 = [lx - c, ly - y] // 相对中心的局部坐标
+        if (handle === 1) {
+          const leftTip = -(shape.w / 2 + rr)
+          const w = l[0] - leftTip - shape.d
+          if (!(w > 0)) badParam('slot right tip drag collapsed the width to 0')
+          const [gx, gy] = rotateAbout([(leftTip + l[0]) / 2, 0], [0, 0], angle)
+          return { ...shape, w, cx: c + gx, cy: y + gy }
+        }
+        const bottom = -shape.d / 2
+        const d = l[1] - bottom
+        if (!(d > 0)) badParam('slot top tip drag collapsed the height to 0')
+        const [gx, gy] = rotateAbout([0, (bottom + l[1]) / 2], [0, 0], angle)
+        return { ...shape, d, cx: c + gx, cy: y + gy }
+      }
       if (handle === 1) {
         const leftTip = c - shape.w / 2 - rr
         const w = to[0] - leftTip - shape.d
@@ -1120,6 +1219,46 @@ export function dragShapeHandle(shape: SketchShape, handle: number, to: Pt2): Sk
       // 对应底角（宽保持）。退化（高或底角切距 ≤ 0）显式报错。
       if (h.kind === 'center') return { ...shape, cx: to[0], cy: to[1] }
       const a2 = shape.a2 ?? shape.a1
+      const angle = shape.angle ?? 0
+      if (angle !== 0) {
+        // 斜梯形：在**局部坐标系**（原点 = 当前中心、底边沿局部 X）里执行「水平切距」
+        // 语义（x 差只在局部 x 方向成立），再把新中心转回全局。
+        const [lx, ly] = rotateAbout(to, [c, y], -angle)
+        const l: Pt2 = [lx - c, ly - y] // 相对中心的局部坐标
+        const cornersL = trapezoidCorners(shape.w, shape.h, shape.a1, a2)
+        const bottomY = cornersL[0]![1]
+        const topY = cornersL[3]![1]
+        let hb: number
+        let t: number
+        let cxLocal: number
+        let cyLocal: number
+        if (handle === 1 || handle === 2) {
+          hb = topY - l[1]
+          t = handle === 1 ? cornersL[3]![0] - l[0] : l[0] - cornersL[2]![0]
+          if (!(hb > 0)) badParam(`trapezoid bottom corner drag collapsed the height to ${hb}`)
+          if (!(t > 0)) badParam(`trapezoid bottom corner drag collapsed the base angle to ${t}`)
+          cxLocal = handle === 1 ? l[0] + shape.w / 2 : l[0] - shape.w / 2
+          cyLocal = (topY + l[1]) / 2
+        } else {
+          hb = l[1] - bottomY
+          t = handle === 3 ? shape.w / 2 - l[0] : l[0] + shape.w / 2
+          if (!(hb > 0)) badParam(`trapezoid top corner drag collapsed the height to ${hb}`)
+          if (!(t > 0)) badParam(`trapezoid top corner drag collapsed the base angle to ${t}`)
+          cxLocal = 0
+          cyLocal = (bottomY + l[1]) / 2
+        }
+        const a = Math.atan2(hb, t)
+        const [gx, gy] = rotateAbout([cxLocal, cyLocal], [0, 0], angle)
+        return {
+          ...shape,
+          h: hb,
+          // 与轴对齐版同一语义：handle 1/4 改 a1（左底角/左上顶角），handle 2/3 改 a2。
+          a1: handle === 2 || handle === 3 ? shape.a1 : a,
+          a2: handle === 1 || handle === 4 ? a2 : a,
+          cx: c + gx,
+          cy: y + gy,
+        }
+      }
       const corners = trapezoidCorners(shape.w, shape.h, shape.a1, a2, c, y)
       const bottomY = corners[0]![1]
       const topY = corners[3]![1]

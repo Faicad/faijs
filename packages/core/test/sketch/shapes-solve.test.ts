@@ -366,6 +366,103 @@ describe('形状自带约束真的生效（扰动初值 → 求解拉回形状�
     expect(lineEnds(g0!).a[1]).toBeCloseTo(lineEnds(g0!).b[1], 6)
   })
 
+  it('斜置 slot：求解后直边方向保持 angle（horizontal 约束缺席，朝向由初值承载）', async () => {
+    const ang = 0.7 // ≈ 40.1°，不水平
+    const e = expandShapes([{ kind: 'slot', tag: 's', w: 8, d: 4, angle: ang }])
+    // 不带 horizontal：展开约束里没有 horizontal。
+    expect(e.constraints.filter((c) => c.kind === 'horizontal')).toHaveLength(0)
+    // 扰动右端弧心，求解应收敛且**不把斜槽转回水平**。
+    const broken = e.geoms.map((g, i) => {
+      if (i !== 1 || g.kind !== 'arc') return g
+      return { ...g, cx: g.cx + 0.3, cy: g.cy + 0.2 }
+    })
+    const out = await solveSketch(broken, e.constraints, { solver })
+    expect(out.converged, out.status).toBe(true)
+    const lines = out.geoms.filter((g) => g.kind === 'line')
+    expect(lines).toHaveLength(2)
+    for (const l of lines) {
+      const ends = lineEnds(l)
+      const dir = Math.atan2(ends.b[1] - ends.a[1], ends.b[0] - ends.a[0])
+      // 线的存储方向可能被求解器翻转（dir ≈ ang ± π 是同一条无向线），
+      // 断言「与 angle 方向平行」：sin(dir − ang) ≈ 0。弧心扰动时求解器会做轻微
+      // 折中（弧半径约束缺口的副作用，见 planegcs-backend GOTCHA），容差 0.005 rad。
+      expect(Math.abs(Math.sin(dir - ang))).toBeCloseTo(0, 2)
+    }
+  })
+
+  it('斜置 trapezoid：扰动上边后求解把内角拉回 a1/a2，底边方向保持 angle', async () => {
+    const ang = 0.6
+    const a1 = Math.PI / 4
+    const a2 = Math.PI / 3
+    const e = expandShapes([{ kind: 'trapezoid', tag: 't', w: 10, h: 5, a1, a2, angle: ang }])
+    expect(e.constraints.filter((c) => c.kind === 'horizontal')).toHaveLength(0)
+    const broken = e.geoms.map((g, i) => {
+      if (i !== 2 || g.kind !== 'line') return g
+      return { ...g, x1: g.x1 - 3, x2: g.x2 - 3 }
+    })
+    const out = await solveSketch(broken, e.constraints, { solver })
+    expect(out.converged, out.status).toBe(true)
+    const [g0, g1, g2] = out.geoms
+    const bl = lineEnds(g0!).a
+    const br = lineEnds(g0!).b
+    const tr = lineEnds(g1!).b
+    const tl = lineEnds(g2!).b
+    // 内角仍等于 a1/a2（有向差在旋转下不变）
+    expect(interiorAngleDeg(br, bl, tr)).toBeCloseTo(deg(a2), 4)
+    expect(interiorAngleDeg(bl, br, tl)).toBeCloseTo(deg(a1), 4)
+    // 底边方向 = angle（不水平）；存储方向可能翻转，断言「与 angle 方向平行」。
+    const dir = Math.atan2(br[1] - bl[1], br[0] - bl[0])
+    expect(Math.abs(Math.sin(dir - ang))).toBeCloseTo(0, 3)
+  })
+
+  it('斜置 trapezoid：不动初值求解，尺寸/位置应原样保持（真几何体检反推 bbox）', async () => {
+    const ang = Math.PI / 6 // 30°
+    const a1 = Math.PI / 3 // 60°
+    const a2 = Math.PI / 3
+    const e = expandShapes([{ kind: 'trapezoid', tag: 't', w: 10, h: 5, a1, a2, angle: ang }])
+    const out = await solveSketch(e.geoms, e.constraints, { solver })
+    expect(out.converged, out.status).toBe(true)
+    const [g0, g1, g2, g3] = out.geoms
+    const bl = lineEnds(g0!).a
+    const br = lineEnds(g0!).b
+    const tr = lineEnds(g1!).b
+    const tl = lineEnds(g2!).b
+    // 底边长 = w；对边（顶边）长 = w − h·(cot a1 + cot a2)；高 = h
+    const base = Math.hypot(br[0] - bl[0], br[1] - bl[1])
+    const topLen = Math.hypot(tl[0] - tr[0], tl[1] - tr[1])
+    const ht = Math.abs(
+      ((br[0] - bl[0]) * (tl[1] - bl[1]) - (br[1] - bl[1]) * (tl[0] - bl[0])) / base,
+    )
+    expect(base).toBeCloseTo(10, 3)
+    expect(topLen).toBeCloseTo(10 - 5 * (Math.cos(a1) / Math.sin(a1) + Math.cos(a2) / Math.sin(a2)), 2)
+    expect(ht).toBeCloseTo(5, 2)
+    // 中心应留在原点附近（求解不应整体平移 —— 无 horizontal/固定约束时这是退化自由度，钉住它）
+    const cx = (bl[0] + br[0] + tr[0] + tl[0]) / 4
+    const cy = (bl[1] + br[1] + tr[1] + tl[1]) / 4
+    expect(Math.hypot(cx, cy)).toBeCloseTo(0, 2)
+  })
+
+  it('斜置 slot：不动初值求解，包络应原样保持（真几何体检反推 bbox）', async () => {
+    const ang = Math.PI / 4 // 45°
+    const e = expandShapes([{ kind: 'slot', tag: 's', w: 10, d: 4, angle: ang }])
+    const out = await solveSketch(e.geoms, e.constraints, { solver })
+    expect(out.converged, out.status).toBe(true)
+    // 求解前后所有点（线端点 + 弧心）到原点的最大距离应一致 —— 求解不得放大/平移槽。
+    const maxR = (gs: SketchGeom[]): number =>
+      Math.max(
+        0,
+        ...gs.flatMap((g) => {
+          if (g.kind === 'line') {
+            const { a, b } = lineEnds(g)
+            return [Math.hypot(a[0], a[1]), Math.hypot(b[0], b[1])]
+          }
+          if (g.kind === 'arc') return [Math.hypot(g.cx, g.cy)]
+          return []
+        }),
+      )
+    expect(Math.abs(maxR(out.geoms) - maxR(e.geoms))).toBeLessThan(1e-6)
+  })
+
   it('roundedRect：扰动直边端点后求解仍给回四段 90° 圆角（直边 H/V + 切点重合）', async () => {
     const e = expandShapes([{ kind: 'roundedRect', tag: 'rr', w: 20, d: 10, r: 2 }])
     const broken = e.geoms.map((g, i) => {
@@ -555,6 +652,31 @@ describe('cad.sketch({ shapes }) — 入口与产物', () => {
     })
     // 底边被钉到 40；高仍由形状把守（60）→ 面积 2400
     expect(getBrepApi().getSurfaceArea(brepOf(shape as never) as never)).toBeCloseTo(40 * 60, 1)
+  })
+
+  it('斜置 trapezoid 语句面：angle/a1/a2 均以「度」到达，展开成 30° 斜置梯形（回归：SHAPE_ANGLE_KEYS 漏 angle → 30 当 30 弧度折叠成怪角）', async () => {
+    // 端侧发射的口径就是度（entityShapes radToDeg）——语句面必须把度转成弧度。
+    // 理论 bbox（w10 h5 60°/60° 绕中心旋 30°）：bl(−5,−2.5)→(−3.080,−4.665)，
+    // br(5,−2.5)→(5.580,0.335)，tr(2.113,2.5)→(0.580,3.222)，tl(−2.113,2.5)→(−3.080,1.108)。
+    const shape = await runSketchOp({
+      shapes: [{ kind: 'trapezoid', tag: 't', w: 10, h: 5, a1: 60, a2: 60, angle: 30 }],
+    })
+    const bb = getBrepApi().getBoundingBox(brepOf(shape as never) as never)
+    expect(bb.xmin).toBeCloseTo(-3.080, 1)
+    expect(bb.xmax).toBeCloseTo(5.580, 1)
+    expect(bb.ymin).toBeCloseTo(-4.665, 1)
+    expect(bb.ymax).toBeCloseTo(3.222, 1)
+  })
+
+  it('斜置 slot 语句面：angle 以「度」到达 → 45° 斜槽包络 ±5.536（对照：未转弧度会折叠成别的形状）', async () => {
+    const shape = await runSketchOp({
+      shapes: [{ kind: 'slot', tag: 's', w: 10, d: 4, angle: 45 }],
+    })
+    const bb = getBrepApi().getBoundingBox(brepOf(shape as never) as never)
+    expect(bb.xmin).toBeCloseTo(-5.536, 1)
+    expect(bb.xmax).toBeCloseTo(5.536, 1)
+    expect(bb.ymin).toBeCloseTo(-5.536, 1)
+    expect(bb.ymax).toBeCloseTo(5.536, 1)
   })
 })
 
