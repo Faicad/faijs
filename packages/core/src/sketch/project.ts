@@ -219,17 +219,22 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
         // rx/ry ARE the major/minor radii (fromFreeCadGeoms maps them back
         // positionally), `angle` is the major-axis rotation in radians — the
         // same unit contour.ts and planegcs consume for angleXU.
-        const major = g.rx
-        const minor = g.ry
         const angleXU = g.angle ?? 0
+        // gp_Elips / GCS 语义要求 major >= minor。端侧可画横扁椭圆（rx<ry）：
+        // 必须归一化（交换半径 + 长轴方向转 90°），否则焦点距
+        // c = √(major²−minor²) 取到 √(负)→0，焦点塌进中心，椭圆变圆
+        // （实测：rx=10/ry=20 extrude 截面 40×40；rx=20/ry=10 正常）。
+        const [major, minor, rot] = g.rx < g.ry
+          ? [g.ry, g.rx, angleXU + Math.PI / 2]
+          : [g.rx, g.ry, angleXU]
         // first focus pair (computed, mirroring FreeCAD's stored foci)
-        const c = Math.sqrt(Math.max(major * major - minor * minor, 0))
-        const ca = Math.cos(angleXU)
-        const sa = Math.sin(angleXU)
+        const c = Math.sqrt(major * major - minor * minor)
+        const ca = Math.cos(rot)
+        const sa = Math.sin(rot)
         return {
           kind: 'ellipse', index,
           cx: g.cx, cy: g.cy, cz: 0,
-          majorRadius: major, minorRadius: minor, angleXU,
+          majorRadius: major, minorRadius: minor, angleXU: rot,
           fx1: g.cx - c * ca, fy1: g.cy - c * sa,
           fx2: g.cx + c * ca, fy2: g.cy + c * sa,
           ...con(g),
