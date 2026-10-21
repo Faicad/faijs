@@ -4,7 +4,7 @@
  * Case 2: load STL + cylinder + drill + assembly transforms
  *
  * 验证逐 part BREP 设计的第二个核心场景：
- * - load STL → 非 CAD 源，cube_v0 无 solid（mesh）
+ * - load STL → **BREP 路径**（v0.35.6 起；此前是 mesh），cube_v0 持有自己的 solid
  * - cylinder → BREP-native，cyl_v0 持有 solid
  * - drill(cyl) → 上游有 solid → 走 BREP 精确路径
  * - assembly statement → execution skips (zero geometry impact)
@@ -13,6 +13,14 @@
  *
  * 修复前（全局 brepActive）：STL 加载断全局链 → cylinder/drill/rotate/translate 全被连坐走 mesh
  * 修复后（逐 part）：STL 只影响 cube_v0，cylinder 链保持 BREP
+ *
+ * 2026-10-21 校正过时断言：本文件原假设「STL → mesh，cube_v0 无 solid」。v0.35.6
+ * （commit 28c2811）把 STL 也接到 BREP 路径（brepkit `importStl`+weld / occt
+ * `reconstructSolidFromMesh`），目的是让导入件能被圆角/钻孔/分割（那些能力在
+ * 「无邻接面的网格壳」上不可用）。所以 cube_v0 现在**也**有 BREP 句柄。逐 part
+ * 独立性这一命题不变：STL 的 BREP 产物不与 cylinder 链共享状态。
+ * 「mesh 零件永不进 solidCache」的对照由 `api/load-mesh-solid.test.ts`（3MF/STL
+ * 于 mesh 模式）守住，不在此处重复。
  *
  * Run: npx vitest run src/ops/case2-load-stl-cylinder-assembly.test.ts
  */
@@ -27,6 +35,7 @@ import { fileBlobStore } from '../blob-store'
 import { exportStepFromSolid } from '../../src/brep/export/step'
 import { exportStep } from '../../src/occt-kernel/highLevelApi'
 import { asPartName } from '../../src/identity'
+import { hasBrep, hasMeshSolid } from '../../src/shape'
 import { extractMetadata } from '../../src/lang/metadata-extractor'
 
 /** `analyzeCode` 已迁至宿主层；旧实现即 extractMetadata(code).lines。 */
@@ -162,12 +171,19 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     const solidCache = result.brepChain.solidCache
 
     // Core assertions (per-part BREP independence):
-    // STL load does NOT break BREP for subsequent parts
-    expect(solidCache.has(asPartName('cube_v0'))).toBe(false)     // STL → mesh (no solid) ✅
+    // STL load does NOT break BREP for subsequent parts. 注意 cube_v0 自己也持有
+    // BREP 句柄——不是本用例的退步：v0.35.6 起 STL 就走 BREP 路径（见文件头）。
+    expect(solidCache.has(asPartName('cube_v0'))).toBe(true)      // STL → BREP（v0.35.6）✅
     expect(solidCache.has(asPartName('cyl_v0'))).toBe(true)       // cylinder → BREP ✅ (core fix)
     expect(solidCache.has(asPartName('drilled_v0'))).toBe(true)   // drill → BREP ✅ (upstream has solid)
     expect(solidCache.has(asPartName('rot_v0'))).toBe(true)       // rotate_euler → BREP ✅
     expect(solidCache.has(asPartName('mated_v0'))).toBe(true)     // translate → BREP ✅
+
+    // 形状侧佐证：cube_v0 是精度链件（有 BREP 句柄、无网格实体句柄），
+    // 即「共享的只有显示网格载荷，不是 BREP 状态」。
+    const cubeShape = result.outputs.get(asPartName('cube_v0'))!
+    expect(hasBrep(cubeShape), 'STL 导入件在精度链上').toBe(true)
+    expect(hasMeshSolid(cubeShape), 'STL 导入件不是网格实体件').toBe(false)
 
     // Assembly structural statement is present in the code metadata
     const summaries = analyzeCode(makePartScript(stmts))
@@ -176,7 +192,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     fileBlobStore.release('cube.stl')
   })
 
-  it('brepSolids contains mated_v0 (BREP) but not cube_v0 (mesh)', async () => {
+  it('brepSolids 逐终端各持其句柄：mated_v0 与 STL 导入的 cube_v0 都在，且互不等同', async () => {
     fileBlobStore.put(stlBuffer, 'cube.stl')
     const stmts: string[] = [
       makeStmt('cube_v0', 'load', { file: 'cube.stl' }, [],
@@ -201,16 +217,20 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     const result = await runScript(stmts)
     expect(result.failedAt).toBeUndefined()
 
-    // brepSolids should contain mated_v0 (BREP terminal)
+    // brepSolids 是「逐个 BREP 终端 → 句柄」的出口，不是单一全局链。
     expect(result.brepSolids).toBeDefined()
-    expect(result.brepSolids!.has(asPartName('mated_v0'))).toBe(true)
-    // cube_v0 should NOT be in brepSolids (mesh terminal)
-    expect(result.brepSolids!.has(asPartName('cube_v0'))).toBe(false)
+    const matedSolid = result.brepSolids!.get(asPartName('mated_v0'))!
+    expect(matedSolid).toBeDefined()
+    // STL 导入件同样在册（v0.35.6：STL → BREP），且它与 cylinder 链的终端
+    // 各持各的句柄 —— 逐 part 独立性的可观察面。
+    const cubeSolid = result.brepSolids!.get(asPartName('cube_v0'))!
+    expect(cubeSolid).toBeDefined()
+    expect(cubeSolid.solid, '两个终端不共享 BREP 句柄').not.toEqual(matedSolid.solid)
 
     fileBlobStore.release('cube.stl')
   })
 
-  it('STEP export: mated_v0 is precise (ADVANCED_FACE), cube_v0 is faceted', async () => {
+  it('STEP export: mated_v0 is precise (ADVANCED_FACE); cube_v0 mesh payload exports faceted', async () => {
     fileBlobStore.put(stlBuffer, 'cube.stl')
     const stmts: string[] = [
       makeStmt('cube_v0', 'load', { file: 'cube.stl' }, [],
@@ -238,10 +258,13 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     // The drilled cylinder has a CYLINDRICAL_SURFACE (precise hole wall)
     expect(preciseStep).toContain('CYLINDRICAL_SURFACE')
 
-    // cube_v0 → faceted STEP (meshesToStep)
+    // cube_v0 的**显示网格载荷** → 分面 STEP（meshesToStep）。注意 cube_v0 同时持有
+    // BREP 句柄（v0.35.6），这里刻意走网格载荷出口：两个出口的差异正是本用例要钉的
+    // 东西——精度链的 STEP 带 ADVANCED_FACE/CYLINDRICAL_SURFACE，网格载荷的 STEP 只有
+    // 分面，不虚构曲面。
     const cubeShape = result.outputs.get(asPartName('cube_v0'))!
     expect(cubeShape).toBeDefined()
-    if (!('positions' in cubeShape)) throw new Error('cube_v0 should be a mesh shape')
+    if (!('positions' in cubeShape)) throw new Error('cube_v0 should carry a mesh payload')
     const facetedStep = exportStep(cubeShape)
     // Faceted STEP from mesh should NOT contain CYLINDRICAL_SURFACE
     // (cube-10x5x5.stl is a plain box with no cylindrical surfaces)

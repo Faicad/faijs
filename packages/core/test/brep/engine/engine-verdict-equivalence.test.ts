@@ -18,10 +18,15 @@
  * `HEAD_CAPABILITIES` 必须覆盖全部 `kind:'brep-op'` 条目（见下方第一个用例），
  * 否则说明基线漏抄，判决等价性无从谈起。
  *
- * 等价性命题的作用域 = occt 与 brepkit。**唯一**一处判决变化落在 `brep_mock`（测试替身）：
- * 旧能力门对 mock 同样生效（HEAD 时 mock 声明 `capabilities: {}`），故凡声明过能力的 op 在
- * mock 上一律被静态拒绝；新设计没有第二条声明轴，且 engine 门本就豁免 mock（D11-3）。
- * 该差集在文件末尾单独钉住，运行时的可观察面由 `engine-switch.test.ts` 覆盖。
+ * 等价性命题的作用域 = occt 与 brepkit。两处判决变化在文件内**逐条钉住**：
+ *
+ * 1. `brep_mock`（测试替身）上的能力门拦截整体消失：旧能力门对 mock 同样生效（HEAD 时
+ *    mock 声明 `capabilities: {}`），故凡声明过能力的 op 在 mock 上一律被静态拒绝；新设计
+ *    没有第二条声明轴，且 engine 门本就豁免 mock（D11-3）。该差集在文件末尾单独钉住，
+ *    运行时的可观察面由 `engine-switch.test.ts` 覆盖。
+ * 2. `brepkit` 上 `fuse` 这一条**有意放宽**（HEAD 之后、有 commit 与几何实证）：记在
+ *    `INTENTIONALLY_UNGATED_BREP_OPS`。该表是**白名单账本**，不是豁免开关——任何不在此表
+ *    里的"丢失拦截"依旧让门禁变红，而表里多出过期条目也会变红。
  *
  * Run: npx vitest run src/brep/engine/engine-verdict-equivalence.test.ts
  */
@@ -93,6 +98,29 @@ const OCCT_HISTORY = new Set([
   'scaleWithHistory', 'shellWithHistory', 'offsetWithHistory', 'thickenWithHistory',
 ])
 
+/**
+ * HEAD **之后**、经实证**有意**撤掉引擎门的 brep-op（判决等价的已知偏离）。
+ *
+ * 本文件的命题是「删 capabilities 轴那一刻，逐 op 判决不变」。此后若某个 op 被
+ * 有意放宽（实证目标引擎可用 → 移除 `engines`），它会从 `newBlocked` 里消失，
+ * 从而撞上「丢失拦截」断言变红 —— 这是设计意图（**任何**判决变化都必须现形），
+ * 但变化一旦是刻意且已实证的，就必须记成已知偏离，否则真回归会混在常红噪声里。
+ *
+ * 记入条件（三者缺一不可，缺任一条就不要记，让门禁红着去查）：
+ * 1. 有 commit；
+ * 2. 有**几何真值**的实证测试（不是"没报错"）；
+ * 3. 能说清"为什么移除后仍安全"——即来源实现不再触碰被排除引擎缺失的能力。
+ *
+ * 值 = 上述三条的出处。**只增不减**：若某条被重新加门，它会从 `newBlocked` 的补集
+ * 里消失、让"已知偏离"的相等断言变红，届时按新事实更新即可。
+ */
+const INTENTIONALLY_UNGATED_BREP_OPS: Readonly<Record<string, string>> = {
+  fuse:
+    '72ab6bc（0.35.7）：fuseBrep 仅经 getBrepApi().fuse（L1 裸方法），不再触碰 ' +
+    'kernel.isNull / kernel.dispose；brepkit 内核 L1 有 fuse。几何实证见 ' +
+    'test/brep/engine/brepkit-fuse-op.test.ts（错位 10³ 盒并集 volume≈1875）。',
+}
+
 const BREPKIT_DECLARED = new Set(HEAD_BREPKIT_DECLARED)
 const BREP_OPS = ARG_SPEC.filter((e) => e.kind === 'brep-op')
 
@@ -106,6 +134,13 @@ function headCapabilityGateBlocksOnBrepkit(name: string): boolean {
 function newGateBlocksOnBrepkit(e: (typeof BREP_OPS)[number]): boolean {
   const engines = e.engines
   return engines !== undefined && engines.length > 0 && !engines.includes('brepkit')
+}
+
+/** 旧判决（引擎门 ∪ 能力门）在 brepkit 上被拦的全部 op 名（含此后有意放宽者）。 */
+function headBlockedOnBrepkit(): string[] {
+  return BREP_OPS.filter(
+    (e) => HEAD_ENGINE_GATED_BREP_OPS.includes(e.name) || headCapabilityGateBlocksOnBrepkit(e.name),
+  ).map((e) => e.name)
 }
 
 describe('基线自洽：常量表覆盖全部 brep-op', () => {
@@ -125,25 +160,26 @@ describe('基线自洽：常量表覆盖全部 brep-op', () => {
 })
 
 describe('R1 判决等价：brepkit 上的拒绝集合逐 op 相等', () => {
-  it('旧判决（引擎门 ∪ 能力门）== 新判决（engines 排除 brepkit）', () => {
-    const oldBlocked = BREP_OPS.filter(
-      (e) => HEAD_ENGINE_GATED_BREP_OPS.includes(e.name) || headCapabilityGateBlocksOnBrepkit(e.name),
-    ).map((e) => e.name)
+  it('旧判决（引擎门 ∪ 能力门）== 新判决（engines 排除 brepkit）∪ 已知有意放宽', () => {
+    const oldBlocked = headBlockedOnBrepkit()
     const newBlocked = BREP_OPS.filter(newGateBlocksOnBrepkit).map((e) => e.name)
-    expect([...newBlocked].sort()).toEqual([...oldBlocked].sort())
+    const expected = [...oldBlocked].filter((n) => !INTENTIONALLY_UNGATED_BREP_OPS[n])
+    expect([...newBlocked].sort()).toEqual(expected.sort())
   })
 
-  it('差集为空即无新增/无遗漏；被拦者恰为 {roof, locate} ∪ 既存 engines 条目', () => {
-    const oldBlocked = new Set(
-      BREP_OPS.filter(
-        (e) => HEAD_ENGINE_GATED_BREP_OPS.includes(e.name) || headCapabilityGateBlocksOnBrepkit(e.name),
-      ).map((e) => e.name),
-    )
+  it('差集即已知偏离本身；被拦者恰为 {roof, locate} ∪ 既存 engines 条目', () => {
+    const oldBlocked = new Set(headBlockedOnBrepkit())
     const newBlocked = new Set(BREP_OPS.filter(newGateBlocksOnBrepkit).map((e) => e.name))
     // 新增拦截（过度收窄 → 对外行为变化）
     expect([...newBlocked].filter((n) => !oldBlocked.has(n))).toEqual([])
-    // 丢失拦截（漏收窄 → 静态放行后死在运行时）
-    expect([...oldBlocked].filter((n) => !newBlocked.has(n))).toEqual([])
+    // 丢失拦截（漏收窄 → 静态放行后死在运行时）。**每丢一条都必须在此登记**，
+    // 否则就是未经实证的静默放宽。
+    expect([...oldBlocked].filter((n) => !newBlocked.has(n)).sort()).toEqual(
+      Object.keys(INTENTIONALLY_UNGATED_BREP_OPS).sort(),
+    )
+    // 已知偏离里的每个名字，在 HEAD 判决里必须**确实**被拦——防抄错名字、
+    // 防条目过期（比如某 op 后来又被加回门禁，那条登记就成了假账）。
+    expect(Object.keys(INTENTIONALLY_UNGATED_BREP_OPS).filter((n) => !oldBlocked.has(n))).toEqual([])
     // 唯二由能力门转成引擎门的条目
     const converted = [...newBlocked].filter((n) => !HEAD_ENGINE_GATED_BREP_OPS.includes(n))
     expect(converted.sort()).toEqual(['locate', 'roof'])
