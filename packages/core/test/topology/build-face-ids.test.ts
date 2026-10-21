@@ -78,10 +78,27 @@ describe('buildFaceIdsForPart', () => {
       columns: ['triangleStart', 'primitiveIndex', 'occurrenceRow', 'triangleCount', 'faceRow'],
       occurrence: new Map([[0, 'partX']]),
     })
-    const ids = buildFaceIdsForPart({ occurrenceId: 'partX', primitiveIndex: 0, triangleCount: 4 }, r)
+    const ids = buildFaceIdsForPart({ occurrenceId: 'partX', primitiveIndex: 0, triangleCount: 7 }, r)
     expect(ids).not.toBeNull()
     if (!ids) return
     expect(ids[3]).toBe(11)
+    expect(ids[6]).toBe(11)
     expect(ids[2]).toBe(TOPOLOGY_FACE_ID_NONE)
+  })
+
+  it('throws E_TOPO_FACE_MESH_MISMATCH when a face run covers triangles beyond the display mesh', () => {
+    // 面行区间 [3, 7) 超出该 part 的 4 个三角形 → 拓扑面表与显示 mesh 不同源，必须报错，
+    // 禁止静默 clamp（clamp 会把"不同源"伪装成正常结果，让宿主按错号拾取/抽壳）。
+    const runs = new Uint32Array([
+      3, 0, 0, 4, 11, // triangleStart, prim, occRow, triCount, faceRow (custom order)
+    ])
+    const r = makeRuntime({
+      runs,
+      columns: ['triangleStart', 'primitiveIndex', 'occurrenceRow', 'triangleCount', 'faceRow'],
+      occurrence: new Map([[0, 'partX']]),
+    })
+    expect(() =>
+      buildFaceIdsForPart({ occurrenceId: 'partX', primitiveIndex: 0, triangleCount: 4 }, r),
+    ).toThrow(/E_TOPO_FACE_MESH_MISMATCH/)
   })
 })

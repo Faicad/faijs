@@ -57,21 +57,25 @@ export function resolveTopoRef(ref: TopoRef, ctx: ResolutionContext): ResolvedTo
  * @returns the TopoRefError with the proper error code.
  */
 export function buildTopoError(
-  reason: 'deleted' | 'ambiguous' | 'not-found',
+  reason: 'deleted' | 'ambiguous' | 'not-found' | 'no-hint',
   kind: TopoRef['kind'],
   candidates?: readonly number[],
 ): TopoRefError {
   return new TopoRefError(codeFor(reason), kind, `topo ref (${kind}) ${messageFor(reason)}`, candidates)
 }
 
-function codeFor(reason: 'deleted' | 'ambiguous' | 'not-found'): TopoErrorCode {
+function codeFor(reason: 'deleted' | 'ambiguous' | 'not-found' | 'no-hint'): TopoErrorCode {
   if (reason === 'deleted') return 'E_TOPO_DELETED'
   if (reason === 'ambiguous') return 'E_TOPO_AMBIGUOUS'
   return 'E_TOPO_NOT_FOUND'
 }
 
-function messageFor(reason: 'deleted' | 'ambiguous' | 'not-found'): string {
+function messageFor(reason: 'deleted' | 'ambiguous' | 'not-found' | 'no-hint'): string {
   if (reason === 'deleted') return 'was deleted by an upstream edit'
   if (reason === 'ambiguous') return 'matched multiple candidates (ambiguous)'
+  if (reason === 'no-hint') {
+    return 'has no geometric hint (hint) and its role is not tracked on the current chain — ' +
+      'a hint-less face ref cannot be located without a role layer (pass a hint, or use a role-tracked precision chain)'
+  }
   return 'not found in the current shape'
 }

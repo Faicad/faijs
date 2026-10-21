@@ -19,6 +19,7 @@
 
 import type { TerminalShape } from '../lang/types'
 import type { Shape } from '../mesh/types'
+import { BREP_TESS } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -754,7 +755,7 @@ export class CadRuntime {
 
     this.directExecutor = new DirectExecutor({
       namespaces: this.namespaces,
-      setSolid: (partName, solid) => { this.solidCache.set(partName, solid) },
+      setSolid: (partName, solid, shape) => { this.setSolidAndTess(partName, solid, shape) },
       setFaceEvolution: (partName, evo) => { this.faceEvolutionCache.set(partName, evo as Map<number, number[]>) },
       setRoleTable: (partName, roleTable) => { this.roleTableCache.set(partName, roleTable) },
       security: this.securityPolicy,
@@ -1201,7 +1202,7 @@ export class CadRuntime {
     // solidCache，否则主模块的 brepSolids 查不到它们（装配体 STEP 导不出精确曲面）。
     const de = new DirectExecutor({
       namespaces: { ...this.libs } as Namespaces,
-      setSolid: (partName, solid) => { this.solidCache.set(partName, solid) },
+      setSolid: (partName, solid, shape) => { this.setSolidAndTess(partName, solid, shape) },
       setFaceEvolution: (partName, evo) => { this.faceEvolutionCache.set(partName, evo as Map<number, number[]>) },
       setRoleTable: (partName, roleTable) => { this.roleTableCache.set(partName, roleTable) },
       security: 'strict',
@@ -1771,6 +1772,27 @@ export class CadRuntime {
    */
   get meshSolids(): MeshSolidRegistry {
     return this.meshSolidRegistry
+  }
+
+  /**
+   * T3 身份槽同步：写 `solidCache`，并把 shape 自带的**显示 mesh 三角化结果**写入
+   * `brepChain.meshShapeCache`（规则 1「一份 mesh」——拓扑只由用户看到的那份 mesh 生成）。
+   *
+   * shape 的 BREP_TESS 槽缺失（变换类 op、导入存活对象、非 BREP 产物）时**清掉旧键**：
+   * 此时旧 mesh 已不对应当前 solid，留着会让 buildBrepTopology 拿"新 solid + 旧 mesh"
+   * 错配面行区间；清掉后它回退到兜底三角化（正确但多一次计算）。
+   *
+   * @param partName 终端变量名（solidCache/meshShapeCache 的键）。
+   * @param solid    该 part 当前的 BREP 句柄。
+   * @param shape    承载该 solid 的 Shape（可能缺 BREP_TESS 槽）。
+   */
+  private setSolidAndTess(partName: PartName, solid: BrepHandle, shape?: Shape): void {
+    this.solidCache.set(partName, solid)
+    const cache = this.brepChain?.meshShapeCache
+    if (!cache) return
+    const tess = shape?.[BREP_TESS] as BrepMeshResult | undefined
+    if (tess) cache.set(partName, tess)
+    else cache.delete(partName)
   }
 
   /**

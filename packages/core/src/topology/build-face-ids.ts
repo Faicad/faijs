@@ -78,6 +78,17 @@ export function buildFaceIdsForPart(
     const runTriangleCount = Number(runs[offset + cols.triangleCount])
     const faceRow = Number(runs[offset + cols.faceRow])
 
+    // 先按 occurrence / primitiveIndex 过滤出**属于本 part** 的行：其它 part 的行
+    // 的 triangleStart 是它们自己的 mesh 坐标，用本 part 的 triangleCount 去校验会误报。
+    const runOccurrenceId = runtime.occurrenceIdByRowIndex.get(runOccurrenceRow)
+    if (
+      runOccurrenceId !== occurrenceId ||
+      Number(runs[offset + cols.primitiveIndex]) !== primitiveIndex
+    ) {
+      continue
+    }
+
+    // 非法行（缺三角化的面等）：triangleCount = 0 的行不参与（面结构未三角化，非破坏）。
     if (
       !Number.isInteger(triangleStart) ||
       !Number.isInteger(runTriangleCount) ||
@@ -89,17 +100,19 @@ export function buildFaceIdsForPart(
       continue
     }
 
-    const runOccurrenceId = runtime.occurrenceIdByRowIndex.get(runOccurrenceRow)
-    if (
-      runOccurrenceId !== occurrenceId ||
-      Number(runs[offset + cols.primitiveIndex]) !== primitiveIndex ||
-      triangleStart >= triangleCount
-    ) {
-      continue
+    // I6 破坏即报错：本 part 的面行区间必须落在显示 mesh 的三角形数之内。
+    // 这里**禁止静默 clamp**（旧实现 `Math.min(..., triangleCount)` 会把"面行区间
+    // 越界 = 拓扑面表与显示 mesh 不同源"这一严重不一致伪装成正常结果）。
+    if (triangleStart + runTriangleCount > triangleCount) {
+      throw new Error(
+        `E_TOPO_FACE_MESH_MISMATCH: face run row ${faceRow} covers triangles ` +
+        `[${triangleStart}, ${triangleStart + runTriangleCount}) but part ${occurrenceId} ` +
+        `(primitiveIndex ${primitiveIndex}) has only ${triangleCount} triangles — ` +
+        `topology face table is not aligned with the display mesh`,
+      )
     }
 
-    const end = Math.min(triangleStart + runTriangleCount, triangleCount)
-    faceIds.fill(faceRow, triangleStart, end)
+    faceIds.fill(faceRow, triangleStart, triangleStart + runTriangleCount)
     matched = true
   }
 

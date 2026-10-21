@@ -168,7 +168,7 @@ export type TopoResolution<T> =
     }
   | {
       readonly ok: false
-      readonly reason: 'deleted' | 'ambiguous' | 'not-found'
+      readonly reason: 'deleted' | 'ambiguous' | 'not-found' | 'no-hint'
       readonly candidatesOrdinal?: readonly number[]
     }
 

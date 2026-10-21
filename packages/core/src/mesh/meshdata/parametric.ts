@@ -4,9 +4,14 @@
  *
  * Ported from three.js r162 `src/geometries/{Box,Cylinder,Cone,Sphere}Geometry.js`
  * (MIT License, © 2010-2024 three.js authors). **顶点与索引的生成顺序逐行照抄**
- * ——`mesh/primitives.ts` 的 `faceRanges` 面序契约正建立在该顺序之上（例如 Box
- * 12 三角形 = 6 面 × 2，顺序固定 +X/−X/+Y/−Y/+Z/−Z；Cylinder 侧面→顶盖→底盖）。
- * 改动这里的循环顺序 = 改变面序契约，属破坏性改动。
+ * ——`mesh/primitives.ts` 的 `faceRanges`（mesh 链的面分组）即建立在该顺序之上
+ * （例如 Box 12 三角形 = 6 面 × 2；Cylinder 侧面→顶盖→底盖）。
+ *
+ * ⚠️ 该顺序**不是对外契约**：它只决定 mesh 链自身 `faceRanges` 的编号（面号 =
+ * 本链面表行号，仅本执行/本链有效）。面跨内核/跨路径的身份是
+ * `FaceTopoRef{origin, role}`，与这里的循环顺序无关——禁止把任何第三方库的三角形
+ * 生成顺序当契约依据（方案 2026-10-20 §1 规则三 / P0）。改动循环顺序只需同步
+ * `mesh/primitives.ts` 的 `faceRanges` 字面量，不构成对外破坏。
  *
  * 本模块零依赖（除 `MeshData` 类型），是「去 three」后 core 自有的参数化几何来源。
  */

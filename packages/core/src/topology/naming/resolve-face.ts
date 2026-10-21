@@ -178,7 +178,9 @@ export function resolveFaceTopo(
     } else if (survivors.length === 0) {
       return { ok: false, reason: 'deleted' }
     } else {
-      // 1→多分裂：只在后继内裁决，不与全形状竞争
+      // 1→多分裂：只在后继内裁决，不与全形状竞争。
+      // hint 缺失时不做几何裁决——返回显式三态而非空引用崩溃（仓规：报错好于掩盖）。
+      if (ref.hint === undefined) return { ok: false, reason: 'no-hint' }
       const split = outcomeOf(ref.hint, survivors, ctx)
       if (split.kind === 'match') {
         return {
@@ -195,7 +197,10 @@ export function resolveFaceTopo(
     }
   }
 
-  // 2. 几何兜底：全形状打分
+  // 2. 几何兜底：全形状打分。
+  // 无 hint 且 role 未追踪（例如 mesh 链没有 role 层）→ 无法定位：显式报 'no-hint'，
+  // 不再让 scoreCandidate 读 `hint.surfaceType` 空引用崩溃。
+  if (ref.hint === undefined) return { ok: false, reason: 'no-hint' }
   const all = outcomeOf(ref.hint, ctx.faces, ctx)
   if (all.kind === 'match') {
     return {

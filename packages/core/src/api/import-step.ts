@@ -55,9 +55,7 @@ export async function importStepImpl(params: Record<string, unknown>): Promise<S
 
   // C6：非实体一等公民（对齐 import_brep）。loadBrep 自适应：CASCADE Topology
   // 文本走 kernel.fromBREP，其余（STEP/STP）走 kernel.importStep。
-  const { solid: solidHandle, shape } = loadBrep(
-    kernel, buffer, undefined, undefined, { allowNonSolid: true },
-  )
+  const { solid: solidHandle, shape } = loadBrep(kernel, buffer, { allowNonSolid: true })
   // P2（设计文档 2026-10-05-meta §5.2 读）：从 STEP (P21) 文本捞伙伴级描述/属性
   // 挂 `shape.meta`（name 已由 OCCT label 提供，description/UDA 由纯文本补充）。
   // 非文本/非 STEP 内容跳过，绝不抛。

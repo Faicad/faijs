@@ -660,6 +660,21 @@ The planegcs sketch solver is injected via `setSketchSolverInitFn(fn)` (aligned 
 - **Mesh does not participate in topology identity** (D6): a mesh-chain Shape (3MF) is a data payload only; referencing a face/edge of a mesh Shape throws `E_TOPO_MESH_UNSUPPORTED`. No `role`/`origin` is ever produced for mesh-chain geometry. **STL is not on the mesh path**: since v0.35.6 `load` dispatches STL to the BREP path on both engines (brepkit `importStl` / occt `reconstructSolidFromMesh`) so editor features (fillet/chamfer/drill) work on imported STL; an STL-imported Shape therefore carries BREP identity and participates in topology naming like any BREP part.
 - **Identity coordinate is `(StmtId, RoleName)`** (Phase 1.6/1.7): `origin` is the producing statement's `StmtId` (not a `PartName`), `role` is a structured `RoleName` serialized to a canonical string (`top` / `wall:3` / `replica[2]/wall:3` / `splinter(top)#1` / `gen:fillet:0` / `imported:5`). The wire form in `.fai.js` is the string pair `{origin, role}`; `display` (a `PartName`) is UI-only and never participates in identity or resolution.
 
+### 11.2 Face identity and face numbering (single source)
+
+Cross-kernel / cross-execution identity of a face is **only** `FaceTopoRef{origin, role}`; `hint` is a **scoring-only fallback**, never identity. A **face number** is not an identity.
+
+- **I0 — one identity.** The only portable face unit is `FaceTopoRef{origin, role}`. A face number is valid **only** within the current execution on the current kernel: it must never be written into `.fai.js` / sceneCode, never persisted, never made part of a cross-kernel API contract.
+- **I1 — one mesh.** A BREP part is tessellated **once** per execution. The topology is built from **that very** tessellation (the display mesh carries it in an internal symbol slot, `BREP_TESS`), not from a second `meshShape` call — an equivalence argument over "same parameters" is not accepted (deflection derived from explicit `segments` differs per call).
+- **I2 — one number.** `faceIds` index / `faceRanges` index / `faceRuns.faceRow` / topology face-table row / naming array index are **the same number**; no second numbering system may exist.
+- **I3 — self-consistency.** For every face row `r`, the triangles covered by its `(triangleStart, triangleCount)` have area / centroid / normal equal to that row's own recorded `area` / `center` / `normal` (within tolerance).
+- **I4 — complete and non-overlapping.** Face-row triangle ranges pairwise do not overlap and their union equals the display mesh's triangles (rows with no triangulation are explicitly excluded).
+- **I5 — no direction or identity by number.** Direction / position semantics are expressed **only** by `role` (semantic namer) or a selector (`">Z"` / `"|Z"`). A face number promises neither direction nor cross-kernel equality — the kernel enumeration order is not portable, so no faijs code may premise logic on "the numbers match".
+- **I6 — break it and it throws.** Any violated invariant throws `E_TOPO_FACE_MESH_MISMATCH`; silent clamping / degradation is forbidden (the host-facing `buildFaceIdsForPart` is the guard).
+- **I7 — the host only consumes.** faijs guarantees I1–I6; the host (web / weapp) only does "look up → use" and maintains no second mapping. On inconsistency the host must fail fast, not recompute.
+- **No third-party generation order is a contract.** The triangle order of a vendored/ported geometry generator is an implementation detail of one chain's own `faceRanges`; no implementation may cite a third-party library's triangle order as an API contract.
+- **Mesh chain without a role layer.** A `FaceTopoRef` handed to a chain with no role layer is resolved by geometry (normal / center / area) or fails with a clear error (`no-hint` / `not-found`); a hint-less ref is never resolved by crashing on a missing `hint`.
+
 ---
 
 ## 12. Assembly / Grouping Contract

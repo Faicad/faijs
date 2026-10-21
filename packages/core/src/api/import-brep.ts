@@ -54,9 +54,7 @@ export async function importBrepImpl(params: Record<string, unknown>): Promise<S
   }
 
   // C6：非实体一等公民——始终允许导入 wire/face/shell（allowNonSolid=true）。
-  const { solid: solidHandle, shape } = loadBrep(
-    kernel, buffer, undefined, undefined, { allowNonSolid: true },
-  )
+  const { solid: solidHandle, shape } = loadBrep(kernel, buffer, { allowNonSolid: true })
   // E3（H12）：链根建 roleTable（与 primitives.ts 同源机制）——冻结资产是
   // 无名形状，没有这张表下游 edgeRef/faceRef 无法解析（nameless-shape 缺陷）。
   // Phase 1.6：origin 用导入语句的 StmtId——同一资产导入两次是两条语句，

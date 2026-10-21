@@ -76,9 +76,10 @@ export function box(params: BoxParams): Shape {
   const translated = tx !== 0 || ty !== 0 || tz !== 0
     ? translateShape(rotated, tx, ty, tz)
     : rotated
-  // 面结构（P4 面级）：BoxGeometry 12 三角形 = 6 面 × 2，顺序固定
-  // (+X, −X, +Y, −Y, +Z, −Z)；geoToManifoldMesh 焊接顶点保三角形序，故面序契约成立。
-  // 面序号契约（setFaceColor 的 faceIds 即此序号）：0=+X, 1=−X, 2=+Y, 3=−Y, 4=+Z, 5=−Z。
+  // 面结构（P4 面级）：BoxGeometry 12 三角形 = 6 面 × 2，顺序即
+  // (+X, −X, +Y, −Y, +Z, −Z)；geoToManifoldMesh 焊接顶点保三角形序，故 faceRanges
+  // 与 mesh 三角形同源。面号 = 本链面表行号（仅本执行/本链有效，非跨内核身份）：
+  // 0=+X, 1=−X, 2=+Y, 3=−Y, 4=+Z, 5=−Z。setFaceColor 的 faceIds 即此号。
   const faceRanges: Shape['faceRanges'] = [
     { start: 0, count: 2 },
     { start: 2, count: 2 },
@@ -128,7 +129,7 @@ export function cylinder(params: CylinderParams): Shape {
   const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
   const translated = translateShape(rotated, baseX, baseY, baseZ + params.height / 2)
   // 面结构（P4 面级）：CylinderGeometry 三角形布局稳定——侧面 2*segs（tri 0..2segs-1）、
-  // 顶盖 segs、底盖 segs。面序号契约：0=侧面, 1=顶, 2=底。
+  // 顶盖 segs、底盖 segs。面号（本链行号）：0=侧面, 1=顶, 2=底。
   const faceRanges: Shape['faceRanges'] = [
     { start: 0, count: 2 * segs },
     { start: 2 * segs, count: segs },
@@ -168,7 +169,7 @@ export function cone(params: ConeParams): Shape {
   const translated = translateShape(rotated, baseX, baseY, baseZ + params.height / 2)
   // 面结构（P4 面级）：radiusTop=0 的 ConeGeometry 只有 2 面——侧面（segs 个
   // 三角扇）+ 底盖（segs 个）；radiusTop>0 的圆台 CylinderGeometry 3 面
-  // （侧面 2*segs、顶、底，同 cylinder 布局）。面序号契约：0=侧面, 1=底
+  // （侧面 2*segs、顶、底，同 cylinder 布局）。面号（本链行号）：0=侧面, 1=底
   // （尖锥）；0=侧面, 1=顶, 2=底（圆台）。
   const faceRanges: Shape['faceRanges'] =
     params.radiusTop === 0

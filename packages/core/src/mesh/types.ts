@@ -34,6 +34,23 @@ export type JsonValue =
 // ── Shape ──
 
 /**
+ * Shape 上的内部挂载槽键：BREP 三角化原始结果（含 faceGroups）。
+ *
+ * 用 **Symbol** 作键，因此：
+ * - 对象展开 `{...shape}` 随行（own enumerable symbol 被 CopyDataProperties 复制），
+ *   所以 `solid(mesh)` 的 `{...mesh, kind}` 天然带上本槽；
+ * - `JSON.stringify` 忽略 symbol 键 → 不进 `.fai.js`、不进任何 JSON；
+ * - `structuredClone` / worker `postMessage` 不传输 symbol 键 → 不跨宿主；
+ * - `Object.keys` / `for...in` 看不到它。
+ *
+ * 用途（规则 1「一份 mesh」）：runtime 用**显示 mesh 的这份三角化结果**构建拓扑，
+ * 而不是对同一 solid 再 `meshShape` 一次——二次调用一旦参数（如 `segments`）或
+ * 内核版本不同，拓扑面行的三角形区间就会与显示 mesh 错位（历史缺陷 D2/D3）。
+ * 宿主不得读取本槽，它只服务于同一个执行内 runtime 的拓扑构建。
+ */
+export const BREP_TESS = Symbol('faijs.brepTess')
+
+/**
  * A mesh shape — the core data type of the mesh API.
  *
  * Shape is defined directly in mesh/types.ts rather than re-exported from
@@ -95,6 +112,11 @@ export interface Shape {
    * 到三角形区间并写入 materialGroups。
    */
   faceRanges?: Array<{ start: number; count: number }>
+  /**
+   * @internal 见 {@link BREP_TESS}：BREP 三角化原始结果（含 faceGroups）的挂载槽。
+   * 仅 runtime 在同一个执行内消费（构建拓扑），宿主禁读、禁写、禁持久化。
+   */
+  [BREP_TESS]?: unknown
 }
 
 /**
