@@ -415,6 +415,10 @@
       "types": "./dist/geometry2d/bridge/plane.d.ts",
       "default": "./dist/geometry2d/bridge/plane.js"
     },
+    "./geometry2d/bridge/lift-on-plane": {
+      "types": "./dist/geometry2d/bridge/lift-on-plane.d.ts",
+      "default": "./dist/geometry2d/bridge/lift-on-plane.js"
+    },
     "./env-agnostic": {
       "types": "./dist/env-agnostic.d.ts",
       "default": "./dist/env-agnostic.js"

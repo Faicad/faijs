@@ -107,6 +107,13 @@ export interface StepCompareResult {
     aMinusB: { volume: number; nonEmpty: boolean }
     bMinusA: { volume: number; nonEmpty: boolean }
     match: boolean
+    /**
+     * B2（2026-10-20）审计字段，缺省 = 'measured'。'unavailable' = 布尔差
+     **无有效证据**：整体 cut 与逐成员配对 cut 都失败/退化（双球相切、共面
+     堆叠盒等退化几何上内核 cut 抛错、返回 invalid 残骸或整体体积假值）。
+     调用方必须跳过 boolean 门（宁降级不假值），由 vol/bbox/topo 定级。
+     */
+    status?: 'measured' | 'unavailable'
   }
   details: string[]
   /**
@@ -524,6 +531,7 @@ export async function compareStepFiles(
   let volAB = 0
   let volBA = 0
   let boolMatch = true
+  let booleanStatus: 'measured' | 'unavailable' | undefined
   if (hasMass) {
     volA = kernel.getVolume(shapeA)
     volB = kernel.getVolume(shapeB)
@@ -565,12 +573,135 @@ export async function compareStepFiles(
       for (const s of solidsB) kernel.release(s)
       details.push(`boolean diff (per-member paired): A-B=${volAB.toExponential(3)} mm³, B-A=${volBA.toExponential(3)} mm³ (tol ${opts.booleanVolumeTolerance})`)
     } else {
-      const aMinusB = kernel.cut(shapeA, shapeB)
-      const bMinusA = kernel.cut(shapeB, shapeA)
-      volAB = kernel.getVolume(aMinusB)
-      volBA = kernel.getVolume(bMinusA)
-      kernel.release(aMinusB)
-      kernel.release(bMinusA)
+      // B2（2026-10-20）布尔失败降级通道。退化相切几何（双球相切、共面堆叠
+      // 盒）上整体 compound cut 会抛错、返回 invalid 残骸（探针
+      // probe-b2-sphere-cut：B-A isValid=false）或整体体积假值（A-B = volA
+      // 全量）。红线：禁止把失败当 0 或当全量上报——两级降级，仍无有效证据
+      // 则标 unavailable（调用方跳过 boolean 门），审计字段必带。
+      let measured = false
+      try {
+        const aMinusB = kernel.cut(shapeA, shapeB)
+        const bMinusA = kernel.cut(shapeB, shapeA)
+        const okA = kernel.isValid(aMinusB)
+        const okB = kernel.isValid(bMinusA)
+        const vA = okA ? kernel.getVolume(aMinusB) : NaN
+        const vB = okB ? kernel.getVolume(bMinusA) : NaN
+        // 不可能值守卫：cut 残差不得超过较小的输入体积（双球相切 A-B 返回
+        // 整体 volA = 假值特征）。相等也不可信（整体回退），直接进降级。
+        const plausible = (v: number, cap: number) =>
+          Number.isFinite(v) && v <= cap + opts.booleanVolumeTolerance
+        const cap = Math.min(volA, volB)
+        if (okA && okB && plausible(vA, cap) && plausible(vB, cap)) {
+          // B2 交叉验证（2026-10-21 补强，infinite_face 全量判卷复发实证）：
+          // 内核对退化 cut 的失败形态不定——A-B 返回整体 volA（= cap，"相等
+          // 放行"洞）时守卫拦不住。凡某方向宣称"整卷不同"（v ≥ cap − tol），
+          // 必须用逐成员配对 cut（solid-vs-solid 精确）复核后采纳。
+          if (vA >= cap - opts.booleanVolumeTolerance || vB >= cap - opts.booleanVolumeTolerance) {
+            const solidsX = kernel.getSubShapes(shapeA, 'solid')
+            const solidsY = kernel.getSubShapes(shapeB, 'solid')
+            if (solidsX.length > 0 && solidsX.length === solidsY.length) {
+              const comsX = solidsX.map((s) => kernel.getCenterOfMass(s))
+              const used = new Set<number>()
+              let xab = 0
+              let xba = 0
+              let failed = false
+              for (let bi = 0; bi < solidsY.length && !failed; bi++) {
+                let ai = -1
+                let best = Infinity
+                const cb = kernel.getCenterOfMass(solidsY[bi])
+                for (let i = 0; i < solidsX.length; i++) {
+                  if (used.has(i)) continue
+                  const d = Math.hypot(comsX[i].x - cb.x, comsX[i].y - cb.y, comsX[i].z - cb.z)
+                  if (d < best) { best = d; ai = i }
+                }
+                used.add(ai)
+                try {
+                  const cAB = kernel.cut(solidsX[ai] as never, solidsY[bi] as never)
+                  const cBA = kernel.cut(solidsY[bi] as never, solidsX[ai] as never)
+                  if (!kernel.isValid(cAB) || !kernel.isValid(cBA)) throw new Error('degenerate cut')
+                  xab += kernel.getVolume(cAB)
+                  xba += kernel.getVolume(cBA)
+                  kernel.release(cAB)
+                  kernel.release(cBA)
+                } catch {
+                  failed = true
+                }
+              }
+              for (const s of solidsX) kernel.release(s)
+              for (const s of solidsY) kernel.release(s)
+              if (failed) {
+                booleanStatus = 'unavailable'
+                boolMatch = true // 证据缺失 ≠ 不相等；由 vol/bbox/topo 门定级
+                details.push('boolean diff: UNAVAILABLE (whole-cut claimed whole-volume diff and per-member cross-check degenerate — gate skipped, audit channel: degenerate-tangent)')
+              } else {
+                volAB = xab
+                volBA = xba
+                details.push(`boolean diff (whole-cut cross-checked per-member): A-B=${volAB.toExponential(3)} mm³, B-A=${volBA.toExponential(3)} mm³ (tol ${opts.booleanVolumeTolerance})`)
+              }
+              measured = true
+            } else {
+              volAB = vA
+              volBA = vB
+              measured = true
+            }
+          } else {
+            volAB = vA
+            volBA = vB
+            measured = true
+            details.push(`boolean diff: A-B=${volAB.toExponential(3)} mm³, B-A=${volBA.toExponential(3)} mm³ (tol ${opts.booleanVolumeTolerance})`)
+          }
+        }
+        kernel.release(aMinusB)
+        kernel.release(bMinusA)
+      } catch {
+        // cut 抛错 → 降级
+      }
+      if (!measured) {
+        // 二级降级：逐 solid COM 最近配对 cut（infinite_face 双球：pair 精确 0）。
+        const solidsA = kernel.getSubShapes(shapeA, 'solid')
+        const solidsB = kernel.getSubShapes(shapeB, 'solid')
+        if (solidsA.length > 0 && solidsA.length === solidsB.length) {
+          const comA = solidsA.map((s) => kernel.getCenterOfMass(s))
+          const used = new Set<number>()
+          let failed = false
+          for (let bi = 0; bi < solidsB.length && !failed; bi++) {
+            let ai = -1
+            let best = Infinity
+            const cb = kernel.getCenterOfMass(solidsB[bi])
+            for (let i = 0; i < solidsA.length; i++) {
+              if (used.has(i)) continue
+              const d = Math.hypot(comA[i].x - cb.x, comA[i].y - cb.y, comA[i].z - cb.z)
+              if (d < best) { best = d; ai = i }
+            }
+            used.add(ai)
+            try {
+              const cAB = kernel.cut(solidsA[ai] as never, solidsB[bi] as never)
+              const cBA = kernel.cut(solidsB[bi] as never, solidsA[ai] as never)
+              if (!kernel.isValid(cAB) || !kernel.isValid(cBA)) throw new Error('degenerate cut')
+              volAB += kernel.getVolume(cAB)
+              volBA += kernel.getVolume(cBA)
+              kernel.release(cAB)
+              kernel.release(cBA)
+            } catch {
+              failed = true
+              volAB = 0
+              volBA = 0
+            }
+          }
+          if (failed) {
+            booleanStatus = 'unavailable'
+            details.push('boolean diff: UNAVAILABLE (whole-compound and per-member cuts both degenerate — gate skipped, audit channel: degenerate-tangent)')
+          } else {
+            details.push(`boolean diff (per-member fallback): A-B=${volAB.toExponential(3)} mm³, B-A=${volBA.toExponential(3)} mm³ (tol ${opts.booleanVolumeTolerance})`)
+          }
+        } else {
+          booleanStatus = 'unavailable'
+          details.push('boolean diff: UNAVAILABLE (whole-compound cut degenerate, no 1:1 solids for per-member fallback — gate skipped, audit channel: degenerate-tangent)')
+        }
+        if (booleanStatus === 'unavailable') boolMatch = true // 证据缺失 ≠ 不相等；由 vol/bbox/topo 门定级
+      } else {
+        details.push(`boolean diff: A-B=${volAB.toExponential(3)} mm³, B-A=${volBA.toExponential(3)} mm³ (tol ${opts.booleanVolumeTolerance})`)
+      }
     }
   } else {
     details.push('volume/COM/boolean: skipped (no solid or face topology in either shape)')
@@ -594,6 +725,7 @@ export async function compareStepFiles(
       aMinusB: { volume: volAB, nonEmpty: volAB > opts.booleanVolumeTolerance },
       bMinusA: { volume: volBA, nonEmpty: volBA > opts.booleanVolumeTolerance },
       match: boolMatch,
+      ...(booleanStatus === 'unavailable' ? { status: 'unavailable' as const } : {}),
     },
     details,
     ...(canonicalTwistAngle !== undefined
