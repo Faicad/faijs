@@ -24,6 +24,7 @@ console.log = (...args: unknown[]) => {
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createRuntime } from '../../src/index'
+import { asPartName } from '../../src/identity'
 import { createNodePorts } from '../../src/node'
 import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerBrepkitBrepEngine } from '../../src/brep/engine/adapters/brepkit'
@@ -72,27 +73,27 @@ describe('regression: brepkit 双向拉伸后布尔 part0 掉 BREP 链', () => {
     const runtime = createRuntime(createNodePorts())
     const result = await runtime.execute(USER_SCENE('union'))
     expect(result.failedAt ?? null).toBeNull()
-    expect(result.outputs.has('part2')).toBe(true)
+    expect(result.outputs.has(asPartName('part2'))).toBe(true)
   })
 
   it('用户场景 subtract（双向拉伸）', async () => {
     const runtime = createRuntime(createNodePorts())
     const result = await runtime.execute(USER_SCENE('subtract'))
     expect(result.failedAt ?? null).toBeNull()
-    expect(result.outputs.has('part2')).toBe(true)
+    expect(result.outputs.has(asPartName('part2'))).toBe(true)
   })
 
   it('对照：单向拉伸 + union 正常', async () => {
     const runtime = createRuntime(createNodePorts())
     const result = await runtime.execute(SINGLE_SCENE('union'))
     expect(result.failedAt ?? null).toBeNull()
-    expect(result.outputs.has('part2')).toBe(true)
+    expect(result.outputs.has(asPartName('part2'))).toBe(true)
   })
 
   it('对照：双向拉伸后对新 box 布尔（part0 是否独立掉链）', async () => {
     const runtime = createRuntime(createNodePorts())
     const result = await runtime.execute(FRESH_BOX_SCENE('union'))
     expect(result.failedAt ?? null).toBeNull()
-    expect(result.outputs.has('part2')).toBe(true)
+    expect(result.outputs.has(asPartName('part2'))).toBe(true)
   })
 })

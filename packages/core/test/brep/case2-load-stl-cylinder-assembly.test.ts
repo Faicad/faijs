@@ -182,6 +182,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     // 形状侧佐证：cube_v0 是精度链件（有 BREP 句柄、无网格实体句柄），
     // 即「共享的只有显示网格载荷，不是 BREP 状态」。
     const cubeShape = result.outputs.get(asPartName('cube_v0'))!
+    if (!('positions' in cubeShape)) throw new Error('cube_v0 should carry a mesh payload')
     expect(hasBrep(cubeShape), 'STL 导入件在精度链上').toBe(true)
     expect(hasMeshSolid(cubeShape), 'STL 导入件不是网格实体件').toBe(false)
 

@@ -7,21 +7,22 @@
  *   修复：project.ts 把 ccw 作为内部扩展字段传入 Fcstd，contour.ts 优先读它。
  */
 import { describe, expect, it } from 'vitest'
-import { extractContours } from '../../src/sketch/contour.js'
+import { extractContours, type ContourSeg } from '../../src/sketch/contour.js'
 import { toFreeCadGeoms } from '../../src/sketch/project.js'
-import type { SketchGeom } from '../../src/sketch/types.js'
 
 // 上凸半圆：起点 (20,0) 终点 (30,0) 经过 (25,5)。圆心 (25,0) r=5。
 // canonical：a0=π（起点角） a1=0（终点角） ccw=false（经过点角 π/2 在 CCW(π→2π) 外）。
-const cwArc: SketchGeom = {
+// 变量不标注类型：端点字段（x1/y1/x2/y2）是 canonical 弧之外的携带字段，
+// 非字面量赋给 SketchGeom[] 参数时结构化兼容（多余属性不报错）。
+const cwArc = {
   kind: 'arc', cx: 25, cy: 0, r: 5, a0: Math.PI, a1: 0, ccw: false,
   x1: 20, y1: 0, x2: 30, y2: 0,
-}
+} as const
 
-const ccwArc: SketchGeom = {
+const ccwArc = {
   kind: 'arc', cx: 25, cy: 0, r: 5, a0: 0, a1: Math.PI, ccw: true,
   x1: 30, y1: 0, x2: 20, y2: 0,
-}
+} as const
 
 describe('arc orientation carry-through (2026-10-21)', () => {
   it('toFreeCadGeoms：canonical ccw 以内部扩展字段传入 Fcstd 弧', () => {

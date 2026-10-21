@@ -14,6 +14,8 @@ import { configureBackends, CONTRACT_VERSION } from '../../src/runtime-state'
 import { disposeBrepkit } from '../../src/brepkit-kernel/brepkitKernel'
 import { brepOf } from '../../src/shape'
 import type { Shape } from '../../src/mesh/types'
+import type { CompoundShape } from '../../src/shape'
+import type { PartName } from '../../src/identity'
 
 beforeAll(async () => {
   __resetEngineRegistriesForTests()
@@ -42,10 +44,10 @@ let part1 = cad.extrude(sk0, { length:10, backwardLength:4, normal:[1,0,0] })`
 const STEP3_SINGLE = `${STEP2}
 let part1 = cad.extrude(sk0, { length:4, normal:[1,0,0] })`
 
-function describeOut(shape: Shape | undefined, label: string): string {
+function describeOut(shape: Shape | CompoundShape | undefined, label: string): string {
   if (!shape) return `${label}: <missing>`
-  const has = brepOf(shape) !== undefined
-  const tri = shape.indices ? Math.floor(shape.indices.length / 3) : -1
+  const has = brepOf(shape as Shape) !== undefined
+  const tri = 'indices' in shape && shape.indices ? Math.floor(shape.indices.length / 3) : -1
   return `${label}: handle=${has} tris=${tri}`
 }
 
@@ -54,21 +56,21 @@ describe('诊断：双向拉伸语句后 part0 handle 状态', () => {
     const runtime = createRuntime(createNodePorts())
     const r = await runtime.execute(STEP1)
     expect(r.failedAt ?? null).toBeNull()
-    expect(describeOut(r.outputs.get('part0'), 'part0')).toBe('part0: handle=true tris=12')
+    expect(describeOut(r.outputs.get('part0' as PartName), 'part0')).toBe('part0: handle=true tris=12')
   })
 
   it('语句 2（sketch）后 part0 仍有 handle', async () => {
     const runtime = createRuntime(createNodePorts())
     const r = await runtime.execute(STEP2)
     expect(r.failedAt ?? null).toBeNull()
-    expect(describeOut(r.outputs.get('part0'), 'part0')).toBe('part0: handle=true tris=12')
+    expect(describeOut(r.outputs.get('part0' as PartName), 'part0')).toBe('part0: handle=true tris=12')
   })
 
   it('语句 3 单向拉伸后 part0 仍有 handle', async () => {
     const runtime = createRuntime(createNodePorts())
     const r = await runtime.execute(STEP3_SINGLE)
     expect(r.failedAt ?? null).toBeNull()
-    expect(describeOut(r.outputs.get('part0'), 'part0')).toBe('part0: handle=true tris=12')
+    expect(describeOut(r.outputs.get('part0' as PartName), 'part0')).toBe('part0: handle=true tris=12')
   })
 
   it('语句 3 双向拉伸后 part0 掉链（复现）', async () => {
@@ -76,6 +78,6 @@ describe('诊断：双向拉伸语句后 part0 handle 状态', () => {
     const r = await runtime.execute(STEP3_BIDIR)
     expect(r.failedAt ?? null).toBeNull()
     // 双向拉伸后 part0 的 handle 应仍在（box 没被消费）
-    expect(describeOut(r.outputs.get('part0'), 'part0')).toBe('part0: handle=true tris=12')
+    expect(describeOut(r.outputs.get('part0' as PartName), 'part0')).toBe('part0: handle=true tris=12')
   })
 })

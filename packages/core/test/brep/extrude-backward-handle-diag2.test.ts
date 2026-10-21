@@ -60,7 +60,8 @@ describe('诊断 v2：ctx vs outputs 的 part0', () => {
     const same = (ctx0 as object) === (out0 as object)
     console.log(`[diag] 双向: same=${same} ctx.part0=${h(ctx0 as Shape)} outputs.part0=${h(out0)} ctx.sk0=${h((runtime.directExecutor!.getCtxVar('sk0')) as Shape)} ctx.part1=${h((runtime.directExecutor!.getCtxVar('part1')) as Shape)}`)
     expect(same).toBe(true)
-    expect(brepOf(out0)).not.toBeUndefined()
+    expect(out0).toBeDefined()
+    expect(brepOf(out0!)).not.toBeUndefined()
   })
 
   it('单向拉伸后 ctx.part0 与 outputs.part0 同对象且都有 handle', async () => {
@@ -74,6 +75,7 @@ describe('诊断 v2：ctx vs outputs 的 part0', () => {
     const same = (ctx0 as object) === (out0 as object)
     console.log(`[diag] 单向: same=${same} ctx.part0=${h(ctx0 as Shape)} outputs.part0=${h(out0)}`)
     expect(same).toBe(true)
-    expect(brepOf(out0)).not.toBeUndefined()
+    expect(out0).toBeDefined()
+    expect(brepOf(out0!)).not.toBeUndefined()
   })
 })

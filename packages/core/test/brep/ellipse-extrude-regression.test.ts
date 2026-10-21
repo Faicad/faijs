@@ -21,6 +21,7 @@ console.log = (...args: unknown[]) => {
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createRuntime } from '../../src/index'
+import { asPartName } from '../../src/identity'
 import { createNodePorts } from '../../src/node'
 import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerBrepkitBrepEngine } from '../../src/brep/engine/adapters/brepkit'
@@ -53,8 +54,9 @@ let part0 = cad.extrude(sk0, { length:5 * MM, normal:[0,0,1] })`
 async function part0Bbox(runtime: ReturnType<typeof createRuntime>, code: string) {
   const result = await runtime.execute(code)
   expect(result.failedAt ?? null).toBeNull()
-  const geo = result.outputs.get('part0')
+  const geo = result.outputs.get(asPartName('part0'))
   expect(geo).toBeTruthy()
+  if (!('positions' in geo!)) throw new Error('part0 should carry a mesh payload')
   const pos = geo.positions as Float32Array
   let min = [Infinity, Infinity, Infinity]
   let max = [-Infinity, -Infinity, -Infinity]

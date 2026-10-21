@@ -16,7 +16,7 @@ import { writeFileSync } from 'node:fs'
 // exports 的镜像：通配键（./api/*、./mesh/*、./brep/*、./topology/* 等）不可整体
 // import，不列入；两者本就不等长，禁止互相反推。
 // 纪律：package.json 删掉某个具体子路径时，必须同步从本数组移除，否则该子路径
-// import 失败会让本脚本以非 0 退出（CI 5/9 因此报红）。
+// import 失败会让本脚本以非 0 退出（CI 5/8 因此报红）。
 const SUBPATHS = [
   '.', './api',
   './sdk', './symbol-table', './csg', './sdf', './node', './browser',

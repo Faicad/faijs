@@ -45,7 +45,8 @@ async function executeOk(
   try {
     const result = await runtime.execute(code, { topology: 'auto' })
     expect(result.failedAt, `执行失败: ${result.failedAt?.message ?? ''}`).toBeUndefined()
-    const kernel = runtime.brepChain?.kernel
+    // brepChain 在 CadRuntime 上是私有的，测试经结构断言取内核（运行时同构）
+    const kernel = (runtime as unknown as { brepChain?: { kernel: BrepEngineApi } }).brepChain?.kernel
     expect(kernel, 'BREP kernel 未初始化').toBeTruthy()
     run(kernel!, result)
   } finally {

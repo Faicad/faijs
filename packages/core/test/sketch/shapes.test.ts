@@ -444,8 +444,8 @@ describe('dragShapeHandle — 拖拽写回', () => {
     // 拖到内侧深处 → 钳到半宽/半高
     expect(dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 5, [1, 0])).toMatchObject({ r: 1 })
     // 拖回外角 / 拖出外角 → 贴外角 ≈ 0（下限 1e-3，expand 契约要求 r 为正；不抛错）
-    expect(dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 5, [2, 1]).r as number).toBeLessThan(0.002)
-    expect(dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 5, [2.5, 2]).r as number).toBeLessThan(0.002)
+    expect((dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 5, [2, 1]) as { r: number }).r).toBeLessThan(0.002)
+    expect((dragShapeHandle({ kind: 'roundedRect', w: 4, d: 2, r: 0.5 }, 5, [2.5, 2]) as { r: number }).r).toBeLessThan(0.002)
   })
 
   it('拖 trapezoid 顶角 → 高与对应底角变、另一底角保持、底边不动', () => {
@@ -654,7 +654,7 @@ describe('拖拽 ↔ 展开闭环（每个可拖手柄都能落到展开结果�
     // 右端最远点：局部 x 为 6（= w/2 + r），沿 angle 方向拖远 2mm → w 变 10。
     const tipLocal: Pt2 = [6 + 2, 0] // 相对局部原点（中心在局部 (0,0)）
     const tip = rotateAbout([2 + tipLocal[0], 2 + tipLocal[1]], [2, 2], a)
-    const d1 = dragShapeHandle(base, 1, tip) as SketchShape & { w: number }
+    const d1 = dragShapeHandle(base, 1, tip) as Extract<SketchShape, { kind: 'slot' }>
     expect(d1.w).toBeCloseTo(10, 9)
     // 新中心 = 左端(局部 -6) 与右端(局部 8) 的中点 → 局部 +1 → 全局 (2 + cos45, 2 + sin45)
     expect(d1.cx).toBeCloseTo(2 + Math.cos(a), 9)
@@ -671,7 +671,7 @@ describe('拖拽 ↔ 展开闭环（每个可拖手柄都能落到展开结果�
     const brTop = cornersL[2]!
     const toL: Pt2 = [brTop[0], brTop[1] + 3]
     const to = rotateAbout(toL, [0, 0], a)
-    const d = dragShapeHandle(base, 3, to) as SketchShape & { h: number }
+    const d = dragShapeHandle(base, 3, to) as Extract<SketchShape, { kind: 'trapezoid' }>
     expect(d.h).toBeCloseTo(8, 9)
     // 拖右下顶角（handle 3）→ 改右下底角 a2（新值 atan2(hb, t)），a1 保持。
     expect(d.a2).toBeCloseTo(Math.atan2(8, 5), 9)

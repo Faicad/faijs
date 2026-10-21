@@ -31,9 +31,8 @@ import {
 } from '../occt-kernel/occtKernel'
 import { getSolidColorsOrdered } from '../occt-kernel/stepColorParser'
 import type { Shape, Vec3 } from '../mesh/types'
+import { BREP_TESS } from '../mesh/types'
 import type { ImportAssemblyNode } from '../mesh/import-model'
-import type { BrepChainState } from './brep-chain'
-import type { PartName } from '../identity'
 import { getSolidBoundingBox } from './brep-utils'
 import { getTessellation, type TessellationDensity } from '../runtime-state'
 
@@ -42,25 +41,23 @@ import { getTessellation, type TessellationDensity } from '../runtime-state'
 /**
  * 将 OCCT solid 三角化为 Shape（供显示用）。
  *
- * 如果传入 brepChain + stmtId，同时把完整 BrepMeshResult（含 faceGroups）缓存到
- * brepChain.meshShapeCache，供 buildBrepTopology 复用——确保拓扑 mesh 与显示 mesh
- * 完全一致（规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh）。
+ * 规则 1「一份 mesh」：返回的 Shape 在内部 {@link BREP_TESS}（Symbol 键）槽上携带
+ * 这一份三角化结果（含 faceGroups），且显示用的 positions/indices 与该槽共用同一
+ * 引用。runtime 的 setSolid 钩子据 PartName 把它写入 `brepChain.meshShapeCache`，
+ * `buildBrepTopology` 因此命中同一份 mesh 而**不再二次 meshShape**——显式 `segments`
+ * 下"两次三角化不同源导致拓扑面行区间错位"的历史缺陷（D3）随之消失。
  *
  * @param kernel     the initialized OCCT kernel.
  * @param solid      the CAD solid handle.
  * @param segments   optional tessellation segment count (affects precision).
- * @param brepChain  optional - caches the BrepMeshResult when provided.
- * @param partName   optional - the part this solid belongs to, paired with brepChain as the cache key.
  * @param defaultDeflection optional - per-call deflection fallback when `segments` is absent
  *   (wins over the global tessellation knob; explicit `segments` still wins over both).
- * @returns the tessellated Shape.
+ * @returns the tessellated Shape carrying the BREP_TESS hand-off slot.
  */
 export function solidToShape(
   kernel: BrepEngineApi,
   solid: BrepHandle,
   segments?: number,
-  brepChain?: BrepChainState,
-  partName?: PartName,
   defaultDeflection?: TessellationDensity,
 ): Shape {
   // Deflection precedence: explicit segments > per-call defaultDeflection > global
@@ -74,15 +71,19 @@ export function solidToShape(
     angularDeflection,
   })
 
-  // 规则 1：缓存完整 BrepMeshResult（含 faceGroups），供 buildBrepTopology 复用
-  if (brepChain?.meshShapeCache && partName) {
-    brepChain.meshShapeCache.set(partName, mesh)
+  const positions = new Float32Array(mesh.positions)
+  const indices = new Uint32Array(mesh.indices)
+  const shape: Shape = { positions, indices }
+  ;(shape as unknown as Record<symbol, unknown>)[BREP_TESS] = {
+    positions,
+    indices,
+    normals: new Float32Array(mesh.normals),
+    vertexCount: mesh.vertexCount,
+    triangleCount: mesh.triangleCount,
+    ...(mesh.faceGroups ? { faceGroups: new Int32Array(mesh.faceGroups) } : {}),
+    ...(mesh.faceCount !== undefined ? { faceCount: mesh.faceCount } : {}),
   }
-
-  return {
-    positions: new Float32Array(mesh.positions),
-    indices: new Uint32Array(mesh.indices),
-  }
+  return shape
 }
 
 // ─── 变换操作 ───
@@ -880,8 +881,6 @@ function applyFirstStepColor(shape: Shape, buffer: ArrayBuffer): Shape {
  *
  * @param kernel     the initialized OCCT kernel.
  * @param buffer     the raw STEP file bytes (a text-encoded ArrayBuffer).
- * @param brepChain  optional - caches the tessellated BrepMeshResult when provided.
- * @param stmtId     optional - the part this solid belongs to, paired with brepChain as the cache key.
  * @param opts       optional - `allowNonSolid` relaxes the solid requirement so
  *                   a frozen wireframe/surface asset (a Draft wire, a face, a
  *                   shell) can be imported as addressable geometry. Callers
@@ -893,8 +892,6 @@ function applyFirstStepColor(shape: Shape, buffer: ArrayBuffer): Shape {
 export function loadBrep(
   kernel: BrepEngineApi,
   buffer: ArrayBuffer,
-  brepChain?: BrepChainState,
-  stmtId?: PartName,
   opts?: { allowNonSolid?: boolean },
 ): { solid: BrepHandle; shape: Shape; multiSolidCount?: number } {
   // BREP 文件（CASCADE Topology 文本格式）必须用 kernel.fromBREP 解析；
@@ -914,7 +911,7 @@ export function loadBrep(
     // 注意：这类 Shape 进不了布尔运算（OCCT fuse/cut 抛 "boolean operation
     // failed"），调用方必须自己保证它只流向变换/聚合。
     if (opts?.allowNonSolid && hasAnyTopology(kernel, top)) {
-      const shape = solidToShape(kernel, top, undefined, brepChain, stmtId)
+      const shape = solidToShape(kernel, top)
       return { solid: top, shape: applyFirstStepColor(shape, buffer) }
     }
     kernel.release(top)
@@ -929,7 +926,7 @@ export function loadBrep(
   if (solids.length === 1) {
     const realSolid = solids[0]
     kernel.release(top) // 释放 Compound 包裹，realSolid 独立持有
-    const shape = solidToShape(kernel, realSolid, undefined, brepChain, stmtId)
+    const shape = solidToShape(kernel, realSolid)
     return { solid: realSolid, shape: applyFirstStepColor(shape, buffer) }
   }
 
@@ -949,7 +946,7 @@ export function loadBrep(
     try { kernel.release(s) } catch { /* already released */ }
   }
   kernel.release(top) // 释放 Compound 包裹，first 独立持有（同单 solid 模式）
-  const shape = solidToShape(kernel, first, undefined, brepChain, stmtId)
+  const shape = solidToShape(kernel, first)
   return { solid: first, shape: applyFirstStepColor(shape, buffer), multiSolidCount: solids.length }
 }
 

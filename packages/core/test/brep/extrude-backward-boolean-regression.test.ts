@@ -30,6 +30,7 @@ console.log = (...args: unknown[]) => {
 import { describe, it, expect, beforeAll } from 'vitest'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { createNodePorts } from '../../src/node-host'
+import { asPartName } from '../../src/identity'
 import { createEditorRuntime } from '../support/editor-ops'
 
 beforeAll(async () => {
@@ -52,20 +53,20 @@ describe('regression: 双向拉伸后布尔 part0 掉 BREP 链', () => {
     const runtime = createEditorRuntime(createNodePorts(), 'brep')
     const result = await runtime.execute(USER_SCENE('union'))
     expect(result.failedAt ?? null).toBeNull()
-    expect(result.outputs.has('part2')).toBe(true)
+    expect(result.outputs.has(asPartName('part2'))).toBe(true)
   })
 
   it('brep 模式：用户场景 subtract（双向拉伸）', async () => {
     const runtime = createEditorRuntime(createNodePorts(), 'brep')
     const result = await runtime.execute(USER_SCENE('subtract'))
     expect(result.failedAt ?? null).toBeNull()
-    expect(result.outputs.has('part2')).toBe(true)
+    expect(result.outputs.has(asPartName('part2'))).toBe(true)
   })
 
   it('对照：单向拉伸 + union 正常', async () => {
     const runtime = createEditorRuntime(createNodePorts(), 'brep')
     const result = await runtime.execute(SINGLE_SCENE('union'))
     expect(result.failedAt ?? null).toBeNull()
-    expect(result.outputs.has('part2')).toBe(true)
+    expect(result.outputs.has(asPartName('part2'))).toBe(true)
   })
 })

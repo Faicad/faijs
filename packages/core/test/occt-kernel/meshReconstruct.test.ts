@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { meshToAsciiStl, reconstructSolidFromMesh } from '../../src/occt-kernel/meshReconstruct'
-import { initOcctWasm, getOcctKernel } from '../../src/occt-kernel/occtKernel'
+import { initOcctWasm, getOcctKernel, type ShapeHandle } from '../../src/occt-kernel/occtKernel'
 
 describe('meshToAsciiStl', () => {
   it('emits one facet block per triangle with normalized cross-product normal', () => {
@@ -85,7 +85,9 @@ describe('reconstructSolidFromMesh — multi-shell meshes', () => {
 
   it('GOTCHA(multi-shell): two disjoint closed blocks reconstruct to two solids', () => {
     const { positions, indices } = twoDisjointCubes()
-    const shape = reconstructSolidFromMesh(kernel as never, positions, indices)
+    // L1 契约面（BrepHandle）与 occt 原生 handle（ShapeHandle）运行时同构，
+    // 与下方 `kernel as never` 同样的跨品牌转换。
+    const shape = reconstructSolidFromMesh(kernel as never, positions, indices) as unknown as ShapeHandle
 
     // The old pipeline threw "open or non-manifold" here. Solids must exist —
     // shells alone cannot be used as a boolean tool.
@@ -108,7 +110,7 @@ describe('reconstructSolidFromMesh — multi-shell meshes', () => {
       kernel as never,
       new Float32Array(a.v),
       new Uint32Array(a.tri),
-    )
+    ) as unknown as ShapeHandle
     expect(kernel.isSolid(shape)).toBe(true)
     expect(kernel.isValid(shape)).toBe(true)
     expect(kernel.queryBatch([shape])[0].volume).toBeCloseTo(1, 6)
