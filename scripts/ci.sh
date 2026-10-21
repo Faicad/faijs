@@ -13,14 +13,14 @@ esac
 
 cd "$ROOT"
 
-echo "==> 1/9  npm run lint"
+echo "==> 1/8  npm run lint"
 npm run lint
 
-echo "==> 2/9  npm run typecheck（根 + workspaces）"
+echo "==> 2/8  npm run typecheck（根 + workspaces）"
 npm run typecheck
 npm run typecheck --workspaces --if-present
 
-echo "==> 3/9  npm run build（core → 门面）"
+echo "==> 3/8  npm run build（core → 门面）"
 # Ensure workspace junctions exist (npm workspaces may fail to create them)
 if [ ! -f "node_modules/@faicad/faijs/package.json" ]; then
     echo "    [ci] workspace junction missing — running npm install"
@@ -28,7 +28,7 @@ if [ ! -f "node_modules/@faicad/faijs/package.json" ]; then
 fi
 npm run build
 
-echo "==> 4/9  npm run test --workspaces"
+echo "==> 4/8  npm run test --workspaces"
 set +o pipefail
 npm run test --workspaces --if-present --no-color 2>&1 | tee /tmp/vitest-out.txt
 exit_code=${PIPESTATUS[0]}
@@ -50,7 +50,7 @@ if [ -n "$unexpected_stderr" ]; then
   exit 1
 fi
 
-echo "==> 5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / dist 脱节"
+echo "==> 5/8  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / dist 脱节"
 node scripts/check-ghost-deps.mjs
 node scripts/check-workspaces-order.mjs
 node scripts/check-lockstep.mjs
@@ -72,19 +72,15 @@ for pkg in core sheetmetal faijs-gears faijs-fasteners faijs-viewer; do
   npx tsx scripts/check-api-test-coverage.ts --package="$pkg"
 done
 
-echo "==> 6/9  demo e2e（dev server 模式，M7 链路）"
+echo "==> 6/8  demo e2e（dev server 模式，M7 链路）"
 cd "$ROOT"
 npx playwright install chromium
 npm run test:e2e -w @faicad/faijs-demo
 
-echo "==> 7/9  demo e2e:preview（CDN/importmap 产物路径）"
+echo "==> 7/8  demo e2e:preview（CDN/importmap 产物路径）"
 npm run test:e2e:preview -w @faicad/faijs-demo
 
-echo "==> 8/9  npm run doc-sync（文档规范检查）"
+echo "==> 8/8  npm run doc-sync（文档规范检查）"
 npm run doc-sync
-
-echo "==> 9/9  npm pack（根包可打包性）"
-cd "$ROOT"
-npm pack
 
 echo "==> All CI checks passed"

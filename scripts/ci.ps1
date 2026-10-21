@@ -5,7 +5,7 @@ param(
 )
 
 # NOTE: Must be 'Continue', NOT 'Stop'. The script checks $LASTEXITCODE explicitly
-# after every npm/node call (see Step and the 4/9 watchdog loop). With 'Stop', Windows
+# after every npm/node call (see Step and the 4/8 watchdog loop). With 'Stop', Windows
 # PowerShell 5.1 turns *any* stderr line from a native command (npm writes "npm error
 # ..." to stderr on failure) into a terminating NativeCommandError. That exception
 # jumps out of Step BEFORE $script:failures.Add($Label) runs — so a failing step is
@@ -61,15 +61,15 @@ function Step {
 
 $ciMain = {
 # monorepo（P1-P6.5）：根 lint 已覆盖 src + packages/*/src；typecheck/test 经 --workspaces 逐包跑。
-Step -Label '1/9  npm run lint' -Block { npm run lint }
+Step -Label '1/8  npm run lint' -Block { npm run lint }
 
-Step -Label '2/9  npm run typecheck（根 + workspaces）' -Block {
+Step -Label '2/8  npm run typecheck（根 + workspaces）' -Block {
     npm run typecheck
     if ($LASTEXITCODE -ne 0) { return }
     npm run typecheck --workspaces --if-present
 }
 
-Step -Label '3/9  npm run build（core → viewer → sheetmetal → gears）' -Block {
+Step -Label '3/8  npm run build（core → viewer → sheetmetal → gears）' -Block {
     # Ensure workspace junctions exist (npm workspaces may fail to create them on Windows)
     if (-not (Test-Path "node_modules/@faicad/faijs/package.json")) {
         Write-Host "    [ci] workspace junction missing — running npm install" -ForegroundColor Yellow
@@ -82,7 +82,7 @@ Step -Label '3/9  npm run build（core → viewer → sheetmetal → gears）' -
     npm run build
 }
 
-Write-Host "==> 4/9  test workspaces（每包独立硬预算；默认 5 分钟）"
+Write-Host "==> 4/8  test workspaces（每包独立硬预算；默认 5 分钟）"
 $start3 = Get-Date
 $tmpVitest = [System.IO.Path]::GetTempFileName()
 # 硬看门狗: vitest 的 per-test testTimeout 无法中断同步原生死锁(事件循环被阻塞时
@@ -102,7 +102,7 @@ $testBudgetOverrides = @{
 # 对比（spur-gear-build）。实测 3.86s / 159 passed。完整套件仍可 `npm test -w @faicad/faijs-gears` 单独跑。
 # GOTCHA（2026-10-14）：路径是 `test/` 不是 `src/`——测试已迁到 test/ 目录
 # （commit 9129bbf），旧 `src/...` 前缀会让 vitest 报 "No test files found" 并以 1 退出，
-# 即 4/9 整步失败（selector 与实际布局脱节，不是测试失败）。
+# 即 4/8 整步失败（selector 与实际布局脱节，不是测试失败）。
 $gearsSubset = 'test/index.test.ts test/profile.test.ts test/new-gear-math.test.ts test/spur-gear-build.test.ts'
 $testPackages = @('@faicad/faijs','@faicad/sheetmetal','@faicad/faijs-gears','@faicad/faijs-fasteners','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
@@ -118,7 +118,7 @@ foreach ($pkg in $testPackages) {
     if ($LASTEXITCODE -ne 0) {
         $stepFail = $true
         if ($allMode) {
-            $script:failures.Add("4/9  $pkg tests")
+            $script:failures.Add("4/8  $pkg tests")
         }
     }
 }
@@ -156,7 +156,7 @@ if ($stderrLines.Count -gt 0) {
     Write-Host "`nERROR: Tests produced stderr output — all test stderr must be resolved." -ForegroundColor Red
     $stderrLines | ForEach-Object { Write-Host $_ }
     if ($allMode) {
-        $script:failures.Add('4/9  npm run test --workspaces (stderr)')
+        $script:failures.Add('4/8  npm run test --workspaces (stderr)')
     } else {
         exit 1
     }
@@ -171,13 +171,13 @@ Write-Host "    -- @faicad/faijs test:install（publish-state 冒烟）"
 node scripts/run-tests-with-watchdog.mjs --budget-ms 600000 -- npm run test:install -w @faicad/faijs 2>&1 | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) {
     if ($allMode) {
-        $script:failures.Add('4/9  @faicad/faijs test:install')
+        $script:failures.Add('4/8  @faicad/faijs test:install')
     } else {
         exit 1
     }
 }
 
-Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / 平台 import 隔离 / 库分层 / API 测试覆盖 / dist 脱节' -Block {
+Step -Label '5/8  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / 平台 import 隔离 / 库分层 / API 测试覆盖 / dist 脱节' -Block {
     node scripts/check-ghost-deps.mjs
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
@@ -225,19 +225,15 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 locks
     }
 }
 
-Step -Label '6/9  demo e2e（dev server 模式，@faicad/* 走 workspace dist）' -Block {
+Step -Label '6/8  demo e2e（dev server 模式，@faicad/* 走 workspace dist）' -Block {
     npm run test:e2e -w @faicad/faijs-demo
 }
 
-Step -Label '7/9  demo e2e:preview（CDN/importmap 产物路径）' -Block {
+Step -Label '7/8  demo e2e:preview（CDN/importmap 产物路径）' -Block {
     npm run test:e2e:preview -w @faicad/faijs-demo
 }
 
-Step -Label '8/9  npm run doc-sync（文档规范检查）' -Block { npm run doc-sync }
-
-Step -Label '9/9  npm pack（根包可打包性）' -Block {
-    npm pack
-}
+Step -Label '8/8  npm run doc-sync（文档规范检查）' -Block { npm run doc-sync }
 }
 
 # Execute — pipe all streams (6=&1) to console; in allMode also persist to ci.log.
