@@ -236,6 +236,11 @@ export interface FaijsRuntimeState {
    * 'defer' 见 docs/plans/2026-10-21-weapp-tessellation-defer-plan.md。
    */
   tessellationTiming: 'eager' | 'defer' | undefined
+  /**
+   * 脚本链偏好（`cad.useMeshChain` 语句写入；引擎在每次全量执行起点重置为 null）。
+   * 分派只在 `config.mode === 'auto'` 时读取——宿主显式 mode 是地板。
+   */
+  chainPref: ChainPreference | null | undefined
 }
 
 // ── 函数 BREP 域（控制流放松方案 §5.6 / D13） ──
@@ -439,6 +444,7 @@ export function getRuntimeState(): FaijsRuntimeState {
     registeredStmtId: undefined,
     tessellation: undefined,
     tessellationTiming: undefined,
+    chainPref: undefined,
   }
   g[KEY] = created
   return created
@@ -520,6 +526,40 @@ export function configureTessellationTiming(timing: TessellationTiming): void {
     throw new Error('[faijs] tessellationTiming must be "eager" or "defer"')
   }
   getRuntimeState().tessellationTiming = timing
+}
+
+// ── 脚本级链偏好（cad.useMeshChain，2026-10-22 weapp mesh 链） ──
+
+/**
+ * 脚本声明的执行链偏好：'mesh' 强制 mesh 路径，'brep' 强制 BREP 路径，
+ * null = 无偏好（auto 规则）。
+ *
+ * 语义（三个落点）：
+ * - 分派（`cad-runtime/backend-dispatch.ts` decidePath）：只在 `config.mode === 'auto'`
+ *   时生效——宿主显式 mode='brep'/'mesh' 是地板，脚本偏好不覆盖宿主配置；
+ * - 重置：每次全量执行（DirectExecutor.runCode 起点）重置为 null，脚本从零声明；
+ *   update 增量重放**保留**（重放起点前的语句是权威——它们的偏好沿用上次执行结果）；
+ *   更新把 useMeshChain 语句本身改掉/删掉时，由 runtime.updateIncremental 的前缀
+ *   扫描兜底（新代码前缀不再声明该偏好 → 清除）。
+ * - 链互斥红线不变：偏好只是"选路径"，混链输入仍由 assertMeshSolidInputs 静态报错，
+ *   绝不会把一侧输入悄悄归约到另一侧。
+ */
+export type ChainPreference = 'brep' | 'mesh'
+
+/**
+ * 设置脚本链偏好（`cad.useMeshChain` 语句体调用；传 null 清除 = 回到 auto 规则）。
+ * @param pref - 'brep' | 'mesh'，或 null（无偏好）。
+ */
+export function setChainPreference(pref: ChainPreference | null): void {
+  getRuntimeState().chainPref = pref
+}
+
+/**
+ * 读取当前脚本链偏好（未声明 = null）。
+ * @returns the active script chain preference, or null.
+ */
+export function getChainPreference(): ChainPreference | null {
+  return getRuntimeState().chainPref ?? null
 }
 
 // ── 后端配置读写 ──

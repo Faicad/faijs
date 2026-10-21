@@ -266,15 +266,23 @@ describe('网格实体的 mesh op（Phase 2 验收：B1 批）', () => {
     expect(volumeOf(runtime, 'f95')).toBeLessThan(prism)
   })
 
-  it('网格实体与链外几何混进同一次布尔 → 静态报错 E_MESH_SOLID_MIXED', async () => {
+  it('mode=mesh 下 box 也是网格实体（meshSolidPrimitive）→ 与 load 网格实体 union 合法', async () => {
+    // 2026-10-22 weapp mesh 链：`cad.box` 在 mesh 模式下经 meshSolidPrimitive 构造
+    // 网格实体，不再是"链外 BREP 几何"——所以本场景不再触发混链红线（原用例断言
+    // E_MESH_SOLID_MIXED，前提已随 mesh 基本体落地失效）。混链红线（网格实体 + BREP
+    // 实体同一布尔）由 mesh-chain-switch.test.ts「auto 双引擎 + cad.useMeshChain」用例
+    // 继续钉住：auto 下 box 是 BREP 零件、开关后 sphere 是网格实体 → subtract 静态报
+    // E_MESH_SOLID_MIXED。
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
     const result = await runtime.execute(
       "let a = cad.load({ file: 'cube10.stl' })\n" +
       'let b = cad.box(5, 5, 5)\n' +
       'let c = cad.union(a, b)',
     )
-    expect(result.failedAt, '混链必须静态失败').toBeDefined()
-    expect(result.failedAt!.message).toContain('E_MESH_SOLID_MIXED')
+    expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
+    const shape = result.outputs.get(asPartName('c')) as Shape
+    expect(hasMeshSolid(shape), 'c is a mesh solid').toBe(true)
+    expect(hasMeshSolid(result.outputs.get(asPartName('b')) as Shape), 'b is a mesh solid').toBe(true)
   })
 
   it('两个网格实体的 union → 合法网格实体（brepkit 网格内核真在跑）', async () => {

@@ -51,6 +51,7 @@ import {
   type AssemblyKinematicsPose,
   configureTessellation, type TessellationDensity,
   configureTessellationTiming, getTessellationTiming, type TessellationTiming,
+  setChainPreference,
 } from '../runtime-state'
 import { materializeTessellation } from '../brep/deferred-tess'
 import { admitCompatLib } from './admit-compat-lib'
@@ -67,7 +68,7 @@ import { computeContentKey, stableFingerprint } from './content-key'
 import { SCRIPT_UNIT_CONSTANTS } from '../units'
 export { computeContentKey } from './content-key'
 export { stableFingerprint } from './content-key'
-import { isCompoundLike, brepOf, getSlot, ensureSlot, type CompoundShape } from '../shape'
+import { isCompoundLike, brepOf, getSlot, ensureSlot, hasMeshSolid, type CompoundShape } from '../shape'
 import type { AssemblyBehavior, AssemblyDecl } from '../extra/ops/compound'
 import type { PartNaming } from '../topology/naming/types'
 import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-naming'
@@ -1017,6 +1018,10 @@ export class CadRuntime {
     // P2 修复：执行前重新认领全局 backends（本实例配置为准）。
     this.claimBackends()
     this.accumulatedCode = code
+    // 脚本链偏好（cad.useMeshChain）随全量执行从零声明。增量重放（updateIncremental
+    // → replayFrom）与 append 不重置——前缀/累积代码是权威，其声明的偏好沿用；
+    // update 把 useMeshChain 语句改掉/删掉时由 updateIncremental 的前缀扫描兜底。
+    setChainPreference(null)
     // NOTE（2026-10-21，量纲执行期门禁待办）：此处**不传** opDims，所以量纲 pass
     // 不在 execute 路径运行，只有 `check()`（dry-run，见本文件 check()）会拦裸数字。
     // 实测把 opDims 接上后全仓 703 个测试失败（133 文件）——现有语料普遍写裸数字
@@ -1341,7 +1346,17 @@ export class CadRuntime {
     const topology = new Map<PartName, PartTopology>(this.topologyCache)
     if (topoMode !== 'off') {
       const buildFor = (partName: PartName): void => {
-        if (topology.has(partName)) return
+        const existing = topology.get(partName)
+        if (existing) {
+          // 陈旧 mesh 条目遮蔽（2026-10-22 mesh-chain-switch）：上一轮该零件是
+          // **网格零件**（近似拓扑 source='mesh' 已入 topologyCache），本轮重放后它
+          // 已回到 BREP 链（如删掉 `cad.useMeshChain` 语句 → executeDirectText 重跑
+          // 为 auto）——若直接 `return`，结果里 source 还是上一轮的 'mesh'，与当前
+          // 链事实不符（单一真源）。当前 ctx 变量不再是网格实体 → 重建为 brep 拓扑。
+          const v = de.getCtxVar(String(partName))
+          const stillMesh = v != null && typeof v === 'object' && hasMeshSolid(v as Shape)
+          if (existing.source !== 'mesh' || stillMesh) return
+        }
         const v = de.getCtxVar(String(partName))
         // 多零件 load（compound）：成员各带 BREP solid（fromBrep(shape,{solid})，
         // 装配变换经 brepOf(child) 读回），但 compound 终端无单一 solidCache 键
@@ -2201,6 +2216,13 @@ export class CadRuntime {
 
     // ── 派生缓存失效 ──
     this.releasePartCaches(replayKeys.map((k) => asPartName(k)))
+
+    // ── 脚本链偏好：前缀声明核对（cad.useMeshChain） ──
+    // 增量重放跳过前缀（其效果由上次执行保留）。useMeshChain 语句本身被改掉/删掉时，
+    // 新代码前缀不再声明该偏好 → 清除，否则重放会沿用陈旧的链（新代码已不要求它）。
+    // 文本扫描的保守边界：前缀注释里出现同名调用不算声明（偏好不因此被保留）。
+    const prefixHasChainDecl = newLines.slice(0, Math.max(0, startLine - 1)).some((l) => l.includes('useMeshChain'))
+    if (!prefixHasChainDecl) setChainPreference(null)
 
     // ── 重放 ──
     // G4 already checked: no relative imports → moduleLoad.seed = {}

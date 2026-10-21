@@ -14,7 +14,7 @@
  * P4b（可选）把函数拆成 brep/mesh 双实现后，此依赖会自然消失。
  */
 
-import { getBackends, getCurrentStmt, BrepUnsupportedError, MeshUnsupportedError } from '../runtime-state'
+import { getBackends, getCurrentStmt, getChainPreference, BrepUnsupportedError, MeshUnsupportedError } from '../runtime-state'
 import { hasBrep, hasMeshFace, hasMeshSolid, isCompoundLike } from '../shape'
 import type { BrepEngineId } from '../brep/engine/types'
 import type { Shape } from '../mesh/types'
@@ -249,7 +249,33 @@ function decidePath(
     return 'brep'
   }
 
-  // auto 模式：brep 实现 + 输入全在链上 → brep；否则 mesh。
+  // auto 模式：脚本链偏好（cad.useMeshChain）优先于「brep 实现 + 输入全在链上」规则。
+  // 偏好只在 auto 下生效（宿主显式 mode 是地板，见 runtime-state.chainPref 注释）；
+  // 它只是"选路径"，输入混链仍由 dispatchPath 的 assertMeshSolidInputs 静态拦截。
+  const pref = getChainPreference()
+  if (pref === 'mesh') {
+    if (!impls.mesh) {
+      throw new MeshUnsupportedError(
+        'E_MESH_UNSUPPORTED: script switched to the mesh chain (cad.useMeshChain) but this function has no mesh implementation',
+        currentStmt,
+      )
+    }
+    return 'mesh'
+  }
+  if (pref === 'brep') {
+    if (!impls.brep) {
+      throw new BrepUnsupportedError(
+        'E_BREP_UNSUPPORTED: script switched to the BREP chain (cad.useMeshChain(false)) but this function has no BREP implementation',
+        currentStmt,
+      )
+    }
+    if (!allInputsOnBrepChain(inputs)) {
+      throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: script switched to the BREP chain but input is not BREP', currentStmt)
+    }
+    return 'brep'
+  }
+
+  // auto 模式（无脚本偏好）：brep 实现 + 输入全在链上 → brep；否则 mesh。
   if (impls.brep && allInputsOnBrepChain(inputs)) return 'brep'
   if (!impls.mesh) {
     throw new MeshUnsupportedError(

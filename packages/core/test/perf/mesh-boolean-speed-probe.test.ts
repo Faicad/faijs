@@ -18,8 +18,12 @@
 import { describe, expect, it } from 'vitest'
 import { createBrepkitPrimitives, getBrepKitKernel } from '@faicad/faijs/brepkit-kernel/brepkitKernel'
 import type { BrepEngineApi } from '../../src/brep/engine/primitives'
+import type { BrepHandle } from '../../src/brep/engine/types'
 
-type Kernel = BrepEngineApi & { meshSolid: { importMesh(p: Float32Array, i: Uint32Array): number; weld(f: number[], t: number): number; unify(s: number): number } }
+/** wasm 句柄运行时是 number；类型面是 branded object——探针统一经此转换。 */
+const bh = (n: number): BrepHandle => n as unknown as BrepHandle
+
+type Kernel = BrepEngineApi & { meshSolid: { importMesh(p: Float32Array, i: Uint32Array): number; weld(f: BrepHandle[], t: number): BrepHandle; unify(s: BrepHandle): number } }
 
 /** 裸 wasm kernel（createBrepkitPrimitives 之后 liveKernel 已就绪）：含 meshBoolean 三角形 CSG。 */
 type RawKernel = {
@@ -55,16 +59,16 @@ function uvSphere(radius: number, n: number, m: number, cx = 0, cy = 0, cz = 0):
 }
 
 /** normalizeMeshSolid 的等价步骤（同一 api 对象，顺序不可交换）。 */
-function normalizeSolid(k: Kernel, pos: Float32Array, idx: Uint32Array): number {
+function normalizeSolid(k: Kernel, pos: Float32Array, idx: Uint32Array): BrepHandle {
   const rawSolid = k.meshSolid.importMesh(pos, idx)
-  const faces = k.getSubShapes(rawSolid, 'face')
-  const bb = k.getBoundingBox(rawSolid, false)
+  const faces = k.getSubShapes(bh(rawSolid), 'face')
+  const bb = k.getBoundingBox(bh(rawSolid), false)
   const diag = Math.sqrt((bb.xmax - bb.xmin) ** 2 + (bb.ymax - bb.ymin) ** 2 + (bb.zmax - bb.zmin) ** 2)
   const tol = Math.max(1e-6, diag * 1e-6)
   const welded = k.meshSolid.weld(faces, tol)
   k.meshSolid.unify(welded)
   if (!k.isValid(welded)) throw new Error('E_MESH_SOLID_UNWELDABLE: welded mesh is not a valid solid')
-  k.release(rawSolid)
+  k.release(bh(rawSolid))
   return welded
 }
 
@@ -92,7 +96,7 @@ describe('brepkit 网格实体链速度（对比 BRep 布尔 ~3s/cut）', () => 
       const sb = normB.r
 
       const fuse = time(() => k.fuse(sa, sb))
-      const fused = fuse.r as number
+      const fused = fuse.r
       const cut = time(() => k.cut(sa, sb))
 
       // 结果三角化（显示 mesh 与拓扑同源，一次 meshShape）

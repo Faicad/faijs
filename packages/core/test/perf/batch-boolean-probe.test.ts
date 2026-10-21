@@ -18,6 +18,7 @@ import { describe, it } from 'vitest'
 import { getActiveBrepEngine } from '@faicad/faijs/brep/engine/registry'
 import { getBrepKitKernel } from '@faicad/faijs/brepkit-kernel/brepkitKernel'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import type { BrepHandle } from '../../src/brep/engine/types'
 
 const ANGULAR = (2 * Math.PI) / 32
 
@@ -27,12 +28,12 @@ function time<T>(fn: () => T): { ms: number; r: T } {
   return { ms: performance.now() - t0, r }
 }
 
-function meshOf(api: BrepEngineApi, solid: number) {
+function meshOf(api: BrepEngineApi, solid: BrepHandle) {
   return api.meshShape(solid, { linearDeflection: 0.1, angularDeflection: ANGULAR })
 }
 
 /** 与 face.fai.js 相同的 8 个 body 构造（返回句柄数组）。 */
-function buildBodies(api: BrepEngineApi): number[] {
+function buildBodies(api: BrepEngineApi): BrepHandle[] {
   const head = api.generalTransform(api.makeSphere(10), [0.9, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1.15, 0])
   const eL = api.translate(api.generalTransform(api.makeSphere(2.4), [1, 0, 0, 0, 0, 0.7, 0, 0, 0, 0, 1, 0]), -3.6, 8.0, 3.2)
   const eR = api.translate(api.generalTransform(api.makeSphere(2.4), [1, 0, 0, 0, 0, 0.7, 0, 0, 0, 0, 1, 0]), 3.6, 8.0, 3.2)

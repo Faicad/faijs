@@ -72,6 +72,7 @@ function fakeBackend(opts: {
     normalize: (mesh, o) => normalizeMeshSolid(backend, mesh, o),
     describe: () => { throw new Error('unused') },
     buildTopologyData: () => { throw new Error('unused') },
+    meshBoolean: (a, b) => ({ positions: a.positions, indices: b.indices }),
     release: () => { calls.push('release') },
   }
   return { backend, calls, weldTol }

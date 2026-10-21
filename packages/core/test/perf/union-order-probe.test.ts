@@ -16,6 +16,7 @@
 import { describe, it } from 'vitest'
 import { getActiveBrepEngine } from '@faicad/faijs/brep/engine/registry'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import type { BrepHandle } from '../../src/brep/engine/types'
 
 const ANGULAR = (2 * Math.PI) / 32
 
@@ -26,7 +27,7 @@ function time<T>(fn: () => T): { ms: number; r: T } {
 }
 
 /** 与 face.fai.js 相同的 union 输入构造（head_carved 近似 = scale3d(sphere)）。 */
-function buildUnionInputs(api: BrepEngineApi): number[] {
+function buildUnionInputs(api: BrepEngineApi): BrepHandle[] {
   const head = api.generalTransform(api.makeSphere(10), [0.9, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1.15, 0])
   const eL = api.translate(api.generalTransform(api.makeSphere(2.4), [1, 0, 0, 0, 0, 0.7, 0, 0, 0, 0, 1, 0]), -3.6, 8.0, 3.2)
   const eR = api.translate(api.generalTransform(api.makeSphere(2.4), [1, 0, 0, 0, 0, 0.7, 0, 0, 0, 0, 1, 0]), 3.6, 8.0, 3.2)

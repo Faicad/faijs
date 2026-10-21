@@ -134,6 +134,7 @@ export default {
   "mirrorJoin": {},
   "mirror": {},
   "clone": {},
+  "useMeshChain": {},
   "torus": {},
   "fuse": {},
   "inspectMassProps": {},

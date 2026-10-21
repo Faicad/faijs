@@ -108,6 +108,27 @@ export interface MeshSolidBackend {
    * @returns the serializable selector runtime data.
    */
   buildTopologyData(result: MeshSolidResult): SelectorRuntimeData
+  /**
+   * 三角形 CSG 布尔（brepkit `kernel.meshBoolean` 的适配包装；**纯三角输入/输出**）。
+   *
+   * 与 face-BOP（`kernel.fuse/cut`）的区别：不做面缝合/BOP 重建，直接对两个三角网格
+   * 做 CSG，返回三角形网格——速度快一个数量级（探针：2k tri fuse 109ms vs 网格实体
+   * fuse 1171ms vs BRep cut ~3000ms），结果再交给 `normalize` 规范化一次即可成为
+   * 网格实体（显示 == 拓扑，规则 1）。
+   *
+   * 调用方负责：
+   * - 输入必须是合法 2-manifold 网格（本实现内部输入来自 `importMesh→weld→unify`
+   *   产物或 `normalize` 产物，或脚本基本体的确定性三角化——均满足）；
+   * - `tolerance` 按 bbox 对角线定标（`meshBooleanToleranceFor`，mm 尺度）；
+   * - 失败的报错语义由调用方包成带 op 名与输入几何的 OpError（几何失败必须带上下文）。
+   *
+   * @param a - the first closed triangle mesh.
+   * @param b - the second closed triangle mesh.
+   * @param op - 'fuse' (union) / 'cut' (subtract b from a) / 'intersect'.
+   * @param tolerance - CSG 容差（mm；相对尺度，参考 `meshBooleanToleranceFor`）。
+   * @returns the boolean result triangle mesh (closed; caller normalizes next).
+   */
+  meshBoolean(a: MeshSolidInput, b: MeshSolidInput, op: 'fuse' | 'cut' | 'intersect', tolerance: number): MeshSolidInput
   /** 释放网格实体句柄。 */
   release(solid: BrepHandle): void
 }
@@ -133,6 +154,41 @@ export function weldToleranceFor(kernel: BrepEngineApi, shape: BrepHandle): numb
   const dx = bb.xmax - bb.xmin
   const dy = bb.ymax - bb.ymin
   const dz = bb.zmax - bb.zmin
+  const diag = Math.sqrt(dx * dx + dy * dy + dz * dz)
+  return Math.max(1e-6, diag * 1e-6)
+}
+
+/**
+ * 由三角形网格的包围盒对角线导出 CSG 容差（`backend.meshBoolean` 用）。
+ *
+ * 与 `weldToleranceFor` 同规则（bbox 对角线 × 1e-6、下限 1e-6）：不做内核 bbox
+ * 查询——输入就是裸三角数据，直接在 JS 侧扫一遍坐标（布尔前已有该数组，零额外拷贝）。
+ *
+ * @param mesh - the triangle mesh (positions may be Float32/Float64).
+ * @returns the CSG tolerance in mm.
+ */
+export function meshBooleanToleranceFor(mesh: { positions: ArrayLike<number> }): number {
+  let minX = Infinity
+  let minY = Infinity
+  let minZ = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  let maxZ = -Infinity
+  const p = mesh.positions
+  for (let i = 0; i < p.length; i += 3) {
+    const x = p[i] as number
+    const y = p[i + 1] as number
+    const z = p[i + 2] as number
+    if (x < minX) minX = x
+    if (y < minY) minY = y
+    if (z < minZ) minZ = z
+    if (x > maxX) maxX = x
+    if (y > maxY) maxY = y
+    if (z > maxZ) maxZ = z
+  }
+  const dx = maxX - minX
+  const dy = maxY - minY
+  const dz = maxZ - minZ
   const diag = Math.sqrt(dx * dx + dy * dy + dz * dz)
   return Math.max(1e-6, diag * 1e-6)
 }

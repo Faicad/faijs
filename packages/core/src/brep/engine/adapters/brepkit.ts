@@ -14,7 +14,7 @@ import {
   type BrepEngine,
 } from '../registry'
 import type { AssertSatisfiesBrepEngineApi } from '../primitives'
-import { createBrepkitPrimitives, type BrepkitPrimitives } from '../../../brepkit-kernel/brepkitKernel'
+import { createBrepkitPrimitives, getBrepKitKernel, type BrepkitPrimitives } from '../../../brepkit-kernel/brepkitKernel'
 import type { MeshSolidBackend } from '../../mesh-solid'
 import { normalizeMeshSolid, describeMeshSolid, buildMeshSolidTopology } from '../../mesh-solid'
 
@@ -75,6 +75,21 @@ export async function registerBrepkitMeshEngine(): Promise<void> {
     normalize: (mesh, opts) => normalizeMeshSolid(backend, mesh, opts),
     describe: (solid, opts) => describeMeshSolid(backend, solid, opts),
     buildTopologyData: (result) => buildMeshSolidTopology(backend, result),
+    // 三角形 CSG 布尔（2026-10-22 weapp mesh 链）：直接走 raw kernel.meshBoolean
+    // （同一份已打包 wasm 的原生入口，见 brepkitKernel 的 D3 出口）。输入/输出都是
+    // 裸三角数据，不创建句柄；调用方收尾 normalize 一次即成网格实体（显示 == 拓扑）。
+    meshBoolean: (a, b, op, tolerance) => {
+      const kernel = getBrepKitKernel()
+      const r = kernel.meshBoolean(
+        new Float64Array(a.positions),
+        a.indices,
+        new Float64Array(b.positions),
+        b.indices,
+        op,
+        tolerance,
+      )
+      return { positions: new Float32Array(r.positions), indices: new Uint32Array(r.indices) }
+    },
     release: (solid) => { primitives.release(solid) },
   }
   registerMeshEngine(BREPKIT_MESH_ENGINE_ID, { id: BREPKIT_MESH_ENGINE_ID, meshSolid: backend })

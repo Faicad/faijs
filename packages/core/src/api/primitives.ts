@@ -10,9 +10,11 @@ import { clampNRad, BREP_TESS, BREP_LAZY_TESS } from '../mesh/types'
 // B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
 import * as meshPrimitives from '../mesh/primitives'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
-import { getCurrentStmt, getTessellation, getTessellationTiming } from '../runtime-state'
+import { getBackends, getCurrentStmt, getTessellation, getTessellationTiming, setPendingMeshSolid, setPendingMeshTopology } from '../runtime-state'
+import type { MeshSolidBackend } from '../brep/mesh-solid'
+import { normalizeMeshSolid } from '../brep/mesh-solid'
 import { getBrepApi } from '../brep/handle-bridge'
-import { fromBrep } from '../shape'
+import { fromBrep, fromMeshSolid } from '../shape'
 import { assignRoles } from '../topology/naming/roles'
 import type { BrepLazyTessDescriptor } from '../brep/deferred-tess'
 import type { Provenance } from '../topology/naming/lineage'
@@ -102,8 +104,7 @@ export function assertWedgeParams(params: Record<string, unknown>): void {
 }
 
 /** BREP 路径：OCCT 精确构造 + 三角化 + fromBrep 登记（基本体无面演化；链根建 roleTable）。 */
-function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
-  const kernel = getBrepApi()
+function primitiveBrep(op: string, params: Record<string, unknown>): Shape {  const kernel = getBrepApi()
   const type = op === 'box' ? 'cube' : op
   const result = primitiveToBrepSolid(kernel, type as 'cube' | 'sphere' | 'cylinder' | 'cone' | 'wedge', params as never)
   // §3.2：链根建表——语义命名器按 op 类型给面命名（semantic 'top'/'lateral' 等，
@@ -195,6 +196,38 @@ function brepPrimitiveMesh(
 }
 
 /**
+ * 网格实体基本体（2026-10-22 weapp mesh 链）：已装配网格后端时，把同一份确定性
+ * 三角数据（`meshPrimitives.*` 产物——纯 JS 参数化几何：mm、Z-up、BASE 锚点，与
+ * manifold 路径**同源**）规范化成**网格实体**（显示 mesh == 拓扑 mesh，规则 1）。
+ *
+ * 未装配网格后端 → 原样返回 manifold 网格数据（web/manifold 宿主历史行为）。
+ * 这是**装配事实**（宿主装了什么在 execute 前已定），不是运行时回退：分派已按模式
+ * 选定 mesh 实现，本函数只按「后端是否装配」决定产物形态（与 load.ts 的
+ * `buildMeshPart` 同一条口径）。
+ *
+ * 句柄 + 近似拓扑经 pending 通道登记（同 load/boolean），引擎在语句执行后收编。
+ *
+ * @param params - the (asserted) primitive params.
+ * @param make - 构造确定性三角数据（meshPrimitives 对应函数）。
+ * @returns the mesh solid shape (or manifold mesh data when no mesh backend is assembled).
+ */
+function meshSolidPrimitive(params: Record<string, unknown>, make: () => Shape): Shape {
+  const backend = getBackends().kernel.meshSolid as MeshSolidBackend | undefined
+  if (!backend) return make()
+  const tri = make()
+  const result = normalizeMeshSolid(backend, { positions: tri.positions, indices: tri.indices })
+  const part = getCurrentStmt()?.outputs[0]
+  if (part) {
+    setPendingMeshSolid(part, result.solid)
+    setPendingMeshTopology(part, backend.buildTopologyData(result))
+  }
+  return fromMeshSolid(
+    { positions: result.mesh.positions, indices: result.mesh.indices },
+    { meshSolid: result.solid },
+  )
+}
+
+/**
  * 创建长方体（brepjs 契约，§4.1 A 决策）。
  * @group 创建
  * @inputs 0
@@ -222,7 +255,7 @@ export const box = defineOp({
   name: 'box',
   mesh: (params: Record<string, unknown>) => {
     assertBoxParams(params)
-    return meshPrimitives.box(params as never)
+    return meshSolidPrimitive(params, () => meshPrimitives.box(params as never))
   },
   brep: (params: Record<string, unknown>) => {
     assertBoxParams(params)
@@ -265,7 +298,7 @@ export const sphere = defineOp({
   name: 'sphere',
   mesh: (params: Record<string, unknown>) => {
     assertSphereParams(params)
-    return meshPrimitives.sphere(centerParams(params) as never)
+    return meshSolidPrimitive(params, () => meshPrimitives.sphere(centerParams(params) as never))
   },
   brep: (params: Record<string, unknown>) => {
     assertSphereParams(params)
@@ -315,7 +348,7 @@ export const cylinder = defineOp({
   name: 'cylinder',
   mesh: (params: Record<string, unknown>) => {
     assertCylinderParams(params)
-    return meshPrimitives.cylinder(params as never)
+    return meshSolidPrimitive(params, () => meshPrimitives.cylinder(params as never))
   },
   brep: (params: Record<string, unknown>) => {
     assertCylinderParams(params)
@@ -356,7 +389,7 @@ export const cone = defineOp({
   name: 'cone',
   mesh: (params: Record<string, unknown>) => {
     assertConeParams(params)
-    return meshPrimitives.cone(params as never)
+    return meshSolidPrimitive(params, () => meshPrimitives.cone(params as never))
   },
   brep: (params: Record<string, unknown>) => {
     assertConeParams(params)
@@ -398,7 +431,7 @@ export const wedge = defineOp({
   name: 'wedge',
   mesh: (params: Record<string, unknown>) => {
     assertWedgeParams(params)
-    return meshPrimitives.wedge(params as never)
+    return meshSolidPrimitive(params, () => meshPrimitives.wedge(params as never))
   },
   brep: (params: Record<string, unknown>) => {
     assertWedgeParams(params)

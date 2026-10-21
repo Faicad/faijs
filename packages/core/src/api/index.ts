@@ -109,6 +109,7 @@ export { faceRef } from './face-ref'
 export { asset } from './asset'
 export { solid, isShape, isCompound } from '../shape'
 export { compound as structCompound } from '../shape'
+export { useMeshChain } from './use-mesh-chain'
 export type { ShapeSlot, SolidShape, CompoundShape, CurveShape, StdShape, ShapeKind } from '../shape'
 export type { Shape } from '../mesh/types'
 // PBR 外观规格（设计文档 2026-10-05 v2 §4.1）：类型供宿主/第三方消费；

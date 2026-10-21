@@ -135,6 +135,7 @@ import { copy } from '../extra/ops/copy'
 import { load } from '../extra/ops/load'
 import { text } from '../extra/ops/text'
 import { svgExtrude } from '../extra/ops/svg-extrude'
+import { useMeshChain } from './use-mesh-chain'
 
 /**
  * Assemble api functions into the cad namespace.
@@ -251,5 +252,8 @@ export function createApiNamespace(): LibNamespace {
     mirrorJoin,
     mirror,
     clone,
+    // 脚本级执行链偏好（2026-10-22）：普通库函数，非 defineOp——无几何输入/产物，
+    // 语句值 undefined。gen-symbol-table 按本清单收录（lang/symbol-table 注释）。
+    useMeshChain,
   } as unknown as LibNamespace
 }

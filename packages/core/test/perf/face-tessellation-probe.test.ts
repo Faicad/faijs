@@ -114,7 +114,7 @@ describe('face tessellation deflection probe', () => {
     // 引擎装配在 setup-perf.ts（只注册 brepkit → 默认 = 端侧引擎）；这里不再注册。
     // angular 缺省保持 faijs 默认 2π/64 rad（≈5.6°）。实测（2026-10-21）：brepkit
     // **忽略 linearDeflection**（0.1/0.3/0.5 几何逐字节一致）；有效旋钮是 angular。
-    const rt = createRuntime(createNodePorts(), topo, undefined, {
+    const rt = createRuntime(createNodePorts(), topo as 'auto' | 'brep', undefined, {
       execBackend: 'interpreter',
       ...(timing === 'defer' ? { tessellationTiming: 'defer' } : {}),
       tessellation: {

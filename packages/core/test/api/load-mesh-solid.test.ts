@@ -21,6 +21,7 @@ import type { HostPorts } from '../../src/cad-runtime/ports'
 import { createEditorRuntime } from '../support/editor-ops'
 import { asPartName } from '../../src/identity'
 import { __resetEngineRegistriesForTests, getMeshSolidBackend } from '../../src/brep/engine/registry'
+import type { BrepHandle } from '../../src/brep/engine/types'
 import { registerBrepkitMeshEngine } from '../../src/brep/engine/adapters/brepkit'
 import { disposeBrepkit } from '../../src/brepkit-kernel/brepkitKernel'
 import { hasBrep, hasMeshSolid } from '../../src/shape'
@@ -230,7 +231,7 @@ describe('cad.load（STL）→ 网格实体 + 近似拓扑（Phase 1 验收）',
     expect(result.failedAt!.message).toContain('E_MESH_SOLID_UNWELDABLE')
   })
 
-  it('PartName 被 BREP 输出顶替时，不把网格实体身份写上去（互斥不变量）', async () => {
+  it('PartName 被新输出顶替时，网格实体身份随新输出更新（互斥不变量）', async () => {
     const runtime = createEditorRuntime(portsFor({ 'cube10.stl': BOX_STL }), 'mesh')
     const result = await runtime.execute(
       "let a = cad.load({ file: 'cube10.stl' })\n" +
@@ -238,8 +239,16 @@ describe('cad.load（STL）→ 网格实体 + 近似拓扑（Phase 1 验收）',
     )
     expect(result.failedAt).toBeUndefined()
     const shape = result.outputs.get(asPartName('a')) as Shape
-    // 末态是纯 mesh box（1×1×1，无网格实体身份，也无拓扑）
-    expect(hasMeshSolid(shape)).toBe(false)
-    expect(result.topology?.get(asPartName('a'))).toBeUndefined()
+    // 2026-10-22 mesh 链：mode=mesh 下 box 经 meshSolidPrimitive 构造**网格实体**
+    // （句柄 + 近似拓扑 + 注册表）。末态 'a' 的身份是 box 的网格实体（1×1×1），
+    // 顶替防护保证句柄/拓扑与当前 ctx 槽一致（旧 load 句柄被顶掉，不残留）。
+    expect(hasMeshSolid(shape)).toBe(true)
+    expect(result.topology?.get(asPartName('a'))?.source).toBe('mesh')
+    const backend = getMeshSolidBackend()
+    const handle = runtime.meshSolids.get(asPartName('a')) as BrepHandle | undefined
+    expect(handle).toBeDefined()
+    const v = backend!.kernel.getVolume(handle!)
+    expect(v).toBeGreaterThan(0.95)
+    expect(v).toBeLessThan(1.05)
   })
 })

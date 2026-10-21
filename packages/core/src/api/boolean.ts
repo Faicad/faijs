@@ -15,12 +15,13 @@ import { solidToShape } from '../brep/brep-ops'
 import {
   booleanWithRoleTable,
 } from '../brep/face-evolution'
-import { getCurrentStmt, keepHidden, nameOf } from '../runtime-state'
+import { getCurrentStmt, getChainPreference, getBackends, keepHidden, nameOf } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, hasMeshSolid, inputRoleTable } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
 import { OpError } from './internal/result-unwrap'
-import { meshKernelFailure, meshSolidEntry, meshSolidProduct } from './internal/mesh-solid-op'
+import { meshSolidEntry, meshSolidProduct, meshKernelFailure } from './internal/mesh-solid-op'
+import type { MeshSolidBackend } from '../brep/mesh-solid'
 import { defineOp } from '../sdk'
 import { hasNativeHistory } from '../brep/engine/native-history'
 import type { Provenance } from '../topology/naming/lineage'
@@ -198,10 +199,22 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
 }
 
 /**
- * 网格实体路径：brepkit 网格内核的布尔（方案 2026-10-01 §3.5 三明治）。
+ * 网格实体路径：brepkit 网格内核的布尔（方案 2026-10-01 §3.5 三明治；2026-10-22 修正引擎）。
  *
- * 输入**全部**是网格实体——这一点由 `dispatchPath` 的链门禁保证
- * （`E_MESH_SOLID_MIXED`：网格实体不得与链外几何同处一次调用），此处只复核不补救。
+ * 输入**全部**是网格实体（由 `dispatchPath` 的链门禁保证），或由强制 mesh 链
+ * （`cad.useMeshChain` / host mode='mesh'）带来的携带三角载荷的归约输入——
+ * 两种情形都先经 `meshSolidEntry` 规范化成网格实体（importMesh→weld→unify，
+ * 显示 mesh == 拓扑 mesh 真源，规则 1）。
+ *
+ * **引擎选择（2026-10-22 实测定论）**：布尔步走内核 `kernel.fuse/cut`（face-BOP，
+ * 解析 GFA，吃规范化后的网格实体），**不走 `backend.meshBoolean`（三角形 CSG）**。
+ * 原因：`meshBoolean` 在近切触（near-tangent）接触上输出**真实开洞**（探针实测
+ * 人脸链 union 到瞳孔步 boundary=546 条自由边、跨全部容差 1e-7..1e-3 与全部输入
+ * 密度/顺序均不可愈合，normalize 全容差 isValid=false → E_MESH_SOLID_UNWELDABLE）；
+ * 人脸这类模型（眼球贴合头部、瞳孔浅出眼球）天然充满近切触。face-BOP 全程
+ * isValid=true（实测全链 8 步 ~17s node，BRep 链 ~31s；探针见
+ * `test/perf/mesh-chain-normalize-diagnostic.test.ts`）。`meshBoolean` 作为内核
+ * 直通保留在 `MeshSolidBackend` 接口上（诊断探针用；若上游修复 CSG 水密性可切回）。
  *
  * 无面演化、无 roleTable：近似拓扑没有 hash 演化，造一张恒等映射就是假身份
  * （与 brepkit 裸布尔降级同一条纪律）。
@@ -242,16 +255,28 @@ function booleanMeshSolid(inputs: Shape[], operation: BooleanOperation): Shape {
 }
 
 /**
- * 网格路径分流（方案 2026-10-01 §3.4 规则 4）：输入含网格实体 → brepkit 网格内核；
- * 否则保持历史上限（内置 `mesh/` 的 manifold CSG）。两条路**互不冒充**——
- * manifold 不认识网格实体（静态门禁），网格内核也不接受裸网格（无句柄）。
+ * 网格路径分流（方案 2026-10-01 §3.4 规则 4 + 2026-10-22 脚本链偏好）：
+ * - 输入含网格实体 → brepkit 网格内核（face-BOP 链）；
+ * - 输入无网格实体、但脚本/host 强制 mesh 链（`cad.useMeshChain(true)` /
+ *   `mode='mesh'`）→ 也走网格实体链：BREP/归约输入的三角载荷经 `meshSolidEntry`
+ *   规范化后直接 face-BOP（不冒充 manifold CSG——端侧根本没有 manifold）；
+ * - 否则保持历史上限（内置 `mesh/` 的 manifold CSG）。两条路**互不冒充**。
  *
  * @param inputs - the geometry inputs.
  * @param operation - union / subtract / intersect.
  * @returns the boolean product (mesh solid or manifold mesh shape).
  */
 function booleanMeshPath(inputs: Shape[], operation: BooleanOperation): Shape | Promise<Shape> {
-  if (inputs.some(hasMeshSolid)) return booleanMeshSolid(inputs, operation)
+  const forcedMesh = getChainPreference() === 'mesh' || getBackends().config.mode === 'mesh'
+  // 网格后端装配事实（执行前已定，非运行时探测）：mesh 模式**没有**装配网格内核的
+  // 宿主（web/manifold 历史行为——没有实体句柄、没有近似拓扑）继续走 manifold CSG；
+  // 输入里已有网格实体、或强制 mesh 链且装配了网格内核 → face-BOP 网格实体链。
+  // 两者互不冒充：装配事实决定产物形态（与 meshSolidPrimitive 同一条口径）。
+  const meshBackend = getBackends().kernel.meshSolid as MeshSolidBackend | undefined
+  if ((inputs.some(hasMeshSolid) || (forcedMesh && meshBackend !== undefined)) && meshBackend !== undefined) {
+    if (inputs.length < 2) return inputs[0]!
+    return booleanMeshSolid(inputs, operation)
+  }
   return booleanMesh(inputs, operation)
 }
 
