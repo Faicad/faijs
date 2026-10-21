@@ -97,16 +97,24 @@ function runsFromEnv(): number {
   return v
 }
 
+function topoFromEnv(): 'auto' | 'off' | 'brep' {
+  const raw = process.env.FACE_TOPO
+  if (raw === undefined || raw === '') return 'auto'
+  if (raw !== 'auto' && raw !== 'off' && raw !== 'brep') throw new Error(`FACE_TOPO 非法: ${raw}`)
+  return raw
+}
+
 describe('face tessellation deflection probe', () => {
   it('runs face.fai.js and reports timing + per-part geometry', async () => {
     const linearDeflection = deflectionFromEnv()
     const angularDeflection = angularFromEnv()
     const timing = timingFromEnv()
     const runs = runsFromEnv()
+    const topo = topoFromEnv()
     // 引擎装配在 setup-perf.ts（只注册 brepkit → 默认 = 端侧引擎）；这里不再注册。
     // angular 缺省保持 faijs 默认 2π/64 rad（≈5.6°）。实测（2026-10-21）：brepkit
     // **忽略 linearDeflection**（0.1/0.3/0.5 几何逐字节一致）；有效旋钮是 angular。
-    const rt = createRuntime(createNodePorts(), 'auto', undefined, {
+    const rt = createRuntime(createNodePorts(), topo, undefined, {
       execBackend: 'interpreter',
       ...(timing === 'defer' ? { tessellationTiming: 'defer' } : {}),
       tessellation: {
@@ -146,7 +154,7 @@ describe('face tessellation deflection probe', () => {
         lastFaceVerts = s.positions ? s.positions.length / 3 : 0
       }
       console.log(
-        `[probe] timing=${timing} linear=${linearDeflection} angular=${angularDeflection ?? 'default(2π/64)'} run#${i + 1}: ${ms}ms 终端=${lastTerminals} human_face 顶点=${lastFaceVerts} meshShape调用=${meshShapeCount} meshShape耗时=${meshShapeMs}ms`,
+        `[probe] timing=${timing} topo=${topo} linear=${linearDeflection} angular=${angularDeflection ?? 'default(2π/64)'} run#${i + 1}: ${ms}ms 终端=${lastTerminals} human_face 顶点=${lastFaceVerts} meshShape调用=${meshShapeCount} meshShape耗时=${meshShapeMs}ms`,
       )
       if (i === 0) {
         for (const [name, shape] of res.outputs) {
@@ -160,7 +168,7 @@ describe('face tessellation deflection probe', () => {
     }
     timings.sort((a, b) => a - b)
     console.log(
-      `[probe] timing=${timing} linear=${linearDeflection} angular=${angularDeflection ?? 'default(2π/64)'} ${runs} 轮: min=${timings[0]} median=${timings[Math.floor(timings.length / 2)]} max=${timings[timings.length - 1]}`,
+      `[probe] timing=${timing} topo=${topo} linear=${linearDeflection} angular=${angularDeflection ?? 'default(2π/64)'} ${runs} 轮: min=${timings[0]} median=${timings[Math.floor(timings.length / 2)]} max=${timings[timings.length - 1]}`,
     )
     expect(lastTerminals).toBe(13)
   })
