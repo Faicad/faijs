@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-21-sweep-mesh-winding-consistency.md
+2026-10-21-sweep-mesh-winding-consistency.md: bfebcf31ed1fceffa7ec1d34a4a0beb92ffae47e
+2026-10-21-sweep-mesh-winding-consistency.zh.md: a43ea9112dd3db8aa0499208f179b4122e18f93f

@@ -23,6 +23,41 @@ import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
 import { toProfileWireView } from './internal/profile-wire'
+import { unifyOrientation, weldVertices } from '../mesh/reconcile'
+
+/**
+ * 扫掠产物的网格出口：**绕序必须一致**（相邻三角形以相反方向遍历共享边）。
+ *
+ * 为什么修在出口而不是渲染层（真机证据 2026-10-21）：
+ * 截面 29×27 沿一条「第一段 16.3mm、拐角偏转 35.7°」的折线扫掠时，拐角内侧的
+ * 截面会扫过自身（截面半宽 × cot(拐角/2) ≈ 41mm ≫ 段长）。侧壁平面的边界曲线
+ * 因此自交，brepkit 的扇形三角化把凹/自交多边形拆成**交错的三角形**，其中一部分
+ * 以相同方向遍历共享边。渲染层用 `FrontSide` 单面剔除 ⇒ 朝向反的那片被剔掉，
+ * 表面裂开一个大洞（用户报的"破面、不像实心"）；STL 查看器通常双面渲染，
+ * 所以导出看着正常 —— 两个现象同源。
+ *
+ * 这是**网格契约**，不属于某一个 op：任何 BREP 转 mesh 的出口都该满足它。
+ * faijs 早就有 `mesh/reconcile.ts` 的 `unifyOrientation`（焊接 → 绕序传播），
+ * 缺的只是把它接到这里。
+ *
+ * 这不是实体验证：自交几何本来就不可修复成有效实体（该不该拦是上游的判定），
+ * 但网格必须能正确单面渲染 —— 否则用户看到的洞会被误读成渲染器缺陷。
+ * @param s - BREP 派生的 shape（positions/indices 来自内核三角化）。
+ * @returns the same shape with an orientation-unified mesh.
+ */
+function withConsistentWinding(s: Shape): Shape {
+  // 只做「焊接 + 绕序统一」，**不做退化剔除**：这两步都不改变三角形数量与顺序，
+  // 因此 `materialGroups` 的 (start,count) 仍然有效。退化三角形交给渲染层
+  // 的 crease 派生去处理，不在这里偷偷重排面序。
+  const welded = weldVertices(s.positions, s.indices)
+  const unified = unifyOrientation(welded.positions, welded.indices)
+  // **就地替换载荷，不要 `{...s}`**：BREP 句柄挂在 runtime slots 上、以 shape
+  // **对象引用**为键（`shape.ts:480 brepOf`），换新对象会让 brepOf 返回 undefined，
+  // 下游 getBoundingBox / getVolume 直接崩。
+  s.positions = unified.positions
+  s.indices = unified.indices
+  return s
+}
 
 /** BREP 路径：截面沿脊柱扫掠（两引擎经 L1 中立名 `BrepEngineApi#sweep` 分派）。 */
 function sweepBrep(profile: Shape, spine: Shape): Shape {
@@ -34,7 +69,7 @@ function sweepBrep(profile: Shape, spine: Shape): Shape {
   const kernel = getBrepApi()
   try {
     const h = kernel.sweep(profileWire.wrapped, spineWire.wrapped)
-    return fromBrep(solidToShape(kernel, h), { solid: h })
+    return withConsistentWinding(fromBrep(solidToShape(kernel, h), { solid: h }))
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e)
     throw new Error(`E_SWEEP_FAILED: sweep failed: ${raw}`, { cause: e })
