@@ -22,6 +22,12 @@
 import { Vec3 as Vec3C, Mat4, Euler, Quat } from '../math3d'
 import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
+import { BREP_LAZY_TESS } from '../mesh/types'
+import type { BrepLazyTessDescriptor } from './deferred-tess'
+// 延迟三角化的物化实现与描述符类型在零依赖叶子模块 `./deferred-tess`（sdk.js 静态
+// 导入守卫：define-op / backend-dispatch 需在不引重依赖的前提下物化链切换输入）。
+export type { BrepLazyTessDescriptor } from './deferred-tess'
+export { isDeferredTessShape, materializeTessellation } from './deferred-tess'
 import {
   getOcctKernel,
   importAssemblyFromStep,
@@ -34,7 +40,7 @@ import type { Shape, Vec3 } from '../mesh/types'
 import { BREP_TESS } from '../mesh/types'
 import type { ImportAssemblyNode } from '../mesh/import-model'
 import { getSolidBoundingBox } from './brep-utils'
-import { getTessellation, type TessellationDensity } from '../runtime-state'
+import { getTessellation, getTessellationTiming, type TessellationDensity } from '../runtime-state'
 
 // ─── 通用工具 ───
 
@@ -66,6 +72,21 @@ export function solidToShape(
   const angularDeflection = segments
     ? (2 * Math.PI) / Math.max(3, segments)
     : fallback.angularDeflection
+  // 延迟三角化（'defer'，方案 2026-10-21-weapp-tessellation-defer-plan §2）：op 产出
+  // 不三角化，挂 BREP_LAZY_TESS 描述符（kernel + solid + 参数），由 runtime 在结果
+  // 收尾时只对**终端**物化（物化参数与本分支完全一致 → 拓扑 mesh === 显示 mesh）。
+  if (getTessellationTiming() === 'defer') {
+    const shape: Shape = { positions: new Float32Array(0), indices: new Uint32Array(0) }
+    ;(shape as unknown as Record<symbol, unknown>)[BREP_LAZY_TESS] = {
+      kernel,
+      solid,
+      // 有效值解析（eager 分支允许 undefined → 内核默认；物化必须拿到确定值，
+      // 与 getTessellation 全局档合并，保证物化参数与显示参数一致）
+      linearDeflection: fallback.linearDeflection ?? getTessellation().linearDeflection,
+      angularDeflection: angularDeflection ?? getTessellation().angularDeflection,
+    } satisfies BrepLazyTessDescriptor
+    return shape
+  }
   const mesh: BrepMeshResult = kernel.meshShape(solid, {
     linearDeflection: fallback.linearDeflection,
     angularDeflection,

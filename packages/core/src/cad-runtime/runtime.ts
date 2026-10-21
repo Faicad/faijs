@@ -50,7 +50,9 @@ import {
   assertContractVersion, type LibNamespace,
   type AssemblyKinematicsPose,
   configureTessellation, type TessellationDensity,
+  configureTessellationTiming, getTessellationTiming, type TessellationTiming,
 } from '../runtime-state'
+import { materializeTessellation } from '../brep/deferred-tess'
 import { admitCompatLib } from './admit-compat-lib'
 import {
   assertLibDecl,
@@ -358,6 +360,15 @@ export interface CadRuntimeOptions {
    * （linearDeflection，mm）。per-primitive `segments` 仍优先于全局配置。
    */
   tessellation?: TessellationDensity
+  /**
+   * BREP 显示 mesh 三角化时机（方案 2026-10-21-weapp-tessellation-defer-plan）。
+   * - `'eager'`（缺省）：每个 BREP op 产出即三角化（历史行为）。
+   * - `'defer'`：op 产出不三角化（空 mesh + 延迟描述符）；结果收尾时只对**终端**
+   *   按需物化，中间产物永不物化。物化参数与 eager 路径一致 ⇒ 拓扑 mesh 与显示
+   *   mesh 同源（红线不破）。链切换（mesh-only op 消费 BREP 输入）与
+   *   `topoMode:'brep'` 场景在分派/收尾处自动物化（方案 §2.2 兜底）。
+   */
+  tessellationTiming?: TessellationTiming
 }
 
 /**
@@ -743,6 +754,7 @@ export class CadRuntime {
     this.securityPolicy = options.security ?? 'strict'
     this.determinismPolicy = options.determinism ?? 'error'
     if (options.tessellation) configureTessellation(options.tessellation)
+    if (options.tessellationTiming) configureTessellationTiming(options.tessellationTiming)
 
     // P6/D7: register script-side unit constants (MM, INCH, DEGREE, …) on globalThis.
     // Both the VM backend (new Function resolves free identifiers from the global scope)
@@ -1255,8 +1267,41 @@ export class CadRuntime {
         }
       }
     }
+    // T3-cond：DAG 叶子终端判定换 computeLiveShapes（§4.4）——输入换源：
+    // 候选 = ctx 键；行内 keep 查 metadata.keep 表；函数体 exec.keep 登记读
+    // DirectExecutor.keepByLine（行号键，与 computeLiveShapes KeepView 对齐）。
+    const keepView: KeepView = {
+      lineEntries: (lineNo) => meta.keep.get(lineNo),
+      functionBody: (lineNo) => de.getKeepByLine(lineNo),
+    }
+    let terminals = computeLiveShapes({
+      lines: meta.lines,
+      blocks: meta.blocks,
+      keep: keepView,
+      shapeVarNames,
+      ...(de.getBlockOutputs().size > 0 ? { blockOutputs: de.getBlockOutputs() } : {}),
+      // P25 §3.7.4：修改类裸调用原地写回的 producer 精确化（行号 → 写回变量名）
+      ...(de.getInplaceWrites().size > 0 ? { inplaceWrites: de.getInplaceWrites() } : {}),
+      explicitTerminals: meta.terminalShapes,
+    })
+    // 显式 return 优先（与 collectResult 同）：非显式分支按值判定补 compound kind。
+    if (!meta.terminalShapes || meta.terminalShapes.length === 0) {
+      terminals = terminals.map((t) => {
+        const v = de.getCtxVar(String(t.id))
+        return isCompoundLike(v) ? { ...t, kind: 'compound' } : t
+      })
+    }
+    // 延迟三角化（方案 2026-10-21-weapp-tessellation-defer-plan §2）：'defer' 模式下
+    // BREP op 产出为空 mesh + BREP_LAZY_TESS 描述符，**先**物化需要消费 mesh 的终端，
+    // 再算 statementCache 内容 key（key 必须基于真实 mesh）与构建拓扑（拓扑 mesh 与
+    // 显示 mesh 同源，红线不破）。可见终端必物化；隐藏终端在 topoMode 'off'（不显示
+    // 不建拓扑）时跳过，按需经 getCachedOutput 物化。中间产物（非终端）永不物化。
+    const topoMode = opts?.topology ?? 'auto'
+    if (getTessellationTiming() === 'defer') {
+      this.materializeDeferredTessellations(terminals, shapeVarNames, topoMode)
+    }
     // statementCache 同步（E8 getCachedOutput）：direct 无语句 key——用行级身份键填
-    // content key，宿主继续从实例缓存读几何。
+    // content key，宿主继续从实例缓存读几何。必须位于物化之后（key 反映真实 mesh）。
     for (const name of shapeVarNames) {
       const v = de.getCtxVar(String(name))
       if (isShapeLike(v)) {
@@ -1285,30 +1330,6 @@ export class CadRuntime {
         })
       }
     }
-    // T3-cond：DAG 叶子终端判定换 computeLiveShapes（§4.4）——输入换源：
-    // 候选 = ctx 键；行内 keep 查 metadata.keep 表；函数体 exec.keep 登记读
-    // DirectExecutor.keepByLine（行号键，与 computeLiveShapes KeepView 对齐）。
-    const keepView: KeepView = {
-      lineEntries: (lineNo) => meta.keep.get(lineNo),
-      functionBody: (lineNo) => de.getKeepByLine(lineNo),
-    }
-    let terminals = computeLiveShapes({
-      lines: meta.lines,
-      blocks: meta.blocks,
-      keep: keepView,
-      shapeVarNames,
-      ...(de.getBlockOutputs().size > 0 ? { blockOutputs: de.getBlockOutputs() } : {}),
-      // P25 §3.7.4：修改类裸调用原地写回的 producer 精确化（行号 → 写回变量名）
-      ...(de.getInplaceWrites().size > 0 ? { inplaceWrites: de.getInplaceWrites() } : {}),
-      explicitTerminals: meta.terminalShapes,
-    })
-    // 显式 return 优先（与 collectResult 同）：非显式分支按值判定补 compound kind。
-    if (!meta.terminalShapes || meta.terminalShapes.length === 0) {
-      terminals = terminals.map((t) => {
-        const v = de.getCtxVar(String(t.id))
-        return isCompoundLike(v) ? { ...t, kind: 'compound' } : t
-      })
-    }
     const brepSolids = this.directBrepSolids(terminals, compounds)
     // 网格零件落位（方案 2026-10-01 §3.3）：load 的 mesh 路径在 op 内完成规范化 +
     // 近似拓扑构建，把「句柄」与「拓扑数据」登记为 pending；此处收编。
@@ -1318,7 +1339,6 @@ export class CadRuntime {
     // DirectExecutor 的 setSolid 钩子同步（逐单元执行后写入），此处 buildBrepTopology
     // 命中缓存构建拓扑。
     const topology = new Map<PartName, PartTopology>(this.topologyCache)
-    const topoMode = opts?.topology ?? 'auto'
     if (topoMode !== 'off') {
       const buildFor = (partName: PartName): void => {
         if (topology.has(partName)) return
@@ -1650,7 +1670,25 @@ export class CadRuntime {
    * @returns the cached shape, or undefined.
    */
   getCachedOutput(partName: PartName): Shape | CompoundShape | undefined {
-    return this.statementCache.get(partName)?.output
+    const entry = this.statementCache.get(partName)
+    const out = entry?.output
+    // 'defer' 模式：宿主迟取的懒 shape（隐藏终端 / 导入件）在此物化（幂等）。
+    // 物化后同步 meshShapeCache，使后续 buildBrepTopology 命中同一份 mesh。
+    if (out && typeof out === 'object' && 'positions' in out && isShapeLike(out)) {
+      const shape = out as Shape
+      if (materializeTessellation(shape)) {
+        this.brepChain?.meshShapeCache?.set(partName, shape[BREP_TESS] as BrepMeshResult)
+        // content key 现在基于真实 mesh，回写 statementCache（与 collectDirectResult 同口径）
+        if (entry && shape.positions instanceof Float32Array && shape.indices instanceof Uint32Array) {
+          this.statementCache.set(partName, {
+            statementKey: entry.statementKey,
+            outputContentKey: computeContentKey(shape.positions, shape.indices),
+            output: shape,
+          })
+        }
+      }
+    }
+    return out
   }
 
   /**
@@ -1793,6 +1831,59 @@ export class CadRuntime {
     const tess = shape?.[BREP_TESS] as BrepMeshResult | undefined
     if (tess) cache.set(partName, tess)
     else cache.delete(partName)
+  }
+
+  /**
+   * 延迟三角化物化（'defer' 模式，方案 2026-10-21-weapp-tessellation-defer-plan §2）。
+   *
+   * 在 collectDirectResult 的 statementCache 同步与拓扑构建**之前**调用：对需要消费
+   * mesh 的 shape 用**创建时记录的参数**物化（materializeTessellation），并把物化结果
+   * 写进 meshShapeCache（PartName 键）——buildBrepTopology 因此命中**显示 mesh 同一份
+   * 三角化**（架构红线：拓扑 mesh === 显示 mesh，不做"同参数再算一次"）。
+   *
+   * 物化集合：
+   * - `topoMode:'brep'`（对全部 shape 建拓扑，含中间产物）→ 全部 shape 物化（杜绝
+   *   buildSolidTopologyRuntime 兜底三角化：其参数硬编码 2π/32，与显示参数不同源）。
+   * - `topoMode:'auto'/'off'` → 只物化**终端**：可见终端必物化（显示 + 拓扑）；
+   *   隐藏终端在 'auto' 下物化（拓扑为全部终端构建），在 'off' 下跳过（不显示不建
+   *   拓扑，mesh 留空，宿主按需经 getCachedOutput 物化）。
+   * - 中间产物（非终端）永不物化——这是 'defer' 的主要收益（face.fai.js 全量执行
+   *   三角化次数 ~30 → 13）。
+   *
+   * 幂等：已物化 shape 的 BREP_LAZY_TESS 已删除，materializeTessellation 直接 no-op；
+   * 增量 update 中未变化终端复用上一轮物化结果，本轮零新增三角化。
+   *
+   * @param terminals    本轮的终端列表（含 hidden 标记）。
+   * @param shapeVarNames 全部 shape 变量名（topoMode 'brep' 时全量物化）。
+   * @param topoMode     拓扑开关（决定隐藏终端是否物化）。
+   */
+  private materializeDeferredTessellations(
+    terminals: TerminalShape[],
+    shapeVarNames: Set<PartName>,
+    topoMode: 'auto' | 'brep' | 'off',
+  ): void {
+    const de = this.directExecutor!
+    if (topoMode === 'brep') {
+      for (const name of shapeVarNames) {
+        const v = de.getCtxVar(String(name))
+        if (isShapeLike(v)) this.materializeOne(v as Shape, name)
+      }
+      return
+    }
+    const hiddenIds = new Set<PartName>(terminals.filter((t) => t.hidden).map((t) => t.id))
+    const terminalIds = new Set<PartName>(terminals.map((t) => t.id))
+    for (const name of shapeVarNames) {
+      if (!terminalIds.has(name)) continue
+      if (topoMode === 'off' && hiddenIds.has(name)) continue
+      const v = de.getCtxVar(String(name))
+      if (isShapeLike(v)) this.materializeOne(v as Shape, name)
+    }
+  }
+
+  /** 物化单个 shape 并同步 meshShapeCache（PartName 键）；无延迟描述符时 no-op。 */
+  private materializeOne(shape: Shape, partName: PartName): void {
+    const brepTess = materializeTessellation(shape)
+    if (brepTess) this.brepChain?.meshShapeCache?.set(partName, brepTess)
   }
 
   /**

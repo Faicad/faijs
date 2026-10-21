@@ -6,14 +6,15 @@
  */
 
 import type { Shape } from '../mesh/types'
-import { clampNRad, BREP_TESS } from '../mesh/types'
+import { clampNRad, BREP_TESS, BREP_LAZY_TESS } from '../mesh/types'
 // B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
 import * as meshPrimitives from '../mesh/primitives'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
-import { getCurrentStmt, getTessellation } from '../runtime-state'
+import { getCurrentStmt, getTessellation, getTessellationTiming } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
 import { assignRoles } from '../topology/naming/roles'
+import type { BrepLazyTessDescriptor } from '../brep/deferred-tess'
 import type { Provenance } from '../topology/naming/lineage'
 import { asPartName } from '../identity'
 import { defineOp } from '../sdk'
@@ -148,6 +149,21 @@ function brepPrimitiveMesh(
   segments: number,
 ): { shape: Shape; faceRanges?: Shape['faceRanges'] } {
   const angularDeflection = (2 * Math.PI) / Math.max(3, segments)
+  // 延迟三角化（'defer'，方案 2026-10-21-weapp-tessellation-defer-plan §2）：基本体
+  // 与 solidToShape 同一时机语义——产出不三角化，挂 BREP_LAZY_TESS 描述符（物化参数
+  // 与 eager 分支一致），由 runtime 在收尾时对终端物化；物化时按 primitiveOp 补挂
+  // faceRanges（面白名单与下方 eager 分支一致）。
+  if (getTessellationTiming() === 'defer') {
+    const shape: Shape = { positions: new Float32Array(0), indices: new Uint32Array(0) }
+    ;(shape as unknown as Record<symbol, unknown>)[BREP_LAZY_TESS] = {
+      kernel,
+      solid,
+      linearDeflection: getTessellation().linearDeflection,
+      angularDeflection,
+      ...(op === 'box' || op === 'cylinder' || op === 'cone' ? { primitiveOp: op } : {}),
+    } satisfies BrepLazyTessDescriptor
+    return { shape }
+  }
   const mesh = kernel.meshShape(solid, {
     linearDeflection: getTessellation().linearDeflection,
     angularDeflection,

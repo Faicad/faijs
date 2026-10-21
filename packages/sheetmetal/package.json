@@ -1,6 +1,6 @@
 {
   "name": "@faicad/sheetmetal",
-  "version": "0.36.13",
+  "version": "0.37.0",
   "description": "Sheet-metal CAD domain for faijs - flange authoring, fold/unfold flat patterns (ported from brepjs-sheetmetal)",
   "keywords": [
     "sheet-metal",
@@ -38,7 +38,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.36.0"
+    "@faicad/faijs": "^0.37.0"
   },
   "devDependencies": {
     "typescript": "*",

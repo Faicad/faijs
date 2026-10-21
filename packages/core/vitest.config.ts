@@ -17,7 +17,10 @@ export default defineConfig({
     // install-smoke is a publish-state test with its own config (`test:install`):
     // it packs the tarball and npm-installs it into a temp dir (slow, needs
     // dist/). Excluded from the default suite; run it via `npm run test:install`.
-    exclude: ['test/install-smoke.test.ts', 'node_modules/**'],
+    // test/perf/** 是 deflection/耗时探针（方案 2026-10-21），自重几秒 + 启动
+    // brepkit wasm，只在 `vitest.perf.config.ts` 下跑（`npm run test:perf` 语义），
+    // 不进默认套件。
+    exclude: ['test/install-smoke.test.ts', 'test/perf/**', 'node_modules/**'],
     // 2026-09-25 core-decouple Phase 2：core 不再注入外部 registry，
     // 全局 setup 自装配（见 test/test-setup.ts）。
     setupFiles: ['test/test-setup.ts'],

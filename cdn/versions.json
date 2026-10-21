@@ -1,8 +1,8 @@
 {
-  "@faicad/faijs": "0.36.13",
-  "@faicad/cq-compat-compare": "0.36.13",
-  "@faicad/faijs-fasteners": "0.36.13",
-  "@faicad/faijs-gears": "0.36.13",
-  "@faicad/faijs-viewer": "0.36.13",
-  "@faicad/sheetmetal": "0.36.13"
+  "@faicad/faijs": "0.37.0",
+  "@faicad/cq-compat-compare": "0.37.0",
+  "@faicad/faijs-fasteners": "0.37.0",
+  "@faicad/faijs-gears": "0.37.0",
+  "@faicad/faijs-viewer": "0.37.0",
+  "@faicad/sheetmetal": "0.37.0"
 }

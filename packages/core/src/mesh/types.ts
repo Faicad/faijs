@@ -51,6 +51,21 @@ export type JsonValue =
 export const BREP_TESS = Symbol('faijs.brepTess')
 
 /**
+ * Shape 上的内部挂载槽键：**延迟三角化描述符**（`tessellationTiming:'defer'` 时由
+ * BREP op 挂载，方案 2026-10-21-weapp-tessellation-defer-plan §2）。
+ *
+ * 槽值 = `{ kernel, solid, linearDeflection, angularDeflection }`——待物化的 BREP
+ * solid 与**创建时记录的三角化参数**。runtime 在结果收尾（collectDirectResult）或
+ * 按需访问（getCachedOutput / mesh 链分派 / topoMode:'brep'）时用**这份参数**调
+ * `kernel.meshShape` 物化：写 positions/indices + `BREP_TESS` + `meshShapeCache`，
+ * 并删除本槽（幂等）。参数与 eager 路径完全相同 ⇒ 拓扑 mesh 与显示 mesh 同源。
+ *
+ * 与 {@link BREP_TESS} 同款 Symbol 键特性：随对象展开、不进 JSON/structuredClone。
+ * 中间产物（非终端）永不物化，本槽随 shape 一起 GC。
+ */
+export const BREP_LAZY_TESS = Symbol('faijs.brepLazyTess')
+
+/**
  * A mesh shape — the core data type of the mesh API.
  *
  * Shape is defined directly in mesh/types.ts rather than re-exported from
@@ -117,6 +132,11 @@ export interface Shape {
    * 仅 runtime 在同一个执行内消费（构建拓扑），宿主禁读、禁写、禁持久化。
    */
   [BREP_TESS]?: unknown
+  /**
+   * @internal 见 {@link BREP_LAZY_TESS}：延迟三角化描述符挂载槽（'defer' 模式下
+   * BREP op 产出空 mesh + 本槽；物化后删除）。仅 runtime 消费，宿主禁读。
+   */
+  [BREP_LAZY_TESS]?: unknown
 }
 
 /**

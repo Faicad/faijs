@@ -38,6 +38,7 @@ import {
 import { asStmtId, type PartName } from './identity'
 import { isShape, solid, fromBrep, getSlot, type CompoundShape } from './shape'
 import { isMeshShape } from './mesh/types'
+import { materializeTessellation } from './brep/deferred-tess'
 import { fromHandle, meshHandle, isOcctHandle } from './brep/handle-bridge'
 import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
 import { toOpFailure, unwrapResult, OpError, type ResultLike } from './api/internal/result-unwrap'
@@ -484,6 +485,23 @@ export function defineOp<A extends unknown[]>(
         if (table) runtimeLineage.recordOutput(stmtId, table, solid, anchor.outputs[0] as PartName)
       }
       return out
+    }
+    // 链切换兜底（'defer' 模式，方案 2026-10-21-weapp-tessellation-defer-plan §2.4）：
+    // 判定走 mesh 链时，mesh 实现直接读输入 shape 的 positions/indices——若输入是
+    // 'defer' 模式产出的懒 BREP shape（空 mesh），在此物化（幂等；物化参数与 eager
+    // 路径一致），否则 mesh 实现会静默拿到垃圾几何。compound 成员一并物化。
+    for (const s of inputs) {
+      if (s && typeof s === 'object') {
+        if ('positions' in s) materializeTessellation(s as Shape)
+        const children = (s as { children?: unknown[] }).children
+        if (Array.isArray(children)) {
+          for (const child of children) {
+            if (child && typeof child === 'object' && 'positions' in child) {
+              materializeTessellation(child as Shape)
+            }
+          }
+        }
+      }
     }
     const m = await runImpl(meta, decl.mesh as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
     const mOut = meta.outputs ? wrapByKeys(m, meta.outputs, wrapMeshOne) : wrapMeshOne(m)

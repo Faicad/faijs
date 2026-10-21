@@ -231,6 +231,11 @@ export interface FaijsRuntimeState {
   registeredStmtId: StmtId | undefined
   /** 宿主配置的全局三角化密度（createRuntime 写入；未配置为 undefined）。 */
   tessellation: TessellationDensity | undefined
+  /**
+   * BREP 显示 mesh 三角化时机（createRuntime 写入；未配置 = 'eager'，历史行为）。
+   * 'defer' 见 docs/plans/2026-10-21-weapp-tessellation-defer-plan.md。
+   */
+  tessellationTiming: 'eager' | 'defer' | undefined
 }
 
 // ── 函数 BREP 域（控制流放松方案 §5.6 / D13） ──
@@ -433,6 +438,7 @@ export function getRuntimeState(): FaijsRuntimeState {
     shapeToName: new WeakMap<object, PartName>(),
     registeredStmtId: undefined,
     tessellation: undefined,
+    tessellationTiming: undefined,
   }
   g[KEY] = created
   return created
@@ -483,6 +489,37 @@ export function configureTessellation(tessellation: TessellationDensity): void {
     throw new Error('[faijs] tessellation.linearDeflection must be > 0')
   }
   getRuntimeState().tessellation = { ...tessellation }
+}
+
+// ── 三角化时机（延迟三角化，方案 2026-10-21-weapp-tessellation-defer-plan） ──
+
+/** BREP 显示 mesh 三角化时机。 */
+export type TessellationTiming = 'eager' | 'defer'
+
+/**
+ * 读当前三角化时机（缺省 'eager' = 每个 BREP op 产出即三角化，历史行为）。
+ * 纯读——未配置时返回默认值（与 getTessellation 同款旋钮语义）。
+ * @returns 当前生效的 `TessellationTiming`（未配置时为 'eager'）。
+ */
+export function getTessellationTiming(): TessellationTiming {
+  return getRuntimeState().tessellationTiming ?? 'eager'
+}
+
+/**
+ * 宿主/runtime 在构造期设置三角化时机。
+ *
+ * - `'eager'`：现状——每个 BREP op 产出即 `kernel.meshShape`。
+ * - `'defer'`：op 产出**不**三角化（空 mesh + `BREP_LAZY_TESS` 描述符），由 runtime
+ *   在结果收尾时对**终端**物化（可见终端必物化；隐藏终端按拓扑开关），中间产物永不
+ *   物化。物化参数与创建时相同 → 拓扑 mesh 与显示 mesh 同源（架构红线不破）。
+ *
+ * @param timing - 目标时机；非法值抛错（宿主配置错误必须当面暴露，不静默回退）。
+ */
+export function configureTessellationTiming(timing: TessellationTiming): void {
+  if (timing !== 'eager' && timing !== 'defer') {
+    throw new Error('[faijs] tessellationTiming must be "eager" or "defer"')
+  }
+  getRuntimeState().tessellationTiming = timing
 }
 
 // ── 后端配置读写 ──

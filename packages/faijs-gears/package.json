@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-gears",
-  "version": "0.36.13",
+  "version": "0.37.0",
   "type": "module",
   "faijs": {
     "autoLift": true,
@@ -40,7 +40,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.36.0",
+    "@faicad/faijs": "^0.37.0",
     "occt-wasm": "^5.6.0"
   },
   "devDependencies": {
