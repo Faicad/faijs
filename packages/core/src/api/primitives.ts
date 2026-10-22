@@ -228,7 +228,7 @@ function meshSolidPrimitive(params: Record<string, unknown>, make: () => Shape):
 }
 
 /**
- * 创建长方体（brepjs 契约，§4.1 A 决策）。
+ * 创建长方体（brepjs 契约）。
  * @group 创建
  * @inputs 0
  * @async false
@@ -240,16 +240,16 @@ function meshSolidPrimitive(params: Record<string, unknown>, make: () => Shape):
  * @param params.height - Z 方向边长（mm）。type:number required:true
  * @param params.at - 底面中心（BASE 语义，与 cylinder/cone 一致；与 centered 同给时以 at 为中心）。type:[x,y,z] 可选
  * @param params.centered - 无 at 时是否居中到原点（type:boolean 默认 false，角点在原点）。
- * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
+ * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效）
  * @example
  * const part0 = cad.box(10 * MM, 20 * MM, 30 * MM)
  * const part1 = cad.box(30 * MM, 20 * MM, 10 * MM, { at: [15 * MM, 10 * MM, 0], segments: 64 })
  *
- * 位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10 * MM, 20 * MM, 30 * MM, { at: [1, 2, 3] })`
- * 有量纲位必须写单位字面量（基准单位亦然，`10` 裸数字被 D8 R2 拒）。
- * 归一到同一对象（D11 位置→对象 + 尾参 options 合并）。旧 `{ size }` 对象形态已废弃（裁决 3），
- * 传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.1）。
- * 锚点（2026-10-16 统一 BASE）：默认角点在原点、底面贴地，`box(w, d, h)` ≡ `box(w, d, h, { at: [w/2, d/2, 0] })`。
+ * 位置原生：`box(width, depth, height)` 与 `box(10 * MM, 20 * MM, 30 * MM, { at: [1, 2, 3] })`
+ * 有量纲位必须写单位字面量（基准单位亦然，`10` 这类裸数字会被拒）。
+ * 两种写法归一到同一对象（位置→对象 + 尾参 options 合并）。旧 `{ size }` 对象形态已废弃，
+ * 传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容）。
+ * 锚点：默认角点在原点、底面贴地，`box(w, d, h)` ≡ `box(w, d, h, { at: [w/2, d/2, 0] })`。
    */
 export const box = defineOp({
   name: 'box',
@@ -286,9 +286,9 @@ export const box = defineOp({
  * @name sphere
  * @returns Shape 球体几何，可作为后续 op 的输入。
  * @param params.radius - 半径（mm）。type:number required:true
- * @param params.segments - 细分度（影响面数）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
+ * @param params.segments - 细分度（影响面数）。type:number 默认 64（= brepjs standard 等效）
  * @param params.center - 球心位置（at 的同义别名）。type:[x,y,z] 默认 [0,0,0]（原点）。
- * @param params.at - 球心位置（center 的同义别名，brepjs 契约；裁决 4 双形态合法）。
+ * @param params.at - 球心位置（center 的同义别名，brepjs 契约；双形态合法）。
  * @example
  * const r = cad.sphere({ radius: 10 })
  * const r = cad.sphere(10, { at: [0, 0, 10], segments: 64 })
@@ -322,7 +322,7 @@ function centerParams(params: Record<string, unknown>): Record<string, unknown> 
 }
 
 /**
- * 创建圆柱体（brepjs 契约，§4.3 A 决策）。
+ * 创建圆柱体（brepjs 契约）。
  * 锚点：`at` 是**底面轴心**（BASE 语义，默认 [0,0,0]，底面在原点、+Z 延伸）；`centered:true`
  * 指底面落到 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
  * @group 创建
@@ -335,14 +335,14 @@ function centerParams(params: Record<string, unknown>): Record<string, unknown> 
  * @param params.height - 高度（mm），沿 +Z 轴。type:number required:true
  * @param params.at - 底面中心（BASE 语义）。type:[x,y,z] 可选
  * @param params.centered - 是否居中（底面 −h/2；与 at 同给时以 at 为中心）。type:boolean 默认 false
- * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
+ * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效）
  * @example
  * const c = cad.cylinder(5, 40)
  * const c = cad.cylinder(5, 40, { at: [0, 0, 20], segments: 64 })
  *
- * 位置原生（§4.1/§6.2）：`cylinder(5, 40)` 与 `cylinder(5, 40, { at: [0, 0, 20] })`
- * 归一到同一对象（D11 位置→装箱 + 尾参 options 合并）。旧 `{ center }` 对象形态已废弃
- * （裁决 3），传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.3）。
+ * 位置原生：`cylinder(5, 40)` 与 `cylinder(5, 40, { at: [0, 0, 20] })`
+ * 归一到同一对象（位置→装箱 + 尾参 options 合并）。旧 `{ center }` 对象形态已废弃，
+ * 传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容）。
   */
 export const cylinder = defineOp({
   name: 'cylinder',
@@ -363,7 +363,7 @@ export const cylinder = defineOp({
 })
 
 /**
- * 创建圆锥体（brepjs 契约，§4.1 P 决策）。radiusTop 等于 radiusBottom 时即圆柱，0 为尖锥。
+ * 创建圆锥体（brepjs 契约）。radiusTop 等于 radiusBottom 时即圆柱，0 为尖锥。
  * 锚点：`at` 是**底面轴心**（BASE 语义，默认 [0,0,0]，底面在原点、+Z 延伸）；`centered:true`
  * 指底面落到 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
  * @group 创建
@@ -377,13 +377,13 @@ export const cylinder = defineOp({
  * @param params.height - 高度（mm），沿 +Z 轴。type:number required:true
  * @param params.at - 底面轴心（BASE 语义）。type:[x,y,z] 可选
  * @param params.centered - 是否居中（底面 −h/2；与 at 同给时以 at 为中心）。type:boolean 默认 false
- * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
+ * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效）
  * @example
  * const c = cad.cone(10, 4, 30)
  * const c = cad.cone(10, 0, 30, { at: [0, 0, 20], segments: 64 })
- * 位置原生（§4.1/§6.2）：`cone(10, 4, 30)` 与 `cone(10, 4, 30, { at: [0, 0, 20] })`
- * 归一到同一对象（D11 位置→装箱 + 尾参 options 合并）。旧 `{ center }`/`{ size }` 对象形态
- * 已废弃（裁决 3），传入会抛 E_ARGS_FORM（错误提示 ≠ 兼容）。
+ * 位置原生：`cone(10, 4, 30)` 与 `cone(10, 4, 30, { at: [0, 0, 20] })`
+ * 归一到同一对象（位置→装箱 + 尾参 options 合并）。旧 `{ center }`/`{ size }` 对象形态
+ * 已废弃，传入会抛 E_ARGS_FORM（错误提示 ≠ 兼容）。
   */
 export const cone = defineOp({
   name: 'cone',

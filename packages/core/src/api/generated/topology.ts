@@ -33,8 +33,8 @@ import { fixSelfIntersectionBrep as __own_fixSelfIntersectionBrep } from '../bre
 /**
  * torus — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * (majorRadius: number, minorRadius: number, options?: TorusOptions)
- * 桥接：defineOp({ brep: __own_torusBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_torusBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const torus = defineOp({
   brep: __own_torusBrep,
@@ -44,7 +44,7 @@ export const torus = defineOp({
 /**
  * getBounds — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
  * (shape: Shape) -> BrepBoundingBox（core）
- * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无来源实现中转。
+ * 桥接：getBrepApi().* 直连 occt 引擎——无来源实现中转。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns { xmin: number; ymin: number; zmin: number; xmax: number; ymax: number; zmax: number } — 纯数据结果（非 Shape）。
@@ -57,8 +57,8 @@ export function getBounds(shape: Shape): { xmin: number; ymin: number; zmin: num
 /**
  * ellipsoid — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape
- * 桥接：defineOp({ brep: __own_ellipsoidBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_ellipsoidBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const ellipsoid = defineOp({
   brep: __own_ellipsoidBrep,
@@ -68,8 +68,8 @@ export const ellipsoid = defineOp({
 /**
  * rotate — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape
- * 桥接：defineOp({ brep: __own_rotateBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_rotateBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const rotate = defineOp({
   brep: __own_rotateBrep,
@@ -79,8 +79,8 @@ export const rotate = defineOp({
 /**
  * mirror — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * mirror(shape: Shape, options?: MirrorOptions): Shape
- * 桥接：defineOp({ brep: __own_mirrorBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_mirrorBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const mirror = defineOp({
   brep: __own_mirrorBrep,
@@ -90,8 +90,8 @@ export const mirror = defineOp({
 /**
  * clone — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * clone(shape: Shape): Shape
- * 桥接：defineOp({ brep: __own_cloneBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_cloneBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const clone = defineOp({
   brep: __own_cloneBrep,
@@ -101,8 +101,8 @@ export const clone = defineOp({
 /**
  * applyMatrix — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * applyMatrix(shape: Shape, matrix: unknown): Shape
- * 桥接：defineOp({ brep: __own_applyMatrixBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_applyMatrixBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const applyMatrix = defineOp({
   brep: __own_applyMatrixBrep,
@@ -112,8 +112,8 @@ export const applyMatrix = defineOp({
 /**
  * locate — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * locate(shape: Shape, placement: unknown): Shape
- * 桥接：defineOp({ brep: __own_locateBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_locateBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const locate = defineOp({
   brep: __own_locateBrep,
@@ -123,8 +123,8 @@ export const locate = defineOp({
 /**
  * section — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * section(shape: Shape, plane: PlaneInput): Shape
- * 桥接：defineOp({ brep: __own_sectionBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_sectionBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const section = defineOp({
   brep: __own_sectionBrep,
@@ -134,8 +134,8 @@ export const section = defineOp({
 /**
  * split — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * split(shape: Shape, tools: Shape[]): Shape
- * 桥接：defineOp({ brep: __own_splitBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_splitBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const split = defineOp({
   brep: __own_splitBrep,
@@ -145,8 +145,8 @@ export const split = defineOp({
 /**
  * shell — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * shell(shape: Shape, faces?: Shape[], thickness: number): Shape
- * 桥接：defineOp({ brep: __own_shellBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_shellBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const shell = defineOp({
   brep: __own_shellBrep,
@@ -156,8 +156,8 @@ export const shell = defineOp({
 /**
  * offset — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * offset(shape: Shape, distance: number): Shape
- * 桥接：defineOp({ brep: __own_offsetBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_offsetBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const offset = defineOp({
   brep: __own_offsetBrep,
@@ -167,8 +167,8 @@ export const offset = defineOp({
 /**
  * heal — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * heal(shape: Shape): Shape
- * 桥接：defineOp({ brep: __own_healBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_healBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const heal = defineOp({
   brep: __own_healBrep,
@@ -178,8 +178,8 @@ export const heal = defineOp({
 /**
  * simplify — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * simplify(shape: Shape): Shape
- * 桥接：defineOp({ brep: __own_simplifyBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_simplifyBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const simplify = defineOp({
   brep: __own_simplifyBrep,
@@ -189,7 +189,7 @@ export const simplify = defineOp({
 /**
  * isValid — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
  * isValid(shape: Shape): boolean（core）
- * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无来源实现中转。
+ * 桥接：getBrepApi().* 直连 occt 引擎——无来源实现中转。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns boolean — 纯数据结果（非 Shape）。
@@ -202,7 +202,7 @@ export function isValid(shape: Shape): boolean {
 /**
  * isSameShape — 查询（core，生成文件，勿手改；来源 api/surface/arg-spec.ts）。
  * isSameShape(a: Shape, b: Shape): boolean（core）
- * 桥接：getBrepApi().* 直连 occt 引擎（§5.5 第 2 条）——无来源实现中转。
+ * 桥接：getBrepApi().* 直连 occt 引擎——无来源实现中转。
  *
  * @param a - 可形状参数（第一个被比较形状）
  * @param b - 可形状参数（第二个被比较形状）
@@ -217,8 +217,8 @@ export function isSameShape(a: Shape, b: Shape): boolean {
 /**
  * autoHeal — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * autoHeal(shape: Shape, options?: AutoHealOptions): { shape: Shape, report }
- * 桥接：defineOp({ brep: __own_autoHealBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_autoHealBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const autoHeal = defineOp({
   brep: __own_autoHealBrep,
@@ -228,8 +228,8 @@ export const autoHeal = defineOp({
 /**
  * fixShape — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * fixShape(shape: Shape): Shape
- * 桥接：defineOp({ brep: __own_fixShapeBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_fixShapeBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const fixShape = defineOp({
   brep: __own_fixShapeBrep,
@@ -239,8 +239,8 @@ export const fixShape = defineOp({
 /**
  * healSolid — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * healSolid(solid: Shape): Shape
- * 桥接：defineOp({ brep: __own_healSolidBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_healSolidBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const healSolid = defineOp({
   brep: __own_healSolidBrep,
@@ -250,8 +250,8 @@ export const healSolid = defineOp({
 /**
  * fixSelfIntersection — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * fixSelfIntersection(shape: Shape): Shape
- * 桥接：defineOp({ brep: __own_fixSelfIntersectionBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_fixSelfIntersectionBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const fixSelfIntersection = defineOp({
   brep: __own_fixSelfIntersectionBrep,

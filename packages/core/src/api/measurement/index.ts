@@ -73,7 +73,7 @@ function requireMeasurementTarget(shape: Shape, op: string): MeasurementTarget {
 }
 
 /**
- * 测量形状的表面积（L1 getSurfaceArea，两引擎同口径）。
+ * 测量形状的表面积（两引擎同口径）。
  *
  * @param shape - 被测量的形状（Face / Shape3D / compound / 网格零件）。
  * @returns 表面积（mm²；网格零件按面片几何计）。
@@ -84,11 +84,11 @@ export async function area(shape: Shape): Promise<number> {
 }
 
 /**
- * 测量形状的边长/线长（L1 getLength，两引擎同口径）。
+ * 测量形状的边长/线长（两引擎同口径）。
  *
  * 口径 = **shape 中所有唯一 edge 的弧长之和**：edge 取自身弧长，wire 取其边之和，
  * face 取边界边之和，solid 取全部边之和，compound 取各子实体之和。两个 BREP 引擎
- * 在此口径下逐位一致（2026-10-02 归一化，见 occt / brepkit 适配器的 getLength）。
+ * 在此口径下逐位一致。
  *
  * @param shape - 被测量的形状（edge / wire / face / solid / compound）。
  * @returns 长度（mm）。
@@ -110,7 +110,7 @@ export async function volume(shape: Shape): Promise<number> {
 }
 
 /**
- * 测量形状的质心（L1 getCenterOfMass，两引擎同口径）。
+ * 测量形状的质心（两引擎同口径）。
  *
  * @param shape - 被测量的形状（solid / compound / face / 网格零件）。
  * @returns 质心坐标（mm，BREP 中立形态 {x,y,z}）。

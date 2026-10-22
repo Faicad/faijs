@@ -208,6 +208,21 @@ export interface PickData {
   length?: number
 }
 
+// ---- Vertex adjacency (vertex → incident edges / faces) ----
+
+/**
+ * Vertex adjacency tables: vertex table row → edge / face table row lists.
+ * Derived at build time from the same extraction path as the vertex table
+ * itself (extractVerticesFromEdges), so row numbering is consistent by
+ * construction. Lists are deduplicated and sorted by table row index.
+ */
+export interface VertexAdjacency {
+  /** Vertex row → edge rows whose polyline contains that vertex. */
+  vertexToEdgeRows: number[][]
+  /** Vertex row → face rows incident through the vertex's edges. */
+  vertexToFaceRows: number[][]
+}
+
 // ---- SelectorRuntime (the fully built runtime object) ----
 
 /** The fully assembled selector runtime: row data, references, lookups and proxy buffers. */
@@ -233,6 +248,8 @@ export interface SelectorRuntime {
   vertexReferenceMap: Map<string, Reference>
   singleOccurrenceId: OccurrenceId
   proxy: SelectorProxy
+  /** Vertex → edge / face adjacency. Absent only on runtimes built before this field existed. */
+  vertexAdjacency?: VertexAdjacency
 }
 
 /** Typed buffers backing the selector runtime's face-run and edge geometry. */

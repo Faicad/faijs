@@ -18,7 +18,9 @@ import type {
   SelectorProxy,
   SelectorRuntime,
   ShapeRow,
+  VertexAdjacency,
 } from './types'
+import { buildVertexAdjacency } from './build-vertex-adjacency'
 
 // ---- Serializable runtime data (no Maps — safe for structured clone / worker transfer) ----
 
@@ -40,6 +42,8 @@ export interface SelectorRuntimeData {
   references: Reference[]
   singleOccurrenceId: OccurrenceId
   proxy: SelectorProxy
+  /** Vertex → edge / face adjacency (same extraction path as the vertex table). */
+  vertexAdjacency?: VertexAdjacency
 }
 import {
   computeEdgeMidpoints,
@@ -644,6 +648,11 @@ export function buildSelectorRuntimeData(
   proxy.edgeMidCount = pointData.edgeMidCount
   proxy.faceCenterCount = pointData.faceCenterCount
 
+  // Vertex adjacency — must run after edges (sequentialized faceStart/faceCount)
+  // and proxy (transformed edgePositions) are final. Uses the same extraction
+  // traversal as the vertex table above, so row numbering matches by construction.
+  const vertexAdjacency = buildVertexAdjacency(proxy, edges)
+
   // Build references
   const references: Reference[] = []
 
@@ -777,6 +786,7 @@ export function buildSelectorRuntimeData(
     references: visibleReferences,
     singleOccurrenceId,
     proxy,
+    vertexAdjacency,
   }
 }
 

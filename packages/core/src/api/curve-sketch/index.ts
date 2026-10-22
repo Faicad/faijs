@@ -103,7 +103,7 @@ function edgeBrep(v1: Shape | Vec3, v2: Shape | Vec3): Shape {
 
 /**
  * 两顶点构造边。顶点入参可以是 vertex Shape，也可以是 `[x,y,z]` 点
- * （点经 L1 契约 `makeVertex` 物化成顶点再配边）。
+ * （点经 `makeVertex` 物化成顶点再配边）。
  * @group 创建
  * @inputs 2
  * @async false
@@ -361,7 +361,7 @@ function approximatePointsBrep(points: Vec3[], tolerance?: number): Shape {
 
 /**
  * 点集**逼近**曲线：过点但不严格插值（逼近容差内贴合，产平滑 B 样条）。
- * 与 L1 `interpolatePoints`（严格插值）成对的数学对偶路径。
+ * 与 `interpolatePoints`（严格插值）成对的数学对偶路径。
  * @group 创建
  * @inputs 0
  * @async false
@@ -546,7 +546,7 @@ export const curveKnotRemove = defineOp({
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * 曲线是否周期（L1 契约只有 `curveIsClosed`，周期性是 occt 原生独有查询）。
+ * 曲线是否周期（契约只有 `curveIsClosed`，周期性是 occt 原生独有查询）。
  * @group 查询
  * @inputs 1
  * @async false

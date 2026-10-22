@@ -110,4 +110,29 @@ describe('generateApiReference', () => {
       expect(generateApiReference('brepkit')).toContain(`### \`${name}(`)
     }
   })
+
+  it('无内部文档引用（§/设计条目号/裁决/Phase/方案日期），且不误伤合法内容', () => {
+    // 2026-10-22：手册的读者是上游模型，拿不到 faijs 内部规格文档，
+    // "§4.1"、"D8 R2"、"裁决 3"、"Phase 3 L3"、"P0 §5.0"、"方案 2026-10-01" 一律是噪音。
+    const internalRefPatterns: Array<[RegExp, string]> = [
+      [/§\d/, '§ 章节引用'],
+      [/裁决\s*\d/, '裁决编号'],
+      [/\b[ABC]\s*决策\b/, '决策标签'],
+      [/Phase\s*\d/, 'Phase 编号'],
+      [/(?<![A-Za-z0-9_])D\d{1,3}(?:\.\d+)?(?:\s+R\d{1,3})?(?!\d)/, '设计条目号（D8 R2 / D11）'],
+      [/(?<![A-Za-z0-9_])L\d+(?!\d)/, '层号（L1/L3）'],
+      [/\d{4}-\d{2}-\d{2}/, '方案日期'],
+      [/P\d\s*§/, 'P0 § 组合引用'],
+    ]
+    for (const target of ['occt', 'brepkit'] as const) {
+      const doc = generateApiReference(target)
+      for (const [re, label] of internalRefPatterns) {
+        expect(re.test(doc), `${target} 参考含内部引用（${label}）`).toBe(false)
+      }
+      // 负向保护：清洗器不得误伤合法内容
+      expect(doc).toContain('ASTM D2911')
+      expect(doc).toContain('R2000')
+      expect(doc).toContain('R12')
+    }
+  })
 })

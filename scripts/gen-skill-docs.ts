@@ -950,6 +950,44 @@ function renderDomainLib(exports: DomainLibExport[], packageName: string, import
 }
 
 
+/**
+ * Strip internal design-doc references from the emitted manual — the AI consumer
+ * has no access to faijs internal specs, so tokens like "§4.1", "D8 R2", "裁决 3",
+ * "Phase 3 L3 抗重放词汇", "P0 §5.0/§5.1", "方案 2026-10-01" are pure noise there.
+ * Guarded with negative lookahead/lookbehind so legit content survives:
+ * "ASTM D2911" (4+ digits), DXF "R12"/"R13"/"R2000", example variables (lowercase).
+ */
+const INTERNAL_REF_RULES: Array<[RegExp, string]> = [
+  [/P\d(?:\.\d+)?\s*§[\d./]+(?:\/§[\d./]+)*/g, ''],          // P0 §5.0/§5.1
+  [/§[\d.]+(?:\/§[\d.]+)*(?:\s*裁决\s*\d+)?(?:\s*[ABC]\s*决策)?/g, ''], // §4.1/§6.2 · §4.6 裁决 2 · §4.1 A 决策
+  [/裁决\s*\d+/g, ''],                                        // 裁决 3
+  [/(?<![A-Za-z0-9_])D\d{1,3}(?:\.\d+)?(?:\s+R\d{1,3})?(?!\d)/g, ''], // D8 R2 · D11 · D5 (not ASTM D2911)
+  [/\d{4}-\d{2}-\d{2}/g, ''],                                 // 方案 2026-10-01
+  [/Phase\s*\d+(?:\s*L\d+)?(?:\s*抗重放词汇)?(?:\s*\/\s*Q\d+\s*真缺口)?/g, ''], // Phase 3 L3 抗重放词汇
+  [/(?<![A-Za-z0-9_])L\d+(?!\d)/g, ''],                       // L1 getSurfaceArea
+]
+
+/** Remove empty/dangling parentheses and orphaned separators left by the strip. */
+const INTERNAL_REF_CLEANUP: Array<[RegExp, string]> = [
+  [/（\s*）/g, ''], [/（\s*，\s*/g, '（'], [/，\s*）/g, '）'],
+  [/（\s*；\s*/g, '（'], [/；\s*）\s*。/g, '。'], [/；\s*）/g, '）'],
+  [/，\s*，/g, '，'], [/，\s*。/g, '。'],
+  [/\(\s*\)/g, ''], [/\(\s*,\s*/g, '('], [/,\s*\)/g, ')'], [/,\s*,/g, ','],
+  [/方案\s*(?=[，；）)]|$)/gm, ''],
+  [/被\s+拒/g, '被拒'],                                       // "被 D8 R2 拒" 摘除后的悬空
+  [/（\s+/g, '（'],                                           // 全角括号内残留空格
+  [/ {2,}/g, ' '],
+]
+
+export function stripInternalRefs(text: string): string {
+  let out = text
+  for (const [re, to] of INTERNAL_REF_RULES) out = out.replace(re, to)
+  for (let i = 0; i < 2; i++) {
+    for (const [re, to] of INTERNAL_REF_CLEANUP) out = out.replace(re, to)
+  }
+  return out
+}
+
 /** Render the pure API reference (auto-generated ops + banner) for a given engine target. */
 function renderApiReference(
   target: 'occt' | 'brepkit',
@@ -1130,7 +1168,7 @@ function renderApiReference(
     parts.push(renderDomainLib(lib.exports, lib.packageName, lib.importSpecifier, lib.title))
   }
 
-  return stripTrailingWs(parts.join('\n\n---\n\n') + '\n')
+  return stripTrailingWs(stripInternalRefs(parts.join('\n\n---\n\n')) + '\n')
 }
 
 // ── shared collection layer (imported by verify-script-face-jsdoc.ts) ──────

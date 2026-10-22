@@ -119,14 +119,13 @@ export interface SketchParams {
   as?: 'face' | 'wire'
   /**
    * Named plane (`'XY'` default; e.g. `'XZ'` / `'YZ'`) or an explicit plane
-   * frame (A3, 2026-09-28): `{ origin, normal, xAxis? }` — places the solved
+   * frame: `{ origin, normal, xAxis? }` — places the solved
    * contours on an arbitrary plane in one step (the sketchOnPlane hand-off;
    * no post-hoc `cad.place` needed).
    */
   plane?: string | { origin: [number, number, number]; normal: [number, number, number]; xAxis?: [number, number, number] }
   /**
-   * Fixed external geometry the constraints may reference (IRON RULE patch,
-   * 2026-10-04): each entry is the converter-resolved polyline of one external
+   * Fixed external geometry the constraints may reference: each entry is the
    * geoId (geoId <= -3), pinned as fixed solver points so external refs
    * resolve STATICALLY — a ref with no matching entry here is an unresolvable
    * constraint, not a run-time guess.
@@ -176,7 +175,7 @@ async function resolveSolver(): Promise<SketchSolver> {
  *   canonical 几何 + 形状自带约束，再与调用方给的 `constraints` 合并求解；
  * - `geoms`：直接给展开后的 canonical 几何（存量语句形态）。
  *
- * Permanently brep-only (D5, 2026-09-27): the mesh path reports
+ * Permanently brep-only: the mesh path reports
  * `E_MESH_UNSUPPORTED`. Sketch APIs never get a mesh path — industry
  * precedent (CadQuery, FreeCAD) solves sketches onto exact BREP edges.
  *

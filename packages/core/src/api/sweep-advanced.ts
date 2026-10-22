@@ -34,7 +34,7 @@ export type SweepLawKind = 'none' | 'linear' | 'sCurve'
 /**
  * 扫掠完整控制面（occt）。
  *
- * 两条路径（S3，方案 §3.4.3「扩 sweep」）：
+ * 两条路径：
  * - **旧路径**（默认）：只给 `frenet` / `mode` / `tolerance` / `transitionMode:'right'` 时，
  *   走 `sweepPipeShell`（`mode:'simple'` → `simplePipe`），行为与 S3 前逐字节一致；
  * - **完整控制面**：给出下列任一 sweepFull 字段时改走 occt 原生 `sweepFull`
@@ -127,7 +127,7 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
  * @note 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。截面接受
  *       wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错；
  *       brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。
- *       S3 完整控制面（方案 §3.4.3）：给出 `orientation` / `up` / `auxSpine` /
+ *       完整控制面：给出 `orientation` / `up` / `auxSpine` /
  *       `curvilinearEquivalence` / `guideContact` / `transitionMode`（新名）/
  *       `withContact` / `withCorrection` / `support` / `maxDegree` / `maxSegments` /
  *       `law` / `lawLength` / `lawEndFactor` / `tol3d` / `boundTol` / `tolAngular`

@@ -28,8 +28,8 @@ import { convexHullBrep as __own_convexHullBrep } from '../brep-operations/hullF
 /**
  * extrude — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * extrude(face: Shape, height: number|Vec3) → Shape｜extrude(face: Shape, params: { length? | upTo, normal?, mode?, baseFeature?, offset? }) → Shape
- * 桥接：defineOp({ brep: __own_extrudeBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_extrudeBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const extrude = defineOp({
   brep: __own_extrudeBrep,
@@ -39,8 +39,8 @@ export const extrude = defineOp({
 /**
  * revolve — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * revolve(face: Shape, options?: RevolveOptions): Shape
- * 桥接：defineOp({ brep: __own_revolveBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_revolveBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const revolve = defineOp({
   brep: __own_revolveBrep,
@@ -50,8 +50,8 @@ export const revolve = defineOp({
 /**
  * sweep — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * sweep(wire: Shape, spine: Shape, config?: SweepOptions, shellMode?: boolean): Shape
- * 桥接：defineOp({ brep: __own_sweepBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_sweepBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const sweep = defineOp({
   brep: __own_sweepBrep,
@@ -61,8 +61,8 @@ export const sweep = defineOp({
 /**
  * complexExtrude — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * complexExtrude(wire: Shape, center: Vec3, normal: Vec3, profile?: ExtrusionProfile): Shape
- * 桥接：defineOp({ brep: __own_complexExtrudeBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_complexExtrudeBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const complexExtrude = defineOp({
   brep: __own_complexExtrudeBrep,
@@ -72,8 +72,8 @@ export const complexExtrude = defineOp({
 /**
  * twistExtrude — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Shape
- * 桥接：defineOp({ brep: __own_twistExtrudeBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_twistExtrudeBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const twistExtrude = defineOp({
   brep: __own_twistExtrudeBrep,
@@ -83,8 +83,8 @@ export const twistExtrude = defineOp({
 /**
  * linearPattern — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * linearPattern(shape: Shape, direction: Vec3, count: number, spacing: number): Shape
- * 桥接：defineOp({ brep: __own_linearPatternBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_linearPatternBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const linearPattern = defineOp({
   brep: __own_linearPatternBrep,
@@ -94,8 +94,8 @@ export const linearPattern = defineOp({
 /**
  * circularPattern — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * circularPattern(shape: Shape, axis: Vec3, count: number, fullAngle?: number, center?: Vec3): Shape
- * 桥接：defineOp({ brep: __own_circularPatternBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_circularPatternBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const circularPattern = defineOp({
   brep: __own_circularPatternBrep,
@@ -105,8 +105,8 @@ export const circularPattern = defineOp({
 /**
  * gridPattern — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * gridPattern(shape: Shape, directionX: Vec3, directionY: Vec3, countX: number, countY: number, spacingX: number, spacingY: number): Shape
- * 桥接：defineOp({ brep: __own_gridPatternBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_gridPatternBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const gridPattern = defineOp({
   brep: __own_gridPatternBrep,
@@ -116,8 +116,8 @@ export const gridPattern = defineOp({
 /**
  * roof — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * roof(wire: Shape, options?: RoofOptions): Shape
- * 桥接：defineOp({ brep: __own_roofBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_roofBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const roof = defineOp({
   brep: __own_roofBrep,
@@ -127,8 +127,8 @@ export const roof = defineOp({
 /**
  * drill — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * drill(shape: Shape, options: DrillOptions): Shape
- * 桥接：defineOp({ brep: __own_drillBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_drillBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const drill = defineOp({
   brep: __own_drillBrep,
@@ -138,8 +138,8 @@ export const drill = defineOp({
 /**
  * pocket — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * pocket(shape: Shape, options: PocketOptions): Shape
- * 桥接：defineOp({ brep: __own_pocketBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_pocketBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const pocket = defineOp({
   brep: __own_pocketBrep,
@@ -149,8 +149,8 @@ export const pocket = defineOp({
 /**
  * boss — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * boss(shape: Shape, options: BossOptions): Shape
- * 桥接：defineOp({ brep: __own_bossBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_bossBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const boss = defineOp({
   brep: __own_bossBrep,
@@ -160,8 +160,8 @@ export const boss = defineOp({
 /**
  * mirrorJoin — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * mirrorJoin(shape: Shape, options?: MirrorJoinOptions): Shape
- * 桥接：defineOp({ brep: __own_mirrorJoinBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_mirrorJoinBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const mirrorJoin = defineOp({
   brep: __own_mirrorJoinBrep,
@@ -171,8 +171,8 @@ export const mirrorJoin = defineOp({
 /**
  * rectangularPattern — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * rectangularPattern(shape: Shape, options: RectangularPatternOptions): Shape
- * 桥接：defineOp({ brep: __own_rectangularPatternBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_rectangularPatternBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const rectangularPattern = defineOp({
   brep: __own_rectangularPatternBrep,
@@ -182,8 +182,8 @@ export const rectangularPattern = defineOp({
 /**
  * thread — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * thread(options: ThreadOptions): Shape
- * 桥接：defineOp({ brep: __own_threadBrepOp })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_threadBrepOp })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const thread = defineOp({
   brep: __own_threadBrepOp,
@@ -193,8 +193,8 @@ export const thread = defineOp({
 /**
  * convexHull — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * convexHull(points: Vec3[]): Shape
- * 桥接：defineOp({ brep: __own_convexHullBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
+ * 桥接：defineOp({ brep: __own_convexHullBrep })——core 直连 occt 引擎，
+ * 参数归一在自有实现内部完成（api/brep-operations/）。
  */
 export const convexHull = defineOp({
   brep: __own_convexHullBrep,

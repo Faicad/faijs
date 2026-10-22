@@ -91,7 +91,7 @@ function linearPatternMeshSolid(input: Shape, direction: Vec3, count: number, sp
  * @qual ok
  * @name linearPattern
  * @note BREP 输入走质心聚类回投，结果面按份数 k 回投影到输入面角色，产出
- *       `replica[k]/<inner>`（Phase 3 L3 抗重放词汇）；**网格实体**输入走网格后端，
+ *       `replica[k]/<inner>` 面命名；**网格实体**输入走网格后端，
  *       阵列后融合为一个新的网格零件，近似拓扑没有 role 层故不产 replica 命名。
  *       裸网格输入仍抛 `E_MESH_UNSUPPORTED`。
  * @returns Shape 所有副本 fused 后的几何。

@@ -103,7 +103,7 @@ export type { SelectorRuntimeData } from './topology/build-selector-runtime'
 export type {
   SelectorRuntime, SelectorBundle, SelectorManifest, SelectorBuffers,
   FaceRow, EdgeRow, Reference,
-  BufferViewDescriptor, SelectorProxy,
+  BufferViewDescriptor, SelectorProxy, VertexAdjacency,
 } from './topology/types'
 
 export { buildSelectorRuntimeMaps } from './topology/build-selector-runtime'
@@ -114,6 +114,7 @@ export * from './topology/naming'
 
 // D 类辅助：拓扑构建函数
 export { buildSelectorRuntime, buildSelectorRuntimeData } from './topology/build-selector-runtime'
+export { buildVertexAdjacency } from './topology/build-vertex-adjacency'
 export { buildFaceIdsForPart } from './topology/build-face-ids'
 export type { SolidTopologyResult } from './brep/brep-topology'
 

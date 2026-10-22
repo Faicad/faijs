@@ -79,7 +79,7 @@ export async function importStepImpl(params: Record<string, unknown>): Promise<S
 }
 
 /**
- * api import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口）
+ * api import_step — 任意路径 STEP 文件导入 op
  *
  * 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分：
  * - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`），

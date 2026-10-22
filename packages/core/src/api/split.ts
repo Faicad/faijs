@@ -104,7 +104,7 @@ function splitBrep(input: Shape, tools: Shape[]): Shape {
  * @qual ok
  * @name split
  * @note BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面
- *       片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。平台 op：仅 occt 引擎（原生 split）。
+ *       片记 `splinter(#j)` 命名。平台 op：仅 occt 引擎（原生 split）。
  * @returns Shape 切分后的几何（compound of pieces）。
  * @param input - 目标几何。type:Shape required:true
  * @param tools - 切刀几何（数组）。type:Shape[] required:true

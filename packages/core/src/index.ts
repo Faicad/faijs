@@ -32,11 +32,12 @@ export { TOPOLOGY_FACE_ID_NONE, buildFaceIdsForPart } from './topology/build-fac
 export {
   buildSelectorRuntime, buildSelectorRuntimeData, buildSelectorRuntimeMaps,
 } from './topology/build-selector-runtime'
+export { buildVertexAdjacency } from './topology/build-vertex-adjacency'
 export type { SelectorRuntimeData } from './topology/build-selector-runtime'
 export type {
   SelectorRuntime, SelectorBundle, SelectorManifest, SelectorBuffers,
   FaceRow, EdgeRow, Reference,
-  BufferViewDescriptor, SelectorProxy,
+  BufferViewDescriptor, SelectorProxy, VertexAdjacency,
 } from './topology/types'
 export * from './topology/naming'
 

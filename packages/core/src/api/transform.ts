@@ -321,7 +321,7 @@ export const rotate_euler = defineOp({
 })
 
 /**
- * 等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认
+ * 等比缩放几何体（brepjs 契约）。factor 只收 number；不动点默认
  * 原点（与旧 `scale(shape, factor, { center? })` 一致），`center` 可选。
  * @group 变换
  * @inputs 1
@@ -362,7 +362,7 @@ export const scale = defineOp({
 })
 
 /**
- * 非等比缩放几何体（faijs 语义，§1.4.4 裁决 2）。factor 定死 vec3 — 等比缩放请用
+ * 非等比缩放几何体（faijs 语义）。factor 定死 vec3 — 等比缩放请用
  * `scale(p, s)`，`scale3d(p, [x,y,z])` 才可非等比。`center` 为不动点（默认原点）。
  * @group 变换
  * @inputs 1

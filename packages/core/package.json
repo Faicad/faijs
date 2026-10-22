@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.40.0",
+  "version": "0.41.0",
   "faijs": {
     "lib": {
       "role": "host"
@@ -370,6 +370,10 @@
     "./topology/build-selector-runtime": {
       "types": "./dist/topology/build-selector-runtime.d.ts",
       "default": "./dist/topology/build-selector-runtime.js"
+    },
+    "./topology/build-vertex-adjacency": {
+      "types": "./dist/topology/build-vertex-adjacency.d.ts",
+      "default": "./dist/topology/build-vertex-adjacency.js"
     },
     "./topology/types": {
       "types": "./dist/topology/types.d.ts",

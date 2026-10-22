@@ -352,7 +352,7 @@ export function buildSketchOnFaceMesh(params: SketchOnFaceParams): Shape {
  * construct a Shape. Engine-neutral (no `engines` declaration): works on the
  * OCCT BREP engine, the brepkit BREP engine, and the brepkit mesh backend.
  *
- * **网格链**（`meshEngines: ['brepkit']`，方案 2026-10-01 §4 Phase 3）：`on` 是网格实体
+ * **网格链**（`meshEngines: ['brepkit']`）：`on` 是网格实体
  * 时，轮廓按面自己的**平面框**铺放（原点 = 面包围盒中心、法向 = 面法向），产物是一张
  * 网格链面，可直接交给 `cad.extrude` 拉伸。该分支只接受平面面、只接受默认
  * `scaleMode`（`'bounds'`/`'native'` 相对 UV 域定义，网格链上没有 UV 域）、只接受
