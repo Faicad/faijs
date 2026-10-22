@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-viewer",
-  "version": "0.37.0",
+  "version": "0.39.0",
   "faijs": {
     "lib": {
       "role": "host"
@@ -39,7 +39,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.37.0",
+    "@faicad/faijs": "^0.39.0",
     "occt-wasm": "5.6.0",
     "three": "^0.162.0 || ^0.184.0"
   },
