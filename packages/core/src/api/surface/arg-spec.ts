@@ -24,7 +24,8 @@
  * P13a 机制验证样本（4 条，覆盖 type / brep-op 构造 / brep-op 布尔 / query 四类产出路径）：
  *   1. Bounds3D  — type re-export（topology/shapeFns）
  *   2. torus     — brep-op 构造（topology/primitiveFns，faijs 无同名）
- *   3. fuse      — brep-op 布尔（topology/booleanFns，faijs 用 union，fuse 无同名）
+ *   3. fuse      — 布尔（topology/booleanFns；2026-10-22 起为 skip：faijs 的并集名是
+ *                  union，fuse 是它的别名，不再单独投影）
  *   4. getBounds — query（topology/shapeFns，faijs 用 bbox* 但无同名）
  */
 
@@ -55,7 +56,7 @@ export interface QueryParam {
 /**
  * D11 参数双形态分类。
  *
- * - A  : 单名双形态（位置形态首参非 plain object，判别式有效，如 box/fuse/torus）。
+ * - A  : 单名双形态（位置形态首参非 plain object，判别式有效，如 box/torus）。
  * - B1 : 单名单形态（来源 options 对象即唯一对象形态，无需拆名，如 thread）。
  * - B2 : 双名（来源形态占正名，faijs 对象形态加描述性后缀，如 rotate_euler）。
  */
@@ -179,19 +180,18 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'fuse',
     source: 'brep-operations/booleanFns.ts#fuseBrep',
-    kind: 'brep-op',
-    // 来源实现 fuseBrep 仅经 getBrepApi().fuse（L1 裸方法，引擎无关）：brepkit 内核
-    // L1 有 fuse（brepkitKernel.ts）。曾以"依赖 kernel.isNull / kernel.dispose（occt
-    // 平台面）"为由声明 engines:['occt']（Phase 5 补漏），2026-10-17 实证当前
-    // fuseBrep 无此依赖 → 移除门禁。两引擎下均无面演化（裸 fuse；naming 仅作溯源
-    // 标注，同 intersect 的"几何正确、无面演化"处理）。
-    args: '(a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>',
-    // 两个输入都是 faijs Shape → 原样直传给来源实现（引擎不改写入参）；第三参 options 透传。
+    kind: 'skip',
+    // 曾以 brep-op 投影（定义在 generated/topology.ts，二元裸 kernel.fuse）。
+    // 2026-10-22 归为 skip：faijs 的并集是 `union(...shapes)`，fuse 改为它的别名
+    // （boolean.ts: `export const fuse = union`）。别名带变参、mesh+brep 双路径、
+    // 面演化/roleTable 合流与统一消费语义，全部优于二元裸 fuse；两份实现并存只会漂移。
+    reason: 'aliased to handwritten boolean.ts:union — one implementation for 并集 '
+      + '(variadic, mesh+brep paths, faceEvolution/roleTable); the binary bare kernel.fuse projection would be a second implementation',
     geometryArgs: [0, 1],
     returnsResult: true,
+    args: '(a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>',
     params: ['a', 'b', 'options'],
     formClass: 'A',
-    scriptFace: true,
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
@@ -3139,9 +3139,13 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'cut', source: 'topology/api.js#cut', kind: 'skip',
     geometryArgs: [0, 1], returnsResult: true,
     args: 'cut(base: Shape, tool: Shape, options?: BooleanOptions): Shape',
-    reason: 'overridden by handwritten boolean.ts:cut (Phase 3 roleTable propagation)',
+    reason: 'aliased to handwritten boolean.ts:subtract — same op (operation=subtract → kernel cut), '
+      + 'same roleTable propagation; the alias keeps one implementation instead of a generated compatOp copy',
     params: ['base', 'tool', 'options'], formClass: 'A',
-    scriptFace: true,
+    // 不再标 scriptFace:true —— 该标记的含义是「按本条目生成脚本面导出」，而 cut 现在
+    // 是 boolean.ts 的手写别名（`export const cut = subtract`），生成一份同名导出只会
+    // 与它抢名字。scriptFaceEntries() 本就过滤 kind:'skip'，这里去掉标记是为了一致性：
+    // 两个别名（cut / fuse）在 arg-spec 里形态完全相同。
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
@@ -3154,7 +3158,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'intersect', source: 'topology/api.js#intersect', kind: 'skip',
-    reason: '禁止投脚本面（§4.8）：faijs 侧 cad.intersect 是 variadic、async、带 keepHidden 时间线副作用、roleTable '
+    reason: '禁止投脚本面（§4.8）：faijs 侧 cad.intersect 是 variadic、async、带输入消费语义、roleTable '
       + '合流的 dual-op，mesh+brep 双实现；来源实现的 intersect 是二元同步 Result 契约，仅驻留 compat 面，不共面不投影。'
       + '任何想把上游 intersect 标为 brep-op / scriptFace 的改动，必须同时把 faijs 的 intersect 改名为 intersect_all'
       + '（含 UI ops 与存量迁移）——生成期守卫见 gen-l3-surface.ts（§4.8 触发条件）。',

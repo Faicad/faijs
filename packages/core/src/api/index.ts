@@ -17,7 +17,9 @@ export { box, sphere, cylinder, cone, wedge } from './primitives'
 // D1（2026-09-23 扩展库拆分，选项 C）：四个 transform op **全部留 core**——
 // `translate` 是通用几何变换且是小程序端唯一在用的 transform op，同族不拆散。
 export { translate, rotate_euler, scale, scale3d } from './transform'
-export { union, subtract, intersect, cut } from './boolean'
+export { union, subtract, intersect, cut, fuse } from './boolean'
+// ↑ fuse 是 union 的别名（brepjs 兼容名），2026-10-22 起不再来自 generated/script-face
+//   （arg-spec 里 fuse 已转 skip，避免二元裸 kernel.fuse 与 variadic union 双实现漂移）。
 export { engrave } from './engrave'
 export { chamfer } from './chamfer'
 export { fillet } from './fillet'
@@ -129,7 +131,7 @@ export { mergeMeta } from './meta'
 //    （docs/api-contract.zh.md:63、:70），「脚本面有」不构成「库面必须有」的理由。
 //    因此这里只按名保留**有库作者消费者**的脚本面 op（经 @faicad/faijs/api 被
 //    sheetmetal 等导入者）；其余留在 `cad.*` 脚本面与子路径，不经本聚合面。
-export { fuse, isValid, rotate, applyMatrix } from './generated/script-face'
+export { isValid, rotate, applyMatrix } from './generated/script-face'
 // P25: compat extrude/revolve (brep-only, face→prism / face→lathe) share one
 // definition between the TS surface and the cad scripting surface. The fcstd
 // codegen wires Pad/Pocket/Extrusion/Revolution through these (sketch face →

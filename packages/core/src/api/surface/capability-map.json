@@ -1,6 +1,6 @@
 {
   "generatedBy": "packages/core/scripts/gen-capability-map.ts",
-  "count": 35,
+  "count": 34,
   "entries": [
     {
       "op": "torus",
@@ -72,106 +72,6 @@
           "calls": [
             "runtime-state.ts#getRuntimeState",
             "runtime-state.ts#configureBackends"
-          ]
-        },
-        {
-          "fn": "getRuntimeState",
-          "file": "../runtime-state.ts",
-          "methods": [],
-          "calls": []
-        },
-        {
-          "fn": "configureBackends",
-          "file": "../runtime-state.ts",
-          "methods": [],
-          "calls": [
-            "runtime-state.ts#getRuntimeState"
-          ]
-        }
-      ]
-    },
-    {
-      "op": "fuse",
-      "source": "brep-operations/booleanFns.ts#fuseBrep",
-      "sourceFile": "brep-operations/booleanFns.ts",
-      "sourceFn": "fuseBrep",
-      "kernelMethods": [
-        "fuse"
-      ],
-      "trace": [
-        {
-          "fn": "fuseBrep",
-          "file": "brep-operations/booleanFns.ts",
-          "methods": [
-            "fuse"
-          ],
-          "calls": [
-            "internal/dual-form-args.ts#resolveArgs",
-            "../brep/handle-bridge.ts#getBrepApi",
-            "brep-operations/brepHelpers.ts#brepHandleOf",
-            "../result/result.ts#ok",
-            "../result/result.ts#err",
-            "../result/errors.ts#kernelError"
-          ]
-        },
-        {
-          "fn": "resolveArgs",
-          "file": "internal/dual-form-args.ts",
-          "methods": [],
-          "calls": []
-        },
-        {
-          "fn": "getBrepApi",
-          "file": "../brep/handle-bridge.ts",
-          "methods": [],
-          "calls": [
-            "../runtime-state.ts#getBackends"
-          ]
-        },
-        {
-          "fn": "brepHandleOf",
-          "file": "brep-operations/brepHelpers.ts",
-          "methods": [],
-          "calls": [
-            "brepHelpers.ts#brepHandleOf",
-            "../shape.ts#brepOf"
-          ]
-        },
-        {
-          "fn": "ok",
-          "file": "../result/result.ts",
-          "methods": [],
-          "calls": []
-        },
-        {
-          "fn": "err",
-          "file": "../result/result.ts",
-          "methods": [],
-          "calls": []
-        },
-        {
-          "fn": "kernelError",
-          "file": "../result/errors.ts",
-          "methods": [],
-          "calls": [
-            "errors.ts#makeError"
-          ]
-        },
-        {
-          "fn": "getBackends",
-          "file": "../runtime-state.ts",
-          "methods": [],
-          "calls": [
-            "runtime-state.ts#getRuntimeState",
-            "runtime-state.ts#configureBackends"
-          ]
-        },
-        {
-          "fn": "brepOf",
-          "file": "../shape.ts",
-          "methods": [],
-          "calls": [
-            "../runtime-state.ts#getRuntimeState"
           ]
         },
         {

@@ -21,7 +21,6 @@ export interface ScriptFaceOp {
 /** Cad script-face op manifest (B1: single source for cad namespace, check() symbol table). */
 export const SCRIPT_FACE_OPS: readonly ScriptFaceOp[] = [
   { name: 'torus', module: 'topology' },
-  { name: 'fuse', module: 'topology' },
   { name: 'inspectMassProps', module: 'measurement', engines: ["occt"] },
   { name: 'area', module: 'measurement' },
   { name: 'length', module: 'measurement' },

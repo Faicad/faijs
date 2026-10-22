@@ -331,9 +331,9 @@ export function generate(): string {
 
 /**
  * §4.8 生成期守卫：`topology/api.js#intersect` 永远不允许进入 brep-op /
- * scriptFace。faijs 的 cad.intersect 是 variadic、async、带 keepHidden 时间线副
- * 作用、roleTable 合流的 dual-op；brepjs 的 intersect 是二元同步 Result，仅驻留
- * compat 面。若上游 intersect 被投出，必须先改名 faijs 面（含 UI ops 与存量迁移）。
+ * scriptFace。faijs 的 cad.intersect 是 variadic、async、消费输入的 dual-op，
+ * 且带 roleTable 合流；brepjs 的 intersect 是二元同步 Result，仅驻留 compat 面。
+ * 若上游 intersect 被投出，必须先改名 faijs 面（含 UI ops 与存量迁移）。
  */
 function assertIntersectStaysSkip(): void {
   for (const e of ARG_SPEC) {

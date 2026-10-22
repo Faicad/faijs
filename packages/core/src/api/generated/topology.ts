@@ -1,7 +1,7 @@
 /**
  * generated/topology.ts — 生成文件，勿手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
- * topology 模块：21 个投影符号；另有 281 个 skip 登记。
+ * topology 模块：20 个投影符号；另有 282 个 skip 登记。
  * A6（2026-10-06）口径指认：本文件是 brepjs 投影面的**增量**清单；脚本面全集的
  * 权威来源是 generated/script-face.ts + gen-symbol-table 产物
  * lang/symbol-table.generated.ts（cad 脚本面 95 op）。两个清单回答不同问题，
@@ -13,7 +13,6 @@ import { getBrepApi } from '../../brep/handle-bridge'
 import type { BrepHandle } from '../../brep/engine/types'
 import type { Shape } from '../../mesh/types'
 import { torusBrep as __own_torusBrep } from '../brep-operations/primitiveFns'
-import { fuseBrep as __own_fuseBrep } from '../brep-operations/booleanFns'
 import { ellipsoidBrep as __own_ellipsoidBrep } from '../brep-operations/primitiveFns'
 import { rotateBrep as __own_rotateBrep } from '../brep-operations/topologyFns'
 import { mirrorBrep as __own_mirrorBrep } from '../brep-operations/topologyFns'
@@ -40,17 +39,6 @@ import { fixSelfIntersectionBrep as __own_fixSelfIntersectionBrep } from '../bre
 export const torus = defineOp({
   brep: __own_torusBrep,
   name: 'torus', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, paramDims: {},
-})
-
-/**
- * fuse — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * (a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>
- * 桥接：defineOp({ brep: __own_fuseBrep })——core 直连 occt 引擎（§5.4），
- * D11 归一在自有实现内部完成（api/brep-operations/）。
- */
-export const fuse = defineOp({
-  brep: __own_fuseBrep,
-  name: 'fuse', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, paramDims: {},
 })
 
 /**

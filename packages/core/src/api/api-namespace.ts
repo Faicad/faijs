@@ -91,7 +91,7 @@ import { boolean as booleanWithOptions } from './boolean-op'
 // S4（occt-wasm op 接入）：包围盒对齐族（平台 op engines:['occt']，方案 §3.4.9）——
 // 原生 alignX/alignY/alignZ 三轴并为一个脚本符号 alignTo。
 import { alignTo } from './align'
-import { union, subtract, intersect, cut } from './boolean'
+import { union, subtract, intersect, cut, fuse } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
 import { sweepAdvanced } from './sweep-advanced'
@@ -234,9 +234,12 @@ export function createApiNamespace(): LibNamespace {
     text,
     svgExtrude,
     ...scriptFaceOps,
-    // Phase 3: override generated cut (compatOp, no roleTable propagation) with
-    // handwritten cut from boolean.ts (does roleTable propagation via booleanBrep).
+    // 兼容别名（brepjs 名字）：与手写实现同一函数对象，不是第二份实现。
+    //   cut  = subtract（曾以手写 override 覆盖生成的 compatOp；2026-10-22 改为别名）
+    //   fuse = union   （曾是 generated/topology.ts 的二元裸 kernel.fuse；arg-spec 已转 skip）
+    // spread 在 scriptFaceOps 之后，确保这两个名字指向手写实现。
     cut,
+    fuse,
     // Phase 3: override generated split / linearPattern (compatOp, no roleTable
     // propagation) with handwritten versions that build replica[k] / splinter(#j)
     // role tables (L3 / L4 抗重放词汇). Spread after scriptFaceOps so they win.

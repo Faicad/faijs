@@ -6,8 +6,8 @@
  * 不允许手写第二份清单。
  */
 
-import { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
-export { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
+import { torus, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
+export { torus, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
 import { inspectMassProps, area, length, volume, centerOfMass } from './measurement'
 export { inspectMassProps, area, length, volume, centerOfMass } from './measurement'
 import { viewCamera, projectView, projectSheet } from './view'
@@ -20,7 +20,6 @@ export { makeBaseBox } from './sketching'
 /** cad 脚本面新增 op 的命名空间对象（api-namespace 展开进 cad）。 */
 export const scriptFaceOps = {
   torus,
-  fuse,
   inspectMassProps,
   area,
   length,
