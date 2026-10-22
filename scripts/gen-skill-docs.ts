@@ -1074,7 +1074,7 @@ function renderApiReference(
         subLines.push(renderOpEntry(doc, bucket))
         subLines.push('')
       }
-      if (subLines.filter(l => l.startsWith('####')).length > 0) {
+      if (subLines.filter(l => l.startsWith('###')).length > 0) {
         lines.push(subLines.join('\n').trimEnd())
       }
     }
