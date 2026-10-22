@@ -235,6 +235,15 @@ export interface DirectExecOpts {
    */
   beforeStatement?: (stmtId: string, lineNo: number) => void
   /**
+   * 单元执行后钩子（2026-10-23 stream preview）：每成功执行一个单元触发一次，
+   * 与 beforeStatement 对称但允许返回 Promise（宿主可据此让出做背压）。
+   * 第一参数 = 单元 id（`'s'+行号`）；第二参数 = 行号。
+   *
+   * 契约：**best-effort**——钩子抛错只记 console.error、不终止执行
+   * （预览通道故障不得杀死真实执行；失败单元不触发本钩子）。
+   */
+  afterStatement?: (stmtId: string, lineNo: number) => void | Promise<void>
+  /**
    * 整轮执行超时（§6.3 / D8，E_EXEC_LIMIT）：单元循环内逐单元检查 deadline，
    * 超时抛 {@link ExecutionLimitError}。不传则无超时（现状行为不变）。
    */
@@ -724,9 +733,6 @@ export class DirectExecutor {
           // downstream recompute, but since execution is sequential, downstream
           // statements naturally re-read the already-transformed members.
           this.applyPendingAssemblyTransforms()
-
-          this.executedLines.add(unit.lineNo)
-          executedLines.push(unit.lineNo)
         } catch (err) {
           if (err instanceof ParseError) throw err
           // DirectExecutor swallows ALL execution errors into failedAt
@@ -745,6 +751,16 @@ export class DirectExecutor {
           break
         } finally {
           this.activeLine = undefined
+        }
+        // F1（2026-10-23 stream preview）：**仅在单元成功时到达**（失败 → catch 内
+        // break）。executedLines 落账后触发 afterStatement；钩子 best-effort——
+        // 抛错只记日志不终止执行（预览通道故障不得杀死真实执行）。
+        this.executedLines.add(unit.lineNo)
+        executedLines.push(unit.lineNo)
+        try {
+          await opts?.afterStatement?.(`s${unit.lineNo}`, unit.lineNo)
+        } catch (err) {
+          console.error(`[faijs] afterStatement hook failed for s${unit.lineNo}`, err)
         }
       }
       // ctx 产出登记（writtenKeys = 本 code 的 writes 并集）：必须在返回结果前刷新，

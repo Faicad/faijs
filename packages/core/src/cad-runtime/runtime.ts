@@ -45,6 +45,7 @@ import { ModuleRegistry, ModuleRegistryError, isRelativeSpecifier } from './modu
 import type { ModuleRunResult } from './module-registry'
 import { computeLiveShapes, lineConsumes, blockConsumes, type KeepView } from './live-shapes'
 import { extractMetadata, type UiMetadata, type OpDimMap } from '../lang/metadata-extractor'
+import type { StatementSummary } from '../lang/statement-summary'
 import {
   configureBackends, CONTRACT_VERSION,
   assertContractVersion, type LibNamespace,
@@ -251,6 +252,15 @@ export interface ExecuteOptions {
   /** 语句前钩子（用于 undo 逐语句快照）；参数为语句 id（sN）与语句下标 */
   beforeStatement?: (stmtId: string, index: number) => void
   /**
+   * 语句后钩子（2026-10-23 stream preview）：每**成功**执行一个单元触发一次，
+   * 允许返回 Promise（宿主可让出做背压，等宿主收下快照再继续）。
+   * 参数为语句 id（`'s'+行号`）与行号。
+   *
+   * 契约：**best-effort**——钩子抛错只记 console.error、不终止执行
+   * （预览通道故障不得杀死真实执行；失败单元不触发本钩子）。
+   */
+  afterStatement?: (stmtId: string, lineNo: number) => void | Promise<void>
+  /**
    * 增量执行起点（兼容旧签名）：从指定位置开始顺序执行，
    * 之前的语句不进执行循环（缺省 0 = 全量执行）。
    */
@@ -417,6 +427,13 @@ export class CadRuntime {
   private accumulatedCode: string | null = null
   /** 已累积场景的语句 id 集（append 据此判定「新增语句」）。 */
   private accumulatedIds = new Set<StmtId>()
+
+  /**
+   * 2026-10-23 stream preview：**执行期活跃 meta**（collectLiveSnapshot 的输入）。
+   * executeDirectText / appendDirectText / updateIncremental 在跑单元前写入；
+   * 执行/update 被 withExecutionLock 串行化，钩子只在循环内读它，轮间残留无害。
+   */
+  private activeMeta: UiMetadata | null = null
 
   // P0 增量闸门用：上次成功执行的指纹快照
   private lastParamsFingerprint: string | null = null
@@ -1042,6 +1059,9 @@ export class CadRuntime {
     // （`cad.box(20, 20, 20)` 之类），与「带量纲槽位不准裸数字」的契约直接冲突。
     // 迁移量级与是否连带改动宿主 codegen 需产品决策，故暂不改变执行期行为。
     const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
+    // 2026-10-23 stream preview：执行期活跃 meta（collectLiveSnapshot 读取）。
+    // 执行/update 被 withExecutionLock 串行化，钩子只在循环内读它，轮间残留无害。
+    this.activeMeta = meta
     const determinismFailure = await this.runDeterminismGate(code, meta)
     if (determinismFailure) return determinismFailure
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
@@ -1055,6 +1075,7 @@ export class CadRuntime {
       params: opts?.params,
       ...(opts?.startIndex !== undefined ? { startLine: opts.startIndex } : {}),
       ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
+      ...(opts?.afterStatement ? { afterStatement: opts.afterStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
     if (outcome.failedAt) {
@@ -1142,6 +1163,7 @@ export class CadRuntime {
     // A1 安全扫描需把 ctx 已有键 + 已注册命名空间都作为 knownNames（避免 SEC_FREE_IDENT 误杀 append 场景）。
     const appendKnownNames = [...Object.keys(this.libs), ...de.listCtxKeys()]
     const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true, security: this.securityPolicy, namespaces: appendKnownNames, nsNames: Object.keys(this.libs) })
+    this.activeMeta = meta
     const determinismFailure = await this.runDeterminismGate(fullCode, meta)
     if (determinismFailure) return determinismFailure
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
@@ -1154,6 +1176,7 @@ export class CadRuntime {
       imports: moduleLoad.seed,
       params: opts?.params,
       ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
+      ...(opts?.afterStatement ? { afterStatement: opts.afterStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
     if (outcome.failedAt) {
@@ -1293,26 +1316,13 @@ export class CadRuntime {
     // T3-cond：DAG 叶子终端判定换 computeLiveShapes（§4.4）——输入换源：
     // 候选 = ctx 键；脚本级 keep 声明读 metadata.keep（`a.keep()` 语句，与行号无关）；
     // 函数体 exec.keep 登记读 DirectExecutor.keepByLine（行号键，与 KeepView 对齐）。
+    // 2026-10-23：终端判定提取为 computeLiveTerminals（与 collectLiveSnapshot 共用，
+    // 保证终态与中间帧同一套消费规则）。
+    const terminals = this.computeLiveTerminals(meta, meta.lines, shapeVarNames)
+    // T2 侧：activeValues 复用同一 keepView（declared/functionBody 口径与终端判定一致）
     const keepView: KeepView = {
       declared: () => meta.keep,
       functionBody: (lineNo) => de.getKeepByLine(lineNo),
-    }
-    let terminals = computeLiveShapes({
-      lines: meta.lines,
-      blocks: meta.blocks,
-      keep: keepView,
-      shapeVarNames,
-      ...(de.getBlockOutputs().size > 0 ? { blockOutputs: de.getBlockOutputs() } : {}),
-      // P25 §3.7.4：修改类裸调用原地写回的 producer 精确化（行号 → 写回变量名）
-      ...(de.getInplaceWrites().size > 0 ? { inplaceWrites: de.getInplaceWrites() } : {}),
-      explicitTerminals: meta.terminalShapes,
-    })
-    // 显式 return 优先（与 collectResult 同）：非显式分支按值判定补 compound kind。
-    if (!meta.terminalShapes || meta.terminalShapes.length === 0) {
-      terminals = terminals.map((t) => {
-        const v = de.getCtxVar(String(t.id))
-        return isCompoundLike(v) ? { ...t, kind: 'compound' } : t
-      })
     }
     // 延迟三角化（方案 2026-10-21-weapp-tessellation-defer-plan §2）：'defer' 模式下
     // BREP op 产出为空 mesh + BREP_LAZY_TESS 描述符，**先**物化需要消费 mesh 的终端，
@@ -1443,6 +1453,86 @@ export class CadRuntime {
       activeValues: activeValues.size > 0 ? activeValues : undefined,
       execution,
     }
+  }
+
+  /**
+   * DAG 叶子终端判定（computeLiveShapes 封装）：collectDirectResult 与
+   * collectLiveSnapshot 共用同一套输入（lines / blocks / keep / shapeVarNames /
+   * blockOutputs / inplaceWrites / explicitTerminals），保证终态与中间帧的
+   * 消费规则逐字一致。
+   */
+  private computeLiveTerminals(
+    meta: UiMetadata,
+    lines: StatementSummary[],
+    shapeVarNames: Set<PartName>,
+  ): TerminalShape[] {
+    const de = this.directExecutor!
+    const keepView: KeepView = {
+      declared: () => meta.keep,
+      functionBody: (lineNo) => de.getKeepByLine(lineNo),
+    }
+    let terminals = computeLiveShapes({
+      lines,
+      blocks: meta.blocks,
+      keep: keepView,
+      shapeVarNames,
+      ...(de.getBlockOutputs().size > 0 ? { blockOutputs: de.getBlockOutputs() } : {}),
+      // P25 §3.7.4：修改类裸调用原地写回的 producer 精确化（行号 → 写回变量名）
+      ...(de.getInplaceWrites().size > 0 ? { inplaceWrites: de.getInplaceWrites() } : {}),
+      explicitTerminals: meta.terminalShapes,
+    })
+    // 显式 return 优先（与 collectResult 同）：非显式分支按值判定补 compound kind。
+    if (!meta.terminalShapes || meta.terminalShapes.length === 0) {
+      terminals = terminals.map((t) => {
+        const v = de.getCtxVar(String(t.id))
+        return isCompoundLike(v) ? { ...t, kind: 'compound' } : t
+      })
+    }
+    return terminals
+  }
+
+  /**
+   * 2026-10-23 stream preview：**执行期活跃终端快照**（与 ExecutionResult.terminals
+   * 同构，`{id, hidden}`；compound 终端附 kind='compound'）。纯读取、无副作用——
+   * 不物化 defer 网格、不建拓扑、不动 statementCache。
+   *
+   * `uptoLine` 缺省 = 全量（worker 收尾补推终态帧）；执行中传行号 → 只统计
+   * "到该行已执行"的语句（未执行语句不参与消费判定，给出中间帧的 live 视图）。
+   * 仅应在执行期内（afterStatement 钩子 / 指令 resolve 后）调用；无活跃 meta 时
+   * 返回空数组。
+   *
+   * @param uptoLine 只统计 <= 该行的已执行语句；缺省为全量
+   * @returns 执行期活体终端（与 ExecutionResult.terminals 同构，compound 附 kind）
+   */
+  collectLiveSnapshot(uptoLine?: number): TerminalShape[] {
+    const meta = this.activeMeta
+    const de = this.directExecutor
+    if (!meta || !de) return []
+    const lines =
+      uptoLine === undefined ? meta.lines : meta.lines.filter((l) => l.line <= uptoLine)
+    const shapeVarNames = new Set<PartName>()
+    for (const name of de.listCtxKeys()) {
+      const v = de.getCtxVar(name)
+      if (!isShapeLike(v) && !isCompoundLike(v)) continue
+      shapeVarNames.add(asPartName(name))
+    }
+    return this.computeLiveTerminals(meta, lines, shapeVarNames)
+  }
+
+  /**
+   * 2026-10-23 stream preview：**本轮已变更的 PartName 集**（DirectExecutor.changedSet：
+   * 逐单元写值前后比对累计，轮前 clearRoundState 清一次——**轮内累计、非单帧增量**）。
+   *
+   * worker 用它做"只推变化"差分：帧载荷 = `changed ∩ 当前 terminals − 已推集合`，
+   * 不推被 carry-over 的终端（其几何本轮未变）。执行外 / 无变更时为空数组。
+   *
+   * @returns 本轮已变更的 PartName 集（轮内累计）
+   */
+  getCurrentChanged(): PartName[] {
+    const de = this.directExecutor
+    if (!de) return []
+    const changed = de.getChanged()
+    return changed ? changed.map(asPartName) : []
   }
 
   /** 块起始行 → lines 中第一个 >= 该行的下标（与 live-shapes.blockIdxOf 同逻辑）。 */
@@ -2116,6 +2206,8 @@ export class CadRuntime {
 
     // G4: 含相对 import 的多文件场景
     const meta = extractMetadata(newCode, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
+    // 2026-10-23 stream preview：执行期活跃 meta（collectLiveSnapshot 读取）。
+    this.activeMeta = meta
     if ((meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) {
       return this.executeDirectText(newCode, opts, 'relative-imports')
     }
@@ -2251,6 +2343,7 @@ export class CadRuntime {
     const execOpts: DirectExecOpts = {
       params: opts?.params,
       ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
+      ...(opts?.afterStatement ? { afterStatement: opts.afterStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     }
 
