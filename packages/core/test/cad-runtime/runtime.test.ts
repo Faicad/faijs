@@ -318,6 +318,20 @@ describe('CadRuntime: instance management', () => {
     expect(result.compounds?.get(asPartName('grp_1'))).toEqual([asPartName('s1')])
     expect(result.outputs.get(asPartName('s3'))).toBeDefined()
   })
+
+  it('group product supports setName → compoundNames carries display name', async () => {
+    const runtime = makeRuntime()
+    const code = [
+      'const s1 = cad.box(20, 20, 20, { centered: true })',
+      'let face = cad.group({ name: "G", members: [s1] })',
+      'face.setName("3D人脸")',
+    ].join('\n')
+    const result = await runtime.execute(code)
+
+    expect(result.compounds?.get(asPartName('face'))).toEqual([asPartName('s1')])
+    // setName 写入结构壳 meta.name，collectDirectResult 带出到 compoundNames
+    expect(result.compoundNames?.get(asPartName('face'))).toBe('3D人脸')
+  })
 })
 
 // ─── computeContentKey ───

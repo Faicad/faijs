@@ -175,6 +175,12 @@ export interface ExecutionResult {
    */
   compounds?: Map<PartName, PartName[]>
   /**
+   * compound 显示名（2026-10-22）：`g.setName('...')` 写入的结构壳 `meta.name`，
+   * 与 `compounds` 同键。跨线程经 protocol 的 WireCompound.name 带出（weapp /
+   * electron 消费端显示组名与普通零件同口径）。无 setName 时为 undefined。
+   */
+  compoundNames?: Map<PartName, string>
+  /**
    * F3（2026-10-15）：`cad.assembly` 声明面 — 脚本里每个 assembly 语句的声明
    * （name / memberNames / constraints / joints / solver + compound 引用）。
    *
@@ -1249,6 +1255,7 @@ export class CadRuntime {
     const outputs = new Map<PartName, Shape | CompoundShape>()
     const shapeVarNames = new Set<PartName>()
     const compounds = new Map<PartName, PartName[]>()
+    const compoundNames = new Map<PartName, string>()
     // F3：cad.assembly 声明面（behavior.kind === 'assembly' 的 compound）
     const assemblies: AssemblyDecl[] = []
     for (const name of de.listCtxKeys()) {
@@ -1259,6 +1266,9 @@ export class CadRuntime {
       if (isCompoundLike(v)) {
         const behavior = getSlot(v)?.behavior as AssemblyBehavior | undefined
         compounds.set(asPartName(name), (behavior?.memberNames ?? []).map(asPartName))
+        // 组显示名（2026-10-22）：结构壳 setName 写入 meta.name，随结果过线。
+        const cname = (v as CompoundShape).meta?.name
+        if (typeof cname === 'string' && cname.length > 0) compoundNames.set(asPartName(name), cname)
         // F3：只收 assembly 声明（group 无约束/关节，进声明面会让消费方对空约束集求解）
         if (behavior?.kind === 'assembly') {
           assemblies.push({
@@ -1415,6 +1425,7 @@ export class CadRuntime {
       topology: topology.size > 0 ? topology : undefined,
       naming: naming.size > 0 ? naming : undefined,
       compounds: compounds.size > 0 ? compounds : undefined,
+      compoundNames: compoundNames.size > 0 ? compoundNames : undefined,
       assemblies: assemblies.length > 0 ? assemblies : undefined,
       kinematics: de.kinematicsSnapshot.size > 0 ? de.kinematicsSnapshot : undefined,
       detectedUnits: de.detectedUnitsSnapshot.size > 0 ? de.detectedUnitsSnapshot : undefined,

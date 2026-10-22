@@ -12,7 +12,7 @@
 
 import type { Shape } from './mesh/types'
 import { attachAppearanceMethods, type ShapeAppearanceMethods } from './api/appearance'
-import { attachMetaMethods, type ShapeMetaMethods } from './api/meta'
+import { attachMetaMethods, type ShapeMetaMethods, type ShapeMeta } from './api/meta'
 import { getRuntimeState, registerFunctionBrep, nameOf, getCurrentStmt, type ShapeSlot } from './runtime-state'
 import { asStmtId } from './identity'
 import { runtimeLineage } from './topology/naming/lineage'
@@ -37,6 +37,8 @@ export interface SolidShape extends Shape, ShapeAppearanceMethods, ShapeMetaMeth
 export interface CompoundShape {
   kind: 'compound'
   children: Shape[]
+  /** 结构壳元数据（setName 等经 attachMetaMethods 挂载；编辑器消费组显示名）。 */
+  meta?: ShapeMeta
 }
 
 /**
@@ -317,13 +319,17 @@ export interface BrepHolder {
 /**
  * compound Shape 构造器：结构（层级）而非新几何。
  *
+ * 与 solid()/curve() 同款挂载 meta 方法（attachMetaMethods）：`g.setName('...')`
+ * 对结构壳可用（2026-10-22：编辑器消费组显示名时与普通零件同口径）。方法不
+ * 序列化，`meta` 字段随产物传递（跨线程经 protocol 的 WireGeometry/WireCompound）。
+ *
  * @param children - the child shapes to group.
  * @returns the created compound shape.
  */
 export function compound(children: Shape[]): CompoundShape {
   const c: CompoundShape = { kind: 'compound', children }
   getRuntimeState().created.add(c)
-  return c
+  return attachMetaMethods(c as unknown as Shape) as unknown as CompoundShape
 }
 
 /**
