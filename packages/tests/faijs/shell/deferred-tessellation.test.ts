@@ -25,12 +25,15 @@ beforeAll(async () => {
   await registerBrepkitBrepEngine()
 }, 120000)
 
-/** 链式脚本：head/eye 是 keepHidden 源（被 subtract 消费），result 可见终端。 */
+/** 链式脚本：result 是可见终端，head/eye 由独立 keepHidden 声明保留为隐藏终端。
+ *  （布尔 2026-10-22 起消费输入，源不再自动保留——隐藏终端改由脚本声明。） */
 const CHAIN_CODE = `let head = cad.sphere({ radius: 10 * MM, segments: 64 })
 head = cad.scale3d(head, { factor: [0.9, 1.0, 1.15] })
 let eye = cad.sphere({ radius: 2 * MM, segments: 32 })
 eye = cad.translate(eye, { offset: [0, 0, 5 * MM] })
-let result = cad.subtract(head, eye)`
+let result = cad.subtract(head, eye)
+head.keepHidden()
+eye.keepHidden()`
 
 async function countMeshShape(
   code: string,

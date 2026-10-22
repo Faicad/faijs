@@ -6,7 +6,7 @@
  * 机器生成、均匀查询。keep-syntax P1 之后它只承载一个职责：
  * check() 符号检查判定 callee 是否存在（"函数不存在"诊断）。
  * 保留语义（readonlyPositions/readonlyPaths）已删除——保留由 keep 声明
- * （调用点 keep / 函数体 exec.keep）显式表达，不再靠类型标注提取（R7）。
+ * （脚本独立语句 `a.keep()` / 库函数体 `exec.keep`）显式表达，不再靠类型标注提取（R7）。
  * 未知第三方函数不在表中时，check() 报"函数不存在"，其它机制不受影响。
  *
  * 生成文件：src/lang/symbol-table.generated.ts（由 scripts/gen-symbol-table.ts 生成，禁手改）。

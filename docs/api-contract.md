@@ -162,7 +162,7 @@ export interface TerminalShape {
 
 **Allowed**: top-level `import` (third-party libraries, not control flow), top-level function definitions, **control flow inside a function body** (if/for/while/switch/try/throw/break/continue/labeled, plus `var`), **local function calls** (bare-identifier callee from the script's own function set, four forms: assignment / re-assignment / destructuring / side-effect), **positional arguments as full expressions** (literals `cad.box(10, 20, 30)`, member access `cad.hem(p0.solid, …)`, multiple object arguments kept as-is — no overwrite, no merge), **runtime expressions** (`ExprIR` in argument values, evaluated at runtime instead of folded), statically foldable expressions (binary / template literal / ternary), arbitrary callee destructuring, member method chains (`asm1.add_constraint({ … })`).
 
-**Function bodies** are opaque: control flow is legal inside them, but `eval`/`new`/dynamic `import()`/`import`/`export`/`class`/`with` remain forbidden, and a body may not call another local function (v1). Local calls bind positional-plus-named: positional inputs map to the first `M` parameters, the trailing object's keys to the remaining parameters by name (unknown key or collision → `E_ARG`), unbound parameters are `undefined`, `keep`/`keepHidden` stripped before binding. Editing a body invalidates every caller through the `bodyHash` key (§7.5).
+**Function bodies** are opaque: control flow is legal inside them, but `eval`/`new`/dynamic `import()`/`import`/`export`/`class`/`with` remain forbidden, and a body may not call another local function (v1). Local calls bind positional-plus-named: positional inputs map to the first `M` parameters, the trailing object's keys to the remaining parameters by name (unknown key or collision → `E_ARG`), unbound parameters are `undefined`. Editing a body invalidates every caller through the `bodyHash` key (§7.5).
 
 Flat format (UI recording, one operation per line):
 
@@ -182,7 +182,7 @@ let part5 = mech.makeHeadstock({ length: 120 })
 let part6 = makeGear({ count: 8, pitch: 5 })
 ```
 
-The **keep directive** lives inside args (it is not a new keyword) — see §6. Code text is the single source of truth; the internal representation compiled from it is an implementation detail, and re-printing text from it is debug-only (see §13.3 PS). One operation is one line of code is a flat-format convention.
+The **keep directive is its own statement** (`part0.keep()` / `part0.keepHidden()`) — it is never nested inside an argument object; see §6. Code text is the single source of truth; the internal representation compiled from it is an implementation detail, and re-printing text from it is debug-only (see §13.3 PS). One operation is one line of code is a flat-format convention.
 
 ---
 
@@ -190,10 +190,16 @@ The **keep directive** lives inside args (it is not a new keyword) — see §6. 
 
 **Core semantics**: whether a variable becomes a terminal is whether it "is consumed". Consumed → not a terminal.
 
-A retention declaration can appear in two places, with priority **call site > function body**:
+A retention declaration has exactly **two channels**, and neither of them is an argument:
+
+| Channel | Written as | Who writes it | Scope |
+|---|---|---|---|
+| **Script statement** | `part0.keep()` / `part0.keepHidden()` on its own line | the script author | **Global** — it means "this variable is never consumed", independent of line order; it also wins over a library default |
+| **Function body** | `keep(...)` / `keepHidden(...)` inside a library implementation | the library author | The **executed statement** — the declaration lands on the line whose op is running |
 
 ```js
-cad.drill(a, { diameter: 8, keep: ['a'], keepHidden: true })
+let part3 = cad.drill(part0, { diameter: 8 })
+part0.keep()          // part0 survives, visible; written on its own line, after the consumer
 ```
 
 ```ts ignore-check
@@ -203,33 +209,43 @@ export function group(params) {
 }
 ```
 
-### 6.1 The `consumes()` decision chain (C0 → C4 → C3 → C5, short-circuiting)
+**A `keep` / `keepHidden` key inside an argument object is rejected**, not silently honoured — `cad.drill(a, { diameter: 8, keep: ['a'] })` raises `E_STATEMENT` at extraction time with a message pointing at `<var>.keep()`. This covers the trailing options slot of every op **and** `cad.assembly({ …, keep: [a] })`: assembly members are retained by the library's own `keep(...members)`, so a script neither needs nor may write a `keep` key there.
+
+### 6.1 The `consumes()` decision chain (R1 → R2 → R3 → R5, short-circuiting)
 
 | Rule | Condition | Result |
 |---|---|---|
-| **C0/C1** | Variable ∈ `resolveKeep(stmt).kept` (call-site or function-body declaration) | **Not consumed** |
-| **C4** | The statement has no assignment (`hasAssignment === false`) | **Consumes** nothing — a bare call, read-only or self-assigning alike, never consumes (P25 rule 1) |
-| **C3** | The statement assigns and every output is non-geometric | **Consumes** no input at all |
-| **C5** | Default | **Consumed** (a variable reference anywhere in the positional slot — including `ExprIR` member chains — or in args) |
+| **R1** | Variable ∈ the function-body registration for this line, **or** named by any script-level `keep` / `keepHidden` statement | **Not consumed** |
+| **R2** | The statement has no assignment (`hasAssignment === false`) | **Consumes** nothing — a bare call, read-only or self-assigning alike, never consumes (P25 rule 1) |
+| **R3** | The statement assigns and every output is non-geometric | **Consumes** no input at all |
+| **R5** | Default | **Consumed** (a variable reference anywhere in the positional slot — including `ExprIR` member chains — or in args) |
 
 Additional rules: a reference inside a nested call is a read-only query and does not consume; `receiver` (member method call) does not consume the receiver variable; a positional literal or a non-trailing object argument consumes nothing (only variable references and expression identifiers count as consumption).
 
-C3 is an objective default that requires **zero signature knowledge**: a function returning non-geometry cannot have swallowed geometry into its result, so inputs of third-party measurement/query functions are not eaten by mistake. C4 sits before C3 because a bare call has no outputs to inspect: measurement/screenshot calls written without assignment (`cad.projectView(part0, 'front')`) must not eat their input.
+R3 is an objective default that requires **zero signature knowledge**: a function returning non-geometry cannot have swallowed geometry into its result, so inputs of third-party measurement/query functions are not eaten by mistake. R2 sits before R3 because a bare call has no outputs to inspect: measurement/screenshot calls written without assignment (`cad.projectView(part0, 'front')`) must not eat their input.
 
 **In-place writeback registration (rule 2).** A modification-class bare call (`cad.fai_drill(part0, …)`) writes its geometry result back into the first shape-position argument (a member call into its receiver) under a runtime guard (both the return value and the target's current value are geometry). The executed line is recorded (`inplaceWrites`, line → target name) and moves that variable's **last writer** to the bare-call line: a consumption *before* the bare call (of the old value) cannot cancel the new value's terminal status, while a consumption *after* it still does.
 
-`resolveKeep` merges function-body registration (`internalKeep`) with call-site `parseUserKeep`; **hidden follows "the last retention declaration wins"** (in statement order, a later declaration overrides an earlier one).
+`hidden` merges the two channels with **script statement > function-body registration**, and within one channel the **last declaration wins**: `computeLiveShapes` first lays down the function-body registrations (line by line, in statement order), then overlays every script-level declaration in source order. A variable named twice (`a.keep()` … `a.keepHidden()`) ends up hidden; the visibility of a terminal therefore always has one deterministic owner.
 
-### 6.2 `computeLeafTerminals()`
+### 6.2 Terminal computation
 
 For each shape variable (compound variables included), take its "last writer P"; if no statement after P consumes it, it is a terminal. A variable with no producer (manually injected by the host) counts as a terminal.
 
 - An explicit `return [...]` in the code takes priority over DAG detection.
 - `hidden` carries a field only when explicitly `true`; visible normalizes to `undefined` (matching the host's `setNodeVisible(scopedId, !terminal.hidden)`).
 
-### 6.3 Static validation
+### 6.3 Static validation of keep statements
 
-`validateKeepDirectives(stmt)` is a purely static validation that applies to third-party libraries as well: `keep` must be an array; entries must be variable references or `{ shape, hidden }`; referenced targets must be one of the statement's positional variable references or appear in args; `keepHidden` must be a boolean. Violations go into `CheckResult.errors`.
+A keep statement is validated at extraction time, and violations surface through `CheckResult.errors` with `stage: 'parse'`:
+
+| Written form | Outcome |
+|---|---|
+| `part0.keep()` / `part0.keepHidden()` | Accepted — registers a declaration for `part0` |
+| `part0.keep(x)` (any argument) | `E_STATEMENT`: "keep() takes no arguments" |
+| `cad.keep(part0)` / `ns.keep(part0)` (namespace callee) | `E_STATEMENT`: declare on the variable, not through the namespace |
+| `part0.keep()` where `part0` is undeclared | `E_REFERENCE` — under the default `strict` security policy the scanner rejects the unknown identifier first with `E_SECURITY` / `SEC_FREE_IDENT` |
+| `{ …, keep: […] }` / `{ …, keepHidden: true }` in any argument object | `E_STATEMENT` at extraction (see §6) |
 
 ### 6.4 Terminals and execution products
 
@@ -305,7 +321,7 @@ There are exactly three public execution entries — `execute(code)` / `append(c
 **Execution guard** (`executionTimeoutMs`, optional, default off): a whole-run timeout over execute/append/update including local-function replays; on expiry it throws `ExecutionLimitError` (`E_EXEC_LIMIT`). A synchronous `while(true)` is a JS single-thread limit the guard cannot interrupt — real protection lives at the host layer (worker terminate / AbortController).
 ### 7.5 Incremental execution semantics
 
-- **Content-addressed**: a statement's identity key combines the namespace-qualified callee, the JSON of its full positional slot (keep excluded), and each dependency's content fingerprint; a parameter statement keys on `param|JSON(value)`; **a local-function call keys on `local.<callee>#<bodyHash>`** — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. `keep` / `keepHidden` are excluded — **toggling retention or hidden state triggers zero geometry recomputation**.
+- **Content-addressed**: a statement's identity key combines the namespace-qualified callee, the JSON of its full positional slot, and each dependency's content fingerprint; a parameter statement keys on `param|JSON(value)`; **a local-function call keys on `local.<callee>#<bodyHash>`** — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. A keep statement (`part0.keep()`) is **not a statement**: it yields no `StatementSummary`, no output and no key, so declaring or un-declaring retention changes which variables survive without recomputing any geometry.
 - **Persistent ctx**: script variables live in a container that survives across executions; in-place reassignment is supported.
 - **Replay scope**: `plan` computes the stale set and replays from the first change point; when nothing is stale, nothing executes. **A local-function call is a single execution unit** — the whole body replays as one unit; body intermediates never enter the top-level ctx or terminal detection.
 - **Function BREP domain**: while a local function runs, newly produced OCCT handles are registered; on return all transient handles except those reachable from the return value are released (`finally`, also on error). Body `cad.*` calls never enter the top-level `solidCache`; only the return value's handle does.
@@ -345,6 +361,8 @@ hasBrep(shape): boolean / brepOf(shape): unknown | undefined
 keep(...shapes): void        // keep and render
 keepHidden(...shapes): void  // keep but do not render on canvas
 ```
+
+These two belong to the **library** channel: they register against the statement that is executing. A script never calls them — it writes the independent statement `part0.keep()` / `part0.keepHidden()` (§6), which is a compile-time declaration recognised by the language layer and a no-op at run time.
 
 **Two prohibitions**: a library **must not** access engine-internal mutable state (no `currentStmt` / `script` / `outputCache` / `brepChain`); a library **must not** query or modify the DAG (no `dependentsOf` / `touch`, and no in-place mutation of an already published Shape). Those capabilities belong to the engine: `changed` is derived by engine comparison, and downstream invalidation after assembly transforms is done by the engine's `computeDownstream`.
 
@@ -547,7 +565,7 @@ Everything except `events` is optional — a Node test environment can supply on
 | Transform | `translate` `rotate_euler` `scale` `scale3d` `place` |
 | Sweep / loft | `sweep` `loft` (platform `engines:['occt']`; sections accept wires or faces — a face is reduced to its outer ring) |
 | Feature | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` `filletVariable` `shell` `draft` `thicken` (platform `engines:['occt']`) |
-| Boolean | `union` `subtract` `intersect` `cut` |
+| Boolean | `union` `subtract` `intersect`, plus the pure aliases `fuse` (= `union`) and `cut` (= `subtract`) — same function object, no second implementation |
 | Split / replicate | `split` (dual output, destructured as `const { front, back } = …`) `splitByPlane` (named outputs `{ positive, negative }`, destructured) `sectionByPlane` (1D compound of section curves) `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
 | Repair | `defeature` `reverseShape` `unifySameDomain` `sew` `sewAndSolidify` `removeHolesFromFace` |
 | Import / structure | `import_brep` `import_step` `compound` |
@@ -559,7 +577,7 @@ Everything except `events` is optional — a Node test environment can supply on
 
 > SVG view projection channels (no gates, no `engines` declaration): `projectView` / `projectSheet` run on any BREP engine. `occt` uses the HLR compound-sampling channel (compound handles → 3D curve sampling → camera-plane projection); `brepkit` uses the kernel's native polyline channel (kernel `projectEdges` returns already-projected 2D polylines as JSON `{"visible":[[x,y,…],…],"hidden":[…]}` — flat x,y pairs per polyline, same coordinate convention). Output follows each kernel's own projection; dispatch is by engine id in `api/view/view-projection.ts`, never a gate error.
 
-Beyond the handwritten set, `cad` also carries the **generated first-party BREP ops** (`fuse`, `torus`, `viewCamera`, `projectView`, `shell`, `offset`, …) built by `defineOp({ brep: __own_* })` direct wiring; `docs/ops-api-inventory.md` is its home.
+Beyond the handwritten set, `cad` also carries the **generated first-party BREP ops** (`torus`, `viewCamera`, `projectView`, `shell`, `offset`, …) built by `defineOp({ brep: __own_* })` direct wiring; `docs/ops-api-inventory.md` is its home.
 
 > Note: "Feature" above is an internal faijs catalog category (ops modifying existing geometry), unrelated to the host-layer "feature" term — the generic CAD term implemented by one or more ops / function calls (see §2 R-9).
 
@@ -567,13 +585,16 @@ Beyond the handwritten set, `cad` also carries the **generated first-party BREP 
 
 ### 10.2 Consumption semantics (declaration-driven)
 
-Consumption is no longer hard-coded per op category; it is **declaration-driven**: consume by default (C5), retention declared by a library function body's `keep()` / `keepHidden()`, and overridden by a call-site `keep` directive.
+Consumption is not hard-coded per op category; it is **declaration-driven**: consume by default (R5), retention declared by a library function body's `keep()` / `keepHidden()`, and overridden by a script-level `<var>.keep()` / `<var>.keepHidden()` statement. There is **no call-site argument form** — `{ keep: […] }` in an options object is `E_STATEMENT` (§6).
 
 | Library function | Declaration | Effect |
 |---|---|---|
-| `group` / `assembly` | `keep(...members)` | Members are not consumed; members and the compound are both displayed |
-| `copy` | `keep(input)` | The source is not consumed; source and copy are both displayed |
-| Boolean family | `keepHidden(...inputs)` | Sources are kept but not rendered on canvas |
+| `group` / `assembly` | `keep(...members)` | Members are not consumed; members and the compound are both displayed. A script writes nothing for this — a `keep` key in `cad.assembly({ …, members })` is rejected |
+| `copy` / `clone` / `mirror` | `keep(input)` | The source is not consumed; source and copy are both displayed |
+| `linearPattern` / `circularPattern` / `gridPattern` / `rectangularPattern` / `mirrorJoin` | `keepHidden(input)` | The source is kept but not rendered on canvas (replication copies, it does not merge) |
+| Boolean family (`union` / `subtract` / `intersect`, and the aliases `fuse` / `cut`) | *(none)* | **Consumes every input** — a boolean merges its operands into one result, so the operands leave the scene. Keep one by declaring `<var>.keep()` / `<var>.keepHidden()` in the script |
+
+`fuse` is an alias of `union` and `cut` is an alias of `subtract` — the same function object, one implementation, no behavioural difference whatsoever (§10.1).
 
 ### 10.3 Uniform library function shape (`defineOp`)
 
@@ -714,7 +735,7 @@ Implementation status: P0–P5 implemented (faijs 0.30.5).
 
 ### 13.2 Incremental fidelity
 
-`computeContentKey` (positions/indices → content fingerprint) is the measure of geometric equivalence; the statement identity key (callee + positional slot + args minus keep + each dependency's content fingerprint) decides the incremental recomputation scope, and `plan` uses it. See §7.5.
+`computeContentKey` (positions/indices → content fingerprint) is the measure of geometric equivalence; the statement identity key (callee + positional slot + each dependency's content fingerprint) decides the incremental recomputation scope, and `plan` uses it. See §7.5.
 
 ### 13.3 The boundary of "consistent results" (anti-regression)
 

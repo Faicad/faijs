@@ -1,6 +1,6 @@
 {
   "name": "@faicad/cq-compat-compare",
-  "version": "0.39.0",
+  "version": "0.40.0",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -35,7 +35,7 @@
   },
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.39.0",
+    "@faicad/faijs": "^0.40.0",
     "occt-wasm": "^5.6.0"
   },
   "devDependencies": {

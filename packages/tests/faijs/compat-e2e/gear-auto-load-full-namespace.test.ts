@@ -29,6 +29,8 @@ const SCRIPT = [
   'let g1 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',
   'let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })',
   'let u1 = cad.union(g1, t1)',
+  // 布尔消费输入（2026-10-22）→ 显式保留 g1，让本用例仍覆盖"多终端"路径。
+  'g1.keep()',
 ].join('\n')
 
 describe('P四 4.4 autoLoadLibs with the full test-fixture-lib namespace', () => {
@@ -43,6 +45,7 @@ describe('P四 4.4 autoLoadLibs with the full test-fixture-lib namespace', () =>
   it('① 自动装载 + 整包执行成功（含 module-namespace 子对象的 lib-id 计算）', () => {
     expect(result.failedAt).toBeUndefined()
     expect(result.outputs.size).toBe(3)
-    expect(result.terminals.length).toBe(3)
+    // g1 由独立 keep 声明保留 + u1（union 结果）→ 2；t1 被 union 消费
+    expect(result.terminals.length).toBe(2)
   })
 })

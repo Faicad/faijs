@@ -24,9 +24,11 @@
  *    mock 声明 `capabilities: {}`），故凡声明过能力的 op 在 mock 上一律被静态拒绝；新设计
  *    没有第二条声明轴，且 engine 门本就豁免 mock（D11-3）。该差集在文件末尾单独钉住，
  *    运行时的可观察面由 `engine-switch.test.ts` 覆盖。
- * 2. `brepkit` 上 `fuse` 这一条**有意放宽**（HEAD 之后、有 commit 与几何实证）：记在
- *    `INTENTIONALLY_UNGATED_BREP_OPS`。该表是**白名单账本**，不是豁免开关——任何不在此表
- *    里的"丢失拦截"依旧让门禁变红，而表里多出过期条目也会变红。
+ * 2. `brepkit` 上 `fuse` 这一条曾在 HEAD 之后**有意放宽**（有 commit 与几何实证），
+ *    2026-10-22 起它**退出 brep-op 集合**（改为 `union` 的别名，arg-spec 转 skip），
+ *    记在 `DEMOTED_FROM_BREP_OP`——不再是"判决放宽"，而是"这个符号不再是投影 op"。
+ *    两份账本都是**白名单**，不是豁免开关：任何不在此表里的"丢失拦截"依旧让门禁变红，
+ *    表里多出过期条目也会变红。
  *
  * Run: npx vitest run src/brep/engine/engine-verdict-equivalence.test.ts
  */
@@ -115,10 +117,24 @@ const OCCT_HISTORY = new Set([
  * 里消失、让"已知偏离"的相等断言变红，届时按新事实更新即可。
  */
 const INTENTIONALLY_UNGATED_BREP_OPS: Readonly<Record<string, string>> = {
+  // （空：fuse 的旧条目已随 2026-10-22 的"布尔族别名"迁出——见 DEMOTED_FROM_BREP_OP）
+}
+
+/**
+ * HEAD **之后**退出 brep-op 集合（降级为 `skip`）的条目。
+ *
+ * 与 `INTENTIONALLY_UNGATED_BREP_OPS` 不同：那不是"判决放宽"，是**这个符号不再是
+ * 一个投影 op**。它仍留在 `HEAD_*` 快照里（那是 HEAD 的历史事实，不改写），但
+ * 当前 `ARG_SPEC` 已没有对应的 brep-op 条目，因此不参与判决对比，只要求本文件
+ * 反向自洽时承认它。
+ *
+ * 记录条件：当前 `ARG_SPEC` 里该名字必须确实存在且 `kind === 'skip'`（下方用例断言，
+ * 防止账本条目过期变成假账）。
+ */
+const DEMOTED_FROM_BREP_OP: Readonly<Record<string, string>> = {
   fuse:
-    '72ab6bc（0.35.7）：fuseBrep 仅经 getBrepApi().fuse（L1 裸方法），不再触碰 ' +
-    'kernel.isNull / kernel.dispose；brepkit 内核 L1 有 fuse。几何实证见 ' +
-    'test/brep/engine/brepkit-fuse-op.test.ts（错位 10³ 盒并集 volume≈1875）。',
+    '2026-10-22：`fuse` 改为 `union` 的别名（boolean.ts `export const fuse = union`），' +
+    'arg-spec 条目从 brep-op 转 skip；二元裸 kernel.fuse 投影不再生成（generated/topology.ts）。',
 }
 
 const BREPKIT_DECLARED = new Set(HEAD_BREPKIT_DECLARED)
@@ -149,9 +165,18 @@ describe('基线自洽：常量表覆盖全部 brep-op', () => {
     const uncovered = BREP_OPS.filter((e) => !covered.has(e.name)).map((e) => e.name)
     expect(uncovered, '基线漏抄（HEAD 时该 op 应至少命中一条声明轴）').toEqual([])
     // 反向：基线里的名字都必须在 arg-spec 里存在（防抄错名字）。
+    // 例外 = 已降级为 skip 的条目（它们仍是 HEAD 的历史事实，但不再是 brep-op）。
     const names = new Set(BREP_OPS.map((e) => e.name))
-    expect([...covered].filter((n) => !names.has(n))).toEqual([])
+    expect([...covered].filter((n) => !names.has(n) && !DEMOTED_FROM_BREP_OP[n])).toEqual([])
     expect(Object.keys(HEAD_CAPABILITIES)).toHaveLength(17)
+  })
+
+  it('降级账本自洽：每个条目在当前 arg-spec 里确实是 skip（防假账/过期）', () => {
+    for (const name of Object.keys(DEMOTED_FROM_BREP_OP)) {
+      const entry = ARG_SPEC.find((e) => e.name === name)
+      expect(entry, `降级条目 ${name} 在 arg-spec 里不存在`).toBeDefined()
+      expect(entry!.kind, `降级条目 ${name} 应已是 skip`).toBe('skip')
+    }
   })
 
   it('快照的引擎 id 合法（与 BREP_ENGINE_IDS 一致）', () => {

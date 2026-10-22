@@ -272,7 +272,7 @@ export class ModuleRegistry {
       lines: meta.lines,
       blocks: meta.blocks,
       keep: {
-        lineEntries: (lineNo) => meta.keep.get(lineNo),
+        declared: () => meta.keep,
         functionBody: (lineNo): KeepRegistration | undefined => result.getKeepByLine(lineNo),
       },
       shapeVarNames,

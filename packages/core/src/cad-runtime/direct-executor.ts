@@ -10,8 +10,10 @@
  *   （已声明变量/参数）→ `__ctx.<name>`；
  * - 调用前插 `await`（与 compile 发射对每个 ns 调用 await 的语义一致；同步 op
  *   被 await 是合法 JS）；
- * - keep/keepHidden 尾随键剥离（行内 keep 由 MetadataExtractor 的 metadata.keep
- *   表另存，§4.4 消费判定用——执行侧不传）；
+ * - keep/keepHidden **只能独立成句**（`a.keep()` / `a.keepHidden()`）：语言层据此登记
+ *   声明（metadata.keep），执行层把它变成 no-op——`Shape` 是纯数据接口，照常发射会
+ *   `__ctx.a.keep is not a function`。写在 op 参数对象里的写法由语言层直接报
+ *   `E_STATEMENT`，执行侧不再有任何"尾随键剥离"（那段代码从来没存在过）；
  * - 顶层函数定义提升到 `__ctx.<name>`（函数体 cad 等经命名空间绑定注入；函数体
  *   引用到的顶层变量/函数经 call-time 守卫 + `let { ... } = __ctx` 解构注入——
  *   约束 1：读顶层 call-time 取值，函数体内赋值写本地副本不落顶层）；
@@ -27,6 +29,7 @@ import type { LibNamespace } from '../runtime-state'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
+import { matchKeepStatement } from '../lang/keep-statement'
 import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, takePendingDetectedUnits, takePendingMultiPartCounts, takePendingMeshSolids, takePendingMeshTopologies, takePendingImportModels, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
 import type { ImportModel } from '../mesh/import-model'
 import { getBrepApi } from '../brep/handle-bridge'
@@ -1116,7 +1119,9 @@ export class DirectExecutor {
     if (unit) {
       const endLine = (node.loc?.end?.line ?? lineNo) - lineOffset
       unit.endLine = endLine
-      unit.node = node
+      // keep 声明换成 EmptyStatement：interp 后端执行 `unit.node`，而 shape 是纯数据
+      // 接口（没有 keep 方法）。vm 后端执行 `unit.body`（已是注释），两后端由此同源。
+      unit.node = matchKeepStatement(node?.expression) ? { type: 'EmptyStatement', loc: node.loc } : node
     }
     return unit
   }
@@ -1603,6 +1608,11 @@ export class DirectExecutor {
     lineNo: number,
   ): TransformedUnit {
     const expr = node.expression
+    // keep 独立声明（`a.keep()` / `a.keepHidden()`）：编译期指令，执行期必须是 no-op。
+    // 语言层已登记声明（metadata.keep），这里什么都不做——不发射调用、不登记写回。
+    if (matchKeepStatement(expr)) {
+      return { lineNo, body: '/* keep directive */', writes: [], refs: [], callee: undefined, endLine: 0 }
+    }
     if (expr?.type === 'AssignmentExpression' && expr.operator === '=' && expr.left?.type === 'Identifier') {
       const varName = expr.left.name
       if (!declared.has(varName)) throw new ParseError(`unknown variable "${varName}" in re-assignment`, lineNo, 'E_REFERENCE')

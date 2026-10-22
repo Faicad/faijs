@@ -69,7 +69,7 @@ export type { StatementSummary } from './lang/statement-summary'
 // MetadataExtractor — 无 IR 元数据提取器（UI 通道语义源；UiMetadata 全量）
 export { extractMetadata } from './lang/metadata-extractor'
 export type {
-  UiMetadata, ArgSource, ParamEntry, ImportEntry, FunctionEntry, BlockEntry, KeepEntry,
+  UiMetadata, ArgSource, ParamEntry, ImportEntry, FunctionEntry, BlockEntry, KeepDeclaration,
   ExtractMetadataOptions, OpDimMap, OpDimDecl,
 } from './lang/metadata-extractor'
 // SecurityScanner — 静态安全门禁（纵深防御第一层）

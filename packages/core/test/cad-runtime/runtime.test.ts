@@ -776,22 +776,34 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 // ─── DAG 叶子终端判定 ──
 
 describe('CadRuntime: DAG leaf terminal detection', () => {
-  it('boolean: box + sphere + subtract → subtract 终端 + 输入保留隐藏（内置 exec.keepHidden）', async () => {
+  it('boolean: box + sphere + subtract → 仅 subtract 终端（输入被消费）', async () => {
     const code = [
       'const s1 = cad.box(20, 20, 20, { centered: true })',
       'const s2 = cad.sphere({ radius: 8 })',
       'const s3 = cad.subtract(s1, s2)',
     ].join('\n')
     const { result } = await run(code)
-    // direct 路径：subtract 的 keepHidden 登记到调用语句锚点；
-    // s1/s2 被保留进终端（与 copy keep 同理：direct 无函数体语句边界）。
-    // 断言 hidden=true（而非仅「存在」）——这正是 keepHidden 的证据，也是 FCStd port
-    // 中间 feature var 泄漏为 terminal（TS35 solids 1vsN）的成因：boolean op 保留源几何。
+    // 2026-10-22 起布尔 op **消费其输入**（函数体不再 keepHidden）：
+    // s1/s2 从 terminals 消失，只有结果 s3 存活。要留下输入必须在脚本里声明
+    // `s1.keep()` / `s1.keepHidden()`（见下一条用例）。
+    const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
+    expect([...byId.keys()].sort()).toEqual(['s3'])
+    expect(byId.get('s3')!.hidden).toBeUndefined()
+  })
+
+  it('boolean + 独立 keep 声明 → 被声明的输入保留（hidden 由 keepHidden 决定）', async () => {
+    const code = [
+      'const s1 = cad.box(20, 20, 20, { centered: true })',
+      'const s2 = cad.sphere({ radius: 8 })',
+      'const s3 = cad.subtract(s1, s2)',
+      's1.keepHidden()',
+      's2.keep()',
+    ].join('\n')
+    const { result } = await run(code)
     const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
     expect([...byId.keys()].sort()).toEqual(['s1', 's2', 's3'])
     expect(byId.get('s1')!.hidden).toBe(true)
-    expect(byId.get('s2')!.hidden).toBe(true)
-    expect(byId.get('s3')!.hidden).toBeUndefined()
+    expect(byId.get('s2')!.hidden).toBeUndefined()
   })
 
   it('链式重赋值: part0 = translate(part0) → 仅 1 终端', async () => {

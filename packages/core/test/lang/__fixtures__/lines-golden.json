@@ -125,7 +125,7 @@
     ]
   },
   {
-    "code": "let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.union(part0, { keep: [part0], keepHidden: true })",
+    "code": "let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.union(part0)\npart0.keep()",
     "lines": [
       {
         "id": "s1",
@@ -156,26 +156,9 @@
           {
             "kind": "var-ref",
             "name": "part0"
-          },
-          {
-            "keep": [
-              {
-                "kind": "var-ref",
-                "name": "part0"
-              }
-            ],
-            "keepHidden": true
           }
         ],
-        "args": {
-          "keep": [
-            {
-              "kind": "var-ref",
-              "name": "part0"
-            }
-          ],
-          "keepHidden": true
-        },
+        "args": {},
         "outputs": [
           "part1"
         ],

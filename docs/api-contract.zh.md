@@ -162,7 +162,7 @@ export interface TerminalShape {
 
 **允许**：顶层 `import`（第三方库，非控制流）、顶层函数定义、**函数体内的控制流**（if／for／while／switch／try／throw／break／continue／labeled，外加 `var`）、**本机函数调用**（callee 是脚本自身函数集的裸标识符，四种形式：赋值／重赋值／解构／副作用）、**位置实参为完整表达式**（字面量 `cad.box(10, 20, 30)`、成员访问 `cad.hem(p0.solid, …)`、多个对象实参原样保留——不覆盖不合并）、**运行时表达式**（参数值里的 `ExprIR`，由 JS 引擎求值而非折叠）、可静态折叠的表达式（二元／模板字符串／三元）、任意 callee 解构、成员方法链（`asm1.add_constraint({ … })`）。
 
-**函数体不透明**：体内控制流合法，但 `eval`／`new`／动态 `import()`／`import`／`export`／`class`／`with` 依旧禁止，且体内不得调用另一个本机函数（v1）。本机调用按「位置 + 按名」ABI 绑定：位置实参映射前 `M` 个形参，末尾对象的键按名映射剩余形参（未知键或占用冲突 → `E_ARG`），未绑定形参为 `undefined`，`keep`／`keepHidden` 在绑定前剥离。编辑函数体经 `bodyHash` 内容键使所有调用者失效（§7.5）。
+**函数体不透明**：体内控制流合法，但 `eval`／`new`／动态 `import()`／`import`／`export`／`class`／`with` 依旧禁止，且体内不得调用另一个本机函数（v1）。本机调用按「位置 + 按名」ABI 绑定：位置实参映射前 `M` 个形参，末尾对象的键按名映射剩余形参（未知键或占用冲突 → `E_ARG`），未绑定形参为 `undefined`。编辑函数体经 `bodyHash` 内容键使所有调用者失效（§7.5）。
 
 平铺格式（UI 录制，一行一个操作）：
 
@@ -182,7 +182,7 @@ let part5 = mech.makeHeadstock({ length: 120 })
 let part6 = makeGear({ count: 8, pitch: 5 })
 ```
 
-**keep 指令**寄生在 args 中（不是新关键字），见 §6。代码文本是唯一事实源；从它编译出的内部表示是实现细节，从内部表示重打文本只用于调试（见 §13.3 PS）。一个操作对应一行代码是扁平格式（UI 录制）的约定。
+**keep 指令独立成句**（`part0.keep()` / `part0.keepHidden()`）——绝不嵌套在参数对象里，见 §6。代码文本是唯一事实源；从它编译出的内部表示是实现细节，从内部表示重打文本只用于调试（见 §13.3 PS）。一个操作对应一行代码是扁平格式（UI 录制）的约定。
 
 ---
 
@@ -190,10 +190,16 @@ let part6 = makeGear({ count: 8, pitch: 5 })
 
 **核心语义**：一个变量是否进终端 = 它「是否被消费」。被消费 → 不进终端。
 
-保留声明有两处，优先级**调用点 > 函数体**：
+保留声明只有**两条通道**，且都不是参数位：
+
+| 通道 | 写法 | 谁写 | 作用域 |
+|---|---|---|---|
+| **脚本语句** | 独占一行写 `part0.keep()` / `part0.keepHidden()` | 脚本作者 | **全局**——语义是「该变量永不被消费」，与行序无关；且覆盖库内默认 |
+| **函数体** | 库实现内部调用 `keep(...)` / `keepHidden(...)` | 库作者 | **当前执行语句**——声明登记在正在执行的那个 op 所在的语句行上 |
 
 ```js
-cad.drill(a, { diameter: 8, keep: ['a'], keepHidden: true })
+let part3 = cad.drill(part0, { diameter: 8 })
+part0.keep()          // part0 survives, visible; written on its own line, after the consumer
 ```
 
 ```ts ignore-check
@@ -203,33 +209,43 @@ export function group(params) {
 }
 ```
 
-### 6.1 `consumes()` 判定链（C0 → C4 → C3 → C5，短路）
+**参数对象里出现 `keep` / `keepHidden` 键一律报错**，不再静默生效——`cad.drill(a, { diameter: 8, keep: ['a'] })` 在提取期即抛 `E_STATEMENT`，报错信息直接指向 `<var>.keep()`。该约束覆盖每个 op 的尾随选项槽**以及** `cad.assembly({ …, keep: [a] })`：装配成员由库内 `keep(...members)` 保留，脚本既不必要也不允许写 `keep` 键。
+
+### 6.1 `consumes()` 判定链（R1 → R2 → R3 → R5，短路）
 
 | 规则 | 条件 | 结果 |
 |---|---|---|
-| **C0/C1** | 变量 ∈ `resolveKeep(stmt).kept`（调用点或函数体声明） | **不消费** |
-| **C4** | 语句无赋值（`hasAssignment === false`） | **不消费**任何东西——裸调用，只读与自赋值一视同仁（P25 规则 1） |
-| **C3** | 语句有赋值且所有输出都是非几何 | **不消费**任何输入 |
-| **C5** | 默认 | **消费**（positional 槽内任意位置的变量引用——含 `ExprIR` 成员链——或 args 中的变量引用） |
+| **R1** | 变量 ∈ 本行的函数体登记，**或**被任意脚本级 `keep` / `keepHidden` 语句点名 | **不消费** |
+| **R2** | 语句无赋值（`hasAssignment === false`） | **不消费**任何东西——裸调用，只读与自赋值一视同仁（P25 规则 1） |
+| **R3** | 语句有赋值且所有输出都是非几何 | **不消费**任何输入 |
+| **R5** | 默认 | **消费**（positional 槽内任意位置的变量引用——含 `ExprIR` 成员链——或 args 中的变量引用） |
 
 补充规则：嵌套调用内的引用是只读查询，不消费；`receiver`（成员方法调用）不消费接收者变量；位置字面量与非末位对象实参不消费任何东西（只有变量引用和表达式标识符算消费）。
 
-C3 是**零签名知识**的客观默认：返回非几何的函数不可能把几何吞进结果——第三方测量／查询函数的输入因此不被误吃。C4 排在 C3 之前，因为裸调用没有可检查的 outputs：无赋值写出的测量／截图调用（`cad.projectView(part0, 'front')`）绝不能吃掉它的输入。
+R3 是**零签名知识**的客观默认：返回非几何的函数不可能把几何吞进结果——第三方测量／查询函数的输入因此不被误吃。R2 排在 R3 之前，因为裸调用没有可检查的 outputs：无赋值写出的测量／截图调用（`cad.projectView(part0, 'front')`）绝不能吃掉它的输入。
 
 **原地写回登记（规则 2）。** 修改类裸调用（`cad.fai_drill(part0, …)`）在运行时守卫下（返回值与目标当前值都是几何）把几何结果写回第一个 shape 位置实参（成员调用写回 receiver）。执行行被登记（`inplaceWrites`，行号 → 目标名），把该变量的**最后写者**移到裸调用行：裸调用*之前*的旧消费不能取消新值的终端资格，*之后*的真实消费仍然有效。
 
-`resolveKeep` 合并函数体登记（`internalKeep`）与调用点 `parseUserKeep`；**hidden 采用「最后一次保留声明胜出」**（按语句顺序，后声明压过先声明）。
+`hidden` 合并两条通道的口径是**脚本语句 > 函数体登记**，同一通道内**后声明胜出**：`computeLiveShapes` 先按语句顺序铺函数体登记，再按源码顺序覆盖脚本级声明。同名变量写两次（`a.keep()` … `a.keepHidden()`）最终为隐藏——终端的可见性因此永远只有一个确定的主人。
 
-### 6.2 `computeLeafTerminals()`
+### 6.2 终端计算
 
 对每个 shape 变量名（含 compound 变量）取「最后写者 P」；P 之后无任何语句消费它 → 终端。无生产者的变量（宿主手工注入）视为终端。
 
 - 代码里的显式 `return [...]` 优先于 DAG 判定。
 - `hidden` 只有显式为 `true` 才带字段，可见归一为 `undefined`（对齐宿主 `setNodeVisible(scopedId, !terminal.hidden)`）。
 
-### 6.3 静态校验
+### 6.3 keep 语句的静态校验
 
-`validateKeepDirectives(stmt)` 是纯静态校验，对第三方库同样适用：`keep` 必须是数组、条目必须是变量引用或 `{ shape, hidden }`、引用目标必须是本语句 positional 中的变量引用之一或出现在 args 中、`keepHidden` 必须是 boolean。违反进 `CheckResult.errors`。
+keep 语句在提取期校验，违反项经 `CheckResult.errors` 上报，`stage: 'parse'`：
+
+| 写法 | 结果 |
+|---|---|
+| `part0.keep()` / `part0.keepHidden()` | 通过——为 `part0` 登记声明 |
+| `part0.keep(x)`（任何实参） | `E_STATEMENT`：「keep() takes no arguments」 |
+| `cad.keep(part0)` / `ns.keep(part0)`（命名空间 callee） | `E_STATEMENT`：应声明在变量上，不要走命名空间 |
+| `part0.keep()` 而 `part0` 未声明 | `E_REFERENCE` —— 默认 `strict` 安全策略下，扫描器会先以 `E_SECURITY` / `SEC_FREE_IDENT` 拒绝未知标识符 |
+| 任意参数对象里的 `{ …, keep: […] }` / `{ …, keepHidden: true }` | 提取期 `E_STATEMENT`（见 §6） |
 
 ### 6.4 终端与执行产物
 
@@ -306,7 +322,7 @@ export interface ExecuteOptions {
 
 ### 7.5 增量执行语义
 
-- **按内容寻址**：语句身份键 = 带命名空间的被调函数 + 整个 positional 槽的 JSON（去掉 keep）+ 各依赖的内容指纹；参数语句为 `param|JSON(value)`；**本机函数调用为 `local.<callee>#<bodyHash>`**——编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。`keep`／`keepHidden` 两键被排除——**切换保留／隐藏状态零几何重算**。
+- **按内容寻址**：语句身份键 = 带命名空间的被调函数 + 整个 positional 槽的 JSON + 各依赖的内容指纹；参数语句为 `param|JSON(value)`；**本机函数调用为 `local.<callee>#<bodyHash>`**——编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。keep 语句（`part0.keep()`）**不是语句**：它不产出 `StatementSummary`、不产出输出、不占 key，因此声明或撤销保留只改变哪些变量存活，不重算任何几何。
 - **持久 ctx**：脚本变量存于跨执行存活的容器，支持原地重赋值。
 - **重放范围**：`plan` 算出失效集，从首个变更点重放；无失效则零执行。**本机函数调用是单一执行单元**——整个函数体作为一个整体重放（函数体内无语句级 diff）；函数体中间变量永不进入顶层 ctx 或终端判定。
 - **函数 BREP 域**：本机函数运行期间新产生的 OCCT 句柄被登记；返回时除返回值可达句柄外的全部瞬态句柄被释放（`finally`，异常路径同样）。函数体内的 `cad.*` 调用产生几何但永不进入顶层 `solidCache`；只有返回值的句柄进入。
@@ -346,6 +362,8 @@ hasBrep(shape): boolean / brepOf(shape): unknown | undefined
 keep(...shapes): void        // keep and render
 keepHidden(...shapes): void  // keep but do not render on canvas
 ```
+
+这两个属于**库**通道：登记在正在执行的语句上。脚本永远不调用它们——脚本写独立语句 `part0.keep()` / `part0.keepHidden()`（§6），那是语言层识别的编译期声明、执行期的 no-op。
 
 **两条禁令**：库**不得**访问引擎内部可变状态（无 `currentStmt`／`script`／`outputCache`／`brepChain`）；库**不得**查询或修改 DAG（无 `dependentsOf`／`touch`，禁止原地改写已发布的 Shape）。这些能力由引擎侧承担：`changed` 由引擎比对推导，装配变换的下游失效由引擎 `computeDownstream` 完成。
 
@@ -548,7 +566,7 @@ export interface HostPorts {
 | 变换类 | `translate` `rotate_euler` `scale` `scale3d` `place` |
 | 扫掠／放样 | `sweep` `loft`（平台 `engines:['occt']`；截面接受 wire 或面——面会被缩到外环） |
 | 特征类 | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` `filletVariable` `shell` `draft` `thicken`（平台 `engines:['occt']`） |
-| 布尔 | `union` `subtract` `intersect` `cut` |
+| 布尔 | `union` `subtract` `intersect`，外加纯别名 `fuse`（= `union`）与 `cut`（= `subtract`）——同一函数对象，没有第二套实现 |
 | 分割／阵列 | `split`（双输出，解构 `const { front, back } = …`） `splitByPlane`（具名产物 `{ positive, negative }`，解构消费） `sectionByPlane`（截面曲线的 1D compound） `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
 | 修复 | `defeature` `reverseShape` `unifySameDomain` `sew` `sewAndSolidify` `removeHolesFromFace` |
 | 导入／结构 | `import_brep` `import_step` `compound` |
@@ -560,7 +578,7 @@ export interface HostPorts {
 
 > SVG 视图投影通道（无门禁、无 `engines` 声明）：`projectView` / `projectSheet` 在任何 BREP 引擎上可执行。`occt` 走 HLR compound 采样通道（compound 句柄 → 3D 曲线采样 → 相机平面投影）；`brepkit` 走内核原生折线通道（内核 `projectEdges` 直接返回已投影 2D 折线 JSON `{"visible":[[x,y,…],…],"hidden":[…]}` —— 每条折线为扁平 x,y 点对，坐标约定同构）。产出按各自内核投影为准；分派在 `api/view/view-projection.ts` 按引擎 id 静态选择通道，绝不因门禁报错。
 
-除手写集合外，`cad` 还承载**生成的第一方 BREP op**（`fuse`、`torus`、`viewCamera`、`projectView`、`shell`、`offset` 等），由 `defineOp({ brep: __own_* })` 直连构造；它们的归属地是 `docs/ops-api-inventory.md`。
+除手写集合外，`cad` 还承载**生成的第一方 BREP op**（`torus`、`viewCamera`、`projectView`、`shell`、`offset` 等），由 `defineOp({ brep: __own_* })` 直连构造；它们的归属地是 `docs/ops-api-inventory.md`。
 
 > 注：表中"特征类"是 faijs 函数目录的内部类别名（对既有几何做修改的操作），与宿主层"特征（feature）"术语无关——后者是通用 CAD 术语，由 1 到多个 op／函数调用实现（见 §2 R-9）。
 
@@ -568,13 +586,16 @@ export interface HostPorts {
 
 ### 10.2 消费语义（声明驱动）
 
-消费不再由 op 类别硬编码决定，而是**声明驱动**：默认消费（C5），保留由库函数体的 `keep()` / `keepHidden()` 声明，调用点的 `keep` 指令覆盖之。
+消费不由 op 类别硬编码决定，而是**声明驱动**：默认消费（R5），保留由库函数体的 `keep()` / `keepHidden()` 声明，或被脚本级 `<var>.keep()` / `<var>.keepHidden()` 语句覆盖。**不存在参数位形态**——选项对象里的 `{ keep: […] }` 是 `E_STATEMENT`（§6）。
 
 | 库函数 | 声明 | 效果 |
 |---|---|---|
-| `group` / `assembly` | `keep(...members)` | 成员不被消费，成员与 compound 双双显示 |
-| `copy` | `keep(input)` | 源不被消费，源与副本都显示 |
-| 布尔系 | `keepHidden(...inputs)` | 源保留但 canvas 不渲染 |
+| `group` / `assembly` | `keep(...members)` | 成员不被消费，成员与 compound 双双显示。脚本一个字都不用写——`cad.assembly({ …, members })` 里写 `keep` 键会被拒 |
+| `copy` / `clone` / `mirror` | `keep(input)` | 源不被消费，源与副本都显示 |
+| `linearPattern` / `circularPattern` / `gridPattern` / `rectangularPattern` / `mirrorJoin` | `keepHidden(input)` | 源保留但 canvas 不渲染（阵列是复制，不是合并） |
+| 布尔系（`union` / `subtract` / `intersect`，含别名 `fuse` / `cut`） | *（无）* | **消费全部输入**——布尔把操作数合并成一个结果，操作数因此离场。要留一个就在脚本里写 `<var>.keep()` / `<var>.keepHidden()` |
+
+`fuse` 是 `union` 的别名、`cut` 是 `subtract` 的别名——同一函数对象、一套实现、行为毫无差别（§10.1）。
 
 ### 10.3 库函数统一形态（defineOp）
 
@@ -661,6 +682,21 @@ planegcs 草图求解器经 `setSketchSolverInitFn(fn)` 注入（对齐 `setOcct
 - **链切换降级**：part 在链中途从 BREP 降级 mesh 时，已累积的 `{origin, role}` 与 hint 作为纯数据保留，解析回落到面 hint 快照（几何兜底）——引用层面的降级，不是引擎路径运行时回退。
 - **身份坐标 = `(StmtId, RoleName)`**（Phase 1.6/1.7）：`origin` 是产出语句的 StmtId（不是 PartName）；`role` 是结构化 RoleName，序列化为规范串（`top` / `wall:3` / `replica[2]/wall:3` / `splinter(top)#1` / `gen:fillet:0` / `imported:5`）。`.fai.js` 里的线形态是字符串对 `{origin, role}`；display（PartName）仅用于 UI，不参与身份、不参与解析。
 
+### 11.2 面身份与面编号（单一真源）
+
+一个面在跨内核 / 跨执行之间的身份**有且仅有** `FaceTopoRef{origin, role}`；`hint` 只是**仅用于打分的兜底**，绝不作身份。一个**面编号**不是身份。
+
+- **I0 — 唯一身份。** 唯一可移植的面单元是 `FaceTopoRef{origin, role}`。面编号**仅**在当前内核的当前执行内有效：它绝不准写进 `.fai.js` / sceneCode、绝不持久化、绝不构成跨内核 API 契约的一部分。
+- **I1 — 唯一网格。** 一个 BREP part 在每次执行中**只**三角化一次。拓扑由**那一次**三角化构建（显示网格在一个内部符号槽 `BREP_TESS` 中承载它），而不是来自第二次 `meshShape` 调用——不接受「参数相同」之类的等价论证（显式 `segments` 推得的 deflection 每次调用都不同）。
+- **I2 — 唯一编号。** `faceIds` 下标 / `faceRanges` 下标 / `faceRuns.faceRow` / 拓扑面表行 / naming 数组下标是**同一个数字**；不得存在第二套编号系统。
+- **I3 — 自洽。** 对每一面行 `r`，其 `(triangleStart, triangleCount)` 覆盖的三角形，面积 / 质心 / 法向等于该行自身记录的 `area` / `center` / `normal`（在容差内）。
+- **I4 — 完整且不重叠。** 各面行三角形区间两两不重叠，其并集等于显示网格的三角形（无三角化的行被显式排除）。
+- **I5 — 编号不表达方向或身份。** 方向 / 位置语义**只**由 `role`（语义命名器）或选择器（`">Z"` / `"|Z"`）表达。面编号既不承诺方向也不承诺跨内核相等——内核枚举顺序不可移植，因此任何 faijs 代码都不得把逻辑建立在「编号对得上」之上。
+- **I6 — 破坏即抛错。** 任何被违反的不变量都抛 `E_TOPO_FACE_MESH_MISMATCH`；禁止静默钳制 / 降级（面向宿主的 `buildFaceIdsForPart` 是守门者）。
+- **I7 — 宿主只消费。** faijs 保证 I1–I6；宿主（web / weapp）只做「查 → 用」，不维护第二套映射。一旦不一致，宿主必须快速失败，而非重算。
+- **第三方生成顺序不是契约。**  vendored/移植几何生成器的三角形顺序，只是某条链自身 `faceRanges` 的实现细节；任何实现都不得把第三方库的三角形顺序当作 API 契约来引用。
+- **无 role 层的 mesh 链。** 交给没有 role 层的链的 `FaceTopoRef`，按几何（法向 / 质心 / 面积）解析，或以明确错误（`no-hint` / `not-found`）失败；绝不会因缺失 `hint` 而崩溃式解析一个无 hint 的 ref。
+
 ---
 
 ## 12. 装配 / 分组契约
@@ -700,7 +736,7 @@ planegcs 草图求解器经 `setSketchSolverInitFn(fn)` 注入（对齐 `setOcct
 
 ### 13.2 增量保真
 
-`computeContentKey`（positions/indices → 内容指纹）是几何等价的度量手段；语句身份键（callee + positional 槽 + 去掉 keep 的 args + 各依赖的内容指纹）决定增量重算范围，`plan` 据此判定。见 §7.5。
+`computeContentKey`（positions/indices → 内容指纹）是几何等价的度量手段；语句身份键（callee + positional 槽 + 各依赖的内容指纹）决定增量重算范围，`plan` 据此判定。见 §7.5。
 
 ### 13.3 「结果一致」的边界（防回潮）
 

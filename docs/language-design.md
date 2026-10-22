@@ -91,7 +91,7 @@ stmt     = (const|let) <id> = [await] <ns>.<fn>(<expr>*, { <k>:<v>, … }?)
 function = function <name>(<param>, …) { <body> }             // body may contain control flow
 ```
 
-- `<ns>` is `cad` or an imported namespace such as `mech`. Positional arguments are full expressions (§2.4): literals (`cad.box(10, 20, 30)`), declared variables, member access (`cad.hem(p0.solid, …)`), nested namespace calls, and runtime expressions are all accepted. A trailing plain object is the options slot and may carry `keep` / `keepHidden` (§5.1); when several object arguments are passed positionally, every one is kept — no overwrite, no merge.
+- `<ns>` is `cad` or an imported namespace such as `mech`. Positional arguments are full expressions (§2.4): literals (`cad.box(10, 20, 30)`), declared variables, member access (`cad.hem(p0.solid, …)`), nested namespace calls, and runtime expressions are all accepted. A trailing plain object is the options slot — it carries op options only; retention is never an option there (§5.1). When several object arguments are passed positionally, every one is kept — no overwrite, no merge.
 - A bare reassignment is an ordinary JS assignment to a declared variable; it is how "modify this model" reads in code.
 - **Local function calls** use a bare-identifier callee from the script's own function set; positional inputs bind to the first `M` parameters, the trailing object's keys to the rest by name (ABI in §6.2). A body may not call another local function (v1).
 - **Function bodies** may contain arbitrary control flow, local `let` / `const` / `var`, conditional expressions, nested functions, and any `return` value; safety red lines (`eval` / `new` / dynamic `import()` / `import` / `export` / `class` / `with`) still apply inside bodies.
@@ -180,12 +180,14 @@ The parser performs syntax analysis only: it copies lexical names into `position
 
 ### 5.1 Declaring retention
 
-A retention declaration says "this call does not consume these inputs", keeping them on the canvas. Written at the call site or once in a library function body; the call site wins.
+A retention declaration says "this variable is never consumed", keeping it on the canvas. It is **always its own statement** — written by the script author as `<var>.keep()` / `<var>.keepHidden()` — or declared once inside a library function body; a script-level statement wins over the library default.
 
 ```js
-let part1 = cad.copy(part0)                                   // body keeps part0
-let part2 = cad.drill(part0, { diameter: 8, keep: ['part0'] }) // call-site keep
-let part3 = cad.union(part0, part1, { keepHidden: true })      // kept, hidden
+let part0 = cad.box(20, 20, 20)
+let part1 = cad.copy(part0)     // copy's body keeps part0
+let part2 = cad.drill(part0, { diameter: 8 })   // drill consumes part0 …
+part0.keep()                    // … unless the script says otherwise (own line, after the consumer)
+part1.keepHidden()              // kept, but not rendered on canvas
 ```
 
 ```js
@@ -195,7 +197,7 @@ export function group(params) {
 }
 ```
 
-`keep` takes variable references or `{ shape, hidden }` entries; `keepHidden` sets the statement default. `validateKeepDirectives` rejects a non-array `keep`, non-reference entries, targets that are neither an input nor an argument variable, and a non-boolean `keepHidden`.
+A keep statement takes **no arguments**, and its receiver must be a declared variable: `part0.keep(x)` is `E_STATEMENT`, `cad.keep(part0)` is `E_STATEMENT` (declare on the variable, not through the namespace), and `part0.keep()` on an undeclared name is `E_REFERENCE`. The same rejection covers the old argument form — a `keep` / `keepHidden` key anywhere in an argument object is `E_STATEMENT` at extraction time, so `cad.assembly({ …, members: [p], keep: [p] })` no longer compiles (assembly members are retained by the library itself).
 
 ### 5.2 Effect
 
@@ -210,8 +212,10 @@ export function group(params) {
 | `let c = cad.bboxCenter(part0)` | `part0`, `c` — all outputs non-geometric, so nothing is consumed |
 | `cad.projectView(part0, 'front')` | `part0` — a bare call without assignment never consumes, read-only or self-assigning alike |
 | `cad.fai_drill(part0, …)` | `part0` — the drilled result is written back into `part0` (rule 2), and `part0` stays a terminal |
+| `let p1 = cad.drill(part0, …)` then `part0.keep()` | `part0`, `p1` — the statement protects `part0` no matter where it is written |
+| `part0.keepHidden()` | `part0` with `hidden: true` — kept out of the canvas, still exported with `--include-hidden` |
 
-The decision chain behind this table — retention first, "no-assignment bare call never consumes" (rule 1), then "every output is non-geometric", then the default — and the leaf-terminal algorithm are owned by [`docs/api-contract.md`](api-contract.md). **Local function calls** (§2.3) follow the same chain with an opaque body: body-internal `cad.*` calls never register keeps (call-site `keep` is the only retention channel) and body intermediates never become terminals.
+The decision chain behind this table — retention first, "no-assignment bare call never consumes" (rule 1), then "every output is non-geometric", then the default — and the leaf-terminal algorithm are owned by [`docs/api-contract.md`](api-contract.md). **Local function calls** (§2.3) follow the same chain with an opaque body: body intermediates never become terminals, and body-internal `cad.*` calls do not register retention on the top-level DAG (a script-level `keep` statement is the script's channel; a library body's own `keep()` belongs to the library channel).
 
 ---
 
@@ -244,18 +248,19 @@ no assignment:   await ns.<ns>.<callee>(…)
 
 The `no assignment` form is **dual-semantic** (P25 rule 2): a read-only result passes through unwritten, while a geometry result writes back into the first shape-position argument (a member call writes back into its receiver), under a runtime guard that both values are geometry. The bare call never consumes its input (rule 1) and the write-back line is recorded so producer anchoring stays precise.
 
-Every positional element is emitted in its IR form: `$param` and `$ref` compile to `ctx.<name>`, a nested `$call` to `await ns.<ns>.<callee>(…)`, an `ExprIR` to an arrow wrapper `((<names>) => <text>)(<args>)` guarded by a module-local `__FaiExprEvalError` marker class (an evaluation failure becomes `E_EXPR` on the owning statement, never a raw throw into unrelated code). The trailing options object is emitted with `keep` / `keepHidden` stripped; a keep-only object disappears entirely. A parameter declaration is a statement too (`ctx.size = 20`), which is why a parameter change cascades like any other dependency.
+Every positional element is emitted in its IR form: `$param` and `$ref` compile to `ctx.<name>`, a nested `$call` to `await ns.<ns>.<callee>(…)`, an `ExprIR` to an arrow wrapper `((<names>) => <text>)(<args>)` guarded by a module-local `__FaiExprEvalError` marker class (an evaluation failure becomes `E_EXPR` on the owning statement, never a raw throw into unrelated code). The trailing options object is emitted verbatim — there is nothing to strip, since a `keep` / `keepHidden` key is rejected during extraction. A parameter declaration is a statement too (`ctx.size = 20`), which is why a parameter change cascades like any other dependency.
+
+A keep statement emits **nothing**: `part0.keep()` compiles to `/* keep directive */`, an empty statement. It is a compile-time declaration read by the language layer, not a method on `Shape` (which is a pure data interface) — emitting the call would raise `__ctx.part0.keep is not a function`.
 
 **Local function ABI** (§2.3): `function <name>(<p1>, …, <pk>)` compiles to `async function <name>(__ctx, __ns, <p1>, …, <pk>)` — user parameters preserved verbatim after two injected engine parameters. A call binds positional-plus-named:
 ```
 positional inputs  a1..aM  →  p1..pM        (M ≤ k, more → E_ARG)
 args object keys   key_i   →  p_{M+1}..p_k  (by name; unknown key / collision → E_ARG)
 unbound parameters          →  undefined    (JS semantics, no error)
-keep / keepHidden           →  stripped first, never participate in binding
 emission:  await localFns.<name>(ctx, ns, <p1>, …, <pM>, <v_{M+1}>, …, <vk>)
 ```
 
-The wrapped body injects `const <binding> = __ns.<binding>` for `cad` and each top-level import binding, then embeds the user's body verbatim. A body may not call another local function (v1); its internal `cad.*` calls never enter the top-level DAG or register keeps (call-site `keep` is the only retention channel, §5), and transient OCCT handles are released on return except those reachable from the return value.
+The wrapped body injects `const <binding> = __ns.<binding>` for `cad` and each top-level import binding, then embeds the user's body verbatim. A body may not call another local function (v1); its internal `cad.*` calls never enter the top-level DAG or register retention on it (a script-level `keep` statement is the script's channel, §5), and transient OCCT handles are released on return except those reachable from the return value.
 
 ### 6.3 Incremental execution (three entries)
 
@@ -265,11 +270,11 @@ The wrapped body injects `const <binding> = __ns.<binding>` for `cad` and each t
 | `append(code, newIds)` | Execute only the new statements — the prefix is already in the persistent ctx |
 | `update(code)` | `plan()` computes the stale set → `reconcileCtx` → recompute from that set in topological order; zero execution when nothing is stale |
 
-All three take code text. `plan()` is content-addressed, not an id diff. `statementKey` is the namespace-qualified callee, the JSON of the whole `positional` slot with `keep` / `keepHidden` stripped, and each dependency's `outputContentKey`; a parameter statement uses `param|JSON(value)`; a local-function call uses `local.<callee>#<bodyHash>` — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. Retention and visibility cost nothing: toggling `keep` recomputes no geometry. A statement is stale when a dependency is stale or its key changed.
+All three take code text. `plan()` is content-addressed, not an id diff. `statementKey` is the namespace-qualified callee, the JSON of the whole `positional` slot, and each dependency's `outputContentKey`; a parameter statement uses `param|JSON(value)`; a local-function call uses `local.<callee>#<bodyHash>` — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. Retention and visibility cost nothing: a keep statement is not a statement at all (no summary, no output, no key), so toggling it recomputes no geometry. A statement is stale when a dependency is stale or its key changed.
 
 ### 6.4 `check()`
 
-`CadRuntime.check(code)` is a dry run with no geometry side effects, in four stages: **parse** — acorn gate, `ParseError` with line and code (local-call existence and ABI binding enforced here); **symbol** — `cad` calls against the symbol table, namespaced calls against registered libraries, member methods and local calls skipped; **keep** — `validateKeepDirectives` plus a misspelled-`keep` warning; **reference** — every input and explicit terminal must be defined earlier. Value ranges are checked by each library, surfaced via `ExecutionResult.failedAt`.
+`CadRuntime.check(code)` is a dry run with no geometry side effects: one extraction pass over the text, whose `ParseError`s carry the stage label (`parse` / `symbol` / `reference` / `security` / `dimension`) and the line — acorn gate and statement shape (`parse`, which includes every keep-statement rule: `part0.keep(x)`, `cad.keep(part0)`, and any `keep` key inside an argument object are `E_STATEMENT`); `cad` calls checked against the symbol table, namespaced calls against registered libraries (`symbol`); every input and explicit terminal defined earlier (`reference`); the security scanner; and unit/dimension validity of literal arguments (`dimension`). Value ranges are checked by each library, surfaced via `ExecutionResult.failedAt`.
 
 ---
 
@@ -324,8 +329,8 @@ const { front: part3, back: part4 } = cad.split(part2, { normal: [0, 0, 1], offs
 // 5. AI adds a post and unions (part3, part5 consumed)
 let part5 = cad.cylinder({ radius: 5, height: 40 })
 let part6 = cad.union(part3, part5)
-// 6. UI assembles part4 and keeps it visible
-let asm1 = cad.assembly({ name: 'A', members: [part4], constraints: [], keep: [part4] })
+// 6. UI assembles part4 — members are retained by the assembly's own body, no keep key needed
+let asm1 = cad.assembly({ name: 'A', members: [part4], constraints: [] })
 asm1.do_assemble()
 ```
 

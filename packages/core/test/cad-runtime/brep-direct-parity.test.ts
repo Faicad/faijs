@@ -83,15 +83,18 @@ describe('T3/T5: BREP/topology/naming direct execution (auto 模式)', () => {
       'let bp = cad.box(10, 10, 10, { centered: true })',
       'let cyl = cad.cylinder(5, 20, { centered: true, segments: 24 })',
       'let result = cad.subtract(bp, cyl)',
+      // 布尔消费其输入（2026-10-22）：cyl 被吃掉；bp 由独立声明保留下来，
+      // 从而让本用例仍然覆盖"多终端"的 solids/topology/naming 产出。
+      'bp.keep()',
     ].join('\n')
 
     const result = await rt.execute(code)
 
     expect(result.failedAt).toBeUndefined()
 
-    // brepSolids 键集
+    // brepSolids 键集：cyl 已被 subtract 消费，只剩结果与显式保留的 bp
     const solids = result.brepSolids ? [...result.brepSolids.keys()].map(String).sort() : []
-    expect(solids).toEqual(['bp', 'cyl', 'result'])
+    expect(solids).toEqual(['bp', 'result'])
 
     // topology 键集 + source
     const topo = result.topology
@@ -103,6 +106,6 @@ describe('T3/T5: BREP/topology/naming direct execution (auto 模式)', () => {
     // naming 键集
     const naming = result.naming
     const keys = naming ? [...naming.keys()].map(String).sort() : []
-    expect(keys).toEqual(['bp', 'cyl', 'result'])
+    expect(keys).toEqual(['bp', 'result'])
   })
 })

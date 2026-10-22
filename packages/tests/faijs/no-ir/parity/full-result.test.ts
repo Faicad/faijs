@@ -91,19 +91,19 @@ describe('T2/T5: full-result direct 执行 — 结果键集合验证（mesh 场�
       'let cyl = cad.cylinder(5, 20, { centered: true, segments: 24 })',
       'let result = cad.subtract(bp, cyl)',
       'let center = cad.bboxCenter(result)',
+      // 布尔消费输入（2026-10-22）→ bp 由独立声明保留，cyl 被吃掉。
+      'bp.keepHidden()',
     ].join('\n')
 
     const result = await rt.execute(code)
 
     expect(result.failedAt).toBeUndefined()
 
-    // terminals: subtract 的 mesh 实现调用了 keepHidden(bp, cyl) →
-    // bp/cyl 保留为终端（hidden=true），result 也是终端。
-    // center 是非几何叶子 → 不进 terminals。
+    // terminals: subtract 消费 bp/cyl；bp 由 keepHidden 声明保留（hidden=true），
+    // result 是可见终端。center 是非几何叶子 → 不进 terminals。
     const termIds = result.terminals.map((t) => String(t.id)).sort()
-    expect(termIds).toContain('result')
-    expect(termIds).toContain('bp')
-    expect(termIds).toContain('cyl')
+    expect(termIds).toEqual(['bp', 'result'])
+    expect(result.terminals.find((t) => String(t.id) === 'bp')?.hidden).toBe(true)
 
     // activeValues: center 是非几何叶子 → 应存在
     expect(result.activeValues).toBeDefined()

@@ -60,12 +60,12 @@ function expectLinesConsistent(meta: UiMetadata, code: string): void {
 
 /** 验证 keep 表结构正确（有 keep 的行才有条目）。 */
 function expectKeepConsistent(meta: UiMetadata): void {
-  for (const [line, entries] of meta.keep) {
-    expect(entries.length).toBeGreaterThan(0)
-    for (const e of entries) {
-      expect(typeof e.target).toBe('string')
-      expect(typeof e.hidden).toBe('boolean')
-    }
+  for (const decl of meta.keep) {
+    expect(typeof decl.target).toBe('string')
+    expect(decl.target.length).toBeGreaterThan(0)
+    expect(typeof decl.hidden).toBe('boolean')
+    expect(typeof decl.line).toBe('number')
+    expect(decl.line).toBeGreaterThan(0)
   }
 }
 
@@ -102,10 +102,9 @@ const SYNTHETIC: string[] = [
   'const base = 20\nlet part0 = cad.box(base + 20, base + 20, base + 20, { centered: true })',
   // 语句变量表达式 → expr-ref
   'let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.box(part0 + 1, part0 + 1, part0 + 1, { centered: true })',
-  // keep / keepHidden
-  'let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.union(part0, { keep: [part0], keepHidden: true })',
-  // 显式 {shape, hidden:false} 条目
-  'let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.union(part0, { keep: [{ shape: part0, hidden: false }] })',
+  // keep / keepHidden（独立语句；参数位写法 2026-10-22 起被拒绝）
+  'let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.union(part0)\npart0.keep()',
+  'let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.union(part0)\npart0.keepHidden()',
   // 解构
   'let part0 = cad.box(30, 30, 30, { centered: true })\nconst { front: part1, back: part2 } = cad.fai_split(part0)',
   // 成员方法调用

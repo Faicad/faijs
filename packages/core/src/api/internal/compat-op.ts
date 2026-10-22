@@ -22,9 +22,10 @@
  *
  * The keep / keepHidden contract is untouched: compatOp neither blocks nor
  * rewrites it — any function running inside a DirectExecutor context can use
- * function-body declarations (C1), and call-site declarations override them
- * (`lang/keep.ts` resolveKeep). The decorated product therefore behaves like
- * any defineOp product: `keep`-safe, engine-aware, multi-output
+ * function-body declarations (`runtime-state.ts` keep / keepHidden, R1), and a
+ * script-level `a.keep()` / `a.keepHidden()` statement overrides them
+ * (`cad-runtime/live-shapes.ts` KeepView). The decorated product therefore
+ * behaves like any defineOp product: `keep`-safe, engine-aware, multi-output
  * (`DUAL_OP_META.outputs` visible).
  *
  * No self-invented fields: `CompatSpec` extends `Omit<DualOpOptions, 'mesh' |

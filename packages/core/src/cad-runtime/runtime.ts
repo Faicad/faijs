@@ -87,7 +87,15 @@ import { scanDeterminism, type DeterminismViolation, type DeterminismPolicy } fr
  * A single validation error produced by CadRuntime.check.
  */
 export interface CheckError {
-  /** The stage that produced the error ('keep' = keep directive validation). */
+  /**
+   * The stage that produced the error.
+   *
+   * `'keep'` is **legacy**: keep directives are no longer validated as a
+   * separate stage — misplaced keep (inside an argument object, or a
+   * namespace-qualified `cad.keep(a)`) is rejected during extraction as
+   * `E_STATEMENT`, surfacing under `'parse'`. The member stays in the union
+   * for type compatibility and is never emitted.
+   */
   stage: 'parse' | 'symbol' | 'reference' | 'keep' | 'security' | 'dimension'
   message: string
   line?: number
@@ -1283,10 +1291,10 @@ export class CadRuntime {
       }
     }
     // T3-cond：DAG 叶子终端判定换 computeLiveShapes（§4.4）——输入换源：
-    // 候选 = ctx 键；行内 keep 查 metadata.keep 表；函数体 exec.keep 登记读
-    // DirectExecutor.keepByLine（行号键，与 computeLiveShapes KeepView 对齐）。
+    // 候选 = ctx 键；脚本级 keep 声明读 metadata.keep（`a.keep()` 语句，与行号无关）；
+    // 函数体 exec.keep 登记读 DirectExecutor.keepByLine（行号键，与 KeepView 对齐）。
     const keepView: KeepView = {
-      lineEntries: (lineNo) => meta.keep.get(lineNo),
+      declared: () => meta.keep,
       functionBody: (lineNo) => de.getKeepByLine(lineNo),
     }
     let terminals = computeLiveShapes({

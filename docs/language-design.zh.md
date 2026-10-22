@@ -91,7 +91,7 @@ stmt     = (const|let) <id> = [await] <ns>.<fn>(<expr>*, { <k>:<v>, … }?)
 function = function <name>(<param>, …) { <body> }             // body may contain control flow
 ```
 
-- `<ns>` 是 `cad` 或 `mech` 这类导入的命名空间。位置实参是完整表达式（§2.4）：字面量（`cad.box(10, 20, 30)`）、已声明变量、成员访问（`cad.hem(p0.solid, …)`）、嵌套命名空间调用、运行时表达式均可。末尾的纯对象是选项槽，可以带 `keep` / `keepHidden`（§5.1）；多个对象实参按位置传递时**全部保留 —— 不覆盖、不合并**。
+- `<ns>` 是 `cad` 或 `mech` 这类导入的命名空间。位置实参是完整表达式（§2.4）：字面量（`cad.box(10, 20, 30)`）、已声明变量、成员访问（`cad.hem(p0.solid, …)`）、嵌套命名空间调用、运行时表达式均可。末尾的纯对象是选项槽 —— 只承载 op 选项，保留声明永远不在这里（§5.1）。多个对象实参按位置传递时**全部保留 —— 不覆盖、不合并**。
 - 裸重赋值就是对已声明变量的普通 JS 赋值；"修改这个模型"在代码里就长这样。
 - **本机函数调用**的 callee 是脚本自身函数集的裸标识符（`<localFn>`）。位置实参绑定前 `M` 个形参，末尾选项对象的键按名绑定剩余形参 —— 完整 ABI 契约见 §6.2。函数体内不得调用另一个本机函数（v1）。
 - **函数体**可含任意控制流（`if` / `for` / `while` / `switch` / `try` / `throw` / `break` / `continue` / `labeled`）、局部 `let` / `const` / `var`、条件表达式、嵌套函数，以及任意 `return` 值（Shape / CompoundShape / 数组 / 对象 / 标量）。安全红线依旧适用：函数体内的 `eval` / `new` / 动态 `import()` / `import` / `export` / `class` / `with` 同样被拒。
@@ -183,12 +183,14 @@ parser 只做语法分析：把词法名字抄进 `positional`（`VarRefIR`）/ 
 
 ### 5.1 声明保留
 
-保留声明说的是"这次调用不消费这些入参"，让它们留在 canvas 上。它写在调用点，或在库函数体里声明一次；调用点优先。
+保留声明说的是"这个变量永不被消费"，让它留在 canvas 上。它**永远独立成句** —— 脚本作者写 `<var>.keep()` / `<var>.keepHidden()` —— 或在库函数体里声明一次；脚本级语句覆盖库内默认。
 
 ```js
-let part1 = cad.copy(part0)                                   // body keeps part0
-let part2 = cad.drill(part0, { diameter: 8, keep: ['part0'] }) // call-site keep
-let part3 = cad.union(part0, part1, { keepHidden: true })      // kept, hidden
+let part0 = cad.box(20, 20, 20)
+let part1 = cad.copy(part0)     // copy's body keeps part0
+let part2 = cad.drill(part0, { diameter: 8 })   // drill consumes part0 …
+part0.keep()                    // … unless the script says otherwise (own line, after the consumer)
+part1.keepHidden()              // kept, but not rendered on canvas
 ```
 
 ```js
@@ -198,7 +200,7 @@ export function group(params) {
 }
 ```
 
-`keep` 接受变量引用或 `{ shape, hidden }` 条目；`keepHidden` 设置语句级默认值。`validateKeepDirectives` 会拒绝非数组的 `keep`、非变量引用的条目、既不是入参也不是参数变量的目标，以及非布尔的 `keepHidden`。
+keep 语句**不接受任何实参**，且 receiver 必须是已声明变量：`part0.keep(x)` 是 `E_STATEMENT`，`cad.keep(part0)` 是 `E_STATEMENT`（应声明在变量上，不要走命名空间），未声明的 `part0.keep()` 是 `E_REFERENCE`。同一条拒绝也覆盖旧的参数位形态 —— 任意参数对象里出现 `keep` / `keepHidden` 键即在提取期抛 `E_STATEMENT`，`cad.assembly({ …, members: [p], keep: [p] })` 因此不再通过（装配成员由库自己保留）。
 
 ### 5.2 效果
 
@@ -213,6 +215,8 @@ export function group(params) {
 | `let c = cad.bboxCenter(part0)` | `part0`、`c` —— 所有输出都是非几何，因此什么都不消费 |
 | `cad.projectView(part0, 'front')` | `part0` —— 无赋值裸调用永不消费，自赋值与只读一视同仁 |
 | `cad.fai_drill(part0, …)` | `part0` —— 钻孔结果写回 `part0`（规则 2），`part0` 仍是终端 |
+| `let p1 = cad.drill(part0, …)` 之后 `part0.keep()` | `part0`、`p1` —— 语句保护 `part0`，与写在什么位置无关 |
+| `part0.keepHidden()` | `part0` 带 `hidden: true` —— 不在 canvas 上，`--include-hidden` 仍可导出 |
 
 这张表背后的判定链 —— 先保留，再"无赋值裸调用永不消费"（规则 1），再"所有输出都是非几何"，最后默认消费 —— 以及叶子终端算法，属于 [`docs/api-contract.zh.md`](api-contract.zh.md)。
 
@@ -247,7 +251,9 @@ no assignment:   await ns.<ns>.<callee>(…)
 
 `no assignment` 形态是**双语义**（P25 规则 2）：只读结果放行不写回；几何结果在运行时守卫（两侧都是几何）下写回第一个 shape 位置实参（成员调用写回其 receiver）。裸调用永不消费输入（规则 1），写回行被登记以保证 producer 锚定精确。
 
-每个位置实参按其 IR 形态发射：`$param` 与 `$ref` 编译成 `ctx.<name>`，嵌套的 `$call` 编译成 `await ns.<ns>.<callee>(…)`，`ExprIR` 编译为箭头包装 `((<names>) => <text>)(<args>)`，外罩模块内联的 `__FaiExprEvalError` 标记类（求值失败变成所属语句的 `E_EXPR`，绝不以裸异常穿透到无关代码）。尾随选项对象发射前剥离 `keep` / `keepHidden`；仅含 keep 指令的对象整个消失。参数声明本身也是语句（`ctx.size = 20`），所以改一个参数会像其它依赖一样级联。
+每个位置实参按其 IR 形态发射：`$param` 与 `$ref` 编译成 `ctx.<name>`，嵌套的 `$call` 编译成 `await ns.<ns>.<callee>(…)`，`ExprIR` 编译为箭头包装 `((<names>) => <text>)(<args>)`，外罩模块内联的 `__FaiExprEvalError` 标记类（求值失败变成所属语句的 `E_EXPR`，绝不以裸异常穿透到无关代码）。尾随选项对象原样发射 —— 没有可剥离的东西，因为 `keep` / `keepHidden` 键在提取期就被拒了。参数声明本身也是语句（`ctx.size = 20`），所以改一个参数会像其它依赖一样级联。
+
+keep 语句**什么都不发射**：`part0.keep()` 编译成 `/* keep directive */`，一个空语句。它是语言层读取的编译期声明，不是 `Shape` 上的方法（`Shape` 是纯数据接口）—— 照常发射会得到 `__ctx.part0.keep is not a function`。
 
 **本机函数 ABI**（§2.3）：脚本定义的 `function <name>(<p1>, …, <pk>)` 在编译期被包装为 `async function <name>(__ctx, __ns, <p1>, …, <pk>)` —— 用户的形参表原样保留在两个注入的引擎参数之后。调用 `myFn(a1..aM, { key1: v1, … })` 按「位置 + 按名」契约绑定：
 
@@ -255,11 +261,10 @@ no assignment:   await ns.<ns>.<callee>(…)
 positional inputs  a1..aM  →  p1..pM        (M ≤ k, more → E_ARG)
 args object keys   key_i   →  p_{M+1}..p_k  (by name; unknown key / collision → E_ARG)
 unbound parameters          →  undefined    (JS semantics, no error)
-keep / keepHidden           →  stripped first, never participate in binding
 emission:  await localFns.<name>(ctx, ns, <p1>, …, <pM>, <v_{M+1}>, …, <vk>)
 ```
 
-包装体为 `cad` 与每个顶层 import 绑定注入 `const <binding> = __ns.<binding>`，然后原样嵌入用户函数体。函数体内不得调用另一个本机函数（v1，D10）；函数的几何保持不透明 —— 其内部的 `cad.*` 调用产生几何与 BREP 句柄，但永不进入顶层 DAG、永不登记 keep（调用点 `keep` 是唯一的保留通道，§5），函数返回时释放瞬态 OCCT 句柄，只保留返回值可达的句柄（函数 BREP 域）。
+包装体为 `cad` 与每个顶层 import 绑定注入 `const <binding> = __ns.<binding>`，然后原样嵌入用户函数体。函数体内不得调用另一个本机函数（v1，D10）；函数的几何保持不透明 —— 其内部的 `cad.*` 调用产生几何与 BREP 句柄，但永不进入顶层 DAG、也不在顶层登记保留（脚本级 keep 语句才是脚本的通道，§5），函数返回时释放瞬态 OCCT 句柄，只保留返回值可达的句柄（函数 BREP 域）。
 
 ### 6.3 增量执行（三个入口）
 
@@ -269,11 +274,11 @@ emission:  await localFns.<name>(ctx, ns, <p1>, …, <pM>, <v_{M+1}>, …, <vk>)
 | `append(code, newIds)` | 只执行新语句 —— 前缀已在常驻 ctx 里 |
 | `update(code)` | `plan()` 算出失效集 → `reconcileCtx` → 按拓扑序从该集重算；无失效时零执行 |
 
-三个入口都接收代码文本（引擎内部解析文本为 IR 再执行）。`plan()` 是内容寻址的，不是 id diff。`statementKey` 由带命名空间的被调函数名、剔除 `keep` / `keepHidden` 后的整个 `positional` 槽 JSON、以及每个依赖的 `outputContentKey` 组成；参数语句用 `param|JSON(value)`；本机函数调用用 `local.<callee>#<bodyHash>` —— 编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。因此保留与可见性零成本：切换 `keep` 不重算任何几何。语句失效的条件是某个依赖失效，或自身的 key 变了。
+三个入口都接收代码文本（引擎内部解析文本为 IR 再执行）。`plan()` 是内容寻址的，不是 id diff。`statementKey` 由带命名空间的被调函数名、整个 `positional` 槽 JSON、以及每个依赖的 `outputContentKey` 组成；参数语句用 `param|JSON(value)`；本机函数调用用 `local.<callee>#<bodyHash>` —— 编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。因此保留与可见性零成本：keep 语句压根不是语句（无摘要、无输出、无 key），切换它不重算任何几何。语句失效的条件是某个依赖失效，或自身的 key 变了。
 
 ### 6.4 `check()`
 
-`CadRuntime.check(code)` 是无几何副作用的干跑，分四阶段：**解析** —— acorn 闸门，`ParseError` 带行号与诊断码（本机调用存在性与 ABI 绑定在此最早拦截）；**符号** —— `cad` 调用查符号表，带命名空间的调用查已注册的库，成员方法跳过，本机调用跳过（已在 parse 期校验）；**keep** —— `validateKeepDirectives`，外加对拼错的 `keep` 前缀选项给出警告；**引用** —— 每个入参与显式终端都必须更早定义。值域不在这里检查：每个库函数自行校验入参并带上下文抛错，经 `ExecutionResult.failedAt` 暴露。
+`CadRuntime.check(code)` 是无几何副作用的干跑：对文本做一次提取，其 `ParseError` 带阶段标签（`parse` / `symbol` / `reference` / `security` / `dimension`）与行号 —— acorn 闸门与语句形状（`parse`，含全部 keep 语句规则：`part0.keep(x)`、`cad.keep(part0)`、以及参数对象里的任何 `keep` 键，都是 `E_STATEMENT`）；`cad` 调用查符号表、带命名空间的调用查已注册的库（`symbol`）；每个入参与显式终端必须更早定义（`reference`）；安全扫描器；字面量实参的单位／量纲合法性（`dimension`）。值域不在这里检查：每个库函数自行校验入参并带上下文抛错，经 `ExecutionResult.failedAt` 暴露。
 
 ---
 
@@ -328,8 +333,8 @@ const { front: part3, back: part4 } = cad.split(part2, { normal: [0, 0, 1], offs
 // 5. AI adds a post and unions (part3, part5 consumed)
 let part5 = cad.cylinder({ radius: 5, height: 40 })
 let part6 = cad.union(part3, part5)
-// 6. UI assembles part4 and keeps it visible
-let asm1 = cad.assembly({ name: 'A', members: [part4], constraints: [], keep: [part4] })
+// 6. UI assembles part4 — members are retained by the assembly's own body, no keep key needed
+let asm1 = cad.assembly({ name: 'A', members: [part4], constraints: [] })
 asm1.do_assemble()
 ```
 

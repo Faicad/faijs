@@ -45,7 +45,8 @@ import { fuseBrep, splitBrep } from '../../../src/api/brep-operations/booleanFns
 import { drillBrep, pocketBrep, bossBrep, mirrorJoinBrep } from '../../../src/api/brep-operations/compoundFns'
 import { convexHullBrep } from '../../../src/api/brep-operations/hullFns'
 
-import { fuse, split } from '../../../src/api/generated/topology'
+import { split } from '../../../src/api/generated/topology'
+import { fuse } from '../../../src/api/boolean'
 import { drill, pocket, boss, mirrorJoin, convexHull } from '../../../src/api/generated/operations'
 
 let kernel: BrepEngineApi
@@ -219,7 +220,9 @@ describe('G2 单元层（brep-operations 自有实现）', () => {
 // ===========================================================================
 
 describe('G2 生成层（generated defineOp core 直连）', () => {
-  it('fuse / split：投影 op 产出有效 Shape', async () => {
+  // fuse 2026-10-22 起是 boolean.ts 的 union 别名（arg-spec 转 skip，不再有二元裸
+  // kernel.fuse 投影）。这里保留它作为"别名可用且几何有效"的锚点，split 仍是生成层样本。
+  it('split（生成层）/ fuse（union 别名）：产出有效 Shape', async () => {
     const a = boxShape()
     const b = boxShape()
     const f = await fuse(a, b)

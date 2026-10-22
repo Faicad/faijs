@@ -232,6 +232,8 @@ describe('cliRun: execute and export', () => {
       `let part0 = cad.box(20, 20, 20, { centered: true })`,
       `let part1 = cad.sphere({ radius: 8, center: [0, 0, 0] })`,
       `let part2 = cad.subtract(part0, part1)`,
+      // 布尔消费输入（2026-10-22）→ 用独立 keepHidden 声明造 hidden 终端
+      `part0.keepHidden()`,
       `let g = cad.group({ name: 'g', members: [] })`,
     ].join('\n')
     const tmpFile = resolve(TMP_DIR, 'asm-fallback.fai.js')
@@ -248,20 +250,27 @@ describe('cliRun: execute and export', () => {
     const solidCount = (p: string) =>
       (readFileSync(p, 'utf-8').match(/ADVANCED_BREP_SHAPE_REPRESENTATION/g) ?? []).length
     expect(solidCount(visiblePath)).toBe(1) // 兜底只带出可见终端 part2
-    expect(solidCount(allPath)).toBe(3) // includeHidden 才恢复 part0/part1/part2
+    expect(solidCount(allPath)).toBe(2) // includeHidden 才恢复 part0（hidden）+ part2
   }, 60000)
 
-  it('includeHidden:true → 显式取回旧行为（隐藏源一并导出，多终端）', async () => {
-    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.fai.js')
-    const outPath = resolve(TMP_DIR, 'box-boolean-hidden.stl')
+  it('includeHidden:true → 显式取回隐藏终端（独立 keepHidden 声明，多终端）', async () => {
+    // 2026-10-22 起布尔消费输入（不再自动产生 hidden 源），隐藏终端改由脚本级
+    // `part0.keepHidden()` 声明——本用例锁的是 CLI 的 --include-hidden 机制。
+    const tmpFile = resolve(TMP_DIR, 'keep-hidden.fai.js')
+    writeFileSync(tmpFile, [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.sphere({ radius: 8, center: [0, 0, 0] })',
+      'let part2 = cad.subtract(part0, part1)',
+      'part0.keepHidden()',
+    ].join('\n'))
+    const outPath = resolve(TMP_DIR, 'keep-hidden.stl')
 
-    const result = await cliRun(filePath, outPath, { mode: 'auto', libs: CAD_LIBS, includeHidden: true })
+    const result = await cliRun(tmpFile, outPath, { mode: 'auto', libs: CAD_LIBS, includeHidden: true })
 
-    expect(result.ok).toBe(true)
-    // 3 个终端（含 2 个 hidden）→ 多终端导出（<out>_i_<name>.<ext>）
-    expect(existsSync(`${TMP_DIR}/box-boolean-hidden.stl_0_part0.stl`)).toBe(true)
-    expect(existsSync(`${TMP_DIR}/box-boolean-hidden.stl_1_part1.stl`)).toBe(true)
-    expect(existsSync(`${TMP_DIR}/box-boolean-hidden.stl_2_part2.stl`)).toBe(true)
+    expect(result.ok, result.error ?? '').toBe(true)
+    // 2 个终端（part0 为 hidden，part2 可见）→ 多终端导出（<out>_i_<name>.<ext>）
+    expect(existsSync(`${TMP_DIR}/keep-hidden.stl_0_part0.stl`)).toBe(true)
+    expect(existsSync(`${TMP_DIR}/keep-hidden.stl_1_part2.stl`)).toBe(true)
   }, 60000)
 
   it('include2D 默认关：2D-only 终端（cad.edge）被拦，报错文案提示 --include-2d', async () => {

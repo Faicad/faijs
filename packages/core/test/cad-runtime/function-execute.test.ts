@@ -46,19 +46,22 @@ describe('Phase2 executor: keep 隔离（§5.5 / D5）', () => {
     expect(terminalNames).toEqual(['part0', 'part1'])
   })
 
-  it('调用点 keep 是唯一保留通道：myFn(part0, { keep: [part0] }) → part0 保留进终端', async () => {
+  it('独立 keep 声明是唯一保留通道：part0.keep() → 被 myFn 消费的 part0 仍进终端', async () => {
     const code = [
       'function myFn(a) {',
-      '  let b = cad.copy(a)',
-      '  return b',
+      '  return cad.box(1, 1, 1)',
       '}',
       'let part0 = cad.box(20, 20, 20, { centered: true })',
-      'let part1 = myFn(part0, { keep: ["part0"] })',
+      'let part1 = myFn(part0)',
     ].join('\n')
     const rt = makeRuntime()
-    const result = await rt.execute(code)
-    const terminalNames = result.terminals.map((t) => String(t.id)).sort()
-    expect(terminalNames).toEqual(['part0', 'part1'])
+    const withoutKeep = await rt.execute(code)
+    expect(withoutKeep.terminals.map((t) => String(t.id)).sort()).toEqual(['part1'])
+
+    const withKeep = await makeRuntime().execute(
+      [code, 'part0.keep()'].join('\n'),
+    )
+    expect(withKeep.terminals.map((t) => String(t.id)).sort()).toEqual(['part0', 'part1'])
   })
 })
 

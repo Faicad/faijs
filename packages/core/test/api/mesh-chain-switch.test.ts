@@ -108,12 +108,22 @@ describe('cad.useMeshChain 脚本级链切换（weapp 同款双引擎装配，mo
       `const pR = cad.translate(cad.sphere({ radius: 0.55, segments: ${S} }), { offset: [3.6, 9.6, 3.2] })`,
       'const nose = cad.translate(cad.cylinder({ radius: 0.5, height: 3.2, segments: 24 }), { offset: [0, 9.0, 0.5] })',
       'const face = cad.union(carved, ebL, ebR, pL, pR, nose)',
+      // head 由尺寸断言（volumeOf 走 meshSolids 注册表）需要，显式保留为终端。
+      'head.keep()',
     ].join('\n')
     const result = await runtime.execute(code)
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
-    for (const part of ['head', 'headS', 'eL2', 'eR2', 'mouth', 'carved', 'ebL', 'ebR', 'pL', 'pR', 'nose', 'face']) {
-      expectMeshPart(runtime, result, part)
+    // 中间件：布尔/变换消费了它们（2026-10-22 起布尔消费输入），所以它们不再是
+    // 终端——但仍必须是**网格零件**且从不进入 BREP cache（链没混）。
+    for (const part of ['headS', 'eL2', 'eR2', 'mouth', 'carved', 'ebL', 'ebR', 'pL', 'pR', 'nose']) {
+      const meshShape = result.outputs.get(asPartName(part)) as Shape
+      expect(hasMeshSolid(meshShape), `${part} stays a mesh solid`).toBe(true)
+      expect(hasMeshFace(meshShape), `${part} is not a mesh-chain face`).toBe(false)
+      expect(result.brepChain.solidCache.has(asPartName(part)), `${part} never enters the BREP cache`).toBe(false)
     }
+    // 存活终端（head 显式 keep / face 并集结果）：注册表句柄 + 近似拓扑 source='mesh'
+    expectMeshPart(runtime, result, 'head')
+    expectMeshPart(runtime, result, 'face')
     // 几何是真的：三角载荷非空、体积有限正数；head 体积 ≈ 4/3·π·10³（±2% 网格近似）
     const shape = result.outputs.get(asPartName('face')) as Shape
     expect(shape.indices.length, 'union result has triangles').toBeGreaterThan(0)

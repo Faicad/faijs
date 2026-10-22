@@ -76,22 +76,18 @@ The `Promise` row is the dangerous one: nothing in the pipeline reports it. §4.
 Declare both implementation paths and L3 metadata with `defineOp` (from `@faicad/faijs/sdk`):
 
 ```ts ignore-check
-import { defineOp, keepHidden } from '@faicad/faijs/sdk'
+import { defineOp } from '@faicad/faijs/sdk'
 
 export const intersect = defineOp({
-  mesh: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanMesh(reconcileBrepInputs(shapes), 'intersect')
-  },
-  brep: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanBrep(shapes, 'intersect')
-  },
+  mesh: (...shapes: Shape[]) => booleanMesh(reconcileBrepInputs(shapes), 'intersect'),
+  brep: (...shapes: Shape[]) => booleanBrep(shapes, 'intersect'),
   outputs: [...],             // named multi-product fields (§2.6)
   schema: { ... },            // param types for the UI panel (L3)
   slotMap: { ... },           // positional → object boxing, for brepjs-style calls
 })
 ```
+
+Note what is **absent**: no `keepHidden(...)` in either path. A boolean merges its operands, so it consumes them (§2.5) — declaring retention there would be the bug this example exists to prevent.
 
 - **`mesh` / `brep`**: the two engine paths. `mesh` is the default; `brep` is optional. A brep-only op raises `E_MESH_UNSUPPORTED` on the mesh path.
 - **`engines`** (not in the example above — `intersect` is neutral): required only for a *platform op*, i.e. an implementation that statically imports `occt-kernel/*` or `brepkit-kernel/*`. It names the engines the op was written for (`engines: ['occt']`). Every other op omits it and must stay on L1 (`getBrepApi()`). There is no second declaration axis inside op metadata: what a kernel can do is read from the engine itself (see pitfall 2 below), never listed in op metadata. The *library* level is a separate axis that records positioning rather than implementation (§2.11).
@@ -100,12 +96,16 @@ export const intersect = defineOp({
 
 ### 2.5 `keep` / `keepHidden` — UI-layer visibility
 
-Which input shapes stay visible in the UI layer. Function-body declarations (written by the library author, evaluated at run time) are **overridden by call-site declarations** (written by the user / UI / AI at script recording time):
+Which input shapes stay visible in the UI layer. There are two declaration channels, and only one of them belongs to the library author:
 
 | Declaration site | Who writes it | Priority |
 |---|---|---|
-| Call site (`.fai.js` statement options) | User / UI / AI | Highest |
-| Function body (`keep` / `keepHidden` inside the impl) | Library author | Overridden |
+| Script statement (`part0.keep()` / `part0.keepHidden()` on its own line) | User / UI / AI | Highest — overrides the library default |
+| Function body (`keep(...)` / `keepHidden(...)` inside the impl) | Library author | Default, overridden by a script statement |
+
+Write a function-body declaration when the op **copies** instead of **merging**: `copy` / `clone` / `mirror` declare `keep(input)`, the pattern family (`linearPattern` / `circularPattern` / `gridPattern` / `rectangularPattern` / `mirrorJoin`) declares `keepHidden(input)` so the source leaves the canvas but stays exportable with `--include-hidden`. **Never declare retention in a boolean** (`union` / `subtract` / `intersect`, or the aliases `fuse` / `cut`): a boolean merges its operands into one result, so the operands are consumed. A user who wants one kept writes `part0.keep()`.
+
+A script can never declare retention through an argument object — `{ keep: […] }` is `E_STATEMENT` at extraction time, and `a.keep(x)` / `cad.keep(a)` are rejected the same way. A keep statement takes no arguments and its receiver must be a declared variable.
 
 ### 2.6 Bare functions and `fn.outputs`
 
@@ -373,7 +373,7 @@ With lifting off, the namespace is injected as-is. Functions stay synchronous, m
 Top-level call arguments are full expressions (`lang/parser.ts`) — **`.fai.js` is a true JS subset at the call site**:
 
 - **Positional arguments of any form, in any mix**: literals (`addHole(p, 'root', 15, 15, 4)`), arrays, declared variables, member access (`hem(p0.solid, spec)`), nested namespace queries, runtime expressions.
-- **Multiple object arguments are kept as-is**: `tabAndSlot(p, tabSpec, slotSpec)` works — no overwrite, no merge. The *last* plain object is the options slot (carrying `keep` / `keepHidden`); earlier objects are positional data.
+- **Multiple object arguments are kept as-is**: `tabAndSlot(p, tabSpec, slotSpec)` works — no overwrite, no merge. The *last* plain object is the options slot (op options only — retention is never one of them, §2.5); earlier objects are positional data.
 
 ```js
 import * as gear from 'my-gear-lib'
@@ -384,7 +384,7 @@ let u1 = cad.union(g1, b0)
 
 ### 4.2 Statement-boundary behavior
 
-Every statement that calls a library op is a boundary: the `Result` is unwrapped (`err` → `ExecutionResult.failedAt`, earlier statements keep their outputs), and `keep` / `keepHidden` at the call site override any function-body declaration (§2.5).
+Every statement that calls a library op is a boundary: the `Result` is unwrapped (`err` → `ExecutionResult.failedAt`, earlier statements keep their outputs), and a script-level `keep` / `keepHidden` statement overrides any function-body declaration (§2.5).
 
 ### 4.3 Call matrix
 
@@ -447,7 +447,7 @@ One function crossing all three layers, step by step:
 
 1. **Author writes** (`Layer 1`): `planetary` returns `Result<{ sun, planets, ring }>` and carries `fn.outputs = ['sun', 'planets', 'ring']` (§2.6).
 2. **Host registers** (`Layer 2`): `registerLib('gear', gear, { autoLift: true })` — `planetary` is lifted into a brep-only op with `outputs: ['sun', 'planets', 'ring']`; `contractVersion` is validated (§3.3).
-3. **Script calls** (`Layer 3`): `let p0 = gear.planetary({ ratio: 4 })` — the statement records `keep` from the call site, the engine dispatches, passes shape inputs through, calls `planetary`, unwraps the `Result`.
+3. **Script calls** (`Layer 3`): `let p0 = gear.planetary({ ratio: 4 })` — the engine dispatches, passes shape inputs through, calls `planetary`, unwraps the `Result`; retention comes from the function body's own `keep()` or from a script-level `part.keep()` statement, never from the call's arguments (§2.5).
 4. **Products return**: `p0.sun` / `p0.planets` / `p0.ring` are adopted as faijs `Shape`s (or data records), stored in the value store — usable by later statements (`cad.union(p0.sun, b0)`).
 
 Each step belongs to exactly one layer: author writes, Host admits, script calls, engine bridges.

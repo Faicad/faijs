@@ -4,7 +4,7 @@
  * 取消 IR 前后，活跃性判断的算法不变，变的是两个输入源：
  * - 语句序列：`metadata.lines`（MetadataExtractor → StatementSummary[]，与现状
  *   analyzeCode 逐字相等，A-16 锁定）；
- * - 行内 keep 判定：`metadata.keep` 表（提取器已把 args 的 keep/keepHidden 键结构化）
+ * - keep 判定：`metadata.keep` 声明（脚本级 `a.keep()` / `a.keepHidden()`，与行号无关）
  *   + `KeepRegistry`（DirectExecutor 执行期登记，替代 ModuleExecutor.internalKeep）。
  *
  * 候选集合 = ctx 中 shape/compound 键（与现状 allShapeVarNames 同源）；
@@ -16,7 +16,7 @@
  */
 
 import type { StatementSummary } from '../lang/statement-summary'
-import type { UiMetadata, KeepEntry } from '../lang/metadata-extractor'
+import type { UiMetadata, KeepDeclaration } from '../lang/metadata-extractor'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import type { HostArg } from '../lang/host-arg'
@@ -29,10 +29,13 @@ export interface KeepRegistration {
   hidden: Map<PartName, boolean>
 }
 
-/** keep 来源视图：行内调用点（metadata.keep 表）+ 函数体执行期登记（KeepRegistry）。 */
+/** keep 来源视图：脚本级声明（metadata.keep）+ 函数体执行期登记（KeepRegistry）。 */
 export interface KeepView {
-  /** 行内调用点 keep（lineNo → 条目；extractor 已归一 hidden） */
-  lineEntries(lineNo: number): KeepEntry[] | undefined
+  /**
+   * 脚本级 keep 声明（`a.keep()` / `a.keepHidden()`）。
+   * 语义是"该变量永不被消费"，与声明所在行**无关**（写在消费语句之后同样生效）。
+   */
+  declared(): readonly KeepDeclaration[]
   /** 函数体 exec.keep 登记（lineNo → 登记；DirectExecutor 提供） */
   functionBody(lineNo: number): KeepRegistration | undefined
 }
@@ -58,6 +61,25 @@ export interface LiveShapesInput {
 }
 
 /**
+ * 该变量是否被脚本级 keep 声明保护。
+ *
+ * 声明是**全局**的：`a.keep()` 写在消费语句之后同样生效（用户示例就是"先 subtract
+ * 再 keep"）。代价是按变量名保护——同名变量重新赋值后新值也受保护，这是静态判定的
+ * 固有粗糙度，不为此加版本号机制。
+ *
+ * @param keep - keep 视图。
+ * @param v - 被检查的变量名。
+ * @returns true 表示该变量永不被任何语句消费。
+ */
+function isDeclaredKept(keep: KeepView, v: PartName): boolean {
+  const name = String(v)
+  for (const d of keep.declared()) {
+    if (d.target === name) return true
+  }
+  return false
+}
+
+/**
  * 判定 statement 是否消费变量 v（keep 驱动，R1 → R3 → R5 短路）。
  * 输入是 StatementSummary（HostArg 引用形态）。
  * @param line - 消费检查目标语句（行级摘要）。
@@ -75,8 +97,7 @@ export function lineConsumes(
   // R1：keep 声明胜出——被声明的变量不被本语句消费
   const fnKeep = keep.functionBody(line.line)
   if (fnKeep && fnKeep.kept.has(v)) return false
-  const lineKeep = keep.lineEntries(line.line)
-  if (lineKeep?.some((e) => e.target === String(v))) return false
+  if (isDeclaredKept(keep, v)) return false
 
   // R2（原 C4，P25 §3.7 规则 1）：无赋值裸调用默认不消费——无论自赋值还是只读，
   // 没有赋值绑定的语句不构成对输入的消费。覆盖 projectView(part)/fai_drill(part0)/
@@ -166,9 +187,9 @@ export function computeLiveShapes(input: LiveShapesInput): TerminalShape[] {
   const explicit = input.explicitTerminals ?? []
   if (explicit.length > 0) return explicit
 
-  // 0. hidden：最后一次保留声明胜出
-  //    先铺函数体登记（KeepView.functionBody），再按行号顺序用行级调用点覆盖
-  //    （Map 按插入序 = 行号序 → 调用点 > 函数体）。
+  // 0. hidden：脚本级声明 > 函数体登记（最后一次声明胜出）
+  //    先铺函数体登记（KeepView.functionBody），再用脚本声明覆盖——
+  //    脚本作者的显式声明优先级高于库内默认。
   const hiddenOf = new Map<PartName, boolean>()
   for (const line of lines) {
     const fn = keep.functionBody(line.line)
@@ -178,13 +199,8 @@ export function computeLiveShapes(input: LiveShapesInput): TerminalShape[] {
       }
     }
   }
-  for (const line of lines) {
-    const entries = keep.lineEntries(line.line)
-    if (entries) {
-      for (const e of entries) {
-        hiddenOf.set(asPartName(e.target), e.hidden)
-      }
-    }
+  for (const d of keep.declared()) {
+    hiddenOf.set(asPartName(d.target), d.hidden)
   }
 
   // 1. lastProducer：单次正向遍历 + Map 覆盖写
@@ -278,21 +294,21 @@ function makeTerminal(id: PartName, hiddenOf: Map<PartName, boolean>): TerminalS
 // ── 便捷构造（测试 / runtime 装配用） ──
 
 /**
- * 空 keep 视图（无行内 keep、无函数体登记）。
- * @returns 恒返回 undefined 的 KeepView。
+ * 空 keep 视图（无声明、无函数体登记）。
+ * @returns 恒返回空声明数组 / undefined 的 KeepView。
  */
 export function emptyKeepView(): KeepView {
-  return { lineEntries: () => undefined, functionBody: () => undefined }
+  return { declared: () => [], functionBody: () => undefined }
 }
 
 /**
- * 由 UiMetadata.keep 表构造 KeepView（行内条目；函数体登记由调用方补充）。
- * @param meta - 含 keep 表的元数据（行号 → 行内 keep 条目）。
- * @returns KeepView（lineEntries 查 meta.keep；functionBody 恒空）。
+ * 由 UiMetadata.keep 构造 KeepView（脚本级声明；函数体登记由调用方补充）。
+ * @param meta - 含 keep 声明的元数据。
+ * @returns KeepView（declared 读 meta.keep；functionBody 恒空）。
  */
 export function keepViewFromMetadata(meta: Pick<UiMetadata, 'keep'>): KeepView {
   return {
-    lineEntries: (lineNo) => meta.keep.get(lineNo),
+    declared: () => meta.keep,
     functionBody: () => undefined,
   }
 }

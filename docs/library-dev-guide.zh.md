@@ -76,22 +76,18 @@ export function external(params: { teeth: number; moduleSize: number; thickness:
 用 `defineOp`（来自 `@faicad/faijs/sdk`）声明两条实现路径和 L3 元数据：
 
 ```ts ignore-check
-import { defineOp, keepHidden } from '@faicad/faijs/sdk'
+import { defineOp } from '@faicad/faijs/sdk'
 
 export const intersect = defineOp({
-  mesh: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanMesh(reconcileBrepInputs(shapes), 'intersect')
-  },
-  brep: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanBrep(shapes, 'intersect')
-  },
+  mesh: (...shapes: Shape[]) => booleanMesh(reconcileBrepInputs(shapes), 'intersect'),
+  brep: (...shapes: Shape[]) => booleanBrep(shapes, 'intersect'),
   outputs: [...],             // named multi-product fields (§2.6)
   schema: { ... },            // param types for the UI panel (L3)
   slotMap: { ... },           // positional → object boxing, for brepjs-style calls
 })
 ```
+
+注意这里**缺席**的东西：两条路径都没有 `keepHidden(...)`。布尔把操作数合并，因此消费它们（§2.5）——在那里声明保留，正是这个例子要防的 bug。
 
 - **`mesh` / `brep`**：两条引擎路径。`mesh` 是默认；`brep` 可选。brep-only op 在 mesh 路径抛 `E_MESH_UNSUPPORTED`。
 - **`engines`**（上例没有它——`intersect` 是中立 op）：只有**平台 op**才需要，即实现里静态 import 了 `occt-kernel/*` 或 `brepkit-kernel/*` 的 op。它点名这个 op 为哪些引擎而写（`engines: ['occt']`）。其余 op 一律不写它，且只能停留在 L1（`getBrepApi()`）。op 元数据里没有第二条声明轴：内核能做什么从引擎本身读（见下方陷阱 2），绝不写在 op 元数据里。**库级**是另一条轴，记的是定位而非实现（§2.11）。
@@ -100,12 +96,16 @@ export const intersect = defineOp({
 
 ### 2.5 `keep` / `keepHidden`——UI 层可见性
 
-控制哪些输入 shape 留在 UI 层显示。函数体声明（库作者写，执行期求值）**被调用点声明覆盖**（用户 / UI / AI 在脚本录制期写）：
+控制哪些输入 shape 留在 UI 层显示。保留声明有两条通道，其中只有一条属于库作者：
 
 | 声明点 | 谁写 | 优先级 |
 |---|---|---|
-| 调用点（`.fai.js` 语句选项） | 用户 / UI / AI | 最高 |
-| 函数体（实现内部的 `keep` / `keepHidden`） | 库作者 | 被覆盖 |
+| 脚本语句（独占一行写 `part0.keep()` / `part0.keepHidden()`） | 用户 / UI / AI | 最高——覆盖库内默认 |
+| 函数体（实现内部的 `keep(...)` / `keepHidden(...)`） | 库作者 | 默认值，被脚本语句覆盖 |
+
+当 op 是**复制**而不是**合并**时，写函数体声明：`copy` / `clone` / `mirror` 声明 `keep(input)`；阵列族（`linearPattern` / `circularPattern` / `gridPattern` / `rectangularPattern` / `mirrorJoin`）声明 `keepHidden(input)`，源离开 canvas 但仍可用 `--include-hidden` 导出。**布尔绝不声明保留**（`union` / `subtract` / `intersect`，以及别名 `fuse` / `cut`）：布尔把操作数合并成一个结果，操作数因此被消费。想把其中一个留下，用户写 `part0.keep()`。
+
+脚本永远不能通过参数对象声明保留——`{ keep: […] }` 在提取期就是 `E_STATEMENT`，`a.keep(x)` / `cad.keep(a)` 同样被拒。keep 语句不接受实参，receiver 必须是已声明变量。
 
 ### 2.6 裸函数与 `fn.outputs`
 
@@ -373,7 +373,7 @@ faijs 原生库（消费 core `Shape`、内部调 core op，如 `sheetmetal`）�
 parser 顶层调用实参是完整表达式（`lang/parser.ts`）——**`.fai.js` 在调用点上是真正的 JS 子集**：
 
 - **位置实参任意形态、任意混排**：字面量（`addHole(p, 'root', 15, 15, 4)`）、数组、已声明变量、成员访问（`hem(p0.solid, spec)`）、嵌套命名空间查询、运行时表达式。
-- **多个对象实参原样保留**：`tabAndSlot(p, tabSpec, slotSpec)` 可用——不覆盖、不合并。*末位*纯对象是选项槽（承载 `keep` / `keepHidden`），更早的对象是位置数据。
+- **多个对象实参原样保留**：`tabAndSlot(p, tabSpec, slotSpec)` 可用——不覆盖、不合并。*末位*纯对象是选项槽（只承载 op 选项，保留声明永不在其中，§2.5），更早的对象是位置数据。
 
 ```js
 import * as gear from 'my-gear-lib'
@@ -384,7 +384,7 @@ let u1 = cad.union(g1, b0)
 
 ### 4.2 语句边界行为
 
-每个调用库 op 的语句都是一个边界：`Result` 被 unwrap（`err` → `ExecutionResult.failedAt`，之前已完成的语句保留其 outputs）；调用点的 `keep` / `keepHidden` 覆盖函数体声明（§2.5）。
+每个调用库 op 的语句都是一个边界：`Result` 被 unwrap（`err` → `ExecutionResult.failedAt`，之前已完成的语句保留其 outputs）；脚本级 `keep` / `keepHidden` 语句覆盖函数体声明（§2.5）。
 
 ### 4.3 调用矩阵
 
@@ -447,7 +447,7 @@ export const myOp = defineOp({
 
 1. **库作者写**（第一层）：`planetary` 返回 `Result<{ sun, planets, ring }>` 并携带 `fn.outputs = ['sun', 'planets', 'ring']`（§2.6）。
 2. **Host 注册**（第二层）：`registerLib('gear', gear, { autoLift: true })`——`planetary` 被提升为 brep-only op，`outputs: ['sun', 'planets', 'ring']`；`contractVersion` 通过校验（§3.3）。
-3. **脚本调用**（第三层）：`let p0 = gear.planetary({ ratio: 4 })`——语句记录调用点的 `keep`，引擎分派、原样直传 shape 输入、调用 `planetary`、unwrap `Result`。
+3. **脚本调用**（第三层）：`let p0 = gear.planetary({ ratio: 4 })`——引擎分派、原样直传 shape 输入、调用 `planetary`、unwrap `Result`；保留来自函数体自身的 `keep()` 或脚本级 `part.keep()` 语句，永不来自调用实参（§2.5）。
 4. **产物返回**：`p0.sun` / `p0.planets` / `p0.ring` 被收养为 faijs `Shape`（或数据记录），存入值存储——后续语句可继续使用（`cad.union(p0.sun, b0)`）。
 
 每一步恰好属于一层：库作者写，Host 接纳，脚本调用，引擎桥接。

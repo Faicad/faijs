@@ -15,7 +15,7 @@ import { solidToShape } from '../brep/brep-ops'
 import {
   booleanWithRoleTable,
 } from '../brep/face-evolution'
-import { getCurrentStmt, getChainPreference, getBackends, keepHidden, nameOf } from '../runtime-state'
+import { getCurrentStmt, getChainPreference, getBackends, nameOf } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, hasMeshSolid, inputRoleTable } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
@@ -79,8 +79,8 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
   // 「无 handle」守卫，但 OCCT 的 BOP 只接受 solid：fuse(wire, solid) 直接
   // "operation failed"（内核直测实证，PartShape5/PartShape6/PartShape93 均
   // wire/face、vol=0）。C3c-1 已实证 0 体积线框成员对 compound invariants
-  // 零影响 ⇒ union 的语义是 solid 合流，非 solid 输入如实跳过（keepHidden
-  // 语义不变）；全非 solid 才抛错。cut/intersect 语义不变（工具/交域必须 solid）。
+  // 零影响 ⇒ union 的语义是 solid 合流，非 solid 输入如实跳过；全非 solid 才抛错。
+  // cut/intersect 语义不变（工具/交域必须 solid）。
   const NON_SOLID = new Set(['wire', 'face', 'shell', 'vertex', 'edge'])
   const inputTypes = inputSolids.map((h) => {
     try { return h ? (kernel.shapeType(h) as string) : 'solid' } catch { return 'solid' }
@@ -299,10 +299,10 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
 
 // ── 三个薄导出（多输入 variadic，defineOp 声明双路径；面演化进路由引擎事实 ──
 // ── `hasNativeHistory` 定，op 不声明、不查表——见下方各 op 的分叉注释） ──
-// 函数体 keep 声明（keep-syntax 设计 §2.5）：union/subtract/intersect 保留其
-// 输入且隐藏（R5：3d_editor 现状）——keepHidden 使源变量保持终端但 canvas
-// 不渲染，只有布尔结果正常显示。混合/断链时刻：BREP 侧输入先归约为合法
-// 2-manifold 网格（reconcileBrepInputs），mesh 侧原样透传。
+// 布尔 op **消费其输入**（无函数体 keep 声明）：结果取代输入成为活终端，
+// 输入变量从 terminals 中消失。要留下某个输入，脚本里显式声明 `a.keep()`。
+// 混合/断链时刻：BREP 侧输入先归约为合法 2-manifold 网格（reconcileBrepInputs），
+// mesh 侧原样透传。
 
 /**
  * 布尔并集：合并所有输入几何（≥2 个输入）。
@@ -318,49 +318,12 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
   */
 export const union = defineOp({
   meshEngines: ['brepkit'],
-  mesh: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanMeshPath(reconcileBrepInputs(shapes), 'union')
-  },
-  brep: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanBrep(shapes, 'union')
-  },
+  mesh: (...shapes: Shape[]) => booleanMeshPath(reconcileBrepInputs(shapes), 'union'),
+  brep: (...shapes: Shape[]) => booleanBrep(shapes, 'union'),
   schema: { shapes: 'Shape*' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
   paramDims: { shapes: 'plain' },
-})
-
-/**
- * Boolean cut (subtract): remove `tool` from `base`. Same semantics as
- * {@link subtract} but with the brepjs-compatible `(base, tool, options?)` signature.
- * Overrides the generated projection (compatOp) to do roleTable propagation
- * (Phase 3: L2 requires wall:<i> to survive cut).
- * @group 特征
- * @inputs 2
- * @async true
- * @qual ok
- * @name cut
- * @param base - the target shape. type:Shape required:true
- * @param tool - the shape to subtract. type:Shape required:true
- * @returns Shape base minus tool.
- * @example
- * const b = cad.cut(part0, part1)
-  */
-export const cut = defineOp({
-  meshEngines: ['brepkit'],
-  mesh: (base: Shape, tool: Shape) => {
-    keepHidden(base, tool)
-    return booleanMeshPath(reconcileBrepInputs([base, tool]), 'subtract')
-  },
-  brep: (base: Shape, tool: Shape) => {
-    keepHidden(base, tool)
-    return booleanBrep([base, tool], 'subtract')
-  },
-  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
-
-  paramDims: { base: 'plain', tool: 'plain' },
 })
 
 /**
@@ -377,14 +340,8 @@ export const cut = defineOp({
   */
 export const subtract = defineOp({
   meshEngines: ['brepkit'],
-  mesh: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanMeshPath(reconcileBrepInputs(shapes), 'subtract')
-  },
-  brep: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanBrep(shapes, 'subtract')
-  },
+  mesh: (...shapes: Shape[]) => booleanMeshPath(reconcileBrepInputs(shapes), 'subtract'),
+  brep: (...shapes: Shape[]) => booleanBrep(shapes, 'subtract'),
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
   paramDims: { shapes: 'plain' },
@@ -404,14 +361,8 @@ export const subtract = defineOp({
   */
 export const intersect = defineOp({
   meshEngines: ['brepkit'],
-  mesh: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanMeshPath(reconcileBrepInputs(shapes), 'intersect')
-  },
-  brep: (...shapes: Shape[]) => {
-    if (shapes.length > 0) keepHidden(...shapes)
-    return booleanBrep(shapes, 'intersect')
-  },
+  mesh: (...shapes: Shape[]) => booleanMeshPath(reconcileBrepInputs(shapes), 'intersect'),
+  brep: (...shapes: Shape[]) => booleanBrep(shapes, 'intersect'),
   // intersect 不声明任何能力：brepkit 只有裸 `intersect`（无 `intersectWithHistory`），
   // 由 booleanBrep 按引擎事实静态分派——occt 走历史路径保留面演化/naming；
   // brepkit 走 L1 裸 `kernel.intersect`，几何正确但无面演化（如实降级，不伪造恒等映射）。
@@ -419,3 +370,50 @@ export const intersect = defineOp({
 
   paramDims: { shapes: 'plain' },
 })
+
+// ── 兼容别名（同一函数对象，不是第二份实现） ──
+// brepjs 生态用 `cut(base, tool)` / `fuse(a, b)` 这两个名字；faijs 自己的名字是
+// `subtract(...shapes)` / `union(...shapes)`。两者几何完全同一（都经 `operation`
+// 映射到内核 `cut` / `fuse`），差别只在名字。别名把"一个概念一个实现"落实到位：
+// 改 subtract 就等于改 cut，不存在实现漂移。多输入、keep 语义、面演化、naming
+// 全部一致。
+//
+// 唯一的签名差异是**参数表**：别名继承变参形态，所以 `cut(a, b, c)` 现在真的减两次
+// （旧手写 cut 只解构 base/tool，第三参被静默吞掉）；`fuse(a, b, c)` 同理合流三次。
+
+/**
+ * Boolean cut (subtract): remove `tool` from `base` — {@link subtract} 的别名。
+ *
+ * brepjs 兼容名。与 `subtract` 是同一个函数对象（同一实现、同一 schema、同一
+ * 消费语义），`cut(a, b)` ≡ `subtract(a, b)`；变参形态同样适用（`cut(a, b, c)`
+ * 从 a 中依次减去 b、c）。
+ *
+ * @group 特征
+ * @inputs 2
+ * @async true
+ * @qual ok
+ * @name cut
+ * @param shapes - 参与运算的几何（第一个为主体）。type:Shape[] required:true
+ * @returns Shape base 依次减去其余输入。
+ * @example
+ * const b = cad.cut(part0, part1)
+ */
+export const cut = subtract
+
+/**
+ * Boolean fuse (union) — {@link union} 的别名。
+ *
+ * brepjs 兼容名。与 `union` 是同一个函数对象（同一实现、同一 schema、同一
+ * 消费语义），`fuse(a, b)` ≡ `union(a, b)`；变参形态同样适用。
+ *
+ * @group 特征
+ * @inputs 2
+ * @async true
+ * @qual ok
+ * @name fuse
+ * @param shapes - 参与运算的几何（变量引用，≥2 个）。type:Shape[] required:true
+ * @returns Shape 所有输入的并集。
+ * @example
+ * const c = cad.fuse(part0, part1)
+ */
+export const fuse = union

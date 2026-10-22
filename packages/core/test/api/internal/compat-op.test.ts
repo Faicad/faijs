@@ -234,20 +234,20 @@ describe('§5 keep — 兼容 op 调用点声明（UI 层显示契约不改）',
     }
   }
 
-  it('兼容 op 调用点 keep 保留几何终端；keepHidden 隐藏', async () => {
+  it('独立 keep 声明在兼容 op 上同样生效；keepHidden 隐藏', async () => {
     const base = [
       "import * as gear from 'test-fixture-lib'",
       'const part0 = cad.box(20, 20, 20, { centered: true })',
     ].join('\n')
 
-    const kept = await run(base + '\n' + 'const part1 = gear.dup(part0, { keep: ["part0"] })')
+    const kept = await run(base + '\n' + 'const part1 = gear.dup(part0)\npart0.keep()')
     expect(kept.failedAt).toBeUndefined()
     const byId = new Map(kept.terminals.map((t) => [String(t.id), t]))
     expect(byId.has('part0')).toBe(true)
     expect(byId.get('part0')!.hidden).toBeUndefined()
     expect(byId.has('part1')).toBe(true)
 
-    const hidden = await run(base + '\n' + 'const part2 = gear.dup(part0, { keep: ["part0"], keepHidden: true })')
+    const hidden = await run(base + '\n' + 'const part2 = gear.dup(part0)\npart0.keepHidden()')
     expect(hidden.failedAt).toBeUndefined()
     const hbyId = new Map(hidden.terminals.map((t) => [String(t.id), t]))
     expect(hbyId.get('part0')!.hidden).toBe(true)

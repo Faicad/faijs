@@ -26,12 +26,15 @@ import { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from '../../../src/brep/e
 import { registerBrepMockEngine, BREP_MOCK_ENGINE_ID } from '../../../src/brep/engine/adapters/brep-mock'
 import { createEditorRuntime } from '../../support/editor-ops'
 
-/** 同一段 faijs 脚本：构造（box×2）→ 布尔（union）。
+/** 同一段 faijs 脚本：构造（box×2）→ 布尔（union）→ 显式保留 part0。
  *  `union` 中立（无 `engines`）→ 两引擎都执行，无执行前静态拒绝；
- *  唯一差异是 STEP 导出标记（`ADVANCED_FACE` vs `brep-mock-engine`）。 */
+ *  唯一差异是 STEP 导出标记（`ADVANCED_FACE` vs `brep-mock-engine`）。
+ *  `part0.keep()` 是独立保留声明（2026-10-22 起布尔消费输入，源不再自动保留）：
+ *  它让本用例仍然覆盖"多终端 → brepSolids 多条目"的产出形状。 */
 const SCRIPT = `let part0 = cad.box(10, 10, 10, { centered: true })
 let part1 = cad.box(10, 10, 10, { centered: true, at: [15, 0, 0] })
 let part2 = cad.union(part0, part1)
+part0.keep()
 `
 
 /** 简化宿主端口（box/union 不依赖 assets/fonts）。 */
@@ -57,13 +60,13 @@ describe('occt 引擎（默认实现）', () => {
     __resetEngineRegistriesForTests()
   })
 
-  it('同一脚本：union 成功 → 3 个 brepSolids + 真实 STEP 导出（ADVANCED_FACE）', async () => {
+  it('同一脚本：union 成功 → ≥2 个 brepSolids + 真实 STEP 导出（ADVANCED_FACE）', async () => {
     const result = await runWithEngine(registerOcctBrepEngine, OCCT_BREP_ENGINE_ID)
 
     expect(result.failedAt).toBeUndefined()
     expect(result.brepSolids).toBeDefined()
-    // union 走 keepHidden：part0/part1 保留为 terminal + part2 → 3 个
-    expect(result.brepSolids!.size).toBeGreaterThanOrEqual(3)
+    // union 消费输入；part0 由独立声明保留 → part0 + part2
+    expect(result.brepSolids!.size).toBeGreaterThanOrEqual(2)
     const entry = result.brepSolids!.get(asPartName('part2'))
     expect(entry).toBeDefined()
     const step = entry!.kernel.exportStep(entry!.solid)
@@ -76,15 +79,15 @@ describe('memory 引擎（第二引擎——切换能力验证）', () => {
     __resetEngineRegistriesForTests()
   })
 
-  it('同一脚本：union 成功 → ≥3 个 brepSolids + mock STEP 导出（brep-mock-engine 标记）', async () => {
+  it('同一脚本：union 成功 → ≥2 个 brepSolids + mock STEP 导出（brep-mock-engine 标记）', async () => {
     const result = await runWithEngine(registerBrepMockEngine, BREP_MOCK_ENGINE_ID)
 
     // union 无 engines 白名单 ⇒ 引擎门放行；brep_mock 亦不在任何白名单语义内（D11-3 豁免）。
     // 静态拒绝面已无第二条声明轴（能力门于 2026-10-08 删除），故与 occt 段同形断言。
     expect(result.failedAt).toBeUndefined()
     expect(result.brepSolids).toBeDefined()
-    // union 走 keepHidden：part0/part1 保留为 terminal + part2 → ≥3 个
-    expect(result.brepSolids!.size).toBeGreaterThanOrEqual(3)
+    // union 消费输入；part0 由独立声明保留 → part0 + part2
+    expect(result.brepSolids!.size).toBeGreaterThanOrEqual(2)
     const entry = result.brepSolids!.get(asPartName('part2'))
     expect(entry).toBeDefined()
     const step = entry!.kernel.exportStep(entry!.solid)

@@ -26,7 +26,7 @@ function liveShapeNames(
     lines: meta.lines,
     blocks: meta.blocks,
     keep: {
-      lineEntries: (lineNo) => meta.keep.get(lineNo),
+      declared: () => meta.keep,
       functionBody: (lineNo) => fnKeep?.get(lineNo),
     },
     shapeVarNames,
@@ -48,23 +48,20 @@ describe('computeLiveShapes: 消费判定', () => {
     expect(names).toEqual(['part2'])
   })
 
-  it('R1 机制锚点：subtract 输入被消费；boolean op 的 keepHidden 使其保留为隐藏终端', () => {
-    // FCStd port「中间 feature var 泄漏为 terminal」（如 TS35 solids 1vsN）的根因锚点。
+  it('R1 机制锚点：subtract 输入被消费；函数体 keep 登记仍能救活（阵列语义）', () => {
     // 两层事实必须同时成立，缺一就会误判根因：
-    //   1）消费扫描本身正确——无 keep 时 `subtract(part0, part1)` 的 positional var-ref
-    //      被 lineConsumes 识别为消费 → 仅 part2 终端（＝下面的第一个断言）。
-    //   2）真运行时 `cad.subtract` 函数体调用 `keepHidden(...inputs)`（`api/boolean.ts`，
-    //      R5 语义：布尔源保留但隐藏）→ 登记落到 subtract 调用行（行号键）→ R1 短路
-    //      「不消费」→ part0/part1 作为 hidden terminal 存活（＝下面的第二个断言，也是
-    //      runtime.test.ts「box+sphere+subtract → 3 终端」的成因）。
-    // 结论：1vsN 不是 computeLiveShapes/lineConsumes 漏判（计划 B4 假设），是 op 内建 keep。
+    //   1）消费扫描本身正确——无 keep 声明时 `subtract(part0, part1)` 的 positional
+    //      var-ref 被 lineConsumes 识别为消费 → 仅 part2 终端。
+    //   2）R1 短路仍然生效——函数体 `keep(...)` / `keepHidden(...)` 登记到**调用行**
+    //      就取消该行的消费判定（阵列/镜像/compound 走这条通道；布尔 2026-10-22 起
+    //      不再声明，改为默认消费）。
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.cylinder({ radius: 5, height: 20 })',
       'let part2 = cad.subtract(part0, part1)',
     ].join('\n')
     expect(liveShapeNames(code)).toEqual(['part2'])
-    // 模拟 api/boolean.ts 的 keepHidden(part0, part1)：函数体 keep 登记到 subtract 调用行（行 3）
+    // 模拟阵列的用户：库函数体 keepHidden/keep 登记到第 3 行
     const fnKeep = new Map<number, KeepRegistration>()
     fnKeep.set(3, {
       kept: new Set([asPartName('part0'), asPartName('part1')]),
@@ -73,7 +70,8 @@ describe('computeLiveShapes: 消费判定', () => {
         [asPartName('part1'), true],
       ]),
     })
-    expect(liveShapeNames(code, fnKeep)).toEqual(['part0', 'part1', 'part2'])
+    const withFnKeep = liveShapeNames(code, fnKeep)
+    expect(withFnKeep).toEqual(['part0', 'part1', 'part2'])
   })
 
   it('链式重赋值 → 仅 1 终端', () => {
@@ -84,10 +82,12 @@ describe('computeLiveShapes: 消费判定', () => {
     expect(names).toEqual(['part0'])
   })
 
-  it('被 keep 声明的输入不被消费（行内 keep → R1）', () => {
+  it('被 keep 声明的输入不被消费（独立语句 → R1，且与位置无关）', () => {
+    // keep 声明写在**消费语句之后**照样生效（全局声明语义）——用户示例即是此形态。
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
-      'let part1 = cad.union(part0, { keep: [part0] })',
+      'let part1 = cad.union(part0)',
+      'part0.keep()',
     ].join('\n')
     expect(liveShapeNames(code)).toEqual(['part0', 'part1'])
   })
@@ -95,7 +95,8 @@ describe('computeLiveShapes: 消费判定', () => {
   it('keepHidden 声明保留但隐藏（hidden=true）', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
-      'let part1 = cad.union(part0, { keep: [part0], keepHidden: true })',
+      'let part1 = cad.union(part0)',
+      'part0.keepHidden()',
     ].join('\n')
     const meta = extractMetadata(code)
     const shapeVarNames = new Set<PartName>()
@@ -149,12 +150,13 @@ describe('computeLiveShapes: 消费判定', () => {
     expect(liveShapeNames(code, fnKeep)).toEqual(['part0', 'part1'])
   })
 
-  it('hidden：最后一次保留声明胜出（后行 keep 覆盖 hidden=false）', () => {
+  it('hidden：脚本声明覆盖库函数体登记（keep() 让 hidden=false 胜出）', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
-      'let part1 = cad.union(part0, { keep: [part0], keepHidden: true })',
+      'let part1 = cad.union(part0)',
+      'part0.keepHidden()',
       'let part2 = cad.scale(part1, 2)',
-      'let part3 = cad.union(part2, { keep: [part2], keepHidden: false })',
+      'part2.keep()',
     ].join('\n')
     const meta = extractMetadata(code)
     const shapeVarNames = new Set<PartName>()
@@ -165,7 +167,7 @@ describe('computeLiveShapes: 消费判定', () => {
       keep: keepViewFromMetadata(meta),
       shapeVarNames,
     })
-    // part0: 无后行声明 → hidden 保持 true；part2: 后行 keepHidden:false → 可见
+    // part0: keepHidden → hidden=true；part2: keep → 可见（hidden 缺省）
     const part0 = terminals.find((t) => String(t.id) === 'part0')
     const part2 = terminals.find((t) => String(t.id) === 'part2')
     expect(part0?.hidden).toBe(true)
@@ -213,7 +215,7 @@ describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（R2）', () =>
   it('R2 不破坏 R5：赋值语句（const/重赋值）仍按原规则消费', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
-      'let part1 = cad.subtract(part0, { keep: [] })',
+      'let part1 = cad.subtract(part0)',
     ].join('\n')
     // part0 被 subtract 赋值行消费 → 仅 part1 终端
     expect(liveShapeNames(code)).toEqual(['part1'])
@@ -222,7 +224,7 @@ describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（R2）', () =>
   it('inplaceWrites：修改类裸调用把 producer 锚到该行——写回前的旧消费不误伤新值', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })', // 行1 producer
-      'const p1 = cad.subtract(part0, { keep: [] })',        // 行2 消费旧 part0
+      'const p1 = cad.subtract(part0)',                      // 行2 消费旧 part0
       'cad.fai_drill(part0, { diameter: 3 })',               // 行3 裸调用写回
     ].join('\n')
     // 无登记：part0 producer=行1 → 行2 消费 → part0 不终端

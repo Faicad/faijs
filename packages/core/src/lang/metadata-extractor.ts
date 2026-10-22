@@ -18,6 +18,7 @@ import type { StatementSummary } from './statement-summary'
 import type { ScriptMetaIR, TerminalShape } from './types'
 import { asStmtId, asPartName, type PartName, type StmtId } from '../identity'
 import type { HostArg, HostCallRef, HostRef } from './host-arg'
+import { matchKeepCall } from './keep-statement'
 import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef } from './host-arg'
 import { ParseError } from './parse-error'
 import { fnv1a32 } from './fnv-hash'
@@ -96,10 +97,19 @@ export interface BlockEntry {
   range: { start: number; end: number }
 }
 
-/** keep 指令条目（行级，存活判定静态输入；hidden=true 为 keepHidden） */
-export interface KeepEntry {
+/**
+ * 脚本级 keep 声明（独立语句 `a.keep()` / `a.keepHidden()`）。
+ *
+ * 语义：该变量**永不**被任何语句消费（与声明位置无关——写在消费语句之后同样生效）。
+ * 与库函数体的 `exec.keep` 是两条不同通道（后者按"当前执行语句"行号登记）。
+ */
+export interface KeepDeclaration {
+  /** 被声明的变量名。 */
   target: string
+  /** true = 保留但隐藏（`a.keepHidden()`）。 */
   hidden: boolean
+  /** 声明所在源码行（诊断/高亮用；不参与判定）。 */
+  line: number
 }
 
 /** 元数据提取器输出：UI 通道的完整元数据面（§4.1）。 */
@@ -109,7 +119,8 @@ export interface UiMetadata {
   imports: ImportEntry[]
   functions: FunctionEntry[]
   blocks: BlockEntry[]
-  keep: Map<number, KeepEntry[]>
+  /** 脚本级 keep 声明（`a.keep()` / `a.keepHidden()`；与行号无关）。 */
+  keep: KeepDeclaration[]
   meta?: ScriptMetaIR
   terminalShapes?: TerminalShape[]
   /**
@@ -173,8 +184,8 @@ export interface SymbolTable {
   localFnParams: Map<string, string[]>
   /** 缺省命名空间绑定名（'cad'） */
   defaultNsName: string
-  /** keep 指令表（lineNo → 调用点条目；行级存活判定静态输入） */
-  keep: Map<number, KeepEntry[]>
+  /** 脚本级 keep 声明（`a.keep()` / `a.keepHidden()`；与行号无关） */
+  keep: KeepDeclaration[]
 }
 
 // ── 常量折叠（与现状 parser.tryFoldConstExpr 同构；仅字面量 + 参数） ──
@@ -1095,7 +1106,8 @@ interface LineSummarySpec {
 /**
  * 从单条调用组装 StatementSummary：
  * - positional = 全量位置实参（末位纯对象保留，与现状一致）
- * - args = 末位纯对象的投影（keep/keepHidden 键原样保留——compile 期才剥离）
+ * - args = 末位纯对象的投影（`keep` / `keepHidden` 键在 {@link rejectInlineKeep}
+ *   处已被拒，不会出现在这里）
  */
 function buildLineSummary(spec: LineSummarySpec): StatementSummary {
   const last = spec.positional[spec.positional.length - 1]
@@ -1222,56 +1234,36 @@ function parseReturnStatement(
   throw new ParseError(`unsupported return expression: ${arg.type}`, line)
 }
 
-// ── keep 指令提取（行级 keep/keepHidden → metadata.keep） ──
+// ── 参数位 keep 的拒绝（2026-10-22：keep 只能独立成句） ──
 
-function extractKeepEntries(
-  positional: HostArg[],
-  line: number,
-  symbols: SymbolTable,
-): void {
+/**
+ * 拒绝"把 keep 写在 op 参数里"的写法。
+ *
+ * 旧版这里做的是**提取**（`{ keep: [...] }` / `{ keepHidden: true }` → 行级 keep 表），
+ * 但那条通道半残：`cad.subtract(a, b, { keep: ['a'] })` 的尾随对象会被 op 当成第 3 个
+ * 形状（`E_BREP_UNSUPPORTED`），而 `cad.assembly({ …, keep: [...] })` 的键 op 根本不读。
+ * 现在是**报错**：任何实参末尾的纯对象里出现 `keep` / `keepHidden` 键即视为写错位置，
+ * 引导到独立语句 `a.keep()`。
+ *
+ * 只认键名、不认 op——语言层不需要维护"哪些 op 有 options 对象"这张表。
+ *
+ * @param positional - 位置实参（已解析为 HostArg）。
+ * @param line - 语句行号（报错定位）。
+ * @throws ParseError `E_STATEMENT` —— 含 `keep` / `keepHidden` 键时。
+ */
+function rejectInlineKeep(positional: HostArg[], line: number): void {
   const last = positional[positional.length - 1]
   if (!isPlainDataObject(last)) return
-  const entries: Array<{ target: string; hidden?: boolean }> = []
-  const keepArg = last.keep
-  if (Array.isArray(keepArg)) {
-    for (const entry of keepArg) {
-      const parsed = parseKeepEntry(entry)
-      if (parsed) entries.push(parsed)
-    }
-  }
-  const statementDefault = last.keepHidden === true
-  const normalized = entries.map((e): KeepEntry => {
-    // e.hidden 为显式 hidden 值（undefined → 未指定）；未指定时用语句级 keepHidden 兜底
-    return { target: e.target, hidden: e.hidden ?? statementDefault }
-  })
-  if (normalized.length > 0) {
-    const list = symbols.keep.get(line) ?? []
-    list.push(...normalized)
-    symbols.keep.set(line, list)
-  }
-}
-
-function parseKeepEntry(entry: HostArg): { target: string; hidden?: boolean } | undefined {
-  // 与现状 keep.ts parseKeepEntry 同构：字符串条目 / 裸 var-ref 条目不携带 hidden
-  // （语句级 keepHidden 兜底）；{ shape, hidden } 显式条目携带 hidden（false 也显式）。
-  if (typeof entry === 'string') return { target: entry }
-  if (entry !== null && typeof entry === 'object' && !Array.isArray(entry)) {
-    const obj = entry as Record<string, unknown>
-    const shape = obj.shape
-    if (typeof shape === 'string') return { target: shape, hidden: obj.hidden === true }
-    if (shape !== null && typeof shape === 'object') {
-      const s = shape as { kind?: string; name?: string }
-      if (s.kind === 'var-ref' && typeof s.name === 'string') {
-        return { target: s.name, hidden: obj.hidden === true }
-      }
-    }
-    const self = entry as { kind?: string; name?: string }
-    // 顶层 var-ref 条目（keep: [part0] → part0 是 var-ref 形态）：不携带 hidden
-    if (self.kind === 'var-ref' && typeof self.name === 'string') {
-      return { target: self.name }
-    }
-  }
-  return undefined
+  const hasKeep = Object.prototype.hasOwnProperty.call(last, 'keep')
+  const hasKeepHidden = Object.prototype.hasOwnProperty.call(last, 'keepHidden')
+  if (!hasKeep && !hasKeepHidden) return
+  const key = hasKeep ? 'keep' : 'keepHidden'
+  throw new ParseError(
+    `"${key}" is not an op option: declare it as its own statement ` +
+      `(${hasKeep ? 'a.keep()' : 'a.keepHidden()'}) instead of passing it in the argument object`,
+    line,
+    'E_STATEMENT',
+  )
 }
 
 // ── 主入口 ──
@@ -1356,7 +1348,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
     nsBindings: new Map<string, string>(),
     localFnParams: new Map<string, string[]>(),
     defaultNsName,
-    keep: new Map<number, KeepEntry[]>(),
+    keep: [],
   }
 
   // ── 0. 顶层 import 预扫描（与 MetadataExtractor 同构；容器/扁平都允许头部 import） ──
@@ -1804,7 +1796,7 @@ function classifyOpCall(
     outputs: opts.output !== undefined ? [opts.output] : [],
     hasAssignment: opts.hasAssignment,
   })
-  extractKeepEntries(positional, line, vctx.symbols)
+  rejectInlineKeep(positional, line)
   attachAssemblySummary(summary)
   return summary
 }
@@ -2017,7 +2009,7 @@ function classifyDestructure(decl: ASTNode, line: number, vctx: ValueParseCtx): 
     outputKeys: keys,
     hasAssignment: true,
   })
-  extractKeepEntries(positional, line, vctx.symbols)
+  rejectInlineKeep(positional, line)
   return summary
 }
 
@@ -2056,6 +2048,36 @@ function classifyExpression(
       return
     }
     throw new ParseError('re-assignment must be a cad.op() call', line, 'E_STATEMENT')
+  }
+
+  // keep 独立声明 `a.keep()` / `a.keepHidden()`（2026-10-22：keep 只能独立成句）
+  // 只接受零实参、receiver 必须是已声明变量。刻意不支持 `cad.keep(a)`：
+  // 那又是一种"把变量塞进参数里"的形态，正是本次要删掉的东西。
+  // 该语句不产生 StatementSummary（无输出、无参数、不进 callees），只登记声明。
+  const keepCall = matchKeepCall(expr)
+  if (keepCall) {
+    const { target: objName, hidden, argCount } = keepCall
+    const prop = hidden ? 'keepHidden' : 'keep'
+    if (vctx.symbols.nsBindings.has(objName) || objName === vctx.symbols.defaultNsName) {
+      throw new ParseError(
+        `${objName}.${prop}(...) is not supported: write \`<var>.${prop}()\` — ` +
+          'keep declares that a script variable survives, it does not take arguments',
+        line,
+        'E_STATEMENT',
+      )
+    }
+    if (!vctx.symbols.declared.has(objName) && !vctx.looseVars) {
+      throw new ParseError(`unknown variable "${objName}" in .${prop}() call`, line, 'E_REFERENCE')
+    }
+    if (argCount > 0) {
+      throw new ParseError(
+        `${prop}() takes no arguments — it declares that "${objName}" is never consumed`,
+        line,
+        'E_STATEMENT',
+      )
+    }
+    vctx.symbols.keep.push({ target: objName, hidden, line })
+    return
   }
 
   // 成员方法 / 命名空间裸调用（无赋值）

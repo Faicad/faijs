@@ -81,26 +81,48 @@ describe('extractMetadata: 行分类与表', () => {
     expect(meta.blocks[0].source).toContain('for (let i = 0; i < 3; i++)')
   })
 
-  it('keep/keepHidden 指令 → keep 表（行号 → 条目；语句级 keepHidden 兜底）', () => {
+  it('keep/keepHidden 独立语句 → keep 声明列表（与行号无关）', () => {
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.box(20, 20, 20, { centered: true, at: [10, 0, 0] })',
-      'let part2 = cad.union(part0, part1, { keep: [part0], keepHidden: true })',
+      'let part2 = cad.union(part0, part1)',
+      'part0.keep()',
+      'part1.keepHidden()',
     ].join('\n')
     const meta = extractMetadata(code)
-    expect(meta.keep.has(3)).toBe(true)
-    const entries = meta.keep.get(3)!
-    expect(entries).toHaveLength(1)
-    expect(entries[0]).toEqual({ target: 'part0', hidden: true })
+    expect(meta.keep).toEqual([
+      { target: 'part0', hidden: false, line: 4 },
+      { target: 'part1', hidden: true, line: 5 },
+    ])
+    // keep 语句不是 op 语句：不进 lines（无输出、无参数、不进 callees）
+    expect(meta.lines).toHaveLength(3)
+    expect(meta.lines.map((l) => l.callee)).not.toContain('keep')
   })
 
-  it('keep 无语句级默认 → hidden=false', () => {
-    const code = [
+  it('参数位 keep / keepHidden 一律拒绝（keep 只能独立成句）', () => {
+    const withKeep = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.union(part0, { keep: [part0] })',
     ].join('\n')
-    const meta = extractMetadata(code)
-    expect(meta.keep.get(2)?.[0]).toEqual({ target: 'part0', hidden: false })
+    expect(() => extractMetadata(withKeep)).toThrow(/not an op option/)
+    const withKeepHidden = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.union(part0, { keepHidden: true })',
+    ].join('\n')
+    expect(() => extractMetadata(withKeepHidden)).toThrow(/not an op option/)
+  })
+
+  it('keep 语句形态校验：带实参 / 命名空间写法都报 E_STATEMENT', () => {
+    const withArg = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'part0.keep(part0)',
+    ].join('\n')
+    expect(() => extractMetadata(withArg)).toThrow(/takes no arguments/)
+    const nsForm = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.keep(part0)',
+    ].join('\n')
+    expect(() => extractMetadata(nsForm)).toThrow(/is not supported/)
   })
 
   it('容器代码：行号 = 原文行号（容器不封装）', () => {

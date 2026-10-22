@@ -61,6 +61,10 @@ describe('P4· 宿主链路 end-to-end（.fai.js → execute → terminals → E
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.cylinder(6, 30, { centered: true })',
       'let part2 = cad.union(part0, part1)',
+      // 布尔消费输入（2026-10-22）：本用例刻意用独立 keepHidden 声明把两个输入
+      // 保留为 hidden 终端，从而继续覆盖"多终端 + hidden"的宿主编排链路。
+      'part0.keepHidden()',
+      'part1.keepHidden()',
     ].join('\n')
     const result: ExecutionResult = await rt.execute(code)
     try {
@@ -71,16 +75,13 @@ describe('P4· 宿主链路 end-to-end（.fai.js → execute → terminals → E
       expect(result.outputs.has(P1)).toBe(true)
       expect(result.outputs.has(asPartName('part2'))).toBe(true)
 
-      // terminals：union 结果可见；输入按既有 R5 语义保留为 hidden 终端
-      const terms = result.terminals.map((t) => String(t.id))
-      expect(terms).toContain('part2')
+      // terminals：union 消费输入 → 两个输入靠独立 keepHidden 声明存活为 hidden 终端
+      const terms = result.terminals.map((t) => String(t.id)).sort()
+      expect(terms).toEqual(['part0', 'part1', 'part2'])
       const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
-      expect(byId.get('part0')?.hidden).toBe(true)
-      expect(byId.get('part1')?.hidden).toBe(true)
-      const term0 = result.terminals.find((t) => String(t.id) === 'part0')
-      const term1 = result.terminals.find((t) => String(t.id) === 'part1')
-      expect(term0?.hidden).toBe(true)
-      expect(term1?.hidden).toBe(true)
+      expect(byId.get('part0')!.hidden).toBe(true)
+      expect(byId.get('part1')!.hidden).toBe(true)
+      expect(byId.get('part2')!.hidden).toBeUndefined()
 
       // naming：行为反查命名的宿主依赖 → 至少含三行
       const naming = result.naming
