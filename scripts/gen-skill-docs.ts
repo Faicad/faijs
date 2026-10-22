@@ -777,8 +777,6 @@ const stripTrailingWs = (s: string): string => s.split('\n').map(l => l.replace(
 
 const BANNER = (target: 'occt' | 'brepkit', commonCount: number, occtOnly: string[], brepkitOnly: string[]): string => {
   const lines = [
-    `> **Engine-specific skill doc — auto-generated** by \`scripts/gen-skill-docs.ts\` (do not edit by hand; regenerate via \`npm run gen:skill-docs -- --emit <kernel>\`).`,
-    '>',
     `> This doc lists the APIs available when the runtime BREP engine is **${target}**.`,
     `> It contains the **${commonCount} engine-neutral (common) ops**${target === 'occt'
       ? ` plus the **${occtOnly.length} OCCT-only ops**.`
@@ -794,7 +792,6 @@ const BANNER = (target: 'occt' | 'brepkit', commonCount: number, occtOnly: strin
 function renderOpEntry(op: OpDocEntry, bucket: Bucket): string {
   const lines: string[] = []
   const badge = bucket === 'occt-only' ? ' `[OCCT only]`' : bucket === 'brepkit-only' ? ' `[brepkit only]`' : ''
-  const asyncTag = op.isAsync ? ' **Async**.' : ' **Sync**.'
   lines.push(`### \`${op.name}(...)\`${badge}`)
   lines.push(op.description)
 
@@ -820,7 +817,6 @@ function renderOpEntry(op: OpDocEntry, bucket: Bucket): string {
   }
 
   lines.push('')
-  lines.push(asyncTag)
 
   // Examples
   if (op.examples.length > 0) {
