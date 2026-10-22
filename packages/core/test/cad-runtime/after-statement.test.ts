@@ -154,3 +154,68 @@ describe('collectLiveSnapshot', () => {
     expect(fresh.collectLiveSnapshot()).toEqual([])
   })
 })
+
+describe('getLiveOutput', () => {
+  it('执行期返回真实网格（流式帧数据源；statementCache 收尾才填充）', async () => {
+    const frames: Array<{ line: number; meshed: string[]; empty: string[] }> = []
+    await rt.execute(CODE, {
+      afterStatement: (_id, lineNo) => {
+        const snap = rt.collectLiveSnapshot(lineNo)
+        const meshed: string[] = []
+        const empty: string[] = []
+        for (const t of snap) {
+          if (t.kind === 'compound') continue
+          const out = rt.getLiveOutput(t.id)
+          if (out && out.positions instanceof Float32Array && out.indices instanceof Uint32Array) {
+            meshed.push(`${t.id}(${out.positions.length})`)
+          } else {
+            empty.push(t.id)
+          }
+        }
+        frames.push({ line: lineNo, meshed, empty })
+      },
+    })
+    // 每条语句后至少有一个已物化活体终端，无"空网格"终端。
+    expect(frames.length).toBe(3)
+    expect(frames[0].meshed.some((m) => m.startsWith('part0('))).toBe(true)
+    expect(frames[1].meshed.some((m) => m.startsWith('part1('))).toBe(true)
+    expect(frames[2].meshed.some((m) => m.startsWith('part2('))).toBe(true)
+    for (const f of frames) expect(f.empty).toEqual([])
+  })
+
+  it('执行期 statementCache 尚未填充——getCachedOutput 拿不到、getLiveOutput 拿得到', async () => {
+    const gap: Array<{ line: number; cached: boolean; live: boolean }> = []
+    await rt.execute(CODE, {
+      afterStatement: (_id, lineNo) => {
+        const snap = rt.collectLiveSnapshot(lineNo)
+        for (const t of snap) {
+          if (t.kind === 'compound') continue
+          const cached = rt.getCachedOutput(t.id)
+          const live = rt.getLiveOutput(t.id)
+          gap.push({
+            line: lineNo,
+            cached: !!(cached && cached.positions instanceof Float32Array),
+            live: !!(live && live.positions instanceof Float32Array),
+          })
+        }
+      },
+    })
+    // 收尾前 statementCache 无当前轮条目（getCachedOutput 空）；getLiveOutput 命中。
+    expect(gap.length).toBeGreaterThan(0)
+    expect(gap.every((g) => !g.cached)).toBe(true)
+    expect(gap.every((g) => g.live)).toBe(true)
+  })
+
+  it('无该变量 / 非 shape（compound）返回 undefined', async () => {
+    const groupCode = [
+      'let part0 = cad.box(10, 10, 10, { centered: true })',
+      'let part1 = cad.box(5, 5, 5, { centered: true })',
+      'let g = cad.group({ name: "g", members: [part0, part1] })',
+    ].join('\n')
+    await rt.execute(groupCode)
+    expect(rt.getLiveOutput('nope' as never)).toBeUndefined()
+    // compound 不是 shape → undefined（pushFrame 另有 kind==='compound' 前置跳过）
+    expect(rt.getLiveOutput('g' as never)).toBeUndefined()
+    expect(rt.getLiveOutput('part0' as never)).toBeDefined()
+  })
+})

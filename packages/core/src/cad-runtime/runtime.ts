@@ -1789,6 +1789,33 @@ export class CadRuntime {
   // ── 公开：缓存访问 ──
 
   /**
+   * 2026-10-23 stream preview：**执行期活体几何**——从 DirectExecutor ctx 取当前
+   * shape（afterStatement 钩子触发时刻的真实对象），defer 模式下先物化再返回
+   * （positions/indices 可直接序列化推帧）。
+   *
+   * 与 getCachedOutput 的分工：getCachedOutput 读 statementCache——它只在 execute
+   * **收尾**（collectDirectResult）填充，执行期为空/旧条目；getLiveOutput 直读
+   * 执行期 ctx，是流式预览帧的唯一数据源。
+   *
+   * 幂等：物化后删除 LAZY_TESS，重复调用 no-op；物化结果写 meshShapeCache
+   * （与收尾物化同源——拓扑 mesh 与显示 mesh 逐字节一致，红线不破）。
+   *
+   * @param partName - 变量名（与 collectLiveSnapshot 终端的 id 同键）。
+   * @returns 物化后的 shape；无该变量 / 非 shape（含 compound）时 undefined。
+   */
+  getLiveOutput(partName: PartName): Shape | undefined {
+    const de = this.directExecutor
+    if (!de) return undefined
+    const v = de.getCtxVar(String(partName))
+    if (!isShapeLike(v)) return undefined
+    const shape = v as Shape
+    if (materializeTessellation(shape)) {
+      this.brepChain?.meshShapeCache?.set(partName, shape[BREP_TESS] as BrepMeshResult)
+    }
+    return shape
+  }
+
+  /**
    * Get the output geometry from the statement cache (keyed by PartName).
    * @param partName - the part name to look up.
    * @returns the cached shape, or undefined.
