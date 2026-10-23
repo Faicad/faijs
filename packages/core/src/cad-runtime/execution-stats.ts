@@ -66,4 +66,32 @@ export interface ExecutionStats {
   replayedUnits: number
   /** 本轮从持久 ctx 复用、未执行的单元数。 */
   skippedUnits: number
+  /**
+   * direct 路径 resolve 前收尾的四段耗时（ms；仅 direct execute/update 且
+   * 观测打开时存在）。2026-10-23 真机 postLastFrame=135.6s 归因：收尾
+   * （最后一帧完成 → resolve）拆为 outputs/assemblies 组装、statementCache
+   * content-key 哈希、BREP 拓扑构建、命名+activeValues 四段，一次真机跑全拆开。
+   */
+  collectTimings?: {
+    /** outputs/terminals/assemblies 组装。 */
+    assemblies: number
+    /** statementCache 填充 + computeContentKey 哈希。 */
+    hash: number
+    /** BREP 拓扑构建（buildFor/buildBrepTopology）。 */
+    topo: number
+    /** 命名 + activeValues + changed 收集（拓扑之后到返回）。 */
+    naming: number
+    /** 收尾总耗时。 */
+    total: number
+    /** 复用显示 mesh（buildTopologyFromMesh）的构建次数。 */
+    builtFromMesh?: number
+    /** 兜底重三角化（buildSolidTopologyRuntime：meshShape + manifest）的构建次数。 */
+    builtFromSolid?: number
+  }
+  /**
+   * 拓扑构建超时放弃（2026-10-23 手办类模型）：ExecuteOptions.topologyTimeoutMs
+   * 预算耗尽 → 整体放弃拓扑（结果 topology 为空）。宿主据此提示「该模型仅支持
+   * 3D 打印/查看，不支持常规拓扑操作」。缺省 / false = 未触发。
+   */
+  topologyDropped?: boolean
 }

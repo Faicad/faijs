@@ -177,21 +177,6 @@ function fullBBoxFromPoints(points: number[][]): FullBBox {
   }
 }
 
-// ── Cross product of AB x AC ──
-function cross(a: number[], b: number[], c: number[]): [number, number, number] {
-  const abx = b[0] - a[0]
-  const aby = b[1] - a[1]
-  const abz = b[2] - a[2]
-  const acx = c[0] - a[0]
-  const acy = c[1] - a[1]
-  const acz = c[2] - a[2]
-  return [
-    aby * acz - abz * acy,
-    abz * acx - abx * acz,
-    abx * acy - aby * acx,
-  ]
-}
-
 function normalize(v: number[]): number[] | null {
   const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
   if (len <= 1e-12) return null
@@ -463,59 +448,94 @@ function extractFaceGeometry(
     return { area: 0, center: [0, 0, 0], normal: null, bbox: { min: [0, 0, 0], max: [0, 0, 0] }, triangleCount: 0 }
   }
 
+  // 2026-10-23 热点重写（语义与原实现逐项等价，见下方注释）：原实现对每个三角
+  // 面创建 3 个 number[]（p0/p1/p2）→ 高面数曲面（如 brepkit 非均匀 scale 椭球
+  // 显示 mesh 达 1.6万-3.2万三角形，真机皮卡丘收尾 135.6s 的根因）上每三角形
+  // 9 次数组分配 + 32k 顶点二次遍历——GC 与遍历成本主导 manifest 段。改为全
+  // 标量局部变量 + 主循环内增量维护顶点 bbox（nodeSet 语义不变：degenerate 三角
+  // 的顶点同样计入 bbox）。
   let areaSum = 0
-  const centroidSum = [0, 0, 0]
-  const normalSum = [0, 0, 0]
-  const allNodes: number[][] = []
+  let cx = 0
+  let cy = 0
+  let cz = 0
+  let nxs = 0
+  let nys = 0
+  let nzs = 0
+  let minX = Infinity
+  let minY = Infinity
+  let minZ = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  let maxZ = -Infinity
   const nodeSet = new Set<number>()
 
   for (let t = 0; t < triCount; t++) {
-    const i0 = indices[(triStart + t) * 3]
-    const i1 = indices[(triStart + t) * 3 + 1]
-    const i2 = indices[(triStart + t) * 3 + 2]
+    const base = (triStart + t) * 3
+    const i0 = indices[base]
+    const i1 = indices[base + 1]
+    const i2 = indices[base + 2]
     nodeSet.add(i0)
     nodeSet.add(i1)
     nodeSet.add(i2)
 
-    const p0: number[] = [positions[i0 * 3], positions[i0 * 3 + 1], positions[i0 * 3 + 2]]
-    const p1: number[] = [positions[i1 * 3], positions[i1 * 3 + 1], positions[i1 * 3 + 2]]
-    const p2: number[] = [positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]]
-
-    const [nx, ny, nz] = cross(p0, p1, p2)
-    const twiceArea = Math.sqrt(nx * nx + ny * ny + nz * nz)
+    // cross(p0, p1, p2) = AB × AC（与原实现同式，逐坐标展开）
+    const ax = positions[i0 * 3]
+    const ay = positions[i0 * 3 + 1]
+    const az = positions[i0 * 3 + 2]
+    const bx = positions[i1 * 3]
+    const by = positions[i1 * 3 + 1]
+    const bz = positions[i1 * 3 + 2]
+    const cx2 = positions[i2 * 3]
+    const cy2 = positions[i2 * 3 + 1]
+    const cz2 = positions[i2 * 3 + 2]
+    const abx = bx - ax
+    const aby = by - ay
+    const abz = bz - az
+    const acx = cx2 - ax
+    const acy = cy2 - ay
+    const acz = cz2 - az
+    const tx = aby * acz - abz * acy
+    const ty = abz * acx - abx * acz
+    const tz = abx * acy - aby * acx
+    const twiceArea = Math.sqrt(tx * tx + ty * ty + tz * tz)
     // Python uses twiceArea <= 1e-9 to skip degenerate triangles
     if (twiceArea <= 1e-9) continue
 
     const area = twiceArea * 0.5
-    centroidSum[0] += (p0[0] + p1[0] + p2[0]) * area / 3
-    centroidSum[1] += (p0[1] + p1[1] + p2[1]) * area / 3
-    centroidSum[2] += (p0[2] + p1[2] + p2[2]) * area / 3
+    cx += (ax + bx + cx2) * area / 3
+    cy += (ay + by + cy2) * area / 3
+    cz += (az + bz + cz2) * area / 3
     areaSum += area
-
     // Area-weighted normal sum (matches Python: raw cross products, not unit vectors).
-    // Python sums the raw cross products (proportional to triangle area) and
-    // normalizes at the end. This gives the area-weighted face normal.
-    normalSum[0] += nx
-    normalSum[1] += ny
-    normalSum[2] += nz
+    nxs += tx
+    nys += ty
+    nzs += tz
   }
 
+  // 顶点 bbox（同 nodeSet 顶点集，单次遍历；原实现走 fullBBoxFromPoints(allNodes)）
   for (const ni of nodeSet) {
-    allNodes.push([positions[ni * 3], positions[ni * 3 + 1], positions[ni * 3 + 2]])
+    const px = positions[ni * 3]
+    const py = positions[ni * 3 + 1]
+    const pz = positions[ni * 3 + 2]
+    if (px < minX) minX = px
+    if (px > maxX) maxX = px
+    if (py < minY) minY = py
+    if (py > maxY) maxY = py
+    if (pz < minZ) minZ = pz
+    if (pz > maxZ) maxZ = pz
   }
 
   let center: number[]
-  if (allNodes.length === 0) {
+  if (nodeSet.size === 0) {
     center = [0, 0, 0]
   } else if (areaSum > 1e-12) {
-    center = [centroidSum[0] / areaSum, centroidSum[1] / areaSum, centroidSum[2] / areaSum]
+    center = [cx / areaSum, cy / areaSum, cz / areaSum]
   } else {
-    center = fullBBoxFromPoints(allNodes).center
+    center = [(minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5]
   }
 
-  const normal = normalize([normalSum[0], normalSum[1], normalSum[2]])
-  const b = fullBBoxFromPoints(allNodes)
-  const bbox: BBox = { min: b.min, max: b.max }
+  const normal = normalize([nxs, nys, nzs])
+  const bbox: BBox = { min: [minX, minY, minZ], max: [maxX, maxY, maxZ] }
 
   return { area: areaSum, center, normal, bbox, triangleCount: areaSum > 0 ? 1 : 0 }
 }
@@ -994,9 +1014,48 @@ function buildSelectorManifestCore(
     let entryVolume: number | null = null
     let entryCenter: number[]
     if (entry.kind === 'solid') {
-      entryVolume = kernel.getVolume(entry.shape)
-      const cm = kernel.getCenterOfMass(entry.shape)
-      entryCenter = [cm.x, cm.y, cm.z]
+      // 2026-10-23 体积/质心改从**显示 mesh** 四面体法计算（不再调
+      // kernel.getVolume/getCenterOfMass）——真机皮卡丘 135.6s 收尾的根因：
+      // brepkit 的 getVolume/getCenterOfMass 对 transformSolid **非均匀缩放**后
+      // 的实体（曲面类型丢失）做通用曲面积分，单次 1.3-1.7s（node）/ ~15s
+      // （真机），14 终端里 11 个椭球 → 135s（见 test/manifest-timing.test.ts
+      // 的 volCom 段实测）。mesh 四面体法 O(entry 三角形数)、零 wasm，且拓扑
+      // 数据本就是由显示 mesh 派生（红线：拓扑 mesh === 显示 mesh）——闭合流形
+      // 带符号体积 + 质心精度随网格（32k 三角椭球体积误差 <1%）。
+      let v6 = 0
+      let cx = 0
+      let cy = 0
+      let cz = 0
+      for (const fo of entry.faceOrdinals) {
+        const frow = faceRows[fo - 1]
+        const triStart = frow[14] as number
+        const triCount = frow[15] as number
+        for (let t = 0; t < triCount; t++) {
+          const base = (triStart + t) * 3
+          const i0 = idxArr[base]
+          const i1 = idxArr[base + 1]
+          const i2 = idxArr[base + 2]
+          const ax = posArr[i0 * 3]
+          const ay = posArr[i0 * 3 + 1]
+          const az = posArr[i0 * 3 + 2]
+          const bx = posArr[i1 * 3]
+          const by = posArr[i1 * 3 + 1]
+          const bz = posArr[i1 * 3 + 2]
+          const cx2 = posArr[i2 * 3]
+          const cy2 = posArr[i2 * 3 + 1]
+          const cz2 = posArr[i2 * 3 + 2]
+          // 四面体（原点为顶点 0）带符号体积的 6 倍：a · (b × c)
+          const det = ax * (by * cz2 - bz * cy2) - ay * (bx * cz2 - bz * cx2) + az * (bx * cy2 - by * cx2)
+          v6 += det
+          // 四面体质心 = (a+b+c+d)/4，d=原点 → (a+b+c)/4
+          cx += det * (ax + bx + cx2) / 4
+          cy += det * (ay + by + cy2) / 4
+          cz += det * (az + bz + cz2) / 4
+        }
+      }
+      const volume = Math.abs(v6 / 6)
+      entryVolume = volume
+      entryCenter = volume > 1e-12 ? [cx / v6, cy / v6, cz / v6] : [0, 0, 0]
     } else {
       entryCenter = bboxCenter(entryBbox)
     }

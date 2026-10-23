@@ -16,7 +16,7 @@
  */
 
 import type { Shape } from '../../mesh/types'
-import { compound as makeCompound, ensureSlot, type CompoundShape } from '../../shape'
+import { compound as makeCompound, ensureSlot, isCompoundLike, isShape, type CompoundShape } from '../../shape'
 import { keep, nameOf, setPendingAssemblyTransforms, setPendingAssemblyKinematics, type AssemblyTransform } from '../../runtime-state'
 import { solveAssemblyAndKinematics, type AssemblySolveResult } from '../../api/assembly/solve'
 import { validateConstraints } from '../../api/assembly/validate'
@@ -159,6 +159,44 @@ function solveTransforms(members: Shape[], behavior: AssemblyBehavior): Assembly
 // ── group / assembly 库函数 ──
 
 /**
+ * 参数形态归一化（2026-10-23）：兼容两种调用写法——
+ *   · 对象形态（既有契约）：`cad.group({ name?, members? })`、`cad.group({})`、`cad.group()`
+ *   · 位置参数形态（脚本手写直觉）：`cad.group(a, b, c, ...)` → members = 全部实参
+ * 单个 Shape 位置参数 `cad.group(a)` 归一化为单成员组（此前产出空组，无存量依赖）。
+ *
+ * 判定规则：实参 0 或 1 个时，若该实参是非 shape/compound 的普通对象 → 视为 options
+ * 对象原样使用（保持 name/memberNames 语义）；否则视为成员。实参 ≥2 个时全部视为成员。
+ * 成员类型不做额外校验——与 `{ members: [...] }` 形态完全等价，后续 keep /
+ * memberNamesOf / makeCompound 的既有容错与报错行为原样生效。
+ *
+ * 形参签名扩展为「首参 GroupParams | Shape + 其余成员」rest 形态（TS 调用方两种写法
+ * 都通过类型检查），运行时归一化收敛在单一真源——direct / vm / interp 任何执行后端
+ * 最终都调本 op 函数。
+ */
+export type GroupCallArgs = GroupParams | Shape | CompoundShape
+
+function normalizeGroupCall(
+  first: GroupCallArgs | undefined,
+  more: Shape[],
+): { params: GroupParams; members: Shape[] } {
+  if (more.length === 0 && first === undefined) return { params: {}, members: [] }
+  if (
+    more.length === 0 &&
+    typeof first === 'object' &&
+    first !== null &&
+    !isShape(first) &&
+    !isCompoundLike(first)
+  ) {
+    // 对象形态：cad.group({ name?, members? }) / cad.group({})
+    const params = first as GroupParams
+    return { params, members: (params.members ?? []) as Shape[] }
+  }
+  // 位置参数形态：cad.group(a) / cad.group(a, b, ...)
+  const members = first === undefined ? more : [first as Shape, ...more]
+  return { params: {}, members }
+}
+
+/**
  * 成员名推导：显式 memberNames 兼容旧手工构造 IR；否则经 keep() 反查
  * （P3 起经 keep()/nameOfShapes 反查成员名——库不再访问执行上下文，F1）。
  */
@@ -190,15 +228,19 @@ function memberNamesOf(params: { memberNames?: unknown }, members: Shape[]): str
  * @returns CompoundShape 复合几何（kind='compound'，children 为成员 Shape 引用）。
  * @param params.name - 组名。type:string
  * @param params.members - 成员（编译产物 ctx.<var> 引用；结构语句里是裸变量引用，非字符串数组）。type:Shape[]
+ * @param more - 位置参数形态的成员（cad.group(a, b, ...)），经 normalizeGroupCall 归入 members。type:Shape[]
  * @note members 在 .fai.js 里是裸变量引用（编译为 ctx.<var>），字符串数组形态的成员名经 keep() 反查兼容历史 IR。
  * @example
  * const part0 = cad.box(30, 20, 10, { centered: true })
  * cad.group({ name: '底板组', members: [part0] })
   */
-export function group(params: GroupParams): CompoundShape {
-  const members = (params.members as Shape[] | undefined) ?? []
+export function group(params?: GroupCallArgs, ...more: Shape[]): CompoundShape {
+  // 2026-10-23：位置参数形态（cad.group(a, b, ...)）经 normalizeGroupCall 归入
+  // members；对象形态（既有契约 cad.group({ name?, members? })）原样使用。
+  const call = normalizeGroupCall(params, more)
+  const members = call.members
   if (members.length > 0) keep(...members)
-  const memberNames = memberNamesOf(params, members)
+  const memberNames = memberNamesOf(call.params, members)
   const c = makeCompound(members)
   // 挂最小 behavior（memberNames 供 ExecutionResult.compounds 结构输出；group 无约束）
   ensureSlot(c).behavior = {
@@ -230,18 +272,23 @@ export function group(params: GroupParams): CompoundShape {
  * @param params.name - 装配名。type:string
  * @param params.members - 成员（裸变量引用）。type:Shape[]
  * @param params.constraints - 约束数组（遗留 face_mate 形态或上述新形态 { type, a, b }）。type:AssemblyConstraint[]
+ * @param more - 位置参数形态的成员（cad.assembly(a, b, ...)），经 normalizeGroupCall 归入 members。type:Shape[]
  * @example
  * let asm1 = cad.assembly({ name: '主轴组件', members: [part0, part1, part2], constraints: [ { type: 'fixed', part: 'part0' }, { type: 'mate', a: { part: 'part0', face: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } } }, b: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: 'box:bottom', hint: { kind: 'face', surfaceType: 'plane' } } } } }, { type: 'concentric', a: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: '', hint: { kind: 'face', surfaceType: 'cylinder' } } } }, b: { part: 'part2', face: { topoRef: { kind: 'face', origin: 'part2', role: 'cylinder:lateral', hint: { kind: 'face', surfaceType: 'cylinder' } } } } } ] })
  * asm1.solve()
   */
-export function assembly(params: AssemblyParams): CompoundShape {
-  const members = (params.members as Shape[] | undefined) ?? []
-  const constraints = (params.constraints as AssemblyConstraint[] | undefined) ?? []
-  const joints = (params.joints as JointSpec[] | undefined) ?? []
-  const drive = params.drive as Record<string, number | number[]> | undefined
+export function assembly(params?: GroupCallArgs, ...more: Shape[]): CompoundShape {
+  // 2026-10-23：位置参数形态（cad.assembly(a, b, ...)）经 normalizeGroupCall 归入
+  // members（无约束/关节/驱动，与 group 等价的结构语义）；对象形态原样使用。
+  const call = normalizeGroupCall(params, more)
+  const params2 = call.params as AssemblyParams
+  const members = call.members
+  const constraints = (params2.constraints as AssemblyConstraint[] | undefined) ?? []
+  const joints = (params2.joints as JointSpec[] | undefined) ?? []
+  const drive = params2.drive as Record<string, number | number[]> | undefined
 
   // P2-f1：约束参数运行期校验（keep() 之前，fail-fast；规则见 api/assembly/validate.ts V1–V6）
-  const memberNames = memberNamesOf(params, members)
+  const memberNames = memberNamesOf(params2, members)
   validateConstraints(constraints, memberNames)
   // P3：运动副构造期 fail-fast——parent/child ∈ members、child 唯一驱动、多 DOF 类型
   // 在 assembly() 构造时暴露（buildJoint/buildKinematicTree 复用同一份校验实现）
@@ -251,13 +298,13 @@ export function assembly(params: AssemblyParams): CompoundShape {
   const c = makeCompound(members)
   const behavior: AssemblyBehavior = {
     kind: 'assembly',
-    name: params.name as string | undefined,
+    name: params2.name as string | undefined,
     memberNames,
     constraints,
     joints,
     drive,
-    memberColors: params.memberColors,
-    solver: params.solver,
+    memberColors: params2.memberColors,
+    solver: params2.solver,
     solve: () => solveTransforms(members, behavior),
     solveDetailed: () =>
       solveAssemblyAndKinematics(

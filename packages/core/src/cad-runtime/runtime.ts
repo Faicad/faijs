@@ -139,6 +139,13 @@ export interface PartTopology {
   source: TopologySource
   /** 序列化的拓扑数据（可跨 Worker 传输） */
   data: SelectorRuntimeData
+  /**
+   * 2026-10-23 内容指纹（可选，本 runtime 自建条目才有）：该变量显示 mesh 几何的
+   * contentKey（statementCache 同源）。指纹一致 → 同一 mesh 构建的拓扑必不变 →
+   * 同 runtime 重复执行同几何时整体复用缓存条目，跳过 buildTopologyFromMesh
+   * （真机收尾 135.6s 的首刀优化）。宿主 setTopology 写入的条目无此字段。
+   */
+  contentKey?: string
 }
 
 /**
@@ -272,6 +279,17 @@ export interface ExecuteOptions {
    * - 'off'：不自动构建（只返回宿主 setTopology 注入的拓扑）
    */
   topology?: 'auto' | 'brep' | 'off'
+  /**
+   * 拓扑构建总预算（2026-10-23 手办类模型超时放弃）。单位 ms，0 / 缺省 = 不限时。
+   *
+   * 手办类脚本（纯 3D 打印件：大量非均匀 scale 椭球等）在 brepkit 引擎上首次
+   * 拓扑构建可能极慢（真机皮卡丘 14 终端 135.6s，根因见 test/manifest-timing.test.ts：
+   * 非均匀 transform 打乱曲面参数化 → 显示 mesh 三角数暴涨 → extractFaceGeometry
+   * 纯 JS 逐三角形提取成为热点）。这类模型不需要选面/装配 overlay 等拓扑操作。
+   * 预算超时 → **整体放弃拓扑**（已建条目清空、execution.topologyDropped=true），
+   * 宿主据此提示「该模型仅支持 3D 打印/查看，不支持常规拓扑操作」。
+   */
+  topologyTimeoutMs?: number
   /**
    * 主模块 key（相对项目根的路径，如 `src/assembly.fai.js`；多文件 §4.5）。
    * 宿主执行某个文件时传入——主模块的相对 import 以此为解析基准；不传则视为
@@ -475,6 +493,20 @@ export class CadRuntime {
    * 拓扑构建由宿主在 execute 后调用 setTopology 注入（BREP 路径）或由加载时注入（mesh/primitive 路径）。
    */
   private topologyCache = new Map<PartName, PartTopology>()
+
+  /**
+   * 2026-10-23 命名指纹缓存（与 topologyCache 的 contentKey 同源）：拓扑
+   * contentKey 不变 → buildPartNaming 结果不变 → 整体复用。dispose / update
+   * 的 releasePartCaches 一并清。
+   */
+  private namingCache = new Map<PartName, { naming: PartNaming; contentKey?: string }>()
+
+  /**
+   * 2026-10-23 收尾归因：本轮 execute 内 buildBrepTopology 的构建统计
+   * （fromMesh=复用显示 mesh / fromSolid=兜底 meshShape+manifest）。每次执行
+   * 前重置（executeDirectText），collectDirectResult 收尾读入 collectTimings。
+   */
+  private __buildStats = { fromMesh: 0, fromSolid: 0 }
 
   /** 无 IR 执行器（DirectExecutor，T5 后唯一执行路径） */
   private readonly directExecutor: DirectExecutor
@@ -1048,6 +1080,9 @@ export class CadRuntime {
     const de = this.directExecutor
     // P2 修复：执行前重新认领全局 backends（本实例配置为准）。
     this.claimBackends()
+    // 2026-10-23 收尾归因：每次执行重置构建统计（collectDirectResult 收尾读入
+    // collectTimings.builtFromMesh/builtFromSolid）。
+    this.__buildStats = { fromMesh: 0, fromSolid: 0 }
     this.accumulatedCode = code
     // 脚本链偏好（cad.useMeshChain）随全量执行从零声明。增量重放（updateIncremental
     // → replayFrom）与 append 不重置——前缀/累积代码是权威，其声明的偏好沿用；
@@ -1282,6 +1317,10 @@ export class CadRuntime {
     opts: ExecuteOptions | undefined,
     execution: ExecutionStats,
   ): ExecutionResult {
+    // 2026-10-23 收尾分段观测：真机 postLastFrame（最后一帧完成 → resolve）达
+    // 135.6s，而 node 回环同段仅 212ms（OCCT vs brepkit）。收尾四段全部记录，
+    // 一次真机跑全拆开（见 ExecutionStats.collectTimings）。
+    const t0 = Date.now()
     const de = this.directExecutor!
     const outputs = new Map<PartName, Shape | CompoundShape>()
     const shapeVarNames = new Set<PartName>()
@@ -1319,6 +1358,7 @@ export class CadRuntime {
     // 2026-10-23：终端判定提取为 computeLiveTerminals（与 collectLiveSnapshot 共用，
     // 保证终态与中间帧同一套消费规则）。
     const terminals = this.computeLiveTerminals(meta, meta.lines, shapeVarNames)
+    const tA = Date.now()
     // T2 侧：activeValues 复用同一 keepView（declared/functionBody 口径与终端判定一致）
     const keepView: KeepView = {
       declared: () => meta.keep,
@@ -1364,6 +1404,7 @@ export class CadRuntime {
       }
     }
     const brepSolids = this.directBrepSolids(terminals, compounds)
+    const tB = Date.now()
     // 网格零件落位（方案 2026-10-01 §3.3）：load 的 mesh 路径在 op 内完成规范化 +
     // 近似拓扑构建，把「句柄」与「拓扑数据」登记为 pending；此处收编。
     this.applyPendingMeshSolids(de.meshSolidSnapshot, de.meshTopologySnapshot)
@@ -1373,9 +1414,35 @@ export class CadRuntime {
     // 命中缓存构建拓扑。
     const topology = new Map<PartName, PartTopology>(this.topologyCache)
     if (topoMode !== 'off') {
+      // 2026-10-23 拓扑构建总预算（手办类模型超时整体放弃；见 ExecuteOptions.topologyTimeoutMs）
+      const topoT0 = Date.now()
+      const topoBudgetMs = opts?.topologyTimeoutMs ?? 0
+      const topoBudgetExceeded = (): boolean => topoBudgetMs > 0 && Date.now() - topoT0 > topoBudgetMs
+      let dropped = false
       const buildFor = (partName: PartName): void => {
+        // 2026-10-23 内容指纹缓存（真机 postLastFrame=135.6s 归因后的首刀优化）：
+        // statementCache 的 outputContentKey 是对该变量**显示 mesh 几何**的哈希
+        // （computeContentKey(positions,indices)，上文 hash 段已算）。几何不变 →
+        // 从同一份 mesh 构建的拓扑必不变——所以**本 runtime 自建**（带 contentKey）
+        // 的缓存条目在指纹一致时可整体复用，跳过 buildTopologyFromMesh（真机
+        // 14 终端 × ~9.7s/终端的 manifest 构建）。几何变（contentKey 不同）自然
+        // 不命中 → 重建，无陈旧风险。宿主 setTopology 写入的条目无 contentKey，
+        // 维持既有路径（不复用、不破坏）。
+        const ck = this.statementCache.get(partName)?.outputContentKey
         const existing = topology.get(partName)
-        if (existing) {
+        if (existing && existing.contentKey !== undefined && ck !== undefined && existing.contentKey === ck) {
+          // 指纹一致：直接复用缓存拓扑（含 faceHints 已在首建时挂到变量上；
+          // 变量若跨 execute 重建，faceHints 槽见下方「自建后挂 hint」——此处
+          // 命中分支仅发生在同一 runtime 重复执行同一几何，ctx 变量为新对象，
+          // faceHints 需要重挂（数据同源，成本 O(faces) 与构建比可忽略）。
+          const v = de.getCtxVar(String(partName))
+          if (v && typeof v === 'object') {
+            ensureSlot(v as Shape).faceHints = (existing.data.faces ?? []).map((f) => faceRowToHint(f))
+          }
+          return
+        }
+        const oldExisting = existing
+        if (oldExisting) {
           // 陈旧 mesh 条目遮蔽（2026-10-22 mesh-chain-switch）：上一轮该零件是
           // **网格零件**（近似拓扑 source='mesh' 已入 topologyCache），本轮重放后它
           // 已回到 BREP 链（如删掉 `cad.useMeshChain` 语句 → executeDirectText 重跑
@@ -1383,7 +1450,7 @@ export class CadRuntime {
           // 链事实不符（单一真源）。当前 ctx 变量不再是网格实体 → 重建为 brep 拓扑。
           const v = de.getCtxVar(String(partName))
           const stillMesh = v != null && typeof v === 'object' && hasMeshSolid(v as Shape)
-          if (existing.source !== 'mesh' || stillMesh) return
+          if (oldExisting.source !== 'mesh' || stillMesh) return
         }
         const v = de.getCtxVar(String(partName))
         // 多零件 load（compound）：成员各带 BREP solid（fromBrep(shape,{solid})，
@@ -1392,6 +1459,16 @@ export class CadRuntime {
         // 否则多 solid STEP 导入后该终端无拓扑 → 宿主面拾取/装配 overlay 缺失
         // （assembly-dropdown 多文件回归）。
         if (isCompoundLike(v)) {
+          // 2026-10-23：**结构壳 group/assembly 不构建合并拓扑**。行为 kind 为
+          // 'group'/'assembly' 的 compound 是编辑器结构壳（成员 keep 保留为独立
+          // 终端、各自构建拓扑），组节点本身无显示几何、无拾取对象——给它构建
+          // N 合一拓扑只会把拓扑挂到一个**没有几何版本**的终端上（wire 过滤
+          // compound 输出），宿主端 putResultTopology 因此抛「已先写拓扑但几何
+          // 版本号缺失」，且 N 合一构建在 14+ 成员时会显著拖慢执行。
+          // 多零件 load 的 compound（无 behavior，成员是匿名几何、不独立成终端）
+          // 保持构建合并拓扑（P2 契约，见 2026-10-06 多零件导入计划 §7）。
+          const behavior = getSlot(v)?.behavior as { kind?: string } | undefined
+          if (behavior?.kind === 'group' || behavior?.kind === 'assembly') return
           const rt = this.buildCompoundBrepTopology(v as CompoundShape)
           if (rt) topology.set(partName, { partName, source: 'brep', data: runtimeToData(rt) })
           return
@@ -1399,7 +1476,13 @@ export class CadRuntime {
         const rt = this.buildBrepTopology(partName)
         if (rt) {
           const data = runtimeToData(rt)
-          topology.set(partName, { partName, source: 'brep', data })
+          // 2026-10-23 指纹缓存写入：自建条目带 contentKey 存 topologyCache，
+          // 同一 runtime 重复执行同几何时 buildFor 顶部命中即复用（省掉
+          // buildTopologyFromMesh 的逐面 wasm 调用，真机 135.6s 收尾的首刀）。
+          // 几何变 → contentKey 变 → 不命中 → 重建，无陈旧风险。
+          const entry: PartTopology & { contentKey?: string } = { partName, source: 'brep', data, contentKey: ck }
+          topology.set(partName, entry)
+          this.topologyCache.set(partName, entry)
           // §3.6 行 hint 快照：与 `setTopology` 同构，但从「宿主调才写」改为
           // 「执行时自写」。原因：BREP 路径宿主不一定调 setTopology（实测
           // weapp worker / animation 都不调），槽里 faceHints 就是空的 → 解析侧
@@ -1417,16 +1500,41 @@ export class CadRuntime {
         for (const name of shapeVarNames) {
           const v = de.getCtxVar(String(name))
           if (isShapeLike(v) || isCompoundLike(v)) buildFor(name)
+          if (topoBudgetExceeded()) { dropped = true; break }
         }
       } else {
-        for (const t of terminals) buildFor(t.id)
+        for (const t of terminals) {
+          buildFor(t.id)
+          if (topoBudgetExceeded()) { dropped = true; break }
+        }
+      }
+      // 2026-10-23 超时放弃：预算耗尽 → 整体放弃拓扑（清空已建条目），
+      // 宿主据此提示「仅 3D 打印/查看、不支持拓扑操作」。不写任何缓存（下次
+      // 执行同几何仍重建——放弃语义要求结果里没有部分拓扑，宁缺毋滥）。
+      if (dropped) {
+        topology.clear()
+        execution.topologyDropped = true
       }
     }
+    const tC = Date.now()
     // T3：命名——与 topology 同 set（与 collectResult 的 naming 面同构）
+    // 2026-10-23 指纹缓存：命名从拓扑 data 推导，拓扑 contentKey 不变则命名不变
+    // （同 runtime 重跑同几何）→ 整体复用，跳过 buildNamingInput/buildPartNaming
+    // （真机重跑收尾的最后一节：node ~600ms / 真机 ~6s）。
     const naming = new Map<PartName, PartNaming>()
     for (const [partName, partTopo] of topology) {
+      const ck = partTopo.contentKey
+      const cachedNaming = ck !== undefined ? this.namingCache.get(partName) : undefined
+      if (cachedNaming && cachedNaming.contentKey === ck) {
+        naming.set(partName, cachedNaming.naming)
+        continue
+      }
       const input = this.buildNamingInput(partName, partTopo)
-      if (input) naming.set(partName, buildPartNaming(input))
+      if (input) {
+        const built = buildPartNaming(input)
+        naming.set(partName, built)
+        if (ck !== undefined) this.namingCache.set(partName, { naming: built, contentKey: ck })
+      }
     }
     // T2：activeValues —— 镜像 collectActiveValues，输入换 meta.lines + lineConsumes/
     // blockConsumes。候选 = ctx 中非 shape/compound 键（第三方测量/查询函数返回的
@@ -1434,6 +1542,21 @@ export class CadRuntime {
     const activeValues = this.collectDirectActiveValues(meta, keepView, shapeVarNames)
     // T2：changed —— DirectExecutor 逐单元写值前后比对（与 module 路径 exec.changed 同语义）。
     const deChanged = de.getChanged()
+    // 2026-10-23 收尾分段：assemblies/hash/topo/naming 四段（真机 postLastFrame 归因）。
+    if (Date.now() - t0 > 0) {
+      const tD = Date.now()
+      execution.collectTimings = {
+        assemblies: tA - t0,
+        hash: tB - tA,
+        topo: tC - tB,
+        naming: tD - tC,
+        total: tD - t0,
+        // 构建统计：复用显示 mesh（buildTopologyFromMesh）vs 兜底重三角化
+        // （buildSolidTopologyRuntime）的次数——topo 段 11.7s（node brepkit）的构成。
+        builtFromMesh: this.__buildStats.fromMesh,
+        builtFromSolid: this.__buildStats.fromSolid,
+      }
+    }
     return {
       outputs,
       brepChain: this.brepChain!,
@@ -2061,10 +2184,16 @@ export class CadRuntime {
     // （与显示 mesh 完全同一份 mesh，不二次 meshShape）
     const cachedMesh = brepChain.meshShapeCache?.get(partName)
     if (cachedMesh && brepChain.kernel) {
+      // 2026-10-23 收尾归因：统计从显示 mesh 复用 vs 兜底重三角化的构建次数，
+      // 经 collectTimings.builtFromMesh/builtFromSolid 带出（node brepkit 回环
+      // topo=11.7s 需拆开——变换类中间变量若 meshShapeCache 空，每变量都要
+      // 兜底 meshShape + manifest，正是真机 135.6s 收尾的头号嫌疑）。
+      this.__buildStats.fromMesh++
       return buildTopologyFromMesh(brepChain.kernel, solid, cachedMesh)
     }
 
     // 无缓存（非执行链路径，如 STEP 导入后直接构建拓扑）→ 执行完整构建（含 meshShape 三角化）
+    this.__buildStats.fromSolid++
     const result: SolidTopologyResult = buildSolidTopologyRuntime(brepChain.kernel, solid)
     return result.runtime
   }
@@ -2156,6 +2285,7 @@ export class CadRuntime {
       // topologyCache / statementCache
       this.topologyCache.delete(name)
       this.statementCache.delete(name)
+      this.namingCache.delete(name)
     }
   }
 
@@ -2454,6 +2584,7 @@ export class CadRuntime {
     this.roleTableCache.clear()
     this.statementCache.clear()
     this.topologyCache.clear()
+    this.namingCache.clear()
     this.brepChain = null
     this.kernel = null
     this.directExecutor.reset()
