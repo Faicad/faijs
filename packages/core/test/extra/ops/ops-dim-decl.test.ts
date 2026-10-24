@@ -45,6 +45,10 @@ describe('fai_split dimension declaration (unit-system G3; §9.2 补齐)', () =>
       tenonSideLengthTolerance: 'length',
       tenonHeightTolerance: 'length',
       selectedSections: 'plain',
+      // 2026-10-24 分离参数显式化（applyExplode 移除）：绝对量是长度，比例是
+      // 显式无量纲（0.02 = 2%，不是百分数字符串）。
+      separation: 'length',
+      separationRatio: 'plain',
     })
   })
 })

@@ -12,7 +12,7 @@ import { fai_split } from '../../../src/extra/ops/fai_split'
 import { configureBackends, CONTRACT_VERSION } from '../../../src/runtime-state'
 import { geoToManifoldMesh } from '@faicad/faijs/boolean/csg-backend'
 import { boxGeometry } from '@faicad/faijs/mesh/meshdata/parametric'
-import type { Shape } from '@faicad/faijs/mesh/types'
+import type { Shape, Vec3 } from '@faicad/faijs/mesh/types'
 
 /**
  * op 层走 mesh 分支需要宿主装配后端（没有它 `dispatchPath` 抛
@@ -97,5 +97,68 @@ describe('fai_split — separation params at the script face (mesh branch)', () 
       separation: jointDepth / 2,
     })) as unknown as Record<string, Shape>
     expect(zExtent(front.positions).min).toBeCloseTo(oldV, 4)
+  })
+})
+
+describe('fai_split — inPlaneAngle (script key) reaches the geometry', () => {
+  /**
+   * 2026-10-24 修的 bug：宿主（3d_editor web）曾发射 `inPlaneAngleDeg`，而本 op
+   * 读 `inPlaneAngle` —— 键名断裂使面内旋转 RZ 静默丢失（恒 0）。faijs 侧键名
+   * 是唯一契约（JSDoc/paramDims/ops-dim-decl 三处钉住），本 describe 守住**另
+   * 一半：脚本面这个键确实被读进去并改变了几何**。basis 的纯数学覆盖在
+   * fai_split.basis.test.ts（含 rz=45/90/120），那里管不了键名接线。
+   *
+   * 榫卯模式才消费 basis（plane 模式的切面与面内角无关），所以用 dovetail；
+   * 截面必须**非方形**（4×2），否则 rz=0 与 rz=90 的槽向不同但挖掉的料相同。
+   * 参数经探针实证：三角数在两种取向下相同（20/24），只有逐字节比 positions
+   * 才能区分 —— 数三角形数是抓不到这个键的。
+   */
+  function wideBox(): Shape {
+    // x∈[-2,2], y∈[-1,1], z∈[-1,1]
+    return geoToManifoldMesh(boxGeometry(4, 2, 2))
+  }
+
+  /** op 层是扁平参数（grooveDepth/…），不是内部入口的嵌套 groove 对象。 */
+  const dovetailParams = {
+    cutMode: 'dovetail',
+    normal: [0, 0, 1] as Vec3,
+    offset: 0,
+    bbCenter: [0, 0, 0] as Vec3,
+    bboxSize: [4, 2, 2] as Vec3,
+    grooveDepth: 1,
+    grooveDepthTolerance: 0.1,
+    grooveWidth: 2,
+    grooveWidthTolerance: 0.1,
+    grooveFlapsAngle: 10,
+  }
+
+  /** 两次运行的 positions 是否逐字节相同（CSG 对同输入确定性输出）。 */
+  function sameGeometry(a: Shape, b: Shape): boolean {
+    if (a.positions.length !== b.positions.length) return false
+    for (let i = 0; i < a.positions.length; i++) {
+      if (a.positions[i] !== b.positions[i]) return false
+    }
+    return true
+  }
+
+  async function splitAt(angle: number | undefined): Promise<Record<string, Shape>> {
+    const params: Record<string, unknown> = { ...dovetailParams }
+    if (angle !== undefined) params.inPlaneAngle = angle
+    return (await fai_split(wideBox(), params)) as unknown as Record<string, Shape>
+  }
+
+  it('omitting inPlaneAngle == explicit 0 (default)', async () => {
+    const omitted = await splitAt(undefined)
+    const zero = await splitAt(0)
+    expect(sameGeometry(omitted.front, zero.front)).toBe(true)
+    expect(sameGeometry(omitted.back, zero.back)).toBe(true)
+  })
+
+  it('inPlaneAngle: 90 cuts a differently-oriented groove than 0', async () => {
+    // 键名一旦断裂（op 读不到这个键），两个结果会逐字节相同 —— 这条断言红。
+    const at0 = await splitAt(0)
+    const at90 = await splitAt(90)
+    expect(sameGeometry(at0.front, at90.front)).toBe(false)
+    expect(sameGeometry(at0.back, at90.back)).toBe(false)
   })
 })
