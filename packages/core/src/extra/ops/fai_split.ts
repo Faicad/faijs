@@ -6,7 +6,7 @@
  */
 
 import type { Shape, Vec3 } from '../../mesh/types'
-import { splitWithParams as meshSplitWithParams } from '../mesh/fai_split'
+import { splitWithParams as meshSplitWithParams, separationOffset } from '../mesh/fai_split'
 import { bboxCenter, boundingBox } from '../../mesh/query'
 import {
   splitBrep,
@@ -108,32 +108,25 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
     backSolid = splitResult.back
   }
 
-  // 分离位移：与 mesh 路径 finalizeExplode 同公式（bbox 对角线 2% + joinery 深度一半）
-  const applyExplode = (params.applyExplode as boolean | undefined) ?? true
-  if (applyExplode) {
-    const bboxDiagonal = Math.sqrt(
-      bboxSize[0] * bboxSize[0] + bboxSize[1] * bboxSize[1] + bboxSize[2] * bboxSize[2],
-    )
-    const baseOffset = bboxDiagonal * 0.02
-    let joineryOffset = 0
-    if (cutMode === 'dovetail') {
-      joineryOffset = ((params.grooveDepth as number) ?? 0) / 2
-    } else if (cutMode === 'dowel') {
-      joineryOffset = ((params.dowelHeight as number) ?? 0) / 2
-    } else if (cutMode === 'straight-tenon' || cutMode === 'tenon') {
-      joineryOffset = ((params.tenonHeight as number) ?? 0) / 2
-    }
-    const frontOffset = baseOffset + joineryOffset
-    const backOffset = -(baseOffset + joineryOffset)
+  // 分离位移：两侧沿切割面法向对开 ±V，V 由调用方显式给出（都不传 ⇒ V = 0 ⇒ 不分开）。
+  // 唯一公式在 extra/mesh/fai_split.ts 的 separationOffset（brep 与 mesh 两路径共用）。
+  const separation = separationOffset(
+    {
+      separationRatio: typeof params.separationRatio === 'number' ? params.separationRatio : undefined,
+      separation: typeof params.separation === 'number' ? params.separation : undefined,
+    },
+    bboxSize,
+  )
+  if (separation !== 0) {
     const frontTranslated = translateBrep(kernel, frontSolid, [
-      normal[0] * frontOffset,
-      normal[1] * frontOffset,
-      normal[2] * frontOffset,
+      normal[0] * separation,
+      normal[1] * separation,
+      normal[2] * separation,
     ])
     const backTranslated = translateBrep(kernel, backSolid, [
-      normal[0] * backOffset,
-      normal[1] * backOffset,
-      normal[2] * backOffset,
+      normal[0] * -separation,
+      normal[1] * -separation,
+      normal[2] * -separation,
     ])
     kernel.release(frontSolid)
     kernel.release(backSolid)
@@ -187,7 +180,8 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
       heightTolerance: (params.tenonHeightTolerance as number) ?? 0,
     } : undefined,
     selectedSections: params.selectedSections as number[] | null | undefined,
-    applyExplode: (params.applyExplode as boolean | undefined) ?? true,
+    separationRatio: typeof params.separationRatio === 'number' ? params.separationRatio : undefined,
+    separation: typeof params.separation === 'number' ? params.separation : undefined,
   })
 
   return { front: solid(result.front), back: solid(result.back) }
@@ -209,7 +203,6 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.inPlaneAngle - 切割面面内旋转角（度）。type:number 默认 0
  * @param params.bbCenter - 包围盒中心（缺省自动推导）。type:[x,y,z] 默认 自动
  * @param params.bboxSize - 包围盒尺寸（缺省自动推导）。type:[x,y,z] 默认 自动
- * @param params.applyExplode - 是否将两侧沿法向分离位移（bbox 对角线 2% + 榫卯深度一半）。type:boolean 默认 true
  * @param params.grooveDepth - 燕尾槽深（cutMode='dovetail'）。type:number
  * @param params.grooveWidth - 燕尾槽宽（cutMode='dovetail'）。type:number
  * @param params.grooveDepthTolerance - 燕尾槽深公差。type:number
@@ -224,6 +217,8 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.tenonHeight - 直榫高度。type:number
  * @param params.tenonHeightTolerance - 直榫高度公差。type:number
  * @param params.selectedSections - 参与榫卯的截面下标。type:number[]
+ * @param params.separationRatio - 分割后两半沿切割面法向对开的单侧距离中「占 bbox 对角线的比例」部分。**比值不是百分数**：0.02 表示 2%。type:number 默认 0
+ * @param params.separation - 分割后两半沿切割面法向对开的单侧距离中的绝对追加量（mm），典型值 = 半个榫卯深度（不拉开至少半个榫长，榫头仍插在槽里）。type:number 默认 0
  * @note 切割面统一用 `normal`/`offset`/`inPlaneAngle` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
  * @example
  * const { front: part1, back: part2 } = cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
@@ -255,6 +250,10 @@ export const fai_split = defineOp({
     dowelHeight: 'length',
     tenonSideLength: 'length',
     tenonHeight: 'length',
+    // 分离位移：绝对追加量是长度；比例是显式无量纲（`0.02` = 2%，不是 2% 的字符串）。
+    // 二者都必须出现在 paramDims —— 漏声明会让检查器跳过该槽位，裸数字就此溜过量纲系统。
+    separation: 'length',
+    separationRatio: 'plain',
     // 公差与主尺寸同量纲；翼角是角度；截面下标是无量纲索引。
     grooveDepthTolerance: 'length',
     grooveWidthTolerance: 'length',

@@ -68,5 +68,12 @@ describe('occt(web 同构): STL 走 BREP 路径后特征操作可用', () => {
         `let { front, back } = cad.fai_split(part0, { cutMode: 'plane', normal: [0, 0, 1], offset: 0 })\n`,
     )
     expect(s.failedAt, `split failed: ${JSON.stringify(s.failedAt)}`).toBeUndefined()
+
+    // 分离参数（2026-10-24 取代原 `applyExplode`）：BREP 路径必须按给定 V 平移成功。
+    const t = await runtime.execute(
+      `let part0 = cad.load({ file: 'cube-10x5x5.stl' })\n` +
+        `let { front, back } = cad.fai_split(part0, { cutMode: 'plane', normal: [0, 0, 1], offset: 0, separationRatio: 0.02, separation: 1 })\n`,
+    )
+    expect(t.failedAt, `split with separation failed: ${JSON.stringify(t.failedAt)}`).toBeUndefined()
   })
 })

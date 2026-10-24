@@ -100,6 +100,23 @@ export default async (cad) => {
     expect(result.errors.length).toBeGreaterThan(0)
   })
 
+  it('split separation params: separationRatio + separation accepted at the script face', () => {
+    // 2026-10-24：`fai_split` 的分离方式由这两个参数承载（取代原 `applyExplode`）。
+    // `separation` 声明为 length（可带单位字面量），`separationRatio` 声明为 plain
+    // （纯比率，0.02 = 2%）。两者能同时出现在同一条语句里并通过静态检查，
+    // 是宿主（web / 小程序）能发射它们的前提。
+    const code = `// apiVersion: 1
+export default async (cad) => {
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM, { centered: true })
+  const { front: part1, back: part2 } = cad.fai_split(part0, { normal: [0, 0, 1], offset: 0, separationRatio: 0.02, separation: 2.5 * MM })
+  return { shape: part1 }
+}`
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(true)
+    expect(result.errors).toHaveLength(0)
+    expect(result.script!.callees).toEqual(['box', 'fai_split'])
+  })
+
   it('parse error: invalid JS → ok=false, stage=parse', () => {
     const code = `export default async (cad) => {
   const part0 = cad.box({ size: 20

@@ -189,10 +189,18 @@ export interface SplitWithParamsInput {
     height: number
     heightTolerance: number
   }
-  /** 选择的截面（dowel/straight-tenon 用） */
+  /** 选中截面（dowel/straight-tenon 用） */
   selectedSections?: number[] | null
-  /** 是否应用爆炸位移（默认 true；导出/重放纯几何时可设 false） */
-  applyExplode?: boolean
+  /**
+   * 分割后两半沿法向**单侧**位移中的「占 bbox 对角线的比例」。
+   * **比值不是百分数**：`0.02` = 2%。缺省 0。
+   */
+  separationRatio?: number
+  /**
+   * 分割后两半沿法向**单侧**位移中的绝对追加量（length，mm）。缺省 0。
+   * 典型用法 = 半个榫卯深度（不拉开至少半个榫头长度，榫头还插在槽里）。
+   */
+  separation?: number
 }
 
 /**
@@ -252,8 +260,8 @@ export async function splitWithParams(input: SplitWithParamsInput): Promise<Spli
     const result = await computeDovetailSplit(shape, normal, planeDistance, planeCenter, widthDir, bboxWidthOnWidthDir, groove)
     front = result.front; back = result.back
 
-    const result2: SplitWithParamsResult = await finalizeExplode(
-      front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, cutMode, input,
+    const result2: SplitWithParamsResult = await applySeparation(
+      front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, input,
     )
     return result2
   } else if (cutMode === 'dowel') {
@@ -262,24 +270,59 @@ export async function splitWithParams(input: SplitWithParamsInput): Promise<Spli
     }
     const result = await computeDowelSplit(shape, normal, planeDistance, planeCenter, widthDir, dowel, input.selectedSections ?? null)
     front = result.front; back = result.back
-    return finalizeExplode(front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, cutMode, input)
+    return applySeparation(front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, input)
   } else if (cutMode === 'straight-tenon' || cutMode === 'tenon') {
     const tenon = input.tenon ?? {
       sideLength: 0, sideLengthTolerance: 0, height: 0, heightTolerance: 0,
     }
     const result = await computeStraightTenonSplit(shape, normal, planeDistance, planeCenter, widthDir, tenon, input.selectedSections ?? null)
     front = result.front; back = result.back
-    return finalizeExplode(front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, cutMode, input)
+    return applySeparation(front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, input)
   } else {
     // plane / straight / default
     const result = await computeSplit(shape, normal, planeDistance)
     front = result.front; back = result.back
-    return finalizeExplode(front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, cutMode, input)
+    return applySeparation(front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, input)
   }
 }
 
-/** 计算爆炸位移并应用到 front/back */
-async function finalizeExplode(
+/**
+ * 包围盒对角线长度（`bboxSize` 三分量的欧氏长度）。
+ *
+ * 是 separationRatio 的乘数基准 —— 抽成一个导出函数是为了让 brep 路径与 mesh
+ * 路径用同一份公式，避免「按环绕盒 2%」这类相对位移在两侧各自长出一份实现。
+ * @param bboxSize - 包围盒三边尺寸。
+ * @returns 对角线长度。
+ */
+export function bboxDiagonal(bboxSize: Vec3): number {
+  return Math.sqrt(bboxSize[0] * bboxSize[0] + bboxSize[1] * bboxSize[1] + bboxSize[2] * bboxSize[2])
+}
+
+/**
+ * 分割后的**单侧**位移量 V：front 沿法向正侧移 +V，back 移 −V。
+ *
+ * 由调用方给出的两部分相加（都缺省 0 ⇒ 不分开）：
+ *   `V = separationRatio * diagonal(bboxSize) + separation`
+ *
+ * 比例项的基准（bbox 对角线）留在本层换算是刻意的：宿主要算它得先知道 bbox 尺寸，
+ * 而某些宿主入口（小程序 toolSeedValues）压根不预填 —— 让调用方只报比率，
+ * 基准由本层从 `bboxSize`（缺失时从输入几何推导）取。
+ *
+ * @param input - 分离参数来源（`separationRatio` / `separation`）。
+ * @param bboxSize - 包围盒尺寸（比例项的乘数基准）。
+ * @returns 单侧位移量；0 表示不分开。
+ */
+export function separationOffset(
+  input: Pick<SplitWithParamsInput, 'separationRatio' | 'separation'>,
+  bboxSize: Vec3,
+): number {
+  const ratio = typeof input.separationRatio === 'number' ? input.separationRatio : 0
+  const absolute = typeof input.separation === 'number' ? input.separation : 0
+  return ratio * bboxDiagonal(bboxSize) + absolute
+}
+
+/** 计算位移并应用到 front/back */
+async function applySeparation(
   front: Shape,
   back: Shape,
   normal: Vec3,
@@ -287,28 +330,15 @@ async function finalizeExplode(
   planeCenter: Vec3,
   widthDir: Vec3,
   bboxSize: Vec3,
-  cutMode: string,
   input: SplitWithParamsInput,
 ): Promise<SplitWithParamsResult> {
-  const applyExplode = input.applyExplode ?? true
+  const frontOffset = separationOffset(input, bboxSize)
+  // 显式消除 -0：它是一个能通过所有算术检查（`=== 0`、`-0 * n === -0`）却在
+  // Object.is / 快照比较里炸出来的脏值 —— 与其让每个调用方各自 toBeCloseTo，
+  // 不如在产生的这一刻就掐掉。
+  const backOffset = frontOffset === 0 ? 0 : -frontOffset
 
-  // 爆炸位移：包围盒对角线的 2% + joinery 深度的一半
-  const bboxDiagonal = Math.sqrt(
-    bboxSize[0] * bboxSize[0] + bboxSize[1] * bboxSize[1] + bboxSize[2] * bboxSize[2],
-  )
-  const baseOffset = bboxDiagonal * 0.02
-  let joineryOffset = 0
-  if (cutMode === 'dovetail') {
-    joineryOffset = (input.groove?.depth ?? 0) / 2
-  } else if (cutMode === 'dowel') {
-    joineryOffset = (input.dowel?.height ?? 0) / 2
-  } else if (cutMode === 'straight-tenon' || cutMode === 'tenon') {
-    joineryOffset = (input.tenon?.height ?? 0) / 2
-  }
-  const frontOffset = baseOffset + joineryOffset
-  const backOffset = -(baseOffset + joineryOffset)
-
-  if (applyExplode) {
+  if (frontOffset !== 0) {
     front = { positions: offsetPositions(front.positions, normal, frontOffset), indices: front.indices }
     back = { positions: offsetPositions(back.positions, normal, backOffset), indices: back.indices }
   }
@@ -320,8 +350,8 @@ async function finalizeExplode(
     planeDistance,
     planeCenter,
     widthDir,
-    frontExplodeOffset: applyExplode ? frontOffset : 0,
-    backExplodeOffset: applyExplode ? backOffset : 0,
+    frontExplodeOffset: frontOffset,
+    backExplodeOffset: backOffset,
   }
 }
 

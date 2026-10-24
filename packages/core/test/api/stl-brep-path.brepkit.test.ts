@@ -107,4 +107,15 @@ describe('brepkit: STL 走 BREP 路径后特征操作全链路可用（白名单
     )
     expect(s.failedAt, `split failed: ${JSON.stringify(s.failedAt)}`).toBeUndefined()
   })
+
+  it('fai_split（分离参数）：BREP 路径接受 separationRatio + separation', async () => {
+    // 覆盖 BREP 分支的 `separationOffset` → `translateBrep` 整条链路：脚本面传参、
+    // op 层换算、OCCT 平移都必须跑通（2026-10-24 取代原 `applyExplode`）。
+    const runtime = createEditorRuntime(stlPorts(), 'auto')
+    const s = await runtime.execute(
+      `let part0 = cad.load({ file: 'cube-10x5x5.stl' })\n` +
+        `let { front, back } = cad.fai_split(part0, { cutMode: 'plane', normal: [0, 0, 1], offset: 0, separationRatio: 0.02, separation: 1 })\n`,
+    )
+    expect(s.failedAt, `split with separation failed: ${JSON.stringify(s.failedAt)}`).toBeUndefined()
+  })
 })

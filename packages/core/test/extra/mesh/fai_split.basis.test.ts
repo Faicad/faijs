@@ -14,6 +14,8 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import {
   computeBasisFromNormal,
   computePlaneBasis,
+  bboxDiagonal,
+  separationOffset,
   split,
   splitWithParams,
 } from '../../../src/extra/mesh/fai_split'
@@ -123,7 +125,7 @@ describe('splitWithParams — real box split through the manifold backend', () =
     // The backend lazily loads InlineCsgBackend on first use.
   })
 
-  it('plane cut at the mid-plane (offset 0, applyExplode=false) yields a closed split', async () => {
+  it('plane cut at the mid-plane (no separation params) yields a closed split', async () => {
     const box = unitBox()
     const res = await splitWithParams({
       shape: box,
@@ -133,7 +135,6 @@ describe('splitWithParams — real box split through the manifold backend', () =
       inPlaneAngle: 0,
       bbCenter: [0, 0, 0],
       bboxSize: [2, 2, 2],
-      applyExplode: false,
     })
 
     // Two non-empty halves, both still triangular solids.
@@ -146,7 +147,7 @@ describe('splitWithParams — real box split through the manifold backend', () =
     expect(res.normal).toEqual([0, 0, 1])
     expect(res.planeCenter).toEqual([0, 0, 0])
     expect(res.planeDistance).toBeCloseTo(0, 6)
-    // No explode applied → offsets reported as 0.
+    // No separation params → offsets reported as 0.
     expect(res.frontExplodeOffset).toBe(0)
     expect(res.backExplodeOffset).toBe(0)
 
@@ -156,7 +157,10 @@ describe('splitWithParams — real box split through the manifold backend', () =
     expect(total).toBeGreaterThanOrEqual(10)
   })
 
-  it('applyExplode (default) offsets both halves along the normal', async () => {
+  it('no separation params ⇒ halves stay put (the new core invariant)', async () => {
+    // 2026-10-24 起 `applyExplode` 的「默认 true」被移除：分离方式完全由调用方
+    // 显式给出，都不传 = 不分开。旧行为是默认值替宿主决定要拉开 2%，那条策略
+    // 现已搬到宿主；这里是防止它悄悄回来的红条。
     const box = unitBox()
     const res = await splitWithParams({
       shape: box,
@@ -168,20 +172,45 @@ describe('splitWithParams — real box split through the manifold backend', () =
       bboxSize: [2, 2, 2],
     })
 
+    expect(res.frontExplodeOffset).toBe(0)
+    expect(res.backExplodeOffset).toBe(0)
+
+    // Box spans z∈[-1,1]; split at z=0 and no separation ⇒ the two halves
+    // meet exactly at the cutting plane.
+    const minZ = (p: Float32Array) => { let m = Infinity; for (let i = 2; i < p.length; i += 3) m = Math.min(m, p[i]); return m }
+    const maxZ = (p: Float32Array) => { let m = -Infinity; for (let i = 2; i < p.length; i += 3) m = Math.max(m, p[i]); return m }
+    expect(minZ(res.front.positions)).toBeCloseTo(0, 5)
+    expect(maxZ(res.back.positions)).toBeCloseTo(0, 5)
+  })
+
+  it('separationRatio offsets both halves along the normal from the bbox diagonal', async () => {
+    const box = unitBox()
+    const res = await splitWithParams({
+      shape: box,
+      cutMode: 'plane',
+      normal: [0, 0, 1],
+      offset: 0,
+      inPlaneAngle: 0,
+      bbCenter: [0, 0, 0],
+      bboxSize: [2, 2, 2],
+      separationRatio: 0.02,
+    })
+
     const diag = Math.sqrt(2 * 2 + 2 * 2 + 2 * 2)
-    const base = diag * 0.02
-    expect(res.frontExplodeOffset).toBeCloseTo(base, 10)
-    expect(res.backExplodeOffset).toBeCloseTo(-base, 10)
+    const expected = diag * 0.02
+    expect(res.frontExplodeOffset).toBeCloseTo(expected, 10)
+    expect(res.backExplodeOffset).toBeCloseTo(-expected, 10)
 
     // Box spans z∈[-1,1]; split at z=0 → front half z∈[0,1], back z∈[-1,0].
-    // After explode: front shifted by +base, back shifted by -base.
+    // After separation: front shifted by +expected, back shifted by -expected.
     const minZ = (p: Float32Array) => { let m = Infinity; for (let i = 2; i < p.length; i += 3) m = Math.min(m, p[i]); return m }
     const maxZ = (p: Float32Array) => { let m = -Infinity; for (let i = 2; i < p.length; i += 3) m = Math.max(m, p[i]); return m }
     expect(minZ(res.front.positions)).toBeCloseTo(res.frontExplodeOffset, 5)
     expect(maxZ(res.back.positions)).toBeCloseTo(res.backExplodeOffset, 5)
   })
 
-  it('dovetail split with applyExplode=false leaves groove geometry intact and offsets 0', async () => {
+  it('separation (absolute) stacks on top of separationRatio', async () => {
+    // 这正是宿主复现旧默认效果时的组合：比例项 + 半个榫卯深度。
     const box = unitBox()
     const res = await splitWithParams({
       shape: box,
@@ -192,7 +221,28 @@ describe('splitWithParams — real box split through the manifold backend', () =
       bbCenter: [0, 0, 0],
       bboxSize: [2, 2, 2],
       groove: { depth: 1, depthTolerance: 0.1, width: 2, widthTolerance: 0.1, flapsAngle: 10 },
-      applyExplode: false,
+      separationRatio: 0.02,
+      separation: 0.5, // groove.depth / 2
+    })
+
+    const diag = Math.sqrt(2 * 2 + 2 * 2 + 2 * 2)
+    expect(res.frontExplodeOffset).toBeCloseTo(diag * 0.02 + 0.5, 10)
+    expect(res.backExplodeOffset).toBeCloseTo(-(diag * 0.02 + 0.5), 10)
+    expect(res.front.indices.length).toBeGreaterThan(0)
+    expect(res.back.indices.length).toBeGreaterThan(0)
+  })
+
+  it('dovetail split without separation leaves groove geometry intact and offsets 0', async () => {
+    const box = unitBox()
+    const res = await splitWithParams({
+      shape: box,
+      cutMode: 'dovetail',
+      normal: [0, 0, 1],
+      offset: 0,
+      inPlaneAngle: 0,
+      bbCenter: [0, 0, 0],
+      bboxSize: [2, 2, 2],
+      groove: { depth: 1, depthTolerance: 0.1, width: 2, widthTolerance: 0.1, flapsAngle: 10 },
     })
     expect(res.front.indices.length).toBeGreaterThan(0)
     expect(res.back.indices.length).toBeGreaterThan(0)
@@ -200,7 +250,7 @@ describe('splitWithParams — real box split through the manifold backend', () =
     expect(res.backExplodeOffset).toBe(0)
   })
 
-  it('dowel split with applyExplode=false yields non-empty halves', async () => {
+  it('dowel split without separation yields non-empty halves', async () => {
     const box = unitBox()
     const res = await splitWithParams({
       shape: box,
@@ -212,11 +262,53 @@ describe('splitWithParams — real box split through the manifold backend', () =
       bboxSize: [2, 2, 2],
       dowel: { diameter: 1, diameterTolerance: 0.1, height: 0.6, heightTolerance: 0.1 },
       selectedSections: [],
-      applyExplode: false,
     })
     expect(res.front.indices.length).toBeGreaterThan(0)
     expect(res.back.indices.length).toBeGreaterThan(0)
     expect(res.frontExplodeOffset).toBe(0)
+  })
+})
+
+describe('separationOffset — 单侧位移 = 比例×对角线 + 绝对量（纯函数，无 wasm）', () => {
+  // 3-4-12 ⇒ 对角线正好 13，手算可核。
+  const size: [number, number, number] = [3, 4, 12]
+
+  it('bboxDiagonal is the euclidean length of the three sides', () => {
+    expect(bboxDiagonal(size)).toBeCloseTo(13, 12)
+  })
+
+  it('defaults to 0 when neither param is given ⇒ no separation', () => {
+    expect(separationOffset({}, size)).toBe(0)
+  })
+
+  it('separationRatio 0.02 means 2% — a ratio, NOT a percentage', () => {
+    // 这是 §3.3 的命名陷阱：参数若被当成百分数会再乘一次 100。
+    // 两条断言一起锁：既等于 13*0.02，又不等于 13*0.0002（= 0.02% 的读法）。
+    expect(separationOffset({ separationRatio: 0.02 }, size)).toBeCloseTo(13 * 0.02, 12)
+    expect(separationOffset({ separationRatio: 0.02 }, size)).not.toBeCloseTo(13 * 0.0002, 12)
+  })
+
+  it('separation is added verbatim (absolute, mm)', () => {
+    expect(separationOffset({ separation: 2.5 }, size)).toBeCloseTo(2.5, 12)
+  })
+
+  it('the two parts stack: ratio term + absolute term', () => {
+    expect(separationOffset({ separationRatio: 0.02, separation: 2.5 }, size))
+      .toBeCloseTo(13 * 0.02 + 2.5, 12)
+  })
+
+  it('reproduces the pre-2026-10-24 default exactly (V = diagonal*2% + jointDepth/2)', () => {
+    // 「效果一致」的数学证明：旧默认 V 与新公式在同等输入下逐位相等。
+    const jointDepth = 5
+    const oldV = bboxDiagonal(size) * 0.02 + jointDepth / 2
+    const newV = separationOffset({ separationRatio: 0.02, separation: jointDepth / 2 }, size)
+    expect(newV).toBe(oldV)
+  })
+
+  it('ignores non-numeric junk instead of producing NaN', () => {
+    // 脚本面参数是 unknown：少了类型收窄会让整棵顶点数组全变 NaN，错得没有任何提示。
+    const junk = { separationRatio: '0.02' as unknown as number, separation: null as unknown as number }
+    expect(separationOffset(junk, size)).toBe(0)
   })
 })
 
