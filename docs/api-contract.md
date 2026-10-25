@@ -820,6 +820,8 @@ Base units are **mm** for length and **degree** for angle. The names are upperca
 
 A dimensioned parameter may be written with its unit literal — `{ size: 20 * MM }`. A bare number on a `length`, `mass` or `time` slot is read in that dimension's base unit (mm / g / s), so `{ size: 20 }` means 20 mm; `angle` slots are the exception (§15.3). The dimension pass in `extractMetadata` infers a dimension for each argument expression and reports `E_DIM_MISMATCH` for a wrong dimension; a value that statically folds to `0` passes on any slot, and an expression whose dimension cannot be inferred passes unchecked.
 
+Inference follows declared variables: `const a = 10 * MM` gives `a` the `length` dimension for the rest of the script, so passing `a` to an `angle` slot is `E_DIM_MISMATCH`, and `const tilt = 30` makes `angles: [tilt, 0, 0]` a bare number (`E_DIM_BARE_NUMBER`). What stays unchecked is what has no static dimension at all: the result of a function call, a local function parameter, or a compound product such as `MM * MM`.
+
 A host that emits `.fai.js` text may rely on "bare number = base unit", but must write the unit whenever the quantity is not in the base unit (`1 * INCH`, `90 * DEGREE`). The constants are plain numbers only at runtime — the dimension pass, and every reader that expects the script to name its own dimensions, sees the unit only where it is written.
 
 ### 15.3 Angles

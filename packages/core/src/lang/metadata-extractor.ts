@@ -539,7 +539,18 @@ interface ValueParseCtx {
   dimWarnings: ParseError[]
   /** 扁平代码封装头占用行数（容器代码为 0）。报错行号必须扣掉它，见 userLineOf */
   lineOffset?: number
+  /**
+   * 变量量纲环境（阶段 2）：变量名 → **可判定**的量纲。
+   *
+   * 按声明顺序在主循环里填充（与脚本执行顺序一致），只记确定性结论 —— `null`（R5
+   * 不可知，如 op 输出的返回值、函数形参）**不写**，因为"不可知"和"无量纲"是两回事，
+   * 写进去会让后续引用被误判成 bare。
+   */
+  dimEnv: DimEnv
 }
+
+/** 变量名 → 可判定的量纲（`DimName` 或 `'bare'`）。跨语句共享。 */
+type DimEnv = Map<string, DimName | 'bare'>
 
 /** 是否非平凡表达式：非 Literal（负字面量视为字面量）→ UI 显示 fx 徽标 */
 function isExpressionNode(node: ASTNode): boolean {
@@ -556,8 +567,13 @@ function isExpressionNode(node: ASTNode): boolean {
  * Returns the DimName if the expression can be statically determined to carry
  * a dimension, `'bare'` for a bare number literal, or `null` if it cannot be
  * determined (R5: pass through).
+ *
+ * `env` is the declared-variable dimension environment (阶段 2): an `Identifier`
+ * that is not a unit constant resolves through it, so `const a = 10 * MM`
+ * followed by `angle: a` is judged instead of waved through. Omitting `env`
+ * keeps the pre-阶段 2 behaviour (every variable → `null`).
  */
-function inferDim(node: ASTNode): DimName | 'bare' | null {
+function inferDim(node: ASTNode, env?: DimEnv): DimName | 'bare' | null {
   if (!node) return null
 
   switch (node.type) {
@@ -567,24 +583,43 @@ function inferDim(node: ASTNode): DimName | 'bare' | null {
 
     case 'UnaryExpression':
       if (node.operator === '-' || node.operator === '+' || node.operator === '~') {
-        return inferDim(node.argument)
+        return inferDim(node.argument, env)
       }
       return null
 
-    case 'Identifier':
+    case 'Identifier': {
       // Unit constant? → its dimension
       if (SCRIPT_UNIT_NAMES.has(node.name)) {
         const unitName = SCRIPT_UNIT_TO_NAME[node.name]
         return unitName ? (UNIT_DIM[unitName] ?? null) : null
       }
+      // 阶段 2：经变量中转的量纲。环境按声明顺序填充，所以这里读到的是「此前已
+      // 声明且可判定」的量纲；读不到 ⇒ 不可知（R5 放行），不是无量纲。
+      const fromEnv = env?.get(node.name)
+      if (fromEnv) return fromEnv
       // Declared variable or parameter → cannot determine (R5: pass through)
       return null
+    }
 
     case 'BinaryExpression': {
-      const left = inferDim(node.left)
-      const right = inferDim(node.right)
+      const left = inferDim(node.left, env)
+      const right = inferDim(node.right, env)
 
       switch (node.operator) {
+        // 比较运算的结果是布尔值，量纲上恒为无量纲（方案 R6：设计文档 R3 一直把它
+        // 和 `+`/`-` 并列，实现却落 default → null，结果被当成"不可知"）。
+        // 只补返回值，**不**顺带校验两侧一致性：`10 * MM < 20` 里那个 20 按 mm 读，
+        // 是合法比较；两侧量纲冲突属另一条规则，本阶段不动。
+        case '==':
+        case '===':
+        case '!=':
+        case '!==':
+        case '<':
+        case '<=':
+        case '>':
+        case '>=':
+          return 'bare'
+
         case '*': {
           // number * unitConst → unit's dim; unitConst * number → same
           if (left === 'bare' && right && right !== 'bare') return right
@@ -626,12 +661,12 @@ function inferDim(node: ASTNode): DimName | 'bare' | null {
     }
 
     case 'ParenthesizedExpression':
-      return inferDim(node.expression)
+      return inferDim(node.expression, env)
 
     case 'ArrayExpression':
       // vec3 — check first element for dimensionality
       if (node.elements && node.elements.length > 0 && node.elements[0]) {
-        return inferDim(node.elements[0])
+        return inferDim(node.elements[0], env)
       }
       return null
 
@@ -660,7 +695,7 @@ function checkDim(node: ASTNode, expectedDim: DimName, ctx: ValueParseCtx): void
   // `angles: [-tilt, 0, 0]` 的数组层直接是 null —— 只认字面量会给这两种常见形态误报。
   if (foldsToZero(node, ctx.symbols)) return
 
-  const actualDim = inferDim(node)
+  const actualDim = inferDim(node, ctx.dimEnv)
 
   // R5: cannot determine → pass through
   if (actualDim === null) return
@@ -771,7 +806,7 @@ function concreteDim(dim: DimName | 'bare' | null): DimName | null {
  */
 function checkOperatorDimSemantics(
   root: ASTNode,
-  ctx: { dimErrors: ParseError[]; sourceText: string; lineOffset: number; symbols: SymbolTable },
+  ctx: { dimErrors: ParseError[]; sourceText: string; lineOffset: number; symbols: SymbolTable; dimEnv: DimEnv },
 ): void {
   /** 判单个节点；违规时压错误并返回 true。 */
   const checkNode = (node: ASTNode): boolean => {
@@ -788,7 +823,7 @@ function checkOperatorDimSemantics(
     // 是最典型的"手误被静默通过"。指数是次方数，不是量，不能按 dimOfBinary 取一侧。
     if (op === '**') {
       if (foldsToZero(node.right, ctx.symbols)) return false
-      const expDim = concreteDim(inferDim(node.right))
+      const expDim = concreteDim(inferDim(node.right, ctx.dimEnv))
       if (!expDim) return false
       return report(`exponent of "**" must be dimensionless, got ${expDim}: "${src}"`)
     }
@@ -797,8 +832,8 @@ function checkOperatorDimSemantics(
     // 只有"恰好一侧 bare"才报：bare+bare、同量纲相加都合法；两侧都带量纲但不同
     // （length + angle）由 checkDim 的 mismatch 路径管，本规则不重复报。
     if (op !== '+' && op !== '-') return false
-    const left = inferDim(node.left)
-    const right = inferDim(node.right)
+    const left = inferDim(node.left, ctx.dimEnv)
+    const right = inferDim(node.right, ctx.dimEnv)
     if (left === 'bare' && concreteDim(right)) {
       if (foldsToZero(node.left, ctx.symbols)) return false
       return report(`"${op}" mixes a bare number with a ${concreteDim(right)}: "${src}"`)
@@ -1639,6 +1674,8 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
   const allDimErrors: ParseError[] = []
   // P6/D8+: dimension 校验警告累积（dimCheck='warn' 的 op；不阻断）
   const allDimWarnings: ParseError[] = []
+  // 阶段 2：变量量纲环境（跨语句共享，按声明顺序填充）——见 ValueParseCtx.dimEnv
+  const dimEnv: DimEnv = new Map()
 
   // ── 逐顶层语句分类 ──
   for (const stmtNode of bodyNodes) {
@@ -1657,6 +1694,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
       dimErrors: allDimErrors,
       dimWarnings: allDimWarnings,
       lineOffset,
+      dimEnv,
     }
 
     switch (stmtNode.type) {
@@ -1703,6 +1741,15 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
           if (init?.type === 'AwaitExpression') init = init.argument
           if (init?.type === 'ImportExpression') {
             throw new ParseError('dynamic import() is not allowed in faijs (no control flow)', dlineSrc, 'E_CONTROL_FLOW')
+          }
+
+          // 阶段 2：变量量纲环境——按声明顺序记录 rhs 的量纲，供后续引用判定
+          // （`const a = 10 * MM` 之后再写 `angle: a` 就能判出角度槽收到了长度）。
+          // 只记**可判定**的量纲：null 是 R5"不可知"（op 输出等 retDim，阶段 4），
+          // 'mismatch' 说明该表达式自身已被判据报错，写进去只会污染同名变量。
+          if (init && init.type !== 'CallExpression') {
+            const declaredDim = inferDim(init, dimEnv)
+            if (declaredDim && (declaredDim as string) !== 'mismatch') dimEnv.set(name, declaredDim)
           }
 
           // op 行：const x = <ns>.<op>(...) / <localFn>(...)
@@ -1822,7 +1869,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
   // P6/D8+（2026-10-25）：算子级量纲语义——常开 pass（`**` 指数必须无量纲；`+`/`-` 不得
   // 裸数字混量纲）。不依赖 opDims ⇒ check() 与 execute() 同时生效。
   // 放在结尾统一抛错之前：两条路径都只认 allDimErrors[0]。
-  checkOperatorDimSemantics(ast, { dimErrors: allDimErrors, sourceText: parseCode, lineOffset, symbols })
+  checkOperatorDimSemantics(ast, { dimErrors: allDimErrors, sourceText: parseCode, lineOffset, symbols, dimEnv })
 
   // P6/D8: dimension 校验——如果有错误，抛出第一个（用 stage='dimension' 包装）
   if (allDimErrors.length > 0) {

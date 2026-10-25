@@ -202,8 +202,12 @@ describe('angle 槽位 — 必须显式带单位，0 放行', () => {
     expect(check('const p0 = 0\nlet q = cad.rot(p0, { angles: [0, 0, 0] })', opDims).ok).toBe(true)
   })
 
-  it('`angles: [tilt, 0, 0]` 通过（首元素是变量 → 数组层推不出量纲，逐元素 0 走例外）', () => {
-    expect(check('const tilt = 30\nconst p0 = 0\nlet q = cad.rot(p0, { angles: [tilt, 0, 0] })', opDims).ok).toBe(true)
+  // 2026-10-25 阶段 2 翻转：阶段 1 时 `tilt` 是变量 ⇒ 数组层推不出量纲 ⇒ 放行（已知漏口）。
+  // 变量量纲环境接上后 `tilt` 的 `bare` 可判，角度槽位缺单位必须报。
+  it('`angles: [tilt, 0, 0]` 且 tilt = 30（裸数字）→ E_DIM_BARE_NUMBER', () => {
+    const r = check('const tilt = 30\nconst p0 = 0\nlet q = cad.rot(p0, { angles: [tilt, 0, 0] })', opDims)
+    expect(r.ok).toBe(false)
+    expect(r.code).toBe('E_DIM_BARE_NUMBER')
   })
 
   it('单角度槽 `angle: 45` 报、`angle: 0` 与 `angle: 45 * DEGREE` 通过', () => {
