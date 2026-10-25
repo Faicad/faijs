@@ -41,6 +41,7 @@ import { extractMetadata } from '../../src/lang/metadata-extractor'
 /** `analyzeCode` 已迁至宿主层；旧实现即 extractMetadata(code).lines。 */
 const analyzeCode = (code: string) => extractMetadata(code).lines
 import { createEditorRuntime } from '../support/editor-ops'
+import { RawExpr, deg } from '../support/raw-expr'
 
 let stlBuffer: ArrayBuffer
 
@@ -109,6 +110,7 @@ function makeStmt(
 }
 
 function formatVal(v: unknown): string {
+  if (v instanceof RawExpr) return v.text
   if (v === null || v === undefined) return 'null'
   if (typeof v === 'string') return JSON.stringify(v)
   if (typeof v === 'number' || typeof v === 'boolean') return String(v)
@@ -158,7 +160,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         }],
       }, [], { }),
       // S4: rotate_euler with pivot — BREP-native transform
-      makeStmt('rot_v0', 'rotate_euler', { angles: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
+      makeStmt('rot_v0', 'rotate_euler', { angles: [deg(180), 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { }),
       // S5: translate — BREP-native transform
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
@@ -209,7 +211,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         members: ['cube_v0', 'drilled_v0'],
         constraints: [],
       }, [], { }),
-      makeStmt('rot_v0', 'rotate_euler', { angles: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
+      makeStmt('rot_v0', 'rotate_euler', { angles: [deg(180), 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
         { }),
@@ -242,7 +244,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1],
       }, ['cyl_v0']),
-      makeStmt('rot_v0', 'rotate_euler', { angles: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
+      makeStmt('rot_v0', 'rotate_euler', { angles: [deg(180), 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
         { }),
@@ -294,7 +296,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
           b: { part: 'drilled_v0', face: { faceIndex: 2 } },
         }],
       }, [], { }),
-      makeStmt('rot_v0', 'rotate_euler', { angles: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
+      makeStmt('rot_v0', 'rotate_euler', { angles: [deg(180), 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
         { }),
@@ -327,7 +329,7 @@ describe('Pivot parity: rotate_euler(angles, pivot) — BREP vs mesh path consis
     // If pivot is ignored, the result will be wrong (rotating around origin)
     const stmts: string[] = [
       makeStmt('s1', 'box', { width: 10, depth: 10, height: 10, centered: true, at: [20, 0, 0] }, []),
-      makeStmt('s2', 'rotate_euler', { angles: [0, 0, 90], pivot: [20, 0, 0] }, ['s1'],
+      makeStmt('s2', 'rotate_euler', { angles: [0, 0, deg(90)], pivot: [20, 0, 0] }, ['s1'],
         { }),
     ]
 
@@ -388,7 +390,7 @@ describe('Pivot parity: rotate_euler(angles, pivot) — BREP vs mesh path consis
   it('BREP rotate_euler without pivot matches mesh rotate_euler without pivot', async () => {
     const stmts: string[] = [
       makeStmt('s1', 'box', { width: 10, depth: 10, height: 10, centered: true, at: [20, 0, 0] }, []),
-      makeStmt('s2', 'rotate_euler', { angles: [0, 0, 90] }, ['s1'],
+      makeStmt('s2', 'rotate_euler', { angles: [0, 0, deg(90)] }, ['s1'],
         { }),
     ]
 

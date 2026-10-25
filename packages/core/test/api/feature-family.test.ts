@@ -280,7 +280,7 @@ describe('draft — 拔模（中立 op；GOTCHA-1 回归守卫）', () => {
     await useOcct()
     const d = await shapeOf(
       'brep',
-      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 })\n`,
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 * DEGREE })\n`,
       'part1',
     )
     expectSameBBox(bboxOf(d), { xmin: 0, xmax: 20, ymin: 0, ymax: 20, zmin: 0, zmax: 10 })
@@ -297,7 +297,7 @@ describe('draft — 拔模（中立 op；GOTCHA-1 回归守卫）', () => {
     for (const ord of [1, 2, 3, 4]) {
       const s = await shapeOf(
         'brep',
-        `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, ${ord})], angleDeg: 3 })\n`,
+        `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, ${ord})], angleDeg: 3 * DEGREE })\n`,
         'part1',
       )
       vols.push(volOf(s))
@@ -324,7 +324,7 @@ describe('draft — 拔模（中立 op；GOTCHA-1 回归守卫）', () => {
     await useOcct()
     const bad = await exec(
       'brep',
-      `const p0 = cad.box(10,10,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3, neutral: { point: [0,0,0], normal: [0,0,1] } })\n`,
+      `const p0 = cad.box(10,10,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 * DEGREE, neutral: { point: [0,0,0], normal: [0,0,1] } })\n`,
     )
     expect(bad.failedAt).toBeDefined()
     expect(bad.failedAt!.message).toMatch(/E_DRAFT_NEUTRAL_NORMAL_UNUSED/)
@@ -334,7 +334,7 @@ describe('draft — 拔模（中立 op；GOTCHA-1 回归守卫）', () => {
     await useOcct()
     const bad = await exec(
       'brep',
-      `const p0 = cad.box(10,10,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3, neutral: { point: [0,0,5] } })\n`,
+      `const p0 = cad.box(10,10,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 * DEGREE, neutral: { point: [0,0,5] } })\n`,
     )
     expect(bad.failedAt).toBeDefined()
     expect(bad.failedAt!.message).toMatch(/neutral plane is not supported/)
@@ -344,7 +344,7 @@ describe('draft — 拔模（中立 op；GOTCHA-1 回归守卫）', () => {
     await useBrepkit()
     const r = await exec(
       'brep',
-      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 })\n`,
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 * DEGREE })\n`,
     )
     expect(r.failedAt).toBeDefined()
     expect(r.failedAt!.callee).toBe('draft')
@@ -357,7 +357,7 @@ describe('draft — 拔模（中立 op；GOTCHA-1 回归守卫）', () => {
     await useBrepMock()
     const r = await exec(
       'brep',
-      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 })\n`,
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 * DEGREE })\n`,
     )
     // 只断言「不是被引擎门拦下的」；mock 内核能不能真拔模不在本用例范围。
     expect(JSON.stringify(r.failedAt ?? {})).not.toMatch(/requires engine occt/)
@@ -520,7 +520,7 @@ describe('P2 — 选择器字符串接入（fillet / chamfer / filletVariable / 
     await useOcct()
     const sel = await shapeOf(
       'brep',
-      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: ">X", angleDeg: 3 })\n`,
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: ">X", angleDeg: 3 * DEGREE })\n`,
       'part1',
     )
     const selVol = volOf(sel)
@@ -530,7 +530,7 @@ describe('P2 — 选择器字符串接入（fillet / chamfer / filletVariable / 
     for (let k = 1; k <= 6; k++) {
       const one = await shapeOf(
         'brep',
-        `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, ${k})], angleDeg: 3 })\n`,
+        `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, ${k})], angleDeg: 3 * DEGREE })\n`,
         'part1',
       )
       if (Math.abs(volOf(one) - selVol) < 1e-6) {

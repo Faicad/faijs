@@ -103,13 +103,13 @@ const CASES: Case[] = [
   { name: 'sphere', code: 'const p = cad.sphere(10)', category: 'parity' },
   { name: 'cylinder', code: 'const p = cad.cylinder(5, 30, { centered: true })', category: 'parity' },
   { name: 'cone', code: 'const p = cad.cone(10, 4, 30, { centered: true })', category: 'parity' },
-  { name: 'wedge', code: 'const p = cad.wedge({ width: 20, height: 10, angle: 30, length: 15 })', category: 'parity' },
+  { name: 'wedge', code: 'const p = cad.wedge({ width: 20, height: 10, angle: 30 * DEGREE, length: 15 })', category: 'parity' },
   { name: 'torus', code: 'const p = cad.torus(20, 5)', category: 'parity' },
 
   // ── A. transform（中立：rotate_euler / scale3d；translate/scale 是 occt-only） ──
   {
     name: 'rotate_euler',
-    code: 'const b = cad.box(20, 10, 5, { centered: true })\nconst p = cad.rotate_euler(b, { angles: [0, 0, 45] })',
+    code: 'const b = cad.box(20, 10, 5, { centered: true })\nconst p = cad.rotate_euler(b, { angles: [0, 0, 45 * DEGREE] })',
     category: 'parity',
   },
   {

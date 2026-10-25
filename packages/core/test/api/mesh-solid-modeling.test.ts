@@ -157,7 +157,7 @@ describe('网格零件上的常规建模（B3 批）', () => {
 
   it('rotate_euler：绕原点转 45° → 包围盒张开到 10√2（真转了，不是原地不动）', async () => {
     const runtime = createEditorRuntime(PORTS(), 'mesh')
-    const result = await runtime.execute(`${LOAD}\nlet b = cad.rotate_euler(a, { angles: [0, 0, 45] })`)
+    const result = await runtime.execute(`${LOAD}\nlet b = cad.rotate_euler(a, { angles: [0, 0, 45 * DEGREE] })`)
     expect(result.failedAt?.message ?? 'no failure').toBe('no failure')
     expectMeshPart(runtime, result, 'b')
     expect(volumeOf(runtime, 'b')).toBeCloseTo(1000, 3)

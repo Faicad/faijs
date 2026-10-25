@@ -453,6 +453,13 @@ export class CadRuntime {
    */
   private activeMeta: UiMetadata | null = null
 
+  /**
+   * 量纲声明的缓存（{@link buildOpDims} 的结果）。每条 extractMetadata 都要它
+   * —— check() 与 execute/append/update 四条路径全都传，而构建要遍历整个 libs 表。
+   * 失效点只有两处：构造（字段初始化）与 {@link registerLib}（libs 唯一写入点）。
+   */
+  private opDimsCache: OpDimMap | null = null
+
   // P0 增量闸门用：上次成功执行的指纹快照
   private lastParamsFingerprint: string | null = null
   private lastLibIdsFingerprint: string | null = null
@@ -685,6 +692,8 @@ export class CadRuntime {
       ? (admitCompatLib(ns as unknown as Record<string, unknown>, decl?.platform) as LibNamespace)
       : ns
     this.libs[binding] = admitted
+    // libs 是量纲声明的唯一来源 ⇒ 注册新库后必须让缓存重建（否则新 op 的 paramDims 不可见）
+    this.opDimsCache = null
     this.libDecls.set(binding, { packageName: options?.packageName, decl })
     this.libIds.set(binding, computeLibId(binding, ns as unknown as Record<string, unknown>))
     if (options?.packageName) {
@@ -774,6 +783,7 @@ export class CadRuntime {
    * 在此注入，符合 D8「校验器怎么拿到声明」分层。
    */
   private buildOpDims(): OpDimMap {
+    if (this.opDimsCache) return this.opDimsCache
     const out: OpDimMap = {}
     for (const [binding, ns] of Object.entries(this.libs)) {
       if (!ns || typeof ns !== 'object') continue
@@ -790,6 +800,7 @@ export class CadRuntime {
         }
       }
     }
+    this.opDimsCache = out
     return out
   }
 
@@ -1088,12 +1099,12 @@ export class CadRuntime {
     // → replayFrom）与 append 不重置——前缀/累积代码是权威，其声明的偏好沿用；
     // update 把 useMeshChain 语句改掉/删掉时由 updateIncremental 的前缀扫描兜底。
     setChainPreference(null)
-    // NOTE（2026-10-21，量纲执行期门禁待办）：此处**不传** opDims，所以量纲 pass
-    // 不在 execute 路径运行，只有 `check()`（dry-run，见本文件 check()）会拦裸数字。
-    // 实测把 opDims 接上后全仓 703 个测试失败（133 文件）——现有语料普遍写裸数字
-    // （`cad.box(20, 20, 20)` 之类），与「带量纲槽位不准裸数字」的契约直接冲突。
-    // 迁移量级与是否连带改动宿主 codegen 需产品决策，故暂不改变执行期行为。
-    const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
+    // 量纲门禁（2026-10-25 阶段 3）：`opDims` 也在这里传 —— execute 与 check 用同一套
+    // 判据，两端（web 门禁 / 小程序执行）不再分叉。历史 NOTE（2026-10-21）记录的
+    // 「接上后 703 测试失败」全部由 length 槽位的裸数字触发，而 2026-10-25 已把槽位级
+    // 裸数字收窄为「length/mass/time 按基本单位读、只有 angle 必须带单位」⇒ 那批失败
+    // 不再触发（收窄后实跑：新增失败仅来自测试脚本自己写的裸角度，无产品语料迁移）。
+    const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs), opDims: this.buildOpDims() })
     // 2026-10-23 stream preview：执行期活跃 meta（collectLiveSnapshot 读取）。
     // 执行/update 被 withExecutionLock 串行化，钩子只在循环内读它，轮间残留无害。
     this.activeMeta = meta
@@ -1197,7 +1208,7 @@ export class CadRuntime {
     // 已执行产出/其它文件的变量作为外部 var 透传，由 missingPrefixVar 前置校验决定成败。
     // A1 安全扫描需把 ctx 已有键 + 已注册命名空间都作为 knownNames（避免 SEC_FREE_IDENT 误杀 append 场景）。
     const appendKnownNames = [...Object.keys(this.libs), ...de.listCtxKeys()]
-    const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true, security: this.securityPolicy, namespaces: appendKnownNames, nsNames: Object.keys(this.libs) })
+    const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true, security: this.securityPolicy, namespaces: appendKnownNames, nsNames: Object.keys(this.libs), opDims: this.buildOpDims() })
     this.activeMeta = meta
     const determinismFailure = await this.runDeterminismGate(fullCode, meta)
     if (determinismFailure) return determinismFailure
@@ -2362,7 +2373,7 @@ export class CadRuntime {
     }
 
     // G4: 含相对 import 的多文件场景
-    const meta = extractMetadata(newCode, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
+    const meta = extractMetadata(newCode, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs), opDims: this.buildOpDims() })
     // 2026-10-23 stream preview：执行期活跃 meta（collectLiveSnapshot 读取）。
     this.activeMeta = meta
     if ((meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) {

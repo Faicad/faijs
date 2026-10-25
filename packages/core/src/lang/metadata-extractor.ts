@@ -695,6 +695,18 @@ function checkDim(node: ASTNode, expectedDim: DimName, ctx: ValueParseCtx): void
   // `angles: [-tilt, 0, 0]` 的数组层直接是 null —— 只认字面量会给这两种常见形态误报。
   if (foldsToZero(node, ctx.symbols)) return
 
+  // 数组：**逐元素**判，不用 `inferDim` 的"只看首元素"。
+  // 只看首元素会给出两个都错的结论：
+  //   `angles: [0, 0, 45 * DEGREE]` → 首元素 0 判 bare → 误报（语义上完全合规）
+  //   `angles: [45, 0, 0]` → 报错文案引用整个数组，定位不到真正出问题的那个元素
+  // 逐元素后每条元素各自走 0 例外与自己的判据，报错文案也就指向真正违反的那个值。
+  if (node.type === 'ArrayExpression' && (node.elements?.length ?? 0) > 0) {
+    for (const el of node.elements as ASTNode[]) {
+      if (el) checkDim(el, expectedDim, ctx)
+    }
+    return
+  }
+
   const actualDim = inferDim(node, ctx.dimEnv)
 
   // R5: cannot determine → pass through

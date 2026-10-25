@@ -11,7 +11,8 @@
  *   cad.rotate_euler(p0, { angles: [a, 0, 0] })      // 长度当角度用，静默通过
  *
  * 阶段 2 给 `inferDim` 接一个声明顺序填充的环境 `Map<name, DimName | 'bare'>`，
- * 让上面两类在 **check 与 execute 两条路径**都被拦下。
+ * 让上面两类在 **check 与 execute 两条路径**都被拦下（execute 侧依赖阶段 3：
+ * `runtime.ts` 的三处 extractMetadata 也传 `opDims`）。
  *
  * 刻意**不做**（见方案 §4.3，属阶段 4）：`Math.sqrt(4 * MM)` 这类调用返回量纲不可知、
  * `MM * MM` 复合量纲、`1 / MM`。
@@ -189,25 +190,24 @@ describe('不误伤 — 合法的变量中转继续通过', () => {
 
 // ── 两条路径（check 与 execute 同时生效） ──
 
-describe('两条路径一致（不传 opDims 的 execute 也走环境）', () => {
+describe('两条路径一致（execute 也传 opDims）', () => {
   // 注：bothPaths 走真实 runtime，所以用真实 op 名（rotate_euler 的 angles 是 angle 槽），
   // 而不是上面假 opDims 里的 `cad.rot`。
-  // 阶段 2 的收益只落在 check 路径：环境让「变量中转的量纲」可知，但**消费**这个信息
-  // 的槽位判据（checkDim）仍要 opDims —— execute() 不传，所以照样放行。这就是阶段 3
-  // 存在的理由：环境（C）与门禁（B）缺一不可，两条路径都端到端一致要等 B 落地。
-  it('const a = 10 * MM → 角度槽：check 拦 E_DIM_MISMATCH，execute 仍放行（等阶段 3）', async () => {
+  // 阶段 2 落地时收益只在 check 路径（execute() 不传 opDims）；阶段 3（2026-10-25）把
+  // opDims 接到 execute/append/update 三处后，两条路径给出同一个错误码。
+  it('const a = 10 * MM → 角度槽：check 与 execute 都报 E_DIM_MISMATCH', async () => {
     const r = await bothPaths(
       'const p0 = cad.box(20 * MM, 20 * MM, 20 * MM)\nconst a = 10 * MM\nconst q = cad.rotate_euler(p0, { angles: [a, a, a] })',
     )
     expect(r.check).toBe('E_DIM_MISMATCH')
-    expect(r.execute).toBe('OK')
+    expect(r.execute).toBe('E_DIM_MISMATCH')
   })
 
-  it('const tilt = 45 → 角度槽：check 报 E_DIM_BARE_NUMBER，execute 仍放行（阶段 3 才接线）', async () => {
+  it('const tilt = 45 → 角度槽：check 与 execute 都报 E_DIM_BARE_NUMBER', async () => {
     const r = await bothPaths(
       'const p0 = cad.box(20 * MM, 20 * MM, 20 * MM)\nconst tilt = 45\nconst q = cad.rotate_euler(p0, { angles: [tilt, 0, 0] })',
     )
     expect(r.check).toBe('E_DIM_BARE_NUMBER')
-    expect(r.execute).toBe('OK')
+    expect(r.execute).toBe('E_DIM_BARE_NUMBER')
   })
 })

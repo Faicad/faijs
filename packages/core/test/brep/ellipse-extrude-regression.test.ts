@@ -47,7 +47,7 @@ afterAll(() => {
   disposeBrepkit()
 })
 
-const ELLIPSE_SCENE = (rx: number, ry: number, angleDeg = 0): string => `let sk0 = cad.sketch({ shapes:[{kind:'ellipse', cx:0, cy:0, rx:${rx} * MM, ry:${ry} * MM, angle:${angleDeg}}], constraints:[], plane:'XY' })
+const ELLIPSE_SCENE = (rx: number, ry: number, angleDeg = 0): string => `let sk0 = cad.sketch({ shapes:[{kind:'ellipse', cx:0, cy:0, rx:${rx} * MM, ry:${ry} * MM, angle:${angleDeg} * DEGREE}], constraints:[], plane:'XY' })
 let part0 = cad.extrude(sk0, { length:5 * MM, normal:[0,0,1] })`
 
 /** outputs.part0 的 mesh bbox（浮点容差）。 */

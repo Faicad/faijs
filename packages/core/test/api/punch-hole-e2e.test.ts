@@ -137,7 +137,7 @@ describe('cad.punchHole e2e (E4, occt)', () => {
     // solid + cut strictly below the straight prism) plus a tight band.
     const result = await exec(
       `const p0 = cad.box(20, 20, 10)\n` +
-        `const holed = cad.punchHole({ contours: ${JSON.stringify([sq(8, 8, 4)])}, on: p0, face: ${topOrd}, height: 4, draftAngle: 3 })\n`,
+        `const holed = cad.punchHole({ contours: ${JSON.stringify([sq(8, 8, 4)])}, on: p0, face: ${topOrd}, height: 4, draftAngle: 3 * DEGREE })\n`,
     )
     if (result.failedAt) throw new Error(`punchHole draft failed: ${result.failedAt.message}`)
     const solid = firstSolid(result, 'holed')
