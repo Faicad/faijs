@@ -649,17 +649,33 @@ function buildSelectorManifestCore(
 
   // ── 2. Build hash→data maps from kernel-generated buffers ──
 
-  // Face hash → {triStart, triCount} from mesh.faceGroups.
+  // Face hash → **队列** of {triStart, triCount} from mesh.faceGroups.
   // faceGroups format: [triStart_idx, triCount_idx, faceHash] — values are in
   // index units (3 per triangle). Faces without triangulation are skipped by
   // the C++ side, so faceGroups may have fewer entries than faceCount.
-  const faceGroupByHash = new Map<number, { triStart: number; triCount: number }>()
+  //
+  // 2026-10-25 队列而非单值：brepkit 没有 hash API，面指纹是适配器**合成**的
+  // （`getAnalyticSurfaceParams | faceArea`）。同一张球面被拆成两个半球面时，两面的
+  // 解析参数与面积**完全相同** ⇒ 指纹相撞；旧实现用 `Map.set` 只留最后一个条目，
+  // 于是两张面行拿到同一段三角形（实测：sphere 的 f0/f1 center/normal/bbox 全同、
+  // tri 各 1014，面粒度点选永远点不出上半球）。UV 域救不了——brepkit 的
+  // `getSurfaceDomain` 返回的是**曲面自然域**，两个半球都是 [0,2π]×[-π/2,π/2]。
+  //
+  // 顺序是可信的：`meshShape`/`tessellateSolidGrouped` 的 faceGroups 按
+  // `getSolidFaces` 枚举序逐面生成（与 `getSubShapes(shape,'face')` 同一次遍历），
+  // 消费侧也按同一句柄序走，因此同指纹的多张面按出现顺序一一取用即可。
+  // 指纹唯一时（OCCT 的指针哈希、以及 brepkit 的绝大多数情形）队列长度恒为 1，
+  // 行为与直接查表等价。
+  const faceGroupsByHash = new Map<number, { triStart: number; triCount: number }[]>()
   for (let gi = 0; gi * 3 + 2 < faceGroups.length; gi++) {
     const triStartIdx = faceGroups[gi * 3]       // index offset
     const triCountIdx = faceGroups[gi * 3 + 1]    // index count
     const faceHash = faceGroups[gi * 3 + 2]
     // Convert from index units to triangle units
-    faceGroupByHash.set(faceHash, { triStart: triStartIdx / 3, triCount: triCountIdx / 3 })
+    const queue = faceGroupsByHash.get(faceHash)
+    const entry = { triStart: triStartIdx / 3, triCount: triCountIdx / 3 }
+    if (queue) queue.push(entry)
+    else faceGroupsByHash.set(faceHash, [entry])
   }
 
   // Edge hash → {pointStart, pointCount} from wireframe().edgeGroups.
@@ -883,10 +899,12 @@ function buildSelectorManifestCore(
     const face = faceHandles[fi]
     const ordinal = fi + 1
 
-    // Look up triangle data by face hash (pure hash Map, no index fallback).
+    // Look up triangle data by face hash, consuming same-hash entries in the
+    // order the producer emitted them (see faceGroupsByHash above).
     // No match (face without triangulation) → triStart/triCount = 0.
     const fh = kernel.hashCode(face, HASH_BOUND)
-    const fgEntry = faceGroupByHash.get(fh)
+    const fgQueue = faceGroupsByHash.get(fh)
+    const fgEntry = fgQueue && fgQueue.length > 0 ? fgQueue.shift() : undefined
     const triStart = fgEntry ? fgEntry.triStart : 0
     const triCount = fgEntry ? fgEntry.triCount : 0
 
