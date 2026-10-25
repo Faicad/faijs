@@ -42,16 +42,15 @@ describe('Dimension check R1–R6', () => {
     width: 'length', depth: 'length', height: 'length',
   }, { keys: ['width', 'depth', 'height'] })
 
-  it('R2: bare number literal → E_DIM_BARE_NUMBER (positional form)', () => {
+  // 2026-10-25 收窄：length 槽位的裸数字按基本单位（mm）读，合法。
+  it('R2: bare number on a length slot → ok (read as mm, positional form)', () => {
     const r = checkCode('let p0 = cad.box(20, 20, 20, { centered: true })', opDims)
-    expect(r.ok).toBe(false)
-    expect(r.error!.code).toBe('E_DIM_BARE_NUMBER')
+    expect(r.ok).toBe(true)
   })
 
-  it('R2: bare number literal → E_DIM_BARE_NUMBER (object form)', () => {
+  it('R2: bare number on a length slot → ok (object form)', () => {
     const r = checkCode('let p0 = cad.box({ width: 10, depth: 10, height: 10 })', opDims)
-    expect(r.ok).toBe(false)
-    expect(r.error!.code).toBe('E_DIM_BARE_NUMBER')
+    expect(r.ok).toBe(true)
   })
 
   it('R2: 10 * MM is valid (not bare)', () => {
@@ -64,10 +63,9 @@ describe('Dimension check R1–R6', () => {
     expect(r.ok).toBe(true)
   })
 
-  it('R2: base unit form 10 * MM is required (bare 10 is not ok even for base unit)', () => {
+  it('R2: bare 10 on a length slot is 10 mm — base unit needs no suffix', () => {
     const r = checkCode('let p0 = cad.box(10, 10, 10)', opDims)
-    expect(r.ok).toBe(false)
-    expect(r.error!.code).toBe('E_DIM_BARE_NUMBER')
+    expect(r.ok).toBe(true)
   })
 
   it('R3: dimension mismatch — DEGREE on length slot → E_DIM_MISMATCH', () => {
@@ -102,11 +100,10 @@ describe('Dimension check R1–R6', () => {
     expect(r.ok).toBe(true)
   })
 
-  it('R4: length / length → dimensionless (bare)', () => {
-    // 10 * MM / (5 * MM) = 2 (bare number) → E_DIM_BARE_NUMBER on length slot
+  it('R4: length / length → dimensionless (bare) → ok on a length slot', () => {
+    // 10 * MM / (5 * MM) = 2 (bare number) → 2026-10-25 起 length 槽位接受裸数字
     const r = checkCode('let p0 = cad.box(10 * MM / (5 * MM), 10 * MM, 10 * MM)', opDims)
-    expect(r.ok).toBe(false)
-    expect(r.error!.code).toBe('E_DIM_BARE_NUMBER')
+    expect(r.ok).toBe(true)
   })
 
   it('R5: variable reference → pass through (cannot determine)', () => {
@@ -122,10 +119,9 @@ describe('Dimension check R1–R6', () => {
     expect(r.ok).toBe(true)
   })
 
-  it('R5: negative literal → bare (same as positive)', () => {
+  it('R5: negative literal → bare (same as positive) → ok on a length slot', () => {
     const r = checkCode('let p0 = cad.box(-10, -10, -10)', opDims)
-    expect(r.ok).toBe(false)
-    expect(r.error!.code).toBe('E_DIM_BARE_NUMBER')
+    expect(r.ok).toBe(true)
   })
 
   it('R5: negative unit literal → valid (-10 * MM)', () => {
@@ -146,12 +142,10 @@ describe('Dimension check R1–R6', () => {
   })
 
   it('positional and object form have same judgment', () => {
-    // Both should be rejected with E_DIM_BARE_NUMBER
+    // Both accepted (length slot, bare = mm)
     const posR = checkCode('let p0 = cad.box(10, 10, 10)', opDims)
     const objR = checkCode('let p0 = cad.box({ width: 10, depth: 10, height: 10 })', opDims)
-    expect(posR.ok).toBe(false)
-    expect(objR.ok).toBe(false)
-    expect(posR.error!.code).toBe('E_DIM_BARE_NUMBER')
-    expect(objR.error!.code).toBe('E_DIM_BARE_NUMBER')
+    expect(posR.ok).toBe(true)
+    expect(objR.ok).toBe(true)
   })
 })

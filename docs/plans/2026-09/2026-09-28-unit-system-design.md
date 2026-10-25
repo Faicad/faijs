@@ -400,6 +400,12 @@ cad.rotate_euler(part0, { angles: 45 * DEGREE })     // 参数名见 D9
 | R5 | **无法静态判定**的表达式（变量引用、**未声明 `retDim` 的**函数调用结果、下标访问）→ **放行**（不阻塞）：其来源可能在 TS 面已有量纲。这是"宁可漏判不可误判"的取舍，与 D4「几何入参是裸 number」一致。**判定顺序：先查 `retDim`，命中即按 R4 传播并参与 R1/R3 判定；未命中才放行** |
 | R6 | 单位常量名不在 `UNIT_SCALE` 表中（拼错/未注册）→ `E_DIM_UNKNOWN_UNIT`（安全规则已先挡 `SEC_FREE_IDENT`，此处是兜底） |
 
+> **2026-10-25 修订（实施状态，见 `docs/plans/2026-10-25-unit-semantics-error-plan.md`）**
+>
+> - **R2 收窄**：只有 `angle` 槽位强制带单位；`length` / `mass` / `time` 槽位的裸数字按基本单位读（mm / g / s），`cad.box(20, 20, 20)` 合法。上表"基准单位形式也必须有单位"一句作废。**折叠后为 `0` 的值在任何槽位放行**（`angles: [tilt, 0, 0]`）。
+> - **R3 的那半句"比较运算"从未实现**（`inferDim` 的 switch 里没有比较运算，落 `default → null` 放行），本次不补，改为分阶段项。
+> - **新增两条常开的算子语义规则**（不依赖 `opDims`，`check()` 与 `execute()` 同时生效，均报 `E_DIM_MISMATCH`）：`**` 的指数必须无量纲；`+` / `-` 不得一侧裸数字、另一侧带量纲。
+
 **返回值量纲**：查询类 op 的返回值（`cad.volume` → length³、`cad.area` → length²、`cad.length` → length、`cad.centerOfMass` → length）由同一机制的 `retDim` 声明，使 `cad.volume(p) / cad.area(p)` 这类表达式可被 R4 推导校验（**`retDim` 命中优先于 R5 放行**，否则"声明了却不生效"）。
 
 **错误码**（挂 `stage: 'dimension'`，随 `CheckResult.errors` 结构化返回，UI 可直接展示）：

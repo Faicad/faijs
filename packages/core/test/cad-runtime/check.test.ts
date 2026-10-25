@@ -191,16 +191,50 @@ export default async (cad) => {
 // ── P6/D8: dimension pass end-to-end tests ──
 
 describe('CadRuntime.check() — dimension pass (P6/D8)', () => {
-  it('E_DIM_BARE_NUMBER: bare number on dimensioned slot → ok=false, stage=dimension', () => {
+  // 2026-10-25 收窄：length 槽位的裸数字按基本单位（mm）读 ⇒ `cad.box(20, 20, 20)` 合法。
+  it('bare number on a length slot → ok=true (read as mm)', () => {
     const code = `export default async (cad) => {
   const part0 = cad.box(20, 20, 20, { centered: true })
   return { shape: part0 }
+}`
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(true)
+    expect(result.errors).toEqual([])
+  })
+
+  it('E_DIM_BARE_NUMBER: bare number on an angle slot → ok=false, stage=dimension', () => {
+    const code = `export default async (cad) => {
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM)
+  const part1 = cad.rotate_euler(part0, { angles: [45, 0, 0] })
+  return { shape: part1 }
 }`
     const result = makeRuntime().check(code)
     expect(result.ok).toBe(false)
     expect(result.errors.length).toBeGreaterThan(0)
     expect(result.errors[0].stage).toBe('dimension')
     expect(result.errors[0].code).toBe('E_DIM_BARE_NUMBER')
+  })
+
+  it('angle slot with a unit, and 0 angles → ok=true', () => {
+    const code = `export default async (cad) => {
+  const part0 = cad.box(20 * MM, 20 * MM, 20 * MM)
+  const part1 = cad.rotate_euler(part0, { angles: [45 * DEGREE, 0, 0] })
+  return { shape: part1 }
+}`
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(true)
+  })
+
+  it('E_DIM_MISMATCH: operator pass is always on (26.0 ** MM) → stage=dimension', () => {
+    const code = `export default async (cad) => {
+  const zz = 26.0 ** MM
+  const part0 = cad.box(26.0 * MM, 20.5 * MM, zz)
+  return { shape: part0 }
+}`
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(false)
+    expect(result.errors[0].stage).toBe('dimension')
+    expect(result.errors[0].code).toBe('E_DIM_MISMATCH')
   })
 
   it('10 * MM on dimensioned slot → ok=true (unit literal is valid)', () => {
@@ -221,24 +255,36 @@ describe('CadRuntime.check() — dimension pass (P6/D8)', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('E_DIM_BARE_NUMBER: object form with bare number → ok=false', () => {
-    // fai_extrude has paramDims for `length` — bare number 5 should be caught.
-    // We need a valid shape reference first.
-    const _code = `export default async (cad) => {
-  const part0 = cad.fai_extrude(part0, { length: 5 })
-  return { shape: part0 }
-}`
-    // Note: _code above has part0 undefined — check() catches E_REFERENCE.
-    // Use a valid shape reference:
-    const code2 = `export default async (cad) => {
+  it('object form with a bare length → ok=true (5 means 5 mm)', () => {
+    const code = `export default async (cad) => {
   const p0 = cad.box(10 * MM, 10 * MM, 10 * MM)
   const p1 = cad.fai_extrude(p0, { length: 5 })
   return { shape: p1 }
 }`
-    const result = makeRuntime().check(code2)
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(true)
+  })
+
+  it('object form with a bare angle → E_DIM_BARE_NUMBER', () => {
+    const code = `export default async (cad) => {
+  const p0 = cad.box(10 * MM, 10 * MM, 10 * MM)
+  const p1 = cad.draft(p0, { faces: "|Z", angleDeg: 3 })
+  return { shape: p1 }
+}`
+    const result = makeRuntime().check(code)
     expect(result.ok).toBe(false)
     expect(result.errors[0].stage).toBe('dimension')
     expect(result.errors[0].code).toBe('E_DIM_BARE_NUMBER')
+  })
+
+  it('object form with a unit angle → ok=true', () => {
+    const code = `export default async (cad) => {
+  const p0 = cad.box(10 * MM, 10 * MM, 10 * MM)
+  const p1 = cad.draft(p0, { faces: "|Z", angleDeg: 3 * DEGREE })
+  return { shape: p1 }
+}`
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(true)
   })
 
   it('fai_extrude with 5 * MM → ok=true', () => {
@@ -251,37 +297,35 @@ describe('CadRuntime.check() — dimension pass (P6/D8)', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('sphere radius is dimensioned: bare number → E_DIM_BARE_NUMBER; 10 * MM → ok', () => {
-    // sphere declares paramDims radius='length' (ops-dim-decl.test.ts G3). 通过量纲以
-    // bare number 触发 E_DIM_BARE_NUMBER；单位字面量 10 * MM 合法。
+  it('sphere radius (length): bare 10 and 10 * MM both accepted', () => {
+    // 2026-10-25 收窄：length 槽位裸数字 = 基本单位 mm，两种写法等价。
     const bare = `export default async (cad) => {
   const part0 = cad.sphere({ radius: 10 })
   return { shape: part0 }
 }`
-    const bad = makeRuntime().check(bare)
-    expect(bad.ok).toBe(false)
-    expect(bad.errors[0].stage).toBe('dimension')
-    expect(bad.errors[0].code).toBe('E_DIM_BARE_NUMBER')
+    expect(makeRuntime().check(bare).ok).toBe(true)
 
     const lit = `export default async (cad) => {
   const part0 = cad.sphere({ radius: 10 * MM })
   return { shape: part0 }
 }`
-    const ok = makeRuntime().check(lit)
-    expect(ok.ok).toBe(true)
+    expect(makeRuntime().check(lit).ok).toBe(true)
   })
 
-  it('bare number on dimensioned slot in object form → also catches', () => {
-    // box object form: cad.box({ width: 10, depth: 10, height: 10 })
-    // This should be caught — but box uses slotMap, so the object form is detected
-    // via the hasDimKeys heuristic in checkOpCallDims.
+  it('box object form with bare lengths → ok=true', () => {
     const code = `export default async (cad) => {
   const part0 = cad.box({ width: 10, depth: 10, height: 10 })
   return { shape: part0 }
 }`
     const result = makeRuntime().check(code)
-    expect(result.ok).toBe(false)
-    expect(result.errors[0].stage).toBe('dimension')
-    expect(result.errors[0].code).toBe('E_DIM_BARE_NUMBER')
+    expect(result.ok).toBe(true)
+  })
+
+  it('box object form with a bare 0 → ok=true (zero exception)', () => {
+    const code = `export default async (cad) => {
+  const part0 = cad.box({ width: 0, depth: 0, height: 0 })
+  return { shape: part0 }
+}`
+    expect(makeRuntime().check(code).ok).toBe(true)
   })
 })

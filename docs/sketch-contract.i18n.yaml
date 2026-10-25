@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   npm run verify-translation-pairing --write docs/sketch-contract.md
-sketch-contract.md: 4e97c51189e5f56c21c1fe92c08aab709f0a42ea
-sketch-contract.zh.md: 9794176db2ed59f5910abfe8cd194436cdff4bc9
+sketch-contract.md: 3d776bcc51b752b8972d0d5b03c9ad95fbbab560
+sketch-contract.zh.md: d4fc29160c0bcd8a1684dd8fefc0220535737d67

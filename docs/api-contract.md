@@ -818,16 +818,18 @@ Base units are **mm** for length and **degree** for angle. The names are upperca
 
 ### 15.2 Literals carry their unit
 
-A dimensioned parameter is written with its unit literal — `{ size: 20 * MM }`, not `{ size: 20 }`. The dimension pass in `extractMetadata` infers a dimension for each argument expression and reports `E_DIM_BARE_NUMBER` for a bare literal on a dimensioned slot and `E_DIM_MISMATCH` for a wrong dimension; an expression whose dimension cannot be inferred passes unchecked.
+A dimensioned parameter may be written with its unit literal — `{ size: 20 * MM }`. A bare number on a `length`, `mass` or `time` slot is read in that dimension's base unit (mm / g / s), so `{ size: 20 }` means 20 mm; `angle` slots are the exception (§15.3). The dimension pass in `extractMetadata` infers a dimension for each argument expression and reports `E_DIM_MISMATCH` for a wrong dimension; a value that statically folds to `0` passes on any slot, and an expression whose dimension cannot be inferred passes unchecked.
 
-A host that emits `.fai.js` text emits unit literals on the same slots. The constants are plain numbers only at runtime — the dimension pass, and every reader that expects the script to name its own dimensions, sees the unit only where it is written. Dropping `* MM` from emitted code does not simplify it; it removes the dimension from the contract.
+A host that emits `.fai.js` text may rely on "bare number = base unit", but must write the unit whenever the quantity is not in the base unit (`1 * INCH`, `90 * DEGREE`). The constants are plain numbers only at runtime — the dimension pass, and every reader that expects the script to name its own dimensions, sees the unit only where it is written.
 
 ### 15.3 Angles
 
-Script-face angles are degrees (R-5). Every angle-bearing slot is declared `dim: 'angle'`, so a script must write `90 * DEGREE` or `1.5708 * RADIAN` — a bare number is `E_DIM_BARE_NUMBER`. The internal unit (radians, throughout the geometry layers and the kernels) is an implementation detail: each op converts once at its entry, so callers never see it. Per-API detail: `docs/sketch-contract.md` §2.
+Script-face angles are degrees (R-5). Every angle-bearing slot is declared `dim: 'angle'`, so a script must write `90 * DEGREE` or `1.5708 * RADIAN` — a bare number is `E_DIM_BARE_NUMBER`, except a value that folds to `0` (`0` is the same number in degrees and radians, so it carries no ambiguity). The internal unit (radians, throughout the geometry layers and the kernels) is an implementation detail: each op converts once at its entry, so callers never see it. Per-API detail: `docs/sketch-contract.md` §2.
 
-### 15.4 Where the dimension pass runs
+### 15.4 Two judgments, and where they run
 
-The pass needs the op declarations, which the runtime hands it as `opDims` (`buildOpDims()`). **Only `check()` passes them.** `execute()` calls `extractMetadata` without `opDims`, so a bare number on a declared slot is caught by dry-run validation but is *not* rejected during execution.
+**Operator semantics** is enforced on the whole program AST, unconditionally: the exponent of `**` must be dimensionless, and `+` / `-` must not mix a bare number with a dimensioned value. Both are reported as `E_DIM_MISMATCH`, on the `check()` path and the `execute()` path alike.
 
-This is a live gap, not a design choice. Enabling it was measured (2026-10-21): the pass on the execute path fails **703 tests across 133 files**, because the existing corpus writes bare numbers throughout (`cad.box(20, 20, 20)` and similar) — the whole corpus violates §15.2 today, and enforcement has only ever been nominal. Closing it means migrating the corpus and every host that emits `.fai.js` text; the declarations themselves (§10.3) are already complete and are guarded against regressing by `scripts/check-op-dims.mjs` Rule 3.
+**Slot declarations** (`paramDims` / `spec`) need the op declarations, which the runtime hands it as `opDims` (`buildOpDims()`). **Only `check()` passes them.** `execute()` calls `extractMetadata` without `opDims`, so a bare number on a declared slot is caught by dry-run validation but is *not* rejected during execution.
+
+That asymmetry is a live gap, not a design choice. Its cost was measured (2026-10-21) at 703 failing tests — and every one of them was triggered by a bare number on a `length` slot, which §15.2 now accepts. Re-measured against the current corpus (66 `.fai.js` scripts across both repositories) the rule leaves zero angle-slot violations. Wiring `opDims` into `execute()` / `update()` is therefore scheduled as its own change; its remaining cost must be re-measured by running it — in particular the `spec` path (composite slots such as `sketch`), which the 2026-10-21 number does not describe.

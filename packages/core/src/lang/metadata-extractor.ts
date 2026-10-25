@@ -157,6 +157,16 @@ function lineOf(node: ASTNode): number {
   return node?.loc?.start?.line ?? 1
 }
 
+/**
+ * 用户面行号：acorn 跑的是**封装后**的文本（扁平代码会被包进
+ * `export default async (ns) => {`），所以 acorn 行号要扣掉封装头占的行数。
+ * 量纲 pass 的两条判据（槽位级 / 算子级）都走这里，保证同一条错误在
+ * check() 与 execute() 上报同一个行号、且与用户编辑器一致。
+ */
+function userLineOf(node: ASTNode, lineOffset = 0): number {
+  return Math.max(1, lineOf(node) - lineOffset)
+}
+
 function derivePackageName(specifier: string): string {
   if (specifier.startsWith('@')) {
     const parts = specifier.split('/')
@@ -527,6 +537,8 @@ interface ValueParseCtx {
   dimErrors: ParseError[]
   /** P6/D8+: dimension 校验警告累积（dimCheck='warn' 的 op） */
   dimWarnings: ParseError[]
+  /** 扁平代码封装头占用行数（容器代码为 0）。报错行号必须扣掉它，见 userLineOf */
+  lineOffset?: number
 }
 
 /** 是否非平凡表达式：非 Literal（负字面量视为字面量）→ UI 显示 fx 徽标 */
@@ -631,13 +643,23 @@ function inferDim(node: ASTNode): DimName | 'bare' | null {
 /**
  * P6/D8: Check if an argument expression has the required dimension.
  *
- * - R2: bare number literal on a dimensioned slot → E_DIM_BARE_NUMBER
+ * - 0 例外（2026-10-25 拍板：所有度量里的 0 都放行）→ 折叠后是数值 0 ⇒ 任何槽位放行
+ * - R2（2026-10-25 收窄）: bare number on an **angle** slot → E_DIM_BARE_NUMBER；
+ *   `length` / `mass` / `time` 槽位的裸数字按基本单位读（mm / g / s），合法
  * - R3: mismatched dimensions → E_DIM_MISMATCH
  * - R5: cannot determine → pass (no error)
  *
  * Appends errors to ctx.dimErrors (does not throw — extraction continues).
  */
 function checkDim(node: ASTNode, expectedDim: DimName, ctx: ValueParseCtx): void {
+  // 0 例外：折叠后是 0 的值在任何量纲槽位都放行。0 在度/弧度、各长度单位下同一个数，
+  // 不存在二义性；而 `angles: [tilt, 0, 0]` 这类最常见的单轴旋转要求写成 `0 * DEGREE`
+  // 只是噪音。
+  // 必须按"折叠后是 0"判、不能只认 `Literal(0)`：`inferDim(ArrayExpression)` 只看首元素，
+  // 于是 `angles: [0, 0, 0]` 的数组节点是 ArrayExpression（不是字面量）、
+  // `angles: [-tilt, 0, 0]` 的数组层直接是 null —— 只认字面量会给这两种常见形态误报。
+  if (foldsToZero(node, ctx.symbols)) return
+
   const actualDim = inferDim(node)
 
   // R5: cannot determine → pass through
@@ -647,17 +669,22 @@ function checkDim(node: ASTNode, expectedDim: DimName, ctx: ValueParseCtx): void
   if (actualDim === 'mismatch' as unknown as string) {
     ctx.dimErrors.push(new ParseError(
       `dimension mismatch in expression: "${ctx.sourceText.slice(node.start, node.end)}"`,
-      lineOf(node),
+      userLineOf(node, ctx.lineOffset),
       'E_DIM_MISMATCH',
     ))
     return
   }
 
-  // R2: bare number on dimensioned slot
+  // R2: bare number on a dimensioned slot.
+  // 2026-10-25 收窄：只有角度槽位强制带单位。length / mass / time 的裸数字按基本单位
+  // 读（mm / g / s）——`cad.box(20, 20, 20)` 是契约内的合法写法，不再报错。
+  // 角度必须显式写：度与弧度差 57.3 倍，裸数字没有唯一解释（脚本面基准是度、
+  // geometry2d/ 内部是弧度），是最贵的一类静默错误。
   if (actualDim === 'bare') {
+    if (expectedDim !== 'angle') return
     ctx.dimErrors.push(new ParseError(
-      `bare number literal requires unit suffix (expected ${expectedDim}): "${ctx.sourceText.slice(node.start, node.end)}"`,
-      lineOf(node),
+      `bare number requires an explicit unit on an angle slot (expected angle): "${ctx.sourceText.slice(node.start, node.end)}"`,
+      userLineOf(node, ctx.lineOffset),
       'E_DIM_BARE_NUMBER',
     ))
     return
@@ -667,11 +694,144 @@ function checkDim(node: ASTNode, expectedDim: DimName, ctx: ValueParseCtx): void
   if (actualDim !== expectedDim) {
     ctx.dimErrors.push(new ParseError(
       `dimension mismatch: expected ${expectedDim}, got ${actualDim} in "${ctx.sourceText.slice(node.start, node.end)}"`,
-      lineOf(node),
+      userLineOf(node, ctx.lineOffset),
       'E_DIM_MISMATCH',
     ))
     return
   }
+}
+
+/**
+ * 静态判定节点是否**必然**折叠为数值 0（量纲判据的 0 例外用）。
+ *
+ * 保守：拿不准就返回 false（宁可报错，不放行）。覆盖的形态：
+ * - `Literal(0)` / `-0` / `+0`
+ * - `0 * x`、`0 / x`（x 不是 0）
+ * - `0 + 0`、`0 - 0`
+ * - 全 0 数组（`[0, 0, 0]`；元素逐个判）
+ * - 能折叠到 0 的常量表达式与字面量参数（`const ZERO = 0` 后写 `ZERO`），复用 tryFoldConstExpr
+ */
+function foldsToZero(node: ASTNode, symbols: SymbolTable): boolean {
+  if (!node || typeof node !== 'object') return false
+
+  // 数组：逐元素（空数组不算 0）
+  if (node.type === 'ArrayExpression') {
+    const elements = node.elements ?? []
+    if (elements.length === 0) return false
+    return elements.every((el: ASTNode) => !!el && foldsToZero(el, symbols))
+  }
+
+  const folded = tryFoldConstExpr(node, symbols)
+  if (folded.ok && typeof folded.value === 'number' && folded.value === 0) return true
+
+  switch (node.type) {
+    case 'UnaryExpression':
+      return (node.operator === '-' || node.operator === '+') && foldsToZero(node.argument, symbols)
+    case 'BinaryExpression':
+      switch (node.operator) {
+        case '*':
+          return foldsToZero(node.left, symbols) || foldsToZero(node.right, symbols)
+        case '/':
+          // 0 / x ⇒ 0；x / 0 不是 0（Infinity/NaN），所以只认左零且右非零
+          return foldsToZero(node.left, symbols) && !foldsToZero(node.right, symbols)
+        case '+':
+        case '-':
+          return foldsToZero(node.left, symbols) && foldsToZero(node.right, symbols)
+        default:
+          return false
+      }
+    default:
+      return false
+  }
+}
+
+/** `inferDim` 结果 → 具体量纲名（剔除 `'bare'` 与内部 `'mismatch'` 哨兵）。 */
+function concreteDim(dim: DimName | 'bare' | null): DimName | null {
+  if (!dim || dim === 'bare') return null
+  if ((dim as string) === 'mismatch') return null
+  return dim
+}
+
+/**
+ * P6/D8+（2026-10-25）：算子级量纲语义——**常开** pass，不依赖 `opDims`。
+ *
+ * 为什么常开、且走整棵 AST（而不是像 {@link checkDim} 挂在 op 实参槽）：
+ * - 槽位级判据要 opDims，而 `execute()` / `update()` 都不传 ⇒ `const zz = …` 这类声明
+ *   rhs、`if` 条件、`return` 表达式永远没人看。`extractMetadata` 结尾的
+ *   `throw allDimErrors[0]` 是无条件的，所以把错误推进 `dimErrors` 即让 check 与 execute
+ *   两条路径同时生效——这也是本 pass 不用碰 2026-10-21 那个 opDims 悬置决策的原因。
+ * - 整棵 AST 单遍遍历覆盖所有位置，每个节点只判一次。
+ *
+ * 只判两条规则，且都**不改 inferDim 的返回值** ⇒ 不会与 checkDim 重复报同一条：
+ * 规则 B 只在"恰好一侧 bare"时报，而 inferDim 仍把 `10 + MM` 判成 length，
+ * 因此 checkDim 认为它符合期望量纲、不会二次报。
+ *
+ * 已知限制（不修）：`dimCheck:'warn'` 的 op 目前 0 处使用。将来启用 warn 时，warn 槽位里
+ * 的 `**` 仍会被本 pass 阻断（本 pass 不看 op 声明），启用前需把 walker 纳入 warn 分流。
+ */
+function checkOperatorDimSemantics(
+  root: ASTNode,
+  ctx: { dimErrors: ParseError[]; sourceText: string; lineOffset: number; symbols: SymbolTable },
+): void {
+  /** 判单个节点；违规时压错误并返回 true。 */
+  const checkNode = (node: ASTNode): boolean => {
+    if (node.type !== 'BinaryExpression') return false
+    const op: string = node.operator
+    const src = ctx.sourceText.slice(node.start, node.end)
+    const report = (message: string): boolean => {
+      ctx.dimErrors.push(new ParseError(message, userLineOf(node, ctx.lineOffset), 'E_DIM_MISMATCH'))
+      return true
+    }
+
+    // 规则 P：`**` 的指数必须无量纲。
+    // `26.0 ** MM` 在运行时就是 `26 ** 1 = 26`：数量级碰巧正确、量纲被悄悄丢掉，
+    // 是最典型的"手误被静默通过"。指数是次方数，不是量，不能按 dimOfBinary 取一侧。
+    if (op === '**') {
+      if (foldsToZero(node.right, ctx.symbols)) return false
+      const expDim = concreteDim(inferDim(node.right))
+      if (!expDim) return false
+      return report(`exponent of "**" must be dimensionless, got ${expDim}: "${src}"`)
+    }
+
+    // 规则 B：`+` / `-` 两侧不得一侧裸数字、另侧带量纲（`10 + MM` 语义上无意义）。
+    // 只有"恰好一侧 bare"才报：bare+bare、同量纲相加都合法；两侧都带量纲但不同
+    // （length + angle）由 checkDim 的 mismatch 路径管，本规则不重复报。
+    if (op !== '+' && op !== '-') return false
+    const left = inferDim(node.left)
+    const right = inferDim(node.right)
+    if (left === 'bare' && concreteDim(right)) {
+      if (foldsToZero(node.left, ctx.symbols)) return false
+      return report(`"${op}" mixes a bare number with a ${concreteDim(right)}: "${src}"`)
+    }
+    if (right === 'bare' && concreteDim(left)) {
+      if (foldsToZero(node.right, ctx.symbols)) return false
+      return report(`"${op}" mixes a bare number with a ${concreteDim(left)}: "${src}"`)
+    }
+    return false
+  }
+
+  // 后序遍历：子节点先判；子树里已报错则外层不再重复报（`10 + MM + 5` 只报内层的 `10 + MM`）。
+  const visit = (node: ASTNode): boolean => {
+    if (!node || typeof node !== 'object') return false
+    if (Array.isArray(node)) {
+      let reported = false
+      for (const child of node) {
+        if (visit(child)) reported = true
+      }
+      return reported
+    }
+    if (typeof node.type !== 'string') return false
+    let childReported = false
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'range') continue
+      const child = node[key]
+      if (child && typeof child === 'object' && visit(child)) childReported = true
+    }
+    if (childReported) return true
+    return checkNode(node)
+  }
+
+  visit(root)
 }
 
 /**
@@ -1496,6 +1656,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
       opDims: options?.opDims,
       dimErrors: allDimErrors,
       dimWarnings: allDimWarnings,
+      lineOffset,
     }
 
     switch (stmtNode.type) {
@@ -1657,6 +1818,11 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
       ...SCRIPT_UNIT_NAMES,
     ]),
   ].sort()
+
+  // P6/D8+（2026-10-25）：算子级量纲语义——常开 pass（`**` 指数必须无量纲；`+`/`-` 不得
+  // 裸数字混量纲）。不依赖 opDims ⇒ check() 与 execute() 同时生效。
+  // 放在结尾统一抛错之前：两条路径都只认 allDimErrors[0]。
+  checkOperatorDimSemantics(ast, { dimErrors: allDimErrors, sourceText: parseCode, lineOffset, symbols })
 
   // P6/D8: dimension 校验——如果有错误，抛出第一个（用 stage='dimension' 包装）
   if (allDimErrors.length > 0) {

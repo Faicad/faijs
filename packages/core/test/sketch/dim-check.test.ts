@@ -2,10 +2,10 @@
  * dim-check — 静态量纲校验端到端测试（error 模式）。
  *
  * 验证 `cad.sketch` 注册 `sketchDimSpec()` 后（默认 error 模式）：
- * 1. 裸数字长度字段 → E_DIM_BARE_NUMBER 错误（阻断执行）
+ * 1. 裸数字**长度**字段 → 通过（2026-10-25 收窄：裸数字按基本单位 mm 读）
  * 2. 带单位字面量 → 无错误
- * 3. 角度/计数/布尔字段 → 无错误（bare 合法）
- * 4. cad.box 裸数字 → 仍然报错
+ * 3. **角度**字段裸数字 → E_DIM_BARE_NUMBER；折叠为 0 的除外
+ * 4. 计数/布尔/方向字段 → 无错误（本来就无量纲）
  */
 import { describe, it, expect } from 'vitest'
 import { extractMetadata, type OpDimMap } from '@faicad/faijs/lang/metadata-extractor'
@@ -39,12 +39,12 @@ function sketchCode(body: string): string {
 }
 
 describe('sketch dim-check — error mode (bare numbers)', () => {
-  it('rect w/d bare → E_DIM_BARE_NUMBER', () => {
+  it('rect w/d bare → ok (length reads as mm)', () => {
     const result = check(sketchCode(
       'const s = cad.sketch({ shapes: [{ kind: "rect", w: 100, d: 50 }] })',
     ))
-    expect(result.ok).toBe(false)
-    expect(result.errorCode).toBe('E_DIM_BARE_NUMBER')
+    expect(result.ok).toBe(true)
+    expect(result.dimWarnings).toHaveLength(0)
   })
 
   it('rect w/d with units → ok, no errors', () => {
@@ -55,12 +55,12 @@ describe('sketch dim-check — error mode (bare numbers)', () => {
     expect(result.dimWarnings).toHaveLength(0)
   })
 
-  it('circle r bare → E_DIM_BARE_NUMBER', () => {
+  it('circle r bare → ok (length reads as mm)', () => {
     const result = check(sketchCode(
       'const s = cad.sketch({ shapes: [{ kind: "circle", r: 50 }] })',
     ))
-    expect(result.ok).toBe(false)
-    expect(result.errorCode).toBe('E_DIM_BARE_NUMBER')
+    expect(result.ok).toBe(true)
+    expect(result.dimWarnings).toHaveLength(0)
   })
 
   it('circle r with unit → ok, no errors', () => {
@@ -71,9 +71,20 @@ describe('sketch dim-check — error mode (bare numbers)', () => {
     expect(result.dimWarnings).toHaveLength(0)
   })
 
-  it('arc cx/cy/r bare → E_DIM_BARE_NUMBER; a0/a1 bare → no error (angle)', () => {
+  it('arc cx/cy/r bare + a0/a1 = 0 → ok (length slots + zero exception)', () => {
     const result = check(sketchCode(
-      'const s = cad.sketch({ shapes: [{ kind: "arc", cx: 0, cy: 0, r: 50, a0: 0, a1: 1.5 }] })',
+      'const s = cad.sketch({ shapes: [{ kind: "arc", cx: 0, cy: 0, r: 50, a0: 0, a1: 0 }] })',
+    ))
+    expect(result.ok).toBe(true)
+    expect(result.dimWarnings).toHaveLength(0)
+  })
+
+  // 2026-10-25：旧标题「a0/a1 bare → no error (angle)」站不住——它只断言了首个错误
+  // （来自 cx），角度分句从未被验证。这里把角度侧单独钉住：长度字段全带单位，
+  // 于是唯一的错误只可能来自 a1。
+  it('arc a1 bare (non-zero) → E_DIM_BARE_NUMBER (angle needs a unit)', () => {
+    const result = check(sketchCode(
+      'const s = cad.sketch({ shapes: [{ kind: "arc", cx: 0 * MM, cy: 0 * MM, r: 50 * MM, a0: 0, a1: 1.5 }] })',
     ))
     expect(result.ok).toBe(false)
     expect(result.errorCode).toBe('E_DIM_BARE_NUMBER')
@@ -87,12 +98,12 @@ describe('sketch dim-check — error mode (bare numbers)', () => {
     expect(result.dimWarnings).toHaveLength(0)
   })
 
-  it('polygon n bare → no error (count); r bare → E_DIM_BARE_NUMBER', () => {
+  it('polygon n bare → no error (count); r bare → ok (length reads as mm)', () => {
     const result = check(sketchCode(
       'const s = cad.sketch({ shapes: [{ kind: "polygon", n: 6, r: 50 }] })',
     ))
-    expect(result.ok).toBe(false)
-    expect(result.errorCode).toBe('E_DIM_BARE_NUMBER')
+    expect(result.ok).toBe(true)
+    expect(result.dimWarnings).toHaveLength(0)
   })
 
   it('polygon n bare + r with unit → ok', () => {
@@ -103,12 +114,12 @@ describe('sketch dim-check — error mode (bare numbers)', () => {
     expect(result.dimWarnings).toHaveLength(0)
   })
 
-  it('line from/to bare → E_DIM_BARE_NUMBER (length pairs)', () => {
+  it('line from/to bare → ok (length pairs read as mm)', () => {
     const result = check(sketchCode(
       'const s = cad.sketch({ shapes: [{ kind: "line", from: [10, 20], to: [30, 40] }] })',
     ))
-    expect(result.ok).toBe(false)
-    expect(result.errorCode).toBe('E_DIM_BARE_NUMBER')
+    expect(result.ok).toBe(true)
+    expect(result.dimWarnings).toHaveLength(0)
   })
 
   it('line from/to with units → ok', () => {
@@ -129,12 +140,12 @@ describe('sketch dim-check — error mode (bare numbers)', () => {
 })
 
 describe('sketch dim-check — constraints', () => {
-  it('length constraint value bare → E_DIM_BARE_NUMBER', () => {
+  it('length constraint value bare → ok (reads as mm)', () => {
     const result = check(sketchCode(
       'const s = cad.sketch({ shapes: [{ kind: "circle", r: 50 * MM }], constraints: [{ kind: "length", of: { tag: "g1" }, value: 100 }] })',
     ))
-    expect(result.ok).toBe(false)
-    expect(result.errorCode).toBe('E_DIM_BARE_NUMBER')
+    expect(result.ok).toBe(true)
+    expect(result.dimWarnings).toHaveLength(0)
   })
 
   it('angle constraint value bare → E_DIM_BARE_NUMBER (angle is dimensioned)', () => {
@@ -171,12 +182,12 @@ describe('sketch dim-check — plane', () => {
     expect(result.dimWarnings).toHaveLength(0)
   })
 
-  it('plane origin bare → E_DIM_BARE_NUMBER; normal bare → no error (direction)', () => {
+  it('plane origin bare → ok (length reads as mm); normal bare → no error (direction)', () => {
     const result = check(sketchCode(
       'const s = cad.sketch({ shapes: [{ kind: "circle", r: 50 * MM }], plane: { origin: [10, 20, 30], normal: [0, 1, 0] } })',
     ))
-    expect(result.ok).toBe(false)
-    expect(result.errorCode).toBe('E_DIM_BARE_NUMBER')
+    expect(result.ok).toBe(true)
+    expect(result.dimWarnings).toHaveLength(0)
   })
 
   it('plane origin with units, normal bare → ok', () => {
@@ -188,14 +199,14 @@ describe('sketch dim-check — plane', () => {
   })
 })
 
-describe('sketch dim-check — box still errors', () => {
-  it('cad.box bare numbers → error', () => {
+describe('sketch dim-check — box bare numbers', () => {
+  it('cad.box bare numbers → ok (length reads as mm)', () => {
     const result = check(`export default async (cad) => {
   const b = cad.box(20, 20, 20)
   return { shape: b }
 }`)
-    expect(result.ok).toBe(false)
-    expect(result.errorCode).toBe('E_DIM_BARE_NUMBER')
+    expect(result.ok).toBe(true)
+    expect(result.dimWarnings).toHaveLength(0)
   })
 
   it('cad.box with units → ok, no warnings', () => {

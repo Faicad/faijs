@@ -28,9 +28,11 @@ export type ParseErrorCode =
    *  与 E_REFERENCE 区分：真未知标识符仍是 E_REFERENCE；此码说明「这是 faijs 判定点缺陷，
    *  不是你的代码问题」，把错误引向正确方向（见统一入口 S4_SAFE_GLOBALS / 计划 A1）。 */
   | 'E_GLOBAL_NOT_ADMITTED'
-  /** P6/D8: 有量纲位收到裸数字字面量（dimension pass） */
+  /** P6/D8: 有量纲位收到裸数字字面量（dimension pass）。2026-10-25 起含义收窄为
+   *  「**角度**槽位缺显式单位」——length/mass/time 槽位的裸数字按基本单位读、不再报错。 */
   | 'E_DIM_BARE_NUMBER'
-  /** P6/D8: 可判定量纲的两侧量纲不一致（dimension pass） */
+  /** P6/D8: 可判定量纲的两侧量纲不一致（dimension pass）。
+   *  2026-10-25 起也承载算子语义违规（`**` 指数带量纲、`+`/`-` 裸数字混量纲）。 */
   | 'E_DIM_MISMATCH'
   /** P6/D8: 单位常量名不在表中（dimension pass 兖底） */
   | 'E_DIM_UNKNOWN_UNIT'

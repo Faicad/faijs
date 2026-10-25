@@ -27,7 +27,7 @@ The two entries meet at one place: a solved `cad.sketch` hands its contours to t
 
 ### 2.1 The rule
 
-**No dimensioned slot accepts a bare number.** Every angle-bearing parameter is declared `dim: 'angle'`, so a script must write a quantity — `90 * DEGREE` or `1.5708 * RADIAN`. A bare `90` is rejected (`E_DIM_BARE_NUMBER`).
+**No angle slot accepts a bare number.** Every angle-bearing parameter is declared `dim: 'angle'`, so a script must write a quantity — `90 * DEGREE` or `1.5708 * RADIAN`. A bare `90` is rejected (`E_DIM_BARE_NUMBER`). The one exception is a value that folds to `0`: it is the same number in degrees and radians, so `angles: [tilt, 0, 0]` needs no unit on the zeros. (Length slots are the opposite: a bare number there is read in the base unit, mm.)
 
 The unit constants are plain numbers and the angle base unit is the degree — `DEGREE = 1`, `RADIAN = 180/π` — so those two forms denote the same angle and either is accepted.
 
