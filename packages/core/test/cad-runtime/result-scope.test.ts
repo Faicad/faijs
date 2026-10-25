@@ -62,4 +62,36 @@ describe('执行结果范围 = 本轮零件（跨 execute 收敛）', () => {
     // 指纹一致 → buildFor 顶部命中 → 同一份拓扑数据对象（不是重建）。
     expect(second.topology?.get(asPartName('c'))?.data).toBe(first.topology?.get(asPartName('c'))?.data)
   }, 120000)
+
+  it('同名零件换几何 → 面表随新几何重建（不复用上一轮）', async () => {
+    // 2026-10-25：`topologyCache` 按 partName 键控，而 partName 在编辑器里是稳定
+    // 的（`part0` / 参数编辑后整段重跑）——几何变了名字不变。旧行为在 buildFor 里
+    // 命中"陈旧条目"分支直接 return，于是结果带着上一轮的**面表**（面数量、三角形
+    // 归属都是旧几何的）。端侧探针就是这么炸的：drill 过的 part0（7 张面）换回素
+    // box（6 张），面表行覆盖的三角形数与显示 mesh 对不上 → E_TOPO_FACE_MESH_MISMATCH。
+    const drilled = await rt.execute([
+      'let p = cad.box(10, 20, 30, { centered: true })',
+      "p = cad.fai_drill(p, { diameter: 5, depth: 0, holeType: 'simple', direction: 'normal', tolerance: 0.3, snapEnabled: true, position: [0, 0, 15] })",
+    ].join('\n'))
+    expect(drilled.failedAt).toBeUndefined()
+    const drilledTopo = drilled.topology?.get(asPartName('p'))
+    // 带孔件：上下端面 + 4 侧壁 + 孔壁 = 7 张面。
+    expect(drilledTopo?.data.faces?.length).toBe(7)
+
+    const plain = await rt.execute('let p = cad.box(10, 20, 30, { centered: true })')
+    expect(plain.failedAt).toBeUndefined()
+    const plainTopo = plain.topology?.get(asPartName('p'))
+
+    // 素 box 只有 6 张面：面表必须来自本轮几何，而不是上一轮的 7 张。
+    expect(plainTopo?.data.faces?.length).toBe(6)
+    expect(plainTopo?.data).not.toBe(drilledTopo?.data)
+    // 面表与显示几何同源：面表声明的三角形总数 = 显示 mesh 三角形数
+    // （同一次几何下 buildTopologyFromMesh 与显示 mesh 同源；跨轮复用才会不等）。
+    const displayTris = plain.outputs.get(asPartName('p'))?.indices
+      ? (plain.outputs.get(asPartName('p')) as { indices: ArrayLike<number> }).indices.length / 3
+      : 0
+    expect(displayTris).toBeGreaterThan(0)
+    const faceTris = (plainTopo?.data.faces ?? []).reduce((n, f) => n + (f.triangleCount ?? 0), 0)
+    expect(faceTris).toBe(displayTris)
+  }, 120000)
 })

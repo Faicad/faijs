@@ -1471,14 +1471,26 @@ export class CadRuntime {
         }
         const oldExisting = existing
         if (oldExisting) {
-          // 陈旧 mesh 条目遮蔽（2026-10-22 mesh-chain-switch）：上一轮该零件是
-          // **网格零件**（近似拓扑 source='mesh' 已入 topologyCache），本轮重放后它
-          // 已回到 BREP 链（如删掉 `cad.useMeshChain` 语句 → executeDirectText 重跑
-          // 为 auto）——若直接 `return`，结果里 source 还是上一轮的 'mesh'，与当前
-          // 链事实不符（单一真源）。当前 ctx 变量不再是网格实体 → 重建为 brep 拓扑。
-          const v = de.getCtxVar(String(partName))
-          const stillMesh = v != null && typeof v === 'object' && hasMeshSolid(v as Shape)
-          if (oldExisting.source !== 'mesh' || stillMesh) return
+          // 同名零件换了几何（2026-10-25，端侧探针实测）：自建条目带 `contentKey`，
+          // 与本轮 `ck` **不等**时说明这个 partName 现在是另一件几何（典型：参数
+          // 编辑后整段重跑、或脚本里同名变量重新赋值）。此时若沿用上面的早退，结果
+          // 里的 topology 描述的是**上一轮的几何**——探针里 `part0` 先被 drill 成
+          // 带孔件（面表 528 三角形）再换回素 box（显示 12 三角形），面表与显示几何
+          // 彻底对不上，端侧按落点归类必然错。
+          // 指纹可判（两侧都有 contentKey）⇒ 走到这里就是"指纹不等"（相等的情形已在
+          // 上面的命中分支 return），必须重建。指纹不可判（宿主 setTopology 注入 /
+          // 网格近似条目）⇒ 维持既有判据（mesh→brep 切链时重建，其余原样带出）。
+          const fingerprintComparable = oldExisting.contentKey !== undefined && ck !== undefined
+          if (!fingerprintComparable) {
+            // 陈旧 mesh 条目遮蔽（2026-10-22 mesh-chain-switch）：上一轮该零件是
+            // **网格零件**（近似拓扑 source='mesh' 已入 topologyCache），本轮重放后它
+            // 已回到 BREP 链（如删掉 `cad.useMeshChain` 语句 → executeDirectText 重跑
+            // 为 auto）——若直接 `return`，结果里 source 还是上一轮的 'mesh'，与当前
+            // 链事实不符（单一真源）。当前 ctx 变量不再是网格实体 → 重建为 brep 拓扑。
+            const v = de.getCtxVar(String(partName))
+            const stillMesh = v != null && typeof v === 'object' && hasMeshSolid(v as Shape)
+            if (oldExisting.source !== 'mesh' || stillMesh) return
+          }
         }
         const v = de.getCtxVar(String(partName))
         // 多零件 load（compound）：成员各带 BREP solid（fromBrep(shape,{solid})，
