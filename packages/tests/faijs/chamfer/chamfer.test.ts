@@ -76,7 +76,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
   it('T-A5 distanceAngle width=2 angle=30: 体积减少 = ½·dF·dO·L (dO = dF·sinθ/sin(β+θ))', async () => {
     const code = `
       const part0 = cad.box(20, 20, 20, { centered: true })
-      const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'distanceAngle', width: 2, angle: 30 })
+      const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'distanceAngle', width: 2, angle: 30 * DEGREE })
     `
     const result = await runtime.execute(code, { topology: 'auto' })
     expect(result.failedAt).toBeUndefined()
@@ -184,7 +184,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const code = `
       const part0 = cad.box(20, 20, 20, { centered: true })
-      const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'distanceAngle', width: 1, angle: 90 })
+      const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'distanceAngle', width: 1, angle: 90 * DEGREE })
     `
     try {
       // T5 direct-only: all execution errors land in failedAt (no re-throw)

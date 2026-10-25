@@ -1423,7 +1423,24 @@ export class CadRuntime {
     // 自动构建（与 collectResult 的 topology='auto'/'brep' 面同构）。solidCache 已由
     // DirectExecutor 的 setSolid 钩子同步（逐单元执行后写入），此处 buildBrepTopology
     // 命中缓存构建拓扑。
-    const topology = new Map<PartName, PartTopology>(this.topologyCache)
+    //
+    // 2026-10-25 跨 execute 收敛：`topologyCache` 是**跨执行保留**的 memo，条目按
+    // partName 键控，其中既有本轮零件、也有上一轮（旧代码 / 改名前的变量）零件的
+    // 条目。无条件整体带出会让结果描述**上一轮的场景**：已不存在的零件仍出现在
+    // `topology` 里（宿主按 partName 反查拾取数据会命中幽灵条目），而 `naming`
+    // 由 topology 派生 → 同样带出幽灵零件（brep-direct-parity 的 naming 键集断言
+    // 就是被上一轮的 `warmup` / `t` 撞红的）。收敛判据 = 本轮 ctx 里的 shape 变量
+    // （`shapeVarNames`，与 outputs / terminals 同源）：只有它们才有资格出现在结果
+    // 里，孤儿条目的缓存一并删除（否则跨轮只增不减）。
+    const topology = new Map<PartName, PartTopology>()
+    for (const [name, entry] of this.topologyCache) {
+      if (shapeVarNames.has(name)) {
+        topology.set(name, entry)
+        continue
+      }
+      this.topologyCache.delete(name)
+      this.namingCache.delete(name)
+    }
     if (topoMode !== 'off') {
       // 2026-10-23 拓扑构建总预算（手办类模型超时整体放弃；见 ExecuteOptions.topologyTimeoutMs）
       const topoT0 = Date.now()
@@ -1554,19 +1571,21 @@ export class CadRuntime {
     // T2：changed —— DirectExecutor 逐单元写值前后比对（与 module 路径 exec.changed 同语义）。
     const deChanged = de.getChanged()
     // 2026-10-23 收尾分段：assemblies/hash/topo/naming 四段（真机 postLastFrame 归因）。
-    if (Date.now() - t0 > 0) {
-      const tD = Date.now()
-      execution.collectTimings = {
-        assemblies: tA - t0,
-        hash: tB - tA,
-        topo: tC - tB,
-        naming: tD - tC,
-        total: tD - t0,
-        // 构建统计：复用显示 mesh（buildTopologyFromMesh）vs 兜底重三角化
-        // （buildSolidTopologyRuntime）的次数——topo 段 11.7s（node brepkit）的构成。
-        builtFromMesh: this.__buildStats.fromMesh,
-        builtFromSolid: this.__buildStats.fromSolid,
-      }
+    // 2026-10-25 恒发（去掉 `if (Date.now() - t0 > 0)`）：毫秒级时钟让「有没有这个
+    // 字段」取决于这一轮收尾快不快——结果**形状**随时钟抖动，于是断言 execution 精确
+    // 形状的测试随机变红（update-incremental「执行路径观测」家族），而它恰恰是排查
+    // 慢收尾时要看的诊断。诊断字段的存在性不许由墙钟决定：值可以是 0，键必须在。
+    const tD = Date.now()
+    execution.collectTimings = {
+      assemblies: tA - t0,
+      hash: tB - tA,
+      topo: tC - tB,
+      naming: tD - tC,
+      total: tD - t0,
+      // 构建统计：复用显示 mesh（buildTopologyFromMesh）vs 兜底重三角化
+      // （buildSolidTopologyRuntime）的次数——topo 段 11.7s（node brepkit）的构成。
+      builtFromMesh: this.__buildStats.fromMesh,
+      builtFromSolid: this.__buildStats.fromSolid,
     }
     return {
       outputs,

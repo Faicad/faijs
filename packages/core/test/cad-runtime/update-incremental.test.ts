@@ -41,6 +41,22 @@ function makeRuntime(mode: 'mesh' | 'auto' = 'mesh', execBackend: Backend = 'vm'
   return new CadRuntime(defaultPorts(), mode, { cad: createApiNamespaceWithEditorOps() }, { execBackend })
 }
 
+/**
+ * execution 去掉 `collectTimings`（收尾分段诊断，值是真实墙钟毫秒，逐次不同）。
+ *
+ * 本套件断言的是**增量路径观测量**（path / startLine / replayedUnits / skippedUnits）；
+ * collectTimings 由 collectDirectResult 恒发（2026-10-25 起不再由墙钟决定存在性），
+ * 其字段值不可复现，不进对拍。
+ *
+ * @param execution - 执行结果里的 execution 面。
+ * @returns 剔除 collectTimings 后的浅拷贝（其余字段仍按精确相等对拍）。
+ */
+function pathStats(execution: { collectTimings?: unknown }): Record<string, unknown> {
+  const copy: Record<string, unknown> = { ...execution }
+  delete copy.collectTimings
+  return copy
+}
+
 /** 收集 mesh 输出内容 key（名序排序；几何一致性判定）。 */
 function fingerprintOutputs(result: Awaited<ReturnType<CadRuntime['execute']>>): string[] {
   const keys: string[] = []
@@ -463,7 +479,7 @@ for (const backend of BACKENDS) {
     it('execute → full，全部单元重放', async () => {
       const rt = makeRuntime('mesh', backend)
       const r = await rt.execute(code)
-      expect(r.execution).toEqual({ path: 'full', replayedUnits: 3, skippedUnits: 0 })
+      expect(pathStats(r.execution)).toEqual({ path: 'full', replayedUnits: 3, skippedUnits: 0 })
     })
 
     it('update 改末条 → incremental，prefix 单元计入 skipped', async () => {
@@ -471,7 +487,7 @@ for (const backend of BACKENDS) {
       await rt.execute(code)
       const newCode = code.replace('cad.union(part0, part1)', 'cad.translate(part0, { offset: [0, 0, 1] })')
       const r = await rt.update(code, newCode)
-      expect(r.execution).toEqual({
+      expect(pathStats(r.execution)).toEqual({
         path: 'incremental',
         startLine: 3,
         replayedUnits: 1,
@@ -483,12 +499,26 @@ for (const backend of BACKENDS) {
       const rt = makeRuntime('mesh', backend)
       await rt.execute(code)
       const r = await rt.update(code, code)
-      expect(r.execution).toEqual({
+      expect(pathStats(r.execution)).toEqual({
         path: 'noop',
         reason: 'zero-change',
         replayedUnits: 0,
         skippedUnits: 3,
       })
+    })
+
+    it('collectTimings 恒发（诊断字段存在性不随墙钟抖动）', async () => {
+      const rt = makeRuntime('mesh', backend)
+      const full = await rt.execute(code)
+      // 2026-10-25：曾用 `if (Date.now() - t0 > 0)` 决定是否写入 → 收尾快的那次
+      // 没有字段，断言 execution 精确形状的用例随机变红（红的成员随机器/并发变化）。
+      // 值可以是 0，键必须在。
+      expect(full.execution.collectTimings).toBeDefined()
+      expect(typeof full.execution.collectTimings?.total).toBe('number')
+
+      const newCode = code.replace('cad.union(part0, part1)', 'cad.translate(part0, { offset: [0, 0, 1] })')
+      const inc = await rt.update(code, newCode)
+      expect(inc.execution.collectTimings).toBeDefined()
     })
 
     it('update 删行 → full + lines-decreased（G2 如实降级）', async () => {

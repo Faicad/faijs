@@ -133,7 +133,10 @@ describe('cad.useMeshChain 脚本级链切换（weapp 同款双引擎装配，mo
     const vHead = volumeOf(runtime, 'head')
     expect(vHead).toBeGreaterThan(4.0e3)
     expect(vHead).toBeLessThan(4.4e3)
-  }, 180_000)
+    // 超时给到工程上限（300s）：本条是本套件唯一的重链（brepkit 在 ≈2k 面/球的
+    // 网格实体上跑 face-BOP），单跑实测 ≈154s；根 workspace 四工程并行时 CPU 争抢
+    // 下实测 ≈219s——180s 的旧上限在并行跑里是掷硬币（2026-10-25 根套件唯一红项）。
+  }, 300_000)
 
   it('近重合面 union 如实产出有效实体：union(carved, head) 用 face-BOP 可成实（非静默坏几何）', async () => {
     const runtime = createEditorRuntime(PORTS(), 'auto')
