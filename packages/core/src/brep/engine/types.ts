@@ -18,7 +18,7 @@
  * 消费点：`defineOp` 的 `engines` 声明（平台 op 自证身份）、`dispatchPath` 的平台
  * 身份分支（D11-2）、`script-face-manifest` 的平台 op 标注（§3.8）。
  */
-export const BREP_ENGINE_IDS = ['occt', 'brepkit', 'brep_mock'] as const
+export const BREP_ENGINE_IDS = ['occt', 'brepkit', 'brep_mock', 'smlib'] as const
 
 /** BREP 引擎身份（固定三值联合；由 {@link BREP_ENGINE_IDS} 推导）。 */
 export type BrepEngineId = (typeof BREP_ENGINE_IDS)[number]
