@@ -402,3 +402,56 @@ TS 无法构造 `SmTArray<T*>&` 出参（vtable + SmObject 基类布局），一
 - src 层 typecheck 0 错误；core 包全量 typecheck 仅剩既有测试文件基线错误（validate/brepkit/after-statement/group-call-forms 等，与本次无关）。
 - runtime 级复现探针（`wasm-probe/tiny/probe-runtime.ts`）确认 box1 / box2 / box1+box2 三段脚本全过。
 - 风险 1 更新：P1 的 invoke 转发在 Node 22 持续验证通过；微信真机返回码校验式验证仍未做（P0.3 遗留，非 P1 范围）。
+
+## P2 实施记录（2026-10-26）
+
+> 用户原话（2026-10-26）："继续，请自动完成所有的全部的任务"——P2（task #7）自动推进。本节记录 P2 全 API 对账接线的实施过程、探针结论与验收结果。P2 前用户锁定三处口径（已直录 §2）：布尔语言层已对齐 keepHidden 已取消、仅句柄生命周期契约需副本化；无 STEP/STL IO（P5 独立立项）；无子形状 hash 与顶点枚举=适配器自建。
+
+### P2.1 交付物
+
+| 项 | 落盘位置 | 说明 |
+|---|---|---|
+| 桥 C++ | `C:\git\new\usd-brep\wasm-probe\src\SmApiBridgeEx.cpp`（P2 新增 **21 个导出** + 6 个曲线查询桥改造为支持裸曲线句柄） | 权威源仍在 usd-brep 仓库 |
+| wasm 资产 | `packages/core/vendor/smlib-wasm/smlib_standalone.wasm`（当前 **222 导出**） | 与 wasm-probe/out 同步 |
+| 适配器接线 | `packages/core/src/smlib-kernel/smlibKernel.ts`（辅助/造型/曲线/拓扑/求值/修复区段全部接线） | unsupported 仅剩 C 缺口与 P3/P5 项 |
+| 正式测试 | `packages/core/test/smlib-kernel/smlib-p2-ops.test.ts`（**32 例全绿**） | P2 验收通过 |
+
+### P2.2 桥扩展（P2 新增 21 导出 + 6 改造）
+
+P2 桥全部吃 **SmTArray 出入参展平数组**（TS 无法构造 SmTArray 出参，P1 同款理由）。编译踩坑实证：`SmTArray::Append(x)` 只接受整数组追加（`const SmTArray&`），**单元素一律 `SmTArray::Add(x)`**（返回新下标）——第一批 18 桥全量 `.Append(` → `.Add(` 后编译通过（`SmTArray.h` 签名）。
+
+- 曲线提取：`SmApiEdgeToCurveEx`（边→GetCurve 曲线句柄）、`SmApiEdgeVerticesEx`（f64[6] 两端点）。
+- 造型：`SmApiCreatePlanarFacesEx`（曲线数组→面，**曲线不消耗**）、`SmApiMergeBrepsEx`（深拷贝每入参 + op：**SM_BO_UNION=1 非 0**，实证见 P2.4）、`SmApiCreateLinearSweepEx` / `SmApiCreateRotationalSweepEx`（曲线数组+方向/轴+距离/角度度+封盖）、`SmApiCreateSkinPrimitiveEx`（截面计数+全曲线+degree+封盖）。
+- 倒角：`SmApiFilletEdgesEx`（选边+半径+xsect=1 circular+cont=1 G1，原地）、`SmApiChamferFilletEx`（原地，全体边自动斜切）。
+- 抽壳/分割/修复：`SmApiShellBrepFullEx`（const 入参+面集合→新体）、`SmApiIntersectBrepWithPlaneEx`（malloc u32 曲线数组）、`SmApiUnifyNormalsEx`（**P2 修正：桥自动取 GetFaces()[0] 当 pStartFace**——SMLib 对 startFace=NULL 的已一致朝向封闭体返回 SM_ERR_INVALID_INPUT=1007，实证见 P2.4）、`SmApiStitchEx`、`SmApiStitchIntoSolidEx`（u32[2]{solidFlag,stitchedEdges}+f64[2]{vgap,egap}）、`SmApiHealBrepEx`（原地）、`SmApiCutEx`（原地）。
+- 曲线构造：`SmApiCreateSurfaceFromOrderedPointsEx`（f64[3N]+rows+cols）、`SmApiCreateCurveInterpPointsEx`（≥4 点+paramType）、`SmApiCreateCurveApproxPointsEx`、`SmApiCreateCanonicalCurveEx`（点+knots+multiplicities+weights 可选+degree+form）、`SmApiTransformMatrixEx`（3×4 行主序→SmAxis2Placement.SetFrom4x4 列主序填充，可编码反射）。
+- 6 个曲线查询桥改造：`CurveTypeEx/CurveParametersEx/CurveLengthEx/CurvePointAtParamEx/CurveTangentEx/CurveIsClosedEx` 从只吃 `SmEdge*` 改为 `dynamic_cast<SmEdge*> → GetCurve()`，否则 `dynamic_cast<SmCurve*>` **裸曲线句柄直通**（smAObject 基类判别）——适配器造的裸曲线（makeLineEdge 等）无需包边即可查询。
+
+### P2.3 JS 接线（smlibKernel 各区段）
+
+| 区段 | 接线方式 | 说明 |
+|---|---|---|
+| 辅助 | `newWire`（**WIRE_TAG=0x200000000 合成 wire 句柄**，wasm 堆指针 <4GB 永不撞）+ `edgeToCurve`/`faceOuterCurves`（**face 或单面 brep 判别**：solidHandles 命中→GetFacesEx 第一面）/`ptsToMemory`/`normVec`/`cross`/`dot`/`circlePlacementMatrix`（center+normal→3×4 局部系矩阵）/`createPlanarFaces`/`applyMatrix`（3×4 行主序→SmApiTransformMatrixEx）/`threePointArc`/`createCanonicalCurve` | wire 是 L1 句柄契约（makeFace/loft/getSubShapes 复用），smlib 无 wire 类型→合成句柄登记曲线数组 |
+| 造型 | makeRectangle（4 线段环→CreatePlanarFaces）、extrude（face→外环曲线→LinearSweep）、revolveVec（RotationalSweep 角度制直通）、loft（wire 曲线数组→SkinPrimitive，ruled→degree 1）、shell（ShellBrepFull）、bsplineSurface（CreateSurfaceFromOrderedPoints）、makeSolid（StitchIntoSolid 复核后返原句柄） | makeEllipsoid/makeVertex/sweep/sew/sewAndSolidify/hullFromPoints/thicken **保留显式 unsupported**（C 缺口或语义不完整，§5.6） |
+| 曲线 | makeLineEdge（CreateLineSegment）、makeCircleEdge/makeCircleArc（XY 平面造→**circlePlacementMatrix 变换到 center+normal 平面**）、makeArcEdge（三点外接圆→CreateArc→变换）、makeBezierEdge（**满重 B-spline：唯一 knots=[0,1] 各满重 degree+1**——初版误传分段 knots 导致 1001）、makeBSplineEdge（**全 1 weights 归一化为 undefined**）、makeHelixWire（CreateHelix→变换）、approximatePoints/interpolatePoints | makeBezierEdge/BSpline 共用 `createCanonicalCurve`（SmApiCreateCanonicalCurveEx，form=6 SM_CF_UNSPECIFIED） |
+| 拓扑 | makeWire（合成句柄）、makeFace（wire 曲线→CreatePlanarFaces）、buildTriFace（3 线→面）、getSubShapes 补 **wire**（查表）与 **vertex**（**EdgeVerticesEx 边端点坐标去重 + VERTEX_TAG 合成句柄**，vertexPosition 查表）、edgeToFaceMap/adjacentFaces/sharedEdges（BoundaryLoops 边交集）、getLength（去重边弧长和） | 顶点枚举=适配器自建（用户口径）；vertexPosition 对合成句柄查表返回坐标 |
+| 修复 | healSolid（副本化+HealBrepEx+**修复后复核 IsManifoldSolid**——KNOWN_ISSUES 假成功护栏）、fixShape（降级 heal）、fixFaceOrientations（副本化+UnifyNormalsEx） | isValid 仍以 isSolid 近似 |
+
+### P2.4 语义实证（探针结论，落测试）
+
+1. **SM_BO_UNION=1**（SmCoreTypes.h 枚举：UNKNOWN=0, UNION=1, INTERSECTION=2, DIFFERENCE=3, XOR=4, MERGE=5）——初版传 op=0（UNKNOWN）→ 1007。
+2. **CreatePlanarFaces 返回单面 brep 非闭合流形**：`isSolid(makeRectangle()) = false`，但可被 extrude 等造型消费；三角化 2 三角/单面。**faceOuterCurves 需判别 solidHandles**：makeRectangle/extrude 输入是单面 brep → 先 GetFacesEx 取第一面再 BoundaryLoops。
+3. **CreateCanonicalCurve 的 knots 是"唯一值数组"**（L1 契约同款）：测试误传展开序列 `[0,0,1,1]` + mults `[2,2]`（长度不匹配）→ 1001；正确 `knots=[0,1]` + mults=[2,2]。Bezier 满重：唯一 knots=[0,1] 各满重 degree+1（3 控制点二次 → mults=[3,3]）。
+4. **SmApiRotate 第四参 angleDeg 是 f64 数值非指针**：初版传 `p+48` 指针地址被当度数（乱旋转）；修正传数值后 90° 语义精确（box 平移后绕 Z 90° → x'=−y）。
+5. **SmApiCut 输出是开口壳**：splitByPlane 两半 bbox 精确覆盖原范围（positive 法向侧 x∈[0,5]、negative x∈[5,10]）但 **volume=0（非闭合流形）**——L1 splitByPlane 的"两闭合实体"语义 smlib 原生不满足，P2 记录为语义缺口（后续评估 cut+heal 组合）。
+6. **UnifyNormals 对 startFace=NULL 的已一致朝向封闭体返回 1007**：桥修正为自动取 GetFaces()[0] 当 pStartFace（重编后验证）。
+7. **CreateSkinPrimitive 要求各截面曲线首尾成环且截面不共面**：loft 两矩形截面必须错开高度（共面 → 1007）。
+8. **三点圆弧长度语义**：三点 (0,0)/(0,1)/(1,0) 外接圆 r=0.707，经 mid 的弧 = 270°（len=3.332）——CreateArc 顺时针语义 + mid 相对位置，非 π/2。
+9. **全 1 weights 显式传参在 vitest 下偶发 1001、tsx 下成功**：makeBSplineEdge 归一化全 1 weights → undefined（非有理=省略等价），消除双路径（探测差异，归一化后稳定）。
+
+### P2.5 P2 验收结论
+
+- `smlib-p2-ops.test.ts` **32/32 全绿**（造型 8 / 曲线 9 / 变换阵列 4 / 布尔分割倒角 4 / 拓扑 5 / 修复 3）；P1 两文件回归不受影响。
+- 桥导出 **222**（exports-api.json 单行紧凑校验通过）；vendor 三文件同步。
+- P2 对账（§4.3）A 直通≈一半（图元/旋转扫掠/缝合/抽壳/三角化/求值/测量/heal），B 换算落地（布尔副本化/extrude/loft/逐边倒角/平面分割/法向统一/矩阵方言），C 缺口清单更新：STEP/STL IO（P5）/ subShape hash 自建（已做）/ 顶点枚举自建（已做）/ point-contains / compound（gridPattern 依赖）/ curveSplit / thicken / hullFromPoints / ellipsoid / chamferDistAngle / filletVariable（缺 SmTArray 桥）/ splitByPlane 闭合实体语义 / variable-radius fillet。
+- 风险 2 更新：P2 接线未触碰任何用户 WIP 文件（`export-model.ts/step.ts/adapt.ts`、truck 文档、scan-probe.mts）。
