@@ -31,7 +31,7 @@ import {
   readLibPackageJson as readLibPackageJsonShared,
   resolveLibPackageJsonPath,
 } from './lib-package-json'
-import { exportModelSync } from '../brep/export/export-model'
+import { exportModelSync, type ExportEntry } from '../brep/export/export-model'
 import { exportStepFromSolids, type StepExportEntry } from '../brep/export/step'
 import { solidToShape } from '../brep/brep-ops'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
@@ -574,6 +574,35 @@ async function exportExecutionResult(
   }
   const solidInfos = skipped2d.length > 0 ? [`Skipped ${skipped2d.length} 2D terminal(s): ${skipped2d.join(', ')}`] : []
 
+  // ── 3MF 单文件装配导出 ──：3MF 是多对象容器，与 STL（逐终端分文件）不同，
+  // 整车所有可导出终端写入**同一个** .3mf，保留零件名与颜色。每个终端 mesh 已是
+  // 世界坐标（变换烘焙进 positions，见 verify.mts），故整车在正确位置上装配。
+  // 隐藏/2D 终端已在上方面过滤，不会混入。
+  if (ext === '3mf') {
+    const entries: ExportEntry[] = []
+    for (const terminal of solidExportable) {
+      const shape = execResult.outputs.get(terminal.id) as Shape | undefined
+      let mesh: { positions: Float32Array; indices: Uint32Array } | null = null
+      if (shape && 'positions' in shape && 'indices' in shape) {
+        mesh = { positions: shape.positions, indices: shape.indices }
+      } else {
+        const solidEntry = execResult.brepSolids?.get(terminal.id)
+        if (solidEntry) mesh = solidToShape(solidEntry.kernel, solidEntry.solid)
+      }
+      if (!mesh) continue
+      const entry: ExportEntry = { mesh, name: String(terminal.meta?.name ?? terminal.id) }
+      if (shape?.appearance?.color) entry.color = shape.appearance.color
+      entries.push(entry)
+    }
+    if (entries.length === 0) {
+      return { ok: false, error: 'No mesh-bearing terminals to export as a single 3MF' }
+    }
+    const buffer = exportModelSync(entries, '3mf', { unit: 'mm' })
+    writeFileSync(outPath, Buffer.from(buffer))
+    const infos = [`Exported ${entries.length} part(s) into a single 3MF: ${outPath}`, ...solidInfos]
+    return { ok: true, outputFile: outPath, outputFormat: '3mf', infos }
+  }
+
   // include2D 只对 STEP（BREP 链）有意义：STL 是三角网格格式，边/面集合没有网格
   // 表达，显式报错而非静默丢弃（与方案 §3.1 一致）。
   if (include2D && ext !== 'step' && ext !== 'stpz') {
@@ -815,8 +844,8 @@ function writeOutput(
   // 统一导出入口（R11）：坐标换算与单位声明由 exportModel 同源产出。
   // CLI 无单位选项 → 缺省 mm（与既有行为一致）。
   const fmt = ext === 'stp' ? 'step' : ext
-  if (fmt !== 'stl' && fmt !== 'step') {
-    return { ok: false, error: `Unsupported output format: .${ext} (supported: .stl, .step)` }
+  if (fmt !== 'stl' && fmt !== 'step' && fmt !== '3mf') {
+    return { ok: false, error: `Unsupported output format: .${ext} (supported: .stl, .step, .3mf)` }
   }
   // STL 只吃 mesh（export-model §10.6：solid 条目由调用方先三角化）。auto 模式下
   // 形状可能是 BREP solid → 导出 STL 前必须先用内核三角化，否则「no mesh entries」。

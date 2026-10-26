@@ -2,7 +2,7 @@
  * faijs-cli — CLI 入口（tsx 直跑，不发布）。
  *
  *   npx tsx scripts/faijs-cli.ts check <file.fai.js>
- *   npx tsx scripts/faijs-cli.ts run <file.fai.js> --out <output.stl|step> [--mode auto|brep|mesh]
+ *   npx tsx scripts/faijs-cli.ts run <file.fai.js> --out <output.stl|step|3mf> [--mode auto|brep|mesh]
  */
 import { cliMain } from '../src/node-host/cli.ts'
 
