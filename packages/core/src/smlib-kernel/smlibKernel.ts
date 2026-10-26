@@ -807,8 +807,10 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     filletWithHistory(
       solid: BrepHandle, edges: BrepHandle[], radius: number, inputFaceHashes: number[], hashUpperBound: number,
     ): BrepEvolutionData {
-      void solid; void edges; void radius; void inputFaceHashes; void hashUpperBound
-      return unsupported('filletWithHistory')
+      // P3：集合差实现（见面演化区段注释）。
+      const result = primitives.fillet(solid, edges, radius)
+      const outHashes = new Set(primitives.subShapeHashes(result, 'face', hashUpperBound))
+      return { result, modified: [], generated: [], deleted: inputFaceHashes.filter((h) => !outHashes.has(h)) }
     },
 
     // ── 变换 ──
@@ -1676,18 +1678,28 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return unsupported('fromBREP')
     },
 
-    // ── 面演化（P3）──
+    // ── 面演化（P3）：面 hash 集合差实现 ──
+    // 探针：SmTrackTopologyChanges 内核桥在 -fwasm-exceptions 下 call_indirect 崩
+    // （RuntimeError: null function or function signature mismatch，wasm 内部帧）→
+    // 按方案 §10「若探针显示可避免则也不做内核桥」条款，改用集合差：
+    //   deleted = 输入面 hash − 结果面 hash；modified 空（幸存面由调用方 `?? [h]`
+    //   兜底，faijs 读法兼容「不上报」形态）；generated 空（无中间形）。
+    // 语义缺口记录：1→N 切割关联丢失（被切面进 deleted、新面自然新命名），
+    // 与 occt 的 Modified(face) 精确映射不等价（P4 一致性钉待评估）。
     cutWithHistory(a: BrepHandle, b: BrepHandle, inputFaceHashes: number[], hashUpperBound: number): BrepEvolutionData {
-      void a; void b; void inputFaceHashes; void hashUpperBound
-      return unsupported('cutWithHistory')
+      const result = primitives.cut(a, b)
+      const outHashes = new Set(primitives.subShapeHashes(result, 'face', hashUpperBound))
+      return { result, modified: [], generated: [], deleted: inputFaceHashes.filter((h) => !outHashes.has(h)) }
     },
     fuseWithHistory(a: BrepHandle, b: BrepHandle, inputFaceHashes: number[], hashUpperBound: number): BrepEvolutionData {
-      void a; void b; void inputFaceHashes; void hashUpperBound
-      return unsupported('fuseWithHistory')
+      const result = primitives.fuse(a, b)
+      const outHashes = new Set(primitives.subShapeHashes(result, 'face', hashUpperBound))
+      return { result, modified: [], generated: [], deleted: inputFaceHashes.filter((h) => !outHashes.has(h)) }
     },
     intersectWithHistory(a: BrepHandle, b: BrepHandle, inputFaceHashes: number[], hashUpperBound: number): BrepEvolutionData {
-      void a; void b; void inputFaceHashes; void hashUpperBound
-      return unsupported('intersectWithHistory')
+      const result = primitives.intersect(a, b)
+      const outHashes = new Set(primitives.subShapeHashes(result, 'face', hashUpperBound))
+      return { result, modified: [], generated: [], deleted: inputFaceHashes.filter((h) => !outHashes.has(h)) }
     },
   }
 

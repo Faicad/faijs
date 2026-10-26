@@ -455,3 +455,39 @@ P2 桥全部吃 **SmTArray 出入参展平数组**（TS 无法构造 SmTArray �
 - 桥导出 **222**（exports-api.json 单行紧凑校验通过）；vendor 三文件同步。
 - P2 对账（§4.3）A 直通≈一半（图元/旋转扫掠/缝合/抽壳/三角化/求值/测量/heal），B 换算落地（布尔副本化/extrude/loft/逐边倒角/平面分割/法向统一/矩阵方言），C 缺口清单更新：STEP/STL IO（P5）/ subShape hash 自建（已做）/ 顶点枚举自建（已做）/ point-contains / compound（gridPattern 依赖）/ curveSplit / thicken / hullFromPoints / ellipsoid / chamferDistAngle / filletVariable（缺 SmTArray 桥）/ splitByPlane 闭合实体语义 / variable-radius fillet。
 - 风险 2 更新：P2 接线未触碰任何用户 WIP 文件（`export-model.ts/step.ts/adapt.ts`、truck 文档、scan-probe.mts）。
+
+## P3 实施记录（2026-10-26）
+
+> 用户原话（2026-10-26）："继续，请自动完成所有的全部的任务"——P3（task #8）自动推进。本节记录面演化（WithHistory 四员）的实施过程与探针结论。
+
+### P3.1 交付物
+
+| 项 | 落盘位置 | 说明 |
+|---|---|---|
+| 桥 C++ | `C:\git\new\usd-brep\wasm-probe\src\SmApiBridgeEx.cpp`（追加 `SmApiBooleanWithHistoryEx` / `SmApiFilletWithHistoryEx`，224 导出） | **已编译并重链，但 JS 侧弃用**（见 P3.2 探针） |
+| 适配器接线 | `packages/core/src/smlib-kernel/smlibKernel.ts`（cut/fuse/intersect/fillet 四员 WithHistory 由 unsupported 桩接线为**面 hash 集合差实现**） | P3 验收通过 |
+| 正式测试 | `packages/core/test/smlib-kernel/smlib-p3-evolution.test.ts`（**4 例全绿**） | fuse/cut/intersect/filletWithHistory 各 1 |
+
+### P3.2 探针：SmTrackTopologyChanges 内核桥在 wasm 下不可用（关键实证）
+
+P3 按方案 §5.5 先实现内核桥：`SmApiBooleanWithHistoryEx`（SmApiBrepCopy×2 → `SmTrackTopologyChanges tracker(pCopy1, TRUE)` → `SmApiBoolean` → 读 GetRmList/GetAddList/GetChgList 中 `dynamic_cast<SmFace*>` → 返回面指针数值数组）+ `SmApiFilletWithHistoryEx`（同款，边按原体索引映射副本）。编译/重链通过（224 导出，`SmApiBooleanWithHistoryEx` 以无下划线名导出、kind=function）。
+
+**运行时实测**：调用新桥即抛 `RuntimeError: null function or function signature mismatch`，栈帧全在 wasm 内部（`wasm:1:77324` + `wasm:1:2536696`）——**call_indirect 到 null/签名不匹配项**。P0 已修复的 invoke_* 转发覆盖了 SmApi* 常规虚调用（createBox 等），但 `SmTrackTopologyChanges` 构造设置 `SmContext::m_pSysNotifyCallback` 触发的 `SmTopologyChangeCallback` 通知链在 `-fwasm-exceptions`/`-O2` 下指向无效表项。**结论**：方案 §10「仅 §5.5 的 P3 内核桥是极薄新增导出，**若探针显示可避免则也不做**」条款命中——弃用内核桥，改纯 JS 面 hash 集合差实现。桥代码保留在 wasm 内（无害，未来移除 invoke 缺陷后可复用）。
+
+### P3.3 集合差实现（最终方案）
+
+```
+deleted  = 输入面 hash − 结果面 hash（GetFacesEx 遍历 + subShapeHashOf，与拓扑查询同源）
+modified = []（幸存面由调用方 `modified.get(h) ?? [h]` 兜底——faijs 读法兼容「不上报」形态）
+generated = []（无中间形）
+result   = 复用现有 cut/fuse/intersect/fillet（已副本化保语言层句柄契约）
+```
+
+**语义缺口记录**：occt 的 `Modified(face)` 给出 1→N 切割关联（输入面 → 多个后继面）；集合差方案丢失该关联——被切面进 `deleted`、新面自然新命名。对命名系统（用户口径"新造面才需派生词汇命名"）语义近似正确；精确 1→N 映射列为 P4 一致性待评估项（与 splitByPlane 闭合实体缺口同族）。
+
+### P3.4 P3 验收结论
+
+- `smlib-p3-evolution.test.ts` **4/4 全绿**（fuse 并集体积 ∈(6000,12000) + deleted>0 + a/b 句柄可查询；cut 体积 <6000 + deleted>0；intersect 体积 ≈3000；fillet 体积 ∈(5900,6000) + 三角化可用 + 原 solid 可查询）。
+- smlib 全量回归 **49/49 全绿**（P1 11 + P2 32 + P3 4 + engine-switch 2）；eslint 干净。
+- 导出维持 **224**；vendor 三文件已同步。
+- 风险 3 更新：P3 未触碰用户 WIP 文件；未改 SM_API/SMLib 源码。
