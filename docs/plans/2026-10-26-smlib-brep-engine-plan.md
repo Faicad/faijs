@@ -491,3 +491,34 @@ result   = 复用现有 cut/fuse/intersect/fillet（已副本化保语言层句�
 - smlib 全量回归 **49/49 全绿**（P1 11 + P2 32 + P3 4 + engine-switch 2）；eslint 干净。
 - 导出维持 **224**；vendor 三文件已同步。
 - 风险 3 更新：P3 未触碰用户 WIP 文件；未改 SM_API/SMLib 源码。
+
+## P4 实施记录（2026-10-26）
+
+> 用户原话（2026-10-26）："继续，请自动完成所有的全部的任务"——P4（task #9）自动推进。本节记录三引擎一致性验收的实施过程与结论。
+
+### P4.1 交付物
+
+| 项 | 落盘位置 | 说明 |
+|---|---|---|
+| 正式测试 | `packages/core/test/smlib-kernel/smlib-p4-compat.test.ts`（**6 例全绿**） | smlib ↔ occt 直接对比（T1 拓扑 + T2 度量） |
+| 适配器 | 无改动（复用 P1–P3 接线） | P4 纯测试验收 |
+
+### P4.2 一致性钉实测
+
+| 钉（方案 §4.4） | smlib 实测 | occt 实测 | 收敛 |
+|---|---|---|---|
+| box(10,20,30) volume / area | 6000 / 2200 | 6000 / 2200 | rel <1e-3 |
+| box 拓扑面/边 | 6 / 12 | 6 / 12 | 精确相等 |
+| cylinder(r=5,h=10) volume | 250π | 250π | rel <1e-3 |
+| sphere(r=5) volume | 523.599 | 523.599 | rel <1e-3 |
+| 布尔并集（重叠 box）volume | — | — | rel <1e-3 |
+| 布尔差集（重叠 box）volume | — | — | rel <1e-3 |
+
+**bbox 断言修正**：smlib loose bbox 有 ±2e-5 固有误差（P0/P1 实证），且 ref=0 时相对偏差无意义——bbox 改用**绝对容差 1e-3**（volume/area 保持相对容差 1e-3，与 engine-compat harness DEFAULT_TOL 同带）。
+
+### P4.3 P4 验收结论
+
+- `smlib-p4-compat.test.ts` **6/6 全绿**；smlib 全量回归 **55/55 全绿**（P1 11 + P2 32 + P3 4 + P4 6 + engine-switch 2）；eslint 干净。
+- 三引擎（occt/brepkit/smlib）在 L1 度量面上对基础图元与布尔收敛（band 1e-3）——smlib 作为第三 BREP 引擎的几何一致性锚定完成。
+- 遗留（非阻塞）：① engine-compat harness（`packages/tests`）仍为 occt↔brepkit 双引擎，smlib 加入 harness 属可选扩展（当前 P4 已在 core 侧直连 occt 完成同带断言）；② P3 集合差方案与 occt Modified 的 1→N 精确映射不等价，作为 P4 一致性待评估项已记录；③ splitByPlane 闭合实体语义缺口（SmApiCut 开口壳）同族待评估；④ P0.3 微信真机返回码校验式验证仍未做（跨阶段遗留）。
+- 风险 4 更新：P4 未触碰用户 WIP 文件；未改 SM_API/SMLib 源码。
