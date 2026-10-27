@@ -1266,10 +1266,14 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
           faceGroups[i * 3 + 1] = merged[i].triCount * 3
           faceGroups[i * 3 + 2] = merged[i].hash
         }
+        // IMPORTANT: the bridge buffer is freed in the finally block below, so
+        // these views must be copied out first — returning live views of freed
+        // wasm memory made later reads (and the subsequent malloc reuse) see
+        // stale/zeroed data. Copy now, free after.
         return {
-          positions: verts,
-          normals,
-          indices,
+          positions: verts.slice(),
+          normals: normals.slice(),
+          indices: indices.slice(),
           vertexCount: numVerts,
           triangleCount: numTris,
           faceGroups,
