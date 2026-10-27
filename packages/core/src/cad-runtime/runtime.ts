@@ -969,6 +969,28 @@ export class CadRuntime {
   }
 
   /**
+   * 轮末清扫（2026-10-27，方案 E）：GC-less 引擎（smlib）的登记表里，除
+   * solidCache / 网格实体之外的句柄都是本轮不再被任何持有者引用的垃圾——op 内
+   * 中间体、布尔副本、变换/挤出临时体（`release` 是 no-op，它们永不自行释放）。
+   * 执行（全量 execute / 增量 append / update）结果收集完成后调用一次，泄漏不再
+   * 跨轮累积。GC 型引擎（brepkit/occt）不实现 `releaseAllExcept` → 直接跳过。
+   * keep 集合 = solidCache 全部句柄 + 网格实体句柄（唯一跨轮存续的句柄持有者；
+   * statementCache/brepSolids/topology 引用的都是同一批句柄或 hash 数字）。
+   */
+  private sweepGcLessTransients(): void {
+    const k = this.kernel
+    if (!k?.releaseAllExcept) return
+    const keep = new Set<number>()
+    for (const h of this.solidCache.values()) keep.add(h)
+    for (const h of this.meshSolidRegistry.values()) keep.add(h)
+    try {
+      k.releaseAllExcept(keep)
+    } catch {
+      // 清扫失败不阻断结果返回（与 disposeSolidHandle 的容错口径一致）
+    }
+  }
+
+  /**
    * Full execution from code text: parse → execute every statement.
    * @param code - the .fai.js source text.
    * @param opts - optional execution options.
@@ -976,7 +998,11 @@ export class CadRuntime {
    * @throws {RuntimeConcurrentError} when another CadRuntime is already executing (C1).
    */
   async execute(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    return this.withExecutionLock('execute', () => this.executeDirectText(code, opts))
+    return this.withExecutionLock('execute', async () => {
+      const result = await this.executeDirectText(code, opts)
+      this.sweepGcLessTransients()
+      return result
+    })
   }
 
   /**
@@ -989,7 +1015,11 @@ export class CadRuntime {
    * @throws {RuntimeConcurrentError} when another CadRuntime is already executing (C1).
    */
   async append(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    return this.withExecutionLock('append', () => this.appendDirectText(code, opts))
+    return this.withExecutionLock('append', async () => {
+      const result = await this.appendDirectText(code, opts)
+      this.sweepGcLessTransients()
+      return result
+    })
   }
 
   /**
@@ -1948,7 +1978,11 @@ export class CadRuntime {
    * @throws {RuntimeConcurrentError} when another CadRuntime is already executing (C1).
    */
   async update(oldCode: string, newCode: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    return this.withExecutionLock('update', () => this.updateIncremental(oldCode, newCode, opts))
+    return this.withExecutionLock('update', async () => {
+      const result = await this.updateIncremental(oldCode, newCode, opts)
+      this.sweepGcLessTransients()
+      return result
+    })
   }
 
   // ── 公开：缓存访问 ──
@@ -2141,6 +2175,9 @@ export class CadRuntime {
    * @param shape    承载该 solid 的 Shape（可能缺 BREP_TESS 槽）。
    */
   private setSolidAndTess(partName: PartName, solid: BrepHandle, shape?: Shape): void {
+    // 覆盖旧值：旧句柄不再被 solidCache 持有（重赋值场景）→ 受控真释放，避免累积。
+    const prev = this.solidCache.get(partName)
+    if (prev !== undefined && prev !== solid) this.disposeSolidHandle(prev)
     this.solidCache.set(partName, solid)
     const cache = this.brepChain?.meshShapeCache
     if (!cache) return
@@ -2309,12 +2346,24 @@ export class CadRuntime {
    * - `faceEvolutionCache` / `roleTableCache`：删键（与 runtime 同 Map 引用，删键即生效）；
    * - `topologyCache` / `statementCache`：删键（collectDirectResult 按新几何重新填充）。
    */
+  /**
+   * 受控真释放一个 solid 句柄：优先 `disposeHandle`（GC-less 引擎如 smlib 真删内核
+   * 对象），否则回退 `release`（GC 型引擎的引用语义）。调用点仅限 runtime 明确不再
+   * 持有该句柄的时刻（覆盖旧值 / 缓存失效 / dispose）。
+   */
+  private disposeSolidHandle(handle: BrepHandle): void {
+    try {
+      if (this.kernel?.disposeHandle) this.kernel.disposeHandle(handle)
+      else this.kernel?.release(handle)
+    } catch { /* 已释放 */ }
+  }
+
   private releasePartCaches(partNames: PartName[]): void {
     for (const name of partNames) {
       // solidCache: release OCCT handle first, then delete key
       const handle = this.solidCache.get(name)
       if (handle !== undefined) {
-        try { this.kernel?.release(handle) } catch { /* already released */ }
+        this.disposeSolidHandle(handle)
         this.solidCache.delete(name)
       }
       // brepChain.meshShapeCache
@@ -2617,7 +2666,7 @@ export class CadRuntime {
   dispose(): void {
     // 所有权在持久 solidCache：释放全部 OCCT handle（§9 决策 2）
     for (const [, handle] of this.solidCache) {
-      try { this.kernel?.release(handle) } catch { /* 已释放 */ }
+      this.disposeSolidHandle(handle)
     }
     this.solidCache.clear()
     // 网格实体句柄（独立注册表，与 solidCache 并列）一并释放

@@ -39,6 +39,19 @@ export interface BrepEngineApi {
   // ── 生命周期 ──
   /** 手工释放句柄（GC 型引擎实现为 no-op）。 */
   release(shape: BrepHandle): void
+  /**
+   * 受控真释放：runtime 明确「该句柄不再被任何持有者引用」时调用，真删内核对象。
+   * 仅 GC-less 引擎（smlib）实现；GC 型引擎不实现 → runtime 回退到 `release`。
+   */
+  disposeHandle?(shape: BrepHandle): void
+  /**
+   * 轮末清扫（2026-10-27，方案 E）：释放登记表中**不属于 `keep`** 的全部内核对象。
+   * 仅 GC-less 引擎（smlib）实现——runtime 在每轮执行（全量 execute / 增量 append /
+   * update）结果收集完成后调用，`keep` = 跨轮存续句柄（solidCache 全部句柄 +
+   * 网格实体句柄）；GC 型引擎（brepkit/occt）不实现 → runtime 跳过。
+   * 语义：登记表里除 keep 外的句柄都是"本轮 op 内中间体"，不再被任何持有者引用。
+   */
+  releaseAllExcept?(keep: ReadonlySet<number>): void
   /** 释放内核/句柄（引擎级释放语义；brepkit GC 型 no-op）。 */
   dispose(shape?: BrepHandle): void
 

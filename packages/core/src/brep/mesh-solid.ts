@@ -359,6 +359,14 @@ export class MeshSolidRegistry {
   }
 
   /**
+   * 全部登记句柄（轮末清扫 keep 集采集用；不触发任何释放）。
+   * @returns the registered handles in insertion order.
+   */
+  values(): Iterable<BrepHandle> {
+    return this.handles.values()
+  }
+
+  /**
    * 删除某 part 并释放其句柄（重放/失效路径）。
    * @param part - the part name.
    */

@@ -396,11 +396,13 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       dv.setUint32(bCopy, 0, true)
       expectOk(k.find('SmApiBrepCopy')(a, aCopy), `${what}: copy(a)`)
       expectOk(k.find('SmApiBrepCopy')(b, bCopy), `${what}: copy(b)`)
-      const pa = dv.getUint32(aCopy, true)
-      const pb = dv.getUint32(bCopy, true)
+      // 内核调用可能 memory.grow → 旧 DataView detach，读结果前必须重取视图（§2.3）。
+      const dv2 = memOf(k)
+      const pa = dv2.getUint32(aCopy, true)
+      const pb = dv2.getUint32(bCopy, true)
       if (!pa || !pb) throw new Error(`[smlib-kernel] ${what}: brep copy returned null`)
       solidHandles.add(pa)
-      dv.setUint32(out, 0, true)
+      dv2.setUint32(out, 0, true)
       const st = k.find(opName)(pa, pb, out)
       if (st !== SM_SUCCESS) {
         // 失败：释放 pa（副本 a）；pb 归属内核，不碰（避免悬垂 delete）。
@@ -408,9 +410,14 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         k.find('SmApiDeleteBrepEx')(pa)
         throw new Error(`[smlib-kernel] ${what} failed: SM status ${st}`)
       }
-      const result = dv.getUint32(out, true)
+      const dv3 = memOf(k)
+      const result = dv3.getUint32(out, true)
       if (!result) throw new Error(`[smlib-kernel] ${what}: null result`)
-      solidHandles.add(result) // pa 已在表（Set 去重）；result 可能是新指针
+      // 标准布尔（流形 solid）是原地修改 pa：rpResult = m_vTI.m_pBrep，pa 即结果。
+      // 非流形等边缘路径可能产出新指针并消耗 pa——若 result !== pa，必须把被
+      // 消耗的 pa 移出登记表，否则轮末清扫 releaseAllExcept 会对悬垂指针双释放。
+      if (result !== pa) solidHandles.delete(pa)
+      solidHandles.add(result)
       return result as BrepHandle
     } finally {
       k.free(out)
@@ -427,7 +434,26 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       // transient 释放（transient 含 getSubShapes(shape,'solid') 返回的实体句柄）
       // 会把 solidCache 仍持有的实体误删（实测：box2 在 buildNamingInput 时
       // GetFacesEx 返回 SM_ERR=1001）。SmBrep 删除只发生在布尔消耗（SmApiBoolean
-      // 内建）与 booleanOp 失败分支。
+      // 内建）、booleanOp 失败分支，以及 runtime 的受控释放 disposeHandle。
+    },
+    disposeHandle(shape: BrepHandle): void {
+      // 受控真释放（2026-10-27）：runtime 明确「不再被任何持有者引用」时调用。
+      // 只删登记过的 SmBrep*（face/edge 借用指针、非本内核对象一律 no-op）。
+      if (!solidHandles.has(shape)) return
+      solidHandles.delete(shape)
+      k.find('SmApiDeleteBrepEx')(shape)
+    },
+    releaseAllExcept(keep: ReadonlySet<number>): void {
+      // 轮末清扫（2026-10-27，方案 E）：登记表里除 keep 外的句柄都是本轮 op 内
+      // 中间体（图元、布尔副本、变换/挤出临时体），不再被任何持有者引用。
+      // 注意：smllib 标准布尔是**原地修改** pa（rpResult = m_vTI.m_pBrep），pb 由
+      // 内核 delete（从未登记）——登记表不存在"已被内核释放但仍登记"的悬垂项，
+      // 这里删除的一定是活对象（见 booleanOp 的 result!==pa 防御）。
+      for (const p of [...solidHandles]) {
+        if (keep.has(p)) continue
+        solidHandles.delete(p)
+        k.find('SmApiDeleteBrepEx')(p)
+      }
     },
     dispose(_shape?: BrepHandle): void {
       for (const p of solidHandles) k.find('SmApiDeleteBrepEx')(p)
@@ -646,6 +672,10 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     shell(solid: BrepHandle, facesToRemove: BrepHandle[], thickness: number, tolerance: number): BrepHandle {
       // A：SmApiShellBrepFullEx（面集合 + 距离 + 扩展/自交关）。facesToRemove 是
       // solid 的面句柄，直接传（桥对 const SmBrep* 只读、面句柄即其子形状）。
+      // 距离符号（SmOffsetExecutive::ShellBrep 语义，探针实测 2026-10-27）：
+      //   dDist > 0 → offset 体向外长大，结果 = offset − original（盒子外的"外套"）；
+      //   dDist < 0 → SetInset(TRUE)，结果 = original − inset（向内等厚薄壁）。
+      // faijs shell 语义 = 向内薄壁 → 传 -thickness。
       void tolerance
       const arr = k.malloc(4 * facesToRemove.length)
       const out = k.malloc(4)
@@ -654,7 +684,7 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         facesToRemove.forEach((f, i) => dv.setUint32(arr + i * 4, f as unknown as number, true))
         dv.setUint32(out, 0, true)
         expectOk(
-          k.find('SmApiShellBrepFullEx')(solid, thickness, 0, 1, 1, arr, facesToRemove.length, out),
+          k.find('SmApiShellBrepFullEx')(solid, -thickness, 0, 1, 1, arr, facesToRemove.length, out),
           'shell',
         )
         return newSolid(dv.getUint32(out, true))
@@ -768,8 +798,9 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     splitByPlane(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): { positive: BrepHandle; negative: BrepHandle } {
-      // B：副本化 ×2 + SmApiCutEx（正向/反向法向各切一侧，保留侧由内核钉死，
-      // P2 测试验证）。
+      // B：副本化 ×2 + SmApiCutEx。SmApiCut(brep, pt, nrm) 切掉法向**正**侧、
+      // 保留法向负侧；契约规定 positive = 法向正侧、negative = 法向负侧 ⇒
+      // positive 传 -normal、negative 传 +normal。
       const positive = primitives.copy(shape)
       const negative = primitives.copy(shape)
       const pt = k.malloc(24)
@@ -779,13 +810,16 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         dv.setFloat64(pt, point.x, true)
         dv.setFloat64(pt + 8, point.y, true)
         dv.setFloat64(pt + 16, point.z, true)
-        dv.setFloat64(nrm, normal.x, true)
-        dv.setFloat64(nrm + 8, normal.y, true)
-        dv.setFloat64(nrm + 16, normal.z, true)
-        expectOk(k.find('SmApiCutEx')(positive, pt, nrm), 'splitByPlane:positive')
         dv.setFloat64(nrm, -normal.x, true)
         dv.setFloat64(nrm + 8, -normal.y, true)
         dv.setFloat64(nrm + 16, -normal.z, true)
+        expectOk(k.find('SmApiCutEx')(positive, pt, nrm), 'splitByPlane:positive')
+        // 内核调用可能触发 memory.grow → 旧 DataView 的 buffer 被 detach，
+        // 必须在每次内核调用后重取视图再继续写内存（§2.3 健壮性修复）。
+        const dv2 = memOf(k)
+        dv2.setFloat64(nrm, normal.x, true)
+        dv2.setFloat64(nrm + 8, normal.y, true)
+        dv2.setFloat64(nrm + 16, normal.z, true)
         expectOk(k.find('SmApiCutEx')(negative, pt, nrm), 'splitByPlane:negative')
         return { positive, negative }
       } finally {
