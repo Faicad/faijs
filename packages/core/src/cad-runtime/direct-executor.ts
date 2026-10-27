@@ -637,6 +637,45 @@ export class DirectExecutor {
 
   // ── 主流程 ──
 
+  /**
+   * 语句／块产出的身份登记：整值 `setName` + 身份槽 → PartName 键控缓存同步。
+   *
+   * 多产物 op（`outputs: ['positive','negative']`，如 `splitByPlane`）的产物是
+   * `Record<string, Shape>`：成员 Shape 必须**各自**登记 `<var>.<key>`——
+   * 否则后续语句以成员（`sp.negative`）作输入时，血缘 N1 判「输入没有 PartName」
+   * 而拒绝（`E_TOPO_UNTRACKED_INPUT`）。契约写法（`const { positive } = …`）走
+   * 解构写入、本就有变量名；两条写法在这里收敛到同一份成员身份。
+   *
+   * @param value - the statement/block output value (Shape, or multi-output record).
+   * @param name - the PartName derived from the written variable.
+   */
+  private registerOutputIdentity(value: unknown, name: PartName): void {
+    if (value === null || typeof value !== 'object') return
+    this.nameAndSyncSlot(value, name)
+    // 非 Shape 的值：只可能是多产物 Record（成员是 Shape）或普通对象/数组。
+    // 只认成员 Shape——普通对象（参数包等）不会被误命名。
+    if (isShape(value)) return
+    for (const [key, member] of Object.entries(value as Record<string, unknown>)) {
+      if (isShape(member)) {
+        this.nameAndSyncSlot(member, asPartName(`${name}.${key}`))
+      } else if (Array.isArray(member)) {
+        member.forEach((el, i) => {
+          if (isShape(el)) this.nameAndSyncSlot(el, asPartName(`${name}.${key}.${i}`))
+        })
+      }
+    }
+  }
+
+  /** `setName` + 身份槽 → PartName 键控缓存（solid/faceEvolution/roleTable）同步。 */
+  private nameAndSyncSlot(value: object, name: PartName): void {
+    setName(value, name)
+    const slot = getSlot(value)
+    if (slot?.solid !== undefined) this.setSolidHook?.(name, slot.solid as BrepHandle, value as Shape)
+    if (slot?.faceEvolution) this.setFaceEvolutionHook?.(name, slot.faceEvolution)
+    const table = runtimeLineage.tableOfPart(name)
+    if (table) this.setRoleTableHook?.(name, table)
+  }
+
   private async runCode(code: string, opts?: DirectExecOpts, preParsedUnits?: TransformedUnit[]): Promise<DirectExecOutcome> {
     // §1.4/1.5 lineage: a fresh program execution owns a fresh blood-line graph.
     // Clearing here (not in execute/append/update individually) keeps every
@@ -696,35 +735,17 @@ export class DirectExecutor {
               if (!ctxBefore.has(key)) {
                 this.blockOutputs.set(key, unit.lineNo)
                 this.changedSet.add(key)
-                // T3：块产出的新键也需同步身份槽 → solidCache
-                const bv = this.ctx[key]
-                if (bv !== null && typeof bv === 'object') {
-                  setName(bv, asPartName(key))
-                  const bslot = getSlot(bv)
-                  if (bslot?.solid !== undefined) this.setSolidHook?.(asPartName(key), bslot.solid as BrepHandle, bv as Shape)
-                  if (bslot?.faceEvolution) this.setFaceEvolutionHook?.(asPartName(key), bslot.faceEvolution)
-                  // 1.10 前置③：roleTable 权威落点在血缘图旁挂（part 键）。
-                  const btable = runtimeLineage.tableOfPart(asPartName(key))
-                  if (btable) this.setRoleTableHook?.(asPartName(key), btable)
-                }
+                // T3：块产出的新键也需同步身份槽 → solidCache（含多产物成员）
+                this.registerOutputIdentity(this.ctx[key], asPartName(key))
               }
             }
             for (const w of unit.writes) this.blockOutputs.set(w, unit.lineNo)
           }
           for (const w of unit.writes) {
-            const v = this.ctx[w]
-            if (v !== null && typeof v === 'object') {
-              setName(v, asPartName(w))
-              // T3：身份槽 → PartName 键控缓存同步（与 ModuleExecutor.afterStatement
-              // 的 slot→solidCache/faceEvolutionCache/roleTableCache 同步同语义）。
-              // buildBrepTopology/directBrepSolids/buildNamingInput 依赖此缓存命中。
-              const slot = getSlot(v)
-              if (slot?.solid !== undefined) this.setSolidHook?.(asPartName(w), slot.solid as BrepHandle, v as Shape)
-              if (slot?.faceEvolution) this.setFaceEvolutionHook?.(asPartName(w), slot.faceEvolution)
-              // 1.10 前置③：roleTable 权威落点在血缘图旁挂（part 键），slot 字段已删。
-              const rtable = runtimeLineage.tableOfPart(asPartName(w))
-              if (rtable) this.setRoleTableHook?.(asPartName(w), rtable)
-            }
+            // T3：身份槽 → PartName 键控缓存同步（与 ModuleExecutor.afterStatement
+            // 的 slot→solidCache/faceEvolutionCache/roleTableCache 同步同语义）。
+            // buildBrepTopology/directBrepSolids/buildNamingInput 依赖此缓存命中。
+            this.registerOutputIdentity(this.ctx[w], asPartName(w))
           }
           // T3/T4: Assembly transform propagation — same semantics as
           // ModuleExecutor.applyPendingAssemblyTransforms: take pending transforms
