@@ -36,6 +36,7 @@ import {
   type AssemblyPartNode,
 } from '../occt-kernel/occtKernel'
 import { getSolidColorsOrdered } from '../occt-kernel/stepColorParser'
+import { getActiveBrepEngineId } from './engine/registry'
 import type { Shape, Vec3 } from '../mesh/types'
 import { BREP_TESS } from '../mesh/types'
 import type { ImportAssemblyNode } from '../mesh/import-model'
@@ -704,47 +705,47 @@ export function extrudeBrep(
     planeCenter: [planeOrigin.x, planeOrigin.y, planeOrigin.z],
   })
 
-  // 3. 获取截面
-  // 使用 section 获取切割平面与实体的交线
-  const bbox = getSolidBoundingBox(kernel, solid)
-  const zAxis = new Vec3C(0, 0, 1)
-  const quat = new Quat().setFromUnitVectors(zAxis, normal)
-  const rotMatrix = new Mat4().makeRotationFromQuaternion(quat)
-  const transMatrix = new Mat4().makeTranslation(
-    planeOrigin.x,
-    planeOrigin.y,
-    planeOrigin.z,
-  )
-  const planeMatrix = new Mat4().multiplyMatrices(transMatrix, rotMatrix)
+  // 3. 获取截面（引擎分派：occt 用原生 BRepAlgoAPI_Section（需大平面面做切割工具）；
+  //    smlib 用 L1 sectionByPlane（点+法向，返回截面曲线句柄）。两者产物都能进
+  //    makeWire/makeFace 的截面轮廓链路——fai_extrude 因此可在两引擎下工作）。
+  const sectionWireSource: BrepHandle[] = []
+  let sectionEdges: BrepHandle | null = null
+  if (getActiveBrepEngineId() !== 'smlib') {
+    // occt / brepkit：构建大矩形切割平面 + 原生 section 交线。
+    const bbox = getSolidBoundingBox(kernel, solid)
+    const zAxis = new Vec3C(0, 0, 1)
+    const quat = new Quat().setFromUnitVectors(zAxis, normal)
+    const rotMatrix = new Mat4().makeRotationFromQuaternion(quat)
+    const transMatrix = new Mat4().makeTranslation(
+      planeOrigin.x,
+      planeOrigin.y,
+      planeOrigin.z,
+    )
+    const planeMatrix = new Mat4().multiplyMatrices(transMatrix, rotMatrix)
 
-  // 创建一个大的矩形面作为切割平面
-  const bboxSize = new Vec3C(
-    bbox.max[0] - bbox.min[0],
-    bbox.max[1] - bbox.min[1],
-    bbox.max[2] - bbox.min[2],
-  )
-  const planeSize = Math.max(bboxSize.x, bboxSize.y, bboxSize.z) * 3
-  const planeRect = kernel.makeRectangle(planeSize, planeSize)
-  // makeRectangle creates a face from [0,0] to [width,height] — center it at origin first
-  const centerMatrix = new Mat4().makeTranslation(-planeSize / 2, -planeSize / 2, 0)
-  const centeredRect = kernel.transform(planeRect, matrixToArray(centerMatrix))
-  kernel.release(planeRect)
-  const planeFace = kernel.transform(centeredRect, matrixToArray(planeMatrix))
-  kernel.release(centeredRect)
+    // 创建一个大的矩形面作为切割平面
+    const bboxSize = new Vec3C(
+      bbox.max[0] - bbox.min[0],
+      bbox.max[1] - bbox.min[1],
+      bbox.max[2] - bbox.min[2],
+    )
+    const planeSize = Math.max(bboxSize.x, bboxSize.y, bboxSize.z) * 3
+    const planeRect = kernel.makeRectangle(planeSize, planeSize)
+    // makeRectangle creates a face from [0,0] to [width,height] — center it at origin first
+    const centerMatrix = new Mat4().makeTranslation(-planeSize / 2, -planeSize / 2, 0)
+    const centeredRect = kernel.transform(planeRect, matrixToArray(centerMatrix))
+    kernel.release(planeRect)
+    const planeFace = kernel.transform(centeredRect, matrixToArray(planeMatrix))
+    kernel.release(centeredRect)
 
-  // 获取截面边（occt-only 平台面，D3）。BrepHandle（branded number）与
-  // occt-wasm ShapeHandle 运行时同构，品牌转换只发生在平台边界；转回 BrepHandle
-  // 后继续用 L1 面（getSubShapes/makeWire/extrude）。
-  const sectionEdges = getOcctKernel().section(
-    solid as unknown as ShapeHandle,
-    planeFace as unknown as ShapeHandle,
-  ) as unknown as BrepHandle
-  kernel.release(planeFace)
-
-  // 4. 构建截面 wire → face → 拉伸
-  let extrudedSolid: BrepHandle
-  try {
-    // 尝试从截面边构建 wire
+    // 获取截面边（occt-only 平台面，D3）。BrepHandle（branded number）与
+    // occt-wasm ShapeHandle 运行时同构，品牌转换只发生在平台边界；转回 BrepHandle
+    // 后继续用 L1 面（getSubShapes/makeWire/extrude）。
+    sectionEdges = getOcctKernel().section(
+      solid as unknown as ShapeHandle,
+      planeFace as unknown as ShapeHandle,
+    ) as unknown as BrepHandle
+    kernel.release(planeFace)
     const subShapes = kernel.getSubShapes(sectionEdges, 'edge')
     if (subShapes.length === 0) {
       kernel.release(sectionEdges)
@@ -752,8 +753,27 @@ export function extrudeBrep(
       kernel.release(splitResult.back)
       throw new Error('no section edges from plane intersection')
     }
+    sectionWireSource.push(...subShapes)
+  } else {
+    // smlib：L1 sectionByPlane（SmApiIntersectBrepWithPlaneEx）→ 截面曲线句柄
+    // （SmCurve*——SmApiEdgeToCurveEx 对裸曲线句柄安全返回自身，可直接入 makeWire）。
+    const curves = kernel.sectionByPlane(
+      solid,
+      { x: planeOrigin.x, y: planeOrigin.y, z: planeOrigin.z },
+      { x: normal.x, y: normal.y, z: normal.z },
+    )
+    if (!curves || curves.length === 0) {
+      kernel.release(splitResult.front)
+      kernel.release(splitResult.back)
+      throw new Error('no section edges from plane intersection')
+    }
+    sectionWireSource.push(...(curves as unknown as BrepHandle[]))
+  }
 
-    const wire = kernel.makeWire(subShapes)
+  // 4. 构建截面 wire → face → 拉伸
+  let extrudedSolid: BrepHandle
+  try {
+    const wire = kernel.makeWire(sectionWireSource)
     const face = kernel.makeFace(wire)
     kernel.release(wire)
 
@@ -770,7 +790,7 @@ export function extrudeBrep(
 
     extrudedSolid = kernel.extrude(face, extrudeVec.x, extrudeVec.y, extrudeVec.z)
     kernel.release(face)
-    kernel.release(sectionEdges)
+    if (sectionEdges) kernel.release(sectionEdges)
   } catch {
     // 截面构建失败 — 释放资源并抛出
     if (sectionEdges) kernel.release(sectionEdges)

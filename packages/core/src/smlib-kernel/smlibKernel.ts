@@ -134,6 +134,60 @@ function edgeToCurve(k: SmlibKernel, handle: number): number {
   }
 }
 
+/** 面全部环边 → 曲线句柄数组数组（环序：外环在前，孔环随后）。
+ *  输入是 face 句柄或（单面）brep 句柄——后者先取 GetFacesEx 第一面。
+ *  桥返回布局：u32[0]=环数 nL、u32[1]=展平边数 nO、u32[2]=nO、
+ *  u32[3..3+nL)=各环边数、其后展平边指针（loop-major）、其后 orientations。 */
+function faceLoopsCurves(k: SmlibKernel, face: number): number[][] {
+  let facePtr = face
+  if (solidHandles.has(face)) {
+    const pCount = k.malloc(4)
+    try {
+      const dv = memOf(k)
+      const arr = k.find('SmApiGetFacesEx')(face, pCount)
+      const n = dv.getUint32(pCount, true)
+      if (!arr || n === 0) throw new Error('[smlib-kernel] faceLoopsCurves: no faces in brep')
+      try {
+        facePtr = new Uint32Array(k.memory.buffer, arr, n)[0]
+      } finally {
+        k.free(arr)
+      }
+    } finally {
+      k.free(pCount)
+    }
+  }
+  const pOut = k.malloc(4)
+  try {
+    const dv = memOf(k)
+    dv.setUint32(pOut, 0, true)
+    expectOk(k.find('SmApiFaceBoundaryLoopsEx')(facePtr, pOut), 'faceLoopsCurves')
+    const buf = dv.getUint32(pOut, true)
+    if (!buf) throw new Error('[smlib-kernel] faceLoopsCurves: bridge returned buf=0')
+    try {
+      const u32 = new Uint32Array(k.memory.buffer, buf, 3)
+      const numLoops = u32[0]
+      const nEdges = u32[1]
+      if (numLoops === 0 || nEdges === 0) return []
+      const counts = new Uint32Array(k.memory.buffer, buf + 12, numLoops)
+      const edges = new Uint32Array(k.memory.buffer, buf + 12 + numLoops * 4, nEdges)
+      const loops: number[][] = []
+      let e = 0
+      for (let i = 0; i < numLoops; i++) {
+        const cnt = counts[i]
+        const loopEdges: number[] = []
+        for (let j = 0; j < cnt; j++) loopEdges.push(edgeToCurve(k, edges[e + j]))
+        loops.push(loopEdges)
+        e += cnt
+      }
+      return loops
+    } finally {
+      k.free(buf)
+    }
+  } finally {
+    k.free(pOut)
+  }
+}
+
 /** 面外环边 → 曲线句柄数组（BoundaryLoopsEx 第一环；seam 重复已由环序剔除）。
  *  输入是 face 句柄或（单面）brep 句柄——后者先取 GetFacesEx 第一面。 */
 function faceOuterCurves(k: SmlibKernel, face: number): number[] {
@@ -557,37 +611,46 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
 
     // ── 造型运算 ──
     extrude(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle {
-      // B：face → 外环曲线数组 → SmApiCreateLinearSweepEx（方向 + 距离 + 封盖）。
-      const curves = faceOuterCurves(k, shape as unknown as number)
+      // B：face → 全部环曲线（外环 + 孔环）→ SmApiCreateLinearSweepEx（方向+距离+封盖）。
+      // 孔环处理：外环扫掠成体后，每个孔环扫掠成柱并布尔差（孔在面上时若只扫掠
+      // 外环，孔会变实心——text 的 'O'/'o' 字形即此 bug 的比对差异）。
+      const loops = faceLoopsCurves(k, shape as unknown as number)
+      const curves = loops[0] ?? []
       if (curves.length === 0) throw new Error('[smlib-kernel] extrude: no outer-loop curves')
-      const dir = k.malloc(24)
-      const arr = k.malloc(4 + curves.length * 4)
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(dir, dx, true)
-        dv.setFloat64(dir + 8, dy, true)
-        dv.setFloat64(dir + 16, dz, true)
-        dv.setUint32(out, 0, true)
-        curves.forEach((c, i) => dv.setUint32(arr + i * 4, c, true))
-        const dist = Math.hypot(dx, dy, dz)
-        // SmApiCreateLinearSweep 契约：rSweepDir 为**方向**、dSweepDist 为距离。
-        // 内核实现不归一化 dir（实测 dist×dir 双重放大：length 5 → 挤出 25），
-        // 故桥必须传单位方向 + 距离。
-        const inv = dist > 0 ? 1 / dist : 0
-        dv.setFloat64(dir, dx * inv, true)
-        dv.setFloat64(dir + 8, dy * inv, true)
-        dv.setFloat64(dir + 16, dz * inv, true)
-        expectOk(
-          k.find('SmApiCreateLinearSweepEx')(arr, curves.length, dir, dist, 1, out),
-          'extrude',
-        )
-        return newSolid(dv.getUint32(out, true))
-      } finally {
-        k.free(dir)
-        k.free(arr)
-        k.free(out)
+      const holes = loops.slice(1).filter((l) => l.length > 0)
+      const sweep = (cs: number[]): BrepHandle => {
+        const dir = k.malloc(24)
+        const arr = k.malloc(4 + cs.length * 4)
+        const out = k.malloc(4)
+        try {
+          const dv = memOf(k)
+          const dist = Math.hypot(dx, dy, dz)
+          // SmApiCreateLinearSweep 契约：rSweepDir 为**方向**、dSweepDist 为距离。
+          // 内核实现不归一化 dir（实测 dist×dir 双重放大：length 5 → 挤出 25），
+          // 故桥必须传单位方向 + 距离。
+          const inv = dist > 0 ? 1 / dist : 0
+          dv.setFloat64(dir, dx * inv, true)
+          dv.setFloat64(dir + 8, dy * inv, true)
+          dv.setFloat64(dir + 16, dz * inv, true)
+          dv.setUint32(out, 0, true)
+          cs.forEach((c, i) => dv.setUint32(arr + i * 4, c, true))
+          expectOk(
+            k.find('SmApiCreateLinearSweepEx')(arr, cs.length, dir, dist, 1, out),
+            'extrude',
+          )
+          return newSolid(dv.getUint32(out, true))
+        } finally {
+          k.free(dir)
+          k.free(arr)
+          k.free(out)
+        }
       }
+      let solid = sweep(curves)
+      for (const h of holes) {
+        const holeSolid = sweep(h)
+        solid = booleanOp('SmApiBooleanDifference', solid, holeSolid, 'extrude-hole-cut')
+      }
+      return solid
     },
     revolveVec(shape: BrepHandle, center: BrepVec3, direction: BrepVec3, angleDeg: number): BrepHandle {
       // B：face → 外环曲线 → SmApiCreateRotationalSweepEx（角度制直通）。
@@ -1169,12 +1232,28 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return createPlanarFaces(k, curves)
     },
     makeCompound(shapes: BrepHandle[]): BrepHandle {
-      void shapes
-      return unsupported('makeCompound')
+      // A：SmApiMergeBrepsEx（UNION=1）——smlib 无独立 compound 容器类型；
+      // 对 text/engrave 的多字形/多面组合（互不相交）UNION 与 compound 几何等价
+      // （体积/拓扑一致）。相交输入会布尔焊合（occt compound 保留重叠），属
+      // 已知语义差异——当前语料（多字符字形互不相交）下比对一致。
+      if (shapes.length === 0) throw new Error('[smlib-kernel] makeCompound: need >= 1 shape')
+      if (shapes.length === 1) return shapes[0]
+      return this.fuseAll(shapes)
     },
     addHolesInFace(face: BrepHandle, holeWires: BrepHandle[]): BrepHandle {
-      void face; void holeWires
-      return unsupported('addHolesInFace')
+      // A：face 外环曲线 + 孔 wire 曲线 → SmApiCreatePlanarFacesEx（多环面）。
+      //    SMLib CreatePlanarFaces 按几何位置判内外环、自动建孔（textToSolid
+      //    的带孔字符如 'o'/'O' 依赖该语义）。若内核不支持多环，此实现显式
+      //    报错（不静默产错几何——textToSolid 的 try/catch 不应吞能力缺口）。
+      const outer = faceOuterCurves(k, face as unknown as number)
+      if (outer.length === 0) throw new Error('[smlib-kernel] addHolesInFace: no outer curves from face')
+      const holes: number[] = []
+      for (const w of holeWires) {
+        const curves = wireHandles.get(w as unknown as number)
+        if (!curves || curves.length === 0) throw new Error('[smlib-kernel] addHolesInFace: not a makeWire handle')
+        holes.push(...curves)
+      }
+      return createPlanarFaces(k, [...outer, ...holes])
     },
     buildTriFace(a: BrepVec3, b: BrepVec3, c: BrepVec3): BrepHandle {
       // B 组合：3 条线段 → CreatePlanarFacesEx。
