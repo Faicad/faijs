@@ -153,22 +153,46 @@ function createSmlibImports(
   module: WebAssembly.Module,
   getInstance: () => WebAssembly.Instance | null,
 ): WebAssembly.Imports {
+  const importNames = WebAssembly.Module.imports(module).map(({ module: m, name }) => ({ module: m, name }))
+  return createSmlibImportsByName(importNames, getInstance)
+}
+
+/**
+ * 按「模块名 + 符号名」清单生成 imports（微信 WXWebAssembly 形态专用）。
+ *
+ * 微信端没有 `WebAssembly.Module` 句柄可枚举 imports（WXWebAssembly.instantiate
+ * 只收代码包路径 + imports），因此清单由构建期（3d_editor build.mjs）用 node 提取
+ * wasm 的 imports 名并烘焙进 worker bundle；运行时本函数按清单生成完整 env/wasi。
+ * 逻辑与 createSmlibImports 完全同源（同一转发/stub 实现），仅枚举来源不同。
+ *
+ * @param importNames - `[{ module: 'env'|'wasi_snapshot_preview1', name }]` 构建期清单
+ * @param getInstance - 延迟取回已实例化的 Instance（invoke 转发需要其导出的 table/stack/setThrew）
+ * @returns 完整 env/wasi imports 对象（交给 wasm 实例化）
+ */
+export function createSmlibImportsByName(
+  importNames: ReadonlyArray<{ module: string; name: string }>,
+  getInstance: () => WebAssembly.Instance | null,
+): WebAssembly.Imports {
   const env: Record<string, unknown> = {}
   const wasi: Record<string, unknown> = {}
-  for (const imp of WebAssembly.Module.imports(module)) {
-    if (imp.module === 'env') env[imp.name] = makeEnvImport(imp.name, getInstance)
-    else if (imp.module === 'wasi_snapshot_preview1') wasi[imp.name] = makeWasiStub(imp.name)
+  for (const { module, name } of importNames) {
+    if (module === 'env') env[name] = makeEnvImport(name, getInstance)
+    else if (module === 'wasi_snapshot_preview1') wasi[name] = makeWasiStub(name)
   }
   return { env, wasi_snapshot_preview1: wasi } as unknown as WebAssembly.Imports
 }
 
 // GOTCHA: TS lib（core 的 target）不含 WebAssembly.Exception（wasm-exceptions 提案类型
 // 未进标准 lib.d.ts）。Node ≥22 运行时有；这里通过 any 形态访问，避免改 tsconfig 目标。
-const WebAssemblyWithException = WebAssembly as unknown as {
-  Exception?: new (...args: unknown[]) => unknown
-}
+// ⚠️ 必须经 globalThis 取（可缺失）：微信小程序 Worker 没有全局 `WebAssembly`（只有
+// WXWebAssembly），顶层裸引用 `WebAssembly` 在真机加载模块时当场抛 ReferenceError
+// （2026-10-27 真机实测 `Can't find variable: WebAssembly`）。node/浏览器/模拟器有全局，
+// 不受影响。
+const WebAssemblyWithException = (globalThis as { WebAssembly?: unknown }).WebAssembly as
+  | { Exception?: new (...args: unknown[]) => unknown }
+  | undefined
 function isWasmException(e: unknown): boolean {
-  return !!WebAssemblyWithException.Exception && e instanceof WebAssemblyWithException.Exception
+  return !!WebAssemblyWithException?.Exception && e instanceof WebAssemblyWithException.Exception
 }
 
 /** invoke_<ret><args…>：首字符是返回类型；catch（C++ 异常）时按返回类型给默认值。 */
@@ -234,7 +258,13 @@ function makeWasiStub(name: string): (...args: number[]) => number {
   return () => 0
 }
 
-function buildSmlibKernel(instance: WebAssembly.Instance): SmlibKernel {
+/**
+ * 由已实例化的 wasm Instance 构建 SmlibKernel 外壳（微信端复用：WXWebAssembly
+ * instantiate 后把 instance 交给本函数，得到与 node 端同构的内核句柄）。
+ * @param instance - 已实例化的 smlib wasm Instance
+ * @returns 与 node 端同构的 SmlibKernel 内核句柄
+ */
+export function buildSmlibKernel(instance: WebAssembly.Instance): SmlibKernel {
   const exports = instance.exports as Record<string, (...args: number[]) => number>
   const memory = exports.memory as unknown as WebAssembly.Memory
   if (!memory) {

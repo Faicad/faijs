@@ -111,6 +111,10 @@ function sweepBrep(profile: Shape, spine: Shape): Shape {
  */
 export const sweep = defineOp({
   name: 'sweep',
+  // D11：扫掠无 smlib 桥（P1 缺口，plan §6）——smlib 链由 backend-dispatch 拒绝
+  //（E_BREP_UNSUPPORTED），避免深入内核报误导性错误（此前实测 smlib 端
+  // getSubShapes(wire) not implemented）。
+  engines: ['occt'],
   brep(profile: Shape, spine: Shape) {
     return sweepBrep(profile, spine)
   },

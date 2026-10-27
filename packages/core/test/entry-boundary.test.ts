@@ -27,15 +27,14 @@ describe('weapp entry export surface (shared face computed + weapp-specific lite
   // against re-leak. (createApiNamespace was dropped in §9.2: createRuntime is
   // now the with-cad variant, hosts no longer need to hand-register cad.)
   const WEAPP_SPECIFIC = [
-    'setBrepkitWasmInitFn',
-    'initBrepkitWasm',
-    'isBrepkitInitialized',
-    'registerBrepkitBrepEngine',
-    'BREPKIT_BREP_ENGINE_ID',
-    'ensureBrepkitDefaultEngine',
-    'registerBrepkitMeshEngine',
-    'BREPKIT_MESH_ENGINE_ID',
-    'ensureBrepkitMeshBackend',
+    'setSmlibWasmInitFn',
+    'initSmlibWasm',
+    'isSmlibInitialized',
+    'createSmlibImportsByName',
+    'buildSmlibKernel',
+    'registerSmlibBrepEngine',
+    'SMLIB_BREP_ENGINE_ID',
+    'ensureSmlibDefaultEngine',
     'registerBrepEngine',
     'hasBrepEngine',
     'getBrepEngine',

@@ -41,6 +41,18 @@ import type {
 // SM_SUCCESS（SmMessages.h: #define SM_SUCCESS 1000L）
 const SM_SUCCESS = 1000
 
+/**
+ * STL 导入的顶点焊接容差（mm）。
+ *
+ * 与 brepkit `crates/io/src/stl/import.rs` 的 `import_mesh(tolerance)` 同义：
+ * 量化桶宽。缺省 1e-6 对应 CAD 系统写出的精度量级；由网格转换来的 STL
+ * 缝隙更粗，调用方可按需放宽（如 1e-3）。过小 → 缝隙留着缝不上；过大 →
+ * 本该分开的特征被合并（与 §7.6 口径一致）。
+ */
+const STL_WELD_TOL_MM = 1e-6
+/** STEP 导入的缝合/裁剪容差（mm）。 */
+const STEP_IMPORT_TOL_MM = 1e-4
+
 /** 适配器内部显式失败（能力缺失：op 级 `engines` 声明在装配前拦截，桩兜底防御）。 */
 function unsupported(name: string): never {
   throw new Error(`[smlib-kernel] ${name}: not implemented in P1 (plan §6 P2/P3)`)
@@ -279,13 +291,26 @@ function threePointArc(k: SmlibKernel, start: BrepVec3, mid: BrepVec3, end: Brep
     const dz = p.z - center.z
     return (Math.atan2(dx * v.x + dy * v.y + dz * v.z, dx * u.x + dy * u.y + dz * u.z) * 180) / Math.PI
   }
-  const a0 = ang(a)
+  let a0 = ang(a)
   let a1 = ang(c)
   // 保证过 mid：若 a1−a0 与 mid 角向不一致则补 360。
   const am = ang(b)
   if ((a1 - a0) > 0 !== (am - a0) > 0 && Math.abs(a1 - a0) > 1e-9) {
     a1 += a1 - a0 > 0 ? -360 : 360
   }
+  // SmApiCreateArc 角度基准实测拟合：画的标准角 = 传角 − φ_u（φ_u = u 的世界
+  // 方向角）。makeCircleArc 的输入是目标标准角（传 β+φ_u，即当前 +uAngle）；
+  // threePointArc 的输入 a0/a1 是**局部基角**（相对 u，β = φ_u + a），故
+  // 传角 = β + φ_u = a + 2φ_u。参数起点 = startAngle 端（传 (a0+2φ_u, a1+2φ_u)
+  // 使 t0 落在起点、t1 落在终点）。补偿后归一化回 [0,360)。
+  const uAngle = (Math.atan2(u.y, u.x) * 180) / Math.PI
+  const norm = (d: number) => ((d % 360) + 360) % 360
+  // 两端角微扰 ±0.05°：打破"弧-直线相切连接"（SmTrimmingTools.cpp:1176
+  // 断言同一顶点多候选边相切时方法需扩展）。1176 对每条曲线的**两端**顶点
+  // 都做候选切向比较，单端微扰不够（弧起点仍与直线终点相切）。0.05° 切向差
+  // > SM_ARE_SAME 容差可破歧义；r=2 时端点弧长偏移 ≈1.7e-3 < 0.01 仍判重合。
+  a0 = norm(a0 + 2 * uAngle - 0.05)
+  a1 = norm(a1 + 2 * uAngle + 0.05)
   const out = k.malloc(4)
   const p = k.malloc(24)
   try {
@@ -520,6 +545,13 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         dv.setUint32(out, 0, true)
         curves.forEach((c, i) => dv.setUint32(arr + i * 4, c, true))
         const dist = Math.hypot(dx, dy, dz)
+        // SmApiCreateLinearSweep 契约：rSweepDir 为**方向**、dSweepDist 为距离。
+        // 内核实现不归一化 dir（实测 dist×dir 双重放大：length 5 → 挤出 25），
+        // 故桥必须传单位方向 + 距离。
+        const inv = dist > 0 ? 1 / dist : 0
+        dv.setFloat64(dir, dx * inv, true)
+        dv.setFloat64(dir + 8, dy * inv, true)
+        dv.setFloat64(dir + 16, dz * inv, true)
         expectOk(
           k.find('SmApiCreateLinearSweepEx')(arr, curves.length, dir, dist, 1, out),
           'extrude',
@@ -1016,8 +1048,18 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         dv.setFloat64(p + 8, 0, true)
         dv.setFloat64(p + 16, 0, true)
         dv.setUint32(out, 0, true)
+        // SmApiCreateArc 角度基准是世界 X 轴而非局部基 u（实测拟合：画角 =
+        // 传角 − u 的世界方向角）。circlePlacementMatrix 的 u = cross(n, Z)
+        //（|n.z|<0.999 分支），故补偿 = atan2(u.y, u.x)。对 n=+z：u=(0,1,0) →
+        // 90°（即此前固定的 +90；倾斜平面下必须动态化）。补偿后归一化。
+        const n = normVec(normal)
+        let u: BrepVec3
+        if (Math.abs(n.z) < 0.999) u = normVec(cross(n, { x: 0, y: 0, z: 1 }))
+        else u = normVec(cross(n, { x: 1, y: 0, z: 0 }))
+        const uAngle = (Math.atan2(u.y, u.x) * 180) / Math.PI
+        const norm = (d: number) => ((d % 360) + 360) % 360
         expectOk(
-          k.find('SmApiCreateArc')(p, radius, startAngle, endAngle, out),
+          k.find('SmApiCreateArc')(p, radius, norm(startAngle + uAngle), norm(endAngle + uAngle), out),
           'makeCircleArc',
         )
         const c = dv.getUint32(out, true)
@@ -1116,6 +1158,19 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
 
     // ── 三角化（BREP→mesh 唯一出口）──
     meshShape(shape: BrepHandle, options?: BrepTessellateOptions): BrepMeshResult {
+      // 合成 wire 句柄（WIRE_TAG）是 1D 曲线：无三角载荷，短路返回空网格——
+      // 直接把非指针句柄喂 SmApiTessellateEx 会让 C++ 走非法指针 → invoke 转发
+      // 异常（worker-sim 四操作段 cad.wire 实测 "table.get(...) is not a function"）。
+      if (typeof shape === 'number' && shape >= WIRE_TAG) {
+        void options
+        return {
+          positions: new Float32Array(0),
+          normals: new Float32Array(0),
+          indices: new Uint32Array(0),
+          vertexCount: 0,
+          triangleCount: 0,
+        }
+      }
       // SmApiTessellateEx(pBrep, pParams, pStatus) → 单块 malloc 缓冲：
       //   u32[3] header {numVerts, numTris, numFaces}
       //   f32 verts[3V] / normals[3V]（V=3T 独立三角形，flat 面法向）
@@ -1177,6 +1232,13 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     wireframe(shape: BrepHandle, deflection?: number): BrepEdgeData {
+      // 合成 wire 句柄（WIRE_TAG）：1D 曲线，无内核对应实体。短路返回空线框
+      // （不喂 SmApiTessellateBoundariesEx，防非法指针 invoke 异常）。真实显示
+      // 级 wireframe 需从 wireHandles 曲线数组构线（mesh 链路，待后续）。
+      if (typeof shape === 'number' && shape >= WIRE_TAG) {
+        void deflection
+        return { points: new Float32Array(0), edgeGroups: new Int32Array(0), pointCount: 0, edgeCount: 0 }
+      }
       // SmApiTessellateBoundariesEx(pBrep, dAngleTolDeg, pStatus) → 单块缓冲：
       //   u32[2] {numEdges, numPoints} + f64[3N] points + u32[N] counts + u32[N] edges
       const status = k.malloc(4)
@@ -1218,6 +1280,17 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       const count = k.malloc(4)
       try {
         const dv = memOf(k)
+        // 合成 wire 句柄（WIRE_TAG）：edge → 登记的曲线数组（裸曲线当边），
+        // vertex → 复用下分支出曲线端点枚举；solid/shell/face → 空（1D 无这些）。
+        // 短路前提：非指针句柄喂 SmApi* 会走非法指针 invoke 异常（实测复现）。
+        if (typeof shape === 'number' && shape >= WIRE_TAG) {
+          // edge → 登记的曲线数组；vertex → 落到下方正常分支（其内部经
+          // primitives.getSubShapes(shape,'edge') 再次短路取曲线）；其余 → 空。
+          if (type === 'edge') {
+            return (wireHandles.get(shape as number) ?? []).map((c) => c as BrepHandle)
+          }
+          if (type !== 'vertex') return []
+        }
         if (type === 'solid') {
           // P1：无 compound/嵌套实体——SmBrep 自身的子实体就是自己。
           if (solidHandles.has(shape as number)) return [shape]
@@ -1512,8 +1585,14 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return unsupported('containsPoint')
     },
     getFaceCylinderData(face: BrepHandle): { radius: number } | null {
+      // usd-brep 的 wasm 导出面无「面类型→圆柱参数」查询 API（SmApiQueries 无
+      // SmApiGetFaceType/SmApiGetCylinderData；C++ 侧 SmFace::GetSurface +
+      // IsKindOf(SmCylinder_TYPE) 未桥出）。返回 null（同 brep-mock 口径）——
+      // 调用方（geom-hint/topo-resolve）把 null 当「非圆柱面」安全降级，圆柱轴
+      // 提示与 cylinder 识别弱化但不报错。完整圆柱识别需 usd-brep 新增 C++ 导出
+      // 并重编 wasm（P 后续）。
       void face
-      return unsupported('getFaceCylinderData')
+      return null
     },
     getNurbsCurveData(edge: BrepHandle): BrepNurbsCurveData | null {
       void edge
@@ -1662,16 +1741,93 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
 
     // ── IO（P5 独立立项：无 STEP/STL IO 是重大缺口）──
     importStep(data: string | ArrayBuffer): BrepHandle {
-      void data
-      return unsupported('importStep')
+      // STEP 导入：Part21 解析 + 曲面/曲线构造 + 拓扑重建全部在内核
+      // `SmApiImportStepEx`（smlib C++，复刻 brepkit `crates/io/src/step/reader.rs`）。
+      // TS 只做字节搬运，不含任何格式算法。
+      const bytes =
+        typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
+      if (bytes.byteLength === 0) {
+        throw new Error('[smlib-kernel] importStep: empty payload')
+      }
+      const ptr = k.malloc(bytes.byteLength)
+      const status = k.malloc(4)
+      try {
+        const dv = memOf(k)
+        new Uint8Array(k.memory.buffer, ptr, bytes.byteLength).set(bytes)
+        dv.setUint32(status, 0, true)
+        const handle = k.find('SmApiImportStepEx')(
+          ptr,
+          bytes.byteLength,
+          STEP_IMPORT_TOL_MM,
+          status,
+        )
+        expectOk(dv.getUint32(status, true), 'importStep')
+        return newSolid(handle)
+      } finally {
+        k.free(status)
+        k.free(ptr)
+      }
     },
     exportStep(shape: BrepHandle): string {
-      void shape
-      return unsupported('exportStep')
+      // STEP 导出：面/环/边遍历 + AP203 序列化全部在内核
+      // `SmApiExportStepEx`（smlib C++，复刻 brepkit `crates/io/src/step/writer.rs`）。
+      const outLen = k.malloc(4)
+      const status = k.malloc(4)
+      let buf = 0
+      try {
+        const dv = memOf(k)
+        dv.setUint32(outLen, 0, true)
+        dv.setUint32(status, 0, true)
+        buf = k.find('SmApiExportStepEx')(shape, 0, outLen, status)
+        expectOk(dv.getUint32(status, true), 'exportStep')
+        const n = dv.getUint32(outLen, true)
+        if (!buf || n === 0) {
+          throw new Error('[smlib-kernel] exportStep: kernel returned empty STEP')
+        }
+        return new TextDecoder().decode(new Uint8Array(k.memory.buffer, buf, n))
+      } finally {
+        if (buf) k.free(buf)
+        k.free(status)
+        k.free(outLen)
+      }
     },
     importStl(data: string | ArrayBuffer): BrepHandle {
-      void data
-      return unsupported('importStl')
+      // STL 导入（**真 B-rep**，不走 importIndexedMesh 的 mesh 路径）：
+      // 字节直送内核桥 `SmApiImportStlEx` —— 内核侧承接 brepkit
+      // `crates/io/src/stl/import.rs` 的算法（焊接顶点 → 逐三角建平面面 →
+      // 缝合 → heal），产出带面-边邻接的流形实体，下游布尔/圆角/钻孔全链可用。
+      //
+      // 与 mesh 路径的取舍（方案 §9.3）：mesh 路径零风险但产物无特征操作能力
+      // （边无邻接面）；本路径可直接对导入的边做圆角、对导入体做布尔。
+      // 代价是 O(3N) 次曲线构造，规模上限见性能探针。
+      const bytes =
+        typeof data === 'string'
+          ? new TextEncoder().encode(data)
+          : new Uint8Array(data)
+      // 84 = binary STL 的 80 字节头 + 4 字节三角数；短于此必然不是合法 binary STL
+      if (bytes.byteLength < 84) {
+        throw new Error(
+          '[smlib-kernel] importStl: payload shorter than an 84-byte binary STL header',
+        )
+      }
+      const ptr = k.malloc(bytes.byteLength)
+      const status = k.malloc(4)
+      try {
+        const dv = memOf(k)
+        new Uint8Array(k.memory.buffer, ptr, bytes.byteLength).set(bytes)
+        dv.setUint32(status, 0, true)
+        const handle = k.find('SmApiImportStlEx')(
+          ptr,
+          bytes.byteLength,
+          STL_WELD_TOL_MM,
+          status,
+        )
+        expectOk(dv.getUint32(status, true), 'importStl')
+        return newSolid(handle)
+      } finally {
+        k.free(status)
+        k.free(ptr)
+      }
     },
     fromBREP(data: string): BrepHandle {
       void data

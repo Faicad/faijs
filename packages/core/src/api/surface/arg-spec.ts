@@ -1863,7 +1863,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     // ---- brep-op：单/多单形状入参 → 单产物收养 ----
-    name: 'extrude', source: 'brep-operations/sweepFns.ts#extrudeBrep', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'extrude', source: 'brep-operations/sweepFns.ts#extrudeBrep', kind: 'brep-op', engines: ['occt', 'smlib'], module: 'operations',
     geometryArgs: [0],
     reason: 'faijs 侧 cad.extrude 由手写平台 op 覆盖（api/extrude.ts：对象形态 + upTo 拉伸到面/到支持体端面）。本投影只作为「长度形态」的引擎被手写 op 委托调用（来源实现是唯一拉伸引擎，既有 cad.extrude(face,[x,y,z]) 语义零漂移），生成模块符号不直接进 cad 命名空间 by design（同 fillet 口径）。',
     args: 'extrude(face: Shape, height: number|Vec3) → Shape｜extrude(face: Shape, params: { length? | upTo, normal?, mode?, baseFeature?, offset? }) → Shape',
@@ -1871,7 +1871,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } },
   },
   {
-    name: 'revolve', source: 'brep-operations/sweepFns.ts#revolveBrep', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'revolve', source: 'brep-operations/sweepFns.ts#revolveBrep', kind: 'brep-op', engines: ['occt', 'smlib'], module: 'operations',
     geometryArgs: [0], reason: 'shapeable 面 → Result(Shape3D)，brep-op',
     args: 'revolve(face: Shape, options?: RevolveOptions): Shape',
     params: ['face', 'options'], formClass: 'A',

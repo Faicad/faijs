@@ -33,7 +33,7 @@ import { convexHullBrep as __own_convexHullBrep } from '../brep-operations/hullF
  */
 export const extrude = defineOp({
   brep: __own_extrudeBrep,
-  name: 'extrude', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"}]}}, engines: ["occt"], paramDims: {},
+  name: 'extrude', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"}]}}, engines: ["occt","smlib"], paramDims: {},
 })
 
 /**
@@ -44,7 +44,7 @@ export const extrude = defineOp({
  */
 export const revolve = defineOp({
   brep: __own_revolveBrep,
-  name: 'revolve', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"},{"kind":"wall","index":0}]}}, engines: ["occt"], paramDims: {},
+  name: 'revolve', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"},{"kind":"wall","index":0}]}}, engines: ["occt","smlib"], paramDims: {},
 })
 
 /**
