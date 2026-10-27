@@ -199,6 +199,13 @@ export async function load(params: Record<string, unknown>): Promise<Shape | Com
       solid = meshBackend!.ops.weld(faces, weldToleranceFor(kernel!, imported))
       meshBackend!.ops.unify(solid)
       kernel!.release(imported)
+    } else if (config.brepEngineId === 'smlib') {
+      // smlib：内核级 importStl 桥（SmApiImportStlEx，wasm 0.45.6+ 内置）。
+      // 桥内做顶点焊接（容差由调用方传）→ 产物为水密 B-rep、带面-边邻接
+      // （edge naming 可选边），无需再走 weld/unify——smlib 无 meshSolid
+      // 后端（weapp 只支持 brep），且 reconstructSolidFromMesh（occt 愈合
+      // 管线）对 STL 逐三角平面面的 heal 守卫会误判（2026-10-27 实测）。
+      solid = kernel!.importStl(buffer)
     } else {
       const parsed = parseStl(buffer)
       solid = reconstructSolidFromMesh(kernel!, parsed.positions, parsed.indices)

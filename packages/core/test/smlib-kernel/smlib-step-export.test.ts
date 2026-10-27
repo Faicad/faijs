@@ -142,6 +142,19 @@ describe('smlib exportStep — AP203', () => {
     expect(countEntities(step, 'ADVANCED_FACE')).toBe(faces.length)
   })
 
+  it('集成：cad.box（脚本面）→ brepSolids.solid → exportStep 非空（worker export 链路同形）', async () => {
+    __resetEngineRegistriesForTests()
+    await registerSmlibBrepEngine()
+    const runtime = new CadRuntime(hostPorts(), 'brep', { cad: createApiNamespaceWithEditorOps() })
+    const result = await runtime.execute('let part0 = cad.box(10, 20, 30)')
+    if (result.failedAt) throw new Error(`exec failed: ${result.failedAt.message}`)
+    const entry = result.brepSolids?.get(asPartName('part0'))
+    expect(entry, 'brepSolids entry').toBeDefined()
+    const step = kernel.exportStep(entry!.solid as BrepHandle)
+    expect(step.startsWith('ISO-10303-21;'), `head: ${JSON.stringify(step.slice(0, 80))}`).toBe(true)
+    expect(step.length).toBeGreaterThan(100)
+  })
+
   it('集成：box → exportStl → importStl（真 B-rep）→ exportStep 仍合法 AP203', async () => {
     const boxShape = await shapeOf('let part0 = cad.box(10, 20, 30)\n', 'part0')
     const bytes = exportStl(boxShape) as Uint8Array

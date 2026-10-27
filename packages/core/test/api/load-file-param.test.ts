@@ -9,7 +9,7 @@
  * （阶段 1 先行失败标准）；load op 落地后转绿。
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import type { HostPorts } from '../../src/cad-runtime/ports'
 import { createEditorRuntime } from '../support/editor-ops'
@@ -17,6 +17,16 @@ import { zipSync, strToU8 } from 'fflate'
 import { asPartName } from '../../src/identity'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
+import {
+  registerSmlibBrepEngine,
+  SMLIB_BREP_ENGINE_ID,
+} from '../../src/brep/engine/adapters/smlib'
+import {
+  createSmlibPrimitives,
+  disposeSmlib,
+  type SmlibPrimitives,
+} from '../../src/smlib-kernel/smlibKernel'
+import type { BrepHandle } from '../../src/brep/engine/types'
 
 /** Multi-object 3MF: `n` boxes in `<build>` declaration order, each sized `size`. */
 function multiObjectXml(n: number, size: number): string {
@@ -187,5 +197,46 @@ describe('cad.load file 参数面 — BREP 路径', () => {
     expect(model!.parts).toHaveLength(2)
     expect(model!.parts.map((p) => p.index)).toEqual([0, 1])
     expect(model!.parts.every((p) => p.name.length > 0)).toBe(true)
+  })
+})
+
+describe('cad.load BREP 路径 — smlib 引擎（IO 桥，wasm 0.45.6+）', () => {
+  beforeEach(() => {
+    __resetEngineRegistriesForTests()
+  })
+  afterAll(() => {
+    disposeSmlib()
+    __resetEngineRegistriesForTests()
+  })
+
+  it('STL：走 smlib importStl 桥（水密 B-rep、体积守恒），不落 reconstruct 愈合管线', async () => {
+    await registerSmlibBrepEngine()
+    const runtime = createEditorRuntime(portsFor({ 'cube-10x5x5.stl': stlBuf }), 'brep')
+    const result = await runtime.execute('let a = cad.load({ file: \'cube-10x5x5.stl\' })')
+    expect(result.failedAt, `failedAt: ${result.failedAt?.message ?? ''}`).toBeUndefined()
+    const solidEntry = result.brepSolids?.get(asPartName('a'))
+    expect(solidEntry, 'BREP STL load lands in brepSolids').toBeDefined()
+    // 体积守恒是水密实体最硬证据：cube-10x5x5.stl 实际顶点 ±10/±5/±5 → 20×10×10 = 2000
+    const prim = await createSmlibPrimitives()
+    const vol = prim.getVolume(solidEntry!.solid as BrepHandle)
+    expect(vol).toBeGreaterThan(0)
+    expect(vol).toBeCloseTo(2000, 0)
+  })
+
+  it('STEP：走 smlib importStep（AP203 平面 MVP，自产 box 往返出几何）', async () => {
+    await registerSmlibBrepEngine()
+    // smlib importStep 为 AP203 平面+直线 MVP（第三方工业曲面文件不保证，见
+    // docs/plans/2026-10-27-smlib-stl-step-io-plan.md §8 R2）——用自产 box STEP 验证
+    // loadBrepAssemblyNative（importStep + getSubShapes）契约面接线。
+    const prim = await createSmlibPrimitives()
+    const box = prim.makeBox(10, 20, 30)
+    const stepText = prim.exportStep(box as BrepHandle)
+    const buf = new TextEncoder().encode(stepText).buffer as ArrayBuffer
+    const runtime = createEditorRuntime(portsFor({ 'box10.step': buf }), 'brep')
+    const result = await runtime.execute('let a = cad.load({ file: \'box10.step\' })')
+    expect(result.failedAt, `failedAt: ${result.failedAt?.message ?? ''}`).toBeUndefined()
+    const solidEntry = result.brepSolids?.get(asPartName('a'))
+    expect(solidEntry, 'BREP STEP load lands in brepSolids').toBeDefined()
+    expect(prim.getVolume(solidEntry!.solid as BrepHandle)).toBeCloseTo(6000, 0)
   })
 })
