@@ -1176,11 +1176,26 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       //   f32 verts[3V] / normals[3V]（V=3T 独立三角形，flat 面法向）
       //   u32 indices[3T]（0..V-1 顺序）
       //   u32 faceGroups[3F] = {triStart, triCount, facePtr}（facePtr=SmFace*）
-      // 选项：linearDeflection→dChordHeightTol、angularDeflection→dCurveAngleTolDeg
-      //（度换算），0 = 内核默认（SmTessellationDefaults）。
-      void options
+      // 选项：linearDeflection→dChordHeightTol、angularDeflection→dCurveAngleTolDeg/
+      // dSurfaceAngleTolDeg（弧度→度换算），0 = 内核默认（SmTessellationDefaults：
+      // curve/surface 25°——很粗，球体显示成明显多面体；端侧显示路径
+      // brep-topology.ts 传 2π/32≈11.25°，必须实际传进桥才能拿到圆滑曲面）。
+      const paramsPtr = options
+        ? (() => {
+            const p = k.malloc(40) // SmTessellationParams = 5 × f64
+            const dvp = memOf(k)
+            const rad2deg = (rad: number | undefined) => (rad ?? 0) * (180 / Math.PI)
+            dvp.setFloat64(p + 0, options.linearDeflection ?? 0, true)
+            const angDeg = rad2deg(options.angularDeflection)
+            dvp.setFloat64(p + 8, angDeg, true)
+            dvp.setFloat64(p + 16, angDeg, true)
+            dvp.setFloat64(p + 24, 0, true) // dMaxEdgeLength
+            dvp.setFloat64(p + 32, 0, true) // dMaxAspectRatio
+            return p
+          })()
+        : 0
       const status = k.malloc(4)
-      const buf = k.find('SmApiTessellateEx')(shape, 0, status)
+      const buf = k.find('SmApiTessellateEx')(shape, paramsPtr, status)
       try {
         const dv = memOf(k)
         expectOk(dv.getUint32(status, true), 'meshShape')
@@ -1228,6 +1243,7 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         }
       } finally {
         k.free(status)
+        if (paramsPtr) k.free(paramsPtr)
         if (buf) k.free(buf)
       }
     },
