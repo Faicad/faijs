@@ -127,13 +127,17 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, sv
   const positioned = kernel.translate(rotated, tx, ty, tz)
   kernel.release(rotated)
 
-  // 5. 布尔运算（凸=fuse，凹=cut）
+  // 5. 布尔运算（凸=fuse，凹=cut）——text/svg 的 decorationSolid 可能是多组
+  // compound（虚拟容器：零件独立、禁布尔合并，见 smlibKernel makeCompound），
+  // 整块送内核布尔会拿虚拟句柄当指针（invoke 异常）。逐零件布尔等价于
+  // occt cut/fuse(solid, compound)：用每个成员依次切/并。真 solid 时
+  // getSubShapes('solid') 返回 [自身]，循环一次即原语义。
   const isRaised = mode === 'convex'
-  let result: BrepHandle
-  if (isRaised) {
-    result = kernel.fuse(inputSolid, positioned)
-  } else {
-    result = kernel.cut(inputSolid, positioned)
+  const toolSolids = kernel.getSubShapes(positioned, 'solid')
+  let result = inputSolid
+  for (const tool of toolSolids) {
+    if (isRaised) result = kernel.fuse(result, tool)
+    else result = kernel.cut(result, tool)
   }
   kernel.release(positioned)
 

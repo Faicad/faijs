@@ -89,6 +89,41 @@ function expectOk(st: number, what: string): void {
   if (st !== SM_SUCCESS) throw new Error(`[smlib-kernel] ${what} failed: SM status ${st}`)
 }
 
+/**
+ * 多实体 STEP 文本拼接（虚拟 compound 导出用）：保留第一段的 HEADER（含 DATA;），
+ * 各段 DATA 实体行合并，后续段实体编号整体偏移（每段从 #1 起，引用与定义同偏移）。
+ * 仅触碰编号行，绝不做任何文本级坐标/几何改写。
+ */
+function mergeStepEntities(parts: string[]): string {
+  const headerOf = (s: string): string => {
+    const m = s.match(/^([\s\S]*?DATA;)\s*\n?/)
+    return m ? m[1]! : ''
+  }
+  const bodyOf = (s: string): string => {
+    const m = s.match(/DATA;\s*\n?([\s\S]*?)\n?ENDSEC;/)
+    return m ? m[1]! : ''
+  }
+  const maxIdOf = (body: string): number => {
+    let max = 0
+    for (const m of body.matchAll(/#(\d+)/g)) max = Math.max(max, parseInt(m[1]!, 10))
+    return max
+  }
+  const header = headerOf(parts[0]!)
+  const lines: string[] = []
+  let offset = 0
+  for (let i = 0; i < parts.length; i++) {
+    const body = bodyOf(parts[i]!)
+    if (i === 0) {
+      lines.push(body)
+      offset = maxIdOf(body)
+    } else {
+      lines.push(body.replace(/#(\d+)/g, (_m, n: string) => `#${parseInt(n, 10) + offset}`))
+      offset += maxIdOf(body)
+    }
+  }
+  return `${header}\n${lines.join('\n')}\nENDSEC;\nEND-ISO-10303-21;\n`
+}
+
 /** 图元通用辅助：origin=(0,0,0) + out 槽 4 字节。 */
 function primitiveArgs(k: SmlibKernel): { arg: number; dv: DataView } {
   const arg = k.malloc(28)
@@ -113,6 +148,29 @@ const wireHandles = new Map<number, number[]>()
 const VERTEX_TAG = 0x300000000
 let nextVertexId = 1
 const vertexHandles = new Map<number, BrepVec3>()
+
+// 虚拟 compound 句柄（2026-10-28）：compound 是 **faijs 语义层的逻辑容器**——
+// 零件保持独立，绝不进入内核做任何布尔合并（此前实现为 SmApiMergeBrepsEx
+// UNION 是错误语义：零件被焊死、相交输入被融合，拓扑/拾取/导出全错）。
+// smlib 无 compound 容器类型，与 brepkit 同款方案：高位虚拟句柄 + 登记
+// 子句柄列表，几何分发（mesh/wireframe/查询/测量/变换/copy/导出）一律按
+// 零件逐项处理。虚拟句柄远在 wasm 堆指针（< 2^32）之上，天然不与内核指针撞，
+// 也绝不会进 solidHandles（真释放只删登记过的 SmBrep*）。
+const COMPOUND_TAG = 0x400000000
+let nextCompoundId = 1
+const compoundHandles = new Map<number, BrepHandle[]>()
+
+/** 构造虚拟 compound 句柄并登记子零件列表。 */
+function newCompound(kids: BrepHandle[]): BrepHandle {
+  const handle = COMPOUND_TAG + nextCompoundId++
+  compoundHandles.set(handle, kids)
+  return handle as BrepHandle
+}
+
+/** 若句柄是虚拟 compound，返回其子零件列表（否则 undefined）。 */
+function compoundKidsOf(shape: BrepHandle): BrepHandle[] | undefined {
+  return typeof shape === 'number' && shape >= COMPOUND_TAG ? compoundHandles.get(shape) : undefined
+}
 
 /** 构造 wire 合成句柄并登记曲线数组。 */
 function newWire(curves: number[]): BrepHandle {
@@ -294,6 +352,12 @@ function createPlanarFaces(k: SmlibKernel, curves: number[]): BrepHandle {
 /** 3×4 行主序矩阵 → SmApiTransformMatrixEx（原地变换并返回原句柄）。 */
 function applyMatrix(k: SmlibKernel, shape: BrepHandle, matrix: number[], what: string): BrepHandle {
   if (matrix.length !== 12) throw new Error(`[smlib-kernel] ${what}: matrix must be 12 elements (3×4 row-major)`)
+  // 虚拟 compound：逐零件原地变换（零件独立，绝不经内核布尔/整块变换）。
+  const cKids = compoundKidsOf(shape)
+  if (cKids) {
+    for (const kid of cKids) applyMatrix(k, kid, matrix, what)
+    return shape
+  }
   const m = k.malloc(96)
   const st = k.malloc(4)
   try {
@@ -503,8 +567,26 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       // 注意：smllib 标准布尔是**原地修改** pa（rpResult = m_vTI.m_pBrep），pb 由
       // 内核 delete（从未登记）——登记表不存在"已被内核释放但仍登记"的悬垂项，
       // 这里删除的一定是活对象（见 booleanOp 的 result!==pa 防御）。
+      // 2026-10-28：被 keep 的虚拟 compound 依赖其子零件——子零件必须一并保活，
+      // 否则清扫会把 compound 的零件删掉造成悬垂（虚拟句柄自身不在 solidHandles，
+      // 天然不会误删；此处只做 keep 传播）。
+      const effectiveKeep = new Set(keep)
+      let changed = true
+      while (changed) {
+        changed = false
+        for (const [c, kids] of compoundHandles) {
+          if (effectiveKeep.has(c)) {
+            for (const kid of kids) {
+              if (!effectiveKeep.has(kid)) {
+                effectiveKeep.add(kid)
+                changed = true
+              }
+            }
+          }
+        }
+      }
       for (const p of [...solidHandles]) {
-        if (keep.has(p)) continue
+        if (effectiveKeep.has(p)) continue
         solidHandles.delete(p)
         k.find('SmApiDeleteBrepEx')(p)
       }
@@ -944,6 +1026,12 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
 
     // ── 变换 ──
     translate(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle {
+      // 虚拟 compound：逐零件平移（原地，零件独立）。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        for (const kid of cKids) primitives.translate(kid, dx, dy, dz)
+        return shape
+      }
       const p = k.malloc(24)
       try {
         const dv = memOf(k)
@@ -957,6 +1045,12 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     scale(shape: BrepHandle, center: BrepVec3, factor: number): BrepHandle {
+      // 虚拟 compound：逐零件缩放（原地，零件独立）。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        for (const kid of cKids) primitives.scale(kid, center, factor)
+        return shape
+      }
       const p = k.malloc(48)
       try {
         const dv = memOf(k)
@@ -973,6 +1067,12 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     rotate(shape: BrepHandle, axis: { point: BrepVec3; direction: BrepVec3 }, angleRad: number): BrepHandle {
+      // 虚拟 compound：逐零件旋转（原地，零件独立）。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        for (const kid of cKids) primitives.rotate(kid, axis, angleRad)
+        return shape
+      }
       // 契约：弧度 → smlib 度（SmApiRotate 第四参为度，头文件实证）。
       // 注意：emscripten 导出 SmApiRotate(brep, originPtr, dirPtr, angleDeg)
       // 的 angleDeg 是 f64 **数值**（非指针）——传指针会被当度数解释。
@@ -992,6 +1092,9 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     copy(shape: BrepHandle): BrepHandle {
+      // 虚拟 compound：逐零件深拷贝后重组（零件独立，拷贝不破坏独立性）。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) return newCompound(cKids.map((kid) => primitives.copy(kid)))
       const out = k.malloc(4)
       try {
         const dv = memOf(k)
@@ -1232,13 +1335,14 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return createPlanarFaces(k, curves)
     },
     makeCompound(shapes: BrepHandle[]): BrepHandle {
-      // A：SmApiMergeBrepsEx（UNION=1）——smlib 无独立 compound 容器类型；
-      // 对 text/engrave 的多字形/多面组合（互不相交）UNION 与 compound 几何等价
-      // （体积/拓扑一致）。相交输入会布尔焊合（occt compound 保留重叠），属
-      // 已知语义差异——当前语料（多字符字形互不相交）下比对一致。
+      // 虚拟容器（2026-10-28，替代早期 UNION 实现——那是错误语义）：compound 是
+      // faijs 语义层的逻辑容器，零件**永远独立**、绝不做布尔合并。smlib 无
+      // compound 容器类型，与 brepkit 同款：高位虚拟句柄 + 登记子句柄列表，
+      // 几何分发按零件逐项处理。单零件直接返回零件本身（与 occt 单成员
+      // compound 几何/语义等价，textToSolid 'Hello' translate 后单成员走此路径）。
       if (shapes.length === 0) throw new Error('[smlib-kernel] makeCompound: need >= 1 shape')
       if (shapes.length === 1) return shapes[0]
-      return this.fuseAll(shapes)
+      return newCompound(shapes)
     },
     addHolesInFace(face: BrepHandle, holeWires: BrepHandle[]): BrepHandle {
       // A：face 外环曲线 + 孔 wire 曲线 → SmApiCreatePlanarFacesEx（多环面）。
@@ -1271,6 +1375,40 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
 
     // ── 三角化（BREP→mesh 唯一出口）──
     meshShape(shape: BrepHandle, options?: BrepTessellateOptions): BrepMeshResult {
+      // 虚拟 compound：逐零件三角化后按偏移合并（零件独立，绝不经内核布尔）。
+      // 顶点/法线/索引各自拼接；faceGroups 前两元是**索引单位**（×3），合并时
+      // triStart 平移 vertexBase×3；face hash 与各零件 subShapeHashes 同源。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        const pos: number[] = []
+        const nor: number[] = []
+        const idx: number[] = []
+        const fg: number[] = []
+        let vertexBase = 0
+        for (const kid of cKids) {
+          const m = primitives.meshShape(kid, options)
+          const vBase = pos.length / 3
+          // 批量 push（禁止 `push(...arr)` 展开——text 类零件网格可上万浮点，
+          // 触发 V8 参数上限（>65535 抛 Maximum call stack size exceeded））。
+          for (let i = 0; i < m.positions.length; i++) pos.push(m.positions[i])
+          for (let i = 0; i < m.normals.length; i++) nor.push(m.normals[i])
+          for (let i = 0; i < m.indices.length; i++) idx.push(m.indices[i] + vBase)
+          const f = m.faceGroups ?? new Int32Array(0)
+          for (let i = 0; i < f.length; i += 3) {
+            fg.push(f[i]! + vertexBase * 3, f[i + 1]!, f[i + 2]!)
+          }
+          vertexBase += m.vertexCount
+        }
+        return {
+          positions: new Float32Array(pos),
+          normals: new Float32Array(nor),
+          indices: new Uint32Array(idx),
+          vertexCount: vertexBase,
+          triangleCount: idx.length / 3,
+          faceGroups: new Int32Array(fg),
+          faceCount: fg.length / 3,
+        }
+      }
       // 合成 wire 句柄（WIRE_TAG）是 1D 曲线：无三角载荷，短路返回空网格——
       // 直接把非指针句柄喂 SmApiTessellateEx 会让 C++ 走非法指针 → invoke 转发
       // 异常（worker-sim 四操作段 cad.wire 实测 "table.get(...) is not a function"）。
@@ -1365,6 +1503,32 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     wireframe(shape: BrepHandle, deflection?: number): BrepEdgeData {
+      // 虚拟 compound：逐零件线框后按偏移合并。edgeGroups 前两元是**浮点单位**
+      // （×3），合并时 pointStart 平移 pointsBase×3。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        const points: number[] = []
+        const edgeGroups: number[] = []
+        let edgeCount = 0
+        for (const kid of cKids) {
+          const w = primitives.wireframe(kid, deflection)
+          const pBase = points.length / 3
+          // 批量 push（`push(...w.points)` 在低 deflection 下每零件可上万浮点，
+          // 触发 V8 参数上限 → Maximum call stack size exceeded，实测 text 爆栈）。
+          for (let i = 0; i < w.points.length; i++) points.push(w.points[i])
+          const g = w.edgeGroups ?? new Int32Array(0)
+          for (let i = 0; i < g.length; i += 3) {
+            edgeGroups.push(g[i]! + pBase * 3, g[i + 1]!, g[i + 2]!)
+          }
+          edgeCount += w.edgeCount
+        }
+        return {
+          points: new Float32Array(points),
+          edgeGroups: new Int32Array(edgeGroups),
+          pointCount: points.length,
+          edgeCount,
+        }
+      }
       // 合成 wire 句柄（WIRE_TAG）：1D 曲线，无内核对应实体。短路返回空线框
       // （不喂 SmApiTessellateBoundariesEx，防非法指针 invoke 异常）。真实显示
       // 级 wireframe 需从 wireHandles 曲线数组构线（mesh 链路，待后续）。
@@ -1413,6 +1577,28 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       const count = k.malloc(4)
       try {
         const dv = memOf(k)
+        // 虚拟 compound：solid → 递归展平子零件（occt TopExp_Explorer 语义：遍历
+        // 整个形状树返回所有 solid，嵌套 compound 内的零件一并返回）；shell → 同；
+        // 其他类型 → 各零件子形状拼接（嵌套 compound 递归分发）。
+        const cKids = compoundKidsOf(shape)
+        if (cKids) {
+          if (type === 'solid' || type === 'shell') {
+            const out: BrepHandle[] = []
+            const walk = (s: BrepHandle): void => {
+              const inner = compoundKidsOf(s)
+              if (inner) {
+                for (const kid of inner) walk(kid)
+              } else {
+                out.push(s)
+              }
+            }
+            for (const kid of cKids) walk(kid)
+            return out
+          }
+          const out: BrepHandle[] = []
+          for (const kid of cKids) out.push(...primitives.getSubShapes(kid, type))
+          return out
+        }
         // 合成 wire 句柄（WIRE_TAG）：edge → 登记的曲线数组（裸曲线当边），
         // vertex → 复用下分支出曲线端点枚举；solid/shell/face → 空（1D 无这些）。
         // 短路前提：非指针句柄喂 SmApi* 会走非法指针 invoke 异常（实测复现）。
@@ -1518,6 +1704,8 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return a === b
     },
     isSolid(shape: BrepHandle): boolean {
+      // 虚拟 compound 不是 solid（虚拟句柄喂内核即非法指针）。
+      if (compoundKidsOf(shape)) return false
       const out = k.malloc(4)
       try {
         const dv = memOf(k)
@@ -1771,6 +1959,18 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
 
     // ── 测量 ──
     getBoundingBox(shape: BrepHandle, useTriangulation?: boolean): BrepBoundingBox {
+      // 虚拟 compound：各零件包围盒取各轴极值合并（零件独立）。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        let xmin = Infinity, ymin = Infinity, zmin = Infinity
+        let xmax = -Infinity, ymax = -Infinity, zmax = -Infinity
+        for (const kid of cKids) {
+          const b = primitives.getBoundingBox(kid, useTriangulation)
+          xmin = Math.min(xmin, b.xmin); ymin = Math.min(ymin, b.ymin); zmin = Math.min(zmin, b.zmin)
+          xmax = Math.max(xmax, b.xmax); ymax = Math.max(ymax, b.ymax); zmax = Math.max(zmax, b.zmax)
+        }
+        return { xmin, ymin, zmin, xmax, ymax, zmax }
+      }
       // bTight：useTriangulation=false（缺省）→ loose box（bTight=0）。
       const p = k.malloc(48)
       try {
@@ -1789,6 +1989,14 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     getVolume(shape: BrepHandle): number {
+      // 虚拟 compound：各零件体积之和（occt compound 体积同样为各 solid 之和，
+      // 不扣重叠——语义一致）。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        let total = 0
+        for (const kid of cKids) total += primitives.getVolume(kid)
+        return total
+      }
       const p = k.malloc(8)
       try {
         expectOk(k.find('SmApiBrepComputeVolume')(shape, 1e-8, p), 'getVolume')
@@ -1798,6 +2006,19 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     getCenterOfMass(shape: BrepHandle): BrepVec3 {
+      // 虚拟 compound：各零件质心按体积加权平均。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        let wx = 0, wy = 0, wz = 0, totalV = 0
+        for (const kid of cKids) {
+          const v = primitives.getVolume(kid)
+          const c = primitives.getCenterOfMass(kid)
+          wx += c.x * v; wy += c.y * v; wz += c.z * v
+          totalV += v
+        }
+        if (totalV === 0) return { x: 0, y: 0, z: 0 }
+        return { x: wx / totalV, y: wy / totalV, z: wz / totalV }
+      }
       // SmApiBrepComputeMassProperties(brep, acc, density, origin, area&, vol&, mass&,
       //   centroid&, moments&, products&)——centroid 是 world 坐标（独立于 origin）。
       const inP = k.malloc(48) // acc(8) + density(8) + origin(24) + 保留
@@ -1820,6 +2041,14 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     getSurfaceArea(shape: BrepHandle): number {
+      // 虚拟 compound：各零件面积之和（occt compound 面积同为各 solid 之和，
+      // 接触面各自计入——语义一致）。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        let total = 0
+        for (const kid of cKids) total += primitives.getSurfaceArea(kid)
+        return total
+      }
       const p = k.malloc(8)
       try {
         expectOk(k.find('SmApiBrepComputeArea')(shape, 1e-8, p), 'getSurfaceArea')
@@ -1847,6 +2076,9 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return unsupported('unifySameDomain')
     },
     healSolid(shape: BrepHandle, tolerance?: number): BrepHandle {
+      // 虚拟 compound：逐零件 heal 后重组（零件独立；整体直喂内核会非法指针）。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) return newCompound(cKids.map((kid) => primitives.healSolid(kid, tolerance)))
       // A：副本化 + SmApiHealBrepEx 原地修复；KNOWN_ISSUES 声明 heal 可能假成功
       // → 适配器修复后复核 manifold（不通过则按失败抛出）。
       void tolerance
@@ -1862,6 +2094,9 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return primitives.healSolid(shape)
     },
     fixFaceOrientations(shape: BrepHandle): BrepHandle {
+      // 虚拟 compound：逐零件统一法向后重组。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) return newCompound(cKids.map((kid) => primitives.fixFaceOrientations(kid)))
       // B：副本化 + SmApiUnifyNormalsEx（16 采样）原地统一法向。
       const copy = primitives.copy(shape)
       expectOk(k.find('SmApiUnifyNormalsEx')(copy, 16), 'fixFaceOrientations')
@@ -1902,6 +2137,10 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     exportStep(shape: BrepHandle): string {
+      // 虚拟 compound：逐零件导出 + 多实体 STEP 拼接（零件独立导出，绝不
+      // 整块送内核——虚拟句柄不是内核指针，直接喂 SmApiExportStepEx 会非法）。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) return mergeStepEntities(cKids.map((kid) => primitives.exportStep(kid)))
       // STEP 导出：面/环/边遍历 + AP203 序列化全部在内核
       // `SmApiExportStepEx`（smlib C++，复刻 brepkit `crates/io/src/step/writer.rs`）。
       const outLen = k.malloc(4)
