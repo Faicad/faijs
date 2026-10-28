@@ -10,7 +10,11 @@ import { clampNRad, BREP_TESS, BREP_LAZY_TESS } from '../mesh/types'
 // B3 correction (2026-10-06): no library-face cad aggregate — import the impl from its own module.
 import * as meshPrimitives from '../mesh/primitives'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
-import { getBackends, getCurrentStmt, getTessellation, getTessellationTiming, setPendingMeshSolid, setPendingMeshTopology } from '../runtime-state'
+import { resolveTessellationFor } from '../brep/effective-deflection'
+import {
+  getBackends, getCurrentStmt, getTessellation, getTessellationTiming,
+  setPendingMeshSolid, setPendingMeshTopology, type TessellationDensity,
+} from '../runtime-state'
 import type { MeshSolidBackend } from '../brep/mesh-solid'
 import { normalizeMeshSolid } from '../brep/mesh-solid'
 import { getBrepApi } from '../brep/handle-bridge'
@@ -116,13 +120,21 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {  co
   // Explicit segments/nRad wins ($fn override); otherwise derive from the global
   // tessellation knob (proposal 2026-10-07) — default still 2π/64 ≈ 64 segments.
   const rawSegments = (params.nRad ?? params.segments) as number | undefined
-  const segments = clampNRad(rawSegments ?? (2 * Math.PI) / getTessellation().angularDeflection)
+  const global = getTessellation()
+  // LOD（方案 2026-10-28）：段数由旋钮给（缺省 2π/16 → 16 段），linear 的来源模式
+  // 单独由 `linearMode` 决定。**显式 segments 时整个全局档让位**（linear 回落绝对
+  // 缺省 0.1mm）——脚本钉了段数的零件不能被 LOD 悄悄变粗（§7.3 不变量 3）。
+  // 只有「用户没钉段数」的零件才走 bbox-relative。
+  const fallback: Required<TessellationDensity> = rawSegments !== undefined
+    ? { ...global, linearMode: 'absolute' }
+    : global
+  const segments = clampNRad(rawSegments ?? (2 * Math.PI) / global.angularDeflection)
   // P4 面级：brep 链基本体挂 faceRanges（编辑器默认 brep 链——setFaceColor 必须可用）。
   // faceRanges 直接取 meshShape 的 faceGroups（内核枚举序、索引单位 /3 → 三角形单位），
   // **不重排 indices**：显示 mesh 的三角形顺序与拓扑面表行序因此同源同序（I2/I3）。
   // 面身份跨内核是 FaceTopoRef{origin, role}；数字面号只是"本次执行、本内核的面表行号"，
   // 既不承诺方向也不承诺跨内核（方案 2026-10-20 §1 规则三 / I5）。
-  const { shape, faceRanges } = brepPrimitiveMesh(kernel, result.solid, op, segments)
+  const { shape, faceRanges } = brepPrimitiveMesh(kernel, result.solid, op, segments, fallback)
   if (faceRanges) shape.faceRanges = faceRanges
   return fromBrep(
     shape,
@@ -148,8 +160,12 @@ function brepPrimitiveMesh(
   solid: BrepHandle,
   op: string,
   segments: number,
+  fallback: Required<TessellationDensity>,
 ): { shape: Shape; faceRanges?: Shape['faceRanges'] } {
   const angularDeflection = (2 * Math.PI) / Math.max(3, segments)
+  // LOD（方案 2026-10-28）：与 solidToShape 同一密度解析路径。段数由调用方钉好
+  // （来自脚本或全局旋钮），这里只解析 **linear 的来源**。
+  const density = resolveTessellationFor(kernel, solid, fallback)
   // 延迟三角化（'defer'，方案 2026-10-21-weapp-tessellation-defer-plan §2）：基本体
   // 与 solidToShape 同一时机语义——产出不三角化，挂 BREP_LAZY_TESS 描述符（物化参数
   // 与 eager 分支一致），由 runtime 在收尾时对终端物化；物化时按 primitiveOp 补挂
@@ -159,14 +175,14 @@ function brepPrimitiveMesh(
     ;(shape as unknown as Record<symbol, unknown>)[BREP_LAZY_TESS] = {
       kernel,
       solid,
-      linearDeflection: getTessellation().linearDeflection,
+      linearDeflection: density.linearDeflection,
       angularDeflection,
       ...(op === 'box' || op === 'cylinder' || op === 'cone' ? { primitiveOp: op } : {}),
     } satisfies BrepLazyTessDescriptor
     return { shape }
   }
   const mesh = kernel.meshShape(solid, {
-    linearDeflection: getTessellation().linearDeflection,
+    linearDeflection: density.linearDeflection,
     angularDeflection,
   })
   // 显示 mesh 与挂载给拓扑的三角化结果共用同一份 positions/indices（零额外拷贝）——

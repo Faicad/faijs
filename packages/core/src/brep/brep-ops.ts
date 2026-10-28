@@ -41,6 +41,7 @@ import type { Shape, Vec3 } from '../mesh/types'
 import { BREP_TESS } from '../mesh/types'
 import type { ImportAssemblyNode } from '../mesh/import-model'
 import { getSolidBoundingBox } from './brep-utils'
+import { resolveTessellationFor } from './effective-deflection'
 import { getTessellation, getTessellationTiming, type TessellationDensity } from '../runtime-state'
 
 // ─── 通用工具 ───
@@ -69,10 +70,21 @@ export function solidToShape(
 ): Shape {
   // Deflection precedence: explicit segments > per-call defaultDeflection > global
   // tessellation (host-tunable via createRuntime, proposal 2026-10-07).
-  const fallback = defaultDeflection ?? getTessellation()
+  // 缺字段由全局档补齐（旋钮契约：missing fields fall back to the built-in default）。
+  const global = defaultDeflection ? { ...getTessellation(), ...defaultDeflection } : getTessellation()
+  // 显式 segments 的优先级高于全局档（含 bbox-relative）：脚本自己钉了段数时，
+  // linear 回落到绝对档（缺省 0.1mm）——LOD 旋钮不参与用户钉死的零件，
+  // 否则会把 `cad.sphere({ ..., segments: 64 })` 悄悄变粗（§7.3 不变量 3）。
+  const fallback: Required<TessellationDensity> = segments
+    ? { ...global, linearMode: 'absolute' }
+    : global
+  // LOD（方案 2026-10-28）：'bbox-relative' 档下 linear 按本 solid 的包围盒对角线
+  // 动态取——大零件不被固定 1mm 矢高切细。angular 恒由旋钮给（它还决定基本体的
+  // 缺省段数，见 api/primitives.ts）。
+  const density = resolveTessellationFor(kernel, solid, fallback)
   const angularDeflection = segments
     ? (2 * Math.PI) / Math.max(3, segments)
-    : fallback.angularDeflection
+    : density.angularDeflection
   // 延迟三角化（'defer'，方案 2026-10-21-weapp-tessellation-defer-plan §2）：op 产出
   // 不三角化，挂 BREP_LAZY_TESS 描述符（kernel + solid + 参数），由 runtime 在结果
   // 收尾时只对**终端**物化（物化参数与本分支完全一致 → 拓扑 mesh === 显示 mesh）。
@@ -81,15 +93,15 @@ export function solidToShape(
     ;(shape as unknown as Record<symbol, unknown>)[BREP_LAZY_TESS] = {
       kernel,
       solid,
-      // 有效值解析（eager 分支允许 undefined → 内核默认；物化必须拿到确定值，
-      // 与 getTessellation 全局档合并，保证物化参数与显示参数一致）
-      linearDeflection: fallback.linearDeflection ?? getTessellation().linearDeflection,
-      angularDeflection: angularDeflection ?? getTessellation().angularDeflection,
+      // 描述符存**已解析的确定值**（与 eager 分支逐字节同源；bbox-relative 的包围盒
+      // 在 op 产出时就地算，物化时不重算）→ 拓扑 mesh === 显示 mesh 不受影响。
+      linearDeflection: density.linearDeflection,
+      angularDeflection,
     } satisfies BrepLazyTessDescriptor
     return shape
   }
   const mesh: BrepMeshResult = kernel.meshShape(solid, {
-    linearDeflection: fallback.linearDeflection,
+    linearDeflection: density.linearDeflection,
     angularDeflection,
   })
 

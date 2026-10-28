@@ -50,10 +50,11 @@ import {
   configureBackends, CONTRACT_VERSION,
   assertContractVersion, type LibNamespace,
   type AssemblyKinematicsPose,
-  configureTessellation, type TessellationDensity,
+  configureTessellation, getTessellation, type TessellationDensity,
   configureTessellationTiming, getTessellationTiming, type TessellationTiming,
   setChainPreference,
 } from '../runtime-state'
+import { coarseLinearDeflectionFor } from '../brep/effective-deflection'
 import { materializeTessellation } from '../brep/deferred-tess'
 import { admitCompatLib } from './admit-compat-lib'
 import {
@@ -413,6 +414,46 @@ export interface CadRuntimeOptions {
    */
   tessellationTiming?: TessellationTiming
 }
+
+// ── LOD 精化（方案 2026-10-28-weapp-tessellation-lod-design）─────────────────
+
+/** 单个 part 的精化请求。 */
+export interface RetessellateEntry {
+  /** 终端变量名（PartName，与 outputs/terminals 同源）。 */
+  partName: PartName
+  /**
+   * 目标密度；字段缺省时回落全局 `getTessellation()` 的数值。
+   *
+   * **`linearMode` 不继承全局**（缺省恒 'absolute'）：精化目标由调用方显式给出
+   * （weapp 传 L1 = {2π/32, 0.1mm}）。若继承，weapp 全局的 'bbox-relative'
+   * 会把「精化」变成再算一次粗档。
+   */
+  density?: TessellationDensity
+}
+
+/**
+ * 单个 part 的精化结果。
+ *
+ * 判别联合而非「可选几何 + 可选原因」：跳过态一眼可辨，不存在
+ * 「有 positions 但没 triangleCount」这种半个结果的形状。
+ */
+export type RetessellatePartResult =
+  | {
+      /**
+       * 精化后的几何。与 runtime 内该 part 的**显示 shape 共用同一引用**
+       * （规则 1：拓扑 mesh === 显示 mesh），跨线 / transfer 前必须先拷贝。
+       */
+      positions: Float32Array
+      indices: Uint32Array
+      triangleCount: number
+    }
+  | {
+      /**
+       * 静态判定：该 part 没有可精化的 BREP 显示几何（mesh 源零件：stl/3mf 导入，
+       * 显示网格即源网格）。这是**已知状态**（拓扑来源静态可知），不是失败。
+       */
+      notApplicable: 'no-solid'
+    }
 
 /**
  * CadRuntime is the execution core of the L2 orchestration layer.
@@ -2012,6 +2053,114 @@ export class CadRuntime {
       this.brepChain?.meshShapeCache?.set(partName, shape[BREP_TESS] as BrepMeshResult)
     }
     return shape
+  }
+
+  /**
+   * 批量精化（LOD L0 → L1，方案 2026-10-28）：对**已存在**的 BREP solid 重新
+   * 三角化到目标密度，**不重跑脚本**。
+   *
+   * 可行性根基：worker 内 runtime 的 `solidCache`（PartName → BrepHandle）跨指令
+   * 持久，solid 就是三角化的输入——因此精化只是「对老 solid 再调一次 meshShape」。
+   *
+   * 三条纪律：
+   * 1. **换的是同一份显示几何**：新网格写回该 part 的 Shape（含 BREP_TESS 槽），
+   *    并按新几何刷新内容指纹、作废从 L0 网格推出的拓扑/命名缓存。
+   *    → 精化后 `buildBrepTopology` 命中的是精化后的 mesh（红线：拓扑 === 显示）。
+   * 2. **跳过是静态判定**：无 BREP solid 的 part（mesh 源）单独列出，不 throw，
+   *    不影响批内其它 part。
+   * 3. **几何引用共用**（规则 1）：返回的 positions/indices 就是 runtime 内显示
+   *    shape 的那一份，跨线程 / transfer 前必须拷贝（与 `toWireGeometry` 同纪律）。
+   *
+   * @param entries - 待精化的 part（同一批共用一个目标密度，逐条给也行）。
+   * @returns PartName 字符串 → 结果（成功 = 新几何；跳过 = notApplicable）。
+   */
+  async retessellate(entries: RetessellateEntry[]): Promise<Record<string, RetessellatePartResult>> {
+    // 整批先行校验：非法密度是宿主 bug，必须在动任何状态之前炸——
+    // 否则会留下「前 3 个已精化、第 4 个报错」的半截场景。
+    for (const entry of entries) {
+      const d = entry.density
+      if (d?.angularDeflection !== undefined && !(d.angularDeflection > 0)) {
+        throw new Error('[faijs] retessellate: density.angularDeflection must be > 0')
+      }
+      if (d?.linearDeflection !== undefined && !(d.linearDeflection > 0)) {
+        throw new Error('[faijs] retessellate: density.linearDeflection must be > 0')
+      }
+    }
+    return this.withExecutionLock('retessellate', async () => {
+      const out: Record<string, RetessellatePartResult> = {}
+      for (const entry of entries) {
+        out[String(entry.partName)] = this.retessellateOne(entry)
+      }
+      return out
+    })
+  }
+
+  /** 单个 part 的重三角化（{@link retessellate} 的批内单元；调用前密度已校验）。 */
+  private retessellateOne(entry: RetessellateEntry): RetessellatePartResult {
+    const brepChain = this.brepChain
+    const kernel = brepChain?.kernel
+    const solid = this.solidCache.get(entry.partName)
+    const v = this.directExecutor.getCtxVar(String(entry.partName))
+    const shape = v && isShapeLike(v) ? (v as Shape) : undefined
+    // 「无 BREP solid」与「该 part 没有 BREP 显示几何」是同一个可跳过的事实：
+    // 都没有可精化的对象。mesh 源零件（stl/3mf 导入）走的就是这条分支——
+    // 它的显示网格就是源网格，**静态可知**，不需要试探也不需要回退。
+    if (!brepChain || !kernel || solid === undefined || !shape) {
+      return { notApplicable: 'no-solid' }
+    }
+    const g = getTessellation()
+    const density = entry.density?.linearMode === 'bbox-relative'
+      ? {
+          linearDeflection: coarseLinearDeflectionFor(kernel, solid),
+          angularDeflection: entry.density?.angularDeflection ?? g.angularDeflection,
+        }
+      : {
+          linearDeflection: entry.density?.linearDeflection ?? g.linearDeflection,
+          angularDeflection: entry.density?.angularDeflection ?? g.angularDeflection,
+        }
+    const mesh = kernel.meshShape(solid, density)
+    // 新引用：几何变了 → 流式帧/内容指纹的引用判据自然失效（旧引用不再被任何人持有时可回收）。
+    const positions = new Float32Array(mesh.positions)
+    const indices = new Uint32Array(mesh.indices)
+    const tess: BrepMeshResult = {
+      positions,
+      indices,
+      normals: new Float32Array(mesh.normals),
+      vertexCount: mesh.vertexCount,
+      triangleCount: mesh.triangleCount,
+      ...(mesh.faceGroups ? { faceGroups: new Int32Array(mesh.faceGroups) } : {}),
+      ...(mesh.faceCount !== undefined ? { faceCount: mesh.faceCount } : {}),
+    }
+    // 显示 mesh 与拓扑取用的 BREP_TESS 槽共用同一份引用（规则 1 的字面落实）。
+    shape.positions = positions
+    shape.indices = indices
+    ;(shape as unknown as Record<symbol, unknown>)[BREP_TESS] = tess
+    // 面区间随新网格重算（只动本来就挂了 faceRanges 的 part——基本体的面集白名单
+    // 由 primitiveBrep 决定，精化不扩大它）。
+    if (shape.faceRanges && tess.faceGroups) {
+      const fg = tess.faceGroups
+      const ranges: NonNullable<Shape['faceRanges']> = []
+      for (let f = 0; f * 3 + 2 < fg.length; f++) {
+        ranges.push({ start: fg[f * 3]! / 3, count: fg[f * 3 + 1]! / 3 })
+      }
+      shape.faceRanges = ranges
+    }
+    brepChain.meshShapeCache?.set(entry.partName, tess)
+    // 内容指纹必须跟着几何走：几何换了而指纹不变 → 下一轮拓扑缓存按旧指纹命中，
+    // 带出的是 L0 面表（与"同名换几何沿用旧面表"同型的陈旧 bug）。
+    const cached = this.statementCache.get(entry.partName)
+    if (cached) {
+      this.statementCache.set(entry.partName, {
+        statementKey: cached.statementKey,
+        outputContentKey: computeContentKey(positions, indices),
+        output: cached.output,
+      })
+    }
+    // 拓扑 / 命名缓存按 partName 作废：它们是从 L0 网格推出来的，留着就是让
+    // 「拓扑 mesh === 显示 mesh」破掉。下次需要时按精化后的同一份网格重建。
+    this.topologyCache.delete(entry.partName)
+    this.namingCache.delete(entry.partName)
+    return { positions, indices, triangleCount: mesh.triangleCount }
   }
 
   /**

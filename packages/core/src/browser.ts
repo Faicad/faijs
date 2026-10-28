@@ -24,6 +24,10 @@ export { CadRuntime, createRuntime, createBareRuntime, AppendPrefixError } from 
 export { createPreviewExec } from './cad-runtime/preview-exec'
 export type { PreviewExec } from './cad-runtime/preview-exec'
 export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, PartTopology, TopologySource } from './cad-runtime/runtime'
+// LOD 精化（方案 2026-10-28）：宿主（worker 指令层）按这些形状发精化请求、读结果。
+export type { RetessellateEntry, RetessellatePartResult } from './cad-runtime/runtime'
+export { COARSE_BBOX_RATIO, COARSE_FLOOR_MM, COARSE_CAP_MM } from './brep/effective-deflection'
+export type { ResolvedTessellation } from './brep/effective-deflection'
 export type { ExecutionStats, ExecutionPath, ExecutionFallbackReason } from './cad-runtime/execution-stats'
 export type {
   HostPorts,

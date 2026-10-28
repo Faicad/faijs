@@ -461,6 +461,19 @@ export interface TessellationDensity {
   angularDeflection?: number
   /** Linear deflection in mm (OpenSCAD $fs). Default 0.1. */
   linearDeflection?: number
+  /**
+   * linearDeflection 的**来源模式**（缺省 'absolute' = 现状）。
+   *
+   * - `'absolute'`：`linearDeflection` 是绝对毫米值（矢高），对所有 solid 一视同仁。
+   * - `'bbox-relative'`：linear 按**每个 solid 自己的包围盒对角线**比例动态取，
+   *   落在 [0.5mm, 20mm] 区间内（常量见 `brep/effective-deflection.ts` 的
+   *   `COARSE_*`）。固定 1mm 在几十毫米级零件上合适，到 1 米级就会被切成上百段；
+   *   按对角线取则让"清晰度随零件大小走"，大零件不再因 linear 过细。
+   *
+   * 模式只决定 **linear 从哪来**；angular 始终由 `angularDeflection` 给
+   * （见 `resolveTessellationFor`）。
+   */
+  linearMode?: 'absolute' | 'bbox-relative'
 }
 
 const DEFAULT_TESSELLATION_ANGULAR = (2 * Math.PI) / 64
@@ -479,6 +492,7 @@ export function getTessellation(): Required<TessellationDensity> {
   return {
     angularDeflection: t?.angularDeflection ?? DEFAULT_TESSELLATION_ANGULAR,
     linearDeflection: t?.linearDeflection ?? DEFAULT_TESSELLATION_LINEAR_MM,
+    linearMode: t?.linearMode ?? 'absolute',
   }
 }
 
