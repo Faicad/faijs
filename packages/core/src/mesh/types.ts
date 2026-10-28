@@ -388,23 +388,7 @@ export interface ExtrudeParams {
   mode?: 'centered' | 'forward' | 'backward'
 }
 
-// ── 雕刻参数 ──
-
-/** Parameters for engraving text or an SVG onto a face. */
-export interface EngraveParams {
-  mode: 'convex' | 'concave'
-  depth: number
-  face: {
-    center: Vec3
-    normal: Vec3
-  }
-  text?: string
-  textSize?: number
-  svg?: string
-  svgNaturalWidth?: number
-  svgNaturalHeight?: number
-  svgSize?: number
-}
+// ── 滚花参数 ──
 
 /** Parameters for applying a knurl texture to a face. */
 export interface KnurlParams {

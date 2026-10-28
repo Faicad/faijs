@@ -72,7 +72,7 @@ beforeAll(async () => {
   // 只在 `transform`/`generalTransform` 这类两边同名的成员上侥幸可用；一旦
   // brep-ops 用上 L1 中立名（如 `copyShape`）就会 `is not a function`。
   kernel = getBrepApi()
-  // 注入 fs 字体加载器（BREP text/engrave 操作需要）
+  // 注入 fs 字体加载器（BREP text 操作需要）
   ensureTestFontLoader()
 }, 120000)
 
@@ -551,7 +551,7 @@ describe('getSolidBoundingBox', () => {
 // ── BREP 链断裂可逆性（§1.6: 删/改 mesh-only op → 链自动愈合）──
 //
 // 核心概念：BREP 链的断裂状态不是持久化在零件上的，而是每次 executeScript 时
-// 由语句链重新推导。遇到 mesh-only op（engrave）→ 链断裂；删除该 op → 链自动愈合。
+// 由语句链重新推导。遇到 mesh-only op（knurl/sdf）→ 链断裂；删除该 op → 链自动愈合。
 // 严禁把"已断裂"作为脱离链的零件状态单独持久化（那会造成"无法回退"）。
 
 describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from statement chain)', () => {
@@ -571,16 +571,17 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     }
   })
 
-  it('executeScript(box → drill → engrave, brep) → chain stays active (BREP engrave implemented)', async () => {
-    // 在 BREP 链中遇到 engrave → BREP 路径执行（textToSolid + boolean），链不断裂
+  it('executeScript(box → drill → text deco → subtract, brep) → chain stays active (creator + cut implemented)', async () => {
+    // BREP 链中遇到 creator（cad.text）+ 二元 cut（cad.subtract）→ 链不断裂。
     const code = [
       'const s1 = cad.box(20, 20, 20, { centered: true })',
       'const s2 = cad.fai_drill(s1, { diameter: 6, depth: 0, position: [0, 0, 10], direction: "normal", faceNormal: [0, 0, 1], holeType: "simple" })',
-      'const s3 = cad.engrave(s2, { mode: "concave", depth: 1, text: "A", textSize: 10 })',
+      'const deco = cad.text({ text: "A", size: 10, depth: 1 })',
+      'const s3 = cad.subtract(s2, deco)',
     ].join('\n')
     const result = await executeScript(code)
 
-    // 验证链未断裂（box/drill/engrave 均有 solid）
+    // 验证链未断裂（box/drill/creator/cut 均有 solid）
     expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
     expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
     expect(result.brepChain.solidCache.has(asPartName('s3'))).toBe(true)
@@ -589,12 +590,13 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     releaseBrepChainState(result.brepChain)
   })
 
-  it('executeScript(engrave 的 dxf 源): 真的从面上切出一个凹坑（不是静默空操作）', async () => {
+  it('executeScript(dxfExtrude 负向 depth + subtract): 真的从面上切出一个凹坑（不是静默空操作）', async () => {
     // DXF 源与 text/svg 共用同一套「居中 → 对齐法向 → 贴面 → 布尔」，
     // 差别只在轮廓解析。这条用例钉住两件事：
-    //   ① dxf 参数能从脚本面走通（资产解析 / dxfToSolid / cut 全链路）；
+    //   ① cad.dxfExtrude 能从脚本面走通（资产解析 / dxfToSolid / cut 全链路）；
     //   ② 真的切出了坑 —— 体积下降量在「10×10×2 的面积×深度」量级，
     //      既不是 0（静默空操作）也不是穿（把箱体打穿）。
+    // 凹陷 = 负向 depth（实体推入面内），再 cad.subtract(target, deco)。
     // 方框用 4 顶点 LWPOLYLINE（不含重复收尾点）——顺带覆盖收尾边补全。
     const DXF = [
       '0', 'SECTION', '2', 'ENTITIES',
@@ -607,7 +609,8 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     ].join('\n')
     const code = [
       'const s1 = cad.box(20, 20, 20, { centered: true })',
-      `const s2 = cad.engrave(s1, { dxf: ${JSON.stringify(DXF)}, mode: "concave", depth: 2, dxfSize: 10, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })`,
+      `const deco = cad.dxfExtrude({ dxf: ${JSON.stringify(DXF)}, depth: -2, targetLongSide: 10, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })`,
+      'const s2 = cad.subtract(s1, deco)',
     ].join('\n')
 
     const result = await executeScript(code)
@@ -629,7 +632,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
 
   it('executeScript(text 带 faceCenter/faceNormal): 文字真的落在指定面上（与刻字同一套对齐）', async () => {
     // 文字建模的"先选面"能力：`cad.text` 给了 faceCenter/faceNormal 时，
-    // 走与 `cad.engrave` **同一个** placeOnFace（居中 → 旋到法向 → 移面心）。
+    // 走统一的 placeOnFace（居中 → 旋到法向 → 移面心）。
     // 这里钉住行为，不钉实现：
     //   ① 厚度 2 的文字贴在 z=10 面**外**（底面贴面、整块凸出）→ bbox.min.z ≈ 10；
     //   ② `depth/2` 沿法向推开，所以 bbox 落在 [10, 12] 而不是跨过面；
@@ -725,13 +728,13 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     releaseBrepChainState(result.brepChain)
   }, 120_000)
 
-  it('executeScript without engrave → solid still in cache (chain healed, not persistent)', async () => {
+  it('executeScript without any mesh-only op → solid still in cache (chain healed, not persistent)', async () => {
     // 核心测试：BREP 状态不是持久状态。每次 executeScript 创建新的 BrepChainState，
-    // 删除 engrave 语句后重放 → solidCache 仍有 drill solid
+    // 删除 mesh-only 语句后重放 → solidCache 仍有 drill solid
     const code = [
       'const s1 = cad.box(20, 20, 20, { centered: true })',
       'const s2 = cad.fai_drill(s1, { diameter: 6, depth: 0, position: [0, 0, 10], direction: "normal", faceNormal: [0, 0, 1], holeType: "simple" })',
-      // 没有 engrave — 链应保持活跃
+      // 没有 mesh-only op — 链应保持活跃
     ].join('\n')
 
     const result = await executeScript(code)

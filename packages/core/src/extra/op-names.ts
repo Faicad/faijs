@@ -33,6 +33,7 @@ export const EDITOR_OPS = [
 export const CREATOR_OPS = [
   'text',
   'svgExtrude',
+  'dxfExtrude',
 ] as const
 
 /** Every op name the editor ops group carries, in assembly order. */

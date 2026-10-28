@@ -10,7 +10,7 @@
  * @module
  */
 import type { Curve2dObj } from './curve2d'
-import { makeLine2d, makeArc2dThreePoints, makeCircle2d, makeBSpline2d, trimCurve } from './curve2d'
+import { makeLine2d, makeArc2dThreePoints, makeCircle2d, makeBSpline2d, makeBezier2d, trimCurve } from './curve2d'
 
 /** Line segment in profile form (2D, z=0). */
 export interface ProfileLineSegLike {
@@ -88,6 +88,22 @@ export function profileSegToCurve(seg: ProfileSegLike): Curve2dObj {
   if (seg.kind === 'spline') {
     const poles: [number, number][] = []
     for (let i = 0; i + 1 < seg.poles.length; i += 2) poles.push([seg.poles[i]!, seg.poles[i + 1]!])
+    // 单段三次钳制样条（4 极点 / degree 3 / knots=[0,1] / mults=[4,4] / 非周期 /
+    // 非有理 / 无修剪）**就是**一条三次 Bézier。按 Bézier 发射，让 `blueprintToWire`
+    // 走 `makeBezierEdge` 构造**真实曲线边**（而非把整条 B 样条采样成 32 段折线）——
+    // 这对「用样条曲线拟合、不要一堆三角形」的建模至关重要：截面成为真曲线，
+    // 顶点数 ≈ 段数（而非 32×段数）。多段/高次/有理性样条仍走下面的通用 B 样条路径。
+    if (
+      seg.degree === 3 &&
+      poles.length === 4 &&
+      seg.periodic !== true &&
+      seg.weights === undefined &&
+      seg.knots.length === 2 && seg.knots[0] === 0 && seg.knots[1] === 1 &&
+      seg.multiplicities.length === 2 && seg.multiplicities[0] === 4 && seg.multiplicities[1] === 4 &&
+      seg.first === undefined && seg.last === undefined
+    ) {
+      return makeBezier2d(poles)
+    }
     const curve = makeBSpline2d(poles, seg.knots, seg.multiplicities, seg.degree, !!seg.periodic, seg.weights)
     // The trim is expressed on the basis curve's own parameter axis, which is
     // exactly `TrimmedCurve2d`'s contract — so it survives to the lift, where

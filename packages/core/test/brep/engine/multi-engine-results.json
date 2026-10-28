@@ -281,7 +281,7 @@
       "status": "pass"
     },
     {
-      "op": "engrave",
+      "op": "dxfExtrude",
       "engine": "occt",
       "bbox": [
         40,
@@ -713,12 +713,8 @@
     {
       "op": "sweep",
       "engine": "brepkit-2.129.15",
-      "bbox": [
-        8,
-        8,
-        25
-      ],
-      "status": "pass"
+      "status": "fail",
+      "error": "sweep: E_BREP_UNSUPPORTED: op 'sweep' requires engine occt (current=brepkit)"
     },
     {
       "op": "loft",
@@ -751,7 +747,7 @@
       "status": "pass"
     },
     {
-      "op": "engrave",
+      "op": "dxfExtrude",
       "engine": "brepkit-2.129.15",
       "bbox": [
         40,
@@ -1183,12 +1179,8 @@
     {
       "op": "sweep",
       "engine": "brepkit-4.1.49",
-      "bbox": [
-        8,
-        8,
-        25
-      ],
-      "status": "pass"
+      "status": "fail",
+      "error": "sweep: E_BREP_UNSUPPORTED: op 'sweep' requires engine occt (current=brepkit)"
     },
     {
       "op": "loft",
@@ -1221,7 +1213,7 @@
       "status": "pass"
     },
     {
-      "op": "engrave",
+      "op": "dxfExtrude",
       "engine": "brepkit-4.1.49",
       "bbox": [
         40,
@@ -1653,12 +1645,8 @@
     {
       "op": "sweep",
       "engine": "brepkit-4.0.32",
-      "bbox": [
-        8,
-        8,
-        25
-      ],
-      "status": "pass"
+      "status": "fail",
+      "error": "sweep: E_BREP_UNSUPPORTED: op 'sweep' requires engine occt (current=brepkit)"
     },
     {
       "op": "loft",
@@ -1691,7 +1679,7 @@
       "status": "pass"
     },
     {
-      "op": "engrave",
+      "op": "dxfExtrude",
       "engine": "brepkit-4.0.32",
       "bbox": [
         40,

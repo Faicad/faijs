@@ -34,6 +34,22 @@ export interface StepExportEntry {
   /** RGB 0..1 颜色（sRGB 编码，如宿主材质 base color）。写入前转 linear。 */
   color?: [number, number, number]
   /**
+   * 不透明度 0（全透明）–1（不透明）。<1 时在 STEP DATA 段注入
+   * SURFACE_STYLE_TRANSPARENCY 实体并挂到对应 SURFACE_SIDE_STYLE。
+   * OCCT XCAF 原生不写透明度，本字段是导出后文本层后处理注入。
+   */
+  opacity?: number
+  /**
+   * 粗糙度 0（镜面）–1（完全漫反射）。STEP AP214 无标准实体直接表达，
+   * 当前版本仅记录在 entry 元数据，不写入文件（预留）。
+   */
+  roughness?: number
+  /**
+   * 金属度 0（非金属）–1（金属）。STEP AP214 无标准实体直接表达，
+   * 当前版本仅记录在 entry 元数据，不写入文件（预留）。
+   */
+  metalness?: number
+  /**
    * 装配子节点（方案 2026-10-08 步骤 7 / P3）：非空时本条目按**真装配容器**写出
    * （XCAF assembly + component），不再展平为平级 PRODUCT。容器自身不贡献几何
    * （compound 几何 == 成员并集，写出会重复）。
@@ -62,6 +78,68 @@ export interface StepExportEntry {
  */
 function srgbToLinear(c: number): number {
   return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+}
+
+/**
+ * 导出后文本层注入透明度（SURFACE_STYLE_TRANSPARENCY）。
+ *
+ * OCCT XCAF 原生只写颜色（COLOUR_RGB），不写透明度。本函数在 DATA 段后处理：
+ *   1. 找到所有 SURFACE_SIDE_STYLE 实体（每个 STYLED_ITEM 一个，按 entries 顺序出现）
+ *   2. 对 opacity < 1 的 entry，创建 SURFACE_STYLE_TRANSPARENCY 实体
+ *   3. 把透明度实体引用挂到对应 SURFACE_SIDE_STYLE 的样式列表里
+ *
+ * 坐标映射：faijs opacity（0=全透明，1=不透明）→ STEP transparency（0=不透明，1=全透明）
+ *   STEP transparency = 1 - opacity
+ *
+ * 匹配策略：SURFACE_SIDE_STYLE 在 DATA 段按出现顺序排列，与 entries 数组顺序一一对应
+ * （每个 entry 写一个 XCAF label → 导出一个 STYLED_ITEM → 一个 SURFACE_SIDE_STYLE）。
+ * 装配容器（children）不产生独立 STYLED_ITEM，跳过。
+ */
+function injectStepTransparency(text: string, entries: StepExportEntry[]): string {
+  // 收集所有 SURFACE_SIDE_STYLE 实体
+  const sideStyleRe = /#(\d+)\s*=\s*SURFACE_SIDE_STYLE\('[^']*',\(([^)]+)\)\)/g
+  const sideStyles: Array<{ id: number; inner: string }> = []
+  let m: RegExpExecArray | null
+  while ((m = sideStyleRe.exec(text)) !== null) {
+    sideStyles.push({ id: Number(m[1]), inner: m[2]! })
+  }
+  if (sideStyles.length === 0) return text
+
+  // 收集需要注入透明度的 entries（跳过装配容器）
+  const leafEntries = entries.filter((e) => !(e.children && e.children.length > 0))
+  if (leafEntries.length === 0) return text
+
+  // 找 DATA 段内最大实体编号
+  let maxId = 0
+  for (const s of sideStyles) maxId = Math.max(maxId, s.id)
+  const allIds = text.match(/#(\d+)/g)
+  if (allIds) for (const id of allIds) maxId = Math.max(maxId, Number(id.slice(1)))
+
+  let nextId = maxId + 1
+  let newEntities = ''
+  let modified = text
+
+  // 按顺序配对：leafEntries[i] ↔ sideStyles[i]
+  const count = Math.min(leafEntries.length, sideStyles.length)
+  for (let i = 0; i < count; i++) {
+    const entry = leafEntries[i]!
+    if (entry.opacity === undefined || entry.opacity >= 1) continue
+
+    const transpValue = 1 - entry.opacity  // faijs 透明度 → STEP 透明度
+    const transpId = nextId++
+    newEntities += `#${transpId} = SURFACE_STYLE_TRANSPARENCY(${transpValue.toFixed(6)});\n`
+
+    // 把透明度引用挂到对应 SURFACE_SIDE_STYLE
+    const ss = sideStyles[i]!
+    const oldLine = `#${ss.id} = SURFACE_SIDE_STYLE('',(${ss.inner}))`
+    const newLine = `#${ss.id} = SURFACE_SIDE_STYLE('',(${ss.inner},#${transpId}))`
+    modified = modified.replace(oldLine, newLine)
+  }
+
+  if (newEntities) {
+    modified = modified.replace('ENDSEC;', newEntities + 'ENDSEC;')
+  }
+  return modified
 }
 
 /**
@@ -302,7 +380,9 @@ export function exportStepFromSolids(
     }
 
     // 3. 导出（每个 label 一个独立 PRODUCT，保留名称/颜色）
-    const stepText = doc.exportSTEP()
+    let stepText = doc.exportSTEP()
+    // 文本层后处理：注入透明度（SURFACE_STYLE_TRANSPARENCY）
+    stepText = injectStepTransparency(stepText, entries)
     // 文件级 meta → P21 header 重写（title/creationDate/createor/author/org/
     // application/description）。无 header 字段时不重写。文本层只改声明不碰几何。
     const out = fileMeta && fileMetaHasHeaderFields(fileMeta)

@@ -18,7 +18,7 @@ export type {
   Shape, BoundingBox, FaceDescriptor,
   BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
   TextParams, SvgExtrudeParams, SdfParams,
-  DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
+  DrillParams, ExtrudeParams, KnurlParams,
   SplitPlane, SplitResult, DovetailSplitParams, TenonSplitParams,
 } from './types'
 export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './types'

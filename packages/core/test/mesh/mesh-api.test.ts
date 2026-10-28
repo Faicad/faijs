@@ -14,7 +14,7 @@ import { Mat4 } from '../../src/math3d'
 import * as meshPrimitives from '../../src/mesh/primitives'
 import * as meshTransform from '../../src/mesh/transform'
 import * as meshBoolean from '../../src/mesh/boolean'
-import * as meshEngrave from '../../src/mesh/engrave'
+import * as meshKnurl from '../../src/mesh/knurl'
 import * as meshQuery from '../../src/mesh/query'
 import * as meshIo from '../../src/mesh/io'
 import type { Shape } from '../../src/mesh/types'
@@ -281,11 +281,10 @@ describe('mesh-api: API contract', () => {
     expect(typeof tenonSplit).toBe('function')
   })
 
-  it('钻孔/拉伸/雕刻 API：各实现模块均有具名导出', () => {
+  it('钻孔/拉伸/滚花 API：各实现模块均有具名导出', () => {
     expect(typeof drill).toBe('function')
     expect(typeof meshExtrude).toBe('function')
-    expect(typeof meshEngrave.engrave).toBe('function')
-    expect(typeof meshEngrave.knurl).toBe('function')
+    expect(typeof meshKnurl.knurl).toBe('function')
   })
 
   it('查询 API：各实现模块均有具名导出', () => {

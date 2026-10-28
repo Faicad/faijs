@@ -20,7 +20,6 @@ export { translate, rotate_euler, scale, scale3d } from './transform'
 export { union, subtract, intersect, cut, fuse } from './boolean'
 // ↑ fuse 是 union 的别名（brepjs 兼容名），2026-10-22 起不再来自 generated/script-face
 //   （arg-spec 里 fuse 已转 skip，避免二元裸 kernel.fuse 与 variadic union 双实现漂移）。
-export { engrave } from './engrave'
 export { chamfer } from './chamfer'
 export { fillet } from './fillet'
 export { shell, type ShellParams } from './shell'

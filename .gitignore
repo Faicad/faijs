@@ -58,3 +58,6 @@ docs/patents
 probe-*/
 *.tmp.json
 packages/core/src/brep/engine/multi-engine-results.json
+
+# 本地 scratch 示例工程（用户工作目录，不入库）
+projects/

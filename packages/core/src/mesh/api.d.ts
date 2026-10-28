@@ -53,8 +53,7 @@ export interface CadAPI {
   // ── 拉伸 ──
   extrude(shape: Shape, params: { length?: number; normal?: [number, number, number]; mode?: string; upTo?: any; baseFeature?: Shape; offset?: number }): Promise<Shape>
 
-  // ── 雕刻 ──
-  engrave(shape: Shape, params: { text?: string; depth?: number; textSize?: number; svg?: any; svgSize?: number; mode?: string; faceCenter?: any; faceNormal?: any }): Promise<Shape>
+  // ── 滚花 ──
   knurl(shape: Shape, params: { knurlTextureHeight?: number; knurlScaleU?: number; knurlScaleV?: number; knurlInvertDisplacement?: boolean; knurlRefineLength?: number; knurlMappingMode?: number; faceCenter?: any; faceNormal?: any }): Promise<Shape>
 
   // ── 倒角 ──
@@ -131,11 +130,11 @@ export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'draft', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:draft:<i>'] },
   { op: 'draftPrism', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "tapered prism face vocabulary not defined", vocab: [] },
   { op: 'drill', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:drill:<i>'] },
+  { op: 'dxfExtrude', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
   { op: 'edge', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "1D edge has no face role vocabulary", vocab: [] },
   { op: 'ellipseArc', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "1D ellipse arc has no face role vocabulary", vocab: [] },
   { op: 'ellipseEdge', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "1D ellipse has no face role vocabulary", vocab: [] },
   { op: 'ellipsoid', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
-  { op: 'engrave', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:engrave:<i>'] },
   { op: 'extrude', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom', 'wall:0'] },
   { op: 'faceOnSurface', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "face built on a host surface has no source-derived face role vocabulary", vocab: [] },
   { op: 'fai_drill', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fai_drill:<i>'] },

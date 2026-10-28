@@ -9,8 +9,8 @@
 
 import { describe, it, expect } from 'vitest'
 import { assertBoxParams, assertSphereParams, assertCylinderParams, assertConeParams, assertWedgeParams } from '../../src/api/primitives'
-import { assertEngraveParams } from '../../src/api/engrave'
 import { assertTranslateParams, assertRotateParams, assertScaleParams, assertScale3dParams } from '../../src/api/transform'
+import { assertDxfExtrudeParams } from '../../src/extra/ops/dxf-extrude'
 import { assertSdfParams } from '../../src/api/sdf'
 import { assertScrewParams } from '../../src/api/screw'
 import { assertKnurlParams } from '../../src/api/knurl'
@@ -54,18 +54,14 @@ describe('api per-op assert: 创建类', () => {
 })
 
 describe('api per-op assert: 特征类', () => {
-  it('engrave: text / svg / dxf 三选一（且互斥）；depth > 0', () => {
-    expect(() => assertEngraveParams({})).toThrow(/text.*svg.*dxf/)
-    // 空字符串等同没给（否则 text:'' 会命中文案分支、刻出一片空白）
-    expect(() => assertEngraveParams({ text: '' })).toThrow(/text.*svg.*dxf/)
-    expect(() => assertEngraveParams({ text: 'A', depth: -1 })).toThrow(/engrave\.depth/)
-    expect(() => assertEngraveParams({ text: 'A', depth: 2 })).not.toThrow()
-    expect(() => assertEngraveParams({ svg: '<svg/>' })).not.toThrow()
-    expect(() => assertEngraveParams({ dxf: '0\nSECTION' })).not.toThrow()
-    // 同时给两个源：实现只取第一个命中分支，另一个被静默忽略——直接拒绝
-    expect(() => assertEngraveParams({ text: 'A', svg: '<svg/>' })).toThrow(/mutually exclusive/)
-    expect(() => assertEngraveParams({ text: 'A', dxf: 'x' })).toThrow(/mutually exclusive.*text \+ dxf/)
-    expect(() => assertEngraveParams({ svg: '<svg/>', dxf: 'x' })).toThrow(/mutually exclusive.*svg \+ dxf/)
+  it('dxfExtrude: dxf 必填（非空）；depth 必填 number（允许负值）', () => {
+    expect(() => assertDxfExtrudeParams({})).toThrow(/dxf is required/)
+    // 空字符串等同没给（否则 dxf:'' 会命中文案分支、挤出一片空白）
+    expect(() => assertDxfExtrudeParams({ dxf: '' })).toThrow(/dxf is required/)
+    expect(() => assertDxfExtrudeParams({ dxf: '0\nSECTION', depth: 'x' })).toThrow(/dxfExtrude\.depth/)
+    expect(() => assertDxfExtrudeParams({ dxf: '0\nSECTION', depth: 2 })).not.toThrow()
+    // 负向 depth（凹陷口袋）合法，与 svgExtrude / text 同一口径
+    expect(() => assertDxfExtrudeParams({ dxf: '0\nSECTION', depth: -2 })).not.toThrow()
   })
 })
 

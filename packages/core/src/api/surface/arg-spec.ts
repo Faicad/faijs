@@ -3481,7 +3481,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // faceFns：入参 Face 子形状句柄 → 全 skip
   {
     name: 'faceCenter', source: 'topology/faceFns.js#faceCenter', kind: 'skip',
-    reason: 'faijs 无同名 op（§4.9）：faceCenter 仅作为 api/engrave.ts 与 api/knurl.ts 的参数键（绝对坐标快照）存在，'
+    reason: 'faijs 无同名 op（§4.9）：faceCenter 仅作为 text/svgExtrude/dxfExtrude 与 knurl 的参数键（绝对坐标快照）存在，'
       + '不共面、不冲突。若将来要在 cad 面提供质心查询，契约应为 cad.faceCenter(shape, ordinal?)（入参是 faijs Shape + 面'
       + '序号，与来源实现的 Face 入参不同），两面各持各的契约。',
   },

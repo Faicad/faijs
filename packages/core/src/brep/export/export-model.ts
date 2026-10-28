@@ -39,6 +39,11 @@ export interface ExportEntry {
   /** sRGB 0..1 颜色（STEP 走 XCAF COLOUR_RGB，3MF 走 basematerials）。 */
   color?: readonly [number, number, number]
   /**
+   * 不透明度 0（全透明）–1（不透明）。<1 时 STEP 导出注入
+   * SURFACE_STYLE_TRANSPARENCY 实体；3MF 当前忽略（basematerials 不支持 alpha）。
+   */
+  opacity?: number
+  /**
    * 逐三角形材质分组（P4，3MF 走多 basematerials + `<triangle pid p1..p3>`）：
    * start/count 为**三角形索引**区间，appearance.color 为该组基色。
    */
@@ -501,6 +506,7 @@ function makeStepEntryMapper(
     const head = {
       ...(e.name ? { name: e.name } : {}),
       ...(e.color ? { color: [...e.color] as [number, number, number] } : {}),
+      ...(e.opacity !== undefined ? { opacity: e.opacity } : {}),
     }
     const transform = e.transform ? scaleTransform(e.transform, scale) : undefined
     if (e.children && e.children.length > 0) {

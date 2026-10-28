@@ -99,7 +99,6 @@ import { loft } from './loft'
 import { loftAdvanced } from './loft-advanced'
 import { linearPattern } from './pattern'
 import { circularPattern, gridPattern, rectangularPattern, mirrorJoin, mirror, clone } from './replicate'
-import { engrave } from './engrave'
 import { chamfer } from './chamfer'
 import { fillet } from './fillet'
 import { shell } from './shell'
@@ -135,6 +134,7 @@ import { copy } from '../extra/ops/copy'
 import { load } from '../extra/ops/load'
 import { text } from '../extra/ops/text'
 import { svgExtrude } from '../extra/ops/svg-extrude'
+import { dxfExtrude } from '../extra/ops/dxf-extrude'
 import { useMeshChain } from './use-mesh-chain'
 
 /**
@@ -159,7 +159,7 @@ export function createApiNamespace(): LibNamespace {
     screw, profile, sketchOnPlane, sketchOnFace, sketchOnSurface, punchHole, wire, helix, sdf,
     // D1 选项 C：四个 transform op 全留核心（translate 小程序端在用，同族不拆散）。
     translate, rotate_euler, scale, scale3d,
-    engrave, chamfer, fillet, knurl,
+    chamfer, fillet, knurl,
     // Phase 5：按面/边选的特征族 + 修复薄包装（shell/draft 中立；thicken 平台 occt）。
     shell, draft, thicken, filletVariable, splitByPlane, sectionByPlane,
     defeature, reverseShape, unifySameDomain, sew, sewAndSolidify, removeHolesFromFace,
@@ -233,6 +233,7 @@ export function createApiNamespace(): LibNamespace {
     load,
     text,
     svgExtrude,
+    dxfExtrude,
     ...scriptFaceOps,
     // 兼容别名（brepjs 名字）：与手写实现同一函数对象，不是第二份实现。
     //   cut  = subtract（曾以手写 override 覆盖生成的 compatOp；2026-10-22 改为别名）

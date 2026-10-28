@@ -41,6 +41,7 @@ export type { AssemblySolveResult } from '../api/assembly/solve'
 // ── B 组：svg / 3D 文字 op ──
 export { text, assertTextParams } from './ops/text'
 export { svgExtrude, assertSvgExtrudeParams } from './ops/svg-extrude'
+export { dxfExtrude, assertDxfExtrudeParams } from './ops/dxf-extrude'
 
 // ── B 组：预览辅助函数（宿主交互预览用，不提交几何）──
 export {
@@ -51,7 +52,6 @@ export {
   createTextGeometry, getOpentypeFont, opentypePathToGeometry,
 } from './extras/text-geometry'
 export { createMixedTextGeometry } from './extras/text-cjk'
-export { createEngraveDecorationProvider } from './mesh/engrave-decoration'
 
 // ── mesh implementations (editor script face / previews; exported per module, no aggregate) ──
 export {

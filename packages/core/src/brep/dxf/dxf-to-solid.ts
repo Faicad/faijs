@@ -6,8 +6,8 @@
  * 组码流里的实体（LINE/CIRCLE/ARC/LWPOLYLINE/POLYLINE + bulge），而且 DXF 已经
  * 由 `importDxfProfiles` 做好"外轮廓 + 孔洞"嵌套分组。硬塞进 svgToSolid 只会
  * 让两边都长出一堆 `if (isDxf)` 分叉。共同的部分（makeFace → addHolesInFace →
- * extrude → fuse）在本文件按同一顺序重写一遍，**定位/布尔仍留在 engrave 里**，
- * 本文件不碰它们（那才是唯一真源，见 api/engrave.ts）。
+ * extrude → fuse）在本文件按同一顺序重写一遍，**贴面定位/布尔仍留在调用方**
+ * （`extra/ops/dxf-extrude.ts` 经 `placeOnFace` 贴面；布尔由宿主显式 `cad.subtract`）。
  *
  * ── 单位 ────────────────────────────────────────────────────────────────────
  * DXF 的坐标是"图纸单位"，`dxf-import.ts` 不读 `$INSUNITS`（见该文件），所以
@@ -16,7 +16,7 @@
  *
  * ── 轴向 ────────────────────────────────────────────────────────────────────
  * DXF 在 XY 平面（Y 向上），本函数不做任何翻转：画在 XY 上的图形保持原样。
- * 贴到模型面之后的方向由 engrave 的 `alignZToNormal` 决定（+Z 对齐面法向），
+ * 贴到模型面之后的方向由 `placeOnFace` 的 `alignZToNormal` 决定（+Z 对齐面法向），
  * 因此"顶面（+Z）上刻的图与 DXF 里看到的一致"这条由单测钉住。
  */
 import type { BrepHandle } from '../engine/types'
@@ -48,7 +48,7 @@ export interface DxfToSolidOptions {
  * @param kernel BREP 内核
  * @param text DXF 文本
  * @param options 深度 / 长边 / 图层
- * @returns 合并后的单一 solid（多轮廓时可能是 compound，交给 engrave 逐 solid 处理）
+ * @returns 合并后的单一 solid（多轮廓时可能是 compound，由 fromBrep / cad.subtract 原样消费）
  */
 export function dxfToSolid(
   kernel: BrepEngineApi,
@@ -56,8 +56,10 @@ export function dxfToSolid(
   options: DxfToSolidOptions,
 ): BrepHandle {
   const { depth, targetLongSide = DEFAULT_DXF_LONG_SIDE, layer } = options
-  if (!(depth > 0)) {
-    throw new Error(`[dxfToSolid] depth 必须是正数，收到 ${String(depth)}`)
+  // depth 允许负值（负向拉伸 = 凹陷口袋，与 svgToSolid / text 同一口径）；零深度
+  // 拉伸出来是个面不是实体，显式抛错（宁抛不产空体）。
+  if (depth === 0 || !Number.isFinite(depth)) {
+    throw new Error(`[dxfToSolid] depth 必须是非零有限数，收到 ${String(depth)}`)
   }
 
   const profilesResult = importDxfProfiles(kernel, text, layer)

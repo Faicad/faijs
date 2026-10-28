@@ -150,7 +150,8 @@ export async function initBrepChainState(): Promise<BrepChainState> {
 export function releaseBrepChainState(state: BrepChainState): void {
   for (const [, handle] of state.solidCache) {
     try {
-      state.kernel?.release(handle)
+      if (state.kernel?.disposeHandle) state.kernel.disposeHandle(handle)
+      else state.kernel?.release(handle)
     } catch {
       // 句柄可能已释放，忽略
     }

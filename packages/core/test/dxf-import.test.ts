@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { parseDxfEntities, dxfEntitiesToWires, importDxf, importDxfProfiles } from '../src/brep/dxf/dxf-import'
+import { dxfToSolid } from '../src/brep/dxf/dxf-to-solid'
 import type { BrepEngineApi, BrepHandle } from '../src/brep/engine/primitives'
 
 /** 最小 mock 内核：记录调用，makeWire 返回递增句柄。 */
@@ -207,11 +208,41 @@ describe('parseDxfEntities（严格配对遍历）', () => {
     const result = dxfEntitiesToWires(kernel, parsed)
     expect(result.ok).toBe(true)
     expect(calls.filter((c) => c === 'makeArcEdge')).toHaveLength(1)
-    expect(calls.filter((c) => c === 'makeLineEdge')).toHaveLength(2)
+    // 4 个顶点 = 4 段：1 段 bulge 弧 + 3 段直线（含 0,4→0,0 的**收尾边**）。
+    // 2026-10-28 之前这里是 2 —— 那时收尾边压根没生成，靠 assembleWire 自行闭合，
+    // 方框体积是 77.78 而非 100（静默错形状，见 dxf-import.ts 闭合边注释）。
+    expect(calls.filter((c) => c === 'makeLineEdge')).toHaveLength(3)
     // 三点弧的中点必须是拱点 (2,1)：从弦 (0,0)→(4,0) + bulge=0.5 → sagitta=1
     const arc = edgesMade.find((e) => e.kind === 'arc3pt') as { a: { x: number; y: number }; b: { x: number; y: number }; center: { x: number; y: number } }
     expect(arc.b.x).toBeCloseTo(2)
     expect(arc.b.y).toBeCloseTo(1)
+  })
+
+  it('收尾段的 bulge 在**最后一个顶点**上（闭合边也要走圆弧，不能拉成弦）', () => {
+    // DXF 里组码 42 紧跟顶点 i 的 10/20，描述的是「i → i+1」这一段。
+    // 所以闭合段（最后一个顶点 → 第一个）的拱度挂在**最后一个**顶点上。
+    // 方框 4 点，只有 (0,4) 带 bulge=0.5 → 闭合段 (0,4)→(0,0) 是弧：
+    // chord=4 沿 -Y，sagitta = 0.5·4/2 = 1，拱点 = 中点 (0,2) + 左法向 (1,0)·1 = (1,2)。
+    const dxf = [
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+      '10', '0', '20', '0',
+      '10', '4', '20', '0',
+      '10', '4', '20', '4',
+      '10', '0', '20', '4', '42', '0.5',
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\n')
+    const { kernel, calls, edgesMade } = mockKernel()
+    const result = dxfEntitiesToWires(kernel, parseDxfEntities(dxf))
+    expect(result.ok).toBe(true)
+    // 3 段相邻直线 + 1 段收尾弧（不是 4 条直线）
+    expect(calls.filter((c) => c === 'makeLineEdge')).toHaveLength(3)
+    expect(calls.filter((c) => c === 'makeArcEdge')).toHaveLength(1)
+    const arc = edgesMade.find((e) => e.kind === 'arc3pt') as { a: { x: number; y: number }; b: { x: number; y: number } }
+    expect(arc.a.x).toBeCloseTo(0)
+    expect(arc.a.y).toBeCloseTo(4)
+    expect(arc.b.x).toBeCloseTo(1)
+    expect(arc.b.y).toBeCloseTo(2)
   })
 })
 
@@ -343,4 +374,76 @@ describe('importDxfProfiles（嵌套分组挖孔，真内核）', () => {
       for (const profile of result.value) expect(profile.holes).toHaveLength(0)
     }
   }, 120_000)
+})
+
+describe('dxfToSolid（轮廓 → 面 → 拉伸 → 合并，真内核）', () => {
+  /** 长边归一用：外 10×10 + 内孔 4×4（面积 84）。 */
+  const DONUT_DXF = [
+    '0', 'SECTION', '2', 'ENTITIES',
+    '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+    '10', '0', '20', '0',
+    '10', '10', '20', '0',
+    '10', '10', '20', '10',
+    '10', '0', '20', '10',
+    '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+    '10', '3', '20', '3',
+    '10', '3', '20', '7',
+    '10', '7', '20', '7',
+    '10', '7', '20', '3',
+    '0', 'ENDSEC', '0', 'EOF',
+  ].join('\n')
+
+  /**
+   * L 形（逆时针）：(0,0)-(10,0)-(10,4)-(4,4)-(4,10)-(0,10)。
+   * 缺口在 +X+Y 象限 —— 用它判"贴到面之后有没有被镜像 / 倒置"。
+   */
+  const L_SHAPE_DXF = [
+    '0', 'SECTION', '2', 'ENTITIES',
+    '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+    '10', '0', '20', '0',
+    '10', '10', '20', '0',
+    '10', '10', '20', '4',
+    '10', '4', '20', '4',
+    '10', '4', '20', '10',
+    '10', '0', '20', '10',
+    '0', 'ENDSEC', '0', 'EOF',
+  ].join('\n')
+
+  it('长边归一到 20 mm、深度不受缩放影响（体积 = 面积 × 缩放² × 深度）', async () => {
+    const { initOcctWasm, getKernel } = await import('../src/occt-kernel/occtKernel')
+    await initOcctWasm()
+    const kernel = getKernel() as unknown as BrepEngineApi
+    const solid = dxfToSolid(kernel, DONUT_DXF, { depth: 1, targetLongSide: 20 })
+    // 10 的长边 → 放大 2 倍：面积 84 → 336；depth 恒 1（缩放只作用在 z=0 的面上）。
+    expect(kernel.getVolume(solid)).toBeGreaterThan(336 * 0.99)
+    expect(kernel.getVolume(solid)).toBeLessThan(336 * 1.01)
+    const bb = kernel.getBoundingBox(solid, false)
+    expect(bb.xmax - bb.xmin).toBeCloseTo(20, 1)
+    expect(bb.ymax - bb.ymin).toBeCloseTo(20, 1)
+    expect(bb.zmax - bb.zmin).toBeCloseTo(1, 3)
+  }, 120_000)
+
+  it('轴向：缺口仍在 +X+Y（不镜像、不倒置）', async () => {
+    const { initOcctWasm, getKernel } = await import('../src/occt-kernel/occtKernel')
+    await initOcctWasm()
+    const kernel = getKernel() as unknown as BrepEngineApi
+    // targetLongSide = 10 → 比例 1，坐标可读：居中后 bbox = [-5,5]²。
+    const solid = dxfToSolid(kernel, L_SHAPE_DXF, { depth: 1, targetLongSide: 10 })
+    // 缺口象限（居中后的 (3,3)）：应当**空**；镜像/倒置会让它变实心。
+    expect(kernel.containsPoint(solid, { x: 3, y: 3, z: 0.5 }, 1e-6)).toBe(false)
+    // 实体象限（居中后的 (-3,-3)）：应当**实**。
+    expect(kernel.containsPoint(solid, { x: -3, y: -3, z: 0.5 }, 1e-6)).toBe(true)
+  }, 120_000)
+
+  it('空 DXF → 抛错（不产出一个看不见的空实体）', async () => {
+    const { initOcctWasm, getKernel } = await import('../src/occt-kernel/occtKernel')
+    await initOcctWasm()
+    const kernel = getKernel() as unknown as BrepEngineApi
+    const empty = ['0', 'SECTION', '2', 'ENTITIES', '0', 'ENDSEC', '0', 'EOF'].join('\n')
+    expect(() => dxfToSolid(kernel, empty, { depth: 1 })).toThrow(/轮廓|DXF/)
+  }, 120_000)
+
+  it('depth 非正数 → 抛错（不发一条必然失败的语句）', () => {
+    expect(() => dxfToSolid({} as unknown as BrepEngineApi, L_SHAPE_DXF, { depth: 0 })).toThrow(/depth/)
+  })
 })

@@ -60,9 +60,9 @@ const manifest = readFileSync(fileURLToPath(new URL('../../../src/api/generated/
     expect(ns).toMatch(/scriptFaceOps/)
     const faijsOps = new Set([
       'box', 'sphere', 'cylinder', 'cone', 'wedge',
-      'text', 'screw', 'svgExtrude', 'sdf', 'load',
+      'text', 'screw', 'svgExtrude', 'dxfExtrude', 'sdf', 'load',
       'translate', 'rotate_euler', 'scale', 'scale3d',
-      'fai_drill', 'fai_extrude', 'engrave', 'chamfer', 'knurl',
+      'fai_drill', 'fai_extrude', 'chamfer', 'knurl',
       'union', 'subtract', 'intersect',
       'fai_split', 'group', 'assembly', 'copy',
       'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',

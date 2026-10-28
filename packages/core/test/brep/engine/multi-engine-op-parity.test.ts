@@ -286,12 +286,13 @@ const CASES: Case[] = [
 
   // ── A. 其他 ──
   {
-    name: 'engrave',
+    name: 'dxfExtrude',
     code:
       'const b = cad.box(40, 40, 20, { centered: true })\n' +
-      "const p = cad.engrave(b, { mode: 'concave', depth: 2, text: 'A', textSize: 10, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })",
+      "const d = cad.dxfExtrude({ dxf: '0\\nSECTION\\n2\\nENTITIES\\n0\\nLWPOLYLINE\\n8\\nP\\n90\\n0\\n10\\n0\\n20\\n0\\n10\\n10\\n20\\n0\\n10\\n10\\n20\\n10\\n10\\n0\\n20\\n10\\n0\\nENDSEC\\n0\\nEOF', depth: -2, targetLongSide: 10, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })\n" +
+      'const p = cad.subtract(b, d)',
     category: 'parity',
-    note: '需测试字体加载器',
+    note: 'DXF 轮廓负向深度压入面内再 subtract；bbox 保持箱体外形 40×40×20',
   },
   {
     name: 'place',

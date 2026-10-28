@@ -124,7 +124,7 @@ export type {
   BoundingBox, FaceDescriptor,
   BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
   TextParams, SvgExtrudeParams, SdfParams,
-  DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
+  DrillParams, ExtrudeParams, KnurlParams,
   SplitPlane, SplitResult,
 } from './mesh/types'
 export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './mesh/types'

@@ -1,7 +1,7 @@
 # 在 smlib C++ 源码层实现 STL/STEP 导入导出：方案
 
-> 状态：**已实施（P0–P3 完成，P4 部分完成，P5 未开始）** —— 实施结果见 §14
-> 日期：2026-10-27（§14 为当日实施后的实况总结）
+> 状态：**已实施（P0–P3 完成，P4 部分完成，P5 未开始；P-a 已修复，45 样本 24/45）** —— 实施结果见 §14
+> 日期：2026-10-27（§14 为当日实施后的实况总结，§14.4.1 / §14.5「P-a 轮次验收」为 10:30 追加）
 > 参考源：`C:\git\OpenCascade\brepkit`（算法来源，Rust）、`C:\git\new\usd-brep`（smlib 源码，C++）
 > 取代关系：**本方案取代** `docs/plans/2026-10-27-smlib-stl-step-io-plan.md`。
 > 旧方案的核心结论是「格式层放 TS、只加少量 C++ 桥」——与用户要求相反，作废。
@@ -354,9 +354,12 @@ P3/P4 再上曲面。
 
 ## 14.1 一句话结论
 
-**算法已完整下沉到 smlib 的 C++ 内核并通过编译链；合成几何测试全绿；真实工业模型尚未打通（10/45）。**
+**算法已完整下沉到 smlib 的 C++ 内核并通过编译链；合成几何测试全绿；真实工业模型 24/45（P-a 修复后）。**
 剩余缺口全部在「内核对真实 STEP 拓扑/裁剪语义的适配」上，不是缺功能入口——
-同批 45 个文件用 brepkit 自身跑是 40/45，所以 35 个失败里 **30 个属于移植没做到位**。
+同批 45 个文件用 brepkit 自身跑是 40/45，所以 21 个失败里绝大部分属于移植没做到位。
+
+P-a 的关键教训：**一类「看起来像 12 个独立缺陷」的失败，可能只是 1 个解析缺陷**
+（`.F.` 朝向标志恒被读成 `.T.`，见 §14.4.1 缺陷 6）。分类统计前先确认公共路径。
 
 ## 14.2 交付物清单
 
@@ -416,6 +419,19 @@ P3/P4 再上曲面。
 > 缺陷 3/4 的意义：**验收不能只信自己的往返**。smlib 自导自入时朝向错误会「自洽」地通过，
 > 是让 brepkit 读同一份文件才暴露出来。这条已固化为方法：**导出侧必须用第三方读回校验。**
 
+### 14.4.1 P-a 轮次追加的 3 个真缺陷（2026-10-27 10:30）
+
+| # | 缺陷 | 根因 | 修法 | 证据 |
+|---|---|---|---|---|
+| 6 | **所有 `.F.` 朝向标志被读成 `.T.`** —— 曲面件的 seam 边变成两条同向线，loop 缺口 = 整个高度（cylinder 实测 `worst gap 20`），面建不出来或建成 2.4e6 高 | `splitArgs()` 为跟踪嵌套列表深度会把 `)` 留在最后一项，所以 `ORIENTED_EDGE('',*,*,#55,.F.))` 的最后属性是 `".F.)"` 而非 `".F."`；而判断用的是 `endsWith(trim(v), ".F.")`，`trim()` 只去空白不去括号 → 恒为 false | 新增 `attrValue()`（剥尾随 `)`/`;`）+ `isFalseFlag()`，替换 4 处判断：`ORIENTED_EDGE`、`FACE_OUTER_BOUND`、`ADVANCED_FACE`、`ORIENTED_CLOSED_SHELL` | `cylinder*` 5/5、`cone*` 4/4、`box_boss` 全通过；全量 16 → **24/45** |
+| 7 | 导出的 **每个实体多一个 `)`**：`CARTESIAN_POINT('',(0.,0.,-1e1)));`、`EDGE_LOOP('',(#1,#2))));` | `emit()` 自己补 `(` 和 `);`，而调用方在 attrs 字面量里又补了一遍，31 处全中 | 在 `emit()` 内做括号配平（`depth < 0` 时剥尾随 `)`），一处改动覆盖全部调用点，新实体也不会再犯 | 修前本仓库解析器容忍 → 往返「通过」；**严格 Part21 解析器会直接拒收**。修后 brepkit 24/24 可读 |
+| 8 | 导出的 `ORIENTED_EDGE` **只有 4 个属性**（少一个 `*`） | 写成 `ORIENTED_EDGE('',*,#115,.T.)`，标准是 `(name, edge_start, edge_end, edge_element, orientation)` 五属性 | 补齐为 `'',*,*,#ec,.T.` | 同上；`edgeCurve()` 已 `(void)reversed`，方向只由 `.F.` 编码，不构成双重反转 |
+
+> **缺陷 6 为什么此前一直没暴露**：平面面走 `SmApiCreatePlanarFaces`，该入口的契约是
+> 「曲线可任意顺序、任意朝向」，它自己重排重定向，把方向 bug 完全掩盖了。
+> 之前通过的 16 个文件**全是平面件**；一旦遇到曲面（需要按 `.F.` 拼出闭合 loop）就全灭。
+> 这也解释了为什么「旋转曲面全军覆没」看起来像 12 个独立问题，实则是 1 个解析缺陷。
+
 ## 14.5 验证矩阵
 
 ### 合成几何（`packages/core/test/smlib-kernel/`）
@@ -428,6 +444,54 @@ P3/P4 再上曲面。
 | `smlib-stl-export.test.ts` | binary / ASCII 导出 | 全绿 |
 | `smlib-wasm-smoke.test.ts` | wasm 装载与桥可达 | 全绿 |
 | **合计** | | **15/15** |
+
+### 整个 `test/smlib-kernel/` 目录复核（2026-10-27 08:06 启动，耗时 66 min）
+
+```
+Test Files  1 failed | 10 passed (11)
+Tests       2 failed | 72 passed (74)
+```
+
+唯一红的文件是 **`smlib-stl-import-perf.probe.test.ts`**（R1 性能探针，2 个用例），报错：
+
+```
+TypeError: Cannot perform DataView.prototype.getUint32 on a detached ArrayBuffer
+ ❯ createPlanarFaces  test/smlib-kernel/smlib-stl-import-perf.probe.test.ts:70:15
+```
+
+**归因：探针自身的缺陷，不是 IO 实现的缺陷。** 该文件每个辅助函数都在函数开头
+`const dv = new DataView(k.memory.buffer)`，随后才 `k.malloc(...)` 并调用内核；一旦 wasm 线性内存
+在 `malloc` 或内核调用里增长，旧 `ArrayBuffer` 被 detach，先前抓的 `dv` 立刻失效
+（`smlib-stl-import-perf.probe.test.ts:62-70`、`44-53`）。正确写法是**每次读写前重建 DataView**，
+或在 `k.memory.buffer` 变化后重新取。这与 STEP/STL 桥无关：同一批断言在 `smlib-stl-import` /
+`smlib-stl-export` 等 10 个文件里全绿。
+
+> 待办（未执行）：修复该探针的 DataView 生命周期 + 给它的 1k/10k 规模标定加超时/降规模，
+> 否则每轮全目录回归要付 66 分钟且恒定 2 红，会淹没真实回归信号。
+
+### P-a 轮次验收（2026-10-27 10:30，缺陷 6/7/8 修复后）
+
+| 项 | 修前 | 修后 | 判定 |
+|---|---|---|---|
+| 45 个真实 STEP 样本 | 16/45 | **24/45** | 原有 16 个**一个未丢**，失败集无新增（`diff` 逐项比对一致） |
+| 新增通过 | — | `box_boss`、`cone`、`cylinder`、`cylinder_counterbore`、`cylinder_medium`、`cylinder_tall`、`cylinder_wide`、`plate_holes` | +8 |
+| 旋转曲面整类 | cylinder×5、cone×4 全灭 | cylinder×5、cone×4、torus×3、`box_boss` **全通过** | P-a 目标达成 |
+| brepkit 第三方读回（24 个导出物） | — | `import 24/24 ok, roundtrip 24/24 ok` | 通过 |
+| cylinder 体积 | `7.75e8`（面被建成 2.4e6 高） | **`6283.1853`**（= π·10²·20，精确） | 通过 |
+| `packages/core/test/smlib-kernel` 回归 | — | **85 个用例全绿**（STEP 8 + 核心 43 + STL/演进/引擎切换 34），0 失败 | 无回退 |
+| 体积 | raw 6,816,928 / brotli 1,542,301 | raw **6,932,537** (+1.7%) / brotli **1,551,442** (+0.6%，≈1.48 MiB) | 远低于单包 2 MB |
+
+#### 本轮新增的方法论缺口：「往返一致」对空体失效
+
+brepkit 报告里有 5 个文件 `V=0.0000 rel=NaN`（torus ×3、cone ×2）。`rel=NaN` 是因为两次都是 0，
+**判据 `|V2-V1|/V1` 在 `V1=0` 时退化成 `NaN`，被当作一致**。也就是说：一个导入时就建不出体积的
+实体，往返后仍然没有体积，会被现判据判为「通过」。
+
+`torus` 的完整环面体积应为 `2π²Rr²`（R=50, r=25 → ≈616,850），实测 0，说明环面壳的面朝向相反、
+体积相互抵消。这是一个**独立于 P-a 的真缺陷**，之前被弱判据掩盖。
+
+> 待办：给 harness 补一条「体积必须 > 0 且与源文件解析出的期望体积匹配（相对误差 1e-6）」的断言，
+> 否则空体会一直伪装成通过。
 
 ### 真实模型（45 个 OCCT AP214 文件，`wasm-probe/step-fixture-check.mjs`）
 
@@ -444,15 +508,21 @@ P3/P4 再上曲面。
 > 驱动的一个必要细节：**每个文件必须新建 wasm 实例**。任一文件触发 trap 后实例被毒化，
 > 复用会把 1 个缺陷放大成级联全红——第一版驱动就在这上面误报过。
 
-## 14.6 剩余 30 个移植缺口的分类（含根因假设）
+## 14.6 剩余缺口的分类（P-a 修复后重新归类，21 个）
+
+**下表是 P-a 之前的原始分类，保留以便对照**——其中「旋转曲面 12 个」与「圆柱面/孔壁 seam ~16 个」
+经 P-a 证实**同源**，是一个解析缺陷（`.F.` 恒读成 `.T.`）的两种表现，不是两类问题。
 
 | 类别 | 文件数（粗计，有重叠） | 现象 | 根因判断 |
 |---|---|---|---|
-| 旋转曲面走裁剪时 trap | 12 | `null function or function signature mismatch`（cylinder*/cone*/torus*/box_boss/connector_body） | `SmApiTrimSurfaceWith3dCurves` 内部 call_indirect 命中空槽；疑曲面类型/环组入参不匹配 |
-| 圆柱面 / 孔壁裁剪被拒 | ~16 | `SmApiTrimSurfaceWith3dCurves status 1001/1007` | 环组未被接受：seam 边重复、pcurve 缺失、曲线未严格首尾相接 |
-| 带内环的平面面 | 2 | `SmApiCreatePlanarFaces status 1001`（`box_cross_hole_multi`、`box_tall`） | 内环（孔）方向 / 嵌套深度未按内核期望给出 |
-| 整球（无 seam 边） | 3 | 单面 `FACE_BOUND→VERTEX_LOOP`，被当成环去解边 | 缺「整曲面 canonical 建体」分支（brepkit 也缺，但它是另一个报错） |
-| NURBS 曲面 | 2 | `B_SPLINE_SURFACE_WITH_KNOTS not supported` | **纯缺失**，未实现（与 brepkit 同缺） |
+| ~~旋转曲面走裁剪时 trap~~ | ~~12~~ | **已解决**（缺陷 6） | 实为 `.F.` 朝向解析失败导致 loop 不闭合 |
+| ~~圆柱面 / 孔壁裁剪被拒~~ | ~~~16~~ | **已解决**（缺陷 6） | 同上；seam 边被建成两条同向线 |
+| 带内环的平面面 | 3 | `SmApiCreatePlanarFaces status 1001`（`box_cross_hole_multi`、`box_tall`、`connector_body`） | 内环（孔）方向 / 嵌套深度未按内核期望给出 |
+| 整球（无 seam 边） | 3 | `edge curve #21 failed (unsupported)`（`sphere*`） | 单面 `FACE_BOUND→VERTEX_LOOP`，无 3D 边；缺「整曲面 canonical 建体」分支 |
+| NURBS 曲面 | 2 | `B_SPLINE_SURFACE_WITH_KNOTS not supported`（`loft`） | **纯缺失**，未实现（与 brepkit 同缺） |
+| COMPOSITE 曲线 | 1 | `curve type COMPOSITE unsupported`（`mounting_bracket`） | 未实现复合曲线展开 |
+| 圆角 / 沉孔面建面被拒 | 13 | `MakeFaceWithCurves status 1007`（`box_fillet`、`box_flat`、`box_hole_*`、`box_*_fillet`、`ribbed_mount` 等） | **本轮新归类**：均为「一个面上有多个内环 + 圆角过渡面」；待查是否同源（同一入口给出的环组被判非法） |
+| **环面 / 锥面体积为 0** | 5 | brepkit 读回显示 `V=0.0000`（`torus*`、部分 `cone*`），但本仓库判据判「通过」 | 面朝向相反致体积抵消；被「往返一致」弱判据掩盖，见 §14.5 方法论缺口 |
 
 ## 14.7 试过并回退的路线（避免重走）
 
@@ -467,27 +537,55 @@ P3/P4 再上曲面。
   或全部按端点重建），不能混。
 - 另有一个所有权坑：`CreateFacesWithCurves` 失败时 `surface` 已被内核消费，再 `delete` 会 double free。
 
+### 14.7.1 P-a 轮次试过并否掉的路线
+
+**① 以为是「旋转曲面需要收紧 UV 域」，动 `AdjustSTEPUVDomain`。** 全部否掉。
+
+- 观察到的现象是真的：`SmCylinder::CreateCanonical` 建的是**无限**圆柱
+  （`SmCylinder.cpp:76`，v 域 `[-SM_INFINITE_PARAMETER, SM_INFINITE_PARAMETER]` = ±1234567），
+  导出文件里确实出现 `CARTESIAN_POINT('',(10.,0.,1.234557e6))` 这样 z≈1.23e6 的顶点。
+- 但两次修法都无效：先按环跨度调 `AdjustSTEPUVDomain` 再传 `GetNaturalUVDomain()` →
+  **域不一致**，收紧被绕过，而 `AdjustSTEPUVDomain` 走 `Reparameterize + MakeNurb()`
+  **真的重裁剪了几何**，把 `cone_flat`/`cone_medium` 从通过改坏（16 → 13）。
+- 再做对照实验：**把 domain 完全恢复成 `GetNaturalUVDomain()`，cylinder 仍 5/5、cone 仍 4/4 通过**。
+  结论：UV 域与这个缺陷无关，整段收紧代码已删除。
+- 教训：**`GetNaturalUVDomain()` 与 `GetSTEPUVDomain()` 是两套参数**（圆柱前者是弧长 0..62.83，
+  后者是角度 0..360）。混用会让「改了却没生效」和「改了反而更糟」同时出现，且都很难从结果反推。
+
+**② 用 `link-dbg.rsp`（`emcc -g`）生成的带符号 wasm 定位 trap。** 方法有效，保留。
+
+- `wasm-probe/__wasm-func-name.mjs`（解析 name section）+ `__wat-func-at.mjs`（函数索引 → `.wat` 行）
+  配合 `SMLIB_WASM=out/smlib_dbg.wasm`，JS 栈里直接显示 C++ 函数名。
+- 但本轮最终**没用上它**：真正的根因靠「把失败面的 loop 轨迹和曲线端点打印出来」一眼看出
+  （两条 seam 线同向、gap = 整个高度）。**先打印数据，再上重武器。**
+
 ## 14.8 体积账（单包 2 MB 硬约束）
 
 | 项 | raw | brotli | 相对基线 |
 |---|---|---|---|
 | 基线（STL 完成时） | 6,816,928 B | 1,542,301 B | — |
-| **当前（STEP 导入 + 导出 + 诊断）** | **6,916,694 B** | **1,565,851 B ≈ 1.49 MB** | **+99,766 B / +23,550 B** |
+| STEP 导入 + 导出 + 诊断（P-a 之前） | 6,916,694 B | 1,565,851 B ≈ 1.49 MB | +99,766 B / +23,550 B |
+| **P-a 之后（当前）** | **6,932,537 B** | **1,551,442 B ≈ 1.48 MB** | **+115,609 B / +9,141 B** |
 
-单包 2 MB（按 2×1024×1024 计）余量 **≈ 0.50 MB**；按 10^6 计余量 **≈ 0.41 MB**。
-STEP 全量移植（含解析曲面、NURBS 曲线读写）只花了约 **23 KB** brotli——
+> P-a 之后 brotli 比 P-a 之前**小了 14,409 B**：删掉了整段 UV 域收紧逻辑，而新增的
+> `attrValue()`/`isFalseFlag()`/`emit()` 配平只占极小体积。raw 略增是因为诊断字符串仍在。
+
+单包 2 MB（按 2×1024×1024 计）余量 **≈ 0.52 MiB**；按 10^6 计余量 **≈ 0.45 MB**。
+STEP 全量移植（含解析曲面、NURBS 曲线读写）只花了约 **9 KB** brotli 净增——
 原计划 §10 里「P1–P5 合计 ≤ 1.68 MB」的估算偏保守，实际远低于预算。
 
 ## 14.9 下一步（按收益排序，未执行，等指示）
 
 | 优先级 | 目标 | 覆盖文件 | 备注 |
 |---|---|---|---|
-| P-a | 旋转曲面 `call_indirect` 空槽 | 12 | 收益最大；需先确认 `SmApiTrimSurfaceWith3dCurves` 对曲面类型的要求 |
-| P-b | 圆柱 / 孔壁 seam 边裁剪 | ~16 | 与 P-a 可能同源（同一入口），建议一起查 |
-| P-c | 带内环平面面 | 2 | `SmApiCreatePlanarFaces` 内环方向 / 嵌套 |
-| P-d | 整球 `VERTEX_LOOP` | 3 | 需补「整曲面 canonical 建体」分支 |
-| P-e | NURBS 曲面 | 2 | 纯新增实现；上游 brepkit 也不支持，可最后做 |
+| ~~P-a~~ | ~~旋转曲面 `call_indirect` 空槽~~ | **12** | **已完成（2026-10-27 10:30）**：根因是 `.F.` 朝向标志全部被读成 `.T.`（缺陷 6），非 12 个独立问题。45 样本 16 → 24，cylinder×5 + cone×4 + `box_boss` + `plate_holes` 全通 |
+| P-b | 圆柱 / 孔壁 seam 边裁剪 | ~16 | **须重新归类**：seam 方向问题已随缺陷 6 解决。剩余的是 `MakeFaceWithCurves status 1007`（13 个 box 圆角/沉孔件）与 `SmApiCreatePlanarFaces status 1001`（`box_tall`/`box_cross_hole_multi`/`connector_body`，带内环平面），二者都不是 seam 问题，见下 |
+| P-c | 带内环平面面 | 3 | `SmApiCreatePlanarFaces` 内环方向 / 嵌套；`box_cross_hole_multi`、`box_tall`、`connector_body` |
+| P-d | 整球 `VERTEX_LOOP` | 3 | `sphere*` 报 `edge curve #21 failed (unsupported)`：整球只有一个 `VERTEX_LOOP`、无 3D 边，需补「整曲面 canonical 建体」分支 |
+| P-e | NURBS 曲面 | 2 | `loft.step` 纯新增实现；上游 brepkit 也不支持，可最后做 |
+| P-f | **环面 / 锥面体积为 0** | 5 | 本轮 brepkit 读回新发现：`torus*` 与部分 `cone*` 的 `V=0`，面朝向相反致体积抵消。被「往返一致」弱判据掩盖（见 §14.5 方法论缺口）。`mounting_bracket` 的 `COMPOSITE` 曲线不支持也归此批 |
 
 **验收口径**：任何一轮改动都必须同时给出
-① 合成几何 15/15 不回退；② 45 个真实样本的通过数（不降）；
-③ 导出物交 brepkit 读回的面数 / 体积（防「自洽地错」）；④ brotli 体积。
+① `packages/core/test/smlib-kernel/` 全绿不回退（当前 85 用例）；② 45 个真实样本的通过数（不降）；
+③ 导出物交 brepkit 读回的面数 / 体积（防「自洽地错」）；
+④ brotli 体积。
