@@ -1,9 +1,11 @@
 ---
-status: v2 已实施（2026-10-28）—— 4 例中 2 例转 PASS，零回归；issue802 待办见 §11
+status: v2 已实施（2026-10-28）—— 4 例中 3 例转 PASS（issue802 见 §11.2），零回归
 date: 2026-10-28
 repo: faijs（packages/core）
 supersedes: v1「布尔操作数闭合性校验」（2026-10-28，前提已被实证推翻，见 §0）
-影响面: 内核 `api/boolean.ts` + 叶子 op 标记 + `mesh/types.ts`；不改 faijs-openscad / openscad-port
+影响面: 内核 `api/boolean.ts` / `api/boolean-op` + 叶子 op 标记 + `mesh/types.ts`
+        + `api/internal/authored-closure.ts`（句柄登记表）；
+        ext 侧 `polyhedron` 缝补前求值（faijs-openscad）
 ---
 
 # 布尔操作数闭合性校验（v2：叶子网格口径）
@@ -350,21 +352,53 @@ PASS 218 → **220**、FAIL 9 → **7**、known-diffs 33 → **27**。
    `booleanBrep`**，不是 `api/boolean.ts`。OpenSCAD 语义必须在**两处**都实现
    （issue591 走 `cad.subtract`，issue802 / stl-import 走 `cad.boolean 'fuse'`）。
 
-### 11.2 issue802 未闭合的确切原因与阻塞点
+### 11.2 issue802 —— 已解决（2026-10-28 续，`f7d160e0` + faijs-openscad `1b667ee`）
 
 faijs 的 `openscad.polyhedron` 先用 sew/makeSolid 把**开放网格缝补成闭合实体**：作者
 原始三角有 4 条边界边（探针 `edgeHist {1:4, 2:73}`），缝补后产物 52 tri **全闭合**。
 于是按缝补后的 mesh 判永远是"闭合"，而 OpenSCAD 在 PolySet→Nef 看到的是原始三角并丢弃它。
 
-修法是把「作者原始三角的闭合性」在**缝补之前**记下来交给布尔采信（§4.1 的
-`AUTHORED_LEAF_CLOSED` 思路）。实现已完成到「ext 侧算出正确结论」为止
-（探针确认 `authoredClosed=false`，与 CSG 原始三角的独立复算 `{1:4, 2:73}` 完全一致），
-但**结论送不到布尔判定点**：
+首次定位记录的两条阻塞点，**第一条本身是错的**（探针实测修正）：
 
-- ext 的 `polyhedron` 返回的是**数字句柄**（`typeof r.shape === 'number'`），Symbol 槽
-  打不上去；
-- 改按句柄号登记后，仍未能定位「句柄 → faijs Shape」的转换点（`adoptOut` 拿到的已经是
-  带 `positions` 的对象）以取回结论。
+- ~~ext 的 `polyhedron` 返回数字句柄、Symbol 槽打不上去~~ —— 实测 `BOOL_DEBUG` 探针显示
+  两个操作数 `leaf=true`：ext 产物**确实**带着 `AUTHORED_LEAF` 标记进了布尔判定点。
+  原因是 `registerLib` 收编 ext 命名空间时把数字句柄包成了 faijs Shape，标记就打在
+  这个 Shape 上。障碍只剩一条：**判据读到的 mesh 是缝补后的产物**。
+- ~~句柄号登记后取不回~~ —— 取回点就是判定点本身：`isClosedOperandForBooleanOp(api, h, …)`
+  已经拿到了 `h = brepOf(shape)`，按句柄号查表即可，不必追「句柄 → Shape」的转换链路。
 
-该管道已**回退移除**（否则是死代码 + 无界增长的句柄登记表）。后续可从
-`define-op#wrapBrepOne` / `compat-op` 之间的转换链路继续定位。
+落地（两个包，跨包靠 globalThis 对齐）：
+
+- **ext `ops/polyhedron.ts`**：新增 `authoredMeshClosed(tris)`，在 `sew` **之前**按输入
+  三角形统计无向边使用次数（顶点 `round(x*1e6)` 量化，与内核 `meshClosure` 同口径）；
+  不闭合时 `recordAuthoredClosure(handle, false)`。三个返回点统一过 `finish()`，
+  `BOOL_DEBUG=1` 打印 `[EXT_DEBUG] polyhedron authoredOpen=… tris=…`。
+- **内核 `api/internal/authored-closure.ts`**（新增）：句柄号 → 结论的登记表，挂在
+  `globalThis[Symbol.for('faijs.authoredClosure')]`——登记方（ext 包）与读取方（内核）
+  是独立包、可能解析到不同的 `@faicad/faijs` 副本，模块级 `Map` 不共享。
+  **只登记 `closed === false`**；未登记即回退既有口径（fail-safe）；表上限 4096。
+- **`boolean-closure#isClosedOperandForBooleanOp`**：先查登记表（命中时 `tris=-3` 标记
+  结论来源），未命中再走产物 mesh 的边计数。
+
+实测：
+
+```
+[EXT_DEBUG] polyhedron authoredOpen=true  tris=50   ← part0（原始三角 4 条边界边）
+[EXT_DEBUG] polyhedron authoredOpen=false tris=24   ← part1
+[BOOL_DEBUG] op=fuse i=0 leaf=true tris=-3 closed=false   ← 按登记结论丢
+[BOOL_DEBUG] op=fuse i=1 leaf=true tris=24 edgeHist={"2":36} closed=true
+```
+
+候选 = part1：24 tri / volume 6347.4918（ref 6347.4924）/ Hausdorff 1.9e-6 → **PASS**。
+全量 555 例门禁 `稳定 554 · 改进 1 · 回归 0 → PASS`；PASS 220 → **221**、FAIL 7 → **6**。
+
+### 11.3 内核全量测试
+
+`npm test -w @faicad/faijs`：4106 passed / 16 failed。16 例失败全部与本次改动无关：
+
+- 13 例 brepkit 多版本冒烟：`Cannot find module .../_test-kernels/brepkit-2.129.15/...`
+  ——本地缺该测试夹具（未下载），环境性失败；
+- 1 例 `corpus-fai-js`：失败项全在仓库内 `out/`（gitignored 的本地巡检产物），
+  `E_SECURITY — AST nesting depth exceeds 100`；
+- 2 例（本轮已修）`op-set-consistency`：cad 面新增 `setBooleanOperandValidation` 后符号表
+  未同步 → `npx tsx scripts/gen-symbol-table.ts` 重新生成（171 条，提交 `294e0dee`）。
