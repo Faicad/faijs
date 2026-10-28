@@ -1,5 +1,5 @@
 ---
-status: 待审核（v2）
+status: v2 已实施（2026-10-28）—— 4 例中 2 例转 PASS，零回归；issue802 待办见 §11
 date: 2026-10-28
 repo: faijs（packages/core）
 supersedes: v1「布尔操作数闭合性校验」（2026-10-28，前提已被实证推翻，见 §0）
@@ -323,3 +323,48 @@ faijs 没有 Nef，每一步都产出 `Shape`（带 mesh），所以必须**显�
 6. 纯仿射变换的叶子标记继承（§4.2 本期不做）作为后续增强：`applyMatrix(import(x))` 这类
    "变换后的非闭合叶子"目前不校验（漏判、fail-safe），可在同一标记机制上加
    `leaf: 'inherit'` 补齐。
+
+
+---
+
+## 11. 实施结果（2026-10-28 回填）
+
+**内核** `a3d1aa5d` + **emitter** `faijs-openscad 24b595e` + **基线** `openscad-port fd02daf`。
+
+全量 555 例门禁：`稳定 553 · 改进 2 · 已知波动 0 · 新增 0 · 移除 0 · 回归 0 → PASS`
+PASS 218 → **220**、FAIL 9 → **7**、known-diffs 33 → **27**。
+
+| 用例 | 结果 | 探针数据 |
+| --- | --- | --- |
+| `issue591` | FAIL → PASS | group A `tris=32 edgeHist={2:46, 4:1} closed=false` → 丢；group B 两个 `tris=16 {2:24} closed=true` → 留 |
+| `stl-import-nonmanifold` | FAIL → PASS | import 操作数 `tris=24 {2:34, 4:1} closed=false` → 丢，剩 cube 12 tri / vol 1.0 |
+| `linear_extrude-scale-zero-tests` | FAIL → TIMEOUT | 0.44.7 在退化挤出上更慢；known-diffs 豁免，待该例的非闭合操作数被丢后应同时变快 |
+| `issue802` | 仍 FAIL | 见下 |
+
+### 11.1 实施中对 §4 的两处修正
+
+1. 标记落点不是 `l3-bridge#adoptEntity`（实测**从未被调用**），而是
+   **`compat-op#adoptOut`**——它才是所有库产物的唯一出口（含「已经是 Shape 直接透传」
+   那条短路），且带 `spec.name`。
+2. `cad.boolean(args, tools, kind, opts)` 走的是 **`api/boolean-op/index.ts` 里另一份
+   `booleanBrep`**，不是 `api/boolean.ts`。OpenSCAD 语义必须在**两处**都实现
+   （issue591 走 `cad.subtract`，issue802 / stl-import 走 `cad.boolean 'fuse'`）。
+
+### 11.2 issue802 未闭合的确切原因与阻塞点
+
+faijs 的 `openscad.polyhedron` 先用 sew/makeSolid 把**开放网格缝补成闭合实体**：作者
+原始三角有 4 条边界边（探针 `edgeHist {1:4, 2:73}`），缝补后产物 52 tri **全闭合**。
+于是按缝补后的 mesh 判永远是"闭合"，而 OpenSCAD 在 PolySet→Nef 看到的是原始三角并丢弃它。
+
+修法是把「作者原始三角的闭合性」在**缝补之前**记下来交给布尔采信（§4.1 的
+`AUTHORED_LEAF_CLOSED` 思路）。实现已完成到「ext 侧算出正确结论」为止
+（探针确认 `authoredClosed=false`，与 CSG 原始三角的独立复算 `{1:4, 2:73}` 完全一致），
+但**结论送不到布尔判定点**：
+
+- ext 的 `polyhedron` 返回的是**数字句柄**（`typeof r.shape === 'number'`），Symbol 槽
+  打不上去；
+- 改按句柄号登记后，仍未能定位「句柄 → faijs Shape」的转换点（`adoptOut` 拿到的已经是
+  带 `positions` 的对象）以取回结论。
+
+该管道已**回退移除**（否则是死代码 + 无界增长的句柄登记表）。后续可从
+`define-op#wrapBrepOne` / `compat-op` 之间的转换链路继续定位。
