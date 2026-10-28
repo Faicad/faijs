@@ -31,6 +31,8 @@ const analyzeCode = (code: string) => extractMetadata(code).lines
 
 const HERE = fileURLToPath(new URL('.', import.meta.url))
 const FAIJS_DIR = resolve(HERE, '..')
+/** fixtures/data：STL 等资产目录（cad.load({file}) 的 key 即完整文件名，见 FsAssetResolver.scanDirectory）。 */
+const FIXTURES_DIR = resolve(HERE, '../../../fixtures/data')
 
 /** 语料：全部 40 个 .fai.js（41 - compat-e2e/aluminum-enclosure 第三方库通道）。 */
 const CORPUS: string[] = [
@@ -162,7 +164,7 @@ function computeMetrics(shape: Shape): Metrics {
 
 /** 执行脚本，取最后一个赋值语句的输出 Shape。 */
 async function executeScript(code: string): Promise<Metrics> {
-  const runtime = createRuntime(createNodePorts(), 'brep')
+  const runtime = createRuntime(createNodePorts({ assetsDir: FIXTURES_DIR }), 'brep')
   const result: Awaited<ReturnType<typeof runtime.execute>> = await runtime.execute(code)
   if (result.failedAt) {
     return { ok: false, failedAt: `${result.failedAt.callee}: ${result.failedAt.message}`, triCount: 0, faceGroupCount: 0, meshArea: 0, signedVolume: 0, bbox: [0, 0, 0] }
