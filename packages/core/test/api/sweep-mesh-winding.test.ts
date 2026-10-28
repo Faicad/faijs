@@ -31,17 +31,23 @@ import type { ExecutionMode, HostPorts } from '../../src/cad-runtime/ports'
 import { asPartName } from '../../src/identity'
 import type { Shape } from '../../src/mesh/types'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
-import { registerBrepkitBrepEngine } from '../../src/brep/engine/adapters/brepkit'
+import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
+import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
 import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
 
 beforeAll(async () => {
-  __resetEngineRegistriesForTests()
-  await registerBrepkitBrepEngine()
+  await initOcctWasm()
 }, 120000)
 
 afterAll(() => {
   __resetEngineRegistriesForTests()
 })
+
+/** sweep 现为 occt-only（D11：smlib 无扫掠桥，P1 缺口）——执行前把当前引擎切到 occt。 */
+async function useOcct(): Promise<void> {
+  __resetEngineRegistriesForTests()
+  await registerOcctBrepEngine()
+}
 
 function ports(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
@@ -130,6 +136,7 @@ const DEVICE_SCRIPT = [
 
 describe('sweep — 输出网格绕序一致性', () => {
   it('真机几何（大截面 29×27 + 锐拐角折线）：共享边必须被两侧三角形反向遍历', async () => {
+    await useOcct()
     const s = await shapeOf('brep', DEVICE_SCRIPT, 'part0')
     // 网格非空才有意义（内核真出了体）。
     expect(s.indices.length).toBeGreaterThan(0)
@@ -138,6 +145,7 @@ describe('sweep — 输出网格绕序一致性', () => {
   })
 
   it('小截面 8×8 走同一条折线：本来就 0 冲突（守住断言本身不产生假阳性）', async () => {
+    await useOcct()
     const code = DEVICE_SCRIPT.replace('w:29, d:27', 'w:8, d:8').replace(
       'cx:-0.5, cy:-0.5',
       'cx:-4, cy:-4',

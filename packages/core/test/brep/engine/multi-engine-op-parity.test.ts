@@ -640,6 +640,10 @@ describe('multi-engine op parity（occt × brepkit 2.129.15/2.130.0/4.0.32）', 
         circularPattern: "几何差异：brepkit bbox [56.8,65.6,10] vs occt [62.1,64.8,10]（旋转排布语义差异，三版本一致）",
         gridPattern: "几何差异：brepkit bbox [10,10,30] vs occt [30,30,10]（方向/步长语义差异，三版本一致）",
         revolve: "几何近似：brepkit revolve 角度偏转 tessellation 采样，bbox [35.36,35.36,0] vs occt 精确 [36.06,36.06,0]（~2%，三版本一致；op 不崩、接受 face 输入，仅 bbox 近似差）",
+        // D11（2026-10 引擎收窄）：sweep 为 occt-only 设计（smlib 无扫掠桥，P1 缺口），
+        // brepkit 上按静态门禁报 E_BREP_UNSUPPORTED —— 非能力退化，是设计决定；
+        // 未来若 sweep 重新开放多引擎面，从本表删除该行即可暴露回归。
+        sweep: 'E_BREP_UNSUPPORTED: op sweep requires engine occt（D11：sweep 收窄为 occt-only，smlib 无扫掠桥）',
       }
       // 2) parity 用例：occt 基准必须成功；brepkit 成功则比对 bbox（1%），
       //    失败则查已知缺口表——未登记的失败 = 意外分歧，必须暴露。

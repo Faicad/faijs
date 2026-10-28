@@ -183,8 +183,8 @@ describe('sweep — 截面沿脊柱扫掠（基础 op：两内核都支持）', 
     expect(bbox.zmax).toBeGreaterThanOrEqual(29.9)
   })
 
-  it('brepkit 引擎：**可达**（两内核交集，2026-10-10 双引擎化）—— 真出实体', async () => {
-    await useBrepkit()
+  it('occt 引擎：**可达**（2026-10-28 起 sweep 收窄 occt-only，D11）—— 真出实体', async () => {
+    await useOcct()
     const code =
       `let part0 = ${closedWire(4)}\n` +
       'let part1 = cad.wire([[0,0,0],[0,0,25]])\n' +
@@ -513,31 +513,11 @@ describe('sweep/loft 双引擎化 GOTCHA（方案 §7.7）', () => {
     expect(b.xmax).toBeGreaterThanOrEqual(3.9)
   })
 
-  it('brepkit sweep：脊柱为单条解析 line 边 → 顶点拟合路线可达（GOTCHA-1 规避）', async () => {
-    await useBrepkit()
-    const code =
-      `let s = ${closedWire(3)}\n` +
-      'let sp = cad.wire([[0,0,0],[0,0,20]])\n' +
-      'let part2 = cad.sweep(s, sp)\n'
-    const b = bboxOf(await shapeOf('brep', code, 'part2'))
-    // 6×6 方截面沿 +Z 扫 20 → z ∈ [0,20]、xy ±3。
-    expect(b.zmax).toBeGreaterThanOrEqual(19.9)
-    expect(b.zmax).toBeLessThanOrEqual(20.1)
-    expect(b.xmax).toBeGreaterThanOrEqual(2.9)
-  })
-
-  it('brepkit sweep：脊柱为折线 wire（L 形，全解析 line 边）→ degree=1 精确表示，拐角不圆化', async () => {
-    await useBrepkit()
-    const code =
-      `let s = ${closedWire(2)}\n` +
-      'let sp = cad.wire([[0,0,0],[0,0,15],[10,0,15]])\n' +
-      'let part2 = cad.sweep(s, sp)\n'
-    const b = bboxOf(await shapeOf('brep', code, 'part2'))
-    // 4×4 方截面沿 L 形路径 → x ∈ [-2,10]、y ∈ [-2,2]、z ∈ [0,15]。
-    expect(b.zmax).toBeGreaterThanOrEqual(14.9)
-    expect(b.xmax).toBeGreaterThanOrEqual(9.9)
-    expect(b.xmin).toBeLessThanOrEqual(-1.9)
-  })
+  // dca1013（smlib 第三引擎接入）把基础 sweep 收窄为 occt-only（D11：扫掠无
+  // smlib 桥，P1 缺口；backend-dispatch 静态拒绝 brepkit/smlib）。下列 brepkit
+  // sweep 特有 GOTCHA（顶点拟合路线 GOTCHA-1、折线 degree=1 精确表示）验证的
+  // 是已移除的 brepkit sweep 适配器行为，随引擎收窄一并失效——2026-10-28 删除，
+  // 不再保留误导性断言（brepkit sweep 已不可达）。
 
   /**
    * 开口截面 wire（方案 §4.1① 预留的 `E_SWEEP_OPEN_PROFILE`）——**实测后未采用**，
@@ -547,25 +527,22 @@ describe('sweep/loft 双引擎化 GOTCHA（方案 §7.7）', () => {
    *   §4「基础 sweep 的 **brepkit** 实现」下（暗示只在 brepkit 适配器加）。
    * - 实测（2026-10-10）：**occt 与 brepkit 都接受**开口折线截面——适配器
    *   `makeFaceFromWire` / occt `MakePipeShell` 各自把折线按隐式闭合处理，两引擎
-   *   产物几何一致（见下方断言）。既然两引擎行为一致，就不是本次双引擎化引入的
-   *   分叉；此时**单侧**加 `E_SWEEP_OPEN_PROFILE` 反而会制造 occt/brepkit 分叉
-   *   （违反方案 §3「基础 op = 两内核交集」原则）；要做就得两内核一起做，属改变
-   *   occt 既有行为的独立决策 —— 未拍板前不动，故本用例钉当前一致行为。
+   *   产物几何一致。既然两引擎行为一致，就不是双引擎化引入的分叉；单侧加
+   *   `E_SWEEP_OPEN_PROFILE` 反而会制造 occt/brepkit 分叉 —— 未拍板前不动。
+   * - 2026-10-28（dca1013 后）：sweep 收窄为 occt-only，brepkit 侧已不可达；
+   *   此处继续钉住 **occt** 接受开口截面（隐式闭合）的行为契约，防止未来单侧加检查。
    */
-  it('sweep 开口截面 wire：两引擎都按隐式闭合接受，且几何一致（方案 §4.1① 的 E_SWEEP_OPEN_PROFILE 未采用）', async () => {
+  it('sweep 开口截面 wire：隐式闭合接受（方案 §4.1① 的 E_SWEEP_OPEN_PROFILE 未采用）', async () => {
     const code =
       'let s = cad.wire([[-2,-2,0],[2,-2,0],[2,2,0]])\n' + // 开口（3 点折线，未闭合）
       'let sp = cad.wire([[0,0,0],[0,0,20]])\n' +
       'let part2 = cad.sweep(s, sp)\n'
-    await useBrepkit()
-    const bk = bboxOf(await shapeOf('brep', code, 'part2'))
     await useOcct()
     const oc = bboxOf(await shapeOf('brep', code, 'part2'))
-    // 当前实测：两引擎都把开口折线当隐式闭合截面 → x/y ∈ [-2,2]、z ∈ [0,20]。
-    expect(bk.xmax).toBeCloseTo(oc.xmax, 0)
-    expect(bk.xmin).toBeCloseTo(oc.xmin, 0)
-    expect(bk.zmax).toBeCloseTo(oc.zmax, 0)
+    // 当前实测：开口折线被当隐式闭合截面 → x/y ∈ [-2,2]、z ∈ [0,20]。
     expect(oc.zmax).toBeGreaterThanOrEqual(19.9)
     expect(oc.zmax).toBeLessThanOrEqual(20.1)
+    expect(Math.abs(oc.xmin)).toBeLessThanOrEqual(2.1)
+    expect(Math.abs(oc.xmax)).toBeLessThanOrEqual(2.1)
   })
 })

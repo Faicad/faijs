@@ -99,6 +99,16 @@ interface ScriptRecord {
 
 const records = new Map<string, ScriptRecord>()
 
+/**
+ * 已知缺口：脚本依赖 occt-only op（engines:['occt']，D11 设计决定），smlib 上
+ * 按静态门禁报 E_BREP_UNSUPPORTED 是**预期行为**，不算比对分歧（screw 无 smlib
+ * 桥，见方案 §6 缺口清单）。未来若补齐 smlib 桥，从本表删除对应条目即可暴露回归。
+ */
+const KNOWN_SMLIB_ONLY_FAILURES: Record<string, string> = {
+  'features/screw.fai.js': 'screw 为 occt-only（engines:["occt"]），smlib 无桥（D11，方案 §6 缺口）',
+  'parity/parity-screw.fai.js': '同上：parity-screw 依赖 screw，smlib 无桥',
+}
+
 function computeMetrics(shape: Shape): Metrics {
   const positions = shape.positions
   const indices = shape.indices
@@ -272,10 +282,14 @@ describe('occt vs smlib：全部 faijs 脚本比对（验收判据）', () => {
     console.log('===== occt vs smlib 全脚本比对结果 =====')
     for (const line of report) console.log(line)
     console.log(`===== 一致=${CORPUS.length - mismatchCount}/${CORPUS.length} 不一致=${mismatchCount} =====`)
-    // 不一致的逐条列为断言失败（但继续输出全部清单）
+    // 不一致的逐条列为断言失败（但继续输出全部清单）；已知 occt-only 缺口（screw 族）除外。
     for (const rel of CORPUS) {
       const rec = records.get(rel)!
       if (rec.match !== 'match') {
+        if (KNOWN_SMLIB_ONLY_FAILURES[rel]) {
+          rec.note = `[已知缺口] ${rec.note} — ${KNOWN_SMLIB_ONLY_FAILURES[rel]}`
+          continue
+        }
         expect(`[${rec.name}] ${rec.note}`).toBe('MATCH')
       }
     }

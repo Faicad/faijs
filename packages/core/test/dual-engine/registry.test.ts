@@ -94,3 +94,29 @@ describe('smlibBridgeNotWired 中间件', () => {
     expect(err.message).toContain('§4.3')
   })
 })
+
+describe('engine-method-map（机器可读映射，方案 §4.2）', () => {
+  it('导出 engines / unsupported / methods 三要素，且方法条具备双实现名与桥状态', async () => {
+    const { engineMethodMap } = await import('../../src/dual-engine')
+    expect(engineMethodMap.engines).toEqual(['occt', 'smlib'])
+    expect(engineMethodMap.unsupported).toContain('brepkit')
+    expect(Array.isArray(engineMethodMap.methods)).toBe(true)
+    expect(engineMethodMap.methods.length).toBeGreaterThan(0)
+    for (const m of engineMethodMap.methods) {
+      expect(typeof m.semantic).toBe('string')
+      expect(typeof m.occt).toBe('string')
+      expect(typeof m.smlib).toBe('string')
+      expect(['wired', 'occtOnly', 'smlibGap']).toContain(m.bridgeStatus)
+    }
+    // 双引擎独有方法与历史族须在映射中显式标注桥接缺口（方案 §4.3 中间态）。
+    const statuses = engineMethodMap.methods.reduce(
+      (acc: Record<string, number>, m: { bridgeStatus: string }) => {
+        acc[m.bridgeStatus] = (acc[m.bridgeStatus] ?? 0) + 1
+        return acc
+      },
+      {},
+    )
+    expect(statuses.occtOnly ?? 0).toBeGreaterThan(0)
+    expect(statuses.smlibGap ?? 0).toBeGreaterThan(0)
+  })
+})

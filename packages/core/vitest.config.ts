@@ -20,7 +20,15 @@ export default defineConfig({
     // test/perf/** 是 deflection/耗时探针（方案 2026-10-21），自重几秒 + 启动
     // brepkit wasm，只在 `vitest.perf.config.ts` 下跑（`npm run test:perf` 语义），
     // 不进默认套件。
-    exclude: ['test/install-smoke.test.ts', 'test/perf/**', 'node_modules/**'],
+    // smlib-stl-import-perf.probe 同理（dca1013 引入漏配）：10k 三角 → 30k 线段 +
+    // 万级面 SmApiStitchIntoSolidEx 实测挂起（方案 §8 风险 R1 实锤：万级面缝合
+    // 不可行），是手动探针，不进默认套件；手动跑需知悉会长时间无响应。
+    exclude: [
+      'test/install-smoke.test.ts',
+      'test/perf/**',
+      'test/smlib-kernel/smlib-stl-import-perf.probe.test.ts',
+      'node_modules/**',
+    ],
     // 2026-09-25 core-decouple Phase 2：core 不再注入外部 registry，
     // 全局 setup 自装配（见 test/test-setup.ts）。
     setupFiles: ['test/test-setup.ts'],

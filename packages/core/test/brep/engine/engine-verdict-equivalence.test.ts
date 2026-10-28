@@ -180,7 +180,8 @@ describe('基线自洽：常量表覆盖全部 brep-op', () => {
   })
 
   it('快照的引擎 id 合法（与 BREP_ENGINE_IDS 一致）', () => {
-    expect([...BREP_ENGINE_IDS]).toEqual(['occt', 'brepkit', 'brep_mock'])
+    // dca1013（smlib 第三引擎接入）后引擎表为四值；本断言钉住注册表不发生意外增删。
+    expect([...BREP_ENGINE_IDS]).toEqual(['occt', 'brepkit', 'brep_mock', 'smlib'])
   })
 })
 
