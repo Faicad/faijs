@@ -358,15 +358,27 @@ function applyMatrix(k: SmlibKernel, shape: BrepHandle, matrix: number[], what: 
     for (const kid of cKids) applyMatrix(k, kid, matrix, what)
     return shape
   }
-  const m = k.malloc(96)
+  // B：SmApiTransformMatrixEx 桥把 12 元素组回行主序 4×4，但 SMLib Transform
+  // 实际按**转置旋转**应用（实测：R(z→[1,1,0]) 旋转 20³ 盒得到 Rᵀ 结果，
+  // bbox 中心沿局部 Z 偏移 60·0.707）。恒等/对称矩阵（垂直切、mirror、纯平移）
+  // 不受影响，所以此前未暴露；斜切 splitByPlane 与任意轴旋转 transform 会反向。
+  // 统一转置旋转 3×3（平移不动），使适配层矩阵语义 = 标准行主序（与 occt/three.js 同约定）。
+  const m = new Array<number>(12)
+  m[0] = matrix[0]; m[1] = matrix[4]; m[2] = matrix[8]
+  m[3] = matrix[3]
+  m[4] = matrix[1]; m[5] = matrix[5]; m[6] = matrix[9]
+  m[7] = matrix[7]
+  m[8] = matrix[2]; m[9] = matrix[6]; m[10] = matrix[10]
+  m[11] = matrix[11]
+  const mm = k.malloc(96)
   const st = k.malloc(4)
   try {
     const dv = memOf(k)
-    for (let i = 0; i < 12; i++) dv.setFloat64(m + i * 8, matrix[i], true)
-    expectOk(k.find('SmApiTransformMatrixEx')(shape, m, st), what)
+    for (let i = 0; i < 12; i++) dv.setFloat64(mm + i * 8, m[i], true)
+    expectOk(k.find('SmApiTransformMatrixEx')(shape, mm, st), what)
     return shape
   } finally {
-    k.free(m)
+    k.free(mm)
     k.free(st)
   }
 }
@@ -943,33 +955,61 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       }
     },
     splitByPlane(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): { positive: BrepHandle; negative: BrepHandle } {
-      // B：副本化 ×2 + SmApiCutEx。SmApiCut(brep, pt, nrm) 切掉法向**正**侧、
-      // 保留法向负侧；契约规定 positive = 法向正侧、negative = 法向负侧 ⇒
-      // positive 传 -normal、negative 传 +normal。
-      const positive = primitives.copy(shape)
-      const negative = primitives.copy(shape)
-      const pt = k.malloc(24)
-      const nrm = k.malloc(24)
+      // B：SmApiCut 内核不补剖面（SmBrepCutting::DoCut 只删不盖，头文件注释
+      // "a new planar face is created" 与实现不符）——切半是 5 面开口壳，面积/体积
+      // 系统性偏小（Z=5 切 20³：area 1600 vs 2000，vol 5333.33 vs 6000）。
+      // 改用与 brep-ops.splitBrep 相同的半空间盒 + 布尔差算法（node/worker 均已验证
+      // 稳定）：positive = shape − 负半盒（法向正侧）、negative = shape − 正半盒
+      // （法向负侧）。盒边界与切割平面重合，差集后半体在切面处自动闭合。
+      const bb = primitives.getBoundingBox(shape)
+      const size = Math.max(bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin)
+      const half = size * 3
+      // 旋转矩阵：局部 Z 轴 → 法向 n（Rodrigues，3×4 行主序，与 applyMatrix 同约定）。
+      const n = normVec(normal)
+      const zAxis = { x: 0, y: 0, z: 1 }
+      const axis = cross(zAxis, n)
+      const cosA = dot(zAxis, n)
+      const sinA = Math.hypot(axis.x, axis.y, axis.z)
+      let rot: number[]
+      if (sinA < 1e-12) {
+        // n ≈ z 或 ≈ −z：旋转退化为恒等/翻转（绕 X 转 π）。
+        rot = cosA > 0
+          ? [1, 0, 0, 0, 1, 0, 0, 0, 1]
+          : [1, 0, 0, 0, -1, 0, 0, 0, -1]
+      } else {
+        const a = { x: axis.x / sinA, y: axis.y / sinA, z: axis.z / sinA }
+        const kx = a.x, ky = a.y, kz = a.z
+        const K = [
+          [0, -kz, ky],
+          [kz, 0, -kx],
+          [-ky, kx, 0],
+        ]
+        rot = new Array<number>(9)
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) {
+            let kk = 0
+            for (let l = 0; l < 3; l++) kk += K[i][l] * K[l][j]
+            rot[i * 3 + j] = (i === j ? 1 : 0) + sinA * K[i][j] + (1 - cosA) * kk
+          }
+        }
+      }
+      const m = [rot[0], rot[1], rot[2], point.x, rot[3], rot[4], rot[5], point.y, rot[6], rot[7], rot[8], point.z]
+      // 正半盒：局部 z ∈ [0, half]；负半盒：局部 z ∈ [−half, 0]。
+      const posBox = primitives.transform(
+        primitives.makeBoxFromCorners({ x: -half, y: -half, z: 0 }, { x: half, y: half, z: half }),
+        m,
+      )
+      const negBox = primitives.transform(
+        primitives.makeBoxFromCorners({ x: -half, y: -half, z: -half }, { x: half, y: half, z: 0 }),
+        m,
+      )
       try {
-        const dv = memOf(k)
-        dv.setFloat64(pt, point.x, true)
-        dv.setFloat64(pt + 8, point.y, true)
-        dv.setFloat64(pt + 16, point.z, true)
-        dv.setFloat64(nrm, -normal.x, true)
-        dv.setFloat64(nrm + 8, -normal.y, true)
-        dv.setFloat64(nrm + 16, -normal.z, true)
-        expectOk(k.find('SmApiCutEx')(positive, pt, nrm), 'splitByPlane:positive')
-        // 内核调用可能触发 memory.grow → 旧 DataView 的 buffer 被 detach，
-        // 必须在每次内核调用后重取视图再继续写内存（§2.3 健壮性修复）。
-        const dv2 = memOf(k)
-        dv2.setFloat64(nrm, normal.x, true)
-        dv2.setFloat64(nrm + 8, normal.y, true)
-        dv2.setFloat64(nrm + 16, normal.z, true)
-        expectOk(k.find('SmApiCutEx')(negative, pt, nrm), 'splitByPlane:negative')
+        const negative = booleanOp('SmApiBooleanDifference', shape, posBox, 'splitByPlane:negative')
+        const positive = booleanOp('SmApiBooleanDifference', shape, negBox, 'splitByPlane:positive')
         return { positive, negative }
       } finally {
-        k.free(pt)
-        k.free(nrm)
+        primitives.release(posBox)
+        primitives.release(negBox)
       }
     },
 

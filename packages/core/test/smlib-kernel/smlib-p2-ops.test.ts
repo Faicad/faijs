@@ -226,19 +226,22 @@ describe('P2 布尔/分割/倒角区', () => {
     }
   })
 
-  it('splitByPlane 两半 bbox 覆盖原范围（探针结论：SmApiCut 输出开口壳，volume=0）', () => {
+  it('splitByPlane 两半闭合实体且 bbox 覆盖原范围', () => {
     const s = box()
     const { positive, negative } = p.splitByPlane(s, { x: 5, y: 10, z: 0 }, { x: 1, y: 0, z: 0 })
     const bbP = p.getBoundingBox(positive)
     const bbN = p.getBoundingBox(negative)
-    // 探针：positive 保留 x∈[0,5]（法向侧），negative x∈[5,10]。
-    expect(bbP.xmax).toBeLessThan(5.5)
-    expect(bbP.xmin).toBeGreaterThan(-0.5)
-    expect(bbN.xmin).toBeGreaterThan(4.5)
-    expect(bbN.xmax).toBeLessThan(10.5)
-    // SmApiCut 输出是开口壳（非流形）→ getVolume=0（P2 缺口记录：闭合实体语义）。
-    expect(p.getVolume(positive)).toBe(0)
-    expect(p.getVolume(negative)).toBe(0)
+    // 契约（api/split-by-plane.ts）：positive = 法向正侧（x∈[5,10]），
+    // negative = 法向负侧（x∈[0,5]）。方向由 smlib-split-direction.test.ts 单独钉住。
+    expect(bbP.xmin).toBeGreaterThan(4.5)
+    expect(bbP.xmax).toBeLessThan(10.5)
+    expect(bbN.xmax).toBeLessThan(5.5)
+    expect(bbN.xmin).toBeGreaterThan(-0.5)
+    // 修复后（2026-10-28）：splitByPlane 改用「半空间盒 + 布尔差」（与 brep-ops.splitBrep 同算法），
+    // 输出闭合实体，不再是无剖面的开口壳（旧 SmApiCut 缺口已消除）。
+    expect(p.getVolume(positive)).toBeGreaterThan(0)
+    expect(p.getVolume(negative)).toBeGreaterThan(0)
+    expect(p.getVolume(positive) + p.getVolume(negative)).toBeCloseTo(6000, 3)
   })
 
   it('chamfer 副本倒角后体积减小', () => {
