@@ -32,6 +32,10 @@ import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { getOcctKernel } from '../../occt-kernel/occtKernel'
 import { fromBase } from '../../units'
+// OpenSCAD 语义：操作数网格闭合性校验。开关与判定实现都在 `api/boolean`，
+// 本文件只复用（cad.boolean 是带选项的通用形态，与 union/subtract/intersect
+// 走不同的实现，但 OpenSCAD 的丢弃语义对两者一致）。
+import { getBooleanOperandValidation, isClosedOperandForBooleanOp, emptyBrepShape, debugOperand } from '../internal/boolean-closure'
 
 /** 布尔算子（脚本面收字符串，映射到 occt-wasm 的 `BooleanOp` 枚举值）。 */
 export type BooleanKind = 'fuse' | 'cut' | 'common'
@@ -90,18 +94,49 @@ function booleanBrep(
       throw new Error('E_BOOLEAN_BAD_SIMPLIFY: simplifyAngularTolerance must be a non-negative number')
     }
   }
-  const argHandles = args.map((s, i) => {
-    if (!s) throw new Error(`E_BOOLEAN_MISSING_ARG: args[${i}] is empty`)
-    return handleOf(s, 'BOOLEAN', `args[${i}]`)
-  })
-  const toolHandles = tools.map((s, i) => {
-    if (!s) throw new Error(`E_BOOLEAN_MISSING_ARG: tools[${i}] is empty`)
-    return handleOf(s, 'BOOLEAN', `tools[${i}]`)
+  // OpenSCAD 语义：操作数网格闭合性校验（默认关，仅 OpenSCAD 翻译文件开启）。
+  // 与 `api/boolean` 共用同一判据与开关；`cad.boolean` 的 args/tools 分组不改变
+  // OpenSCAD 的丢弃语义（fuse 丢坏操作数、cut 的 base 被丢⇒空、common 任一⇒空）。
+  if (getBooleanOperandValidation()) {
+    const kernel = getBrepApi()
+    const check = (s: Shape, i: number): boolean => {
+      const r = isClosedOperandForBooleanOp(kernel, brepOf(s), s)
+      if (process.env.BOOL_DEBUG) debugOperand(kind, i, r)
+      return r.closed
+    }
+    const argClosed = args.map(check)
+    const toolClosed = tools.map((s, i) => check(s, args.length + i))
+    // fuse：args 与 tools 全部参与并集，逐丢非闭合；剩下的 <2 个时无需调内核。
+    const keep = [...args.filter((_, i) => argClosed[i]!), ...tools.filter((_, i) => toolClosed[i]!)]
+    if (kind === 'fuse') {
+      if (keep.length === 0) return emptyBrepShape(kernel)
+      if (keep.length === 1) return keep[0]!
+    } else if (kind === 'cut') {
+      // base = args[0]（其余 args 同属被减体一侧，任一非闭合 ⇒ 空）
+      if (argClosed.some((c) => !c)) return emptyBrepShape(kernel)
+      const keepTools = tools.filter((_, i) => toolClosed[i]!)
+      if (keepTools.length === 0) return args[0]!
+      return callBooleanOp(keep, 'cut', options)
+    } else {
+      // common：任一非闭合 ⇒ 空
+      if (argClosed.some((c) => !c) || toolClosed.some((c) => !c)) return emptyBrepShape(kernel)
+      return callBooleanOp(keep, 'common', options)
+    }
+    return callBooleanOp(keep, 'fuse', options)
+  }
+  return callBooleanOp([...args, ...tools], kind, options)
+}
+
+/** 实际下发 occt 原生 booleanOp（args[0] 作 arg，其余作 tool）。 */
+function callBooleanOp(shapes: Shape[], kind: BooleanKind, options?: BooleanOptions): Shape {
+  const handles = shapes.map((s, i) => {
+    if (!s) throw new Error(`E_BOOLEAN_MISSING_ARG: input[${i}] is empty`)
+    return handleOf(s, 'BOOLEAN', `input[${i}]`)
   })
   const data = getOcctKernel().booleanOp(
     KIND_CODE[kind] as never,
-    argHandles as never[],
-    toolHandles as never[],
+    [handles[0]!] as never[],
+    handles.slice(1) as never[],
     options as never,
   )
   const handle = data.result as unknown as BrepHandle

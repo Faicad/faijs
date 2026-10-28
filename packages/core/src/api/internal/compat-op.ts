@@ -45,6 +45,7 @@ import {
 } from '../../define-op'
 import { isShape } from '../../shape'
 import { adoptEntity, callBrepjs } from './l3-bridge'
+import { EXT_LEAF_OPS, markAuthoredLeaf } from './authored-leaf'
 import { unwrapResult } from './result-unwrap'
 import type { Shape } from '../../mesh/types'
 
@@ -83,18 +84,29 @@ export function unwrapOrThrow(r: unknown, name: string): unknown {
  * @returns the adopted record / Shape, or the plain data untouched.
  */
 function adoptOut(v: unknown, spec: CompatSpec, segments?: number): unknown {
-  if (isShape(v)) return v
+  // 作者叶子网格标记（方案 2026-10-28 v2 §4.2）：`adoptOut` 是**所有**库函数产物的
+  // 唯一出口（含「已经是 faijs Shape、直接透传」这条短路），且带 `spec.name`——
+  // 在此按叶子 op 白名单置位，即可覆盖 openscad.load / .polyhedron / .twistExtrude /
+  // .revolve 等全部 OpenSCAD 叶子，无需改 faijs-openscad。
+  // 白名单外的 op（hull/minkowski/resize/projection/offset/2D 布尔）对应 CGAL 的
+  // Nef 阶段，不置位 ⇒ 布尔运算不对它们做闭合性校验。
+  const leaf = EXT_LEAF_OPS.has(spec.name)
+  const mark = (x: unknown): unknown => {
+    if (leaf) markAuthoredLeaf(x)
+    return x
+  }
+  if (isShape(v)) return mark(v)
   if (spec.outputs && typeof v === 'object' && v !== null && !Array.isArray(v)) {
     const rec = v as Record<string, unknown>
     for (const f of spec.outputs) {
       const field = rec[f]
       rec[f] = Array.isArray(field)
-        ? field.map((x) => adoptEntity(x, spec.name, segments))
-        : adoptEntity(field, spec.name, segments)
+        ? field.map((x) => mark(adoptEntity(x, spec.name, segments)))
+        : mark(adoptEntity(field, spec.name, segments))
     }
     return v
   }
-  return adoptEntity(v, spec.name, segments)
+  return mark(adoptEntity(v, spec.name, segments))
 }
 
 /**

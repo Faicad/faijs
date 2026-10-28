@@ -29,6 +29,23 @@ import type { BrepEvolutionKind, BrepHandle } from '../brep/engine/types'
 
 type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
+// ── OpenSCAD 语义：操作数网格闭合性校验（方案 2026-10-28 v2）───────────────────
+//
+// 开关、判据与空实体构造都在 `./internal/boolean-closure`（`api/boolean-op` 的
+// `cad.boolean` 也复用同一套语义）。要点：
+// - 只校验**带 AUTHORED_LEAF 标记的叶子网格**（CGAL 的 PolySet→Nef 校验边界，
+//   Nef→Nef 不校验）；对所有操作数一律校验会把 issue591 group B 误丢、整树变空；
+// - 判据是网格**无向边使用次数**，不是 BREP shapeType（后者对 4 例完全空转）。
+import {
+  setBooleanOperandValidation,
+  getBooleanOperandValidation,
+  isClosedOperandForBooleanOp,
+  emptyBrepShape as emptySolid,
+  debugOperand,
+} from './internal/boolean-closure'
+
+export { setBooleanOperandValidation }
+
 // ── 共享内部实现 ──
 
 /**
@@ -81,20 +98,59 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
   // wire/face、vol=0）。C3c-1 已实证 0 体积线框成员对 compound invariants
   // 零影响 ⇒ union 的语义是 solid 合流，非 solid 输入如实跳过；全非 solid 才抛错。
   // cut/intersect 语义不变（工具/交域必须 solid）。
+  // OpenSCAD 闭合性校验（默认关，仅 OpenSCAD 翻译文件开启）：非闭合的**叶子**操作数
+  // 按 OpenSCAD 规则丢弃——union 丢坏操作数、difference 的 base 被丢⇒空、
+  // intersection 任一被丢⇒空。判定见 `isClosedOperand`。
+  const validate = getBooleanOperandValidation()
+  const closed = validate
+    ? inputSolids.map((h, i) => {
+        const r = isClosedOperandForBooleanOp(kernel, h, inputs[i]!)
+        if (process.env.BOOL_DEBUG) debugOperand(operation, i, r)
+        return r.closed
+      })
+    : null
   const NON_SOLID = new Set(['wire', 'face', 'shell', 'vertex', 'edge'])
   const inputTypes = inputSolids.map((h) => {
     try { return h ? (kernel.shapeType(h) as string) : 'solid' } catch { return 'solid' }
   })
-  // compound/compsolid 可能含 solid，是合法 fuse 输入——只跳过确定的非 solid 类型。
-  const boolIdx = operation === 'union'
-    ? inputTypes.map((t, i) => (NON_SOLID.has(t) ? -1 : i)).filter((i) => i >= 0)
-    : inputs.map((_, i) => i)
-  if (operation === 'union' && boolIdx.length === 0) {
-    throw new OpError(
-      `boolean/${operation}`,
-      'E_BREP_UNSUPPORTED',
-      `[api/boolean] ${operation}: no solid input — wire/face/shell geometry cannot fuse (types: ${inputTypes.join(', ')})`,
-    )
+
+  let boolIdx: number[]
+  if (validate && closed) {
+    if (operation === 'union') {
+      // OpenSCAD：丢坏操作数，其余照常；全被丢 ⇒ 空实体。
+      boolIdx = closed.map((c, i) => (c ? i : -1)).filter((i) => i >= 0)
+      if (boolIdx.length === 0) {
+        return emptySolid(kernel)
+      }
+    } else if (operation === 'subtract') {
+      // OpenSCAD：base 被丢 ⇒ 整树为空；tool 被丢 ⇒ 跳过该 tool。
+      if (!closed[0]) {
+        return emptySolid(kernel)
+      }
+      const tools = inputs.map((_, i) => i).slice(1).filter((i) => closed[i])
+      if (tools.length === 0) {
+        return inputs[0]!
+      }
+      boolIdx = [0, ...tools]
+    } else {
+      // OpenSCAD：intersection 任一被丢 ⇒ 空。
+      if (closed.some((c) => !c)) {
+        return emptySolid(kernel)
+      }
+      boolIdx = inputs.map((_, i) => i)
+    }
+  } else {
+    // compound/compsolid 可能含 solid，是合法 fuse 输入——只跳过确定的非 solid 类型。
+    boolIdx = operation === 'union'
+      ? inputTypes.map((t, i) => (NON_SOLID.has(t) ? -1 : i)).filter((i) => i >= 0)
+      : inputs.map((_, i) => i)
+    if (operation === 'union' && boolIdx.length === 0) {
+      throw new OpError(
+        `boolean/${operation}`,
+        'E_BREP_UNSUPPORTED',
+        `[api/boolean] ${operation}: no solid input — wire/face/shell geometry cannot fuse (types: ${inputTypes.join(', ')})`,
+      )
+    }
   }
 
   // 静态定轨：当前引擎是否原生实现本 op 的面演化核函数（引擎事实，非运行时探测）。

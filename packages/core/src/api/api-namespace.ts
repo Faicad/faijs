@@ -91,7 +91,7 @@ import { boolean as booleanWithOptions } from './boolean-op'
 // S4（occt-wasm op 接入）：包围盒对齐族（平台 op engines:['occt']，方案 §3.4.9）——
 // 原生 alignX/alignY/alignZ 三轴并为一个脚本符号 alignTo。
 import { alignTo } from './align'
-import { union, subtract, intersect, cut, fuse } from './boolean'
+import { union, subtract, intersect, cut, fuse, setBooleanOperandValidation } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
 import { sweepAdvanced } from './sweep-advanced'
@@ -259,5 +259,8 @@ export function createApiNamespace(): LibNamespace {
     // 脚本级执行链偏好（2026-10-22）：普通库函数，非 defineOp——无几何输入/产物，
     // 语句值 undefined。gen-symbol-table 按本清单收录（lang/symbol-table 注释）。
     useMeshChain,
+    // OpenSCAD 语义开关（2026-10-28）：普通库函数，非 defineOp——无几何输入/产物，
+    // 语句值 undefined。默认关闭；仅 OpenSCAD 翻译产物在文件头开启。
+    setBooleanOperandValidation,
   } as unknown as LibNamespace
 }

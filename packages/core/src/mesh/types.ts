@@ -66,6 +66,23 @@ export const BREP_TESS = Symbol('faijs.brepTess')
 export const BREP_LAZY_TESS = Symbol('faijs.brepLazyTess')
 
 /**
+ * Shape 上的内部挂载槽键：**作者叶子网格标记**（OpenSCAD 布尔操作数闭合性校验用，
+ * 方案 2026-10-28-boolean-operand-validation v2 §4.1）。
+ *
+ * 语义：置位表示该 Shape 的 mesh 是「作者写出来的叶子网格」——即 OpenSCAD 里
+ * `polyhedron` / `import` / 挤出产物 / 3D 原语这类 **PolySet**。CGAL 的闭合性校验
+ * **只**发生在 PolySet→Nef 这一跳，Nef→Nef 不再校验；因此布尔产物（`cad.union` 等
+ * 的输出）一律**不**带本标记，布尔运算也只对带标记的操作数做闭合性判定。
+ *
+ * 打标记的两个落点：库（ext）产物经 `api/internal/compat-op.ts#adoptOut` 时按 op 名
+ * 白名单置位（这是所有库产物的唯一出口）。
+ *
+ * 与 {@link BREP_TESS} 同款 Symbol 键特性：随对象展开、不进 JSON/structuredClone。
+ * **序列化丢失时退化为"未标记" ⇒ 不校验**，方向是 fail-safe（保持现状）。
+ */
+export const AUTHORED_LEAF = Symbol('faijs.authoredLeaf')
+
+/**
  * A mesh shape — the core data type of the mesh API.
  *
  * Shape is defined directly in mesh/types.ts rather than re-exported from
@@ -137,6 +154,12 @@ export interface Shape {
    * BREP op 产出空 mesh + 本槽；物化后删除）。仅 runtime 消费，宿主禁读。
    */
   [BREP_LAZY_TESS]?: unknown
+  /**
+   * @internal 见 {@link AUTHORED_LEAF}：作者叶子网格标记（复刻 CGAL 的
+   * PolySet→Nef 校验边界）。仅 `api/boolean` 在 OpenSCAD 语义模式下消费；
+   * 宿主禁读禁写；序列化丢失 ⇒ 按未标记处理（不校验）。
+   */
+  [AUTHORED_LEAF]?: true
 }
 
 /**
