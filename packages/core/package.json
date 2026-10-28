@@ -323,6 +323,29 @@
       "types": "./dist/cad-runtime/runtime.d.ts",
       "default": "./dist/cad-runtime/runtime.js"
     },
+    "./dual-engine": {
+      "types": "./dist/dual-engine/index.d.ts",
+      "default": "./dist/dual-engine/index.js"
+    },
+    "./dual-engine/api": {
+      "types": "./dist/dual-engine/api.d.ts",
+      "default": "./dist/dual-engine/api.js"
+    },
+    "./dual-engine/occt-adapter": {
+      "types": "./dist/dual-engine/occt-adapter.d.ts",
+      "default": "./dist/dual-engine/occt-adapter.js"
+    },
+    "./dual-engine/smlib-adapter": {
+      "types": "./dist/dual-engine/smlib-adapter.d.ts",
+      "default": "./dist/dual-engine/smlib-adapter.js"
+    },
+    "./dual-engine/registry": {
+      "types": "./dist/dual-engine/registry.d.ts",
+      "default": "./dist/dual-engine/registry.js"
+    },
+    "./dual-engine/engine-method-map.json": {
+      "default": "./dist/dual-engine/engine-method-map.json"
+    },
     "./occt-kernel/highLevelApi": {
       "types": "./dist/occt-kernel/highLevelApi.d.ts",
       "default": "./dist/occt-kernel/highLevelApi.js"
