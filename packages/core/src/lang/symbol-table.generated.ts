@@ -136,6 +136,7 @@ export default {
   "mirror": {},
   "clone": {},
   "useMeshChain": {},
+  "setBooleanOperandValidation": {},
   "torus": {},
   "inspectMassProps": {},
   "area": {},
