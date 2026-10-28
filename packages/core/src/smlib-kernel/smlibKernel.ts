@@ -943,7 +943,28 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
           k.find('SmApiShellBrepFullEx')(solid, -thickness, 0, 1, 1, arr, facesToRemove.length, out),
           'shell',
         )
-        return newSolid(dv.getUint32(out, true))
+        const result = newSolid(dv.getUint32(out, true))
+        // 统一面朝向（**用户实机缺陷的修复点**，2026-10-28）：
+        // SMLib 抽壳出来的 offset 内壁面没有标记 Reversed，而桥的
+        // `SmApiSurfaceNormalEx` 只对**曲面**求法向（`EvaluateNormal(uv,FALSE,FALSE)`）、
+        // 不看 `SmFace` 朝向 ⇒ 这些面报出**指向材料内部**的法向（occt 同口径全是外向）。
+        // 实测 20³ 盒开口抽壳 11 面里 5 面反、圆角盒（200×100×40 + R10 + 厚3）19 面里 5 面反，
+        // 渲染上表现为"正面看是镂空、反面看才封闭"；engrave / extrude / sketch-on-face
+        // 这些吃 `surfaceNormal` 的 op 也会跟着反向。
+        //
+        // 修法选在**源头**而不是读法向时翻转：`SmApiUnifyNormalsEx` 一次调用统一整个
+        // 实体的面朝向（原地），之后 surfaceNormal / 三角化绕序 / 后续 op 全部一致。
+        // 实测成本与风险：开口抽壳反法向 5 → 0，三角化体积与面数不变（3392 / 11 面）。
+        //
+        // 已知限制（未修，勿当已修）：**全封闭抽壳的第二壳（内腔）不在 unify 作用域内**，
+        // 12 面里仍有 6 面朝材料（见 core/test/smlib-kernel 的 known-limitation 用例）。
+        try {
+          expectOk(k.find('SmApiUnifyNormalsEx')(result, 16), 'shell/unifyNormals')
+        } catch {
+          // 统一失败不影响 shell 成功语义：几何本身有效，只是法向可能朝材料。
+          // 不回滚、不抛错（否则原本可用的抽壳会因"朝向修正失败"整体失败）。
+        }
+        return result
       } finally {
         k.free(arr)
         k.free(out)

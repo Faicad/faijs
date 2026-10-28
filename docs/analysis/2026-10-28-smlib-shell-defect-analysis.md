@@ -186,3 +186,40 @@ face#5 → ±1e20                      ← 空盒哨兵
    `shell(...)` 默认 `JoinType.Arc`（"rounds those edges with a radius equal to `thickness`"，
    `occt-wasm/dist/index.d.ts:166-172`），若真机圆角来自 occt 链路而非 smlib，方向应转到
    该默认 joinType。仍需用户提供真机复现参数才能定案。
+
+## 补记（2026-10-28 三轮）：抽壳结果的**面朝向**缺陷 —— 用户实机"正面看镂空、反面才封闭"
+
+二轮结论只比了体积/面积/面数，据此认为 smlib 抽壳"数值正确"。**口径错了**：法向反了
+的面，体积/面积/面数完全不变，但渲染上正面被剔除 ⇒ 用户看到的正是"正面是镂空、反面
+看才是封闭的"。用户口述的两条症状（① 该封闭的一面看穿；② 外表面像被做成圆角/发滑）
+都由这一条解释，smlib 独有、occt 全 0：
+
+| 场景 | occt 反法向面数 | smlib 修复前 | smlib 修复后 |
+|---|---|---|---|
+| 20³ 盒，开口 `>Z`（厚 2） | 0 / 11 | **5 / 11** | 0 / 11 |
+| 20³ 盒，全封闭（厚 2） | 0 / 6 | **6 / 12** | 6 / 12（已知限制，见下） |
+| 200×100×40 + 竖边 R10 + 抽壳 `>Z` 厚 3（`3d_editor/docs/examples/box.fai.js` 前两段） | 0 / 19 | **5 / 19** | 0 / 19 |
+
+判定方法（可复现）：对每个面取 UV 中点 → `surfaceNormal` → 沿法向前进 1e-3 探
+`containsPoint(实体)`；落在实体内即"法向指向材料"。
+
+**根因**：桥的 `SmApiSurfaceNormalEx`（`usd-brep/wasm-probe/src/SmApiBridgeEx.cpp:225`）
+只对**曲面**求法向 —— `s->EvaluateNormal(uv, FALSE, FALSE, nrm)`，完全丢弃 `SmFace`
+的朝向标志。occt-wasm 的 `surfaceNormal` 含面朝向（`occt-kernel/topologyExt.ts:323`
+注释 "surfaceNormal includes face orientation"）。抽壳产生的 offset 内壁面正需要靠
+朝向标志把参数化法向翻成外法向，SMLib 这一步缺失 ⇒ 内壁/内腔面法向全部指向材料。
+
+**修法**（`smlibKernel.ts` 的 `shell`）：抽壳返回前调一次 `SmApiUnifyNormalsEx`
+（原地统一整个实体的面朝向，16 采样），统一失败不影响 shell 成功语义。选在源头修而
+不是在 `surfaceNormal` 里逐次翻转：实测"读法向时按三角化绕序翻符号"的方案会要求在
+`surfaceNormal` 内对所属实体做整实体三角化，这在 text/engrave 这类大量取法向的 op 里
+破坏了 wasm 状态（`parity-text.fai.js` 报 `getBoundingBox: table.get(...) is not a
+function`，类型混淆式虚调用越界），故放弃。统一后三角化绕序与体积/面数不变
+（3392 / 11 面、圆角盒 123390.663 / 19 面，与 occt 逐值相等）。
+
+**已知限制（未修）**：全封闭抽壳的结果是"外壳 + 内腔壳"两壳实体，`SmApiUnifyNormalsEx`
+只统一单壳朝向，内腔 6 面仍指向材料。已固化为绊线用例（`smlib-shape-kind-queries.test.ts`
+断言 6 面），SMLib 若补上内腔定向，该用例会失败并提醒更新本条。
+
+另：文本/雕刻等 op 依赖 `surfaceNormal`，本次修复同时消除了它们"在 smlib 抽壳体上
+反向"的隐患。

@@ -63,6 +63,61 @@ function metrics(shape: Shape): Omit<ShellMetrics, 'failedAt'> {
   return { vol, area, tri: Math.floor(indices.length / 3), bbox: [maxX - minX, maxY - minY, maxZ - minZ], faceCount }
 }
 
+/**
+ * 执行脚本并**就地**审计面朝向。
+ *
+ * 必须在该引擎仍是当前后端时算完：`invertedFaceCount` 走的是 `getBackends()`，
+ * 切到另一个引擎后再量上一个引擎的句柄会读到当前内核的堆（实测报
+ * `getSubShapes(face): bridge failed (n=1001, shape=4305)`）。
+ */
+async function runAuditOn(
+  engine: 'occt' | 'smlib',
+  code: string,
+): Promise<{ faces: number; inverted: number; failedAt: string | null }> {
+  __resetEngineRegistriesForTests()
+  if (engine === 'occt') await registerOcctBrepEngine()
+  else await registerSmlibBrepEngine()
+  const rt = createRuntime(createNodePorts(), 'brep')
+  const res = await rt.execute(code)
+  if (res.failedAt) {
+    return { faces: 0, inverted: 0, failedAt: `${res.failedAt.callee}: ${res.failedAt.message}` }
+  }
+  const names = [...res.outputs.keys()]
+  const last = res.outputs.get(names[names.length - 1] as never) as Shape | undefined
+  if (!last?.positions?.length) return { faces: 0, inverted: 0, failedAt: 'no-shape-output' }
+  return { ...invertedFaceCount(last), failedAt: null }
+}
+
+/**
+ * 面的法向是否指向材料内部（沿法向挪 1e-3 仍在实体内 ⇒ 该面"反了"）。
+ *
+ * 这是用户实机可见的语义：法向反了的面在渲染上正面被剔除 → "正面看镂空、
+ * 反面看才封闭"。**契约要求 0 个**（occt 恒为 0，smlib 修复前开口壳 5/11、
+ * 全封闭 6/12、圆角盒 5/19）。
+ */
+function invertedFaceCount(shape: Shape): { faces: number; inverted: number } {
+  const k = getBackends().kernel.brep as unknown as {
+    getSubShapes: (h: unknown, kind: string) => unknown[]
+    uvBounds: (f: unknown) => { uMin: number; uMax: number; vMin: number; vMax: number }
+    surfaceNormal: (f: unknown, u: number, v: number) => { x: number; y: number; z: number }
+    pointOnSurface: (f: unknown, u: number, v: number) => { x: number; y: number; z: number }
+    containsPoint: (s: unknown, p: { x: number; y: number; z: number }, tol: number) => boolean
+  }
+  const h = brepOf(shape)
+  const faces = k.getSubShapes(h, 'face')
+  let inverted = 0
+  for (const f of faces) {
+    const uv = k.uvBounds(f)
+    const u = (uv.uMin + uv.uMax) / 2
+    const v = (uv.vMin + uv.vMax) / 2
+    const n = k.surfaceNormal(f, u, v)
+    const c = k.pointOnSurface(f, u, v)
+    const e = 1e-3
+    if (k.containsPoint(h, { x: c.x + n.x * e, y: c.y + n.y * e, z: c.z + n.z * e }, 1e-9)) inverted++
+  }
+  return { faces: faces.length, inverted }
+}
+
 async function runOn(engine: 'occt' | 'smlib', code: string): Promise<ShellMetrics> {
   __resetEngineRegistriesForTests()
   if (engine === 'occt') await registerOcctBrepEngine()
@@ -128,4 +183,37 @@ describe('抽壳开面选择器：occt vs smlib 逐值等价', () => {
     // 修复范围；此处只钉"两引擎不同"，防止将来差异被静默当成等价。
     expect(occt.vol).not.toBeCloseTo(smlib.vol, 3)
   }, 180000)
+})
+
+describe('抽壳结果的面朝向：法向必须朝外（正面不该看穿）', () => {
+  // 修复前（2026-10-28，用户实机）：smlib 抽壳出来的内壁/内腔面法向指向**材料内部**，
+  // 渲染上正面被剔除 → "正面看镂空、反面看才封闭"。根因是桥的
+  // `SmApiSurfaceNormalEx` 只对曲面求法向、丢弃 `SmFace` 朝向；适配器改用三角化
+  // 绕序定符号（见 smlibKernel.ts 的 faceDirectionsOf 注释）。
+  const ROUNDED = `let p = cad.box(200*MM, 100*MM, 40*MM, { at: [0, 0, 0] })
+let r = await cad.fillet(p, { edges: '|Z', radius: 10*MM })
+let s = await cad.shell(r, { openFaces: '>Z', thickness: 3*MM })`
+
+  // [标签, 脚本, 面数与 occt 相同?, smlib 反向面数期望]
+  //
+  // 全封闭那格两引擎**语义本就不同**（smlib 12 面薄壁 / occt 6 面内腔体，见上一条
+  // 测试与 docs/analysis 复核章节），面数不计入本门禁。它的内腔壳朝向是 SMLib 的
+  // **已知限制**（`SmApiUnifyNormalsEx` 管不到第二壳），故期望 6 而非 0。
+  const cases: [string, string, boolean, number][] = [
+    ['开口 >Z（20³，厚2）', shellCode('>Z'), true, 0],
+    ['全封闭（20³，厚2）：内腔壳朝向为已知限制', `${BOX}let s = cad.shell(p, { openFaces: [], thickness: 2 })`, false, 6],
+    ['圆角后抽壳（用户实机 box.fai.js 前两段）', ROUNDED, true, 0],
+  ]
+
+  for (const [label, code, sameFaceCount, wantInverted] of cases) {
+    it(`${label}`, async () => {
+      const o = await runAuditOn('occt', code)
+      const s = await runAuditOn('smlib', code)
+      expect(o.failedAt, `occt 执行失败：${o.failedAt}`).toBeNull()
+      expect(s.failedAt, `smlib 执行失败：${s.failedAt}`).toBeNull()
+      expect(o.inverted, 'occt 反向面数').toBe(0)
+      expect(s.inverted, 'smlib 反向面数').toBe(wantInverted)
+      if (sameFaceCount) expect(s.faces, 'smlib 面数与 occt 一致').toBe(o.faces)
+    }, 180000)
+  }
 })

@@ -127,21 +127,29 @@ describe('containsPoint（三角化 + 射线奇偶）', () => {
   })
 })
 
-describe('GOTCHA：surfaceNormal 不是外向法向（内腔面朝向与材料相反）', () => {
-  it('基本体外表面恰好朝外；抽壳内腔面朝材料', () => {
-    const normalAtMid = (f: BrepHandle) => {
-      const uv = p.uvBounds(f)
-      return p.surfaceNormal(f, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
-    }
-    // 外表面：法向朝外（+Z 面 z=10 → n·z > 0）
+describe('surfaceNormal 契约：必须是外法向（含抽壳内壁/内腔，与 occt 同口径）', () => {
+  const normalAtMid = (f: BrepHandle) => {
+    const uv = p.uvBounds(f)
+    return p.surfaceNormal(f, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
+  }
+  /** 沿法向挪 1e-3 仍在实体内 ⇒ 该法向指向材料内部（即"反了"）。 */
+  const pointsIntoMaterial = (solid: BrepHandle, f: BrepHandle): boolean => {
+    const uv = p.uvBounds(f)
+    const u = (uv.uMin + uv.uMax) / 2
+    const vv = (uv.vMin + uv.vMax) / 2
+    const n = p.surfaceNormal(f, u, vv)
+    const c = p.pointOnSurface(f, u, vv)
+    const e = 1e-3
+    return p.containsPoint(solid, { x: c.x + n.x * e, y: c.y + n.y * e, z: c.z + n.z * e }, 1e-9)
+  }
+
+  it('基本体外表面朝外', () => {
     for (const f of faces) {
-      const c = p.surfaceCenterOfMass(f)
-      const n = normalAtMid(f)
-      const dot = n.x * (c.x - 10) + n.y * (c.y - 10) + n.z * (c.z - 0)
-      expect(dot, '基本体外表面法向朝外').toBeGreaterThanOrEqual(-1e-9)
+      expect(pointsIntoMaterial(box, f), '基本体外表面法向朝外').toBe(false)
     }
-    // 内腔面：x=2 内壁的法向在 smlib 上是 −X（朝材料），occt 给 +X（朝腔内）。
-    // 所以外向定向**必须**走 containsPoint 探针，不能直接信 surfaceNormal。
+  })
+
+  it('抽壳内壁朝腔（修复前是朝材料 −X，用户实机表现为"正面看镂空"）', () => {
     let top = faces[0]!
     let best = -Infinity
     for (const f of faces) {
@@ -154,10 +162,24 @@ describe('GOTCHA：surfaceNormal 不是外向法向（内腔面朝向与材料�
       return Math.abs(c.x - 2) < 1e-6 && Math.abs(c.z - 11) < 5
     })
     expect(inner.length, 'x=2 内壁存在且唯一').toBe(1)
-    const n = normalAtMid(inner[0]!)
-    expect(n.x, 'smlib 内壁表面法向朝材料（−X）').toBeLessThan(-0.99)
-    // 但 containsPoint 探针能把它纠正为朝腔（+X）：这就是 orientedFaceNormal 的做法
-    const probe = { x: 2 - 0.01, y: 10, z: 11 }
-    expect(p.containsPoint(shelled, probe, 1e-9), '沿 −X 探针落在材料内 ⇒ 需翻转').toBe(true)
+    // 内壁在 x=2，材料在 x<2、内腔在 x>2 ⇒ 外法向必须是 +X（朝腔）。
+    expect(normalAtMid(inner[0]!).x, 'smlib 内壁法向朝腔（+X）').toBeGreaterThan(0.99)
+    // 几何核对：沿 +X 挪进内腔（空），沿 −X 挪进材料（实）。
+    expect(p.containsPoint(shelled, { x: 2.01, y: 10, z: 11 }, 1e-9), '内腔侧（空）').toBe(false)
+    expect(p.containsPoint(shelled, { x: 1.99, y: 10, z: 11 }, 1e-9), '材料侧（实）').toBe(true)
+  })
+
+  it('已知限制：全封闭抽壳（密封内腔）的**第二壳**仍朝材料 —— unify 作用不到内腔', () => {
+    // 抽壳时 `SmApiUnifyNormalsEx` 统一的是"一个壳"的朝向；全封闭抽壳的结果是一个带
+    // **内腔**的实体（外壳 + 内腔壳），内腔壳的朝向 SMLib 不归 unify 管。
+    // 实测：12 面里 6 面（内腔 6 面）仍指向材料，occt 同场景 6 面全朝腔。
+    //
+    // 这条用例是**绊线**：一旦 SMLib 补上内腔壳定向（或本适配器另找办法），这里会
+    // 变成 6 → 0 而失败，提醒把这条限制从注释与分析文档里删掉。
+    const closed = p.shell(box, [], 2, 1e-6)
+    const all = p.getSubShapes(closed, 'face')
+    expect(all.length).toBe(12)
+    const flipped = all.filter((f) => pointsIntoMaterial(closed, f))
+    expect(flipped.length, '内腔 6 面朝向材料（已知限制）').toBe(6)
   })
 })
