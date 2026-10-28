@@ -24,6 +24,7 @@ import { solidToShape } from '../../brep/brep-ops'
 import { getBrepApi } from '../../brep/handle-bridge'
 import { fromBrep } from '../../shape'
 import { isAuthoredLeaf } from './authored-leaf'
+import { readAuthoredClosure } from './authored-closure'
 
 // ── 开关 ────────────────────────────────────────────────────────────────────
 // 默认关闭：避免影响非 OpenSCAD 调用方（尤其是 101 个 `import()` 用例里的合法开放
@@ -142,6 +143,14 @@ export function isClosedOperandForBooleanOp(
 ): OperandClosure {
   if (!isAuthoredLeaf(shape)) return { closed: true, leaf: false, hist: {}, tris: 0 }
   if (h === undefined || h === null) return { closed: false, leaf: true, hist: {}, tris: 0 }
+  // ① 「作者网格」登记结论优先（ext `polyhedron` 缝补**之前**算出的闭合性）。
+  //    缝补后的产物 mesh 全闭合，按它判永远判不出 OpenSCAD 眼中的错误
+  //    （issue802：原始三角 4 条边界边 ⇒ 缝补后 52 tri）。未登记 ⇒ 走 ②。
+  const authored = readAuthoredClosure(h)
+  if (authored !== undefined) {
+    return { closed: authored, leaf: true, hist: {}, tris: -3 }
+  }
+  // ② 按产物 mesh 的无向边计数判定（叶子 mesh 未被缝补时的口径）。
   let t = 'solid'
   try {
     t = api.shapeType(h as never) as string

@@ -12,6 +12,11 @@ import {
   isClosedOperandForBooleanOp,
 } from '../../src/api/internal/boolean-closure'
 import { markAuthoredLeaf, isAuthoredLeaf, EXT_LEAF_OPS } from '../../src/api/internal/authored-leaf'
+import {
+  recordAuthoredClosure,
+  readAuthoredClosure,
+  clearAuthoredClosure,
+} from '../../src/api/internal/authored-closure'
 import { AUTHORED_LEAF } from '../../src/mesh/types'
 import type { Shape } from '../../src/mesh/types'
 import type { getBrepApi } from '../../src/brep/handle-bridge'
@@ -107,6 +112,48 @@ describe('operand closure (OpenSCAD 语义)', () => {
     const s = meshShape(positions, tris)
     markAuthoredLeaf(s)
     expect(isClosedOperandForBooleanOp(stubApi(), 1, s).closed).toBe(true)
+  })
+})
+
+describe('authored-closure 句柄登记表（ext 缝补前结论）', () => {
+  it('登记为开放 ⇒ 覆盖按产物 mesh 的判定（产物已被缝补成闭合）', () => {
+    clearAuthoredClosure()
+    // 产物 mesh 是闭合四面体（缝补后），但作者原始三角开放 ⇒ 必须判为不闭合。
+    const s = meshShape(TETRA_POINTS, TETRA_TRIS)
+    markAuthoredLeaf(s)
+    expect(isClosedOperandForBooleanOp(stubApi(), 7, s).closed).toBe(true)
+    recordAuthoredClosure(7, false)
+    const r = isClosedOperandForBooleanOp(stubApi(), 7, s)
+    expect(r.closed).toBe(false)
+    expect(r.leaf).toBe(true)
+    expect(r.tris).toBe(-3) // 结论来自登记表，不走边计数
+    clearAuthoredClosure()
+  })
+
+  it('只登记开放者：closed=true 不入表（未登记即回退既有口径）', () => {
+    clearAuthoredClosure()
+    recordAuthoredClosure(11, true)
+    expect(readAuthoredClosure(11)).toBeUndefined()
+  })
+
+  it('非叶子网格不给登记表开口子（先过叶子标记，登记无效）', () => {
+    clearAuthoredClosure()
+    const s = meshShape(TETRA_POINTS, TETRA_TRIS.slice(0, 9))
+    recordAuthoredClosure(13, false)
+    expect(isClosedOperandForBooleanOp(stubApi(), 13, s).closed).toBe(true)
+    clearAuthoredClosure()
+  })
+
+  it('登记表挂在 globalThis（跨包 / 跨副本共享同一份）', () => {
+    clearAuthoredClosure()
+    recordAuthoredClosure(21, false)
+    const g = globalThis as unknown as Record<symbol, unknown>
+    expect(g[Symbol.for('faijs.authoredClosure')]).toBeInstanceOf(Map)
+    expect(readAuthoredClosure(21)).toBe(false)
+    // 非数字 / NaN 句柄读不到结论 ⇒ 回退，不误判
+    expect(readAuthoredClosure('21')).toBeUndefined()
+    expect(readAuthoredClosure(Number.NaN)).toBeUndefined()
+    clearAuthoredClosure()
   })
 })
 
