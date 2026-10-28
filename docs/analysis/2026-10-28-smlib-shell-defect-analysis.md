@@ -3,7 +3,7 @@
 - 日期：2026-10-28
 - 作者：faijs engine-compare 排查（MainAgent）
 - 范围：SMLib（C++ 封装 WASM）抽壳操作与 occt 双引擎逐值比对
-- 状态：排查完成；SHELL_TWO 崩溃为内核级缺陷，未修复
+- 状态：**已复核并修复**（2026-10-28 二轮）。原文结论二、结论三经复核**判反/归因错误**，见文末「复核更正」；抽壳 `openFaces` 选择器路径的两处适配器缺陷已修，回归测试见 `packages/tests/faijs/shell/open-face-selector-parity.test.ts` 与 `packages/core/test/smlib-kernel/smlib-shape-kind-queries.test.ts`。
 
 ## 背景与任务来源
 
@@ -61,3 +61,128 @@ smlib 在 `faces="|Z"`（同时移除上下两个顶面）时直接 `E_OP_FAILED
 - 内核源码：`C:\git\new\usd-brep\source\SM_API\inc\SmApiBrep.h`（SmApiShellBrepFull 签名 :490）
 - 桥：`C:\git\new\usd-brep\wasm-probe\src\SmApiBridgeEx.cpp`（SmApiShellBrepFullEx :472）
 - 修复提交：`c72882e fix(smlib-kernel): splitByPlane solid halves + transform rotation transpose`
+
+---
+
+# 复核更正（2026-10-28 二轮）
+
+上文结论二、结论三**不成立**。用户质疑"抽壳是常用命令，SMLib 不支持很奇怪"是对的——SMLib 支持，
+问题在 faijs 的 smlib 适配层与本文的基准选择。
+
+## 更正一：全封闭抽壳，**occt 侧才是异常**（结论二把基准选反了）
+
+复核把两边结果逐项换算成已知几何（20³ 盒、壁厚 2，向内等厚薄壁的解析解）：
+
+| 量 | 解析解（向内薄壁实体） | occt 实测 | smlib 实测 |
+|---|---|---|---|
+| 体积 | 8000 − 16³ = **3904** | 4096 ❌ | **3904** ✅ |
+| 表面积 | 6×20² + 6×16² = **3936** | 1536 ❌ | **3936** ✅ |
+| bbox | 20³（外轮廓不变） | 16³，min=[2,2,2] ❌ | 20³ ✅ |
+| 面数 / shell 数 | 12（外 6 + 内 6）/ 1 | 6 / 1 ❌ | 12 / 1 ✅ |
+
+occt 返回的 4096 / 16³ / min[2,2,2] / 6 面 / 面积 1536 恰好是**内腔那个 16³ 实心盒**，
+即 `offset(−2)` 体，不是薄壁。原文把它当"正确语义"，然后给 smlib 记了一条"语义差"——反了。
+
+内核头文件本身就写明了 smlib 的语义（`SmApiBrep.h`，SmApiShellBrepFull 的
+`bCreateOffsetSolid` 参数说明）："*manifold inputs always return Boolean wall volume*"。
+smlib 的行为与声明一致。
+
+结论：`occt-wasm` 的 `shell(solid, [], …)` 在"无移除面"时退化成 inward offset，这是
+**occt 适配链路**的缺陷（影响全封闭抽壳的双引擎一致性），需单独处理；不应记为 smlib 缺陷。
+
+## 更正二：`|Z` 崩溃**不在内核**，在 faijs 选择器解析（结论三归因错误）
+
+复核用同一 smlib 内核、绕开 faijs op 层，直接对 20³ 盒的 6 个面做**全部 15 种双面组合**：
+
+```
+[smlib-shell-2face#0,1] vol=2880.00 area=3168.00 faces=10   ← 对面（=|Z 的两张面）
+[smlib-shell-2face#2,3] vol=2880.00 area=3168.00 faces=10
+[smlib-shell-2face#4,5] vol=2880.00 area=3168.00 faces=10
+其余 12 种邻面组合 = 2816.00 / 3048.00 / 10 面
+```
+
+15/15 全部成功，且与 occt 逐值相同（对面 2880、邻面 2816）。**内核多面移除路径没有缺陷。**
+
+崩溃真实位置（栈级定位）：`resolveSelectorToFaceRefs(shape, "|Z")` **自身**抛 wasm trap，
+根本没走到 `shell`。`"|Z"` 是 ParallelDirSelector，需要面的外向法向，链路为
+
+```
+resolveSelectorToFaceRefs("|Z")
+  → entityDirection → orientedFaceNormal(face, owner)      [api/cadquery-selectors/entity.ts:167]
+  → getBoundingBox(face)                                   ← ① wasm trap（首先炸在这）
+  → containsPoint(owner, probe)                            ← ② 未实现（修好①后再撞）
+```
+
+`">Z"` / `"<Z"` 不用法向（只用面心），`"%PLANE"` 只用 `geomType`，所以三者在原文探针里都"正常"，
+掩盖了问题——只有 `|` / `#`（平行/垂直）家族会踩到。
+
+### ① `getBoundingBox` 的 C++ 类型混淆（真 bug）
+
+内核把包围盒拆成三个独立 API，参数 ABI 完全相同、首参类型不同：
+
+- `SmApiBrepBoundingBox(const SmBrep*, bTight, rMin, rMax)`
+- `SmApiFaceBoundingBox(const SmFace*, bTight, rMin, rMax)`
+- `SmApiEdgeBoundingBox(const SmEdge*, bTight, rMin, rMax)`
+
+`smlibKernel.getBoundingBox` 对**任何**句柄都调 Brep 版。SmFace* 被当 SmBrep* 解引用后
+（`pBrep->CalculateBoundingBox()` 读的是 SmFace 的字段），20³ 盒 6 个面实测：
+
+```
+face#0 → wasm "memory access out of bounds"（trap）
+face#1 → {zmin:20, zmax:0}          ← 倒置盒
+face#2 → {ymin:0, ymax:0}           ← 退化盒
+face#4 → {zmin:20, zmax:-4.4e-15}   ← 倒置
+face#5 → ±1e20                      ← 空盒哨兵
+```
+
+不是"内核不支持"，是适配器喂错了 API。
+
+### ② `containsPoint` 缺失（能力缺口）
+
+`smlibKernel.containsPoint` 原是 `unsupported` 桩——SMLib 确实没有点分类 API（`SmApiQueries`
+全表 + 227 个 wasm 导出里都没有 containment 查询）。但 L1 契约要求它（`primitives.ts` 注释：
+"CadQuery 面法线定向（`Face.normalAt()` 的 outward 探针）需要它"），occt / brepkit 都有。
+
+**GOTCHA（容易踩反）**：不能"直接信 `surfaceNormal` 省掉探针"。smlib 的 `surfaceNormal`
+只反映**曲面构造朝向**，不反映材料朝向——实测抽壳结果的内腔面朝向与材料相反
+（内壁 x=2 给 −X，occt 给 +X；11 个面里 5 个反）。所以必须真做包含判定。
+
+## 修复（两处，均在 smlib 适配器层，未改 C++ / 未重编 wasm）
+
+`smlib-kernel/smlibKernel.ts`：
+
+1. **句柄种类登记 + 包围盒按种类分派**（`:85` `faceHandles`/`edgeHandles`，`:2148` 分派）：
+   `getSubShapes` 枚举面/边时登记（面/边是 brep-owned 借用指针，不释放）；`getBoundingBox`
+   按登记表选 `SmApiFaceBoundingBox` / `SmApiEdgeBoundingBox` / `SmApiBrepBoundingBox`。
+   未登记句柄按 brep 处理（裸桥直调产出的 brep 走这条；生产路径的面/边一律经 `getSubShapes`）。
+2. **`containsPoint` 几何实现**（`:2044`，辅助 `:134` `rayCrossings` / `:165` `PARITY_RAY_DIR`）：
+   三角化 + 射线奇偶（固定非轴对齐方向，避面/边双计数），按句柄缓存三角网
+   （`WeakMap` 键 = 内核 `memory`，跨内核实例隔离；`disposeHandle` 时清条目防指针复用）。
+   compound → 逐零件；面/边句柄 → 显式失败（无"包含"语义，不猜）。
+
+## 修复后实测（双引擎逐值）
+
+| 场景（20³，厚 2） | occt | smlib（修复后） |
+|---|---|---|
+| `openFaces: ">Z"` / `"<Z"` | 3392 / 3552 / 11 面 | 3392 / 3552 / 11 面 ✅ |
+| `openFaces: "|Z"` | 2880 / 3168 / 10 面 | **2880 / 3168 / 10 面** ✅（修复前：wasm trap） |
+| `openFaces: "|X"` | 2880 / 3168 / 10 面 | 2880 / 3168 / 10 面 ✅ |
+
+回归测试：
+
+- `packages/tests/faijs/shell/open-face-selector-parity.test.ts` —— 双引擎逐值门禁（含 `|Z` 回归）
+- `packages/core/test/smlib-kernel/smlib-shape-kind-queries.test.ts` —— 句柄种类分派、
+  `containsPoint` 内/外/壁内、以及"surfaceNormal 不是外向法向"这条 GOTCHA
+
+## 仍未解决（不在本次修复范围）
+
+1. **occt 全封闭抽壳语义**：`shell(solid, [], t)` 退化为 inward offset（见更正一）。要修需在
+   occt 侧对"无移除面"另行构造（如 `cut(solid, offset(solid,-t))`），会改动 occt 结果与面演化，
+   需单独立项。
+2. **`%PLANE`（移除全部 6 面）**：内核返回的 brep 再枚举面得到 `n=1001` 的坏结果
+   （`getSubShapes(face): bridge failed`）。这是非法输入（把整个外表面都开掉），应在参数层
+   显式拒绝，而不是把坏 brep 交给下游。
+3. **圆角 bug**：复核仍未能复现 smlib 侧圆角（与原文一致）。补充线索：`occt-wasm` 的
+   `shell(...)` 默认 `JoinType.Arc`（"rounds those edges with a radius equal to `thickness`"，
+   `occt-wasm/dist/index.d.ts:166-172`），若真机圆角来自 occt 链路而非 smlib，方向应转到
+   该默认 joinType。仍需用户提供真机复现参数才能定案。

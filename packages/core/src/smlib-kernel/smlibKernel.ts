@@ -71,6 +71,103 @@ function newSolid(ptr: number): BrepHandle {
   return ptr as BrepHandle
 }
 
+// ── 面/边**借用**句柄登记（句柄种类判别的唯一来源）──
+//
+// SmFace*/SmEdge* 由 brep 拥有（SmApiGetFaces/GetEdges 返回 "Borrowed Brep-owned"），
+// 不可也无需释放。但它们在 TS 侧与 SmBrep* 同为裸 number 指针，而内核 API 是强类型
+// 的：把 SmFace* 喂 `SmApiBrepBoundingBox(const SmBrep*)` 是 C++ 类型混淆。
+//
+// 实测（2026-10-28，抽壳 `openFaces: "|Z"` 崩溃根因）：20³ 盒的 6 个面喂
+// SmApiBrepBoundingBox → 1 个面 wasm "memory access out of bounds" trap，其余返回
+// **倒置（zmin=20/zmax=0）、退化（y 方向 0..0）或 1e20 空盒哨兵**的垃圾包围盒。
+// `getBoundingBox` 这类"参数 ABI 相同、语义完全不同的 API"必须按句柄种类分派，
+// 登记表即判别依据（与 solidHandles 同款思路：查表即类型判别）。
+const faceHandles = new Set<number>()
+const edgeHandles = new Set<number>()
+
+/** 登记借用面句柄后原样返回（便于就地串在枚举返回处）。 */
+function noteFaceHandles(handles: BrepHandle[]): BrepHandle[] {
+  for (const h of handles) faceHandles.add(h as unknown as number)
+  return handles
+}
+
+/** 登记借用边句柄后原样返回。 */
+function noteEdgeHandles(handles: BrepHandle[]): BrepHandle[] {
+  for (const h of handles) edgeHandles.add(h as unknown as number)
+  return handles
+}
+
+// ── 点包含判定（containsPoint）的几何实现 ──
+//
+// SMLib 没有点分类 API：SmApiQueries 全表（ClosestPoint / FindFaces / ClassifyUV …）
+// 没有 containment 查询，227 个 wasm 导出里也没有。而 L1 契约要求它——CadQuery 面
+// 法向定向（`Face.normalAt()` 的 outward 探针，见 brep/engine/primitives.ts 与
+// api/cadquery-selectors/entity.ts）就靠它。没有它，smlib 上 `"|Z"` / `"#Z"` 这类
+// 方向选择器整条路径不可用（抽壳 `openFaces: "|Z"` 崩溃的第二层原因）。
+//
+// 实现：三角化 → 从探针点沿固定"非轴对齐"方向发无限射线 → 与三角形求交，交叉数为
+// **奇数 ⇒ 内部**（闭合流形 parity 判定）。方向刻意非轴对齐：轴对齐射线在盒体上
+// 必然正穿面/边（同一交点在相邻两三角形上各记一次 → 奇偶翻转），非轴对齐方向
+// 对常规 BREP 不会落在面的边界上。
+//
+// 缓存：三角化按句柄缓存，键是内核 memory 对象（WeakMap → 跨内核实例天然隔离；
+// 同一 memory 在句柄被 disposeHandle 真释放时清该条，防指针复用后命中旧网格）。
+
+interface TriMesh {
+  positions: Float32Array
+  indices: Uint32Array
+}
+
+const triCacheByMemory = new WeakMap<WebAssembly.Memory, Map<number, TriMesh>>()
+
+/** 取（或建）本内核实例的三角化缓存表。 */
+function triCacheOf(memory: WebAssembly.Memory): Map<number, TriMesh> {
+  let m = triCacheByMemory.get(memory)
+  if (!m) {
+    m = new Map()
+    triCacheByMemory.set(memory, m)
+  }
+  return m
+}
+
+/** 射线（p + t·d, t>0）与三角网的交点计数（Möller–Trumbore）。 */
+function rayCrossings(mesh: TriMesh, p: BrepVec3, d: BrepVec3): number {
+  const pos = mesh.positions
+  const idx = mesh.indices
+  let cross = 0
+  for (let t = 0; t < idx.length; t += 3) {
+    const i0 = idx[t]! * 3
+    const i1 = idx[t + 1]! * 3
+    const i2 = idx[t + 2]! * 3
+    const e1x = pos[i1]! - pos[i0]!, e1y = pos[i1 + 1]! - pos[i0 + 1]!, e1z = pos[i1 + 2]! - pos[i0 + 2]!
+    const e2x = pos[i2]! - pos[i0]!, e2y = pos[i2 + 1]! - pos[i0 + 1]!, e2z = pos[i2 + 2]! - pos[i0 + 2]!
+    const hx = d.y * e2z - d.z * e2y
+    const hy = d.z * e2x - d.x * e2z
+    const hz = d.x * e2y - d.y * e2x
+    const a = e1x * hx + e1y * hy + e1z * hz
+    if (Math.abs(a) < 1e-12) continue // 射线与三角形共面/平行
+    const f = 1 / a
+    const sx = p.x - pos[i0]!, sy = p.y - pos[i0 + 1]!, sz = p.z - pos[i0 + 2]!
+    const u = f * (sx * hx + sy * hy + sz * hz)
+    if (u < 0 || u > 1) continue
+    const qx = sy * e1z - sz * e1y
+    const qy = sz * e1x - sx * e1z
+    const qz = sx * e1y - sy * e1x
+    const v = f * (d.x * qx + d.y * qy + d.z * qz)
+    if (v < 0 || u + v > 1) continue
+    const tHit = f * (e2x * qx + e2y * qy + e2z * qz)
+    if (tHit > 1e-9) cross++
+  }
+  return cross
+}
+
+/** 射线方向常量：归一化的非轴对齐向量（避开面/边上的退化双计数）。 */
+const PARITY_RAY_DIR: BrepVec3 = (() => {
+  const v = { x: 0.5731, y: 0.4189, z: 0.7043 }
+  const l = Math.hypot(v.x, v.y, v.z)
+  return { x: v.x / l, y: v.y / l, z: v.z / l }
+})()
+
 // ── 面/边 hash（红线：meshShape faceGroups 与 subShapeHashes 同源） ──
 //
 // faijs 无子形状 hash 的引擎原生支持（用户已确认"无子形状 hash 与顶点枚举=适配器
@@ -571,6 +668,8 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       // 只删登记过的 SmBrep*（face/edge 借用指针、非本内核对象一律 no-op）。
       if (!solidHandles.has(shape)) return
       solidHandles.delete(shape)
+      // 释放后指针可能被 malloc 复用：清掉该句柄的三角化缓存，防 containsPoint 命中旧网格。
+      triCacheOf(k.memory).delete(shape as unknown as number)
       k.find('SmApiDeleteBrepEx')(shape)
     },
     releaseAllExcept(keep: ReadonlySet<number>): void {
@@ -1708,7 +1807,7 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
               const numLoops = u32[0]
               const numOcc = u32[2]
               const edges = new Uint32Array(k.memory.buffer, buf + 12 + numLoops * 4, numOcc)
-              return Array.from(edges, (p) => p as BrepHandle)
+              return noteEdgeHandles(Array.from(edges, (p) => p as BrepHandle))
             } finally {
               k.free(buf)
             }
@@ -1724,7 +1823,8 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         if (!arr) throw new Error(`[smlib-kernel] getSubShapes(${type}): bridge failed (n=${n}, shape=${shape})`)
         try {
           const ptrs = new Uint32Array(k.memory.buffer, arr, n)
-          return Array.from(ptrs, (p) => p as BrepHandle)
+          const found = Array.from(ptrs, (p) => p as BrepHandle)
+          return type === 'face' ? noteFaceHandles(found) : type === 'edge' ? noteEdgeHandles(found) : found
         } finally {
           k.free(arr)
         }
@@ -1942,8 +2042,29 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return v
     },
     containsPoint(shape: BrepHandle, point: BrepVec3, tolerance: number): boolean {
-      void shape; void point; void tolerance
-      return unsupported('containsPoint')
+      // 几何实现（三角化 + 射线奇偶），见文件上方 PARITY_RAY_DIR / rayCrossings 注释。
+      // 内核无点分类 API，故"贴面判定"精度由容差外的几何决定：本实现对**闭合流形
+      // 实体**语义正确；开壳（sheet）无体可言，与 occt/brepkit 同口径返回 false。
+      const cKids = compoundKidsOf(shape)
+      if (cKids) return cKids.some((kid) => primitives.containsPoint(kid, point, tolerance))
+      const n = shape as unknown as number
+      if (!solidHandles.has(n)) {
+        // 面/边/虚拟 wire：不是实体，没有"包含"语义（不猜，显式失败）。
+        throw new Error(
+          '[smlib-kernel] containsPoint: only solid handles are classifiable ' +
+            `(handle=${n}; pass the owning solid, not a face/edge)`,
+        )
+      }
+      const cache = triCacheOf(k.memory)
+      let mesh = cache.get(n)
+      if (!mesh) {
+        const m = primitives.meshShape(shape)
+        mesh = { positions: m.positions, indices: m.indices }
+        if (cache.size >= 8) cache.clear() // 有界缓存：超限整体丢弃（只影响性能）
+        cache.set(n, mesh)
+      }
+      void tolerance
+      return rayCrossings(mesh, point, PARITY_RAY_DIR) % 2 === 1
     },
     getFaceCylinderData(face: BrepHandle): { radius: number } | null {
       // usd-brep 的 wasm 导出面无「面类型→圆柱参数」查询 API（SmApiQueries 无
@@ -2012,10 +2133,27 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         return { xmin, ymin, zmin, xmax, ymax, zmax }
       }
       // bTight：useTriangulation=false（缺省）→ loose box（bTight=0）。
+      //
+      // **必须按句柄种类分派**：内核把 solid/Face/Edge 的包围盒拆成三个独立 API
+      // （SmApiBrepBoundingBox / SmApiFaceBoundingBox / SmApiEdgeBoundingBox），
+      // 三者参数 ABI 相同（(ptr, bTight, min*, max*)）但首参类型不同。把 SmFace*
+      // 喂 Brep 版就是 C++ 类型混淆：实测 trap / 倒置盒 / 1e20 空盒哨兵（见上方
+      // faceHandles 注释）。faijs 的 L1 `getBoundingBox(shape)` 对任意子形状句柄
+      // 调用（选择器法向定向、面/边尺寸、网格零件度量都会传 face/edge）。
+      //
+      // 未登记句柄按 brep 处理：本适配器里 brep 一律经 newSolid() 登记，唯一例外是
+      // 测试里**裸桥**直调产出的 brep（如 SmApiShellBrepFullEx 探针）——它确实是
+      // brep，落到 Brep 版正确；而面/边在生产路径一律来自 getSubShapes（已登记）。
+      const n = shape as unknown as number
+      const fnName = faceHandles.has(n)
+        ? 'SmApiFaceBoundingBox'
+        : edgeHandles.has(n)
+          ? 'SmApiEdgeBoundingBox'
+          : 'SmApiBrepBoundingBox'
       const p = k.malloc(48)
       try {
         const dv = memOf(k)
-        expectOk(k.find('SmApiBrepBoundingBox')(shape, useTriangulation ? 1 : 0, p, p + 24), 'getBoundingBox')
+        expectOk(k.find(fnName)(shape, useTriangulation ? 1 : 0, p, p + 24), `getBoundingBox(${fnName})`)
         return {
           xmin: dv.getFloat64(p, true),
           ymin: dv.getFloat64(p + 8, true),
