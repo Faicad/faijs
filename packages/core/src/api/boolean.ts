@@ -174,9 +174,34 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
       roleTable = r.roleTable
     } else {
       // 裸布尔降级路径：几何正确，但无面演化、无 roleTable 传播（如实降级，不伪造映射）。
+      //
+      // ── cut × 多 solid compound 工具特例（2026-10-28 用户拍板，只此一例）─────────
+      // 多字符 `cad.text` 返回 compound（虚拟容器，smlibKernel makeCompound），而
+      // smlib 等裸内核的 cut 只吃 solid 句柄 —— 整块送 cut 直接炸（端侧探针实证：
+      // "a.get(...) is not a function"）。先把工具成员 fuseAll 成整体、再切一次。
+      // 边界（用户明示）：① 只针对 cut —— union / intersect 不做（凸出雕刻不发布尔，
+      // 不存在这个场景）；② 只走裸路径 —— occt 恒走上方 history 路径且原生吃
+      // compound，一个字节都不动；③ 非 compound / 单 solid 工具原样传递，行为零变化。
+      let effectiveTool = tool
+      let fusedTool: BrepHandle | undefined
+      if (op === 'cut') {
+        try {
+          const subs = kernel.getSubShapes(tool, 'solid') as BrepHandle[]
+          if (subs.length > 1) {
+            fusedTool = kernel.fuseAll(subs)
+            for (const s of subs) {
+              try { kernel.release(s) } catch { /* 已释放 */ }
+            }
+            effectiveTool = fusedTool
+          }
+        } catch { /* 非 compound（或无 getSubShapes）：原句柄照常走 */ }
+      }
       try {
-        resultSolid = kernel[op](prev, tool)
+        resultSolid = kernel[op](prev, effectiveTool)
       } catch (cause) {
+        if (fusedTool !== undefined) {
+          try { kernel.release(fusedTool) } catch { /* 已释放 */ }
+        }
         const msg = cause instanceof Error ? cause.message : String(cause)
         throw new OpError(
           `boolean/${operation}`,
@@ -185,6 +210,10 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
           `${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`} — ${msg}`,
           { cause },
         )
+      }
+      // fusedTool 是本实现造的中间句柄：cut 消费后及时释放（输入句柄照旧不碰）。
+      if (fusedTool !== undefined) {
+        try { kernel.release(fusedTool) } catch { /* 已释放 */ }
       }
       lastEvolution = undefined
       roleTable = undefined

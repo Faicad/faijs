@@ -34,12 +34,32 @@ export async function resolveSvgArg(
   svg: unknown,
   ports?: Pick<HostPorts, 'assets'>,
 ): Promise<string> {
-  // 普通字符串：直接返回（兼容旧格式或直接传入 SVG 文本）
-  if (typeof svg === 'string') return svg
+  return resolveAssetTextArg(svg, ports, 'SVG')
+}
+
+/**
+ * 「文本或资产引用」参数的通解（SVG / DXF 共用）。
+ *
+ * 为什么把 svg 那套抽出来而不是复制一份：语义完全一样（字符串直用、`{$asset}` 走
+ * ports 解析、UTF-8 解码），唯一差别是错误文案里的资源名。复制一份的下场是
+ * "SVG 支持 ports.assets 而 DXF 忘了"这类只有端侧才暴露的分叉。
+ *
+ * @param arg 参数值：文本字符串或 `{ $asset: key }`
+ * @param ports 宿主资产端口
+ * @param label 资源名（只进错误文案：'SVG' / 'DXF'）
+ * @returns 解析后的资源文本（字符串直通或资产 UTF-8 解码结果）
+ */
+export async function resolveAssetTextArg(
+  arg: unknown,
+  ports: Pick<HostPorts, 'assets'> | undefined,
+  label: string,
+): Promise<string> {
+  // 普通字符串：直接返回（兼容旧格式或直接传入文件文本）
+  if (typeof arg === 'string') return arg
 
   // 旧 AssetRef 结构：按 key 解析
-  if (isLegacyAssetRef(svg)) {
-    const key = svg.$asset
+  if (isLegacyAssetRef(arg)) {
+    const key = arg.$asset
 
     // 优先使用 ports.assets（headless 环境支持）
     if (ports?.assets) {
@@ -48,8 +68,8 @@ export async function resolveSvgArg(
     }
 
     // ports.assets is required for headless engine
-    throw new Error(`[resolveSvgArg] SVG asset "${key}" cannot be resolved: ports.assets not available`)
+    throw new Error(`[resolveAssetTextArg] ${label} asset "${key}" cannot be resolved: ports.assets not available`)
   }
 
-  throw new Error(`[resolveSvgArg] expected string or AssetRef, got ${typeof svg}`)
+  throw new Error(`[resolveAssetTextArg] ${label}: expected string or AssetRef, got ${typeof arg}`)
 }

@@ -576,7 +576,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     const code = [
       'const s1 = cad.box(20, 20, 20, { centered: true })',
       'const s2 = cad.fai_drill(s1, { diameter: 6, depth: 0, position: [0, 0, 10], direction: "normal", faceNormal: [0, 0, 1], holeType: "simple" })',
-      'const s3 = cad.engrave(s2, { engravingType: "text", mode: "concave", depth: 1, text: "A", textSize: 10 })',
+      'const s3 = cad.engrave(s2, { mode: "concave", depth: 1, text: "A", textSize: 10 })',
     ].join('\n')
     const result = await executeScript(code)
 
@@ -588,6 +588,142 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     // Clean up
     releaseBrepChainState(result.brepChain)
   })
+
+  it('executeScript(engrave 的 dxf 源): 真的从面上切出一个凹坑（不是静默空操作）', async () => {
+    // DXF 源与 text/svg 共用同一套「居中 → 对齐法向 → 贴面 → 布尔」，
+    // 差别只在轮廓解析。这条用例钉住两件事：
+    //   ① dxf 参数能从脚本面走通（资产解析 / dxfToSolid / cut 全链路）；
+    //   ② 真的切出了坑 —— 体积下降量在「10×10×2 的面积×深度」量级，
+    //      既不是 0（静默空操作）也不是穿（把箱体打穿）。
+    // 方框用 4 顶点 LWPOLYLINE（不含重复收尾点）——顺带覆盖收尾边补全。
+    const DXF = [
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'LWPOLYLINE', '8', 'P', '90', '0',
+      '10', '0', '20', '0',
+      '10', '10', '20', '0',
+      '10', '10', '20', '10',
+      '10', '0', '20', '10',
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\n')
+    const code = [
+      'const s1 = cad.box(20, 20, 20, { centered: true })',
+      `const s2 = cad.engrave(s1, { dxf: ${JSON.stringify(DXF)}, mode: "concave", depth: 2, dxfSize: 10, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })`,
+    ].join('\n')
+
+    const result = await executeScript(code)
+    const s1 = result.brepChain.solidCache.get(asPartName('s1')) as BrepHandle
+    const s2 = result.brepChain.solidCache.get(asPartName('s2')) as BrepHandle
+    expect(s2).toBeDefined()
+
+    // 贴面口径：凹坑从 z=10 面往内 depth=2（减掉 0.01 的避共面余量）。
+    // 10×10 的坑 × 2 深 ≈ 200（顶面 0.01 在实体外，故略少）。
+    const removed = kernel.getVolume(s1) - kernel.getVolume(s2)
+    expect(removed).toBeGreaterThan(150)
+    expect(removed).toBeLessThan(250)
+    // 坑底在实体内 → 点位应是空的；同一位置的原箱体是实的。
+    expect(kernel.containsPoint(s1, { x: 0, y: 0, z: 9 }, 1e-6)).toBe(true)
+    expect(kernel.containsPoint(s2, { x: 0, y: 0, z: 9 }, 1e-6)).toBe(false)
+
+    releaseBrepChainState(result.brepChain)
+  }, 120_000)
+
+  it('executeScript(text 带 faceCenter/faceNormal): 文字真的落在指定面上（与刻字同一套对齐）', async () => {
+    // 文字建模的"先选面"能力：`cad.text` 给了 faceCenter/faceNormal 时，
+    // 走与 `cad.engrave` **同一个** placeOnFace（居中 → 旋到法向 → 移面心）。
+    // 这里钉住行为，不钉实现：
+    //   ① 厚度 2 的文字贴在 z=10 面**外**（底面贴面、整块凸出）→ bbox.min.z ≈ 10；
+    //   ② `depth/2` 沿法向推开，所以 bbox 落在 [10, 12] 而不是跨过面；
+    //   ③ 不给 faceCenter 时仍是历史行为（z ∈ [-d/2, d/2]、y 从 0 向上）。
+    const code = [
+      'const t1 = cad.text({ text: "Hi", size: 10, depth: 2, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })',
+    ].join('\n')
+    const result = await executeScript(code)
+    const t1 = result.brepChain.solidCache.get(asPartName('t1')) as BrepHandle
+    expect(t1).toBeDefined()
+
+    const bb = kernel.getBoundingBox(t1, false)
+    // 贴在 z=10 面上、往 +Z 凸出 depth=2 → z ∈ [10, 12]（允许一点数值噪声）
+    expect(bb.zmin).toBeGreaterThan(9.9)
+    expect(bb.zmin).toBeLessThan(10.1)
+    expect(bb.zmax).toBeGreaterThan(11.5)
+    expect(bb.zmax).toBeLessThan(12.5)
+    // 面内居中：X/Y 关于 faceCenter（0,0）对称 —— 文字中心落在面心，不是从面心向 +X 长
+    expect(Math.abs(bb.xmin + bb.xmax)).toBeLessThan(1)
+    expect(Math.abs(bb.ymin + bb.ymax)).toBeLessThan(1)
+
+    releaseBrepChainState(result.brepChain)
+  }, 120_000)
+
+  it('executeScript(svgExtrude 带 faceCenter/faceNormal): SVG 真的落在指定面上', async () => {
+    // 「矢量刻字」的"先选面"能力：cad.svgExtrude 现在也认 faceCenter/faceNormal，
+    // 走与 cad.text 同一个 placeOnFace（居中 → 旋到法向 → 移面心），朝向一致。
+    const svg = '<svg viewBox="0 0 100 100"><path d="M 10 10 L 90 10 L 90 90 L 10 90 Z"/></svg>'
+    const code = [
+      `const s1 = cad.svgExtrude({ svg: ${JSON.stringify(svg)}, depth: 2, targetLongSide: 20, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })`,
+    ].join('\n')
+    const result = await executeScript(code)
+    const s1 = result.brepChain.solidCache.get(asPartName('s1')) as BrepHandle
+    expect(s1).toBeDefined()
+
+    const bb = kernel.getBoundingBox(s1, false)
+    // 贴在 z=10 面外、深度 2 → z ∈ [10, 12]
+    expect(bb.zmin).toBeGreaterThan(9.9)
+    expect(bb.zmin).toBeLessThan(10.1)
+    expect(bb.zmax).toBeGreaterThan(11.5)
+    expect(bb.zmax).toBeLessThan(12.5)
+    // 面内居中：X/Y 关于 faceCenter（0,0）对称
+    expect(Math.abs(bb.xmin + bb.xmax)).toBeLessThan(1)
+    expect(Math.abs(bb.ymin + bb.ymax)).toBeLessThan(1)
+
+    releaseBrepChainState(result.brepChain)
+  }, 120_000)
+
+  it('executeScript(text/svgExtrude 负向 depth): 实体落在面另一侧（标准面凹陷=负向拉伸）', async () => {
+    // 标准面 + 凹陷 = 负向拉伸出来的独立实体（方向翻转，不布尔、不禁用），
+    // 与草图负向拉伸同逻辑。钉住：depth<0 时实体在面心 -Z 侧（zmax ≈ faceCenter.z）。
+    const svg = '<svg viewBox="0 0 100 100"><path d="M 10 10 L 90 10 L 90 90 L 10 90 Z"/></svg>'
+    const code = [
+      'const t1 = cad.text({ text: "Hi", size: 10, depth: -2, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })',
+      `const s1 = cad.svgExtrude({ svg: ${JSON.stringify(svg)}, depth: -2, targetLongSide: 20, faceCenter: [0, 0, 10], faceNormal: [0, 0, 1] })`,
+    ].join('\n')
+    const result = await executeScript(code)
+    const t1 = result.brepChain.solidCache.get(asPartName('t1')) as BrepHandle
+    const s1 = result.brepChain.solidCache.get(asPartName('s1')) as BrepHandle
+    expect(t1).toBeDefined()
+    expect(s1).toBeDefined()
+
+    const bbT = kernel.getBoundingBox(t1, false)
+    const bbS = kernel.getBoundingBox(s1, false)
+    // 两者都凹入面下方：zmax ≈ 10（底面贴面心），zmin ≈ 8（深度 2 向内）
+    for (const bb of [bbT, bbS]) {
+      expect(bb.zmax).toBeGreaterThan(9.9)
+      expect(bb.zmax).toBeLessThan(10.1)
+      expect(bb.zmin).toBeGreaterThan(7.5)
+      expect(bb.zmin).toBeLessThan(8.5)
+    }
+
+    releaseBrepChainState(result.brepChain)
+  }, 120_000)
+
+  it('executeScript(text 多字符 compound 经 cad.subtract 直接吃掉): 退休 engrave 逐 solid 拆的前提', async () => {
+    // 多字符文字是 compound（不相交字母 fuse 后仍是 compound）。BREP 路径的
+    // cad.subtract 把每个输入都当工具送 kernel.cut，OCCT 减法原生支持 compound 工具，
+    // 所以"物体面 + 凹陷"可直接 cad.subtract(target, deco) 而无需先 fuse 成单 solid。
+    const code = [
+      'const box = cad.box(40, 40, 40, { centered: true })',
+      'const t1 = cad.text({ text: "Hi", size: 10, depth: 3, faceCenter: [0, 0, 20], faceNormal: [0, 0, 1] })',
+      'const cut = cad.subtract(box, t1)',
+    ].join('\n')
+    const result = await executeScript(code)
+    const cut = result.brepChain.solidCache.get(asPartName('cut')) as BrepHandle
+    expect(cut).toBeDefined()
+    const bb = kernel.getBoundingBox(cut, false)
+    // 原 box 高 40（-20..20），从顶面 z=20 挖掉一个沿 +Z 凸出的字（z ∈ [20,23]）→
+    // 被挖后实体最高应仍在 20（顶面被掏了个坑，整体不增不减）
+    expect(bb.zmax).toBeLessThan(20.5)
+    expect(bb.zmax).toBeGreaterThan(19.5)
+    releaseBrepChainState(result.brepChain)
+  }, 120_000)
 
   it('executeScript without engrave → solid still in cache (chain healed, not persistent)', async () => {
     // 核心测试：BREP 状态不是持久状态。每次 executeScript 创建新的 BrepChainState，

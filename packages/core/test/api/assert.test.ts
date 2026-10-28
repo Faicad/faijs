@@ -54,11 +54,18 @@ describe('api per-op assert: 创建类', () => {
 })
 
 describe('api per-op assert: 特征类', () => {
-  it('engrave: 至少 text 或 svg 之一；depth > 0', () => {
-    expect(() => assertEngraveParams({})).toThrow(/text.*svg/)
+  it('engrave: text / svg / dxf 三选一（且互斥）；depth > 0', () => {
+    expect(() => assertEngraveParams({})).toThrow(/text.*svg.*dxf/)
+    // 空字符串等同没给（否则 text:'' 会命中文案分支、刻出一片空白）
+    expect(() => assertEngraveParams({ text: '' })).toThrow(/text.*svg.*dxf/)
     expect(() => assertEngraveParams({ text: 'A', depth: -1 })).toThrow(/engrave\.depth/)
     expect(() => assertEngraveParams({ text: 'A', depth: 2 })).not.toThrow()
     expect(() => assertEngraveParams({ svg: '<svg/>' })).not.toThrow()
+    expect(() => assertEngraveParams({ dxf: '0\nSECTION' })).not.toThrow()
+    // 同时给两个源：实现只取第一个命中分支，另一个被静默忽略——直接拒绝
+    expect(() => assertEngraveParams({ text: 'A', svg: '<svg/>' })).toThrow(/mutually exclusive/)
+    expect(() => assertEngraveParams({ text: 'A', dxf: 'x' })).toThrow(/mutually exclusive.*text \+ dxf/)
+    expect(() => assertEngraveParams({ svg: '<svg/>', dxf: 'x' })).toThrow(/mutually exclusive.*svg \+ dxf/)
   })
 })
 

@@ -468,25 +468,52 @@ export function dxfEntitiesToWires(kernel: BrepEngineApi, parsed: DxfParsed): Re
     // polyline → Curve2dObj 序列（bulge≠0 的段是真实三点圆弧，不退化成弦线），
     // 经 geometry2d 桥 assembleWire 在 XY 平面落成 wire——与 sketch/profile 同一管线。
     const curves: Curve2dObj[] = [];
+    /**
+     * 顶点 a→b 这一段的曲线。
+     *
+     * **bulge 存在顶点 a 上**（组码 42 紧跟在该顶点的 10/20 之后），描述的是
+     * 「a → 下一个顶点」这一段——所以收尾段用的是**最后一个顶点**的 bulge，
+     * 不是第一个的。漏了这点就是"闭合边的弧被拉成弦"。
+     *
+     * bulge≠0 时走三点圆弧：拱点 = 弦中点沿行进方向左侧法向抬升 sagitta
+     * （bulge>0 逆时针，弧凸向行进方向左侧）；|bulge|>1 时 θ>π，
+     * 公式 sagitta = bulge·chord/2 依然成立。弦长为 0（顶点重合）返回
+     * undefined——退化段直接丢弃，不产零长 edge。
+     */
+    const segmentCurve = (a: DxfPolylineVertex, b: DxfPolylineVertex): Curve2dObj | undefined => {
+      if (a.bulge === 0) return makeLine2d(a.x, a.y, b.x, b.y);
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const chord = Math.hypot(dx, dy);
+      if (chord === 0) return undefined;
+      const sagitta = (a.bulge * chord) / 2;
+      const apexX = (a.x + b.x) / 2 + (-dy / chord) * sagitta;
+      const apexY = (a.y + b.y) / 2 + (dx / chord) * sagitta;
+      return makeArc2dThreePoints(a.x, a.y, apexX, apexY, b.x, b.y);
+    };
     for (let i = 0; i < vertices.length - 1; i++) {
-      const a = vertices[i];
-      const b = vertices[i + 1];
-      if (a.bulge === 0) {
-        curves.push(makeLine2d(a.x, a.y, b.x, b.y));
-      } else {
-        // bulge → 三点圆弧：拱点 = 弦中点沿行进方向左侧法向抬升 sagitta
-        // （bulge>0 逆时针，弧凸向行进方向左侧）。|bulge|>1 时 θ>π，
-        // 公式 sagitta = bulge·chord/2 依然成立。
-        const mx = (a.x + b.x) / 2;
-        const my = (a.y + b.y) / 2;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const chord = Math.hypot(dx, dy);
-        if (chord === 0) continue;
-        const sagitta = (a.bulge * chord) / 2;
-        const apexX = mx + (-dy / chord) * sagitta;
-        const apexY = my + (dx / chord) * sagitta;
-        curves.push(makeArc2dThreePoints(a.x, a.y, apexX, apexY, b.x, b.y));
+      const curve = segmentCurve(vertices[i], vertices[i + 1]);
+      if (curve !== undefined) curves.push(curve);
+    }
+    // 闭合边：LWPOLYLINE 的顶点表**通常不含重复的收尾点**（闭合由组码 70 的 bit0 或
+    // 「最后一个顶点 = 第一个」两种写法表达）。上面的循环只连相邻顶点，因此
+    // 顶点表形态（4 点方框）会少一条收尾边。
+    //
+    // 少这条边的后果不是"开环被拒绝"，而是 assembleWire **自行闭合但形状是错的**：
+    // 2026-10-28 实测 10×10 方框拉伸出的体积是 77.78（应为 100）、直角三角是 33.33
+    // （应为 50）—— 也就是说**静默产出一个错形状**，比报错危险得多（导入的 logo
+    // 刻出来会缺一块，而画布上看不出哪里不对）。
+    //
+    // 判定用 1e-9 相对容差：DXF 顶点常带 1e-12 级浮点误差，严格相等会把
+    // "本来就闭合"的轮廓补出一条零长边（assembleWire 会因此失败）。
+    const first = vertices[0];
+    const last = vertices[vertices.length - 1];
+    if (first && last && curves.length > 0) {
+      const gap = Math.hypot(first.x - last.x, first.y - last.y);
+      const diag = Math.max(1e-9, Math.hypot(first.x, first.y, last.x, last.y)) * 1e-9;
+      if (gap > diag) {
+        const curve = segmentCurve(last, first);
+        if (curve !== undefined) curves.push(curve);
       }
     }
     if (curves.length > 0) {
