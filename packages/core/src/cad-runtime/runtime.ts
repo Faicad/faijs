@@ -1024,11 +1024,54 @@ export class CadRuntime {
     const keep = new Set<number>()
     for (const h of this.solidCache.values()) keep.add(h)
     for (const h of this.meshSolidRegistry.values()) keep.add(h)
-    try {
-      k.releaseAllExcept(keep)
-    } catch {
-      // 清扫失败不阻断结果返回（与 disposeSolidHandle 的容错口径一致）
+    // 兜底清扫：不吞错（项目红线）。正常路径 per-statement 作用域已回收临时对象。
+    k.releaseAllExcept(keep)
+  }
+
+  /**
+   * 当前跨语句存续的句柄集合（escapePtrs）= solidCache 全部句柄 + 网格实体句柄。
+   * per-statement pop 时，帧内 track 过但不在此集合的 owned 句柄一律释放。
+   */
+  private escapeHandleSet(): Set<number> {
+    const keep = new Set<number>()
+    for (const h of this.solidCache.values()) keep.add(h as unknown as number)
+    for (const h of this.meshSolidRegistry.values()) keep.add(h as unknown as number)
+    return keep
+  }
+
+  /**
+   * 构造 per-statement 作用域 hooks（F15）：beforeStatement push 空帧，afterStatement
+   * pop 并释放本帧未逃逸的临时 owned。与调用方传入的 before/after hooks 组合（先调
+   * scope hook，再调调用方 hook）。GC 型引擎不实现 __pushStatementScope → 本方法返回
+   * 透传 hooks（no-op）。
+   */
+  private wireScopeHooks(opts: ExecuteOptions | undefined): {
+    beforeStatement?: (stmtId: string, lineNo: number) => void
+    afterStatement?: (stmtId: string, lineNo: number) => void
+  } {
+    const k = this.kernel
+    if (!k?.__pushStatementScope) {
+      return { beforeStatement: opts?.beforeStatement, afterStatement: opts?.afterStatement }
     }
+    const push = k.__pushStatementScope.bind(k)
+    const pop = k.__popStatementScope!.bind(k)
+    return {
+      beforeStatement: (stmtId, lineNo) => {
+        push(stmtId)
+        opts?.beforeStatement?.(stmtId, lineNo)
+      },
+      afterStatement: (stmtId, lineNo) => {
+        pop(this.escapeHandleSet())
+        opts?.afterStatement?.(stmtId, lineNo)
+      },
+    }
+  }
+
+  /** 失败/异常路径：排空残留作用帧（避免帧内临时对象泄漏）。 */
+  private drainScopeFrames(): void {
+    const k = this.kernel
+    if (!k?.__drainStatementScope) return
+    k.__drainStatementScope(this.escapeHandleSet())
   }
 
   /**
@@ -1187,14 +1230,17 @@ export class CadRuntime {
     const moduleLoad = await this.loadDirectModuleImports(meta, opts?.entryKey)
     if (!('seed' in moduleLoad)) return moduleLoad
     await this.ensureBrepChain()
+    const scopeHooks = this.wireScopeHooks(opts)
     const outcome = await de.execute(code, {
       imports: moduleLoad.seed,
       params: opts?.params,
       ...(opts?.startIndex !== undefined ? { startLine: opts.startIndex } : {}),
-      ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
-      ...(opts?.afterStatement ? { afterStatement: opts.afterStatement } : {}),
+      ...(scopeHooks.beforeStatement ? { beforeStatement: scopeHooks.beforeStatement } : {}),
+      ...(scopeHooks.afterStatement ? { afterStatement: scopeHooks.afterStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
+    // 失败路径排空残留作用帧（成功路径 afterStatement 已逐语句 pop）。
+    if (outcome.failedAt) this.drainScopeFrames()
     if (outcome.failedAt) {
       return this.directFailedAtOrThrow(outcome.failedAt, meta, {
         path: 'full',
@@ -1289,13 +1335,15 @@ export class CadRuntime {
     const moduleLoad = await this.loadDirectModuleImports(meta, opts?.entryKey)
     if (!('seed' in moduleLoad)) return moduleLoad
     await this.ensureBrepChain()
+    const appendScopeHooks = this.wireScopeHooks(opts)
     const outcome = await de.append(code, {
       imports: moduleLoad.seed,
       params: opts?.params,
-      ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
-      ...(opts?.afterStatement ? { afterStatement: opts.afterStatement } : {}),
+      ...(appendScopeHooks.beforeStatement ? { beforeStatement: appendScopeHooks.beforeStatement } : {}),
+      ...(appendScopeHooks.afterStatement ? { afterStatement: appendScopeHooks.afterStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
+    if (outcome.failedAt) this.drainScopeFrames()
     if (outcome.failedAt) {
       return this.directFailedAtOrThrow(outcome.failedAt, meta, {
         path: 'full',
@@ -2501,10 +2549,11 @@ export class CadRuntime {
    * 持有该句柄的时刻（覆盖旧值 / 缓存失效 / dispose）。
    */
   private disposeSolidHandle(handle: BrepHandle): void {
-    try {
-      if (this.kernel?.disposeHandle) this.kernel.disposeHandle(handle)
-      else this.kernel?.release(handle)
-    } catch { /* 已释放 */ }
+    // 受控真释放一个 solid 句柄：优先 disposeHandle（GC-less 引擎如 smlib 真删内核
+    // 对象），否则回退 release（GC 型引擎的引用语义）。
+    // 2026-10-29：去掉 try/catch 吞错（项目红线）。错误直接抛，由上层语句级错误处理。
+    if (this.kernel?.disposeHandle) this.kernel.disposeHandle(handle)
+    else this.kernel?.release(handle)
   }
 
   private releasePartCaches(partNames: PartName[]): void {
@@ -2737,10 +2786,11 @@ export class CadRuntime {
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
 
+    const replayScopeHooks = this.wireScopeHooks(opts)
     const execOpts: DirectExecOpts = {
       params: opts?.params,
-      ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
-      ...(opts?.afterStatement ? { afterStatement: opts.afterStatement } : {}),
+      ...(replayScopeHooks.beforeStatement ? { beforeStatement: replayScopeHooks.beforeStatement } : {}),
+      ...(replayScopeHooks.afterStatement ? { afterStatement: replayScopeHooks.afterStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     }
 
@@ -2750,6 +2800,7 @@ export class CadRuntime {
 
     // ── 失败降级（§4.7）──
     if (outcome.failedAt) {
+      this.drainScopeFrames()
       de.reset()
       return this.executeDirectText(newCode, opts, 'replay-failed')
     }

@@ -24,6 +24,7 @@
 import { initSmlibWasm, resetSmlibWasm, type SmlibKernel } from './smlibWasm'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { BREP_HASH_BOUND } from '../brep/engine/types'
+import { HandleRegistryImpl, GcLessPolicy, type HandleRegistry, type ScopeStack } from './handleRegistry'
 import type {
   BrepBoundingBox,
   BrepCurveParameters,
@@ -63,11 +64,39 @@ function unsupported(name: string): never {
 // smlib 的 face/edge 句柄是 Brep-owned 借用指针（SmApiGetFaces/GetEdges 返回
 // "Borrowed Brep-owned"），不可 delete；SmBrep* 由 `SmApiDeleteBrepEx` 释放。
 // 登记表记录哪些句柄是 SmBrep*——release 只删登记过的（查表即类型判别）。
+//
+// 2026-10-29：统一内存生命周期（设计文档 2026-10-29-smlib-memory-architecture-design.md）。
+// HandleRegistry 在 createSmlibPrimitives 闭包内创建（绑定本 kernel 的 dealloc/triCache），
+// 通过 smlibRegistry 暴露给模块级 helper。旧 Set 在 Phase 5 前双写并行。
 const solidHandles = new Set<number>()
+
+/** 闭包内创建的统一登记表；模块级 helper 通过它双写。 */
+let smlibRegistry: HandleRegistry | null = null
+
+/**
+ * 测试/诊断用：取当前注册表。
+ * @returns 已初始化的 HandleRegistry；内核未装载时返回 null。
+ */
+export function __getSmlibRegistry(): HandleRegistry | null {
+  return smlibRegistry
+}
+
+/**
+ * 取 per-statement 作用域栈（runtime 调度层 push/pop）。
+ * @returns 已初始化的 ScopeStack；内核未装载时返回 null。
+ */
+export function __getSmlibScopeStack(): ScopeStack | null {
+  // registry 内部持有 scope；闭包内创建后由 createSmlibPrimitives 挂到全局。
+  return smlibScopeStackRef
+}
+let smlibScopeStackRef: ScopeStack | null = null
 
 /** 登记新 SmBrep* 句柄（solid 类）。 */
 function newSolid(ptr: number): BrepHandle {
-  if (ptr) solidHandles.add(ptr)
+  if (ptr) {
+    solidHandles.add(ptr)
+    smlibRegistry?.registerOwned(ptr)
+  }
   return ptr as BrepHandle
 }
 
@@ -85,15 +114,23 @@ function newSolid(ptr: number): BrepHandle {
 const faceHandles = new Set<number>()
 const edgeHandles = new Set<number>()
 
-/** 登记借用面句柄后原样返回（便于就地串在枚举返回处）。 */
-function noteFaceHandles(handles: BrepHandle[]): BrepHandle[] {
-  for (const h of handles) faceHandles.add(h as unknown as number)
+/** 登记借用面句柄后原样返回（便于就地串在枚举返回处）。owner = 所属 solid/face 句柄。 */
+function noteFaceHandles(handles: BrepHandle[], owner: number): BrepHandle[] {
+  for (const h of handles) {
+    const n = h as unknown as number
+    faceHandles.add(n)
+    smlibRegistry?.registerBorrowed(n, owner, 'face')
+  }
   return handles
 }
 
-/** 登记借用边句柄后原样返回。 */
-function noteEdgeHandles(handles: BrepHandle[]): BrepHandle[] {
-  for (const h of handles) edgeHandles.add(h as unknown as number)
+/** 登记借用边句柄后原样返回。owner = 所属 solid/face 句柄。 */
+function noteEdgeHandles(handles: BrepHandle[], owner: number): BrepHandle[] {
+  for (const h of handles) {
+    const n = h as unknown as number
+    edgeHandles.add(n)
+    smlibRegistry?.registerBorrowed(n, owner, 'edge')
+  }
   return handles
 }
 
@@ -609,10 +646,21 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
   if (primitivesSingleton) return primitivesSingleton
   const k = await initSmlibWasm()
 
+  // ── 统一句柄登记表 + per-statement 作用域栈（2026-10-29 内存生命周期设计）──
+  // policy.deallocOwned：真删 SmBrep* 并清该句柄的 triCache（对齐旧 disposeHandle）。
+  const deallocOwned = (ptr: number): void => {
+    triCacheOf(k.memory).delete(ptr)
+    k.find('SmApiDeleteBrepEx')(ptr)
+  }
+  const registry = new HandleRegistryImpl(new GcLessPolicy(deallocOwned))
+  smlibRegistry = registry
+  smlibScopeStackRef = registry.scope
+
   // ── 布尔（副本化）辅助 ──
   // SmApiBoolean* 是原地消耗式（a 变、b 被内核删除）——先深拷贝两入参，
-  // 保用户句柄与语言层句柄契约（方案文档 §4.2/§5.4）。pb 不登记：内核拥有
-  // （成功被删、失败语义不明）；pa 与 result 登记（都要我们释放）。
+  // 保用户句柄与语言层句柄契约（方案文档 §4.2/§5.4）。
+  // 2026-10-29：pa/pb 都登记为 owned。成功路径 pb 被内核删除 → markConsumedByKernel；
+  // 失败路径 pa/pb 都没被内核消耗 → 都 releaseOwned（修考古报告 §3.1 pb 泄漏）。
   function booleanOp(opName: string, a: BrepHandle, b: BrepHandle, what: string): BrepHandle {
     const out = k.malloc(4)
     const aCopy = k.malloc(4)
@@ -628,23 +676,36 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       const pa = dv2.getUint32(aCopy, true)
       const pb = dv2.getUint32(bCopy, true)
       if (!pa || !pb) throw new Error(`[smlib-kernel] ${what}: brep copy returned null`)
+      // pa/pb 都登记为 owned（双写旧 Set + 新 registry；Phase 5 后只走 registry）。
       solidHandles.add(pa)
+      solidHandles.add(pb)
+      registry.registerOwned(pa)
+      registry.registerOwned(pb)
       dv2.setUint32(out, 0, true)
       const st = k.find(opName)(pa, pb, out)
       if (st !== SM_SUCCESS) {
-        // 失败：释放 pa（副本 a）；pb 归属内核，不碰（避免悬垂 delete）。
+        // 失败：pa/pb 都没被内核消耗，都要真删。
+        registry.releaseOwned(pa)
+        registry.releaseOwned(pb)
         solidHandles.delete(pa)
-        k.find('SmApiDeleteBrepEx')(pa)
+        solidHandles.delete(pb)
         throw new Error(`[smlib-kernel] ${what} failed: SM status ${st}`)
       }
       const dv3 = memOf(k)
       const result = dv3.getUint32(out, true)
       if (!result) throw new Error(`[smlib-kernel] ${what}: null result`)
+      // 成功：pb 被内核删除 → 从登记表移除但不调 delete。
+      registry.markConsumedByKernel(pb)
+      solidHandles.delete(pb)
       // 标准布尔（流形 solid）是原地修改 pa：rpResult = m_vTI.m_pBrep，pa 即结果。
-      // 非流形等边缘路径可能产出新指针并消耗 pa——若 result !== pa，必须把被
-      // 消耗的 pa 移出登记表，否则轮末清扫 releaseAllExcept 会对悬垂指针双释放。
-      if (result !== pa) solidHandles.delete(pa)
-      solidHandles.add(result)
+      // 非流形等边缘路径可能产出新指针并消耗 pa——若 result !== pa，把被消耗的 pa
+      // 移出登记表（不调 delete，内核已删）。
+      if (result !== pa) {
+        registry.markConsumedByKernel(pa)
+        solidHandles.delete(pa)
+        solidHandles.add(result)
+        registry.registerOwned(result)
+      }
       return result as BrepHandle
     } finally {
       k.free(out)
@@ -665,22 +726,17 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     },
     disposeHandle(shape: BrepHandle): void {
       // 受控真释放（2026-10-27）：runtime 明确「不再被任何持有者引用」时调用。
-      // 只删登记过的 SmBrep*（face/edge 借用指针、非本内核对象一律 no-op）。
-      if (!solidHandles.has(shape)) return
-      solidHandles.delete(shape)
-      // 释放后指针可能被 malloc 复用：清掉该句柄的三角化缓存，防 containsPoint 命中旧网格。
-      triCacheOf(k.memory).delete(shape as unknown as number)
-      k.find('SmApiDeleteBrepEx')(shape)
+      // 2026-10-29：走 registry.releaseOwned——内部真删 + 清 triCache + 级联失效 borrowed。
+      const n = shape as unknown as number
+      if (!solidHandles.has(n)) return
+      registry.releaseOwned(n)
+      solidHandles.delete(n)
     },
     releaseAllExcept(keep: ReadonlySet<number>): void {
       // 轮末清扫（2026-10-27，方案 E）：登记表里除 keep 外的句柄都是本轮 op 内
       // 中间体（图元、布尔副本、变换/挤出临时体），不再被任何持有者引用。
-      // 注意：smllib 标准布尔是**原地修改** pa（rpResult = m_vTI.m_pBrep），pb 由
-      // 内核 delete（从未登记）——登记表不存在"已被内核释放但仍登记"的悬垂项，
-      // 这里删除的一定是活对象（见 booleanOp 的 result!==pa 防御）。
-      // 2026-10-28：被 keep 的虚拟 compound 依赖其子零件——子零件必须一并保活，
-      // 否则清扫会把 compound 的零件删掉造成悬垂（虚拟句柄自身不在 solidHandles，
-      // 天然不会误删；此处只做 keep 传播）。
+      // 2026-10-28：被 keep 的虚拟 compound 依赖其子零件——子零件必须一并保活。
+      // 2026-10-29：走 registry.releaseAllExcept——每个被删句柄同步清 triCache + 级联失效 borrowed。
       const effectiveKeep = new Set(keep)
       let changed = true
       while (changed) {
@@ -696,15 +752,27 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
           }
         }
       }
+      registry.releaseAllExcept(effectiveKeep)
       for (const p of [...solidHandles]) {
         if (effectiveKeep.has(p)) continue
         solidHandles.delete(p)
-        k.find('SmApiDeleteBrepEx')(p)
       }
     },
     dispose(_shape?: BrepHandle): void {
-      for (const p of solidHandles) k.find('SmApiDeleteBrepEx')(p)
+      // 等价于 releaseAllExcept(emptySet)：真删全部 owned + 级联失效 borrowed。
+      registry.releaseAllExcept(new Set())
       solidHandles.clear()
+    },
+
+    // per-statement 作用域栈（2026-10-29 内存生命周期设计 §5）。
+    __pushStatementScope(statementId: string): void {
+      registry.scope.push(statementId)
+    },
+    __popStatementScope(escapePtrs: ReadonlySet<number>): void {
+      registry.scope.pop(escapePtrs)
+    },
+    __drainStatementScope(escapePtrs: ReadonlySet<number>): void {
+      registry.scope.drain(escapePtrs)
     },
 
     // ── 实体图元 ──
@@ -1828,7 +1896,7 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
               const numLoops = u32[0]
               const numOcc = u32[2]
               const edges = new Uint32Array(k.memory.buffer, buf + 12 + numLoops * 4, numOcc)
-              return noteEdgeHandles(Array.from(edges, (p) => p as BrepHandle))
+              return noteEdgeHandles(Array.from(edges, (p) => p as BrepHandle), shape as number)
             } finally {
               k.free(buf)
             }
@@ -1845,7 +1913,11 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         try {
           const ptrs = new Uint32Array(k.memory.buffer, arr, n)
           const found = Array.from(ptrs, (p) => p as BrepHandle)
-          return type === 'face' ? noteFaceHandles(found) : type === 'edge' ? noteEdgeHandles(found) : found
+          return type === 'face'
+            ? noteFaceHandles(found, shape as number)
+            : type === 'edge'
+              ? noteEdgeHandles(found, shape as number)
+              : found
         } finally {
           k.free(arr)
         }
@@ -2069,7 +2141,14 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       const cKids = compoundKidsOf(shape)
       if (cKids) return cKids.some((kid) => primitives.containsPoint(kid, point, tolerance))
       const n = shape as unknown as number
-      if (!solidHandles.has(n)) {
+      const cpEntry = registry.lookup(n)
+      if (cpEntry && !cpEntry.alive) {
+        throw new Error(
+          `[smlib-kernel] containsPoint: UAF ptr=0x${n.toString(16)} ` +
+            `(kind=${cpEntry.kind}, owner=${cpEntry.owner})`,
+        )
+      }
+      if (registry.kindOf(n) !== 'solid') {
         // 面/边/虚拟 wire：不是实体，没有"包含"语义（不猜，显式失败）。
         throw new Error(
           '[smlib-kernel] containsPoint: only solid handles are classifiable ' +
@@ -2162,15 +2241,25 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       // faceHandles 注释）。faijs 的 L1 `getBoundingBox(shape)` 对任意子形状句柄
       // 调用（选择器法向定向、面/边尺寸、网格零件度量都会传 face/edge）。
       //
-      // 未登记句柄按 brep 处理：本适配器里 brep 一律经 newSolid() 登记，唯一例外是
-      // 测试里**裸桥**直调产出的 brep（如 SmApiShellBrepFullEx 探针）——它确实是
-      // brep，落到 Brep 版正确；而面/边在生产路径一律来自 getSubShapes（已登记）。
+      // 2026-10-29：分派走统一登记表 kindOf。若 ptr 曾登记但已 alive=false（owner 被
+      // 释放 → 级联失效 borrowed），说明调用方传了悬垂指针——直接 throw UAF，不再
+      // 静默按 Brep 分派（治考古报告 §3.4 地址复用 UAF）。从未登记的 ptr（测试裸桥
+      // 直调产出的 brep）按 Brep 分派（历史行为）。
       const n = shape as unknown as number
-      const fnName = faceHandles.has(n)
-        ? 'SmApiFaceBoundingBox'
-        : edgeHandles.has(n)
-          ? 'SmApiEdgeBoundingBox'
-          : 'SmApiBrepBoundingBox'
+      const existing = registry.lookup(n)
+      if (existing && !existing.alive) {
+        throw new Error(
+          `[smlib-kernel] getBoundingBox: UAF ptr=0x${n.toString(16)} ` +
+            `(kind=${existing.kind}, owner=${existing.owner}, scope=${existing.createdInScope})`,
+        )
+      }
+      const kind = registry.kindOf(n)
+      const fnName =
+        kind === 'face'
+          ? 'SmApiFaceBoundingBox'
+          : kind === 'edge'
+            ? 'SmApiEdgeBoundingBox'
+            : 'SmApiBrepBoundingBox'
       const p = k.malloc(48)
       try {
         const dv = memOf(k)

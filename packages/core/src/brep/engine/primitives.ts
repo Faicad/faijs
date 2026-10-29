@@ -55,6 +55,14 @@ export interface BrepEngineApi {
   /** 释放内核/句柄（引擎级释放语义；brepkit GC 型 no-op）。 */
   dispose(shape?: BrepHandle): void
 
+  // ── per-statement 作用域（仅 GC-less 引擎 smlib 实现；GC 型不实现 → runtime 跳过）──
+  /** 进入一条 fai.js 语句：压一个空作用帧。op 内 owned 句柄自动 track 进本帧。 */
+  __pushStatementScope?(statementId: string): void
+  /** 结束一条语句：释放本帧内未逃逸的 owned 句柄。escapePtrs = 产物句柄集（solidCache + meshRegistry）。 */
+  __popStatementScope?(escapePtrs: ReadonlySet<number>): void
+  /** 排空所有残留帧（失败/异常路径兜底）。 */
+  __drainStatementScope?(escapePtrs: ReadonlySet<number>): void
+
   // ── 实体图元 ──
   makeBox(dx: number, dy: number, dz: number): BrepHandle
   makeBoxFromCorners(corner1: BrepVec3, corner2: BrepVec3): BrepHandle
