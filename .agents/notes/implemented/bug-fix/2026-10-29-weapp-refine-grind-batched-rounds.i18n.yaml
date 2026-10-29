@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-29-weapp-refine-grind-batched-rounds.md
+2026-10-29-weapp-refine-grind-batched-rounds.md: 52e099be426aed83f2226d0c84b52c4a66a6132d
+2026-10-29-weapp-refine-grind-batched-rounds.zh.md: fc6369a7c4bb026a1067f5deee24cda5d4c04e6a

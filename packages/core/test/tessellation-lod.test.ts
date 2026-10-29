@@ -11,7 +11,8 @@
  * 1b  尺寸自适应：1m 球在 L0 下不再被切成上百段；1m 立方体 L0 恒 12 三角形
  *  2  retessellate 精度提升（三角形数 + 内接近似收敛）
  *  3  拓扑同源：精化后 buildBrepTopology 的面行区间 === 精化 mesh 的 faceGroups
- *  4  缓存同步 + 二次同密度精化 contentKey 不变（幂等）
+ *  4  缓存同步 + 二次同密度精化跳过（幂等：引用同一、指纹不动、不重算）
+ * 4b  幂等记录的失效：重新执行换新 mesh → 同密度照常重算；更细密度照常精化
  *  5  无 BREP solid 的 part 静态判定 no-solid，不影响批内其它 part
  *  6  非法密度整批抛错
  *  7  显式 segments 优先
@@ -29,7 +30,7 @@ import type { BrepBoundingBox } from '../src/brep/engine/types'
 import type { Shape } from '../src/mesh/types'
 import type { BrepMeshResult } from '../src/brep/engine/types'
 import { asPartName, type PartName } from '../src/identity'
-import { createRuntime } from '../src/cad-runtime/runtime'
+import { createRuntime, type RetessellatePartResult } from '../src/cad-runtime/runtime'
 import { configureTessellation } from '../src/runtime-state'
 import { BREP_TESS } from '../src/mesh/types'
 import {
@@ -98,6 +99,20 @@ function faceRunsOf(fg: Int32Array): Array<{ start: number; count: number }> {
     runs.push({ start: fg[f * 3]! / 3, count: fg[f * 3 + 1]! / 3 })
   }
   return runs
+}
+
+/**
+ * 结果收窄：期望成功精化（几何三件套）。跳过态（notApplicable / skipped）在
+ * 这些用例里就是失败——抛错带上判别字段，别让断言对着联合类型盲测。
+ */
+function refinedGeometryOf(
+  r: RetessellatePartResult | undefined,
+  what: string,
+): { positions: Float32Array; indices: Uint32Array; triangleCount: number } {
+  if (!r) throw new Error(`${what}: no result`)
+  if ('notApplicable' in r) throw new Error(`${what}: ${r.notApplicable}`)
+  if ('skipped' in r) throw new Error(`${what}: ${r.skipped}`)
+  return r
 }
 
 /** 在给定密度档下执行脚本，取目标变量的几何快照（runtime 用完即 dispose）。 */
@@ -236,9 +251,7 @@ describe('retessellate（L0 → L1，不重跑脚本）', () => {
       const volBefore = meshVolume(before.positions, before.indices)
 
       const out = await runtime.retessellate([{ partName: asPartName('p'), density: L1 }])
-      const refined = out.p
-      if (!refined) throw new Error('no result for p')
-      if ('notApplicable' in refined) throw new Error('sphere part must have a solid')
+      const refined = refinedGeometryOf(out.p, 'p')
 
       expect(refined.triangleCount).toBeGreaterThan(trisBefore)
       expect(refined.positions.length / 3).toBeGreaterThan(before.positions.length / 3)
@@ -261,8 +274,7 @@ describe('retessellate（L0 → L1，不重跑脚本）', () => {
       const trisBefore = tessOf(runtime, asPartName('p')).indices.length / 3
 
       const out = await runtime.retessellate([{ partName: asPartName('p'), density: L1 }])
-      const refined = out.p
-      if (!refined || 'notApplicable' in refined) throw new Error('sphere part must have a solid')
+      const refined = refinedGeometryOf(out.p, 'p')
 
       // 精化后 BREP_TESS 槽（拓扑构建的唯一输入）就是精化那份 mesh。
       const after = tessOf(runtime, asPartName('p'))
@@ -287,25 +299,51 @@ describe('retessellate（L0 → L1，不重跑脚本）', () => {
     }
   }, 120000)
 
-  it('缓存同步：meshShapeCache 换新，二次同密度精化 contentKey 不变（幂等）', async () => {
+  it('缓存同步 + 同密度幂等：二次精化 skipped，mesh 引用与指纹一概不动；更细密度照常精化', async () => {
     const runtime = await runtimeAt('let p = cad.sphere({ radius: 50, centered: true })')
     try {
       const keyBefore = runtime.getStatementCacheEntry(asPartName('p'))?.outputContentKey
       const first = await runtime.retessellate([{ partName: asPartName('p'), density: L1 }])
+      const r1 = refinedGeometryOf(first.p, 'p (first refine)')
       const keyAfter = runtime.getStatementCacheEntry(asPartName('p'))?.outputContentKey
       expect(keyAfter).toBeDefined()
       // 几何换了 → 指纹必须跟着换（否则拓扑缓存按旧指纹命中 L0 面表）。
       expect(keyAfter).not.toBe(keyBefore)
+      const tessAfter = tessOf(runtime, asPartName('p'))
 
-      // 同密度再来一次：新引用、新内容，但指纹回到同一个值（确定性 → 幂等）。
+      // 同密度再来一次（2026-10-29 精化磨盘：宿主超时重开一轮就会这样发）：
+      // 显示 mesh 未被换过 → 幂等跳过，不重三角化、不碰任何缓存。
       const second = await runtime.retessellate([{ partName: asPartName('p'), density: L1 }])
-      const r1 = first.p
-      const r2 = second.p
-      if (!r1 || !r2 || 'notApplicable' in r1 || 'notApplicable' in r2) {
-        throw new Error('sphere part must have a solid')
-      }
-      expect(r2.triangleCount).toBe(r1.triangleCount)
+      expect(second.p).toEqual({ skipped: 'same-density' })
+      expect(tessOf(runtime, asPartName('p'))).toBe(tessAfter)
       expect(runtime.getStatementCacheEntry(asPartName('p'))?.outputContentKey).toBe(keyAfter)
+
+      // 目标密度更细 → 幂等不拦：照常重算，网格变密。
+      const finer = await runtime.retessellate([
+        { partName: asPartName('p'), density: { angularDeflection: (2 * Math.PI) / 64, linearDeflection: 0.05 } },
+      ])
+      const rf = refinedGeometryOf(finer.p, 'p (finer density)')
+      expect(rf.triangleCount).toBeGreaterThan(r1.triangleCount)
+    } finally {
+      runtime.dispose()
+    }
+  }, 120000)
+
+  it('幂等记录的失效：重新执行换新 mesh → 同密度精化照常重算（不跳过陈旧记录）', async () => {
+    const runtime = await runtimeAt('let p = cad.sphere({ radius: 50, centered: true })')
+    try {
+      const first = await runtime.retessellate([{ partName: asPartName('p'), density: L1 }])
+      const r1 = refinedGeometryOf(first.p, 'p (first refine)')
+      const second = await runtime.retessellate([{ partName: asPartName('p'), density: L1 }])
+      expect(second.p).toEqual({ skipped: 'same-density' })
+
+      // 重新执行：执行期写入新 mesh（引用变）→ 记录失配 → 同密度精化重算。
+      // 这是引用同一性判据的安全底线：mesh 变了绝不能跳过。
+      const result = await runtime.execute('let p = cad.sphere({ radius: 50, centered: true })')
+      expect(result.failedAt).toBeUndefined()
+      const third = await runtime.retessellate([{ partName: asPartName('p'), density: L1 }])
+      const r3 = refinedGeometryOf(third.p, 'p (after re-execute)')
+      expect(r3.triangleCount).toBe(r1.triangleCount)
     } finally {
       runtime.dispose()
     }
@@ -325,8 +363,7 @@ describe('retessellate（L0 → L1，不重跑脚本）', () => {
         { partName: asPartName('p'), density: L1 },
       ])
       expect(out.g).toEqual({ notApplicable: 'no-solid' })
-      const refined = out.p
-      if (!refined || 'notApplicable' in refined) throw new Error('sphere must be refined')
+      const refined = refinedGeometryOf(out.p, 'p')
       expect(refined.triangleCount).toBeGreaterThan(0)
     } finally {
       runtime.dispose()
@@ -356,8 +393,7 @@ describe('retessellate（L0 → L1，不重跑脚本）', () => {
     const runtime = await runtimeAt(code)
     try {
       const out = await runtime.retessellate([{ partName: asPartName('p'), density: L1 }])
-      const refined = out.p
-      if (!refined || 'notApplicable' in refined) throw new Error('sphere part must have a solid')
+      const refined = refinedGeometryOf(out.p, 'p')
       lod = {
         tris: refined.triangleCount,
         vertices: refined.positions.length / 3,

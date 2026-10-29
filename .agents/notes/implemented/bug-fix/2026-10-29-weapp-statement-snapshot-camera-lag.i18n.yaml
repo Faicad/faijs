@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-29-weapp-statement-snapshot-camera-lag.md
+2026-10-29-weapp-statement-snapshot-camera-lag.md: fdf0fe7d0a69fb11baa70f4f93bbd9cd070b6d6c
+2026-10-29-weapp-statement-snapshot-camera-lag.zh.md: f3fbb7fd00e40a32b1bcfbd9097d4cdc6ecce807

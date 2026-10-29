@@ -454,6 +454,24 @@ export type RetessellatePartResult =
        */
       notApplicable: 'no-solid'
     }
+  | {
+      /**
+       * 幂等判定（2026-10-29 精化磨盘）：该 part 的显示 mesh 已是目标密度的产物
+       * 且未被任何人换过（引用同一），再精化必然复现同一结果——跳过重三角化，
+       * 缓存一概不动。宿主把它当「已精化」处理，不是失败。
+       */
+      skipped: 'same-density'
+    }
+
+/** {@link RetessellatePartResult} 幂等跳过的判据记录（PartName 键，runtime 持有）。 */
+export interface RefinedDensityRecord {
+  /** 产出当前 mesh 的已解析角偏转（bbox-relative 不进这里——折算成绝对值）。 */
+  angularDeflection: number
+  /** 产出当前 mesh 的已解析线偏转（mm，绝对值）。 */
+  linearDeflection: number
+  /** 上次精化写进 meshShapeCache 的那份 mesh（引用同一性判据）。 */
+  mesh: BrepMeshResult
+}
 
 /**
  * CadRuntime is the execution core of the L2 orchestration layer.
@@ -511,6 +529,17 @@ export class CadRuntime {
    * op 层通过 brepChain.solidCache 读写——该引用指向此持久 Map（见 ensureBrepChain）。
    */
   private solidCache = new Map<PartName, BrepHandle>()
+
+  /**
+   * 同密度精化的幂等记录（PartName 键，2026-10-29 精化磨盘修复）。
+   *
+   * 「meshShapeCache 里的 mesh 仍是上次精化写的那一份（引用同一）+ 目标密度
+   * 相同」⇒ 重三角化必然复现同一结果，retessellateOne 直接跳过。失效不靠事件：
+   * 显示 mesh 只要被重写（执行期 setSolidAndTess / defer 物化 / 更高密度精化），
+   * meshShapeCache 里的引用必变，同一性判定自然失配，无需到处挂钩子。记录只持
+   * mesh 引用（meshShapeCache 本就持有，零额外留存成本）。
+   */
+  private refinedDensityCache = new Map<PartName, RefinedDensityRecord>()
 
   /** 面演化映射缓存（PartName → FaceEvolution），随 solidCache 一并持久。 */
   private faceEvolutionCache = new Map<PartName, Map<number, number[]>>()
@@ -2122,13 +2151,14 @@ export class CadRuntime {
    * 1. **换的是同一份显示几何**：新网格写回该 part 的 Shape（含 BREP_TESS 槽），
    *    并按新几何刷新内容指纹、作废从 L0 网格推出的拓扑/命名缓存。
    *    → 精化后 `buildBrepTopology` 命中的是精化后的 mesh（红线：拓扑 === 显示）。
-   * 2. **跳过是静态判定**：无 BREP solid 的 part（mesh 源）单独列出，不 throw，
-   *    不影响批内其它 part。
+   * 2. **跳过不 throw**：两种跳过都不是失败，均不影响批内其它 part——静态判定
+   *    （无 BREP solid 的 mesh 源 part → notApplicable）与幂等判定（显示 mesh 已是
+   *    目标密度产物且未被换过 → skipped:'same-density'，2026-10-29）。
    * 3. **几何引用共用**（规则 1）：返回的 positions/indices 就是 runtime 内显示
    *    shape 的那一份，跨线程 / transfer 前必须拷贝（与 `toWireGeometry` 同纪律）。
    *
    * @param entries - 待精化的 part（同一批共用一个目标密度，逐条给也行）。
-   * @returns PartName 字符串 → 结果（成功 = 新几何；跳过 = notApplicable）。
+   * @returns PartName 字符串 → 结果（成功 = 新几何；跳过 = notApplicable / skipped）。
    */
   async retessellate(entries: RetessellateEntry[]): Promise<Record<string, RetessellatePartResult>> {
     // 整批先行校验：非法密度是宿主 bug，必须在动任何状态之前炸——
@@ -2174,6 +2204,20 @@ export class CadRuntime {
           linearDeflection: entry.density?.linearDeflection ?? g.linearDeflection,
           angularDeflection: entry.density?.angularDeflection ?? g.angularDeflection,
         }
+    // 同密度幂等跳过（2026-10-29 精化磨盘）：宿主超时后重开一轮 / 批内重复条目会
+    // 对已精化过的 part 再发精化——显示 mesh 未被任何人换过（引用同一）且目标密度
+    // 相同 ⇒ 再算一次必然复现同一结果。弱机上省的是整段重三角化（真机数十秒级）；
+    // mesh 被重写（新执行 / 更高密度精化 / 部件缓存释放）时引用必变或记录被删，
+    // 判定自然失配 → 照常重算。
+    const record = this.refinedDensityCache.get(entry.partName)
+    if (
+      record &&
+      brepChain.meshShapeCache?.get(entry.partName) === record.mesh &&
+      record.angularDeflection === density.angularDeflection &&
+      record.linearDeflection === density.linearDeflection
+    ) {
+      return { skipped: 'same-density' }
+    }
     const mesh = kernel.meshShape(solid, density)
     // 新引用：几何变了 → 流式帧/内容指纹的引用判据自然失效（旧引用不再被任何人持有时可回收）。
     const positions = new Float32Array(mesh.positions)
@@ -2202,6 +2246,12 @@ export class CadRuntime {
       shape.faceRanges = ranges
     }
     brepChain.meshShapeCache?.set(entry.partName, tess)
+    // 幂等记录跟着这份 mesh 走（下次同密度精化的跳过判据）。
+    this.refinedDensityCache.set(entry.partName, {
+      angularDeflection: density.angularDeflection,
+      linearDeflection: density.linearDeflection,
+      mesh: tess,
+    })
     // 内容指纹必须跟着几何走：几何换了而指纹不变 → 下一轮拓扑缓存按旧指纹命中，
     // 带出的是 L0 面表（与"同名换几何沿用旧面表"同型的陈旧 bug）。
     const cached = this.statementCache.get(entry.partName)
@@ -2381,9 +2431,14 @@ export class CadRuntime {
    */
   private setSolidAndTess(partName: PartName, solid: BrepHandle, shape?: Shape): void {
     // 覆盖旧值：旧句柄不再被 solidCache 持有（重赋值场景）→ 受控真释放，避免累积。
+    // 顺序（2026-10-29 update-after-retessellate 探针）：先覆盖再释放——
+    // disposeSolidHandle 的共享守卫按「剩余引用」判定；先释放会把本条目自身算作
+    // 引用者而永远跳过（泄漏）。先覆盖后，prev 若仍被其它条目引用（smlib 变换类
+    // op 原地写回：eye=eyeMoved、ball=scaled=body 同句柄）则由守卫跳过，最后一个
+    // 引用者负责释放；prev 无引用者时照常释放。
     const prev = this.solidCache.get(partName)
-    if (prev !== undefined && prev !== solid) this.disposeSolidHandle(prev)
     this.solidCache.set(partName, solid)
+    if (prev !== undefined && prev !== solid) this.disposeSolidHandle(prev)
     const cache = this.brepChain?.meshShapeCache
     if (!cache) return
     const tess = shape?.[BREP_TESS] as BrepMeshResult | undefined
@@ -2546,7 +2601,7 @@ export class CadRuntime {
    * 所有派生缓存，确保重放后几何/拓扑/mesh 不命中旧值。
    *
    * 清理清单（§4.4）：
-   * - `solidCache`：先 `kernel.release(handle)`，再删键（参照 dispose 的 try/catch）；
+   * - `solidCache`：先删键，再按剩余引用释放（共享句柄守卫，见 disposeSolidHandle）；
    * - `brepChain.meshShapeCache`：删键（跨轮保留，不清会返回旧 solid 的三角化）；
    * - `faceEvolutionCache` / `roleTableCache`：删键（与 runtime 同 Map 引用，删键即生效）；
    * - `topologyCache` / `statementCache`：删键（collectDirectResult 按新几何重新填充）。
@@ -2555,8 +2610,18 @@ export class CadRuntime {
    * 受控真释放一个 solid 句柄：优先 `disposeHandle`（GC-less 引擎如 smlib 真删内核
    * 对象），否则回退 `release`（GC 型引擎的引用语义）。调用点仅限 runtime 明确不再
    * 持有该句柄的时刻（覆盖旧值 / 缓存失效 / dispose）。
+   *
+   * 共享句柄守卫（2026-10-29 update-after-retessellate 探针实证）：smlib 变换类 op
+   * 原地写回（translate/scale3d 返回同一句柄），多个 solidCache 条目可指向同一句柄。
+   * 释放必须按「最后一个引用者」进行——仍有条目引用时跳过真删。否则链条是：释放
+   * 共享句柄 → 未参与释放的条目悬垂 → 后续重放在已释放内存上执行（node 下 ghost
+   * 调用侥幸通过、真机读悬垂堆产生 NaN 顶点）；重放失败降级全量后，「陈旧 prev
+   * （setSolidAndTess）× 分配器地址复用」会真删复用该地址的**活体**，收尾拓扑重建
+   * getSubShapes 报 SM_ERR=1001 / wasm `memory access out of bounds`。
+   * 调用方须先从 solidCache 删除/覆盖本条目再调用（守卫按剩余引用判定）。
    */
   private disposeSolidHandle(handle: BrepHandle): void {
+    if (this.isSolidHandleReferenced(handle)) return
     // 受控真释放一个 solid 句柄：优先 disposeHandle（GC-less 引擎如 smlib 真删内核
     // 对象），否则回退 release（GC 型引擎的引用语义）。
     // 2026-10-29：去掉 try/catch 吞错（项目红线）。错误直接抛，由上层语句级错误处理。
@@ -2564,16 +2629,31 @@ export class CadRuntime {
     else this.kernel?.release(handle)
   }
 
+  /** 句柄是否仍被 solidCache / meshSolidRegistry 的条目引用（原地变换共享判定）。 */
+  private isSolidHandleReferenced(handle: BrepHandle): boolean {
+    for (const h of this.solidCache.values()) {
+      if (h === handle) return true
+    }
+    for (const h of this.meshSolidRegistry.values()) {
+      if ((h as unknown as number) === (handle as unknown as number)) return true
+    }
+    return false
+  }
+
   private releasePartCaches(partNames: PartName[]): void {
     for (const name of partNames) {
-      // solidCache: release OCCT handle first, then delete key
+      // solidCache: delete key first, then dispose——共享守卫按剩余引用判定
+      // （原地变换链 eye/eyeMoved 同句柄：删本键后仍被兄弟条目引用则跳过真删，
+      // 该 solid 仍是后者的活体持有物；最后一个引用者负责释放）。
       const handle = this.solidCache.get(name)
       if (handle !== undefined) {
-        this.disposeSolidHandle(handle)
         this.solidCache.delete(name)
+        this.disposeSolidHandle(handle)
       }
       // brepChain.meshShapeCache
       this.brepChain?.meshShapeCache?.delete(name)
+      // 同密度精化的幂等记录（引用判据已随 mesh 删除失配，这里删是卫生动作）
+      this.refinedDensityCache.delete(name)
       // 网格实体句柄（网格零件）：释放 + 删键（与 solidCache 同语义）
       this.meshSolidRegistry.delete(name)
       // faceEvolutionCache / roleTableCache (same Map refs as runtime's)
@@ -2872,18 +2952,23 @@ export class CadRuntime {
    * cache. The instance is unusable afterwards.
    */
   dispose(): void {
-    // 所有权在持久 solidCache：释放全部 OCCT handle（§9 决策 2）
-    for (const [, handle] of this.solidCache) {
+    // 所有权在持久 solidCache：释放全部 OCCT handle（§9 决策 2）。
+    // 顺序（2026-10-29）：先清引用表再释放——disposeSolidHandle 的共享守卫按「剩余
+    // 引用」判定，边迭代边释放会被共享句柄的兄弟条目全部拦截（teardown 全泄漏）。
+    // 共享句柄经 Set 去重只释放一次；kernel 侧 disposeHandle 幂等兜底重复释放。
+    const handles = new Set<BrepHandle>(this.solidCache.values())
+    this.solidCache.clear()
+    // 网格实体句柄（独立注册表，与 solidCache 并列）一并清理（守卫同样按剩余引用判定）
+    this.meshSolidRegistry.clear()
+    for (const handle of handles) {
       this.disposeSolidHandle(handle)
     }
-    this.solidCache.clear()
-    // 网格实体句柄（独立注册表，与 solidCache 并列）一并释放
-    this.meshSolidRegistry.clear()
     this.faceEvolutionCache.clear()
     this.roleTableCache.clear()
     this.statementCache.clear()
     this.topologyCache.clear()
     this.namingCache.clear()
+    this.refinedDensityCache.clear()
     this.brepChain = null
     this.kernel = null
     this.directExecutor.reset()

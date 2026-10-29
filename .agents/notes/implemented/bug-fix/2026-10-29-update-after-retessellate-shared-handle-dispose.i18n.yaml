@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-29-update-after-retessellate-shared-handle-dispose.md
+2026-10-29-update-after-retessellate-shared-handle-dispose.md: 5387794b593d3bd5f8a3811f465ccc89cceb61cb
+2026-10-29-update-after-retessellate-shared-handle-dispose.zh.md: 693c253aa08f5973b0d23c9801c910136f734502
