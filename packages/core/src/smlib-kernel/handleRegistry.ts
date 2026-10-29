@@ -189,27 +189,19 @@ export class HandleRegistryImpl implements HandleRegistry {
   }
 
   releaseOwned(ptr: number): void {
+    // 幂等：dead entry（已释放/已被内核消耗）或未登记 → 直接跳过，不 throw。
+    // double-free 的显式 throw 守卫在公开 disposeHandle 路径（smlibKernel 层），
+    // 由 registry.lookup 检测 alive=false 后 throw。本方法供 scope stack pop/drain
+    // 与 releaseAllExcept 内部调用——这些路径遇到 dead entry 是正常状态机迁移
+    // （如 booleanOp 失败分支已 releaseOwned 后 drain 再遍历 frame.transients）。
     const e = this.entries.get(ptr)
-    if (!e) {
-      // 未登记：可能是已被 markConsumedByKernel，或本就不是 owned。静默返回（幂等）。
-      return
-    }
-    if (!e.alive) {
-      throw new Error(
-        `[smlib-kernel] double-free: owned ptr=0x${ptr.toString(16)} already released ` +
-          `(kind=${e.kind}, scope=${e.createdInScope})`,
-      )
-    }
-    if (e.kind !== 'solid') {
-      throw new Error(
-        `[smlib-kernel] releaseOwned called on borrowed ptr=0x${ptr.toString(16)} (kind=${e.kind}, owner=${e.owner})`,
-      )
-    }
+    if (!e || !e.alive) return
+    if (e.kind !== 'solid') return
     // 真删（经 policy：SmApiDeleteBrepEx + 清 triCache）。
     this.policy.deallocOwned(ptr)
     // 级联失效 borrowed。
     this.cascadeInvalidateBorrowed(ptr)
-    // 保留 tombstone（alive=false）：让后续 lookup 能识别 UAF、double-free 能 throw。
+    // 保留 tombstone（alive=false）：让 lookup/bbox 入口识别 UAF。
     // registerOwned upsert 同地址时覆盖。
     e.alive = false
   }

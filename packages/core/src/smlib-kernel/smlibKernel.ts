@@ -727,6 +727,11 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     disposeHandle(shape: BrepHandle): void {
       // 受控真释放（2026-10-27）：runtime 明确「不再被任何持有者引用」时调用。
       // 2026-10-29：走 registry.releaseOwned——内部真删 + 清 triCache + 级联失效 borrowed。
+      // 幂等：solidHandles 未登记（已被 sweep/scope pop 释放）→ no-op。
+      // 注意：不在这里 throw double-free——runtime.disposeSolidHandle 可能在 sweep
+      // 之后对同一 handle 再调一次（sweep 已释放，solidCache 仍持引用），这是受控
+      // GC 的正常路径，不是用户错误。真正的 double-free（用户显式释放别人已释放的
+      // 句柄）在 fai.js 脚本面不存在——disposeHandle 只被 runtime.disposeSolidHandle 调。
       const n = shape as unknown as number
       if (!solidHandles.has(n)) return
       registry.releaseOwned(n)

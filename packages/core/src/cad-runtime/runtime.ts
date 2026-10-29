@@ -1426,8 +1426,16 @@ export class CadRuntime {
       setRoleTable: (partName, roleTable) => { this.roleTableCache.set(partName, roleTable) },
       security: 'strict',
     })
-    const outcome = await de.execute(code, { imports })
+    // per-statement 作用域 hooks（与 execute/append/replayFrom 同口径）：
+    // 子模块内 op 中间体在每条语句结束时释放，不等主模块轮末 sweep。
+    const moduleScopeHooks = this.wireScopeHooks(undefined)
+    const outcome = await de.execute(code, {
+      imports,
+      ...(moduleScopeHooks.beforeStatement ? { beforeStatement: moduleScopeHooks.beforeStatement } : {}),
+      ...(moduleScopeHooks.afterStatement ? { afterStatement: moduleScopeHooks.afterStatement } : {}),
+    })
     if (outcome.failedAt) {
+      this.drainScopeFrames()
       throw new ModuleRegistryError(
         'MODULE_EXEC_FAILED',
         `dependency module failed at line ${outcome.failedAt.lineNo ?? '?'}: ${outcome.failedAt.message}`,

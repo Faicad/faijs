@@ -679,3 +679,36 @@ classDiagram
 | GC 型/GC-less 策略模式 | 考古报告 §3.5：brepkit GC 型 no-op vs smlib 手工 GC |
 | 去 try/catch 吞错 | 项目红线：禁止 try-catch 吞异常 |
 | 不调大 128MB 初始堆 | 考古报告 §2.2：node 实测 128MB 足够单轮 pikachu |
+
+---
+
+## §7 后续硬化：slot/epoch 间接化（未实施，工作量评估）
+
+### 7.1 裸指针键的残余窗口
+
+当前实现（tombstone + upsert）已修复考古报告 §3.4 的主要 UAF：owner 释放时级联失效 borrowed，`kindOf` 仅返回 alive 条目，dead entry 在 bbox/containsPoint 入口 throw。残余窗口：
+
+1. **releaseOwned(ptr) → alive=false tombstone 后，malloc 立即复用 ptr 为新对象**：在 `registerOwned(ptr)` upsert 之前，若有代码路径调 `kindOf(ptr)`，会看到 dead tombstone → 错误 throw UAF（false positive）。实际窗口极小（同帧内），且 fai.js 语句是同步执行，不存在并发。
+2. **tombstone 累积**：长时间运行后 entries Map 积累 dead 条目。registerOwned upsert 同地址会覆盖，但不同地址的 tombstone 残留。当前规模可控（单轮 pikachu ≈ 百级句柄）。
+
+### 7.2 为什么不加 epoch 计数器
+
+评审提议在 HandleEntry 加 `epoch: number`，registry 每次 free 时 `currentEpoch++`，`kindOf` 比对 `entry.alive && entry.epoch === currentEpoch`。评估结论：**不做**。
+
+- epoch 不解决窗口 1：releaseOwned 后 currentEpoch++，tombstone epoch=旧值。malloc 复用后 registerOwned upsert 会覆盖整个 entry（含 epoch），与现有 upsert 行为等价。
+- epoch 不解决窗口 2：tombstone 仍然残留，只是多了一个字段。
+- epoch 在 kindOf 分派时反而可能引入新 bug：若 tombstone epoch 不匹配 currentEpoch，kindOf 返回 null → bbox 回退 Brep 分派 → 对已释放指针按 Brep 调 SmApiBrepBoundingBox = UAF（比 throw 更糟）。
+
+### 7.3 slot/epoch 间接化（真正修复，未做）
+
+根本解法：把 `BrepHandle` 从 `number`（裸 wasm 指针）改为 `{ slot: number, epoch: number }` 对象。registry 维护一个 slot 表：slot → { ptr, epoch, alive }。所有 `SmApi*` 调用前经 `resolve(slot)` 查当前 ptr。epoch 不匹配 → throw UAF。
+
+**工作量**：BrepHandle 当前在 faijs 全代码库是 `number` 直通 wasm 指针（`BrepHandle` = `number`，所有 op 文件直接传 number 给内核桥）。改成 `{slot, epoch}` 对象需要：
+- 改 `BrepHandle` 类型定义（`types.ts`）
+- 所有 op 文件（api/*.ts）传参/返回值适配
+- 内核桥（smlibWasm）调用前 resolve
+- L1 契约（primitives.ts）签名适配
+- 所有测试（数百个）适配
+- 预估 **> 2000 行改动，波及全代码库**
+
+**时机**：当前 tombstone + upsert 已修复实测 SM1007 闪退（node 复现 5 轮稳定）。slot/epoch 间接化应在 weapp 真机验证后若仍有残余 UAF 时再启动，作为独立项目（不是本设计的一部分）。
