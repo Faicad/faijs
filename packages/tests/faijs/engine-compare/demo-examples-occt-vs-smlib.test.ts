@@ -34,7 +34,7 @@ interface M {
   vol: number; area: number; tri: number; bbox: [number, number, number]; ok: boolean; failedAt: string | null; brepOnly: boolean
 }
 
-function computeMetrics(shape: Shape): Omit<M, 'ok' | 'failedAt'> {
+function computeMetrics(shape: Shape): Omit<M, 'ok' | 'failedAt' | 'brepOnly'> {
   const positions = shape.positions
   const indices = shape.indices
   let area = 0

@@ -16,7 +16,7 @@ export default defineConfig({
   testDir: './e2e',
   // preview-cdn.spec.ts 只针对 build 产物（vite preview），由
   // playwright.preview.config.ts 单独运行，dev server 模式跳过
-  testMatch: ['**/demo.spec.ts'],
+  testMatch: ['**/demo.spec.ts', '**/debug.spec.ts'],
   timeout: 120_000,
   expect: { timeout: 30_000 },
   fullyParallel: false,

@@ -46,15 +46,19 @@ describe('brepkit: 球面两张面行各自独立', () => {
     const runs = faces.map((f) => [f.triangleStart, f.triangleCount] as const)
     for (const [start, count] of runs) expect(count).toBeGreaterThan(0)
     const [a, b] = runs
-    const overlap = Math.max(0, Math.min(a[0] + a[1], b[0] + b[1]) - Math.max(a[0], b[0]))
+    expect(a, 'face[0] missing').toBeDefined()
+    expect(b, 'face[1] missing').toBeDefined()
+    const a0 = a![0]!, a1 = a![1]!, b0 = b![0]!, b1 = b![1]!
+    const overlap = Math.max(0, Math.min(a0 + a1, b0 + b1) - Math.max(a0, b0))
     expect(overlap, `两个半球的三角形区间重叠了 ${overlap} 个三角形`).toBe(0)
     // 合起来应当覆盖整个显示 mesh。
-    const displayTris = (result.outputs.get(asPartName('p'))?.indices?.length ?? 0) / 3
-    expect(a[1] + b[1]).toBe(displayTris)
+    const pShape = result.outputs.get(asPartName('p'))
+    const displayTris = (pShape && 'indices' in pShape ? pShape.indices.length : 0) / 3
+    expect(a1 + b1).toBe(displayTris)
 
     // 几何也必须分开：上下半球的面心在 z 上反号，bbox 不跨零。
     const zs = faces.map((f) => f.center?.[2] ?? 0)
-    expect(Math.sign(zs[0]!)).not.toBe(Math.sign(zs[1]!))
+    expect(Math.sign(zs[0] ?? 0)).not.toBe(Math.sign(zs[1] ?? 0))
     for (const f of faces) {
       const bb = f.bbox
       expect(bb).toBeTruthy()

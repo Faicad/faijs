@@ -404,17 +404,21 @@ function renderShapes(view: Viewer3D, shapes: Array<{ id: string; positions: Flo
   clearMeshes(view)
 
   for (const shape of shapes) {
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(shape.positions, 3))
-    geo.setIndex(new THREE.BufferAttribute(shape.indices, 1))
     // Derive creased normals so sharp edges stay sharp. The old
     // computeVertexNormals() averaged normals on the welded shared-vertex
     // topology of manifold (mesh chain) results and rounded edges off — the
     // same root cause fixed in 3d_editor (ba5e6441). deriveNormals uses
     // toCreasedNormals: only faces meeting at more than the crease angle get
     // per-face normals, so curved surfaces stay smooth.
-    const finalGeo = deriveNormals(geo)
-    geo.dispose()
+    //
+    // deriveNormals expects a faijs Shape ({ positions, indices }), NOT a
+    // THREE.BufferGeometry — pass the raw shape data directly.
+    const result = deriveNormals(shape)
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(result.positions, 3))
+    geo.setAttribute('normal', new THREE.BufferAttribute(result.normals ?? new Float32Array(0), 3))
+    geo.setIndex(new THREE.BufferAttribute(result.indices, 1))
 
     const material = new THREE.MeshStandardMaterial({
       color: 0x4a90d9,
@@ -423,7 +427,7 @@ function renderShapes(view: Viewer3D, shapes: Array<{ id: string; positions: Flo
       flatShading: false,
     })
 
-    const mesh = new THREE.Mesh(finalGeo, material)
+    const mesh = new THREE.Mesh(geo, material)
     mesh.castShadow = true
     mesh.receiveShadow = true
     view.meshGroup.add(mesh)
@@ -508,7 +512,28 @@ async function runMode(
     return `Failed at op "${result.failedAt.op}": ${result.failedAt.message}`
   }
 
-  const shapes = extractShapes(result)
+  let shapes = extractShapes(result)
+
+  // BREP-only path: when the output has no mesh data (e.g. sheetmetal's
+  // solidOf is a compatOp / brep-only op), triangulate the BREP solid to
+  // get renderable mesh data. This is not a "fallback" — the BREP chain
+  // successfully produced a solid, we just need its tessellation for display.
+  if (shapes.length === 0 && result.brepSolids && result.brepSolids.size > 0) {
+    for (const [partName, entry] of result.brepSolids) {
+      try {
+        const mesh = entry.kernel.meshShape(entry.solid)
+        if (mesh.positions.length > 0 && mesh.indices.length > 0) {
+          shapes.push({
+            id: String(partName),
+            positions: mesh.positions,
+            indices: mesh.indices,
+          })
+        }
+      } catch {
+        // tessellation failure for this terminal — skip
+      }
+    }
+  }
 
   if (shapes.length === 0) {
     clearMeshes(view)

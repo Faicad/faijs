@@ -166,7 +166,7 @@ describe('authored-leaf 标记', () => {
     // 结构化克隆（模拟 worker 边界）会丢掉 Symbol 键 ⇒ 退化为未标记（不校验）
     const cloned = structuredClone(s) as Shape
     expect(isAuthoredLeaf(cloned)).toBe(false)
-    expect((cloned as Record<symbol, unknown>)[AUTHORED_LEAF]).toBeUndefined()
+    expect((cloned as unknown as Record<symbol, unknown>)[AUTHORED_LEAF]).toBeUndefined()
   })
 
   it('非对象打标记静默忽略', () => {

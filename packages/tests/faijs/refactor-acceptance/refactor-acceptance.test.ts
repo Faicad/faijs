@@ -96,9 +96,9 @@ describe('上层契约：宿主可读代码文本 API', () => {
     expect('fai_drill' in browser).toBe(false)
     expect(typeof extra.fai_drill).toBe('function')
     expect(typeof extraBrowser.fai_drill).toBe('function')
-    // engrave 仍是平台 op（其 BREP 路径零 three），两个门面都导出。
-    expect(typeof root.engrave).toBe('function')
-    expect(typeof browser.engrave).toBe('function')
+    // engrave 已退役删除（2026-10-28），收敛到 cad.text / cad.svgExtrude / cad.dxfExtrude + cad.subtract。
+    expect('engrave' in root).toBe(false)
+    expect('engrave' in browser).toBe(false)
   })
 })
 

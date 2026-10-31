@@ -151,8 +151,8 @@ describe('cad.group 双调用形态（mesh 模式）', () => {
       if (result.outputs?.has(id)) continue
       expect(groups.has(id), `终端 ${id} 既无几何输出也不被认作用户组`).toBe(true)
     }
-    expect(groups.get('g')).toEqual(['a', 'b'])
-    expect(result.compoundNames?.get('g')).toBe('皮卡丘')
+    expect(groups.get('g')).toEqual([asPartName('a'), asPartName('b')])
+    expect(result.compoundNames?.get(asPartName('g'))).toBe('皮卡丘')
   })
 
   it('用户皮卡丘式组合：成员含 union 产物，位置参数 group 仍完整保留', async () => {
@@ -166,7 +166,7 @@ describe('cad.group 双调用形态（mesh 模式）', () => {
       'const g = cad.group(tail, c)',
     ].join('\n'))
     expect(result.terminals?.map((t) => t.id).sort()).toEqual(['c', 'g', 'tail'])
-    expect(result.compounds?.get('g')).toEqual(['tail', 'c'])
+    expect(result.compounds?.get(asPartName('g'))).toEqual([asPartName('tail'), asPartName('c')])
     // 消费侧判定：无几何终端只有 g，且被认作用户组
     const terminalSet = new Set((result.terminals ?? []).map((t) => t.id))
     const groups = new Map<string, string[]>()
@@ -237,23 +237,23 @@ describe('结构壳 group / assembly 不登记合并拓扑（2026-10-23）', () 
     const { result } = await run('mesh', pikachuLike('cad.group(a, b)'))
     // 组是结构壳：拓扑/命名里不得有组名——组节点无几何版本，宿主无从挂载合并拓扑。
     // mesh 模式整体不产拓扑（undefined 视为无），组名更不得出现。
-    expect(result.topology?.has('g') ?? false).toBe(false)
-    expect(result.naming?.has('g') ?? false).toBe(false)
+    expect(result.topology?.has(asPartName('g')) ?? false).toBe(false)
+    expect(result.naming?.has(asPartName('g')) ?? false).toBe(false)
   })
 
   it('brep 模式：成员各自有拓扑，组名仍不出现在 topology / naming', async () => {
     const { result } = await run('brep', pikachuLike('cad.group(a, b)'))
-    expect(result.topology?.has('a')).toBe(true)
-    expect(result.topology?.has('b')).toBe(true)
-    expect(result.topology?.has('g')).toBe(false)
-    expect(result.naming?.has('g')).toBe(false)
+    expect(result.topology?.has(asPartName('a'))).toBe(true)
+    expect(result.topology?.has(asPartName('b'))).toBe(true)
+    expect(result.topology?.has(asPartName('g'))).toBe(false)
+    expect(result.naming?.has(asPartName('g'))).toBe(false)
   })
 
   it('对象形态 cad.group({ members }) 同样不登记组拓扑（回归保护）', async () => {
     const { result } = await run('brep', pikachuLike('cad.group({ members: [a, b] })'))
-    expect(result.topology?.has('a')).toBe(true)
-    expect(result.topology?.has('b')).toBe(true)
-    expect(result.topology?.has('g')).toBe(false)
+    expect(result.topology?.has(asPartName('a'))).toBe(true)
+    expect(result.topology?.has(asPartName('b'))).toBe(true)
+    expect(result.topology?.has(asPartName('g'))).toBe(false)
   })
 
   it('位置参数 cad.assembly(a, b) 不登记装配合并拓扑', async () => {
@@ -262,7 +262,7 @@ describe('结构壳 group / assembly 不登记合并拓扑（2026-10-23）', () 
       'const b = cad.box(20, 20, 20, { centered: true })',
       'const g = cad.assembly(a, b)',
     ].join('\n'))
-    expect(result.topology?.has('g')).toBe(false)
-    expect(result.naming?.has('g')).toBe(false)
+    expect(result.topology?.has(asPartName('g'))).toBe(false)
+    expect(result.naming?.has(asPartName('g'))).toBe(false)
   })
 })

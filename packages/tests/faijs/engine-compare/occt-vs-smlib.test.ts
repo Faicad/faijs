@@ -114,7 +114,7 @@ const KNOWN_SMLIB_ONLY_FAILURES: Record<string, string> = {
 function computeMetrics(shape: Shape): Metrics {
   const positions = shape.positions
   const indices = shape.indices
-  const faceGroups = shape.faceGroups
+  const faceGroups = (shape as unknown as { faceGroups?: ArrayLike<number> }).faceGroups
   let meshArea = 0
   let signedVolume = 0
   for (let t = 0; t < Math.floor(indices.length / 3); t++) {

@@ -115,7 +115,7 @@ part1.keep()
     const mesh = entry1!.kernel.meshShape(entry1!.solid)
     expect(mesh.vertexCount).toBeGreaterThan(0)
     let divVol = 0
-    const pos = mesh.positions, idx = mesh.indices ?? mesh.triangles!
+    const pos = mesh.positions, idx = mesh.indices
     for (let i = 0; i < idx.length; i += 3) {
       const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3
       const ax = pos[a], ay = pos[a + 1], az = pos[a + 2]

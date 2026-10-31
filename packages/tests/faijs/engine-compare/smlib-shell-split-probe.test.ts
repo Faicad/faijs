@@ -51,7 +51,7 @@ function computeMetrics(shape: Shape): M {
   }
   return {
     vol, area, tri: Math.floor(indices.length / 3),
-    faceGroups: shape.faceGroups ? Math.floor(shape.faceGroups.length / 3) : 0,
+    faceGroups: (shape as unknown as { faceGroups?: ArrayLike<number> }).faceGroups ? Math.floor((shape as unknown as { faceGroups?: ArrayLike<number> }).faceGroups!.length / 3) : 0,
     bbox: [maxX - minX, maxY - minY, maxZ - minZ],
     ok: true, failedAt: null, faceCount: 0,
   }

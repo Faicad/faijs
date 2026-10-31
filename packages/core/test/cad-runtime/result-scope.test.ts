@@ -87,8 +87,9 @@ describe('执行结果范围 = 本轮零件（跨 execute 收敛）', () => {
     expect(plainTopo?.data).not.toBe(drilledTopo?.data)
     // 面表与显示几何同源：面表声明的三角形总数 = 显示 mesh 三角形数
     // （同一次几何下 buildTopologyFromMesh 与显示 mesh 同源；跨轮复用才会不等）。
-    const displayTris = plain.outputs.get(asPartName('p'))?.indices
-      ? (plain.outputs.get(asPartName('p')) as { indices: ArrayLike<number> }).indices.length / 3
+    const pShape = plain.outputs.get(asPartName('p'))
+    const displayTris = (pShape && 'indices' in pShape)
+      ? pShape.indices.length / 3
       : 0
     expect(displayTris).toBeGreaterThan(0)
     const faceTris = (plainTopo?.data.faces ?? []).reduce((n, f) => n + (f.triangleCount ?? 0), 0)

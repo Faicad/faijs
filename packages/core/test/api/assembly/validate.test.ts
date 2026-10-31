@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest'
 import { validateConstraints } from '../../../src/api/assembly/validate'
 import { assembly } from '../../support/editor-ops'
+import type { AssemblyParams } from '../../../src/extra/ops/compound'
 import type {
   AssemblyConstraint,
   EntityRef,
@@ -312,7 +313,7 @@ describe('VT4: 存量 face_mate 脚本经 assembly() 接入点继续工作', () 
           fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
           movingFace: { surfaceType: 'plane', center: [40, 0, -5], normal: [0, 0, -1] },
         }] as AssemblyConstraint[],
-      }),
+      } as AssemblyParams),
     ).not.toThrow()
   })
 
@@ -323,7 +324,7 @@ describe('VT4: 存量 face_mate 脚本经 assembly() 接入点继续工作', () 
         members: [{}, {}] as unknown as Shape[],
         memberNames: ['part0', 'part1'],
         constraints: [{ type: 'bogus' } as unknown as AssemblyConstraint],
-      }),
+      } as AssemblyParams),
     ).toThrow(/constraints\[0\]\.type/)
   })
 })

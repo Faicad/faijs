@@ -194,8 +194,8 @@ describe('getLiveOutput', () => {
           const live = rt.getLiveOutput(t.id)
           gap.push({
             line: lineNo,
-            cached: !!(cached && cached.positions instanceof Float32Array),
-            live: !!(live && live.positions instanceof Float32Array),
+            cached: !!(cached && 'positions' in cached && cached.positions instanceof Float32Array),
+            live: !!(live && 'positions' in live && live.positions instanceof Float32Array),
           })
         }
       },

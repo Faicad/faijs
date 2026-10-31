@@ -406,8 +406,4 @@ export class MeshSolidRegistry {
     return [...this.handles.keys()]
   }
 
-  /** 登记数量（诊断/测试）。 */
-  get size(): number {
-    return this.handles.size
-  }
 }

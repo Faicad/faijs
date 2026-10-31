@@ -15,10 +15,14 @@ import { describe, expect, it } from 'vitest'
 import { createBrepkitPrimitives, getBrepKitKernel } from '../src/brepkit-kernel/brepkitKernel'
 import { buildAssemblySelectorManifest } from '../src/occt-kernel/topologyExt'
 import { buildSelectorRuntime } from '../src/topology/build-selector-runtime'
+import type { BrepHandle } from '../src/brep/engine/types'
+
+/** brepkit 原生 API 返回裸 number，测试中桥接为 BrepHandle branded type。 */
+const asHandle = (n: number) => n as unknown as BrepHandle
 
 type Api = Awaited<ReturnType<typeof createBrepkitPrimitives>>
 
-function timeSolid(api: Api, label: string, solid: number): void {
+function timeSolid(api: Api, label: string, solid: BrepHandle): void {
   try {
     // 显示参数（与 faijs solidToShape 同源）
     const mesh = api.meshShape(solid, { linearDeflection: 0.1, angularDeflection: (2 * Math.PI) / 64 })
@@ -47,7 +51,7 @@ function timeSolid(api: Api, label: string, solid: number): void {
   }
 }
 
-function timeSolidDetail(api: Api, label: string, solid: number): void {
+function timeSolidDetail(api: Api, label: string, solid: BrepHandle): void {
   try {
     const mesh = api.meshShape(solid, { linearDeflection: 0.1, angularDeflection: (2 * Math.PI) / 64 })
     const tA = Date.now()
@@ -123,29 +127,29 @@ describe('manifest 慢点定位（brepkit）', () => {
     expect(kernel).toBeTruthy()
 
     // 1. 裸球（适配层固定 32 段）
-    timeSolid(api, 'sphere r=1(32)', api.makeSphere(1))
-    timeSolid(api, 'sphere r=1(64)', kernel.makeSphere(1, 64))
+    timeSolid(api, 'sphere r=1(32)', asHandle(api.makeSphere(1)))
+    timeSolid(api, 'sphere r=1(64)', asHandle(kernel.makeSphere(1, 64)))
 
     // 2. 皮卡丘部件：非均匀缩放椭球（scale3d factor [7,6,20] 与 [26,24,28]）
     for (const [fx, fy, fz] of [[7, 6, 20], [26, 24, 28], [11, 14, 7]]) {
-      const base = kernel.makeSphere(1, 64)
+      const base = asHandle(kernel.makeSphere(1, 64))
       // 3×4 行主序非均匀缩放矩阵（faijs transform 契约）
-      const scaled = api.transform(base, [fx, 0, 0, 0, 0, fy, 0, 0, 0, 0, fz, 0])
+      const scaled = asHandle(api.transform(base, [fx, 0, 0, 0, 0, fy, 0, 0, 0, 0, fz, 0]))
       api.release(base)
       timeSolid(api, `scale([${fx},${fy},${fz}])`, scaled)
-      timeSolidDetail(api, `scale([${fx},${fy},${fz}])`, api.copy(scaled))
+      timeSolidDetail(api, `scale([${fx},${fy},${fz}])`, asHandle(api.copy(scaled)))
     }
 
     // 3. box（尾巴三段之一 8×10×31）
-    timeSolid(api, 'box 8x10x31', api.makeBox(8, 10, 31))
+    timeSolid(api, 'box 8x10x31', asHandle(api.makeBox(8, 10, 31)))
 
     // 4. union 布尔（尾巴：union(box_a, union(box_b, box_c))）
-    const mkBox = (w: number, d: number, h: number): number => api.makeBox(w, d, h)
+    const mkBox = (w: number, d: number, h: number): BrepHandle => asHandle(api.makeBox(w, d, h))
     const b1 = mkBox(8, 10, 31)
     const b2 = mkBox(8, 10, 22)
     const b3 = mkBox(8, 10, 27)
-    const u1 = api.fuse(b2, b3)
-    const u2 = api.fuse(b1, u1)
+    const u1 = asHandle(api.fuse(b2, b3))
+    const u2 = asHandle(api.fuse(b1, u1))
     api.release(b1); api.release(b2); api.release(b3); api.release(u1)
     timeSolid(api, 'union(box*3)', u2)
   }, 120_000)

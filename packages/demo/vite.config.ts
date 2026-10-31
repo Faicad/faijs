@@ -124,9 +124,12 @@ export default defineConfig({
     },
     // occt-wasm / manifold-3d 的 Emscripten glue 经 esbuild 预打包会损坏 wasm
     // import 对象（原 brepjs 同款），必须排除。
-    // @faicad/* 现以 workspace 依赖（dist）安装，已是编译产物、不含 wasm glue，
-    // 不再需要排除（demo 已改走独立 dist 消费，不再 live-src 联动）。
-    exclude: ['occt-wasm', 'manifold-3d'],
+    // @faicad/faijs 的 dist 含 `new Worker(new URL('./csg-worker.js', import.meta.url))`
+    // 形式的 worker 引用——dep optimizer 会把 URL 解析到 .vite/deps/ 下，但 worker
+    // 文件不会被生成到该目录 → "file does not exist" → Worker 初始化失败 →
+    // runtime.execute 抛 "Cannot read properties of undefined (reading 'length')"。
+    // 因此 @faicad/faijs 也必须排除（dist 已是编译产物，无需 esbuild 二次处理）。
+    exclude: ['occt-wasm', 'manifold-3d', '@faicad/faijs'],
   },
   build: {
     target: 'esnext',
