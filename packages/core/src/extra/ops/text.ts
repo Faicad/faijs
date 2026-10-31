@@ -17,7 +17,7 @@ import { containsCjk, loadSystemCjkFont } from '../../primitives/text/cjk-font'
 import { fromBrep } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
-import { assertNumber, assertPositiveNumber } from '../../api/assert'
+import { assertNonZeroNumber, assertPositiveNumber } from '../../api/assert'
 
 /**
  * Validate text parameters: `text` must be a non-empty string, `size` must be a
@@ -31,7 +31,7 @@ export function assertTextParams(params: Record<string, unknown>): void {
     throw new Error(`[extra/text] text must be a non-empty string, got ${JSON.stringify(params.text)}`)
   }
   assertPositiveNumber(params.size, 'text.size')
-  assertNumber(params.depth, 'text.depth')
+  assertNonZeroNumber(params.depth, 'text.depth')
 }
 
 /**

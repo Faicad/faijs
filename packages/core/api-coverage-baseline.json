@@ -554,16 +554,6 @@
       ]
     },
     {
-      "name": "engrave",
-      "missing": [
-        "faceCenter",
-        "faceNormal",
-        "mode",
-        "svg",
-        "svgSize"
-      ]
-    },
-    {
       "name": "extrude",
       "missing": [
         "baseFeature",

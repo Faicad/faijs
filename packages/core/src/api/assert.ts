@@ -31,6 +31,19 @@ export function assertPositiveNumber(value: unknown, name: string): void {
 }
 
 /**
+ * Assert that a parameter is a finite, non-zero number.
+ * Negative values are accepted (e.g. negative depth = reverse extrusion).
+ * @param value - the value to check.
+ * @param name - the parameter name used in the thrown error message.
+ */
+export function assertNonZeroNumber(value: unknown, name: string): void {
+  assertNumber(value, name)
+  if (value === 0) {
+    throw new Error(`[api] ${name} must be non-zero, got ${value}`)
+  }
+}
+
+/**
  * Assert that a parameter is a number greater than or equal to zero.
  * @param value - the value to check.
  * @param name - the parameter name used in the thrown error message.

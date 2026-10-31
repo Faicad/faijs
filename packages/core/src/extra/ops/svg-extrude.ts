@@ -18,7 +18,7 @@ import { placeOnFace } from '../../brep/text/face-place'
 import { fromBrep } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
-import { assertNumber } from '../../api/assert'
+import { assertNonZeroNumber } from '../../api/assert'
 
 /**
  * Validate svgExtrude parameters: `svg` is required and `depth` a finite number
@@ -31,7 +31,7 @@ export function assertSvgExtrudeParams(params: Record<string, unknown>): void {
   if (params.svg === undefined || params.svg === null || params.svg === '') {
     throw new Error(`[extra/svgExtrude] svg is required, got ${JSON.stringify(params.svg)}`)
   }
-  assertNumber(params.depth, 'svgExtrude.depth')
+  assertNonZeroNumber(params.depth, 'svgExtrude.depth')
 }
 
 /** BREP 路径：SVG path 解析 → OCCT wire/face → extrude + 贴面 + fromBrep 登记。 */

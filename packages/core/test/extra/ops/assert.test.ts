@@ -31,16 +31,20 @@ describe('editor-ops per-op assert: 特征类', () => {
 })
 
 describe('editor-ops per-op assert: 创建类（B 组）', () => {
-  it('text: text 非空；size/depth > 0', () => {
+  it('text: text 非空；size > 0；depth 非零', () => {
     expect(() => assertTextParams({})).toThrow(/text.*text/)
     expect(() => assertTextParams({ text: 'A', size: 0, depth: 2 })).toThrow(/text\.size/)
-    expect(() => assertTextParams({ text: 'A', size: 10, depth: -1 })).toThrow(/text\.depth/)
+    // depth=0 is rejected (no extrusion), but negative depth is valid (reverse extrusion)
+    expect(() => assertTextParams({ text: 'A', size: 10, depth: 0 })).toThrow(/text\.depth/)
+    expect(() => assertTextParams({ text: 'A', size: 10, depth: -1 })).not.toThrow()
     expect(() => assertTextParams({ text: 'A', size: 10, depth: 2 })).not.toThrow()
   })
 
-  it('svgExtrude: svg 必填；depth > 0', () => {
+  it('svgExtrude: svg 必填；depth 非零', () => {
     expect(() => assertSvgExtrudeParams({})).toThrow(/svgExtrude.*svg/)
+    // depth=0 is rejected (no extrusion), but negative depth is valid (reverse extrusion)
     expect(() => assertSvgExtrudeParams({ svg: '<svg/>', depth: 0 })).toThrow(/svgExtrude\.depth/)
+    expect(() => assertSvgExtrudeParams({ svg: '<svg/>', depth: -1 })).not.toThrow()
     expect(() => assertSvgExtrudeParams({ svg: '<svg/>', depth: 5 })).not.toThrow()
   })
 })

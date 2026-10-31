@@ -170,11 +170,6 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     params: '{ length?: number; normal?: [number, number, number]; mode?: string; upTo?: any; baseFeature?: Shape; offset?: number }',
     returns: 'Promise<Shape>',
   },
-  engrave: {
-    inputs: 1,
-    params: '{ text?: string; depth?: number; textSize?: number; svg?: any; svgSize?: number; mode?: string; faceCenter?: any; faceNormal?: any }',
-    returns: 'Promise<Shape>',
-  },
   knurl: {
     inputs: 1,
     params: '{ knurlTextureHeight?: number; knurlScaleU?: number; knurlScaleV?: number; knurlInvertDisplacement?: boolean; knurlRefineLength?: number; knurlMappingMode?: number; faceCenter?: any; faceNormal?: any }',
@@ -267,7 +262,7 @@ const ORDER = [
   'screw', 'sdf', 'import_brep', 'import_step',
   'translate', 'rotate_euler', 'scale', 'scale3d', 'place',
   'union', 'subtract', 'intersect',
-  'extrude', 'engrave', 'chamfer', 'knurl',
+  'extrude', 'chamfer', 'knurl',
   'compound',
   'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
   'asset',
@@ -288,7 +283,7 @@ function generate(): string {
   lines.push(`/**`)
   lines.push(` * The \`cad\` object's runtime API surface: every callable available to a`)
   lines.push(` * \`.fai.js\` model on the faijs platform surface, grouped by category (creation,`)
-  lines.push(` * transform, boolean, extrude, engrave, chamfer, structure, geometry queries,`)
+  lines.push(` * transform, boolean, extrude, chamfer, structure, geometry queries,`)
   lines.push(` * assets). Editor ops (fai_* / group / assembly / copy / load / text / svgExtrude)
  * ship inside core as well but are not listed in this generated platform-api view.`)
   lines.push(` */`)
@@ -299,7 +294,7 @@ function generate(): string {
     ['变换', ['translate', 'rotate_euler', 'scale', 'scale3d', 'place']],
     ['布尔', ['union', 'subtract', 'intersect']],
     ['拉伸', ['extrude']],
-    ['雕刻', ['engrave', 'knurl']],
+    ['滚花', ['knurl']],
     ['倒角', ['chamfer']],
     ['结构（不消费成员）', ['compound']],
     ['几何查询', ['faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax']],
