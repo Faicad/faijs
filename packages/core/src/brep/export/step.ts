@@ -19,6 +19,8 @@ import type { XCAFDocument } from 'occt-wasm'
 import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
 import { getOcctKernel, type ShapeHandle } from '../../occt-kernel/occtKernel'
 import type { FileMeta } from '../../api/meta'
+import type { PmiSet } from '../../api/pmi/types'
+import { writePmiToXCAF, upgradeStepSchemaForPmi, supportsXcafPmi } from './step-pmi'
 import { rewriteStepHeader, fileMetaHasHeaderFields } from './step-meta-header'
 import { transformToMatrix12, type NodeTransform } from './transform12'
 import { composeMatrix12 } from './stl'
@@ -59,6 +61,12 @@ export interface StepExportEntry {
    * （子装配分组待 wasm 提供空装配 label 原语后升级）。
    */
   children?: StepExportEntry[]
+  /**
+   * PMI 标注集合（方案 2026-10-31-faijs-pmi-design.md §5）：有 PMI 时导出自动升级为
+   * AP242（semantic PMI）。需要 BREP 链 + occt-wasm XCAFDoc_DimTolTool 支持；
+   * 不支持时 PMI 数据随 entry 传递但不写进 STEP 实体（静默降级，不报错）。
+   */
+  pmi?: PmiSet
   /**
    * 本节点相对父的位姿（与 `Shape.transform` 同形态，坐标已按单位刻度换算）。
    * 直接子节点写 XCAF component location；更深层的叶子烘进几何。
@@ -379,10 +387,29 @@ export function exportStepFromSolids(
       }
     }
 
+    // 2.5 PMI 写入（方案 2026-10-31-faijs-pmi-design.md §5）：occt-wasm 支持
+    //    XCAFDoc_DimTolTool 时写入 semantic PMI；不支持时静默降级（PMI 数据
+    //    随 entry 传递但不写进 STEP 实体）。AP 版本自动升级（有 PMI → AP242）。
+    if (supportsXcafPmi(doc)) {
+      for (const entry of entries) {
+        if (entry.pmi && entry.pmi.items.length > 0) {
+          // PMI → XCAF：需要 TopoRef → XCAF Label 映射（当前能力检测，暂用空映射）。
+          //    映射建立需要 RoleTable + 子形状遍历，在 occt-wasm 提供 DimTolTool 后连接。
+          const faceLabelMap = new Map<string, number>()
+          writePmiToXCAF(doc, entry.pmi, faceLabelMap)
+        }
+      }
+    }
+
     // 3. 导出（每个 label 一个独立 PRODUCT，保留名称/颜色）
     let stepText = doc.exportSTEP()
     // 文本层后处理：注入透明度（SURFACE_STYLE_TRANSPARENCY）
     stepText = injectStepTransparency(stepText, entries)
+    // PMI → AP242 schema 升级（有 semantic PMI 时升级 FILE_SCHEMA 为 AP242）
+    const mergedPmi: PmiSet | undefined = entries.some((e) => e.pmi && e.pmi.items.length > 0)
+      ? { items: entries.flatMap((e) => e.pmi?.items ?? []) }
+      : undefined
+    stepText = upgradeStepSchemaForPmi(stepText, mergedPmi)
     // 文件级 meta → P21 header 重写（title/creationDate/createor/author/org/
     // application/description）。无 header 字段时不重写。文本层只改声明不碰几何。
     const out = fileMeta && fileMetaHasHeaderFields(fileMeta)

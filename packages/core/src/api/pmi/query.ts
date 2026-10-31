@@ -1,0 +1,164 @@
+/**
+ * api/pmi/query — PMI query functions (cad namespace, non-op)
+ *
+ * PMI 查询走 `cad` 命名空间的普通函数（不是 op）。
+ * - `pmiItems(shape, filter?)` — query PMI annotations by kind/target type.
+ * - `pmiOn(shape, ref)` — query PMI annotations attached to a specific TopoRef.
+ * - `pmiDatums(shape)` — query datum identifier → datum mapping.
+ *
+ * These are plain functions (not defineOp): they produce no Shape, consume
+ * Shape as input, and return pure data. They are registered in the cad
+ * namespace via api-namespace.ts.
+ *
+ * 设计文档：docs/plans/2026-10-31-faijs-pmi-design.md §3.3
+ */
+
+import type { Shape } from '../../mesh/types'
+import type { TopoRef } from '../../topology/naming/types'
+import type { PmiItem, PmiDatum, PmiItemKind } from './types'
+
+// ── 辅助：判断 PMI item 的目标是否包含给定 ref ──
+
+/**
+ * Collect all TopoRef targets from a PmiItem.
+ * Dimension has `targets[]`; GDT/Datum/SurfaceFinish have `target`; Note has optional `target`.
+ */
+function getTargets(item: PmiItem): readonly TopoRef[] {
+  switch (item.kind) {
+    case 'dimension':
+      return item.targets
+    case 'gdt':
+      return [item.target]
+    case 'datum':
+      return [item.target]
+    case 'surfaceFinish':
+      return [item.target]
+    case 'note':
+      return item.target ? [item.target] : []
+  }
+}
+
+/**
+ * Check if two TopoRefs are the same (by kind + origin + role for face refs;
+ * by kind + faces for edge/vertex refs).
+ *
+ * Conservative comparison: checks kind + origin + role for FaceTopoRef;
+ * for other kinds, uses structural comparison of the `faces` array (RoleQualifier
+ * pairs). This is sufficient for PMI query purposes — exact identity is not
+ * required (the user passes the same TopoRef object that was used to attach).
+ */
+function refEquals(a: TopoRef, b: TopoRef): boolean {
+  if (a === b) return true
+  if (a.kind !== b.kind) return false
+  switch (a.kind) {
+    case 'face': {
+      const bb = b as typeof a
+      return a.origin === bb.origin && a.role === bb.role
+    }
+    case 'edge': {
+      const bb = b as typeof a
+      return a.faces.length === bb.faces.length &&
+        a.faces.every((f, i) => {
+          const g = bb.faces[i]
+          return f.origin === g.origin && f.role === g.role
+        })
+    }
+    case 'vertex': {
+      const bb = b as typeof a
+      return a.faces.length === bb.faces.length &&
+        a.faces.every((f, i) => {
+          const g = bb.faces[i]
+          return f.origin === g.origin && f.role === g.role
+        })
+    }
+    case 'derived-face': {
+      const bb = b as typeof a
+      return a.op === bb.op &&
+        a.between.length === bb.between.length &&
+        a.between.every((f, i) => {
+          const g = bb.between[i]
+          return f.origin === g.origin && f.role === g.role
+        })
+    }
+  }
+}
+
+// ── 查询函数 ──
+
+/**
+ * Query PMI annotations on a shape, optionally filtered by kind or target type.
+ *
+ * @group 查询
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name pmiItems
+ * @returns PmiItem[] — matching PMI annotations.
+ * @param shape - the shape to query. type:Shape required:true
+ * @param filter - optional filter. type:object required:false
+ * @example
+ * const dims = cad.pmiItems(part0, { kind: 'dimension' })
+ */
+export function pmiItems(
+  shape: Shape,
+  filter?: { kind?: PmiItemKind; targetType?: TopoRef['kind'] },
+): PmiItem[] {
+  const pmi = (shape as Shape & { pmi?: { items: readonly PmiItem[] } }).pmi
+  if (!pmi || !pmi.items) return []
+  return pmi.items.filter((item) => {
+    if (filter?.kind && item.kind !== filter.kind) return false
+    if (filter?.targetType) {
+      const targets = getTargets(item)
+      return targets.some((t) => t.kind === filter.targetType)
+    }
+    return true
+  })
+}
+
+/**
+ * Query all PMI annotations attached to a specific TopoRef.
+ *
+ * @group 查询
+ * @inputs 2
+ * @async false
+ * @qual ok
+ * @name pmiOn
+ * @returns PmiItem[] — annotations attached to the given TopoRef.
+ * @param shape - the shape to query. type:Shape required:true
+ * @param ref - the topology reference (face/edge/vertex). type:TopoRef required:true
+ * @example
+ * const annos = cad.pmiOn(part0, cad.faceRef(part0, 3))
+ */
+export function pmiOn(shape: Shape, ref: TopoRef): PmiItem[] {
+  const pmi = (shape as Shape & { pmi?: { items: readonly PmiItem[] } }).pmi
+  if (!pmi || !pmi.items) return []
+  return pmi.items.filter((item) => {
+    const targets = getTargets(item)
+    return targets.some((t) => refEquals(t, ref))
+  })
+}
+
+/**
+ * Query datum identifier → datum mapping.
+ *
+ * @group 查询
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name pmiDatums
+ * @returns Record<string, PmiDatum> — datum identifier → datum.
+ * @param shape - the shape to query. type:Shape required:true
+ * @example
+ * const datums = cad.pmiDatums(part0)
+ */
+export function pmiDatums(shape: Shape): Record<string, PmiDatum> {
+  const pmi = (shape as Shape & { pmi?: { items: readonly PmiItem[] } }).pmi
+  if (!pmi || !pmi.items) return {}
+  const result: Record<string, PmiDatum> = {}
+  for (const item of pmi.items) {
+    if (item.kind === 'datum') {
+      result[item.identifier] = item
+    }
+  }
+  return result
+}

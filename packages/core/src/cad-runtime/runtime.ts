@@ -73,6 +73,7 @@ export { stableFingerprint } from './content-key'
 import { isCompoundLike, brepOf, getSlot, ensureSlot, hasMeshSolid, type CompoundShape } from '../shape'
 import type { AssemblyBehavior, AssemblyDecl } from '../extra/ops/compound'
 import type { PartNaming } from '../topology/naming/types'
+import type { PmiItem } from '../api/pmi/types'
 import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-naming'
 import { faceRowToHint } from '../topology/naming/geom-hint'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
@@ -241,6 +242,12 @@ export interface ExecutionResult {
    * part / 消费装配结构，不再自行解析文件。
    */
   importModels?: Map<PartName, ImportModel>
+  /**
+   * 各 part 的 PMI 标注集合（方案 2026-10-31-faijs-pmi-design.md §7）。
+   * 宿主据此渲染 3D PMI 标签（尺寸线、FCF 框、基准符号等）。
+   * key 为 PartName；value 为该 part 上全部 PMI 标注列表。
+   */
+  pmi?: ReadonlyArray<{ part: PartName; items: readonly PmiItem[] }>
   /**
    * 执行路径观测（2026-10-19）：本轮走的是全量 / 增量 / 零变更，以及退化原因。
    *
@@ -1755,6 +1762,14 @@ export class CadRuntime {
       builtFromMesh: this.__buildStats.fromMesh,
       builtFromSolid: this.__buildStats.fromSolid,
     }
+    // PMI 收集：从各 part 的 Shape.pmi 字段收集标注（方案 2026-10-31-faijs-pmi-design.md §7）
+    const pmiEntries: { part: PartName; items: readonly PmiItem[] }[] = []
+    for (const [partName, shape] of outputs) {
+      const pmi = (shape as Shape & { pmi?: { items: readonly PmiItem[] } }).pmi
+      if (pmi && pmi.items && pmi.items.length > 0) {
+        pmiEntries.push({ part: partName, items: pmi.items })
+      }
+    }
     return {
       outputs,
       brepChain: this.brepChain!,
@@ -1770,6 +1785,7 @@ export class CadRuntime {
       detectedUnits: de.detectedUnitsSnapshot.size > 0 ? de.detectedUnitsSnapshot : undefined,
       multiPartCounts: de.multiPartCountSnapshot.size > 0 ? de.multiPartCountSnapshot : undefined,
       importModels: de.importModelsSnapshot.size > 0 ? de.importModelsSnapshot : undefined,
+      pmi: pmiEntries.length > 0 ? pmiEntries : undefined,
       changed: deChanged ? deChanged.map(asPartName) : undefined,
       activeValues: activeValues.size > 0 ? activeValues : undefined,
       execution,

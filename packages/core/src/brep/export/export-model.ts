@@ -27,6 +27,7 @@ import { exportStepFlat } from './step-flat'
 import { detectStepUnit, STEP_UNIT_SCAN_PREFIX } from '../../mesh/io'
 import type { PbrAppearance } from '../../api/appearance'
 import type { ShapeMeta, FileMeta } from '../../api/meta'
+import type { PmiSet } from '../../api/pmi/types'
 
 /** 导出条目：一个 part 的几何来源。精确 BREP 与三角网格二选一，solid 优先。 */
 export interface ExportEntry {
@@ -65,6 +66,11 @@ export interface ExportEntry {
    * `<component transform>`、STEP 写 XCAF location（第 7 步）、STL 顶点烘焙（第 5 步）。
    */
   transform?: { translate?: Vec3; rotate?: { angle: number; axis?: Vec3 }; matrix?: number[] }
+  /**
+   * PMI 标注集合（方案 2026-10-31-faijs-pmi-design.md §5）：传递给 StepExportEntry，
+   * 有 PMI 时 STEP 导出自动升级为 AP242（semantic PMI）。3MF 元数据通过 `<metadatagroup>` 传递。
+   */
+  pmi?: PmiSet
 }
 
 /** Output formats supported by the unified {@link exportModel} entry. */
@@ -439,8 +445,13 @@ function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number,
       }
     }
     const metadatagroup = metadatas.length > 0 ? `<metadatagroup>${metadatas.join('')}</metadatagroup>` : ''
+    // PMI 元数据（方案 2026-10-31-faijs-pmi-design.md §8.1）：3MF 不支持 PMI 实体，
+    // 通过 <metadatagroup> 传递 PmiSet 的 JSON 序列化。preserve="1" 确保下游工具保留。
+    const pmiMetadata = e.pmi && e.pmi.items.length > 0
+      ? `<metadatagroup><metadata name="faijs:pmi" preserve="1">${xmlAttr(JSON.stringify(e.pmi))}</metadata></metadatagroup>`
+      : ''
     const nameAttr = xmlAttr(e.name ?? `part${id}`)
-    objs.push(`<object id="${id}" type="model" name="${nameAttr}"${partnumberAttr}${pidAttr}>${metadatagroup}${meshXml}${compXml}</object>`)
+    objs.push(`<object id="${id}" type="model" name="${nameAttr}"${partnumberAttr}${pidAttr}>${metadatagroup}${pmiMetadata}${meshXml}${compXml}</object>`)
     return id
   }
 
@@ -507,6 +518,7 @@ function makeStepEntryMapper(
       ...(e.name ? { name: e.name } : {}),
       ...(e.color ? { color: [...e.color] as [number, number, number] } : {}),
       ...(e.opacity !== undefined ? { opacity: e.opacity } : {}),
+      ...(e.pmi ? { pmi: e.pmi } : {}),
     }
     const transform = e.transform ? scaleTransform(e.transform, scale) : undefined
     if (e.children && e.children.length > 0) {

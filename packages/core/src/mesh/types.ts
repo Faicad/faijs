@@ -14,6 +14,7 @@
 
 import type { PbrAppearance } from '../api/appearance'
 import type { ShapeMeta } from '../api/meta'
+import type { PmiSet } from '../api/pmi/types'
 
 // ── 基础类型 ──
 
@@ -113,6 +114,14 @@ export interface Shape {
    * 契约——因此本接口**不** extends 方法接口，`isMeshShape` 鸭子判定不受影响。
    */
   meta?: ShapeMeta
+  /**
+   * PMI (Product Manufacturing Information) 标注集合——引擎无关、JSON 可序列化、
+   * 随 Shape 走 mesh/brep 双链路。设置方法是 Shape 实例方法（非 op，见
+   * `api/pmi/methods.ts` 的 `ShapePmiMethods` / `attachPmiMethods`），方法只挂载
+   * 在产物构造点（solid/curve）返回的实例上，基础 Shape 保持纯数据契约——因此本
+   * 接口**不** extends 方法接口，`isMeshShape` 鸭子判定不受影响。
+   */
+  pmi?: PmiSet
   /**
    * 装配节点位姿（方案 2026-10-08 §2.1「装配模型 = 节点属性，单一真源」）：节点
    * **相对其父**的位置/姿态。可选、纯数据、JSON 可序列化——与 `appearance` /

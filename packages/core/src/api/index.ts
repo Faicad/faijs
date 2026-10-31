@@ -121,6 +121,16 @@ export { mergeAppearance, normalizeColor } from './appearance'
 // 合并纯函数供编辑器映射与导出复用。
 export type { ShapeMeta, FileMeta, ShapeMetaMethods } from './meta'
 export { mergeMeta } from './meta'
+// PMI (Product Manufacturing Information)：类型供宿主/第三方消费（方案 2026-10-31-faijs-pmi-design.md）。
+export type {
+  PmiDimensionType, PmiDimension, PmiGdtType, PmiMaterialCondition,
+  PmiProjectedToleranceZone, PmiCompositeSegment, PmiGdt, PmiDatumType,
+  PmiDatumTargetParams, PmiDatum, PmiSurfaceParameter, PmiTextureDirection,
+  PmiSurfaceFinish, PmiNote, PmiItem, PmiItemKind, PmiSetMeta, PmiSet, PmiEntry,
+} from './pmi/types'
+export { dimension, gdt, datum, surfaceFinish, note } from './pmi/types'
+export { attachPmiMethods, type ShapePmiMethods } from './pmi/methods'
+export { pmiItems, pmiOn, pmiDatums } from './pmi/query'
 
 // ── P23：脚本面 op 与库面导出面的边界（§2.7 / DEC-5、DEC-6、DEC-7）──
 //

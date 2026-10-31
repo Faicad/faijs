@@ -136,6 +136,8 @@ import { text } from '../extra/ops/text'
 import { svgExtrude } from '../extra/ops/svg-extrude'
 import { dxfExtrude } from '../extra/ops/dxf-extrude'
 import { useMeshChain } from './use-mesh-chain'
+// PMI 查询函数（普通函数，非 op；方案 2026-10-31-faijs-pmi-design.md §3.3）
+import { pmiItems, pmiOn, pmiDatums } from './pmi/query'
 
 /**
  * Assemble api functions into the cad namespace.
@@ -262,5 +264,9 @@ export function createApiNamespace(): LibNamespace {
     // OpenSCAD 语义开关（2026-10-28）：普通库函数，非 defineOp——无几何输入/产物，
     // 语句值 undefined。默认关闭；仅 OpenSCAD 翻译产物在文件头开启。
     setBooleanOperandValidation,
+    // PMI 查询函数（普通函数，非 op；不进 defineOp/arg-schema）。
+    pmiItems,
+    pmiOn,
+    pmiDatums,
   } as unknown as LibNamespace
 }
