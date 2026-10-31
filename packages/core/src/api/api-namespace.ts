@@ -137,7 +137,9 @@ import { svgExtrude } from '../extra/ops/svg-extrude'
 import { dxfExtrude } from '../extra/ops/dxf-extrude'
 import { useMeshChain } from './use-mesh-chain'
 // PMI 查询函数（普通函数，非 op；方案 2026-10-31-faijs-pmi-design.md §3.3）
-import { pmiItems, pmiOn, pmiDatums } from './pmi/query'
+import { pmiItems, pmiOn, pmiDatums, pmiThreads } from './pmi/query'
+// PMI 显示文本（螺纹孔：底孔 + 螺纹一体呈现；方案 2026-10-31-pmi-thread §3.2）
+import { formatThreadHole } from './pmi/text'
 
 /**
  * Assemble api functions into the cad namespace.
@@ -268,5 +270,8 @@ export function createApiNamespace(): LibNamespace {
     pmiItems,
     pmiOn,
     pmiDatums,
+    pmiThreads,
+    // PMI 显示文本（普通函数，非 op）：螺纹孔底孔 + 螺纹一体呈现。
+    formatThreadHole,
   } as unknown as LibNamespace
 }

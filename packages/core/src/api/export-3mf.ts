@@ -41,7 +41,7 @@ import { brepOf } from '../shape'
 import { getBrepApi } from '../brep/handle-bridge'
 import { solidToShape } from '../brep/brep-ops'
 import { exportModelSync, type ExportEntry } from '../brep/export/export-model'
-import { exportTreeOf, type ExportMemberNode } from './internal/export-members'
+import { exportTreeOf, pmiOfShape, type ExportMemberNode } from './internal/export-members'
 import { assertHostFor } from './internal/l3-bridge'
 
 /** `cad.export3mf` 选项。 */
@@ -83,6 +83,9 @@ function entryOfNode(node: ExportMemberNode): ExportEntry {
   if (node.color !== undefined) entry.color = node.color
   if (node.transform) entry.transform = node.transform
   if (mesh) entry.mesh = mesh
+  // PMI：3MF 无 PMI 实体，经 `<metadatagroup name="faijs:pmi">` 携带（export-model 写出）。
+  const pmi = pmiOfShape(node.shape)
+  if (pmi !== undefined) entry.pmi = pmi
   if (node.children?.length) entry.children = node.children.map(entryOfNode)
   return entry
 }

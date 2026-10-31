@@ -230,12 +230,107 @@ export interface PmiNote {
   readonly leaderDirection?: Vec3
 }
 
+// ── 螺纹孔（攻丝孔）──
+
+/**
+ * 螺纹（攻丝/螺纹）规格——螺纹孔标注的「后加工」一半。
+ *
+ * 螺纹本身不进入 `tapped` 孔的实体几何（几何只有底孔）；此分组描述
+ * 攻丝/攻螺纹要形成的牙型与有效深度。
+ */
+export interface PmiThreadSpec {
+  /** 螺纹标准：metric（公制 M）/ imperial（英制 UN）/ pipe（管螺纹 G/R）。 */
+  readonly standard: 'metric' | 'imperial' | 'pipe'
+  /** 公称直径（mm）。M6 → 6。 */
+  readonly nominalDiameter: number
+  /** 螺距（mm）。缺省由 standard + nominalDiameter 查表（见 `primitives/screw/screw-db`）。 */
+  readonly pitch?: number
+  /** 公差等级。内螺纹 metric：'6H'；imperial：'2B' / '3B'。 */
+  readonly toleranceClass?: string
+  /** 有效螺纹深度（mm）——攻丝形成的螺纹长度，不含孔底的无螺纹光底。 */
+  readonly depth: number
+  /** 旋向，缺省右旋。 */
+  readonly handedness?: 'right' | 'left'
+  /** 规格标签（显示用，不参与身份判定）。'M6' / 'M8×1' / '1/4"-20' / 'G1/2'。 */
+  readonly specLabel?: string
+}
+
+/**
+ * 底孔（原始几何）参数——螺纹孔标注的「几何」一半。
+ *
+ * 与 `PmiThreadSpec` 同属**一条**标注：显示时必须一起出现（用户契约：
+ * "它们是整体，并不是只有后加工的才属于 PMI"）。
+ */
+export interface PmiPilotHole {
+  /** 底孔直径（mm）。M6 粗牙 → 5。 */
+  readonly diameter: number
+  /** 底孔总深度（mm），≥ `thread.depth`；差值即孔底光底。 */
+  readonly depth: number
+  /** 钻尖锥角（度，标准麻花钻 118°）。**标注用**——当前几何为平底，不做锥尖。 */
+  readonly drillPointAngle?: number
+}
+
+/**
+ * 孔的几何定位器（两链通用）。
+ *
+ * 坐标契约与 `fai_drill` 的 `position` 相同：**模型局部空间**。用轴定位而不用
+ * `FaceTopoRef`，因为 mesh 链没有拓扑身份、`cad.faceRef` 又明确禁用于脚本生成
+ * （序号跨内核漂移）。op 产出时参数即定位，改参重放可原样重算。
+ */
+export interface PmiHoleAxis {
+  /** 孔口点（模型局部坐标）。 */
+  readonly origin: Vec3
+  /** 轴向（指向材料内部的单位向量）。 */
+  readonly direction: Vec3
+}
+
+/**
+ * 螺纹孔标注（攻丝孔的完整制造信息）。
+ *
+ * **一个条目承载两类信息**：
+ * - `pilot`：原始几何（底孔 Φ5 ↓16）——实体几何只信任这一半；
+ * - `thread`：后加工攻丝（M6-6H ↓14）——不是几何，是标注。
+ *
+ * 两类信息**同属 PMI**，显示时一并呈现（`formatThreadHole`）。这与
+ * `holeType:'screw'` 的「建模螺纹」不冲突：后者把牙做进几何，`process`
+ * 记为 `'modeled'`，标注仍产出，下游消费不必按 holeType 分叉。
+ *
+ * 设计文档：docs/plans/2026-10-31-faijs-pmi-thread-and-technotes-design.md §3
+ */
+export interface PmiThreadHole {
+  readonly kind: 'threadHole'
+  /** 后加工：螺纹规格（M6-6H ↓14）。 */
+  readonly thread: PmiThreadSpec
+  /** 原始几何：底孔（Φ5 ↓16）。 */
+  readonly pilot: PmiPilotHole
+  /** 几何定位（两链通用的主定位；mesh 链唯一可用定位）。 */
+  readonly axis: PmiHoleAxis
+  /**
+   * 螺纹来源：
+   * - `'tapped'`：几何只有底孔，螺纹由攻丝形成（几何**不含**牙）
+   * - `'modeled'`：几何已含实体螺旋牙（对应 `holeType:'screw'`）
+   */
+  readonly process: 'tapped' | 'modeled'
+  /** 孔数量（如 4× 表示 4 个相同孔）。缺省 1。 */
+  readonly count?: number
+  /** BREP 链可选的面引用（op 内部产出的 `hole:N`）；mesh 链缺省。 */
+  readonly target?: FaceTopoRef
+  /** 显示文本缓存（缺省由 `formatThreadHole` 生成，不参与身份判定）。 */
+  readonly label?: string
+}
+
 // ── PMI 统一类型 ──
 
 /** Union of all PMI annotation kinds. */
-export type PmiItem = PmiDimension | PmiGdt | PmiDatum | PmiSurfaceFinish | PmiNote
+export type PmiItem =
+  | PmiDimension
+  | PmiGdt
+  | PmiDatum
+  | PmiSurfaceFinish
+  | PmiNote
+  | PmiThreadHole
 
-/** Discriminator kind for PmiItem ('dimension' | 'gdt' | 'datum' | 'surfaceFinish' | 'note'). */
+/** Discriminator kind for PmiItem ('dimension' | 'gdt' | 'datum' | 'surfaceFinish' | 'note' | 'threadHole'). */
 export type PmiItemKind = PmiItem['kind']
 
 // ── PMI 集合 ──
@@ -305,6 +400,18 @@ export function surfaceFinish(sf: Omit<PmiSurfaceFinish, 'kind'>): PmiSurfaceFin
  */
 export function note(n: Omit<PmiNote, 'kind'>): PmiNote {
   return { kind: 'note', ...n }
+}
+
+/**
+ * Create a thread-hole PMI item with `kind: 'threadHole'` filled in.
+ *
+ * 一个条目 = 底孔（几何）+ 螺纹（后加工）两组信息，缺一不可。
+ *
+ * @param th - the thread-hole annotation fields (without `kind`).
+ * @returns a `PmiThreadHole` with `kind: 'threadHole'`.
+ */
+export function threadHole(th: Omit<PmiThreadHole, 'kind'>): PmiThreadHole {
+  return { kind: 'threadHole', ...th }
 }
 
 // ── ExecutionResult 中的 PMI 行 ──

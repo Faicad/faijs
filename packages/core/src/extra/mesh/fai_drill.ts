@@ -93,6 +93,8 @@ export async function drill(shape: Shape, params: DrillParams): Promise<Shape> {
     screwHead: (params.screwHead as 'hex' | 'chc' | 'none') ?? 'none',
     screwPitchCustom: 0,
     screwLength: 0,
+    threadDepth: params.threadDepth,
+    threadClass: params.threadClass,
   }
   const holeGeo = buildHoleGeometry(drillHoleParams, holeHeight)
 

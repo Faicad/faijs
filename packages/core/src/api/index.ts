@@ -127,10 +127,12 @@ export type {
   PmiProjectedToleranceZone, PmiCompositeSegment, PmiGdt, PmiDatumType,
   PmiDatumTargetParams, PmiDatum, PmiSurfaceParameter, PmiTextureDirection,
   PmiSurfaceFinish, PmiNote, PmiItem, PmiItemKind, PmiSetMeta, PmiSet, PmiEntry,
+  PmiThreadSpec, PmiPilotHole, PmiHoleAxis, PmiThreadHole,
 } from './pmi/types'
-export { dimension, gdt, datum, surfaceFinish, note } from './pmi/types'
-export { attachPmiMethods, type ShapePmiMethods } from './pmi/methods'
-export { pmiItems, pmiOn, pmiDatums } from './pmi/query'
+export { dimension, gdt, datum, surfaceFinish, note, threadHole } from './pmi/types'
+export { attachPmiMethods, appendPmiItem, carryPmi, type ShapePmiMethods } from './pmi/methods'
+export { pmiItems, pmiOn, pmiDatums, pmiThreads } from './pmi/query'
+export { formatThreadHole, formatThreadSpec } from './pmi/text'
 
 // ── P23：脚本面 op 与库面导出面的边界（§2.7 / DEC-5、DEC-6、DEC-7）──
 //

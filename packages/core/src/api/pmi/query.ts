@@ -15,13 +15,14 @@
 
 import type { Shape } from '../../mesh/types'
 import type { TopoRef } from '../../topology/naming/types'
-import type { PmiItem, PmiDatum, PmiItemKind } from './types'
+import type { PmiItem, PmiDatum, PmiItemKind, PmiThreadHole } from './types'
 
 // ── 辅助：判断 PMI item 的目标是否包含给定 ref ──
 
 /**
  * Collect all TopoRef targets from a PmiItem.
- * Dimension has `targets[]`; GDT/Datum/SurfaceFinish have `target`; Note has optional `target`.
+ * Dimension has `targets[]`; GDT/Datum/SurfaceFinish have `target`; Note has optional
+ * `target`; ThreadHole 的 `target` 仅 BREP 链存在（mesh 链靠 `axis` 定位）。
  */
 function getTargets(item: PmiItem): readonly TopoRef[] {
   switch (item.kind) {
@@ -34,6 +35,8 @@ function getTargets(item: PmiItem): readonly TopoRef[] {
     case 'surfaceFinish':
       return [item.target]
     case 'note':
+      return item.target ? [item.target] : []
+    case 'threadHole':
       return item.target ? [item.target] : []
   }
 }
@@ -161,4 +164,24 @@ export function pmiDatums(shape: Shape): Record<string, PmiDatum> {
     }
   }
   return result
+}
+
+/**
+ * 查询螺纹孔标注（含底孔几何 + 后加工攻丝两组信息）。
+ *
+ * 便捷封装：等价 `pmiItems(shape, { kind: 'threadHole' })`，但返回精确类型。
+ *
+ * @group 查询
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name pmiThreads
+ * @returns PmiThreadHole[] — 该零件上的全部螺纹孔标注。
+ * @param shape - the shape to query. type:Shape required:true
+ * @example
+ * const taps = cad.pmiThreads(part0)
+ * console.log(cad.formatThreadHole(taps[0]))  // 'M6-6H ↓14（底孔 Φ5 ↓16，攻丝）'
+ */
+export function pmiThreads(shape: Shape): PmiThreadHole[] {
+  return pmiItems(shape, { kind: 'threadHole' }) as PmiThreadHole[]
 }

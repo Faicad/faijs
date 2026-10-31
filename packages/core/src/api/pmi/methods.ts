@@ -19,10 +19,11 @@ import type {
   PmiDatum,
   PmiSurfaceFinish,
   PmiNote,
+  PmiThreadHole,
   PmiItem,
   PmiSet,
 } from './types'
-import { dimension, gdt, datum, surfaceFinish, note } from './types'
+import { dimension, gdt, datum, surfaceFinish, note, threadHole } from './types'
 
 /** Shape PMI method signatures (mounted at runtime by attachPmiMethods). */
 export interface ShapePmiMethods {
@@ -67,6 +68,26 @@ export interface ShapePmiMethods {
    * @returns this (chainable).
    */
   addNote(note: Omit<PmiNote, 'kind'>): this
+
+  /**
+   * Add a thread-hole annotation (pilot hole geometry + post-machining tapping).
+   *
+   * 一个条目同时承载两类信息：`pilot`（原始几何）与 `thread`（后加工攻丝），
+   * 显示时一并呈现（`cad.formatThreadHole`）。
+   *
+   * 说明：`fai_drill` 的 `holeType:'tapped'` / `'screw'` 会自动产出本类型，
+   * 手工调用只用于非 `fai_drill` 路径（如导入的几何、手画的孔）补标。
+   * @param th - The thread-hole annotation (without `kind`).
+   * @returns this (chainable).
+   * @example
+   * part0.addThreadHole({
+   *   thread: { standard: 'metric', nominalDiameter: 6, pitch: 1, toleranceClass: '6H', depth: 14, specLabel: 'M6' },
+   *   pilot: { diameter: 5, depth: 16 },
+   *   axis: { origin: [10, 10, 30], direction: [0, 0, -1] },
+   *   process: 'tapped',
+   * })
+   */
+  addThreadHole(th: Omit<PmiThreadHole, 'kind'>): this
 
   /**
    * Get all PMI annotations on this shape.
@@ -121,6 +142,10 @@ export function attachPmiMethods(shape: Shape): Shape & ShapePmiMethods {
     appendItem(this, note(n))
     return this
   }
+  s.addThreadHole = function addThreadHole(this: Shape & ShapePmiMethods, th: Omit<PmiThreadHole, 'kind'>) {
+    appendItem(this, threadHole(th))
+    return this
+  }
   s.getPmi = function getPmi(this: Shape & ShapePmiMethods): PmiSet {
     return (this as Shape & { pmi?: PmiSet }).pmi ?? { items: [] }
   }
@@ -143,5 +168,39 @@ function appendItem(shape: Shape & { pmi?: PmiSet }, item: PmiItem): void {
     shape.pmi = { items: [item] }
   } else {
     shape.pmi = { items: [...cur.items, item], meta: cur.meta }
+  }
+}
+
+/**
+ * 追加一条 PMI 标注（op 内部用；脚本面请用 Shape 实例方法）。
+ *
+ * 与 `addXxx` 方法共用同一 `appendItem`，保证"数组不可变替换"契约一致。
+ *
+ * @param shape - the product Shape to annotate.
+ * @param item - the PMI item (kind already filled).
+ */
+export function appendPmiItem(shape: Shape, item: PmiItem): void {
+  appendItem(shape as Shape & { pmi?: PmiSet }, item)
+}
+
+/**
+ * 把上游 Shape 的 PMI 标注复制到产物 Shape 上（op 内部用）。
+ *
+ * **为什么需要**：产物 Shape 由 `fromBrep` / `solid()` 新建，不带输入元数据；
+ * 若不搬运，一个零件上钻第二个孔就会把第一个孔的标注冲掉。PMI 的拓扑引用
+ * 本身设计为"解析失败即降级"，因此无条件搬运是安全的——失效的引用在
+ * 解析时报告，而不是在传递时静默消失。
+ *
+ * @param from - the input Shape (may carry `pmi`).
+ * @param to - the product Shape to receive the annotations.
+ */
+export function carryPmi(from: Shape, to: Shape): void {
+  const src = (from as Shape & { pmi?: PmiSet }).pmi
+  if (!src || !src.items || src.items.length === 0) return
+  const dst = to as Shape & { pmi?: PmiSet }
+  const existing = dst.pmi
+  dst.pmi = {
+    items: [...src.items, ...(existing?.items ?? [])],
+    meta: existing?.meta ?? src.meta,
   }
 }

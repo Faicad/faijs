@@ -403,11 +403,15 @@ export interface DrillParams {
   direction: Vec3
   faceNormal: Vec3
   tolerance?: number
-  holeType?: 'simple' | 'screw'
+  holeType?: 'simple' | 'screw' | 'tapped'
   screwSystem?: string
   screwSpecIdx?: number
   screwThread?: string
   screwHead?: string
+  /** 有效螺纹深度（mm）。仅 `tapped` / `screw` 使用；0 或缺省 = 与孔深相同。 */
+  threadDepth?: number
+  /** 螺纹公差等级（如 '6H'）。仅标注用。 */
+  threadClass?: string
 }
 
 // ── 拉伸参数 ──

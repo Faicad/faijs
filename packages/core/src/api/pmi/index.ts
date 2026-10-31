@@ -21,6 +21,10 @@ export type {
   PmiTextureDirection,
   PmiSurfaceFinish,
   PmiNote,
+  PmiThreadSpec,
+  PmiPilotHole,
+  PmiHoleAxis,
+  PmiThreadHole,
   PmiItem,
   PmiItemKind,
   PmiSetMeta,
@@ -29,10 +33,13 @@ export type {
 } from './types'
 
 // Factory functions
-export { dimension, gdt, datum, surfaceFinish, note } from './types'
+export { dimension, gdt, datum, surfaceFinish, note, threadHole } from './types'
 
 // Shape methods
-export { attachPmiMethods, type ShapePmiMethods } from './methods'
+export { attachPmiMethods, appendPmiItem, carryPmi, type ShapePmiMethods } from './methods'
 
 // Query functions
-export { pmiItems, pmiOn, pmiDatums } from './query'
+export { pmiItems, pmiOn, pmiDatums, pmiThreads } from './query'
+
+// Display text（螺纹孔：底孔 + 螺纹一体呈现）
+export { formatThreadHole, formatThreadSpec } from './text'

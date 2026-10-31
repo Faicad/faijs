@@ -19,7 +19,7 @@ import {
   solidToShape,
   matrixToArray,
 } from '../../brep/brep-ops'
-import { drillBrepWithRoleTable } from '../../brep/face-evolution'
+import { drillBrepWithRoleTable, getFaceHashes } from '../../brep/face-evolution'
 import { threadBrep } from '../../api/brep-operations/threadFns'
 import { getScrewSpec, threadToPitchMm } from '../../primitives/screw/screw-db'
 import { Vec3 as Vec3C, Mat4, Quat } from '../../math3d'
@@ -31,8 +31,12 @@ import type { Provenance } from '../../topology/naming/lineage'
 import type { BrepHandle } from '../../brep/engine/types'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import { assertPositiveNumber, assertNumber, assertVec3 } from '../../api/assert'
-import type { FaceTopoRef } from '../../topology/naming'
+import { captureFaceHint, type FaceTopoRef } from '../../topology/naming'
 import { resolveFaceGeometry } from '../../api/topo-resolve'
+import { appendPmiItem, carryPmi } from '../../api/pmi/methods'
+import { threadHole as makeThreadHole } from '../../api/pmi/types'
+import type { PmiThreadHole } from '../../api/pmi/types'
+import { formatThreadHole } from '../../api/pmi/text'
 
 // ── per-op 参数自校验（Phase 2.2；op 被直接 import 时的防御层） ──
 
@@ -84,6 +88,168 @@ function faceNormalFrom(input: Shape, params: Record<string, unknown>): Vec3 {
     return geom.normal
   }
   return [0, 0, 1]
+}
+
+// ── 螺纹孔（tapped / screw）共用：规格解析、底孔反算、PMI 构造 ──
+
+/** 解析出的螺纹规格（tapped 与 screw 共用同一份查表口径）。 */
+interface ResolvedThread {
+  /** 制式。 */
+  system: 'metric' | 'imperial'
+  /** 规格记录（公称直径 / 粗牙 / 细牙 / 标签）。 */
+  spec: ReturnType<typeof getScrewSpec>
+  /** 实际螺距（mm）。 */
+  pitch: number
+}
+
+/**
+ * 解析螺纹参数（默认 metric + 索引 4（M5）+ 粗牙，与 mesh 路径一致）。
+ *
+ * @param params - raw drill params.
+ * @returns 解析后的螺纹规格。
+ */
+function resolveThread(params: Record<string, unknown>): ResolvedThread {
+  const system = (params.screwSystem as 'metric' | 'imperial') ?? 'metric'
+  const specIdx = (params.screwSpecIdx as number) ?? 4
+  const threadType = (params.screwThread as 'coarse' | 'fine' | 'custom') ?? 'coarse'
+  const spec = getScrewSpec(system, specIdx)
+  const pitch = threadToPitchMm(system, spec, threadType, params.screwPitchCustom as number | undefined)
+  return { system, spec, pitch }
+}
+
+/**
+ * 攻丝孔底孔直径：显式给 `diameter` 就用它；否则按「公称直径 − 螺距」反算
+ * （M6 粗牙 P=1 → Φ5）。
+ *
+ * @param params - raw drill params (`diameter` may be omitted for `tapped`).
+ * @param th - resolved thread spec.
+ * @returns the pilot-hole diameter in mm.
+ */
+function resolvePilotDiameter(params: Record<string, unknown>, th: ResolvedThread): number {
+  const explicit = params.diameter
+  if (typeof explicit === 'number' && explicit > 0) return explicit
+  return Math.round((th.spec.dia - th.pitch) * 1000) / 1000
+}
+
+/**
+ * 钻孔参数归一化：`tapped` 反算底孔直径，`depth` 缺省归一为 0（通孔）。
+ *
+ * 归一化在 op 入口做一次，往下（mesh / brep 两条链）只看到确定的数值——
+ * 避免 `undefined` 在 `depth <= 0` 判定里落入盲孔分支产生 NaN 刀具。
+ *
+ * @param params - raw drill params.
+ * @returns normalized params (new object; input untouched).
+ */
+function normalizeDrillParams(params: Record<string, unknown>): Record<string, unknown> {
+  const depth = typeof params.depth === 'number' ? params.depth : 0
+  if (params.holeType !== 'tapped') {
+    return { ...params, depth }
+  }
+  const th = resolveThread(params)
+  return { ...params, depth, diameter: resolvePilotDiameter(params, th) }
+}
+
+/** 是否产出螺纹孔 PMI（tapped 与 screw 都产出；simple 不产出）。 */
+function isThreadHole(params: Record<string, unknown>): boolean {
+  return params.holeType === 'tapped' || params.holeType === 'screw'
+}
+
+/**
+ * 构造螺纹孔 PMI（底孔几何 + 后加工螺纹，两组信息同属一个条目）。
+ *
+ * @param params - normalized drill params.
+ * @param th - resolved thread spec.
+ * @param direction - inward axis (local space).
+ * @param localPosition - hole entry point (local space).
+ * @param target - optional BREP face ref of the hole wall (`hole:N`).
+ * @returns the PmiThreadHole item (label filled).
+ */
+function buildThreadHolePmi(
+  params: Record<string, unknown>,
+  th: ResolvedThread,
+  direction: Vec3,
+  localPosition: Vec3,
+  target?: FaceTopoRef,
+): PmiThreadHole {
+  const pilotDiameter = params.diameter as number
+  const pilotDepth = typeof params.depth === 'number' ? params.depth : 0
+  const rawThreadDepth = params.threadDepth as number | undefined
+  // 有效螺纹深度：显式值优先；缺省 = 底孔同深；不得超过底孔深度（孔底留光底）。
+  const threadDepth = typeof rawThreadDepth === 'number' && rawThreadDepth > 0
+    ? (pilotDepth > 0 ? Math.min(rawThreadDepth, pilotDepth) : rawThreadDepth)
+    : pilotDepth
+  const toleranceClass = (params.threadClass as string | undefined)
+    ?? (th.system === 'metric' ? '6H' : undefined)
+
+  const base = {
+    thread: {
+      standard: th.system,
+      nominalDiameter: th.spec.dia,
+      ...(th.pitch > 0 ? { pitch: th.pitch } : {}),
+      ...(toleranceClass !== undefined ? { toleranceClass } : {}),
+      depth: threadDepth,
+      specLabel: th.spec.label,
+    },
+    pilot: { diameter: pilotDiameter, depth: pilotDepth },
+    axis: { origin: localPosition, direction },
+    process: (params.holeType === 'tapped' ? 'tapped' : 'modeled') as 'tapped' | 'modeled',
+    ...(target !== undefined ? { target } : {}),
+  }
+  const item = makeThreadHole(base)
+  // label 只是显示缓存：两类信息在生成时就写全，宿主可直接渲染。
+  return { ...item, label: formatThreadHole(item) }
+}
+
+/**
+ * 在钻孔结果里定位「孔壁」面并合成 `FaceTopoRef`（BREP 链专用）。
+ *
+ * 依据：`drillBrepWithRoleTable` 把本次生成面登记为 `outStmt → hole:0/1/…`；
+ * 生成面里圆柱面即孔壁（盲孔另有一个平底面）。mesh 链没有 BPEP 拓扑，
+ * 返回 `undefined`，消费者改用 `axis` 定位。
+ *
+ * @param kernel - BREP engine.
+ * @param solid - drilled result solid.
+ * @param roleTable - result role table.
+ * @param outStmt - the drill statement id (origin of generated faces).
+ * @returns the hole-wall face ref, or undefined if it cannot be identified.
+ */
+function holeWallRef(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  roleTable: ReadonlyMap<unknown, unknown>,
+  outStmt: string,
+): FaceTopoRef | undefined {
+  const roles = roleTable.get(outStmt) as ReadonlyMap<string, readonly number[]> | undefined
+  if (!roles || roles.size === 0) return undefined
+
+  // hash → role（生成面各自的 hole:N）
+  const generated = new Map<number, string>()
+  for (const [role, hashes] of roles) {
+    for (const h of hashes) generated.set(h, role)
+  }
+  // 面枚举与 hash 枚举同序（TopExp::MapShapes + IndexedMap）
+  const hashes = getFaceHashes(kernel, solid)
+  const faces = kernel.getSubShapes(solid, 'face')
+  for (let i = 0; i < hashes.length && i < faces.length; i++) {
+    const role = generated.get(hashes[i]!)
+    if (role === undefined) continue
+    const face = faces[i]!
+    let surfaceType: string
+    try {
+      surfaceType = kernel.surfaceType(face)
+    } catch {
+      continue
+    }
+    if (surfaceType !== 'cylinder') continue
+    // outStmt 是运行时语句 id 字符串，与 RoleTable 的键同源（StmtId 是它的品牌类型）。
+    return {
+      kind: 'face',
+      origin: outStmt as unknown as FaceTopoRef['origin'],
+      role,
+      hint: captureFaceHint(kernel, face),
+    }
+  }
+  return undefined
 }
 
 /** BREP 螺丝孔：底孔（圆柱 cut）+ 内螺纹（threadBrep + cut）。带 roleTable 传播。 */
@@ -147,15 +313,18 @@ function screwHoleBrep(
   return { result: baseR.result, roleTable: baseR.roleTable }
 }
 
-/** BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。带 roleTable 传播。 */
-function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
+/** BREP 路径：OCCT cut（simple / tapped）或 threadBrep + cut（screw）。带 roleTable 传播。 */
+function drillBrepPath(
+  input: Shape,
+  params: Record<string, unknown>,
+): { shape: Shape; target?: FaceTopoRef } {
   const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (inputSolid === undefined) throw new Error('[extra/drill] input is not BREP')
 
   const faceNormal = faceNormalFrom(input, params)
   const direction = resolveDirection(params, faceNormal)
-  const holeType = params.holeType as 'simple' | 'screw' | undefined
+  const holeType = params.holeType as 'simple' | 'screw' | 'tapped' | undefined
 
   // position 契约（方向 A）：局部坐标——宿主生成脚本时已把交互世界坐标转换好，
   // 本 op 不做 world→local（无 partTransform 依赖）。
@@ -174,6 +343,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
     resultSolid = r.result
     roleTable = r.roleTable
   } else {
+    // simple 与 tapped 同一几何路径：只切底孔（tapped 的螺纹进 PMI，不进几何）。
     const geom = computeDrillGeometry(kernel, inputSolid, {
       diameter: params.diameter as number,
       depth: params.depth as number,
@@ -188,7 +358,11 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
     roleTable = r.roleTable
   }
 
-  return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
+  const shape = fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
+  const target = roleTable === undefined
+    ? undefined
+    : holeWallRef(kernel, resultSolid, roleTable, outStmt)
+  return { shape, target }
 }
 
 /** mesh 路径：manifold-3d mesh-CSG。 */
@@ -208,16 +382,25 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
     direction,
     faceNormal,
     tolerance: (params.tolerance as number | undefined) !== undefined ? (params.tolerance as number) : undefined,
-    holeType: params.holeType as 'simple' | 'screw' | undefined,
+    holeType: params.holeType as 'simple' | 'screw' | 'tapped' | undefined,
     screwSystem: params.screwSystem as string | undefined,
     screwSpecIdx: params.screwSpecIdx as number | undefined,
     screwThread: params.screwThread as string | undefined,
     screwHead: params.screwHead as string | undefined,
+    threadDepth: params.threadDepth as number | undefined,
+    threadClass: params.threadClass as string | undefined,
   })
 }
 
 /**
  * 在几何体上钻孔（CSG 减除）。depth=0 为通孔，>0 为盲孔。
+ *
+ * 孔型三选一（`holeType`）：
+ * - `simple`：光孔（圆柱）；
+ * - `screw`：**建模螺纹**——几何里真的切出螺旋牙；
+ * - `tapped`：**攻丝孔**——几何只钻底孔，螺纹信息进 PMI（`PmiThreadHole`，
+ *   底孔 + 螺纹同属一条标注）。`diameter` 可省略，按「公称直径 − 螺距」反算（M6 → Φ5）。
+ *
  * @group 特征
  * @inputs 1
  * @async true
@@ -225,42 +408,63 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @name fai_drill
  * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载（3d_editor 38 个文件在用）。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
  * @note 键名以本表为准：`type: 'through'|'blind'` 与 `direction` 为向量的旧素材是无效写法——孔型由 `depth`（0=通孔）推导，`direction` 是 'normal'|'x'|'y'|'z' 枚举。
- * @returns Shape 钻孔后的几何。
+ * @returns Shape 钻孔后的几何（`tapped` / `screw` 会附带 `PmiThreadHole` 标注）。
  * @param input - 目标几何。type:Shape required:true
- * @param params.diameter - 孔径（mm）。type:number required:true
+ * @param params.diameter - 孔径（mm）；`tapped` 时省略则按公称直径 − 螺距反算底孔，其余孔型必填。type:number required:false
  * @param params.depth - 孔深（mm）；0 = 通孔，> 0 = 盲孔。type:number 默认 0
- * @param params.holeType - 孔类型：simple 简单孔 / screw 螺丝孔。type:'simple' | 'screw' 默认 'simple'
+ * @param params.holeType - 孔类型：simple 光孔 / screw 建模螺纹 / tapped 攻丝孔（底孔 + 螺纹 PMI）。type:'simple' | 'screw' | 'tapped' 默认 'simple'
  * @param params.direction - 钻孔轴向（normal 表示沿面法向）。type:'normal' | 'x' | 'y' | 'z' 默认 'normal'
  * @param params.position - 孔心位置。type:[x,y,z] 默认 原点
  * @param params.face - 面引用（§6.2 新形态：`FaceTopoRef`，执行期按输入 Shape 解析派生法向；优先于 `faceNormal`）。type:FaceTopoRef
  * @param params.faceNormal - 面法向（决定朝向；历史兜底，§6.2 起宿主不再写，改由 `face` 解析）。type:[x,y,z] 默认 [0,0,1]
  * @param params.tolerance - 公差（mm）。type:number 默认 0.3
- * @param params.screwSystem - 螺丝孔制式（holeType='screw' 时用）。type:'metric' | 'imperial' 默认 'metric'
- * @param params.screwSpecIdx - 螺丝规格索引（holeType='screw' 时用；4 → M5）。type:number 默认 4
+ * @param params.screwSystem - 螺丝孔制式（holeType='screw'/'tapped' 时用）。type:'metric' | 'imperial' 默认 'metric'
+ * @param params.screwSpecIdx - 螺丝规格索引（holeType='screw'/'tapped' 时用；4 → M5，5 → M6）。type:number 默认 4
  * @param params.screwThread - 螺丝螺纹类型。type:'coarse' | 'fine' | 'custom' 默认 'coarse'
  * @param params.screwHead - 螺丝头型。type:'hex' | 'chc' | 'none' 默认 'none'
+ * @param params.threadDepth - 有效螺纹深度（mm），仅标注用；须 ≤ depth，缺省与 depth 同深。type:number
+ * @param params.threadClass - 螺纹公差等级（如 '6H'），仅标注用；metric 缺省 '6H'。type:string
  * @example
  * const p = cad.fai_drill(part0, { diameter: 5 })
  * const p = cad.fai_drill(part0, { diameter: 5, depth: 3 })
  * const p = cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
+ * // 攻丝孔：几何只钻 Φ5×16，螺纹 M6-6H ↓14 进 PMI
+ * const p = cad.fai_drill(part0, { position: [0, 0, 30], direction: 'z', holeType: 'tapped', screwSpecIdx: 5, depth: 16, threadDepth: 14 })
   */
 export const fai_drill = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[extra/drill] no input geometry')
-    assertDrillParams(params)
+    const p = normalizeDrillParams(params)
+    assertDrillParams(p)
     // P2：多零件 load 的输入是 compound——按 partIndex 取目标成员，
     // 结果替换回原 compound（其余 children 原样保留）。
-    const target = resolveCompoundMember(input, params.partIndex, 'fai_drill')
-    const result = await drillMeshPath(target, params)
-    return replaceCompoundMember(input, params.partIndex, result)
+    const target = resolveCompoundMember(input, p.partIndex, 'fai_drill')
+    const result = await drillMeshPath(target, p)
+    // PMI：先搬运上游标注（多孔场景不互相覆盖），再补本孔的螺纹孔标注。
+    // 标注挂在**零件**（成员）上而不是 compound 上——PMI 是零件级信息。
+    carryPmi(input, result)
+    if (isThreadHole(p)) {
+      const direction = resolveDirection(p, faceNormalFrom(target, p))
+      appendPmiItem(result, buildThreadHolePmi(p, resolveThread(p), direction, p.position as Vec3))
+    }
+    return replaceCompoundMember(input, p.partIndex, result)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[extra/drill] no input geometry')
-    assertDrillParams(params)
-    const target = resolveCompoundMember(input, params.partIndex, 'fai_drill')
-    const result = drillBrepPath(target, params)
-    return replaceCompoundMember(input, params.partIndex, result)
+    const p = normalizeDrillParams(params)
+    assertDrillParams(p)
+    const target = resolveCompoundMember(input, p.partIndex, 'fai_drill')
+    const drilled = drillBrepPath(target, p)
+    carryPmi(input, drilled.shape)
+    if (isThreadHole(p)) {
+      const direction = resolveDirection(p, faceNormalFrom(target, p))
+      appendPmiItem(
+        drilled.shape,
+        buildThreadHolePmi(p, resolveThread(p), direction, p.position as Vec3, drilled.target),
+      )
+    }
+    return replaceCompoundMember(input, p.partIndex, drilled.shape)
   },
-  paramDims: { diameter: 'length', depth: 'length', tolerance: 'length', screwSpecIdx: 'plain' },
+  paramDims: { diameter: 'length', depth: 'length', tolerance: 'length', screwSpecIdx: 'plain', threadDepth: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

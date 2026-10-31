@@ -93,7 +93,14 @@ describe('op paramDims declarations (unit-system G3)', () => {
   })
 
   it('fai_drill', () => {
-    expect(dualOpMetaOf(fai_drill)?.paramDims).toEqual({ diameter: 'length', depth: 'length', tolerance: 'length', screwSpecIdx: 'plain' })
+    expect(dualOpMetaOf(fai_drill)?.paramDims).toEqual({
+      diameter: 'length',
+      depth: 'length',
+      tolerance: 'length',
+      screwSpecIdx: 'plain',
+      // 有效螺纹深度同样是长度量（tapped / screw 的 PMI 参数）
+      threadDepth: 'length',
+    })
   })
 
   it('scale / scale3d declare no dims (factor is dimensionless)', () => {

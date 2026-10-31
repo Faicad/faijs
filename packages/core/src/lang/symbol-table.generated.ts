@@ -140,6 +140,8 @@ export default {
   "pmiItems": {},
   "pmiOn": {},
   "pmiDatums": {},
+  "pmiThreads": {},
+  "formatThreadHole": {},
   "torus": {},
   "inspectMassProps": {},
   "area": {},

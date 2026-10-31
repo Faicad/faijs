@@ -34,7 +34,7 @@ import type { BrepHandle } from '../brep/engine/types'
 import type { UnitName } from '../units'
 import { brepOf } from '../shape'
 import { exportModelSync, type ExportEntry } from '../brep/export/export-model'
-import { exportMembersOf, type ExportMember } from './internal/export-members'
+import { exportMembersOf, pmiOfShape, type ExportMember } from './internal/export-members'
 import { assertHostFor } from './internal/l3-bridge'
 
 /** `cad.exportStep` 选项。 */
@@ -60,10 +60,13 @@ function stepEntryOf(member: ExportMember): ExportEntry | undefined {
       ? { mesh: { positions, indices } }
       : undefined
   if (!payload) return undefined
+  // PMI：随成员带到 ExportEntry（STEP 侧语义实体的写入能力另见 step-pmi.ts 的能力探测）。
+  const pmi = pmiOfShape(member.shape)
   return {
     ...payload,
     ...(member.name === undefined ? {} : { name: member.name }),
     ...(member.color === undefined ? {} : { color: member.color }),
+    ...(pmi === undefined ? {} : { pmi }),
   }
 }
 

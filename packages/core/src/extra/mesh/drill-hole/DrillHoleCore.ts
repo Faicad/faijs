@@ -21,6 +21,7 @@ const ROT_Y_TO_Z = new Mat4().makeRotationX(Math.PI / 2)
  * along Z.
  *
  * - simple: CylinderGeometry rotated to Z-up
+ * - tapped: **与 simple 相同**——攻丝孔的实体几何只有底孔，螺纹信息进 PMI
  * - screw: makeScrew() already returns Z-up
  *
  * Tolerance is applied as a radial expansion (tolerance/2 on radius).
@@ -35,8 +36,10 @@ export function buildHoleGeometry(
 ): Shape {
   const toleranceRadius = params.tolerance / 2
 
-  // ── simple: CylinderGeometry → rotate to Z-up ──
-  if (params.holeType === 'simple') {
+  // ── simple / tapped: CylinderGeometry → rotate to Z-up ──
+  // tapped 走这条分支是**契约**：攻丝孔的几何只有底孔（Φd × depth），
+  // 螺纹不切牙——螺纹由 PmiThreadHole 标注表达（用户原则见方案 §2）。
+  if (params.holeType === 'simple' || params.holeType === 'tapped') {
     const r = params.diameter / 2 + toleranceRadius
     const geo = cylinderGeometry(r, r, height, 32)
     return transformShape(geo, ROT_Y_TO_Z)
