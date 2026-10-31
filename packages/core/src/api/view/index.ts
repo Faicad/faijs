@@ -12,3 +12,14 @@
 export { viewCamera, resolveCamera, type ViewSpec, type StandardView, type IsoView, type AxisPlaneView, type DirectionView } from './view-camera'
 export { projectView, projectViewSvg, type ProjectViewOptions, type ProjectionSvg } from './view-projection'
 export { projectSheet, type SheetView, type ProjectSheetOptions } from './view-sheet'
+export {
+  assignPmiToViews,
+  buildPmiLayer,
+  buildGlobalPmiBlock,
+  globalNoteTexts,
+  type PmiLayerOptions,
+  type PmiLayerResult,
+  type PmiExtent2,
+  type PmiGlobalBlockOptions,
+  type PmiGlobalBlockResult,
+} from './pmi-layer'

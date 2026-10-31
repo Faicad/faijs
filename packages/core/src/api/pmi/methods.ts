@@ -13,6 +13,7 @@
  */
 
 import type { Shape } from '../../mesh/types'
+import { nameOf } from '../../runtime-state'
 import type {
   PmiDimension,
   PmiGdt,
@@ -24,8 +25,27 @@ import type {
   PmiSet,
 } from './types'
 import { dimension, gdt, datum, surfaceFinish, note, threadHole } from './types'
+import { addPendingPmiItem, addPmiItem, clearPmiOfPart, pmiOf } from './registry'
 
-/** Shape PMI method signatures (mounted at runtime by attachPmiMethods). */
+/**
+ * Shape PMI method signatures (mounted at runtime by attachPmiMethods).
+ *
+ * **调用时机没有约束**：标注随时可加，加完之后继续建模也不会丢。
+ *
+ * ```
+ * let part0 = cad.box(40, 40, 20)
+ * part0.addDatum({ identifier: 'A', … })              // 标注
+ * part0 = cad.fillet(part0, [cad.edgeRef(part0, 1)], 2) // 继续建模，标注还在
+ * const svg = cad.projectView(part0, 'front')         // datum 仍会渲染出来
+ * ```
+ *
+ * 实现上标注归**零件名**所有（`api/pmi/registry.ts`），不挂在 Shape 实例上；
+ * 几何 op 产出新 Shape 时既不需要搬运也不会丢，查询时沿血缘图聚合。引用不会失效
+ * 的原因：`TopoRef.origin` 是语句级因果坐标，跨 op 稳定。
+ *
+ * 注意 `fai_drill` 的 `tapped` / `screw` 是「建模即标注」，会在钻孔的同一语句里
+ * 自动产出 `PmiThreadHole`——这正是"标注不必在最后"的现实依据。
+ */
 export interface ShapePmiMethods {
   /**
    * Add a dimensional tolerance annotation.
@@ -147,22 +167,36 @@ export function attachPmiMethods(shape: Shape): Shape & ShapePmiMethods {
     return this
   }
   s.getPmi = function getPmi(this: Shape & ShapePmiMethods): PmiSet {
-    return (this as Shape & { pmi?: PmiSet }).pmi ?? { items: [] }
+    return pmiOf(this) ?? { items: [] }
   }
   s.clearPmi = function clearPmi(this: Shape & ShapePmiMethods) {
-    (this as Shape & { pmi?: PmiSet }).pmi = { items: [] }
+    const part = nameOf(this)
+    // 注册表按零件名存：清本地并切断上游继承，否则继承来的条目会被聚合回来，
+    // 用户看到的和"没清"一样。无名 Shape（测试里裸造的）只清字段。
+    if (part !== undefined) clearPmiOfPart(part)
+    this.pmi = { items: [] }
     return this
   }
   return s
 }
 
 /**
- * Append a PmiItem to the shape's `pmi` field, creating the PmiSet if needed.
+ * 记录一条标注：写注册表（有零件名时）+ 写 Shape 字段（纯数据契约 / 序列化兼容）。
  *
- * Internal helper — items array is always replaced with a new array (immutable update),
- * so existing references to the old array remain valid.
+ * 两处同写不是冗余——注册表是**跨 op 存活的真源**，字段是**纯数据快照**（Shape
+ * 被序列化、跨 worker 传递、或交给不经过脚本执行的下游时，只有字段跟得走）。
+ * 查询统一走 `registry.pmiOf()`：注册表命中就用聚合结果，否则退回字段。
+ *
+ * @param shape - the part instance being annotated.
+ * @param item - the PMI item (kind already filled).
  */
 function appendItem(shape: Shape & { pmi?: PmiSet }, item: PmiItem): void {
+  const part = nameOf(shape)
+  // 无名 = op 实现内部刚造出来的中间产物（`fromBrep` 之后、语句命名之前）。
+  // 注册表按零件名索引收不到它，先暂存，由 `defineOp.wrapped` 在语句出口归到
+  // 这条语句的产物名下（见 `registry.ts#flushPendingPmi`）。
+  if (part !== undefined) addPmiItem(part, item)
+  else addPendingPmiItem(item)
   const cur = shape.pmi
   if (!cur || !cur.items || cur.items.length === 0) {
     shape.pmi = { items: [item] }
@@ -174,33 +208,13 @@ function appendItem(shape: Shape & { pmi?: PmiSet }, item: PmiItem): void {
 /**
  * 追加一条 PMI 标注（op 内部用；脚本面请用 Shape 实例方法）。
  *
- * 与 `addXxx` 方法共用同一 `appendItem`，保证"数组不可变替换"契约一致。
+ * 与 `addXxx` 方法共用同一 `appendItem`，保证"注册表 + 字段同写"这条约定一致。
+ * `fai_drill` 的 `tapped` / `screw` 用它补本孔标注——注意它**不是**在搬运上游
+ * 标注：上游那些归上游零件名，查询时沿血缘自然聚合得到，不需要任何搬运。
  *
  * @param shape - the product Shape to annotate.
  * @param item - the PMI item (kind already filled).
  */
 export function appendPmiItem(shape: Shape, item: PmiItem): void {
   appendItem(shape as Shape & { pmi?: PmiSet }, item)
-}
-
-/**
- * 把上游 Shape 的 PMI 标注复制到产物 Shape 上（op 内部用）。
- *
- * **为什么需要**：产物 Shape 由 `fromBrep` / `solid()` 新建，不带输入元数据；
- * 若不搬运，一个零件上钻第二个孔就会把第一个孔的标注冲掉。PMI 的拓扑引用
- * 本身设计为"解析失败即降级"，因此无条件搬运是安全的——失效的引用在
- * 解析时报告，而不是在传递时静默消失。
- *
- * @param from - the input Shape (may carry `pmi`).
- * @param to - the product Shape to receive the annotations.
- */
-export function carryPmi(from: Shape, to: Shape): void {
-  const src = (from as Shape & { pmi?: PmiSet }).pmi
-  if (!src || !src.items || src.items.length === 0) return
-  const dst = to as Shape & { pmi?: PmiSet }
-  const existing = dst.pmi
-  dst.pmi = {
-    items: [...src.items, ...(existing?.items ?? [])],
-    meta: existing?.meta ?? src.meta,
-  }
 }

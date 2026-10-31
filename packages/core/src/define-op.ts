@@ -35,7 +35,7 @@ import {
   getRuntimeState,
   nameOf,
 } from './runtime-state'
-import { asStmtId, type PartName } from './identity'
+import { asStmtId, type PartName, type StmtId } from './identity'
 import { isShape, solid, fromBrep, getSlot, type CompoundShape } from './shape'
 import { isMeshShape } from './mesh/types'
 import { materializeTessellation } from './brep/deferred-tess'
@@ -46,6 +46,8 @@ import type { Shape } from './mesh/types'
 import { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engine/types'
 import type { DimName, DimDecl, DimSpec } from './units'
 import { type Provenance, runtimeLineage } from './topology/naming/lineage'
+import { flushPendingPmi, registerPmiParents, registerPmiTransform } from './api/pmi/registry'
+import type { PmiAffine } from './api/pmi/affine'
 
 /** 合法引擎 id 集合（assertLibConforms 的 engines 校验用，D11-1）。 */
 const BREP_ENGINE_ID_SET = new Set<string>(BREP_ENGINE_IDS)
@@ -165,6 +167,21 @@ paramDims?: Record<string, DimDecl>
   spec?: DimSpec
   /** D8+: dimension check mode: 'error' (default, blocks) or 'warn' (warns without blocking). */
   dimCheck?: 'error' | 'warn'
+  /**
+   * 坐标变换声明（PMI 裸世界坐标补偿）：本 op 是**变换类**吗——把输入几何整体
+   * 施加了什么仿射。返回 `undefined` = 坐标系没变（不登记）。
+   *
+   * 用途只有一个：`PmiNote.anchor` / `PmiThreadHole.axis` 这类**裸世界坐标**
+   * 不随几何自动跟随（`TopoRef` 会，它有语句级因果坐标）。登记后聚合时沿父链
+   * 把矩阵乘上去（`api/pmi/affine.ts`），**标注数据本身一个字节不改**。
+   *
+   * 只有 `translate` / `rotate_euler` / `scale` / `scale3d` 声明。布尔 op 虽然
+   * 会改面，但不改坐标系，所以不声明——这不是遗漏。
+   *
+   * 在 impl **成功返回之后**调用（参数此时已校验），签名拿到的是归一化后的
+   * 参数对象；矩阵构造失败（参数缺失/非有限数）应返回 `undefined` 而不是抛错。
+   */
+  pmiRemap?: (params: Record<string, unknown>) => PmiAffine | undefined
 }
 
 /** Implementation set (at least one of mesh/brep is required, D1/D1b); options are siblings of the implementations. */
@@ -197,6 +214,8 @@ paramDims?: Record<string, DimDecl>
   spec?: DimSpec
   /** D8+: dimension check mode (mirrors DualOpOptions.dimCheck). */
   dimCheck?: 'error' | 'warn'
+  /** 坐标变换声明（镜像 DualOpOptions.pmiRemap）：变换类 op 的仿射矩阵工厂。 */
+  pmiRemap?: (params: Record<string, unknown>) => PmiAffine | undefined
 }
 
 /** Property key carrying DualOpMeta on wrapped functions. */
@@ -298,9 +317,102 @@ function inheritInputMeta(out: Shape | Record<string, Shape>, inputs: Shape[]): 
   }
 }
 
+/**
+ * 无语句上下文时的字段兜底：把输入的 `pmi` 条目合并进产物的 `pmi` 字段。
+ *
+ * 只在 `anchor == null` 时调用——即 op 被**直接调用**（测试、包内复用、宿主直接
+ * 调 API）而不是经由脚本语句执行。这条路径没有 `PartName`，注册表按名字索引
+ * 用不上，标注只能靠 Shape 的纯数据字段承载；不合并的话，第二次调用钻孔就会把
+ * 第一次的标注冲掉（产物是 `fromBrep` 新建的，字段为空）。
+ *
+ * 有语句上下文时**不做**：那条路径由 `api/pmi/registry.ts` 按零件名聚合，数据
+ * 零拷贝。这里合并不是"因为几何变更而搬运"，而是"没有身份层时字段就是唯一载体"
+ * 的降级约定。
+ *
+ * @param out - the op product (or its named outputs).
+ * @param inputs - the op's geometry inputs.
+ */
+function inheritInputPmiWhenAnonymous(out: Shape | Record<string, Shape>, inputs: readonly Shape[]): void {
+  const inherited = inputs.flatMap((i) => (i.pmi?.items ?? []) as unknown[])
+  if (inherited.length === 0) return
+  const mergeInto = (v: unknown): void => {
+    if (v === null || typeof v !== 'object' || !('positions' in v)) return
+    const shape = v as Shape
+    const own = shape.pmi?.items ?? []
+    shape.pmi = { items: [...(inherited as never[]), ...own] }
+  }
+  if (isShape(out)) {
+    mergeInto(out)
+    return
+  }
+  for (const k of Object.keys(out)) {
+    const v = out[k]
+    if (Array.isArray(v)) (v as unknown[]).forEach(mergeInto)
+    else mergeInto(v)
+  }
+}
+
 /** Human-readable op label for error messages (falls back when unnamed). */
 function opLabel(meta: DualOpMeta): string {
   return meta.name ?? '<anon>'
+}
+
+/**
+ * 从归一化后的实参里取出"参数对象"（最后一个非几何入参）。
+ *
+ * D11 之后 op 的实参形态统一为 `(input, params?)`；`positionalToObject` 已把
+ * 位置形态装箱成对象，所以这里取最后一个既不是 Shape 也不是数组的对象即可。
+ *
+ * @param callArgs - the normalized argument list.
+ * @returns the params object, or undefined when the call has none.
+ */
+function lastParamsOf(callArgs: readonly unknown[]): Record<string, unknown> | undefined {
+  for (let i = callArgs.length - 1; i >= 0; i -= 1) {
+    const a = callArgs[i]
+    if (a === null || typeof a !== 'object' || Array.isArray(a)) continue
+    if (isGeometryInput(a)) continue
+    return a as Record<string, unknown>
+  }
+  return undefined
+}
+
+/**
+ * 语句出口的 PMI 收尾：把 impl 写在无名产物上的标注归位 + 登记本语句的坐标变换。
+ *
+ * 两件事都只能在这里做：
+ * - **归位**：`fai_drill` 在 impl 内部 `appendPmiItem(drilled.shape, …)`，而那个
+ *   Shape 由 `fromBrep` 新建、此刻还没被 executor 命名，注册表按零件名索引收不到。
+ * - **坐标变换**：变换矩阵是 op 的知识（`pmiRemap` 声明），而语句 id 是
+ *   `defineOp.wrapped` 的知识，两者只在这个出口相遇。
+ *
+ * 只在最外层调用（`isOuter`）：嵌套 op 调用是实现细节，它们的类目标注最终都该
+ * 归到最外层产物上，变换也只由最外层那条语句登记。
+ *
+ * @param meta - the op metadata (reads `pmiRemap`).
+ * @param stmtId - the current statement id.
+ * @param part - the statement's product part name (undefined when unnamed).
+ * @param callArgs - the normalized argument list (source of the params object).
+ */
+function finalizePmi(
+  meta: DualOpMeta,
+  stmtId: StmtId,
+  part: PartName | undefined,
+  callArgs: readonly unknown[],
+): void {
+  if (part !== undefined) flushPendingPmi(part)
+  const remap = meta.pmiRemap
+  if (remap === undefined) return
+  const params = lastParamsOf(callArgs)
+  if (params === undefined) return
+  let affine: PmiAffine | undefined
+  try {
+    affine = remap(params)
+  } catch {
+    // 参数不全/非法：坐标系未知。宁可不补偿（标注留在原坐标）也不要为一个
+    // 纯显示问题中断整段建模。
+    affine = undefined
+  }
+  registerPmiTransform(stmtId, affine)
 }
 
 /**
@@ -401,6 +513,7 @@ export function defineOp<A extends unknown[]>(
     retDim: decl.retDim,
     spec: decl.spec,
     dimCheck: decl.dimCheck,
+    pmiRemap: decl.pmiRemap,
   }
 
   // Async wrapper: implementations may be sync or async (api mesh paths are
@@ -418,6 +531,9 @@ export function defineOp<A extends unknown[]>(
     // Compat: bare ManifoldMeshData args (host geoToManifoldMesh output) are
     // geometry inputs too — old form passed [input] so they reached the mesh path.
     const inputs = (callArgs as unknown[]).filter(isGeometryInput) as Shape[]
+    // 注：这里**不**校验/搬运 PMI。标注归零件名所有（`api/pmi/registry.ts`），
+    // 几何 op 消费带标注的零件是合法的（先钻孔后倒角是常规工艺），产物既不需要
+    // 继承也不需要拦截——查询时沿这条语句登记的血缘图聚合即可。
     // §1.4 lineage registration (plan §4.3): every top-level dual-op execution
     // records a blood-line node via `runtimeLineage.register`, which enforces
     // N1 (untracked input → throw, never default to chain-root) / N2
@@ -442,6 +558,10 @@ export function defineOp<A extends unknown[]>(
     if (isOuter) st.registeredStmtId = asStmtId(anchor.id)
     try {
       if (isOuter && anchor) {
+        // PMI 父链快照必须**先于** register：register 会把 partOwner 覆盖成本条
+        // 语句，之后 `stmtOf(input)` 就指向自己了（重赋值时输入名 == 输出名，
+        // 聚合会自环断链）。见 api/pmi/registry.ts 文件头。
+        registerPmiParents(asStmtId(anchor.id), inputs)
         runtimeLineage.register(
           {
             stmt: asStmtId(anchor.id),
@@ -465,6 +585,7 @@ export function defineOp<A extends unknown[]>(
       const out = meta.outputs ? wrapByKeys(r, meta.outputs, wrapBrepOne) : wrapBrepOne(r)
       inheritInputAppearance(out, inputs)
       inheritInputMeta(out, inputs)
+      if (anchor == null) inheritInputPmiWhenAnonymous(out, inputs)
       // 1.10 前置①：执行期把 hash 演化挂到血缘节点（kernel 类回走推进的数据源）。
       // 演化在几何算完那一刻可得（fromBrep → slot.faceEvolution），事后补挂不参与
       // N3 的内容比较（lineage.ts 设计如此）。无演化（identity/construct 等无历史
@@ -483,6 +604,10 @@ export function defineOp<A extends unknown[]>(
         const table = runtimeLineage.outputTableOf(stmtId)
         const solid = runtimeLineage.outputHandleOf(stmtId)
         if (table) runtimeLineage.recordOutput(stmtId, table, solid, anchor.outputs[0] as PartName)
+        // PMI 收尾：impl 内部写在未命名中间产物上的标注归位到产物名下；
+        // 变换类 op 在这里登记坐标矩阵（标注数据不改，读时补偿）。
+        // 只在 `isOuter` 时做——嵌套调用的标注留着，最终都归最外层产物。
+        if (isOuter) finalizePmi(meta, stmtId, anchor.outputs[0] as PartName, callArgs)
       }
       return out
     }
@@ -507,6 +632,11 @@ export function defineOp<A extends unknown[]>(
     const mOut = meta.outputs ? wrapByKeys(m, meta.outputs, wrapMeshOne) : wrapMeshOne(m)
     inheritInputAppearance(mOut, inputs)
     inheritInputMeta(mOut, inputs)
+    if (anchor == null) inheritInputPmiWhenAnonymous(mOut, inputs)
+    // PMI 收尾（mesh 链同 brep 链，见上面 brep 分支的注释）。
+    if (isOuter && anchor && anchor.outputs.length > 0) {
+      finalizePmi(meta, asStmtId(anchor.id), anchor.outputs[0] as PartName, callArgs)
+    }
     return mOut
     } finally {
       // 同语句去重标记不在 op 粒度清理——语句边界由 runtime-state.setCurrentStmt

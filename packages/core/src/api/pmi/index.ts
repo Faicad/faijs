@@ -36,7 +36,10 @@ export type {
 export { dimension, gdt, datum, surfaceFinish, note, threadHole } from './types'
 
 // Shape methods
-export { attachPmiMethods, appendPmiItem, carryPmi, type ShapePmiMethods } from './methods'
+export { attachPmiMethods, appendPmiItem, type ShapePmiMethods } from './methods'
+
+// Registry（跨 op 存活的单一真源；查询用 pmiOf 而非读 Shape.pmi）
+export { pmiOf, addPmiItem, collectPmiOf, ownPmiOf, clearPmiOfPart, registerPmiParents, resetPmiRegistry } from './registry'
 
 // Query functions
 export { pmiItems, pmiOn, pmiDatums, pmiThreads } from './query'

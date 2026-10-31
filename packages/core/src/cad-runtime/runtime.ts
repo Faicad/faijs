@@ -74,6 +74,7 @@ import { isCompoundLike, brepOf, getSlot, ensureSlot, hasMeshSolid, type Compoun
 import type { AssemblyBehavior, AssemblyDecl } from '../extra/ops/compound'
 import type { PartNaming } from '../topology/naming/types'
 import type { PmiItem } from '../api/pmi/types'
+import { pmiOf } from '../api/pmi/registry'
 import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-naming'
 import { faceRowToHint } from '../topology/naming/geom-hint'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
@@ -1762,11 +1763,13 @@ export class CadRuntime {
       builtFromMesh: this.__buildStats.fromMesh,
       builtFromSolid: this.__buildStats.fromSolid,
     }
-    // PMI 收集：从各 part 的 Shape.pmi 字段收集标注（方案 2026-10-31-faijs-pmi-design.md §7）
+    // PMI 收集：按零件名从注册表聚合（含沿血缘继承的上游标注）。
+    // 不读 `Shape.pmi` 字段——那只是本条语句写下的快照，几何 op 产出的新 Shape
+    // 上没有它，读字段会漏掉全部继承来的标注。
     const pmiEntries: { part: PartName; items: readonly PmiItem[] }[] = []
     for (const [partName, shape] of outputs) {
-      const pmi = (shape as Shape & { pmi?: { items: readonly PmiItem[] } }).pmi
-      if (pmi && pmi.items && pmi.items.length > 0) {
+      const pmi = pmiOf(shape)
+      if (pmi !== undefined && pmi.items.length > 0) {
         pmiEntries.push({ part: partName, items: pmi.items })
       }
     }

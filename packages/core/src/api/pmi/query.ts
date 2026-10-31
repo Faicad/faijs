@@ -16,6 +16,17 @@
 import type { Shape } from '../../mesh/types'
 import type { TopoRef } from '../../topology/naming/types'
 import type { PmiItem, PmiDatum, PmiItemKind, PmiThreadHole } from './types'
+import { pmiOf } from './registry'
+
+/**
+ * 读 Shape 上的聚合标注（走注册表 + 血缘回溯，而非 Shape 字段）。
+ *
+ * 查询函数全部经过这一个口，保证「几何 op 之后标注还在」对 `pmiItems` /
+ * `pmiOn` / `pmiDatums` / `pmiThreads` 一致生效。
+ */
+function itemsOf(shape: Shape): readonly PmiItem[] {
+  return pmiOf(shape)?.items ?? []
+}
 
 // ── 辅助：判断 PMI item 的目标是否包含给定 ref ──
 
@@ -106,9 +117,7 @@ export function pmiItems(
   shape: Shape,
   filter?: { kind?: PmiItemKind; targetType?: TopoRef['kind'] },
 ): PmiItem[] {
-  const pmi = (shape as Shape & { pmi?: { items: readonly PmiItem[] } }).pmi
-  if (!pmi || !pmi.items) return []
-  return pmi.items.filter((item) => {
+  return itemsOf(shape).filter((item) => {
     if (filter?.kind && item.kind !== filter.kind) return false
     if (filter?.targetType) {
       const targets = getTargets(item)
@@ -133,9 +142,7 @@ export function pmiItems(
  * const annos = cad.pmiOn(part0, cad.faceRef(part0, 3))
  */
 export function pmiOn(shape: Shape, ref: TopoRef): PmiItem[] {
-  const pmi = (shape as Shape & { pmi?: { items: readonly PmiItem[] } }).pmi
-  if (!pmi || !pmi.items) return []
-  return pmi.items.filter((item) => {
+  return itemsOf(shape).filter((item) => {
     const targets = getTargets(item)
     return targets.some((t) => refEquals(t, ref))
   })
@@ -155,10 +162,8 @@ export function pmiOn(shape: Shape, ref: TopoRef): PmiItem[] {
  * const datums = cad.pmiDatums(part0)
  */
 export function pmiDatums(shape: Shape): Record<string, PmiDatum> {
-  const pmi = (shape as Shape & { pmi?: { items: readonly PmiItem[] } }).pmi
-  if (!pmi || !pmi.items) return {}
   const result: Record<string, PmiDatum> = {}
-  for (const item of pmi.items) {
+  for (const item of itemsOf(shape)) {
     if (item.kind === 'datum') {
       result[item.identifier] = item
     }

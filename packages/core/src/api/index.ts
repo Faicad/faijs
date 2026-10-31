@@ -130,7 +130,8 @@ export type {
   PmiThreadSpec, PmiPilotHole, PmiHoleAxis, PmiThreadHole,
 } from './pmi/types'
 export { dimension, gdt, datum, surfaceFinish, note, threadHole } from './pmi/types'
-export { attachPmiMethods, appendPmiItem, carryPmi, type ShapePmiMethods } from './pmi/methods'
+export { attachPmiMethods, appendPmiItem, type ShapePmiMethods } from './pmi/methods'
+export { pmiOf, addPmiItem, collectPmiOf, ownPmiOf, clearPmiOfPart, registerPmiParents, resetPmiRegistry } from './pmi/registry'
 export { pmiItems, pmiOn, pmiDatums, pmiThreads } from './pmi/query'
 export { formatThreadHole, formatThreadSpec } from './pmi/text'
 

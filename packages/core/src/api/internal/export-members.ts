@@ -30,21 +30,20 @@ import type { CompoundShape } from '../../shape'
 import { getSlot, isCompoundLike } from '../../shape'
 import { nameOf } from '../../runtime-state'
 import type { PmiSet } from '../pmi/types'
+import { pmiOf } from '../pmi/registry'
 
 /**
  * 成员上的 PMI 标注集合（无标注返回 `undefined`，避免写出空 `<metadatagroup>`）。
  *
- * PMI 是 `Shape.pmi` 字段（引擎无关、JSON 可序列化），导出时必须一起带出去，
- * 否则「画了标注但导出文件里什么也没有」。StepExportEntry / ExportEntry 的
- * `pmi` 字段是它唯一的去向。
+ * 标注归零件名所有、跨几何 op 存活（`api/pmi/registry.ts`），所以这里必须走
+ * `pmiOf` 做**血缘聚合**，不能读 `Shape.pmi` 字段——那个字段只有"本条语句自己
+ * 写下的标注"，`fillet` / `translate` 产出的成员上没有它，读字段会导出空标注。
  *
  * @param shape - 导出成员几何。
- * @returns the PMI set, or undefined when the member carries no annotation.
+ * @returns the aggregated PMI set, or undefined when the member carries no annotation.
  */
 export function pmiOfShape(shape: Shape | CompoundShape | undefined): PmiSet | undefined {
-  const pmi = (shape as { pmi?: PmiSet } | undefined)?.pmi
-  if (!pmi || !pmi.items || pmi.items.length === 0) return undefined
-  return pmi
+  return pmiOf(shape as Shape | undefined)
 }
 
 /** 导出成员：一个待导出的几何 + 其身份（名 / 色）。 */

@@ -43,6 +43,7 @@ import type { RoleTable } from '../topology/naming/types'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import { assertVec3, assertPositiveNumber } from './assert'
+import { rotationAffine, scalingAffine, translationAffine } from './pmi/affine'
 import { meshSolidBasicEntry, meshSolidProduct } from './internal/mesh-solid-op'
 import type { BrepHandle } from '../brep/engine/types'
 
@@ -132,6 +133,21 @@ function singleNonZeroAxis(angles: Vec3): 0 | 1 | 2 | -1 {
     }
   }
   return idx as 0 | 1 | 2 | -1
+}
+
+/**
+ * 读一个 vec3 参数（缺省/非法 → `undefined`）。
+ *
+ * 只在 `pmiRemap` 里用：那条路径跑在 impl **之后**，参数基本都已校验过；这里仍
+ * 做一次守卫，是因为 `pmiRemap` 的唯一消费者是显示层（PMI 摆放），为它抛错不划算。
+ * @param v - the raw parameter value.
+ * @returns the vec3, or undefined when it is not three finite numbers.
+ */
+function vec3Param(v: unknown): Vec3 | undefined {
+  if (!Array.isArray(v) || v.length !== 3) return undefined
+  const xs = v as unknown[]
+  if (!xs.every((n) => typeof n === 'number' && Number.isFinite(n))) return undefined
+  return [xs[0] as number, xs[1] as number, xs[2] as number]
 }
 
 function transformBrep(op: string, input: Shape, params: Record<string, unknown>): Shape {
@@ -282,6 +298,12 @@ export const translate = defineOp({
   slotMap: { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 },
   paramDims: { offset: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+  // PMI 裸世界坐标补偿：`PmiNote.anchor` / `PmiThreadHole.axis` 不随几何自动跟随，
+  // 登记平移矩阵后由聚合侧施加（数据零改动，见 api/pmi/affine.ts）。
+  pmiRemap: (p) => {
+    const o = vec3Param(p.offset)
+    return o === undefined ? undefined : translationAffine(o)
+  },
 })
 
 /**
@@ -318,6 +340,11 @@ export const rotate_euler = defineOp({
   slotMap: { keys: ['angles'], vec3Keys: ['angles'], shapeArity: 1 },
   paramDims: { angles: 'angle', pivot: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+  pmiRemap: (p) => {
+    const a = vec3Param(p.angles)
+    if (a === undefined) return undefined
+    return rotationAffine(a, vec3Param(p.pivot))
+  },
 })
 
 /**
@@ -359,6 +386,11 @@ export const scale = defineOp({
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
   paramDims: { factor: 'plain' },
+  pmiRemap: (p) => {
+    const f = p.factor
+    if (typeof f !== 'number' || !Number.isFinite(f)) return undefined
+    return scalingAffine([f, f, f], vec3Param(p.center))
+  },
 })
 
 /**
@@ -400,4 +432,8 @@ export const scale3d = defineOp({
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 
   paramDims: {},
+  pmiRemap: (p) => {
+    const f = vec3Param(p.factor)
+    return f === undefined ? undefined : scalingAffine(f, vec3Param(p.center))
+  },
 })

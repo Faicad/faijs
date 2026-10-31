@@ -31,6 +31,7 @@ import { getBrepApi } from '../../brep/handle-bridge'
 import type { BrepHandle } from '../../brep/engine/types'
 import { getBackends } from '../../runtime-state'
 import { resolveCamera, type ViewSpec } from './view-camera'
+import { buildPmiLayer, type PmiExtent2, type PmiLayerOptions } from './pmi-layer'
 
 /** 投影相机（与 view-camera 输出同构）。 */
 interface Camera {
@@ -54,6 +55,13 @@ export interface ProjectViewOptions {
   width?: number
   /** 输出 SVG 高度（缺省 = viewBox 高度）。 */
   height?: number
+  /**
+   * PMI 图层：`true`/缺省 = 若 shape 带 PMI 则自动渲染；`false` = 不渲染；
+   * 对象 = 定制（字号/颜色/图层名/背面标注/全局块）。
+   *
+   * 图层是独立 `<g id="pmi" inkscape:groupmode="layer">`，叠在线稿之上。
+   */
+  pmi?: boolean | PmiLayerOptions
 }
 
 /** 单视图投影的结构化结果（projectSheet 复用）。 */
@@ -67,6 +75,15 @@ export interface ProjectionSvg {
   /** 输出宽度/高度。 */
   width: number
   height: number
+  /**
+   * **线稿**本身的包围盒（不含 PMI 图层的外扩）。
+   *
+   * 与 `viewBox` 的区别：viewBox 会把自动摆放的标注算进去，而图纸级的排版（格宽、
+   * 标签字号、全局注释块字号）必须按零件尺度来算，拿 viewBox 会被标注撑大。
+   */
+  partExtent?: PmiExtent2
+  /** PMI 图层：完整 `<g>` 标记（无标注时为空串）与统计。 */
+  pmi?: { markup: string; count: number; skipped: number }
 }
 
 /**
@@ -118,7 +135,7 @@ const COMPOUND_KEYS = [
  *   - 其余（含 occt）→ compound 句柄采样通道（现状）。
  * 无引擎门禁：分派只选通道，不因内核缺特性报错。
  */
-function projectPolylines(shape: Shape, view: ViewSpec): { visible: string[]; hidden: string[] } {
+function projectPolylines(shape: Shape, cam: Camera): { visible: string[]; hidden: string[] } {
   const solid = brepOf(shape) as BrepHandle | undefined
   if (solid === undefined) {
     throw new Error(
@@ -127,7 +144,6 @@ function projectPolylines(shape: Shape, view: ViewSpec): { visible: string[]; hi
     )
   }
   const api = getBrepApi()
-  const cam = resolveCamera(view) as unknown as Camera
   const engineId = getBackends().config.brepEngineId
   if (engineId === 'brepkit') {
     return projectPolylinesNative(api, solid, cam)
@@ -258,8 +274,8 @@ function parseViewBox(vb: string): [number, number, number, number] | undefined 
   return [parts[0], parts[1], parts[2], parts[3]]
 }
 
-/** 折线点集 bbox → viewBox（统一坐标系；margin 再外扩）。 */
-function viewBoxOfPaths(paths: string[], margin: number): string {
+/** 折线点集 bbox → 数值包围盒（统一坐标系；不含 margin）。 */
+function extentOfPaths(paths: string[]): PmiExtent2 | undefined {
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
@@ -276,8 +292,21 @@ function viewBoxOfPaths(paths: string[], margin: number): string {
       maxY = Math.max(maxY, y)
     }
   }
-  if (!Number.isFinite(minX)) return '0 0 0 0' // 空投影（如空 shape）
-  return `${minX - margin} ${minY - margin} ${maxX - minX + 2 * margin} ${maxY - minY + 2 * margin}`
+  if (!Number.isFinite(minX)) return undefined
+  return { minX, minY, maxX, maxY }
+}
+
+/** 折线点集 bbox → viewBox（统一坐标系；margin 再外扩）。 */
+function viewBoxOfExtent(e: PmiExtent2 | undefined, margin: number): string {
+  if (e === undefined) return '0 0 0 0' // 空投影（如空 shape）
+  return `${e.minX - margin} ${e.minY - margin} ${e.maxX - e.minX + 2 * margin} ${e.maxY - e.minY + 2 * margin}`
+}
+
+/** 视图 → 文档内唯一后缀（多视图图纸里区分各自的 PMI 图层 id）。 */
+function viewKeyOf(view: ViewSpec): string {
+  if (typeof view === 'string') return view.replace(/[^A-Za-z0-9]/g, '')
+  const dir = view.dir.map((v) => String(Math.round(v * 1000) / 1000)).join('_')
+  return `d${dir.replace(/[^0-9a-zA-Z_]/g, '')}`
 }
 
 /**
@@ -285,13 +314,34 @@ function viewBoxOfPaths(paths: string[], margin: number): string {
  *
  * @param shape - 待投影的 faijs Shape（必须带 BREP 槽；mesh-only 输入抛 E_BREP_ONLY_INPUT）。
  * @param view - 视图规格（标准视图 / iso / 轴对平面 / 方向对象）。
- * @param opts - 序列化选项。
- * @returns 结构化投影结果（svg/viewBox/paths/尺寸）。
+ * @param opts - 序列化选项（含 PMI 图层开关）。
+ * @returns 结构化投影结果（svg/viewBox/paths/尺寸/PMI 统计）。
  */
 export function projectViewSvg(shape: Shape, view: ViewSpec, opts: ProjectViewOptions = {}): ProjectionSvg {
-  const { visible: visiblePaths, hidden: hiddenPaths } = projectPolylines(shape, view)
+  const cam = resolveCamera(view) as unknown as Camera
+  const { visible: visiblePaths, hidden: hiddenPaths } = projectPolylines(shape, cam)
   const margin = opts.margin ?? 1
-  const viewBox = viewBoxOfPaths([...visiblePaths, ...hiddenPaths], margin)
+  const partExtent = extentOfPaths([...visiblePaths, ...hiddenPaths])
+
+  // PMI 图层：锚点用与线稿同一个相机投影（坐标系等价性见 pmi-layer.ts 文件头）
+  const pmiOpt = opts.pmi
+  const pmiLayer = pmiOpt === false || partExtent === undefined
+    ? undefined
+    : buildPmiLayer(shape, cam, partExtent, typeof pmiOpt === 'object' ? pmiOpt : {}, viewKeyOf(view))
+
+  // 有标注时把 viewBox 扩到包含图层内容（自动摆放的标注会落在零件轮廓之外）
+  const extent: PmiExtent2 | undefined = partExtent === undefined
+    ? undefined
+    : pmiLayer?.extent === undefined
+      ? partExtent
+      : {
+          minX: Math.min(partExtent.minX, pmiLayer.extent.minX),
+          minY: Math.min(partExtent.minY, pmiLayer.extent.minY),
+          maxX: Math.max(partExtent.maxX, pmiLayer.extent.maxX),
+          maxY: Math.max(partExtent.maxY, pmiLayer.extent.maxY),
+        }
+
+  const viewBox = viewBoxOfExtent(extent, margin)
   const parsed = parseViewBox(viewBox) ?? [0, 0, 0, 0]
   const width = opts.width ?? parsed[2]
   const height = opts.height ?? parsed[3]
@@ -307,14 +357,29 @@ export function projectViewSvg(shape: Shape, view: ViewSpec, opts: ProjectViewOp
         `<path d="${d}" fill="none" stroke="#000" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" opacity="${hiddenOpacity}" />`,
     )
     .join('\n    ')
+  const hasPmi = pmiLayer !== undefined && pmiLayer.markup !== ''
+  const rootAttrs = hasPmi
+    ? ' xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"'
+    : ''
   const svg = [
-    `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${width}" height="${height}" fill="none" stroke="black" stroke-width="0.6%" vector-effect="non-scaling-stroke">`,
+    `<svg version="1.1" xmlns="http://www.w3.org/2000/svg"${rootAttrs} viewBox="${viewBox}" width="${width}" height="${height}" fill="none" stroke="black" stroke-width="0.6%" vector-effect="non-scaling-stroke">`,
     `  <g stroke="#000" fill="none">`,
     `    ${visibleMarkup}${hiddenMarkup === '' ? '' : `\n    ${hiddenMarkup}`}`,
     `  </g>`,
+    ...(hasPmi ? [`  ${pmiLayer.markup}`] : []),
     `</svg>`,
   ].join('\n')
-  return { svg, viewBox, paths: { visible: visiblePaths, hidden: hiddenPaths }, width, height }
+  return {
+    svg,
+    viewBox,
+    paths: { visible: visiblePaths, hidden: hiddenPaths },
+    width,
+    height,
+    ...(partExtent === undefined ? {} : { partExtent }),
+    ...(pmiLayer === undefined
+      ? {}
+      : { pmi: { markup: pmiLayer.markup, count: pmiLayer.count, skipped: pmiLayer.skipped } }),
+  }
 }
 
 /**
@@ -333,9 +398,11 @@ export function projectViewSvg(shape: Shape, view: ViewSpec, opts: ProjectViewOp
  * @param opts.margin - viewBox 外扩边距。type:number 默认 1
  * @param opts.width - 输出宽度（缺省 = viewBox 宽度）。type:number
  * @param opts.height - 输出高度（缺省 = viewBox 高度）。type:number
+ * @param opts.pmi - PMI 图层：true/缺省自动渲染 shape 上的 PMI 标注（独立 <g> 图层，自动摆放），false 关闭，对象可定制字号/颜色/背面标注/全局块。type:boolean|object 默认 true
  * @example
  * const svg = cad.projectView(part0, 'front')
  * const svg = cad.projectView(part0, 'iso', { strokeWidth: 1, dash: '4,4', hiddenOpacity: 0.6 })
+ * const svg = cad.projectView(part0, 'front', { pmi: { fontSize: 9, showHiddenTargets: false } })
   */
 export function projectView(shape: Shape, view: ViewSpec, opts?: ProjectViewOptions): string {
   return projectViewSvg(shape, view, opts).svg

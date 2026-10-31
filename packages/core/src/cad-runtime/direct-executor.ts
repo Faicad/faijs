@@ -34,6 +34,7 @@ import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransf
 import type { ImportModel } from '../mesh/import-model'
 import { getBrepApi } from '../brep/handle-bridge'
 import { runtimeLineage } from '../topology/naming/lineage'
+import { resetPmiRegistry } from '../api/pmi/registry'
 import { ExecutionLimitError } from './execution-limit-error'
 import { assertSecure, isSafeGlobalIdent, type SecurityPolicy } from '../lang/security-scanner'
 import { getSlot, ensureSlot, brepOf, isShape } from '../shape'
@@ -682,6 +683,9 @@ export class DirectExecutor {
     // runCode — including append/update replays of the full code — self-contained,
     // so N3 never misfires on an edited statement from a prior run.
     runtimeLineage.clear()
+    // PMI 注册表与血缘图同生命周期：聚合靠回溯血缘，图清了表也必须清，
+    // 否则上一轮执行的标注会挂到同名的 part 上串味。
+    resetPmiRegistry()
     // import 预置（§4.5：顶层 import 行不执行，绑定值先入 ctx），随后参数预置可覆盖
     for (const [k, v] of Object.entries(opts?.imports ?? {})) this.ctx[k] = v
     // 参数预置（ExecuteOptions.params → ctx；参数行不执行，与现状语义一致）

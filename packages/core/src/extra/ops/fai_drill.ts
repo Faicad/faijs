@@ -33,7 +33,7 @@ import type { BrepEngineApi } from '../../brep/engine/primitives'
 import { assertPositiveNumber, assertNumber, assertVec3 } from '../../api/assert'
 import { captureFaceHint, type FaceTopoRef } from '../../topology/naming'
 import { resolveFaceGeometry } from '../../api/topo-resolve'
-import { appendPmiItem, carryPmi } from '../../api/pmi/methods'
+import { appendPmiItem } from '../../api/pmi/methods'
 import { threadHole as makeThreadHole } from '../../api/pmi/types'
 import type { PmiThreadHole } from '../../api/pmi/types'
 import { formatThreadHole } from '../../api/pmi/text'
@@ -440,9 +440,8 @@ export const fai_drill = defineOp({
     // 结果替换回原 compound（其余 children 原样保留）。
     const target = resolveCompoundMember(input, p.partIndex, 'fai_drill')
     const result = await drillMeshPath(target, p)
-    // PMI：先搬运上游标注（多孔场景不互相覆盖），再补本孔的螺纹孔标注。
-    // 标注挂在**零件**（成员）上而不是 compound 上——PMI 是零件级信息。
-    carryPmi(input, result)
+    // PMI：上游标注归上游零件名所有，不需要搬运（查询时沿血缘聚合），
+    // 这里只补本孔的螺纹孔标注。标注挂在**零件**（成员）上而不是 compound 上。
     if (isThreadHole(p)) {
       const direction = resolveDirection(p, faceNormalFrom(target, p))
       appendPmiItem(result, buildThreadHolePmi(p, resolveThread(p), direction, p.position as Vec3))
@@ -455,7 +454,6 @@ export const fai_drill = defineOp({
     assertDrillParams(p)
     const target = resolveCompoundMember(input, p.partIndex, 'fai_drill')
     const drilled = drillBrepPath(target, p)
-    carryPmi(input, drilled.shape)
     if (isThreadHole(p)) {
       const direction = resolveDirection(p, faceNormalFrom(target, p))
       appendPmiItem(
@@ -467,4 +465,6 @@ export const fai_drill = defineOp({
   },
   paramDims: { diameter: 'length', depth: 'length', tolerance: 'length', screwSpecIdx: 'plain', threadDepth: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+  // 建模即标注：`tapped`/`screw` 在同一语句里既钻几何又产 `PmiThreadHole`。
+  // 上游标注不需要搬运——它们归上游零件名所有，查询时沿血缘聚合得到。
 })

@@ -419,6 +419,161 @@ TopoRef 的核心价值是**跨历史身份**：改参重放后，`(origin, role
 
 mesh 链的 PMI 保留为**纯数据标注**（不参与 STEP AP242 semantic PMI 导出，但可通过 JSON/3MF 元数据传递）。
 
+### 4.4 跨 op 存活：标注一旦加上就一直在
+
+**规则（2026-10-31 定）**：PMI 数据有了就一直在，不能丢，也不需要因为几何变更而拷贝
+或做其他处理。几何 op 消费带标注的零件是**合法**的——先钻孔后倒角、先倒角后钻孔都是
+常规工艺顺序，`fai_drill` 的 `tapped` / `screw` 本身就是"建模即标注"。
+
+**曾经的错误设计（已废）**：曾规定"标注语句必须在建模完成之后"，并由
+`define-op.ts#assertPmiInputAllowed` 在几何 op 入口抛 `E_PMI_INPUT_FROZEN`。理由写的是
+"搬过去标注里的 `TopoRef` 指向旧拓扑会失配"。这个理由**是错的**：
+
+`TopoRef.origin` 是 **`StmtId`**——产生那个面的那条语句，全局唯一、与变量重命名解耦，
+不是"当前 Shape 的第 k 个面"。`api/topo-resolve.ts#resolveViaLineage` 本来就是"沿血缘
+从 origin 语句回走到当前 part 重算 hash"。实测（occt 通道）：
+
+| 场景 | 结果 |
+|---|---|
+| `box` → 取顶面 ref → `translate(+100,0,0)` | 标注落在 x=120，零件在 x∈[99,141]，`count=1` |
+| `box` → 取顶面 ref → `union` 远处方块 | 合并后旧面引用仍可解析，`count=1` |
+| `fai_drill(tapped)` → `fillet` | 旧设计下抛 `E_PMI_INPUT_FROZEN`（用户指出的错误） |
+
+换句话说：拓扑引用天然跨 op 稳定，这是 naming 系统的设计目标，不是 PMI 的额外需求。
+当时看到 `carryPmi` 全仓只有 `fai_drill` 一处调用，就推断"搬运不成立"——实际原因只是
+**没人调用它**，不是调用它会出错。
+
+**现行模型**：PMI 归**产出语句**（`StmtId`）所有，与 Shape 实例无关
+（`api/pmi/registry.ts`）。几何 op 产出新 Shape 时既不搬运也不拦截；查询时沿父语句链
+回溯聚合：
+
+```
+let a = cad.box(40, 40, 20)   // s1
+a.addDatum({ … })             // 记在 s1 名下
+let c = cad.fillet(a, …, 2)   // s2，父语句 = s1
+c.addGdt({ … })               // 记在 s2 名下
+cad.projectView(c)            // 聚合 = [datum] + [gdt]，两条都在
+```
+
+**为什么按语句 id 而不是零件名**：`part0 = cad.translate(part0, …)` 是 faijs 的合法
+惯用法。`LineageNode.inputs` 存的是 `PartName`，重赋值后 `stmtOf('part0')` 指向**新**
+语句，沿 `inputs` 反查会走回自己、聚合链断掉（实测：`box → addDatum → fai_drill →
+fillet(重赋值)` 之后 `part0` 上的 datum 抽不出来）。所以父链在**登记之前**快照成
+`StmtId`（`registerPmiParents`，由 `defineOp.wrapped` 在 `runtimeLineage.register`
+之前调用）——那一刻 `partOwner` 还没被覆盖，拿到的正是上一条语句。
+
+**三个执行点**：
+
+| 时机 | 做什么 | 位置 |
+|---|---|---|
+| `addXxx` 方法 | 写注册表（有零件名时）+ 写 `Shape.pmi` 字段（纯数据契约 / 序列化） | `api/pmi/methods.ts#appendItem` |
+| op 登记血缘前 | 快照父语句 `StmtId` 链 | `define-op.ts` → `registerPmiParents` |
+| op 语句出口 | 把 impl 内部写在无名中间产物上的标注归到产物名下 | `define-op.ts` → `flushPendingPmi` |
+
+**为什么需要第三个执行点**：`fai_drill` 在 impl 内部 `appendPmiItem(drilled.shape, …)`，
+而 `drilled.shape` 由 `fromBrep` 新建、此刻还没被 executor 命名。注册表按名字索引收不到
+它，所以无名 Shape 上的标注先入 `pending` 缓冲，由出口统一归位。
+
+**读取统一走 `pmiOf(shape)`**：`ExecutionResult.pmi`、`export-members.ts#pmiOfShape`、
+`pmi-layer.ts#buildPmiLayer`、`pmi/utils query` 全部经过它，保证"几何 op 之后标注还在"
+对所有消费方一致生效。直接读 `Shape.pmi` 字段只能看到"本条语句自己写下的"，会漏掉
+全部继承来的标注。
+
+**失效处理**：`TopoRef` 解析失败（面被 `subtract` 吃掉、`chamfer` 削平）时
+`resolveTopoRef` 返回 `deleted`，渲染层计入 `skipped` 并跳过——**数据不动**，
+`getPmi()` 仍能看到它。丢数据等于丢诊断信息。
+
+**无语句上下文的降级**：op 被直接调用（测试、包内复用、宿主直接调 API）时没有
+`anchor`，注册表用不上，标注只能靠 `Shape.pmi` 字段承载。此时 `define-op` 在出口
+`inheritInputPmiWhenAnonymous` 合并输入的字段，保证"多次调 op 标注累积"成立。
+
+### 4.5 裸世界坐标：读时施加累积变换（数据零改动）
+
+`PmiNote.anchor` / `PmiNote.leaderDirection` / `PmiThreadHole.axis` 是**裸世界坐标**
+——它们不在 `TopoRef` 体系里（mesh 链没有拓扑身份，也必须能定位孔口）。`TopoRef`
+的坐标是语句级因果坐标，`translate` / `rotate` / `scale` 之后自己就能解析到新位置；
+裸坐标不会。所以 `box → 钻孔 → translate(+100,0,0)` 之后孔的标注留在原处。
+
+修法有两条路，选第二条：
+
+1. 写数据时跟着变（`translate` 的实现把上游每条标注改一遍）；
+2. **读数据时施加累积变换**——数据一个字节不动，聚合时按父链乘矩阵。
+
+选 2 的理由：数据是唯一真源。一旦允许"某个 op 顺手改上游标注"，就回到逐个 op 搬运
+的老路（漏一个就是静默错误）；而改写会把历史坐标永久污染，改参重放时看不出原始值。
+
+**模型**：每个语句可带一个 3×4 仿射 `T`（`p_产物 = T · p_输入`）。聚合沿父链上行时
+维护累积矩阵 `M ← M ∘ T_本层`：本层名下的标注用 `M`、祖先名下的用 `M ∘ T_祖先`。
+实现：`api/pmi/affine.ts`（矩阵/点/方向/合成/重映射）+ `api/pmi/registry.ts#walkStmt`
+（累积器）。布局与 `brep-ops#matrixToArray` 一致（3×4 行主序）。
+
+**登记点**：`defineOp` 的 `pmiRemap?(params)` 声明，在 impl **成功返回后**由
+`finalizePmi` 调用（参数此时已校验）。只有四个 op 声明：
+
+| op | 矩阵 |
+|---|---|
+| `translate` | `translationAffine(offset)` |
+| `rotate_euler` | `rotationAffine(angles, pivot)` |
+| `scale` | `scalingAffine([f,f,f], center)` |
+| `scale3d` | `scalingAffine(factor, center)` |
+
+`rotate_euler` 的矩阵**直接复用** `math3d` 的 `Euler` / `Mat4`——mesh 路径
+（`mesh/transform.ts`）与 brep 路径（`brep-ops#rotateBrep`）用的是同一对类，转序/符号
+必然一致，不存在"补偿矩阵和真实几何差一个转序"的风险（测试用"标注坐标 vs 变换后
+网格包围盒中心"逐位对账钉住）。
+
+**布尔 op 不声明**：`union` / `subtract` 会改面，但不改坐标系——不登记就是"坐标不动"，
+不是遗漏。
+
+**方向字段按线性部分变换**（不是法向的逆转置）：`axis.direction` 与
+`leaderDirection` 都是线的方向（切向），非等比缩放下仍按 `R·d` 走，只是孔变椭圆。
+
+**未覆盖**：`mirror` / `mirrorJoin` 在生成文件 `api/generated/topology.ts` 里
+（禁手改），要补得先改 `api/surface/arg-spec.ts` 的生成源。
+
+### 4.6 2D 图层的版面不变量
+
+`api/view/pmi-layer.ts` 自动摆放的四条不变量（都是出图肉眼发现问题后定下的）：
+
+1. **同侧只有一条基准：距零件轮廓的深度（depth）**。band 游标量的就是 depth，所有
+   绘制（尺寸线位置、引线端点、框体近边、全局块顶边）都按同一个 depth 落位，
+   推进按真实占用量。曾经尺寸线按"从锚点出发的位移"推进
+   （`max(needX, needY, band)`）、引线类按 depth，两个基准混在一条带里——实测
+   front 视图 `dim-text` 与螺纹孔 `note-text` 只差 0.7，小于字号 1.52，直接压住。
+   换算函数 `offsetForDepth()`，支撑函数 `supportAlong()`（斜方向用角点，不用逐轴
+   clamp——逐轴会把两轴都推到边上，实际越过 √2 倍）。
+2. **文字不重叠**：整份标注逐个做矩形相交检查，一条都不许压
+   （`test/api/view/view-pmi-layout.test.ts` 钉住，四个视图全量核对）。
+3. **全局 PMI 整张图纸只画一次**：无目标的 note（技术要求）是零件级信息、与视图
+   无关，四视图各印一遍等于把同一段文字印四遍，还各自挤占视图外空间。`projectSheet`
+   统一把各视图图层的 `globalNotes` 关掉，改由自己在**图纸右下角**画一次
+   （`buildGlobalPmiBlock` 两处共用，保证同一段文字在单视图/图纸上逐字节一致）。
+   字号取"零件包围盒对角线 × 0.025"，与视图内标注同一口径。
+4. **每条标注也只出现一次，且落在最看得清该特征的视图**：同一条尺寸/公差/基准/
+   粗糙度/孔标注在四视图各画一遍，等于把同一份信息印四遍，还各自挤压摆位。
+   `assignPmiToViews()` 给每条标注挑一个视图，其余视图图层用 `PmiLayerOptions.only`
+   把它滤掉。打分四项（`scoreInView()`，量级刻意分开以保证优先级）：
+
+   | 项 | 权重 | 为什么 |
+   |---|---|---|
+   | 背面锚点 | 每锚点 −1000 | 几何背对观察者，标注只能靠猜摆放 |
+   | 正对程度 `n·d` | ×3 | 两面都能看见时挑更正的那一视图 |
+   | 轴向对齐 `\|axis·d\|` | ×6 | 孔/圆柱越"正对着看"投影越接近真圆；=0 时退化成一条线，直径标注无从谈起 |
+   | 投影张开度 `\|Δuv\|/\|Δp3\|` | ×4（多锚点尺寸） | 侧看时尺寸两端缩到一起甚至重合 |
+
+   平局按 `views` 列表顺序取先者——**确定性**优先（同一脚本重跑必须出同一张图），
+   同时把"想让它落在主视图就把它排前面"留给用户当旋钮。没有任何视图画得出来的
+   条目仍归给第一个视图，让它在 `pmi.skipped` 里如实计数，而不是静默消失。
+
+   实测（60×40×10 板 + M6 螺纹孔，`['front','top','right','iso']`）：两条尺寸进
+   front（x/z 跨度在那里都不缩短）、基准与形位公差进 top（它们引用的 z0 面在那里
+   正对）、粗糙度进 iso（Ra 标的是 z10 面，四个视图里只有 iso 看得见它）、螺纹孔
+   进 top（轴线平行视向）、`right` 一个都不落 → 该视图不产生空图层。
+
+**仍然存在（v1 明确不做）**：一维带式摆放不是 2D 碰撞求解，所以**引线可能擦过同侧
+已摆好的框体**（top 视图里螺纹孔从孔心引出的长引线会穿过基准框与特征控制框）。
+真做避让需要切向槽位分配 + 折线绕过。
+
 ---
 
 ## 5. STEP AP242 PMI 导出

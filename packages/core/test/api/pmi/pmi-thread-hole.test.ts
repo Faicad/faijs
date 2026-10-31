@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { solid, type SolidShape } from '../../../src/shape'
-import { attachPmiMethods, appendPmiItem, carryPmi } from '../../../src/api/pmi/methods'
+import { attachPmiMethods, appendPmiItem } from '../../../src/api/pmi/methods'
 import { pmiItems, pmiOn, pmiThreads } from '../../../src/api/pmi/query'
 import { threadHole, type PmiThreadHole } from '../../../src/api/pmi/types'
 import { formatThreadHole, formatThreadSpec } from '../../../src/api/pmi/text'
@@ -176,23 +176,14 @@ describe('查询：threadHole 与既有类型并存', () => {
   })
 })
 
-describe('carryPmi — 多孔场景标注不互相覆盖', () => {
-  it('搬运上游标注后追加，条目按时间累积', () => {
-    const first = makeShape()
-    appendPmiItem(first, tappedM6())
-    const second = makeShape()
-    carryPmi(first, second)
-    appendPmiItem(second, tappedM6({ axis: { origin: [20, 10, 30], direction: [0, 0, -1] } }))
-    const items = pmiThreads(second)
+describe('同一零件多次标注 — 累积不覆盖', () => {
+  it('连续追加两条，条目按时间累积', () => {
+    const s = makeShape()
+    appendPmiItem(s, tappedM6())
+    appendPmiItem(s, tappedM6({ axis: { origin: [20, 10, 30], direction: [0, 0, -1] } }))
+    const items = pmiThreads(s)
     expect(items).toHaveLength(2)
     expect(items[1]!.axis.origin).toEqual([20, 10, 30])
-  })
-
-  it('上游无 pmi 时为 no-op', () => {
-    const from = makeShape()
-    const to = makeShape()
-    carryPmi(from, to)
-    expect((to as SolidShape & { pmi?: unknown }).pmi).toBeUndefined()
   })
 })
 
