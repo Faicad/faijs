@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerSmlibBrepEngine } from '../../src/brep/engine/adapters/smlib'
-import { __getSmlibRegistry } from '../../src/smlib-kernel/smlibKernel'
+import { initSmlibWasm } from '../../src/smlib-kernel/smlibWasm'
 import { createEditorRuntime } from '../support/editor-ops'
 
 describe('per-statement scope：中间体在语句结束后释放', () => {
@@ -29,17 +29,17 @@ const e = cad.subtract(c, d)
     const r = await runtime.execute(script)
     expect(r.failedAt).toBeUndefined()
 
-    const reg = __getSmlibRegistry()!
-    const alive = reg.aliveOwnedCount()
-    // 5 个 ctx 变量（a/b/c/d/e）都持有活句柄；布尔内部 pb 副本已 markConsumedByKernel。
-    // 关键：alive 数 == ctx 变量数（没有额外临时句柄泄漏）。
+    const k = await initSmlibWasm()
+    const alive = k.liveCount('Solid')
+    // 5 个 ctx 变量（a/b/c/d/e）都持有活句柄；布尔中间体随语句帧释放。
+    // 关键：solid 存活数 == ctx 变量数（没有额外临时句柄泄漏）。
     expect(alive).toBe(r.outputs.size)
   })
 
   it('连续多轮执行后 aliveOwnedCount 不单调增长', async () => {
     await registerSmlibBrepEngine()
     const runtime = createEditorRuntime({ events: { emit: () => undefined } }, 'brep')
-    const reg = __getSmlibRegistry()!
+    const k = await initSmlibWasm()
 
     const script = `
 const a = cad.box(10, 10, 10, { centered: true })
@@ -49,7 +49,7 @@ const c = cad.union(a, b)
     const counts: number[] = []
     for (let i = 0; i < 3; i++) {
       await runtime.execute(script)
-      counts.push(reg.aliveOwnedCount())
+      counts.push(k.liveCount('Solid'))
     }
     // 每轮结束后临时句柄应回收，alive 数稳定（不单调累积）。
     // 3 个变量 a/b/c 存活，每轮重跑覆盖旧句柄（sweep 释放旧产物）。

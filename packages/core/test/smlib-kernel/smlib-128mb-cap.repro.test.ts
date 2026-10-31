@@ -27,7 +27,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { createRequire } from 'node:module'
 import type { HostPorts } from '../../src/cad-runtime/ports'
 import type { TessellationDensity } from '../../src/runtime-state'
 import type { ExecutionResult, RetessellatePartResult } from '../../src/cad-runtime/runtime'
@@ -41,7 +41,10 @@ import {
   buildSmlibKernel,
   type SmlibKernel,
 } from '../../src/smlib-kernel/smlibWasm'
+import type { SmwRawExports } from '@faicad/smlib-wasm'
 import { createEditorRuntime } from '../support/editor-ops'
+
+const require = createRequire(import.meta.url)
 
 const PIKACHU1_PATH = 'C:\\my\\Faicad\\3d_editor\\docs\\examples\\pikachu-1.fai.js'
 const PIKACHU2_PATH = 'C:\\my\\Faicad\\3d_editor\\docs\\examples\\pikachu-2.fai.js'
@@ -75,10 +78,10 @@ function mb(n: number): string {
   return (n / 1024 / 1024).toFixed(1) + ' MB'
 }
 
-/** 读 vendored wasm 为独立 Uint8Array<ArrayBuffer>（Buffer 直转是 ArrayBufferLike，过不了 BufferSource）。 */
+/** 读 @faicad/smlib-wasm 包内 wasm 为独立 Uint8Array<ArrayBuffer>（Buffer 直转是 ArrayBufferLike，过不了 BufferSource）。 */
 function readWasmBytes(): Uint8Array<ArrayBuffer> {
-  const wasmUrl = new URL('../../vendor/smlib-wasm/smlib_standalone.wasm', import.meta.url)
-  const raw = readFileSync(fileURLToPath(wasmUrl))
+  const wasmPath = require.resolve('@faicad/smlib-wasm/wasm')
+  const raw = readFileSync(wasmPath)
   const bytes = new Uint8Array(raw.length)
   bytes.set(raw)
   return bytes
@@ -171,20 +174,21 @@ function capWasmMemoryMax(orig: Uint8Array<ArrayBuffer>, capPages: number): Uint
   throw new Error('capWasmMemoryMax: no memory section (id=5) found')
 }
 
+/** 闭包保存 raw 导出（malloc/free 在包壳上为 private），供金丝雀探针使用。 */
+let rawExports: SmwRawExports | null = null
+
 /** 构造封顶装载器（复刻 smlibWasm.loadNodeDefault 路径，仅 wasm 字节先打补丁）。 */
 function makeCappedSmlibLoader(capPages: number): () => Promise<SmlibKernel> {
   return async (): Promise<SmlibKernel> => {
     const patched = capWasmMemoryMax(readWasmBytes(), capPages)
     const module = new WebAssembly.Module(patched)
-    let instanceRef: WebAssembly.Instance | null = null
-    const importNames = WebAssembly.Module.imports(module).map(({ module: m, name }) => ({ module: m, name }))
     // GOTCHA（同 smlibWasm.loadNodeDefault）：Node ≥22 对已编译 Module 的 instantiate
     // 直接返回 Instance；旧行为返回 { module, instance }。两种形态都要接。
-    const r = (await WebAssembly.instantiate(module, createSmlibImportsByName(importNames, () => instanceRef))) as
+    const r = (await WebAssembly.instantiate(module, createSmlibImportsByName())) as
       | WebAssembly.Instance
       | { module: WebAssembly.Module; instance: WebAssembly.Instance }
     const instance = 'instance' in r ? r.instance : r
-    instanceRef = instance
+    rawExports = instance.exports as unknown as SmwRawExports
     return buildSmlibKernel(instance)
   }
 }
@@ -194,11 +198,12 @@ function makeCappedSmlibLoader(capPages: number): () => Promise<SmlibKernel> {
  * byteLength 观测看不到 128MB 内部的碎片/累积——这是「真机预算内还剩多少」的直接量。
  * 返回 0 = 连 128KB 都分配不出（预算内死亡点）。
  */
-function probeLargestMalloc(k: SmlibKernel): number {
+function probeLargestMalloc(): number {
+  if (!rawExports) return 0
   for (let size = 64 * 1024 * 1024; size >= 128 * 1024; size = Math.floor(size / 2)) {
-    const ptr = k.malloc(size)
+    const ptr = rawExports.malloc(size)
     if (ptr !== 0) {
-      k.free(ptr)
+      rawExports.free(ptr)
       return size
     }
   }
@@ -235,16 +240,16 @@ function classifyRefine(refined: Record<string, RetessellatePartResult>): {
  * 任一轮 failedAt / 抛错 = 预算外失败证据，记录后停止并断言失败。
  */
 async function runCappedRounds(label: string, path: string, rounds: number): Promise<void> {
-  const k = await initSmlibWasm()
+  await initSmlibWasm()
   await registerSmlibBrepEngine()
   const runtime = createEditorRuntime(createNodePorts(), 'brep')
 
-  const startFree = probeLargestMalloc(k)
+  const startFree = probeLargestMalloc()
   const t0 = Date.now()
   const warm = await runtime.execute(readScript(path))
   const warmMs = Date.now() - t0
   expect(warm.failedAt).toBeUndefined()
-  log(`[repro] ${label} 起始自由堆=${mb(startFree)}  预热 execute wall=${warmMs}ms  freeHeap=${mb(probeLargestMalloc(k))}`)
+  log(`[repro] ${label} 起始自由堆=${mb(startFree)}  预热 execute wall=${warmMs}ms  freeHeap=${mb(probeLargestMalloc())}`)
 
   log(`[repro] ${label} round |   execMs |  refineMs | freeHeap(after) | 精化结果`)
   let lastFree = 0
@@ -256,19 +261,19 @@ async function runCappedRounds(label: string, path: string, rounds: number): Pro
       r = await runtime.execute(readScript(path))
     } catch (e) {
       failed = `round ${i} execute THREW: ${(e as Error).message}`
-      log(`[repro] ${failed}  freeHeap=${mb(probeLargestMalloc(k))}`)
+      log(`[repro] ${failed}  freeHeap=${mb(probeLargestMalloc())}`)
       break
     }
     const execMs = Date.now() - tExec
     if (r.failedAt) {
       failed = `round ${i} FAILED at statement: ${JSON.stringify(r.failedAt)}`
-      log(`[repro] ${failed}  freeHeap=${mb(probeLargestMalloc(k))}`)
+      log(`[repro] ${failed}  freeHeap=${mb(probeLargestMalloc())}`)
       break
     }
     const tRef = Date.now()
     const refined = await runtime.retessellate(Array.from(r.outputs.keys(), (n) => ({ partName: n, density: L1 })))
     const refineMs = Date.now() - tRef
-    const free = probeLargestMalloc(k)
+    const free = probeLargestMalloc()
     lastFree = free
     const c = classifyRefine(refined)
     log(
@@ -315,7 +320,7 @@ describe('smlib 真机 128MB 堆预算模拟（repro）', () => {
     expect(() => k.memory.grow(1)).toThrow()
 
     // malloc 金丝雀探针在新鲜堆上健康
-    const probe = probeLargestMalloc(k)
+    const probe = probeLargestMalloc()
     expect(probe, `新鲜堆探针 ${mb(probe)} 应 ≥ 32MB`).toBeGreaterThanOrEqual(32 * 1024 * 1024)
     log(`[repro] 封顶内核 OK：memory=${mb(k.memory.buffer.byteLength)} 硬顶不可 growth；新鲜堆探针=${mb(probe)}`)
   })

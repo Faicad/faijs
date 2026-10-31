@@ -358,6 +358,11 @@ export class MeshSolidRegistry {
     return this.handles.has(part)
   }
 
+  /** Registered part count for persistence / leak probes. */
+  get size(): number {
+    return this.handles.size
+  }
+
   /**
    * 全部登记句柄（轮末清扫 keep 集采集用；不触发任何释放）。
    * @returns the registered handles in insertion order.

@@ -2417,6 +2417,13 @@ export class CadRuntime {
     return this.meshSolidRegistry
   }
 
+  /** Persistent handle counts for bounded leak probes.
+   * @returns solid and mesh persistent handle counts.
+   */
+  persistentHandleCounts(): { solid: number; mesh: number } {
+    return { solid: this.solidCache.size, mesh: this.meshSolidRegistry.size }
+  }
+
   /**
    * T3 身份槽同步：写 `solidCache`，并把 shape 自带的**显示 mesh 三角化结果**写入
    * `brepChain.meshShapeCache`（规则 1「一份 mesh」——拓扑只由用户看到的那份 mesh 生成）。

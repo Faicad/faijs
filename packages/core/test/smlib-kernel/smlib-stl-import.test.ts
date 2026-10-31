@@ -113,7 +113,7 @@ describe('smlib importStl — 真 B-rep 路径', () => {
       bytes.byteOffset + bytes.byteLength,
     ) as ArrayBuffer) as BrepHandle
 
-    const faces = kernel.getSubShapes(solid as unknown as number, 'face')
+    const faces = kernel.getSubShapes(solid, 'face')
     // 立方体至少 6 个面；逐三角建面 + stitch 后可能保留 12 个三角面，
     // 也可能把共面相邻三角归并成 6 个四边形面——两种都算真 B-rep（有面-边邻接）
     expect(faces.length).toBeGreaterThanOrEqual(6)

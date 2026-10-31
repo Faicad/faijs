@@ -1,30 +1,22 @@
 /**
- * smlib-kernel/smlibKernel — smlib（usd-brep SM_API）→ faijs BrepEngineApi 适配器
+ * smlib-kernel/smlibKernel — smlib（@faicad/smlib-wasm 独立包）→ faijs BrepEngineApi 薄适配器
  *
- * 对照 brepkit-kernel/brepkitKernel.ts 形态：显式对象字面量实现 L1 契约
- * `BrepEngineApi`，方言在适配器内消化。smlib 是 emscripten standalone wasm，
- * 句柄 = SmObject*（u32 wasm 堆指针），与 BrepHandle(number) 直通零转换。
- *
- * 本文件按方案文档 `docs/plans/2026-10-26-smlib-brep-engine-plan.md` §5.4 落地：
- * - 生命周期：SmBrep* 句柄登记表（face/edge 是 Brep-owned 借用，不释放）；
- *   释放走内核桥 `SmApiDeleteBrepEx`（SM_API 无删除原语，P1 桥补齐）。
- * - 布尔：SmApiBoolean* 是**原地消耗式**（a 原地变、b 被内核删除）——适配器
- *   **先 SmApiBrepCopy×2 副本化**，保用户句柄与语言层"句柄契约"（用户已确认：
- *   keepHidden 已取消、仅句柄生命周期契约需副本化，见方案文档 §4.2/§5.4）。
- * - 三角化：SmApiTessellate 输出多边形网格 SmPolyBrep（无公共三角形导出），
- *   走内核桥 `SmApiTessellateEx` 展平为独立三角形；faceGroups 的 facePtr 合并后
- *   用**与拓扑查询同一套** face hash 编码（红线 §4.4：subShapeHashes 与
- *   meshShape faceGroups 必须同源）。
- * - 线框：`SmApiTessellateBoundariesEx` 桥（points + per-edge counts + edges）。
- *
- * P1 实现集（方案文档 §6 P1）：生命周期、图元、布尔（副本化）、变换、测量、
- * meshShape/wireframe、getSubShapes（face/edge）。其余 L1 方法 = `unsupported` 桩
- * （P2/P3 按计划接线；缺能力由 op 的 `engines: ['occt'|'brepkit']` 声明在装配前拒绝）。
+ * 架构（2026-10-29 迁移定稿）：
+ * - 所有权全部上移 C++ Kernel（branded number id + arena）；本适配器不再持有
+ *   HandleRegistry / solidHandles / faceHandles / edgeHandles 三套 Set，也不做裸桥
+ *   `k.find('SmApi*')` 双拷贝布尔舞步。
+ * - borrowed Face/Edge/Curve（owner≠0）只由内核随主人释放，适配器绝不 track；
+ *   owned solid / curve / surface 返回处 track，per-statement 帧末逐个 tryRelease。
+ * - `release(shape)` 保持 no-op（GC 型引用语义，brep-ops.ts 大量 `kernel.release(...)`
+ *   依赖轮末清扫 `releaseAllExcept`）；`disposeHandle` 幂等真释放；`dispose()` =
+ *   releaseAll + 清合成表 + 清三角化缓存。
+ * - 纯 JS 几何 helper（向量、三点弧、放置矩阵、矩阵复合、反射、STEP 拼接、射线奇偶
+ *   点包含）保留在本文件；内核调用全部走包壳类型化方法，不再手算内存布局。
  */
-import { initSmlibWasm, resetSmlibWasm, type SmlibKernel } from './smlibWasm'
+import { SmwKind, SmwMergeOp, SmlibError } from '@faicad/smlib-wasm'
+import { initSmlibWasm, resetSmlibWasm } from './smlibWasm'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { BREP_HASH_BOUND } from '../brep/engine/types'
-import { HandleRegistryImpl, GcLessPolicy, type HandleRegistry, type ScopeStack } from './handleRegistry'
 import type {
   BrepBoundingBox,
   BrepCurveParameters,
@@ -39,117 +31,28 @@ import type {
   BrepVec3,
 } from '../brep/engine/types'
 
-// SM_SUCCESS（SmMessages.h: #define SM_SUCCESS 1000L）
-const SM_SUCCESS = 1000
-
-/**
- * STL 导入的顶点焊接容差（mm）。
- *
- * 与 brepkit `crates/io/src/stl/import.rs` 的 `import_mesh(tolerance)` 同义：
- * 量化桶宽。缺省 1e-6 对应 CAD 系统写出的精度量级；由网格转换来的 STL
- * 缝隙更粗，调用方可按需放宽（如 1e-3）。过小 → 缝隙留着缝不上；过大 →
- * 本该分开的特征被合并（与 §7.6 口径一致）。
- */
+/** STL 导入的顶点焊接容差（mm）。 */
 const STL_WELD_TOL_MM = 1e-6
 /** STEP 导入的缝合/裁剪容差（mm）。 */
 const STEP_IMPORT_TOL_MM = 1e-4
 
-/** 适配器内部显式失败（能力缺失：op 级 `engines` 声明在装配前拦截，桩兜底防御）。 */
+/** 适配器内部显式失败（能力缺失：op 级 engines 声明在装配前拦截，桩兜底防御）。 */
 function unsupported(name: string): never {
   throw new Error(`[smlib-kernel] ${name}: not implemented in P1 (plan §6 P2/P3)`)
 }
 
-// ── 句柄登记：只有 SmBrep*（solid）需要释放 ──
-//
-// smlib 的 face/edge 句柄是 Brep-owned 借用指针（SmApiGetFaces/GetEdges 返回
-// "Borrowed Brep-owned"），不可 delete；SmBrep* 由 `SmApiDeleteBrepEx` 释放。
-// 登记表记录哪些句柄是 SmBrep*——release 只删登记过的（查表即类型判别）。
-//
-// 2026-10-29：统一内存生命周期（设计文档 2026-10-29-smlib-memory-architecture-design.md）。
-// HandleRegistry 在 createSmlibPrimitives 闭包内创建（绑定本 kernel 的 dealloc/triCache），
-// 通过 smlibRegistry 暴露给模块级 helper。旧 Set 在 Phase 5 前双写并行。
-const solidHandles = new Set<number>()
+// ── 合成句柄 TAG（smlib 无独立 wire / vertex / compound 类型；高位虚拟值永不撞内核 id）──
+const WIRE_TAG = 0x200000000
+const VERTEX_TAG = 0x300000000
+const COMPOUND_TAG = 0x400000000
 
-/** 闭包内创建的统一登记表；模块级 helper 通过它双写。 */
-let smlibRegistry: HandleRegistry | null = null
-
-/**
- * 测试/诊断用：取当前注册表。
- * @returns 已初始化的 HandleRegistry；内核未装载时返回 null。
- */
-export function __getSmlibRegistry(): HandleRegistry | null {
-  return smlibRegistry
+/** 确定性子形状 hash：(ownerId, ordinal) 确定性映射；meshShape faceGroups 与
+ *  subShapeHashes 必须同源（types.ts BREP_HASH_BOUND 是唯一真源）。 */
+function ordinalHash(owner: number, index: number, upperBound: number): number {
+  return (((owner >>> 0) * 1000003 + index) >>> 0) % upperBound
 }
 
-/**
- * 取 per-statement 作用域栈（runtime 调度层 push/pop）。
- * @returns 已初始化的 ScopeStack；内核未装载时返回 null。
- */
-export function __getSmlibScopeStack(): ScopeStack | null {
-  // registry 内部持有 scope；闭包内创建后由 createSmlibPrimitives 挂到全局。
-  return smlibScopeStackRef
-}
-let smlibScopeStackRef: ScopeStack | null = null
-
-/** 登记新 SmBrep* 句柄（solid 类）。 */
-function newSolid(ptr: number): BrepHandle {
-  if (ptr) {
-    solidHandles.add(ptr)
-    smlibRegistry?.registerOwned(ptr)
-  }
-  return ptr as BrepHandle
-}
-
-// ── 面/边**借用**句柄登记（句柄种类判别的唯一来源）──
-//
-// SmFace*/SmEdge* 由 brep 拥有（SmApiGetFaces/GetEdges 返回 "Borrowed Brep-owned"），
-// 不可也无需释放。但它们在 TS 侧与 SmBrep* 同为裸 number 指针，而内核 API 是强类型
-// 的：把 SmFace* 喂 `SmApiBrepBoundingBox(const SmBrep*)` 是 C++ 类型混淆。
-//
-// 实测（2026-10-28，抽壳 `openFaces: "|Z"` 崩溃根因）：20³ 盒的 6 个面喂
-// SmApiBrepBoundingBox → 1 个面 wasm "memory access out of bounds" trap，其余返回
-// **倒置（zmin=20/zmax=0）、退化（y 方向 0..0）或 1e20 空盒哨兵**的垃圾包围盒。
-// `getBoundingBox` 这类"参数 ABI 相同、语义完全不同的 API"必须按句柄种类分派，
-// 登记表即判别依据（与 solidHandles 同款思路：查表即类型判别）。
-const faceHandles = new Set<number>()
-const edgeHandles = new Set<number>()
-
-/** 登记借用面句柄后原样返回（便于就地串在枚举返回处）。owner = 所属 solid/face 句柄。 */
-function noteFaceHandles(handles: BrepHandle[], owner: number): BrepHandle[] {
-  for (const h of handles) {
-    const n = h as unknown as number
-    faceHandles.add(n)
-    smlibRegistry?.registerBorrowed(n, owner, 'face')
-  }
-  return handles
-}
-
-/** 登记借用边句柄后原样返回。owner = 所属 solid/face 句柄。 */
-function noteEdgeHandles(handles: BrepHandle[], owner: number): BrepHandle[] {
-  for (const h of handles) {
-    const n = h as unknown as number
-    edgeHandles.add(n)
-    smlibRegistry?.registerBorrowed(n, owner, 'edge')
-  }
-  return handles
-}
-
-// ── 点包含判定（containsPoint）的几何实现 ──
-//
-// SMLib 没有点分类 API：SmApiQueries 全表（ClosestPoint / FindFaces / ClassifyUV …）
-// 没有 containment 查询，227 个 wasm 导出里也没有。而 L1 契约要求它——CadQuery 面
-// 法向定向（`Face.normalAt()` 的 outward 探针，见 brep/engine/primitives.ts 与
-// api/cadquery-selectors/entity.ts）就靠它。没有它，smlib 上 `"|Z"` / `"#Z"` 这类
-// 方向选择器整条路径不可用（抽壳 `openFaces: "|Z"` 崩溃的第二层原因）。
-//
-// 实现：三角化 → 从探针点沿固定"非轴对齐"方向发无限射线 → 与三角形求交，交叉数为
-// **奇数 ⇒ 内部**（闭合流形 parity 判定）。方向刻意非轴对齐：轴对齐射线在盒体上
-// 必然正穿面/边（同一交点在相邻两三角形上各记一次 → 奇偶翻转），非轴对齐方向
-// 对常规 BREP 不会落在面的边界上。
-//
-// 缓存：三角化按句柄缓存，键是内核 memory 对象（WeakMap → 跨内核实例天然隔离；
-// 同一 memory 在句柄被 disposeHandle 真释放时清该条，防指针复用后命中旧网格）。
-
+// ── 点包含判定（containsPoint）：三角化 + 固定非轴对齐射线奇偶 ──
 interface TriMesh {
   positions: Float32Array
   indices: Uint32Array
@@ -157,7 +60,6 @@ interface TriMesh {
 
 const triCacheByMemory = new WeakMap<WebAssembly.Memory, Map<number, TriMesh>>()
 
-/** 取（或建）本内核实例的三角化缓存表。 */
 function triCacheOf(memory: WebAssembly.Memory): Map<number, TriMesh> {
   let m = triCacheByMemory.get(memory)
   if (!m) {
@@ -167,7 +69,6 @@ function triCacheOf(memory: WebAssembly.Memory): Map<number, TriMesh> {
   return m
 }
 
-/** 射线（p + t·d, t>0）与三角网的交点计数（Möller–Trumbore）。 */
 function rayCrossings(mesh: TriMesh, p: BrepVec3, d: BrepVec3): number {
   const pos = mesh.positions
   const idx = mesh.indices
@@ -182,7 +83,7 @@ function rayCrossings(mesh: TriMesh, p: BrepVec3, d: BrepVec3): number {
     const hy = d.z * e2x - d.x * e2z
     const hz = d.x * e2y - d.y * e2x
     const a = e1x * hx + e1y * hy + e1z * hz
-    if (Math.abs(a) < 1e-12) continue // 射线与三角形共面/平行
+    if (Math.abs(a) < 1e-12) continue
     const f = 1 / a
     const sx = p.x - pos[i0]!, sy = p.y - pos[i0 + 1]!, sz = p.z - pos[i0 + 2]!
     const u = f * (sx * hx + sy * hy + sz * hz)
@@ -198,35 +99,64 @@ function rayCrossings(mesh: TriMesh, p: BrepVec3, d: BrepVec3): number {
   return cross
 }
 
-/** 射线方向常量：归一化的非轴对齐向量（避开面/边上的退化双计数）。 */
 const PARITY_RAY_DIR: BrepVec3 = (() => {
   const v = { x: 0.5731, y: 0.4189, z: 0.7043 }
   const l = Math.hypot(v.x, v.y, v.z)
   return { x: v.x / l, y: v.y / l, z: v.z / l }
 })()
 
-// ── 面/边 hash（红线：meshShape faceGroups 与 subShapeHashes 同源） ──
-//
-// faijs 无子形状 hash 的引擎原生支持（用户已确认"无子形状 hash 与顶点枚举=适配器
-// 自建"）。自建方案：句柄指针本身（SmFace*/SmEdge* 在 wasm 堆内稳定、生命周期内
-// 唯一）取模 BREP_HASH_BOUND。同一句柄在 meshShape 与 getSubShapes 两条路径得到
-// 相同 hash ⇒ 拓扑提取可回查（types.ts 的 BREP_HASH_BOUND 是唯一真源）。
-const subShapeHashOf = (ptr: number, upperBound: number): number => (ptr >>> 0) % upperBound
+// ── 纯 JS 几何 helper ──
 
-/** 读取内存的辅助：memory 可能 growth（buffer 被替换），每次调用动态取。 */
-function memOf(k: SmlibKernel): DataView {
-  return new DataView(k.memory.buffer)
+function normVec(v: BrepVec3): BrepVec3 {
+  const len = Math.hypot(v.x, v.y, v.z)
+  if (len === 0) throw new Error('[smlib-kernel] zero-length vector')
+  return { x: v.x / len, y: v.y / len, z: v.z / len }
 }
 
-/** 成功校验 + 抛错（带函数名与返回码）。 */
-function expectOk(st: number, what: string): void {
-  if (st !== SM_SUCCESS) throw new Error(`[smlib-kernel] ${what} failed: SM status ${st}`)
+function cross(a: BrepVec3, b: BrepVec3): BrepVec3 {
+  return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }
+}
+
+function dot(a: BrepVec3, b: BrepVec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z
+}
+
+function asArray(p: BrepVec3): [number, number, number] {
+  return [p.x, p.y, p.z]
+}
+
+/** XY 平面曲线（圆心原点）→ center+normal 局部平面的 3×4 行主序矩阵。 */
+function circlePlacementMatrix(center: BrepVec3, normal: BrepVec3): number[] {
+  const n = normVec(normal)
+  let u: BrepVec3
+  if (Math.abs(n.z) < 0.999) u = normVec(cross(n, { x: 0, y: 0, z: 1 }))
+  else u = normVec(cross(n, { x: 1, y: 0, z: 0 }))
+  const v = cross(n, u)
+  return [u.x, v.x, n.x, center.x, u.y, v.y, n.y, center.y, u.z, v.z, n.z, center.z]
+}
+
+/** 3×4 行主序矩阵复合：先 m2 后 m1。 */
+function composeTransform(m1: number[], m2: number[]): number[] {
+  const out = new Array<number>(12).fill(0)
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      out[i * 4 + j] =
+        m1[i * 4 + 0]! * m2[0 * 4 + j]! +
+        m1[i * 4 + 1]! * m2[1 * 4 + j]! +
+        m1[i * 4 + 2]! * m2[2 * 4 + j]!
+    }
+    out[i * 4 + 3] =
+      m1[i * 4 + 0]! * m2[0 * 4 + 3]! +
+      m1[i * 4 + 1]! * m2[1 * 4 + 3]! +
+      m1[i * 4 + 2]! * m2[2 * 4 + 3]! +
+      m1[i * 4 + 3]!
+  }
+  return out
 }
 
 /**
- * 多实体 STEP 文本拼接（虚拟 compound 导出用）：保留第一段的 HEADER（含 DATA;），
- * 各段 DATA 实体行合并，后续段实体编号整体偏移（每段从 #1 起，引用与定义同偏移）。
- * 仅触碰编号行，绝不做任何文本级坐标/几何改写。
+ * 多实体 STEP 文本拼接（虚拟 compound 导出）：首段保留 HEADER+DATA;，后续段实体编号
+ * 整体偏移；只触碰编号行，不做坐标/几何改写。
  */
 function mergeStepEntities(parts: string[]): string {
   const headerOf = (s: string): string => {
@@ -258,587 +188,218 @@ function mergeStepEntities(parts: string[]): string {
   return `${header}\n${lines.join('\n')}\nENDSEC;\nEND-ISO-10303-21;\n`
 }
 
-/** 图元通用辅助：origin=(0,0,0) + out 槽 4 字节。 */
-function primitiveArgs(k: SmlibKernel): { arg: number; dv: DataView } {
-  const arg = k.malloc(28)
-  const dv = memOf(k)
-  dv.setFloat64(arg, 0, true)
-  dv.setFloat64(arg + 8, 0, true)
-  dv.setFloat64(arg + 16, 0, true)
-  dv.setUint32(arg + 24, 0, true)
-  return { arg, dv }
-}
-
-// ── P2 辅助：wire 合成句柄 + 边→曲线提取 ──
-//
-// smlib 无独立 wire 类型（SmApiOrderCurves 重排的是曲线数组）。L1 的
-// makeWire 返回"wire 句柄"供 makeFace/loft/addHolesInFace 复用——适配器用
-// 合成句柄（高位 tag 远在 wasm 堆指针范围之上，永不撞）登记曲线句柄数组。
-const WIRE_TAG = 0x200000000 // 8GB 边界（wasm 最大 4GB，指针 < 0x100000000）
-let nextWireId = 1
-const wireHandles = new Map<number, number[]>()
-
-// 合成顶点句柄（P2 顶点枚举）：坐标去重后登记，vertexPosition 查表。
-const VERTEX_TAG = 0x300000000
-let nextVertexId = 1
-const vertexHandles = new Map<number, BrepVec3>()
-
-// 虚拟 compound 句柄（2026-10-28）：compound 是 **faijs 语义层的逻辑容器**——
-// 零件保持独立，绝不进入内核做任何布尔合并（此前实现为 SmApiMergeBrepsEx
-// UNION 是错误语义：零件被焊死、相交输入被融合，拓扑/拾取/导出全错）。
-// smlib 无 compound 容器类型，与 brepkit 同款方案：高位虚拟句柄 + 登记
-// 子句柄列表，几何分发（mesh/wireframe/查询/测量/变换/copy/导出）一律按
-// 零件逐项处理。虚拟句柄远在 wasm 堆指针（< 2^32）之上，天然不与内核指针撞，
-// 也绝不会进 solidHandles（真释放只删登记过的 SmBrep*）。
-const COMPOUND_TAG = 0x400000000
-let nextCompoundId = 1
-const compoundHandles = new Map<number, BrepHandle[]>()
-
-/** 构造虚拟 compound 句柄并登记子零件列表。 */
-function newCompound(kids: BrepHandle[]): BrepHandle {
-  const handle = COMPOUND_TAG + nextCompoundId++
-  compoundHandles.set(handle, kids)
-  return handle as BrepHandle
-}
-
-/** 若句柄是虚拟 compound，返回其子零件列表（否则 undefined）。 */
-function compoundKidsOf(shape: BrepHandle): BrepHandle[] | undefined {
-  return typeof shape === 'number' && shape >= COMPOUND_TAG ? compoundHandles.get(shape) : undefined
-}
-
-/** 构造 wire 合成句柄并登记曲线数组。 */
-function newWire(curves: number[]): BrepHandle {
-  const handle = WIRE_TAG + nextWireId++
-  wireHandles.set(handle, curves)
-  return handle as BrepHandle
-}
-
-/** 边/曲线句柄 → 曲线句柄（SmEdge* → GetCurve()，裸曲线原样返回）。 */
-function edgeToCurve(k: SmlibKernel, handle: number): number {
-  const out = k.malloc(4)
-  try {
-    const dv = memOf(k)
-    dv.setUint32(out, 0, true)
-    expectOk(k.find('SmApiEdgeToCurveEx')(handle, out), 'edgeToCurve')
-    return dv.getUint32(out, true)
-  } finally {
-    k.free(out)
-  }
-}
-
-/** 面全部环边 → 曲线句柄数组数组（环序：外环在前，孔环随后）。
- *  输入是 face 句柄或（单面）brep 句柄——后者先取 GetFacesEx 第一面。
- *  桥返回布局：u32[0]=环数 nL、u32[1]=展平边数 nO、u32[2]=nO、
- *  u32[3..3+nL)=各环边数、其后展平边指针（loop-major）、其后 orientations。 */
-function faceLoopsCurves(k: SmlibKernel, face: number): number[][] {
-  let facePtr = face
-  if (solidHandles.has(face)) {
-    const pCount = k.malloc(4)
-    try {
-      const dv = memOf(k)
-      const arr = k.find('SmApiGetFacesEx')(face, pCount)
-      const n = dv.getUint32(pCount, true)
-      if (!arr || n === 0) throw new Error('[smlib-kernel] faceLoopsCurves: no faces in brep')
-      try {
-        facePtr = new Uint32Array(k.memory.buffer, arr, n)[0]
-      } finally {
-        k.free(arr)
-      }
-    } finally {
-      k.free(pCount)
-    }
-  }
-  const pOut = k.malloc(4)
-  try {
-    const dv = memOf(k)
-    dv.setUint32(pOut, 0, true)
-    expectOk(k.find('SmApiFaceBoundaryLoopsEx')(facePtr, pOut), 'faceLoopsCurves')
-    const buf = dv.getUint32(pOut, true)
-    if (!buf) throw new Error('[smlib-kernel] faceLoopsCurves: bridge returned buf=0')
-    try {
-      const u32 = new Uint32Array(k.memory.buffer, buf, 3)
-      const numLoops = u32[0]
-      const nEdges = u32[1]
-      if (numLoops === 0 || nEdges === 0) return []
-      const counts = new Uint32Array(k.memory.buffer, buf + 12, numLoops)
-      const edges = new Uint32Array(k.memory.buffer, buf + 12 + numLoops * 4, nEdges)
-      const loops: number[][] = []
-      let e = 0
-      for (let i = 0; i < numLoops; i++) {
-        const cnt = counts[i]
-        const loopEdges: number[] = []
-        for (let j = 0; j < cnt; j++) loopEdges.push(edgeToCurve(k, edges[e + j]))
-        loops.push(loopEdges)
-        e += cnt
-      }
-      return loops
-    } finally {
-      k.free(buf)
-    }
-  } finally {
-    k.free(pOut)
-  }
-}
-
-/** 面外环边 → 曲线句柄数组（BoundaryLoopsEx 第一环；seam 重复已由环序剔除）。
- *  输入是 face 句柄或（单面）brep 句柄——后者先取 GetFacesEx 第一面。 */
-function faceOuterCurves(k: SmlibKernel, face: number): number[] {
-  let facePtr = face
-  if (solidHandles.has(face)) {
-    // makeRectangle/CreatePlanarFaces 返回的是（单面）brep：取第一面。
-    const pCount = k.malloc(4)
-    try {
-      const dv = memOf(k)
-      const arr = k.find('SmApiGetFacesEx')(face, pCount)
-      const n = dv.getUint32(pCount, true)
-      if (!arr || n === 0) throw new Error('[smlib-kernel] faceOuterCurves: no faces in brep')
-      try {
-        facePtr = new Uint32Array(k.memory.buffer, arr, n)[0]
-      } finally {
-        k.free(arr)
-      }
-    } finally {
-      k.free(pCount)
-    }
-  }
-  const pOut = k.malloc(4)
-  try {
-    const dv = memOf(k)
-    dv.setUint32(pOut, 0, true)
-    expectOk(k.find('SmApiFaceBoundaryLoopsEx')(facePtr, pOut), 'faceOuterCurves')
-    const buf = dv.getUint32(pOut, true)
-    if (!buf) throw new Error('[smlib-kernel] faceOuterCurves: bridge returned buf=0')
-    try {
-      const u32 = new Uint32Array(k.memory.buffer, buf, 3)
-      const numLoops = u32[0]
-      const firstLoopCount = numLoops > 0 ? new Uint32Array(k.memory.buffer, buf + 12, 1)[0] : 0
-      if (numLoops === 0 || firstLoopCount === 0) return []
-      const edges = new Uint32Array(k.memory.buffer, buf + 12 + numLoops * 4, firstLoopCount)
-      return Array.from(edges, (e) => edgeToCurve(k, e))
-    } finally {
-      k.free(buf)
-    }
-  } finally {
-    k.free(pOut)
-  }
-}
-
-/** BrepVec3[] → malloc f64[3N]（返回 {ptr, dv}；调用方负责 free）。 */
-function ptsToMemory(k: SmlibKernel, points: BrepVec3[]): { ptr: number; dv: DataView } {
-  const ptr = k.malloc(points.length * 24)
-  const dv = memOf(k)
-  for (let i = 0; i < points.length; i++) {
-    dv.setFloat64(ptr + i * 24, points[i].x, true)
-    dv.setFloat64(ptr + i * 24 + 8, points[i].y, true)
-    dv.setFloat64(ptr + i * 24 + 16, points[i].z, true)
-  }
-  return { ptr, dv }
-}
-
-/** 单位化向量。 */
-function normVec(v: BrepVec3): BrepVec3 {
-  const len = Math.hypot(v.x, v.y, v.z)
-  if (len === 0) throw new Error('[smlib-kernel] zero-length vector')
-  return { x: v.x / len, y: v.y / len, z: v.z / len }
-}
-
-/** 叉积。 */
-function cross(a: BrepVec3, b: BrepVec3): BrepVec3 {
-  return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }
-}
-
-/** 点积。 */
-function dot(a: BrepVec3, b: BrepVec3): number {
-  return a.x * b.x + a.y * b.y + a.z * b.z
-}
-
 /**
- * 构造把"XY 平面曲线（CreateCircle/CreateArc 输出，圆心在原点）"变换到
- * "center + normal 局部平面"的 3×4 行主序矩阵（局部 X = normal×Z 或 normal×X 兜底）。
- */
-function circlePlacementMatrix(center: BrepVec3, normal: BrepVec3): number[] {
-  const n = normVec(normal)
-  let u: BrepVec3
-  if (Math.abs(n.z) < 0.999) u = normVec(cross(n, { x: 0, y: 0, z: 1 }))
-  else u = normVec(cross(n, { x: 1, y: 0, z: 0 }))
-  const v = cross(n, u)
-  // 行主序 [r00 r01 r02 tx | r10 r11 r12 ty | r20 r21 r22 tz]：
-  // 列向量 = [u v n]，平移 = center。
-  return [u.x, v.x, n.x, center.x, u.y, v.y, n.y, center.y, u.z, v.z, n.z, center.z]
-}
-
-/** 曲线句柄数组 → SmApiCreatePlanarFacesEx → 新 brep（登记 solid）。 */
-function createPlanarFaces(k: SmlibKernel, curves: number[]): BrepHandle {
-  const arr = k.malloc(4 * curves.length)
-  const out = k.malloc(4)
-  try {
-    const dv = memOf(k)
-    curves.forEach((c, i) => dv.setUint32(arr + i * 4, c, true))
-    dv.setUint32(out, 0, true)
-    expectOk(k.find('SmApiCreatePlanarFacesEx')(arr, curves.length, out), 'createPlanarFaces')
-    return newSolid(dv.getUint32(out, true))
-  } finally {
-    k.free(arr)
-    k.free(out)
-  }
-}
-
-/** 3×4 行主序矩阵 → SmApiTransformMatrixEx（原地变换并返回原句柄）。 */
-function applyMatrix(k: SmlibKernel, shape: BrepHandle, matrix: number[], what: string): BrepHandle {
-  if (matrix.length !== 12) throw new Error(`[smlib-kernel] ${what}: matrix must be 12 elements (3×4 row-major)`)
-  // 虚拟 compound：逐零件原地变换（零件独立，绝不经内核布尔/整块变换）。
-  const cKids = compoundKidsOf(shape)
-  if (cKids) {
-    for (const kid of cKids) applyMatrix(k, kid, matrix, what)
-    return shape
-  }
-  // B：SmApiTransformMatrixEx 桥把 12 元素组回行主序 4×4，但 SMLib Transform
-  // 实际按**转置旋转**应用（实测：R(z→[1,1,0]) 旋转 20³ 盒得到 Rᵀ 结果，
-  // bbox 中心沿局部 Z 偏移 60·0.707）。恒等/对称矩阵（垂直切、mirror、纯平移）
-  // 不受影响，所以此前未暴露；斜切 splitByPlane 与任意轴旋转 transform 会反向。
-  // 统一转置旋转 3×3（平移不动），使适配层矩阵语义 = 标准行主序（与 occt/three.js 同约定）。
-  const m = new Array<number>(12)
-  m[0] = matrix[0]; m[1] = matrix[4]; m[2] = matrix[8]
-  m[3] = matrix[3]
-  m[4] = matrix[1]; m[5] = matrix[5]; m[6] = matrix[9]
-  m[7] = matrix[7]
-  m[8] = matrix[2]; m[9] = matrix[6]; m[10] = matrix[10]
-  m[11] = matrix[11]
-  const mm = k.malloc(96)
-  const st = k.malloc(4)
-  try {
-    const dv = memOf(k)
-    for (let i = 0; i < 12; i++) dv.setFloat64(mm + i * 8, m[i], true)
-    expectOk(k.find('SmApiTransformMatrixEx')(shape, mm, st), what)
-    return shape
-  } finally {
-    k.free(mm)
-    k.free(st)
-  }
-}
-
-/** 三点圆弧：外接圆圆心 + 起止角 → CreateArc（XY）→ 变换到三点平面。 */
-function threePointArc(k: SmlibKernel, start: BrepVec3, mid: BrepVec3, end: BrepVec3): BrepHandle {
-  const a = start
-  const b = mid
-  const c = end
-  // 外接圆圆心（三点不共线）。
-  const ab = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }
-  const ac = { x: c.x - a.x, y: c.y - a.y, z: c.z - a.z }
-  const n = cross(ab, ac)
-  const nLen = Math.hypot(n.x, n.y, n.z)
-  if (nLen < 1e-12) throw new Error('[smlib-kernel] threePointArc: collinear points')
-  const d = 2 * dot(ab, ac)
-  const ab2 = dot(ab, ab)
-  const ac2 = dot(ac, ac)
-  // 三点不共线由 nLen 保证；d（=2ab·ac）可为 0（ab⊥ac），不是退化条件。
-  void d
-  // 标准外接圆：center = a + α·ab + β·ac，
-  // (center−a)·ab = |ab|²/2， (center−a)·ac = |ac|²/2。
-  const m11 = ab2
-  const m12 = dot(ab, ac)
-  const m21 = m12
-  const m22 = ac2
-  const det = m11 * m22 - m12 * m21
-  if (Math.abs(det) < 1e-18) throw new Error('[smlib-kernel] threePointArc: degenerate (zero plane area)')
-  const alpha = (ab2 / 2 * m22 - ac2 / 2 * m12) / det
-  const beta = (ac2 / 2 * m11 - ab2 / 2 * m21) / det
-  const center = { x: a.x + alpha * ab.x + beta * ac.x, y: a.y + alpha * ab.y + beta * ac.y, z: a.z + alpha * ab.z + beta * ac.z }
-  const r = Math.hypot(center.x - a.x, center.y - a.y, center.z - a.z)
-  // 局部基：u = (a−center)/r，v = n×u，w = n。
-  const u = { x: (a.x - center.x) / r, y: (a.y - center.y) / r, z: (a.z - center.z) / r }
-  const w = { x: n.x / nLen, y: n.y / nLen, z: n.z / nLen }
-  const v = cross(w, u)
-  const ang = (p: BrepVec3): number => {
-    const dx = p.x - center.x
-    const dy = p.y - center.y
-    const dz = p.z - center.z
-    return (Math.atan2(dx * v.x + dy * v.y + dz * v.z, dx * u.x + dy * u.y + dz * u.z) * 180) / Math.PI
-  }
-  let a0 = ang(a)
-  let a1 = ang(c)
-  // 保证过 mid：若 a1−a0 与 mid 角向不一致则补 360。
-  const am = ang(b)
-  if ((a1 - a0) > 0 !== (am - a0) > 0 && Math.abs(a1 - a0) > 1e-9) {
-    a1 += a1 - a0 > 0 ? -360 : 360
-  }
-  // SmApiCreateArc 角度基准实测拟合：画的标准角 = 传角 − φ_u（φ_u = u 的世界
-  // 方向角）。makeCircleArc 的输入是目标标准角（传 β+φ_u，即当前 +uAngle）；
-  // threePointArc 的输入 a0/a1 是**局部基角**（相对 u，β = φ_u + a），故
-  // 传角 = β + φ_u = a + 2φ_u。参数起点 = startAngle 端（传 (a0+2φ_u, a1+2φ_u)
-  // 使 t0 落在起点、t1 落在终点）。补偿后归一化回 [0,360)。
-  const uAngle = (Math.atan2(u.y, u.x) * 180) / Math.PI
-  const norm = (d: number) => ((d % 360) + 360) % 360
-  // 两端角微扰 ±0.05°：打破"弧-直线相切连接"（SmTrimmingTools.cpp:1176
-  // 断言同一顶点多候选边相切时方法需扩展）。1176 对每条曲线的**两端**顶点
-  // 都做候选切向比较，单端微扰不够（弧起点仍与直线终点相切）。0.05° 切向差
-  // > SM_ARE_SAME 容差可破歧义；r=2 时端点弧长偏移 ≈1.7e-3 < 0.01 仍判重合。
-  a0 = norm(a0 + 2 * uAngle - 0.05)
-  a1 = norm(a1 + 2 * uAngle + 0.05)
-  const out = k.malloc(4)
-  const p = k.malloc(24)
-  try {
-    const dv = memOf(k)
-    dv.setFloat64(p, 0, true)
-    dv.setFloat64(p + 8, 0, true)
-    dv.setFloat64(p + 16, 0, true)
-    dv.setUint32(out, 0, true)
-    expectOk(k.find('SmApiCreateArc')(p, r, a0, a1, out), 'makeArcEdge')
-    const curve = dv.getUint32(out, true)
-    // 变换到三点平面：局部基 [u v w] 列向量 + 平移 center。
-    const m = [u.x, v.x, w.x, center.x, u.y, v.y, w.y, center.y, u.z, v.z, w.z, center.z]
-    applyMatrix(k, curve as BrepHandle, m, 'makeArcEdge:place')
-    return curve as BrepHandle
-  } finally {
-    k.free(out)
-    k.free(p)
-  }
-}
-
-/** SmApiCreateCanonicalCurveEx 包装（makeBezierEdge/makeBSplineEdge 共用）。 */
-function createCanonicalCurve(
-  k: SmlibKernel,
-  points: BrepVec3[],
-  knots: number[],
-  mults: number[],
-  weights: number[] | undefined,
-  degree: number,
-): BrepHandle {
-  const p = ptsToMemory(k, points)
-  const knotBuf = k.malloc(8 * knots.length)
-  const multBuf = k.malloc(4 * mults.length)
-  const wBuf = weights && weights.length > 0 ? k.malloc(8 * weights.length) : 0
-  const out = k.malloc(4)
-  try {
-    const dv = memOf(k)
-    knots.forEach((x, i) => dv.setFloat64(knotBuf + i * 8, x, true))
-    mults.forEach((x, i) => dv.setUint32(multBuf + i * 4, x, true))
-    if (wBuf) weights!.forEach((x, i) => dv.setFloat64(wBuf + i * 8, x, true))
-    dv.setUint32(out, 0, true)
-    expectOk(
-      k.find('SmApiCreateCanonicalCurveEx')(
-        p.ptr, points.length, knotBuf, knots.length, multBuf, mults.length, wBuf, wBuf ? weights!.length : 0, degree, 6, out,
-      ),
-      'createCanonicalCurve',
-    )
-    return dv.getUint32(out, true) as BrepHandle
-  } finally {
-    k.free(p.ptr)
-    if (wBuf) k.free(wBuf)
-    k.free(knotBuf)
-    k.free(multBuf)
-    k.free(out)
-  }
-}
-
-/**
- * smlib 原语集合（BrepEngineApi 显式对象字面量）。初始化共享内核单例
- * （initSmlibWasm 幂等）；getSmlibKernel() 返回已就绪实例，disposeSmlib() 释放全部
- * 登记句柄并 reset（对齐 brepkitKernel 的 getBrepKitKernel/disposeBrekit 三件套）。
+ * smlib 原语集合（BrepEngineApi 对象字面量）。初始化共享内核单例
+ * （initSmlibWasm 幂等）。
  */
 export type SmlibPrimitives = BrepEngineApi
 
 let primitivesSingleton: SmlibPrimitives | null = null
 
 /** 创建（幂等）并返回 smlib 原语集合。
- * @returns smlib 内核的 BrepEngineApi 实现（单例，未初始化时先装载 wasm）。 */
+ * @returns the shared smlib primitives singleton.
+ */
 export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
   if (primitivesSingleton) return primitivesSingleton
   const k = await initSmlibWasm()
 
-  // ── 统一句柄登记表 + per-statement 作用域栈（2026-10-29 内存生命周期设计）──
-  // policy.deallocOwned：真删 SmBrep* 并清该句柄的 triCache（对齐旧 disposeHandle）。
-  const deallocOwned = (ptr: number): void => {
-    triCacheOf(k.memory).delete(ptr)
-    k.find('SmApiDeleteBrepEx')(ptr)
-  }
-  const registry = new HandleRegistryImpl(new GcLessPolicy(deallocOwned))
-  smlibRegistry = registry
-  smlibScopeStackRef = registry.scope
+  // ── 适配器侧所有权簿记（只负责“何时调用包壳释放”，不持有几何）──
+  const tracked = new Set<number>()
+  const frames: number[][] = []
 
-  // ── 布尔（副本化）辅助 ──
-  // SmApiBoolean* 是原地消耗式（a 变、b 被内核删除）——先深拷贝两入参，
-  // 保用户句柄与语言层句柄契约（方案文档 §4.2/§5.4）。
-  // 2026-10-29：pa/pb 都登记为 owned。成功路径 pb 被内核删除 → markConsumedByKernel；
-  // 失败路径 pa/pb 都没被内核消耗 → 都 releaseOwned（修考古报告 §3.1 pb 泄漏）。
-  function booleanOp(opName: string, a: BrepHandle, b: BrepHandle, what: string): BrepHandle {
-    const out = k.malloc(4)
-    const aCopy = k.malloc(4)
-    const bCopy = k.malloc(4)
-    try {
-      const dv = memOf(k)
-      dv.setUint32(aCopy, 0, true)
-      dv.setUint32(bCopy, 0, true)
-      expectOk(k.find('SmApiBrepCopy')(a, aCopy), `${what}: copy(a)`)
-      expectOk(k.find('SmApiBrepCopy')(b, bCopy), `${what}: copy(b)`)
-      // 内核调用可能 memory.grow → 旧 DataView detach，读结果前必须重取视图（§2.3）。
-      const dv2 = memOf(k)
-      const pa = dv2.getUint32(aCopy, true)
-      const pb = dv2.getUint32(bCopy, true)
-      if (!pa || !pb) throw new Error(`[smlib-kernel] ${what}: brep copy returned null`)
-      // pa/pb 都登记为 owned（双写旧 Set + 新 registry；Phase 5 后只走 registry）。
-      solidHandles.add(pa)
-      solidHandles.add(pb)
-      registry.registerOwned(pa)
-      registry.registerOwned(pb)
-      dv2.setUint32(out, 0, true)
-      const st = k.find(opName)(pa, pb, out)
-      if (st !== SM_SUCCESS) {
-        // 失败：pa/pb 都没被内核消耗，都要真删。
-        registry.releaseOwned(pa)
-        registry.releaseOwned(pb)
-        solidHandles.delete(pa)
-        solidHandles.delete(pb)
-        throw new Error(`[smlib-kernel] ${what} failed: SM status ${st}`)
-      }
-      const dv3 = memOf(k)
-      const result = dv3.getUint32(out, true)
-      if (!result) throw new Error(`[smlib-kernel] ${what}: null result`)
-      // 成功：pb 被内核删除 → 从登记表移除但不调 delete。
-      registry.markConsumedByKernel(pb)
-      solidHandles.delete(pb)
-      // 标准布尔（流形 solid）是原地修改 pa：rpResult = m_vTI.m_pBrep，pa 即结果。
-      // 非流形等边缘路径可能产出新指针并消耗 pa——若 result !== pa，把被消耗的 pa
-      // 移出登记表（不调 delete，内核已删）。
-      if (result !== pa) {
-        registry.markConsumedByKernel(pa)
-        solidHandles.delete(pa)
-        solidHandles.add(result)
-        registry.registerOwned(result)
-      }
-      return result as BrepHandle
-    } finally {
-      k.free(out)
-      k.free(aCopy)
-      k.free(bCopy)
+  const track = <T extends number>(id: T): T => {
+    tracked.add(id)
+    const frame = frames[frames.length - 1]
+    if (frame) frame.push(id)
+    return id
+  }
+
+  // 合成句柄表（内核不可见；高位值绝不传入包壳方法）。
+  let nextWireId = 1
+  let nextVertexId = 1
+  let nextCompoundId = 1
+  const wireHandles = new Map<number, number[]>()
+  const vertexHandles = new Map<number, BrepVec3>()
+  const compoundHandles = new Map<number, BrepHandle[]>()
+  // 真实 borrowed Face/Edge 的确定性 hash 必须与其 owner solid 的枚举序号同源；
+  // C++ 只返回子形状 slot id，父关系需在这里短生命周期记录。
+  let shapeEpoch = 0
+  const subShapeOrdinal = new Map<number, { epoch: number; owner: number; index: number }>()
+  const recordSubShape = (owner: number, index: number, handle: unknown): void => {
+    subShapeOrdinal.set(handle as number, { epoch: shapeEpoch, owner, index })
+  }
+
+  function newCompound(kids: BrepHandle[]): BrepHandle {
+    const handle = COMPOUND_TAG + nextCompoundId++
+    compoundHandles.set(handle, kids)
+    return handle as BrepHandle
+  }
+  function compoundKidsOf(shape: BrepHandle): BrepHandle[] | undefined {
+    return typeof shape === 'number' && shape >= COMPOUND_TAG ? compoundHandles.get(shape) : undefined
+  }
+  function newWire(curves: number[]): BrepHandle {
+    const handle = WIRE_TAG + nextWireId++
+    wireHandles.set(handle, curves)
+    return handle as BrepHandle
+  }
+  const isSynthetic = (n: number): boolean => n >= WIRE_TAG
+
+  // 合成句柄判定 → kind：solid / face / edge / curve / surface。
+  function faceOf(n: number): number {
+    const kind = k.kindOf(n)
+    if (kind === SmwKind.Face) return n
+    if (kind === SmwKind.Solid) {
+      const fs = k.faces(n as never)
+      if (fs.length === 0) throw new Error('[smlib-kernel] faceOf: solid has no faces')
+      return fs[0]! as number
     }
+    throw new Error(`[smlib-kernel] faceOf: not a face/solid (kind=${kind})`)
+  }
+
+  function faceLoopsCurves(n: number): number[][] {
+    const f = faceOf(n)
+    const loops = k.faceLoops(f as never)
+    return loops.loops.map((l) => l.edges.map((e) => k.edgeToCurve(e) as unknown as number))
+  }
+  function faceOuterCurves(n: number): number[] {
+    return faceLoopsCurves(n)[0] ?? []
+  }
+
+  /** 三点圆弧：外接圆圆心 + 起止角（局部基 u 的 2 倍世界方向角补偿）→ makeArc → 放置矩阵。 */
+  function threePointArc(start: BrepVec3, mid: BrepVec3, end: BrepVec3): BrepHandle {
+    const a = start
+    const b = mid
+    const c = end
+    const ab = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }
+    const ac = { x: c.x - a.x, y: c.y - a.y, z: c.z - a.z }
+    const n = cross(ab, ac)
+    const nLen = Math.hypot(n.x, n.y, n.z)
+    if (nLen < 1e-12) throw new Error('[smlib-kernel] threePointArc: collinear points')
+    const ab2 = dot(ab, ab)
+    const ac2 = dot(ac, ac)
+    const m11 = ab2
+    const m12 = dot(ab, ac)
+    const m22 = ac2
+    const det = m11 * m22 - m12 * m12
+    if (Math.abs(det) < 1e-18) throw new Error('[smlib-kernel] threePointArc: degenerate (zero plane area)')
+    const alpha = (ab2 / 2 * m22 - ac2 / 2 * m12) / det
+    const beta = (ac2 / 2 * m11 - ab2 / 2 * m12) / det
+    const center = { x: a.x + alpha * ab.x + beta * ac.x, y: a.y + alpha * ab.y + beta * ac.y, z: a.z + alpha * ab.z + beta * ac.z }
+    const r = Math.hypot(center.x - a.x, center.y - a.y, center.z - a.z)
+    const u = { x: (a.x - center.x) / r, y: (a.y - center.y) / r, z: (a.z - center.z) / r }
+    const w = { x: n.x / nLen, y: n.y / nLen, z: n.z / nLen }
+    const v = cross(w, u)
+    const ang = (p: BrepVec3): number => {
+      const dx = p.x - center.x
+      const dy = p.y - center.y
+      const dz = p.z - center.z
+      return (Math.atan2(dx * v.x + dy * v.y + dz * v.z, dx * u.x + dy * u.y + dz * u.z) * 180) / Math.PI
+    }
+    let a0 = ang(a)
+    let a1 = ang(c)
+    const am = ang(b)
+    if ((a1 - a0) > 0 !== (am - a0) > 0 && Math.abs(a1 - a0) > 1e-9) {
+      a1 += a1 - a0 > 0 ? -360 : 360
+    }
+    const uAngle = (Math.atan2(u.y, u.x) * 180) / Math.PI
+    const norm = (d: number) => ((d % 360) + 360) % 360
+    a0 = norm(a0 + 2 * uAngle - 0.05)
+    a1 = norm(a1 + 2 * uAngle + 0.05)
+    const curve = track(k.makeArc([0, 0, 0], r, a0, a1))
+    const m = [u.x, v.x, w.x, center.x, u.y, v.y, w.y, center.y, u.z, v.z, w.z, center.z]
+    k.transformMatrix(curve as never, m)
+    return curve as unknown as BrepHandle
   }
 
   const primitives: SmlibPrimitives = {
     // ── 生命周期 ──
     release(_shape: BrepHandle): void {
-      // faijs 契约：release 只释放句柄引用，不删除内核对象（同 brepkit GC 型语义——
-      // 对象生命周期由运行时统一管理）。若在此删除 SmBrep，buildTopology 的
-      // transient 释放（transient 含 getSubShapes(shape,'solid') 返回的实体句柄）
-      // 会把 solidCache 仍持有的实体误删（实测：box2 在 buildNamingInput 时
-      // GetFacesEx 返回 SM_ERR=1001）。SmBrep 删除只发生在布尔消耗（SmApiBoolean
-      // 内建）、booleanOp 失败分支，以及 runtime 的受控释放 disposeHandle。
+      // GC 型引用语义：release 不删内核对象；真释放由 disposeHandle / releaseAllExcept /
+      // scope pop 负责（buildTopology transient 若在此被删会误删 solidCache 实体）。
     },
     disposeHandle(shape: BrepHandle): void {
-      // 受控真释放（2026-10-27）：runtime 明确「不再被任何持有者引用」时调用。
-      // 2026-10-29：走 registry.releaseOwned——内部真删 + 清 triCache + 级联失效 borrowed。
-      // 幂等：solidHandles 未登记（已被 sweep/scope pop 释放）→ no-op。
-      // 注意：不在这里 throw double-free——runtime.disposeSolidHandle 可能在 sweep
-      // 之后对同一 handle 再调一次（sweep 已释放，solidCache 仍持引用），这是受控
-      // GC 的正常路径，不是用户错误。真正的 double-free（用户显式释放别人已释放的
-      // 句柄）在 fai.js 脚本面不存在——disposeHandle 只被 runtime.disposeSolidHandle 调。
       const n = shape as unknown as number
-      if (!solidHandles.has(n)) return
-      registry.releaseOwned(n)
-      solidHandles.delete(n)
+      if (isSynthetic(n)) return
+      triCacheOf(k.memory).delete(n)
+      if (k.tryRelease(n as never)) tracked.delete(n)
     },
     releaseAllExcept(keep: ReadonlySet<number>): void {
-      // 轮末清扫（2026-10-27，方案 E）：登记表里除 keep 外的句柄都是本轮 op 内
-      // 中间体（图元、布尔副本、变换/挤出临时体），不再被任何持有者引用。
-      // 2026-10-28：被 keep 的虚拟 compound 依赖其子零件——子零件必须一并保活。
-      // 2026-10-29：走 registry.releaseAllExcept——每个被删句柄同步清 triCache + 级联失效 borrowed。
       const effectiveKeep = new Set(keep)
+      // compound 子零件闭包保活。
       let changed = true
       while (changed) {
         changed = false
         for (const [c, kids] of compoundHandles) {
           if (effectiveKeep.has(c)) {
             for (const kid of kids) {
-              if (!effectiveKeep.has(kid)) {
-                effectiveKeep.add(kid)
+              if (!effectiveKeep.has(kid as unknown as number)) {
+                effectiveKeep.add(kid as unknown as number)
                 changed = true
               }
             }
           }
         }
       }
-      registry.releaseAllExcept(effectiveKeep)
-      for (const p of [...solidHandles]) {
-        if (effectiveKeep.has(p)) continue
-        solidHandles.delete(p)
+      k.releaseExcept([...effectiveKeep])
+      shapeEpoch++
+      subShapeOrdinal.clear()
+      for (const id of tracked) {
+        if (!effectiveKeep.has(id)) tracked.delete(id)
       }
+      triCacheOf(k.memory).clear()
     },
     dispose(_shape?: BrepHandle): void {
-      // 等价于 releaseAllExcept(emptySet)：真删全部 owned + 级联失效 borrowed。
-      registry.releaseAllExcept(new Set())
-      solidHandles.clear()
+      k.releaseAll()
+      wireHandles.clear()
+      vertexHandles.clear()
+      compoundHandles.clear()
+      subShapeOrdinal.clear()
+      triCacheOf(k.memory).clear()
+      tracked.clear()
+      frames.length = 0
     },
 
-    // per-statement 作用域栈（2026-10-29 内存生命周期设计 §5）。
-    __pushStatementScope(statementId: string): void {
-      registry.scope.push(statementId)
+    __pushStatementScope(_statementId: string): void {
+      frames.push([])
     },
     __popStatementScope(escapePtrs: ReadonlySet<number>): void {
-      registry.scope.pop(escapePtrs)
+      const frame = frames.pop()
+      if (!frame) return
+      for (const id of frame) {
+        if (escapePtrs.has(id)) continue
+        k.tryRelease(id as never)
+        tracked.delete(id)
+      }
     },
     __drainStatementScope(escapePtrs: ReadonlySet<number>): void {
-      registry.scope.drain(escapePtrs)
+      while (frames.length) {
+        const frame = frames.pop()!
+        for (const id of frame) {
+          if (escapePtrs.has(id)) continue
+          k.tryRelease(id as never)
+          tracked.delete(id)
+        }
+      }
     },
 
     // ── 实体图元 ──
     makeBox(dx: number, dy: number, dz: number): BrepHandle {
-      const { arg, dv } = primitiveArgs(k)
-      try {
-        const st = k.find('SmApiCreateBox')(arg, dx, dy, dz, arg + 24)
-        expectOk(st, 'makeBox')
-        return newSolid(dv.getUint32(arg + 24, true))
-      } finally {
-        k.free(arg)
-      }
+      return track(k.makeBox(0, 0, 0, dx, dy, dz)) as unknown as BrepHandle
     },
     makeBoxFromCorners(corner1: BrepVec3, corner2: BrepVec3): BrepHandle {
       const b = primitives.makeBox(corner2.x - corner1.x, corner2.y - corner1.y, corner2.z - corner1.z)
       return primitives.translate(b, corner1.x, corner1.y, corner1.z)
     },
     makeCylinder(radius: number, height: number): BrepHandle {
-      // smlib：center 是底面中心（探针实证 bbox z∈[0,h]），+Z 向上。
-      const { arg, dv } = primitiveArgs(k)
-      try {
-        const st = k.find('SmApiCreateCylinder')(arg, radius, height, arg + 24)
-        expectOk(st, 'makeCylinder')
-        return newSolid(dv.getUint32(arg + 24, true))
-      } finally {
-        k.free(arg)
-      }
+      return track(k.makeCylinder(0, 0, 0, radius, height)) as unknown as BrepHandle
     },
     makeSphere(radius: number): BrepHandle {
-      const { arg, dv } = primitiveArgs(k)
-      try {
-        const st = k.find('SmApiCreateSphere')(arg, radius, arg + 24)
-        expectOk(st, 'makeSphere')
-        return newSolid(dv.getUint32(arg + 24, true))
-      } finally {
-        k.free(arg)
-      }
+      return track(k.makeSphere(0, 0, 0, radius)) as unknown as BrepHandle
     },
     makeCone(r1: number, r2: number, height: number): BrepHandle {
-      // SmApiCreateCone(base origin, rBase, rTop, h)——base 为底面中心，h 全高。
-      const { arg, dv } = primitiveArgs(k)
-      try {
-        const st = k.find('SmApiCreateCone')(arg, r1, r2, height, arg + 24)
-        expectOk(st, 'makeCone')
-        return newSolid(dv.getUint32(arg + 24, true))
-      } finally {
-        k.free(arg)
-      }
-    },
-    makeTorus(majorRadius: number, minorRadius: number): BrepHandle {
-      const { arg, dv } = primitiveArgs(k)
-      try {
-        const st = k.find('SmApiCreateTorus')(arg, majorRadius, minorRadius, arg + 24)
-        expectOk(st, 'makeTorus')
-        return newSolid(dv.getUint32(arg + 24, true))
-      } finally {
-        k.free(arg)
-      }
+      return track(k.makeCone(0, 0, 0, r1, r2, height)) as unknown as BrepHandle
     },
     makeRectangle(width: number, height: number): BrepHandle {
-      // P2：4 条线段环 → SmApiCreatePlanarFacesEx（XY 平面，左下角在原点）。
       const pts: BrepVec3[] = [
         { x: 0, y: 0, z: 0 },
         { x: width, y: 0, z: 0 },
@@ -847,547 +408,228 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       ]
       const curves: number[] = []
       for (let i = 0; i < 4; i++) {
-        const p = ptsToMemory(k, [pts[i], pts[(i + 1) % 4]])
-        try {
-          const out = k.malloc(4)
-          try {
-            const dv = memOf(k)
-            dv.setUint32(out, 0, true)
-            expectOk(k.find('SmApiCreateLineSegment')(p.ptr, p.ptr + 24, out), 'makeRectangle:line')
-            curves.push(dv.getUint32(out, true))
-          } finally {
-            k.free(out)
-          }
-        } finally {
-          k.free(p.ptr)
-        }
+        curves.push(track(k.makeLineSegment(asArray(pts[i]!), asArray(pts[(i + 1) % 4]!))) as unknown as number)
       }
-      return createPlanarFaces(k, curves)
+      // 成功后 owned 输入曲线被平面面消费（tombstone）；tracked 残留死槽在 pop/清扫时
+      // tryRelease 幂等返回 false，无副作用。
+      return track(k.planarFaces(curves as never)) as unknown as BrepHandle
     },
-    makeEllipsoid(rx: number, ry: number, rz: number): BrepHandle {
-      // C 缺口：SmApiCreateEllipse 是平面椭圆曲线，非椭球体。显式失败（§5.6）。
-      void rx; void ry; void rz
+    makeEllipsoid(_rx: number, _ry: number, _rz: number): BrepHandle {
       return unsupported('makeEllipsoid')
     },
-    makeVertex(x: number, y: number, z: number): BrepHandle {
-      // C 缺口：SM_API 无顶点构造原语（SmApiVertexGetPoint 是查询）。显式失败。
-      void x; void y; void z
+    makeTorus(majorRadius: number, minorRadius: number): BrepHandle {
+      return track(k.makeTorus(0, 0, 0, majorRadius, minorRadius)) as unknown as BrepHandle
+    },
+    makeVertex(_x: number, _y: number, _z: number): BrepHandle {
       return unsupported('makeVertex')
     },
 
     // ── 造型运算 ──
     extrude(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle {
-      // B：face → 全部环曲线（外环 + 孔环）→ SmApiCreateLinearSweepEx（方向+距离+封盖）。
-      // 孔环处理：外环扫掠成体后，每个孔环扫掠成柱并布尔差（孔在面上时若只扫掠
-      // 外环，孔会变实心——text 的 'O'/'o' 字形即此 bug 的比对差异）。
-      const loops = faceLoopsCurves(k, shape as unknown as number)
+      const n = shape as unknown as number
+      const loops = faceLoopsCurves(n)
       const curves = loops[0] ?? []
       if (curves.length === 0) throw new Error('[smlib-kernel] extrude: no outer-loop curves')
       const holes = loops.slice(1).filter((l) => l.length > 0)
-      const sweep = (cs: number[]): BrepHandle => {
-        const dir = k.malloc(24)
-        const arr = k.malloc(4 + cs.length * 4)
-        const out = k.malloc(4)
-        try {
-          const dv = memOf(k)
-          const dist = Math.hypot(dx, dy, dz)
-          // SmApiCreateLinearSweep 契约：rSweepDir 为**方向**、dSweepDist 为距离。
-          // 内核实现不归一化 dir（实测 dist×dir 双重放大：length 5 → 挤出 25），
-          // 故桥必须传单位方向 + 距离。
-          const inv = dist > 0 ? 1 / dist : 0
-          dv.setFloat64(dir, dx * inv, true)
-          dv.setFloat64(dir + 8, dy * inv, true)
-          dv.setFloat64(dir + 16, dz * inv, true)
-          dv.setUint32(out, 0, true)
-          cs.forEach((c, i) => dv.setUint32(arr + i * 4, c, true))
-          expectOk(
-            k.find('SmApiCreateLinearSweepEx')(arr, cs.length, dir, dist, 1, out),
-            'extrude',
-          )
-          return newSolid(dv.getUint32(out, true))
-        } finally {
-          k.free(dir)
-          k.free(arr)
-          k.free(out)
-        }
-      }
-      let solid = sweep(curves)
-      for (const h of holes) {
-        const holeSolid = sweep(h)
-        solid = booleanOp('SmApiBooleanDifference', solid, holeSolid, 'extrude-hole-cut')
+      const dist = Math.hypot(dx, dy, dz)
+      if (dist === 0) throw new Error('[smlib-kernel] extrude: zero extrusion vector')
+      const inv = 1 / dist
+      const dir: [number, number, number] = [dx * inv, dy * inv, dz * inv]
+      let solid = track(k.linearSweep(curves as never, dir, dist, true)) as unknown as BrepHandle
+      for (const hole of holes) {
+        const holeSolid = track(k.linearSweep(hole as never, dir, dist, true))
+        solid = track(k.cut(solid as never, holeSolid as never)) as unknown as BrepHandle
       }
       return solid
     },
     revolveVec(shape: BrepHandle, center: BrepVec3, direction: BrepVec3, angleDeg: number): BrepHandle {
-      // B：face → 外环曲线 → SmApiCreateRotationalSweepEx（角度制直通）。
-      const curves = faceOuterCurves(k, shape as unknown as number)
+      const n = shape as unknown as number
+      const curves = faceOuterCurves(n)
       if (curves.length === 0) throw new Error('[smlib-kernel] revolveVec: no outer-loop curves')
-      const base = k.malloc(24)
-      const axis = k.malloc(24)
-      const arr = k.malloc(4 + curves.length * 4)
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(base, center.x, true)
-        dv.setFloat64(base + 8, center.y, true)
-        dv.setFloat64(base + 16, center.z, true)
-        dv.setFloat64(axis, direction.x, true)
-        dv.setFloat64(axis + 8, direction.y, true)
-        dv.setFloat64(axis + 16, direction.z, true)
-        dv.setUint32(out, 0, true)
-        curves.forEach((c, i) => dv.setUint32(arr + i * 4, c, true))
-        expectOk(
-          k.find('SmApiCreateRotationalSweepEx')(arr, curves.length, base, axis, angleDeg, 1, out),
-          'revolveVec',
-        )
-        return newSolid(dv.getUint32(out, true))
-      } finally {
-        k.free(base)
-        k.free(axis)
-        k.free(arr)
-        k.free(out)
-      }
+      return track(
+        k.rotationalSweep(curves as never, asArray(center), asArray(direction), angleDeg, true),
+      ) as unknown as BrepHandle
     },
-    sweep(profile: BrepHandle, spine: BrepHandle): BrepHandle {
-      // C 组合（B 简化）：profile 外环曲线 + spine 折线采样 → 线性扫掠近似。
-      // L1 sweep 是"profile face 沿 spine wire"；smlib SmApiCreateCurveSweep 需要
-      // BSplineCurve 路径 + 高级选项，超出 L1 语义——本轮按能力缺口显式失败。
-      void profile; void spine
+    sweep(_profile: BrepHandle, _spine: BrepHandle): BrepHandle {
       return unsupported('sweep')
     },
-    loft(sections: BrepHandle[], ruled: boolean, endPoint?: BrepVec3): BrepHandle {
-      // B：每 wire 查曲线数组 → SmApiCreateSkinPrimitiveEx（ruled → degree 1）。
+    loft(sections: BrepHandle[], ruled: boolean, _endPoint?: BrepVec3): BrepHandle {
       if (sections.length < 2) throw new Error('[smlib-kernel] loft: need >= 2 sections')
-      void endPoint // smlib 无收口退化截面语义（方案 §4.3 记录探针项）
       const allCurves: number[] = []
       const counts: number[] = []
       for (const s of sections) {
         const curves = wireHandles.get(s as unknown as number)
-        if (!curves || curves.length === 0) {
-          throw new Error('[smlib-kernel] loft: section is not a makeWire handle')
-        }
+        if (!curves || curves.length === 0) throw new Error('[smlib-kernel] loft: section is not a makeWire handle')
         counts.push(curves.length)
         allCurves.push(...curves)
       }
-      const countsBuf = k.malloc(4 * counts.length)
-      const arr = k.malloc(4 * allCurves.length)
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        counts.forEach((c, i) => dv.setUint32(countsBuf + i * 4, c, true))
-        allCurves.forEach((c, i) => dv.setUint32(arr + i * 4, c, true))
-        dv.setUint32(out, 0, true)
-        expectOk(
-          k.find('SmApiCreateSkinPrimitiveEx')(countsBuf, counts.length, arr, allCurves.length, ruled ? 1 : 3, 1, out),
-          'loft',
-        )
-        return newSolid(dv.getUint32(out, true))
-      } finally {
-        k.free(countsBuf)
-        k.free(arr)
-        k.free(out)
-      }
+      return track(k.loft(counts, allCurves as never, ruled ? 1 : 3, true)) as unknown as BrepHandle
     },
-    sew(shapes: BrepHandle[], tolerance?: number): BrepHandle {
-      // C 组合：多 brep/face 缝合无直接 API（SmApiStitch 是单 brep 原地）。
-      // 用布尔并集近似仅在 face 同体场景成立——语义不完整，按缺口显式失败。
-      void shapes; void tolerance
+    sew(_shapes: BrepHandle[], _tolerance?: number): BrepHandle {
       return unsupported('sew')
     },
-    sewAndSolidify(faces: BrepHandle[], tolerance?: number): BrepHandle {
-      void faces; void tolerance
+    sewAndSolidify(_faces: BrepHandle[], _tolerance?: number): BrepHandle {
       return unsupported('sewAndSolidify')
     },
-    shell(solid: BrepHandle, facesToRemove: BrepHandle[], thickness: number, tolerance: number): BrepHandle {
-      // A：SmApiShellBrepFullEx（面集合 + 距离 + 扩展/自交关）。facesToRemove 是
-      // solid 的面句柄，直接传（桥对 const SmBrep* 只读、面句柄即其子形状）。
-      // 距离符号（SmOffsetExecutive::ShellBrep 语义，探针实测 2026-10-27）：
-      //   dDist > 0 → offset 体向外长大，结果 = offset − original（盒子外的"外套"）；
-      //   dDist < 0 → SetInset(TRUE)，结果 = original − inset（向内等厚薄壁）。
-      // faijs shell 语义 = 向内薄壁 → 传 -thickness。
-      void tolerance
-      const arr = k.malloc(4 * facesToRemove.length)
-      const out = k.malloc(4)
+    shell(solid: BrepHandle, facesToRemove: BrepHandle[], thickness: number, _tolerance: number): BrepHandle {
+      const n = solid as unknown as number
+      const openings = facesToRemove.map((f) => f as unknown as never)
+      // 包壳内部已取负厚度（向内薄壁）；适配器只传正 thickness。
+      const result = track(k.shell(n as never, thickness, openings))
       try {
-        const dv = memOf(k)
-        facesToRemove.forEach((f, i) => dv.setUint32(arr + i * 4, f as unknown as number, true))
-        dv.setUint32(out, 0, true)
-        expectOk(
-          k.find('SmApiShellBrepFullEx')(solid, -thickness, 0, 1, 1, arr, facesToRemove.length, out),
-          'shell',
-        )
-        const result = newSolid(dv.getUint32(out, true))
-        // 统一面朝向（**用户实机缺陷的修复点**，2026-10-28）：
-        // SMLib 抽壳出来的 offset 内壁面没有标记 Reversed，而桥的
-        // `SmApiSurfaceNormalEx` 只对**曲面**求法向（`EvaluateNormal(uv,FALSE,FALSE)`）、
-        // 不看 `SmFace` 朝向 ⇒ 这些面报出**指向材料内部**的法向（occt 同口径全是外向）。
-        // 实测 20³ 盒开口抽壳 11 面里 5 面反、圆角盒（200×100×40 + R10 + 厚3）19 面里 5 面反，
-        // 渲染上表现为"正面看是镂空、反面看才封闭"；engrave / extrude / sketch-on-face
-        // 这些吃 `surfaceNormal` 的 op 也会跟着反向。
-        //
-        // 修法选在**源头**而不是读法向时翻转：`SmApiUnifyNormalsEx` 一次调用统一整个
-        // 实体的面朝向（原地），之后 surfaceNormal / 三角化绕序 / 后续 op 全部一致。
-        // 实测成本与风险：开口抽壳反法向 5 → 0，三角化体积与面数不变（3392 / 11 面）。
-        //
-        // 已知限制（未修，勿当已修）：**全封闭抽壳的第二壳（内腔）不在 unify 作用域内**，
-        // 12 面里仍有 6 面朝材料（见 core/test/smlib-kernel 的 known-limitation 用例）。
-        try {
-          expectOk(k.find('SmApiUnifyNormalsEx')(result, 16), 'shell/unifyNormals')
-        } catch {
-          // 统一失败不影响 shell 成功语义：几何本身有效，只是法向可能朝材料。
-          // 不回滚、不抛错（否则原本可用的抽壳会因"朝向修正失败"整体失败）。
-        }
-        return result
-      } finally {
-        k.free(arr)
-        k.free(out)
+        k.unifyNormals(result as never, 16)
+      } catch {
+        // 统一法向失败不回滚、不抛错：几何本身有效，仅内壁朝向可能异常。
       }
+      return result as unknown as BrepHandle
     },
-    hullFromPoints(points: BrepVec3[], tolerance: number): BrepHandle {
-      void points; void tolerance
+    hullFromPoints(_points: BrepVec3[], _tolerance: number): BrepHandle {
       return unsupported('hullFromPoints')
     },
     bsplineSurface(points: BrepVec3[], rows: number, cols: number): BrepHandle {
-      // A：SmApiCreateSurfaceFromOrderedPointsEx（过点插值；≥4×4 由内核校验）。
-      const p = ptsToMemory(k, points)
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        dv.setUint32(out, 0, true)
-        expectOk(
-          k.find('SmApiCreateSurfaceFromOrderedPointsEx')(p.ptr, points.length, rows, cols, out),
-          'bsplineSurface',
-        )
-        return dv.getUint32(out, true) as BrepHandle
-      } finally {
-        k.free(p.ptr)
-        k.free(out)
-      }
+      const result = track(k.surfaceFromPoints(points.map(asArray), rows, cols))
+      return result as unknown as BrepHandle
     },
     makeSolid(shell: BrepHandle): BrepHandle {
-      // B：smlib 的 shell 句柄即 solid（P1 getSubShapes('shell') 占位），
-      // StitchIntoSolid 复核流形后返回原句柄。
-      const out = k.malloc(8)
-      try {
-        const dv = memOf(k)
-        dv.setUint32(out, 0, true)
-        expectOk(k.find('SmApiStitchIntoSolidEx')(shell, out), 'makeSolid')
-        return shell
-      } finally {
-        k.free(out)
-      }
+      // StitchResult 字段忽略；旧语义：返回 shell 原句柄。
+      k.stitchSolid(shell as never)
+      return shell
     },
-    thicken(shape: BrepHandle, thickness: number, tolerance?: number): BrepHandle {
-      void shape; void thickness; void tolerance
+    thicken(_shape: BrepHandle, _thickness: number, _tolerance?: number): BrepHandle {
       return unsupported('thicken')
     },
 
-    // ── 布尔与分割（副本化保句柄契约）──
+    // ── 布尔与分割（包壳 facade 深拷贝；输入句柄保持存活）──
     fuse(a: BrepHandle, b: BrepHandle): BrepHandle {
-      return booleanOp('SmApiBooleanUnion', a, b, 'fuse')
+      return track(k.fuse(a as never, b as never)) as unknown as BrepHandle
     },
     cut(a: BrepHandle, b: BrepHandle): BrepHandle {
-      return booleanOp('SmApiBooleanDifference', a, b, 'cut')
+      return track(k.cut(a as never, b as never)) as unknown as BrepHandle
     },
     common(a: BrepHandle, b: BrepHandle): BrepHandle {
-      return booleanOp('SmApiBooleanIntersection', a, b, 'common')
+      return track(k.common(a as never, b as never)) as unknown as BrepHandle
     },
     intersect(a: BrepHandle, b: BrepHandle): BrepHandle {
-      return booleanOp('SmApiBooleanIntersection', a, b, 'intersect')
+      return track(k.common(a as never, b as never)) as unknown as BrepHandle
     },
     fuseAll(shapes: BrepHandle[]): BrepHandle {
-      // A：SmApiMergeBrepsEx（UNION=1；入参副本化，原句柄不动）。
       if (shapes.length < 2) throw new Error('[smlib-kernel] fuseAll: need >= 2 shapes')
-      const arr = k.malloc(4 * shapes.length)
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        shapes.forEach((s, i) => dv.setUint32(arr + i * 4, s as unknown as number, true))
-        dv.setUint32(out, 0, true)
-        expectOk(k.find('SmApiMergeBrepsEx')(arr, shapes.length, 1, out), 'fuseAll')
-        return newSolid(dv.getUint32(out, true))
-      } finally {
-        k.free(arr)
-        k.free(out)
-      }
+      return track(k.mergeBreps(shapes.map((s) => s as never), SmwMergeOp.Union)) as unknown as BrepHandle
     },
     sectionByPlane(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle[] {
-      // A：SmApiIntersectBrepWithPlaneEx → 截面曲线句柄数组。
-      const pt = k.malloc(24)
-      const nrm = k.malloc(24)
-      const count = k.malloc(4)
-      const arrOut = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(pt, point.x, true)
-        dv.setFloat64(pt + 8, point.y, true)
-        dv.setFloat64(pt + 16, point.z, true)
-        dv.setFloat64(nrm, normal.x, true)
-        dv.setFloat64(nrm + 8, normal.y, true)
-        dv.setFloat64(nrm + 16, normal.z, true)
-        dv.setUint32(count, 0, true)
-        dv.setUint32(arrOut, 0, true)
-        expectOk(
-          k.find('SmApiIntersectBrepWithPlaneEx')(shape, pt, nrm, count, arrOut),
-          'sectionByPlane',
-        )
-        const n = dv.getUint32(count, true)
-        const arr = dv.getUint32(arrOut, true)
-        if (!arr) throw new Error('[smlib-kernel] sectionByPlane: bridge returned null array')
-        try {
-          const ptrs = new Uint32Array(k.memory.buffer, arr, n)
-          return Array.from(ptrs, (p) => p as BrepHandle)
-        } finally {
-          k.free(arr)
-        }
-      } finally {
-        k.free(pt)
-        k.free(nrm)
-        k.free(count)
-        k.free(arrOut)
-      }
+      const curves = k.sectionPlane(shape as never, asArray(point), asArray(normal))
+      return curves.map((c) => track(c)) as unknown as BrepHandle[]
     },
     splitByPlane(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): { positive: BrepHandle; negative: BrepHandle } {
-      // B：SmApiCut 内核不补剖面（SmBrepCutting::DoCut 只删不盖，头文件注释
-      // "a new planar face is created" 与实现不符）——切半是 5 面开口壳，面积/体积
-      // 系统性偏小（Z=5 切 20³：area 1600 vs 2000，vol 5333.33 vs 6000）。
-      // 改用与 brep-ops.splitBrep 相同的半空间盒 + 布尔差算法（node/worker 均已验证
-      // 稳定）：positive = shape − 负半盒（法向正侧）、negative = shape − 正半盒
-      // （法向负侧）。盒边界与切割平面重合，差集后半体在切面处自动闭合。
-      const bb = primitives.getBoundingBox(shape)
-      const size = Math.max(bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin)
-      const half = size * 3
-      // 旋转矩阵：局部 Z 轴 → 法向 n（Rodrigues，3×4 行主序，与 applyMatrix 同约定）。
-      const n = normVec(normal)
-      const zAxis = { x: 0, y: 0, z: 1 }
-      const axis = cross(zAxis, n)
-      const cosA = dot(zAxis, n)
-      const sinA = Math.hypot(axis.x, axis.y, axis.z)
-      let rot: number[]
-      if (sinA < 1e-12) {
-        // n ≈ z 或 ≈ −z：旋转退化为恒等/翻转（绕 X 转 π）。
-        rot = cosA > 0
-          ? [1, 0, 0, 0, 1, 0, 0, 0, 1]
-          : [1, 0, 0, 0, -1, 0, 0, 0, -1]
-      } else {
-        const a = { x: axis.x / sinA, y: axis.y / sinA, z: axis.z / sinA }
-        const kx = a.x, ky = a.y, kz = a.z
-        const K = [
-          [0, -kz, ky],
-          [kz, 0, -kx],
-          [-ky, kx, 0],
-        ]
-        rot = new Array<number>(9)
-        for (let i = 0; i < 3; i++) {
-          for (let j = 0; j < 3; j++) {
-            let kk = 0
-            for (let l = 0; l < 3; l++) kk += K[i][l] * K[l][j]
-            rot[i * 3 + j] = (i === j ? 1 : 0) + sinA * K[i][j] + (1 - cosA) * kk
-          }
-        }
-      }
-      const m = [rot[0], rot[1], rot[2], point.x, rot[3], rot[4], rot[5], point.y, rot[6], rot[7], rot[8], point.z]
-      // 正半盒：局部 z ∈ [0, half]；负半盒：局部 z ∈ [−half, 0]。
-      const posBox = primitives.transform(
-        primitives.makeBoxFromCorners({ x: -half, y: -half, z: 0 }, { x: half, y: half, z: half }),
-        m,
+      const n = normal
+      const negative = track(k.cutPlane(shape as never, asArray(point), asArray(n)))
+      const positive = track(
+        k.cutPlane(shape as never, asArray(point), [-n.x, -n.y, -n.z]),
       )
-      const negBox = primitives.transform(
-        primitives.makeBoxFromCorners({ x: -half, y: -half, z: -half }, { x: half, y: half, z: 0 }),
-        m,
-      )
-      try {
-        const negative = booleanOp('SmApiBooleanDifference', shape, posBox, 'splitByPlane:negative')
-        const positive = booleanOp('SmApiBooleanDifference', shape, negBox, 'splitByPlane:positive')
-        return { positive, negative }
-      } finally {
-        primitives.release(posBox)
-        primitives.release(negBox)
-      }
+      return { positive: positive as unknown as BrepHandle, negative: negative as unknown as BrepHandle }
     },
 
     // ── 倒角与圆角 ──
-    chamfer(solid: BrepHandle, edges: BrepHandle[], distance: number): BrepHandle {
-      // B（语义差异大）：SmApiChamferFillet 是**全体边自动倒角**（按斜切面宽），
-      // 非逐边。副本化入参后全局倒角（§4.3 记录；edges 集合忽略）。
-      void edges
-      const copy = primitives.copy(solid)
-      expectOk(k.find('SmApiChamferFilletEx')(copy, distance), 'chamfer')
-      return copy
+    chamfer(solid: BrepHandle, _edges: BrepHandle[], distance: number): BrepHandle {
+      // 包壳为全局等宽倒角；edges 集合忽略（旧实现同口径）。
+      return track(k.chamferEdges(solid as never, distance)) as unknown as BrepHandle
     },
-    chamferDistAngle(solid: BrepHandle, edges: BrepHandle[], distance: number, angleDeg: number): BrepHandle {
-      // smlib 无距离-角度双参倒角 → 按能力缺口显式失败。
-      void solid; void edges; void distance; void angleDeg
+    chamferDistAngle(_solid: BrepHandle, _edges: BrepHandle[], _distance: number, _angleDeg: number): BrepHandle {
       return unsupported('chamferDistAngle')
     },
     fillet(solid: BrepHandle, edges: BrepHandle[], radius: number): BrepHandle {
-      // B：副本化 + 按原边索引映射到副本边 + SmApiFilletEdgesEx（逐边，xsect=circular）。
-      if (edges.length === 0) return primitives.copy(solid)
-      const copy = primitives.copy(solid)
-      const origEdges = primitives.getSubShapes(solid, 'edge').map((h) => h as unknown as number)
-      const idxMap = new Map<number, number>()
-      origEdges.forEach((e, i) => idxMap.set(e, i))
-      const copyEdges = primitives.getSubShapes(copy, 'edge').map((h) => h as unknown as number)
-      const sel = edges
-        .map((e) => idxMap.get(e as unknown as number))
-        .filter((i): i is number => i !== undefined)
-        .map((i) => copyEdges[i])
-      if (sel.length === 0) throw new Error('[smlib-kernel] fillet: no matching edges on copy')
-      const arr = k.malloc(4 * sel.length)
-      try {
-        const dv = memOf(k)
-        sel.forEach((e, i) => dv.setUint32(arr + i * 4, e, true))
-        expectOk(k.find('SmApiFilletEdgesEx')(copy, arr, sel.length, radius), 'fillet')
-        return copy
-      } finally {
-        k.free(arr)
-      }
+      if (edges.length === 0) return track(k.brepCopy(solid as never)) as unknown as BrepHandle
+      return track(k.filletEdges(solid as never, edges as never, radius)) as unknown as BrepHandle
     },
-    filletVariable(solid: BrepHandle, edge: BrepHandle, startRadius: number, endRadius: number): BrepHandle {
-      // A 项（SmApiVariableRadiusFillet）需要 SmTArray 入参桥，P2 本轮未补 → 显式失败。
-      void solid; void edge; void startRadius; void endRadius
+    filletVariable(_solid: BrepHandle, _edge: BrepHandle, _startRadius: number, _endRadius: number): BrepHandle {
       return unsupported('filletVariable')
     },
     filletWithHistory(
       solid: BrepHandle, edges: BrepHandle[], radius: number, inputFaceHashes: number[], hashUpperBound: number,
     ): BrepEvolutionData {
-      // P3：集合差实现（见面演化区段注释）。
       const result = primitives.fillet(solid, edges, radius)
       const outHashes = new Set(primitives.subShapeHashes(result, 'face', hashUpperBound))
       return { result, modified: [], generated: [], deleted: inputFaceHashes.filter((h) => !outHashes.has(h)) }
     },
 
-    // ── 变换 ──
+    // ── 变换（原地；包壳 transformMatrix 已吸收 SMLib 转置 quirk，适配器禁止再转置）──
     translate(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle {
-      // 虚拟 compound：逐零件平移（原地，零件独立）。
       const cKids = compoundKidsOf(shape)
       if (cKids) {
         for (const kid of cKids) primitives.translate(kid, dx, dy, dz)
         return shape
       }
-      const p = k.malloc(24)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(p, dx, true)
-        dv.setFloat64(p + 8, dy, true)
-        dv.setFloat64(p + 16, dz, true)
-        expectOk(k.find('SmApiTranslate')(shape, p), 'translate')
-        return shape
-      } finally {
-        k.free(p)
-      }
+      k.translate(shape as never, dx, dy, dz)
+      return shape
     },
     scale(shape: BrepHandle, center: BrepVec3, factor: number): BrepHandle {
-      // 虚拟 compound：逐零件缩放（原地，零件独立）。
       const cKids = compoundKidsOf(shape)
       if (cKids) {
         for (const kid of cKids) primitives.scale(kid, center, factor)
         return shape
       }
-      const p = k.malloc(48)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(p, center.x, true)
-        dv.setFloat64(p + 8, center.y, true)
-        dv.setFloat64(p + 16, center.z, true)
-        dv.setFloat64(p + 24, factor, true)
-        dv.setFloat64(p + 32, factor, true)
-        dv.setFloat64(p + 40, factor, true)
-        expectOk(k.find('SmApiScaleByPt')(shape, p, p + 24), 'scale')
-        return shape
-      } finally {
-        k.free(p)
-      }
+      k.scaleByPoint(shape as never, center.x, center.y, center.z, factor)
+      return shape
     },
-    rotate(shape: BrepHandle, axis: { point: BrepVec3; direction: BrepVec3 }, angleRad: number): BrepHandle {
-      // 虚拟 compound：逐零件旋转（原地，零件独立）。
+    transform(shape: BrepHandle, matrix: number[]): BrepHandle {
+      if (matrix.length !== 12) throw new Error('[smlib-kernel] transform: matrix must be 12 elements (3×4 row-major)')
       const cKids = compoundKidsOf(shape)
       if (cKids) {
-        for (const kid of cKids) primitives.rotate(kid, axis, angleRad)
+        for (const kid of cKids) primitives.transform(kid, matrix)
         return shape
       }
-      // 契约：弧度 → smlib 度（SmApiRotate 第四参为度，头文件实证）。
-      // 注意：emscripten 导出 SmApiRotate(brep, originPtr, dirPtr, angleDeg)
-      // 的 angleDeg 是 f64 **数值**（非指针）——传指针会被当度数解释。
-      const p = k.malloc(56)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(p, axis.point.x, true)
-        dv.setFloat64(p + 8, axis.point.y, true)
-        dv.setFloat64(p + 16, axis.point.z, true)
-        dv.setFloat64(p + 24, axis.direction.x, true)
-        dv.setFloat64(p + 32, axis.direction.y, true)
-        dv.setFloat64(p + 40, axis.direction.z, true)
-        expectOk(k.find('SmApiRotate')(shape, p, p + 24, (angleRad * 180) / Math.PI), 'rotate')
-        return shape
-      } finally {
-        k.free(p)
-      }
+      k.transformMatrix(shape as never, matrix)
+      return shape
+    },
+    located(shape: BrepHandle, matrix: number[]): BrepHandle {
+      return primitives.transform(shape, matrix)
+    },
+    locate(shape: BrepHandle, matrix: number[]): BrepHandle {
+      return primitives.transform(shape, matrix)
+    },
+    generalTransform(shape: BrepHandle, matrix: number[]): BrepHandle {
+      return primitives.transform(shape, matrix)
     },
     copy(shape: BrepHandle): BrepHandle {
-      // 虚拟 compound：逐零件深拷贝后重组（零件独立，拷贝不破坏独立性）。
       const cKids = compoundKidsOf(shape)
       if (cKids) return newCompound(cKids.map((kid) => primitives.copy(kid)))
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        dv.setUint32(out, 0, true)
-        expectOk(k.find('SmApiBrepCopy')(shape, out), 'copy')
-        return newSolid(dv.getUint32(out, true))
-      } finally {
-        k.free(out)
-      }
+      return track(k.brepCopy(shape as never)) as unknown as BrepHandle
     },
     copyShape(shape: BrepHandle): BrepHandle {
       return primitives.copy(shape)
     },
     composeTransform(m1: number[], m2: number[]): number[] {
-      // 3×4 行主序 12 元素：[r00,r01,r02,tx, r10,r11,r12,ty, r20,r21,r22,tz]
-      const out = new Array<number>(12).fill(0)
-      for (let i = 0; i < 3; i++) {
-        for (let j = 0; j < 3; j++) {
-          out[i * 4 + j] =
-            m1[i * 4 + 0] * m2[0 * 4 + j] +
-            m1[i * 4 + 1] * m2[1 * 4 + j] +
-            m1[i * 4 + 2] * m2[2 * 4 + j]
-        }
-        out[i * 4 + 3] =
-          m1[i * 4 + 0] * m2[0 * 4 + 3] +
-          m1[i * 4 + 1] * m2[1 * 4 + 3] +
-          m1[i * 4 + 2] * m2[2 * 4 + 3] +
-          m1[i * 4 + 3]
-      }
-      return out
-    },
-    transform(shape: BrepHandle, matrix: number[]): BrepHandle {
-      // B：3×4 行主序 → SmApiTransformMatrixEx（SetFrom4x4，可编码反射/剪切）。
-      return applyMatrix(k, shape, matrix, 'transform')
-    },
-    located(shape: BrepHandle, matrix: number[]): BrepHandle {
-      return applyMatrix(k, shape, matrix, 'located')
-    },
-    locate(shape: BrepHandle, matrix: number[]): BrepHandle {
-      return applyMatrix(k, shape, matrix, 'locate')
-    },
-    generalTransform(shape: BrepHandle, matrix: number[]): BrepHandle {
-      return applyMatrix(k, shape, matrix, 'generalTransform')
+      return composeTransform(m1, m2)
     },
     mirror(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle {
-      // 反射矩阵（3×4）：R = I − 2nnᵀ，t = 2(n·p)n。
       const n = normVec(normal)
-      const r = (i: number, j: number): number => (i === j ? 1 : 0) - 2 * [n.x, n.y, n.z][i] * [n.x, n.y, n.z][j]
-      const t = (i: number): number => 2 * dot(n, point) * [n.x, n.y, n.z][i]
+      const r = (i: number, j: number): number => (i === j ? 1 : 0) - 2 * [n.x, n.y, n.z][i]! * [n.x, n.y, n.z][j]!
+      const t = (i: number): number => 2 * dot(n, point) * [n.x, n.y, n.z][i]!
       const m = [
         r(0, 0), r(0, 1), r(0, 2), t(0),
         r(1, 0), r(1, 1), r(1, 2), t(1),
         r(2, 0), r(2, 1), r(2, 2), t(2),
       ]
-      return applyMatrix(k, shape, m, 'mirror')
+      return primitives.transform(shape, m)
+    },
+    rotate(shape: BrepHandle, axis: { point: BrepVec3; direction: BrepVec3 }, angleRad: number): BrepHandle {
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        for (const kid of cKids) primitives.rotate(kid, axis, angleRad)
+        return shape
+      }
+      const deg = (angleRad * 180) / Math.PI
+      k.rotate(
+        shape as never,
+        axis.point.x, axis.point.y, axis.point.z,
+        axis.direction.x, axis.direction.y, axis.direction.z,
+        deg,
+      )
+      return shape
     },
 
     // ── 阵列 ──
     linearPattern(shape: BrepHandle, direction: BrepVec3, spacing: number, count: number): BrepHandle[] {
-      // C 组合：copy + translate 循环（含原位置）。
       const out: BrepHandle[] = [shape]
       for (let i = 1; i < count; i++) {
         out.push(primitives.translate(primitives.copy(shape), direction.x * spacing * i, direction.y * spacing * i, direction.z * spacing * i))
@@ -1395,7 +637,6 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return out
     },
     circularPattern(shape: BrepHandle, center: BrepVec3, axis: BrepVec3, angleStep: number, count: number): BrepHandle[] {
-      // C 组合：copy + rotate 循环（角度制换算，绕 center/axis）。
       const out: BrepHandle[] = [shape]
       for (let i = 1; i < count; i++) {
         const c = primitives.copy(shape)
@@ -1405,184 +646,86 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return out
     },
     gridPattern(
-      shape: BrepHandle, directionX: BrepVec3, directionY: BrepVec3, spacingX: number, spacingY: number, countX: number, countY: number,
+      _shape: BrepHandle, _directionX: BrepVec3, _directionY: BrepVec3,
+      _spacingX: number, _spacingY: number, _countX: number, _countY: number,
     ): BrepHandle {
-      // C：L1 要求返回 compound 单句柄；smlib 无 compound → 显式失败（§4.3）。
-      void shape; void directionX; void directionY; void spacingX; void spacingY; void countX; void countY
       return unsupported('gridPattern')
     },
 
     // ── 曲线构造 ──
     makeLineEdge(start: BrepVec3, end: BrepVec3): BrepHandle {
-      // A：SmApiCreateLineSegment（输出 SmLine* 曲线句柄，可当 L1 边用——
-      // 查询桥已支持裸曲线直通）。
-      const p = ptsToMemory(k, [start, end])
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        dv.setUint32(out, 0, true)
-        expectOk(k.find('SmApiCreateLineSegment')(p.ptr, p.ptr + 24, out), 'makeLineEdge')
-        return dv.getUint32(out, true) as BrepHandle
-      } finally {
-        k.free(p.ptr)
-        k.free(out)
-      }
+      return track(k.makeLineSegment(asArray(start), asArray(end))) as unknown as BrepHandle
     },
     makeArcEdge(start: BrepVec3, mid: BrepVec3, end: BrepVec3): BrepHandle {
-      // B：三点 → 外接圆圆心 + 起止角 → SmApiCreateArc（XY 平面）→ 变换到三点平面。
-      return threePointArc(k, start, mid, end)
+      return threePointArc(start, mid, end)
     },
     makeBezierEdge(controlPoints: BrepVec3[]): BrepHandle {
-      // B：Bezier = 满重 B-spline（degree=n−1，唯一 knots=[0,1] 各满重，
-      // weights 省略=全有理 1）。
       if (controlPoints.length < 2) throw new Error('[smlib-kernel] makeBezierEdge: need >= 2 control points')
       const degree = controlPoints.length - 1
-      return createCanonicalCurve(k, controlPoints, [0, 1], [degree + 1, degree + 1], undefined, degree)
+      return track(
+        k.makeCanonicalCurve(controlPoints.map(asArray), [0, 1], [degree + 1, degree + 1], undefined, degree, 6),
+      ) as unknown as BrepHandle
     },
     makeBSplineEdge(
-      poles: number[], weights: number[], knots: number[], multiplicities: number[], degree: number, periodic?: boolean,
+      poles: number[], weights: number[], knots: number[], multiplicities: number[], degree: number, _periodic?: boolean,
     ): BrepHandle {
-      // A：与 SmApiCreateCanonicalCurve **完全同构**（poles 展平 xyz、knots/mults 平行）。
-      // 全 1 weights = 非有理曲线 = 与省略 weights 等价；归一化为 undefined 消除
-      // 两条内存路径（探针：全 1 显式传参在 vitest 下偶发 1001，归一化后稳定）。
-      void periodic // smlib 周期由 eForm/内核定；L1 periodic 语义按文档记录（P2 探针）
-      const pts: BrepVec3[] = []
-      for (let i = 0; i < poles.length; i += 3) pts.push({ x: poles[i], y: poles[i + 1], z: poles[i + 2] })
-      const w =
-        weights && weights.length > 0 && weights.some((x) => x !== 1) ? weights : undefined
-      return createCanonicalCurve(k, pts, knots, multiplicities, w, degree)
+      const pts: [number, number, number][] = []
+      for (let i = 0; i < poles.length; i += 3) pts.push([poles[i]!, poles[i + 1]!, poles[i + 2]!])
+      const w = weights && weights.length > 0 && weights.some((x) => x !== 1) ? weights : undefined
+      return track(k.makeCanonicalCurve(pts, knots, multiplicities, w, degree, 6)) as unknown as BrepHandle
     },
     makeCircleEdge(center: BrepVec3, normal: BrepVec3, radius: number): BrepHandle {
-      // B：SmApiCreateCircle（XY 平面、圆心原点）→ 变换到 center+normal 平面。
-      const out = k.malloc(4)
-      const p = k.malloc(24)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(p, 0, true)
-        dv.setFloat64(p + 8, 0, true)
-        dv.setFloat64(p + 16, 0, true)
-        dv.setUint32(out, 0, true)
-        expectOk(k.find('SmApiCreateCircle')(p, radius, out), 'makeCircleEdge')
-        const c = dv.getUint32(out, true)
-        applyMatrix(k, c as BrepHandle, circlePlacementMatrix(center, normal), 'makeCircleEdge:place')
-        return c as BrepHandle
-      } finally {
-        k.free(out)
-        k.free(p)
-      }
+      const c = track(k.makeCircle([0, 0, 0], radius))
+      k.transformMatrix(c as never, circlePlacementMatrix(center, normal))
+      return c as unknown as BrepHandle
     },
     makeCircleArc(center: BrepVec3, normal: BrepVec3, radius: number, startAngle: number, endAngle: number): BrepHandle {
-      // B：SmApiCreateArc（XY 平面、角度度制直通）→ 变换到 center+normal 平面。
-      const out = k.malloc(4)
-      const p = k.malloc(24)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(p, 0, true)
-        dv.setFloat64(p + 8, 0, true)
-        dv.setFloat64(p + 16, 0, true)
-        dv.setUint32(out, 0, true)
-        // SmApiCreateArc 角度基准是世界 X 轴而非局部基 u（实测拟合：画角 =
-        // 传角 − u 的世界方向角）。circlePlacementMatrix 的 u = cross(n, Z)
-        //（|n.z|<0.999 分支），故补偿 = atan2(u.y, u.x)。对 n=+z：u=(0,1,0) →
-        // 90°（即此前固定的 +90；倾斜平面下必须动态化）。补偿后归一化。
-        const n = normVec(normal)
-        let u: BrepVec3
-        if (Math.abs(n.z) < 0.999) u = normVec(cross(n, { x: 0, y: 0, z: 1 }))
-        else u = normVec(cross(n, { x: 1, y: 0, z: 0 }))
-        const uAngle = (Math.atan2(u.y, u.x) * 180) / Math.PI
-        const norm = (d: number) => ((d % 360) + 360) % 360
-        expectOk(
-          k.find('SmApiCreateArc')(p, radius, norm(startAngle + uAngle), norm(endAngle + uAngle), out),
-          'makeCircleArc',
-        )
-        const c = dv.getUint32(out, true)
-        applyMatrix(k, c as BrepHandle, circlePlacementMatrix(center, normal), 'makeCircleArc:place')
-        return c as BrepHandle
-      } finally {
-        k.free(out)
-        k.free(p)
-      }
+      const n = normVec(normal)
+      let u: BrepVec3
+      if (Math.abs(n.z) < 0.999) u = normVec(cross(n, { x: 0, y: 0, z: 1 }))
+      else u = normVec(cross(n, { x: 1, y: 0, z: 0 }))
+      const uAngle = (Math.atan2(u.y, u.x) * 180) / Math.PI
+      const norm = (d: number) => ((d % 360) + 360) % 360
+      const c = track(k.makeArc([0, 0, 0], radius, norm(startAngle + uAngle), norm(endAngle + uAngle)))
+      k.transformMatrix(c as never, circlePlacementMatrix(center, normal))
+      return c as unknown as BrepHandle
     },
     makeHelixWire(
       origin: BrepVec3, axis: BrepVec3, pitch: number, height: number, radius: number, leftHanded?: boolean,
     ): BrepHandle {
-      // B：SmApiCreateHelix（+Z 局部系，右手/左手 + 容差）→ 变换到 origin+axis 平面。
-      const out = k.malloc(4)
-      const p = k.malloc(24)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(p, 0, true)
-        dv.setFloat64(p + 8, 0, true)
-        dv.setFloat64(p + 16, 0, true)
-        dv.setUint32(out, 0, true)
-        const turns = height / pitch
-        expectOk(
-          k.find('SmApiCreateHelix')(p, height, radius, radius, turns, leftHanded ? 0 : 1, 1e-3, out),
-          'makeHelixWire',
-        )
-        const c = dv.getUint32(out, true)
-        applyMatrix(k, c as BrepHandle, circlePlacementMatrix(origin, axis), 'makeHelixWire:place')
-        return c as BrepHandle
-      } finally {
-        k.free(out)
-        k.free(p)
-      }
+      const turns = height / pitch
+      const c = track(k.makeHelix([0, 0, 0], height, radius, radius, turns, !leftHanded, 1e-3))
+      k.transformMatrix(c as never, circlePlacementMatrix(origin, axis))
+      return c as unknown as BrepHandle
     },
-    approximatePoints(points: BrepVec3[], tolerance?: number): BrepHandle {
-      // A：SmApiCreateCurveApproxPointsEx。
-      void tolerance // 内核按拟合容差自定
-      const p = ptsToMemory(k, points)
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        dv.setUint32(out, 0, true)
-        expectOk(k.find('SmApiCreateCurveApproxPointsEx')(p.ptr, points.length, out), 'approximatePoints')
-        return dv.getUint32(out, true) as BrepHandle
-      } finally {
-        k.free(p.ptr)
-        k.free(out)
-      }
+    approximatePoints(points: BrepVec3[], _tolerance?: number): BrepHandle {
+      return track(k.curveApproxPoints(points.map(asArray))) as unknown as BrepHandle
     },
-    interpolatePointsWithTangents(points: BrepVec3[], startTangent: BrepVec3, endTangent: BrepVec3): BrepHandle {
-      // B（降级，决策点 3 记录）：SM_API 无带切向约束插值 → 降级 interpolatePoints
-      // （丢两端切向，端点斜率与 occt 不同——有记录的近似）。
-      void startTangent; void endTangent
+    interpolatePointsWithTangents(points: BrepVec3[], _startTangent: BrepVec3, _endTangent: BrepVec3): BrepHandle {
       return primitives.interpolatePoints(points, 3)
     },
-    curveSplit(edge: BrepHandle, param: number): [BrepHandle, BrepHandle] {
-      void edge; void param
+    curveSplit(_edge: BrepHandle, _param: number): [BrepHandle, BrepHandle] {
       return unsupported('curveSplit')
     },
 
     // ── 拓扑构造 ──
     makeWire(edges: BrepHandle[]): BrepHandle {
-      // B：边/曲线 → 曲线句柄数组 → 合成 wire 句柄（smlib 无独立 wire 类型）。
       if (edges.length === 0) throw new Error('[smlib-kernel] makeWire: need >= 1 edge')
-      const curves = edges.map((e) => edgeToCurve(k, e as unknown as number))
+      const curves = edges.map((e) => k.edgeToCurve(e as never) as unknown as number)
       return newWire(curves)
     },
     makeFace(wire: BrepHandle): BrepHandle {
-      // A（wire 组合）：wire 曲线数组 → SmApiCreatePlanarFacesEx。
       const curves = wireHandles.get(wire as unknown as number)
       if (!curves || curves.length === 0) throw new Error('[smlib-kernel] makeFace: not a makeWire handle')
-      return createPlanarFaces(k, curves)
+      return track(k.planarFaces(curves as never)) as unknown as BrepHandle
     },
     makeCompound(shapes: BrepHandle[]): BrepHandle {
-      // 虚拟容器（2026-10-28，替代早期 UNION 实现——那是错误语义）：compound 是
-      // faijs 语义层的逻辑容器，零件**永远独立**、绝不做布尔合并。smlib 无
-      // compound 容器类型，与 brepkit 同款：高位虚拟句柄 + 登记子句柄列表，
-      // 几何分发按零件逐项处理。单零件直接返回零件本身（与 occt 单成员
-      // compound 几何/语义等价，textToSolid 'Hello' translate 后单成员走此路径）。
       if (shapes.length === 0) throw new Error('[smlib-kernel] makeCompound: need >= 1 shape')
-      if (shapes.length === 1) return shapes[0]
+      if (shapes.length === 1) return shapes[0]!
       return newCompound(shapes)
     },
     addHolesInFace(face: BrepHandle, holeWires: BrepHandle[]): BrepHandle {
-      // A：face 外环曲线 + 孔 wire 曲线 → SmApiCreatePlanarFacesEx（多环面）。
-      //    SMLib CreatePlanarFaces 按几何位置判内外环、自动建孔（textToSolid
-      //    的带孔字符如 'o'/'O' 依赖该语义）。若内核不支持多环，此实现显式
-      //    报错（不静默产错几何——textToSolid 的 try/catch 不应吞能力缺口）。
-      const outer = faceOuterCurves(k, face as unknown as number)
+      const outer = faceOuterCurves(face as unknown as number)
       if (outer.length === 0) throw new Error('[smlib-kernel] addHolesInFace: no outer curves from face')
       const holes: number[] = []
       for (const w of holeWires) {
@@ -1590,27 +733,22 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         if (!curves || curves.length === 0) throw new Error('[smlib-kernel] addHolesInFace: not a makeWire handle')
         holes.push(...curves)
       }
-      return createPlanarFaces(k, [...outer, ...holes])
+      return track(k.planarFaces([...outer, ...holes] as never)) as unknown as BrepHandle
     },
     buildTriFace(a: BrepVec3, b: BrepVec3, c: BrepVec3): BrepHandle {
-      // B 组合：3 条线段 → CreatePlanarFacesEx。
       const curves = [
         primitives.makeLineEdge(a, b),
         primitives.makeLineEdge(b, c),
         primitives.makeLineEdge(c, a),
       ].map((h) => h as unknown as number)
-      return createPlanarFaces(k, curves)
+      return track(k.planarFaces(curves as never)) as unknown as BrepHandle
     },
-    makeNonPlanarFace(wire: BrepHandle): BrepHandle {
-      void wire
+    makeNonPlanarFace(_wire: BrepHandle): BrepHandle {
       return unsupported('makeNonPlanarFace')
     },
 
-    // ── 三角化（BREP→mesh 唯一出口）──
+    // ── 三角化 ──
     meshShape(shape: BrepHandle, options?: BrepTessellateOptions): BrepMeshResult {
-      // 虚拟 compound：逐零件三角化后按偏移合并（零件独立，绝不经内核布尔）。
-      // 顶点/法线/索引各自拼接；faceGroups 前两元是**索引单位**（×3），合并时
-      // triStart 平移 vertexBase×3；face hash 与各零件 subShapeHashes 同源。
       const cKids = compoundKidsOf(shape)
       if (cKids) {
         const pos: number[] = []
@@ -1621,11 +759,9 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         for (const kid of cKids) {
           const m = primitives.meshShape(kid, options)
           const vBase = pos.length / 3
-          // 批量 push（禁止 `push(...arr)` 展开——text 类零件网格可上万浮点，
-          // 触发 V8 参数上限（>65535 抛 Maximum call stack size exceeded））。
-          for (let i = 0; i < m.positions.length; i++) pos.push(m.positions[i])
-          for (let i = 0; i < m.normals.length; i++) nor.push(m.normals[i])
-          for (let i = 0; i < m.indices.length; i++) idx.push(m.indices[i] + vBase)
+          for (let i = 0; i < m.positions.length; i++) pos.push(m.positions[i]!)
+          for (let i = 0; i < m.normals.length; i++) nor.push(m.normals[i]!)
+          for (let i = 0; i < m.indices.length; i++) idx.push(m.indices[i]! + vBase)
           const f = m.faceGroups ?? new Int32Array(0)
           for (let i = 0; i < f.length; i += 3) {
             fg.push(f[i]! + vertexBase * 3, f[i + 1]!, f[i + 2]!)
@@ -1642,11 +778,9 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
           faceCount: fg.length / 3,
         }
       }
-      // 合成 wire 句柄（WIRE_TAG）是 1D 曲线：无三角载荷，短路返回空网格——
-      // 直接把非指针句柄喂 SmApiTessellateEx 会让 C++ 走非法指针 → invoke 转发
-      // 异常（worker-sim 四操作段 cad.wire 实测 "table.get(...) is not a function"）。
-      if (typeof shape === 'number' && shape >= WIRE_TAG) {
-        void options
+      const n = shape as unknown as number
+      if (isSynthetic(n)) {
+        // 合成 wire：1D 曲线无三角载荷，短路返回空网格。
         return {
           positions: new Float32Array(0),
           normals: new Float32Array(0),
@@ -1655,89 +789,50 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
           triangleCount: 0,
         }
       }
-      // SmApiTessellateEx(pBrep, pParams, pStatus) → 单块 malloc 缓冲：
-      //   u32[3] header {numVerts, numTris, numFaces}
-      //   f32 verts[3V] / normals[3V]（V=3T 独立三角形，flat 面法向）
-      //   u32 indices[3T]（0..V-1 顺序）
-      //   u32 faceGroups[3F] = {triStart, triCount, facePtr}（facePtr=SmFace*）
-      // 选项：linearDeflection→dChordHeightTol、angularDeflection→dCurveAngleTolDeg/
-      // dSurfaceAngleTolDeg（弧度→度换算），0 = 内核默认（SmTessellationDefaults：
-      // curve/surface 25°——很粗，球体显示成明显多面体；端侧显示路径
-      // brep-topology.ts 传 2π/32≈11.25°，必须实际传进桥才能拿到圆滑曲面）。
-      const paramsPtr = options
-        ? (() => {
-            const p = k.malloc(40) // SmTessellationParams = 5 × f64
-            const dvp = memOf(k)
-            const rad2deg = (rad: number | undefined) => (rad ?? 0) * (180 / Math.PI)
-            dvp.setFloat64(p + 0, options.linearDeflection ?? 0, true)
-            const angDeg = rad2deg(options.angularDeflection)
-            dvp.setFloat64(p + 8, angDeg, true)
-            dvp.setFloat64(p + 16, angDeg, true)
-            dvp.setFloat64(p + 24, 0, true) // dMaxEdgeLength
-            dvp.setFloat64(p + 32, 0, true) // dMaxAspectRatio
-            return p
-          })()
-        : 0
-      const status = k.malloc(4)
-      const buf = k.find('SmApiTessellateEx')(shape, paramsPtr, status)
+      const chord = options?.linearDeflection
+      const angRad = options?.angularDeflection
+      const params: Record<string, number> = {}
+      if (typeof chord === 'number' && chord > 0) params.chordHeightTol = chord
+      if (typeof angRad === 'number' && angRad > 0) {
+        const deg = (angRad * 180) / Math.PI
+        params.curveAngleTolDeg = deg
+        params.surfaceAngleTolDeg = deg
+      }
+      const mesh = k.tessellate(n as never, Object.keys(params).length > 0 ? params : undefined)
       try {
-        const dv = memOf(k)
-        expectOk(dv.getUint32(status, true), 'meshShape')
-        if (!buf) throw new Error('[smlib-kernel] meshShape: bridge returned null buffer')
-        const u32 = new Uint32Array(k.memory.buffer, buf, 3)
-        const numVerts = u32[0]
-        const numTris = u32[1]
-        const numFaces = u32[2]
-        const verts = new Float32Array(k.memory.buffer, buf + 12, numVerts * 3)
-        const normals = new Float32Array(k.memory.buffer, buf + 12 + numVerts * 12, numVerts * 3)
-        const idxOff = buf + 12 + numVerts * 24
-        const indices = new Uint32Array(k.memory.buffer, idxOff, numTris * 3)
-        const fgOff = idxOff + numTris * 12
-        const fg = new Uint32Array(k.memory.buffer, fgOff, numFaces * 3)
-
-        // faceGroups 映射：桥输出每三角形一个组（facePtr 成对相同）→ 按 facePtr 合并
-        // 为面组 [triStart, triCount, faceHash]，前两元换算为**索引单位**（×3）。
-        const merged: { triStart: number; triCount: number; hash: number }[] = []
-        for (let i = 0; i < numFaces; i++) {
-          const triStart = fg[i * 3]
-          const triCount = fg[i * 3 + 1]
-          const facePtr = fg[i * 3 + 2]
-          const hash = subShapeHashOf(facePtr, BREP_HASH_BOUND)
-          const last = merged[merged.length - 1]
-          if (last && last.hash === hash) {
-            last.triCount += triCount
+        const data = k.tessellateData(mesh)
+        if (!data) throw new Error('[smlib-kernel] meshShape: tessellateData returned null')
+        const rawGroups = data.groups
+        const groupOut: number[] = []
+        let lastGroupCode = Number.NaN
+        for (let i = 0; i < rawGroups.length; i += 3) {
+          const triStart = rawGroups[i]!
+          const triCount = rawGroups[i + 1]!
+          const faceIndex = rawGroups[i + 2]!
+          const code = faceIndex === 0xffffffff ? -1 : ordinalHash(n, faceIndex, BREP_HASH_BOUND)
+          if (groupOut.length > 0 && lastGroupCode === code) {
+            const firstTriStart = groupOut[groupOut.length - 3]! / 3
+            groupOut[groupOut.length - 2]! = (triStart + triCount - firstTriStart) * 3
           } else {
-            merged.push({ triStart, triCount, hash })
+            groupOut.push(triStart * 3, triCount * 3, code)
+            lastGroupCode = code
           }
         }
-        const faceGroups = new Int32Array(merged.length * 3)
-        for (let i = 0; i < merged.length; i++) {
-          faceGroups[i * 3] = merged[i].triStart * 3 // 索引单位
-          faceGroups[i * 3 + 1] = merged[i].triCount * 3
-          faceGroups[i * 3 + 2] = merged[i].hash
-        }
-        // IMPORTANT: the bridge buffer is freed in the finally block below, so
-        // these views must be copied out first — returning live views of freed
-        // wasm memory made later reads (and the subsequent malloc reuse) see
-        // stale/zeroed data. Copy now, free after.
+        const faceGroups = new Int32Array(groupOut)
         return {
-          positions: verts.slice(),
-          normals: normals.slice(),
-          indices: indices.slice(),
-          vertexCount: numVerts,
-          triangleCount: numTris,
+          positions: data.positions,
+          normals: data.normals,
+          indices: data.indices,
+          vertexCount: data.positions.length / 3,
+          triangleCount: data.indices.length / 3,
           faceGroups,
-          faceCount: merged.length,
+          faceCount: faceGroups.length / 3,
         }
       } finally {
-        k.free(status)
-        if (paramsPtr) k.free(paramsPtr)
-        if (buf) k.free(buf)
+        k.meshRelease(mesh)
       }
     },
     wireframe(shape: BrepHandle, deflection?: number): BrepEdgeData {
-      // 虚拟 compound：逐零件线框后按偏移合并。edgeGroups 前两元是**浮点单位**
-      // （×3），合并时 pointStart 平移 pointsBase×3。
       const cKids = compoundKidsOf(shape)
       if (cKids) {
         const points: number[] = []
@@ -1746,10 +841,8 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         for (const kid of cKids) {
           const w = primitives.wireframe(kid, deflection)
           const pBase = points.length / 3
-          // 批量 push（`push(...w.points)` 在低 deflection 下每零件可上万浮点，
-          // 触发 V8 参数上限 → Maximum call stack size exceeded，实测 text 爆栈）。
-          for (let i = 0; i < w.points.length; i++) points.push(w.points[i])
-          const g = w.edgeGroups ?? new Int32Array(0)
+          for (let i = 0; i < w.points.length; i++) points.push(w.points[i]!)
+          const g = w.edgeGroups
           for (let i = 0; i < g.length; i += 3) {
             edgeGroups.push(g[i]! + pBase * 3, g[i + 1]!, g[i + 2]!)
           }
@@ -1762,215 +855,173 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
           edgeCount,
         }
       }
-      // 合成 wire 句柄（WIRE_TAG）：1D 曲线，无内核对应实体。短路返回空线框
-      // （不喂 SmApiTessellateBoundariesEx，防非法指针 invoke 异常）。真实显示
-      // 级 wireframe 需从 wireHandles 曲线数组构线（mesh 链路，待后续）。
-      if (typeof shape === 'number' && shape >= WIRE_TAG) {
-        void deflection
+      const n = shape as unknown as number
+      if (isSynthetic(n)) {
         return { points: new Float32Array(0), edgeGroups: new Int32Array(0), pointCount: 0, edgeCount: 0 }
       }
-      // SmApiTessellateBoundariesEx(pBrep, dAngleTolDeg, pStatus) → 单块缓冲：
-      //   u32[2] {numEdges, numPoints} + f64[3N] points + u32[N] counts + u32[N] edges
-      const status = k.malloc(4)
-      const buf = k.find('SmApiTessellateBoundariesEx')(shape, deflection ?? 5, status)
+      const mesh = k.wireframe(n as never, deflection ?? 0)
       try {
-        const dv = memOf(k)
-        expectOk(dv.getUint32(status, true), 'wireframe')
-        if (!buf) throw new Error('[smlib-kernel] wireframe: bridge returned null buffer')
-        const u32 = new Uint32Array(k.memory.buffer, buf, 2)
-        const numEdges = u32[0]
-        const numPoints = u32[1]
-        const ptsF64 = new Float64Array(k.memory.buffer, buf + 8, numPoints * 3)
-        const points = new Float32Array(numPoints * 3)
-        for (let i = 0; i < numPoints * 3; i++) points[i] = ptsF64[i]
-        const countsOff = buf + 8 + numPoints * 24
-        const counts = new Uint32Array(k.memory.buffer, countsOff, numEdges)
-        const edgesOff = countsOff + numEdges * 4
-        const edges = new Uint32Array(k.memory.buffer, edgesOff, numEdges)
-
-        // edgeGroups：[pointStart, pointCount, edgeHash]，前两元为**浮点单位**（×3）。
-        const edgeGroups = new Int32Array(numEdges * 3)
+        const data = k.wireframeData(mesh)
+        if (!data) throw new Error('[smlib-kernel] wireframe: wireframeData returned null')
+        const f32 = new Float32Array(data.points.length)
+        for (let i = 0; i < data.points.length; i++) f32[i] = data.points[i]!
+        const edgeIndex = new Map<number, number>()
+        k.edges(n as never).forEach((e, i) => edgeIndex.set(e as unknown as number, i))
+        const edgeGroups = new Int32Array(data.counts.length * 3)
         let pointStart = 0
-        for (let i = 0; i < numEdges; i++) {
-          const count = counts[i]
+        for (let i = 0; i < data.counts.length; i++) {
+          const count = data.counts[i]!
+          const ord = edgeIndex.get(data.edges[i]! as unknown as number) ?? 0
           edgeGroups[i * 3] = pointStart * 3
           edgeGroups[i * 3 + 1] = count * 3
-          edgeGroups[i * 3 + 2] = subShapeHashOf(edges[i], BREP_HASH_BOUND)
+          edgeGroups[i * 3 + 2] = ordinalHash(n, ord, BREP_HASH_BOUND)
           pointStart += count
         }
-        return { points, edgeGroups, pointCount: numPoints * 3, edgeCount: numEdges }
+        return { points: f32, edgeGroups, pointCount: data.points.length, edgeCount: data.counts.length }
       } finally {
-        k.free(status)
-        if (buf) k.free(buf)
+        k.meshRelease(mesh)
       }
     },
 
     // ── 拓扑查询 ──
     getSubShapes(shape: BrepHandle, type: BrepSubShapeType): BrepHandle[] {
-      const count = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        // 虚拟 compound：solid → 递归展平子零件（occt TopExp_Explorer 语义：遍历
-        // 整个形状树返回所有 solid，嵌套 compound 内的零件一并返回）；shell → 同；
-        // 其他类型 → 各零件子形状拼接（嵌套 compound 递归分发）。
-        const cKids = compoundKidsOf(shape)
-        if (cKids) {
-          if (type === 'solid' || type === 'shell') {
-            const out: BrepHandle[] = []
-            const walk = (s: BrepHandle): void => {
-              const inner = compoundKidsOf(s)
-              if (inner) {
-                for (const kid of inner) walk(kid)
-              } else {
-                out.push(s)
-              }
-            }
-            for (const kid of cKids) walk(kid)
-            return out
-          }
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        if (type === 'solid' || type === 'shell') {
           const out: BrepHandle[] = []
-          for (const kid of cKids) out.push(...primitives.getSubShapes(kid, type))
+          const walk = (s: BrepHandle): void => {
+            const inner = compoundKidsOf(s)
+            if (inner) {
+              for (const kid of inner) walk(kid)
+            } else {
+              out.push(s)
+            }
+          }
+          for (const kid of cKids) walk(kid)
           return out
         }
-        // 合成 wire 句柄（WIRE_TAG）：edge → 登记的曲线数组（裸曲线当边），
-        // vertex → 复用下分支出曲线端点枚举；solid/shell/face → 空（1D 无这些）。
-        // 短路前提：非指针句柄喂 SmApi* 会走非法指针 invoke 异常（实测复现）。
-        if (typeof shape === 'number' && shape >= WIRE_TAG) {
-          // edge → 登记的曲线数组；vertex → 落到下方正常分支（其内部经
-          // primitives.getSubShapes(shape,'edge') 再次短路取曲线）；其余 → 空。
-          if (type === 'edge') {
-            return (wireHandles.get(shape as number) ?? []).map((c) => c as BrepHandle)
-          }
-          if (type !== 'vertex') return []
-        }
-        if (type === 'solid') {
-          // P1：无 compound/嵌套实体——SmBrep 自身的子实体就是自己。
-          if (solidHandles.has(shape as number)) return [shape]
-          return unsupported(`getSubShapes(${type})`)
-        }
-        if (type === 'shell') {
-          // P1 占位：solid 当唯一 shell（shell 句柄后续查询 face/edge 走 solid 分支）。
-          if (solidHandles.has(shape as number)) return [shape]
-          return unsupported(`getSubShapes(${type})`)
-        }
-        if (type === 'wire') {
-          // wire：合成句柄 → 登记的曲线句柄数组（裸曲线当边用）。
-          const curves = wireHandles.get(shape as number)
-          if (curves) return curves.map((c) => c as BrepHandle)
-          return unsupported(`getSubShapes(${type})`)
-        }
-        if (type === 'vertex') {
-          // 顶点枚举（适配器自建，用户确认）：遍历边端点，按坐标去重，分配
-          // 合成句柄（VERTEX_TAG 高位，传 vertexPosition 查表）。
-          const edges = primitives.getSubShapes(shape, 'edge')
-          const p = k.malloc(48)
-          try {
-            const out: BrepHandle[] = []
-            const seen = new Map<string, BrepHandle>()
-            for (const e of edges) {
-              expectOk(k.find('SmApiEdgeVerticesEx')(e as unknown as number, p), 'getSubShapes(vertex)')
-              for (let off = 0; off < 48; off += 24) {
-                const x = dv.getFloat64(p + off, true)
-                const y = dv.getFloat64(p + off + 8, true)
-                const z = dv.getFloat64(p + off + 16, true)
-                const key = `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`
-                if (!seen.has(key)) {
-                  const h = VERTEX_TAG + nextVertexId++
-                  vertexHandles.set(h, { x, y, z })
-                  seen.set(key, h as BrepHandle)
-                  out.push(h as BrepHandle)
-                }
-              }
-            }
-            return out
-          } finally {
-            k.free(p)
-          }
-        }
-        if (type === 'edge' && !solidHandles.has(shape as number)) {
-          // face→edge：SmApiFaceBoundaryLoopsEx（面边按 loop 展平，seam 重复保留）。
-          const pOut = k.malloc(4)
-          dv.setUint32(pOut, 0, true)
-          try {
-            const st = k.find('SmApiFaceBoundaryLoopsEx')(shape, pOut)
-            if (st !== SM_SUCCESS) throw new Error(`[smlib-kernel] getSubShapes(edge): bridge failed (st=${st})`)
-            const buf = dv.getUint32(pOut, true)
-            if (!buf) throw new Error(`[smlib-kernel] getSubShapes(edge): bridge failed (buf=0)`)
-            try {
-              const u32 = new Uint32Array(k.memory.buffer, buf, 3)
-              const numLoops = u32[0]
-              const numOcc = u32[2]
-              const edges = new Uint32Array(k.memory.buffer, buf + 12 + numLoops * 4, numOcc)
-              return noteEdgeHandles(Array.from(edges, (p) => p as BrepHandle), shape as number)
-            } finally {
-              k.free(buf)
-            }
-          } finally {
-            k.free(pOut)
-          }
-        }
-        const bridge = type === 'face' ? 'SmApiGetFacesEx' : type === 'edge' ? 'SmApiGetEdgesEx' : null
-        if (!bridge) return unsupported(`getSubShapes(${type})`)
-        const st = k.find(bridge)(shape, count)
-        const n = dv.getUint32(count, true)
-        const arr = st
-        if (!arr) throw new Error(`[smlib-kernel] getSubShapes(${type}): bridge failed (n=${n}, shape=${shape})`)
-        try {
-          const ptrs = new Uint32Array(k.memory.buffer, arr, n)
-          const found = Array.from(ptrs, (p) => p as BrepHandle)
-          return type === 'face'
-            ? noteFaceHandles(found, shape as number)
-            : type === 'edge'
-              ? noteEdgeHandles(found, shape as number)
-              : found
-        } finally {
-          k.free(arr)
-        }
-      } finally {
-        k.free(count)
+        const out: BrepHandle[] = []
+        for (const kid of cKids) out.push(...primitives.getSubShapes(kid, type))
+        return out
       }
+      const n = shape as unknown as number
+      if (isSynthetic(n)) {
+        if (type === 'edge') {
+          const curves = wireHandles.get(n) ?? []
+          curves.forEach((curve, index) => recordSubShape(n, index, curve))
+          return curves.map((c) => c as unknown as BrepHandle)
+        }
+        if (type === 'vertex') return []
+        if (type !== 'wire') return []
+      }
+      const kind = k.kindOf(n)
+      if (type === 'solid') return kind === SmwKind.Solid ? [shape] : unsupported(`getSubShapes(${type})`)
+      if (type === 'shell') return kind === SmwKind.Solid ? [shape] : unsupported(`getSubShapes(${type})`)
+      if (type === 'wire') {
+        const curves = wireHandles.get(n)
+        if (curves) {
+          curves.forEach((curve, index) => recordSubShape(n, index, curve))
+          return curves.map((c) => c as unknown as BrepHandle)
+        }
+        return unsupported(`getSubShapes(${type})`)
+      }
+      if (type === 'vertex') {
+        const edges = primitives.getSubShapes(shape, 'edge')
+        const out: BrepHandle[] = []
+        const seen = new Map<string, BrepHandle>()
+        for (const e of edges) {
+          const [p0, p1] = k.edgeVertices(e as never)
+          for (const p of [p0, p1]) {
+            const key = `${p[0].toFixed(6)},${p[1].toFixed(6)},${p[2].toFixed(6)}`
+            if (!seen.has(key)) {
+              const h = VERTEX_TAG + nextVertexId++
+              vertexHandles.set(h, { x: p[0]!, y: p[1]!, z: p[2]! })
+              seen.set(key, h as BrepHandle)
+              out.push(h as BrepHandle)
+            }
+          }
+        }
+        return out
+      }
+      if (type === 'edge' && kind === SmwKind.Face) {
+        const loops = k.faceLoops(n as never)
+        const out: BrepHandle[] = []
+        loops.loops.forEach((loop) => loop.edges.forEach((edge) => {
+          recordSubShape(n, out.length, edge)
+          out.push(edge as unknown as BrepHandle)
+        }))
+        return out
+      }
+      if (type === 'face' && kind === SmwKind.Solid) {
+        const faces = k.faces(n as never) as unknown as BrepHandle[]
+        faces.forEach((face, index) => recordSubShape(n, index, face))
+        return faces
+      }
+      if (type === 'edge' && kind === SmwKind.Solid) {
+        const edges = k.edges(n as never) as unknown as BrepHandle[]
+        edges.forEach((edge, index) => recordSubShape(n, index, edge))
+        return edges
+      }
+      return unsupported(`getSubShapes(${type})`)
     },
     subShapeHashes(shape: BrepHandle, type: BrepSubShapeType, hashUpperBound: number): number[] {
-      // 与 meshShape faceGroups 同源：同一 SmFace*/SmEdge* 指针 → 同一 hash。
-      return primitives.getSubShapes(shape, type).map((h) => subShapeHashOf(h as unknown as number, hashUpperBound))
+      const cKids = compoundKidsOf(shape)
+      if (cKids) {
+        const out: number[] = []
+        for (const kid of cKids) out.push(...primitives.subShapeHashes(kid, type, hashUpperBound))
+        return out
+      }
+      const n = shape as unknown as number
+      const kind = k.kindOf(n)
+      if (type === 'face' && kind === SmwKind.Solid) {
+        return k.faces(n as never).map((_, i) => ordinalHash(n, i, hashUpperBound))
+      }
+      if (type === 'edge' && kind === SmwKind.Solid) {
+        return k.edges(n as never).map((_, i) => ordinalHash(n, i, hashUpperBound))
+      }
+      if (type === 'edge' && kind === SmwKind.Face) {
+        return primitives.getSubShapes(shape, 'edge').map((_, i) => ordinalHash(n, i, hashUpperBound))
+      }
+      if (type === 'edge' && isSynthetic(n)) {
+        return (wireHandles.get(n) ?? []).map((_, i) => ordinalHash(n, i, hashUpperBound))
+      }
+      return primitives.getSubShapes(shape, type).map((_, i) => ordinalHash(n, i, hashUpperBound))
     },
     hashCode(shape: BrepHandle, upperBound: number): number {
-      // smlib 无通用形状 hash；用句柄指针取模（与子形状 hash 同族）。
-      return subShapeHashOf(shape as unknown as number, upperBound)
+      const n = shape as unknown as number
+      const info = subShapeOrdinal.get(n)
+      if (info && info.epoch === shapeEpoch) return ordinalHash(info.owner, info.index, upperBound)
+      return ordinalHash(n, 0, upperBound)
     },
     isSame(a: BrepHandle, b: BrepHandle): boolean {
       return a === b
     },
     isSolid(shape: BrepHandle): boolean {
-      // 虚拟 compound 不是 solid（虚拟句柄喂内核即非法指针）。
       if (compoundKidsOf(shape)) return false
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        expectOk(k.find('SmApiBrepIsManifoldSolid')(shape, out), 'isSolid')
-        return dv.getUint32(out, true) !== 0
-      } finally {
-        k.free(out)
-      }
+      const n = shape as unknown as number
+      return k.kindOf(n) === SmwKind.Solid && k.isManifold(n as never)
     },
     subShapeCount(shape: BrepHandle, type: BrepSubShapeType): number {
       return primitives.getSubShapes(shape, type).length
     },
     shapeType(shape: BrepHandle): string {
-      // solid 登记表 + wire/vertex 合成表判别；face/edge 是裸借用指针无法判别
-      //（smib 无类型查询）→ 显式失败。
-      const h = shape as unknown as number
-      if (solidHandles.has(h)) return 'SOLID'
-      if (wireHandles.has(h)) return 'WIRE'
-      if (vertexHandles.has(h)) return 'VERTEX'
-      return unsupported('shapeType(non-solid)')
+      const n = shape as unknown as number
+      if (compoundHandles.has(n)) return 'COMPOUND'
+      if (wireHandles.has(n)) return 'WIRE'
+      if (vertexHandles.has(n)) return 'VERTEX'
+      switch (k.kindOf(n)) {
+        case SmwKind.Solid: return 'SOLID'
+        case SmwKind.Face: return 'FACE'
+        case SmwKind.Edge: return 'EDGE'
+        case SmwKind.Curve: return 'CURVE'
+        case SmwKind.Surface: return 'SURFACE'
+        default: return unsupported('shapeType(non-solid)')
+      }
     },
-    shapeOrientation(shape: BrepHandle): string {
-      void shape
+    shapeOrientation(_shape: BrepHandle): string {
       return unsupported('shapeOrientation')
     },
     edgeToFaceMap(shape: BrepHandle): unknown {
-      // B 组合：遍历每面 boundary loops 建边 → 面集合索引（Map<edgePtr, facePtr[]>）。
       const faces = primitives.getSubShapes(shape, 'face')
       const map = new Map<number, number[]>()
       for (const f of faces) {
@@ -1984,7 +1035,6 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return map
     },
     adjacentFaces(shape: BrepHandle, face: BrepHandle): BrepHandle[] {
-      // B 组合：face 的边 → 其他含同边的面。
       const faceEdges = new Set(primitives.getSubShapes(face, 'edge').map((e) => e as unknown as number))
       const out: BrepHandle[] = []
       for (const f of primitives.getSubShapes(shape, 'face')) {
@@ -2000,164 +1050,74 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return out
     },
     sharedEdges(a: BrepHandle, b: BrepHandle): BrepHandle[] {
-      // B 组合：两面的边界边交集。
       const as = new Set(primitives.getSubShapes(a, 'edge').map((e) => e as unknown as number))
       return primitives.getSubShapes(b, 'edge').filter((e) => as.has(e as unknown as number))
     },
 
-    // ── 几何求值（P2：SmApiCurves/Surfaces 接线）──
+    // ── 几何求值 ──
     curveType(edge: BrepHandle): string {
-      const out = k.malloc(4)
-      try {
-        expectOk(k.find('SmApiCurveTypeEx')(edge, out), 'curveType')
-        const code = memOf(k).getUint32(out, true)
-        return code === 0 ? 'line' : code === 1 ? 'circle' : code === 2 ? 'ellipse' : code === 3 ? 'bspline' : 'other'
-      } finally {
-        k.free(out)
-      }
+      const code = k.curveType(edge as never)
+      return code === 0 ? 'line' : code === 1 ? 'circle' : code === 2 ? 'ellipse' : code === 3 ? 'bspline' : 'other'
     },
     curvePointAtParam(edge: BrepHandle, param: number): BrepVec3 {
-      const p = k.malloc(24)
-      try {
-        const dv = memOf(k)
-        expectOk(k.find('SmApiCurvePointAtParamEx')(edge, param, p), 'curvePointAtParam')
-        return { x: dv.getFloat64(p, true), y: dv.getFloat64(p + 8, true), z: dv.getFloat64(p + 16, true) }
-      } finally {
-        k.free(p)
-      }
+      const p = k.curvePointAtParam(edge as never, param)
+      return { x: p[0]!, y: p[1]!, z: p[2]! }
     },
     curveTangent(edge: BrepHandle, param: number): BrepVec3 {
-      const p = k.malloc(24)
-      try {
-        const dv = memOf(k)
-        expectOk(k.find('SmApiCurveTangentEx')(edge, param, p), 'curveTangent')
-        return { x: dv.getFloat64(p, true), y: dv.getFloat64(p + 8, true), z: dv.getFloat64(p + 16, true) }
-      } finally {
-        k.free(p)
-      }
+      const p = k.curveTangent(edge as never, param)
+      return { x: p[0]!, y: p[1]!, z: p[2]! }
     },
     curveParameters(edge: BrepHandle): BrepCurveParameters {
-      const p = k.malloc(16)
-      try {
-        const dv = memOf(k)
-        expectOk(k.find('SmApiCurveParametersEx')(edge, p), 'curveParameters')
-        return { first: dv.getFloat64(p, true), last: dv.getFloat64(p + 8, true) }
-      } finally {
-        k.free(p)
-      }
+      const [first, last] = k.curveParameters(edge as never)
+      return { first, last }
     },
     curveIsClosed(edge: BrepHandle): boolean {
-      const out = k.malloc(4)
-      try {
-        expectOk(k.find('SmApiCurveIsClosedEx')(edge, out), 'curveIsClosed')
-        return memOf(k).getUint32(out, true) === 1
-      } finally {
-        k.free(out)
-      }
+      return k.curveIsClosed(edge as never)
     },
     curveLength(edge: BrepHandle): number {
-      const p = k.malloc(8)
-      try {
-        expectOk(k.find('SmApiCurveLengthEx')(edge, p), 'curveLength')
-        return memOf(k).getFloat64(p, true)
-      } finally {
-        k.free(p)
-      }
+      return k.curveLength(edge as never)
     },
     surfaceType(face: BrepHandle): string {
-      // 命名系统依赖（box 命名/选择器/评分都读它）：桥 dynamic_cast 判别。
-      // 类型码：0=plane 1=cylinder 2=cone 3=sphere 4=torus 5=bspline 6=other。
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        const st = k.find('SmApiSurfaceTypeEx')(face, out)
-        expectOk(st, 'surfaceType')
-        switch (dv.getUint32(out, true)) {
-          case 0: return 'plane'
-          case 1: return 'cylinder'
-          case 2: return 'cone'
-          case 3: return 'sphere'
-          case 4: return 'torus'
-          case 5: return 'bspline'
-          default: return 'other'
-        }
-      } finally {
-        k.free(out)
+      const code = k.surfaceType(face as never)
+      switch (code) {
+        case 0: return 'plane'
+        case 1: return 'cylinder'
+        case 2: return 'cone'
+        case 3: return 'sphere'
+        case 4: return 'torus'
+        case 5: return 'bspline'
+        default: return 'other'
       }
     },
     surfaceNormal(face: BrepHandle, u: number, v: number): BrepVec3 {
-      const p = k.malloc(24)
-      try {
-        const dv = memOf(k)
-        expectOk(k.find('SmApiSurfaceNormalEx')(face, u, v, p), 'surfaceNormal')
-        return { x: dv.getFloat64(p, true), y: dv.getFloat64(p + 8, true), z: dv.getFloat64(p + 16, true) }
-      } finally {
-        k.free(p)
-      }
+      const p = k.surfaceNormal(face as never, u, v)
+      return { x: p[0]!, y: p[1]!, z: p[2]! }
     },
     pointOnSurface(face: BrepHandle, u: number, v: number): BrepVec3 {
-      const p = k.malloc(24)
-      try {
-        const dv = memOf(k)
-        expectOk(k.find('SmApiPointOnSurfaceEx')(face, u, v, p), 'pointOnSurface')
-        return { x: dv.getFloat64(p, true), y: dv.getFloat64(p + 8, true), z: dv.getFloat64(p + 16, true) }
-      } finally {
-        k.free(p)
-      }
+      const p = k.surfacePoint(face as never, u, v)
+      return { x: p[0]!, y: p[1]!, z: p[2]! }
     },
     uvBounds(face: BrepHandle): BrepUvBounds {
-      const p = k.malloc(32)
-      try {
-        const dv = memOf(k)
-        expectOk(k.find('SmApiFaceUvBoundsEx')(face, p), 'uvBounds')
-        return {
-          uMin: dv.getFloat64(p, true),
-          uMax: dv.getFloat64(p + 8, true),
-          vMin: dv.getFloat64(p + 16, true),
-          vMax: dv.getFloat64(p + 24, true),
-        }
-      } finally {
-        k.free(p)
-      }
+      const b = k.faceUvBounds(face as never)
+      return { uMin: b.u[0]!, uMax: b.u[1]!, vMin: b.v[0]!, vMax: b.v[1]! }
     },
     surfaceCenterOfMass(face: BrepHandle): BrepVec3 {
-      // SmApiFaceComputeCentroid(pFace, acc, rdArea&, rCentroid&)。
-      const p = k.malloc(40) // acc(8) + area(8) + centroid(24)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(p, 1e-4, true)
-        expectOk(k.find('SmApiFaceComputeCentroid')(face, p, p + 8, p + 16), 'surfaceCenterOfMass')
-        return { x: dv.getFloat64(p + 16, true), y: dv.getFloat64(p + 24, true), z: dv.getFloat64(p + 32, true) }
-      } finally {
-        k.free(p)
-      }
+      const c = k.faceCentroid(face as never, 1e-4).centroid
+      return { x: c[0]!, y: c[1]!, z: c[2]! }
     },
     vertexPosition(vertex: BrepHandle): BrepVec3 {
-      // 顶点枚举的合成句柄 → 查表返回坐标（原生 SmVertex* 通道无枚举 API，
-      // 适配器自建，用户确认口径）。
       const v = vertexHandles.get(vertex as unknown as number)
       if (!v) return unsupported('vertexPosition')
       return v
     },
     containsPoint(shape: BrepHandle, point: BrepVec3, tolerance: number): boolean {
-      // 几何实现（三角化 + 射线奇偶），见文件上方 PARITY_RAY_DIR / rayCrossings 注释。
-      // 内核无点分类 API，故"贴面判定"精度由容差外的几何决定：本实现对**闭合流形
-      // 实体**语义正确；开壳（sheet）无体可言，与 occt/brepkit 同口径返回 false。
       const cKids = compoundKidsOf(shape)
       if (cKids) return cKids.some((kid) => primitives.containsPoint(kid, point, tolerance))
       const n = shape as unknown as number
-      const cpEntry = registry.lookup(n)
-      if (cpEntry && !cpEntry.alive) {
-        throw new Error(
-          `[smlib-kernel] containsPoint: UAF ptr=0x${n.toString(16)} ` +
-            `(kind=${cpEntry.kind}, owner=${cpEntry.owner})`,
-        )
-      }
-      if (registry.kindOf(n) !== 'solid') {
-        // 面/边/虚拟 wire：不是实体，没有"包含"语义（不猜，显式失败）。
+      if (k.kindOf(n) !== SmwKind.Solid) {
         throw new Error(
           '[smlib-kernel] containsPoint: only solid handles are classifiable ' +
-            `(handle=${n}; pass the owning solid, not a face/edge)`,
+          `(handle=${n}; pass the owning solid, not a face/edge)`,
         )
       }
       const cache = triCacheOf(k.memory)
@@ -2165,67 +1125,44 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       if (!mesh) {
         const m = primitives.meshShape(shape)
         mesh = { positions: m.positions, indices: m.indices }
-        if (cache.size >= 8) cache.clear() // 有界缓存：超限整体丢弃（只影响性能）
+        if (cache.size >= 8) cache.clear()
         cache.set(n, mesh)
       }
       void tolerance
       return rayCrossings(mesh, point, PARITY_RAY_DIR) % 2 === 1
     },
-    getFaceCylinderData(face: BrepHandle): { radius: number } | null {
-      // usd-brep 的 wasm 导出面无「面类型→圆柱参数」查询 API（SmApiQueries 无
-      // SmApiGetFaceType/SmApiGetCylinderData；C++ 侧 SmFace::GetSurface +
-      // IsKindOf(SmCylinder_TYPE) 未桥出）。返回 null（同 brep-mock 口径）——
-      // 调用方（geom-hint/topo-resolve）把 null 当「非圆柱面」安全降级，圆柱轴
-      // 提示与 cylinder 识别弱化但不报错。完整圆柱识别需 usd-brep 新增 C++ 导出
-      // 并重编 wasm（P 后续）。
-      void face
+    getFaceCylinderData(_face: BrepHandle): { radius: number } | null {
       return null
     },
-    getNurbsCurveData(edge: BrepHandle): BrepNurbsCurveData | null {
-      void edge
+    getNurbsCurveData(_edge: BrepHandle): BrepNurbsCurveData | null {
       return unsupported('getNurbsCurveData')
     },
-    interpolatePoints(points: BrepVec3[], degree: number): BrepHandle {
-      // A：SmApiCreateCurveInterpPointsEx（内核三次过点；degree 参数按文档
-      // brepkit 方言口径忽略——smlib 固定 cubic）。
-      void degree
+    interpolatePoints(points: BrepVec3[], _degree: number): BrepHandle {
       if (points.length < 4) throw new Error('[smlib-kernel] interpolatePoints: need >= 4 points')
-      const p = ptsToMemory(k, points)
-      const out = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        dv.setUint32(out, 0, true)
-        expectOk(k.find('SmApiCreateCurveInterpPointsEx')(p.ptr, points.length, 0, out), 'interpolatePoints')
-        return dv.getUint32(out, true) as BrepHandle
-      } finally {
-        k.free(p.ptr)
-        k.free(out)
-      }
+      return track(k.curveInterpPoints(points.map(asArray), 1)) as unknown as BrepHandle
     },
-    defeature(shape: BrepHandle, faces: BrepHandle[]): BrepHandle {
-      void shape; void faces
+
+    defeature(_shape: BrepHandle, _faces: BrepHandle[]): BrepHandle {
       return unsupported('defeature')
     },
-    draft(shape: BrepHandle, faces: BrepHandle[], pull: BrepVec3, neutral: BrepVec3, angleDeg: number): BrepHandle {
-      void shape; void faces; void pull; void neutral; void angleDeg
+    draft(_shape: BrepHandle, _faces: BrepHandle[], _pull: BrepVec3, _neutral: BrepVec3, _angleDeg: number): BrepHandle {
       return unsupported('draft')
     },
-    removeHolesFromFace(face: BrepHandle): BrepHandle {
-      void face
+    removeHolesFromFace(_face: BrepHandle): BrepHandle {
       return unsupported('removeHolesFromFace')
     },
-    reverseShape(shape: BrepHandle): BrepHandle {
-      void shape
+    reverseShape(_shape: BrepHandle): BrepHandle {
       return unsupported('reverseShape')
     },
-    projectEdges(shape: BrepHandle, origin: BrepVec3, direction: BrepVec3, xAxis: BrepVec3, hiddenLines: boolean, deflection: number): unknown {
-      void shape; void origin; void direction; void xAxis; void hiddenLines; void deflection
+    projectEdges(
+      _shape: BrepHandle, _origin: BrepVec3, _direction: BrepVec3, _xAxis: BrepVec3,
+      _hiddenLines: boolean, _deflection: number,
+    ): unknown {
       return unsupported('projectEdges')
     },
 
     // ── 测量 ──
     getBoundingBox(shape: BrepHandle, useTriangulation?: boolean): BrepBoundingBox {
-      // 虚拟 compound：各零件包围盒取各轴极值合并（零件独立）。
       const cKids = compoundKidsOf(shape)
       if (cKids) {
         let xmin = Infinity, ymin = Infinity, zmin = Infinity
@@ -2237,69 +1174,30 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         }
         return { xmin, ymin, zmin, xmax, ymax, zmax }
       }
-      // bTight：useTriangulation=false（缺省）→ loose box（bTight=0）。
-      //
-      // **必须按句柄种类分派**：内核把 solid/Face/Edge 的包围盒拆成三个独立 API
-      // （SmApiBrepBoundingBox / SmApiFaceBoundingBox / SmApiEdgeBoundingBox），
-      // 三者参数 ABI 相同（(ptr, bTight, min*, max*)）但首参类型不同。把 SmFace*
-      // 喂 Brep 版就是 C++ 类型混淆：实测 trap / 倒置盒 / 1e20 空盒哨兵（见上方
-      // faceHandles 注释）。faijs 的 L1 `getBoundingBox(shape)` 对任意子形状句柄
-      // 调用（选择器法向定向、面/边尺寸、网格零件度量都会传 face/edge）。
-      //
-      // 2026-10-29：分派走统一登记表 kindOf。若 ptr 曾登记但已 alive=false（owner 被
-      // 释放 → 级联失效 borrowed），说明调用方传了悬垂指针——直接 throw UAF，不再
-      // 静默按 Brep 分派（治考古报告 §3.4 地址复用 UAF）。从未登记的 ptr（测试裸桥
-      // 直调产出的 brep）按 Brep 分派（历史行为）。
       const n = shape as unknown as number
-      const existing = registry.lookup(n)
-      if (existing && !existing.alive) {
-        throw new Error(
-          `[smlib-kernel] getBoundingBox: UAF ptr=0x${n.toString(16)} ` +
-            `(kind=${existing.kind}, owner=${existing.owner}, scope=${existing.createdInScope})`,
-        )
-      }
-      const kind = registry.kindOf(n)
-      const fnName =
-        kind === 'face'
-          ? 'SmApiFaceBoundingBox'
-          : kind === 'edge'
-            ? 'SmApiEdgeBoundingBox'
-            : 'SmApiBrepBoundingBox'
-      const p = k.malloc(48)
-      try {
-        const dv = memOf(k)
-        expectOk(k.find(fnName)(shape, useTriangulation ? 1 : 0, p, p + 24), `getBoundingBox(${fnName})`)
-        return {
-          xmin: dv.getFloat64(p, true),
-          ymin: dv.getFloat64(p + 8, true),
-          zmin: dv.getFloat64(p + 16, true),
-          xmax: dv.getFloat64(p + 24, true),
-          ymax: dv.getFloat64(p + 32, true),
-          zmax: dv.getFloat64(p + 40, true),
-        }
-      } finally {
-        k.free(p)
+      if (isSynthetic(n)) return unsupported('getBoundingBox')
+      const kind = k.kindOf(n)
+      const tight = useTriangulation ? true : false
+      let bb
+      if (kind === SmwKind.Face) bb = k.faceBBox(n as never, tight)
+      else if (kind === SmwKind.Edge) bb = k.edgeBBox(n as never, tight)
+      else if (kind === SmwKind.Solid) bb = k.bbox(n as never, tight)
+      else return unsupported('getBoundingBox')
+      return {
+        xmin: bb.min[0]!, ymin: bb.min[1]!, zmin: bb.min[2]!,
+        xmax: bb.max[0]!, ymax: bb.max[1]!, zmax: bb.max[2]!,
       }
     },
     getVolume(shape: BrepHandle): number {
-      // 虚拟 compound：各零件体积之和（occt compound 体积同样为各 solid 之和，
-      // 不扣重叠——语义一致）。
       const cKids = compoundKidsOf(shape)
       if (cKids) {
         let total = 0
         for (const kid of cKids) total += primitives.getVolume(kid)
         return total
       }
-      const p = k.malloc(8)
-      try {
-        expectOk(k.find('SmApiBrepComputeVolume')(shape, 1e-8, p), 'getVolume')
-        return memOf(k).getFloat64(p, true)
-      } finally {
-        k.free(p)
-      }
+      return k.volume(shape as never)
     },
     getCenterOfMass(shape: BrepHandle): BrepVec3 {
-      // 虚拟 compound：各零件质心按体积加权平均。
       const cKids = compoundKidsOf(shape)
       if (cKids) {
         let wx = 0, wy = 0, wz = 0, totalV = 0
@@ -2312,46 +1210,19 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         if (totalV === 0) return { x: 0, y: 0, z: 0 }
         return { x: wx / totalV, y: wy / totalV, z: wz / totalV }
       }
-      // SmApiBrepComputeMassProperties(brep, acc, density, origin, area&, vol&, mass&,
-      //   centroid&, moments&, products&)——centroid 是 world 坐标（独立于 origin）。
-      const inP = k.malloc(48) // acc(8) + density(8) + origin(24) + 保留
-      const outP = k.malloc(96) // area+vol+mass(24) + centroid(24) + moments(24) + products(24)
-      try {
-        const dv = memOf(k)
-        dv.setFloat64(inP, 1e-4, true) // dRelativeAccuracy ∈ [1e-4, 1e-1]
-        dv.setFloat64(inP + 8, 1, true) // density
-        dv.setFloat64(inP + 16, 0, true)
-        dv.setFloat64(inP + 24, 0, true)
-        dv.setFloat64(inP + 32, 0, true)
-        expectOk(
-          k.find('SmApiBrepComputeMassProperties')(shape, inP, inP + 8, inP + 16, outP, outP + 8, outP + 16, outP + 24, outP + 48, outP + 72),
-          'getCenterOfMass',
-        )
-        return { x: dv.getFloat64(outP + 24, true), y: dv.getFloat64(outP + 32, true), z: dv.getFloat64(outP + 40, true) }
-      } finally {
-        k.free(inP)
-        k.free(outP)
-      }
+      const c = k.massProperties(shape as never, { acc: 1e-4 }).center
+      return { x: c[0]!, y: c[1]!, z: c[2]! }
     },
     getSurfaceArea(shape: BrepHandle): number {
-      // 虚拟 compound：各零件面积之和（occt compound 面积同为各 solid 之和，
-      // 接触面各自计入——语义一致）。
       const cKids = compoundKidsOf(shape)
       if (cKids) {
         let total = 0
         for (const kid of cKids) total += primitives.getSurfaceArea(kid)
         return total
       }
-      const p = k.malloc(8)
-      try {
-        expectOk(k.find('SmApiBrepComputeArea')(shape, 1e-8, p), 'getSurfaceArea')
-        return memOf(k).getFloat64(p, true)
-      } finally {
-        k.free(p)
-      }
+      return k.area(shape as never, 1e-8)
     },
     getLength(shape: BrepHandle): number {
-      // B 组合：全部边（按句柄去重）弧长之和。
       const edges = new Set(primitives.getSubShapes(shape, 'edge').map((e) => e as unknown as number))
       let total = 0
       for (const e of edges) total += primitives.curveLength(e as BrepHandle)
@@ -2360,153 +1231,66 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
 
     // ── 校验与修复 ──
     isValid(shape: BrepHandle): boolean {
-      // smlib 无通用 validity 查询；P1 以 IsManifoldSolid 近似（可对齐 occt
-      // CheckShape 的"闭合流形"面；缝隙/自交等深校验 P2 评估）。
       return primitives.isSolid(shape)
     },
-    unifySameDomain(shape: BrepHandle): BrepHandle {
-      void shape
+    unifySameDomain(_shape: BrepHandle): BrepHandle {
       return unsupported('unifySameDomain')
     },
-    healSolid(shape: BrepHandle, tolerance?: number): BrepHandle {
-      // 虚拟 compound：逐零件 heal 后重组（零件独立；整体直喂内核会非法指针）。
+    healSolid(shape: BrepHandle, _tolerance?: number): BrepHandle {
       const cKids = compoundKidsOf(shape)
-      if (cKids) return newCompound(cKids.map((kid) => primitives.healSolid(kid, tolerance)))
-      // A：副本化 + SmApiHealBrepEx 原地修复；KNOWN_ISSUES 声明 heal 可能假成功
-      // → 适配器修复后复核 manifold（不通过则按失败抛出）。
-      void tolerance
-      const copy = primitives.copy(shape)
-      expectOk(k.find('SmApiHealBrepEx')(copy), 'healSolid')
-      if (!primitives.isSolid(copy)) {
+      if (cKids) return newCompound(cKids.map((kid) => primitives.healSolid(kid, _tolerance)))
+      const result = track(k.healSolid(shape as never))
+      if (!k.isManifold(result as never)) {
         throw new Error('[smlib-kernel] healSolid: result is not a manifold solid (heal false-success guard)')
       }
-      return copy
+      return result as unknown as BrepHandle
     },
     fixShape(shape: BrepHandle): BrepHandle {
-      // B：brepkit 同模式降级 healSolid（现有）。
       return primitives.healSolid(shape)
     },
     fixFaceOrientations(shape: BrepHandle): BrepHandle {
-      // 虚拟 compound：逐零件统一法向后重组。
       const cKids = compoundKidsOf(shape)
       if (cKids) return newCompound(cKids.map((kid) => primitives.fixFaceOrientations(kid)))
-      // B：副本化 + SmApiUnifyNormalsEx（16 采样）原地统一法向。
-      const copy = primitives.copy(shape)
-      expectOk(k.find('SmApiUnifyNormalsEx')(copy, 16), 'fixFaceOrientations')
-      return copy
+      const copy = track(k.brepCopy(shape as never))
+      k.unifyNormals(copy as never, 16)
+      return copy as unknown as BrepHandle
     },
-    removeDegenerateEdges(shape: BrepHandle, tolerance?: number): BrepHandle {
-      void shape; void tolerance
+    removeDegenerateEdges(_shape: BrepHandle, _tolerance?: number): BrepHandle {
       return unsupported('removeDegenerateEdges')
     },
 
-    // ── IO（P5 独立立项：无 STEP/STL IO 是重大缺口）──
+    // ── IO ──
     importStep(data: string | ArrayBuffer): BrepHandle {
-      // STEP 导入：Part21 解析 + 曲面/曲线构造 + 拓扑重建全部在内核
-      // `SmApiImportStepEx`（smlib C++，复刻 brepkit `crates/io/src/step/reader.rs`）。
-      // TS 只做字节搬运，不含任何格式算法。
-      const bytes =
-        typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
-      if (bytes.byteLength === 0) {
-        throw new Error('[smlib-kernel] importStep: empty payload')
-      }
-      const ptr = k.malloc(bytes.byteLength)
-      const status = k.malloc(4)
+      const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
+      if (bytes.byteLength === 0) throw new Error('[smlib-kernel] importStep: empty payload')
       try {
-        const dv = memOf(k)
-        new Uint8Array(k.memory.buffer, ptr, bytes.byteLength).set(bytes)
-        dv.setUint32(status, 0, true)
-        const handle = k.find('SmApiImportStepEx')(
-          ptr,
-          bytes.byteLength,
-          STEP_IMPORT_TOL_MM,
-          status,
-        )
-        expectOk(dv.getUint32(status, true), 'importStep')
-        return newSolid(handle)
-      } finally {
-        k.free(status)
-        k.free(ptr)
+        const id = k.importStep(bytes, STEP_IMPORT_TOL_MM)
+        return track(id) as unknown as BrepHandle
+      } catch (e) {
+        if (e instanceof SmlibError) throw new Error(`importStep failed: SM status ${e.smStatus}`, { cause: e })
+        throw e
       }
     },
     exportStep(shape: BrepHandle): string {
-      // 虚拟 compound：逐零件导出 + 多实体 STEP 拼接（零件独立导出，绝不
-      // 整块送内核——虚拟句柄不是内核指针，直接喂 SmApiExportStepEx 会非法）。
       const cKids = compoundKidsOf(shape)
       if (cKids) return mergeStepEntities(cKids.map((kid) => primitives.exportStep(kid)))
-      // STEP 导出：面/环/边遍历 + AP203 序列化全部在内核
-      // `SmApiExportStepEx`（smlib C++，复刻 brepkit `crates/io/src/step/writer.rs`）。
-      const outLen = k.malloc(4)
-      const status = k.malloc(4)
-      let buf = 0
-      try {
-        const dv = memOf(k)
-        dv.setUint32(outLen, 0, true)
-        dv.setUint32(status, 0, true)
-        buf = k.find('SmApiExportStepEx')(shape, 0, outLen, status)
-        expectOk(dv.getUint32(status, true), 'exportStep')
-        const n = dv.getUint32(outLen, true)
-        if (!buf || n === 0) {
-          throw new Error('[smlib-kernel] exportStep: kernel returned empty STEP')
-        }
-        return new TextDecoder().decode(new Uint8Array(k.memory.buffer, buf, n))
-      } finally {
-        if (buf) k.free(buf)
-        k.free(status)
-        k.free(outLen)
-      }
+      const bytes = k.exportStep(shape as never, 0)
+      if (bytes.length === 0) throw new Error('[smlib-kernel] exportStep: kernel returned empty STEP')
+      return new TextDecoder().decode(bytes)
     },
     importStl(data: string | ArrayBuffer): BrepHandle {
-      // STL 导入（**真 B-rep**，不走 importIndexedMesh 的 mesh 路径）：
-      // 字节直送内核桥 `SmApiImportStlEx` —— 内核侧承接 brepkit
-      // `crates/io/src/stl/import.rs` 的算法（焊接顶点 → 逐三角建平面面 →
-      // 缝合 → heal），产出带面-边邻接的流形实体，下游布尔/圆角/钻孔全链可用。
-      //
-      // 与 mesh 路径的取舍（方案 §9.3）：mesh 路径零风险但产物无特征操作能力
-      // （边无邻接面）；本路径可直接对导入的边做圆角、对导入体做布尔。
-      // 代价是 O(3N) 次曲线构造，规模上限见性能探针。
-      const bytes =
-        typeof data === 'string'
-          ? new TextEncoder().encode(data)
-          : new Uint8Array(data)
-      // 84 = binary STL 的 80 字节头 + 4 字节三角数；短于此必然不是合法 binary STL
+      const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
       if (bytes.byteLength < 84) {
-        throw new Error(
-          '[smlib-kernel] importStl: payload shorter than an 84-byte binary STL header',
-        )
+        throw new Error('[smlib-kernel] importStl: payload shorter than an 84-byte binary STL header')
       }
-      const ptr = k.malloc(bytes.byteLength)
-      const status = k.malloc(4)
-      try {
-        const dv = memOf(k)
-        new Uint8Array(k.memory.buffer, ptr, bytes.byteLength).set(bytes)
-        dv.setUint32(status, 0, true)
-        const handle = k.find('SmApiImportStlEx')(
-          ptr,
-          bytes.byteLength,
-          STL_WELD_TOL_MM,
-          status,
-        )
-        expectOk(dv.getUint32(status, true), 'importStl')
-        return newSolid(handle)
-      } finally {
-        k.free(status)
-        k.free(ptr)
-      }
+      const id = k.importStl(bytes, STL_WELD_TOL_MM)
+      return track(id) as unknown as BrepHandle
     },
-    fromBREP(data: string): BrepHandle {
-      void data
+    fromBREP(_data: string): BrepHandle {
       return unsupported('fromBREP')
     },
 
-    // ── 面演化（P3）：面 hash 集合差实现 ──
-    // 探针：SmTrackTopologyChanges 内核桥在 -fwasm-exceptions 下 call_indirect 崩
-    // （RuntimeError: null function or function signature mismatch，wasm 内部帧）→
-    // 按方案 §10「若探针显示可避免则也不做内核桥」条款，改用集合差：
-    //   deleted = 输入面 hash − 结果面 hash；modified 空（幸存面由调用方 `?? [h]`
-    //   兜底，faijs 读法兼容「不上报」形态）；generated 空（无中间形）。
-    // 语义缺口记录：1→N 切割关联丢失（被切面进 deleted、新面自然新命名），
-    // 与 occt 的 Modified(face) 精确映射不等价（P4 一致性钉待评估）。
+    // ── 面演化（集合差实现；modified/generated 空，deleted 为消失面 hash）──
     cutWithHistory(a: BrepHandle, b: BrepHandle, inputFaceHashes: number[], hashUpperBound: number): BrepEvolutionData {
       const result = primitives.cut(a, b)
       const outHashes = new Set(primitives.subShapeHashes(result, 'face', hashUpperBound))
@@ -2529,7 +1313,9 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
 }
 
 /** 返回已就绪的 smlib 原语集合（未初始化则抛错）。
- * @returns 已初始化的 smlib 内核实例。 */
+ * @returns the ready smlib primitives singleton.
+ * @throws if smlib primitives are not initialized.
+ */
 export function getSmlibKernel(): SmlibPrimitives {
   if (!primitivesSingleton) throw new Error('[smlib-kernel] smlib primitives not initialized: call createSmlibPrimitives() first')
   return primitivesSingleton

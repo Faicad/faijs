@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.45.17",
+  "version": "0.45.19",
   "faijs": {
     "lib": {
       "role": "host"
@@ -497,6 +497,7 @@
     "occt-wasm": "^5.6.0"
   },
   "devDependencies": {
+    "@faicad/smlib-wasm": "file:../../../smlib-wasm",
     "@faicad/brepkit2-wasm": "^2.131.0",
     "@types/three": "^0.184.1",
     "sucrase": "^3.35.1",

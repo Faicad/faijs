@@ -81,7 +81,7 @@ describe('smlib compound 虚拟容器（零件独立，禁布尔合并）', () =
     expect(mc.vertexCount).toBe(m1.vertexCount + m2.vertexCount)
     expect(mc.triangleCount).toBe(m1.triangleCount + m2.triangleCount)
     expect(mc.faceGroups).toBeDefined()
-    expect(mc.faceCount).toBe(m1.faceCount + m2.faceCount)
+    expect(mc.faceCount).toBe((m1.faceCount ?? 0) + (m2.faceCount ?? 0))
     // 索引偏移正确：第二块零件的三角形顶点索引落在自身顶点区间（独立拼接）
     const m1IdxMax = Math.max(...Array.from(m1.indices))
     const m2IdxMax = Math.max(...Array.from(m2.indices))

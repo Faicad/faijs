@@ -22,6 +22,7 @@ import type { ExecutionResult } from '../../src/cad-runtime/runtime'
 import type { ExecutionMode, HostPorts } from '../../src/cad-runtime/ports'
 import { asPartName } from '../../src/identity'
 import type { Shape } from '../../src/mesh/types'
+import type { BrepHandle } from '../../src/brep/engine/types'
 import { __resetEngineRegistriesForTests, getActiveBrepEngineId } from '../../src/brep/engine/registry'
 import { registerSmlibBrepEngine, SMLIB_BREP_ENGINE_ID } from '../../src/brep/engine/adapters/smlib'
 import { registerBrepkitBrepEngine, BREPKIT_BREP_ENGINE_ID } from '../../src/brep/engine/adapters/brepkit'
@@ -126,7 +127,7 @@ describe('smlib 引擎 × 引擎中立导出族', () => {
     const handle = brepOf(box)
     expect(handle).toBeDefined()
     const kernel = getBrepApi()
-    const mesh = kernel.meshShape(handle!)
+    const mesh = kernel.meshShape(handle as unknown as BrepHandle)
     // 三角形数必须与导出所用载荷一致（否则导出的是另一份 mesh）
     expect(mesh.triangleCount).toBe(box.indices.length / 3)
     expect(mesh.vertexCount * 3).toBe(box.positions.length)
@@ -156,7 +157,7 @@ describe('smlib 引擎 × 引擎中立导出族', () => {
       vol6 += ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)
     }
     const volFromStl = vol6 / 6
-    const kernelVol = getBrepApi().getVolume(brepOf(box)!)
+    const kernelVol = getBrepApi().getVolume(brepOf(box) as unknown as BrepHandle)
     expect(Math.abs(volFromStl)).toBeCloseTo(kernelVol, 2)
   })
 })

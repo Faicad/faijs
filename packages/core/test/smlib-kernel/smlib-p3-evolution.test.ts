@@ -49,7 +49,7 @@ describe('P3 面演化（SmTrackTopologyChanges 内核桥）', () => {
     expect(p.getVolume(a)).toBeCloseTo(6000, 2)
     expect(evo.generated.length).toBe(0)
     // result 面数 > 0 且 mesh 可三角化（与拾取同源红线）
-    expect(p.meshShape(evo.result, { deviation: 0.1, angle: 0.5 }).triangleCount).toBeGreaterThan(0)
+    expect(p.meshShape(evo.result, { linearDeflection: 0.1, angularDeflection: 0.5 }).triangleCount).toBeGreaterThan(0)
   })
 
   it('cutWithHistory：差集 result 体积变小 + deleted 非空', () => {
@@ -84,7 +84,7 @@ describe('P3 面演化（SmTrackTopologyChanges 内核桥）', () => {
     expect(p.getVolume(evo.result)).toBeLessThan(6000)
     expect(p.getVolume(evo.result)).toBeGreaterThan(5900)
     // 面数变多（过渡面）或至少可三角化
-    const mesh = p.meshShape(evo.result, { deviation: 0.1, angle: 0.5 })
+    const mesh = p.meshShape(evo.result, { linearDeflection: 0.1, angularDeflection: 0.5 })
     expect(mesh.triangleCount).toBeGreaterThan(0)
     // 语言层句柄契约：原 solid 仍可查询
     expect(p.getVolume(s)).toBeCloseTo(6000, 2)

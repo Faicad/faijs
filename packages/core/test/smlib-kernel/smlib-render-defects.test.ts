@@ -23,7 +23,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createSmlibPrimitives, disposeSmlib, type SmlibPrimitives } from '../../src/smlib-kernel/smlibKernel'
-import { initSmlibWasm, resetSmlibWasm, type SmlibKernel } from '../../src/smlib-kernel/smlibWasm'
+import { resetSmlibWasm } from '../../src/smlib-kernel/smlibWasm'
 import { splitBrep, translateBrep } from '../../src/brep/brep-ops'
 import {
   dovetailBooleanSplitBrep,
@@ -85,6 +85,7 @@ function analyzeMesh(solid: BrepHandle): MeshDiag {
   const normals = mesh.normals
   const indices = mesh.indices
   const faceGroups = mesh.faceGroups
+  if (!faceGroups) throw new Error('analyzeMesh: solid tessellation must include faceGroups')
   const edgeDir = new Map<string, number>()
   const q = (v: number) => Math.round(v * 1000) // 1e-3 量化（f32 顶点足够）
 
@@ -204,6 +205,7 @@ function dumpTriangles(label: string, solid: BrepHandle): void {
   const positions = mesh.positions
   const indices = mesh.indices
   const faceGroups = mesh.faceGroups
+  if (!faceGroups) throw new Error(`${label}: solid tessellation must include faceGroups`)
   const faceCentroid = new Map<number, string>()
   for (const f of p.getSubShapes(solid, 'face')) {
     const c = p.surfaceCenterOfMass(f)
@@ -296,59 +298,6 @@ describe('用户缺陷 1 复现：平面分割（fai_split cutMode=plane + separ
 })
 
 describe('用户缺陷 2 复现：抽壳（点顶面开口，壁厚 2）', () => {
-  it('探针：SmApiShellBrepFullEx 参数变体（诊断日志，断言只在契约用例）', async () => {
-    const k: SmlibKernel = await initSmlibWasm()
-    const box = p.makeBox(10, 10, 10)
-    const faces = p.getSubShapes(box, 'face')
-    let top = faces[0]
-    let maxZ = -Infinity
-    for (const f of faces) {
-      const c = p.surfaceCenterOfMass(f)
-      console.log(`[shell-probe] face centroid = (${c.x.toFixed(3)}, ${c.y.toFixed(3)}, ${c.z.toFixed(3)})`)
-      if (c.z > maxZ) {
-        maxZ = c.z
-        top = f
-      }
-    }
-    const variants: Array<[string, number, number]> = [
-      ['正距离外扩 (+2, bExt=0) —— 内核语义 offset−original（反例）', 2, 0],
-      ['负距离内缩 (-2, bExt=0) —— faijs shell 适配器口径', -2, 0],
-      ['负距离内缩 (-2, bExt=1)', -2, 1],
-    ]
-    for (const [label, dDist, bExt] of variants) {
-      const arr = k.malloc(4)
-      const out = k.malloc(4)
-      try {
-        const dv = new DataView(k.memory.buffer)
-        dv.setUint32(arr, top as unknown as number, true)
-        dv.setUint32(out, 0, true)
-        const st = k.find('SmApiShellBrepFullEx')(
-          box as unknown as number,
-          dDist,
-          bExt,
-          1,
-          1,
-          arr,
-          1,
-          out,
-        )
-        if (st !== 1000) {
-          console.log(`[shell-probe] ${label}: status ${st}`)
-          continue
-        }
-        const h = dv.getUint32(out, true) as BrepHandle
-        const bb = p.getBoundingBox(h)
-        console.log(
-          `[shell-probe] ${label}: volume=${p.getVolume(h).toFixed(3)} ` +
-            `bbox=[${bb.xmin},${bb.ymin},${bb.zmin}]-[${bb.xmax},${bb.ymax},${bb.zmax}] isSolid=${p.isSolid(h)}`,
-        )
-      } finally {
-        k.free(arr)
-        k.free(out)
-      }
-    }
-  })
-
   it('契约：向内等厚薄壁（体积 712 / bbox [0,10]³ 不外扩 / 网格不变量）', () => {
     const box = p.makeBox(10, 10, 10)
     const faces = p.getSubShapes(box, 'face')

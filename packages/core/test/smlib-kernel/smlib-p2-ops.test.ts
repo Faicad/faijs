@@ -32,7 +32,7 @@ describe('P2 造型区', () => {
     const f = p.makeRectangle(10, 20)
     // CreatePlanarFaces 返回单面 brep（非闭合流形 solid——探针结论），
     // 可被 extrude 等造型消费；三角化出 2 个三角面（单面）。
-    const mesh = p.meshShape(f, { deviation: 0.1, angle: 0.5 })
+    const mesh = p.meshShape(f, { linearDeflection: 0.1, angularDeflection: 0.5 })
     expect(mesh.triangleCount).toBe(2) // 单面两个三角
   })
 
