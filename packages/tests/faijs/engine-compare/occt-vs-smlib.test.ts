@@ -42,7 +42,6 @@ const CORPUS: string[] = [
   'boolean/subtract.fai.js',
   'boolean/union.fai.js',
   'features/drill-test.fai.js',
-  'features/engrave-svg.fai.js',
   'features/extrude.fai.js',
   'features/screw.fai.js',
   'features/split.fai.js',

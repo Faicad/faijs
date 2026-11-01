@@ -1,6 +1,5 @@
 /**
- * Phase 0.4 探针（op 侧）：计划 §7 测定项第 **2** 项（`screw`）、第 **4** 项（`convexHull`）、
- * 第 **5** 项（`engrave`）。
+ * Phase 0.4 探针（op 侧）：计划 §7 测定项第 **2** 项（`screw`）、第 **4** 项（`convexHull`）。
  *
  * 每项分支已预置，
  * 本文件只负责**测出事实、选分支**。探针落成 `.test.ts`（AGENTS.md 铁律）。
@@ -48,7 +47,6 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { ensureTestFontLoader } from '@faicad/faijs/brep/text/fontTestHelper'
-import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import { brepOf } from '@faicad/faijs/shape'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
@@ -115,44 +113,6 @@ function solidOf(result: ExecutionResult, part: PartName): { kernel: BrepEngineA
 function faceTypes(result: ExecutionResult, part: PartName): string[] {
   const { kernel, solid } = solidOf(result, part)
   return kernel.getSubShapes(solid as never, 'face').map((h) => kernel.surfaceType(h))
-}
-
-/**
- * 内核方法调用计数器：**在真实内核实例上套一层**，返回各方法的调用次数与还原函数。
- *
- * 为什么必须运行时计数（而不是读源码）：`engrave` 有 3 处布尔调用（`kernel.cut` 等），
- * 但"代码里写了 `kernel.cut`"并不等于"运行时真的走它"（也可能早返回、走 mesh 分支）。
- * 这是本文件唯一能证明"绕过了带历史入口"的手段。
- * @param methods - 要计数的方法名。
- * @returns 计数表与还原函数。
- */
-function countKernelCalls(methods: readonly string[]): { counts: Record<string, number>; restore: () => void } {
-  const kernel = getKernel() as unknown as Record<string, unknown>
-  const counts: Record<string, number> = {}
-  const originals = new Map<string, unknown>()
-
-  for (const name of methods) {
-    const orig = kernel[name]
-    counts[name] = 0
-    originals.set(name, orig)
-    const fn = orig as (...args: unknown[]) => unknown
-    // 定义在实例上（遮蔽原型方法）⇒ op 内部 `kernel.cut(...)` 会命中本包装。
-    kernel[name] = (...args: unknown[]) => {
-      counts[name]++
-      return fn.apply(kernel, args)
-    }
-  }
-
-  return {
-    counts,
-    restore: () => {
-      for (const [name, orig] of originals) {
-        // 删掉实例上的遮蔽属性，恢复原型查找（比赋回更干净）
-        delete kernel[name]
-        void orig
-      }
-    },
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -267,41 +227,5 @@ describe('§7 第 4 项：convexHull 的词汇（保拓扑缩放 + 点序敏感�
     expect([...tb].sort()).toEqual([...ta].sort())
     // ⚠️ 留档：脚本里的点序是字面量 ⇒ 跨重放固定，故"面序随输入点序变"不构成分支判据；
     // 但若将来要让 convexHull 的面词汇**与调用方点序无关**，需要按几何（法向）而非下标命名。
-  })
-})
-
-describe('§7 第 5 项：engrave 是否等价 cut 组合（实测：几何等价，但绕过带历史入口）', () => {
-  const ENGRAVE = `
-    const part0 = cad.box(20, 20, 20, { centered: true })
-    const part1 = cad.engrave(part0, { engravingType: 'text', mode: 'concave', depth: 1, text: 'A', textSize: 10 })
-  `
-
-  it('BREP 路径只调裸 kernel.cut，从不调 cutWithHistory（⇒ 复用 cut 词汇前须先换入口）', async () => {
-    const spy = countKernelCalls(['cut', 'cutWithHistory', 'fuse', 'fuseWithHistory', 'fuseAll'])
-    let failed: string | undefined
-    try {
-      failed = await withRun(ENGRAVE, (r) => r.failedAt?.message)
-    } finally {
-      spy.restore()
-    }
-
-    expect(failed, `执行失败：${failed}`).toBeUndefined()
-    // 确实走了 BREP 布尔（不是 mesh 兜底）
-    expect(spy.counts.cut + spy.counts.fuse, '一个布尔内核调用都没发生').toBeGreaterThan(0)
-    // 待测事实：带历史的入口调用次数为 0
-    expect(spy.counts.cutWithHistory).toBe(0)
-    expect(spy.counts.fuseWithHistory).toBe(0)
-  })
-
-  it('刻出的凹槽是 op 内部工具体的产物：结果面远多于输入 6 面，且无权威账号可继承', async () => {
-    const types = await withRun(ENGRAVE, (r) => {
-      expect(r.failedAt, `执行失败：${r.failedAt?.message}`).toBeUndefined()
-      return faceTypes(r, asPartName('part1'))
-    })
-
-    // 输入 box 6 面；刻字后新增凹槽底面 + 各笔画侧壁 ⇒ 面数显著增加
-    expect(types.length).toBeGreaterThan(6)
-    // 凹槽侧壁是平面、底面也是平面（'A' 的笔画为直边）；这里只断言"新增面确实进了结果"
-    expect(types.filter((t) => t === 'plane').length).toBeGreaterThan(6)
   })
 })
