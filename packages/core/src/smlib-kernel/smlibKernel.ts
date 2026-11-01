@@ -125,14 +125,55 @@ function asArray(p: BrepVec3): [number, number, number] {
   return [p.x, p.y, p.z]
 }
 
-/** XY 平面曲线（圆心原点）→ center+normal 局部平面的 3×4 行主序矩阵。 */
+/**
+ * XY 平面曲线（圆心原点）→ center+normal 局部平面的 3×4 行主序矩阵。
+ *
+ * **局部 X 轴 = 世界 +X 在该平面上的投影**（退化时取 +Y 投影）。这样局部角度就是
+ * 世界角度，调用方不需要任何 `uAngle` 补偿；也对齐 OCCT `gp_Ax2(center, normal)`
+ * 在 n=+Z 时的参考轴（+X）。v = n×u 保证 (u,v,n) 右手。
+ */
 function circlePlacementMatrix(center: BrepVec3, normal: BrepVec3): number[] {
   const n = normVec(normal)
-  let u: BrepVec3
-  if (Math.abs(n.z) < 0.999) u = normVec(cross(n, { x: 0, y: 0, z: 1 }))
-  else u = normVec(cross(n, { x: 1, y: 0, z: 0 }))
+  const ref = Math.abs(n.x) < 0.999 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 }
+  const u = normVec(cross(cross(n, ref), n)) // ref 在平面上的投影，再归一
   const v = cross(n, u)
   return [u.x, v.x, n.x, center.x, u.y, v.y, n.y, center.y, u.z, v.z, n.z, center.z]
+}
+
+/**
+ * 有向跨度（度）—— 从 `a0` 走到 `a1` 且**必须经过** `am` 的那个方向。
+ *
+ * 三点弧的方向由中点决定：先取 a0→a1 的 CCW 短跨度 `ccw`，再看 `am` 落在哪一侧；
+ * `am` 不在 CCW 弧上时改用互补的负向跨度（`ccw − 360`）。返回 (-360, 360)。
+ */
+function arcSweepThrough(a0: number, a1: number, am: number): number {
+  const ccw = (((a1 - a0) % 360) + 360) % 360
+  if (ccw < 1e-9) return 360
+  const db = ((((am - a0) % 360) + 540) % 360) - 180 // (-180, 180]
+  if (db >= 0) return db <= ccw ? ccw : ccw - 360
+  return db >= ccw - 360 ? ccw - 360 : ccw
+}
+
+/**
+ * (起始角, 有向跨度) → 内核可接受的 (start, stop)。
+ *
+ * `SmBSplineCurve::CreateCircleSegment` 对两个角度都做 `RANGE_ER(-360, ·, 360)` 硬校验
+ * （`SmBSplineCurve.cpp:1946`），所以越界值会被拒；同时跨度方向由 `stop − start` 的
+ * 符号决定，**不能**把两端各自 `mod 360`（那会把 20° 短弧翻成 340° 长弧）。这里只做
+ * 「整体平移 360」，跨度与方向一动不动。
+ */
+function arcAnglePair(startDeg: number, sweepDeg: number): [number, number] {
+  let a = startDeg
+  let b = startDeg + sweepDeg
+  while (b > 360) {
+    a -= 360
+    b -= 360
+  }
+  while (b < -360) {
+    a += 360
+    b += 360
+  }
+  return [a, b]
 }
 
 /** 3×4 行主序矩阵复合：先 m2 后 m1。 */
@@ -219,6 +260,19 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
   let nextVertexId = 1
   let nextCompoundId = 1
   const wireHandles = new Map<number, number[]>()
+  /**
+   * face id → 边界环 wire（合成句柄，按 loop 顺序）。
+   *
+   * 为什么需要：smlib 没有 wire 实体，而 `sweep` / `loft` 的截面适配
+   * （`api/internal/profile-wire.ts` 的 `getSubShapes(face, 'wire')`）要求「面 → 外环
+   * wire」。**索引 0 = 外环**：SMLib 契约规定 `SmApiFaceGetBoundaryLoops` 的
+   * `GetUpwardLoopuses` 首个 loop 即 OuterLoop（`usd-brep/source/SM_API/src/SmApiQueries.cpp:324`
+   * + `SmBrep.h:436/936` 的 "1st Loop=OuterLoop"）。
+   *
+   * 缓存键是 arena face id（单调不复用，不会串到别的面）。缓存在轮末清扫时整体丢弃 ——
+   * face 是 borrowed 子形状，随 owner solid 失效，缓存不能跨轮存活。
+   */
+  const faceWireCache = new Map<number, BrepHandle[]>()
   const vertexHandles = new Map<number, BrepVec3>()
   const compoundHandles = new Map<number, BrepHandle[]>()
   // 真实 borrowed Face/Edge 的确定性 hash 必须与其 owner solid 的枚举序号同源；
@@ -244,6 +298,70 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
   }
   const isSynthetic = (n: number): boolean => n >= WIRE_TAG
 
+  /**
+   * 逃生句柄的闭包：合成句柄（wire / compound）本身不是 arena 对象，它的成员才是。
+   *
+   * 语句帧末释放只看句柄本身时，产物 `cad.wire([...])` 的 wire 句柄逃逸了，但它的
+   * curve 成员没有 → 帧末被 `tryRelease` 掉，产物变成指向已释放内核对象的空壳。
+   * 实测症状：`cad.wire` 语句执行成功，随后拓扑构建在 `smw_curve_type` 上抛
+   * `ErrBadId: bad edge id 1`（curve 已被释放）。compound 同理（成员是子实体）。
+   */
+  function expandEscapeClosure(escapePtrs: ReadonlySet<number>): ReadonlySet<number> {
+    let keep: Set<number> | undefined
+    const visit = (root: number): void => {
+      const kids = (wireHandles.get(root) ?? compoundHandles.get(root)) as number[] | undefined
+      if (!kids) return
+      for (const kid of kids) {
+        const c = kid as unknown as number
+        if (escapePtrs.has(c)) continue
+        keep ??= new Set(escapePtrs)
+        if (keep.has(c)) continue
+        keep.add(c)
+        visit(c)
+      }
+    }
+    for (const h of escapePtrs) visit(h)
+    return keep ?? escapePtrs
+  }
+
+  /**
+   * 先复制再变换 —— faijs 变换的语义基准是 OCCT 的 `BRepBuilderAPI_Transform`
+   * （Copy=true：输入不变，返回新实体）。
+   *
+   * 这里曾经直接原地变换（`k.translate(shape)` 改 arena 对象），后果不是"省一次拷贝"
+   * 而是**改掉调用方的零件**：`cad.translate(p0, …)` 之后 p0 的底层 brep 一起移动，
+   * mesh 缓存把症状掩盖，直到对 p0 再做几何才炸（loft 两截面被移到同一平面）。
+   * 实测对照（`profile` 面 → 外环曲线端点的 z）：
+   * OCCT `p0 z=[0,0,0,0]` / smlib 修复前 `p0 z=[20,20,20,20]`。
+   */
+  function onCopy(shape: BrepHandle, apply: (h: BrepHandle) => void): BrepHandle {
+    const cKids = compoundKidsOf(shape)
+    if (cKids) {
+      const kids = cKids.map((kid) => onCopy(kid, apply))
+      return newCompound(kids)
+    }
+    const copy = track(k.brepCopy(shape as never)) as unknown as BrepHandle
+    apply(copy)
+    return copy
+  }
+
+  /** face → 边界环合成 wire（幂等缓存）。索引 0 = 外环，见 faceWireCache 注释。 */
+  function faceWires(n: number): BrepHandle[] {
+    const cached = faceWireCache.get(n)
+    if (cached) {
+      cached.forEach((w, index) => recordSubShape(n, index, w))
+      return cached
+    }
+    const loops = k.faceLoops(n as never)
+    const wires = loops.loops.map((loop) => {
+      const curves = loop.edges.map((e) => k.edgeToCurve(e as never) as unknown as number)
+      return newWire(curves)
+    })
+    faceWireCache.set(n, wires)
+    wires.forEach((w, index) => recordSubShape(n, index, w))
+    return wires
+  }
+
   // 合成句柄判定 → kind：solid / face / edge / curve / surface。
   function faceOf(n: number): number {
     const kind = k.kindOf(n)
@@ -265,7 +383,30 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     return faceLoopsCurves(n)[0] ?? []
   }
 
-  /** 三点圆弧：外接圆圆心 + 起止角（局部基 u 的 2 倍世界方向角补偿）→ makeArc → 放置矩阵。 */
+  /**
+   * 句柄 → 有序曲线 id：合成 wire 直接取成员，face/solid 取外环（孔环不参与扫掠，
+   * 与 occt `sweepPipeShell` 的"面取外环"口径一致）。
+   */
+  function orderedCurvesOf(n: number): number[] {
+    const w = wireHandles.get(n)
+    if (w) return w
+    return faceOuterCurves(n)
+  }
+
+  /**
+   * 三点圆弧：外接圆圆心 + 局部 (u,v) 基上的起止角 → makeArc → 放置矩阵。
+   *
+   * 角度契约：`smw_make_arc` 在**局部 XY 平面**从 +X 起算，曲线随后被 `[u v w|center]`
+   * 矩阵搬到世界。这里 a0/a1 本来就是用同一个 (u,v) 基算出来的（`ang()` 就是投影到
+   * u、v 上取 atan2），所以**不需要任何世界方向补偿** —— 多加 `uAngle` 只会把弧整体
+   * 转掉一个 `uAngle`。
+   *
+   * 曾经的 `norm(a0 + 2*uAngle ∓ 0.05)` 有两个叠加缺陷（2026-10-31 定位）：
+   *   ① 圆角矩形四条角弧整体转了 180°（uAngle=±90 时 2*uAngle=180），首尾不相连 →
+   *      `SmApiCreatePlanarFaces failed`，worker-sim「全图元截面」段卡死；
+   *   ② `±0.05°` 的"补角"让每个端点偏移 r·sin(0.05°)（r=2 时 0.0017mm），闭环永远
+   *      差一点点 —— 即便角度修对，这个缝也可能让构面失败。
+   */
   function threePointArc(start: BrepVec3, mid: BrepVec3, end: BrepVec3): BrepHandle {
     const a = start
     const b = mid
@@ -295,17 +436,11 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       const dz = p.z - center.z
       return (Math.atan2(dx * v.x + dy * v.y + dz * v.z, dx * u.x + dy * u.y + dz * u.z) * 180) / Math.PI
     }
-    let a0 = ang(a)
-    let a1 = ang(c)
+    const a0 = ang(a)
     const am = ang(b)
-    if ((a1 - a0) > 0 !== (am - a0) > 0 && Math.abs(a1 - a0) > 1e-9) {
-      a1 += a1 - a0 > 0 ? -360 : 360
-    }
-    const uAngle = (Math.atan2(u.y, u.x) * 180) / Math.PI
-    const norm = (d: number) => ((d % 360) + 360) % 360
-    a0 = norm(a0 + 2 * uAngle - 0.05)
-    a1 = norm(a1 + 2 * uAngle + 0.05)
-    const curve = track(k.makeArc([0, 0, 0], r, a0, a1))
+    const a1 = ang(c)
+    const [startDeg, stopDeg] = arcAnglePair(a0, arcSweepThrough(a0, a1, am))
+    const curve = track(k.makeArc([0, 0, 0], r, startDeg, stopDeg))
     const m = [u.x, v.x, w.x, center.x, u.y, v.y, w.y, center.y, u.z, v.z, w.z, center.z]
     k.transformMatrix(curve as never, m)
     return curve as unknown as BrepHandle
@@ -343,6 +478,12 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       k.releaseExcept([...effectiveKeep])
       shapeEpoch++
       subShapeOrdinal.clear()
+      // face→wire 合成表随 owner face 失效：face 是 borrowed 子形状，轮末必然不在 keep 里，
+      // 缓存与它产出的合成 wire 一并丢弃（`cad.wire` 的曲线不走这张表，不受影响）。
+      for (const wires of faceWireCache.values()) {
+        for (const w of wires) wireHandles.delete(w as unknown as number)
+      }
+      faceWireCache.clear()
       for (const id of tracked) {
         if (!effectiveKeep.has(id)) tracked.delete(id)
       }
@@ -351,6 +492,7 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     dispose(_shape?: BrepHandle): void {
       k.releaseAll()
       wireHandles.clear()
+      faceWireCache.clear()
       vertexHandles.clear()
       compoundHandles.clear()
       subShapeOrdinal.clear()
@@ -365,17 +507,19 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     __popStatementScope(escapePtrs: ReadonlySet<number>): void {
       const frame = frames.pop()
       if (!frame) return
+      const keep = expandEscapeClosure(escapePtrs)
       for (const id of frame) {
-        if (escapePtrs.has(id)) continue
+        if (keep.has(id)) continue
         k.tryRelease(id as never)
         tracked.delete(id)
       }
     },
     __drainStatementScope(escapePtrs: ReadonlySet<number>): void {
+      const keep = expandEscapeClosure(escapePtrs)
       while (frames.length) {
         const frame = frames.pop()!
         for (const id of frame) {
-          if (escapePtrs.has(id)) continue
+          if (keep.has(id)) continue
           k.tryRelease(id as never)
           tracked.delete(id)
         }
@@ -450,8 +594,18 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         k.rotationalSweep(curves as never, asArray(center), asArray(direction), angleDeg, true),
       ) as unknown as BrepHandle
     },
-    sweep(_profile: BrepHandle, _spine: BrepHandle): BrepHandle {
-      return unsupported('sweep')
+    sweep(profile: BrepHandle, spine: BrepHandle): BrepHandle {
+      const profileCurves = orderedCurvesOf(profile as unknown as number)
+      if (profileCurves.length === 0) throw new Error('[smlib-kernel] sweep: profile has no boundary curves')
+      const pathCurves = orderedCurvesOf(spine as unknown as number)
+      if (pathCurves.length === 0) throw new Error('[smlib-kernel] sweep: spine has no curves')
+      // `moveProfile=true`（截面 bbox 中心对齐路径起点）：SMLib 的
+      // SmApiCreateSweepAlongPlanarPath **总是**把截面搬到路径起点，只让调用方选参考点，
+      // 而 faijs 的常规用法（草图/轮廓画在原点平面、脊柱从原点出发）与 bbox 中心口径一致。
+      // `capEnds=3`：两端封盖 → 实体（开放路径不封盖会得到片体）。
+      return track(
+        k.sweepAlongPlanarPath(profileCurves as never, pathCurves as never, true, 3),
+      ) as unknown as BrepHandle
     },
     loft(sections: BrepHandle[], ruled: boolean, _endPoint?: BrepVec3): BrepHandle {
       if (sections.length < 2) throw new Error('[smlib-kernel] loft: need >= 2 sections')
@@ -463,7 +617,12 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
         counts.push(curves.length)
         allCurves.push(...curves)
       }
-      return track(k.loft(counts, allCurves as never, ruled ? 1 : 3, true)) as unknown as BrepHandle
+      // 蒙皮次数不能超过"截面数 − 1"：n 个截面最多 n−1 次插值。faijs 的 loft 默认
+      // ruled=false（要求 smooth），但两个截面时三次插值无解，内核直接
+      // `SmApiCreateSkinPrimitive failed`。这里按截面数收敛次数 —— 不是精度让步，
+      // 是插值自由度的硬约束（OCCT 的 ThruSections 对两截面同样是线性）。
+      const degree = ruled ? 1 : Math.min(3, sections.length - 1)
+      return track(k.loft(counts, allCurves as never, degree, true)) as unknown as BrepHandle
     },
     sew(_shapes: BrepHandle[], _tolerance?: number): BrepHandle {
       return unsupported('sew')
@@ -522,6 +681,34 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     },
     splitByPlane(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): { positive: BrepHandle; negative: BrepHandle } {
       const n = normal
+      // 契约与 occt/brepkit 对齐：**必须真的把实体切成两块**。只擦过（相切于某个面）
+      // 或整体在一侧时，有一半是空的，这不是"分割"。occt 在这种输入下抛
+      // `splitByPlane: expected 2 solids, got 1`；smlib 若不先拦住，内核会拿一个与
+      // 实体某面**共面**的半空间盒去做布尔减，产出带瑕疵的 BREP，随后三角化报
+      // `ConvertToPolyBrep failed`（端侧 test:ops 两条 splitByPlane 的真身：居中
+      // box 在 z=15 的顶面上切）。先算 bbox 八角的带符号距离，只有真正跨面才进内核。
+      const bb = primitives.getBoundingBox(shape)
+      const diag = Math.hypot(bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin)
+      // 容差取模型对角线的 5e-6：SMLib 的 loose bbox 自带 ~2e-5 绝对松弛（实测
+      // 10×20×30 的 box 报 z=[-15.00002, 15.00002]），用 1e-9 级容差会让"共面"被
+      // 判成跨越；5e-6 比该松弛大一个量级，仍把薄于 0.0005% 对角线的切片视为退化。
+      const eps = Math.max(diag * 5e-6, 1e-9)
+      const dist = (x: number, y: number, z: number): number =>
+        (x - point.x) * n.x + (y - point.y) * n.y + (z - point.z) * n.z
+      let lo = Infinity
+      let hi = -Infinity
+      for (let i = 0; i < 8; i++) {
+        const w = dist(
+          i & 1 ? bb.xmax : bb.xmin,
+          i & 2 ? bb.ymax : bb.ymin,
+          i & 4 ? bb.zmax : bb.zmin,
+        )
+        if (w < lo) lo = w
+        if (w > hi) hi = w
+      }
+      if (!(lo < -eps && hi > eps)) {
+        throw new Error('splitByPlane: expected 2 solids, got 1')
+      }
       const negative = track(k.cutPlane(shape as never, asArray(point), asArray(n)))
       const positive = track(
         k.cutPlane(shape as never, asArray(point), [-n.x, -n.y, -n.z]),
@@ -554,32 +741,14 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
 
     // ── 变换（原地；包壳 transformMatrix 已吸收 SMLib 转置 quirk，适配器禁止再转置）──
     translate(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle {
-      const cKids = compoundKidsOf(shape)
-      if (cKids) {
-        for (const kid of cKids) primitives.translate(kid, dx, dy, dz)
-        return shape
-      }
-      k.translate(shape as never, dx, dy, dz)
-      return shape
+      return onCopy(shape, (h) => k.translate(h as never, dx, dy, dz))
     },
     scale(shape: BrepHandle, center: BrepVec3, factor: number): BrepHandle {
-      const cKids = compoundKidsOf(shape)
-      if (cKids) {
-        for (const kid of cKids) primitives.scale(kid, center, factor)
-        return shape
-      }
-      k.scaleByPoint(shape as never, center.x, center.y, center.z, factor)
-      return shape
+      return onCopy(shape, (h) => k.scaleByPoint(h as never, center.x, center.y, center.z, factor))
     },
     transform(shape: BrepHandle, matrix: number[]): BrepHandle {
       if (matrix.length !== 12) throw new Error('[smlib-kernel] transform: matrix must be 12 elements (3×4 row-major)')
-      const cKids = compoundKidsOf(shape)
-      if (cKids) {
-        for (const kid of cKids) primitives.transform(kid, matrix)
-        return shape
-      }
-      k.transformMatrix(shape as never, matrix)
-      return shape
+      return onCopy(shape, (h) => k.transformMatrix(h as never, matrix))
     },
     located(shape: BrepHandle, matrix: number[]): BrepHandle {
       return primitives.transform(shape, matrix)
@@ -613,35 +782,31 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return primitives.transform(shape, m)
     },
     rotate(shape: BrepHandle, axis: { point: BrepVec3; direction: BrepVec3 }, angleRad: number): BrepHandle {
-      const cKids = compoundKidsOf(shape)
-      if (cKids) {
-        for (const kid of cKids) primitives.rotate(kid, axis, angleRad)
-        return shape
-      }
       const deg = (angleRad * 180) / Math.PI
-      k.rotate(
-        shape as never,
-        axis.point.x, axis.point.y, axis.point.z,
-        axis.direction.x, axis.direction.y, axis.direction.z,
-        deg,
+      return onCopy(shape, (h) =>
+        k.rotate(
+          h as never,
+          axis.point.x, axis.point.y, axis.point.z,
+          axis.direction.x, axis.direction.y, axis.direction.z,
+          deg,
+        ),
       )
-      return shape
     },
 
     // ── 阵列 ──
+    // 变换族已是 copy-then-transform（见 onCopy），这里**不能再显式 copy 一次** ——
+    // 那样旋转/平移会作用在第二份副本上，push 出去的第一份仍是原样。
     linearPattern(shape: BrepHandle, direction: BrepVec3, spacing: number, count: number): BrepHandle[] {
       const out: BrepHandle[] = [shape]
       for (let i = 1; i < count; i++) {
-        out.push(primitives.translate(primitives.copy(shape), direction.x * spacing * i, direction.y * spacing * i, direction.z * spacing * i))
+        out.push(primitives.translate(shape, direction.x * spacing * i, direction.y * spacing * i, direction.z * spacing * i))
       }
       return out
     },
     circularPattern(shape: BrepHandle, center: BrepVec3, axis: BrepVec3, angleStep: number, count: number): BrepHandle[] {
       const out: BrepHandle[] = [shape]
       for (let i = 1; i < count; i++) {
-        const c = primitives.copy(shape)
-        primitives.rotate(c, { point: center, direction: axis }, (angleStep * i * Math.PI) / 180)
-        out.push(c)
+        out.push(primitives.rotate(shape, { point: center, direction: axis }, (angleStep * i * Math.PI) / 180))
       }
       return out
     },
@@ -680,13 +845,11 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return c as unknown as BrepHandle
     },
     makeCircleArc(center: BrepVec3, normal: BrepVec3, radius: number, startAngle: number, endAngle: number): BrepHandle {
-      const n = normVec(normal)
-      let u: BrepVec3
-      if (Math.abs(n.z) < 0.999) u = normVec(cross(n, { x: 0, y: 0, z: 1 }))
-      else u = normVec(cross(n, { x: 1, y: 0, z: 0 }))
-      const uAngle = (Math.atan2(u.y, u.x) * 180) / Math.PI
-      const norm = (d: number) => ((d % 360) + 360) % 360
-      const c = track(k.makeArc([0, 0, 0], radius, norm(startAngle + uAngle), norm(endAngle + uAngle)))
+      // circlePlacementMatrix 的局部 X = 世界 +X 投影 ⇒ 角度零补偿，直接喂世界角。
+      // 跨度必须保留符号（`endAngle − startAngle`，CCW 为正），只把越界值整体平移 360。
+      const norm360 = ((startAngle % 360) + 360) % 360
+      const [a0, a1] = arcAnglePair(norm360, endAngle - startAngle)
+      const c = track(k.makeArc([0, 0, 0], radius, a0, a1))
       k.transformMatrix(c as never, circlePlacementMatrix(center, normal))
       return c as unknown as BrepHandle
     },
@@ -711,7 +874,18 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     // ── 拓扑构造 ──
     makeWire(edges: BrepHandle[]): BrepHandle {
       if (edges.length === 0) throw new Error('[smlib-kernel] makeWire: need >= 1 edge')
-      const curves = edges.map((e) => k.edgeToCurve(e as never) as unknown as number)
+      // smlib **没有独立的 Edge 实体**：makeLineEdge / makeArcEdge / makeBezierEdge 产出的
+      // 是 curve 句柄（`smw_make_line_segment` 等直接返回 Curve slot）。所以这里必须按
+      // kind 分派——curve 直接收，edge 才走 edgeToCurve。对 curve 也调 edgeToCurve 会把
+      // curve id 当 edge 解引用，内核报 `smw_curve_type failed: bad edge id <curveId>`
+      // （cad.wire 三点折线在端侧的实测症状，2026-10-31）。
+      const curves = edges.map((e) => {
+        const n = e as unknown as number
+        if (isSynthetic(n)) {
+          throw new Error('[smlib-kernel] makeWire: synthetic handle (wire/vertex/compound) cannot be a wire edge')
+        }
+        return k.kindOf(n) === SmwKind.Curve ? n : (k.edgeToCurve(e as never) as unknown as number)
+      })
       return newWire(curves)
     },
     makeFace(wire: BrepHandle): BrepHandle {
@@ -917,6 +1091,21 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       const kind = k.kindOf(n)
       if (type === 'solid') return kind === SmwKind.Solid ? [shape] : unsupported(`getSubShapes(${type})`)
       if (type === 'shell') return kind === SmwKind.Solid ? [shape] : unsupported(`getSubShapes(${type})`)
+      // OCCT 语义：face 的子形状 face 就是它自己（TopExp_Explorer(face, TopAbs_FACE) 首项为自身）。
+      if (type === 'face' && kind === SmwKind.Face) return [shape]
+      // face → 边界环 wire（合成）。索引 0 = 外环，见 faceWireCache 注释。
+      if (type === 'wire' && kind === SmwKind.Face) {
+        return faceWires(n)
+      }
+      // solid → 全部面内的全部边界环（OCCT `TopExp_Explorer(solid, TopAbs_WIRE)` 语义）。
+      // 为什么需要：`smw_planar_faces` 产出的"平面片"在内核里是 **Solid** 句柄
+      // （`shapeType` 实测 'SOLID'），而 `cad.profile` 走的就是它 —— 于是
+      // `profile-wire.ts` 的「面 → 外环」在 smlib 上实际是「solid → 外环」。
+      if (type === 'wire' && kind === SmwKind.Solid) {
+        const out: BrepHandle[] = []
+        for (const f of primitives.getSubShapes(shape, 'face')) out.push(...faceWires(f as unknown as number))
+        return out
+      }
       if (type === 'wire') {
         const curves = wireHandles.get(n)
         if (curves) {

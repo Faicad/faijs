@@ -713,8 +713,12 @@
     {
       "op": "sweep",
       "engine": "brepkit-2.129.15",
-      "status": "fail",
-      "error": "sweep: E_BREP_UNSUPPORTED: op 'sweep' requires engine occt (current=brepkit)"
+      "bbox": [
+        8,
+        8,
+        25
+      ],
+      "status": "pass"
     },
     {
       "op": "loft",
@@ -1179,8 +1183,12 @@
     {
       "op": "sweep",
       "engine": "brepkit-4.1.49",
-      "status": "fail",
-      "error": "sweep: E_BREP_UNSUPPORTED: op 'sweep' requires engine occt (current=brepkit)"
+      "bbox": [
+        8,
+        8,
+        25
+      ],
+      "status": "pass"
     },
     {
       "op": "loft",
@@ -1645,8 +1653,12 @@
     {
       "op": "sweep",
       "engine": "brepkit-4.0.32",
-      "status": "fail",
-      "error": "sweep: E_BREP_UNSUPPORTED: op 'sweep' requires engine occt (current=brepkit)"
+      "bbox": [
+        8,
+        8,
+        25
+      ],
+      "status": "pass"
     },
     {
       "op": "loft",

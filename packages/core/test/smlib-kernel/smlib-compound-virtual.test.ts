@@ -20,11 +20,17 @@ import type { BrepHandle } from '../../src/brep/engine/types'
 
 let p!: BrepEngineApi
 
-/** box(10,20,30) @ 原点（体积 6000）+ box(5,5,5) 平移到 (8,8,8)（与前者角部相交）。 */
+/**
+ * box(10,20,30) @ 原点（体积 6000）+ box(5,5,5) 平移到 (8,8,8)（与前者角部相交）。
+ *
+ * GOTCHA（2026-10-31）：`translate` 是 **copy-then-transform**（OCCT
+ * `BRepBuilderAPI_Transform` Copy=true 语义），**返回新实体，输入不动**。
+ * 早前 smlib 适配器是原地变换，本 helper 直接写 `p.translate(b2, 8,8,8)` 也能"看起来对"，
+ * 但那同时把调用方的零件改掉了 —— 现必须用返回值。
+ */
 function twoIntersectingBoxes(): { b1: BrepHandle; b2: BrepHandle } {
   const b1 = p.makeBox(10, 20, 30)
-  const b2 = p.makeBox(5, 5, 5)
-  p.translate(b2, 8, 8, 8)
+  const b2 = p.translate(p.makeBox(5, 5, 5), 8, 8, 8)
   return { b1, b2 }
 }
 
@@ -54,14 +60,17 @@ describe('smlib compound 虚拟容器（零件独立，禁布尔合并）', () =
 
   it('变换单个零件不影响其它零件（独立性）', () => {
     const { b1, b2 } = twoIntersectingBoxes()
-    const c = p.makeCompound([b1, b2])
     const before = p.getBoundingBox(b1)
-    // 只移动 b2（+Z 50），b1 必须纹丝不动
-    p.translate(b2, 0, 0, 50)
+    // 只移动 b2（+Z 50）——变换返回新实体，b1 与 b2 都必须纹丝不动
+    const movedB2 = p.translate(b2, 0, 0, 50)
     const afterB1 = p.getBoundingBox(b1)
     expect(afterB1.xmin).toBeCloseTo(before.xmin, 6)
     expect(afterB1.ymin).toBeCloseTo(before.ymin, 6)
     expect(afterB1.zmin).toBeCloseTo(before.zmin, 6)
+    // 原 b2 仍是 z∈[8,13]：变换不得污染输入（否则同一零件被移动两次）
+    expect(p.getBoundingBox(b2).zmax).toBeCloseTo(13, 4)
+    // 用移动后的零件建 compound：b2 顶面到了 63
+    const c = p.makeCompound([b1, movedB2])
     const cb = p.getBoundingBox(c)
     // SMLib 平移内核有 ~2e-5 数值误差，用 1e-4 精度
     expect(cb.zmax).toBeCloseTo(8 + 5 + 50, 4) // b2 顶面到了 63

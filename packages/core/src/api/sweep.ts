@@ -111,10 +111,13 @@ function sweepBrep(profile: Shape, spine: Shape): Shape {
  */
 export const sweep = defineOp({
   name: 'sweep',
-  // D11：扫掠无 smlib 桥（P1 缺口，plan §6）——smlib 链由 backend-dispatch 拒绝
-  //（E_BREP_UNSUPPORTED），避免深入内核报误导性错误（此前实测 smlib 端
-  // getSubShapes(wire) not implemented）。
-  engines: ['occt'],
+  // 三引擎同实现：
+  //   occt    → `sweepPipeShell`（freenet/smooth 双 false，既有行为）
+  //   brepkit → `sweep(face, NURBS path)`
+  //   smlib   → `SmApiCreateSweepAlongPlanarPath`（facade 导出 `smw_sweep_planar_path`）
+  // 2026-10-31：smlib 侧此前是 P1 缺口（`unsupported('sweep')` + engines 门禁拒绝），
+  // 内核本身有 SmApiCreateSweepAlongPlanarPath，补 facade 导出 + 重编两套 wasm 后接通。
+  engines: ['occt', 'brepkit', 'smlib'],
   brep(profile: Shape, spine: Shape) {
     return sweepBrep(profile, spine)
   },

@@ -17,6 +17,7 @@ import type { HostPorts } from '../../../src/cad-runtime/ports'
 import { asPartName } from '../../../src/identity'
 import { __resetEngineRegistriesForTests, getActiveBrepEngineId } from '../../../src/brep/engine/registry'
 import { registerSmlibBrepEngine, SMLIB_BREP_ENGINE_ID } from '../../../src/brep/engine/adapters/smlib'
+import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { createSmlibPrimitives } from '../../../src/smlib-kernel/smlibKernel'
 import { createEditorRuntime } from '../../support/editor-ops'
 
@@ -233,19 +234,24 @@ w0.keep()
     expect(maxZ).toBeLessThan(5.1)
   })
 
-  it('sweep：smlib 链必须 E_BREP_UNSUPPORTED（P1 缺口，D11 engines 拒绝而非深入内核）', async () => {
+  it('sweep：smlib 沿平面路径扫掠可用，与 occt 同体积（400）', async () => {
+    // 2026-10-31 前这里是「必须 E_BREP_UNSUPPORTED」的反向用例：smlib 适配器
+    // `unsupported('sweep')` + op 声明 engines:['occt']。内核其实一直有
+    // SmApiCreateSweepAlongPlanarPath，只是没在 facade 导出；补导出 + 重编两套 wasm
+    // 后三引擎同实现，用例改为正向（4×4 截面沿 +Z 扫 25 → 400）。
     const SCRIPT_SWEEP = `let s = cad.sketch({ shapes:[{kind:'rect', cx:0, cy:0, w:4, d:4}], constraints:[], plane:'XY' })
 let w = cad.wire([[0,0,0],[0,0,25]])
 let p = cad.sweep(s, w)
+let v = cad.volume(p)
+if (Math.abs(v - 400) > 0.5) throw 'volume=' + v
 `
     __resetEngineRegistriesForTests()
     await registerSmlibBrepEngine()
-    const runtime = createEditorRuntime(createNodePorts(), 'brep')
-    const result = await runtime.execute(SCRIPT_SWEEP)
-    // sweep 声明 ['occt']：smlib 链由 dispatch 拒绝。此前实测深入 smlib
-    // 内核报 getSubShapes(wire) not implemented（误导性错误）。
-    expect(result.failedAt).toBeDefined()
-    const errText = JSON.stringify(result)
-    expect(errText).toContain('E_BREP_UNSUPPORTED')
+    const smlibRes = await createEditorRuntime(createNodePorts(), 'brep').execute(SCRIPT_SWEEP)
+    __resetEngineRegistriesForTests()
+    await registerOcctBrepEngine()
+    const occtRes = await createEditorRuntime(createNodePorts(), 'brep').execute(SCRIPT_SWEEP)
+    expect(smlibRes.failedAt?.message ?? null).toBeNull()
+    expect(occtRes.failedAt?.message ?? null).toBeNull()
   })
 })
