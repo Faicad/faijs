@@ -1,0 +1,57 @@
+{
+  "name": "@faicad/cam",
+  "version": "0.45.19",
+  "description": "CAM toolpath domain for faijs - surface finishing and roughing toolpath generation, G-code post-processing and playback data (ported from BREP.io cam)",
+  "keywords": [
+    "cam",
+    "cnc",
+    "toolpath",
+    "g-code",
+    "surfacing",
+    "roughing",
+    "faijs"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitcode.com/Faicad/faijs.git"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "faijs": {
+    "autoLift": false,
+    "lib": {
+      "role": "library",
+      "conformsTo": "faijs",
+      "platform": []
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "clipper-lib": "6.4.2"
+  },
+  "peerDependencies": {
+    "@faicad/faijs": "^0.45.0"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src",
+    "check:api-coverage": "npx tsx ../../scripts/check-api-test-coverage.ts --package=."
+  }
+}

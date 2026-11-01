@@ -1,5 +1,6 @@
 {
   "imports": {
+    "@faicad/cam": "https://cdn.jsdelivr.net/npm/@faicad/cam/+esm",
     "@faicad/faijs": "https://cdn.jsdelivr.net/npm/@faicad/faijs/+esm",
     "@faicad/cq-compat-compare": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-compare/+esm",
     "@faicad/faijs-fasteners": "https://cdn.jsdelivr.net/npm/@faicad/faijs-fasteners/+esm",

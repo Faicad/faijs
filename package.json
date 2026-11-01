@@ -23,7 +23,7 @@
     "url": "https://gitcode.com/Faicad/faijs.git"
   },
   "scripts": {
-    "build": "npm run build -w @faicad/faijs && npm run build -w @faicad/faijs-viewer && npm run build -w @faicad/sheetmetal && npm run build -w @faicad/faijs-gears",
+    "build": "npm run build -w @faicad/faijs && npm run build -w @faicad/faijs-viewer && npm run build -w @faicad/sheetmetal && npm run build -w @faicad/cam && npm run build -w @faicad/faijs-gears",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "prepare": "node scripts/install-lefthook.mjs",
     "test": "vitest run",
@@ -64,6 +64,7 @@
     "packages/faijs-viewer",
     "packages/faijs-fasteners",
     "packages/sheetmetal",
+    "packages/cam",
     "packages/fixtures",
     "packages/tests",
     "packages/demo"

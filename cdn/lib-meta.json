@@ -1,4 +1,15 @@
 {
+  "@faicad/cam": {
+    "autoLift": false,
+    "lib": {
+      "role": "library",
+      "conformsTo": "faijs",
+      "platform": []
+    },
+    "peers": {
+      "@faicad/faijs": "^0.45.0"
+    }
+  },
   "@faicad/faijs": {
     "lib": {
       "role": "host"

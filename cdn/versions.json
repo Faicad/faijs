@@ -1,4 +1,5 @@
 {
+  "@faicad/cam": "0.45.19",
   "@faicad/faijs": "0.45.19",
   "@faicad/cq-compat-compare": "0.45.19",
   "@faicad/faijs-fasteners": "0.45.19",
