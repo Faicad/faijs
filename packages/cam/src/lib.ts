@@ -1,15 +1,17 @@
 /**
  * `@faicad/cam` fai-script declaration library (design doc §5).
  *
- * Script usage:
+ * Script usage (fai-script 静态语义只支持**二级命名空间调用** `<ns>.<op>(...)`，
+ * 因此脚本形态扁平为 `cam.machine` / `cam.stock` / `cam.roughing` /
+ * `cam.surfacing`；`cam.op` 对象保留为 TS/JS 宿主侧别名，模块导出结构不变）：
  *
- *   import { cam } from '@faicad/cam'
+ *   import * as cam from '@faicad/cam'
  *   cam.machine({ name: 'My Mill', workBounds: {...}, maxSpindleRPM: 24000, safeParkZ: 15 })
  *   cam.stock({ type: 'box', size: [60*MM, 40*MM, 20*MM], center: [0, 0, 10*MM] })
- *   cam.op.roughing({ name: 'Rough', target: 'part1',
+ *   let rough = cam.roughing({ name: 'Rough', target: 'part1',
  *     tool: { type: 'flat', diameter: 3.175, cuttingLength: 25 },
  *     stepDown: 1, stepover: 0.8, stockAllowance: 0, feedRate: 800, plungeRate: 200, spindleRPM: 12000 })
- *   cam.op.surfacing({ name: 'Finish', target: 'part1', faces: 'all',
+ *   let finish = cam.surfacing({ name: 'Finish', target: 'part1', faces: 'all',
  *     tool: { type: 'ball', diameter: 3.175, cuttingLength: 25 },
  *     stepover: 0.8, rasterDirection: 'Both', safeHeight: 5, ... })
  *
