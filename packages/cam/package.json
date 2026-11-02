@@ -1,6 +1,6 @@
 {
   "name": "@faicad/cam",
-  "version": "0.45.19",
+  "version": "0.45.20",
   "description": "CAM toolpath domain for faijs - surface finishing and roughing toolpath generation, G-code post-processing and playback data (ported from BREP.io cam)",
   "keywords": [
     "cam",
