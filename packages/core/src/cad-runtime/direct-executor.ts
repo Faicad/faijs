@@ -702,6 +702,8 @@ export class DirectExecutor {
         ...Object.keys(this.ctx), // append 场景：已执行产出变量名
       ]
       const units = preParsedUnits ?? this.parseAndTransform(code, extraKnown)
+      // 本轮成功执行的单元行号（返回值字段；与实例 this.executedLines（累计 Set）
+      // 并存——数组是 DirectExecOutcome.executedLines 的契约形态）。
       const executedLines: number[] = []
       let failedAt: DirectExecFailedAt | undefined
 
@@ -712,80 +714,40 @@ export class DirectExecutor {
       const deadline = timeoutMs !== undefined && timeoutMs > 0 ? Date.now() + timeoutMs : undefined
 
       let order = 0
+      // 顶层函数声明提升（JS 语义，2026-11-02）：transformFunction 把函数定义发射为
+      // `__ctx.<name> = async function ...` 赋值——顺序执行时"调用在定义之前"的语句
+      // 会命中尚未注册的 `__ctx.<name>` → "__ctx.<name> is not a function"（用户
+      // 场景：AI 生成的脚本把 function 定义写在调用之后）。执行主序列前先注册本批
+      // 顶层函数声明单元，恢复声明提升语义；vm 函数体内由 JS 引擎原生 hoist，
+      // interp 的 execBody 预扫（exec-stmt.ts），两后端可观察一致。
       for (const unit of units) {
-        const idx = order++
+        if (!unit.isFnDecl) continue
         if (opts?.startLine !== undefined && unit.lineNo < opts.startLine) continue
         if (this.executedLines.has(unit.lineNo)) continue
         if (deadline !== undefined && Date.now() >= deadline) {
           throw new ExecutionLimitError(timeoutMs ?? 0)
         }
-        opts?.beforeStatement?.(`s${unit.lineNo}`, unit.lineNo)
-        try {
-          this.activeLine = unit.lineNo
-          // T2：changed 跟踪——执行前捕获写键旧值（与 module 路径 oldWrites 同语义）。
-          const oldWrites = new Map<string, unknown>()
-          for (const w of unit.writes) oldWrites.set(w, this.ctx[w])
-          // 块单元：执行前后做 ctx diff，登记新增 shape 键 → blockOutputs
-          // （块内产出不在 lines 里，computeLiveShapes 用块起始行作 producerIdx）。
-          const ctxBefore = unit.isBlock ? new Set(Object.keys(this.ctx)) : null
-          await this.runUnit(unit)
-          // T2：changed 登记——执行后比对写键值变化（与 module 路径 exec.changed.add 同语义）。
-          for (const [w, old] of oldWrites) {
-            if (old !== this.ctx[w]) this.changedSet.add(w)
-          }
-          if (ctxBefore) {
-            // 块产出登记：新增键 + 块内重写键（writes 收集了所有 __ctx.<name> = 赋值）
-            for (const key of Object.keys(this.ctx)) {
-              if (!ctxBefore.has(key)) {
-                this.blockOutputs.set(key, unit.lineNo)
-                this.changedSet.add(key)
-                // T3：块产出的新键也需同步身份槽 → solidCache（含多产物成员）
-                this.registerOutputIdentity(this.ctx[key], asPartName(key))
-              }
-            }
-            for (const w of unit.writes) this.blockOutputs.set(w, unit.lineNo)
-          }
-          for (const w of unit.writes) {
-            // T3：身份槽 → PartName 键控缓存同步（与 ModuleExecutor.afterStatement
-            // 的 slot→solidCache/faceEvolutionCache/roleTableCache 同步同语义）。
-            // buildBrepTopology/directBrepSolids/buildNamingInput 依赖此缓存命中。
-            this.registerOutputIdentity(this.ctx[w], asPartName(w))
-          }
-          // T3/T4: Assembly transform propagation — same semantics as
-          // ModuleExecutor.applyPendingAssemblyTransforms: take pending transforms
-          // from runtime-state, apply to member shapes (mesh in-place + BREP slot +
-          // solidCache), record changed. Direct path has no deps graph for
-          // downstream recompute, but since execution is sequential, downstream
-          // statements naturally re-read the already-transformed members.
-          this.applyPendingAssemblyTransforms()
-        } catch (err) {
-          if (err instanceof ParseError) throw err
-          // DirectExecutor swallows ALL execution errors into failedAt
-          // (including TypeError for no_such_op). The runtime layer
-          // (executeDirectText etc.) inspects failedAt.error to decide
-          // whether to re-throw business errors (matching module path's
-          // runWithFailureHandling: only OpError / BrepUnsupportedError /
-          // MeshUnsupportedError stay in failedAt; others are re-thrown).
-          failedAt = {
-            index: idx,
-            callee: unit.callee ?? '',
-            message: err instanceof Error ? err.message : String(err),
-            lineNo: unit.lineNo,
-            error: err,
-          }
+        const r = await this.runUnitTracked(unit, units.indexOf(unit), opts)
+        if (!r.ok) {
+          failedAt = r.failedAt
           break
-        } finally {
-          this.activeLine = undefined
         }
-        // F1（2026-10-23 stream preview）：**仅在单元成功时到达**（失败 → catch 内
-        // break）。executedLines 落账后触发 afterStatement；钩子 best-effort——
-        // 抛错只记日志不终止执行（预览通道故障不得杀死真实执行）。
-        this.executedLines.add(unit.lineNo)
         executedLines.push(unit.lineNo)
-        try {
-          await opts?.afterStatement?.(`s${unit.lineNo}`, unit.lineNo)
-        } catch (err) {
-          console.error(`[faijs] afterStatement hook failed for s${unit.lineNo}`, err)
+      }
+      if (!failedAt) {
+        for (const unit of units) {
+          const idx = order++
+          if (opts?.startLine !== undefined && unit.lineNo < opts.startLine) continue
+          if (this.executedLines.has(unit.lineNo)) continue
+          if (deadline !== undefined && Date.now() >= deadline) {
+            throw new ExecutionLimitError(timeoutMs ?? 0)
+          }
+          const r = await this.runUnitTracked(unit, idx, opts)
+          if (!r.ok) {
+            failedAt = r.failedAt
+            break
+          }
+          executedLines.push(unit.lineNo)
         }
       }
       // ctx 产出登记（writtenKeys = 本 code 的 writes 并集）：必须在返回结果前刷新，
@@ -936,6 +898,91 @@ export class DirectExecutor {
         this.importModelsOut.set(part, model)
       }
     }
+  }
+
+  /**
+   * 执行单个单元并完成全部记账（T2 changed / T3 身份槽 / block 产出 / keep 收编 /
+   * before/afterStatement 钩子 / executedLines 落账）。主序列与顶层函数声明预注册
+   * （2026-11-02 hoisting 修复）共用同一路径，两处行为保持一致。
+   *
+   * @returns ok=false 时携带 failedAt（DirectExecutor 吞掉全部执行错误到 failedAt
+   *  的既有语义；ParseError 例外——直接抛给调用方）。
+   */
+  private async runUnitTracked(
+    unit: TransformedUnit,
+    idx: number,
+    opts: DirectExecOpts | undefined,
+  ): Promise<{ ok: boolean; failedAt: DirectExecFailedAt | undefined }> {
+    opts?.beforeStatement?.(`s${unit.lineNo}`, unit.lineNo)
+    try {
+      this.activeLine = unit.lineNo
+      // T2：changed 跟踪——执行前捕获写键旧值（与 module 路径 oldWrites 同语义）。
+      const oldWrites = new Map<string, unknown>()
+      for (const w of unit.writes) oldWrites.set(w, this.ctx[w])
+      // 块单元：执行前后做 ctx diff，登记新增 shape 键 → blockOutputs
+      // （块内产出不在 lines 里，computeLiveShapes 用块起始行作 producerIdx）。
+      const ctxBefore = unit.isBlock ? new Set(Object.keys(this.ctx)) : null
+      await this.runUnit(unit)
+      // T2：changed 登记——执行后比对写键值变化（与 module 路径 exec.changed.add 同语义）。
+      for (const [w, old] of oldWrites) {
+        if (old !== this.ctx[w]) this.changedSet.add(w)
+      }
+      if (ctxBefore) {
+        // 块产出登记：新增键 + 块内重写键（writes 收集了所有 __ctx.<name> = 赋值）
+        for (const key of Object.keys(this.ctx)) {
+          if (!ctxBefore.has(key)) {
+            this.blockOutputs.set(key, unit.lineNo)
+            this.changedSet.add(key)
+            // T3：块产出的新键也需同步身份槽 → solidCache（含多产物成员）
+            this.registerOutputIdentity(this.ctx[key], asPartName(key))
+          }
+        }
+        for (const w of unit.writes) this.blockOutputs.set(w, unit.lineNo)
+      }
+      for (const w of unit.writes) {
+        // T3：身份槽 → PartName 键控缓存同步（与 ModuleExecutor.afterStatement
+        // 的 slot→solidCache/faceEvolutionCache/roleTableCache 同步同语义）。
+        // buildBrepTopology/directBrepSolids/buildNamingInput 依赖此缓存命中。
+        this.registerOutputIdentity(this.ctx[w], asPartName(w))
+      }
+      // T3/T4: Assembly transform propagation — same semantics as
+      // ModuleExecutor.applyPendingAssemblyTransforms: take pending transforms
+      // from runtime-state, apply to member shapes (mesh in-place + BREP slot +
+      // solidCache), record changed. Direct path has no deps graph for
+      // downstream recompute, but since execution is sequential, downstream
+      // statements naturally re-read the already-transformed members.
+      this.applyPendingAssemblyTransforms()
+    } catch (err) {
+      if (err instanceof ParseError) throw err
+      // DirectExecutor swallows ALL execution errors into failedAt
+      // (including TypeError for no_such_op). The runtime layer
+      // (executeDirectText etc.) inspects failedAt.error to decide
+      // whether to re-throw business errors (matching module path's
+      // runWithFailureHandling: only OpError / BrepUnsupportedError /
+      // MeshUnsupportedError stay in failedAt; others are re-thrown).
+      return {
+        ok: false,
+        failedAt: {
+          index: idx,
+          callee: unit.callee ?? '',
+          message: err instanceof Error ? err.message : String(err),
+          lineNo: unit.lineNo,
+          error: err,
+        },
+      }
+    } finally {
+      this.activeLine = undefined
+    }
+    // F1（2026-10-23 stream preview）：**仅在单元成功时到达**（失败 → catch 内
+    // return）。executedLines 落账后触发 afterStatement；钩子 best-effort——
+    // 抛错只记日志不终止执行（预览通道故障不得杀死真实执行）。
+    this.executedLines.add(unit.lineNo)
+    try {
+      await opts?.afterStatement?.(`s${unit.lineNo}`, unit.lineNo)
+    } catch (err) {
+      console.error(`[faijs] afterStatement hook failed for s${unit.lineNo}`, err)
+    }
+    return { ok: true, failedAt: undefined }
   }
 
   /** 行号 → 函数体 keep 登记（exec.keep/exec.keepHidden；与 live-shapes KeepView 对齐）。 */
@@ -1358,7 +1405,7 @@ export class DirectExecutor {
     // 本机函数体引用其它本机函数/变量走外层引用注入（call-time 读 __ctx，与顶层一致）
     declared.add(name)
     this.fnParams.set(name, params)
-    return { lineNo, body, writes: [name], refs: [], callee: name, endLine: 0 }
+    return { lineNo, body, writes: [name], refs: [], callee: name, endLine: 0, isFnDecl: true }
   }
 
   /**

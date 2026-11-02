@@ -248,7 +248,7 @@ export function normalizeCamOperationDecl(raw: any, kind: 'roughing' | 'surfacin
     ['spindleRPM', 12000],
   ]
   for (const [key, fallback] of numericKeys) {
-    if (source[key] !== undefined) (decl as any)[key] = finiteNumber(source[key], fallback)
+    if (source[key] !== undefined) (decl as unknown as Record<string, number>)[key] = finiteNumber(source[key] as number, fallback)
   }
   if (kind === 'roughing' && decl.flatnessCosLimit !== undefined) delete decl.flatnessCosLimit
   if (kind === 'surfacing' && source.faces !== undefined) decl.faces = source.faces

@@ -102,9 +102,10 @@ function resolveTarget(opts: Record<string, any>): Record<string, any> {
 /** Extract a part name from a Shape reference; throws when the Shape is not a
  * top-level named variable (mirrors fai-animation's hard-error policy). */
 function partNameOf(shape: Shape): string {
-  const name = (shape as any)?.name
+  const meta = shape as unknown as { name?: string; userData?: { name?: string } }
+  const name = meta.name
   if (typeof name === 'string' && name.trim()) return name.trim()
-  const hint = (shape as any)?.userData?.name
+  const hint = meta.userData?.name
   if (typeof hint === 'string' && hint.trim()) return hint.trim()
   throw new Error('[cam] op: target Shape has no resolvable part name; pass a part name string or a named top-level variable.')
 }

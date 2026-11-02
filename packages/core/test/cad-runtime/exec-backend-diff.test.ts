@@ -122,6 +122,39 @@ describe('exec-backend differential: functions, blocks, control flow', () => {
     expect(r.interp.fp).toEqual(r.vm.fp)
   })
 
+  it('call BEFORE function declaration (JS hoisting): identical geometry', async () => {
+    // 用户场景（2026-11-02）：AI 生成的脚本把 function 定义写在调用之后。此前
+    // DirectExecutor 把函数发射为 `__ctx.<name> = async function...` 赋值、顺序执行，
+    // 调用在前的语句命中未注册的 __ctx → "__ctx.buildTire is not a function"
+    // （CAM/动画工作台 execute 全场景报错）。两后端都预注册顶层函数声明后对齐。
+    const code = [
+      'let part0 = mk(12)',
+      'function mk(d) {',
+      '  return cad.box(d, d, d, { centered: true })',
+      '}',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+    expect(r.interp.fp).toEqual(r.vm.fp)
+  })
+
+  it('nested function declared after its use inside a function body: identical values', async () => {
+    // 函数体内同样应 hoist（vm 由 JS 引擎原生处理；interp 的 execBody 预注册对齐）。
+    const code = [
+      'function outer() {',
+      '  return inner(3)',
+      '  function inner(x) { return x * 2 }',
+      '}',
+      'let part0 = outer()',
+    ].join('\n')
+    const r = await runBoth(code)
+    expect(r.vm.failedAt).toBeUndefined()
+    expect(r.interp.failedAt).toBeUndefined()
+    expect(r.interp.keys).toEqual(r.vm.keys)
+  })
+
   it('block-scoped declarations (R-5 flat ctx): identical keys', async () => {
     const code = [
       'let a = 1',

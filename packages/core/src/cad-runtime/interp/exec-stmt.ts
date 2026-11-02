@@ -32,6 +32,16 @@ function unsupported(node: ASTNode): never {
  * @param state - shared interpreter state.
  */
 export async function execBody(body: ASTNode[], env: InterpEnv, state: InterpState): Promise<void> {
+  // 顶层函数声明提升（2026-11-02，与 vm 后端对齐）：JS 的 function 声明是
+  // hoisted——调用出现在定义之前也应解析到函数绑定。vm 后端函数体是原生 JS
+  // （引擎天然 hoist）；interp 顺序执行在定义前的调用会拿到未绑定名 → 解析到
+  // ctx 报 "__ctx.<name> is not a function"。这里先预注册本层顶层 function 声明，
+  // 顺序执行遇 FunctionDeclaration 再 assign 同值（幂等，无害）。
+  for (const stmt of body) {
+    if (stmt.type === 'FunctionDeclaration' && stmt.id?.type === 'Identifier') {
+      env.assign(stmt.id.name, new InterpClosure(stmt, env))
+    }
+  }
   for (const stmt of body) {
     await execStmt(stmt, env, state)
   }

@@ -33,6 +33,8 @@ export interface TransformedUnit {
   callee?: string
   /** 是否为控制流块单元（T1：for/if/while/do/switch/裸块等） */
   isBlock?: boolean
+  /** 是否为顶层函数声明单元（JS 声明提升语义：执行前预注册，见 DirectExecutor） */
+  isFnDecl?: boolean
   /** 单元结束行号（闭区间；transformTopNode 统一填充） */
   endLine: number
   /** 顶层语句 AST 引用（InterpBackend 专用；VmBackend 忽略） */
