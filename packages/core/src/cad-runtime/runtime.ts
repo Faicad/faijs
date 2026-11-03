@@ -53,6 +53,7 @@ import {
   configureTessellation, getTessellation, type TessellationDensity,
   configureTessellationTiming, getTessellationTiming, type TessellationTiming,
   setChainPreference,
+  takeRuntimeNotices,
 } from '../runtime-state'
 import { coarseLinearDeflectionFor } from '../brep/effective-deflection'
 import { materializeTessellation } from '../brep/deferred-tess'
@@ -1294,6 +1295,8 @@ export class CadRuntime {
     }
     const result = this.collectDirectResult(meta, opts, execution)
     if (this.determinismWarnings.length > 0) result.infos.push(...this.determinismWarnings)
+    const notices = takeRuntimeNotices()
+    if (notices.length > 0) result.infos.push(...notices)
     this.recordFingerprints(opts)
     return result
   }
@@ -1396,6 +1399,8 @@ export class CadRuntime {
       skippedUnits: 0,
     })
     if (this.determinismWarnings.length > 0) result.infos.push(...this.determinismWarnings)
+    const notices = takeRuntimeNotices()
+    if (notices.length > 0) result.infos.push(...notices)
     this.recordFingerprints(opts)
     return result
   }

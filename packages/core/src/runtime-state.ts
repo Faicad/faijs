@@ -241,6 +241,12 @@ export interface FaijsRuntimeState {
    * 分派只在 `config.mode === 'auto'` 时读取——宿主显式 mode 是地板。
    */
   chainPref: ChainPreference | null | undefined
+  /**
+   * 运行时提示收集（api 层经 `reportRuntimeNotice` 上报，如布尔减共面自动规避；
+   * 引擎在 execute/append 成功路径收尾经 `takeRuntimeNotices` 并入 ExecutionResult.infos，
+   * 随 CLI 报告统一输出）。可选字段：跨 bundle 共享 state 时旧构建可能没有该字段。
+   */
+  runtimeNotices?: string[]
 }
 
 // ── 函数 BREP 域（控制流放松方案 §5.6 / D13） ──
@@ -445,9 +451,37 @@ export function getRuntimeState(): FaijsRuntimeState {
     tessellation: undefined,
     tessellationTiming: undefined,
     chainPref: undefined,
+    runtimeNotices: [],
   }
   g[KEY] = created
   return created
+}
+
+// ── 运行时提示收集（供 api 层上报确定性诊断，随 ExecutionResult.infos 输出） ──
+
+/**
+ * 上报一条运行时提示（如布尔减「共面自动规避」）。引擎在 execute/append 成功路径
+ * 收尾经 `takeRuntimeNotices` 并入 `ExecutionResult.infos`，由 CLI 报告统一打印。
+ * 未进入执行收尾（宿主直调 api 而非 runtime.execute）时提示静默保留在 state 中，
+ * 不抛错、不影响结果——提示永远不阻断执行。
+ *
+ * @param msg 提示文案（含 `[faijs]` 前缀与上下文，如语句 id）。
+ */
+export function reportRuntimeNotice(msg: string): void {
+  const st = getRuntimeState()
+  ;(st.runtimeNotices ??= []).push(msg)
+}
+
+/**
+ * 取出并清空运行时提示（引擎收尾调用；未消费的提示留在 state 中不丢）。
+ *
+ * @returns 本次收集到的全部运行时提示（数组可为空）。
+ */
+export function takeRuntimeNotices(): string[] {
+  const st = getRuntimeState()
+  const out = st.runtimeNotices ?? []
+  st.runtimeNotices = []
+  return out
 }
 
 // ── 三角化密度（宿主可调，proposal 2026-10-07） ──

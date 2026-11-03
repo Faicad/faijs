@@ -32,10 +32,14 @@ import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { getOcctKernel } from '../../occt-kernel/occtKernel'
 import { fromBase } from '../../units'
+import { getCurrentStmt, reportRuntimeNotice } from '../../runtime-state'
 // OpenSCAD 语义：操作数网格闭合性校验。开关与判定实现都在 `api/boolean`，
 // 本文件只复用（cad.boolean 是带选项的通用形态，与 union/subtract/intersect
 // 走不同的实现，但 OpenSCAD 的丢弃语义对两者一致）。
 import { getBooleanOperandValidation, isClosedOperandForBooleanOp, emptyBrepShape, debugOperand } from '../internal/boolean-closure'
+// 贴面减除防护（2026-11-03 L3 默认自动规避共面）：cut 前检测 tool 与 base 共面，
+// 自动外扩 clearance 薄壳，把「面贴面」改成「明确越出/侵入」。
+import { coincidentCutProtect, COINCIDENT_EPS } from '../internal/coincident-cut'
 
 /** 布尔算子（脚本面收字符串，映射到 occt-wasm 的 `BooleanOp` 枚举值）。 */
 export type BooleanKind = 'fuse' | 'cut' | 'common'
@@ -49,6 +53,10 @@ export interface BooleanOptions {
   /** 结果内同域面/边的合并角阈值。脚本面写**带单位的角度量**（`1 * DEGREE`），
    * 经 op 入口 `fromBase(…, 'radian', 'angle')` 折成内核要的**弧度**后再下发。 */
   simplifyAngularTolerance?: number
+  /** 贴面减除防护（2026-11-03 L3）：`cut` 时 tool 与 base 共面（零体积相交）
+   * 自动外扩余量（mm）。默认 `COINCIDENT_EPS`（0.01，自动规避，无需配置）；
+   * 制造级场景传 0.1 及以上；传 `0` 显式关闭自动规避（回到旧行为）。 */
+  clearance?: number
 }
 
 const KINDS: readonly BooleanKind[] = ['fuse', 'cut', 'common']
@@ -93,6 +101,9 @@ function booleanBrep(
     ) {
       throw new Error('E_BOOLEAN_BAD_SIMPLIFY: simplifyAngularTolerance must be a non-negative number')
     }
+    if (options.clearance !== undefined && (typeof options.clearance !== 'number' || options.clearance < 0)) {
+      throw new Error('E_BOOLEAN_BAD_CLEARANCE: clearance must be a non-negative number')
+    }
   }
   // OpenSCAD 语义：操作数网格闭合性校验（默认关，仅 OpenSCAD 翻译文件开启）。
   // 与 `api/boolean` 共用同一判据与开关；`cad.boolean` 的 args/tools 分组不改变
@@ -133,14 +144,50 @@ function callBooleanOp(shapes: Shape[], kind: BooleanKind, options?: BooleanOpti
     if (!s) throw new Error(`E_BOOLEAN_MISSING_ARG: input[${i}] is empty`)
     return handleOf(s, 'BOOLEAN', `input[${i}]`)
   })
-  const data = getOcctKernel().booleanOp(
-    KIND_CODE[kind] as never,
-    [handles[0]!] as never[],
-    handles.slice(1) as never[],
-    options as never,
-  )
-  const handle = data.result as unknown as BrepHandle
-  return fromBrep(solidToShape(getBrepApi(), handle), { solid: handle })
+  // 贴面减除防护（2026-11-03 L3 默认自动规避共面）：cut 时对每个 tool 相对 args[0]
+  // 检测共面并自动外扩 clearance 薄壳（默认 COINCIDENT_EPS；clearance:0 显式关闭）。
+  // occt 原生 booleanOp 一次调用，防护在调用前完成；修正句柄在调用后释放。
+  const clearance = kind === 'cut' ? (options?.clearance ?? COINCIDENT_EPS) : 0
+  const { clearance: _clearance, ...kernelOptions } = options ?? {}
+  let effectiveHandles = handles
+  const owned: BrepHandle[] = []
+  if (kind === 'cut' && clearance > 0) {
+    const kernel = getBrepApi()
+    const base = handles[0]!
+    const guarded: BrepHandle[] = [base]
+    for (let i = 1; i < handles.length; i++) {
+      const g = coincidentCutProtect(kernel, base, handles[i]!, clearance)
+      if (g !== undefined) {
+        guarded.push(g)
+        owned.push(g)
+      } else {
+        guarded.push(handles[i]!)
+      }
+    }
+    effectiveHandles = guarded
+    if (owned.length > 0) {
+      const stmtId = getCurrentStmt()?.id ?? ''
+      reportRuntimeNotice(
+        `[faijs] coincident-cut guard: boolean('cut') 检测到 tool 与 base 共面` +
+        `（零体积相交风险），已自动外扩 ${clearance}mm` +
+        (stmtId !== '' ? `（语句 #${stmtId}）` : ''),
+      )
+    }
+  }
+  try {
+    const data = getOcctKernel().booleanOp(
+      KIND_CODE[kind] as never,
+      [effectiveHandles[0]!] as never[],
+      effectiveHandles.slice(1) as never[],
+      kernelOptions as never,
+    )
+    const handle = data.result as unknown as BrepHandle
+    return fromBrep(solidToShape(getBrepApi(), handle), { solid: handle })
+  } finally {
+    for (const h of owned) {
+      try { getBrepApi().release(h) } catch { /* 已释放 */ }
+    }
+  }
 }
 
 /**

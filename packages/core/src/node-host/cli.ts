@@ -416,7 +416,13 @@ export async function cliRun(
   // exception — the census and batch driver treat a throw as a process crash,
   // while `{ ok: false, error }` keeps it a per-file, classifiable failure.
   try {
-    return await exportExecutionResult(outPath, ext, execResult, terminals, opts?.includeHidden ?? false, opts?.include2D ?? false)
+    const exported = await exportExecutionResult(outPath, ext, execResult, terminals, opts?.includeHidden ?? false, opts?.include2D ?? false)
+    // 运行时提示（如布尔减共面自动规避）随报告输出：并入成功路径的 infos，
+    // 否则 execute 期收集的提示（execResult.infos）在成功导出时丢失。
+    if (execResult.infos && execResult.infos.length > 0) {
+      return { ...exported, infos: [...(execResult.infos ?? []), ...(exported.infos ?? [])] }
+    }
+    return exported
   } catch (e) {
     return {
       ok: false,

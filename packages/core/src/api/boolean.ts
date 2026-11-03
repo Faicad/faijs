@@ -15,7 +15,7 @@ import { solidToShape } from '../brep/brep-ops'
 import {
   booleanWithRoleTable,
 } from '../brep/face-evolution'
-import { getCurrentStmt, getChainPreference, getBackends, nameOf } from '../runtime-state'
+import { getCurrentStmt, getChainPreference, getBackends, nameOf, reportRuntimeNotice } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, hasMeshSolid, inputRoleTable } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
@@ -43,6 +43,9 @@ import {
   emptyBrepShape as emptySolid,
   debugOperand,
 } from './internal/boolean-closure'
+// 贴面减除防护（2026-11-03 L3 默认自动规避共面）：cut 前检测 tool 与 base 共面，
+// 自动外扩 ε 薄壳，把「面贴面」改成「明确越出/侵入」——内核不再处理共面退化。
+import { coincidentCutProtect, COINCIDENT_EPS } from './internal/coincident-cut'
 
 export { setBooleanOperandValidation }
 
@@ -171,6 +174,22 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
     const prev = resultSolid
     const tool = inputSolids[i]!
 
+    // 贴面减除防护（2026-11-03 L3 默认自动规避共面）：仅 cut 生效。
+    // 检测到 tool 与 base 共面（零体积相交风险）时自动外扩 ε 薄壳，把「面贴面」
+    // 改成「明确越出/侵入」；正常侵入式减除零命中，行为逐位不变。
+    let guardedTool: BrepHandle | undefined
+    if (op === 'cut') {
+      guardedTool = coincidentCutProtect(kernel, prev, tool, COINCIDENT_EPS)
+      if (guardedTool !== undefined) {
+        const stmtId = getCurrentStmt()?.id ?? ''
+        reportRuntimeNotice(
+          `[faijs] coincident-cut guard: ${operation} 检测到 tool 与 base 共面` +
+          `（零体积相交风险），已自动外扩 ${COINCIDENT_EPS}mm` +
+          (stmtId !== '' ? `（语句 #${stmtId}）` : ''),
+        )
+      }
+    }
+
     if (useHistory) {
       // §3.4：一次内核调用，A/B 拆流各自传播后合表（缝面 origin=本次语句 StmtId）
       // V-C8：内核裸错误在此包一层——带上 op 名、两个输入的变量名与 cause。
@@ -184,9 +203,9 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
           kernel,
           op,
           prev,
-          tool,
+          guardedTool ?? tool,
           prevTable ?? new Map(),
-          toolTable ?? new Map(),
+          guardedTool !== undefined ? new Map() : (toolTable ?? new Map()),
           outStmt,
         )
       } catch (cause) {
@@ -197,7 +216,7 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
         // 真实语料（disk-drive）中 tool 是布尔产物且与 target 共享子域，裸 cut 仍失败、
         // unify 后成功。全部失败才真正抛错。
         try {
-          resultSolid = kernel[op](prev, tool)
+          resultSolid = kernel[op](prev, guardedTool ?? tool)
           lastEvolution = undefined
           roleTable = undefined
           if (i > 1) kernel.release(prev)
@@ -205,7 +224,7 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
         } catch {
           try {
             const uPrev = kernel.unifySameDomain(prev)
-            const uTool = kernel.unifySameDomain(tool)
+            const uTool = kernel.unifySameDomain(guardedTool ?? tool)
             resultSolid = kernel[op](uPrev, uTool)
             kernel.release(uPrev)
             kernel.release(uTool)
@@ -238,7 +257,7 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
       // 边界（用户明示）：① 只针对 cut —— union / intersect 不做（凸出雕刻不发布尔，
       // 不存在这个场景）；② 只走裸路径 —— occt 恒走上方 history 路径且原生吃
       // compound，一个字节都不动；③ 非 compound / 单 solid 工具原样传递，行为零变化。
-      let effectiveTool = tool
+      let effectiveTool = guardedTool ?? tool
       let fusedTool: BrepHandle | undefined
       if (op === 'cut') {
         try {
@@ -275,6 +294,10 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
       roleTable = undefined
     }
     if (i > 1) kernel.release(prev)
+    // guardedTool 是本实现造的中间句柄（fuse 薄壳产物）：布尔消费后释放（输入不碰）。
+    if (guardedTool !== undefined) {
+      try { kernel.release(guardedTool) } catch { /* 已释放 */ }
+    }
   }
 
   return fromBrep(
