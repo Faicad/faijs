@@ -17,6 +17,16 @@ import type { DrillDirection, DrillHoleParams } from './drill-types'
 const ROT_Y_TO_Z = new Mat4().makeRotationX(Math.PI / 2)
 
 /**
+ * 建模螺纹（`holeType:'screw'`）遇到管螺纹时的统一报错文本。
+ *
+ * 理由：锥管牙型（1:16 锥度）未实现，且 `makeScrew`/`getScrewSpec` 只认
+ * metric/imperial（未知制式会静默落进 imperial 表）——静默降级比报错危险。
+ */
+const PIPE_MODELED_SCREW_MSG =
+  "[drill-hole] 管螺纹（screwSystem:'pipe'）不支持 holeType:'screw'：锥管牙型（1:16 锥度）未实现，"
+  + "改用 holeType:'tapped'（几何只钻底孔，螺纹由 PMI 表达）。"
+
+/**
  * Build a Z-up hole geometry centered on the origin, with the axial direction
  * along Z.
  *
@@ -47,6 +57,9 @@ export function buildHoleGeometry(
 
   // ── screw: makeScrew() already returns Z-up ──
   if (params.holeType === 'screw') {
+    // 管螺纹只支持 tapped：锥管牙型（1:16 锥度）未实现，且 makeScrew 只认
+    // metric/imperial（未知制式会静默落进 imperial 表）——宁可报错。
+    if (params.screwSystem === 'pipe') throw new Error(PIPE_MODELED_SCREW_MSG)
     let geo: Shape = makeScrew({
       system: params.screwSystem,
       specIdx: params.screwSpecIdx,
@@ -327,6 +340,8 @@ export async function executeDrillHoleOnGeometry(
     // so the entry (-totalLength/2) must map to position.  Adjust holeCenter
     // by direction * headHeight/2 to compensate.
     if (params.holeType === 'screw' && params.screwHead !== 'none') {
+      // 规格表只有 metric/imperial：管螺纹走到这里必须先拒（见 PIPE_MODELED_SCREW_MSG）。
+      if (params.screwSystem === 'pipe') throw new Error(PIPE_MODELED_SCREW_MSG)
       const spec = getScrewSpec(params.screwSystem, params.screwSpecIdx)
       const headHeight = spec.dia
       holeCenter.add(direction.clone().normalize().multiplyScalar(headHeight / 2))

@@ -8,8 +8,16 @@ export type DrillHoleType = 'simple' | 'screw' | 'tapped'
 /** Reference axis for the drill direction: along the face normal or an axis-aligned direction. */
 export type DrillDirection = 'normal' | 'x' | 'y' | 'z'
 
-/** Thread standard used to dimension screw holes: metric or imperial. */
-export type ScrewSystem = 'metric' | 'imperial'
+/**
+ * Thread standard used to dimension screw holes: metric, imperial, or 55°
+ * tapered pipe (PT/R/BSPT).
+ *
+ * `'pipe'` is only meaningful for `holeType:'tapped'` (geometry = pilot hole,
+ * thread goes to PMI). The modeled-screw path (`holeType:'screw'`) rejects it —
+ * a 1:16 tapered tooth profile is not implemented, and the screw generator
+ * looks specs up in the metric/imperial tables only.
+ */
+export type ScrewSystem = 'metric' | 'imperial' | 'pipe'
 
 /** Thread pitch variant for a screw hole. */
 export type ScrewThread = 'coarse' | 'fine' | 'none'

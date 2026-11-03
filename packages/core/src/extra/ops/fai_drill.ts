@@ -21,7 +21,8 @@ import {
 } from '../../brep/brep-ops'
 import { drillBrepWithRoleTable, getFaceHashes } from '../../brep/face-evolution'
 import { threadBrep } from '../../api/brep-operations/threadFns'
-import { getScrewSpec, threadToPitchMm } from '../../primitives/screw/screw-db'
+import { getScrewSpec, getPipeSpec, threadToPitchMm } from '../../primitives/screw/screw-db'
+import type { ThreadSystem } from '../../primitives/screw/screw-db'
 import { Vec3 as Vec3C, Mat4, Quat } from '../../math3d'
 import { getCurrentStmt } from '../../runtime-state'
 import { getBrepApi } from '../../brep/handle-bridge'
@@ -92,34 +93,62 @@ function faceNormalFrom(input: Shape, params: Record<string, unknown>): Vec3 {
 
 // ── 螺纹孔（tapped / screw）共用：规格解析、底孔反算、PMI 构造 ──
 
-/** 解析出的螺纹规格（tapped 与 screw 共用同一份查表口径）。 */
+/**
+ * 解析出的螺纹规格——metric / imperial / pipe 走同一份**统一视图**。
+ *
+ * 不用 `spec?` + `pipe?` 二选一字段：那样下游每个取值点都要 `!` 断言，
+ * 而三者的下游需求其实只有四个数（公称直径 / 标签 / 螺距 / 缺省底孔）。
+ */
 interface ResolvedThread {
   /** 制式。 */
-  system: 'metric' | 'imperial'
-  /** 规格记录（公称直径 / 粗牙 / 细牙 / 标签）。 */
-  spec: ReturnType<typeof getScrewSpec>
+  system: ThreadSystem
+  /** 公称直径 mm（pipe = 基准平面大径）。 */
+  nominalDiameter: number
+  /** 规格标签（'M6' / '1/4"' / 'PT1/8'），同时是 PMI 的显示真源。 */
+  specLabel: string
   /** 实际螺距（mm）。 */
   pitch: number
+  /** 底孔缺省直径（metric/imperial: 公称 − 螺距；pipe: 表内标准攻丝底孔）。 */
+  pilotDia: number
 }
 
 /**
  * 解析螺纹参数（默认 metric + 索引 4（M5）+ 粗牙，与 mesh 路径一致）。
  *
+ * `screwSystem: 'pipe'` 走管螺纹表：单一螺距系列，底孔取标准攻丝底孔
+ * （PT1/8 → 8.4），不做「公称 − 螺距」近似（见 `PIPE_SPECS` 注释）。
+ *
  * @param params - raw drill params.
  * @returns 解析后的螺纹规格。
  */
 function resolveThread(params: Record<string, unknown>): ResolvedThread {
-  const system = (params.screwSystem as 'metric' | 'imperial') ?? 'metric'
+  const system = (params.screwSystem as ThreadSystem | undefined) ?? 'metric'
   const specIdx = (params.screwSpecIdx as number) ?? 4
+  if (system === 'pipe') {
+    const pipe = getPipeSpec(specIdx)
+    return {
+      system,
+      nominalDiameter: pipe.majorDia,
+      specLabel: pipe.label,
+      pitch: pipe.pitch,
+      pilotDia: pipe.pilotDia,
+    }
+  }
   const threadType = (params.screwThread as 'coarse' | 'fine' | 'custom') ?? 'coarse'
   const spec = getScrewSpec(system, specIdx)
   const pitch = threadToPitchMm(system, spec, threadType, params.screwPitchCustom as number | undefined)
-  return { system, spec, pitch }
+  return {
+    system,
+    nominalDiameter: spec.dia,
+    specLabel: spec.label,
+    pitch,
+    pilotDia: Math.round((spec.dia - pitch) * 1000) / 1000,
+  }
 }
 
 /**
- * 攻丝孔底孔直径：显式给 `diameter` 就用它；否则按「公称直径 − 螺距」反算
- * （M6 粗牙 P=1 → Φ5）。
+ * 攻丝孔底孔直径：显式给 `diameter` 就用它（图纸值是唯一真源）；否则用
+ * `resolveThread` 算出的缺省底孔（M6 粗牙 P=1 → Φ5；PT1/8 → Φ8.4）。
  *
  * @param params - raw drill params (`diameter` may be omitted for `tapped`).
  * @param th - resolved thread spec.
@@ -128,7 +157,7 @@ function resolveThread(params: Record<string, unknown>): ResolvedThread {
 function resolvePilotDiameter(params: Record<string, unknown>, th: ResolvedThread): number {
   const explicit = params.diameter
   if (typeof explicit === 'number' && explicit > 0) return explicit
-  return Math.round((th.spec.dia - th.pitch) * 1000) / 1000
+  return th.pilotDia
 }
 
 /**
@@ -137,10 +166,21 @@ function resolvePilotDiameter(params: Record<string, unknown>, th: ResolvedThrea
  * 归一化在 op 入口做一次，往下（mesh / brep 两条链）只看到确定的数值——
  * 避免 `undefined` 在 `depth <= 0` 判定里落入盲孔分支产生 NaN 刀具。
  *
+ * 同时在这里拒绝 `holeType:'screw'` + `screwSystem:'pipe'`：建模螺纹要真的
+ * 切出螺旋牙，而锥管牙型（1:16 锥度）尚未实现，`makeScrew` 也不认 pipe
+ * （它只按 metric/imperial 查表，pipe 会静默落进 imperial）。静默降级比报错
+ * 危险得多，所以入口直接抛。
+ *
  * @param params - raw drill params.
  * @returns normalized params (new object; input untouched).
  */
 function normalizeDrillParams(params: Record<string, unknown>): Record<string, unknown> {
+  if (params.holeType === 'screw' && params.screwSystem === 'pipe') {
+    throw new Error(
+      "[extra/drill] 管螺纹（screwSystem:'pipe'）不支持 holeType:'screw'：锥管牙型未实现。"
+      + "改用 holeType:'tapped'——几何只钻底孔，螺纹（PT/R）由 PmiThreadHole 标注表达。",
+    )
+  }
   const depth = typeof params.depth === 'number' ? params.depth : 0
   if (params.holeType !== 'tapped') {
     return { ...params, depth }
@@ -184,11 +224,11 @@ function buildThreadHolePmi(
   const base = {
     thread: {
       standard: th.system,
-      nominalDiameter: th.spec.dia,
+      nominalDiameter: th.nominalDiameter,
       ...(th.pitch > 0 ? { pitch: th.pitch } : {}),
       ...(toleranceClass !== undefined ? { toleranceClass } : {}),
       depth: threadDepth,
-      specLabel: th.spec.label,
+      specLabel: th.specLabel,
     },
     pilot: { diameter: pilotDiameter, depth: pilotDepth },
     axis: { origin: localPosition, direction },
@@ -278,6 +318,8 @@ function screwHoleBrep(
   kernel.release(baseTool)
 
   // 2. 螺纹（内螺纹 ridge，inward=true）
+  // 只管 metric / imperial：`normalizeDrillParams` 已在 op 入口拒绝 screw + pipe，
+  // 这里的类型收窄是安全的（锥管牙型未实现，见该处的注释）。
   const screwSystem = (params.screwSystem as 'metric' | 'imperial') ?? 'metric'
   const screwSpecIdx = (params.screwSpecIdx as number) ?? 4 // M5 default（与 mesh 路径一致）
   const screwThread = (params.screwThread as 'coarse' | 'fine' | 'custom') ?? 'coarse'
@@ -418,8 +460,8 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.face - 面引用（§6.2 新形态：`FaceTopoRef`，执行期按输入 Shape 解析派生法向；优先于 `faceNormal`）。type:FaceTopoRef
  * @param params.faceNormal - 面法向（决定朝向；历史兜底，§6.2 起宿主不再写，改由 `face` 解析）。type:[x,y,z] 默认 [0,0,1]
  * @param params.tolerance - 公差（mm）。type:number 默认 0.3
- * @param params.screwSystem - 螺丝孔制式（holeType='screw'/'tapped' 时用）。type:'metric' | 'imperial' 默认 'metric'
- * @param params.screwSpecIdx - 螺丝规格索引（holeType='screw'/'tapped' 时用；4 → M5，5 → M6）。type:number 默认 4
+ * @param params.screwSystem - 螺纹制式（holeType='screw'/'tapped' 时用）。'metric' 公制 / 'imperial' 英制 / 'pipe' 55° 锥管螺纹（PT·R·BSPT，**只支持 tapped**：几何只钻底孔、螺纹进 PMI；'screw' + 'pipe' 会直接报错）。type:'metric' | 'imperial' | 'pipe' 默认 'metric'
+ * @param params.screwSpecIdx - 螺丝规格索引（holeType='screw'/'tapped' 时用；metric 4 → M5、5 → M6；pipe 0 → PT1/8、1 → PT1/4、2 → PT3/8、3 → PT1/2）。type:number 默认 4
  * @param params.screwThread - 螺丝螺纹类型。type:'coarse' | 'fine' | 'custom' 默认 'coarse'
  * @param params.screwHead - 螺丝头型。type:'hex' | 'chc' | 'none' 默认 'none'
  * @param params.threadDepth - 有效螺纹深度（mm），仅标注用；须 ≤ depth，缺省与 depth 同深。type:number
@@ -430,6 +472,8 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * const p = cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
  * // 攻丝孔：几何只钻 Φ5×16，螺纹 M6-6H ↓14 进 PMI
  * const p = cad.fai_drill(part0, { position: [0, 0, 30], direction: 'z', holeType: 'tapped', screwSpecIdx: 5, depth: 16, threadDepth: 14 })
+ * // 管螺纹 PT1/8（锥管螺纹）：几何只钻 Φ8.8×20 底孔，PT1/8 螺纹进 PMI
+ * const p = cad.fai_drill(part0, { position: [47.5, 0, 55], direction: 'x', holeType: 'tapped', screwSystem: 'pipe', screwSpecIdx: 0, diameter: 8.8, depth: 20 })
   */
 export const fai_drill = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {

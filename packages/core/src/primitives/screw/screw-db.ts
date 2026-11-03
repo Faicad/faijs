@@ -38,6 +38,64 @@ export interface ScrewSpec {
 export type ScrewSystem = 'metric' | 'imperial'
 
 /**
+ * All thread standards a drill/PMI can describe: the two round-wire screw
+ * systems plus 55° tapered pipe threads.
+ *
+ * Deliberately **not** folded into `ScrewSystem`: `getScrewSpecs()` silently
+ * falls back to the imperial table for anything that is not `'metric'`, so
+ * letting `'pipe'` into that union would turn "looked up the wrong table" into
+ * silent behaviour. Pipe threads are looked up through {@link getPipeSpec} only.
+ */
+export type ThreadSystem = ScrewSystem | 'pipe'
+
+/**
+ * One 55° tapered pipe thread (PT / R / BSPT, ISO 7-1 · JIS B 0203).
+ *
+ * Kept apart from `ScrewSpec` on purpose: a pipe thread has a single pitch
+ * series (no coarse/fine split), and its diameter is measured on the gauge
+ * plane of a 1:16 cone — so it is neither interchangeable with NPT (60°, ANSI
+ * B1.20.1) nor derivable from a plain round-wire nominal diameter.
+ */
+export interface PipeSpec {
+  /** 基准平面大径 mm（PT1/8 → 9.728）。 */
+  majorDia: number
+  /** 螺距 mm（PT1/8 → 0.907）。 */
+  pitch: number
+  /** Rc 内锥螺纹的标准攻丝底孔 mm（PT1/8 → 8.4）。 */
+  pilotDia: number
+  /** 显示标签，如 'PT1/8'。 */
+  label: string
+}
+
+/**
+ * 55° tapered pipe thread specifications (PT1/8 – PT1/2).
+ *
+ * Values are ISO 7-1 / JIS B 0203: major diameter on the gauge plane, pitch in
+ * mm, and the standard Rc tap drill. Note that `pilotDia` is **not**
+ * `majorDia − pitch` (PT1/8: 9.728 − 0.907 = 8.82 vs. the standard 8.4) — the
+ * tap drill is a standard value, so it is tabulated rather than derived.
+ */
+export const PIPE_SPECS: PipeSpec[] = [
+  { majorDia: 9.728, pitch: 0.907, pilotDia: 8.4, label: 'PT1/8' },
+  { majorDia: 13.157, pitch: 1.337, pilotDia: 11.2, label: 'PT1/4' },
+  { majorDia: 16.662, pitch: 1.337, pilotDia: 14.75, label: 'PT3/8' },
+  { majorDia: 20.955, pitch: 1.814, pilotDia: 18.25, label: 'PT1/2' },
+]
+
+/**
+ * Get a pipe thread spec by index.
+ *
+ * The index is clamped to the valid range, matching {@link getScrewSpec}.
+ *
+ * @param idx - the index into {@link PIPE_SPECS} (0 = PT1/8).
+ * @returns the selected pipe spec.
+ */
+export function getPipeSpec(idx: number): PipeSpec {
+  const i = Math.max(0, Math.min(idx, PIPE_SPECS.length - 1))
+  return PIPE_SPECS[i]
+}
+
+/**
  * Shared screw head dimension constants — the single source of truth for the
  * BREP and mesh paths.
  *

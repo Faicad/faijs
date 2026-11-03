@@ -24,16 +24,18 @@ function num(v: number): string {
  * 细牙/非标规格**由 `specLabel` 表达**（'M8×1'、'1/4"-20'）——`pitch` 是数据字段，
  * 不自动拼进文本：粗牙标准叫法就是 'M6'，拼上 '×1' 反而不规范。
  *
+ * 管螺纹**必须**由 `specLabel` 给出（'PT1/8'）：它的规格号是 1/8" 这个**代号**，
+ * 与基准平面大径（9.728）没有换算关系，拿大径合成只会得到 'G9.728' 这种
+ * 既不规范也查不到的写法，所以 pipe 缺省时只如实给直径数值。
+ *
  * @param spec - the thread spec.
- * @returns e.g. 'M6' / 'M8×1' / 'G1/2'.
+ * @returns e.g. 'M6' / 'M8×1' / 'PT1/8'.
  */
 export function formatThreadSpec(spec: PmiThreadSpec): string {
   return spec.specLabel
     ?? (spec.standard === 'metric'
       ? `M${num(spec.nominalDiameter)}`
-      : spec.standard === 'pipe'
-        ? `G${num(spec.nominalDiameter)}`
-        : num(spec.nominalDiameter))
+      : num(spec.nominalDiameter))
 }
 
 /**
