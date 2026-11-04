@@ -19,6 +19,7 @@ import { transformShape, translateShape } from './meshdata/ops'
 import { geoToManifoldMesh } from '../boolean/csg-backend'
 import type { Shape, BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams, SdfParams } from './types'
 import { clampNRad } from './types'
+import { ALIGN_BASE, ALIGN_CENTER_ALL, ALIGN_MIN_ALL, anchorShift, resolveAlign } from '../anchor'
 
 // ── 内部工具 ──
 
@@ -54,25 +55,23 @@ export function box(params: BoxParams): Shape {
   // after the +90° rotateX the dims map to X=width, Y=depth, Z=height.
   const geo = boxGeometry(width, height, depth)
   const rotated = transformShape(geo, ROT_Y_TO_Z)
-  // brepjs box semantics (2026-10-16 统一 BASE 锚点，与 cylinder/cone 一致):
-  // 几何以原点为中心（底面中心在 (0,0,-h/2)）：
-  // - at（无 centered）：底面中心落在 at → t = at + [0,0,h/2]；
-  // - at + centered：以 at 为中心 → t = at；
-  // - centered（无 at）：居中到原点 → t = [0,0,0]；
-  // - 默认：角点在原点 → t = [w/2, d/2, h/2]。
-  const at = params.at
-  let tx = 0
-  let ty = 0
-  let tz = 0
-  if (at !== undefined) {
-    tx = at[0]
-    ty = at[1]
-    tz = at[2] + (params.centered === true ? 0 : height / 2)
-  } else if (!params.centered) {
-    tx = width / 2
-    ty = depth / 2
-    tz = height / 2
-  }
+  // 锚点（2026-11-03：`at`/`align` 正交，解析统一在 src/anchor.ts）：three 的
+  // BoxGeometry 以原点为中心 ⇒ nativeMin = −size/2，而 brep 侧 nativeMin = 0；
+  // 两边代入同一条 shift 公式后包围盒逐点相同（这就是两路径不会分叉的保证）。
+  const align = resolveAlign({
+    op: 'box',
+    at: params.at,
+    align: params.align,
+    centered: params.centered,
+    atAlign: ALIGN_BASE,
+    nativeAlign: ALIGN_MIN_ALL,
+  })
+  const [tx, ty, tz] = anchorShift({
+    size: [width, depth, height],
+    nativeMin: [-width / 2, -depth / 2, -height / 2],
+    align,
+    at: params.at,
+  })
   const translated = tx !== 0 || ty !== 0 || tz !== 0
     ? translateShape(rotated, tx, ty, tz)
     : rotated
@@ -101,8 +100,23 @@ export function sphere(params: SphereParams): Shape {
   const segs = clampNRad(params.nRad ?? params.segments)
   const geo = sphereGeometry(params.radius, segs, segs)
   const rotated = transformShape(geo, ROT_Y_TO_Z)
-  const translated = params.center
-    ? translateShape(rotated, params.center[0], params.center[1], params.center[2])
+  // 球面对称 ⇒ 原生锚点（球心在原点）就是三轴居中；`center`/`at` 是锚点落点。
+  const align = resolveAlign({
+    op: 'sphere',
+    at: params.center,
+    align: params.align,
+    atAlign: ALIGN_CENTER_ALL,
+    nativeAlign: ALIGN_CENTER_ALL,
+  })
+  const r = params.radius
+  const [tx, ty, tz] = anchorShift({
+    size: [2 * r, 2 * r, 2 * r],
+    nativeMin: [-r, -r, -r],
+    align,
+    at: params.center,
+  })
+  const translated = tx !== 0 || ty !== 0 || tz !== 0
+    ? translateShape(rotated, tx, ty, tz)
     : rotated
   return geoToShape(translated)
 }
@@ -122,12 +136,23 @@ export function cylinder(params: CylinderParams): Shape {
   const segs = clampNRad(params.nRad ?? params.segments)
   const geo = cylinderGeometry(params.radius, params.radius, params.height, segs)
   const rotated = transformShape(geo, ROT_Y_TO_Z)
-  // geometry（rotateX 后）沿 z ∈ [-h/2, +h/2]（three 默认 Y-up 居中）：
-  // 目标底面中心 in baseZ = (at?.[2] ?? 0) - (centered ? h/2 : 0) → 平移到 baseZ + h/2。
-  const baseX = params.at?.[0] ?? 0
-  const baseY = params.at?.[1] ?? 0
-  const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
-  const translated = translateShape(rotated, baseX, baseY, baseZ + params.height / 2)
+  // geometry（rotateX 后）沿 z ∈ [-h/2, +h/2]（three 默认 Y-up 居中）⇒ nativeMin
+  // 为 (−r, −r, −h/2)；锚点解析与 brep 侧共用 src/anchor.ts 的一条公式。
+  const align = resolveAlign({
+    op: 'cylinder',
+    at: params.at,
+    align: params.align,
+    centered: params.centered,
+    atAlign: ALIGN_BASE,
+    nativeAlign: ALIGN_BASE,
+  })
+  const [tx, ty, tz] = anchorShift({
+    size: [2 * params.radius, 2 * params.radius, params.height],
+    nativeMin: [-params.radius, -params.radius, -params.height / 2],
+    align,
+    at: params.at,
+  })
+  const translated = translateShape(rotated, tx, ty, tz)
   // 面结构（P4 面级）：CylinderGeometry 三角形布局稳定——侧面 2*segs（tri 0..2segs-1）、
   // 顶盖 segs、底盖 segs。面号（本链行号）：0=侧面, 1=顶, 2=底。
   const faceRanges: Shape['faceRanges'] = [
@@ -161,12 +186,23 @@ export function cone(params: ConeParams): Shape {
     geo = cylinderGeometry(params.radiusTop, params.radiusBottom, params.height, segs)
   }
   const rotated = transformShape(geo, ROT_Y_TO_Z)
-  // geometry（rotateX 后）沿 z ∈ [-h/2, +h/2]（three 默认 Y-up 居中）：
-  // 目标底面中心 in baseZ = (at?.[2] ?? 0) - (centered ? h/2 : 0) → 平坦平移 baseZ + h/2。
-  const baseX = params.at?.[0] ?? 0
-  const baseY = params.at?.[1] ?? 0
-  const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
-  const translated = translateShape(rotated, baseX, baseY, baseZ + params.height / 2)
+  // 同 cylinder：原生沿 z ∈ [-h/2, +h/2]，锚点解析走 src/anchor.ts 的统一公式。
+  const align = resolveAlign({
+    op: 'cone',
+    at: params.at,
+    align: params.align,
+    centered: params.centered,
+    atAlign: ALIGN_BASE,
+    nativeAlign: ALIGN_BASE,
+  })
+  const bottomR = Math.max(params.radiusBottom, params.radiusTop)
+  const [tx, ty, tz] = anchorShift({
+    size: [2 * bottomR, 2 * bottomR, params.height],
+    nativeMin: [-bottomR, -bottomR, -params.height / 2],
+    align,
+    at: params.at,
+  })
+  const translated = translateShape(rotated, tx, ty, tz)
   // 面结构（P4 面级）：radiusTop=0 的 ConeGeometry 只有 2 面——侧面（segs 个
   // 三角扇）+ 底盖（segs 个）；radiusTop>0 的圆台 CylinderGeometry 3 面
   // （侧面 2*segs、顶、底，同 cylinder 布局）。面号（本链行号）：0=侧面, 1=底

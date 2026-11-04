@@ -204,6 +204,61 @@ describe('BREP primitives: center offset', () => {
   })
 })
 
+// ── 锚点（A7）：`align` 决定包围盒哪一侧贴到 `at` ──
+
+describe('BREP primitives: align (anchor A7)', () => {
+  it('boxBrep: align "min" 把角点贴到 at', async () => {
+    const s = await brepPrimitives.boxBrep({ width: 10, depth: 10, height: 10, at: [50, 0, 20], align: 'min' })
+    const bb = shapeBoundingBox(s)
+    expect(bb.min).toEqual([50, 0, 20])
+    expect(bb.max).toEqual([60, 10, 30])
+  })
+
+  it('boxBrep: align [center,center,max] 把顶面贴到 at.z', async () => {
+    const s = await brepPrimitives.boxBrep({
+      width: 10, depth: 10, height: 10, at: [50, 0, 20], align: ['center', 'center', 'max'],
+    })
+    const bb = shapeBoundingBox(s)
+    expect(bb.min[0]).toBeCloseTo(45, 6)
+    expect(bb.min[2]).toBeCloseTo(10, 6)
+    expect(bb.max[2]).toBeCloseTo(20, 6)
+  })
+
+  it('boxBrep: 不给 align 时仍是底面中心（向后兼容）', async () => {
+    const s = await brepPrimitives.boxBrep({ width: 10, depth: 10, height: 10, at: [50, 0, 20] })
+    const bb = shapeBoundingBox(s)
+    expect(bb.min).toEqual([45, -5, 20])
+    expect(bb.max).toEqual([55, 5, 30])
+  })
+
+  it('sphereBrep: align "min" 把包围盒最小角贴到 center（球的 bbox 是 2r 立方）', async () => {
+    const s = await brepPrimitives.sphereBrep({ radius: 10, center: [0, 0, 10], align: 'min' })
+    const bb = shapeBoundingBox(s)
+    // 三轴同取 min ⇒ bbox 的 (−r,−r,−r) 角落在 center：x ∈ [0,20]、z ∈ [10,30]
+    expect(bb.min[0]).toBeCloseTo(0, 0)
+    expect(bb.max[0]).toBeCloseTo(20, 0)
+    expect(bb.min[2]).toBeCloseTo(10, 0)
+    expect(bb.max[2]).toBeCloseTo(30, 0)
+  })
+
+  it('cylinderBrep: align "min" 把包围盒最小角贴到 at（不是底面轴心）', async () => {
+    const s = await brepPrimitives.cylinderBrep({ radius: 5, height: 10, at: [0, 0, 20], align: 'min' })
+    const bb = shapeBoundingBox(s)
+    // 三轴同取 min ⇒ bbox 的 (−r,−r,0) 角落在 at：x/y ∈ [0,10]、z ∈ [20,30]
+    expect(bb.min[0]).toBeCloseTo(0, 0)
+    expect(bb.max[0]).toBeCloseTo(10, 0)
+    expect(bb.min[2]).toBeCloseTo(20, 0)
+    expect(bb.max[2]).toBeCloseTo(30, 0)
+  })
+
+  it('coneBrep: align "min" 与 cylinder 同义（bbox 最小角贴 at）', async () => {
+    const s = await brepPrimitives.coneBrep({ radiusBottom: 5, radiusTop: 0, height: 10, at: [0, 0, 20], align: 'min' })
+    const bb = shapeBoundingBox(s)
+    expect(bb.min[2]).toBeCloseTo(20, 0)
+    expect(bb.max[2]).toBeCloseTo(30, 0)
+  })
+})
+
 // ── 居中测试：所有基本体默认以原点为中心 ──
 
 describe('BREP primitives: centered at origin by default', () => {

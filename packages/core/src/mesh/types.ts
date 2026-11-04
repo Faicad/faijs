@@ -15,6 +15,7 @@
 import type { PbrAppearance } from '../api/appearance'
 import type { ShapeMeta } from '../api/meta'
 import type { PmiSet } from '../api/pmi/types'
+import type { AlignSpec } from '../anchor'
 
 // ── 基础类型 ──
 
@@ -211,6 +212,10 @@ export function clampNRad(n: number | undefined): number {
  * contract, §4.1 A 决策). Default: min-corner at the origin, bottom flush at z=0.
  * `centered: true` shifts so the box is centered at the origin; `at` is BASE semantics
  * (bottom-center, same as cylinder/cone); with `centered: true` given together, `at` is the center.
+ *
+ * 2026-11-03 起新增 `align`（逐轴 min/center/max/none）：`at` 只表"锚点落在哪"，
+ * `align` 只表"包围盒哪一侧贴上去"，两者正交，`centered` 降级为
+ * `align:['center','center','center']` 的语法糖（解析见 `src/anchor.ts`）。
  */
 export interface BoxParams {
   /** Side length along X (mm). */
@@ -221,7 +226,9 @@ export interface BoxParams {
   height: number
   /** Bottom-center position (原 brepjs `at`, BASE semantics, same as cylinder/cone); with `centered` it is the center. */
   at?: Vec3
-  /** Center the box at the origin when `at` is absent. Default: false (min-corner at origin). */
+  /** 逐轴对齐：`min`/`center`/`max`/`none`，或三元组 [X,Y,Z]。缺省：有 `at` 时 `['center','center','min']`，无 `at` 时 `'none'`（角点在原点）。 */
+  align?: AlignSpec
+  /** Center the box at the origin when `at` is absent. Default: false (min-corner at origin). 与 `align` 同给报 `E_ANCHOR_CONFLICT`。 */
   centered?: boolean
   /** Tessellation segment count (box: affects only brep/mesh tessellation, not topology). */
   segments?: number
@@ -234,6 +241,8 @@ export interface SphereParams {
   radius: number
   segments?: number
   center?: Vec3
+  /** 逐轴对齐（球体四面对称，`center` 与 `none` 等价，`min`/`max` 会把包围盒某一侧贴到 `center`）。 */
+  align?: AlignSpec
   nRad?: number
 }
 
@@ -245,6 +254,8 @@ export interface CylinderParams {
   height: number
   /** Base circle center (原 brepjs `at`, BASE semantics; default [0, 0, 0]). */
   at?: Vec3
+  /** 逐轴对齐：缺省有 `at` 时 `['center','center','min']`（底面轴心落在 at），无 `at` 时 `'none'`。与 `centered` 同给报 `E_ANCHOR_CONFLICT`。 */
+  align?: AlignSpec
   /** Center the cylinder (base at −h/2 / center at `at`) instead of base at `at`/origin. */
   centered?: boolean
   /** Tessellation segment count (cylinder: affects only tessellation, not topology). */
@@ -263,6 +274,8 @@ export interface ConeParams {
   height: number
   /** Base circle center (原 brepjs `at`, BASE semantics; default [0, 0, 0]). */
   at?: Vec3
+  /** 逐轴对齐：缺省有 `at` 时 `['center','center','min']`（底面轴心落在 at），无 `at` 时 `'none'`。与 `centered` 同给报 `E_ANCHOR_CONFLICT`。 */
+  align?: AlignSpec
   /** Center the cone (base at −h/2 / center at `at`) instead of base at `at`/origin. */
   centered?: boolean
   /** Tessellation segment count (cone: affects only mere tessellation, not topology). */

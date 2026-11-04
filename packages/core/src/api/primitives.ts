@@ -25,10 +25,38 @@ import type { Provenance } from '../topology/naming/lineage'
 import { asPartName } from '../identity'
 import { defineOp } from '../sdk'
 import { assertPositiveNumber, assertNonNegativeNumber } from './assert'
+import { ALIGN_BASE, ALIGN_CENTER_ALL, ALIGN_MIN_ALL, resolveAlign, type ResolvedAlign } from '../anchor'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
 // ── per-op 参数自校验（Phase 2.2；api 层被直接 import 时的防御层） ──
+
+/**
+ * 锚点参数自校验：`align` / `centered` 的冲突与值域在 api 层就报错（run 之前的第一道防线）。
+ * 真正的平移量在 brep/mesh 两条路径里由同一套 `anchorShift` 计算，这里只做判定。
+ *
+ * @param op - op 名（错误前缀）。
+ * @param params - 原始 op 参数。
+ * @param anchor - 锚点落点（sphere 把 `center` 传进来，其余传 `at`）。
+ * @param atAlign - 给了锚点、未给 align/centered 时的默认逐轴对齐。
+ * @param nativeAlign - 该图元的原生锚点（`align:'none'` 与裸调用共用）。
+ */
+function assertAnchorParams(
+  op: string,
+  params: Record<string, unknown>,
+  anchor: unknown,
+  atAlign: ResolvedAlign,
+  nativeAlign: ResolvedAlign,
+): void {
+  resolveAlign({
+    op,
+    at: anchor as readonly [number, number, number] | undefined,
+    align: params.align,
+    centered: params.centered,
+    atAlign,
+    nativeAlign,
+  })
+}
 
 /**
  * Validate box parameters (brepjs contract, §4.1 A 决策): `width`, `depth` and
@@ -47,14 +75,17 @@ export function assertBoxParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.width, 'box.width')
   assertPositiveNumber(params.depth, 'box.depth')
   assertPositiveNumber(params.height, 'box.height')
+  assertAnchorParams('box', params, params.at, ALIGN_BASE, ALIGN_MIN_ALL)
 }
 
 /**
  * Validate sphere parameters: `radius` must be a positive number.
+ * 锚点：`center`（`at` 同义）是锚点落点，`align` 可把包围盒某一侧贴到该点。
  * @param params - the raw sphere operation parameters.
  */
 export function assertSphereParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.radius, 'sphere.radius')
+  assertAnchorParams('sphere', params, params.at ?? params.center, ALIGN_CENTER_ALL, ALIGN_CENTER_ALL)
 }
 
 /**
@@ -73,6 +104,7 @@ export function assertCylinderParams(params: Record<string, unknown>): void {
   }
   assertPositiveNumber(params.radius, 'cylinder.radius')
   assertPositiveNumber(params.height, 'cylinder.height')
+  assertAnchorParams('cylinder', params, params.at, ALIGN_BASE, ALIGN_BASE)
 }
 
 /**
@@ -93,6 +125,7 @@ export function assertConeParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.radiusBottom, 'cone.radiusBottom')
   assertNonNegativeNumber(params.radiusTop, 'cone.radiusTop')
   assertPositiveNumber(params.height, 'cone.height')
+  assertAnchorParams('cone', params, params.at, ALIGN_BASE, ALIGN_BASE)
 }
 
 /**
@@ -254,8 +287,9 @@ function meshSolidPrimitive(params: Record<string, unknown>, make: () => Shape):
  * @param params.width - X 方向边长（mm）。type:number required:true
  * @param params.depth - Y 方向边长（mm）。type:number required:true
  * @param params.height - Z 方向边长（mm）。type:number required:true
- * @param params.at - 底面中心（BASE 语义，与 cylinder/cone 一致；与 centered 同给时以 at 为中心）。type:[x,y,z] 可选
- * @param params.centered - 无 at 时是否居中到原点（type:boolean 默认 false，角点在原点）。
+ * @param params.at - 锚点落点（默认锚点 = 底面中心，BASE 语义，与 cylinder/cone 一致）。type:[x,y,z] 可选
+ * @param params.align - 包围盒哪一侧贴到 at：'min'|'center'|'max'|'none'，或 [X,Y,Z] 逐轴。type:string|string[]? 默认：有 at 时 ['center','center','min']，无 at 时 'none'（角点在原点）
+ * @param params.centered - `align:['center','center','center']` 的语法糖（与 align 同给报 E_ANCHOR_CONFLICT）。type:boolean 默认 false
  * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效）
  * @example
  * const part0 = cad.box(10 * MM, 20 * MM, 30 * MM)
@@ -266,6 +300,8 @@ function meshSolidPrimitive(params: Record<string, unknown>, make: () => Shape):
  * 两种写法归一到同一对象（位置→对象 + 尾参 options 合并）。旧 `{ size }` 对象形态已废弃，
  * 传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容）。
  * 锚点：默认角点在原点、底面贴地，`box(w, d, h)` ≡ `box(w, d, h, { at: [w/2, d/2, 0] })`。
+ * `at` 与 `align` 正交：`at` 只管"锚点落在哪"，`align` 只管"包围盒哪一侧贴上去"
+ * （`align:'min'` = 角点落在 at，`['center','center','max']` = 顶面落在 at）。
    */
 export const box = defineOp({
   name: 'box',
@@ -283,6 +319,7 @@ export const box = defineOp({
     depth: 'number',
     height: 'number',
     at: 'vec3?',
+    align: 'string|string[]?',
     centered: 'boolean?',
     segments: 'number?',
   },
@@ -305,6 +342,7 @@ export const box = defineOp({
  * @param params.segments - 细分度（影响面数）。type:number 默认 64（= brepjs standard 等效）
  * @param params.center - 球心位置（at 的同义别名）。type:[x,y,z] 默认 [0,0,0]（原点）。
  * @param params.at - 球心位置（center 的同义别名，brepjs 契约；双形态合法）。
+ * @param params.align - 包围盒哪一侧贴到球心位置：'min'|'center'|'max'|'none'，或 [X,Y,Z]。type:string|string[]? 默认 'center'（球心落在该点）
  * @example
  * const r = cad.sphere({ radius: 10 })
  * const r = cad.sphere(10, { at: [0, 0, 10], segments: 64 })
@@ -320,7 +358,7 @@ export const sphere = defineOp({
     assertSphereParams(params)
     return primitiveBrep('sphere', centerParams(params))
   },
-  schema: { radius: 'number', segments: 'number?', center: 'vec3?', at: 'vec3?' },
+  schema: { radius: 'number', segments: 'number?', center: 'vec3?', at: 'vec3?', align: 'string|string[]?' },
   // D11: `sphere(10)` == `sphere({ radius: 10 })`; 尾参 options（{at, segments}）
   // 经 dual-form-args 的尾参合并规则归一（裁决 4，§6.2）。
   slotMap: { keys: ['radius'] },
@@ -339,8 +377,8 @@ function centerParams(params: Record<string, unknown>): Record<string, unknown> 
 
 /**
  * 创建圆柱体（brepjs 契约）。
- * 锚点：`at` 是**底面轴心**（BASE 语义，默认 [0,0,0]，底面在原点、+Z 延伸）；`centered:true`
- * 指底面落到 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
+ * 锚点：`at` 只表"锚点落在哪"（默认锚点 = **底面轴心**，BASE 语义，底面在原点、+Z 延伸）；
+ * `align` 表"包围盒哪一侧贴上去"，`centered:true` ≡ `align:['center','center','center']`。
  * @group 创建
  * @inputs 0
  * @async false
@@ -349,8 +387,9 @@ function centerParams(params: Record<string, unknown>): Record<string, unknown> 
  * @returns Shape 圆柱体几何，可作为后续 op 的输入。
  * @param params.radius - 底面半径（mm）。type:number required:true
  * @param params.height - 高度（mm），沿 +Z 轴。type:number required:true
- * @param params.at - 底面中心（BASE 语义）。type:[x,y,z] 可选
- * @param params.centered - 是否居中（底面 −h/2；与 at 同给时以 at 为中心）。type:boolean 默认 false
+ * @param params.at - 锚点落点（默认锚点 = 底面轴心，BASE 语义）。type:[x,y,z] 可选
+ * @param params.align - 包围盒哪一侧贴到 at：'min'|'center'|'max'|'none'，或 [X,Y,Z] 逐轴。type:string|string[]? 默认 ['center','center','min']
+ * @param params.centered - `align:['center','center','center']` 的语法糖（与 align 同给报 E_ANCHOR_CONFLICT）。type:boolean 默认 false
  * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效）
  * @example
  * const c = cad.cylinder(5, 40)
@@ -370,7 +409,7 @@ export const cylinder = defineOp({
     assertCylinderParams(params)
     return primitiveBrep('cylinder', params)
   },
-  schema: { radius: 'number', height: 'number', at: 'vec3?', centered: 'boolean?', segments: 'number?' },
+  schema: { radius: 'number', height: 'number', at: 'vec3?', align: 'string|string[]?', centered: 'boolean?', segments: 'number?' },
   // D11（§4.1/§6.2）：`cylinder(5, 40)` 两个标量装箱成 { radius, height }；尾参 options
   // 经 dual-form-args 尾参合并并入。
   slotMap: { keys: ['radius', 'height'] },
@@ -380,8 +419,8 @@ export const cylinder = defineOp({
 
 /**
  * 创建圆锥体（brepjs 契约）。radiusTop 等于 radiusBottom 时即圆柱，0 为尖锥。
- * 锚点：`at` 是**底面轴心**（BASE 语义，默认 [0,0,0]，底面在原点、+Z 延伸）；`centered:true`
- * 指底面落到 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
+ * 锚点：`at` 只表"锚点落在哪"（默认锚点 = **底面轴心**，BASE 语义，底面在原点、+Z 延伸）；
+ * `align` 表"包围盒哪一侧贴上去"，`centered:true` ≡ `align:['center','center','center']`。
  * @group 创建
  * @inputs 0
  * @async false
@@ -391,8 +430,9 @@ export const cylinder = defineOp({
  * @param params.radiusBottom - 底半径（mm）。type:number required:true
  * @param params.radiusTop - 顶半径（mm），0 为尖锥，非负，等于 radiusBottom 得圆柱。type:number required:true
  * @param params.height - 高度（mm），沿 +Z 轴。type:number required:true
- * @param params.at - 底面轴心（BASE 语义）。type:[x,y,z] 可选
- * @param params.centered - 是否居中（底面 −h/2；与 at 同给时以 at 为中心）。type:boolean 默认 false
+ * @param params.at - 锚点落点（默认锚点 = 底面轴心，BASE 语义）。type:[x,y,z] 可选
+ * @param params.align - 包围盒哪一侧贴到 at：'min'|'center'|'max'|'none'，或 [X,Y,Z] 逐轴。type:string|string[]? 默认 ['center','center','min']
+ * @param params.centered - `align:['center','center','center']` 的语法糖（与 align 同给报 E_ANCHOR_CONFLICT）。type:boolean 默认 false
  * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效）
  * @example
  * const c = cad.cone(10, 4, 30)
@@ -416,6 +456,7 @@ export const cone = defineOp({
     radiusTop: 'number',
     height: 'number',
     at: 'vec3?',
+    align: 'string|string[]?',
     centered: 'boolean?',
     segments: 'number?',
   },

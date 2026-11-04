@@ -22,12 +22,13 @@
  * naming：本族是刚体平移 ⇒ `kernel` + `newFaces: { via: 'byAdjacency' }`，与
  * api/transform.ts 的 `translate` 同口径（刚体变换不改面集，演化由邻接关系推导）。
  *
- * §9.5 降级路径：一旦 L1 契约补上进 bezeichnet 的对齐成员且两侧适配器同时落地，删掉
- * `engines` 声明改走 getBrepApi()，三个原生方法即从 C2 转入 C1。
+ * §9.5 降级路径：一旦 L1 契约补上「把包围盒某个锚点挪到目标坐标」的对齐成员且两侧
+ * 适配器同时落地，删掉 `engines` 声明改走 getBrepApi()，三个原生方法即从 C2 转入 C1。
  */
 
 import type { Shape } from '../../mesh/types'
 import type { BrepHandle } from '../../brep/engine/types'
+import type { AlignAnchor } from '../../anchor'
 import { solidToShape } from '../../brep/brep-ops'
 import { getBrepApi } from '../../brep/handle-bridge'
 import { brepOf, fromBrep } from '../../shape'
@@ -38,14 +39,17 @@ import { getOcctKernel } from '../../occt-kernel/occtKernel'
 /** 对齐的目标轴。 */
 export type AlignAxis = 'x' | 'y' | 'z'
 
-/** 包围盒上被对齐的那个锚点（与 occt-wasm 的 `AlignAnchor` 字面量一致）。 */
-export type AlignAnchor = 'min' | 'center' | 'max'
+/**
+ * 包围盒上被对齐的那个锚点（与 occt-wasm 的 `AlignAnchor` 字面量一致）。
+ * 词表真源在 `src/anchor.ts`——基本体的 `align` 参数用的是同一套 `min/center/max`。
+ */
+export type { AlignAnchor }
 
-/** `alignTo` 的选项（两个字段都缺省时取原生默认：target 0 / anchor 'min'）。 */
+/** `alignTo` 的选项（两个字段都缺省时取原生默认：target `0` / anchor `center`，见上方 GOTCHA）。 */
 export interface AlignOptions {
   /** 目标坐标；缺省交由原生默认（0）。type:number required:false */
   target?: number
-  /** 包围盒锚点；缺省交由原生默认（min）。type:string required:false */
+  /** 包围盒锚点；缺省交由原生默认（**center**，不是 min）。type:string required:false */
   anchor?: AlignAnchor
 }
 

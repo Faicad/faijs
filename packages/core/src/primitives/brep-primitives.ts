@@ -30,6 +30,7 @@ import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { PrimitiveType } from './types'
 import { reconstructSolidFromMesh } from '../occt-kernel/meshReconstruct'
+import { ALIGN_BASE, ALIGN_CENTER_ALL, ALIGN_MIN_ALL, anchorShift, resolveAlign } from '../anchor'
 import type {
   BoxParams,
   SphereParams,
@@ -66,47 +67,40 @@ function applyCenter(kernel: BrepEngineApi, solid: BrepHandle, center?: [number,
 
 /**
  * 用 OCCT 直接构造一个长方体 Solid（原 brepjs `box(width, depth, height,
- * {at?, centered?})` 契约，§4.1 A 决策；与 mesh 路径逐点对齐）。
+ * {at?, align?, centered?})` 契约，§4.1 A 决策；与 mesh 路径逐点对齐）。
  *
- * 锚点（2026-10-16 与 cylinder/cone 统一为 BASE 语义）：
- * - 默认（无 at、无 centered）：角点在原点，底面贴地（z∈[0,h]）；
- * - `centered:true`（无 at）：居中到原点；
+ * 锚点（2026-11-03 起 `at` 与 `align` 正交，解析见 `src/anchor.ts`）：
+ * - 默认（无 at、无 align、无 centered）：角点在原点，底面贴地（z∈[0,h]）；
  * - `at`：底面中心落在 at（BASE 语义，与 cylinder/cone 一致）；
- *   与 `centered:true` 同给时以 at 为中心。
+ * - `align`：包围盒的哪一侧贴到 at（`min` 角点 / `center` 中心 / `max` 顶面，可逐轴）；
+ * - `centered:true` ≡ `align:['center','center','center']`（与 `align` 同给报 `E_ANCHOR_CONFLICT`）。
  * 等价写法：`box(w, d, h)` ≡ `box(w, d, h, { at: [w/2, d/2, 0] })`。
  */
 function cubeToCadSolid(kernel: BrepEngineApi, params: BoxParams): BrepHandle {
   const w = params.width
   const d = params.depth
   const h = params.height
-  // 底面中心的目标位置（BASE 锚点）：
-  // - at 给定：at（at + centered 时再下移 h/2，使 at 成为中心）；
-  // - 仅 centered：原点居中 → 底面中心 (0, 0, -h/2)；
-  // - 默认：角点在原点 → 底面中心 (w/2, d/2, 0)。
-  let baseX: number
-  let baseY: number
-  let baseZ: number
-  if (params.at !== undefined) {
-    baseX = params.at[0]
-    baseY = params.at[1]
-    baseZ = params.at[2] - (params.centered === true ? h / 2 : 0)
-  } else if (params.centered === true) {
-    baseX = 0
-    baseY = 0
-    baseZ = -h / 2
-  } else {
-    baseX = w / 2
-    baseY = d / 2
-    baseZ = 0
-  }
-  // 角点实体 (0,0,0)-(w,d,h)，平移到「底面中心落在 (baseX, baseY, baseZ)」。
+  // OCCT makeBoxFromCorners 原生角点在原点 ⇒ nativeMin = (0,0,0)，与 mesh 侧
+  // nativeMin = −size/2 代入同一条 shift 公式后包围盒逐点相同。
+  const align = resolveAlign({
+    op: 'box',
+    at: params.at,
+    align: params.align,
+    centered: params.centered,
+    atAlign: ALIGN_BASE,
+    nativeAlign: ALIGN_MIN_ALL,
+  })
+  const [dx, dy, dz] = anchorShift({
+    size: [w, d, h],
+    nativeMin: [0, 0, 0],
+    align,
+    at: params.at,
+  })
+  // 角点实体 (0,0,0)-(w,d,h)，按解析出的锚点整体平移。
   const solid = kernel.makeBoxFromCorners(
     { x: 0, y: 0, z: 0 },
     { x: w, y: d, z: h },
   )
-  const dx = baseX - w / 2
-  const dy = baseY - d / 2
-  const dz = baseZ
   if (dx !== 0 || dy !== 0 || dz !== 0) {
     const translated = kernel.translate(solid, dx, dy, dz)
     kernel.release(solid)
@@ -119,27 +113,59 @@ function cubeToCadSolid(kernel: BrepEngineApi, params: BoxParams): BrepHandle {
  * 用 OCCT 直接构造一个球体 Solid。
  *
  * 接收完整 SphereParams：radius 是球体半径，segments 不影响 BREP（仅影响 mesh 离散化）。
+ * 锚点：OCCT makeSphere 以原点为球心 ⇒ nativeMin = (−r,−r,−r)；`center`/`at` 是锚点落点，
+ * `align` 可把包围盒某一侧贴到该点（球四面对称，故 `center` 与缺省等价）。
  */
 function sphereToCadSolid(kernel: BrepEngineApi, params: SphereParams): BrepHandle {
-  const solid = kernel.makeSphere(params.radius)
-  return applyCenter(kernel, solid, params.center)
+  const r = params.radius
+  const align = resolveAlign({
+    op: 'sphere',
+    at: params.center,
+    align: params.align,
+    atAlign: ALIGN_CENTER_ALL,
+    nativeAlign: ALIGN_CENTER_ALL,
+  })
+  const [dx, dy, dz] = anchorShift({
+    size: [2 * r, 2 * r, 2 * r],
+    nativeMin: [-r, -r, -r],
+    align,
+    at: params.center,
+  })
+  const solid = kernel.makeSphere(r)
+  if (dx !== 0 || dy !== 0 || dz !== 0) {
+    const translated = kernel.translate(solid, dx, dy, dz)
+    kernel.release(solid)
+    return translated
+  }
+  return solid
 }
 
 /**
  * 用 OCCT 直接构造一个圆柱体 Solid（原 brepjs `cylinder(radius, height, {
- * at, centered })` 契约，§4.3 A 决策；与 mesh 路径逐点对齐）。
+ * at, align, centered })` 契约，§4.3 A 决策；与 mesh 路径逐点对齐）。
  *
- * 锚点同旧 `primitiveFns.cylinder`：`at` 是底面轴心（BASE）语义（默认
- * [0,0,0]），OCCT makeCylinder 原生从 z=0 沿 +Z 建高 → 无需重居中；`centered:true`
- * 指底面沿轴下移 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
+ * 锚点（2026-11-03 起 `at`/`align` 正交，解析见 `src/anchor.ts`）：OCCT makeCylinder
+ * 原生从 z=0 沿 +Z 建高、XY 以原点为轴心 ⇒ nativeMin = (−r,−r,0)；
+ * `at` 是锚点落点（默认锚点 = 底面轴心，即 BASE 语义）。
  */
 function cylinderToCadSolid(kernel: BrepEngineApi, params: CylinderParams): BrepHandle {
   const solid = kernel.makeCylinder(params.radius, params.height)
-  const baseX = params.at?.[0] ?? 0
-  const baseY = params.at?.[1] ?? 0
-  const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
-  if (baseX !== 0 || baseY !== 0 || baseZ !== 0) {
-    const translated = kernel.translate(solid, baseX, baseY, baseZ)
+  const align = resolveAlign({
+    op: 'cylinder',
+    at: params.at,
+    align: params.align,
+    centered: params.centered,
+    atAlign: ALIGN_BASE,
+    nativeAlign: ALIGN_BASE,
+  })
+  const [dx, dy, dz] = anchorShift({
+    size: [2 * params.radius, 2 * params.radius, params.height],
+    nativeMin: [-params.radius, -params.radius, 0],
+    align,
+    at: params.at,
+  })
+  if (dx !== 0 || dy !== 0 || dz !== 0) {
+    const translated = kernel.translate(solid, dx, dy, dz)
     kernel.release(solid)
     return translated
   }
@@ -148,19 +174,30 @@ function cylinderToCadSolid(kernel: BrepEngineApi, params: CylinderParams): Brep
 
 /**
  * 用 OCCT 直接构造一个圆锥体 Solid（原 brepjs `cone(bottomRadius, topRadius,
- * height, { at, centered })` 契约，§4.1 P 决策；与 mesh 路径逐点对齐）。
+ * height, { at, align, centered })` 契约，§4.1 P 决策；与 mesh 路径逐点对齐）。
  *
- * 锚点同旧 `primitiveFns.cone`：`at` 是底面轴心（BASE）语义（默认
- * [0,0,0]），OCCT makeCone 原生从 z=0 沿 +Z 建高 → 无需重居中；`centered:true`
- * 指底面沿轴下移 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
+ * 锚点：OCCT makeCone 原生从 z=0 沿 +Z 建高、XY 以原点为轴心 ⇒ nativeMin = (−r,−r,0)；
+ * `at` 是锚点落点（默认锚点 = 底面轴心）。解析与 cylinder 同一套（`src/anchor.ts`）。
  */
 function coneToCadSolid(kernel: BrepEngineApi, params: ConeParams): BrepHandle {
   const solid = kernel.makeCone(params.radiusBottom, params.radiusTop, params.height)
-  const baseX = params.at?.[0] ?? 0
-  const baseY = params.at?.[1] ?? 0
-  const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
-  if (baseX !== 0 || baseY !== 0 || baseZ !== 0) {
-    const translated = kernel.translate(solid, baseX, baseY, baseZ)
+  const align = resolveAlign({
+    op: 'cone',
+    at: params.at,
+    align: params.align,
+    centered: params.centered,
+    atAlign: ALIGN_BASE,
+    nativeAlign: ALIGN_BASE,
+  })
+  const r = Math.max(params.radiusBottom, params.radiusTop)
+  const [dx, dy, dz] = anchorShift({
+    size: [2 * r, 2 * r, params.height],
+    nativeMin: [-r, -r, 0],
+    align,
+    at: params.at,
+  })
+  if (dx !== 0 || dy !== 0 || dz !== 0) {
+    const translated = kernel.translate(solid, dx, dy, dz)
     kernel.release(solid)
     return translated
   }
