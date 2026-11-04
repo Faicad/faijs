@@ -2,10 +2,8 @@
   "l1Missing": [
     "AMBIGUITY_THRESHOLD",
     "AXIS_THRESHOLD",
-    "SMLIB_BREP_ENGINE_ID",
     "BlueprintSketcher",
     "Blueprints",
-    "buildSmlibKernel",
     "CONSTRAINT_NAMES",
     "CURRENT",
     "CliEventSink",
@@ -74,7 +72,6 @@
     "createDowel",
     "createNamedPlane",
     "createPlane",
-    "createSmlibImportsByName",
     "createStraightTenon",
     "curve",
     "decodeDeleted",
@@ -99,7 +96,6 @@
     "extractVerticesFromEdges",
     "faceRunColumnIndexes",
     "filletWithRoleTable",
-    "fmtNum",
     "foot",
     "fromBrepCurve",
     "fromMeshFace",
@@ -112,24 +108,22 @@
     "identityHashEvolution",
     "importBrepToMesh",
     "importStepMultiPart",
-    "initSmlibWasm",
     "inputRoleTable",
     "intersectWithHistoryBrep",
     "isBBoxOut",
     "isBrepEngineRegistered",
-    "isSmlibInitialized",
     "isCjkChar",
     "isEditorOp",
     "isErr",
     "isHostExprRef",
     "isMeshEngineRegistered",
     "isOnCurve",
+    "isSmlibInitialized",
     "kernelError",
     "lineConsumes",
     "loadBrepAssemblyNative",
     "loadSystemCjkFont",
     "lowerEntities",
-    "makeBSpline2d",
     "makeEllipseArcFromCenter",
     "makeTranslationMatrix",
     "maxPointDistance",
@@ -151,11 +145,9 @@
     "polygonCentroid",
     "propagateAllOrigins",
     "punchHole",
-    "reconstructSolidFromMesh",
     "refToFreeCad",
     "refsOfConstraint",
     "registerFunctionBrep",
-    "registerSmlibBrepEngine",
     "releaseShape",
     "replaceCompoundMember",
     "resolveCamera",
@@ -167,7 +159,6 @@
     "satisfies",
     "scaleWithHashEvolution",
     "setSketchDiagnosticSink",
-    "setSmlibWasmInitFn",
     "shapeFromMesh",
     "shapeFromSolved",
     "shellWithHashEvolution",
@@ -248,15 +239,6 @@
       ]
     },
     {
-      "name": "assembly",
-      "missing": [
-        "drive",
-        "joints",
-        "memberColors",
-        "solver"
-      ]
-    },
-    {
       "name": "assertSecure",
       "missing": [
         "defaultNs",
@@ -320,16 +302,8 @@
       ]
     },
     {
-      "name": "buildSketchOnPlaneWith",
-      "missing": [
-        "as"
-      ]
-    },
-    {
       "name": "CadRuntime",
       "missing": [
-        "determinism",
-        "execBackend",
         "security",
         "tessellation"
       ]
@@ -395,7 +369,6 @@
     {
       "name": "cone",
       "missing": [
-        "at",
         "segments"
       ]
     },
@@ -429,13 +402,6 @@
       ]
     },
     {
-      "name": "cut",
-      "missing": [
-        "base",
-        "tool"
-      ]
-    },
-    {
       "name": "cylinder",
       "missing": [
         "segments"
@@ -456,8 +422,6 @@
     {
       "name": "DirectExecutor",
       "missing": [
-        "execBackend",
-        "namespaces",
         "security",
         "setFaceEvolution",
         "setRoleTable",
@@ -511,12 +475,7 @@
     {
       "name": "drill",
       "missing": [
-        "depth",
-        "holeType",
         "screwHead",
-        "screwSpecIdx",
-        "screwSystem",
-        "screwThread",
         "tolerance"
       ]
     },
@@ -583,15 +542,9 @@
     {
       "name": "fai_drill",
       "missing": [
-        "depth",
         "diameter",
-        "direction",
         "face",
-        "faceNormal",
-        "holeType",
-        "position",
         "screwHead",
-        "screwSpecIdx",
         "screwSystem",
         "screwThread",
         "tolerance"
@@ -609,10 +562,8 @@
     {
       "name": "fai_split",
       "missing": [
-        "applyExplode",
         "bbCenter",
         "bboxSize",
-        "cutMode",
         "dowelDiameter",
         "dowelDiameterTolerance",
         "dowelHeight",
@@ -623,8 +574,6 @@
         "grooveWidth",
         "grooveWidthTolerance",
         "inPlaneAngle",
-        "normal",
-        "offset",
         "selectedSections",
         "tenonHeight",
         "tenonHeightTolerance",
@@ -645,14 +594,6 @@
       "missing": [
         "indices",
         "positions"
-      ]
-    },
-    {
-      "name": "group",
-      "missing": [
-        "memberNames",
-        "members",
-        "name"
       ]
     },
     {

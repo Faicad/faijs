@@ -793,7 +793,10 @@ function parseTestCoverage(filePath: string): TestCoverage {
     }
 
     // Collect call-site property names (L2)
-    if (ts.isCallExpression(node)) {
+    // NewExpression 与 CallExpression 同等对待：class 构造（`new CadRuntime(...)`)
+    // 的 options 容器参数只能以 NewExpression 形式出现在调用点——只认 CallExpression
+    // 会让 class 构造参数成为结构性死角（class 无法无 new 调用）。
+    if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
       // Get the function name being called
       let fnName: string | undefined
       const expr = node.expression
@@ -818,6 +821,12 @@ function parseTestCoverage(filePath: string): TestCoverage {
   }
 
   function collectPropertyNames(node: ts.Node, into: Set<string>) {
+    // 类型断言（`{...} as Foo` / `{...} satisfies Foo`）在测试里无处不在——
+    // 实参里的对象字面量常被断言包住，不穿透会让这些调用点被误判"未覆盖"。
+    if (ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) {
+      collectPropertyNames(node.expression, into)
+      return
+    }
     if (ts.isObjectLiteralExpression(node)) {
       for (const prop of node.properties) {
         if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {

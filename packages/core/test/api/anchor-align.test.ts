@@ -17,7 +17,7 @@ import { configureBackends, CONTRACT_VERSION, type Backends } from '../../src/ru
 import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
-import { box, cylinder, sphere } from '../../src/api/primitives'
+import { box, cone, cylinder, sphere } from '../../src/api/primitives'
 import { assertBoxParams, assertCylinderParams, assertSphereParams } from '../../src/api/primitives'
 import type { BoxParams, CylinderParams, Shape, SphereParams } from '../../src/mesh/types'
 
@@ -188,6 +188,34 @@ describe('字面量调用点：sphere 的 align 真被带到 op 入参', () => {
     await setBackend('brep')
     const shape = (await sphere({ radius: 5, center: [0, 0, 10], align: 'min' })) as Shape
     expectSpan(shape, [[0, 10], [0, 10], [10, 20]], 0.05)
+  })
+})
+
+/**
+ * 字面量调用点：box/cone/cylinder 同 sphere（上方 describe）——L2 参数覆盖扫描
+ * （`scripts/check-api-test-coverage.ts`）只认 `box({...})` 这种直呼形态，
+ * 走 `mkBox(params)` 的变量传参会把 `align` 误判成"未覆盖"。每图元钉一条。
+ */
+describe('字面量调用点：box/cone/cylinder 的 align 真被带到 op 入参', () => {
+  it('box({ width, depth, height, at, align:"min" }) → bbox 最小角落在 at', async () => {
+    await setBackend('brep')
+    const shape = (await box({ width: 10, depth: 10, height: 10, at: [50, 0, 20], align: 'min' })) as Shape
+    expectSpan(shape, [[50, 60], [0, 10], [20, 30]], 1e-6)
+  })
+
+  it("cone({ radiusBottom, radiusTop, height, at, align:['min','min','max'] }) → 底面在 z=at、顶面收缩端贴 at", async () => {
+    await setBackend('brep')
+    const shape = (await cone({
+      radiusBottom: 5, radiusTop: 2, height: 10, at: [20, 0, 30], align: ['min', 'min', 'max'],
+    })) as Shape
+    // align max on z：z 跨度 [at-10, at]；xy 以 bbox 最小角贴 at（三角化容差放宽）
+    expectSpan(shape, [[20, 30], [0, 10], [20, 30]], 0.05)
+  })
+
+  it("cylinder({ radius, height, at, align:'min' }) → bbox 最小角落在 at", async () => {
+    await setBackend('brep')
+    const shape = (await cylinder({ radius: 5, height: 10, at: [30, 0, 40], align: 'min' })) as Shape
+    expectSpan(shape, [[30, 40], [0, 10], [40, 50]], 0.05)
   })
 })
 
