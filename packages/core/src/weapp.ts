@@ -6,7 +6,7 @@
  *
  * 2026-10-27（weapp 引擎更换）：weapp 专属 BREP 引擎由 brepkit 换为 smlib——
  * 装载注入点/引擎注册/默认引擎全部指向 smlib（3d_editor 侧 faijs.worker.ts 同步
- * 迁移，见 3d_editor docs/plans/2026-10-27-weapp-smlib-engine-switch-plan.md）。
+ * 迁移，设计见 3d_editor 仓 2026-10-27 的「weapp smlib 引擎切换」计划）。
  * STL/STEP IO 走 smlib 内核桥（importStl/importStep/exportStep，wasm 0.45.6+
  * 内置 SmApiImportStlEx/ImportStepEx/ExportStepEx）——`cad.load` 的 STL/STEP 直构
  * 真 B-rep、`cad.export` 的 STEP 逐实体 AP203；3MF 仍走 faijs TS 解析路径（内核

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/2026-11-02-cam-package-implemented.md
+2026-11-02-cam-package-implemented.md: b79ec10c5db5d1e1f9e6eb59a3f5a55a2cc075d5
+2026-11-02-cam-package-implemented.zh.md: 716b1943265b893ab8c4f5ef0dd9a079687d7559

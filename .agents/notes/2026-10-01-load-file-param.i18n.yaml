@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   npm run verify-translation-pairing --write .agents/notes/2026-10-01-load-file-param.md
-2026-10-01-load-file-param.md: 3edf2b1059241f00535189baf9cb01bcdf9edc13
-2026-10-01-load-file-param.zh.md: 518b235e674bb560055b5ebf246c133330a8282f
+2026-10-01-load-file-param.md: 98462c522d3660d0f61674540bdd2a736405ac48
+2026-10-01-load-file-param.zh.md: 2d7e0850b81a102e481c94a77e42dd93d45e3fc5

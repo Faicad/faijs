@@ -2,6 +2,8 @@
 
 Status: implemented
 
+[English](2026-11-02-cam-package-implemented.md) | 中文
+
 ## Problem
 
 将 BREP.io 的 CAM 功能移植到 3d_editor web 端（weapp 二期）。算法内核承载在 faijs

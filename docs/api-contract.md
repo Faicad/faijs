@@ -836,13 +836,13 @@ Script-face angles are degrees (R-5). Every angle-bearing slot is declared `dim:
 
 That symmetry is newer than the rule itself: `execute()` and `update()` only started passing `opDims` on 2026-10-25. Enabling it cost 27 test-fixture migrations (fixtures that wrote bare angles; they now write `* DEGREE`) and **zero `.fai.js` migrations** — the 2026-10-21 estimate of 703 failures was entirely bare numbers on `length` slots, which §15.2 has accepted ever since the rule narrowed to angles.
 
-## 16. `@faicad/cam` — CAM 声明库契约（2026-11-02）
+## 16. `@faicad/cam` — CAM declarative-library contract (2026-11-02)
 
-`@faicad/cam` 是 BREP.io CAM 算法内核的 faijs 移植（surfacing / roughing / G-code / 仿真器），以**声明库**形态接入脚本通道：脚本调 `cam.*` 声明机床/毛坯/操作，执行时经 `camBuild` 采集，刀路经宿主 `camGenerate` 指令在 worker 内生成（BREP 句柄不出 worker，结果纯 JSON 回主线程）。
+`@faicad/cam` is a faijs port of the BREP.io CAM algorithm kernel (surfacing / roughing / G-code / simulator). It plugs into the script channel as a **declarative library**: the script calls `cam.*` to declare the machine, stock and operations, execution collects them through `camBuild`, and toolpaths are generated inside the worker through the host `camGenerate` instruction (BREP handles never leave the worker; the result travels back to the main thread as plain JSON).
 
-### 16.1 声明面（脚本可写）
+### 16.1 Declaration surface (script-writable)
 
-脚本使用**二级命名空间调用**（`cam.xxx(...)`），与 `cad.*` 同层；每调用产生一条声明并进入采集器：
+The script uses **two-level namespace calls** (`cam.xxx(...)`), on the same level as `cad.*`; every call produces one declaration and enters the collector:
 
 ```js ignore-check
 cam.machine({ name: 'Test Mill', workBounds: {x:[-60,60], y:[-60,60], z:[0,50]}, maxSpindleRPM: 24000, safeParkZ: 15 })
@@ -851,18 +851,18 @@ let rough = cam.roughing({ target: 'part0', stepDown: 2, stepover: 1, safeHeight
 let finish = cam.surfacing({ target: 'part0', faces: 'all', stepover: 1, rasterDirection: 'Both', safeHeight: 5 })
 ```
 
-- `cam.machine / cam.stock / cam.roughing / cam.surfacing` 均返回声明对象并登记；**脚本内 `cam.machine(...)`/`cam.stock(...)` 可作表达式语句，操作声明必须赋变量**。
-- **限制**：fai-script parser 只支持二级命名空间调用——`cam.op.roughing(...)` 三级链解析期报错（"bare expression statements not allowed" / "expected `<ns>.<op>(...)` or local function call"）。TS/JS 宿主侧保留 `cam.op = { roughing, surfacing }` 别名，模块导出结构不变。
-- 声明缺省字段**不落默认值**（stepover 等保持 undefined），算法层兜底。
-- 一期约束：surfacing 仅球刀（`normalizeCamOperationDecl` 对非 ball 硬抛错）；roughing 支持 flat/ball。push-cutter / waterline / weave 家族不在本期。
+- `cam.machine / cam.stock / cam.roughing / cam.surfacing` all return a declaration object and register it; **`cam.machine(...)` / `cam.stock(...)` may be expression statements, while operation declarations must be assigned to a variable**.
+- **Limitation**: the fai-script parser supports two-level namespace calls only — the three-level chain `cam.op.roughing(...)` fails at parse time ("bare expression statements not allowed" / "expected `<ns>.<op>(...)` or local function call"). The TS/JS host side keeps the `cam.op = { roughing, surfacing }` alias, so the module export shape is unchanged.
+- Missing declaration fields **get no defaults** (stepover and friends stay `undefined`); the algorithm layer backstops them.
+- Phase-1 scope: surfacing is ball-nose only (`normalizeCamOperationDecl` hard-throws for anything else); roughing supports flat and ball. The push-cutter / waterline / weave families are out of scope for this phase.
 
-### 16.2 采集与生成
+### 16.2 Collection and generation
 
-- 执行期声明经模块级 `_current` 收集器采集（`resetCamBuild()` / `takeCamBuild(): PendingCamBuild`，`take` 恒返回 `{machine, stock, operations}` 并清空；无声明时 machine/stock 为 null、operations 为 []）。
-- 生成入口（宿主 worker 调）：`generateToolpathForDeclaration(op: CamOperationDecl, target: {shape}, machine: CamMachineProfile) → CamToolpathProgram` + `generateGcodeForCamToolpathProgram(program) → string`。输入就是三角形数组（`trianglesFromMesh`），不依赖 occt/manifold 内核；几何来源静态判定（拓扑规则 1），失败即报错不回退。
-- 超密栅格（`(lineSteps+1)*(maxSampleSteps+1) > 4_000_000`）在算法内拒绝：转为空 program + warnings（文案含 "too dense"），不向外抛异常。
-- 确定性：索引构建/排序/链接按 id/坐标排序打破平局，同输入同输出。
+- Declarations are collected at execution time by the module-level `_current` collector (`resetCamBuild()` / `takeCamBuild(): PendingCamBuild`). `take` always returns `{machine, stock, operations}` and clears the collector; when nothing was declared, machine and stock are `null` and operations is `[]`.
+- Generation entry points (called by the host worker): `generateToolpathForDeclaration(op: CamOperationDecl, target: {shape}, machine: CamMachineProfile) → CamToolpathProgram`, plus `generateGcodeForCamToolpathProgram(program) → string`. The input is a plain triangle array (`trianglesFromMesh`) — no dependency on the occt/manifold kernels; the geometry source is decided statically (topology rule 1), and a failure is thrown rather than silently falling back.
+- An over-dense raster (`(lineSteps+1)*(maxSampleSteps+1) > 4_000_000`) is rejected inside the algorithm: it degrades to an empty program plus warnings (the message contains "too dense") instead of throwing outward.
+- Determinism: index construction, sorting and linking break ties by id/coordinate, so the same input yields the same output.
 
-### 16.3 宿主通道
+### 16.3 Host channel
 
-`camBuild`（执行结果字段，Tier A 视图态）与 `camGenerate`（worker 指令，Tier B 派生数据）的协议形状见 3d_editor `packages/platform/src/contract.ts` / `protocol.ts` / `instruction-core.ts`；宿主侧设计见 3d_editor `docs/plans/2026-11-02-cam-web-port-design.md`（§5 API 契约 / §6 详细设计 / 附录 A 移植对照表）。
+The protocol shapes of `camBuild` (an execution-result field, Tier A view state) and `camGenerate` (a worker instruction, Tier B derived data) live in 3d_editor `packages/platform/src/contract.ts` / `protocol.ts` / `instruction-core.ts`; the host-side design is in 3d_editor `docs/plans/2026-11-02-cam-web-port-design.md` (§5 API contract / §6 detailed design / appendix A port mapping table).

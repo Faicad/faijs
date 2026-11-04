@@ -395,7 +395,7 @@ flowchart TD
     J --> K[ownerIndex.delete S]
     K --> L[entry.alive = false, escaped = false]
 
-    M[后续 getBoundingBox(ptr) 调用] --> N[registry.kindOf ptr]
+    M["后续 getBoundingBox(ptr) 调用"] --> N[registry.kindOf ptr]
     N --> O{kind 存在且 alive?}
     O -- 不存在/alive=false --> P[throw: UAF\n指针已随 owner 释放\n带 owner ptr 上下文]
     O -- face --> Q[SmApiFaceBoundingBox]

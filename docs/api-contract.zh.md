@@ -836,3 +836,34 @@ IR→Host 方向只识别 `$` 前缀的标记键（`$ref`、`$param`、`$call`�
 **槽位声明**（`paramDims` / `spec`）需要 op 的量纲声明，由运行时以 `opDims`（`buildOpDims()` 的结果按 runtime 缓存，注册新库时失效）传入。**每一条解析脚本文本的路径都传**——`check()`、`execute()`、`append()`、`update()`——因此声明槽位上的裸数字在 dry-run 校验与真实执行下被同样拒绝。
 
 这个对称比规则本身要新：`execute()` / `update()` 是 2026-10-25 才开始传 `opDims` 的。接通的代价是 **27 处测试 fixture 迁移**（写在测试脚本里的裸角度改成 `* DEGREE`）、**0 个 `.fai.js` 迁移** —— 2026-10-21 估的那个 703 全部是 `length` 槽位上的裸数字，而规则收窄到只管角度之后，那种写法一直是合法的。
+
+## 16. `@faicad/cam` — CAM 声明库契约（2026-11-02）
+
+`@faicad/cam` 是 BREP.io CAM 算法内核的 faijs 移植（surfacing / roughing / G-code / 仿真器），以**声明库**形态接入脚本通道：脚本调 `cam.*` 声明机床/毛坯/操作，执行时经 `camBuild` 采集，刀路经宿主 `camGenerate` 指令在 worker 内生成（BREP 句柄不出 worker，结果纯 JSON 回主线程）。
+
+### 16.1 声明面（脚本可写）
+
+脚本使用**二级命名空间调用**（`cam.xxx(...)`），与 `cad.*` 同层；每调用产生一条声明并进入采集器：
+
+```js ignore-check
+cam.machine({ name: 'Test Mill', workBounds: {x:[-60,60], y:[-60,60], z:[0,50]}, maxSpindleRPM: 24000, safeParkZ: 15 })
+cam.stock({ type: 'box', size: [30,30,20], center: [0,0,10] })
+let rough = cam.roughing({ target: 'part0', stepDown: 2, stepover: 1, safeHeight: 15, feedRate: 1000, plungeRate: 300, spindleRPM: 12000 })
+let finish = cam.surfacing({ target: 'part0', faces: 'all', stepover: 1, rasterDirection: 'Both', safeHeight: 5 })
+```
+
+- `cam.machine / cam.stock / cam.roughing / cam.surfacing` 均返回声明对象并登记；**脚本内 `cam.machine(...)`/`cam.stock(...)` 可作表达式语句，操作声明必须赋变量**。
+- **限制**：fai-script parser 只支持二级命名空间调用——`cam.op.roughing(...)` 三级链解析期报错（"bare expression statements not allowed" / "expected `<ns>.<op>(...)` or local function call"）。TS/JS 宿主侧保留 `cam.op = { roughing, surfacing }` 别名，模块导出结构不变。
+- 声明缺省字段**不落默认值**（stepover 等保持 undefined），算法层兜底。
+- 一期约束：surfacing 仅球刀（`normalizeCamOperationDecl` 对非 ball 硬抛错）；roughing 支持 flat/ball。push-cutter / waterline / weave 家族不在本期。
+
+### 16.2 采集与生成
+
+- 执行期声明经模块级 `_current` 收集器采集（`resetCamBuild()` / `takeCamBuild(): PendingCamBuild`，`take` 恒返回 `{machine, stock, operations}` 并清空；无声明时 machine/stock 为 null、operations 为 []）。
+- 生成入口（宿主 worker 调）：`generateToolpathForDeclaration(op: CamOperationDecl, target: {shape}, machine: CamMachineProfile) → CamToolpathProgram` + `generateGcodeForCamToolpathProgram(program) → string`。输入就是三角形数组（`trianglesFromMesh`），不依赖 occt/manifold 内核；几何来源静态判定（拓扑规则 1），失败即报错不回退。
+- 超密栅格（`(lineSteps+1)*(maxSampleSteps+1) > 4_000_000`）在算法内拒绝：转为空 program + warnings（文案含 "too dense"），不向外抛异常。
+- 确定性：索引构建/排序/链接按 id/坐标排序打破平局，同输入同输出。
+
+### 16.3 宿主通道
+
+`camBuild`（执行结果字段，Tier A 视图态）与 `camGenerate`（worker 指令，Tier B 派生数据）的协议形状见 3d_editor `packages/platform/src/contract.ts` / `protocol.ts` / `instruction-core.ts`；宿主侧设计见 3d_editor `docs/plans/2026-11-02-cam-web-port-design.md`（§5 API 契约 / §6 详细设计 / 附录 A 移植对照表）。

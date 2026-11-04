@@ -2,8 +2,8 @@
  * @faicad/cam — CAM toolpath kernel for the 3d_editor faijs worker.
  *
  * Ported from BREP.io `src/cam/*` (pure TS, no three.js / scene-graph
- * dependency). Design decisions D1–D5 per
- * `3d_editor/docs/plans/2026-11-02-cam-web-port-design.md`:
+ * dependency). Design decisions D1–D5 per the 3d_editor repo's 2026-11-02
+ * CAM web port design plan:
  *  - D1: algorithm kernel lives here (`@faicad/cam`).
  *  - D4: machine coordinates are identity (+Z up, mm) — `toMachinePoint`.
  *
