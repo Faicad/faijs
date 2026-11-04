@@ -56,7 +56,7 @@ export function assertDrillParams(params: Record<string, unknown>): void {
   }
 }
 
-/** 解析 direction 枚举 → 钻孔方向向量。 */
+/** 解析 direction 枚举 → 名义方向向量（`'normal'` 即面外法向，未定号）。 */
 function resolveDirection(params: Record<string, unknown>, faceNormal: Vec3): Vec3 {
   const directionEnum = (params.direction as string | undefined) ?? 'normal'
   if (directionEnum === 'normal') return faceNormal
@@ -64,6 +64,31 @@ function resolveDirection(params: Record<string, unknown>, faceNormal: Vec3): Ve
   if (directionEnum === 'y') return [0, -1, 0]
   if (directionEnum === 'z') return [0, 0, -1]
   return faceNormal
+}
+
+/**
+ * 实际钻孔方向：把名义方向按「朝向材料内部」规则定号。
+ *
+ * `direction: 'normal'` 返回的是**面外法向**（指向空腔），而孔是往材料里钻的；
+ * 几何链（`computeDrillGeometry` / `resolveDrillDirection`）内部会再看
+ * `dir·faceNormal > 0` 取反。PMI 必须记同一支向量——否则标注说"孔朝外"、
+ * 几何却朝内（例：沉孔底面向下取面法向 + `'normal'`，几何向上钻进法兰，
+ * PMI 却记成朝下）。`PmiThreadHole.axis.direction` 的契约是**钻孔方向**，
+ * 见 `fai-drill-tapped.test.ts` 的 `axis.direction === [0,0,-1]` 断言。
+ *
+ * @param direction - 名义方向（`resolveDirection` 的结果）。
+ * @param faceNormal - 面外法向。
+ * @returns 指向材料内部的单位方向（未归一化，与几何链同一支向量）。
+ */
+function inwardDirection(direction: Vec3, faceNormal: Vec3): Vec3 {
+  const dot = direction[0] * faceNormal[0] + direction[1] * faceNormal[1] + direction[2] * faceNormal[2]
+  const sign = dot > 0 ? -1 : 1
+  // 逐轴乘号而不是整体取负：`0 * -1 = -0`，而 vitest 的 toEqual 区分 ±0，
+  // `[-0,-0,-1]` 会让调用方的 `toEqual([0,0,-1])` 失败。
+  const x = direction[0] === 0 ? 0 : direction[0] * sign
+  const y = direction[1] === 0 ? 0 : direction[1] * sign
+  const z = direction[2] === 0 ? 0 : direction[2] * sign
+  return [x, y, z]
 }
 
 /**
@@ -455,7 +480,7 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.diameter - 孔径（mm）；`tapped` 时省略则按公称直径 − 螺距反算底孔，其余孔型必填。type:number required:false
  * @param params.depth - 孔深（mm）；0 = 通孔，> 0 = 盲孔。type:number 默认 0
  * @param params.holeType - 孔类型：simple 光孔 / screw 建模螺纹 / tapped 攻丝孔（底孔 + 螺纹 PMI）。type:'simple' | 'screw' | 'tapped' 默认 'simple'
- * @param params.direction - 钻孔轴向（normal 表示沿面法向）。type:'normal' | 'x' | 'y' | 'z' 默认 'normal'
+ * @param params.direction - 钻孔轴向：`'normal'` = 沿该面法向进入材料（面在底面时即"向上"），`x`/`y`/`z` = 世界轴，两类都会按面法向自动定号；PMI 的 `axis.direction` 记的是定号后的实际钻孔方向。type:'normal' | 'x' | 'y' | 'z' 默认 'normal'
  * @param params.position - 孔心位置。type:[x,y,z] 默认 原点
  * @param params.face - 面引用（§6.2 新形态：`FaceTopoRef`，执行期按输入 Shape 解析派生法向；优先于 `faceNormal`）。type:FaceTopoRef
  * @param params.faceNormal - 面法向（决定朝向；历史兜底，§6.2 起宿主不再写，改由 `face` 解析）。type:[x,y,z] 默认 [0,0,1]
@@ -487,7 +512,8 @@ export const fai_drill = defineOp({
     // PMI：上游标注归上游零件名所有，不需要搬运（查询时沿血缘聚合），
     // 这里只补本孔的螺纹孔标注。标注挂在**零件**（成员）上而不是 compound 上。
     if (isThreadHole(p)) {
-      const direction = resolveDirection(p, faceNormalFrom(target, p))
+      const fn = faceNormalFrom(target, p)
+      const direction = inwardDirection(resolveDirection(p, fn), fn)
       appendPmiItem(result, buildThreadHolePmi(p, resolveThread(p), direction, p.position as Vec3))
     }
     return replaceCompoundMember(input, p.partIndex, result)
@@ -499,7 +525,8 @@ export const fai_drill = defineOp({
     const target = resolveCompoundMember(input, p.partIndex, 'fai_drill')
     const drilled = drillBrepPath(target, p)
     if (isThreadHole(p)) {
-      const direction = resolveDirection(p, faceNormalFrom(target, p))
+      const fn = faceNormalFrom(target, p)
+      const direction = inwardDirection(resolveDirection(p, fn), fn)
       appendPmiItem(
         drilled.shape,
         buildThreadHolePmi(p, resolveThread(p), direction, p.position as Vec3, drilled.target),

@@ -57,9 +57,15 @@ beforeAll(async () => {
   kernel = getBrepApi()
 }, 120000)
 
-/** 40×40×20 的块（z ∈ [-10, 10]），留给盲孔足够的材料。 */
+/**
+ * 40×40×20 的块，**以原点为中心**（x,y ∈ [-20,20]，z ∈ [-10,10]），留给盲孔足够材料。
+ *
+ * ⚠ `kernel.makeBox(dx,dy,dz)` 造的是**从原点起**的盒子（0..dx 等），不是居中盒子。
+ * 早期这里直接用 makeBox，孔心落在盒子棱上：刀具只有 1/4 落在料内（体积少 3/4），
+ * 落在 z=-10 的底面孔更是整支刀在料外（切除体积 0）——"方向对/错"根本测不出来。
+ */
 function block(): Shape {
-  const h = kernel.makeBox(40, 40, 20)
+  const h = kernel.translate(kernel.makeBox(40, 40, 20), -20, -20, -10)
   return fromBrep(solidToShape(kernel, h), { solid: h })
 }
 
@@ -182,5 +188,42 @@ describe('fai_drill — tapped 的 PMI 一条含两类信息', () => {
   it('simple 孔不产出螺纹标注', async () => {
     const plain = await drill(block(), { diameter: 5, depth: 10, holeType: 'simple' })
     expect(pmiThreads(plain)).toHaveLength(0)
+  })
+})
+
+/**
+ * 方向定号：`direction:'normal'` 给的是**面外法向**（指向空腔），几何链内部按
+ * 「朝向材料内部」取反，PMI 必须记同一支向量——否则标注说"孔朝外"、几何朝内。
+ * 历史缺陷：底面开孔（面法向 −Z）时 PMI 记成 −Z，而孔实际往 +Z 钻进法兰。
+ */
+describe('fai_drill — 方向定号：几何与 PMI 用同一支向量', () => {
+  /** 从块底面 (z=-10) 开孔：面外法向 −Z，`'normal'` 即"沿法向进入材料"= +Z。 */
+  async function fromBottom(params: Record<string, unknown>): Promise<Shape> {
+    return (await fai_drill(block(), {
+      position: [0, 0, -10], faceNormal: [0, 0, -1], direction: 'normal', ...params,
+    })) as Shape
+  }
+
+  it('底面 normal 孔真的往 +Z 钻：切除体积 ≈ 圆柱体积', async () => {
+    const solid = await fromBottom({ diameter: 3.3, depth: 8, holeType: 'simple' })
+    const removed = volumeOf(block()) - volumeOf(solid)
+    const cylinder = Math.PI * (3.3 / 2) ** 2 * 8
+    // 若方向定号错（钻到 z<-10 的空气里），removed ≈ 0
+    expect(removed / cylinder).toBeGreaterThan(0.98)
+    expect(removed / cylinder).toBeLessThan(1.02)
+  })
+
+  it('底面 normal 的 PMI 轴向 = +Z（与几何一致）', async () => {
+    const tapped = await fromBottom({ depth: 8, holeType: 'tapped', screwSpecIdx: 5, threadDepth: 6 })
+    const item = pmiThreads(tapped)[0]!
+    expect(item.axis.origin).toEqual([0, 0, -10])
+    expect(item.axis.direction).toEqual([0, 0, 1])
+  })
+
+  it('顶面默认法向 + normal 仍向下钻（既有行为不变）', async () => {
+    const tapped = await fai_drill(block(), {
+      position: [0, 0, 10], direction: 'normal', depth: 8, holeType: 'tapped', screwSpecIdx: 5, threadDepth: 6,
+    }) as Shape
+    expect(pmiThreads(tapped)[0]!.axis.direction).toEqual([0, 0, -1])
   })
 })
