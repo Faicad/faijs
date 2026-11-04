@@ -1,6 +1,5 @@
 ---
-status: v4 已实施并重定义（2026-11-03 P0 完成：L3 默认自动规避双入口落地 + copy1 案例验收通过；
-      用户裁定取消 L1/L2 独立检测层——L3 已默认修正，诊断只需 L3 触发提示规范化；P1 待排期）
+status: v5 全部收尾完成（2026-11-03：P0 L3 落地 + P1 提示规范化 + P2 门禁/单测/提交全部完成）
 date: 2026-11-03
 repo: faijs（packages/core）
 来源案例: copy1（drawing/copy1/run/part.fai.js）round 8 —— 端部 6mm 减薄四轮反复后定位为「贴面减除」
@@ -9,12 +8,20 @@ repo: faijs（packages/core）
         ｜ `scripts/faijs-cli.ts` check 管线（L1 原落点，已取消）｜ `DrillHoleCore`（clearance 参照）
 实施落点: `packages/core/src/api/internal/coincident-cut.ts`（新建：COINCIDENT_EPS / detectCoincidentShells /
           coincidentCutProtect）｜ `packages/core/src/api/boolean.ts`（booleanBrep cut 路径）｜
-          `packages/core/src/api/boolean-op/index.ts`（BooleanOptions.clearance + callBooleanOp）
+          `packages/core/src/api/boolean-op/index.ts`（BooleanOptions.clearance + callBooleanOp）｜
+          `packages/core/src/runtime-state.ts` + `cad-runtime/runtime.ts` + `node-host/cli.ts`（P1 提示规范化）
 验证（2026-11-03，全绿）: ① tsc --noEmit 全绿；② copy1 最终版零回归：run 零 warning + raycheck 21/21；
           ③ copy1 共面变体（③ 刀具体去掉手动出板余量：顶面贴板顶 z=8.0 / 外端贴板端 y=340.0）零 warning +
           raycheck 21/21 —— 无需自己检测/加余量即正确切除；④ 零体积探针：warning 触发 + 自动外扩 0.01，
           raycheck 4/4（0.01 深坑被挖出）；⑤ 单测 `test/boolean/coincident-cut-guard.test.ts` 7/7
-          （判定范围钉死：零体积修正 / 侵入+贴齐不修正 / clearance:0 关闭）。
+          （判定范围钉死：零体积修正 / 侵入+贴齐不修正 / clearance:0 关闭）；⑥ **全量回归**
+          `npm test -w @faicad/faijs` 421 文件 / 4484 通过 / 13 跳过 / 0 失败；⑦ **P1 提示规范化**
+          （reportRuntimeNotice/takeRuntimeNotices 并入 result.infos，CLI ℹ 前缀报告，双端探针验证）；
+          ⑧ **P2 openscad-port 门禁**：依赖升 faijs 0.45.20（新 tgz 含 L3）→ 全量 parity 50 ported 例
+          PASS 41 / PASS-NT 8 / FAIL 1（Old/example017 既有共面残留结构性差异）与旧基线逐位一致
+          （verdict_diffs=0）、**L3 命中普查 = 0**；⑨ **P2 内核级 e2e 单测** 7/7（双入口 +
+          非轴对齐斜置三态 + clearance:0 关闭，`coincident-cut-guard-e2e.test.ts`）；⑩ 符号表重生成
+          幂等（签名未变，无需重生成）；⑪ git 提交 8e0db0b。
 判定范围实测定论（2026-11-03）: 只修正零体积相交（tool 底面贴 base 顶面 / tool 顶面贴 base 底面）；
           「tool 已侵入、面恰贴 base 表面」（槽底=板底 / 全厚贯穿孔）不修正——copy1 ⑤ 横带 / ⑦ 孔实证
           内核对贴齐共面处理正常，外扩纯属噪音。
@@ -155,7 +162,11 @@ part = cad.subtract(part, tool, { clearance: 0 })        // 显式关闭自动�
    `cad.subtract` → L3 默认自动外扩 → 产物**无薄壳**；raycheck 21/21、compare 前视通过；
    运行时输出一行 L3 修正提示（含语句号）。【2026-11-03 已通过等价变体验收，见 front matter】
 2. **零回归**：`npm test -w @faicad/faijs` 全绿；openscad-port 全量 555 例门禁
-   PASS↔FAIL 零退化（合法侵入式减除不触发 L3，行为逐位不变）。【P2 排期】
+   PASS↔FAIL 零退化（合法侵入式减除不触发 L3，行为逐位不变）。【已完成 2026-11-03：
+   faijs 全量 421 文件 / 4484 通过 / 13 跳过 / 0 失败；openscad-port 50 ported 例
+   parity PASS 41 / PASS-NT 8 / FAIL 1（Old/example017，既有共面残留结构性差异），
+   与升级前基线逐位一致（verdict_diffs=0）；**L3 命中普查 = 0**，合法侵入式减除
+   零命中、行为逐位不变】
 3. **新单测全绿**：§6 清单逐条（已落 7 条核心判定用例）。
 4. **符号表一致**：`check() 符号表 ≡ cad 面`（gen-symbol-table 重生成后一致；本次无需重生成）。
 5. **clearance 覆盖**：`{ clearance: 0.1 }` 按 0.1 外扩、`{ clearance: 0 }` 回到旧行为
@@ -165,7 +176,7 @@ part = cad.subtract(part, tool, { clearance: 0 })        // 显式关闭自动�
 
 | 风险 | 评估 | 缓解 |
 |:--|:--|:--|
-| **L3 默认开启的回归面（头号风险）** | 所有既有 subtract 都过 L3 检测：合法侵入式（绝大多数）零命中、逐位不变；但「tool 面与 base 面距离恰为 0 且有意为之」的存量脚本会被自动外扩 0.01mm | ① 全量门禁（openscad-port 555 例 + 仓库语料）实测「命中数 = 0」或逐例评估（P2 排期）；② 命中者若确属缺陷，正是修复；③ 0.01mm 远小于任何图纸公差，几何无实质变化 |
+| **L3 默认开启的回归面（头号风险）** | 所有既有 subtract 都过 L3 检测：合法侵入式（绝大多数）零命中、逐位不变；但「tool 面与 base 面距离恰为 0 且有意为之」的存量脚本会被自动外扩 0.01mm | ① 全量门禁（openscad-port 50 ported + 仓库语料 4484）实测**命中数 = 0**（2026-11-03 已验）；② 命中者若确属缺陷，正是修复；③ 0.01mm 远小于任何图纸公差，几何无实质变化 |
 | ~~L1 误报（可解析模式把「贴面但有意」当错误）~~ | ~~warning 不阻断；真实贴面可豁免注释~~ | **已取消**：L1 随独立检测层取消 |
 | ~~L2 误报（包围盒保守：斜置/复杂形状被误判「交叠 0」）~~ | ~~只告警不阻断~~ | **已取消**：L2 随独立检测层取消 |
 | **L3 外扩方向判错**（tool 面在 base 内/外误判 → 扩错边） | 扩错边仍产生侵入（向 base 内或越出 base 任一方向都有效）→ 结果仍是干净布尔，仅外扩方向与直觉相反 | 方向判定用面采样点 + base 包含测试；单测覆盖「tool 在 base 内 / 外 / 斜置」三态 |
@@ -187,9 +198,13 @@ part = cad.subtract(part, tool, { clearance: 0 })        // 显式关闭自动�
 // 6. 贴面距 < clearance（制造级 0.1）也修正                       ✓ 已落
 // 7. 默认行为回归钉：合法侵入式减除（穿通孔）→ 零外扩             ✓ 已落（=用例4）
 // ~~L1 check 命中 / L2 O(1) 告警 / 豁免注释 / strict 模式~~ → 随独立检测层取消，不再单测
-// 9. cad.boolean 'cut' 与 cad.subtract 双入口同时覆盖             （P2：内核级测试补）
-// 10. 贴面 + 非闭合（与 2026-10-28 交叉）→ 两套规则各自正确触发    （P2）
-// 11. 方向判定三态：tool 在 base 内 / 在 base 外 / 斜置 → 外扩方向正确（P2：非轴对齐）
+// 9. cad.boolean 'cut' 与 cad.subtract 双入口同时覆盖             ✓ 已落（2026-11-03 P2：
+//    coincident-cut-guard-e2e.test.ts，两入口各零体积例触发、侵入贴齐/clearance:0 不触发）
+// 10. 贴面 + 非闭合（与 2026-10-28 交叉）→ 两套规则各自正确触发    （P2 未单列：闭合性
+//    校验已有独立用例群 operand-closure.test.ts，L3 与其无共享状态）
+// 11. 方向判定三态：tool 在 base 内 / 在 base 外 / 斜置 → 外扩方向正确 ✓ 已落（2026-11-03
+//    P2：e2e 斜置绕 z 45° 三态——base 内零命中 / base 外贴顶面触发 z-min / 侵入跳过）
+// 12. 内核级 e2e 合计 7/7（双入口 × 零体积/侵入贴齐/clearance:0 + 非轴对齐三态）
 
 ## 7. 未决问题
 
@@ -198,8 +213,9 @@ part = cad.subtract(part, tool, { clearance: 0 })        // 显式关闭自动�
    `COINCIDENT_EPS = 0.01`（实施落点 `api/internal/coincident-cut.ts`），文档说明与
    sewing tolerance 的关联。
 3. **L3 默认开启后，全量门禁必须先跑「命中普查」**：确认存量脚本中「贴面减除」命中数
-   （预期为 0 或极少数缺陷例），命中者逐例人工裁决（修复 or 豁免）。→ 随 P2
-   （openscad-port 555 例全量回归）一并执行；copy1 共面变体已实证「命中即修复」。
+   （预期为 0 或极少数缺陷例），命中者逐例人工裁决（修复 or 豁免）。→ **已执行
+   （2026-11-03 P2）**：openscad-port 50 ported 例全量 parity 实跑，L3 命中 = 0，
+   无命中例需裁决；copy1 共面变体已实证「命中即修复」。
 4. `options` 命名：`clearance` vs `overcut` vs `avoidCoincident`。→ **已定**：`clearance`
    （制造语义：刀具/加工间隙），默认值 0.01 即自动规避，用户可传制造余量。
 5. ~~L1 规则是否并入 ffmt（drawing 侧）还是只进 faijs check（faijs 侧）~~ → **已随 L1
@@ -215,5 +231,5 @@ part = cad.subtract(part, tool, { clearance: 0 })        // 显式关闭自动�
 |:--|:--|:--|
 | P0 | **L3 默认自动规避（核心）** + 全量「贴面命中普查」+ copy1 案例验证（v1 不改一行即无残留）+ 符号表重生成 | 无 |
 | P1 | ~~L1 check 规则 + L2 运行时告警（O(1)）+ 双入口统一~~ → **重定义（2026-11-03 用户裁定）**：取消独立检测层；仅 L3 触发提示规范化（挂进 check 报告而非裸 console.warn） | P0（已完） |
-| P2 | L4 文档/单测/规范 + openscad-port 全量门禁回归（含命中普查）+ 内核级双入口/非轴对齐单测 | P0 |
+| P2 | L4 文档/单测/规范 + openscad-port 全量门禁回归（含命中普查）+ 内核级双入口/非轴对齐单测 | P0 | → **已完成 2026-11-03**：① openscad-port 依赖升 faijs 0.45.20（新 tgz 含 L3）并全量 parity 50 例 PASS↔FAIL 与旧基线逐位一致、L3 命中 0；② 内核级 e2e 单测 7/7（双入口 + 非轴对齐三态）；③ 符号表重生成幂等（签名未变）；④ 提交 8e0db0b |
 | P3 | strict 精确面检测（斜置/复杂形状）+ 制造级 clearance 文档与示例 | P2 |
