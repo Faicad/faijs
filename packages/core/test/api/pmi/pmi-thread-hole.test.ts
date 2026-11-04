@@ -145,10 +145,14 @@ describe('formatThreadHole — 底孔 + 螺纹一起显示', () => {
     expect(formatThreadHole(item)).toBe('M6-6H 通（底孔 Φ5 通，攻丝）')
   })
 
-  it('formatThreadSpec：标签优先，细牙由标签表达（不自动拼螺距），管螺纹加 G', () => {
+  it('formatThreadSpec：标签优先，细牙由标签表达（不自动拼螺距），管螺纹不冒充 G 代号', () => {
     expect(formatThreadSpec({ standard: 'metric', nominalDiameter: 6, depth: 10, specLabel: 'M6' })).toBe('M6')
     expect(formatThreadSpec({ standard: 'metric', nominalDiameter: 8, pitch: 1, depth: 10, specLabel: 'M8×1' })).toBe('M8×1')
-    expect(formatThreadSpec({ standard: 'pipe', nominalDiameter: 12.7, pitch: 1.814, depth: 10 })).toBe('G12.7')
+    // 管螺纹的规格号是 1/8" 这类**代号**，与基准平面大径没有换算关系：
+    // 拿大径硬拼会得到 'G9.728' 这种查不到的写法，所以缺 specLabel 时只如实给直径数值
+    // （同口径见 test/extra/ops/fai-drill-pipe.test.ts「pipe 缺 specLabel 时不冒充 G 代号」）。
+    expect(formatThreadSpec({ standard: 'pipe', nominalDiameter: 12.7, pitch: 1.814, depth: 10 })).toBe('12.7')
+    expect(formatThreadSpec({ standard: 'pipe', nominalDiameter: 9.728, pitch: 0.907, depth: 10, specLabel: 'PT1/8' })).toBe('PT1/8')
   })
 })
 

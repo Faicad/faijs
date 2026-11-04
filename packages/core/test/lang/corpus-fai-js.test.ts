@@ -12,10 +12,16 @@
  * - 例外只有 `E_SYNTAX`：工程模式多文件 fixture 是**片段**，单独喂给 extractMetadata
  *   必然语法错误，与量纲无关。
  *
+ * **"仓内语料"取 git 跟踪集合，不裸 walk 仓根**（2026-11-04）：`out/` 这类目录在
+ * `.gitignore` 里，是调试/审查跑出来的 scratch，里面的 `main.fai.js` 是模型产物、
+ * 不是语料。裸 walk 会让一份旧 scratch 把门禁染红——实测 `out/insp2/**` 等 16 个文件
+ * 报 `AST nesting depth exceeds 100`，它们既不该被断言、也不受本契约约束。
+ *
  * 新增 `.fai.js` 时若确实需要违规写法（例如故意演示报错），把它加进 SYNTAX_FIXTURES
  * 或在文件头注明；**不要**为了让测试变绿而放宽判据。
  */
 import { describe, it, expect } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,11 +35,35 @@ class SilentSink implements EventSink {
 /** 工程模式多文件 fixture：单独解析必然是片段，与量纲无关。 */
 const SYNTAX_FIXTURES = new Set<string>([])
 
-function collectFaiJs(dir: string, out: string[] = []): string[] {
+/**
+ * 语料清单：优先问 git（tracked = 真语料），scratch / 构建产物天然被排除。
+ *
+ * 非 git checkout（发布包、解压目录）时退回 walk；此路径下靠显式跳过名单挡住
+ * `.gitignore` 里的产物目录（`out/` 是最大的一处，见文件头）。
+ */
+function collectFaiJs(repoRoot: string): string[] {
+  try {
+    const listed = execFileSync('git', ['ls-files', '-z', '--', '*.fai.js'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+    })
+    return listed
+      .split('\0')
+      .filter((p) => p.endsWith('.fai.js'))
+      .map((p) => join(repoRoot, p))
+  } catch {
+    return walkFaiJs(repoRoot)
+  }
+}
+
+const WALK_SKIP = new Set(['node_modules', '.git', 'dist', 'out', 'coverage'])
+
+function walkFaiJs(dir: string, out: string[] = []): string[] {
   for (const ent of readdirSync(dir, { withFileTypes: true })) {
-    if (ent.name === 'node_modules' || ent.name === '.git' || ent.name === 'dist') continue
+    if (WALK_SKIP.has(ent.name)) continue
     const p = join(dir, ent.name)
-    if (ent.isDirectory()) collectFaiJs(p, out)
+    if (ent.isDirectory()) walkFaiJs(p, out)
     else if (ent.name.endsWith('.fai.js')) out.push(p)
   }
   return out
