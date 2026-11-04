@@ -456,12 +456,25 @@ function walkApiSources(dir: string, files: string[]): void {
 }
 
 /**
+ * 符号表里**不是 op** 的脚本面函数：无几何输入、无 Shape 产物，不进几何 op 手册。
+ *
+ * 当前只有两个，都是 `cad` 命名空间上的运行时开关（源码里明确标注「非 defineOp」）：
+ * - `useMeshChain(enabled?)` —— 切换后续 op 走 mesh 链，返回 `undefined`；
+ * - `setBooleanOperandValidation(on)` —— 布尔操作数校验开关，返回 `void`。
+ *
+ * **新增同类库函数时必须在这里登记一行**（不能靠"章节少几个就放过"——那会把真缺章一起吞掉；
+ * 判据 ② 会校验这里每个名字确实在符号表里）。
+ */
+const NON_OP_SYMBOLS = new Set(['useMeshChain', 'setBooleanOperandValidation'])
+
+/**
  * 全部逐 op 章节 = 手写 JSDoc 契约 ∪ arg-spec 派生，去重后按 `GROUP_ORDER` 分节。
  *
  * 两条断言把 B1 那类缺陷钉死：
  *   ① 手写 op 的每个 `@group` 必须在 `GROUP_ORDER` 里（否则整组静默消失）；
- *   ② 章节名集合必须**恰好等于** `lang/symbol-table.generated.ts` 的键集
- *      （符号表 = `cad` 命名空间可调用键集，即脚本面真实 op 全集）。
+ *   ② 章节名集合必须**恰好等于** `lang/symbol-table.generated.ts` 的键集 **减去
+ *      `NON_OP_SYMBOLS`**（符号表 = `cad` 命名空间可调用键集，其中混有非 op 的库函数，
+ *      手工剔除——见该常量注释）。
  */
 function collectChapters(): Chapter[] {
   const files: string[] = [...OP_SOURCE_FILES]
@@ -498,17 +511,32 @@ function collectChapters(): Chapter[] {
     )
   }
 
-  // ② 章节符号集必须恰好等于符号表键集（双向：无缺章、无幽灵章）
+  // ② 章节名集必须恰好覆盖「符号表里的 op」：无缺章、无幽灵章
+  //
+  // GOTCHA（2026-11-04）：旧判据是「章节集 == **符号表键集**」，把"脚本面符号"和
+  // "op"当成了同一件事。符号表里混着**非 op 的库函数**（无几何输入、无 Shape 产物），
+  // 它们不该进几何 op 手册，于是生成器永远凑不齐键集、直接崩：
+  //   逐 op 章节符号集 ≠ 符号表键集（166 vs 168）—— 缺失 2 章：…
+  // 这不是手册漏章，是分母错了。现在把非 op 符号**显式登记**在 NON_OP_SYMBOLS，
+  // 分母 = 符号表 − 非 op；并自检登记项确实在符号表里（防拼错后静默遮住真缺章）。
   const symbolKeys = new Set(Object.keys(SYMBOL_TABLE))
+  for (const name of NON_OP_SYMBOLS) {
+    if (!symbolKeys.has(name)) {
+      throw new Error(
+        `gen-ops-api-inventory: NON_OP_SYMBOLS 里的 '${name}' 不在符号表中 —— 拼错或该符号已删除，请订正（否则真缺章会被静默放过）。`,
+      )
+    }
+  }
+  const opKeys = new Set([...symbolKeys].filter((k) => !NON_OP_SYMBOLS.has(k)))
   const chapterNames = new Set(chapters.map((c) => c.name))
-  const missing = [...symbolKeys].filter((k) => !chapterNames.has(k)).sort()
+  const missing = [...opKeys].filter((k) => !chapterNames.has(k)).sort()
   const ghosts = [...chapterNames].filter((k) => !symbolKeys.has(k)).sort()
   if (missing.length > 0 || ghosts.length > 0) {
     const parts: string[] = []
     if (missing.length > 0) parts.push(`缺失 ${missing.length} 章：${missing.join('、')}`)
     if (ghosts.length > 0) parts.push(`手册有而符号表无 ${ghosts.length} 个：${ghosts.join('、')}`)
     throw new Error(
-      `gen-ops-api-inventory: 逐 op 章节符号集 ≠ 符号表键集（${chapterNames.size} vs ${symbolKeys.size}）—— ${parts.join('；')}。`,
+      `gen-ops-api-inventory: 逐 op 章节集 ≠ 符号表 op 集（${chapterNames.size} vs ${opKeys.size}）—— ${parts.join('；')}。`,
     )
   }
 

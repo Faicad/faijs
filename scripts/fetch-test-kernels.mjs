@@ -58,7 +58,13 @@ for (const version of VERSIONS) {
   const tgz = join(dest, tgzName)
 
   // Unpack with tar (available on ubuntu/macos/windows runners and dev machines).
-  execFileSync('tar', ['-xzf', tgz, '-C', dest], { stdio: 'inherit' })
+  //
+  // **只传文件名、用 `cwd: dest`**，不传绝对路径。Windows GOTCHA（2026-11-04）：
+  // MSYS/GNU tar 把 `-xzf D:/…` 里的 `D:` 当成远程主机规格（rsh），报
+  // “Cannot connect to D: resolve failed”；加 `--force-local` 后反斜杠又被当转义
+  // （`D\:\\Faicad\\…`）。BSD tar（macOS）又不认 `--force-local`。cwd + 相对文件名
+  // 一次绕开全部三种差异。
+  execFileSync('tar', ['-xzf', tgzName], { cwd: dest, stdio: 'inherit' })
   rmSync(tgz, { force: true })
 
   if (!existsSync(entry)) {
