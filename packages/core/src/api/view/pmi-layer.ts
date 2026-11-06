@@ -83,6 +83,7 @@ import type {
   PmiThreadHole,
 } from '../pmi/types'
 import { formatThreadHole } from '../pmi/text'
+import { techNoteLines } from '../pmi/tech-note'
 import { pmiOf } from '../pmi/registry'
 import { getBrepApi } from '../../brep/handle-bridge'
 import { resolveTopoRef } from '../../topology/naming'
@@ -1055,7 +1056,8 @@ export function buildGlobalPmiBlock(
 }
 
 /**
- * 取一个 Shape 上的**全局**注释文本（无 `target`、无 `anchor` 的 note）。
+ * 取一个 Shape 上的**全局**注释文本（无 `target`、无 `anchor` 的 note，
+ * 以及零件级 `techNote` 的编号条目行）。
  *
  * 全局注释是零件级"技术要求"，与视图无关——三视图里它只该出现一次。`projectSheet`
  * 用本函数把这类条目从各视图图层里摘出来，统一画到图纸右下角。
@@ -1065,9 +1067,12 @@ export function buildGlobalPmiBlock(
  */
 export function globalNoteTexts(shape: Shape): string[] {
   const items = pmiOf(shape)?.items ?? []
-  return items
-    .filter((i): i is PmiNote => i.kind === 'note' && i.target === undefined && i.anchor === undefined)
-    .map((i) => i.text)
+  const lines: string[] = []
+  for (const i of items) {
+    if (i.kind === 'techNote') lines.push(...techNoteLines(i))
+    else if (i.kind === 'note' && i.target === undefined && i.anchor === undefined) lines.push(i.text)
+  }
+  return lines
 }
 
 // ── 视图归属（多视图图纸：一条标注只在一个视图里出图）──
@@ -1124,6 +1129,8 @@ function itemAnchors(
         return [{ uv: projectPoint(item.anchor, cam), p3: item.anchor, visible: true }]
       }
       return 'global' // 无目标 = 零件级"技术要求"，图纸右下角画一次
+    case 'techNote':
+      return 'global' // 编号条目块恒无 target，与全局 note 同一处理
     case 'threadHole': {
       // 孔口是裸世界坐标 + 轴线：轴线本身就能表达"从哪个方向看这个孔最圆"
       const origin = item.axis.origin
@@ -1345,6 +1352,10 @@ function drawItem(
         return drawNote(ctx, item, projectPoint(item.anchor, cam)) ? 'rendered' : 'skipped'
       }
       globalNotes.push(item.text) // 无目标 → 右下角技术要求块
+      return 'global'
+    }
+    case 'techNote': {
+      globalNotes.push(...techNoteLines(item))
       return 'global'
     }
     case 'threadHole': {

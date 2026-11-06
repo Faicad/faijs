@@ -230,6 +230,43 @@ export interface PmiNote {
   readonly leaderDirection?: Vec3
 }
 
+// ── 技术要求（零件级编号条目块）──
+
+/**
+ * A single numbered clause inside a technical-requirement block.
+ *
+ * `index` is the clause number as printed on the drawing (1, 2, 3 …);
+ * `subItems` holds nested clauses such as "a) … / b) …".
+ */
+export interface PmiTechNoteItem {
+  /** Clause number on the drawing (1 起). */
+  readonly index: number
+  /** Clause text, verbatim from the drawing. */
+  readonly text: string
+  /** Nested sub-clauses, if any. */
+  readonly subItems?: readonly string[]
+}
+
+/**
+ * A part-level technical-requirement block ("技术要求" / "未注倒角 C0.3" …).
+ *
+ * `PmiNote` is a single free-text annotation that may be attached to a TopoRef;
+ * `PmiTechNote` is a numbered block owned by the whole part. It deliberately
+ * has **no target**: like a targetless `PmiNote` it belongs in the drawing's
+ * global note block, rendered once rather than once per view.
+ *
+ * Design: docs/plans/2026-10-31-faijs-pmi-thread-and-technotes-design.md §7
+ */
+export interface PmiTechNote {
+  readonly kind: 'techNote'
+  /** Numbered clauses, in drawing order. */
+  readonly items: readonly PmiTechNoteItem[]
+  /** Requirement family (optional classification, not part of identity). */
+  readonly category?: 'general' | 'machining' | 'heatTreatment' | 'surface' | 'inspection'
+  /** Block title, e.g. "技术要求". */
+  readonly title?: string
+}
+
 // ── 螺纹孔（攻丝孔）──
 
 /**
@@ -328,16 +365,18 @@ export type PmiItem =
   | PmiDatum
   | PmiSurfaceFinish
   | PmiNote
+  | PmiTechNote
   | PmiThreadHole
 
-/** Discriminator kind for PmiItem ('dimension' | 'gdt' | 'datum' | 'surfaceFinish' | 'note' | 'threadHole'). */
+/** Discriminator kind for PmiItem ('dimension' | 'gdt' | 'datum' | 'surfaceFinish' | 'note' | 'techNote' | 'threadHole'). */
 export type PmiItemKind = PmiItem['kind']
 
 // ── PMI 集合 ──
 
 /** Metadata for a PmiSet. */
 export interface PmiSetMeta {
-  readonly source?: 'faijs' | 'step-ap242' | 'manual'
+  /** `'drawing'` marks a PmiSet compiled from an engineering drawing (the drawing pipeline). */
+  readonly source?: 'faijs' | 'drawing' | 'step-ap242' | 'manual'
   readonly standard?: 'ISO' | 'ASME' | 'GB'
   readonly created?: string
 }
@@ -412,6 +451,15 @@ export function note(n: Omit<PmiNote, 'kind'>): PmiNote {
  */
 export function threadHole(th: Omit<PmiThreadHole, 'kind'>): PmiThreadHole {
   return { kind: 'threadHole', ...th }
+}
+
+/**
+ * Create a part-level technical-requirement block with `kind: 'techNote'` filled in.
+ * @param n - the tech-note fields (without `kind`).
+ * @returns a `PmiTechNote` with `kind: 'techNote'`.
+ */
+export function techNote(n: Omit<PmiTechNote, 'kind'>): PmiTechNote {
+  return { kind: 'techNote', ...n }
 }
 
 // ── ExecutionResult 中的 PMI 行 ──

@@ -21,6 +21,8 @@ export type {
   PmiTextureDirection,
   PmiSurfaceFinish,
   PmiNote,
+  PmiTechNoteItem,
+  PmiTechNote,
   PmiThreadSpec,
   PmiPilotHole,
   PmiHoleAxis,
@@ -33,7 +35,7 @@ export type {
 } from './types'
 
 // Factory functions
-export { dimension, gdt, datum, surfaceFinish, note, threadHole } from './types'
+export { dimension, gdt, datum, surfaceFinish, note, techNote, threadHole } from './types'
 
 // Shape methods
 export { attachPmiMethods, appendPmiItem, type ShapePmiMethods } from './methods'
@@ -42,7 +44,10 @@ export { attachPmiMethods, appendPmiItem, type ShapePmiMethods } from './methods
 export { pmiOf, addPmiItem, collectPmiOf, ownPmiOf, clearPmiOfPart, registerPmiParents, resetPmiRegistry } from './registry'
 
 // Query functions
-export { pmiItems, pmiOn, pmiDatums, pmiThreads } from './query'
+export { pmiItems, pmiOn, pmiDatums, pmiThreads, pmiTechNotes } from './query'
 
 // Display text（螺纹孔：底孔 + 螺纹一体呈现）
 export { formatThreadHole, formatThreadSpec } from './text'
+
+// Display text（技术要求：零件级编号条目块）
+export { formatTechNote, techNoteLines } from './tech-note'

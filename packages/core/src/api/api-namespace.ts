@@ -137,9 +137,13 @@ import { svgExtrude } from '../extra/ops/svg-extrude'
 import { dxfExtrude } from '../extra/ops/dxf-extrude'
 import { useMeshChain } from './use-mesh-chain'
 // PMI 查询函数（普通函数，非 op；方案 2026-10-31-faijs-pmi-design.md §3.3）
-import { pmiItems, pmiOn, pmiDatums, pmiThreads } from './pmi/query'
+import { pmiItems, pmiOn, pmiDatums, pmiThreads, pmiTechNotes } from './pmi/query'
 // PMI 显示文本（螺纹孔：底孔 + 螺纹一体呈现；方案 2026-10-31-pmi-thread §3.2）
 import { formatThreadHole } from './pmi/text'
+// PMI 显示文本（技术要求：零件级编号条目块；同方案 §7）
+import { formatTechNote } from './pmi/tech-note'
+// 语义面选择器 → TopoRef（AI 生成脚本的 PMI target 入口，替代按序号的 faceRef）
+import { faceBySelector } from './face-by-selector'
 
 /**
  * Assemble api functions into the cad namespace.
@@ -271,7 +275,12 @@ export function createApiNamespace(): LibNamespace {
     pmiOn,
     pmiDatums,
     pmiThreads,
+    pmiTechNotes,
     // PMI 显示文本（普通函数，非 op）：螺纹孔底孔 + 螺纹一体呈现。
     formatThreadHole,
+    // PMI 显示文本（普通函数，非 op）：技术要求编号条目块。
+    formatTechNote,
+    // 语义面选择器 → TopoRef（普通查询函数，非 op）。
+    faceBySelector,
   } as unknown as LibNamespace
 }

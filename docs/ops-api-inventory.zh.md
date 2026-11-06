@@ -2472,7 +2472,27 @@ const gap = cad.distanceBetween(box1, box2)
 >
 > 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `EdgeN` 同序（`getSubShapes(solid,'edge')` 用 TopExp::MapShapes + IndexedMap 枚举）。
 
-### 8.15 `faceNormal` ✅
+### 8.15 `faceBySelector` ✅
+
+按语义选择器定位一张面并返回它的 `FaceTopoRef`。 结果可直接作为 `addDatum` / `addGdt` / `addSurfaceFinish` / `addDimension` 的 `target(s)`，PMI 数据模型仍是纯 `TopoRef`， 解析发生在**参数层**而不是执行后回填数据层。
+
+```js
+const base = cad.faceBySelector(part0, '>Z')
+part0.addDatum({ identifier: 'A', datumType: 'datumPlane', target: base })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `of` | `Shape` | ✅ | — | 目标几何（BREP 实体所在的 Shape） |
+| `selector` | `string` | ✅ | — | 轴向选择器或命名视图，如 '>Z' / '<X' / 'top' |
+
+**同步**。FaceTopoRef 选中面的拓扑引用（origin/role 血统 + 几何 hint）。
+
+> ⚠️ 这是 AI 生成脚本该用的面引用入口；`cad.faceRef(shape, N)` 的序号跨内核不可移植，勿用于生成脚本。
+>
+> 定不了案（无 BREP / 无 role 血统 / 语法不支持 / 无可用质心）一律抛 `TopoRefError`，不静默退化。
+
+### 8.16 `faceNormal` ✅
 
 查询面上某点（锚点）的法向。
 
@@ -2488,7 +2508,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 **同步**。Vec3 面上锚点处的法向 [x,y,z]。
 
-### 8.16 `faceRef` ✅
+### 8.17 `faceRef` ✅
 
 查询几何体第 N 张面的 `FaceTopoRef`（1 起），供按 role 线路选面（`cad.extrude` 的 `upTo` 等）使用。**查询用途，不用于脚本生成**——序号是内核枚举序，跨内核/跨特征 会漂移；本 API 仅供 FCStd 移植桥与网格链等无 role 层场景使用。 定不了案（无 BREP / 序号越界 / 面无 role 血统）抛 `TopoRefError`。
 
@@ -2503,7 +2523,21 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 >
 > 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `FaceN` 同序（`getSubShapes(solid,'face')` 用 TopExp::MapShapes + IndexedMap 枚举）。
 
-### 8.17 `formatThreadHole` ✅
+### 8.18 `formatTechNote` ✅
+
+技术要求块的完整显示文本（多行，以 `\n` 连接）。 例：`'技术要求\n1. 未注倒角 C0.3\n2. 未注公差按 GB/T 1804-m'`。
+
+```js
+const text = cad.formatTechNote(cad.pmiTechNotes(part0)[0])
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `item` | `PmiTechNote` | ✅ | — | the technical-requirement block. |
+
+**同步**。string 多行显示文本。
+
+### 8.19 `formatThreadHole` ✅
 
 螺纹孔标注的完整显示文本——**底孔 + 螺纹一起呈现**。 例： - 攻丝孔：`'4×M6-6H ↓14（底孔 Φ5 ↓16，攻丝）'` - 无公差等级：`'M6 ↓14（底孔 Φ5 ↓16，攻丝）'` - 建模螺纹：`'M6 ↓14（实体螺纹）'`
 
@@ -2517,7 +2551,7 @@ const text = cad.formatThreadHole(cad.pmiThreads(part0)[0])
 
 **同步**。string 单行显示文本。
 
-### 8.18 `inertia` ✅
+### 8.20 `inertia` ✅
 
 绕质心的惯性矩阵（row-major 3×3，长度 9；对称：[1]==[3]、[2]==[6]、[5]==[7]）。
 
@@ -2533,7 +2567,7 @@ const m = cad.inertia(box)
 
 > 平台 op：仅 occt 引擎（原生 getInertia）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.19 `inspectMassProps` ✅
+### 8.21 `inspectMassProps` ✅
 
 occt 独占诊断（绕轴惯性矩/主轴，中立面没有）→ inspect* 命名进脚本面（§7 待裁决 4）
 
@@ -2553,7 +2587,7 @@ occt 独占诊断（绕轴惯性矩/主轴，中立面没有）→ inspect* 命�
 >
 > 实现：`measurement/measureFns.js#measureVolumeProps`。
 
-### 8.20 `inverseKinematics` ✅
+### 8.22 `inverseKinematics` ✅
 
 `cad.inverseKinematics({ joints, endEffector, target, options? })` — damped-least-squares IK：求使末端到达 target 的关节值。关节范围在每个迭代 clamp；不可达目标返回 converged:false 与最优配置。纯函数，无副作用。
 
@@ -2565,7 +2599,7 @@ occt 独占诊断（绕轴惯性矩/主轴，中立面没有）→ inspect* 命�
 
 > 纯函数：输入输出都是纯数据，不产 Shape、不依赖引擎；装配面契约见 `docs/api-contract.md` §12。
 
-### 8.21 `isCompound` ✅
+### 8.23 `isCompound` ✅
 
 形状是否为复合体（compound）。
 
@@ -2577,7 +2611,7 @@ occt 独占诊断（绕轴惯性矩/主轴，中立面没有）→ inspect* 命�
 
 > 平台 op：仅 occt 引擎（原生 isCompound）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.22 `isCompSolid` ✅
+### 8.24 `isCompSolid` ✅
 
 形状是否为组合实体（comp-solid）。
 
@@ -2589,7 +2623,7 @@ occt 独占诊断（绕轴惯性矩/主轴，中立面没有）→ inspect* 命�
 
 > 平台 op：仅 occt 引擎（原生 isCompSolid）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.23 `isEdge` ✅
+### 8.25 `isEdge` ✅
 
 形状是否为边（edge）。
 
@@ -2606,7 +2640,7 @@ const yes = cad.isEdge(e)
 
 > 平台 op：仅 occt 引擎（原生 isEdge）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.24 `isEqual` ✅
+### 8.26 `isEqual` ✅
 
 两个形状是否为同一几何实体（occt 原生 `isEqual` 语义）。 occt 的 `IsEqual` 当且仅当两形状共享同一 `TShape` 且 `Location`/`Orientation` 相同时返回 true——即「同一几何实体」，不是「几何内容相同但独立构造」。因此两个 几何相同但各自 `makeBox` 出来的形状会返回 false；要比较「内容相同」需另走几何 比较（非本 op 职责）。区别于 `isSame`（同一句柄引用）。
 
@@ -2624,7 +2658,7 @@ const diff = cad.isEqual(part0, part1)   // 独立构造的相同几何 → fals
 
 > 平台 op：仅 occt 引擎（原生 isEqual，L1 无对应成员）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.25 `isFace` ✅
+### 8.27 `isFace` ✅
 
 形状是否为面（face）。
 
@@ -2641,7 +2675,7 @@ const yes = cad.isFace(f)
 
 > 平台 op：仅 occt 引擎（原生 isFace）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.26 `isSameShape` ✅
+### 8.28 `isSameShape` ✅
 
 两整件同构比较（纯数据），query
 
@@ -2660,7 +2694,7 @@ isSameShape(a: Shape, b: Shape): boolean（core）
 >
 > 实现：`core:brep-operations#isSameShape`。
 
-### 8.27 `isShell` ✅
+### 8.29 `isShell` ✅
 
 形状是否为壳（shell）。
 
@@ -2672,7 +2706,7 @@ isSameShape(a: Shape, b: Shape): boolean（core）
 
 > 平台 op：仅 occt 引擎（原生 isShell）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.28 `isValid` ✅
+### 8.30 `isValid` ✅
 
 整件合法性检查（Shape → boolean 纯数据），query
 
@@ -2690,7 +2724,7 @@ isValid(shape: Shape): boolean（core）
 >
 > 实现：`core:brep-operations#isValid`。
 
-### 8.29 `isVertex` ✅
+### 8.31 `isVertex` ✅
 
 形状是否为顶点（vertex）。
 
@@ -2702,7 +2736,7 @@ isValid(shape: Shape): boolean（core）
 
 > 平台 op：仅 occt 引擎（原生 isVertex）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.30 `isWire` ✅
+### 8.32 `isWire` ✅
 
 形状是否为线（wire）。
 
@@ -2714,7 +2748,7 @@ isValid(shape: Shape): boolean（core）
 
 > 平台 op：仅 occt 引擎（原生 isWire）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.31 `iterShapes` ✅
+### 8.33 `iterShapes` ✅
 
 遍历全部子形状（递归展平，返回 Shape[]）。
 
@@ -2730,7 +2764,7 @@ const subs = cad.iterShapes(box)
 
 > 平台 op：仅 occt 引擎（原生 iterShapes；L1 契约的 getSubShapes 只按类型单层取）。 非 occt 引擎执行前报 E_BREP_UNSUPPORTED。 返回 Shape 数组（非单个 Shape）⇒ 普通函数形态，与 shape-type 同口径。
 
-### 8.32 `jointTrajectory` ✅
+### 8.34 `jointTrajectory` ✅
 
 `cad.jointTrajectory({ joints, from, to, steps })` — 关节空间直线路径采样。 产出 steps+1 个采样（含两端点）；joints 缺省值在两端取存储值。 无 endEffector 参数（关节空间插值，不追踪端点）。
 
@@ -2742,7 +2776,7 @@ const subs = cad.iterShapes(box)
 
 > 纯函数：输入输出都是纯数据，不产 Shape、不依赖引擎；装配面契约见 `docs/api-contract.md` §12。
 
-### 8.33 `length` ✅
+### 8.35 `length` ✅
 
 ```js
 (shape: Shape) -> number(长度 mm)
@@ -2760,7 +2794,7 @@ const subs = cad.iterShapes(box)
 >
 > 实现：`measurement/index.js#length`。
 
-### 8.34 `linearCenterOfMass` ✅
+### 8.36 `linearCenterOfMass` ✅
 
 线性质心（按边长加权的质心；wire/edge 用它与体积质心区分）。
 
@@ -2776,7 +2810,7 @@ const c = cad.linearCenterOfMass(wire)
 
 > 平台 op：仅 occt 引擎（原生 getLinearCenterOfMass）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。返回脚本面的 [x,y,z]（非 occt 的 {x,y,z} 对象）。
 
-### 8.35 `mechanismDOF` ✅
+### 8.37 `mechanismDOF` ✅
 
 `cad.mechanismDOF({ joints })` — 开链机构自由度 = 各 joint DOF 数之和 （revolute/prismatic 各 1；串联两 revolute = 2）。纯函数，无副作用。
 
@@ -2788,7 +2822,7 @@ const c = cad.linearCenterOfMass(wire)
 
 > 纯函数：输入输出都是纯数据，不产 Shape、不依赖引擎；装配面契约见 `docs/api-contract.md` §12。
 
-### 8.36 `outerWire` ✅
+### 8.38 `outerWire` ✅
 
 取面的外环（outer wire）：面上边界中最大的闭合 wire，1D 产物。
 
@@ -2804,7 +2838,7 @@ const ow = cad.outerWire(face0)
 
 > 平台 op：仅 occt 引擎（原生 outerWire）。产物 kind='curve'（1D wire）。
 
-### 8.37 `pmiDatums` ✅
+### 8.39 `pmiDatums` ✅
 
 Query datum identifier → datum mapping.
 
@@ -2818,7 +2852,7 @@ const datums = cad.pmiDatums(part0)
 
 **同步**。Record<string, PmiDatum> — datum identifier → datum.
 
-### 8.38 `pmiItems` ✅
+### 8.40 `pmiItems` ✅
 
 Query PMI annotations on a shape, optionally filtered by kind or target type.
 
@@ -2833,7 +2867,7 @@ const dims = cad.pmiItems(part0, { kind: 'dimension' })
 
 **同步**。PmiItem[] — matching PMI annotations.
 
-### 8.39 `pmiOn` ✅
+### 8.41 `pmiOn` ✅
 
 Query all PMI annotations attached to a specific TopoRef.
 
@@ -2848,7 +2882,22 @@ const annos = cad.pmiOn(part0, cad.faceRef(part0, 3))
 
 **同步**。PmiItem[] — annotations attached to the given TopoRef.
 
-### 8.40 `pmiThreads` ✅
+### 8.42 `pmiTechNotes` ✅
+
+查询零件级技术要求块（编号条目）。 便捷封装：等价 `pmiItems(shape, { kind: 'techNote' })`，但返回精确类型。 这类条目无 target，渲染时进图纸全局注释块，不参与视图归属打分。
+
+```js
+const blocks = cad.pmiTechNotes(part0)
+console.log(cad.formatTechNote(blocks[0]))
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `shape` | `Shape` | ✅ | — | the shape to query. |
+
+**同步**。PmiTechNote[] — 该零件上的全部技术要求块。
+
+### 8.43 `pmiThreads` ✅
 
 查询螺纹孔标注（含底孔几何 + 后加工攻丝两组信息）。 便捷封装：等价 `pmiItems(shape, { kind: 'threadHole' })`，但返回精确类型。
 
@@ -2863,7 +2912,7 @@ console.log(cad.formatThreadHole(taps[0]))  // 'M6-6H ↓14（底孔 Φ5 ↓16�
 
 **同步**。PmiThreadHole[] — 该零件上的全部螺纹孔标注。
 
-### 8.41 `projectPointOnEdge` ✅
+### 8.44 `projectPointOnEdge` ✅
 
 点到边的最近点（含该处切向与参数）。
 
@@ -2880,7 +2929,7 @@ const hit = cad.projectPointOnEdge(e, [3, 4, 0])
 
 > 平台 op：仅 occt 引擎（原生 projectPointOnEdge）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。返回体里的 point/tangent 是脚本面的 [x,y,z]。
 
-### 8.42 `projectPointOnFace` ✅
+### 8.45 `projectPointOnFace` ✅
 
 点到面的最近点（三维坐标）。
 
@@ -2897,7 +2946,7 @@ const p = cad.projectPointOnFace(f, [3, 4, 5])
 
 > 平台 op：仅 occt 引擎（原生 projectPointOnFace）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。要 UV 参数用 `uvFromPoint`。
 
-### 8.43 `projectSheet` ✅
+### 8.46 `projectSheet` ✅
 
 多视图投影图纸 → 组合 SVG 字符串（纯数据，不消费/修改 shape）。
 
@@ -2919,7 +2968,7 @@ const sheet = cad.projectSheet(part0, [{ view: 'front', label: '主视图' }], {
 
 **同步**。SVG 字符串（嵌套 <svg x y width height viewBox preserveAspectRatio> + <text> 标签）。空列表返回空 SVG 不抛错。
 
-### 8.44 `projectView` ✅
+### 8.47 `projectView` ✅
 
 单视图投影 → SVG 线稿字符串（纯数据，不消费/修改 shape；规则 1 下裸调用不消费输入）。
 
@@ -2943,7 +2992,7 @@ const svg = cad.projectView(part0, 'front', { pmi: { fontSize: 9, showHiddenTarg
 
 **同步**。SVG 字符串（<svg viewBox="…"> + 可见实线 <path> + 隐藏虚线 <path>）。裸调用 cad.projectView(part0, 'front') 不消费 part0（规则 1），part 仍留在 canvas。
 
-### 8.45 `reverseSurfaceU` ✅
+### 8.48 `reverseSurfaceU` ✅
 
 反转面的 U 参数方向（occt `Geom_Surface::UReverse` 语义）：返回新面代理， 其曲面是原曲面的 U 反转版（拓扑不变，UV 求值随之镜像）。
 
@@ -2959,7 +3008,7 @@ const flipped = cad.reverseSurfaceU(f)
 
 > 平台 op：仅 occt 引擎（原生 reverseSurfaceU）。输入面。
 
-### 8.46 `subShapeCount` ✅
+### 8.49 `subShapeCount` ✅
 
 子形状计数（不物化逐个子形状句柄）。
 
@@ -2976,7 +3025,7 @@ const n = cad.subShapeCount(box, 'face')
 
 > 平台 op：仅 occt 引擎（原生 subShapeCount；L1 契约只有 getSubShapes， 计数能力是 occt 独有）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.47 `uvFromPoint` ✅
+### 8.50 `uvFromPoint` ✅
 
 三维点 → 面的 UV 参数。
 
@@ -2993,7 +3042,7 @@ const { u, v } = cad.uvFromPoint(f, [1, 2, 0])
 
 > 平台 op：仅 occt 引擎（原生 uvFromPoint）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。
 
-### 8.48 `vertexPosition` ✅
+### 8.51 `vertexPosition` ✅
 
 顶点坐标。
 
@@ -3009,7 +3058,7 @@ const p = cad.vertexPosition(v)
 
 > 平台 op：仅 occt 引擎（原生 vertexPosition）。非 occt 引擎执行前报 E_BREP_UNSUPPORTED。返回脚本面的 [x,y,z]。
 
-### 8.49 `viewCamera` ✅
+### 8.52 `viewCamera` ✅
 
 解析视图规格为投影相机（纯数据，无 Shape 输入；不消费任何几何）。
 
@@ -3024,7 +3073,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 
 **同步**。{ direction, xAxis? } 归一化方向向量（iso = (1,-1,1)/√3，与 FreeCAD/OCCT 惯例一致）。未知视图名抛错；零方向向量抛错。用于 3d_editor 侧三轴相机渲染（mesh/SDF 形状的截图通道）。
 
-### 8.50 `volume` ✅
+### 8.53 `volume` ✅
 
 ```js
 (shape: Shape) -> number(体积 mm³)
@@ -3279,7 +3328,7 @@ const svg = cad.toSVG(box, 'iso')
 特征: boolean / boss / chamfer / circularPattern / clone / complexExtrude / cut / draft / drill / extrude / fillet / filletVariable / fuse / gridPattern / intersect / knurl / linearPattern / loft / loftAdvanced / mirror / mirrorJoin / offset2d / pocket / rectangularPattern / revolve / roof / sectionByPlane / shell / solidFromFaces / split / splitByPlane / subtract / sweep / sweepAdvanced / thicken / twistExtrude / union
 修复: autoHeal / defeature / fixSelfIntersection / fixShape / heal / healSolid / removeHolesFromFace / reverseShape / sew / sewAndSolidify / simplify / unifySameDomain
 结构: compound
-查询: area / asset / bboxCenter / bboxMax / bboxMin / centerOfMass / classifyPointOnFace / containsPoint / curveDegreeElevate / curveIsPeriodic / curveKnotInsert / curveKnotRemove / distanceBetween / edgeRef / faceNormal / faceRef / formatThreadHole / inertia / inspectMassProps / inverseKinematics / isCompound / isCompSolid / isEdge / isEqual / isFace / isSameShape / isShell / isValid / isVertex / isWire / iterShapes / jointTrajectory / length / linearCenterOfMass / mechanismDOF / outerWire / pmiDatums / pmiItems / pmiOn / pmiThreads / projectPointOnEdge / projectPointOnFace / projectSheet / projectView / reverseSurfaceU / subShapeCount / uvFromPoint / vertexPosition / viewCamera / volume
+查询: area / asset / bboxCenter / bboxMax / bboxMin / centerOfMass / classifyPointOnFace / containsPoint / curveDegreeElevate / curveIsPeriodic / curveKnotInsert / curveKnotRemove / distanceBetween / edgeRef / faceBySelector / faceNormal / faceRef / formatTechNote / formatThreadHole / inertia / inspectMassProps / inverseKinematics / isCompound / isCompSolid / isEdge / isEqual / isFace / isSameShape / isShell / isValid / isVertex / isWire / iterShapes / jointTrajectory / length / linearCenterOfMass / mechanismDOF / outerWire / pmiDatums / pmiItems / pmiOn / pmiTechNotes / pmiThreads / projectPointOnEdge / projectPointOnFace / projectSheet / projectView / reverseSurfaceU / subShapeCount / uvFromPoint / vertexPosition / viewCamera / volume
 布尔: commonCells
 导出: export3mf / exportBrep / exportStep / exportStl
 视图: toMultiviewPNG / toMultiviewSVG / toPNG / toSVG

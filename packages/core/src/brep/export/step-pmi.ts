@@ -273,6 +273,10 @@ export function writePmiToXCAF(
         // Notes → write as UDA or skip. Not a standard AP242 PMI entity.
         // Silently skip for now; data preserved in PmiSet.
         break
+      case 'techNote':
+        // Part-level numbered technical requirements are not an AP242 PMI
+        // entity either. Silently skip; data preserved in PmiSet.
+        break
     }
   }
   return written

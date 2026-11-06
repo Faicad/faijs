@@ -15,7 +15,7 @@
 
 import type { Shape } from '../../mesh/types'
 import type { TopoRef } from '../../topology/naming/types'
-import type { PmiItem, PmiDatum, PmiItemKind, PmiThreadHole } from './types'
+import type { PmiItem, PmiDatum, PmiItemKind, PmiTechNote, PmiThreadHole } from './types'
 import { pmiOf } from './registry'
 
 /**
@@ -33,7 +33,8 @@ function itemsOf(shape: Shape): readonly PmiItem[] {
 /**
  * Collect all TopoRef targets from a PmiItem.
  * Dimension has `targets[]`; GDT/Datum/SurfaceFinish have `target`; Note has optional
- * `target`; ThreadHole 的 `target` 仅 BREP 链存在（mesh 链靠 `axis` 定位）。
+ * `target`; ThreadHole 的 `target` 仅 BREP 链存在（mesh 链靠 `axis` 定位）；
+ * TechNote 是零件级条目块，恒无 target（不属于任何视图）。
  */
 function getTargets(item: PmiItem): readonly TopoRef[] {
   switch (item.kind) {
@@ -47,6 +48,8 @@ function getTargets(item: PmiItem): readonly TopoRef[] {
       return [item.target]
     case 'note':
       return item.target ? [item.target] : []
+    case 'techNote':
+      return []
     case 'threadHole':
       return item.target ? [item.target] : []
   }
@@ -189,4 +192,25 @@ export function pmiDatums(shape: Shape): Record<string, PmiDatum> {
  */
 export function pmiThreads(shape: Shape): PmiThreadHole[] {
   return pmiItems(shape, { kind: 'threadHole' }) as PmiThreadHole[]
+}
+
+/**
+ * 查询零件级技术要求块（编号条目）。
+ *
+ * 便捷封装：等价 `pmiItems(shape, { kind: 'techNote' })`，但返回精确类型。
+ * 这类条目无 target，渲染时进图纸全局注释块，不参与视图归属打分。
+ *
+ * @group 查询
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name pmiTechNotes
+ * @returns PmiTechNote[] — 该零件上的全部技术要求块。
+ * @param shape - the shape to query. type:Shape required:true
+ * @example
+ * const blocks = cad.pmiTechNotes(part0)
+ * console.log(cad.formatTechNote(blocks[0]))
+ */
+export function pmiTechNotes(shape: Shape): PmiTechNote[] {
+  return pmiItems(shape, { kind: 'techNote' }) as PmiTechNote[]
 }

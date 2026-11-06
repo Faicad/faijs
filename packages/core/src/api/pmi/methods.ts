@@ -20,11 +20,12 @@ import type {
   PmiDatum,
   PmiSurfaceFinish,
   PmiNote,
+  PmiTechNote,
   PmiThreadHole,
   PmiItem,
   PmiSet,
 } from './types'
-import { dimension, gdt, datum, surfaceFinish, note, threadHole } from './types'
+import { dimension, gdt, datum, surfaceFinish, note, techNote, threadHole } from './types'
 import { addPendingPmiItem, addPmiItem, clearPmiOfPart, pmiOf } from './registry'
 
 /**
@@ -88,6 +89,16 @@ export interface ShapePmiMethods {
    * @returns this (chainable).
    */
   addNote(note: Omit<PmiNote, 'kind'>): this
+
+  /**
+   * Add a part-level technical-requirement block (numbered clauses).
+   *
+   * Unlike `addNote`, a tech note has no `target`: it belongs to the whole part
+   * and is drawn once in the sheet's global note block.
+   * @param n - the tech-note fields (without `kind`).
+   * @returns this (chainable).
+   */
+  addTechNote(n: Omit<PmiTechNote, 'kind'>): this
 
   /**
    * Add a thread-hole annotation (pilot hole geometry + post-machining tapping).
@@ -160,6 +171,10 @@ export function attachPmiMethods(shape: Shape): Shape & ShapePmiMethods {
   }
   s.addNote = function addNote(this: Shape & ShapePmiMethods, n: Omit<PmiNote, 'kind'>) {
     appendItem(this, note(n))
+    return this
+  }
+  s.addTechNote = function addTechNote(this: Shape & ShapePmiMethods, n: Omit<PmiTechNote, 'kind'>) {
+    appendItem(this, techNote(n))
     return this
   }
   s.addThreadHole = function addThreadHole(this: Shape & ShapePmiMethods, th: Omit<PmiThreadHole, 'kind'>) {
