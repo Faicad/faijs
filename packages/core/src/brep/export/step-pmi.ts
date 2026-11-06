@@ -277,6 +277,13 @@ export function writePmiToXCAF(
         // Part-level numbered technical requirements are not an AP242 PMI
         // entity either. Silently skip; data preserved in PmiSet.
         break
+      case 'threadHole':
+        // Tapped-hole callouts (M6-6H / pilot hole) have no AP242 PMI entity in
+        // occt-wasm (design doc §1.2 #5: no thread_aspect / setThreadAspect API).
+        // Silently skip; the PmiThreadHole stays in PmiSet and reaches 3MF
+        // metadata via the mesh chain. Explicit branch so this switch covers all
+        // seven PmiItemKind values — a new kind must not disappear silently.
+        break
     }
   }
   return written

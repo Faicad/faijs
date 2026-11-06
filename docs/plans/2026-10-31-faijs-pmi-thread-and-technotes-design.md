@@ -1,7 +1,9 @@
 # faijs 螺纹孔（攻丝孔）PMI 与技术要求方案
 
 - 产出：claude-sonnet-4-20250514 + CatPaw（初稿）｜2026-10-31 事实修订与实施
-- 状态：**螺纹孔（`tapped`）已实现**；技术要求（`PmiTechNote`）**未实现**（§7 保留为后续）
+- 状态：**螺纹孔（`tapped`）已实现**；技术要求（`PmiTechNote`）与 `faceBySelector` 选择器桥
+  **2026-11-06 已实施**（§7 状态已翻，§10 遗留表同步）。本文保留初稿的事实修订过程，
+  不作为「未实现」清单使用。
 
 > **本文档 2026-10-31 修订说明**：初稿把 `fai_drill` 的螺纹孔理解成"装饰标注"，
 > 与代码事实相反（§1.2 逐条列证）。修订版以**源码实测**为基线重写语义分型、
@@ -24,7 +26,7 @@
 > 「新增 holeType: 'tapped'，包含原始几何信息和后加工攻丝信息。显示 PMI 时，
 > 要同时显示这两类信息，它们是整体，并不是只有后加工的才属于 PMI。」
 
-技术要求（另一类标注，本次未实施）：
+技术要求（另一类标注，2026-11-06 已实施，见 §7）：
 
 ```
 技术要求
@@ -297,7 +299,7 @@ fai_drill（op）
 
 ---
 
-## 7. 技术要求 `PmiTechNote`（未实施，保留设计）
+## 7. 技术要求 `PmiTechNote`（已实施，2026-11-06）
 
 结构与理由不变（初稿 §4）：
 
@@ -319,7 +321,19 @@ export interface PmiTechNote {
 与 `PmiNote` 的分工：`PmiNote` = 单条自由文本（可挂拓扑）；`PmiTechNote` = 零件级
 编号条目块。两者互补，不互相替代。
 
-**本次未实施**（状态如实标注：类型/方法/查询/导出均未落地）。
+**2026-11-06 已实施**（drawing 侧 `s3` 收敛为 PMI 约束声明时补齐）：
+
+| 层 | 落地位置 |
+|:--|:--|
+| 类型 / 工厂 | `api/pmi/types.ts`：`PmiTechNoteItem` / `PmiTechNote` / `techNote()`；`PmiItem` union 与 `PmiItemKind` 扩为 7 类；`PmiSetMeta.source` 增加 `'drawing'` |
+| Shape 方法 | `api/pmi/methods.ts`：`addTechNote`（PMI 标注设置仍不是 op） |
+| 查询 / 显示 | `api/pmi/query.ts`：`pmiTechNotes` + `getTargets` 补分支；`api/pmi/tech-note.ts`：`techNoteLines` / `formatTechNote` |
+| 渲染 / 导出 | `api/view/pmi-layer.ts` 补 `techNote` 分支（技术要求块只画一次）；`brep/export/step-pmi.ts` 补齐 `techNote` 与 `threadHole` 两个跳过分支 |
+| 选择器桥 | `api/face-by-selector.ts`：`faceBySelector(of, selector)` 把 CadQuery 选择器解析成 `FaceTopoRef`，供 dimension / gdt / datum / surfaceFinish 在参数层绑定 `target`；`PmiItem` 数据模型不存选择器字符串 |
+| 注册 / 生成物 | `api-namespace.ts` 显式注册 `pmiTechNotes` / `formatTechNote` / `faceBySelector`；重跑符号表与中英文 ops-api-inventory |
+| 测试 | `test/api/pmi/pmi-tech-note.test.ts`、`pmi-face-by-selector.test.ts` |
+
+STEP 侧 `threadHole` / `techNote` / `note` / `surfaceFinish` 均为**有意静默跳过**：occt-wasm 不暴露对应 AP242 实体（§1.2 #5），数据仍完整留在 `PmiSet` 里，mesh 链经 3MF metadata 传递。显式列出分支是为了 `PmiItemKind` 七类在 switch 里全覆盖，不新增 kind 时静默丢失。
 
 ---
 
@@ -346,6 +360,9 @@ export interface PmiTechNote {
 | `test/extra/ops/fai-drill-tapped.mesh.test.ts`（3，mesh） | mesh 链同样产出标注；`target` 缺省（不伪造拓扑引用）；三角数与 `simple` 一致 |
 | `test/api/pmi/pmi-export-wiring.test.ts`（2） | `export3mf` 的 `<metadatagroup name="faijs:pmi">` 里同时含底孔与螺纹；无标注时不写空组 |
 | `test/api/pmi/pmi-thread-e2e.test.ts`（2，脚本面） | `.fai.js` 里 `cad.fai_drill(holeType:'tapped')` → `ExecutionResult.pmi` 有螺纹孔；`cad.pmiThreads` / `cad.formatThreadHole` 脚本内可用 |
+| `test/api/pmi/pmi-tech-note.test.ts` | `techNote()` 工厂 / JSON 往返（含 subItems）/ `pmiTechNotes` 查询 / `globalNoteTexts` / 渲染分支 / 符号表收录 |
+| `test/api/pmi/pmi-face-by-selector.test.ts` | `faceBySelector` 六向轴向选择器 / 不支持语法抛 `TopoRefError` / 符号表收录 |
+| `test/brep/step-pmi-export.test.ts` | `threadHole` / `techNote` 在 STEP 导出 switch 里静默跳过且不抛错 |
 
 ---
 
@@ -357,6 +374,6 @@ export interface PmiTechNote {
 | `screw` 的 brep 口径 | `radius: diameter/2` 与公称直径不一致（§1.3），修复会改变既有 screw 孔几何；需同步 `../3d_editor` 与回归 |
 | PMI 跨 op 传播 | 当前仅 `fai_drill`（`carryPmi`）。`union`/`transform` 等仍会丢失标注 |
 | STEP 语义 PMI | 阻塞在 occt-wasm（无 DimTol/thread 工具），标注能力需上游 |
-| `PmiTechNote` | 未实施（§7） |
+| `PmiTechNote` | 已实施（§7，2026-11-06） |
 | `docs/ops-api-inventory.md` | 需重新生成才能收录 `pmiThreads` / `formatThreadHole`；但生成器当前因**既有**两处缺章（`useMeshChain`、`setBooleanOperandValidation` 无 `@group` JSDoc）而失败，属既有问题，未在本案顺带修 |
 | `npm run typecheck` | 仓库 HEAD 存在既有失败：`packages/core/src/brep/mesh-solid.ts` 有两个重复的 `get size()`（362/410 行，`TS2300 Duplicate identifier 'size'`），与本案无关，未修改 |
