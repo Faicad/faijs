@@ -196,7 +196,8 @@ const LEGACY_THREAD_KEYS = ['screwSystem', 'screwSpecIdx', 'screwThread'] as con
  *   （防歧义，禁止隐式优先级；三键单独使用不受影响——存量脚本零修改）；
  * - `thread` + `holeType:'simple'` → E_ARG（规格对光孔无意义）；
  * - 串内 `↧18` 与显式 `depth` 同给 → E_ARG；串内 `-6H` 与显式 `threadClass`
- *   同给 → E_ARG（同一事实两个来源）；
+ *   同给 → E_ARG（同一事实两个来源）；串内 `THRU`（通孔）与显式 `depth` 同给
+ *   → E_ARG（通孔无深度，OCR 白名单 L2 关键词）；
  * - `holeType` 缺省 `'tapped'`（"M16 螺纹孔"的默认语义）；显式 `'tapped'`/
  *   `'screw'` 同给**合法**（语义同向不冲突）；`'PT…'` + `'screw'` 沿用锥管
  *   牙型未实现报错；
@@ -233,6 +234,12 @@ function normalizeDescriptiveThread(params: Record<string, unknown>): Record<str
     throw new Error(
       '[extra/drill] E_ARG: hole depth given twice — the spec string carries a depth suffix '
       + 'and an explicit `depth` param is also present. Keep exactly one.',
+    )
+  }
+  if (spec.thru === true && params.depth !== undefined) {
+    throw new Error(
+      '[extra/drill] E_ARG: through-hole spec (THRU) cannot take an explicit `depth` param — '
+      + 'a through hole has no depth. Keep exactly one.',
     )
   }
   if (spec.toleranceClass !== undefined && params.threadClass !== undefined) {
@@ -606,7 +613,7 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @returns Shape 钻孔后的几何（`tapped` / `screw` 会附带 `PmiThreadHole` 标注）。
  * @param input - 目标几何。type:Shape required:true
  * @param params.diameter - 孔径（mm）；`tapped`/`screw` 时省略则按表反算底孔（M16 → Φ14；显式值优先，图纸值唯一真源），`simple` 必填。type:number required:false
- * @param params.thread - 描述性螺纹规格（一个键即完整规格，不写 `screwSystem`/`screwSpecIdx`/`screwThread`）：metric `'M<dia>[×<pitch>][-<class>][↧|↓<depth>]'`（'M16'、'M16×1.5'、'M4 X 0.7 - 6H'、'M16-6H↧18'）、imperial `'(#<gauge>|<frac>"|<dec>")[-<tpi>][-<class>][↧|↓<depth>]'`（'1/4"-20-2B↧10'）、pipe `'PT|R|Rc<size>[↧|↓<depth>]'`（'PT1/8'）。空格/大小写全容忍。给出后：`holeType` 缺省 `'tapped'`（显式 `'tapped'`/`'screw'` 合法，`'simple'` 报错）；底孔按表反算（显式 `diameter` 优先）；**串内带公差后缀（-6H）或显式 `threadClass` 才产出 PMI**（'M4×0.7' 无 PMI）；串内 `↧18`/`↓18` = 孔深 18（与显式 `depth` 同给报错）；解析失败/表外显式报错（E_THREAD_SPEC），不静默回落。type:string
+ * @param params.thread - 描述性螺纹规格（一个键即完整规格，不写 `screwSystem`/`screwSpecIdx`/`screwThread`）：metric `'M<dia>[×<pitch>][-<class>][↧|↓<depth>]'`（'M16'、'M16×1.5'、'M4 X 0.7 - 6H'、'M16-6H↧18'）、imperial `'(#<gauge>|<frac>"|<dec>")[-<tpi>][-<class>][↧|↓<depth>]'`（'1/4"-20-2B↧10'）、pipe `'PT|R|Rc<size>[↧|↓<depth>]'`（'PT1/8'）。空格/大小写全容忍。深度后缀亦可用 `'<depth> DEEP'`（'M16 18 DEEP'）；`'THRU'`/`'THROUGH'` 后缀 = 通孔（与显式 `depth` 同给报错）。OCR 变体白名单（只收敛、不扩语法）：NFKC 等价（全角、分数字形）、破折号/×/引号/箭头形近字、数字逗号小数（'1,5'→'1.5'）、前导点小数英寸（'.25"'）、公差等级闭字母表唯一修复（'GH'→'6H'、'ZB'→'2B'，自由数字绝不猜测，仅报错并附最近表项建议）；白名单外显式拒绝（>64 字符、零宽/双向控制字符、表外字符如西里尔 'М'、注入载荷）。给出后：`holeType` 缺省 `'tapped'`（显式 `'tapped'`/`'screw'` 合法，`'simple'` 报错）；底孔按表反算（显式 `diameter` 优先）；**串内带公差后缀（-6H）或显式 `threadClass` 才产出 PMI**（'M4×0.7' 无 PMI）；串内 `↧18`/`↓18`/`18 DEEP` = 孔深 18（与显式 `depth` 同给报错）；解析失败/表外显式报错（E_THREAD_SPEC），不静默回落。type:string
  * @param params.depth - 孔深（mm）；0 = 通孔，> 0 = 盲孔。type:number 默认 0
  * @param params.holeType - 孔类型：simple 光孔 / screw 建模螺纹 / tapped 攻丝孔（底孔 + 螺纹 PMI）。`thread` 给出时缺省 'tapped'。type:'simple' | 'screw' | 'tapped' 默认 'simple'
  * @param params.direction - 钻孔轴向：`'normal'` = 沿该面法向进入材料（面在底面时即"向上"），`x`/`y`/`z` = 世界轴，两类都会按面法向自动定号；PMI 的 `axis.direction` 记的是定号后的实际钻孔方向。type:'normal' | 'x' | 'y' | 'z' 默认 'normal'

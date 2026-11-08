@@ -7,6 +7,15 @@
  * metric table extension to M64 (ISO 261 values asserted), and explicit
  * E_THREAD_SPEC failures — never a silent fallback.
  *
+ * OCR variant whitelist (three layers, security-hardened):
+ *   L1 character equivalence classes (NFKC, dash/×/quote/arrow lookalikes,
+ *      digit-comma decimals, leading-dot inches, edge-junk strip);
+ *   L2 THRU/THROUGH and '<n> DEEP' keyword suffixes (contradictions reject);
+ *   L3 closed-alphabet class repair ('GH'→'6H', unique candidate only — the
+ *      GOTCHA test pins the TPI-never-stolen guard);
+ *   security boundary: homoglyphs / control chars / injection payloads /
+ *      overlong input all reject; error suggestions never auto-apply.
+ *
  * Run: npx vitest run test/primitives/screw/thread-spec.test.ts
  */
 
@@ -187,5 +196,208 @@ describe('parseThreadSpec — equivalence with the three-key path (U12 parser ha
     const r = parseThreadSpec('PT1/8')
     expect(r.pilotDia).toBe(PIPE_SPECS[0]!.pilotDia)
     expect(r.specLabel).toBe(PIPE_SPECS[0]!.label)
+  })
+})
+
+describe('parseThreadSpec — OCR L1: character equivalence classes', () => {
+  const cases: ReadonlyArray<readonly [string, string]> = [
+    ['Ｍ１６', 'M16'],              // full-width (NFKC)
+    ['１／４＂－２０', '1/4"-20'],  // full-width incl. ／ ＂ －
+    ['M16–6H', 'M16-6H'],           // en dash U+2013
+    ['M16−6H', 'M16-6H'],           // minus sign U+2212
+    ['M16—6H', 'M16-6H'],           // em dash U+2014
+    ['M16*2', 'M16×2'],             // '*' → ×
+    ['M16·2', 'M16×2'],             // middle dot U+00B7 → ×
+    ['M16∗2', 'M16×2'],             // asterisk operator U+2217 → ×
+    ['1/4”-20', '1/4"-20'],         // curly right double quote U+201D
+    ['1/4″-20', '1/4"-20'],         // double prime U+2033
+    ['M16⇩18', 'M16↓18'],          // U+21E9 → ↓
+    ['M16⤓18', 'M16↓18'],          // U+2913 → ↓
+    ['M16×1,5', 'M16×1.5'],         // digit-comma decimal
+    ['M16×1, 5', 'M16×1.5'],        // digit-comma decimal with space
+    ['.25"', '0.25"'],              // leading-dot decimal inch
+  ]
+  for (const [variant, canonical] of cases) {
+    it(`${JSON.stringify(variant)} ≡ ${JSON.stringify(canonical)}`, () => {
+      expect(parseThreadSpec(variant)).toEqual(parseThreadSpec(canonical))
+    })
+  }
+
+  it('OCR edge junk stripped: "  (M16)  " and "M16。" parse as M16', () => {
+    expect(parseThreadSpec('  (M16)  ')).toEqual(parseThreadSpec('M16'))
+    expect(parseThreadSpec('M16。')).toEqual(parseThreadSpec('M16'))
+  })
+
+  it('fraction glyph: ½" canonicalizes to the 1/2" table entry (NFKC + U+2044 map)', () => {
+    expect(parseThreadSpec('½"').specLabel).toBe('1/2"')
+  })
+})
+
+describe('parseThreadSpec — OCR L2: THRU / DEEP keyword suffixes', () => {
+  it("'M16 THRU': thru=true, depth undefined; 'M16 THROUGH' and 'M16THRU' equivalent", () => {
+    for (const s of ['M16 THRU', 'M16 THROUGH', 'M16THRU']) {
+      const r = parseThreadSpec(s)
+      expect(r.thru).toBe(true)
+      expect(r.depth).toBeUndefined()
+      expect(r.specLabel).toBe('M16')
+    }
+  })
+
+  it("'M16' (no keyword) carries no thru field at all", () => {
+    expect(parseThreadSpec('M16').thru).toBeUndefined()
+  })
+
+  it("'1/4\"-20-2B THRU': class + through on imperial", () => {
+    const r = parseThreadSpec('1/4"-20-2B THRU')
+    expect(r.toleranceClass).toBe('2B')
+    expect(r.thru).toBe(true)
+    expect(r.specLabel).toBe('1/4"-20')
+  })
+
+  it("'PT1/8 THRU': pipe through hole", () => {
+    const r = parseThreadSpec('PT1/8 THRU')
+    expect(r.system).toBe('pipe')
+    expect(r.thru).toBe(true)
+  })
+
+  it("'M16 18 DEEP': bare-number depth ≡ ↧18 (no thru)", () => {
+    expect(parseThreadSpec('M16 18 DEEP')).toEqual(parseThreadSpec('M16↧18'))
+  })
+
+  it("'M16-6H 18 DEEP': class + DEEP depth", () => {
+    const r = parseThreadSpec('M16-6H 18 DEEP')
+    expect(r.toleranceClass).toBe('6H')
+    expect(r.depth).toBe(18)
+    expect(r.thru).toBeUndefined()
+  })
+
+  it("'PT1/8 12 DEEP': pipe + DEEP depth", () => {
+    expect(parseThreadSpec('PT1/8 12 DEEP').depth).toBe(12)
+  })
+
+  it("'M16 0 DEEP': zero DEEP depth rejected", () => {
+    expect(() => parseThreadSpec('M16 0 DEEP')).toThrow(ThreadSpecError)
+  })
+
+  it("'M16↧18 THRU': THRU + ↓ depth contradiction", () => {
+    expect(() => parseThreadSpec('M16↧18 THRU')).toThrow(/through hole has no depth/)
+  })
+
+  it("'M16 18 DEEP THRU' and 'M16 THRU 18 DEEP': THRU + DEEP contradiction", () => {
+    expect(() => parseThreadSpec('M16 18 DEEP THRU')).toThrow(ThreadSpecError)
+    expect(() => parseThreadSpec('M16 THRU 18 DEEP')).toThrow(ThreadSpecError)
+  })
+
+  it("'M16↧18 DEEP': ↓ + DEEP rejected (keep exactly one depth notation)", () => {
+    expect(() => parseThreadSpec('M16↧18 DEEP')).toThrow(ThreadSpecError)
+  })
+})
+
+describe('parseThreadSpec — OCR L3: closed-alphabet class repair (unique candidate only)', () => {
+  it("'M16-GH' repairs to 6H (G/6 confusion)", () => {
+    expect(parseThreadSpec('M16-GH').toleranceClass).toBe('6H')
+  })
+
+  it("'M16-SH' repairs to 5H", () => {
+    expect(parseThreadSpec('M16-SH').toleranceClass).toBe('5H')
+  })
+
+  it("'M16-6N' repairs to 6H (N/H confusion)", () => {
+    expect(parseThreadSpec('M16-6N').toleranceClass).toBe('6H')
+  })
+
+  it("'M16-4N' repairs to 4H", () => {
+    expect(parseThreadSpec('M16-4N').toleranceClass).toBe('4H')
+  })
+
+  it("'1/4\"-20-ZB' repairs to 2B", () => {
+    expect(parseThreadSpec('1/4"-20-ZB').toleranceClass).toBe('2B')
+  })
+
+  it("'1/4\"-IB' repairs to 1B (I/1 confusion)", () => {
+    expect(parseThreadSpec('1/4"-IB').toleranceClass).toBe('1B')
+  })
+
+  it("'M16-6B' rejects (B has no G/H lookalike target)", () => {
+    expect(() => parseThreadSpec('M16-6B')).toThrow(ThreadSpecError)
+  })
+
+  it("'M16-9Z' rejects", () => {
+    expect(() => parseThreadSpec('M16-9Z')).toThrow(ThreadSpecError)
+  })
+
+  it("'M16-SB' rejects (5B is not a metric class)", () => {
+    expect(() => parseThreadSpec('M16-SB')).toThrow(ThreadSpecError)
+  })
+
+  it("'1/4\"-20-2D' rejects", () => {
+    expect(() => parseThreadSpec('1/4"-20-2D')).toThrow(ThreadSpecError)
+  })
+
+  // GOTCHA: TPI must never be stolen as a repaired class — '8'→'B' would turn
+  // '-18' (a TPI) into class 1B and silently drop the TPI. Repair runs only
+  // on letter-tailed tokens ('-2B'), never digit-tailed ones ('-18').
+  it("'1/4\"-18' stays TPI 18, never repaired into class 1B (CRITICAL guard)", () => {
+    const r = parseThreadSpec('1/4"-18')
+    expect(r.toleranceClass).toBeUndefined()
+    expect(r.specLabel).toBe('1/4"-18')
+    expect(r.pitch).toBeCloseTo(25.4 / 18, 9)
+  })
+
+  it("'1/4\"-20' stays TPI 20 (digit-tailed token is a TPI, not a class)", () => {
+    const r = parseThreadSpec('1/4"-20')
+    expect(r.toleranceClass).toBeUndefined()
+    expect(r.specLabel).toBe('1/4"-20')
+  })
+})
+
+describe('parseThreadSpec — security boundary (out-of-whitelist explicit rejects)', () => {
+  const hostile = [
+    'М16',                        // Cyrillic М U+041C homoglyph
+    'M1Ο',                        // Greek capital omicron U+039F
+    'M16\u200B-6H',               // zero-width space injection
+    'M16\u202E6H',                // RTL override bidi spoofing
+    '\uFEFFM16',                  // BOM / zero-width no-break space
+    'M16; DROP TABLE parts',      // SQL injection payload
+    '<svg onload=alert(1)>M16',   // XSS markup payload
+    'M16`rm -rf /`',              // shell injection payload
+    'M16 HELLO',                  // out-of-whitelist keyword
+  ]
+  for (const s of hostile) {
+    it(`${JSON.stringify(s)} throws ThreadSpecError`, () => {
+      expect(() => parseThreadSpec(s)).toThrow(ThreadSpecError)
+      expect(() => parseThreadSpec(s)).toThrow(/E_THREAD_SPEC/)
+    })
+  }
+
+  it('overlong input (>64 chars) rejected before any normalization work', () => {
+    expect(() => parseThreadSpec('M' + '1'.repeat(80))).toThrow(ThreadSpecError)
+  })
+
+  it('length cap 64 is generous: longest legit callouts still pass', () => {
+    expect(parseThreadSpec('1/4"-20-2B↧999.99').depth).toBe(999.99)
+    expect(parseThreadSpec('M64×6-8H 999.99 DEEP').depth).toBe(999.99)
+  })
+})
+
+describe('parseThreadSpec — error suggestions (nearest table entry, never auto-applied)', () => {
+  it("'M1O' throws and suggests 'M10' (O/0 half-cost beats the 1-edit ties)", () => {
+    expect(() => parseThreadSpec('M1O')).toThrow(/nearest table entry: 'M10'/)
+  })
+
+  it("'M17' throws and suggests 'M16' (numeric tiebreak among 1-edit ties)", () => {
+    expect(() => parseThreadSpec('M17')).toThrow(/nearest table entry: 'M16'/)
+  })
+
+  it("'M99' throws and suggests 'M64'", () => {
+    expect(() => parseThreadSpec('M99')).toThrow(/nearest table entry: 'M64'/)
+  })
+
+  it("'NPT1/2' throws and suggests the pipe entry 'PT1/2'", () => {
+    expect(() => parseThreadSpec('NPT1/2')).toThrow(/nearest table entry: 'PT1\/2'/)
+  })
+
+  it("no suggestion beyond 2 OCR edits: 'M16 HELLO' stays a plain error", () => {
+    expect(() => parseThreadSpec('M16 HELLO')).toThrow(/cannot parse metric spec/)
   })
 })

@@ -215,7 +215,7 @@ function normalizeSpecParams(params: Record<string, unknown>): Record<string, un
  * @returns Shape 螺丝几何，生成独立零件。
  * @param params.system - 制式。type:'metric' | 'imperial' required:true
  * @param params.specIdx - 规格索引（决定公称直径，如 5 → M5、6 → M6）。type:number required:true
- * @param params.spec - 描述性螺纹规格串（推荐，如 'M16'、'M16×1.5'、'1/4"-20'、'M16-6g'）。给出时为规格唯一来源：缺省取粗牙；不可与 system/specIdx/pitchCustom 或 thread（'none' 除外）同给，违者 E_ARG；解析失败 E_THREAD_SPEC。type:string
+ * @param params.spec - 描述性螺纹规格串（推荐，如 'M16'、'M16×1.5'、'1/4"-20'、'M16-6g'）。给出时为规格唯一来源：缺省取粗牙；不可与 system/specIdx/pitchCustom 或 thread（'none' 除外）同给，违者 E_ARG；解析失败 E_THREAD_SPEC（错误信息附最近表项建议，绝不自动应用）。OCR 变体白名单同 `fai_drill` 的 `thread` 参数（NFKC 等价、形近字映射、数字逗号小数、公差等级唯一修复；白名单外显式拒绝）。type:string
  * @param params.thread - 螺纹类型。type:'coarse' | 'fine' | 'custom' | 'none' 默认 'coarse'
  * @param params.length - 螺杆长度（mm）。type:number required:true
  * @param params.head - 头型（hex 六角 / chc 沉头 / none 无头）。type:'hex' | 'chc' | 'none' 默认 'none'

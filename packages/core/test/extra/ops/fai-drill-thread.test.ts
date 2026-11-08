@@ -227,3 +227,24 @@ describe('fai_drill — 描述串与旧三键等价（U12）', () => {
     expect(pmiThreads(threeKey)[0]!.pilot.diameter).toBe(14)
   })
 })
+
+describe('fai_drill — THRU 通孔关键词（OCR 白名单 L2）', () => {
+  it("thread:'M16 THRU'：通孔几何 ≡ thread:'M16'（深度缺省即通孔），无 PMI", async () => {
+    const a = await drill(block(), { thread: 'M16 THRU' })
+    const b = await drill(block(), { thread: 'M16' })
+    expect(volumeOf(a)).toBeCloseTo(volumeOf(b), 6)
+    expect(faceCountOf(a)).toBe(faceCountOf(b))
+    expect(pmiThreads(a)).toHaveLength(0)
+  })
+
+  it("thread:'M16-6H THRU' + depth:20 同给 → E_ARG（通孔无深度）", async () => {
+    await expect(drill(block(), { thread: 'M16-6H THRU', depth: 20 })).rejects.toThrow(/E_ARG/)
+  })
+
+  it("thread:'M16 18 DEEP'：盲孔几何 ≡ thread:'M16↧18'", async () => {
+    const a = await drill(block(), { thread: 'M16 18 DEEP' })
+    const b = await drill(block(), { thread: 'M16↧18' })
+    expect(volumeOf(a)).toBeCloseTo(volumeOf(b), 6)
+    expect(faceCountOf(a)).toBe(faceCountOf(b))
+  })
+})

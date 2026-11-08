@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-11-08-thread-spec-ocr-whitelist.md
+2026-11-08-thread-spec-ocr-whitelist.md: 660dd1b92aad3c8b83981f605397e7a77b4d0aae
+2026-11-08-thread-spec-ocr-whitelist.zh.md: 92ebf844d28a6cd17aae76ce83bfdf1be36847a4
