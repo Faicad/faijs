@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-gears",
-  "version": "0.45.20",
+  "version": "0.45.21",
   "type": "module",
   "faijs": {
     "autoLift": true,
