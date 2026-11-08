@@ -13,6 +13,7 @@
  */
 export { EDITOR_OPS } from './op-names'
 export { fai_drill } from './ops/fai_drill'
+export { fai_drill_tapper } from './ops/fai_drill_tapper'
 export { fai_extrude } from './ops/fai_extrude'
 export { fai_split } from './ops/fai_split'
 export { group, assembly } from './ops/compound'

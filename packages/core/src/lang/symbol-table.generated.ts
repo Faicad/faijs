@@ -116,6 +116,7 @@ export default {
   "place": {},
   "sketch": {},
   "fai_drill": {},
+  "fai_drill_tapper": {},
   "fai_extrude": {},
   "fai_split": {},
   "group": {},

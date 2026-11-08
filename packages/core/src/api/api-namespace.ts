@@ -127,6 +127,7 @@ import type { LibNamespace } from '../runtime-state'
 // gen-symbol-table can discover them (it ignores SpreadAssignment).
 import { sketch } from '../sketch/op'
 import { fai_drill } from '../extra/ops/fai_drill'
+import { fai_drill_tapper } from '../extra/ops/fai_drill_tapper'
 import { fai_extrude } from '../extra/ops/fai_extrude'
 import { fai_split } from '../extra/ops/fai_split'
 import { group, assembly } from '../extra/ops/compound'
@@ -233,6 +234,7 @@ export function createApiNamespace(): LibNamespace {
     // They are now part of the built-in cad namespace directly.
     sketch,
     fai_drill,
+    fai_drill_tapper,
     fai_extrude,
     fai_split,
     group,

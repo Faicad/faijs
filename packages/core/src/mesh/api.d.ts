@@ -138,6 +138,7 @@ export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'extrude', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom', 'wall:0'] },
   { op: 'faceOnSurface', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "face built on a host surface has no source-derived face role vocabulary", vocab: [] },
   { op: 'fai_drill', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fai_drill:<i>'] },
+  { op: 'fai_drill_tapper', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fai_drill_tapper:<i>'] },
   { op: 'fai_extrude', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom'] },
   { op: 'fai_split', kind: 'subdivide' as CadRoleVocab['kind'], vocab: [], note: "每输入面 → 若干片：splinter(<原 role>)#j 由框架生成" },
   { op: 'fillet', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fillet:<i>'] },

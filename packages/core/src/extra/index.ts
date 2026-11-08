@@ -23,6 +23,7 @@ export {
 
 // ── A 组：编辑器 op 定义 ──
 export { fai_drill, assertDrillParams } from './ops/fai_drill'
+export { fai_drill_tapper, assertTapperParams } from './ops/fai_drill_tapper'
 export { fai_extrude, assertExtrudeParams } from './ops/fai_extrude'
 export { fai_split } from './ops/fai_split'
 export { group, assembly } from './ops/compound'

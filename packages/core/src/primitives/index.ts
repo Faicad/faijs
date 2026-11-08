@@ -20,6 +20,10 @@ export type { ScrewParams, ScrewSpec, ScrewSystem } from './screw/screw-db'
 export { parseThreadSpec, ThreadSpecError } from './screw/thread-spec'
 export type { ResolvedThreadSpec } from './screw/thread-spec'
 
+// screw/drill-spec
+export { parseDrillSpec } from './screw/drill-spec'
+export type { ResolvedDrillSpec } from './screw/drill-spec'
+
 // parse-svg-size
 export { parseSvgNaturalSize } from './parse-svg-size'
 

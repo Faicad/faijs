@@ -21,6 +21,7 @@
 /** A group (plan §4.2): editor-owned ops, three basic API only. */
 export const EDITOR_OPS = [
   'fai_drill',
+  'fai_drill_tapper',
   'fai_extrude',
   'fai_split',
   'group',

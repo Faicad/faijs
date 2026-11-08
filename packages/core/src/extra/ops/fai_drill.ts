@@ -58,8 +58,14 @@ export function assertDrillParams(params: Record<string, unknown>): void {
   }
 }
 
-/** 解析 direction 枚举 → 名义方向向量（`'normal'` 即面外法向，未定号）。 */
-function resolveDirection(params: Record<string, unknown>, faceNormal: Vec3): Vec3 {
+/**
+ * 解析 direction 枚举 → 名义方向向量（`'normal'` 即面外法向，未定号）。
+ *
+ * @param params - 钻孔参数（消费 `direction` 键，缺省 'normal'）。
+ * @param faceNormal - 面外法向（`'normal'` 时作为返回值、未知枚举时兜底）。
+ * @returns 名义方向向量（未按「朝向材料」定号）。
+ */
+export function resolveDirection(params: Record<string, unknown>, faceNormal: Vec3): Vec3 {
   const directionEnum = (params.direction as string | undefined) ?? 'normal'
   if (directionEnum === 'normal') return faceNormal
   if (directionEnum === 'x') return [-1, 0, 0]
@@ -82,7 +88,7 @@ function resolveDirection(params: Record<string, unknown>, faceNormal: Vec3): Ve
  * @param faceNormal - 面外法向。
  * @returns 指向材料内部的单位方向（未归一化，与几何链同一支向量）。
  */
-function inwardDirection(direction: Vec3, faceNormal: Vec3): Vec3 {
+export function inwardDirection(direction: Vec3, faceNormal: Vec3): Vec3 {
   const dot = direction[0] * faceNormal[0] + direction[1] * faceNormal[1] + direction[2] * faceNormal[2]
   const sign = dot > 0 ? -1 : 1
   // 逐轴乘号而不是整体取负：`0 * -1 = -0`，而 vitest 的 toEqual 区分 ±0，
@@ -104,7 +110,7 @@ function inwardDirection(direction: Vec3, faceNormal: Vec3): Vec3 {
  * @param params - raw drill params.
  * @returns the face normal the drill axis uses.
  */
-function faceNormalFrom(input: Shape, params: Record<string, unknown>): Vec3 {
+export function faceNormalFrom(input: Shape, params: Record<string, unknown>): Vec3 {
   const faceNormal = params.faceNormal as Vec3 | undefined
   if (faceNormal && Array.isArray(faceNormal)) {
     return faceNormal
@@ -343,7 +349,7 @@ function producesThreadPmi(p: Record<string, unknown>): boolean {
  * @param target - optional BREP face ref of the hole wall (`hole:N`).
  * @returns the PmiThreadHole item (label filled).
  */
-function buildThreadHolePmi(
+export function buildThreadHolePmi(
   params: Record<string, unknown>,
   th: ResolvedThreadSpec,
   direction: Vec3,
@@ -513,8 +519,14 @@ function screwHoleBrep(
   return { result: baseR.result, roleTable: baseR.roleTable }
 }
 
-/** BREP 路径：OCCT cut（simple / tapped）或 threadBrep + cut（screw）。带 roleTable 传播。 */
-function drillBrepPath(
+/**
+ * BREP 路径：OCCT cut（simple / tapped）或 threadBrep + cut（screw）。带 roleTable 传播。
+ *
+ * @param input - 目标几何（须带 BREP 槽）。
+ * @param params - 钻孔参数（`drillBrep` 同一面：diameter/depth/position/direction/faceNormal/holeType…）。
+ * @returns 钻孔结果 shape 与可选的孔壁 FaceTopoRef（`hole:N`）。
+ */
+export function drillBrepPath(
   input: Shape,
   params: Record<string, unknown>,
 ): { shape: Shape; target?: FaceTopoRef } {

@@ -151,6 +151,8 @@ export type { ScrewParams, ScrewSpec, ScrewSystem } from './primitives/screw/scr
 export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './primitives/screw/screw-db'
 export { parseThreadSpec, ThreadSpecError } from './primitives/screw/thread-spec'
 export type { ResolvedThreadSpec } from './primitives/screw/thread-spec'
+export { parseDrillSpec } from './primitives/screw/drill-spec'
+export type { ResolvedDrillSpec } from './primitives/screw/drill-spec'
 export type { CjkFontResult } from './primitives/text/cjk-font'
 export { loadSystemCjkFont, containsCjk, isCjkChar } from './primitives/text/cjk-font'
 

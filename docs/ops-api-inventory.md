@@ -1385,7 +1385,41 @@ const p = cad.fai_drill(part0, { position: [47.5, 0, 55], direction: 'x', holeTy
 
 > 键名以本表为准：`type: 'through'|'blind'` 与 `direction` 为向量的旧素材是无效写法——孔型由 `depth`（0=通孔）推导，`direction` 是 'normal'|'x'|'y'|'z' 枚举。
 
-### 5.13 `fai_extrude` ✅ 🚫
+### 5.13 `fai_drill_tapper` ✅ 🚫
+
+双串攻丝孔：钻孔串 + 攻丝串各表一职——`drill` 决定底孔几何（直径 + 深度）， `tap` 决定螺纹规格（公差等级 / 丝深 / 旋向随串或参数）。
+
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**。**变更其 API 形态必须同步更新 `../3d_editor`**。BREP-only（mesh 链冻结，2026-11-07 起）：无 mesh 实现，mesh 模式显式报错。
+
+```js
+// 通孔攻丝：底孔 Φ2.5 贯穿，M3-6H 贯穿（PMI：'M3-6H 通（底孔 Φ2.5 通，攻丝）'）
+const p = cad.fai_drill_tapper(part0, { drill: 'Ø2.5 完全贯穿', tap: 'M3-6H 完全贯穿', position: [0, 0, 30], direction: 'z' })
+// 盲孔攻丝：底孔 Φ2.5×12，丝深 8（孔底留 4 光底；PMI：'M3-6H ↓8（底孔 Φ2.5 ↓12，攻丝）'）
+const p = cad.fai_drill_tapper(part0, { drill: 'Ø2.5 深12', tap: 'M3-6H ↓8', position: [0, 0, 30], direction: 'z' })
+// 通孔 + 攻丝定深（Q2）：贯穿底孔上的 ↓8 丝段
+const p = cad.fai_drill_tapper(part0, { drill: 'Ø2.5 完全贯穿', tap: 'M3-6H ↓8', position: [0, 0, 30], direction: 'z' })
+// 管螺纹：底孔 Φ8.7×20，PT1/8（无公差概念，PMI 无公差等级）
+const p = cad.fai_drill_tapper(part0, { drill: 'Ø8.7 深20', tap: 'PT1/8', position: [0, 0, 30], direction: 'z' })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `drill` | `string` | ✅ | — | 钻孔串（底孔几何唯一真源）：`'Ø<diameter>[↧|↓|▼<depth> | 深<depth> | <depth> DEEP | THRU | 完全贯穿]'`，如 'Ø2.5 完全贯穿'、'Ø5 深10'、'Ø14 18 DEEP'。直径符号 Ø/⌀/Φ/φ/ϕ/∅ 等价（OCR 白名单）；无深度后缀 = 通孔。解析失败 E_THREAD_SPEC |
+| `tap` | `string` | ✅ | 6H）。解析失败 E_THREAD_SPEC。type:string required:true | 攻丝串（螺纹规格唯一真源）：`parseThreadSpec` 全文法（metric 'M3-6H'、imperial '1/4"-20-2B'、pipe 'PT1/8'；深度后缀 = 丝深，'THRU'/'完全贯穿' = 通丝）。串内 '-6H' → PMI 公差等级；无后缀则 PMI 无公差（不 |
+| `direction` | `'normal' | 'x' | 'y' | 'z'` |  | 'normal' | 钻孔轴向：`'normal'` = 沿该面法向进入材料，`x`/`y`/`z` = 世界轴，按面法向自动定号；PMI 的 `axis.direction` 记定号后的实际钻孔方向 |
+| `position` | `[x,y,z]` |  | 原点 | 孔心位置（模型局部空间） |
+| `face` | `FaceTopoRef` |  | — | 面引用（`FaceTopoRef`，执行期按输入 Shape 解析派生法向；优先于 `faceNormal`） |
+| `faceNormal` | `[x,y,z]` |  | [0,0,1] | 面法向快照（历史兜底） |
+| `partIndex` | `number` |  | — | 多零件 load 的 compound 成员索引（结果替换回原 compound） |
+| `handedness` | `'right' | 'left'` |  | 'right' | 螺纹旋向，仅标注用（写入 PMI；几何旋向不随此参数改变） |
+
+**同步**。Shape 钻孔后的几何（恒附 `PmiThreadHole` 标注：底孔 + 螺纹一体）。
+
+> 两串独立解析、跨串校验（E_ARG）：底孔直径必须 < 公称大径；tap 串 THRU 要求 drill 串也是通孔；盲丝丝深不得超过孔深。通孔 + 攻丝定深（'Ø2.5 完全贯穿' + 'M3-6H ↓8'）合法。由串推导的键（diameter/depth/thread/threadDepth/threadClass/holeType/旧三键/tolerance）显式给出即报错。
+>
+> PMI 恒产出 `PmiThreadHole`（本 op 语义即攻丝孔）；公差等级缺省不补——tap 串带 '-6H' 才有（Q3，2026-11-08）。
+
+### 5.14 `fai_extrude` ✅ 🚫
 
 沿法向拉伸几何。
 
@@ -1407,7 +1441,7 @@ const p = cad.fai_extrude(part0, { length: 10, normal: [0,0,1], planeDistance: 2
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.14 `fai_split` ⚠️ 🚫
+### 5.15 `fai_split` ⚠️ 🚫
 
 分割几何，返回具名对象 { front, back } 两个独立零件。
 
@@ -1446,7 +1480,7 @@ const { front: part1, back: part2 } = cad.fai_split(part0, { normal: [0, 0, 1], 
 
 > 切割面统一用 `normal`/`offset`/`inPlaneAngle` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
 
-### 5.15 `fillet` ✅
+### 5.16 `fillet` ✅
 
 在几何体上做圆角（等半径）。 两条路径都以 `meshEngines: ['brepkit']` 之外的事实为界：BREP 输入走 `filletWithHistory`（带面演化与 roleTable 传播）；**网格实体**输入走网格后端 （近似拓扑无 role，边按几何或序号解析，无面演化）。非 BREP 的**裸网格**输入仍抛 `E_MESH_SOLID_UNSUPPORTED`——裸网格没有近似拓扑，没有边可选。
 
@@ -1466,7 +1500,7 @@ const q = cad.fillet(meshPart, { edges: [3], radius: 1 })
 
 > `radius` 为正数（mm）。BREP 路径圆角后 roleTable 经 filletWithHistory 传播， 后续特征仍可按 role 选面/选边；网格实体路径没有 role 层，边只能按几何或 序号（近似拓扑 `edges` 数组下标 + 1）指认。
 
-### 5.16 `filletVariable` ✅
+### 5.17 `filletVariable` ✅
 
 变半径圆角：对单条边施加从起点到终点的线性变半径圆角。
 
@@ -1486,7 +1520,7 @@ const v2 = cad.filletVariable(part0, "|Z", 1, 4)
 
 > 中立 op：L1 filletVariable 两引擎同实现。`r1 == r2` 时与 cad.fillet 等半径 结果等价。旧版的 per-edge 回调变半径（variableFillet）不上脚本面。 仅 BREP 可用。
 
-### 5.17 `fuse` ✅
+### 5.18 `fuse` ✅
 
 Boolean fuse (union) — {@link union} 的别名。 brepjs 兼容名。与 `union` 是同一个函数对象（同一实现、同一 schema、同一 消费语义），`fuse(a, b)` ≡ `union(a, b)`；变参形态同样适用。
 
@@ -1500,7 +1534,7 @@ const c = cad.fuse(part0, part1)
 
 **异步**。Shape 所有输入的并集。
 
-### 5.18 `gridPattern` ✅
+### 5.19 `gridPattern` ✅
 
 二维栅格阵列：沿 directionX × directionY 复制 countX×countY 份（含原位置）。
 
@@ -1521,7 +1555,7 @@ const p = cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[ix_iy]/<inner>`。
 
-### 5.19 `intersect` ✅
+### 5.20 `intersect` ✅
 
 布尔交集：所有输入的重叠部分。
 
@@ -1535,7 +1569,7 @@ const c = cad.intersect(part0, part1)
 
 **异步**。Shape 所有输入的交集。
 
-### 5.20 `knurl` ⚠️
+### 5.21 `knurl` ⚠️
 
 施加滚花（顶点位移，非布尔）。mesh-only。
 
@@ -1558,7 +1592,7 @@ const p = cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, knurlSc
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.21 `linearPattern` ✅
+### 5.22 `linearPattern` ✅
 
 线性阵列：沿 direction 复制 count 份（含原位置）。
 
@@ -1576,7 +1610,7 @@ const p = cad.linearPattern(part0, [1, 0, 0], 3, 20)
 
 > BREP 输入走质心聚类回投，结果面按份数 k 回投影到输入面角色，产出 `replica[k]/<inner>` 面命名；**网格实体**输入走网格后端， 阵列后融合为一个新的网格零件，近似拓扑没有 role 层故不产 replica 命名。 裸网格输入仍抛 `E_MESH_UNSUPPORTED`。
 
-### 5.22 `loft` ✅
+### 5.23 `loft` ✅
 
 放样：按给定顺序在截面之间蒙皮生成体。
 
@@ -1605,7 +1639,7 @@ const body = cad.loft([bottom, top])
 
 > 基础 op：**occt 与 brepkit 两内核都支持**（occt `BRepOffsetAPI_ThruSections`； brepkit `loft` / `loftSmooth` / `loftWithOptions`）。截面可为 wire 或面 （面取其外环），至少 2 个；`endPoint` 可做终点退化到点的蒙皮。选项集 = 两内核交集 = `{ ruled, endPoint }` —— `startPoint` 与 `tolerance` 只有 occt 有，用 `cad.loftAdvanced`。brepkit 链对顶点数不一致的截面（如圆 → 方） 由内核重采样兜底，直接可达。
 
-### 5.23 `loftAdvanced` ✅
+### 5.24 `loftAdvanced` ✅
 
 放样（完整语义）：按给定顺序在截面之间蒙皮生成体。
 
@@ -1634,7 +1668,7 @@ const body = cad.loftAdvanced([bottom, top], { endPoint: [0, 0, 30] })
 
 > 平台 op：仅 occt 引擎（BRepOffsetAPI_ThruSections）。截面可为 wire 或面 （面取其外环），至少 2 个；`startPoint` / `endPoint` 可做退化到点的蒙皮； `tolerance` 控制缝合公差。非 occt 引擎执行前报错；brep_mock 不拦截。 基础放样（两内核交集）用 `cad.loft`。不做 `loftAll`（数组产物）。
 
-### 5.24 `mirror` ✅
+### 5.25 `mirror` ✅
 
 镜像：返回镜像后的新 Shape（源保留）。
 
@@ -1650,7 +1684,7 @@ const p = cad.mirror(part0, { normal: [1, 0, 0] })
 
 > BREP-only。keep 语义：不消费输入（薄 override 委托生成 op，行为不变）。
 
-### 5.25 `mirrorJoin` ✅
+### 5.26 `mirrorJoin` ✅
 
 镜像并融合：原物（replica[0]）+ 沿平面镜像（replica[1]）fuse 成一体。
 
@@ -1666,7 +1700,7 @@ const p = cad.mirrorJoin(part0, { normal: [1, 0, 0] })
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[0|1]/<inner>`。
 
-### 5.26 `offset2d` ✅
+### 5.27 `offset2d` ✅
 
 2D 轮廓偏置：把平面轮廓（wire 或面）沿其法向等距偏移，产出新的 1D 轮廓。
 
@@ -1685,7 +1719,7 @@ const outer = cad.offset2d(c, 2)
 
 > 平台 op：仅 occt 引擎（原生 offsetWire2D，L1 契约无对应成员）。非 occt 引擎执行前报错；brep_mock 不拦截。`delta` 可正可负（正 = 外扩， 负 = 内缩，方向随 contour 走向）；轮廓接受 wire 或面（面取其外环）。
 
-### 5.27 `pocket` ✅
+### 5.28 `pocket` ✅
 
 Shapeable<Shape3D> → Result<T>，brep-op
 
@@ -1704,7 +1738,7 @@ pocket(shape: Shape, options: PocketOptions): Shape
 >
 > 实现：`brep-operations/compoundFns.ts#pocketBrep`。
 
-### 5.28 `rectangularPattern` ✅
+### 5.29 `rectangularPattern` ✅
 
 矩形阵列：按 options（xDir/xCount/xSpacing/yDir/yCount/ySpacing）复制并 fuse。
 
@@ -1720,7 +1754,7 @@ const p = cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpacing: 20
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[ix_iy]/<inner>`。
 
-### 5.29 `revolve` ✅
+### 5.30 `revolve` ✅
 
 旋转成形：把平面轮廓绕轴旋转（兼容生成投影签名）。
 
@@ -1735,7 +1769,7 @@ const p1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.2831853
 
 **异步**。Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
 
-### 5.30 `roof` ✅
+### 5.31 `roof` ✅
 
 wire → Result(ValidSolid)→solid，brep-op
 
@@ -1756,7 +1790,7 @@ roof(wire: Shape, options?: RoofOptions): Shape
 >
 > 实现：`brep-operations/roofFns.ts#roofBrep`。
 
-### 5.31 `sectionByPlane` ✅
+### 5.32 `sectionByPlane` ✅
 
 求实体与无限平面的精确截面线（1D 曲线，可继续建模/导出 STEP）。
 
@@ -1773,7 +1807,7 @@ const sec = cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
 
 > 中立 op：L1 sectionByPlane 两引擎同实现。产物是 1D 曲线（kind:'curve'， 全部交线收拢为一个 compound）；平面不与体相交时显式报错。
 
-### 5.32 `shell` ✅
+### 5.33 `shell` ✅
 
 抽壳：移除指定面并把余下面偏置成等厚薄壁。
 
@@ -1797,7 +1831,7 @@ const sm = cad.shell(meshPart, { openFaces: [4], thickness: 2 })
 
 > 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。 精度链按 role 线路选面（TopoRef 字面量或 CadQuery 面选择器字符串）； **禁止 `cad.faceRef` 序号**——序号跨内核不可移植。网格链没有 role 层， 序号是唯一无歧义的指认方式（仅当前内核快照），选择器字符串只服务精度链。
 
-### 5.33 `solidFromFaces` ✅
+### 5.34 `solidFromFaces` ✅
 
 面集一次成型为实体：把一组共享边界的面缝合成一个实体（occt 原生一次构造）。
 
@@ -1814,7 +1848,7 @@ const solid = cad.solidFromFaces([f0, f1, f2, f3, f4, f5])
 
 > 平台 op：仅 occt 引擎（原生 buildSolidFromFaces，L1 契约无对应成员）。 非 occt 引擎执行前报错；brep_mock 不拦截。中立路径见 `sewAndSolidify`。
 
-### 5.34 `split` ✅
+### 5.35 `split` ✅
 
 用工具几何切分目标几何（BRepAlgoAPI_Splitter），返回所有碎片组成的几何。
 
@@ -1830,7 +1864,7 @@ const pieces = cad.split(part0, [part1])
 
 > BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面 片记 `splinter(#j)` 命名。平台 op：仅 occt 引擎（原生 split）。
 
-### 5.35 `splitByPlane` ✅
+### 5.36 `splitByPlane` ✅
 
 沿无限平面把实体切成两半，返回法向正/负两半（具名产物）。
 
@@ -1847,7 +1881,7 @@ const { positive, negative } = cad.splitByPlane(part0, { point: [0,0,5], normal:
 
 > 中立 op：L1 splitByPlane 两引擎同实现。产物是具名两半 `{ positive, negative }`（不是数组）；法向正侧 = positive。
 
-### 5.36 `subtract` ✅
+### 5.37 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -1861,7 +1895,7 @@ const b = cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.37 `sweep` ✅
+### 5.38 `sweep` ✅
 
 扫掠：截面沿脊柱路径生成扫掠体。
 
@@ -1885,7 +1919,7 @@ const body = cad.sweep(section, path)
 
 > 基础 op：**occt 与 brepkit 两内核都支持**（occt `sweepPipeShell`；brepkit `sweep(face, NURBS path)`，路径由适配器从脊柱 wire 拟合）。截面接受 wire 或面（面取其外环）；脊柱必须为 wire。选项集 = 两内核交集 = **空** —— 需要 transition / auxSpine / support / law / orientation 等 occt 独有控制面 时用 `cad.sweepAdvanced`。
 
-### 5.38 `sweepAdvanced` ✅
+### 5.39 `sweepAdvanced` ✅
 
 扫掠（完整控制面）：截面沿脊柱路径生成扫掠体。
 
@@ -1910,7 +1944,7 @@ const body = cad.sweepAdvanced(section, path, { orientation: 'frenet' })
 
 > 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。截面接受 wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错； brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。 完整控制面：给出 `orientation` / `up` / `auxSpine` / `curvilinearEquivalence` / `guideContact` / `transitionMode`（新名）/ `withContact` / `withCorrection` / `support` / `maxDegree` / `maxSegments` / `law` / `lawLength` / `lawEndFactor` / `tol3d` / `boundTol` / `tolAngular` 任一，即改走 occt 原生 `sweepFull`（law 驱动扫掠是 twist 类特征的正 确路径）。`sweepFull` 的 options 是 `sweepAdvanced` 的**严格超集**，且含 `sweepOriented` 的全部字段 ⇒ 三者能力并轨，脚本面只需本符号一个。 基础扫掠（两内核交集）用 `cad.sweep`。
 
-### 5.39 `thicken` ✅
+### 5.40 `thicken` ✅
 
 加厚：把面（或壳）沿法向偏置成等厚实体。
 
@@ -1932,7 +1966,7 @@ const solid = cad.thicken(face, 2)
 
 > 平台 op：仅 occt 引擎（BRepOffset）。输入为面/壳 Shape（如 cad.profile 产物）； 正厚度沿法向、负厚度反向。非 occt 引擎执行前报错；brep_mock 不拦截。
 
-### 5.40 `twistExtrude` ✅
+### 5.41 `twistExtrude` ✅
 
 wire → Result(Shape3D)，brep-op
 
@@ -1955,7 +1989,7 @@ twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Sha
 >
 > 实现：`brep-operations/sweepFns.ts#twistExtrudeBrep`。
 
-### 5.41 `union` ✅
+### 5.42 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -3349,7 +3383,7 @@ const svg = cad.toSVG(box, 'iso')
 布尔: commonCells
 导出: export3mf / exportBrep / exportStep / exportStl
 视图: toMultiviewPNG / toMultiviewSVG / toPNG / toSVG
-废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: translate、rotate_euler、scale、scale3d、group、assembly、copy、fai_drill、fai_extrude、fai_split、load
+废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: translate、rotate_euler、scale、scale3d、group、assembly、copy、fai_drill、fai_drill_tapper、fai_extrude、fai_split、load
 ```
 
 ---
@@ -3393,6 +3427,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `extrude` | 构造语义 | `top`、`bottom`、`wall:0` |  |
 | `faceOnSurface` | 未建模 | —（不造新面） | face built on a host surface has no source-derived face role vocabulary |
 | `fai_drill` | 内核历史 | `gen:fai_drill:<i>` |  |
+| `fai_drill_tapper` | 内核历史 | `gen:fai_drill_tapper:<i>` |  |
 | `fai_extrude` | 构造语义 | `top`、`bottom` |  |
 | `fai_split` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
 | `fillet` | 内核历史 | `gen:fillet:<i>` |  |

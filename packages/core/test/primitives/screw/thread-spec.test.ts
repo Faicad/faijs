@@ -293,6 +293,47 @@ describe('parseThreadSpec — OCR L2: THRU / DEEP keyword suffixes', () => {
   })
 })
 
+describe('parseThreadSpec — Chinese drawing keywords (完全贯穿 / 深<n> / ▼<n>)', () => {
+  it("'M16-6H 完全贯穿' ≡ 'M16-6H THRU': CN through keyword", () => {
+    expect(parseThreadSpec('M16-6H 完全贯穿')).toEqual(parseThreadSpec('M16-6H THRU'))
+  })
+
+  it("'M16完全贯穿' (no space) parses as through", () => {
+    expect(parseThreadSpec('M16完全贯穿').thru).toBe(true)
+  })
+
+  it("'PT1/8 完全贯穿': CN through on pipe", () => {
+    expect(parseThreadSpec('PT1/8 完全贯穿').thru).toBe(true)
+  })
+
+  it("'M16深18' / 'M16 深18' ≡ 'M16↧18': CN depth prefix", () => {
+    expect(parseThreadSpec('M16深18')).toEqual(parseThreadSpec('M16↧18'))
+    expect(parseThreadSpec('M16 深18')).toEqual(parseThreadSpec('M16↓18'))
+  })
+
+  it("'M16▼18': ▼ (U+25BC, CN drawing arrow) ≡ ↓", () => {
+    expect(parseThreadSpec('M16▼18').depth).toBe(18)
+  })
+
+  it("'M16-6H 深18': class + CN depth", () => {
+    const r = parseThreadSpec('M16-6H 深18')
+    expect(r.toleranceClass).toBe('6H')
+    expect(r.depth).toBe(18)
+  })
+
+  it("'M16 深18 THRU': CN depth + through contradiction rejects", () => {
+    expect(() => parseThreadSpec('M16 深18 THRU')).toThrow(/through hole has no depth/)
+  })
+
+  it("'M16深0': zero CN depth rejected", () => {
+    expect(() => parseThreadSpec('M16深0')).toThrow(ThreadSpecError)
+  })
+
+  it("'M16 贯穿' (unenumerated shorter keyword) stays outside the whitelist", () => {
+    expect(() => parseThreadSpec('M16 贯穿')).toThrow(ThreadSpecError)
+  })
+})
+
 describe('parseThreadSpec — OCR L3: closed-alphabet class repair (unique candidate only)', () => {
   it("'M16-GH' repairs to 6H (G/6 confusion)", () => {
     expect(parseThreadSpec('M16-GH').toleranceClass).toBe('6H')

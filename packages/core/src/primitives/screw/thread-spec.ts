@@ -5,22 +5,24 @@
  * 'PT1/8') into a `ResolvedThreadSpec` shared by `fai_drill` (its `thread`
  * key) and `screw` (its `spec` key).
  *
- * Grammar (space/case tolerant; 'x'/'X' equal '×'; '↧' equal '↓'):
+ * Grammar (space/case tolerant; 'x'/'X' equal '×'; '↧'/'▼' equal '↓'):
  *   metric  := 'M' <dia> [ '×' <pitch> ] [ '-' <class> ] [ depthSuffix ]
  *   imperial:= ( '#' <gauge> | <frac>'"' | <dec>'"' ) [ '-' <tpi> ] [ '-' <class> ] [ depthSuffix ]
  *   pipe    := ( 'PT' | 'R' | 'Rc' ) <size> [ depthSuffix ]
- *   depthSuffix := ( '↧' | '↓' ) <depth> | <depth> ' DEEP' | 'THRU' | 'THROUGH'
+ *   depthSuffix := ( '↧' | '↓' | '▼' ) <depth> | '深' <depth> | <depth> ' DEEP' | 'THRU' | 'THROUGH' | '完全贯穿'
  *
  * OCR-variant tolerance is a three-layer **whitelist** — normalization only
  * maps characters INTO the grammar alphabet above; it never widens the
  * grammar, and anything outside the whitelist is an explicit reject:
  *   L1 character equivalence — NFKC (full-width forms, fraction glyphs),
  *      enumerated one-char lookalike maps (dash / '×' / inch-quote /
- *      depth-arrow variants), digit-comma decimals ('1,5' → '1.5'), and an
- *      OCR edge-junk strip (stray brackets/quotes/punctuation at the ends;
- *      a leading '.' and a trailing '"' are meaningful and never stripped).
- *   L2 enumerated keyword suffixes — 'THRU'/'THROUGH' (through hole, sets
- *      `thru`) and '<depth> DEEP' (bare depth number before the word).
+ *      depth-arrow variants incl. '▼'), digit-comma decimals ('1,5' → '1.5'),
+ *      and an OCR edge-junk strip (stray brackets/quotes/punctuation at the
+ *      ends; a leading '.' and a trailing '"' are meaningful, never stripped).
+ *   L2 enumerated keyword suffixes — 'THRU'/'THROUGH' and the Chinese drawing
+ *      keywords '完全贯穿' (through hole, sets `thru`), '<depth> DEEP' and
+ *      '深<depth>' (bare depth). Both Chinese keywords are substituted before
+ *      the closed-alphabet guard, so the alphabet itself stays ASCII-only.
  *   L3 closed-alphabet repair of tolerance-class tokens — accepted only when
  *      exactly one candidate exists ('GH' → '6H', 'ZB' → '2B'); free numbers
  *      are NEVER guessed (silent wrong geometry beats a loud error never).
@@ -46,30 +48,34 @@
 
 import { getScrewSpecs, PIPE_SPECS } from './screw-db'
 import type { ThreadSystem } from './screw-db'
+import {
+  MAX_SPEC_LENGTH,
+  INVISIBLE_RE,
+  DEPTH_ARROW_VARIANTS_RE,
+  LEADING_JUNK_RE,
+  TRAILING_JUNK_RE,
+  DEEP_RE,
+  THROUGH_RE,
+  CN_DEEP_RE,
+  CN_THROUGH_RE,
+  ThreadSpecError,
+} from './spec-text'
+
+export { ThreadSpecError }
 
 /** Grammar help text appended to every parse failure. */
 const GRAMMAR_HELP =
   'Supported grammar (space/case tolerant, OCR variants whitelist-normalized): '
-  + "metric 'M<dia>[×<pitch>][-<class>][↧|↓<depth> | <depth> DEEP | THRU]' (M2–M64, class [4-8][GH]); "
-  + 'imperial \'(#<gauge> | <frac>" | <dec>")[-<tpi>][-<class>][↧|↓<depth> | <depth> DEEP | THRU]\' (#4–1", class 1B|2B|3B); '
-  + "pipe 'PT|R|Rc<size>[↧|↓<depth> | <depth> DEEP | THRU]' (PT1/8–PT1/2, no class suffix). "
+  + "metric 'M<dia>[×<pitch>][-<class>][↧|↓|▼<depth> | 深<depth> | <depth> DEEP | THRU | 完全贯穿]' (M2–M64, class [4-8][GH]); "
+  + 'imperial \'(#<gauge> | <frac>" | <dec>")[-<tpi>][-<class>][↧|↓|▼<depth> | 深<depth> | <depth> DEEP | THRU | 完全贯穿]\' (#4–1", class 1B|2B|3B); '
+  + "pipe 'PT|R|Rc<size>[↧|↓|▼<depth> | 深<depth> | <depth> DEEP | THRU | 完全贯穿]' (PT1/8–PT1/2, no class suffix). "
   + 'OCR whitelist: NFKC equivalents, dash/×/quote/arrow lookalikes, digit-comma decimals, '
   + "unique-candidate class repair ('GH'→'6H'); outside the whitelist is rejected "
   + '(≤64 chars, no control chars, no unknown characters).'
 
-/**
- * Explicit parse failure for a descriptive thread spec.
- *
- * Carries code `E_THREAD_SPEC` so the statement boundary keeps the code
- * through `toOpFailure` (an `Error` with a string `code` property).
- */
-export class ThreadSpecError extends Error {
-  /** Stable error code, kept through the statement boundary (`toOpFailure`). */
-  readonly code = 'E_THREAD_SPEC'
-  constructor(detail: string) {
-    super(`E_THREAD_SPEC: ${detail} ${GRAMMAR_HELP}`)
-    this.name = 'ThreadSpecError'
-  }
+/** Every parse failure in this module carries the grammar help. */
+function fail(detail: string): never {
+  throw new ThreadSpecError(detail, GRAMMAR_HELP)
 }
 
 /**
@@ -102,19 +108,7 @@ export interface ResolvedThreadSpec {
 }
 
 // ─── Layer 0 — hard input guards ────────────────────────────────────────────
-
-/**
- * Whitelist length cap. The longest legitimate callout is ~20 chars; 64
- * kills overlong/DoS payloads before any normalization or regex work.
- */
-const MAX_SPEC_LENGTH = 64
-
-/**
- * Invisible & bidirectional control characters — an attack surface (spooner
- * text, bidi spoofing), never legitimate OCR output. Checked on the raw
- * input and again after NFKC (which leaves these code points unchanged).
- */
-const INVISIBLE_RE = /[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/u
+// MAX_SPEC_LENGTH / INVISIBLE_RE live in ./spec-text (shared text layer).
 
 // ─── Layer 1 — character equivalence classes (enumerated, one char each) ────
 
@@ -131,26 +125,11 @@ const INCH_QUOTE_VARIANTS_RE = /[\u201C\u201D\u201E\u201F\u2032\u2033]/gu
  * prime is ONE inch mark, so collapse the pair before the single-char map.
  */
 const DOUBLE_PRIME_PAIR_RE = /\u2032\u2032/gu
-/** Depth-arrow variants (↧, ⇩, ⤓) → '↓'. */
-const DEPTH_ARROW_VARIANTS_RE = /[\u21A7\u21E9\u2913]/gu
-
-/**
- * OCR lead-in junk. A leading '.' is meaningful ('.25"' decimal inch) and a
- * leading '-' is a malformed spec, not junk — neither is stripped.
- */
-const LEADING_JUNK_RE = /^[\s"'(){}[\];:，。；：、「『【《]+/u
-/**
- * OCR trailing junk. A trailing '"' is the inch mark — never stripped (and a
- * trailing '-' is malformed, not junk).
- */
-const TRAILING_JUNK_RE = /[\s.,;:()[\]】」》』、，。；：]+$/u
+/** Depth-arrow variants (↧, ⇩, ⤓, ▼) → '↓' — shared regex from ./spec-text. */
 
 // ─── Layer 2 — enumerated keyword suffixes ──────────────────────────────────
 
-/** 'THRU' / 'THROUGH' trailing keyword (whitespace optional before it). */
-const THROUGH_RE = /\s*(?:THROUGH|THRU)\s*$/
-/** '<depth> DEEP' — bare depth number (whitespace-separated) before the word. */
-const DEEP_RE = /(?:^|\s)(\d+(?:\.\d+)?)\s+DEEP\s*$/
+// THROUGH_RE / DEEP_RE / CN_THROUGH_RE / CN_DEEP_RE — shared regexes from ./spec-text.
 
 /**
  * Post-normalization alphabet: A–Z, 0–9, '-', '×', '↓', '/', '"', '.', '#'.
@@ -302,9 +281,10 @@ function num(v: number): string {
  * OCR-variant tolerance follows the three-layer whitelist documented at the
  * top of this file: L1 character equivalence (NFKC + enumerated lookalike
  * maps + digit-comma decimals + edge-junk strip), L2 keyword suffixes
- * (THRU/THROUGH, `<depth> DEEP`), L3 unique-candidate tolerance-class
- * repair. Everything else — homoglyphs, control characters, unknown
- * characters, payloads over 64 chars — is an explicit reject.
+ * (THRU/THROUGH, `<depth> DEEP`, and the Chinese drawing keywords '完全贯穿'
+ * / '深<depth>'), L3 unique-candidate tolerance-class repair. Everything else
+ * — homoglyphs, control characters, unknown characters, payloads over 64
+ * chars — is an explicit reject.
  *
  * @param spec - the drawing-callout spec string, e.g. 'M16-6H↧18'.
  * @returns the resolved spec (class/depth/thru only when the string carries them).
@@ -314,16 +294,16 @@ function num(v: number): string {
  */
 export function parseThreadSpec(spec: string): ResolvedThreadSpec {
   if (typeof spec !== 'string' || spec.trim() === '') {
-    throw new ThreadSpecError(`thread spec must be a non-empty string, got ${JSON.stringify(spec)}`)
+    throw fail(`thread spec must be a non-empty string, got ${JSON.stringify(spec)}`)
   }
   // Layer 0 — hard input guards, before any normalization work.
   if (spec.length > MAX_SPEC_LENGTH) {
-    throw new ThreadSpecError(
+    throw fail(
       `thread spec is ${spec.length} characters — the whitelist limit is ${MAX_SPEC_LENGTH}`,
     )
   }
   if (INVISIBLE_RE.test(spec)) {
-    throw new ThreadSpecError(
+    throw fail(
       'thread spec contains invisible/bidirectional control characters '
         + '(U+200B–U+200F, U+202A–U+202E, U+2060–U+206F, U+FEFF) — rejected',
     )
@@ -331,7 +311,7 @@ export function parseThreadSpec(spec: string): ResolvedThreadSpec {
   // Layer 1 — character equivalence classes: NFKC, then enumerated one-char maps.
   let s = spec.normalize('NFKC')
   if (INVISIBLE_RE.test(s)) {
-    throw new ThreadSpecError(
+    throw fail(
       'thread spec contains invisible/bidirectional control characters — rejected',
     )
   }
@@ -345,13 +325,17 @@ export function parseThreadSpec(spec: string): ResolvedThreadSpec {
     .replace(DEPTH_ARROW_VARIANTS_RE, '↓')
     .replace(LEADING_JUNK_RE, '')
     .replace(TRAILING_JUNK_RE, '')
+  // Chinese drawing keywords (enumerated L2 additions): substituted INTO the
+  // ASCII grammar before the alphabet guard, so the closed-alphabet property
+  // is preserved ('深18' → '↓18', '完全贯穿' → ' THRU ').
+  s = s.replace(CN_DEEP_RE, '↓$1').replace(CN_THROUGH_RE, ' THRU ')
   // Layer 2 — enumerated keyword suffixes (matched before whitespace removal,
   // because '<n> DEEP' needs the separating whitespace to be unambiguous).
   let deepDepth: number | undefined
   const deepMatch = DEEP_RE.exec(s)
   if (deepMatch !== null) {
     deepDepth = Number(deepMatch[1])
-    if (!(deepDepth > 0)) throw new ThreadSpecError(`DEEP depth must be positive in '${s}'`)
+    if (!(deepDepth > 0)) throw fail(`DEEP depth must be positive in '${s}'`)
     s = s.slice(0, deepMatch.index)
   }
   let thru = false
@@ -370,7 +354,7 @@ export function parseThreadSpec(spec: string): ResolvedThreadSpec {
   if (badChar !== null) {
     const ch = badChar[0]!
     const cp = ch.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')
-    throw new ThreadSpecError(
+    throw fail(
       `unsupported character U+${cp} (${JSON.stringify(ch)}) in '${s}' — outside the OCR whitelist alphabet`,
     )
   }
@@ -379,18 +363,18 @@ export function parseThreadSpec(spec: string): ResolvedThreadSpec {
   const depthMatch = /↓(\d+(?:\.\d+)?)$/.exec(s)
   if (depthMatch !== null) {
     depth = Number(depthMatch[1])
-    if (!(depth > 0)) throw new ThreadSpecError(`depth suffix must be positive in '${s}'`)
+    if (!(depth > 0)) throw fail(`depth suffix must be positive in '${s}'`)
     s = s.slice(0, depthMatch.index)
   }
   // Keyword contradictions — never silently resolved.
   if (thru && depth !== undefined) {
-    throw new ThreadSpecError(`THRU conflicts with a ↓ depth suffix in '${s}' — a through hole has no depth`)
+    throw fail(`THRU conflicts with a ↓ depth suffix in '${s}' — a through hole has no depth`)
   }
   if (thru && deepDepth !== undefined) {
-    throw new ThreadSpecError(`THRU conflicts with a DEEP depth in '${s}' — a through hole has no depth`)
+    throw fail(`THRU conflicts with a DEEP depth in '${s}' — a through hole has no depth`)
   }
   if (depth !== undefined && deepDepth !== undefined) {
-    throw new ThreadSpecError(
+    throw fail(
       `↓ depth suffix conflicts with a DEEP depth in '${s}' — keep exactly one depth notation`,
     )
   }
@@ -411,7 +395,7 @@ function parseMetric(s: string, depth?: number, thru?: boolean): ResolvedThreadS
     const cls = classMatch[1]!
     const repaired = repairClassToken(cls, METRIC_CLASSES)
     if (repaired === undefined) {
-      throw new ThreadSpecError(
+      throw fail(
         `metric tolerance class '-${cls}' is outside [4-8][GH] and has no unique OCR repair in '${s}'`,
       )
     }
@@ -419,16 +403,16 @@ function parseMetric(s: string, depth?: number, thru?: boolean): ResolvedThreadS
     rest = rest.slice(0, classMatch.index)
   }
   const body = /^M(\d+(?:\.\d+)?)(?:×(\d+(?:\.\d+)?))?$/.exec(rest)
-  if (!body) throw new ThreadSpecError(`cannot parse metric spec '${s}'${suggestSuffix(s)}`)
+  if (!body) throw fail(`cannot parse metric spec '${s}'${suggestSuffix(s)}`)
   const dia = Number(body[1])
   const pitchExplicit = body[2] !== undefined ? Number(body[2]) : undefined
   if (pitchExplicit !== undefined && !(pitchExplicit > 0)) {
-    throw new ThreadSpecError(`pitch must be positive in '${s}'`)
+    throw fail(`pitch must be positive in '${s}'`)
   }
   const specs = getScrewSpecs('metric')
   const idx = specs.findIndex((e) => Math.abs(e.dia - dia) < 1e-9)
   if (idx < 0) {
-    throw new ThreadSpecError(`'M${body[1]}' is outside the metric table (M2–M64)${suggestSuffix(`M${body[1]}`)}`)
+    throw fail(`'M${body[1]}' is outside the metric table (M2–M64)${suggestSuffix(`M${body[1]}`)}`)
   }
   const spec = specs[idx]!
   const pitch = pitchExplicit ?? spec.coarse
@@ -457,7 +441,7 @@ function parseImperial(s: string, depth?: number, thru?: boolean): ResolvedThrea
     if (/[A-Z]/.test(token.charAt(1))) {
       const repaired = repairClassToken(token, IMPERIAL_CLASSES)
       if (repaired === undefined) {
-        throw new ThreadSpecError(
+        throw fail(
           `imperial tolerance class '-${token}' is outside 1B|2B|3B and has no unique OCR repair in '${s}'`,
         )
       }
@@ -486,11 +470,11 @@ function parseImperial(s: string, depth?: number, thru?: boolean): ResolvedThrea
     idx = specs.findIndex((e) => Math.abs(e.dia - diaMm) < 1e-3)
   }
   if (idx < 0) {
-    throw new ThreadSpecError(`'${s}' does not match an imperial spec in the table (#4–1")${suggestSuffix(s)}`)
+    throw fail(`'${s}' does not match an imperial spec in the table (#4–1")${suggestSuffix(s)}`)
   }
   const spec = specs[idx]!
   if (tpiExplicit !== undefined && !(tpiExplicit > 0)) {
-    throw new ThreadSpecError(`TPI must be positive in '${s}'`)
+    throw fail(`TPI must be positive in '${s}'`)
   }
   const tpi = tpiExplicit ?? spec.coarse
   const pitch = 25.4 / tpi
@@ -511,13 +495,13 @@ function parseImperial(s: string, depth?: number, thru?: boolean): ResolvedThrea
 function parsePipe(s: string, depth?: number, thru?: boolean): ResolvedThreadSpec {
   const m = /^(PT|R|RC)(\d+\/\d+)$/.exec(s)
   if (!m) {
-    throw new ThreadSpecError(
+    throw fail(
       `cannot parse pipe spec '${s}' (pipe threads take no tolerance-class or TPI suffix)`,
     )
   }
   const size = m[2]!
   const idx = PIPE_SPECS.findIndex((e) => e.label === `PT${size}`)
-  if (idx < 0) throw new ThreadSpecError(`'PT${size}' is outside the pipe table (PT1/8–PT1/2)`)
+  if (idx < 0) throw fail(`'PT${size}' is outside the pipe table (PT1/8–PT1/2)`)
   const spec = PIPE_SPECS[idx]!
   return {
     system: 'pipe',
