@@ -21,13 +21,17 @@ function fakeShape(): Record<string, unknown> {
   return { positions: new Float32Array([0, 0, 0]), indices: new Uint32Array([0, 1, 2]) }
 }
 
-/** 最小 cad 命名空间（只为让 ctx 里有几何值；消费判定读的是源码而非返回值）。 */
+/** 最小 cad 命名空间（只需让 ctx 里出现几何值/非几何值；消费判定读源码形态）。 */
 const fakeCad = {
   box: () => fakeShape(),
   sphere: () => fakeShape(),
   subtract: () => fakeShape(),
   union: () => fakeShape(),
-  assembly: () => fakeShape(),
+  // 真实 cad.assembly 返回装配描述对象（非几何：无 positions/indices、非 compound），
+  // 于是 R3 判"输出全非几何 → 不消费"。这里必须照实模拟，否则测的是假 API。
+  assembly: () => ({ kind: 'assembly', name: 'asm', members: [] }),
+  // 派生后仍产出**几何**的 op（fai_drill 等）——这类才是真的消费输入。
+  drill: () => fakeShape(),
   volume: () => 1000,
 }
 
@@ -188,28 +192,27 @@ describe('DirectExecutor + consumeRule', () => {
     expect(r.error).toBeUndefined()
   })
 
-  it('非布尔 op 同样算消费（装配成员被消费后再引用 = 违规，2026-11-08 规定）', async () => {
+  it('装配成员不算消费：R3（输出非几何）——不是白名单，是既有判定', async () => {
     const code = [
       'let a = cad.box(10, 10, 10)',
       'let b = cad.sphere({ radius: 3 })',
-      'let asm = cad.assembly({ members: [a, b] })',
-      'let d = cad.union(a)',
-    ].join('\n')
-    const r = await run(code, 'error')
-    expect(r.error!.code).toBe('E_USE_AFTER_CONSUME')
-    expect(r.error!.line).toBe(4)
-  })
-
-  it('要保留输入的写法是 keep()：装配成员 keep 后继续引用合法', async () => {
-    const code = [
-      'let a = cad.box(10, 10, 10)',
-      'let b = cad.sphere({ radius: 3 })',
-      'a.keep()',
       'let asm = cad.assembly({ members: [a, b] })',
       'let d = cad.union(a)',
     ].join('\n')
     const r = await run(code, 'error')
     expect(r.error).toBeUndefined()
+    expect(r.violations).toHaveLength(0)
+  })
+
+  it('派生型但产出几何的 op 照样消费（drill：输出是 shape → R5 命中）', async () => {
+    const code = [
+      'let a = cad.box(10, 10, 10)',
+      'let d0 = cad.drill(a)',
+      'let d = cad.union(a)',
+    ].join('\n')
+    const r = await run(code, 'error')
+    expect(r.error!.code).toBe('E_USE_AFTER_CONSUME')
+    expect(r.error!.line).toBe(3)
   })
 
   it('R2：无赋值裸调用不消费（保留 = 已有语义）', async () => {

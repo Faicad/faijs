@@ -133,12 +133,13 @@ if (asJson) {
   console.log(JSON.stringify({
     files: fileCount,
     rule: 'lineConsumes（唯一口径，无 op 白名单）',
-    violations: all,
+    staticCandidates: all,
     skipped,
   }, null, 2))
 } else {
   console.log(`scanned ${fileCount} file(s)  rule=lineConsumes（唯一口径）`)
-  console.log(`violations: ${all.length}`)
+  console.log(`static candidates: ${all.length}  —— R2/R3 要读 ctx 现值，离线判不了；`)
+  console.log('  运行期才是真值（本仓 2026-11-08 实测：55 份里只有 1 处真违规）')
   if (skipped.length > 0) console.log(`skipped (parse error): ${skipped.length}`)
   const byFile = new Map<string, Candidate[]>()
   for (const c of all) {
