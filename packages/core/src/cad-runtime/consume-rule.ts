@@ -45,6 +45,19 @@ export interface ConsumeRuleOptions {
   keep: KeepView
   /** warn 档收集回调（error 档不调用——直接抛 ParseError） */
   onViolation?: (v: ConsumeViolation) => void
+  /**
+   * R-C 释放回调：本单元消费了 `names`（当前世代）时调用，宿主在此释放派生缓存
+   * （`solidCache` / 拓扑 / 命名 / mesh 句柄）。**调用时机在本单元 `afterStatement`
+   * 钩子之后**（预览帧读的是"本语句执行后"的 ctx，先推帧再释放）。
+   *
+   * 顺序契约（§9.5）：宿主先 `releasePartCaches`（句柄所有权方），执行器随后删
+   * ctx 键；反序会把内核资源留在缓存里。
+   *
+   * **只在 `mode === 'error'` 时调用**（2026-11-08 实测：warn 档就释放会打死存量
+   * 脚本——`packages/core/test/cad-runtime` 36 个既有用例立即失败）。warn 是过渡
+   * 档：只报不释放，脚本行为不变；切 error 才是"规则生效 + 消费即释放"。
+   */
+  onConsumed?: (names: readonly string[]) => void
 }
 
 /** 变换后单元体里的 `__ctx.<name>` 引用（读 + 写都匹配）。 */

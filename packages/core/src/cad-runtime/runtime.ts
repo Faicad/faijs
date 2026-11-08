@@ -1143,6 +1143,10 @@ export class CadRuntime {
       onViolation: (v) => {
         this.consumeWarnings.push(describeViolation(v))
       },
+      // R-C 释放（§9.5）：句柄/派生缓存的所有权在 runtime，ctx 键由执行器随后删。
+      onConsumed: (names) => {
+        this.releasePartCaches(names.map((n) => asPartName(n)))
+      },
     }
   }
 

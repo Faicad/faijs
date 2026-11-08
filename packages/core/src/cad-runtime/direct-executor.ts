@@ -940,6 +940,7 @@ export class DirectExecutor {
     opts: DirectExecOpts | undefined,
   ): Promise<{ ok: boolean; failedAt: DirectExecFailedAt | undefined }> {
     opts?.beforeStatement?.(`s${unit.lineNo}`, unit.lineNo)
+    let consumed: string[] | undefined
     try {
       this.activeLine = unit.lineNo
       // R-B（消费规则 §9）：消费点之后再读 → 违规。必须在执行前查——本单元自己的
@@ -983,7 +984,7 @@ export class DirectExecutor {
       this.applyPendingAssemblyTransforms()
       // R-A（消费规则 §9）：登记本单元的消费点。必须在执行之后、写入落定之后——
       // 消费语句自己要读输入（执行期输入必须还在）。
-      this.markConsume(unit, opts)
+      consumed = this.markConsume(unit, opts)
     } catch (err) {
       if (err instanceof ParseError) throw err
       // DirectExecutor swallows ALL execution errors into failedAt
@@ -1014,6 +1015,9 @@ export class DirectExecutor {
     } catch (err) {
       console.error(`[faijs] afterStatement hook failed for s${unit.lineNo}`, err)
     }
+    // R-C（§9.5）：释放必须排在钩子之后——预览帧读的是"本语句执行后"的 ctx。
+    // 错误不吞（释放失败意味着句柄/缓存真出问题，按项目红线直接抛）。
+    this.releaseConsumed(consumed ?? [], opts)
     return { ok: true, failedAt: undefined }
   }
 
@@ -1061,36 +1065,60 @@ export class DirectExecutor {
   }
 
   /**
-   * R-A：单元执行后登记消费点（§9）。
+   * R-A：单元执行后登记消费点（§9），并返回**本单元消费掉的变量名**（供 R-C 释放）。
    *
    * 判定唯一真源是 `lineConsumes`（live-shapes.ts），这里只提供它的两个输入：
    * 候选几何名（ctx 现值结构判定）与 keep 视图。自赋值（`a = a.sub(b)`）里 a
    * 是被覆盖的写目标、b 才是被消费的输入——所以写者先开新世代、再跳过自身。
    * @param unit - 刚执行成功的单元
    * @param opts - 执行参数
+   * @returns 本单元消费（且需立刻释放）的变量名
    */
-  private markConsume(unit: TransformedUnit, opts: DirectExecOpts | undefined): void {
+  private markConsume(unit: TransformedUnit, opts: DirectExecOpts | undefined): string[] {
     const rule = opts?.consumeRule
-    if (!rule) return
+    if (!rule) return []
     const written = new Set(unit.writes)
     for (const w of unit.writes) this.consumeTracker.commitWrite(w, unit.lineNo)
     // 块 / 函数声明单元没有语句摘要（块内语句不在 meta.lines 里）：首版不判消费，
     // 与 live-shapes 对块的处理（词法级 blockConsumes）保持一致，见方案 §9.9。
     const line = rule.lines.find((l) => l.line === unit.lineNo)
-    if (!line) return
-    // 口径唯一（2026-11-08 用户规定）：lineConsumes 判真即消费，不看 op 语义。
-    // 装配成员 / sheet 派生 / 钻孔派生同样算消费；要保留输入，正确写法是 keep()。
+    if (!line) return []
+    // 口径唯一（2026-11-08 用户规定）：lineConsumes 判真即消费。R3 在其内部按
+    // "输出是否几何"结构判定——装配描述 / 板件 / 草图 / 测量结果不消费输入，
+    // 派生后仍产出几何的 op（fai_drill 等）照样消费。要保留输入只能 keep()。
     const reads = collectCtxReads(unit.body)
-    if (reads.size === 0) return
+    if (reads.size === 0) return []
     const shapeVars = this.geometryVarNames()
+    const consumed: string[] = []
     for (const name of reads) {
       if (written.has(name)) continue
       const pn = asPartName(name)
       if (!shapeVars.has(pn)) continue
       if (lineConsumes(line, pn, rule.keep, shapeVars)) {
         this.consumeTracker.markConsumed(name, unit.lineNo)
+        consumed.push(name)
       }
     }
+    return consumed
+  }
+
+  /**
+   * R-C：消费即释放（§9.5）。顺序固定——先让宿主释放派生缓存/句柄
+   * （`releasePartCaches`，句柄所有权方），再删本执行器的 ctx 值引用。
+   * 反序会把内核资源留在缓存里（与增量 stale 路径 L2887-2890 同一口径）。
+   * @param names - 本单元消费掉的变量名
+   * @param opts - 执行参数
+   */
+  private releaseConsumed(names: readonly string[], opts: DirectExecOpts | undefined): void {
+    const rule = opts?.consumeRule
+    if (!rule || names.length === 0) return
+    // 只有 error 档释放（warn = 过渡档，只报不释放；见 ConsumeRuleOptions.onConsumed）。
+    if (rule.mode !== 'error') return
+    // 只释放"仍是本变量当前世代"的：同一条语句把它写回去（自赋值）时不删新值。
+    const targets = names.filter((n) => this.consumeTracker.isConsumed(n))
+    if (targets.length === 0) return
+    rule.onConsumed?.(targets)
+    this.deleteCtxVars(targets)
   }
 
   /** 行号 → 函数体 keep 登记（exec.keep/exec.keepHidden；与 live-shapes KeepView 对齐）。 */

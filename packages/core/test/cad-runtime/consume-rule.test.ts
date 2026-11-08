@@ -37,6 +37,8 @@ const fakeCad = {
 
 interface RunResult {
   violations: Array<{ name: string; consumeLine: number; useLine: number }>
+  /** 每次 onConsumed 回调收到的名字（R-C 释放） */
+  released: string[][]
   error?: ParseError
   ctxKeys: string[]
 }
@@ -45,12 +47,13 @@ interface RunResult {
  * 用真实 DirectExecutor 跑一遍脚本（vm 后端 + 假 cad 命名空间）。
  * @param code - .fai.js 源码
  * @param mode - 规则档位；'off' 表示完全不传 consumeRule
- * @returns 违规列表 / 抛出的 ParseError / 结束时 ctx 键
+ * @returns 违规列表 / 释放回调 / 抛出的 ParseError / 结束时 ctx 键
  */
 async function run(code: string, mode: 'off' | 'warn' | 'error'): Promise<RunResult> {
   const meta = extractMetadata(code)
   const de = new DirectExecutor({ namespaces: { cad: fakeCad as never } })
   const violations: RunResult['violations'] = []
+  const released: string[][] = []
   const consumeRule =
     mode === 'off'
       ? undefined
@@ -64,12 +67,15 @@ async function run(code: string, mode: 'off' | 'warn' | 'error'): Promise<RunRes
           onViolation: (v: { name: string; consumeLine: number; useLine: number }) => {
             violations.push({ name: v.name, consumeLine: v.consumeLine, useLine: v.useLine })
           },
+          onConsumed: (names: readonly string[]) => {
+            released.push([...names])
+          },
         }
   try {
     const outcome = await de.execute(code, consumeRule ? { consumeRule } : {})
-    return { violations, ctxKeys: outcome.ctxKeys }
+    return { violations, released, ctxKeys: outcome.ctxKeys }
   } catch (err) {
-    return { violations, error: err as ParseError, ctxKeys: [] }
+    return { violations, released, error: err as ParseError, ctxKeys: [] }
   }
 }
 
@@ -190,6 +196,47 @@ describe('DirectExecutor + consumeRule', () => {
     ].join('\n')
     const r = await run(code, 'error')
     expect(r.error).toBeUndefined()
+  })
+
+  it('R-C 释放：error 档下被消费的变量当场从 ctx 消失', async () => {
+    const code = [
+      'let a = cad.box(10, 10, 10)',
+      'let b = cad.sphere({ radius: 3 })',
+      'let c = cad.subtract(a, b)',
+    ].join('\n')
+    const r = await run(code, 'error')
+    expect(r.error).toBeUndefined()
+    expect(r.released).toEqual([['a', 'b']])
+    expect(r.ctxKeys.sort()).toEqual(['c'])
+  })
+
+  it('R-C 释放：keep 过的件不进释放回调、ctx 里保留', async () => {
+    const code = [
+      'let a = cad.box(10, 10, 10)',
+      'let b = cad.sphere({ radius: 3 })',
+      'a.keep()',
+      'let c = cad.subtract(a, b)',
+    ].join('\n')
+    const r = await run(code, 'error')
+    expect(r.released).toEqual([['b']])
+    expect(r.ctxKeys.sort()).toEqual(['a', 'c'])
+  })
+
+  it('R-C 释放：off / warn 档不释放（warn 只报不破坏），error 档才释放', async () => {
+    const code = [
+      'let a = cad.box(10, 10, 10)',
+      'let b = cad.sphere({ radius: 3 })',
+      'let c = cad.subtract(a, b)',
+    ].join('\n')
+    const off = await run(code, 'off')
+    expect(off.released).toHaveLength(0)
+    expect(off.ctxKeys.sort()).toEqual(['a', 'b', 'c'])
+    const warn = await run(code, 'warn')
+    expect(warn.released).toHaveLength(0)
+    expect(warn.ctxKeys.sort()).toEqual(['a', 'b', 'c'])
+    const error = await run(code, 'error')
+    expect(error.released).toEqual([['a', 'b']])
+    expect(error.ctxKeys.sort()).toEqual(['c'])
   })
 
   it('装配成员不算消费：R3（输出非几何）——不是白名单，是既有判定', async () => {

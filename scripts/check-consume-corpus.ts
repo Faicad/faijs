@@ -139,7 +139,7 @@ if (asJson) {
 } else {
   console.log(`scanned ${fileCount} file(s)  rule=lineConsumes（唯一口径）`)
   console.log(`static candidates: ${all.length}  —— R2/R3 要读 ctx 现值，离线判不了；`)
-  console.log('  运行期才是真值（本仓 2026-11-08 实测：55 份里只有 1 处真违规）')
+  console.log('  运行期才是真值（装配/板件/草图/测量/SplitResult 在运行期都不算消费）')
   if (skipped.length > 0) console.log(`skipped (parse error): ${skipped.length}`)
   const byFile = new Map<string, Candidate[]>()
   for (const c of all) {
