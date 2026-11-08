@@ -59,7 +59,7 @@ const NAMED_VIEW_TO_AXIS: Readonly<Record<string, string>> = {
  * @returns FaceTopoRef 选中面的拓扑引用（origin/role 血统 + 几何 hint）。
  * @param of - 目标几何（BREP 实体所在的 Shape）。type:Shape required:true
  * @param selector - 轴向选择器或命名视图，如 '>Z' / '<X' / 'top'。type:string required:true
- * @note ⚠️ 这是 AI 生成脚本该用的面引用入口；`cad.faceRef(shape, N)` 的序号跨内核不可移植，勿用于生成脚本。
+ * @note ⚠️ 这是 AI 生成脚本该用的面引用入口；序号式 faceRef 引用跨内核不可移植，勿用于生成脚本。
  * @note 定不了案（无 BREP / 无 role 血统 / 语法不支持 / 无可用质心）一律抛 `TopoRefError`，不静默退化。
  * @example
  * const base = cad.faceBySelector(part0, '>Z')

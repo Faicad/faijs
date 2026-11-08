@@ -8,12 +8,13 @@ import {
 import type { ScrewSpec, ScrewSystem } from '../../../src/primitives/screw/screw-db'
 
 describe('getScrewSpecs', () => {
-  it('returns the metric spec list (13 entries) for metric', () => {
+  it('returns the metric spec list (19 entries, M2–M64) for metric', () => {
     const specs = getScrewSpecs('metric')
-    expect(specs.length).toBe(13)
+    expect(specs.length).toBe(19)
     expect(specs[0]).toMatchObject({ dia: 2.0, label: 'M2' })
     expect(specs[4]).toMatchObject({ dia: 5.0, label: 'M5' })
-    expect(specs[specs.length - 1]).toMatchObject({ label: 'M24' })
+    expect(specs[12]).toMatchObject({ dia: 24.0, label: 'M24' })
+    expect(specs[specs.length - 1]).toMatchObject({ label: 'M64' })
   })
 
   it('returns the imperial spec list (13 entries) for imperial', () => {

@@ -40,6 +40,14 @@ import { createApiNamespaceWithEditorOps } from '../../support/editor-ops'
 import { hostPorts } from '../../support/host-env'
 import type { PmiItem, PmiNote, PmiThreadHole } from '../../../src/api/pmi/types'
 import type { Shape } from '../../../src/mesh/types'
+import {
+  mirrorAffine,
+  composeAffine,
+  affineApplyPoint,
+  affineApplyDirection,
+  remapPmiItem,
+  PMI_AFFINE_IDENTITY,
+} from '../../../src/api/pmi/affine'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -250,5 +258,112 @@ let part1 = cad.translate(part0, { offset: [100, 0, 0] })
     const vb = out.viewBox.split(/\s+/).map(Number)
     // 零件 x∈[100,140]，viewBox 必须落在这附近（若标注留在 x=20，minX 会被拉到个位数）
     expect(vb[0]).toBeGreaterThan(90)
+  })
+})
+
+// ── #15 mirror（det=−1）——探针先行（实施首步先写 affine 探针测试，见 plan §4-5）──
+
+describe('PmiAffine det=−1 探针（mirrorAffine 的矩阵性质）', () => {
+  it('x=0 平面反射：det=−1，点按平面反射，方向反射后仍归一化', () => {
+    const m = mirrorAffine([1, 0, 0])
+    // det(R)：镜像翻转手性
+    const det = m[0]! * (m[5]! * m[10]! - m[6]! * m[9]!)
+      - m[1]! * (m[4]! * m[10]! - m[6]! * m[8]!)
+      + m[2]! * (m[4]! * m[9]! - m[5]! * m[8]!)
+    expect(det).toBeCloseTo(-1, 9)
+    expect(affineApplyPoint(m, [5, 1, 2])).toEqual([-5, 1, 2])
+    // GOTCHA: 方向断言必须走 expectVec（归一化 `+0`）——反射矩阵的零元素是
+    // −0（−2·n_i·n_j 的乘积），vitest 的 toEqual 按 Object.is 区分 ±0，
+    // 直接 toEqual 会因 `[-1, -0, -0] !== [-1, 0, 0]` 假失败。
+    expectVec(affineApplyDirection(m, [1, 0, 0]), [-1, 0, 0])
+    expectVec(affineApplyDirection(m, [0, 1, 0]), [0, 1, 0])
+  })
+
+  it('带 at 的平面（x=3）：p=5 → 1（at − R·at 折进平移）', () => {
+    const m = mirrorAffine([1, 0, 0], [3, 0, 0])
+    expect(affineApplyPoint(m, [5, 0, 0])).toEqual([1, 0, 0])
+    // 平面上的点不动
+    expect(affineApplyPoint(m, [3, 7, -2])).toEqual([3, 7, -2])
+  })
+
+  it('反射是就对合：composeAffine(m, m) === I（det=−1 的合成不炸）', () => {
+    const m = mirrorAffine([2, 0, 0], [1, 1, 1]) // 非单位法向（内部归一化）
+    const twice = composeAffine(m, m)
+    for (let i = 0; i < 12; i += 1) {
+      expect(twice[i]).toBeCloseTo(PMI_AFFINE_IDENTITY[i], 9)
+    }
+  })
+
+  it('remapPmiItem 在 det=−1 下搬 threadHole 轴（origin 反射、方向反射）', () => {
+    const m = mirrorAffine([1, 0, 0])
+    const item: PmiItem = {
+      kind: 'threadHole',
+      thread: {
+        standard: 'metric', nominalDiameter: 6, pitch: 1, depth: 10, specLabel: 'M6',
+      },
+      pilot: { diameter: 5, depth: 10 },
+      axis: { origin: [30, 20, 10], direction: [0, 0, -1] },
+      process: 'tapped',
+    }
+    const remapped = remapPmiItem(item, m) as PmiThreadHole
+    expect(remapped.axis.origin).toEqual([-30, 20, 10])
+    expect(remapped.axis.direction).toEqual([0, 0, -1])
+  })
+
+  it('零法向 → 抛错（finalizePmi 捕获后不登记，不中断建模）', () => {
+    expect(() => mirrorAffine([0, 0, 0])).toThrow(/non-zero/)
+  })
+})
+
+describe('mirror — det=−1 镜像补偿（#15）', () => {
+  it('note.anchor 随镜像平面反射，与真实几何对账', async () => {
+    const r = await exec(`
+let part0 = cad.box(40, 40, 20)
+${NOTE_AT_CENTER}
+let part1 = cad.mirror(part0, { normal: [1, 0, 0], at: [10, 0, 0] })
+`)
+    expect(r.failedAt).toBeUndefined()
+    // box 中心 [20,20,10] 跨 x=10 镜像 → [0,20,10]
+    expectVec(bboxCenter(r.outputs.get('part1' as never) as unknown as Shape), [0, 20, 10])
+    expectVec(noteAnchor(pmiOfPart(r, 'part1')), [0, 20, 10])
+    // 数据零改动：原零件标注留在原位
+    expectVec(noteAnchor(pmiOfPart(r, 'part0')), [20, 20, 10])
+  })
+
+  it('缺省镜像面（x=0，无 options 对象）：补偿也要登记（lastParamsOf ?? {} 回退）', async () => {
+    const r = await exec(`
+let part0 = cad.box(40, 40, 20)
+${NOTE_AT_CENTER}
+let part1 = cad.mirror(part0)
+`)
+    expect(r.failedAt).toBeUndefined()
+    expectVec(bboxCenter(r.outputs.get('part1' as never) as unknown as Shape), [-20, 20, 10])
+    expectVec(noteAnchor(pmiOfPart(r, 'part1')), [-20, 20, 10])
+  })
+
+  it('螺纹孔 axis（origin + direction）随镜像反射', async () => {
+    const r = await exec(`
+let part0 = cad.box(60, 40, 10)
+part0 = cad.fai_drill(part0, { position: [30, 20, 10], direction: 'z', holeType: 'tapped', screwSpecIdx: 5, depth: 16, threadDepth: 14 })
+let part1 = cad.mirror(part0, { normal: [1, 0, 0] })
+`)
+    expect(r.failedAt).toBeUndefined()
+    const axis = holeAxis(pmiOfPart(r, 'part1'))
+    expectVec(axis?.origin, [-30, 20, 10])
+    // 孔轴 (0,0,-1) 跨 x=0 镜像：z 分量不受影响
+    expectVec(axis?.direction, [0, 0, -1])
+  })
+
+  it('镜像 ∘ 平移链式累积（composeAffine 跨 det=±1）', async () => {
+    const r = await exec(`
+let part0 = cad.box(40, 40, 20)
+${NOTE_AT_CENTER}
+let part1 = cad.translate(part0, { offset: [10, 0, 0] })
+let part2 = cad.mirror(part1, { normal: [1, 0, 0] })
+`)
+    expect(r.failedAt).toBeUndefined()
+    // [20,20,10] --+10--> [30,20,10] --镜像 x=0--> [-30,20,10]
+    expectVec(noteAnchor(pmiOfPart(r, 'part2')), [-30, 20, 10])
+    expectVec(bboxCenter(r.outputs.get('part2' as never) as unknown as Shape), [-30, 20, 10])
   })
 })

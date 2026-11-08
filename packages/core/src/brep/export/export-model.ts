@@ -28,6 +28,7 @@ import { detectStepUnit, STEP_UNIT_SCAN_PREFIX } from '../../mesh/io'
 import type { PbrAppearance } from '../../api/appearance'
 import type { ShapeMeta, FileMeta } from '../../api/meta'
 import type { PmiSet } from '../../api/pmi/types'
+import { serializePmiFor3mf } from '../../mesh/threemf-pmi'
 
 /** 导出条目：一个 part 的几何来源。精确 BREP 与三角网格二选一，solid 优先。 */
 export interface ExportEntry {
@@ -446,10 +447,11 @@ function build3mfModelXml(entries: ExportEntry[], unit: UnitName, scale: number,
     }
     const metadatagroup = metadatas.length > 0 ? `<metadatagroup>${metadatas.join('')}</metadatagroup>` : ''
     // PMI 元数据（方案 2026-10-31-faijs-pmi-design.md §8.1）：3MF 不支持 PMI 实体，
-    // 通过 <metadatagroup> 传递 PmiSet 的 JSON 序列化。preserve="1" 确保下游工具保留。
-    const pmiMetadata = e.pmi && e.pmi.items.length > 0
-      ? `<metadatagroup><metadata name="faijs:pmi" preserve="1">${xmlAttr(JSON.stringify(e.pmi))}</metadata></metadatagroup>`
-      : ''
+    // 通过 <metadatagroup> 传递 PmiSet 的 JSON 序列化。序列化单一真源在
+    // mesh/threemf-pmi.ts（serializePmiFor3mf，键名/转义与导入侧
+    // parsePmiFrom3mfMetadata 同源）——此处禁止手写 XML（防双源漂移）。
+    const pmiSerialized = serializePmiFor3mf(e.pmi)
+    const pmiMetadata = pmiSerialized !== '' ? `<metadatagroup>${pmiSerialized}</metadatagroup>` : ''
     const nameAttr = xmlAttr(e.name ?? `part${id}`)
     objs.push(`<object id="${id}" type="model" name="${nameAttr}"${partnumberAttr}${pidAttr}>${metadatagroup}${pmiMetadata}${meshXml}${compXml}</object>`)
     return id

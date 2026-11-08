@@ -37,8 +37,10 @@
  * 语句的变换就不会被登记，其上游的裸坐标标注不会跟着走。新增这类 op 时要么把
  * 位移折进自己的 `pmiRemap`，要么直接调 L1。
  *
- * `mirror` / `mirrorJoin` 尚未支持：它们在生成文件 `api/generated/topology.ts`
- * 里（禁手改），补 `pmiRemap` 需要先改生成源 `api/surface/arg-spec.ts`。
+ * `mirror` 已支持（#15，plan 2026-11-07）：手写 override（`api/replicate.ts`，
+ * 非生成文件）经 `pmiRemap` 登记 `mirrorAffine`（det=−1，见下）。`mirrorJoin`
+ * **不**登记——它的原物（replica[0]）坐标系未动，登记反而会把原物的标注搬走；
+ * 镜像副本的标注复制是另一个机制（标注复制，不是坐标补偿）。
  *
  * ## 布局
  *
@@ -174,6 +176,43 @@ export function scalingAffine(factor: V3, center?: V3): PmiAffine {
     0, factor[1], 0, c[1] - factor[1] * c[1],
     0, 0, factor[2], c[2] - factor[2] * c[2],
   ]
+}
+
+/**
+ * 镜像矩阵（det=−1）：跨过点 `at`、法向 `normal` 的平面反射。
+ *
+ * `R = I − 2·n·nᵀ`（`n` 单位化），`t = at − R·at`，即 `p' = at + R·(p − at)`。
+ * 反射翻转手性（det=−1），但本模块只搬点/方向——`affineApplyDirection` 变换后
+ * 归一化，反射后的孔轴方向天然正确；`remapPmiItem` 不区分手性。
+ *
+ * 与几何路径同一缺省：`mirrorBrep` / mesh 路径的 mirror 默认 normal [1,0,0]、
+ * at 原点。零法向 → 抛错（`finalizePmi` 捕获后静默不登记——纯显示问题不中断建模）。
+ *
+ * @param normal - mirror plane normal (normalized internally; zero → throws).
+ * @param at - a point on the mirror plane (default origin).
+ * @returns the affine matrix (det(R) = −1).
+ */
+export function mirrorAffine(normal: V3, at: V3 = [0, 0, 0]): PmiAffine {
+  const len = Math.hypot(normal[0], normal[1], normal[2])
+  if (len < 1e-9) throw new Error('[mirrorAffine] mirror plane normal must be non-zero')
+  const nx = normal[0] / len
+  const ny = normal[1] / len
+  const nz = normal[2] / len
+  // R = I − 2nnᵀ
+  const r00 = 1 - 2 * nx * nx
+  const r01 = -2 * nx * ny
+  const r02 = -2 * nx * nz
+  const r10 = -2 * ny * nx
+  const r11 = 1 - 2 * ny * ny
+  const r12 = -2 * ny * nz
+  const r20 = -2 * nz * nx
+  const r21 = -2 * nz * ny
+  const r22 = 1 - 2 * nz * nz
+  // t = at − R·at（把平面上的不动点折进平移）
+  const tx = at[0] - (r00 * at[0] + r01 * at[1] + r02 * at[2])
+  const ty = at[1] - (r10 * at[0] + r11 * at[1] + r12 * at[2])
+  const tz = at[2] - (r20 * at[0] + r21 * at[1] + r22 * at[2])
+  return [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz]
 }
 
 /**

@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { shapesDimSpec, constraintsDimSpec, contoursDimSpec } from '../../src/sketch/dim-spec'
 import { LENGTH, AREA, VOLUME } from '../../src/units'
-import type { DimSpec } from '../../src/sketch/dim-spec'
+import type { DimSpec } from '../../src/units'
 
 /** 在 spec 树里按键下行：object → fields[key]；tagged → cases[key]；array → 透传键给 item。 */
 function leafAt(spec: DimSpec, ...keys: string[]): DimSpec {

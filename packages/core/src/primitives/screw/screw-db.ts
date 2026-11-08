@@ -114,7 +114,7 @@ export const SCREW_HEAD_DIMS = {
   },
 } as const
 
-/** Metric screw specifications (M2–M24) */
+/** Metric screw specifications (M2–M64; coarse/fine per ISO 261/ISO 262) */
 const METRIC_SPECS: ScrewSpec[] = [
   { dia: 2.0,   coarse: 0.40, fine: 0.25, label: 'M2' },
   { dia: 2.5,   coarse: 0.45, fine: 0.35, label: 'M2.5' },
@@ -129,6 +129,12 @@ const METRIC_SPECS: ScrewSpec[] = [
   { dia: 16.0,  coarse: 2.00, fine: 1.50, label: 'M16' },
   { dia: 20.0,  coarse: 2.50, fine: 2.00, label: 'M20' },
   { dia: 24.0,  coarse: 3.00, fine: 2.00, label: 'M24' },
+  { dia: 30.0,  coarse: 3.50, fine: 2.00, label: 'M30' },
+  { dia: 36.0,  coarse: 4.00, fine: 3.00, label: 'M36' },
+  { dia: 42.0,  coarse: 4.50, fine: 3.00, label: 'M42' },
+  { dia: 48.0,  coarse: 5.00, fine: 3.00, label: 'M48' },
+  { dia: 56.0,  coarse: 5.50, fine: 4.00, label: 'M56' },
+  { dia: 64.0,  coarse: 6.00, fine: 4.00, label: 'M64' },
 ]
 
 /** Imperial screw specifications (#4–1") */

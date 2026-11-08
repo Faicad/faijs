@@ -142,7 +142,7 @@ export function pmiItems(
  * @param shape - the shape to query. type:Shape required:true
  * @param ref - the topology reference (face/edge/vertex). type:TopoRef required:true
  * @example
- * const annos = cad.pmiOn(part0, cad.faceRef(part0, 3))
+ * const annos = cad.pmiOn(part0, cad.faceBySelector(part0, '>Z'))
  */
 export function pmiOn(shape: Shape, ref: TopoRef): PmiItem[] {
   return itemsOf(shape).filter((item) => {

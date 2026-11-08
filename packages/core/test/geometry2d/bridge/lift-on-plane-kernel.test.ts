@@ -9,15 +9,22 @@
  * makeBSplineEdge/makeCircleEdge/curveSplit/curveParameters/makeWire）全部被误判
  * "未覆盖"。本文件把 stub kernel **内联**写在调用点：既钉住 bspline / trimmed-
  * spline 两条真实路径的提升数学，也让扫描看得见每个内核原语。
+ *
+ * `BrepHandle` 是品牌化 number（`number & {readonly [brand]: never}`）——stub 返回
+ * 值一律经 `h()` 打上品牌，与 `score.test.ts` 的 `1 as BrepHandle` 同款。
  */
 import { describe, expect, it } from 'vitest'
 import { makePlane, type Vec3 } from '../../../src/geometry2d/bridge/plane'
 import { curvesAsEdgesOnPlane, liftCurve2dToPlane } from '../../../src/geometry2d/bridge/lift-on-plane'
 import { makeBSpline2d, makeBezier2d, trimCurve } from '../../../src/geometry2d/curve2d'
+import type { BrepHandle } from '../../../src/brep/engine/types'
 
 /** 三次均匀 B 样条的标准节点向量（4 poles, degree 3）。 */
 const KNOTS = [0, 0, 0, 0, 1, 1, 1, 1]
 const MULTIPLICITIES = [4, 4]
+
+/** stub 句柄：品牌化 number。 */
+const h = (n: number): BrepHandle => n as BrepHandle
 
 describe('liftCurve2dToPlane：字面量 kernel 调用点（L2）', () => {
   it('bspline 提升走 makeBSplineEdge（坐标已升到平面 z）', () => {
@@ -29,17 +36,17 @@ describe('liftCurve2dToPlane：字面量 kernel 调用点（L2）', () => {
     )
     const edges = liftCurve2dToPlane(
       {
-        makeLineEdge: () => ({ kind: 'line' }),
-        makeArcEdge: () => ({ kind: 'arc' }),
-        makeBezierEdge: () => ({ kind: 'bezier' }),
+        makeLineEdge: () => h(1),
+        makeArcEdge: () => h(2),
+        makeBezierEdge: () => h(3),
         makeBSplineEdge: (poles: number[], _w: number[], knots: number[], mults: number[], degree: number) => {
           calls.push({ poles, knots, mults, degree })
-          return { kind: 'bspline' }
+          return h(4)
         },
-        makeCircleEdge: () => ({ kind: 'circle' }),
-        curveSplit: () => [{ kind: 'e' }, { kind: 'e' }],
+        makeCircleEdge: () => h(5),
+        curveSplit: (): [BrepHandle, BrepHandle] => [h(6), h(7)],
         curveParameters: () => ({ first: 0, last: 1 }),
-        makeWire: (es: unknown[]) => ({ kind: 'wire', count: es.length }),
+        makeWire: (es: BrepHandle[]) => h(es.length),
       },
       plane,
       bs,
@@ -61,22 +68,22 @@ describe('liftCurve2dToPlane：字面量 kernel 调用点（L2）', () => {
     const trimmed = trimCurve(bs, 0.25, 0.75)
     const edges = liftCurve2dToPlane(
       {
-        makeLineEdge: () => ({ kind: 'line' }),
-        makeArcEdge: () => ({ kind: 'arc' }),
-        makeBezierEdge: () => ({ kind: 'bezier' }),
-        makeBSplineEdge: () => ({ kind: 'bspline' }),
-        makeCircleEdge: () => ({ kind: 'circle' }),
+        makeLineEdge: () => h(1),
+        makeArcEdge: () => h(2),
+        makeBezierEdge: () => h(3),
+        makeBSplineEdge: () => h(4),
+        makeCircleEdge: () => h(5),
         curveParameters: () => {
           const p = { first: 0, last: 1 }
           params.push(p)
           return p
         },
-        curveSplit: (_e: unknown, t: number) => {
+        curveSplit: (_e: BrepHandle, t: number): [BrepHandle, BrepHandle] => {
           splits.push(t)
           splitCount += 1
-          return [{ kind: 'e-before' }, { kind: 'e-after' }] as const
+          return [h(8), h(9)]
         },
-        makeWire: (es: unknown[]) => ({ kind: 'wire', count: es.length }),
+        makeWire: (es: BrepHandle[]) => h(es.length),
       },
       plane,
       trimmed,
@@ -93,17 +100,17 @@ describe('liftCurve2dToPlane：字面量 kernel 调用点（L2）', () => {
     const plane = makePlane({ x: 0, y: 0, z: -2 }, { x: 0, y: 0, z: 1 }, { x: 1, y: 0, z: 0 })
     const edges = liftCurve2dToPlane(
       {
-        makeLineEdge: () => ({ kind: 'line' }),
-        makeArcEdge: () => ({ kind: 'arc' }),
+        makeLineEdge: () => h(1),
+        makeArcEdge: () => h(2),
         makeBezierEdge: (pts: Vec3[]) => {
           beziers.push(pts)
-          return { kind: 'bezier' }
+          return h(3)
         },
-        makeBSplineEdge: () => ({ kind: 'bspline' }),
-        makeCircleEdge: () => ({ kind: 'circle' }),
-        curveSplit: () => [{ kind: 'e' }, { kind: 'e' }],
+        makeBSplineEdge: () => h(4),
+        makeCircleEdge: () => h(5),
+        curveSplit: (): [BrepHandle, BrepHandle] => [h(6), h(7)],
         curveParameters: () => ({ first: 0, last: 1 }),
-        makeWire: (es: unknown[]) => ({ kind: 'wire', count: es.length }),
+        makeWire: (es: BrepHandle[]) => h(es.length),
       },
       plane,
       makeBezier2d([[0, 0], [5, 10], [15, 10], [20, 0]]),
@@ -121,23 +128,23 @@ describe('liftCurve2dToPlane：字面量 kernel 调用点（L2）', () => {
       {
         makeLineEdge: () => {
           kinds.push('line')
-          return { kind: 'line' }
+          return h(1)
         },
         makeArcEdge: () => {
           kinds.push('arc')
-          return { kind: 'arc' }
+          return h(2)
         },
-        makeBezierEdge: () => ({ kind: 'bezier' }),
-        makeBSplineEdge: () => ({ kind: 'bspline' }),
+        makeBezierEdge: () => h(3),
+        makeBSplineEdge: () => h(4),
         makeCircleEdge: () => {
           kinds.push('circle')
-          return { kind: 'circle' }
+          return h(5)
         },
-        curveSplit: () => [{ kind: 'e' }, { kind: 'e' }],
+        curveSplit: (): [BrepHandle, BrepHandle] => [h(6), h(7)],
         curveParameters: () => ({ first: 0, last: 1 }),
-        makeWire: (es: unknown[]) => {
+        makeWire: (es: BrepHandle[]) => {
           wires.push(es.length)
-          return { kind: 'wire' }
+          return h(es.length)
         },
       },
       plane,

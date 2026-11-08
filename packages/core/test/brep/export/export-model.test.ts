@@ -15,6 +15,8 @@ import type { CompoundShape } from '../../../src/shape'
 import { exportTreeOf } from '../../../src/api/internal/export-members'
 import { exportStl } from '../../../src/api/export-stl'
 import { export3mf } from '../../../src/api/export-3mf'
+import { pmiOf } from '../../../src/api/pmi/registry'
+import { threadHole, type PmiSet, type PmiThreadHole } from '../../../src/api/pmi/types'
 import { configureHost } from '../../support/host-env'
 
 /** Two-triangle quad spanning [0, size] on X/Y (z=0), base-unit coordinates. */
@@ -450,5 +452,104 @@ describe('3MF 装配往返（方案 D1 / 第 5 步导入归一）', () => {
     expect((root.children[0] as Shape).transform).toEqual({
       matrix: [0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 7],
     })
+  })
+})
+
+describe('3MF PMI 往返（faijs:pmi 元数据；修复 #10 单一真源 / #11 导入接线）', () => {
+  const decode3mf = (buf: ArrayBuffer): string =>
+    new TextDecoder().decode(readZipEntries(new Uint8Array(buf)).get('3D/3dmodel.model')!)
+
+  const xmlUnescape = (s: string): string =>
+    s
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&')
+
+  /** M16-6H 攻丝底孔 PMI（与 fai_drill tapped 产出同构的最小样本）。 */
+  const pmiSet: PmiSet = {
+    items: [
+      threadHole({
+        thread: {
+          standard: 'metric',
+          nominalDiameter: 16,
+          pitch: 2,
+          toleranceClass: '6H',
+          depth: 18,
+          specLabel: 'M16',
+        },
+        pilot: { diameter: 14, depth: 20 },
+        axis: { origin: [0, 0, 0], direction: [0, 0, -1] },
+        process: 'tapped',
+      }),
+    ],
+    meta: { source: 'faijs' },
+  }
+
+  const pmiEntry = (): ExportEntry => ({
+    name: 'part',
+    mesh: {
+      positions: new Float32Array([0, 0, 0, 10, 0, 0, 10, 10, 0, 0, 0, 0, 10, 10, 0, 0, 10, 0]),
+      indices: new Uint32Array([0, 1, 2, 3, 4, 5]),
+    },
+    pmi: pmiSet,
+  })
+
+  it('#10 导出侧单一真源：faijs:pmi 恰出现一次、preserve="1"，XML 反转义后 JSON 与原 PmiSet 深相等', () => {
+    const xml = decode3mf(exportModelSync([pmiEntry()], '3mf') as ArrayBuffer)
+    expect(xml.match(/faijs:pmi/g)).toHaveLength(1)
+    const m = /<metadata name="faijs:pmi" preserve="1">([\s\S]*?)<\/metadata>/.exec(xml)
+    expect(m).not.toBeNull()
+    expect(JSON.parse(xmlUnescape(m![1]!))).toEqual(pmiSet)
+  })
+
+  it('#11 导入侧接线：importFile 还原 Shape.pmi，threadHole 全字段经 pmiOf 字段回退可读', async () => {
+    const buf = exportModelSync([pmiEntry()], '3mf') as ArrayBuffer
+    const imported = await importFile(buf, '3mf')
+    const pmi = pmiOf(imported.shape)
+    expect(pmi).toBeDefined()
+    expect(pmi!.items).toHaveLength(1)
+    const th = pmi!.items[0] as PmiThreadHole
+    expect(th.kind).toBe('threadHole')
+    expect(th.thread.standard).toBe('metric')
+    expect(th.thread.nominalDiameter).toBe(16)
+    expect(th.thread.pitch).toBe(2)
+    expect(th.thread.toleranceClass).toBe('6H')
+    expect(th.thread.depth).toBe(18)
+    expect(th.thread.specLabel).toBe('M16')
+    expect(th.pilot.diameter).toBe(14)
+    expect(th.pilot.depth).toBe(20)
+    expect(th.process).toBe('tapped')
+    expect(pmi!.meta?.source).toBe('faijs')
+  })
+
+  it('不泄漏：faijs:pmi 被提升为 PmiSet，不进导入 Shape 的 meta.metadata 通用表（防再导出双写）', async () => {
+    const buf = exportModelSync([pmiEntry()], '3mf') as ArrayBuffer
+    const imported = await importFile(buf, '3mf')
+    expect((imported.shape as { pmi?: PmiSet }).pmi).toBeDefined()
+    expect((imported.shape as Shape).meta?.metadata?.['faijs:pmi']).toBeUndefined()
+  })
+
+  it('无 PMI 条目：不写 faijs:pmi 元数据', () => {
+    const xml = decode3mf(exportModelSync([quadEntry(10)], '3mf') as ArrayBuffer)
+    expect(xml).not.toContain('faijs:pmi')
+  })
+
+  it('非法 faijs:pmi JSON（宽容失败）：导入不抛，Shape 无 pmi 字段', async () => {
+    // 手工构一个带损坏 faijs:pmi 元数据的 3MF：先正常导出，再把元数据文本替换成非法 JSON。
+    const buf = exportModelSync([pmiEntry()], '3mf') as ArrayBuffer
+    const entries = readZipEntries(new Uint8Array(buf))
+    const model = entries.get('3D/3dmodel.model')!
+    const corrupted = new TextDecoder().decode(model).replace(
+      /(<metadata name="faijs:pmi" preserve="1">)[\s\S]*?(<\/metadata>)/,
+      '$1not-json{$2',
+    )
+    const rebuilt = new Map(entries)
+    rebuilt.set('3D/3dmodel.model', new TextEncoder().encode(corrupted))
+    const { writeZipEntries } = await import('../../../src/io/zip')
+    const bytes = writeZipEntries(Object.fromEntries(rebuilt))
+    const imported = await importFile(bytes.buffer as ArrayBuffer, '3mf')
+    expect((imported.shape as { pmi?: PmiSet }).pmi).toBeUndefined()
   })
 })

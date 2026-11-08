@@ -18,13 +18,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { HostPorts } from '../../src/cad-runtime/ports'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerSmlibBrepEngine } from '../../src/brep/engine/adapters/smlib'
 import { initSmlibWasm, type SmlibKernel } from '../../src/smlib-kernel/smlibWasm'
 import { createEditorRuntime } from '../support/editor-ops'
 
-const PIKACHU_PATH = 'C:\\my\\Faicad\\3d_editor\\docs\\examples\\pikachu-1.fai.js'
+const PIKACHU_PATH = fileURLToPath(new URL('../../../fixtures/data/pikachu-1.fai.js', import.meta.url))
 const PIKACHU_CODE = readFileSync(PIKACHU_PATH, 'utf8')
 
 /** REPRO_LEAK=1 才跑重循环；否则 skip。单轮冒烟始终跑（验证脚本能执行）。 */

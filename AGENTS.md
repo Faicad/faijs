@@ -6,7 +6,7 @@
 2. **分析 bug 不准钻牛角尖。** 遇到难解 bug，必须先给出**全局清单**（总共哪些点可能挂死/出错、各自条件），先报全局再谈单点；不准几个小时死盯一个点、被问「有哪些死锁」却回答不出来。单点长时间无解就上浮问题、如实告知，而不是无限深挖。
 3. **如实汇报一切。** 未解决的 bug 永远不写成「已解决 / implemented」；用户叫停 / 禁跑后立即停手，不在未授权下继续跑任务。
 
-Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。
+Faicad CAD 执行引擎：faijs 语言 parser + BREP 几何链 + CadRuntime。**仅 BREP 执行链受支持与维护（2026-11-07 起）；mesh 执行链冻结、不再维护。**
 
 **monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包；`packages/demo` 例外——独立化后经 workspace 依赖消费各包 `dist/`，见下）。
 
@@ -75,10 +75,10 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径，按模块具名导出，**无任何聚合门面**）、`boolean/`、`primitives/`、`sdf/`、`topology/`、`sketch/`（planegcs 草图求解）、`extra/`（编辑器 op：`fai_drill`/`fai_extrude`/`fai_split`/`group`/`assembly`/`copy`/`load`/`text`/`svgExtrude`）；**L3 API 库面在 `api/`（core 内）——库函数经 `@faicad/faijs/api` 导入，`cad` 命名空间经 `createRuntime` 内置注入（保留绑定，不可被宿主修改）**。
 - **L2 编排** `cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`node-host/`（fs）+ `browser-host/`（worker）。
-- **双链路执行**：每个 op 必支持 mesh（默认路径），可选支持 brep——库函数经 `defineOp` 声明实现集（`@faicad/faijs/sdk`），`cad-runtime/backend-dispatch.ts` 按静态规则分派，无运行时回退；BREP 链状态在 `brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
-- **op 三分类**：① faijs 特有 dual-op（`defineOp({mesh, brep})`，如 `box`/`union`/`knurl`，mesh+brep 双实现）；② compat op（`compatOp(fn, spec)`，brep-only，如 `fuse`/`cut`/`extrude`——从早期 brepjs 投影（已内化为第一方代码），mesh 模式抛 `E_MESH_UNSUPPORTED`）；③ TS 兼容面纯投影（re-export，非 op——`Sketcher`/`Blueprint`/`draw` DSL、`ok`/`err`/`isErr` 组合子、子形状查询 `getFaces`/`getEdges`）。`compatOp` 和 `admitCompatLib` 的底层封装见 `docs/api-contract.md` § 7.7–7.8。
+- **双链路执行（仅 BREP 受支持）**：库函数经 `defineOp` 声明实现集（`@faicad/faijs/sdk`），`cad-runtime/backend-dispatch.ts` 按静态规则分派，无运行时回退；BREP 链状态在 `brep/brep-chain.ts`。**2026-11-07 起，仅 BREP 链受支持与维护**：新 op、新能力、缺陷修复、新测试一律只落 BREP 实现；mesh 实现为冻结遗留面——不新增能力、不修复缺陷（已知缺陷只登记不修）、不写新测试，既有 mesh 测试文件仅作冻结基线（不红即可）。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
+- **op 三分类**：① faijs 特有 dual-op（`defineOp({mesh, brep})`，如 `box`/`union`/`knurl`——存量双实现仍在运行，但 mesh 实现冻结，改动只落 brep 实现）；② compat op（`compatOp(fn, spec)`，brep-only，如 `fuse`/`cut`/`extrude`——从早期 brepjs 投影（已内化为第一方代码），mesh 模式抛 `E_MESH_UNSUPPORTED`）；③ TS 兼容面纯投影（re-export，非 op——`Sketcher`/`Blueprint`/`draw` DSL、`ok`/`err`/`isErr` 组合子、子形状查询 `getFaces`/`getEdges`）。`compatOp` 和 `admitCompatLib` 的底层封装见 `docs/api-contract.md` § 7.7–7.8。
 - **错误体系 = Result 原生**：对外 API 全面采用 `Result`/`BrepError` 体系（`ok`/`err`/`isOk`/`isErr`/`map`/`andThen`/`unwrap`）。TS 兼容面 Result 原样返回；cad 脚本面语句边界自动 unwrap（err → `ExecutionResult.failedAt`，存量 `.fai.js` 零修改）；库边界面经 `compatOp` 边界 unwrap。
-- **引擎定位（与 brepjs 项目不同）**：faijs 的引擎切换和 brepjs 项目不同。在 brepjs 项目中，occt 和 manifold 都是实现相同接口的引擎，mesh 的用途是预览。本项目中则明确区分 mesh 引擎与 brep 引擎，且 mesh 是正式数据，不是预览，定位完全不同——比如 sdf 模型，只能以 mesh 表示。至于 UI 层预览，完全可以采用更轻量级的方式实现（如幽灵渲染/叠加层），不应依赖"先用 mesh 拆解重建几何来充当预览"。
+- **引擎定位（与 brepjs 项目不同）**：faijs 明确区分 mesh 引擎与 brep 引擎——mesh 是正式数据、不是预览（如 sdf 模型只能以 mesh 表示）。**但自 2026-11-07 起，mesh 执行链冻结、不再维护，BREP 链是唯一受支持的执行链**（mesh 作为数据表示的事实不变）。UI 层预览应采用更轻量级的方式实现（如幽灵渲染/叠加层），不应依赖"先用 mesh 拆解重建几何来充当预览"。
 - 入口：根门面 `@faicad/faijs`（`src/index.ts` 等 10 个 exports 子路径，薄 re-export + `createRuntime` 包装注入 cad）；引擎入口在 `packages/core/src/index.ts` / `browser.ts`（不含 node-host）/ `node.ts` / `csg.ts` / `sdf.ts` / `sdk.ts`。浏览器构建里静态 import node-host 会 404——Node 专用代码一律从 `@faicad/faijs/node` 导入。
 
 ## 库开发者 vs 脚本开发者：两套 API 面，禁止混用
@@ -149,6 +149,8 @@ faijs 同时服务两类人，他们看到的是**不同的 API 面**。混为�
 是否用 mesh 在执行前就应知道。BREP 路径执行抛异常 = 设计缺陷或 bug，必须直接报错暴露。
 
 Brep链可以切换，没有回退。在链上增加一个brep不支持的操作后，该链的后续部分采用mesh处理。该链之前的部分不变，仍然是brep处理。这就是切换。
+
+链切换机制仍在：切换后的 mesh 段是**冻结遗留面**，不受支持与维护；新开发的唯一目标链是 BREP。
 
 
 拓扑数据必须来自faijs，其他使用faijs的上层应用不准自己写拓扑；而且拓扑数据必须和显示拾取时的mesh必须一一对应。

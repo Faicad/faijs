@@ -788,8 +788,26 @@ const BANNER = (target: 'occt' | 'brepkit', commonCount: number, occtOnly: strin
   return lines.join('\n')
 }
 
+/**
+ * AI-facing docs hide legacy thread selectors (2026-11-07 descriptive
+ * modeling, D9): only the descriptive `thread` key (fai_drill) / `spec` key
+ * (screw) are advertised to AI consumers. The legacy keys stay in the
+ * runtime surface (存量脚本零修改) and in the source JSDoc (TS 读者可见)，
+ * but generated references must not teach them. Examples exercising a hidden
+ * key are dropped alongside the parameter entry.
+ */
+const AI_HIDDEN_OP_PARAMS: Record<string, readonly string[]> = {
+  fai_drill: ['screwSystem', 'screwSpecIdx', 'screwThread'],
+  screw: ['system', 'specIdx'],
+}
+
 /** Render an op entry as markdown. */
 function renderOpEntry(op: OpDocEntry, bucket: Bucket): string {
+  const hidden = AI_HIDDEN_OP_PARAMS[op.name] ?? []
+  const isHiddenParam = (pname: string): boolean => {
+    const base = pname.includes('.') ? pname.slice(pname.indexOf('.') + 1) : pname
+    return hidden.includes(base)
+  }
   const lines: string[] = []
   const badge = bucket === 'occt-only' ? ' `[OCCT only]`' : bucket === 'brepkit-only' ? ' `[brepkit only]`' : ''
   lines.push(`### \`${op.name}(...)\`${badge}`)
@@ -800,6 +818,7 @@ function renderOpEntry(op: OpDocEntry, bucket: Bucket): string {
     lines.push('')
     lines.push('**Parameters**:')
     for (const [pname, pdesc] of op.params) {
+      if (isHiddenParam(pname)) continue
       lines.push(`- \`${pname}\`: ${pdesc}`)
     }
   }
@@ -818,11 +837,12 @@ function renderOpEntry(op: OpDocEntry, bucket: Bucket): string {
 
   lines.push('')
 
-  // Examples
-  if (op.examples.length > 0) {
+  // Examples (AI-hidden keys: drop examples exercising a hidden selector)
+  const visibleExamples = op.examples.filter(ex => !hidden.some(h => ex.includes(`${h}:`) || ex.includes(`${h} =`)))
+  if (visibleExamples.length > 0) {
     lines.push('')
     lines.push('**Examples**:')
-    for (const ex of op.examples) {
+    for (const ex of visibleExamples) {
       lines.push('```js')
       lines.push(ex)
       lines.push('```')

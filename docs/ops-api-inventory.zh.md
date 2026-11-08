@@ -604,6 +604,12 @@ const plate = cad.punchHole({ contours: [loop], on: cad.box(40, 40, 4), face: '>
 生成螺丝零件（螺纹 + 头型）。
 
 ```js
+const s = cad.screw({ spec: 'M16', length: 40 })
+const s = cad.screw({ spec: 'M16×1.5', length: 40, head: 'hex' })
+const s = cad.screw({ spec: 'M16', thread: 'none', length: 40 })
+```
+
+```js
 const s = cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex' })
 const s = cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex', nRad: 64 })
 ```
@@ -612,6 +618,7 @@ const s = cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20
 |---|---|---|---|---|
 | `system` | `'metric' | 'imperial'` | ✅ | — | 制式 |
 | `specIdx` | `number` | ✅ | — | 规格索引（决定公称直径，如 5 → M5、6 → M6） |
+| `spec` | `string` |  | — | 描述性螺纹规格串（推荐，如 'M16'、'M16×1.5'、'1/4"-20'、'M16-6g'）。给出时为规格唯一来源：缺省取粗牙；不可与 system/specIdx/pitchCustom 或 thread（'none' 除外）同给，违者 E_ARG；解析失败 E_THREAD_SPEC |
 | `thread` | `'coarse' | 'fine' | 'custom' | 'none'` |  | 'coarse' | 螺纹类型 |
 | `length` | `number` | ✅ | — | 螺杆长度（mm） |
 | `head` | `'hex' | 'chc' | 'none'` |  | 'none' | 头型（hex 六角 / chc 沉头 / none 无头） |
@@ -1340,6 +1347,13 @@ const p = cad.extrude(sk, { upTo: '>Z', baseFeature: part0 })
 ```js
 const p = cad.fai_drill(part0, { diameter: 5 })
 const p = cad.fai_drill(part0, { diameter: 5, depth: 3 })
+// 描述性建模：M16 螺纹通孔（底孔 Φ14 表反算；串内无公差后缀 → 无 PMI）
+const p = cad.fai_drill(part0, { position: [0, 0, 30], direction: 'z', thread: 'M16' })
+// 图纸标注组合：PMI 产出（公差 6H 来自串内后缀），孔深 18 来自 ↧ 后缀
+const p = cad.fai_drill(part0, { position: [0, 0, 30], direction: 'z', thread: 'M16-6H↧18' })
+```
+
+```js
 const p = cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
 // 攻丝孔：几何只钻 Φ5×16，螺纹 M6-6H ↓14 进 PMI
 const p = cad.fai_drill(part0, { position: [0, 0, 30], direction: 'z', holeType: 'tapped', screwSpecIdx: 5, depth: 16, threadDepth: 14 })
@@ -1349,20 +1363,23 @@ const p = cad.fai_drill(part0, { position: [47.5, 0, 55], direction: 'x', holeTy
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `diameter` | `number` |  | — | 孔径（mm）；`tapped` 时省略则按公称直径 − 螺距反算底孔，其余孔型必填 |
+| `diameter` | `number` |  | — | 孔径（mm）；`tapped`/`screw` 时省略则按表反算底孔（M16 → Φ14；显式值优先，图纸值唯一真源），`simple` 必填 |
+| `thread` | `string` |  | — | 描述性螺纹规格（一个键即完整规格，不写 `screwSystem`/`screwSpecIdx`/`screwThread`）：metric `'M<dia>[×<pitch>][-<class>][↧|↓<depth>]'`（'M16'、'M16×1.5'、'M4 X 0.7 - 6H'、'M16-6H↧18'）、imperial `'(#<gauge>|<frac>"|<dec>")[-<tpi>][-<class>][↧|↓<depth>]'`（'1/4"-20-2B↧10'）、pipe `'PT|R|Rc<size>[↧|↓<depth>]'`（'PT1/8'）。空格/大小写全容忍。给出后：`holeType` 缺省 `'tapped'`（显式 `'tapped'`/`'screw'` 合法，`'simple'` 报错）；底孔按表反算（显式 `diameter` 优先）；**串内带公差后缀（-6H）或显式 `threadClass` 才产出 PMI**（'M4×0.7' 无 PMI）；串内 `↧18`/`↓18` = 孔深 18（与显式 `depth` 同给报错）；解析失败/表外显式报错（E_THREAD_SPEC），不静默回落 |
 | `depth` | `number` |  | 0 | 孔深（mm）；0 = 通孔，> 0 = 盲孔 |
-| `holeType` | `'simple' | 'screw' | 'tapped'` |  | 'simple' | 孔类型：simple 光孔 / screw 建模螺纹 / tapped 攻丝孔（底孔 + 螺纹 PMI） |
+| `holeType` | `'simple' | 'screw' | 'tapped'` |  | 'simple' | 孔类型：simple 光孔 / screw 建模螺纹 / tapped 攻丝孔（底孔 + 螺纹 PMI）。`thread` 给出时缺省 'tapped' |
 | `direction` | `'normal' | 'x' | 'y' | 'z'` |  | 'normal' | 钻孔轴向：`'normal'` = 沿该面法向进入材料（面在底面时即"向上"），`x`/`y`/`z` = 世界轴，两类都会按面法向自动定号；PMI 的 `axis.direction` 记的是定号后的实际钻孔方向 |
 | `position` | `[x,y,z]` |  | 原点 | 孔心位置 |
 | `face` | `FaceTopoRef` |  | — | 面引用（§6.2 新形态：`FaceTopoRef`，执行期按输入 Shape 解析派生法向；优先于 `faceNormal`） |
 | `faceNormal` | `[x,y,z]` |  | [0,0,1] | 面法向（决定朝向；历史兜底，§6.2 起宿主不再写，改由 `face` 解析） |
-| `tolerance` | `number` |  | 0.3 | 公差（mm） |
+| `tolerance` | `number` |  | — | 公差（mm）；BREP 链缺省 0（名义孔径，+tolerance/2 扩孔），mesh 链缺省 0.3（冻结链）；screw 孔不吃 tolerance（底孔+牙型配对不可扩孔） |
 | `screwSystem` | `'metric' | 'imperial' | 'pipe'` |  | 'metric' | 螺纹制式（holeType='screw'/'tapped' 时用）。'metric' 公制 / 'imperial' 英制 / 'pipe' 55° 锥管螺纹（PT·R·BSPT，**只支持 tapped**：几何只钻底孔、螺纹进 PMI；'screw' + 'pipe' 会直接报错） |
 | `screwSpecIdx` | `number` |  | 4 | 螺丝规格索引（holeType='screw'/'tapped' 时用；metric 4 → M5、5 → M6；pipe 0 → PT1/8、1 → PT1/4、2 → PT3/8、3 → PT1/2） |
 | `screwThread` | `'coarse' | 'fine' | 'custom'` |  | 'coarse' | 螺丝螺纹类型 |
+| `screwPitchCustom` | `number` |  | — | 自定螺距（mm；`screwThread='custom'` 时生效，缺省回落粗牙螺距） |
 | `screwHead` | `'hex' | 'chc' | 'none'` |  | 'none' | 螺丝头型 |
 | `threadDepth` | `number` |  | — | 有效螺纹深度（mm），仅标注用；须 ≤ depth，缺省与 depth 同深 |
-| `threadClass` | `string` |  | — | 螺纹公差等级（如 '6H'），仅标注用；metric 缺省 '6H' |
+| `threadClass` | `string` |  | 。type:string | 螺纹公差等级（如 '6H'），仅标注用；旧三键路径 metric 缺省 '6H'、imperial 缺省 '2B'，描述串路径不 |
+| `handedness` | `'right' | 'left'` |  | 'right' | 螺纹旋向，仅标注用（写入 PMI；几何旋向不随此参数改变） |
 
 **异步**。Shape 钻孔后的几何（`tapped` / `screw` 会附带 `PmiThreadHole` 标注）。
 
@@ -2488,7 +2505,7 @@ part0.addDatum({ identifier: 'A', datumType: 'datumPlane', target: base })
 
 **同步**。FaceTopoRef 选中面的拓扑引用（origin/role 血统 + 几何 hint）。
 
-> ⚠️ 这是 AI 生成脚本该用的面引用入口；`cad.faceRef(shape, N)` 的序号跨内核不可移植，勿用于生成脚本。
+> ⚠️ 这是 AI 生成脚本该用的面引用入口；序号式 faceRef 引用跨内核不可移植，勿用于生成脚本。
 >
 > 定不了案（无 BREP / 无 role 血统 / 语法不支持 / 无可用质心）一律抛 `TopoRefError`，不静默退化。
 
@@ -2872,7 +2889,7 @@ const dims = cad.pmiItems(part0, { kind: 'dimension' })
 Query all PMI annotations attached to a specific TopoRef.
 
 ```js
-const annos = cad.pmiOn(part0, cad.faceRef(part0, 3))
+const annos = cad.pmiOn(part0, cad.faceBySelector(part0, '>Z'))
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |

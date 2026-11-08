@@ -89,8 +89,8 @@ part0.addNote({ text: '锐边倒钝' })`)
     const cam = viewCamera('front')
     const owners = assignPmiToViews(p, [cam])
     expect(owners.length).toBeGreaterThanOrEqual(1)
-    // 全局块直呼：给定全局文本 + 字号/颜色，返回非空 markup 与尺寸
-    const block = buildGlobalPmiBlock(texts, { fontSize: 3, color: '#000', gap: 4 })
+    // 全局块直呼：给定全局文本 + 字号/颜色/块位置，返回非空 markup
+    const block = buildGlobalPmiBlock(texts, { fontSize: 3, color: '#000', right: 100, top: 50 })
     expect(block.markup).toContain('锐边倒钝')
   })
 })

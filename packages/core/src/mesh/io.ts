@@ -303,6 +303,9 @@ function threemfObjectToShape(obj: ThreemfObject): Shape {
       : {}),
     // 零件级元数据（方案 §5.1 3MF 行）：对象 name/partnumber/metadatagroup → meta。
     ...(obj.meta ? { meta: obj.meta } : {}),
+    // PMI 标注集（faijs:pmi 元数据往返，方案 2026-10-31-faijs-pmi-design.md §8.1）：
+    // 挂 Shape.pmi 字段——导入 Shape 无语句/零件名注册，pmiOf 走字段回退即可读到。
+    ...(obj.pmi !== undefined ? { pmi: obj.pmi } : {}),
   }
 }
 

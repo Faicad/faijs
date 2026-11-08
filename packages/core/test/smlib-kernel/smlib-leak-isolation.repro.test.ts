@@ -4,6 +4,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import type { HostPorts } from '../../src/cad-runtime/ports'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerSmlibBrepEngine } from '../../src/brep/engine/adapters/smlib'
@@ -11,7 +12,7 @@ import { initSmlibWasm } from '../../src/smlib-kernel/smlibWasm'
 import { createSmlibPrimitives } from '../../src/smlib-kernel/smlibKernel'
 import { createEditorRuntime } from '../support/editor-ops'
 
-const PIKACHU_PATH = 'C:\\my\\Faicad\\3d_editor\\docs\\examples\\pikachu-1.fai.js'
+const PIKACHU_PATH = fileURLToPath(new URL('../../../fixtures/data/pikachu-1.fai.js', import.meta.url))
 const run = process.env.REPRO_PROBE === '1'
 
 function ports(): HostPorts {

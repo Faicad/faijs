@@ -375,6 +375,11 @@ export interface DrillBrepParams {
   direction: Vec3
   /** 面法向（世界空间） */
   faceNormal: Vec3
+  /**
+   * 孔径公差（mm）：半径扩张 `tolerance/2`（与 mesh 链 `DrillHoleCore` 同语义）。
+   * 缺省 0 = 名义孔径。screw 孔（底孔+螺纹配对）不传——公差会破坏底孔/牙型配对。
+   */
+  tolerance?: number
   /** 孔类型 */
   holeType?: 'simple' | 'screw'
 }
@@ -412,7 +417,9 @@ export function computeDrillGeometry(
   solid: BrepHandle,
   params: DrillBrepParams,
 ): DrillGeometry {
-  const radius = params.diameter / 2
+  // #12（plan 2026-11-07）：tolerance 在 BREP 链生效——半径 +tolerance/2
+  // （径向扩张，与 mesh 链 DrillHoleCore 的 toleranceRadius 同语义）；缺省名义孔径。
+  const radius = params.diameter / 2 + (params.tolerance ?? 0) / 2
   const direction = new Vec3C(...params.direction).normalize()
   // 确保方向指向材料内部
   const faceNormal = new Vec3C(...params.faceNormal)

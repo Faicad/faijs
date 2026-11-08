@@ -402,8 +402,9 @@ function finalizePmi(
   if (part !== undefined) flushPendingPmi(part)
   const remap = meta.pmiRemap
   if (remap === undefined) return
-  const params = lastParamsOf(callArgs)
-  if (params === undefined) return
+  // `?? {}`：pmiRemap 带缺省值的 op（mirror 的默认镜像面 x=0）在没有参数对象时
+  // 也要登记——否则 `cad.mirror(p)`（无 options）的几何镜像了、标注补偿却缺席。
+  const params = lastParamsOf(callArgs) ?? {}
   let affine: PmiAffine | undefined
   try {
     affine = remap(params)

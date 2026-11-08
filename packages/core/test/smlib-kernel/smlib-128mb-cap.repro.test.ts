@@ -28,6 +28,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import type { HostPorts } from '../../src/cad-runtime/ports'
 import type { TessellationDensity } from '../../src/runtime-state'
 import type { ExecutionResult, RetessellatePartResult } from '../../src/cad-runtime/runtime'
@@ -46,8 +47,9 @@ import { createEditorRuntime } from '../support/editor-ops'
 
 const require = createRequire(import.meta.url)
 
-const PIKACHU1_PATH = 'C:\\my\\Faicad\\3d_editor\\docs\\examples\\pikachu-1.fai.js'
-const PIKACHU2_PATH = 'C:\\my\\Faicad\\3d_editor\\docs\\examples\\pikachu-2.fai.js'
+// fixture 已入仓（packages/fixtures/data/，guard 要求测试不得读仓库外路径）
+const PIKACHU1_PATH = fileURLToPath(new URL('../../../fixtures/data/pikachu-1.fai.js', import.meta.url))
+const PIKACHU2_PATH = fileURLToPath(new URL('../../../fixtures/data/pikachu-2.fai.js', import.meta.url))
 
 /** REPRO_CAP=1 才跑重循环；否则 skip。封顶内核冒烟始终跑。 */
 const RUN_BIG = process.env.REPRO_CAP === '1'

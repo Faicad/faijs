@@ -22,6 +22,7 @@ import {
   resetPmiRegistry,
 } from '../../../src/api/pmi/registry'
 import { note } from '../../../src/api/pmi/types'
+import { asPartName } from '../../../src/identity'
 
 describe('PMI 注册表直呼（registry 单元）', () => {
   beforeEach(() => {
@@ -32,31 +33,31 @@ describe('PMI 注册表直呼（registry 单元）', () => {
   })
 
   it('addPmiItem → ownPmiOf / collectPmiOf 读回（unowned 兼容路径）', () => {
-    addPmiItem('p0', note({ text: '锐边倒钝' }))
-    expect(ownPmiOf('p0')).toHaveLength(1)
-    expect(ownPmiOf('p0')[0]!.kind).toBe('note')
+    addPmiItem(asPartName('p0'), note({ text: '锐边倒钝' }))
+    expect(ownPmiOf(asPartName('p0'))).toHaveLength(1)
+    expect(ownPmiOf(asPartName('p0'))[0]!.kind).toBe('note')
     // 无血缘登记时 collectPmiOf == ownPmiOf（无上游可继承）
-    expect(collectPmiOf('p0')).toHaveLength(1)
+    expect(collectPmiOf(asPartName('p0'))).toHaveLength(1)
     // 未登记零件返回空数组，不抛
-    expect(ownPmiOf('pX')).toEqual([])
+    expect(ownPmiOf(asPartName('pX'))).toEqual([])
   })
 
   it('clearPmiOfPart 清空该零件并阻断后续读回', () => {
-    addPmiItem('p0', note({ text: 'x' }))
-    clearPmiOfPart('p0')
-    expect(ownPmiOf('p0')).toEqual([])
-    expect(collectPmiOf('p0')).toEqual([])
+    addPmiItem(asPartName('p0'), note({ text: 'x' }))
+    clearPmiOfPart(asPartName('p0'))
+    expect(ownPmiOf(asPartName('p0'))).toEqual([])
+    expect(collectPmiOf(asPartName('p0'))).toEqual([])
   })
 
   it('addPendingPmiItem + flushPendingPmi：无名产物的标注归位到零件名下', () => {
     addPendingPmiItem(note({ text: '钻后毛刺' }))
     // flush 之前不挂在任何零件上
-    expect(ownPmiOf('drilled')).toEqual([])
-    flushPendingPmi('drilled')
-    expect(ownPmiOf('drilled')).toHaveLength(1)
+    expect(ownPmiOf(asPartName('drilled'))).toEqual([])
+    flushPendingPmi(asPartName('drilled'))
+    expect(ownPmiOf(asPartName('drilled'))).toHaveLength(1)
     // flush 后 pending 清空：再 flush 别的零件不会重复收到
-    flushPendingPmi('other')
-    expect(ownPmiOf('other')).toEqual([])
+    flushPendingPmi(asPartName('other'))
+    expect(ownPmiOf(asPartName('other'))).toEqual([])
   })
 
   it('pmiOf：undefined → undefined；注册表无记录且无 pmi 字段 → undefined', () => {
@@ -72,8 +73,8 @@ describe('PMI 注册表直呼（registry 单元）', () => {
 
   it('registerPmiParents：无名字的输入不登记父语句（不抛、不产生幽灵继承）', () => {
     registerPmiParents('s1' as never, [{}])
-    addPmiItem('p0', note({ text: 'x' }))
+    addPmiItem(asPartName('p0'), note({ text: 'x' }))
     // 父登记失败不影响当前零件的读写
-    expect(collectPmiOf('p0')).toHaveLength(1)
+    expect(collectPmiOf(asPartName('p0'))).toHaveLength(1)
   })
 })

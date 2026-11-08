@@ -16,6 +16,10 @@ export { makeScrew } from './screw/screw'
 export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './screw/screw-db'
 export type { ScrewParams, ScrewSpec, ScrewSystem } from './screw/screw-db'
 
+// screw/thread-spec
+export { parseThreadSpec, ThreadSpecError } from './screw/thread-spec'
+export type { ResolvedThreadSpec } from './screw/thread-spec'
+
 // parse-svg-size
 export { parseSvgNaturalSize } from './parse-svg-size'
 

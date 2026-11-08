@@ -1,5 +1,6 @@
 /**
  * dual-engine/occt-adapter — OCCT 双引擎适配器
+ * @platform occt
  *
  * 实现 `DualEngineApi`：共享方法**复用 L1 occt 适配器**（`getBrepEngine('occt').primitives`，
  * 已含全部 OCCT 侧正确的句柄封送 / 单位换算），双引擎独有方法（loftSurface / ruledSurface /

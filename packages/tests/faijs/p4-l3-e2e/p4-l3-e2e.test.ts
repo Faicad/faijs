@@ -142,7 +142,8 @@ describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
       return meta!
     }
     const boxMeta = metaOf(apiBox)
-    // §4.1 新契约：box(width, depth, height, { at?, centered?, segments? })
+    // §4.1 新契约：box(width, depth, height, { at?, centered?, segments?, align? })
+    // align 由 a2c21f4 引入（build123d 蓝本锚点参数）
     expect(boxMeta.schema).toEqual({
       width: 'number',
       depth: 'number',
@@ -150,6 +151,7 @@ describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
       at: 'vec3?',
       centered: 'boolean?',
       segments: 'number?',
+      align: 'string|string[]?',
     })
 
     const cylMeta = metaOf(apiCylinder)

@@ -43,7 +43,7 @@ export interface ThreadOptions {
    * 必须 < toothHalfWidth。
    */
   crest?: number
-  /** 每圈截面数 — 越高越平滑但越慢。默认 20 */
+  /** 每圈截面数 — 越高越平滑但越慢。默认 12 */
   sectionsPerTurn?: number
   /** 左旋。默认 false（右旋） */
   lefthand?: boolean

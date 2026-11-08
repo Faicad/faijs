@@ -19,8 +19,8 @@ export type DrillDirection = 'normal' | 'x' | 'y' | 'z'
  */
 export type ScrewSystem = 'metric' | 'imperial' | 'pipe'
 
-/** Thread pitch variant for a screw hole. */
-export type ScrewThread = 'coarse' | 'fine' | 'none'
+/** Thread pitch variant for a screw hole. `'custom'` pairs with `screwPitchCustom`. */
+export type ScrewThread = 'coarse' | 'fine' | 'custom' | 'none'
 
 /** Head (countersink) style for a screw hole. */
 export type ScrewHead = 'none' | 'hex' | 'chc'

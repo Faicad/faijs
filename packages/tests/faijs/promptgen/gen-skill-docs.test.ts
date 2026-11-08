@@ -135,4 +135,34 @@ describe('generateApiReference', () => {
       expect(doc).toContain('R12')
     }
   })
+
+  it('U14/D9：AI 参考只展示描述性螺纹键（thread/spec），隐藏旧三键与旧规格对', () => {
+    // 2026-11-07 描述性螺纹建模：旧选择器仍在运行时面（存量脚本零修改），
+    // 但 AI 参考不得再教——只广告 thread（fai_drill）/ spec（screw）。
+    for (const target of ['occt', 'brepkit'] as const) {
+      const doc = generateApiReference(target)
+      // fai_drill 是 common op：两份参考都必须只广告 thread
+      expect(doc).toMatch(/- `params\.thread`: /)
+      expect(doc).not.toMatch(/- `params\.screwSystem`: /)
+      expect(doc).not.toMatch(/- `params\.screwSpecIdx`: /)
+      expect(doc).not.toMatch(/- `params\.screwThread`: /)
+      // 旧键教学示例整块不出现（示例块级过滤）
+      expect(doc).not.toContain("screwSystem: 'metric'")
+      // 描述性示例保留
+      expect(doc).toContain("thread: 'M16-6H↧18'")
+    }
+    // screw 是 occt-only op：spec 断言只针对 occt 参考（brepkit 无 screw 条目）
+    const occt = generateApiReference('occt')
+    expect(occt).toMatch(/- `params\.spec`: /)
+    expect(occt).not.toMatch(/- `params\.system`: /)
+    expect(occt).not.toMatch(/- `params\.specIdx`: /)
+    expect(occt).not.toContain("specIdx: 6, thread: 'coarse'")
+    expect(occt).toContain("spec: 'M16'")
+  })
+
+  it('#3/#9：fai_drill 参数面在 AI 参考可发现（screwPitchCustom / handedness）', () => {
+    const doc = generateApiReference('occt')
+    expect(doc).toMatch(/- `params\.screwPitchCustom`: /)
+    expect(doc).toMatch(/- `params\.handedness`: /)
+  })
 })

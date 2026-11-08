@@ -110,7 +110,8 @@ describe('fai_drill — screw 是真的钻螺纹孔（与 tapped 相反）', () 
 
   it('screw 也产出螺纹孔标注，但 process=modeled', async () => {
     const screw = await drill(block(), {
-      diameter: 6, depth: 10, holeType: 'screw', screwSpecIdx: 5, threadDepth: 8,
+      // #14：底孔取 M6 表反算 Φ5（pilot=6=公称会 E_ARG——没有牙型可建模）
+      diameter: 5, depth: 10, holeType: 'screw', screwSpecIdx: 5, threadDepth: 8,
     })
     const items = pmiThreads(screw)
     expect(items).toHaveLength(1)

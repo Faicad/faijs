@@ -48,7 +48,7 @@ function lazyShape(desc: Partial<BrepLazyTessDescriptor> = {}): Shape {
   } as unknown as Shape
   const kernel = stubKernel()
   const rec = s as unknown as Record<symbol, unknown>
-  rec[BREP_LAZY_TESS] = { kernel, solid: { id: 1 } as BrepHandle, linearDeflection: 0.1, angularDeflection: 0.5, ...desc }
+  rec[BREP_LAZY_TESS] = { kernel, solid: 1 as BrepHandle, linearDeflection: 0.1, angularDeflection: 0.5, ...desc }
   return s
 }
 
@@ -65,7 +65,7 @@ describe('deferred-tess 直呼（BREP_LAZY_TESS 描述符协议）', () => {
     const out = materializeTessellation(s)
     expect(out).toBeDefined()
     expect(meshShapeCalls).toEqual([
-      { solid: { id: 1 }, linearDeflection: 0.25, angularDeflection: 0.75 },
+      { solid: 1, linearDeflection: 0.25, angularDeflection: 0.75 },
     ])
     // 写回 positions/indices + BREP_TESS 槽 + faceRanges（primitiveOp 基本体白名单）
     expect(s.positions.length).toBe(9)

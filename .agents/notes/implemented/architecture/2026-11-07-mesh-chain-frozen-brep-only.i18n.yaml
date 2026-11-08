@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-07-mesh-chain-frozen-brep-only.md
+2026-11-07-mesh-chain-frozen-brep-only.md: bb842b3ffbbae5e4fa72ef2c55695cb93178d994
+2026-11-07-mesh-chain-frozen-brep-only.zh.md: 7c1d09d3777ec74f320c9aff225c4eb716ab0e18

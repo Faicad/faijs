@@ -28,6 +28,8 @@
 import { readZipEntries } from '../io/zip'
 import { UNIT_SCALE, type UnitName } from '../units'
 import type { ShapeMeta, FileMeta } from '../api/meta'
+import type { PmiSet } from '../api/pmi/types'
+import { parsePmiFrom3mfMetadata, PMI_3MF_METADATA_NAME } from './threemf-pmi'
 
 /** Map a 3MF unit string to a faijs length unit name. */
 function threemfUnitToFaijs(unit: string): UnitName | null {
@@ -47,6 +49,20 @@ function hexToRgb(hex: string): readonly [number, number, number] | null {
   const m = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})/.exec(hex)
   if (!m) return null
   return [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255]
+}
+
+/**
+ * XML text-content unescape (5 predefined entities; `&amp;` last so escaped
+ * entities like `&amp;lt;` don't double-unescape). Counterpart of the writer's
+ * `xmlEscape` in threemf-pmi.ts / export-model.ts's `xmlAttr`.
+ */
+function xmlUnescape(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
 }
 
 /** Per-triangle material properties (3MF `pid`/`p1`/`p2`/`p3`). */
@@ -74,6 +90,11 @@ interface ObjectMeshMeta {
   partNumber?: string
   /** `<object><metadatagroup><metadata name>`（键含命名空间前缀）。 */
   metadata?: Record<string, string>
+  /**
+   * PMI 标注集（`<metadata name="faijs:pmi">`，XML 反转义 + JSON 解析）。
+   * 不进 `metadata` 通用表——再导出时避免经 meta.metadata 双写 faijs:pmi。
+   */
+  pmi?: PmiSet
   /** Object-level `pid` (applies to every triangle without its own `pid`). */
   pid?: string
   /** Object-level `pindex` (default base/color index when a triangle omits p1..p3). */
@@ -208,6 +229,11 @@ export interface ThreemfObject {
    * （component 容器）只带对所引用对象的 meta 拷贝。
    */
   meta?: ShapeMeta
+  /**
+   * PMI 标注集（3MF `faijs:pmi` 元数据往返，方案 2026-10-31-faijs-pmi-design.md §8.1）。
+   * 宿主经 `pmiOf` 的 Shape.pmi 字段回退读取（导入 Shape 无语句注册，注册表不命中）。
+   */
+  pmi?: PmiSet
 }
 
 /**
@@ -391,6 +417,7 @@ function scanResources(
     // 保证 description 往返不落进自定义键）；其余键保留原始名进 metadata。
     const metadata: Record<string, string> = {}
     let objectDescription: string | undefined
+    let objectPmi: PmiSet | undefined
     const mgRe = /<metadatagroup[^>]*>([\s\S]*?)<\/metadatagroup>/g
     let mgm: RegExpExecArray | null
     while ((mgm = mgRe.exec(body)) !== null) {
@@ -405,6 +432,11 @@ function scanResources(
           (mdm[2] !== undefined ? mdm[2].replace(/<[^>]*>/g, '').trim() : undefined)
         if (val === undefined) continue
         if (key === 'faijs:description') objectDescription = val
+        else if (key === PMI_3MF_METADATA_NAME) {
+          // PMI 往返：文本内容先 XML 反转义（写出侧 serializePmiFor3mf 转义过），
+          // 再经 threemf-pmi 的解析器（JSON → PmiSet，宽容失败）。不进通用 metadata 表。
+          objectPmi = parsePmiFrom3mfMetadata({ [PMI_3MF_METADATA_NAME]: xmlUnescape(val) }) ?? objectPmi
+        }
         else metadata[key] = val
       }
     }
@@ -415,6 +447,7 @@ function scanResources(
       description: objectDescription,
       partNumber,
       metadata,
+      ...(objectPmi !== undefined ? { pmi: objectPmi } : {}),
       pid: objPid,
       pindex: objPindex,
     }
@@ -788,6 +821,7 @@ function parseModelXml(
         vertexColors: outCol,
         ...(parentObjectId !== undefined ? { parentObjectId, componentIndex: componentIndex ?? 1 } : {}),
         ...(srcMeta(src) ? { meta: srcMeta(src) } : {}),
+        ...(src.pmi !== undefined ? { pmi: src.pmi } : {}),
       }
     }
 
@@ -877,6 +911,7 @@ function parseModelXml(
         ...(!singleFull && groups.length > 0 ? { materialGroups: groups } : {}),
         ...(parentObjectId !== undefined ? { parentObjectId, componentIndex: componentIndex ?? 1 } : {}),
         ...(srcMeta(src) ? { meta: srcMeta(src) } : {}),
+        ...(src.pmi !== undefined ? { pmi: src.pmi } : {}),
       }
     }
 
@@ -887,6 +922,7 @@ function parseModelXml(
       indices,
       ...(parentObjectId !== undefined ? { parentObjectId, componentIndex: componentIndex ?? 1 } : {}),
       ...(srcMeta(src) ? { meta: srcMeta(src) } : {}),
+      ...(src.pmi !== undefined ? { pmi: src.pmi } : {}),
     }
   }
 

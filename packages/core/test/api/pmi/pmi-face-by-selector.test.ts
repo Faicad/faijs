@@ -125,6 +125,7 @@ part0.addDatum({ identifier: 'A', datumType: 'datumPlane', target: cad.faceBySel
     const datum = entry!.items.find((i) => i.kind === 'datum')
     expect(datum).toBeDefined()
     expect(datum!.kind === 'datum' && datum!.target.kind).toBe('face')
-    expect(datum!.kind === 'datum' && datum!.target.role.length).toBeGreaterThan(0)
+    // TopoRef 是 face|edge 判别联合，`.role` 只在 FaceTopoRef 上——先收窄再访问
+    expect(datum!.kind === 'datum' && datum!.target.kind === 'face' && datum!.target.role.length).toBeGreaterThan(0)
   })
 })

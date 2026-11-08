@@ -36,7 +36,7 @@ import { addPendingPmiItem, addPmiItem, clearPmiOfPart, pmiOf } from './registry
  * ```
  * let part0 = cad.box(40, 40, 20)
  * part0.addDatum({ identifier: 'A', … })              // 标注
- * part0 = cad.fillet(part0, [cad.edgeRef(part0, 1)], 2) // 继续建模，标注还在
+ * part0 = cad.fillet(part0, refs, 2)                  // 继续建模，标注还在（refs 为任意边引用集合）
  * const svg = cad.projectView(part0, 'front')         // datum 仍会渲染出来
  * ```
  *
@@ -55,7 +55,7 @@ export interface ShapePmiMethods {
    * @example
    * part0.addDimension({
    *   dimType: 'diameter',
-   *   targets: [cad.faceRef(part0, 3)],
+   *   targets: [cad.faceBySelector(part0, '>Z')],
    *   upperTolerance: 0.021,
    *   lowerTolerance: 0,
    * })

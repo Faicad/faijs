@@ -100,6 +100,8 @@ describe('op paramDims declarations (unit-system G3)', () => {
       screwSpecIdx: 'plain',
       // 有效螺纹深度同样是长度量（tapped / screw 的 PMI 参数）
       threadDepth: 'length',
+      // 自定义螺距（screwThread:'custom' 时取代表螺距）也是长度量
+      screwPitchCustom: 'length',
     })
   })
 

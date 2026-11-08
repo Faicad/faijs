@@ -39,6 +39,7 @@ import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle, BrepVec3 } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { buildReplicaRoleTable, type ReplicaTransform } from './internal/replica-role-table'
+import { mirrorAffine } from './pmi/affine'
 import {
   meshKernelFailure,
   meshPatternProduct,
@@ -493,6 +494,14 @@ export const mirror = defineOp({
     keep(input)
     return (await generatedMirror(input, options)) as Shape
   },
+  // PMI 裸世界坐标补偿（#15，plan 2026-11-07）：镜像翻转手性（det=−1），
+  // 矩阵由 `mirrorAffine` 构造。缺省与几何路径一致（normal [1,0,0]、at 原点）；
+  // 零法向 → 抛错 → `finalizePmi` 捕获后不登记（纯显示问题不中断建模）。
+  // mirrorJoin 不登记：其原物（replica[0]）坐标系未动（见 api/pmi/affine.ts）。
+  pmiRemap: (p) => mirrorAffine(
+    optionVec(p.normal as MirrorOptions['normal'], [1, 0, 0]),
+    optionVec(p.at as MirrorOptions['at'], [0, 0, 0]),
+  ),
   // 薄 override：generatedMirror 走 L1 kernel.mirror，与 clone 薄 override 同模式
   // （无能力门，内层实现自行按引擎事实分叉）。面演化由 mirrorBrep 双轨接入。
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,

@@ -14,8 +14,11 @@ import {
   isExprWhitelist,
   collectExprIdentifiers,
   type SymbolTable,
-  type ASTNode,
 } from '../../src/lang/metadata-extractor'
+
+// `ASTNode` 在 src 侧是模块内私有的 `any` 别名（estree 形态的部分节点字面量）；
+// 测试里用 unknown 承接同样的"结构化字面量 → 节点"上溯。
+type ASTNode = unknown
 
 function table(over: Partial<SymbolTable> = {}): SymbolTable {
   return {
