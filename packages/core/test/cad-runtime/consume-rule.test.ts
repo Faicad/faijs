@@ -188,10 +188,23 @@ describe('DirectExecutor + consumeRule', () => {
     expect(r.error).toBeUndefined()
   })
 
-  it('非布尔 op（派生型：assembly / 查询）不消费输入，输入可继续引用', async () => {
+  it('非布尔 op 同样算消费（装配成员被消费后再引用 = 违规，2026-11-08 规定）', async () => {
     const code = [
       'let a = cad.box(10, 10, 10)',
       'let b = cad.sphere({ radius: 3 })',
+      'let asm = cad.assembly({ members: [a, b] })',
+      'let d = cad.union(a)',
+    ].join('\n')
+    const r = await run(code, 'error')
+    expect(r.error!.code).toBe('E_USE_AFTER_CONSUME')
+    expect(r.error!.line).toBe(4)
+  })
+
+  it('要保留输入的写法是 keep()：装配成员 keep 后继续引用合法', async () => {
+    const code = [
+      'let a = cad.box(10, 10, 10)',
+      'let b = cad.sphere({ radius: 3 })',
+      'a.keep()',
       'let asm = cad.assembly({ members: [a, b] })',
       'let d = cad.union(a)',
     ].join('\n')

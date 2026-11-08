@@ -53,30 +53,17 @@ const CTX_REF_RE = /__ctx\.([A-Za-z_$][\w$]*)/g
 const CTX_WRITE_RE = /__ctx\.([A-Za-z_$][\w$]*)\s*=(?!=|>)/g
 
 /**
- * **销毁型** op 白名单：实参几何被折进结果、原对象不再可用。
+ * 消费判定口径（**唯一**，2026-11-08 用户规定）：
  *
- * 只有布尔运算满足"消费 = 销毁输入"的语义。这条白名单是必需的第二道闸：
- * `live-shapes.lineConsumes` 判的是**预览活体终端**（输入不再单独推送就算"消费"），
- * 因此它把 `cad.assembly`、`sheet.solidOf`、`cad.fai_drill` 之类也判成消费——但这些
- * op 只是从输入**派生**新对象，输入原样保留：
- * - `cad.assembly({ members: [base, arm] })` 后成员继续合法（官方示例把成员再传给
- *   `anim.joint({ child: arm })`，宿主解析成零件名）；
- * - `sheet.solidOf(p3)` / `sheet.unfold(p3)` / `sheet.report(p3)` 是同一张板的三次派生（fixture 实证）；
- * - `cad.fai_drill(part0)` 后 `cad.fai_drill_tapper(part0)` 再打一次（fixture 实证）。
+ * > `lineConsumes` 返回 true 表示该语句消费 v —— **v 就必须立刻释放，且不准再引用**。
  *
- * 拿 live-shapes 的结果直接去释放会当场打死这些既有脚本，所以释放语义以本白名单为准，
- * `lineConsumes` 仍负责"哪些引用算几何引用"（R1/R2/R3/R5 的形状判据）。
+ * 因此本规则**不做** op 语义分类：布尔运算、`cad.assembly`（成员）、
+ * `sheet.solidOf`、`cad.fai_drill` 等一视同仁，`lineConsumes` 判真即消费。
+ * 谁输入不被销毁却又要继续用，正确写法是 `keep()`（唯一豁免路径），
+ * 而不是在运行时维护"哪些 op 保留实参"的白名单。
+ *
+ * 这是"消费点 = 最后一次合法引用"的严格版本：释放点唯一确定，无需 last-use 分析。
  */
-export const CONSUMING_OPS: ReadonlySet<string> = new Set(['union', 'subtract', 'intersect'])
-
-/**
- * 该语句是否为销毁型消费。
- * @param callee - 语句的 op 名（`StatementSummary.callee`）
- * @returns 布尔运算返回 true（实参被销毁），其余返回 false
- */
-export function isConsumingOp(callee: string | undefined): boolean {
-  return !!callee && CONSUMING_OPS.has(callee)
-}
 
 /**
  * 抽取单元体里的 `__ctx.<name>` **读**引用集合（写位置的赋值目标是写，不算读）。

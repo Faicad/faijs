@@ -5,15 +5,13 @@
  * 本脚本在**不执行几何**的前提下扫源码，给出"如果切到 error 档，哪些脚本会报错"
  * 的清单，用于决定 warn 期长度与迁移批量。
  *
- * 判定口径（两道闸，缺一不可）：
- * 1. 销毁型 op 白名单：只有布尔运算（`CONSUMING_OPS`）才真的销毁实参。
- *    `lineConsumes` 判的是"预览活体终端"，会把 `assembly` / `sheet.solidOf` /
- *    `fai_drill` 这类**派生型** op 也算成消费——这些 op 的输入原样保留，不能拿来释放。
- * 2. `lineConsumes`（live-shapes.ts）：负责"哪些引用算几何引用"（R1 keep 豁免 /
- *    R2 无赋值裸调用 / R3 输出非几何 / R5 顶层 var-ref 消费、嵌套 call-ref 内只读）。
+ * 判定口径（**唯一**，2026-11-08 用户规定）：`lineConsumes` 判真即消费 ——
+ * 该变量必须释放、且此后不得再引用。**不做 op 语义分类**：布尔运算、`cad.assembly`
+ * 成员、`sheet.solidOf`、`cad.fai_drill` 一视同仁。要保留输入的脚本改成 `keep()`。
  *
- * 已知静态误差：形状集合按"所有 outputs 都当几何值"过近似，比运行期按 ctx 现值做
- * 结构判定更宽——只在"非几何值参与布尔运算"这种本就不合法的脚本上会有差异。
+ * 静态误差（只影响报告标注，不参与过滤）：形状集合按"所有 outputs 都当几何值"过近似，
+ * 比运行期"按 ctx 现值做结构判定"更宽，于是 `splitByPlane` 之类返回 SplitResult 的
+ * 生产者会被算成 findable——这类候选标 `note: 'producer 可能非几何'`。
  *
  * 用法：
  *   npx tsx scripts/check-consume-corpus.ts <dir-or-file> [...] [--json]
@@ -24,9 +22,11 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { extractMetadata } from '../packages/core/src/lang/metadata-extractor'
 import { lineConsumes, keepViewFromMetadata } from '../packages/core/src/cad-runtime/live-shapes'
-import { isConsumingOp, CONSUMING_OPS } from '../packages/core/src/cad-runtime/consume-rule'
 import { asPartName } from '../packages/core/src/identity'
 import type { StatementSummary } from '../packages/core/src/lang/statement-summary'
+
+/** 返回非单一几何（SplitResult 等）的生产者：仅用于给候选加注。 */
+const NON_SHAPE_PRODUCERS = new Set(['splitByPlane', 'splitByBox', 'splitByCylinder', 'split'])
 
 interface Candidate {
   file: string
@@ -35,6 +35,8 @@ interface Candidate {
   consumeLine: number
   useLine: number
   calleeAtConsume: string
+  /** 静态过近似可能造成的假阳说明（运行期按 ctx 结构判定不会命中） */
+  note?: string
 }
 
 /** 递归收集 .fai.js（也接受显式文件路径）。 */
@@ -78,16 +80,16 @@ function scanFile(file: string, code: string): Candidate[] {
     for (const name of line.refs ?? []) {
       const producerIdx = lastProducer.get(name)
       if (producerIdx === undefined || producerIdx >= i) continue
-      // 消费点 = producer 之后第一条"销毁型且 lineConsumes 为真"的语句
+      // 消费点 = producer 之后第一条 lineConsumes 为真的语句（唯一口径）
       let consumeIdx = -1
       for (let j = producerIdx + 1; j < lines.length; j++) {
-        if (!isConsumingOp(lines[j].callee)) continue
         if (lineConsumes(lines[j], asPartName(name), keep, shapeNames)) {
           consumeIdx = j
           break
         }
       }
       if (consumeIdx < 0 || consumeIdx >= i) continue
+      const producerCallee = lines[producerIdx].callee
       candidates.push({
         file,
         name,
@@ -95,6 +97,9 @@ function scanFile(file: string, code: string): Candidate[] {
         consumeLine: lines[consumeIdx].line,
         useLine: line.line,
         calleeAtConsume: lines[consumeIdx].callee,
+        ...(NON_SHAPE_PRODUCERS.has(producerCallee)
+          ? { note: `producer ${producerCallee} 返回非单一几何，运行期结构判定不会命中` }
+          : {}),
       })
     }
   })
@@ -127,12 +132,12 @@ for (const target of targets) {
 if (asJson) {
   console.log(JSON.stringify({
     files: fileCount,
-    consumingOps: [...CONSUMING_OPS],
+    rule: 'lineConsumes（唯一口径，无 op 白名单）',
     violations: all,
     skipped,
   }, null, 2))
 } else {
-  console.log(`scanned ${fileCount} file(s)  consumingOps=${[...CONSUMING_OPS].join('/')}`)
+  console.log(`scanned ${fileCount} file(s)  rule=lineConsumes（唯一口径）`)
   console.log(`violations: ${all.length}`)
   if (skipped.length > 0) console.log(`skipped (parse error): ${skipped.length}`)
   const byFile = new Map<string, Candidate[]>()
@@ -145,7 +150,8 @@ if (asJson) {
     console.log(`\n${file}`)
     for (const c of list) {
       console.log(`  line ${c.useLine}: "${c.name}" reused after consume at line ${c.consumeLine} ` +
-        `(producer line ${c.producerLine}, callee ${c.calleeAtConsume})`)
+        `(producer line ${c.producerLine}, callee ${c.calleeAtConsume})` +
+        (c.note ? `  [${c.note}]` : ''))
     }
   }
   for (const s of skipped) console.log(`\nSKIP ${s.file}: ${s.reason}`)

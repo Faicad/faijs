@@ -49,7 +49,6 @@ import {
   ConsumeTracker,
   collectCtxReads,
   describeViolation,
-  isConsumingOp,
   type ConsumeRuleOptions,
   type ConsumeViolation,
 } from './consume-rule'
@@ -1079,10 +1078,8 @@ export class DirectExecutor {
     // 与 live-shapes 对块的处理（词法级 blockConsumes）保持一致，见方案 §9.9。
     const line = rule.lines.find((l) => l.line === unit.lineNo)
     if (!line) return
-    // 销毁型白名单（布尔运算）才是"消费 = 输入不再可用"；lineConsumes 的判定是
-    // 预览终端语义，assembly / sheet.solidOf / fai_drill 这类派生 op 也会命中，
-    // 但它们的输入原样保留（fixture 与官方示例实证），见 consume-rule.CONSUMING_OPS。
-    if (!isConsumingOp(line.callee)) return
+    // 口径唯一（2026-11-08 用户规定）：lineConsumes 判真即消费，不看 op 语义。
+    // 装配成员 / sheet 派生 / 钻孔派生同样算消费；要保留输入，正确写法是 keep()。
     const reads = collectCtxReads(unit.body)
     if (reads.size === 0) return
     const shapeVars = this.geometryVarNames()
