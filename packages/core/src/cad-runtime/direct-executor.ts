@@ -37,13 +37,22 @@ import { runtimeLineage } from '../topology/naming/lineage'
 import { resetPmiRegistry } from '../api/pmi/registry'
 import { ExecutionLimitError } from './execution-limit-error'
 import { assertSecure, isSafeGlobalIdent, type SecurityPolicy } from '../lang/security-scanner'
-import { getSlot, ensureSlot, brepOf, isShape } from '../shape'
+import { getSlot, ensureSlot, brepOf, isShape, isCompoundLike } from '../shape'
 import { isMeshShape, type Shape } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { applyTransform } from '../mesh/rigid-transform'
 import { applyTransformBrep } from '../brep/brep-ops'
 import type { TransformedUnit, ExecBackend, ExecBackendChoice } from './exec-backend'
+import { lineConsumes } from './live-shapes'
+import {
+  ConsumeTracker,
+  collectCtxReads,
+  describeViolation,
+  isConsumingOp,
+  type ConsumeRuleOptions,
+  type ConsumeViolation,
+} from './consume-rule'
 import { VmBackend } from './exec-backends/vm-backend'
 import { InterpBackend } from './exec-backends/interp-backend'
 
@@ -216,6 +225,11 @@ export interface DirectExecOutcome {
    * 做 producer 精确化（行号键，与 blockOutputs 同形态）。
    */
   inplaceWrites?: Map<number, string>
+  /**
+   * 语言级消费规则违规（方案 2026-11-08 §9）：warn 档收集的"消费后再引用"清单；
+   * error 档直接抛 ParseError(`E_USE_AFTER_CONSUME`)，不会出现在这里。
+   */
+  consumeViolations?: ConsumeViolation[]
 }
 
 /** 单次执行的参数。 */
@@ -249,6 +263,12 @@ export interface DirectExecOpts {
    * 超时抛 {@link ExecutionLimitError}。不传则无超时（现状行为不变）。
    */
   executionTimeoutMs?: number
+  /**
+   * 语言级消费规则（方案 2026-11-08 §9）：每单元执行前查 `E_USE_AFTER_CONSUME`
+   * （R-B），执行后按 `lineConsumes` 登记消费点（R-A）。不传 → 规则关闭，
+   * 行为与改前逐字节一致。
+   */
+  consumeRule?: ConsumeRuleOptions
 }
 
 /** 单元行区间（P0 增量用：unitRanges 返回值）。 */
@@ -480,6 +500,9 @@ export class DirectExecutor {
   /** 变更登记（T2）：语句写值前后比对的产出——与 module 路径 exec.changed 同语义。 */
   private changedSet = new Set<string>()
 
+  /** 语言级消费规则账本（§9）：跨单元存续；仅在 reset（全量重跑/dispose）清零。 */
+  private readonly consumeTracker = new ConsumeTracker()
+
   /** 本机函数形参表（local ABI，§3.4/§3.6）：函数名 → 形参名序。transformFunction
    *  定义时登记；emitCall 对末尾纯对象实参按名解包（splitPositionalOptions 语义）。 */
   private fnParams = new Map<string, string[]>()
@@ -497,6 +520,7 @@ export class DirectExecutor {
     this.fnParams.clear()
     this.inplaceWrites.clear()
     this.writtenKeys.clear()
+    this.consumeTracker.reset()
   }
 
   /**
@@ -768,6 +792,9 @@ export class DirectExecutor {
         blockOutputs: this.blockOutputs,
         inplaceWrites: this.inplaceWrites,
         changed: this.changedSet.size > 0 ? [...this.changedSet] : undefined,
+        ...(this.consumeTracker.violations.length > 0
+          ? { consumeViolations: [...this.consumeTracker.violations] }
+          : {}),
       }
     } finally {
       // 任何路径（含 ExecutionLimitError / ParseError 中断）都清 sink，防泄漏到下一执行
@@ -916,6 +943,9 @@ export class DirectExecutor {
     opts?.beforeStatement?.(`s${unit.lineNo}`, unit.lineNo)
     try {
       this.activeLine = unit.lineNo
+      // R-B（消费规则 §9）：消费点之后再读 → 违规。必须在执行前查——本单元自己的
+      // 读是输入，不是违规；消费由本单元产生，走 markConsume（执行后）。
+      this.precheckConsume(unit, opts)
       // T2：changed 跟踪——执行前捕获写键旧值（与 module 路径 oldWrites 同语义）。
       const oldWrites = new Map<string, unknown>()
       for (const w of unit.writes) oldWrites.set(w, this.ctx[w])
@@ -952,6 +982,9 @@ export class DirectExecutor {
       // downstream recompute, but since execution is sequential, downstream
       // statements naturally re-read the already-transformed members.
       this.applyPendingAssemblyTransforms()
+      // R-A（消费规则 §9）：登记本单元的消费点。必须在执行之后、写入落定之后——
+      // 消费语句自己要读输入（执行期输入必须还在）。
+      this.markConsume(unit, opts)
     } catch (err) {
       if (err instanceof ParseError) throw err
       // DirectExecutor swallows ALL execution errors into failedAt
@@ -983,6 +1016,84 @@ export class DirectExecutor {
       console.error(`[faijs] afterStatement hook failed for s${unit.lineNo}`, err)
     }
     return { ok: true, failedAt: undefined }
+  }
+
+  /**
+   * ctx 里当前是几何值的键（消费判定 R3 的输入；结构判定与 runtime 的
+   * isShapeLike/isCompoundLike 同构——不要求库函数返回值挂 WeakSet 身份）。
+   * @returns 几何变量名集合（每次调用按当前 ctx 现算，随写入自动更新）
+   */
+  private geometryVarNames(): Set<PartName> {
+    const out = new Set<PartName>()
+    for (const key of Object.keys(this.ctx)) {
+      const v = this.ctx[key] as unknown
+      if (!v || typeof v !== 'object') continue
+      const o = v as Record<string, unknown>
+      const structural = 'positions' in o && 'indices' in o
+      if (structural || isCompoundLike(v)) out.add(asPartName(key))
+    }
+    return out
+  }
+
+  /**
+   * R-B：单元执行前的"消费后再引用"检查（§9）。
+   *
+   * warn 档把违规交给宿主收集（onViolation）；error 档直接抛
+   * `ParseError(E_USE_AFTER_CONSUME)`——runUnitTracked 的 catch 对 ParseError
+   * 是原样上抛（不进 failedAt），宿主会当成语言错误而不是执行失败。
+   * @param unit - 待执行单元（读引用取自变换后 body）
+   * @param opts - 执行参数（consumeRule 缺省 = 规则关闭）
+   */
+  private precheckConsume(unit: TransformedUnit, opts: DirectExecOpts | undefined): void {
+    const rule = opts?.consumeRule
+    if (!rule) return
+    const reads = collectCtxReads(unit.body)
+    if (reads.size === 0) return
+    const violations = this.consumeTracker.preCheck(reads, unit.lineNo)
+    if (violations.length === 0) return
+    if (rule.mode === 'error') {
+      throw new ParseError(
+        describeViolation(violations[0]),
+        unit.lineNo,
+        'E_USE_AFTER_CONSUME',
+      )
+    }
+    for (const v of violations) rule.onViolation?.(v)
+  }
+
+  /**
+   * R-A：单元执行后登记消费点（§9）。
+   *
+   * 判定唯一真源是 `lineConsumes`（live-shapes.ts），这里只提供它的两个输入：
+   * 候选几何名（ctx 现值结构判定）与 keep 视图。自赋值（`a = a.sub(b)`）里 a
+   * 是被覆盖的写目标、b 才是被消费的输入——所以写者先开新世代、再跳过自身。
+   * @param unit - 刚执行成功的单元
+   * @param opts - 执行参数
+   */
+  private markConsume(unit: TransformedUnit, opts: DirectExecOpts | undefined): void {
+    const rule = opts?.consumeRule
+    if (!rule) return
+    const written = new Set(unit.writes)
+    for (const w of unit.writes) this.consumeTracker.commitWrite(w, unit.lineNo)
+    // 块 / 函数声明单元没有语句摘要（块内语句不在 meta.lines 里）：首版不判消费，
+    // 与 live-shapes 对块的处理（词法级 blockConsumes）保持一致，见方案 §9.9。
+    const line = rule.lines.find((l) => l.line === unit.lineNo)
+    if (!line) return
+    // 销毁型白名单（布尔运算）才是"消费 = 输入不再可用"；lineConsumes 的判定是
+    // 预览终端语义，assembly / sheet.solidOf / fai_drill 这类派生 op 也会命中，
+    // 但它们的输入原样保留（fixture 与官方示例实证），见 consume-rule.CONSUMING_OPS。
+    if (!isConsumingOp(line.callee)) return
+    const reads = collectCtxReads(unit.body)
+    if (reads.size === 0) return
+    const shapeVars = this.geometryVarNames()
+    for (const name of reads) {
+      if (written.has(name)) continue
+      const pn = asPartName(name)
+      if (!shapeVars.has(pn)) continue
+      if (lineConsumes(line, pn, rule.keep, shapeVars)) {
+        this.consumeTracker.markConsumed(name, unit.lineNo)
+      }
+    }
   }
 
   /** 行号 → 函数体 keep 登记（exec.keep/exec.keepHidden；与 live-shapes KeepView 对齐）。 */

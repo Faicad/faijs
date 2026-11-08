@@ -36,6 +36,9 @@ export type ParseErrorCode =
   | 'E_DIM_MISMATCH'
   /** P6/D8: 单位常量名不在表中（dimension pass 兖底） */
   | 'E_DIM_UNKNOWN_UNIT'
+  /** 语言级消费规则（方案 2026-11-08 §9）：变量已在消费点被消费并释放，之后
+   *  再次引用即违规（消费点 = 最后一次合法引用；`keep()` 是唯一豁免）。 */
+  | 'E_USE_AFTER_CONSUME'
 
 /**
  * An error raised while parsing faijs source, carrying the offending line

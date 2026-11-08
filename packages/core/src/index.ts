@@ -52,6 +52,7 @@ export type { RetessellateEntry, RetessellatePartResult } from './cad-runtime/ru
 export { COARSE_BBOX_RATIO, COARSE_FLOOR_MM, COARSE_CAP_MM } from './brep/effective-deflection'
 export type { ResolvedTessellation } from './brep/effective-deflection'
 export type { ExecutionStats, ExecutionPath, ExecutionFallbackReason } from './cad-runtime/execution-stats'
+export type { ConsumeRuleMode, ConsumeViolation } from './cad-runtime/consume-rule'
 export type {
   HostPorts, CsgBackend, SdfBackend, FontProvider, TextureSampler,
   AssetResolver, EventSink, ExecutionMode, HostEnv,

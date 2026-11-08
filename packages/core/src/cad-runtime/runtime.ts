@@ -44,6 +44,7 @@ import type { ExecBackendChoice } from './exec-backend'
 import { ModuleRegistry, ModuleRegistryError, isRelativeSpecifier } from './module-registry'
 import type { ModuleRunResult } from './module-registry'
 import { computeLiveShapes, lineConsumes, blockConsumes, type KeepView } from './live-shapes'
+import { describeViolation, type ConsumeRuleMode, type ConsumeRuleOptions } from './consume-rule'
 import { extractMetadata, type UiMetadata, type OpDimMap } from '../lang/metadata-extractor'
 import type { StatementSummary } from '../lang/statement-summary'
 import {
@@ -422,6 +423,14 @@ export interface CadRuntimeOptions {
    *   `topoMode:'brep'` 场景在分派/收尾处自动物化（方案 §2.2 兜底）。
    */
   tessellationTiming?: TessellationTiming
+  /**
+   * 语言级消费规则档位（方案 2026-11-08 §9；缺省 `'warn'`）：
+   * - `'off'`：不检查（行为与改前一致）；
+   * - `'warn'`：把"消费后再引用"收进 `ExecutionResult.infos`，不阻断执行；
+   * - `'error'`：违规即抛 `ParseError(E_USE_AFTER_CONSUME)`。
+   * 规则本身：消费点=最后一次合法引用，之后引用即错误（`keep()` 是唯一豁免）。
+   */
+  consumeRule?: ConsumeRuleMode
 }
 
 // ── LOD 精化（方案 2026-10-28-weapp-tessellation-lod-design）─────────────────
@@ -606,6 +615,10 @@ export class CadRuntime {
   private readonly determinismPolicy: DeterminismPolicy
   /** warn 档位下收集的确定性警告，合并进最终 ExecutionResult.infos。 */
   private determinismWarnings: string[] = []
+  /** 语言级消费规则档位（§9；缺省 'warn'）。 */
+  private readonly consumeRuleMode: ConsumeRuleMode
+  /** warn 档位下收集的消费规则违规（每轮清空，合并进 ExecutionResult.infos）。 */
+  private consumeWarnings: string[] = []
 
   /**
    * Reserved binding names — only `'cad'`. Once the engine registers `cad`
@@ -907,6 +920,7 @@ export class CadRuntime {
     this.namespaces = { ...libs } as Namespaces
     this.securityPolicy = options.security ?? 'strict'
     this.determinismPolicy = options.determinism ?? 'error'
+    this.consumeRuleMode = options.consumeRule ?? 'warn'
     if (options.tessellation) configureTessellation(options.tessellation)
     if (options.tessellationTiming) configureTessellationTiming(options.tessellationTiming)
 
@@ -1105,6 +1119,33 @@ export class CadRuntime {
     }
   }
 
+  /**
+   * 语言级消费规则入参（§9）：把 activeMeta 的语句摘要 + keep 视图交给
+   * DirectExecutor，逐单元做 R-B 检查 / R-A 登记。
+   *
+   * `keep` 的 `functionBody` 读 DirectExecutor.keepByLine——函数体 `exec.keep`
+   * 是执行期登记的，必须取当时的值（与 computeLiveTerminals 同一口径）。
+   * @param meta - 本轮 activeMeta
+   * @returns 规则入参；档位 'off' 或无执行器时 undefined（规则关闭）
+   */
+  private consumeRuleOpts(meta: UiMetadata): ConsumeRuleOptions | undefined {
+    if (this.consumeRuleMode === 'off') return undefined
+    const de = this.directExecutor
+    if (!de) return undefined
+    this.consumeWarnings = []
+    return {
+      mode: this.consumeRuleMode,
+      lines: meta.lines,
+      keep: {
+        declared: () => meta.keep,
+        functionBody: (lineNo) => de.getKeepByLine(lineNo),
+      },
+      onViolation: (v) => {
+        this.consumeWarnings.push(describeViolation(v))
+      },
+    }
+  }
+
   /** 失败/异常路径：排空残留作用帧（避免帧内临时对象泄漏）。 */
   private drainScopeFrames(): void {
     const k = this.kernel
@@ -1269,6 +1310,7 @@ export class CadRuntime {
     if (!('seed' in moduleLoad)) return moduleLoad
     await this.ensureBrepChain()
     const scopeHooks = this.wireScopeHooks(opts)
+    const consumeRule = this.consumeRuleOpts(meta)
     const outcome = await de.execute(code, {
       imports: moduleLoad.seed,
       params: opts?.params,
@@ -1276,6 +1318,7 @@ export class CadRuntime {
       ...(scopeHooks.beforeStatement ? { beforeStatement: scopeHooks.beforeStatement } : {}),
       ...(scopeHooks.afterStatement ? { afterStatement: scopeHooks.afterStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
+      ...(consumeRule ? { consumeRule } : {}),
     })
     // 失败路径排空残留作用帧（成功路径 afterStatement 已逐语句 pop）。
     if (outcome.failedAt) this.drainScopeFrames()
@@ -1295,6 +1338,7 @@ export class CadRuntime {
     }
     const result = this.collectDirectResult(meta, opts, execution)
     if (this.determinismWarnings.length > 0) result.infos.push(...this.determinismWarnings)
+    if (this.consumeWarnings.length > 0) result.infos.push(...this.consumeWarnings)
     const notices = takeRuntimeNotices()
     if (notices.length > 0) result.infos.push(...notices)
     this.recordFingerprints(opts)
@@ -1376,12 +1420,14 @@ export class CadRuntime {
     if (!('seed' in moduleLoad)) return moduleLoad
     await this.ensureBrepChain()
     const appendScopeHooks = this.wireScopeHooks(opts)
+    const appendConsumeRule = this.consumeRuleOpts(meta)
     const outcome = await de.append(code, {
       imports: moduleLoad.seed,
       params: opts?.params,
       ...(appendScopeHooks.beforeStatement ? { beforeStatement: appendScopeHooks.beforeStatement } : {}),
       ...(appendScopeHooks.afterStatement ? { afterStatement: appendScopeHooks.afterStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
+      ...(appendConsumeRule ? { consumeRule: appendConsumeRule } : {}),
     })
     if (outcome.failedAt) this.drainScopeFrames()
     if (outcome.failedAt) {
@@ -1399,6 +1445,7 @@ export class CadRuntime {
       skippedUnits: 0,
     })
     if (this.determinismWarnings.length > 0) result.infos.push(...this.determinismWarnings)
+    if (this.consumeWarnings.length > 0) result.infos.push(...this.consumeWarnings)
     const notices = takeRuntimeNotices()
     if (notices.length > 0) result.infos.push(...notices)
     this.recordFingerprints(opts)
@@ -2906,11 +2953,13 @@ export class CadRuntime {
     if (libLoadFailure) return libLoadFailure
 
     const replayScopeHooks = this.wireScopeHooks(opts)
+    const replayConsumeRule = this.consumeRuleOpts(meta)
     const execOpts: DirectExecOpts = {
       params: opts?.params,
       ...(replayScopeHooks.beforeStatement ? { beforeStatement: replayScopeHooks.beforeStatement } : {}),
       ...(replayScopeHooks.afterStatement ? { afterStatement: replayScopeHooks.afterStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
+      ...(replayConsumeRule ? { consumeRule: replayConsumeRule } : {}),
     }
 
     // ExecutionLimitError / ParseError / security scan errors propagate
@@ -2935,6 +2984,7 @@ export class CadRuntime {
       skippedUnits: Math.max(0, allUnitsParsed.length - outcome.executedLines.length),
     })
     // Record fingerprints after successful execution
+    if (this.consumeWarnings.length > 0) result.infos.push(...this.consumeWarnings)
     this.recordFingerprints(opts)
     return result
   }
