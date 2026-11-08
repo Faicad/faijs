@@ -1597,7 +1597,12 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
       const importText = code.slice(importBlock.start, importBlock.end)
       const rest = code.slice(importBlock.end)
       parseCode = `${prefix}${importText}\nexport default async (${defaultNsName}) => {\n${rest}\n}`
-      lineOffset = countLines(prefix + importText) + 1
+      // 封装插入 2 行：importText 之后的 `\n` + `export default async (… ) => {` 这一行。
+      // prefix 与 importText 仍原样位于 parseCode 开头、占的正是它们在原文里的行数，
+      // 因此**只扣这 2 行**。旧实现扣 `countLines(prefix+importText)+1`（重复扣前缀），
+      // banner 越长行号偏前越多 → 按行号查找语句摘要的调用方（consume 规则 / 帧 / keep）
+      // 全部静默落空。
+      lineOffset = 2
       // 字符偏移 = 注入的 '\n'（importText 后）+ 封装头长度。原实现 29+len 少算 1
       //（未计入 importText 与封装间的换行），导致 import 场景的区间坐标错位——
       // bodyRange/ArgSource.start/end 等归一化要落到原 code 坐标。
@@ -1898,11 +1903,6 @@ function isLiteralValue(init: ASTNode): boolean {
 /** 字面量（非数组/对象）直接取值。 */
 function parseLiteralValue(init: ASTNode): unknown {
   return init.value
-}
-
-function countLines(text: string): number {
-  if (text === '') return 0
-  return (text.match(/\n/g) ?? []).length + 1
 }
 
 function onlyWhitespaceAndComments(text: string): boolean {
