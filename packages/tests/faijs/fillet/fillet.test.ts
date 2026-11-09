@@ -215,4 +215,41 @@ describe('fillet e2e (BREP/OCCT)', () => {
     const removed = 8000 - volumeOf(result, asPartName('part1'))
     expect(removed).toBeCloseTo(17.168, 1)
   })
+
+  // GOTCHA（2026-11-09，drawing copy1 建模实测）：
+  // 给「带贯通窗口 + 多个圆孔」的板件正面左下角做 R3 圆角时，
+  // `#Z and <X and <Y`（垂直 Z 轴 + 最小 X + 最小 Y）报 E_FILLET_RADIUS_TOO_LARGE，
+  // 而 `|Z and <X and <Y`（平行 Z 轴）成功。
+  // 根因：`#Z` 选出的"垂直 Z 轴"边集在该几何上包含被窗口/孔切断的短边与曲线边，
+  // OCCT 无法对这批边统一做 R3；`|Z` 选出的 4 条竖直长边才是可圆角的棱。
+  // 本用例钉死这个差异，防止后人凭直觉把 `|Z` 写成 `#Z`。
+  it('T-F6: 复杂板件圆角选择器 —— `|Z and <X and <Y` 可圆角，`#Z and <X and <Y` 报半径过大', async () => {
+    const build = (selector: string) => `
+      const t = 16 * MM
+      const p0 = cad.box(240, 160, t, { at: [0 * MM, 0 * MM, 0 * MM] })
+      const winTool = cad.box(113, 42, t + 20 * MM, { at: [0 * MM, 0 * MM, -10 * MM] })
+      const p1 = cad.subtract(p0, winTool)
+      const hole = cad.cylinder(2.6, 14, { at: [-110 * MM, -65 * MM, 0 * MM] })
+      const p2 = cad.subtract(p1, hole)
+      cad.fillet(p2, { edges: '${selector}', radius: 3 * MM })
+    `
+    // |Z（平行 Z 轴）→ 成功
+    const okResult = await runtime.execute(build('|Z and <X and <Y'), { topology: 'auto' })
+    expect(okResult.failedAt).toBeUndefined()
+    expect(okResult.brepChain.solidCache.size).toBeGreaterThan(0)
+
+    // #Z（垂直 Z 轴）→ 在该几何上失败（半径过大或选不到可圆角边）
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const badResult = await runtime.execute(build('#Z and <X and <Y'), { topology: 'auto' })
+      expect(badResult.failedAt).toBeDefined()
+      expect(badResult.failedAt!.message).toMatch(/E_FILLET_RADIUS_TOO_LARGE|E_FILLET_NO_EDGES/)
+    } finally {
+      warnSpy.mockRestore()
+      errorSpy.mockRestore()
+    }
+    expect(warnSpy).not.toHaveBeenCalled()
+    expect(errorSpy).not.toHaveBeenCalled()
+  })
 })
