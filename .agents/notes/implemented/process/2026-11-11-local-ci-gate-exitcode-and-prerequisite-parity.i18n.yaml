@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/process/2026-11-11-local-ci-gate-exitcode-and-prerequisite-parity.md
+2026-11-11-local-ci-gate-exitcode-and-prerequisite-parity.md: be5d79e8fbc0bf0e5342347a52ba6b5ef272f8d8
+2026-11-11-local-ci-gate-exitcode-and-prerequisite-parity.zh.md: b283a837980b6d84d9feafdf378349dbacbd07c9

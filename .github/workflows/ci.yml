@@ -82,13 +82,23 @@ jobs:
             "@faicad/faijs-demo"
           )
           gears_subset="test/index.test.ts test/profile.test.ts test/new-gear-math.test.ts test/spur-gear-build.test.ts"
+          # Budgets mirror `$testBudgetOverrides` in scripts/ci.ps1 — ONE table, two
+          # pipelines. 2026-11-11 calibration (4-core box, 454 core test files):
+          # @faicad/faijs needs ~910s, so the old shared 300s budget always killed it;
+          # @faicad/faijs-tests finishes 84/86 files in 300s and needs ~350s.
+          # 1500s for core is 实测 × ~1.6 — a deadlock still trips it (that is a
+          # zero-progress state, not a slow one).
           default_budget=300000
+          core_budget=1500000
           fasteners_budget=600000
+          tests_budget=600000
           failed=0
           : > vitest-ci.log
           for pkg in "${packages[@]}"; do
             budget=$default_budget
+            if [ "$pkg" = "@faicad/faijs" ]; then budget=$core_budget; fi
             if [ "$pkg" = "@faicad/faijs-fasteners" ]; then budget=$fasteners_budget; fi
+            if [ "$pkg" = "@faicad/faijs-tests" ]; then budget=$tests_budget; fi
             echo "::group::tests $pkg (budget=${budget}ms)"
             if [ "$pkg" = "@faicad/faijs-gears" ]; then
               (cd packages/faijs-gears && node ../../scripts/run-tests-with-watchdog.mjs --budget-ms "$budget" -- npx vitest run $gears_subset) | tee -a vitest-ci.log

@@ -13,8 +13,19 @@ param(
 # 'Continue' and rely on the explicit $LASTEXITCODE checks below.
 $ErrorActionPreference = 'Continue'
 # StrictMode hosts: $LASTEXITCODE only exists after the first native command.
-# Initialise it so the first `if ($LASTEXITCODE -ne 0)` check doesn't throw.
-$LASTEXITCODE = 0
+# Initialise it so the first `if (... -ne 0)` check doesn't compare $null -ne 0 (True).
+#
+# ⚠️ MUST be assigned through `$global:` — `$LASTEXITCODE = 0` creates a SCRIPT-scope
+# shadow, while PowerShell only ever updates the GLOBAL copy when a native command
+# exits. With the unqualified assignment every `if ($LASTEXITCODE -ne 0)` below reads
+# the stale 0 forever, i.e. the entire gate is silently toothless.
+# Proven 2026-11-11: an `& scripts/ci.ps1` run with 5 failing stages (typecheck, two
+# watchdog kills, op-dims, api-coverage, both demo e2e) still printed
+# "All CI checks passed". `pwsh -File ci.ps1` happened to mask the bug because a
+# -File body runs in the global scope, where the unqualified assignment lands in
+# $global: anyway — so the gate's behaviour depended on HOW the script was invoked.
+# Keep this line and every read below on `$global:LASTEXITCODE`.
+$global:LASTEXITCODE = 0
 
 # Decode external (Node) command stdout as UTF-8 instead of the system
 # default GBK/CP936. Without this, vitest/eslint/tsc output is mis-decoded
@@ -47,11 +58,11 @@ function Step {
     $start = Get-Date
     Write-Host "==> $Label"
     & $Block
-    if ($LASTEXITCODE -ne 0) {
+    if ($global:LASTEXITCODE -ne 0) {
         if ($allMode) {
             $script:failures.Add($Label)
         } else {
-            exit $LASTEXITCODE
+            exit $global:LASTEXITCODE
         }
     }
     $elapsed = (Get-Date) - $start
@@ -65,11 +76,11 @@ Step -Label '1/8  npm run lint' -Block { npm run lint }
 
 Step -Label '2/8  npm run typecheck（根 + workspaces）' -Block {
     npm run typecheck
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     npm run typecheck --workspaces --if-present
 }
 
-Step -Label '3/8  npm run build（core → viewer → sheetmetal → gears）' -Block {
+Step -Label '3/8  npm run build（core → viewer → sheetmetal → gears）+ 测试内核夹具' -Block {
     # Ensure workspace junctions exist (npm workspaces may fail to create them on Windows)
     if (-not (Test-Path "node_modules/@faicad/faijs/package.json")) {
         Write-Host "    [ci] workspace junction missing — running npm install" -ForegroundColor Yellow
@@ -80,6 +91,13 @@ Step -Label '3/8  npm run build（core → viewer → sheetmetal → gears）' -
     # cq-compat-compare 的 pretest 构建经 node_modules 解析 @faicad/faijs → dist，fresh checkout 无此步则 TS2307。
     # 根 build 已覆盖它们；dist 在 git 上被忽略，fresh checkout 全靠此步产出。
     npm run build
+    if ($global:LASTEXITCODE -ne 0) { return }
+    # 多版本 brepkit 测试从 _test-kernels/ 装载未打包的 wasm 内核，该目录 gitignored。
+    # GOTCHA（2026-11-11）：ci.yml 一直有这一步、ci.ps1 没有，于是本地 5 个 brepkit 测试
+    # （batchA / batchC / clone / multi-engine-op-parity / multi-version-smoke，共 16 例）
+    # 永远红——报 Cannot find module .../brepkit-2.129.15/package/brepkit_wasm_node.cjs，
+    # 与几何无关。脚本幂等：已存在的版本 skip。必须在测试之前跑。
+    node scripts/fetch-test-kernels.mjs
 }
 
 Write-Host "==> 4/8  test workspaces（每包独立硬预算；默认 5 分钟）"
@@ -92,9 +110,16 @@ $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS 
 # 单包预算覆盖：
 # faijs-gears / faijs-fasteners 同为 BREP parity 大套件（gears 全套 >900s，CI 只跑其
 # 轻量子集，见下方 $gearsSubset 注释；fasteners 全量实测 139s，600s 留足慢机余量）。
+#
+# 2026-11-11 实测标定（本机 4 核，454 个 core 测试文件）：@faicad/faijs 全套约 910s
+# （600s 预算下 304/454 文件被 watchdog 杀掉，剩 150 个单独跑完 = 310s，639 passed，
+# 无断言失败）。预算给到 1500s ≈ 实测 × 1.6：不是放松看门狗，而是承认慢机上「慢」与
+# 「死锁」的边界——真正的同步死锁是零进展，1500s 照样杀。
+# faijs-tests 86 文件在 300s 时完成 84 个，只剩 bearing / parity 两个重文件，同样不够。
 $testBudgetOverrides = @{
-  '@faicad/faijs'            = 600000
+  '@faicad/faijs'            = 1500000
   '@faicad/faijs-fasteners'  = 600000
+  '@faicad/faijs-tests'      = 600000
 }
 # faijs-gears 全套 BREP parity 测试 >900s（features.test.ts 单文件 240s+），历史上从未
 # 进过 CI；这里只跑轻量但灵敏的核心子集：API 面装载自检（index）、齿廓数学层 vs cq_gears
@@ -115,7 +140,7 @@ foreach ($pkg in $testPackages) {
     } else {
         node scripts/run-tests-with-watchdog.mjs --budget-ms $pkgBudget -- npm run test -w $pkg 2>&1 | Tee-Object -FilePath $tmpVitest -Append
     }
-    if ($LASTEXITCODE -ne 0) {
+    if ($global:LASTEXITCODE -ne 0) {
         $stepFail = $true
         if ($allMode) {
             $script:failures.Add("4/8  $pkg tests")
@@ -169,7 +194,7 @@ Write-Host "    ($($elapsed3.TotalSeconds.ToString('0.0'))s / 累计 $($total3.T
 # publish-state smoke: pack + install + run (sketch + extra now in core)
 Write-Host "    -- @faicad/faijs test:install（publish-state 冒烟）"
 node scripts/run-tests-with-watchdog.mjs --budget-ms 600000 -- npm run test:install -w @faicad/faijs 2>&1 | ForEach-Object { Write-Host $_ }
-if ($LASTEXITCODE -ne 0) {
+if ($global:LASTEXITCODE -ne 0) {
     if ($allMode) {
         $script:failures.Add('4/8  @faicad/faijs test:install')
     } else {
@@ -179,53 +204,61 @@ if ($LASTEXITCODE -ne 0) {
 
 Step -Label '5/8  守卫：幽灵依赖 / workspaces 顺序 / 包族版本 lockstep / 包图无环 / 导出面 / 平台 import 隔离 / 库分层 / API 测试覆盖 / dist 脱节' -Block {
     node scripts/check-ghost-deps.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     node scripts/check-lockstep.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     node scripts/check-facade.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     npx madge --circular packages/core/src
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # 平台 import 隔离（narrowing plan Phase 8）：中立模块不得静态 import occt/brepkit 平台模块
     node scripts/check-platform-imports.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # 库分层门禁（2026-10-14 §3.4）：按各包 package.json 的 faijs.lib.role 检查内核取用面
     # （library/declaration 禁裸槽位、禁自装配内核、禁跨内核面假断言；host 按声明放行）
     node scripts/check-lib-layering.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # 导出面：10 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
     node scripts/api-surface-snapshot.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # A5 / M4：dist 是构建产物（gitignored），可能落后于 src。构建后比对 src 符号表与
     # dist 符号表键集，脱节则拦截 publish。fresh checkout / 未构建环境无 dist 时跳过。
     node scripts/check-dist-sync.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # core-decouple wrapup §4.1：brepjs 归零守卫（包名/路径零依赖）
     node scripts/check-core-no-brepjs.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # M5：库源码语言审计（可发布库包 src/ 必须 100% TS，禁止手写 JS 发布库）
     node scripts/check-lib-src-language.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # 测试文件禁止读取仓库外路径（兄弟仓库/绝对路径在 CI 上必然 ENOENT，见 37076464640）
     node scripts/check-test-fs-scope.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # tsconfig paths 完整性：@faicad/* import 必须有显式映射，否则本地静默退回旧 dist、CI fresh checkout 报 TS2307
     node scripts/check-tsconfig-paths.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # op 量纲声明防遗漏（D8+）：每个 defineOp/compatOp 必须声明 paramDims（或 spec）
     node scripts/check-op-dims.mjs
-    if ($LASTEXITCODE -ne 0) { return }
+    if ($global:LASTEXITCODE -ne 0) { return }
     # API 测试覆盖门禁：每个可发布包的导出 API 必须被本包测试引用（L1），
     # 且每个参数必须在调用点被覆盖（L2）。基于源码 AST，不依赖 build。
     foreach ($pkg in @('core','sheetmetal','faijs-gears','faijs-fasteners','faijs-viewer')) {
         npx tsx scripts/check-api-test-coverage.ts --package=$pkg
-        if ($LASTEXITCODE -ne 0) { return }
+        if ($global:LASTEXITCODE -ne 0) { return }
     }
 }
 
 Step -Label '6/8  demo e2e（dev server 模式，@faicad/* 走 workspace dist）' -Block {
+    # GOTCHA（2026-11-11）：浏览器二进制不在 node_modules 里（Playwright 把它下载到
+    # %LOCALAPPDATA%\ms-playwright），fresh clone / 升级 Playwright 后必然缺。ci.yml 一直
+    # 有 `npx playwright install --with-deps chromium`、ci.ps1 没有，于是本地 46 个 e2e
+    # 全红于 browserType.launch: Executable doesn't exist —— 是环境不是断言。
+    # 幂等：已装则直接返回。装在 demo（@playwright/test 的属主包）里，避免版本错配。
+    Push-Location packages/demo
+    try { npx playwright install chromium } finally { Pop-Location }
+    if ($global:LASTEXITCODE -ne 0) { return }
     npm run test:e2e -w @faicad/faijs-demo
 }
 
