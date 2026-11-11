@@ -261,7 +261,11 @@ describe('fai_drill_tapper — 放置词汇与 compound（faceNormal / partIndex
       drill: 'Ø2.5 完全贯穿', tap: 'M3-6H', partIndex: 1,
     })
     expect(isCompoundLike(r)).toBe(true)
-    const out = r as CompoundShape
+    // GOTCHA（2026-11-11）：`defineOp` 包装器的公开返回类型被收窄成 `Promise<Shape>`，
+    // 而 compound 输入下实际返回 `CompoundShape`（BrepProduct 本身允许，收窄发生在
+    // define-op.ts 的 overload）。两者结构互不重叠（Shape 有 positions/indices，
+    // CompoundShape 有 kind/children），必须经 `unknown` 中转，否则 TS2352。
+    const out = r as unknown as CompoundShape
     expect(out.children).toHaveLength(2)
     expect(pmiThreads(out.children[0]!)).toHaveLength(0)
     expect(pmiThreads(out.children[1]!)).toHaveLength(1)

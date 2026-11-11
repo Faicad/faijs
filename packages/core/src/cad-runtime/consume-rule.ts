@@ -1,7 +1,9 @@
 /**
  * consume-rule — 语言级消费规则（R-A/R-B/R-C 的判定与账本）
  *
- * 规则（方案见 3d_editor docs/plans/2026-11-08-stream-preview-diff-frames-design.md §9）：
+ * 规则（方案见 3d_editor 仓 2026-11-08 stream-preview-diff-frames-design §9；该文档
+ * 不属本仓，故不写成仓内路径——verify-doc-refs 只认 `docs/…md` 字面量，
+ * 兄弟仓的计划书写成路径 token 会被判为失效引用）：
  * - R-A 消费点：变量 v 的最后写者之后，第一条 `lineConsumes` 为真的语句；
  * - R-B 禁止再引用：消费点之后再读 v = 语言错误 `E_USE_AFTER_CONSUME`；
  * - R-C 消费即释放：消费语句执行完，v 的派生缓存/句柄/ctx 键当场回收

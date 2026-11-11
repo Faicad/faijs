@@ -28,6 +28,7 @@ import type { ResolvedThreadSpec } from '../../primitives/screw/thread-spec'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { resolveCompoundMember, replaceCompoundMember } from '../../shape'
+import type { CompoundShape } from '../../shape'
 import { appendPmiItem } from '../../api/pmi/methods'
 import { assertVec3 } from '../../api/assert'
 import {
@@ -168,7 +169,14 @@ function normalizeTapperParams(
  * const p = cad.fai_drill_tapper(part0, { drill: 'Ø8.7 深20', tap: 'PT1/8', position: [0, 0, 30], direction: 'z' })
  */
 export const fai_drill_tapper = defineOp({
-  brep: (input: Shape, params: Record<string, unknown>) => {
+  // 入参面必须是 `Shape | CompoundShape`：`params.partIndex` 的语义就是「多零件 load 的
+  // compound 成员索引」，实现经 resolveCompoundMember 真正消费 compound。旧签名只写
+  // `Shape` 比实现窄——`compound()` 返回的 `CompoundShape` 结构上不含 mesh 的
+  // positions/indices，于是库调用方（以及 test/extra/ops/fai-drill-tapper.test.ts 的
+  // partIndex 用例）在类型层无法把 compound 传进来（TS2345）。2026-11-11 放宽。
+  // 注意返回面仍是 defineOp 包装器的 `Promise<Shape>`（BrepProduct 收窄，见
+  // define-op.ts 的 overload）：调用方要读 children 得显式收窄，见该测试的 GOTCHA。
+  brep: (input: Shape | CompoundShape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[extra/drill_tapper] no input geometry')
     const { p, th } = normalizeTapperParams(params)
     assertDrillParams(p)
@@ -183,7 +191,9 @@ export const fai_drill_tapper = defineOp({
     )
     return replaceCompoundMember(input, p.partIndex, drilled.shape)
   },
-  paramDims: {},
+  // partIndex 是「成员下标」，无量纲：必须显式声明 'plain'，否则该数字槽位完全逃出
+  // 单位系统（check-op-dims 门禁，docs/plans/2026-10-10-op-dims-declaration-guard.md）。
+  paramDims: { partIndex: 'plain' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
   // 建模即标注：同一语句既钻底孔又产 PmiThreadHole（底孔 + 螺纹一体）。
   // 上游标注归上游零件名所有，不搬运（查询时沿血缘聚合）。

@@ -378,7 +378,7 @@ export function isCompoundLike(v: unknown): v is CompoundShape {
  * @param callee - op 名（错误消息定位用）
  * @returns 目标成员 Shape（compound 的 children 是匿名几何，可直接接特征链）
  */
-export function resolveCompoundMember(input: Shape, partIndex: unknown, callee: string): Shape {
+export function resolveCompoundMember(input: Shape | CompoundShape, partIndex: unknown, callee: string): Shape {
   if (!isCompoundLike(input)) return input
   const idx = typeof partIndex === 'number' ? partIndex : 0
   const child = input.children[idx]
@@ -400,7 +400,7 @@ export function resolveCompoundMember(input: Shape, partIndex: unknown, callee: 
  * @param replacement - 目标成员的新 Shape（op 结果）
  * @returns 替换后的 compound（其余 children 原样）或 replacement（入参非 compound 时）
  */
-export function replaceCompoundMember(input: Shape, partIndex: unknown, replacement: Shape): Shape | CompoundShape {
+export function replaceCompoundMember(input: Shape | CompoundShape, partIndex: unknown, replacement: Shape): Shape | CompoundShape {
   if (!isCompoundLike(input)) return replacement
   const idx = typeof partIndex === 'number' ? partIndex : 0
   const children = input.children.slice()
