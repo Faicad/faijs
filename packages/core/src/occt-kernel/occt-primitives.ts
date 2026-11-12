@@ -22,6 +22,7 @@ import type {
 } from 'occt-wasm'
 import { initOcctWasm } from './occtKernel'
 import { hullFromPoints as hullFromPointsCore } from './hullOps'
+import { repairDegenerateRevolve } from './revolve-degenerate'
 import type { AssertSatisfiesBrepEngineApi, BrepEngineApi } from '../brep/engine/primitives'
 import type {
   BrepBoundingBox,
@@ -158,8 +159,16 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
 
     // ── shaping ──
     extrude: (shape, dx, dy, dz) => asHandle(k.extrude(asShape(shape), dx, dy, dz)),
-    revolveVec: (shape, center, direction, angleDeg) =>
-      asHandle(k.revolve(asShape(shape), { point: center, direction }, rad(angleDeg))),
+    revolveVec: (shape, center, direction, angleDeg) => {
+      // Near-degenerate cone preservation: modern OCCT's revolve sweep
+      // canonicalizes slant profile lines with tiny slope (e.g. the Fasteners
+      // 0.001 sliver) into lossy/inconsistent cylinders; the exact frustum
+      // repair keeps corpus-truth-exact cones. Gates inside; non-degenerate
+      // profiles take the plain sweep unchanged.
+      const repaired = repairDegenerateRevolve(k, asShape(shape), center, direction, angleDeg)
+      if (repaired !== undefined) return asHandle(repaired)
+      return asHandle(k.revolve(asShape(shape), { point: center, direction }, rad(angleDeg)))
+    },
     // L1 中立 sweep：occt 侧 native sweepPipeShell 的 (profile, spine) 与 L1 同形，
     // 只补齐两个默认开关（freenet=false / smooth=false，与旧 sweepFns 的默认路径
     // 逐字节一致）；brepkit 侧的 face/NURBS 适配在 brepkitKernel 内。
