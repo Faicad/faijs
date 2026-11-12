@@ -133,3 +133,107 @@ describe('compound: brep path (fake kernel)', () => {
     expect(() => compound({ members: [a, off] })).toThrow(BrepUnsupportedError)
   })
 })
+
+// ── dropSubsumed（FreeCAD truth drop_cumulative_part_design 镜像） ──
+
+describe('compound: dropSubsumed (brep path)', () => {
+  /** fake kernel：每个句柄一个 solid；体积/包围盒走查表。 */
+  function fakeKernelWith(inv: Record<number, { vol: number; bb: [number, number, number, number, number, number] }>) {
+    return {
+      makeCompound: (hs: BrepHandle[]) => hs as unknown as BrepHandle,
+      meshShape: () => ({ positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }),
+      getSubShapes: (h: BrepHandle) => [h],
+      getVolume: (h: BrepHandle) => inv[h as unknown as number].vol,
+      getBoundingBox: (h: BrepHandle) => {
+        const b = inv[h as unknown as number].bb
+        return { xmin: b[0], ymin: b[1], zmin: b[2], xmax: b[3], ymax: b[4], zmax: b[5] }
+      },
+    }
+  }
+
+  function memberOf(h: number): Shape {
+    return fromBrep(cubeMesh(1), { solid: h as unknown as BrepHandle })
+  }
+
+  it('later eligible member with >= volume and containing bbox subsumes earlier ones (Dir_F pattern)', () => {
+    // Pad(41.9) → Pocket(40.34) → Pad001(42.69, bbox contains both)：
+    // Pad 与 Pocket 都被 Pad001 吞并删除，只剩 Pad001。
+    const k = fakeKernelWith({
+      1: { vol: 41.9, bb: [-8.65, -1.25, -3, 8.65, 1.25, 1] },
+      2: { vol: 40.34, bb: [-8.65, -1.25, -3, 8.65, 1.25, 1] },
+      3: { vol: 42.69, bb: [-8.65, -1.25, -3, 8.65, 1.25, 1] },
+    })
+    configureBackends(makeBackends('auto', k))
+    const out = compound({ members: [memberOf(1), memberOf(2), memberOf(3)], dropSubsumed: [0, 1, 2] })
+    const handles = (brepOf(out) as unknown as BrepHandle[]) as unknown as number[]
+    expect(handles).toEqual([3])
+  })
+
+  it('volume-decreasing later member never subsumes (SAE pockets pattern)', () => {
+    // Pad001(83872) 之后一连串减材料 Pocket（体积递减）：谁也吞不掉谁，全部保留。
+    const k = fakeKernelWith({
+      1: { vol: 83872, bb: [-86, -75, -84, 86, 77, 0] },
+      2: { vol: 67760, bb: [-86, -75, -84, 86, 77, 0] },
+      3: { vol: 65756, bb: [-86, -75, -84, 86, 77, 0] },
+    })
+    configureBackends(makeBackends('auto', k))
+    const out = compound({ members: [memberOf(1), memberOf(2), memberOf(3)], dropSubsumed: [0, 1, 2] })
+    const handles = (brepOf(out) as unknown as BrepHandle[]) as unknown as number[]
+    expect(handles).toEqual([1, 2, 3])
+  })
+
+  it('non-eligible members are neither dropped nor subsume (is_pd mirror)', () => {
+    // 成员 0（不在列表）体积更小但被 1 包含：不删；成员 2（不在列表）体积更大：
+    // 即便包含成员 1 也不参与吞并。
+    const k = fakeKernelWith({
+      1: { vol: 10, bb: [0, 0, 0, 1, 1, 1] },
+      2: { vol: 20, bb: [0, 0, 0, 1, 1, 1] },
+      3: { vol: 30, bb: [0, 0, 0, 1, 1, 1] },
+    })
+    configureBackends(makeBackends('auto', k))
+    const out = compound({ members: [memberOf(1), memberOf(2), memberOf(3)], dropSubsumed: [1] })
+    const handles = (brepOf(out) as unknown as BrepHandle[]) as unknown as number[]
+    expect(handles).toEqual([1, 2, 3])
+  })
+
+  it('bbox poking out of the later member keeps the earlier one', () => {
+    // 体积条件满足但包围盒越界：不吞并。
+    const k = fakeKernelWith({
+      1: { vol: 10, bb: [-5, 0, 0, 1, 1, 1] },
+      2: { vol: 20, bb: [0, 0, 0, 1, 1, 1] },
+    })
+    configureBackends(makeBackends('auto', k))
+    const out = compound({ members: [memberOf(1), memberOf(2)], dropSubsumed: [0, 1] })
+    const handles = (brepOf(out) as unknown as BrepHandle[]) as unknown as number[]
+    expect(handles).toEqual([1, 2])
+  })
+
+  it('fewer than two eligible members → unchanged (nothing can subsume)', () => {
+    const k = fakeKernelWith({
+      1: { vol: 10, bb: [0, 0, 0, 1, 1, 1] },
+      2: { vol: 20, bb: [0, 0, 0, 1, 1, 1] },
+    })
+    configureBackends(makeBackends('auto', k))
+    const out = compound({ members: [memberOf(1), memberOf(2)], dropSubsumed: [0] })
+    const handles = (brepOf(out) as unknown as BrepHandle[]) as unknown as number[]
+    expect(handles).toEqual([1, 2])
+  })
+
+  it('out-of-range indices are ignored, no throw', () => {
+    const k = fakeKernelWith({
+      1: { vol: 10, bb: [0, 0, 0, 1, 1, 1] },
+      2: { vol: 20, bb: [0, 0, 0, 1, 1, 1] },
+    })
+    configureBackends(makeBackends('auto', k))
+    const out = compound({ members: [memberOf(1), memberOf(2)], dropSubsumed: [-1, 2, 1.5] })
+    const handles = (brepOf(out) as unknown as BrepHandle[]) as unknown as number[]
+    expect(handles).toEqual([1, 2])
+  })
+
+  it('mesh path with dropSubsumed → BrepUnsupportedError (no silent ignore)', () => {
+    configureBackends(makeBackends('mesh'))
+    const a = solid(cubeMesh(2))
+    const b = solid(cubeMesh(2))
+    expect(() => compound({ members: [a, b], dropSubsumed: [0, 1] })).toThrow(BrepUnsupportedError)
+  })
+})
