@@ -1,12 +1,12 @@
 {
   "name": "@faicad/faijs-viewer",
-  "version": "0.45.22",
+  "version": "0.46.0",
   "faijs": {
     "lib": {
       "role": "host"
     }
   },
-  "description": "Read + execute + tessellate a project .fai.zip for any third-party host. v1 API: openFaiZip(bytes, { wasm: { occtUrl, manifoldUrl, brepkitUrl } })",
+  "description": "Read + execute + tessellate a project .fai.zip or a single .fai.js source for any third-party host. Public API: openFaiZip(bytes, opts) / openFaiSource(source, opts)",
   "keywords": [
     "faijs",
     "fai",
@@ -39,7 +39,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.45.0",
+    "@faicad/faijs": "^0.46.0",
     "occt-wasm": "5.6.0",
     "three": "^0.162.0 || ^0.184.0"
   },
