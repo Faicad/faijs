@@ -3,7 +3,7 @@
  * `@faicad/faijs/io/fai-zip` (`writeContainer`), then opens it through the
  * viewer's public API and asserts structured meshes come back non-empty.
  *
- * Runs in Node (vitest): `openFaiZip` validates the three wasm urls (v1
+ * Runs in Node (vitest): `openFaiZip` validates the two wasm urls (v1
  * contract) even though they are not fetched here; the engine falls back to
  * core's local occt/manifold auto-load, so a real box mesh is produced.
  */
@@ -12,13 +12,12 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { writeContainer, createManifest } from '@faicad/faijs/io/fai-zip'
 import { openFaiZip } from '../src/open-fai-zip'
 
-// The three v1 wasm urls are mandatory. In a browser host these would be real
+// The two v1 wasm urls are mandatory. In a browser host these would be real
 // deployment URLs; in a Node test they are validated but not fetched, and the
 // engine executes against locally-bundled occt/manifold wasm instead.
 const WASM = {
   occtUrl: 'http://localhost:0/wasm/occt-wasm.wasm',
   manifoldUrl: 'http://localhost:0/wasm/manifold.wasm',
-  brepkitUrl: 'http://localhost:0/wasm/brepkit_wasm_bg.wasm',
 }
 
 /** A single-model container whose active script is `cad.box(10, 20, 30)`. */
@@ -60,11 +59,20 @@ describe('openFaiZip (e2e, node + local engines)', () => {
     }
   })
 
-  it('throws E_WASM_URL when one of the three urls is empty (contract violation)', async () => {
+  it('throws E_WASM_URL when one of the two urls is empty (contract violation)', async () => {
     const bytes = makeBoxContainer()
     await expect(
-      openFaiZip(bytes, { wasm: { occtUrl: '', manifoldUrl: 'x', brepkitUrl: 'y' } }),
+      openFaiZip(bytes, { wasm: { occtUrl: '', manifoldUrl: 'x' } }),
     ).rejects.toThrow(/occtUrl/)
+  })
+
+  it('requires exactly occt + manifold: no brepkit wasm url in the contract', async () => {
+    // The viewer never registers a brepkit kernel. Pin the url shape so a
+    // brepkit dependency cannot creep back into the host contract.
+    expect(Object.keys(WASM)).toEqual(['occtUrl', 'manifoldUrl'])
+    const result = await openFaiZip(makeBoxContainer(), { wasm: WASM })
+    expect(result.error).toBeUndefined()
+    expect(result.meshes.length).toBeGreaterThan(0)
   })
 
   it('surfaces E_CONTAINER when the bytes are not a valid .fai.zip', async () => {

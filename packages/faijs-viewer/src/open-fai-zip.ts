@@ -3,10 +3,10 @@
  *
  * v1 contract:
  * ```
- * openFaiZip(bytes, { wasm: { occtUrl, manifoldUrl, brepkitUrl } })
+ * openFaiZip(bytes, { wasm: { occtUrl, manifoldUrl } })
  * ```
  *
- * Given a project `.fai.zip` byte buffer and the three engine wasm URLs, this
+ * Given a project `.fai.zip` byte buffer and the two engine wasm URLs, this
  * reads the container, resolves the active (or requested) model, executes it
  * through `@faicad/faijs` (`createRuntime` over the container's own module
  * graph), and returns structured, tessellated mesh data plus provenance.
@@ -24,7 +24,7 @@ import { setSketchSolverInitFn } from '@faicad/faijs/sketch'
 import { openContainer, type OpenContainerResult } from '@faicad/faijs/io/fai-zip'
 import { installEngine } from './engine'
 import { createViewerLibLoader } from './libs'
-import type { FaiViewerMesh, FaiViewerError, OpenFaiZipOptions, OpenFaiResult, FaiZipViewerErrorCode } from './types'
+import type { FaiViewerMesh, FaiViewerError, OpenFaiZipOptions, OpenFaiResult, FaiZipViewerErrorCode, SketchSolverOptions } from './types'
 
 /** Error codes emitted by this module (a strict subset of the public union). */
 type LocalCode = Exclude<FaiZipViewerErrorCode, 'E_WASM_URL'>
@@ -48,8 +48,10 @@ function isolateArray<T extends Float32Array | Uint32Array>(array: Float32Array 
  * list. Mirrors `packages/demo/main.ts#extractShapes`: hidden terminals
  * (boolean sources, etc.) are never counted; when no explicit terminal exists,
  * the last statement output is used.
+ * @param result - The execution result whose visible terminals are structured into meshes. type:ExecutionResult required:true
+ * @returns The visible tessellated meshes. type:FaiViewerMesh[] required:true
  */
-function extractMeshes(result: ExecutionResult): FaiViewerMesh[] {
+export function extractMeshes(result: ExecutionResult): FaiViewerMesh[] {
   const meshes: FaiViewerMesh[] = []
   const visible = result.terminals.filter((t) => !t.hidden)
 
@@ -137,7 +139,12 @@ function inNodeEnv(): boolean {
  */
 const NODE_SKETCH_SOLVER_SPECIFIER = '@faicad/faijs/sketch/node'
 
-async function ensureSketchSolver(opts: OpenFaiZipOptions): Promise<void> {
+/**
+ * Install the `cad.sketch` constraint solver for either viewer entry point.
+ * Shared by `openFaiZip` and `openFaiSource`.
+ * @param opts - Viewer options carrying the optional browser planegcs wasm URL. type:{ sketch?: SketchSolverOptions } required:true
+ */
+export async function ensureSketchSolver(opts: { sketch?: SketchSolverOptions }): Promise<void> {
   if (inNodeEnv()) {
     // The /node subpath imports `node:module`, so it must never be statically
     // imported from a browser-targeted entry. Dynamic import keeps the browser
@@ -176,12 +183,12 @@ async function ensureSketchSolver(opts: OpenFaiZipOptions): Promise<void> {
  * Open, execute, and tessellate a project `.fai.zip`.
  *
  * @param bytes the container byte array.
- * @param opts the viewer options; `opts.wasm` (three URLs) is required.
+ * @param opts the viewer options; `opts.wasm` (two URLs) is required.
  * @returns an `OpenFaiResult` with structured meshes, or an `error`.
  */
 export async function openFaiZip(bytes: Uint8Array, opts: OpenFaiZipOptions): Promise<OpenFaiResult> {
   await ensureSketchSolver(opts)
-  // 1. Engine contract. The three wasm urls are mandatory; a missing or empty
+  // 1. Engine contract. The two wasm urls are mandatory; a missing or empty
   //    url throws (E_WASM_URL) — this is a caller contract violation, not a
   //    per-bytes render failure, so it propagates rather than returning an
   //    `error` result. In a browser the URLs bind occt/manifold wasm; in a

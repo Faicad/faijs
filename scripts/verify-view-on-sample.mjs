@@ -16,7 +16,6 @@ const result = await openFaiZip(bytes, {
   wasm: {
     occtUrl: 'https://self-hosted/occt-wasm.wasm',
     manifoldUrl: 'https://self-hosted/manifold.wasm',
-    brepkitUrl: 'https://self-hosted/brepkit_wasm_bg.wasm',
   },
 })
 

@@ -15,7 +15,6 @@ const result = await openFaiZip(bytes, {
   wasm: {
     occtUrl: 'https://your-cdn/occt-wasm.wasm',          // BREP-chain engine
     manifoldUrl: 'https://your-cdn/manifold.wasm',        // mesh / CSG engine
-    brepkitUrl: 'https://your-cdn/brepkit_wasm_bg.wasm',  // secondary BREP engine
   },
   // modelId?: string                      // pick a model; default is manifest.active, else models[0]
   // mode?: 'auto' | 'brep' | 'mesh'       // default 'auto' (static BREP/mesh dispatch)
@@ -36,11 +35,29 @@ Three outcomes:
 
 | case | form |
 |---|---|
-| `wasm` missing or any of the three urls empty | **throws** (`E_WASM_URL`; a caller contract violation, never returned as `error`) |
-| invalid bytes / execution failure / no visible geometry | returns `result.error`, `code ∈ { E_CONTAINER, E_EXECUTION, E_NO_GEOMETRY }` |
+| `wasm` missing or either of the two urls empty | **throws** (`E_WASM_URL`; a caller contract violation, never returned as `error`) |
+| invalid bytes / empty source / execution failure / no visible geometry | returns `result.error`, `code ∈ { E_CONTAINER, E_SOURCE, E_EXECUTION, E_NO_GEOMETRY }` |
 | success | returns structured `meshes` |
 
 Real FreeCAD-converted containers call `cad.sketch` and the editor-extension ops (`cad.fai_*`, `cad.group`, `cad.text`, …); the viewer merges the sketch + faijs-extra namespaces into the default `cad` binding and backs sketch with a constraint solver (see below). `@faicad/faijs-draw` is deprecated and deliberately not merged — a `cad.draw` call fails as an unknown callee.
+
+## Single `.fai.js` scripts
+
+A `.fai.js` file on disk has no container manifest. `openFaiSource` executes the source text directly and shares the same engine wiring, options and `OpenFaiResult` as `openFaiZip`:
+
+```ts ignore-check
+import { openFaiSource } from '@faicad/faijs-viewer'
+
+const source = await file.text() // or any host-side read
+const result = await openFaiSource(source, {
+  wasm,
+  entryKey: 'Box.fai.js',        // relative-import base + result.sourceFile
+  // projectLoader: hostModules, // optional: resolves `import './other.fai.js'`
+  // assets: hostAssets,         // optional: backs `cad.load` / `cad.loadByKey`
+})
+```
+
+`result.modelId` is empty because a single script has no container model id. Without `projectLoader` / `assets`, the script must be self-contained; a relative import or a `cad.load` of a sibling file needs the host-supplied resolver. Render failures use `E_SOURCE` (empty source), `E_EXECUTION` and `E_NO_GEOMETRY`; `E_CONTAINER` never occurs.
 
 ## `cad.sketch` and the constraint solver
 
@@ -75,25 +92,25 @@ const result = await openFaiZip(bytes, {
 
 Preset libraries (core, sketch, faijs-extra — merged into `cad`) never pass through the loader. Loading or version-verification failures surface as structured `E_EXECUTION` on `result.error`, never a throw. A library whose `contractVersion` does not match the host engine is rejected loudly — keep `libs.versions` pinned to the same version line as `@faicad/faijs` the host runs.
 
-## All three wasm urls are required, and they must be self-hosted
+## Both wasm urls are required, and they must be self-hosted
 
 A `.fai.zip` has **no baked mesh** — models execute at runtime, which requires the engine wasm. v1 does not bundle them; the host provides and self-hosts:
 
 - **occt-wasm** — BREP-chain engine (default-required).
 - **manifold** — mesh/CSG engine (also used for the tessellation of BREP output).
-- **brepkit** — secondary BREP engine (v1 accepts + validates it; reserved).
 
-Self-host the three files (do not rely on an upstream CDN's uptime) and pass their urls to `openFaiZip`:
+The viewer's BREP chain runs on OCCT only. **Do not depend on `brepkit-wasm`**: this package never registers a brepkit kernel, so a brepkit wasm shipped or fetched by a host is dead weight.
+
+Self-host the two files (do not rely on an upstream CDN's uptime) and pass their urls to `openFaiZip`:
 
 1. Copy `dist/occt-wasm.wasm` from the `occt-wasm` npm package into your static directory.
 2. Copy `manifold.wasm` (package root) from `manifold-3d` into your static directory.
-3. Copy `lib/brepkit_wasm_bg.wasm` from `brepkit-wasm` into your static directory.
 
-For a concrete browser binding, see `packages/demo/main.ts#initOcct`, which registers `OcctKernel.init({ wasm: occtUrl })` on core's `setOcctWasmInitFn`; this viewer package installs the three urls into core's `setOcctWasmInitFn` / `setManifoldWasmUrl` hooks for you in a browser.
+For a concrete browser binding, see `packages/demo/main.ts#initOcct`, which registers `OcctKernel.init({ wasm: occtUrl })` on core's `setOcctWasmInitFn`; this viewer package installs the two urls into core's `setOcctWasmInitFn` / `setManifoldWasmUrl` hooks for you in a browser.
 
 ## Node / tests
 
-In a Node/worker runner the three urls are still validated (v1 contract), but the engine falls back to core's locally-bundled occt/manifold auto-load — no network fetch. So a host without public internet can still fully run `openFaiZip` in a test process.
+In a Node/worker runner the two urls are still validated (v1 contract), but the engine falls back to core's locally-bundled occt/manifold auto-load — no network fetch. So a host without public internet can still fully run `openFaiZip` in a test process.
 
 ## Dependencies
 

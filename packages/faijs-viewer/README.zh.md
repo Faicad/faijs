@@ -15,7 +15,6 @@ const result = await openFaiZip(bytes, {
   wasm: {
     occtUrl: 'https://your-cdn/occt-wasm.wasm',          // BREP-chain engine
     manifoldUrl: 'https://your-cdn/manifold.wasm',        // mesh / CSG engine
-    brepkitUrl: 'https://your-cdn/brepkit_wasm_bg.wasm',  // secondary BREP engine
   },
   // modelId?: string                      // pick a model; default is manifest.active, else models[0]
   // mode?: 'auto' | 'brep' | 'mesh'       // default 'auto' (static BREP/mesh dispatch)
@@ -36,11 +35,29 @@ for (const mesh of result.meshes) {
 
 | 情形 | 形式 |
 |---|---|
-| `wasm` 缺失或三个 url 任一为空 | **抛异常**（`E_WASM_URL`；调用方契约违规，绝不作为 `error` 返回） |
-| 字节无效 / 执行失败 / 无可见几何 | 返回 `result.error`，`code ∈ { E_CONTAINER, E_EXECUTION, E_NO_GEOMETRY }` |
+| `wasm` 缺失或两个 url 任一为空 | **抛异常**（`E_WASM_URL`；调用方契约违规，绝不作为 `error` 返回） |
+| 字节无效 / 源码为空 / 执行失败 / 无可见几何 | 返回 `result.error`，`code ∈ { E_CONTAINER, E_SOURCE, E_EXECUTION, E_NO_GEOMETRY }` |
 | 成功 | 返回结构化 `meshes` |
 
 真实 FreeCAD 转换产物会调用 `cad.sketch` 和编辑器扩展 op（`cad.fai_*`、`cad.group`、`cad.text`、…）；viewer 把 sketch + faijs-extra 命名空间合入默认 `cad` binding，并由约束求解器支撑 sketch（见下）。`@faicad/faijs-draw` 已弃用且刻意不合并——`cad.draw` 调用按未知 callee 失败。
+
+## 单个 `.fai.js` 脚本
+
+磁盘上的 `.fai.js` 文件没有容器 manifest。`openFaiSource` 直接执行源码文本，与 `openFaiZip` 共用同一套引擎装配、options 和 `OpenFaiResult`：
+
+```ts ignore-check
+import { openFaiSource } from '@faicad/faijs-viewer'
+
+const source = await file.text() // or any host-side read
+const result = await openFaiSource(source, {
+  wasm,
+  entryKey: 'Box.fai.js',        // relative-import base + result.sourceFile
+  // projectLoader: hostModules, // optional: resolves `import './other.fai.js'`
+  // assets: hostAssets,         // optional: backs `cad.load` / `cad.loadByKey`
+})
+```
+
+单脚本没有容器 model id，因此 `result.modelId` 为空字符串。未提供 `projectLoader` / `assets` 时脚本必须自包含；相对 import 或读取同目录资源的 `cad.load` 需要宿主提供的解析器。渲染失败使用 `E_SOURCE`（源码为空）、`E_EXECUTION` 和 `E_NO_GEOMETRY`，不会出现 `E_CONTAINER`。
 
 ## `cad.sketch` 与约束求解器
 
@@ -75,25 +92,25 @@ const result = await openFaiZip(bytes, {
 
 预置库（core、sketch、faijs-extra——合入 `cad`）从不经过 loader。装载或版本校验失败统一结构化返回 `E_EXECUTION` 到 `result.error`，绝不抛穿。`contractVersion` 与宿主引擎不匹配的库会被显式拒绝——请把 `libs.versions` pin 到与宿主运行的 `@faicad/faijs` 相同版本线。
 
-## 三个 wasm url 全部必填，且必须自托管
+## 两个 wasm url 全部必填，且必须自托管
 
 `.fai.zip` **不内嵌 mesh** —— model 在运行时执行，这需要引擎 wasm。v1 不打包它们；由宿主提供并自托管：
 
 - **occt-wasm** — BREP 链引擎（默认必选）。
 - **manifold** — mesh/CSG 引擎（也用于 BREP 输出的三角化）。
-- **brepkit** — 次级 BREP 引擎（v1 接受并校验；预留）。
 
-自托管这三个文件（不要依赖上游 CDN 的可用性），并把 url 传给 `openFaiZip`：
+viewer 的 BREP 链只跑 OCCT。**不要依赖 `brepkit-wasm`**：本包从不注册 brepkit 内核，宿主打包或拉取的 brepkit wasm 完全是死重。
+
+自托管这两个文件（不要依赖上游 CDN 的可用性），并把 url 传给 `openFaiZip`：
 
 1. 把 `occt-wasm` npm 包里的 `dist/occt-wasm.wasm` 拷进你的静态目录。
 2. 把 `manifold-3d` 包根的 `manifold.wasm` 拷进你的静态目录。
-3. 把 `brepkit-wasm` 的 `lib/brepkit_wasm_bg.wasm` 拷进你的静态目录。
 
-具体浏览器绑定的示例见 `packages/demo/main.ts#initOcct`——它把 `OcctKernel.init({ wasm: occtUrl })` 注册到 core 的 `setOcctWasmInitFn`；浏览器环境下本 viewer 包会替你把三个 url 装进 core 的 `setOcctWasmInitFn` / `setManifoldWasmUrl` 钩子。
+具体浏览器绑定的示例见 `packages/demo/main.ts#initOcct`——它把 `OcctKernel.init({ wasm: occtUrl })` 注册到 core 的 `setOcctWasmInitFn`；浏览器环境下本 viewer 包会替你把两个 url 装进 core 的 `setOcctWasmInitFn` / `setManifoldWasmUrl` 钩子。
 
 ## Node / 测试
 
-在 Node/worker 环境里，三个 url 仍会被校验（v1 契约），但引擎回退到 core 本地打包的 occt/manifold 自动加载——不发起网络请求。所以无公网的宿主也能在测试进程中完整运行 `openFaiZip`。
+在 Node/worker 环境里，两个 url 仍会被校验（v1 契约），但引擎回退到 core 本地打包的 occt/manifold 自动加载——不发起网络请求。所以无公网的宿主也能在测试进程中完整运行 `openFaiZip`。
 
 ## 依赖
 

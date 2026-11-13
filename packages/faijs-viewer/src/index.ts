@@ -4,23 +4,28 @@
  *
  * v1 API:
  * ```
- * import { openFaiZip } from '@faicad/faijs-viewer'
+ * import { openFaiZip, openFaiSource } from '@faicad/faijs-viewer'
  * const result = await openFaiZip(bytes, {
- *   wasm: { occtUrl, manifoldUrl, brepkitUrl },
+ *   wasm: { occtUrl, manifoldUrl },
+ * })
+ * const fromScript = await openFaiSource(sourceText, {
+ *   wasm: { occtUrl, manifoldUrl },
  * })
  * // result.meshes === [{ name, positions: Float32Array, indices: Uint32Array }]
  * ```
  *
- * The three wasm URLs are all mandatory: the engine's BREP chain depends on
- * OCCT, its mesh/CSG path depends on manifold, and brepkit is part of the
- * reserved engine surface. In a browser each kernel loads its wasm from the
- * given URL; in a Node/worker runner the same URLs are validated and the local
- * engines auto-load their bundled wasm.
+ * The two wasm URLs are both mandatory: the engine's BREP chain depends on
+ * OCCT and its mesh/CSG path depends on manifold. brepkit is not part of the
+ * viewer surface — hosts must not ship or fetch a brepkit wasm. In a browser
+ * each kernel loads its wasm from the given URL; in a Node/worker runner the
+ * same URLs are validated and the local engines auto-load their bundled wasm.
  */
 
 export { openFaiZip } from './open-fai-zip'
+export { openFaiSource } from './open-fai-source'
 export type {
   OpenFaiZipOptions,
+  OpenFaiSourceOptions,
   FaiViewerMesh,
   FaiViewerError,
   FaiZipViewerErrorCode,

@@ -1,6 +1,6 @@
 # Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write packages/faijs-viewer/README.md
-README.md: 3ccc96a92a8c48c3d9fabc6e709166dcada26b73
-README.zh.md: d35e4fd11c3776230282e2e3900e1a56ba923b18
+#   npm run verify-translation-pairing --write packages/faijs-viewer/README.md
+README.md: 8082c70b64aa7a8abe2662499f0ba1f793dbce12
+README.zh.md: b4fb39596dd5f9b8d5be66209d6d7298ad65ba1a

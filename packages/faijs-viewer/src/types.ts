@@ -9,14 +9,14 @@
  * or any GL/rendering library.
  */
 
-/** The three engine wasm URLs. All three are required by the v1 contract. */
+import type { AssetResolver, ProjectLoader } from '@faicad/faijs'
+
+/** The two engine wasm URLs. Both are required by the v1 contract. */
 export interface FaiZipViewerWasmOptions {
   /** URL of the occt-wasm `.wasm` (BREP execution chain engine). */
   occtUrl: string
   /** URL of the manifold-3d `.wasm` (mesh boolean/CSG engine). */
   manifoldUrl: string
-  /** URL of the brepkit `brepkit_wasm_bg.wasm` (secondary BREP engine). */
-  brepkitUrl: string
 }
 
 /**
@@ -80,7 +80,7 @@ export interface FaiViewerLibsOptions {
 
 /** Options for {@link openFaiZip}. Only `wasm` is required. */
 export interface OpenFaiZipOptions {
-  /** The three engine wasm URLs; each must be a non-empty string. */
+  /** The two engine wasm URLs; each must be a non-empty string. */
   wasm: FaiZipViewerWasmOptions
   /** Execute this specific model id. Defaults to container `active`, else `models[0]`. */
   modelId?: string
@@ -102,7 +102,37 @@ export interface OpenFaiZipOptions {
   libs?: FaiViewerLibsOptions
 }
 
-/** One tessellated mesh returned by {@link openFaiView}. */
+/**
+ * Options for `openFaiSource` — execute a single `.fai.js` script without a
+ * project container. Only `wasm` is required.
+ */
+export interface OpenFaiSourceOptions {
+  /** The two engine wasm URLs; each must be a non-empty string. */
+  wasm: FaiZipViewerWasmOptions
+  /**
+   * Module key for the script. Used as the relative-import base and as the
+   * result's `sourceFile`. Defaults to `'model.fai.js'`.
+   */
+  entryKey?: string
+  /**
+   * Host-provided module loader for relative specifiers such as
+   * `import './other.fai.js'`. Omit when the script is self-contained.
+   */
+  projectLoader?: ProjectLoader
+  /**
+   * Host-provided asset resolver backing `cad.load` / `cad.loadByKey`.
+   * Omit when the script loads no external assets.
+   */
+  assets?: AssetResolver
+  /** Execution mode. Default `'auto'` (static BREP/mesh dispatch). */
+  mode?: 'auto' | 'brep' | 'mesh'
+  /** Browser-only: URL of the self-hosted `planegcs.wasm` constraint solver. */
+  sketch?: SketchSolverOptions
+  /** Dynamic third-party faijs library loading. */
+  libs?: FaiViewerLibsOptions
+}
+
+/** One tessellated mesh returned by `openFaiZip` / `openFaiSource`. */
 export interface FaiViewerMesh {
   /** Part/terminal name this mesh belongs to. */
   name: string
@@ -126,20 +156,22 @@ export interface FaiViewerError {
  * result object.
  */
 export type FaiZipViewerErrorCode =
-  /** The wasm options were missing or one of the three urls was empty. */
+  /** The wasm options were missing or one of the two urls was empty. */
   | 'E_WASM_URL'
   /** The `.fai.zip` bytes failed container validation / read caps. */
   | 'E_CONTAINER'
+  /** `openFaiSource` received a non-string or empty script. */
+  | 'E_SOURCE'
   /** The model graph failed to execute (see `detail`). */
   | 'E_EXECUTION'
   /** The model produced no visible mesh. */
   | 'E_NO_GEOMETRY'
 
-/** Result of {@link openFaiView}. A failure is reported via `error`, not a throw (except wasm/environment errors, which throw). */
+/** Result of `openFaiZip` / `openFaiSource`. A failure is reported via `error`, not a throw (except wasm/environment errors, which throw). */
 export interface OpenFaiResult {
-  /** Source file name recorded in conversion provenance, when present. */
+  /** Source file name recorded in conversion provenance, or the script's `entryKey`. */
   sourceFile?: string
-  /** The executed model id (after active model defaulting). */
+  /** The executed model id (after active model defaulting). Empty for `openFaiSource`, which has no container model. */
   modelId: string
   /** The visible, structured mesh list. */
   meshes: FaiViewerMesh[]
