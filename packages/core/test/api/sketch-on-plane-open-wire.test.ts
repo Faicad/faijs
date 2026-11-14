@@ -8,8 +8,10 @@
  *   1. A single open chain (line + arc + spline) is accepted under `as:'wire'`
  *      and returns exactly that chain as an open wire — 3 edges, arc/spline
  *      endpoints identical to the input.
- *   2. Multiple disjoint chains under `as:'wire'` → only the FIRST chain comes
- *      back (existing behaviour, pinned so it doesn't silently change).
+ *   2. Multiple disjoint chains under `as:'wire'` → one wire per input chain,
+ *      assembled into a compound of wires (E1, 2026-11-14 — previously only
+ *      the FIRST chain came back; silent data loss is not a compatibility
+ *      promise).
  *   3. A polyline `cad.wire(points)` over the same corners yields the same wire
  *      vertex count as the segment form — both entries describe the same spine.
  *
@@ -138,7 +140,7 @@ describe('sketchOnPlane as:"wire" — 单条开放链契约（brepkit，weapp �
     expect(has(0, 36)).toBe(true)
   })
 
-  it('多条不相接链 → as:"wire" 只取第一条（既有行为钉住）', () => {
+  it('多条不相接链 → as:"wire" 每链一条 wire（compound 收养；E1 2026-11-14 起）', () => {
     const first: ProfileSeg[] = [{ kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }]
     const second: ProfileSeg[] = [{ kind: 'line', x1: 100, y1: 0, x2: 100, y2: 50 }]
     const shape = buildSketchOnPlaneWith(getBrepApi(), {
@@ -146,10 +148,19 @@ describe('sketchOnPlane as:"wire" — 单条开放链契约（brepkit，weapp �
       plane: { name: 'XY' },
       as: 'wire',
     })
-    const vs = verticesOf(wireHandle(shape))
-    // 第一条链的两个端点在；第二条链的任何点不在。
-    expect(vs.some((p) => Math.abs(p[1] - 10) < 1e-6)).toBe(true)
-    expect(vs.every((p) => p[0] < 50)).toBe(true)
+    // 多链整体按 curve 收养（compound of wires）
+    expect((shape as { kind?: string }).kind).toBe('curve')
+    const h = wireHandle(shape)
+    // 每条链恰好一条边（第一条链 1 边 + 第二条链 1 边）
+    expect(edgesOf(h)).toHaveLength(2)
+    const vs = verticesOf(h)
+    const has = (x: number, y: number): boolean =>
+      vs.some((p) => Math.abs(p[0] - x) < 1e-6 && Math.abs(p[1] - y) < 1e-6)
+    // 两条链的端点全在（旧实现只回第一条链，第二条链静默丢失）
+    expect(has(0, 0)).toBe(true)
+    expect(has(0, 10)).toBe(true)
+    expect(has(100, 0)).toBe(true)
+    expect(has(100, 50)).toBe(true)
   })
 
   it('同一条脊柱：段形态与 cad.wire(点列) 折线形态的顶点数一致', () => {

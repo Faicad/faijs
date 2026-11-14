@@ -162,17 +162,19 @@ function shellMeshSolid(input: Shape, params: ShellParams): Shape {
 }
 
 /**
- * 抽壳：移除指定面并把余下面偏置成等厚薄壁。
+ * 抽壳/薄壁：移除指定面并把余下面偏置成等厚薄壁（产物仍是**实体**，不是壳——壳构造走 `cad.sew`）。
  * @group 特征
  * @inputs 1
  * @async true
  * @qual ok
  * @name shell
  * @note 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。
- *       精度链按 role 线路选面（TopoRef 字面量或 CadQuery 面选择器字符串）；
- *       **禁止 `cad.faceRef` 序号**——序号跨内核不可移植。网格链没有 role 层，
- *       序号是唯一无歧义的指认方式（仅当前内核快照），选择器字符串只服务精度链。
- * @returns Shape 抽壳后的薄壁体。
+ *       **`cad.shell` ≠ 壳构造**：输入实体、产物也是实体（薄壁体）；把面/壳
+ *       组装成壳的正门是 `cad.sew`（缝合）。精度链按 role 线路选面（TopoRef
+ *       字面量或 CadQuery 面选择器字符串）；**禁止 `cad.faceRef` 序号**——
+ *       序号跨内核不可移植。网格链没有 role 层，序号是唯一无歧义的指认方式
+ *       （仅当前内核快照），选择器字符串只服务精度链。
+ * @returns Shape 抽壳后的薄壁体（实体）。
  * @param input - 目标几何。type:Shape required:true
  * @param params.openFaces - 要移除的面：面选择器字符串（如 ">Z"，AI 生成）或 FaceTopoRef[]（UI 拾取产物字面量；禁止 cad.faceRef 序号；网格链可用 1 起序号）。type:ShellFaceSelector[]|string required:true
  * @param params.thickness - 壁厚（mm，>0）。type:number required:true

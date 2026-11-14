@@ -173,13 +173,17 @@ export interface SewParams {
 }
 
 /**
- * 缝合：把一组面/壳沿公共边缝成一张壳。
+ * 缝合：把一组面/壳沿公共边缝成一张壳。**壳构造的正门**（面/壳集 → 壳的唯一脚本面入口）。
  * @group 修复
  * @inputs 1
  * @async true
  * @qual ok
  * @name sew
  * @note 中立 op：L1 sew 两引擎同实现。产物是壳（不保证闭合）；要实体用 sewAndSolidify。
+ *       组装链定位：`cad.wireFromEdges`（边→线）→ `cad.faceFromWire`（线→面）→
+ *       `cad.sew`（面/壳集→壳，本 op）→ `cad.sewAndSolidify` 或 `cad.solidFromFaces`
+ *       （→实体）。要"由面集一步成实体"直接走 `cad.solidFromFaces`；sew+solidify
+ *       则允许先得到中间壳。
  * @returns Shape 缝合后的壳。
  * @param shapes - 面/壳集合。type:Shape[] required:true
  * @param params.tolerance - 缝合容差（mm）。type:number required:false

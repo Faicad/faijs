@@ -253,7 +253,7 @@ export function assertProfileParams(params: Record<string, unknown>): void {
  * `cad.extrude` 对 compound 输入逐面挤出（kernel MakePrism 收复合形状）。
  *
  * @param params - 轮廓来源（段环数据或已绘制轮廓）与产物形态。
- * @returns Shape（单岛为 face；多岛为 face 的 compound；`as:'wire'` 为 1D 曲线）。
+ * @returns Shape（单岛为 face；多岛为 face 的 compound；`as:'wire'` 单链为 1D 曲线、多链为 wire compound）。
  */
 export function buildProfileShape(params: ProfileParams): Shape {
   const kernel = getBrepApi()
@@ -266,18 +266,21 @@ export function buildProfileShape(params: ProfileParams): Shape {
   //
   // 2026-09-28：段环数据与「已绘制轮廓」（`Blueprint`）在此归一 —— 两条
   // 来源只差一次 `toContourBlueprints`，下游分类/构面完全共享。
-  const organised = organiseBlueprints(toContourBlueprints(params.contours))
+  const rawBlueprints = toContourBlueprints(params.contours)
 
-  // 'wire' 形态：只挑面积最大的岛的外环 wire（1D 曲线），供扫掠族作 spine。
+  // 'wire' 形态：逐条输入链按序组装 wire（1D 曲线），供扫掠族作 spine。
+  // 单链 → 该链 wire；多链 → wires 的 compound（孔/岛分类只对成面有意义）。
   if (as === 'wire') {
-    let best = organised.blueprints[0]!
-    for (const entry of organised.blueprints) {
-      if (blueprintArea(entry) > blueprintArea(best)) best = entry
+    if (rawBlueprints.length === 1) {
+      const wire = blueprintToWire(kernel, rawBlueprints[0]!)
+      return fromBrepCurve(solidToShape(kernel, wire), { solid: wire })
     }
-    const outerBp = best instanceof CompoundBlueprint ? best.blueprints[0]! : best
-    const wire = blueprintToWire(kernel, outerBp)
-    return fromBrepCurve(solidToShape(kernel, wire), { solid: wire })
+    const wires = rawBlueprints.map((bp) => blueprintToWire(kernel, bp))
+    const compound = kernel.makeCompound(wires)
+    return fromBrepCurve(solidToShape(kernel, compound), { solid: compound })
   }
+
+  const organised = organiseBlueprints(rawBlueprints)
 
   // 每岛一面（岛的外环 + 直接子环为孔）
   const faces: ReturnType<BrepEngineApi['makeFace']>[] = []
@@ -361,28 +364,6 @@ function blueprintToWire(kernel: BrepEngineApi, bp: Blueprint): ReturnType<BrepE
   return kernel.makeWire(edges)
 }
 
-/** 顶层 Blueprint/CompoundBlueprint 的近似有符号面积（用于 wire 最大岛选择）。 */
-function blueprintArea(entry: Blueprint | CompoundBlueprint): number {
-  const bp = entry instanceof CompoundBlueprint ? entry.blueprints[0]! : entry
-  let a = 0
-  for (const c of bp.curves) {
-    if (c.kind2d === 'line') {
-      a += (c.ox * (c.oy + c.dy * c.len) - (c.ox + c.dx * c.len) * c.oy) / 2
-      continue
-    }
-    const b = curveBounds(c)
-    const nSamples = 32
-    for (let k = 0; k < nSamples; k++) {
-      const t0 = b.first + ((b.last - b.first) * k) / nSamples
-      const t1 = b.first + ((b.last - b.first) * (k + 1)) / nSamples
-      const [x0, y0] = evaluateCurve2d(c, t0)
-      const [x1, y1] = evaluateCurve2d(c, t1)
-      a += (x0 * y1 - x1 * y0) / 2
-    }
-  }
-  return a
-}
-
 /**
  * 从 2D 轮廓构造平面（creator，无输入）。仅 BREP 可用。
  * @group 创建
@@ -390,9 +371,9 @@ function blueprintArea(entry: Blueprint | CompoundBlueprint): number {
  * @async false
  * @qual ok
  * @name profile
- * @returns Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
+ * @returns Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'，多链为 wire compound）。
  * @param params.contours - 有序 2D 轮廓（线段/圆弧；外环 + 孔），或已绘制轮廓（单个 Blueprint 或其数组）。type:ProfileLoop[]|Blueprint|Blueprint[] required:true
- * @param params.as - 产物形态：'face'（默认）构面；'wire' 只交外环 wire（1D 曲线）。type:'face'|'wire' required:false
+ * @param params.as - 产物形态：'face'（默认）构面；'wire' 逐链交 wire（单链 1D 曲线，多链 compound）。type:'face'|'wire' required:false
  * @example
  * const f = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }] })
  * const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }], as: 'wire' })

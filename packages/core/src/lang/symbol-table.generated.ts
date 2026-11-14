@@ -17,6 +17,8 @@ export default {
   "sketchOnSurface": {},
   "punchHole": {},
   "wire": {},
+  "wireFromEdges": {},
+  "faceFromWire": {},
   "helix": {},
   "sdf": {},
   "translate": {},

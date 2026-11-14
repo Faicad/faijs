@@ -33,6 +33,8 @@ import { sketchOnFace } from './sketch-on-face'
 import { sketchOnSurface } from './sketch-on-surface'
 import { punchHole } from './punch-hole'
 import { wire } from './wire'
+import { wireFromEdges } from './wire-from-edges'
+import { faceFromWire } from './face-from-wire'
 import { helix } from './helix'
 import { surface } from './surface'
 import { offset2d } from './offset2d'
@@ -165,7 +167,7 @@ export function createApiNamespace(): LibNamespace {
   return {
     contractVersion: CONTRACT_VERSION,
     box, sphere, cylinder, cone, wedge,
-    screw, profile, sketchOnPlane, sketchOnFace, sketchOnSurface, punchHole, wire, helix, sdf,
+    screw, profile, sketchOnPlane, sketchOnFace, sketchOnSurface, punchHole, wire, wireFromEdges, faceFromWire, helix, sdf,
     // D1 选项 C：四个 transform op 全留核心（translate 小程序端在用，同族不拆散）。
     translate, rotate_euler, scale, scale3d,
     chamfer, fillet, knurl,

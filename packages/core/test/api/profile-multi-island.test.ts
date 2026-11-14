@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { CadRuntime } from '../../src/cad-runtime/runtime'
 import type { ExecutionResult } from '../../src/cad-runtime/runtime'
 import type { ExecutionMode, HostPorts } from '../../src/cad-runtime/ports'
-import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
+import { initOcctWasm, getOcctKernel } from '../../src/occt-kernel/occtKernel'
 import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { getBrepApi } from '../../src/brep/handle-bridge'
@@ -121,12 +121,30 @@ describe('cad.profile multi-island semantics (H15)', () => {
     expect(total).toBeCloseTo((900 - 400) * 5 + 100 * 5, 0)
   })
 
-  it("as:'wire' over a multi-island input picks the LARGEST island's outer loop", async () => {
+  it("as:'wire' 单链回归：该链 wire（周长 = 链长）", async () => {
+    const result = await run([sq(0, 0, 10)], null, 'wire')
+    const s = result.outputs.get(asPartName('part0')) as Shape
+    // 1D 曲线形态（fromBrepCurve 收养）
+    expect((s as { kind?: string }).kind).toBe('curve')
+    const h = handleOf(result, 'part0')
+    // 单链 → wire（不是 compound）
+    expect(getOcctKernel().getShapeType(h)).toBe('wire')
+    expect(getBrepApi().getLength(h)).toBeCloseTo(40, 3)
+  })
+
+  it("as:'wire' 多链 → 每链一条 wire 的 compound（E1 2026-11-14；不再取最大岛外环）", async () => {
     const result = await run([sq(0, 0, 10), sq(20, 0, 40)], null, 'wire')
     const s = result.outputs.get(asPartName('part0')) as Shape
-    // 1D 曲线形态（getBoundingBox 对 curve 不可用 → 用 getLength 判定取到了哪个岛）
+    // 1D 曲线形态（compound of wires 整体按 curve 收养）
     expect((s as { kind?: string }).kind).toBe('curve')
-    // 大岛周长 160；若误取小岛则是 40
-    expect(getBrepApi().getLength(handleOf(result, 'part0'))).toBeCloseTo(160, 3)
+    const h = handleOf(result, 'part0')
+    // 多链 → compound（与单链 wire 经 getShapeType 可区分）
+    expect(getOcctKernel().getShapeType(h)).toBe('compound')
+    // 每条输入链一条 wire：小岛周长 40 + 大岛周长 160（旧实现只回最大岛外环 160）
+    const wires = getBrepApi().getSubShapes(h, 'wire')
+    expect(wires).toHaveLength(2)
+    const lengths = wires.map((w) => getBrepApi().getLength(w)).sort((a, b) => a - b)
+    expect(lengths[0]).toBeCloseTo(40, 3)
+    expect(lengths[1]).toBeCloseTo(160, 3)
   })
 })

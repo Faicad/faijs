@@ -45,18 +45,18 @@ export interface SketchOnPlaneParams {
    * (a `Blueprint`, or an array of them). The drawn form is what makes the
    * "draw → place → extrude" pipeline real — see {@link DrawnContours}.
    *
-   * Contract for `as:'wire'` with a SINGLE chain (open or closed): the returned
-   * wire is that chain itself — an open chain is accepted and becomes an open
-   * wire (this is the weapp sweep-spine path: one mixed line/arc/spline chain).
-   * With MULTIPLE disjoint chains only the FIRST one is returned. Therefore a
-   * multi-part open path must be joined into a single chain before being passed
-   * here. (`as:'face'` keeps the closed-contour semantics: open chains make no
+   * Contract for `as:'wire'`: one wire per input chain, in input order. A
+   * single chain (open or closed) returns that chain's wire — an open chain is
+   * accepted and becomes an open wire (the weapp sweep-spine path: one mixed
+   * line/arc/spline chain). Multiple chains return a compound of wires
+   * (distinguishable from a single wire via `getShapeType`).
+   * (`as:'face'` keeps the closed-contour semantics: open chains make no
    * face — see `organiseBlueprints`.)
    */
   contours: ProfileLoop[] | DrawnContours
   /** Named plane or explicit `{ origin, normal, xAxis }` frame. */
   plane: PlaneSpec
-  /** Result shape: 'face' (default) builds a planar face; 'wire' returns the outer-loop wire only. */
+  /** Result shape: 'face' (default) builds planar faces; 'wire' returns one wire per input chain (compound when multiple). */
   as?: 'face' | 'wire'
 }
 
@@ -75,17 +75,18 @@ export function resolvePlane(planeSpec: PlaneSpec, fallbackOrigin: Vec3Input = [
 }
 
 /**
- * Build a 3D Shape (planar face, or outer-loop wire when `as:'wire'`) from a set
- * of classified `Blueprint` contours on a plane. This is the shared placement
- * core for every 2D profile source (`cad.profile` / a drawn contour / sketch): it
- * organises the closed contours (holes vs islands), assembles edge wires on the
- * plane via the geometry2d bridge, and wraps them as a BREP face — ready to be
- * extruded along the plane normal.
+ * Build a 3D Shape from a set of `Blueprint` contours on a plane. This is the
+ * shared placement core for every 2D profile source (`cad.profile` / a drawn
+ * contour / sketch): with `as:'face'` it organises the closed contours (holes
+ * vs islands), assembles edge wires on the plane via the geometry2d bridge,
+ * and wraps them as BREP faces — ready to be extruded along the plane normal.
+ * With `as:'wire'` every input chain becomes a wire, in input order (single
+ * chain → that wire; multiple chains → a compound of wires).
  * @param kernel - the BREP engine surface.
  * @param plane - the resolved target plane frame.
- * @param blueprints - ordered closed contours as `Blueprint`s (draw output).
- * @param as - `'face'` (default) or `'wire'` (outer loop only).
- * @returns Shape on the target plane (face, or a wire curve when `as:'wire'`).
+ * @param blueprints - ordered contours as `Blueprint`s (draw output).
+ * @param as - `'face'` (default) or `'wire'` (one wire per input chain).
+ * @returns Shape on the target plane (face / face compound, or wire / wire compound).
  */
 export function buildShapeFromBlueprints(
   kernel: BrepEngineApi,
@@ -93,16 +94,24 @@ export function buildShapeFromBlueprints(
   blueprints: Blueprint[],
   as: 'face' | 'wire' = 'face',
 ): Shape {
-  const organised = organiseBlueprints(blueprints)
-
-  if (as === 'wire') {
-    const outerBp =
-      organised.blueprints[0] instanceof CompoundBlueprint
-        ? organised.blueprints[0].blueprints[0]!
-        : (organised.blueprints[0] as Blueprint)
-    const wire = assembleWire(kernel, plane, outerBp)
-    return fromBrepCurve(solidToShape(kernel, wire), { solid: wire })
+  if (blueprints.length === 0) {
+    throw new Error('E_PROFILE_NO_CONTOURS: at least one contour is required')
   }
+
+  // wire 模式：孔/岛分类只对成面有意义，wire 不成面——逐条输入链按序组装。
+  // 单链（开或闭）→ 该链 wire（与 weapp sweep-spine 路径一致）；
+  // 多链 → wires 的 compound（与 as:'face' 多轮廓→面 compound 的口径对齐）。
+  if (as === 'wire') {
+    if (blueprints.length === 1) {
+      const wire = assembleWire(kernel, plane, blueprints[0]!)
+      return fromBrepCurve(solidToShape(kernel, wire), { solid: wire })
+    }
+    const wires = blueprints.map((bp) => assembleWire(kernel, plane, bp))
+    const compound = kernel.makeCompound(wires)
+    return fromBrepCurve(solidToShape(kernel, compound), { solid: compound })
+  }
+
+  const organised = organiseBlueprints(blueprints)
 
   const faces: ReturnType<BrepEngineApi['makeFace']>[] = []
   for (const entry of organised.blueprints) {
@@ -151,10 +160,10 @@ export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPl
  * @async false
  * @qual ok
  * @name sketchOnPlane
- * @returns Shape on the target plane (face, or a wire curve when `as:'wire'`).
+ * @returns Shape on the target plane (face / face compound, or wire / wire compound when `as:'wire'`).
  * @param params.contours - ordered 2D contours (same shape as `cad.profile`: segment loops, or a drawn `Blueprint`).type:any required:true
  * @param params.plane - named plane (`'XY'` / `'XZ'`…) or `{ origin, normal, xAxis }`.type:any required:true
- * @param params.as - `'face'` (default) or `'wire'` (outer loop only).type:string required:false
+ * @param params.as - `'face'` (default) or `'wire'` (one wire per input chain; compound when multiple).type:string required:false
  * @example
  * // loop = 一个闭合 2D 轮廓：{ segments: [{ kind: 'line', x1, y1, x2, y2 }, ...] }
  * const face = cad.sketchOnPlane({ contours: [loop], plane: 'XY' })
