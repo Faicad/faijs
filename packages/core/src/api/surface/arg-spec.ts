@@ -1912,8 +1912,8 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'circularPattern', source: 'brep-operations/patternFns.ts#circularPatternBrep', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
-    args: 'circularPattern(shape: Shape, axis: Vec3, count: number, fullAngle?: number, center?: Vec3): Shape',
-    params: ['shape', 'axis', 'count', 'fullAngle', 'center'], formClass: 'A',
+    args: 'circularPattern(shape: Shape, axis: Vec3, count: number, angleStep?: number, center?: Vec3): Shape',
+    params: ['shape', 'axis', 'count', 'angleStep', 'center'], formClass: 'A',
     scriptFace: true,
     naming: { kind: 'replicate', k: 0 },
   },

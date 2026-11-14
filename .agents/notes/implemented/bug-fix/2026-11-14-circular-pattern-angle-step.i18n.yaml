@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-11-14-circular-pattern-angle-step.md
+2026-11-14-circular-pattern-angle-step.md: 1e1d5eca22af904b1a0fbbf42d6110abb8c34b52
+2026-11-14-circular-pattern-angle-step.zh.md: ca8c9ed828bb9347698fb2631382b650e3a7247c

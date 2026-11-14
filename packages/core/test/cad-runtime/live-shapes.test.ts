@@ -267,7 +267,7 @@ describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（R2）', () =>
     it('circularPattern 消费 import_brep 声明 → 仅 pattern 终端（45x45/Futaba 形态，泄漏最多样本族）', () => {
       const code = [
         'let part0 = cad.import_brep({ asset: "PartShape" })',
-        'let pat = cad.circularPattern(part0, [1, 0, 0], 4, 360)',
+        'let pat = cad.circularPattern(part0, [1, 0, 0], 4, 90)',
       ].join('\n')
       expect(liveShapeNames(code)).toEqual(['pat'])
     })

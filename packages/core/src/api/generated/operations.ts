@@ -93,7 +93,7 @@ export const linearPattern = defineOp({
 
 /**
  * circularPattern — core 自有实现（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * circularPattern(shape: Shape, axis: Vec3, count: number, fullAngle?: number, center?: Vec3): Shape
+ * circularPattern(shape: Shape, axis: Vec3, count: number, angleStep?: number, center?: Vec3): Shape
  * 桥接：defineOp({ brep: __own_circularPatternBrep })——core 直连 occt 引擎，
  * 参数归一在自有实现内部完成（api/brep-operations/）。
  */

@@ -20,7 +20,7 @@ import type { Vec3 } from '../geom-types/types'
 import { brepHandleOf } from './brepHelpers'
 
 const LINEAR_PATTERN_PARAMS = { name: 'linearPattern', params: ['shape', 'direction', 'count', 'spacing'], formClass: 'A' as FormClass }
-const CIRCULAR_PATTERN_PARAMS = { name: 'circularPattern', params: ['shape', 'axis', 'count', 'fullAngle', 'center'], formClass: 'A' as FormClass }
+const CIRCULAR_PATTERN_PARAMS = { name: 'circularPattern', params: ['shape', 'axis', 'count', 'angleStep', 'center'], formClass: 'A' as FormClass }
 const GRID_PATTERN_PARAMS = { name: 'gridPattern', params: ['shape', 'directionX', 'directionY', 'countX', 'countY', 'spacingX', 'spacingY'], formClass: 'A' as FormClass }
 const RECT_PATTERN_PARAMS = { name: 'rectangularPattern', params: ['shape', 'options'], formClass: 'A' as FormClass }
 
@@ -80,11 +80,11 @@ export function linearPatternBrep(...args: unknown[]): Result<BrepHandle> {
 /**
  * Circular pattern — copy a shape around an axis (brepjs patternFns.ts#circularPattern).
  *
- * @param args - Resolved arguments (shape, axis, count, fullAngle, center).
+ * @param args - Resolved arguments (shape, axis, count, angleStep, center).
  * @returns The fused pattern copies as a `BrepHandle`.
  */
 export function circularPatternBrep(...args: unknown[]): Result<BrepHandle> {
-  const [shape, axis, count, fullAngle, center] = resolveArgs(args, CIRCULAR_PATTERN_PARAMS)
+  const [shape, axis, count, angleStepRaw, center] = resolveArgs(args, CIRCULAR_PATTERN_PARAMS)
   const kernel = getBrepApi()
   const s = brepHandleOf(shape)
   const n = Number(count)
@@ -96,7 +96,15 @@ export function circularPatternBrep(...args: unknown[]): Result<BrepHandle> {
   if (vecIsZero(ax)) {
     return err(validationError('PATTERN_ZERO_AXIS', 'Pattern axis cannot be zero'))
   }
-  const angleStep = (fullAngle === undefined ? 360 : Number(fullAngle)) / n
+  const angleStep = angleStepRaw === undefined ? 360 / n : Number(angleStepRaw)
+  if (!Number.isFinite(angleStep) || angleStep === 0 || Math.abs(angleStep) >= 360) {
+    return err(
+      validationError(
+        'PATTERN_INVALID_STEP',
+        `Pattern angleStep must be a non-zero angle with |angleStep| < 360 when count > 1, got ${String(angleStepRaw)}`,
+      ),
+    )
+  }
   const c = (center ?? [0, 0, 0]) as Vec3
   const copies = kernel.circularPattern(
     s,

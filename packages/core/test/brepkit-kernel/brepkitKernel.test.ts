@@ -688,9 +688,15 @@ suite('brepkit 适配器覆盖：阵列', () => {
     expect(parts).toHaveLength(3)
   })
 
-  it('circularPattern：整圆均分 4 份返回 4 个实体', () => {
-    const parts = api.circularPattern(api.makeBox(2, 2, 2), { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 360, 4)
+  it('circularPattern：整圆均分 4 份返回 4 个实体（angleStep=90=360/4）', () => {
+    const parts = api.circularPattern(api.makeBox(2, 2, 2), { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 90, 4)
     expect(parts).toHaveLength(4)
+  })
+
+  it('circularPattern：非整圆步距（angleStep≠360/count）在 brepkit 上显式失败而非错位', () => {
+    expect(() =>
+      api.circularPattern(api.makeBox(2, 2, 2), { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 30, 4),
+    ).toThrow(/angleStep=30/)
   })
 
   it('gridPattern：2×2 网格产出含 4 个实体的复合体', () => {

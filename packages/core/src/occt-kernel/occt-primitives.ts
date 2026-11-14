@@ -326,10 +326,14 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
       return splitCompoundToArray(compound)
     },
     circularPattern: (shape, center, axis, angleStep, count) => {
-      // Empirically validated (old adapter + engine-switch-p2 parity): the wasm
-      // layer takes the angle in DEGREES here (unlike revolve's angleRad).
+      // GOTCHA: occt-wasm 的原语口径是「总角度（弧度）+ 份数」——它内部按
+      // `totalAngle / count` 逐份旋转，**不是**每份步距；faijs 契约是「每份步距（度）」。
+      // 实测 anchor：直接传 (angleStep=30, count=4) 会得到每份 30/4 = 7.5 rad ≈ 429.7°
+      // → 归一 69.7°，四处孔位全错。故此处换算 totalAngleRad = count · angleStep · π/180
+      // （整圆 count 份即 2π，与 occt / smlib 的整圆语义一致）。
+      const totalAngleRad = (count * angleStep * Math.PI) / 180
       const compound = (k as unknown as OcctPatternRaw).circularPattern.call(
-        k, asShape(shape), center, axis, angleStep, count,
+        k, asShape(shape), center, axis, totalAngleRad, count,
       )
       return splitCompoundToArray(compound)
     },

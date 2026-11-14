@@ -1225,17 +1225,18 @@ const q = cad.chamfer(meshPart, { edges: [3], type:'equal', width:1 })
 
 ### 5.4 `circularPattern` ✅
 
-环形阵列：绕 axis 均分 fullAngle（度，缺省 360）复制 count 份（含原位置）。
+环形阵列：绕 axis 复制 count 份（含原位置），第 k 份转过 k·angleStep。
 
 ```js
 const p = cad.circularPattern(part0, [0, 0, 1], 6)
+const arc = cad.circularPattern(part0, [0, 0, 1], 4, 30)
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `axis` | `[x,y,z]` | ✅ | — | 旋转轴方向 |
 | `count` | `number` | ✅ | — | 副本总数（含原位置） |
-| `fullAngle` | `number` |  | — | 总角度（度，缺省 360） |
+| `angleStep` | `number` |  | — | 相邻两份夹角（度，缺省 360/count） |
 | `center` | `[x,y,z]` |  | — | 旋转轴上一点（缺省原点） |
 
 **异步**。Shape 所有副本 fused 后的几何。

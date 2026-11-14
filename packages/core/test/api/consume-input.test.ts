@@ -62,7 +62,8 @@ const PROGRAMS: Array<{ op: string; code: string; imports?: () => Record<string,
   },
   {
     op: 'circularPattern',
-    code: ['const s0 = cad.box(20, 20, 20, { centered: true })', 'const s1 = cad.circularPattern(s0, [0, 0, 1], 4)'].join('\n'),
+    // 非居中 box：绕 z 转 90° 的四份落在四个象限，不重合（居中方盒绕原点阵列会退化成一坨）
+    code: ['const s0 = cad.box(20, 20, 20)', 'const s1 = cad.circularPattern(s0, [0, 0, 1], 4, 90)'].join('\n'),
   },
   {
     op: 'gridPattern',
@@ -130,7 +131,8 @@ describe('multi-replica patterns build replica[*] role tables', () => {
     },
     {
       op: 'circularPattern',
-      code: ['const s0 = cad.box(20, 20, 20, { centered: true })', 'const s1 = cad.circularPattern(s0, [0, 0, 1], 4)'].join('\n'),
+      // 非居中 box：绕 z 转 90° 的四份落在四个象限，不重合（居中方盒绕原点阵列会退化成一坨）
+    code: ['const s0 = cad.box(20, 20, 20)', 'const s1 = cad.circularPattern(s0, [0, 0, 1], 4, 90)'].join('\n'),
       expectedLabels: ['replica[0]', 'replica[1]', 'replica[2]', 'replica[3]'],
     },
     {

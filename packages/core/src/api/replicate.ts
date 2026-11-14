@@ -127,7 +127,32 @@ function reflectAcrossPlane(p: BrepVec3, o: BrepVec3, n: Vec3): BrepVec3 {
 // ── circularPattern ─────────────────────────────────────────────────────────
 
 /**
- * 环形阵列：绕 axis 均分 fullAngle（度，缺省 360）复制 count 份（含原位置）。
+ * Resolve the per-instance step angle of a circular pattern: the caller's
+ * `angleStep` in degrees, or the full-circle share `360 / count` when omitted.
+ *
+ * `count` instances (original included) sit at `0, step, …, (count−1)·step`;
+ * a step of 0 or ≥ 360° makes instances coincide or wrap past a full turn, so
+ * it is rejected instead of silently producing a degenerate pattern.
+ *
+ * @param count - number of instances (original included).
+ * @param angleStep - caller-supplied step in degrees, or undefined for the default.
+ * @returns the step angle in degrees.
+ */
+function circularStep(count: number, angleStep: number | undefined): number {
+  if (!Number.isInteger(count) || count < 1) {
+    throw new Error(`[api/circularPattern] count must be a positive integer, got ${String(count)}`)
+  }
+  const step = angleStep === undefined ? 360 / count : angleStep
+  if (count > 1 && (!Number.isFinite(step) || step === 0 || Math.abs(step) >= 360)) {
+    throw new Error(
+      `[api/circularPattern] angleStep must be a non-zero angle with |angleStep| < 360 when count > 1, got ${String(step)}`,
+    )
+  }
+  return step
+}
+
+/**
+ * 环形阵列：绕 axis 复制 count 份（含原位置），第 k 份转过 k·angleStep。
  * @group 特征
  * @inputs 1
  * @async true
@@ -138,29 +163,30 @@ function reflectAcrossPlane(p: BrepVec3, o: BrepVec3, n: Vec3): BrepVec3 {
  * @param input - 目标几何。type:Shape required:true
  * @param axis - 旋转轴方向。type:[x,y,z] required:true
  * @param count - 副本总数（含原位置）。type:number required:true
- * @param fullAngle - 总角度（度，缺省 360）。type:number required:false
+ * @param angleStep - 相邻两份夹角（度，缺省 360/count）。type:number required:false
  * @param center - 旋转轴上一点（缺省原点）。type:[x,y,z] required:false
  * @example
  * const p = cad.circularPattern(part0, [0, 0, 1], 6)
+ * const arc = cad.circularPattern(part0, [0, 0, 1], 4, 30)
  */
 export const circularPattern = defineOp({
   meshEngines: ['brepkit'],
-  mesh(input: Shape, axis: Vec3, count: number, fullAngle: number = 360, center: Vec3 = [0, 0, 0]) {
+  mesh(input: Shape, axis: Vec3, count: number, angleStep?: number, center: Vec3 = [0, 0, 0]) {
+    const step = circularStep(count, angleStep)
     keepHidden(input)
     const entry = meshSolidBasicEntry(input, 'circularPattern')
     const u = norm(axis)
-    const step = fullAngle / count
     // 网格链：内核返回 count 份副本（含原位置），融合成一个网格零件；近似拓扑没有
     // role 层，故不产 `replica[k]/<inner>` 命名（如实缺席）。
     return meshPatternProduct(entry, 'circularPattern', 'E_PATTERN_FAILED', () =>
       entry.kernel.circularPattern(entry.solid, toBrepVec(center), toBrepVec(u), step, count),
     )
   },
-  brep(input: Shape, axis: Vec3, count: number, fullAngle: number = 360, center: Vec3 = [0, 0, 0]) {
+  brep(input: Shape, axis: Vec3, count: number, angleStep?: number, center: Vec3 = [0, 0, 0]) {
+    const step = circularStep(count, angleStep)
     keepHidden(input)
     const { kernel, solid, outStmt } = prelude(input, 'circularPattern')
     const u = norm(axis)
-    const step = fullAngle / count
     const raw = kernel.circularPattern(solid, toBrepVec(center), toBrepVec(u), step, count)
 
     let resultSolid: BrepHandle
@@ -184,7 +210,7 @@ export const circularPattern = defineOp({
   // 中立 op（D11）：实现只用 L1 核心面（kernel.circularPattern/fuseAll）。
   naming: { kind: 'replicate', k: 0 } as Provenance,
 
-  paramDims: { count: 'plain', fullAngle: 'angle' },
+  paramDims: { count: 'plain', angleStep: 'angle' },
 })
 
 // ── gridPattern ─────────────────────────────────────────────────────────────

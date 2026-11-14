@@ -87,7 +87,7 @@ describe('G4 单元层（brep-operations 自有实现）', () => {
 
   it('circularPatternBrep：4 个 box 绕 z 整圈 → 对称、bbox 直径合理', () => {
     const s = kernel.makeBox(10, 10, 5)
-    const r = circularPatternBrep({ wrapped: s }, [0, 0, 1], 4, 360, [0, 0, 0])
+    const r = circularPatternBrep({ wrapped: s }, [0, 0, 1], 4, 90, [0, 0, 0])
     expect(r.ok).toBe(true)
     const h = (r as { ok: true; value: BrepHandle }).value
     const bb = getSolidBoundingBox(kernel, h)

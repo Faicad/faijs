@@ -987,10 +987,15 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       // 阵列内核返回 compound（原始句柄）→ 拆成实体数组并逐个登记（见 markSolid GOTCHA）。
       return markSolids(arr(kernel.getCompoundSolids(compound))).map(asHandle)
     },
-    circularPattern(shape: BrepHandle, _center: BrepVec3, axis: BrepVec3, _angleStep: number, count: number): BrepHandle[] {
+    circularPattern(shape: BrepHandle, _center: BrepVec3, axis: BrepVec3, angleStep: number, count: number): BrepHandle[] {
       // ⚠️ brepkit wasm circularPattern(solid, ax, ay, az, count) 无 center/angle 参数：
-      // 固定整圆均分（每份 360°/count）。fullAngle=360 时与 occt 语义一致；
-      // 其它角度跨度无法表达（语义限制记录于此，parity 测试用整圆）。
+      // 固定整圆均分（每份 360°/count）。仅当 angleStep == 360/count 时与请求一致，
+      // 其它步距无法表达——静默返回错位实例比失败更危险，故显式 fail。
+      if (count > 1 && Math.abs(angleStep - 360 / count) > 1e-9) {
+        fail(
+          `circularPattern: angleStep=${angleStep} is not expressible on brepkit (only 360/count=${360 / count})`,
+        )
+      }
       const compound = kernel.circularPattern(asNum(shape), axis.x, axis.y, axis.z, count)
       return markSolids(arr(kernel.getCompoundSolids(compound))).map(asHandle)
     },
