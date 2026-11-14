@@ -136,6 +136,7 @@ export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'ellipseEdge', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "1D ellipse has no face role vocabulary", vocab: [] },
   { op: 'ellipsoid', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
   { op: 'extrude', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom', 'wall:0'] },
+  { op: 'faceFromWire', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "no source-derived face role vocabulary", vocab: [] },
   { op: 'faceOnSurface', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "face built on a host surface has no source-derived face role vocabulary", vocab: [] },
   { op: 'fai_drill', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fai_drill:<i>'] },
   { op: 'fai_drill_tapper', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fai_drill_tapper:<i>'] },
@@ -215,4 +216,5 @@ export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'union', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:union:<i>'] },
   { op: 'wedge', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "wedge face vocabulary pending Phase 3", vocab: [] },
   { op: 'wire', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
+  { op: 'wireFromEdges', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
 ]
