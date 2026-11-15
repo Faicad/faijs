@@ -34,6 +34,9 @@ import { sketchOnSurface } from './sketch-on-surface'
 import { punchHole } from './punch-hole'
 import { wire } from './wire'
 import { wireFromEdges } from './wire-from-edges'
+// 2026-11-14（I1）：产物体检。返回纯数据报告（非 Shape），故是普通函数形态。
+// 判据与布尔操作数校验共用 internal/mesh-closure。
+import { validateSolid } from './validate-solid'
 import { faceFromWire } from './face-from-wire'
 import { helix } from './helix'
 import { surface } from './surface'
@@ -168,6 +171,7 @@ export function createApiNamespace(): LibNamespace {
     contractVersion: CONTRACT_VERSION,
     box, sphere, cylinder, cone, wedge,
     screw, profile, sketchOnPlane, sketchOnFace, sketchOnSurface, punchHole, wire, wireFromEdges, faceFromWire, helix, sdf,
+    validateSolid,
     // D1 选项 C：四个 transform op 全留核心（translate 小程序端在用，同族不拆散）。
     translate, rotate_euler, scale, scale3d,
     chamfer, fillet, knurl,

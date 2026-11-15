@@ -20,6 +20,7 @@ import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
 import { sweepBrep as coreSweep } from './brep-operations/sweepFns'
+import { areaOfProfileWire, assertSweptVolumeMatches } from './internal/sweep-guard'
 import { toProfileWireView } from './internal/profile-wire'
 import { unwrapResult } from './internal/result-unwrap'
 import type { BrepHandle } from '../brep/engine/types'
@@ -105,6 +106,17 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
   const h = unwrapResult(r, 'sweepAdvanced') as BrepHandle
   const kernel = getBrepApi()
   try {
+    // 体积对账：缩放律（law）会改变截面积 ⇒ 恒等式不成立，只在无 law 时判。
+    // 判据与容差依据见 internal/sweep-guard.ts 文件头（折线脊柱实测 2/π、1/2）。
+    if (!(opts?.law !== undefined && opts.law !== 'none')) {
+      assertSweptVolumeMatches(
+        kernel,
+        'sweepAdvanced',
+        areaOfProfileWire(kernel, profileWire.wrapped),
+        spineWire.wrapped,
+        h,
+      )
+    }
     return fromBrep(solidToShape(kernel, h), { solid: h })
   } finally {
     // 面→外环产出的 wire 是 arena 新句柄（曲线借用不 release）

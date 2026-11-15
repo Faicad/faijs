@@ -25,6 +25,7 @@ import { runtimeLineage } from '../topology/naming/lineage'
 import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
+import { assertNotZeroThickness } from './internal/sweep-guard'
 
 /**
  * revolve 的 construct 词汇表：`bottom` / `top`（旋转轴两端的平面端面）+ `wall:<i>`。
@@ -115,14 +116,30 @@ function revolveConstructRoles(
 
 /**
  * 旋转成形：把平面轮廓绕轴旋转（兼容生成投影签名）。
+ *
+ * **硬约束（实测，2026-11-14）**：截面平面必须**包含**旋转轴。轴垂直于截面平面时
+ * 轮廓只是在自身平面里打转，永远扫不出体积——产物 volume=0、包围盒某向厚度=0，
+ * 而 `shapeType` 仍报 `'solid'`（所以类型判断抓不住）。此时抛
+ * `E_REVOLVE_ZERO_THICKNESS`。
+ *
+ * 对照（同一台机器、同一内核）：
+ * - 截面在 **XZ**、绕 **Z** 转 182° → volume 7466.74（Pappus 精确值）；
+ * - 截面在 **XZ**、绕 **Z** 转 2π → volume 14769.37；
+ * - 截面在 **XY**、绕 **Z** 转任何角度 → volume 0（退化）。
+ *
+ * `cad.profile` 没有 plane 参数（轮廓永远画在 XY），所以"让截面落在含轴平面"
+ * 需要显式搬运，例如 `cad.rotate_euler(profile, { angles: [90 * DEGREE, 0, 0] })`
+ * 把 XY 轮廓绕 X 轴转 90° 落到 XZ。
+ *
  * @group 特征
  * @inputs 1
  * @async true
  * @qual ok
  * @name revolve
- * @param face - 平面轮廓。type:Shape required:true
- * @param options - 旋转轴/点/角度（透传 compat 语义）。type:RevolveOptions
+ * @param face - 平面轮廓（**所在平面必须含旋转轴**）。type:Shape required:true
+ * @param options - 旋转轴/点/角度（弧度）。type:RevolveOptions
  * @returns Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
+ * @throws E_REVOLVE_ZERO_THICKNESS 截面平面不含轴（旋转退化、无体积）。
  * @example
  * const p1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
  */
@@ -140,6 +157,10 @@ export const revolve = defineOp({
       angle?: number
     }
     const revolved = kernel.revolveVec(handle, { x: at[0], y: at[1], z: at[2] }, { x: axis[0], y: axis[1], z: axis[2] }, (angle * 180) / Math.PI)
+    // 零厚度守卫：截面平面**不含**旋转轴时扫出的是二维区域（volume=0），而
+    // shapeType 仍报 'solid'（实测见 test/probe-case8-pipe-gap.ts §P3），
+    // 所以只能按体积/厚度判。实测哪条对：截面在 XZ、绕 Z 转 182° → 7466.74。
+    assertNotZeroThickness(kernel, 'revolve', revolved)
     const s = fromBrep(solidToShape(kernel, revolved), { solid: revolved }) as Shape
     if (!getBrepApi()) return s
     // E3（Q13 路线①）：链根建 roleTable，origin = 语句 StmtId（Phase 1.6 口径）。

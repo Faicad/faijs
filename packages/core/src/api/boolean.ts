@@ -169,6 +169,28 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
     ? (inputRoleTable(inputs[boolIdx[0]!]) as ReadonlyMap<unknown, unknown> | undefined)
     : undefined
 
+  // ── I2（2026-11-14）：多输入 union 改走内核 `fuseAll`（一次调用）───────────
+  // 链式 fuse 在 ≥3 输入时给出脏结果：
+  //   ① case8（drawing 项目）五段圆管 union → 368 条非流形边、预览成锥形怪块；
+  //   ② 本仓 test/api/validate-solid.test.ts V2 实测：五个相交 box 链式 union
+  //      体积只 2000（理论 3000，末个操作数丢在链上）。
+  // `fuseAll` 是内核的 N 输入一次合并（BOP 一步定形状），不重采样 N-1 次。
+  // **代价（如实记录，不伪造）**：内核 fuseAll 不产面演化/roleTable ⇒ 结果面命名
+  // 退化为 nameless（`faceRef` 拿不到名字）。已定条件：若 naming 退化到不可接受，
+  // 退回「链式 + 强制 unifySameDomain」；naming 断言见 test/api/union-multi.test.ts。
+  // 只对 union：cut 的贴面防护（coincidentCutProtect）、intersect 的交域语义都依赖
+  // 逐对 target/tool 关系，一次合并表达不了。
+  if (op === 'fuse' && boolIdx.length >= 3) {
+    try {
+      const merged = kernel.fuseAll(boolIdx.map((i) => inputSolids[i]!)) as BrepHandle
+      // 无面演化、无 roleTable：内核 fuseAll 不产演化表，造一张恒等映射就是假身份
+      // （与裸布尔降级同一条纪律）。
+      return fromBrep(solidToShape(kernel, merged), { solid: merged })
+    } catch {
+      // 降级回链式：后端不提供 fuseAll 或本次失败时，保持既有行为（不改变可用性）
+    }
+  }
+
   for (let bi = 1; bi < boolIdx.length; bi++) {
     const i = boolIdx[bi]!
     const prev = resultSolid

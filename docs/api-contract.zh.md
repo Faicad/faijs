@@ -251,6 +251,12 @@ keep 语句在提取期校验，违反项经 `CheckResult.errors` 上报，`stag
 
 `ExecutionResult.outputs` 含**全部** Shape 变量（含中间结果），只是不进 terminals；`brepSolids` 与拓扑**按 terminals** 提取。非几何的 DAG 叶子（测量值、普通对象）进 `activeValues`，不进 `terminals`。
 
+### 6.5 一句话口径（2026-11-14 补）
+
+**几何算子的输入一律消费**——`cad.union(a, b)` 之后 `a`/`b` 都已 `consumed`，对同一变量再写一句算子会报
+`was already consumed`。**要留下来就显式写 `<var>.keep()`（可见）或 `<var>.keepHidden()`（隐藏）**，
+不要靠"我后面还要用它"这种意图去推断（R5 只看引用，不看意图）。
+
 ---
 
 ## 7. 执行契约（`CadRuntime`）

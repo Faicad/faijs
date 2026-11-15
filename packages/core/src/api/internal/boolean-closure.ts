@@ -25,6 +25,9 @@ import { getBrepApi } from '../../brep/handle-bridge'
 import { fromBrep } from '../../shape'
 import { isAuthoredLeaf } from './authored-leaf'
 import { readAuthoredClosure } from './authored-closure'
+// 2026-11-14：闭合判定抽到 ./mesh-closure，与 `cad.validateSolid` 共用同一份判据
+// （两处口径必须一致：同一件几何不能在布尔入口判"闭合"、在体检出口判"漏水"）。
+import { meshClosure } from './mesh-closure'
 
 // ── 开关 ────────────────────────────────────────────────────────────────────
 // 默认关闭：避免影响非 OpenSCAD 调用方（尤其是 101 个 `import()` 用例里的合法开放
@@ -50,61 +53,7 @@ export function getBooleanOperandValidation(): boolean {
 }
 
 // ── 判定 ────────────────────────────────────────────────────────────────────
-
-/**
- * 网格闭合性判定：逐三角统计**无向边**被共用的次数。
- *
- * 顶点按坐标量化去重（`round(x*1e6)`），容忍接缝处因 flat/uv 法向切分导致的索引
- * 重复顶点（它们位置相同，必须视作同一顶点，否则会假报边界边）。
- * **不**剔除退化三角：issue802 的 `polyhedron#2` 含 20 个重复坐标点但全边计数为 2，
- * OpenSCAD 保留了它 —— 擅自剔除退化三角会改掉判定口径。
- */
-function meshClosure(
-  pos: Float32Array,
-  idx: Uint32Array,
-): { closed: boolean; hist: Record<number, number>; tris: number } {
-  const triCount = Math.floor(idx.length / 3)
-  if (triCount === 0) return { closed: false, hist: {}, tris: 0 }
-  const vCanon = new Map<number, number>()
-  const keyToId = new Map<string, number>()
-  let nextId = 0
-  const canon = (vi: number): number => {
-    let id = vCanon.get(vi)
-    if (id === undefined) {
-      const x = pos[vi * 3] ?? 0
-      const y = pos[vi * 3 + 1] ?? 0
-      const z = pos[vi * 3 + 2] ?? 0
-      const k = `${Math.round(x * 1e6)}|${Math.round(y * 1e6)}|${Math.round(z * 1e6)}`
-      id = keyToId.get(k)
-      if (id === undefined) {
-        id = nextId++
-        keyToId.set(k, id)
-      }
-      vCanon.set(vi, id)
-    }
-    return id
-  }
-  const edgeCount = new Map<string, number>()
-  const bump = (u: number, v: number): void => {
-    const k = u < v ? `${u}|${v}` : `${v}|${u}`
-    edgeCount.set(k, (edgeCount.get(k) ?? 0) + 1)
-  }
-  for (let t = 0; t < triCount; t++) {
-    const a = canon(idx[t * 3]!)
-    const b = canon(idx[t * 3 + 1]!)
-    const c = canon(idx[t * 3 + 2]!)
-    bump(a, b)
-    bump(b, c)
-    bump(c, a)
-  }
-  const hist: Record<number, number> = {}
-  let closed = true
-  for (const count of edgeCount.values()) {
-    hist[count] = (hist[count] ?? 0) + 1
-    if (count !== 2) closed = false
-  }
-  return { closed, hist, tris: triCount }
-}
+// `meshClosure` 见 `./mesh-closure`（抽出于 2026-11-14，判据未变）。
 
 const NON_SOLID_TYPES = new Set(['wire', 'face', 'shell', 'vertex', 'edge'])
 

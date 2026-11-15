@@ -30,8 +30,8 @@ export interface WireFromEdgesOptions {
 
 /** BREP 路径：借入边句柄 → L1 makeWire（顺序敏感）→ （可选）闭合校验 → fromBrepCurve 收养。 */
 function wireFromEdgesBrep(edges: Shape[], opts?: WireFromEdgesOptions): Shape {
-  if (!Array.isArray(edges) || edges.length < 2) {
-    throw new Error('E_WIRE_FROM_EDGES_TOO_FEW: wireFromEdges requires at least 2 edges')
+  if (!Array.isArray(edges) || edges.length < 1) {
+    throw new Error('E_WIRE_FROM_EDGES_TOO_FEW: wireFromEdges requires at least 1 edge')
   }
   const handles = edges.map((s) => {
     const h = brepOf(s) as BrepHandle | undefined
@@ -55,13 +55,21 @@ function wireFromEdgesBrep(edges: Shape[], opts?: WireFromEdgesOptions): Shape {
  * @name wireFromEdges
  * @note 中立 op：L1 makeWire 两引擎同实现。顺序敏感——按入参顺序组装，
  *       不做端点排序；连接性由内核校验，失败抛内核错误。
+ *
+ *       单边合法（2026-11-14 放宽，原下限是 2）：`makeWire([singleEdge])` 本身就
+ *       是内核支持的形态（探针实测 `makeWire([circleEdge])` 即整圆 wire）。这条对
+ *       **扫掠脊柱**是关键出路——`cad.circleArc` 产出单条 edge，只有允许单边组 wire，
+ *       脚本层才能写出"单段真弧脊柱"（`cad.sweep(section, cad.wireFromEdges([arc]))`）。
+ *       此前下限 2 让真弧脊柱在脚本层无路可走，只能退化成折线（体积按 2/π 丢）。
  * @returns Shape 1D 曲线（kind:'curve'）。
- * @param edges - 有序边 Shape 列表（`cad.edge` / `cad.circleArc` / `cad.tangentArc` 等产物），至少 2 条。type:Shape[] required:true
+ * @param edges - 有序边 Shape 列表（`cad.edge` / `cad.circleArc` / `cad.tangentArc` 等产物），至少 1 条。type:Shape[] required:true
  * @param options.closed - 要求闭合链（组装后校验首尾相连，不闭合抛 E_WIRE_FROM_EDGES_NOT_CLOSED；默认 false 开链合法）。type:boolean required:false
  * @example
  * const e1 = cad.edge([0,0,0],[10,0,0])
  * const e2 = cad.edge([10,0,0],[10,10,0])
  * const w = cad.wireFromEdges([e1, e2])
+ * // 单条真弧 → wire，可直接当扫掠脊柱（扫掠体积须等于 面积 × 弧长）
+ * const spine = cad.wireFromEdges([cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE)])
  */
 export const wireFromEdges = defineOp({
   brep(edges: Shape[], opts?: WireFromEdgesOptions) {

@@ -21,6 +21,7 @@ export default {
   "faceFromWire": {},
   "helix": {},
   "sdf": {},
+  "validateSolid": {},
   "translate": {},
   "rotate_euler": {},
   "scale": {},

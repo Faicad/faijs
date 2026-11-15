@@ -22,6 +22,8 @@ import type { Provenance } from '../topology/naming/lineage'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
+import { OpError } from './internal/result-unwrap'
+import { areaOfProfileWire, assertSweptVolumeMatches } from './internal/sweep-guard'
 import { toProfileWireView } from './internal/profile-wire'
 import { unifyOrientation, weldVertices } from '../mesh/reconcile'
 
@@ -69,8 +71,20 @@ function sweepBrep(profile: Shape, spine: Shape): Shape {
   const kernel = getBrepApi()
   try {
     const h = kernel.sweep(profileWire.wrapped, spineWire.wrapped)
+    // 体积对账（post-condition）：折线脊柱不报错、只静默少给体积；
+    // 恒等式「截面积 × 脊柱长度」的实测容差见 internal/sweep-guard.ts 文件头。
+    assertSweptVolumeMatches(
+      kernel,
+      'sweep',
+      areaOfProfileWire(kernel, profileWire.wrapped),
+      spineWire.wrapped,
+      h,
+    )
     return withConsistentWinding(fromBrep(solidToShape(kernel, h), { solid: h }))
   } catch (e) {
+    // 守卫抛的 OpError 必须原样透传：包成 E_SWEEP_FAILED 会丢掉 E_SWEEP_VOLUME_MISMATCH
+    // 这个唯一能指向根因的码。
+    if (e instanceof OpError) throw e
     const raw = e instanceof Error ? e.message : String(e)
     throw new Error(`E_SWEEP_FAILED: sweep failed: ${raw}`, { cause: e })
   } finally {
@@ -96,9 +110,23 @@ function sweepBrep(profile: Shape, spine: Shape): Shape {
  *       或面（面取其外环）；脊柱必须为 wire。选项集 = 两内核交集 = **空** ——
  *       需要 transition / auxSpine / support / law / orientation 等 occt 独有控制面
  *       时用 `cad.sweepAdvanced`。
+ *
+ *       **脊柱形态硬约束（实测，2026-11-14）**：脊柱只能是**单段直线**或**单段真弧**。
+ *       折线脊柱不报错、只会静默少给体积，且偏差是固定解析系数：两段 90° 折线给
+ *       解析值的 1/2，N 段密采样圆弧给 2/π（≈0.6366）。出口有体积对账守卫
+ *       （`E_SWEEP_VOLUME_MISMATCH`，容差 5%），折线脊柱会被拦在 `cad.sweep`，
+ *       不会留到下游。
+ *
+ *       ⚠️ **脊柱怎么写成真弧（2026-11-14 更正）**：`cad.circleArc` 产出的是**单条 edge**，
+ *       必须经 `cad.wireFromEdges([arc])` 组装成 wire 才能当脊柱。该 op 原本下限 2 条边，
+ *       单边组不了 wire ⇒ 真弧脊柱在脚本层无路可走，只能退化成折线（体积按 2/π 丢）。
+ *       **这正是 case8 那 40 点折线的直接成因**（不是 AI 选错形态，是当时唯一可写形态）。
+ *       现已放宽为允许单边，写法：
+ *       `cad.sweep(section, cad.wireFromEdges([cad.circleArc(center, normal, r, 0*DEGREE, 90*DEGREE)]))`
  * @returns Shape 扫掠体。
  * @param profile - 截面几何（wire 或面；面取其外环）。type:Shape required:true
- * @param spine - 脊柱路径（wire）。type:Shape required:true
+ * @param spine - 脊柱路径（wire，**单段直线或单段真弧**）。type:Shape required:true
+ * @throws E_SWEEP_VOLUME_MISMATCH 扫掠体积与「截面积 × 脊柱长度」不符（折断在折线脊柱）。
  * @example
  * const path = cad.wire([[0, 0, 0], [0, 0, 50]])
  * const section = cad.profile({ contours: [{ segments: [

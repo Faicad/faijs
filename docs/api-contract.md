@@ -251,6 +251,10 @@ A keep statement is validated at extraction time, and violations surface through
 
 `ExecutionResult.outputs` contains **all** Shape variables (intermediate results included) — they simply do not enter terminals; `brepSolids` and topology are extracted **per terminal**. Non-geometric DAG leaves (measurements, plain objects) go into `activeValues`, not `terminals`.
 
+### 6.5 One-line rule (added 2026-11-14)
+
+**Geometry-operator inputs are always consumed** — after `cad.union(a, b)`, both `a` and `b` are consumed; feeding either variable to another operator reports `was already consumed`. **To retain one, write `<var>.keep()` (visible) or `<var>.keepHidden()` (hidden) explicitly** — do not rely on "I will need it later" intent (R5 reads references, not intent).
+
 ---
 
 ## 7. Execution Contract (`CadRuntime`)

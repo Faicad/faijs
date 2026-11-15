@@ -51,3 +51,29 @@
 3. **面向 TS 库开发者，不面向 `.fai.js` 脚本**——纯投影属于"TS 兼容面"：库开发者从 `@faicad/faijs/*` 子路径 import 直接用，调用即执行，返回值不经语句级 unwrap。
 
 判据：这个东西需要引擎在语句执行时算出几何、且可能有 mesh/brep 两种实现 → 是 op（用 `defineOp` 或 `compatOp`）；这个东西只是把已有能力换个名字暴露出去（re-export、查询、工具函数、DSL）→ 是纯投影，直接 re-export，别包成 op。
+
+## Q3: 扫掠（`cad.sweep` / `cad.pipe`）体积为什么明显偏小？
+
+**脊柱不许折线。** 内核沿脊柱扫掠时按**脊柱切向**推导截面朝向，折线脊柱的每一段只有整段一个方向，相邻段的转角被"跳过"，于是体积按 **2/π ≈ 0.6366** 打折（N 段密采样圆弧结果一致，采样再密也救不回来；两段 90° 折线更惨，只剩 1/2）。
+
+- 可用形态：**单段直线**，或**单段真弧**；
+- 真弧写法：`cad.circleArc` 产出**一条 edge**，用 `cad.wireFromEdges([arc])` 组装成 wire 再当脊柱：
+  ```js
+  let spine = cad.wireFromEdges([cad.circleArc([0,-10,0], [1,0,0], 10, 0*DEGREE, 90*DEGREE)])
+  let part  = cad.sweep(cad.box(4,4,0.1), spine)
+  ```
+- 现在这个错误**会被挡下**：`sweep` / `sweepAdvanced` / `pipe` 在出结果前用 `面积 × 脊柱长度` 对账体积，偏差 >5% 抛 `E_SWEEP_VOLUME_MISMATCH`（阈值可用 `setSweepVolumeTolerance` 调，默认 5%）。
+
+## Q4: `cad.revolve` 转出来是"一片"，体积 0，但 `shapeType` 还说是 solid？
+
+截面平面**不含旋转轴**。轮廓落在与轴垂直的平面上时，绕轴一圈扫出的是零厚度平面环——体积恒为 0，但拓扑上它仍是"闭合的面片"，所以类型查询会答 `solid`，别拿它当判据。
+
+- 修：把轮廓搬到**含轴平面**（如 XZ 绕 Z 轴）。注意 `cad.profile` **只吃 `contours`、没有 `plane` 参数**（轮廓永远在 XY），要用 `cad.rotate_euler(pr, { angles: [90*DEGREE, 0*DEGREE, 0*DEGREE] })` 搬过去；
+- 判据：`cad.revolve` 已内置零厚度守卫，直接抛 `E_REVOLVE_ZERO_THICKNESS`，不会再交出"体积 0 的实心件"。
+
+## Q5: 多输入 `cad.union` 之后面命名（`faceRef`）为什么拿不到了？
+
+`union` 在 **≥3 个输入**时走内核一次合并（`fuseAll`），几何正确（不再出现链式 fuse 的丢操作数/非流形边），但**内核 fuseAll 不产面演化表** ⇒ 结果没有 `roleTable` ⇒ `faceRef` 退化为 nameless。
+
+- 几何正确优先：这是既定取舍，不是缺陷；
+- 需要面命名时：改写成两两 `cad.union(a, b)` 链式（每步都有 `*WithHistory`），或先在链式路径上 `unifySameDomain` 再取面。

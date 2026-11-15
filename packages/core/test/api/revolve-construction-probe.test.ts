@@ -41,7 +41,15 @@ async function exec(code: string): Promise<ExecutionResult> {
   }).execute(code)
 }
 
-/** Square profile loop drawn on the XZ plane (y=0): revolve around Z. */
+/**
+ * Square profile loop **on the XZ plane** (y=0): revolve around Z.
+ *
+ * GOTCHA（2026-11-14 实测修正）：`cad.profile` 没有 plane 参数，轮廓**永远画在 XY**
+ * ——本 helper 早年只把第二个坐标写成 `z`，几何其实仍在 XY。在 XY 上绕 Z 转出来的
+ * 是零厚度平面环（volume=0），"control 干净通过"其实守的是错期望（OCCT 不报错、
+ * 但也没扫出实体）。这里用 `rotate_euler` 绕 X 轴转 90° 把轮廓真正搬到 XZ，
+ * 与 helper 名字与注释一致。零厚度守卫（`internal/sweep-guard.ts`）已能拦住漏网的写法。
+ */
 function sqOnXZ(x0: number, z0: number, w: number, h: number): string {
   const pts: [number, number][] = [
     [x0, z0], [x0 + w, z0], [x0 + w, z0 + h], [x0, z0 + h], [x0, z0],
@@ -50,7 +58,10 @@ function sqOnXZ(x0: number, z0: number, w: number, h: number): string {
     const [x2, z2] = pts[i + 1]!
     return `{ kind: 'line', x1: ${x}, y1: ${z}, x2: ${x2}, y2: ${z2} }`
   })
-  return `cad.profile({ contours: [{ segments: [${segs.join(',')}] }] })`
+  return (
+    `cad.rotate_euler(cad.profile({ contours: [{ segments: [${segs.join(',')}] }] }), ` +
+    `{ angles: [90 * DEGREE, 0 * DEGREE, 0 * DEGREE] })`
+  )
 }
 
 describe('P2 probe: revolve CONSTRUCTION_FAILED triggers (drill/v-bit class)', () => {

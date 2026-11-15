@@ -51,3 +51,29 @@ Why the distinction matters: the `cad` namespace contains things that are not ge
 3. **Aimed at TS library developers, not `.fai.js` scripts** — pure projections belong to the TS compatibility surface: imported directly from `@faicad/faijs/*` subpaths, executed on call, without statement-level unwrap.
 
 Rule of thumb: something the engine must compute at statement-execution time, with possibly two implementations (mesh/brep), is an op (`defineOp` or `compatOp`); something that merely exposes existing capability under another name (re-export, query, utility, DSL) is a pure projection — just re-export it, never wrap it in an op.
+
+## Q3: Why is the volume of a sweep (`cad.sweep` / `cad.pipe`) noticeably small?
+
+**The spine must not be a polyline.** The kernel derives the section orientation from the **spine tangent**; a polyline spine keeps one direction per segment and skips the turns, so the volume is discounted by **2/π ≈ 0.6366** (uniform across N-segment sampling — denser sampling does not help; a two-segment 90° polyline is worse and keeps only 1/2).
+
+- Supported shapes: **a single straight segment**, or **a single true arc**;
+- A true arc is written with `cad.wireFromEdges([arc])` — `cad.circleArc` yields **one edge**, and `wireFromEdges` accepts a single edge:
+  ```js
+  let spine = cad.wireFromEdges([cad.circleArc([0,-10,0], [1,0,0], 10, 0*DEGREE, 90*DEGREE)])
+  let part  = cad.sweep(cad.box(4,4,0.1), spine)
+  ```
+- This mistake is now **caught**: `sweep` / `sweepAdvanced` / `pipe` reconcile `area × spine length` before returning and throw `E_SWEEP_VOLUME_MISMATCH` above 5% deviation (tunable via `setSweepVolumeTolerance`).
+
+## Q4: `cad.revolve` returns a "flat sheet" with volume 0, yet `shapeType` still says solid?
+
+The section plane **does not contain the revolve axis**. A contour lying in a plane perpendicular to the axis sweeps out a zero-thickness planar ring — volume is always 0, while topologically it is still a closed sheet, so the type query answers `solid`; do not use it as a criterion.
+
+- Fix: move the contour into a **plane containing the axis** (XZ around Z). Note `cad.profile` **only takes `contours` and has no `plane` parameter** (contours always live in XY), so use `cad.rotate_euler(pr, { angles: [90*DEGREE, 0*DEGREE, 0*DEGREE] })`;
+- `cad.revolve` now has a built-in zero-thickness guard and throws `E_REVOLVE_ZERO_THICKNESS` instead of returning a "solid" with volume 0.
+
+## Q5: Why is `faceRef` unavailable after a multi-input `cad.union`?
+
+With **3 or more inputs**, `union` switches to a single kernel merge (`fuseAll`). Geometry stays correct (no dropped operands or non-manifold edges as in the chained path), but **the kernel's fuseAll produces no face-evolution table** ⇒ no `roleTable` ⇒ `faceRef` degrades to nameless.
+
+- Geometry correctness comes first: this is a deliberate trade-off, not a defect;
+- Need face names? Chain pairwise `cad.union(a, b)` instead (each step runs `*WithHistory`), or `unifySameDomain` on the chained path before querying faces.

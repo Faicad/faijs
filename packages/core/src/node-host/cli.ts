@@ -315,6 +315,22 @@ export interface CliViewResult {
  * @param _opts - optional CLI check options (assets and fonts directories)
  * @returns the check result with any validation errors
  */
+/**
+ * 脚本语言里不存在、但作者很容易当 op 调用的**数组方法名**（I6 归因用）。
+ * 这些名字不可能与任何 cad op 重名，故按名字直判是安全的。
+ */
+const ARRAY_METHOD_NAMES: ReadonlySet<string> = new Set([
+  'push', 'pop', 'shift', 'unshift', 'splice', 'concat', 'join', 'reverse', 'sort',
+  'indexOf', 'lastIndexOf', 'includes', 'forEach', 'reduce', 'find', 'findIndex',
+])
+
+/**
+ * Run parse + schema + reference preflight (`runtime.check`) on a `.fai.js`
+ * file and map the result into a CLI-check record.
+ * @param filePath - Path to the `.fai.js` script to validate.
+ * @param _opts - Optional CLI options (assets/fonts directories).
+ * @returns Check result with mapped errors and unknown-op guard info.
+ */
 export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckResult {
   const code = readFileSync(filePath, 'utf-8')
   const ports = withCliLibLoader(createNodePorts({
@@ -346,9 +362,18 @@ export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckRes
     }
     const unknown = [...new Set(result.script.callees)].filter((n) => !known.has(n))
     for (const name of unknown) {
+      // I6（2026-11-14）：把「对数组调方法」与「op 名写错/库未合并」分开归因。
+      // 脚本层的 `pts.push(p)` 被提取成 callee `push`，落在 cad 命名空间查找失败，
+      // 于是报 "unknown op: cad.push" —— 这条消息把作者引向"是不是 op 拼错了"，
+      // 而真实原因是**脚本语言不支持数组方法调用**（case8 RUN-LOG §3.9 第 10 条
+      // 就是被这条消息耽误的）。数组方法名不可能与任何 cad op 重名，故按名字直判安全。
       errors.push({
         stage: 'symbol',
-        message: `unknown op: cad.${name} is not in the cad namespace (host library not merged or op name misspelled)`,
+        message: ARRAY_METHOD_NAMES.has(name)
+          ? `script does not support array method calls (cad.${name}): the statement language ` +
+            `has no mutation of existing arrays. Write the whole point list as ONE array literal ` +
+            `(e.g. \`let pts = [[0,0,0], [10,0,0], ...]\`) instead of building it with ${name}().`
+          : `unknown op: cad.${name} is not in the cad namespace (host library not merged or op name misspelled)`,
         line: undefined,
         stmtId: undefined,
       })

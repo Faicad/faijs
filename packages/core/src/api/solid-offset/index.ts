@@ -27,6 +27,7 @@ import { brepOf, fromBrep } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { getOcctKernel } from '../../occt-kernel/occtKernel'
+import { areaOfProfileFace, assertSweptVolumeMatches } from '../internal/sweep-guard'
 
 type Vec3 = [number, number, number]
 
@@ -113,6 +114,17 @@ function pipeBrep(profile: Shape, spine: Shape): Shape {
   const handle = getOcctKernel().pipe(
     profileHandle as never, spineHandle as never,
   ) as unknown as BrepHandle
+  // 体积对账：只对 **face 截面**（→实体）判。wire/edge 截面产壳，体积无意义，
+  // 必须跳过（A4 已钉住这个产物类型差异）。折线脊柱的实测偏差见 internal/sweep-guard.ts。
+  let profileArea: number | undefined
+  try {
+    if (String(kernel.shapeType(profileHandle)).toLowerCase() === 'face') {
+      profileArea = areaOfProfileFace(kernel, profileHandle)
+    }
+  } catch {
+    profileArea = undefined
+  }
+  assertSweptVolumeMatches(kernel, 'pipe', profileArea, spineHandle, handle)
   return fromBrep(solidToShape(kernel, handle), { solid: handle })
 }
 
@@ -123,6 +135,15 @@ function pipeBrep(profile: Shape, spine: Shape): Shape {
  * 产物类型随截面类型（实测钉住，test/api/occt-s4-solid-offset.test.ts A3/A4）：
  * **截面 face → 实体；截面 wire/edge → 壳（管面，体积无意义）**。要实体管，
  * 喂面截面（如 `cad.profile` 的圆盘轮廓）。
+ *
+ * **脊柱形态硬约束（实测，2026-11-14）**：脊柱只能是单段直线或单段真弧。
+ * 折线脊柱不报错、只静默少体积（两段 90° 折线 = 解析值 1/2；N 段密采样弧 = 2/π）。
+ * face 截面产物走体积对账守卫（`E_SWEEP_VOLUME_MISMATCH`，5%）；wire 截面产壳，
+ * 体积无意义，守卫自动跳过。
+ *
+ * ⚠️ **真弧脊柱的写法（2026-11-14 更正，同 `sweep`）**：`cad.circleArc` 产的是单条 edge，
+ * 要用 `cad.wireFromEdges([arc])` 组装成 wire（该 op 已允许单边）。此前下限 2 让真弧
+ * 脊柱无路可走、只能写折线——case8 的 40 点折线就是这么来的。
  * @group 创建
  * @inputs 2
  * @async false
@@ -133,7 +154,8 @@ function pipeBrep(profile: Shape, spine: Shape): Shape {
  * @returns Shape 扫出的管（截面 face → 实体；wire/edge → 壳）。
  * @param profile - 截面（face → 实体；wire/edge → 壳）。
  *                  type:Shape required:true
- * @param spine - 脊柱 wire。type:Shape required:true
+ * @param spine - 脊柱 wire（**单段直线或单段真弧**）。type:Shape required:true
+ * @throws E_SWEEP_VOLUME_MISMATCH face 截面时扫掠体积对不上（折断在折线脊柱）。
  * @example
  * const tube = cad.pipe(diskFace, spineWire)
  */
