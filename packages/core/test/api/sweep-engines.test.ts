@@ -176,18 +176,15 @@ describe('smlib — single / miter / segments / closed（P0 放宽后全开）',
   it('S9 混合边 G1（弧 + 相切直腿，segments 逐段扫 + fuse）→ 411.33', async () => {
     expect(volumeOfPart2(await runOn('smlib', S9_SMLIB))).toBeCloseTo(16 * (Math.PI / 2 * 10 + 10), 2)
   })
-  it('S12a 混合边 + 平面 G0 折角 → smlib 拒绝（曲面段切不出可并的斜接，实测 V=0 / smw_fuse failed）', async () => {
-    const r = await runOn('smlib', S12_SMLIB_PLANAR)
-    expect(r.failedAt).toBeDefined()
-    expect(JSON.stringify(r.failedAt)).toMatch(/E_SWEEP_ENGINE_CAP/)
-    expect(errorOf(r)).toMatch(/mixed-kind spine with a G0 corner/)
-    expect(errorOf(r)).toMatch(/boolean failed/)
+  it('S12a 混合边 + 平面 G0 折角 → 411.98（×1.0016，弧段沿同圆续弧后 smlib 布尔通过）', async () => {
+    const v = volumeOfPart2(await runOn('smlib', S12_SMLIB_PLANAR))
+    console.log(`[S12a] mixed+planar corner | V=${v}`)
+    expect(v / (16 * (Math.PI / 2 * 10 + 10))).toBeCloseTo(1, 2)
   })
-  it('S12b 混合边 + 空间 G0 折角 → 同一张门禁（原因相同，与平面/空间无关）', async () => {
-    const r = await runOn('smlib', S12_SMLIB_SPATIAL)
-    expect(r.failedAt).toBeDefined()
-    expect(JSON.stringify(r.failedAt)).toMatch(/E_SWEEP_ENGINE_CAP/)
-    expect(errorOf(r)).toMatch(/mixed-kind spine with a G0 corner/)
+  it('S12b 混合边 + 空间 G0 折角 → 411.30（×0.9999）', async () => {
+    const v = volumeOfPart2(await runOn('smlib', S12_SMLIB_SPATIAL))
+    console.log(`[S12b] mixed+spatial corner | V=${v}`)
+    expect(v / (16 * (Math.PI / 2 * 10 + 10))).toBeCloseTo(1, 2)
   })
 })
 
@@ -555,6 +552,59 @@ describe('smlib 内核级：P0 天花板（钉住内核边界）', () => {
       } else {
         // 空间折角体积精确，但接缝没有完全并成一个平面（面数偏多），是后续要压的余量。
         expect(faces).toBeGreaterThan(8)
+      }
+    }
+  })
+
+  /**
+   * P0l：**两条边接成 wire 时，弧的参数方向必须与走向一致** —— smlib 的 sweep 不校验这件事。
+   *
+   * 几何：R10 圆在 y=0 平面，θ∈[0°,90°]，起点 (10,0,0) 切向 +Z、终点（折点）(0,0,10)
+   * 切向 −X；折角 90°（直腿沿 +X 的反向延长线，即「弧 + 直段」这条带折点的线），4×4 截面。
+   *
+   * 两个 wire 几何**相同**（都覆盖弧 + 越界直段），差别只在弧的**参数方向**：
+   * - `forward`：弧按 0°→90° 参数化，直段从 90° 端继续 —— 边首尾相接；
+   * - `reversed`：弧按 90°→0° 参数化（几何不变），直段仍从 90° 端继续 ——
+   *   按 wire 顺序第 0 条边的终点是 0° 端，接不上第 1 条边的起点。
+   *
+   * 结论（这就是 `sweepWithBuiltJoints` 里那条窄门禁的由来）：smlib 的 `makeWire` 不校验
+   * 首尾相接，`sweep` 也不报错 —— `reversed` 直接扫出**空体**（V=0），后续 `splitByPlane`
+   * 两半都是 0、`fuse` 报 `boolean failed`。op 层曾经踩的就是这个坑：`cad.circleArc`
+   * 的弧在 smlib 上参数方向与几何走向相反（已知差异），再在它后面接一条切向直段，
+   * 拼出来的就是 `reversed` 那种 wire —— 所以「沿同一圆续弧」（单边、无拼接）才是正解。
+   */
+  it('P0l 弧 + 直段拼 wire：参数方向一致才有体，反了 smlib 静默交空体', async () => {
+    const prim = await createSmlibPrimitives()
+    const section = squareFace(prim) as never
+    const R = 10
+    const at = (deg: number) => {
+      const t = (deg * Math.PI) / 180
+      return p(R * Math.cos(t), 0, R * Math.sin(t))
+    }
+    const corner = at(90)
+    const n = { x: -Math.SQRT1_2, y: 0, z: Math.SQRT1_2 }
+    const DELTA = 2.1
+    const far = p(corner.x - DELTA, 0, corner.z)
+
+    const wires: [string, unknown][] = [
+      ['forward', prim.makeWire([prim.makeArcEdge(at(0), at(45), at(90)), prim.makeLineEdge(corner as never, far as never)])],
+      ['reversed', prim.makeWire([prim.makeArcEdge(at(90), at(45), at(0)), prim.makeLineEdge(corner as never, far as never)])],
+    ]
+    for (const [label, wire] of wires) {
+      const body = prim.sweep(section, wire as never)
+      const v = prim.getVolume(body) as number
+      const cut = prim.splitByPlane(body as never, corner as never, n as never)
+      const kept = prim.getVolume(cut.negative) as number
+      console.log(
+        `[P0l] ${label} | wireLength=${prim.getLength(wire as never).toFixed(3)} body=${v.toFixed(3)} kept(-n)=${kept.toFixed(3)}`,
+      )
+      if (label === 'forward') {
+        // 首尾相接：正常体（16 × (弧长 15.708 + 越界 2.1) ≈ 284.9），斜接面裁出自己那一半。
+        expect(v).toBeGreaterThan(280)
+        expect(kept).toBeGreaterThan(240)
+      } else {
+        // 参数方向反了：**线长读 0**，于是体积守卫（expected = 面积 × 0）被绕过，静默空体。
+        expect(v).toBeLessThan(1e-6)
       }
     }
   })

@@ -31,19 +31,21 @@
  * | 引擎 | single | miter | segments | closed | C2 端面法向 |
  * |---|---|---|---|---|---|
  * | occt | ✔ | ✔（内核 `rightCorner`） | ✔（逐段；含 G0 折角时按角平分面裁成斜接） | ✔ | ✔ |
- * | smlib | ✔ | ✔（平面折角走内核；空间折角走**策略层自补斜接**） | ✔（混合边全 G1；**混合边 + 折角**因布尔限制拒绝） | ✔ | ✔ |
+ * | smlib | ✔ | ✔（平面折角走内核；空间折角走**策略层自补斜接**） | ✔（混合边；含 G0 折角 —— 弧段沿同圆续弧后布尔通过） | ✔ | ✔ |
  * | brepkit | ✔ | ✘ | ✘ | ✘ | ✘（旧引擎，保留 single 只为历史脚本） |
  *
  * 实测数字（4×4 截面，`cad.sweep` 脚本级 / 内核级，2026-11-16）：
  * - occt：直线 25 → 400；折角 L 形（长 20）miter → 320；**空间**折角（长 30）→ 480；
  *   闭合圆 r=10 → 1005.31；带孔截面（8/4）→ 3015.93（= 净面积 × 20）；真弧脊柱 → 251.33；
- *   **混合边 + G0 折角**（弧尾 90° 折直腿）→ 411.33 × **1.0046**（残差来自"弧段沿端点
- *   切向的直段延伸"，O(δ²/2R)，见表下注）；强制 `segments` 走 16 段折线 → 0.9996。
+ *   **混合边 + G0 折角**（弧尾 90° 折直腿）→ 411.33 × **1.0044**（残差不是延伸误差，见
+ *   表下注）；强制 `segments` 走 16 段折线 → 0.9996。
  * - smlib：直线 400 / autoPlace 搬 90mm → 800 / 共线多边 400 / 带孔 3015.93 /
  *   **平面**折角 320（内核自己就斜接）/ **空间**折角 480（策略层自补，与 occt 同值）/
  *   真弧脊柱 251.33 / 混合边 G1（弧+直腿）411.33；闭合圆 → 1005.31；
- *   混合边 + 折角 → `E_SWEEP_ENGINE_CAP`（曲面段被 `splitByPlane` 切后读出 V=0，
- *   `fuse` 直接报 `smw_fuse: boolean failed`）。
+ *   **混合边 + G0 折角**（弧尾 90° 折直腿）平面 411.98（×1.0016）/ 空间 411.30（×0.9999）。
+ * - brepkit：直线 400 / autoPlace 800 / 共线多边 400（结构判据修好后成立）；
+ *   折角 → `E_SWEEP_ENGINE_CAP`；带孔截面 → 体积对（3015.93）但 C1 面积读数失真
+ *   （读到 16 而非 150.8）→ 旧引擎不修，带孔截面在 brepkit 上按「不可用」看待。
  * - brepkit：直线 400 / autoPlace 800 / 共线多边 400（结构判据修好后成立）；
  *   折角 → `E_SWEEP_ENGINE_CAP`；带孔截面 → 体积对（3015.93）但 C1 面积读数失真
  *   （读到 16 而非 150.8）→ 旧引擎不修，带孔截面在 brepkit 上按「不可用」看待。
@@ -67,10 +69,18 @@
  * 接缝留下「重叠被吞 + 外侧无斜接补料」的错件，4×4/90° 实测 304 而精确值 320，刚好压在
  * C1 的 5% 容差界上 —— 所以转角要么内核给，要么按 P0k 的配方在策略层造）。
  *
- * 注：**曲面段**（弧 / 样条）的过量延伸只能沿端点切向接一小段直线（真要沿同一圆续下去得
- * 重建圆弧，本文件不这么做），误差 O(δ²/2R) —— 4×4 截面、R10 弧、90° 折角实测 **+0.46%**
- * （411.33 → 413.22）。纯直线脊柱没有这个残差（16 段折线 0.9996 的残差来自折线对弧本身的
- * 近似，与延伸无关）。
+ * 注一：**弧段**的过量延伸是「沿**同一个圆**续弧」（`fitArc` + `extendArcOnSameCircle`）——
+ * 越界那一段还是原来那条弧的延续，斜接面切出来的端面与内核自己算的斜接等价。判据是几何
+ * 反解（三点定圆 + 沿参数再采 4 点验圆性，相对容差 `ARC_FIT_REL_TOL = 1e-6`），不看
+ * `kind` / `curveType`：smlib 的 `curveType` 对弧边返回的不是 `'circle'`。
+ * 样条 / 椭圆拟合不出真圆，只能退回「沿端点切向接一小段直线」（误差 O(δ²/2R)）。
+ *
+ * 注二：混合曲率的斜接**体积不等于**「面积 × 路径长」。那是 Pappus 近似，只在两侧都是
+ * 直管时精确。弧尾折直腿这一格（R6 管 / R10 弧 / 90°，`sweep-along` S8 的几何）用数值积分
+ * 核过三种口径：弧管止于折点得 1645.99，续弧到 +36.1° 得 1789.43（= 本实现，实测
+ * 1789.35），续到 +180° 得 3620.6 —— 所以「留哪一侧」这个规则本身就把折点之外那一小段
+ * 曲面管留在自己这一侧，多出来的量与延伸长度有关，取 **最小可切长度**（`1.05 × extent`）
+ * 才有意义。这决定了 4×4 那格 411.33 × 1.0044 的残差是**斜接口径**，不是算法误差。
  */
 
 import type { Shape } from '../mesh/types'
@@ -92,7 +102,7 @@ import {
 import { toProfileRingsView } from './internal/profile-wire'
 import type { WireView } from './internal/profile-wire'
 import { analyzeSpineEdges, describeSpine, unit } from './internal/spine-analysis'
-import type { SpineFacts } from './internal/spine-analysis'
+import type { SpineFacts, SpineEdgeFacts } from './internal/spine-analysis'
 import { selectStrategy } from './internal/sweep-strategy'
 import type { SweepStrategy } from './internal/sweep-strategy'
 import {
@@ -112,7 +122,7 @@ export interface SweepOptions {
    * - `miter`：全 G0 折角 → 斜接（occt 一次扫掠 + `rightCorner`，实测 0.9936–0.9996；
    *   smlib 无过渡入口，走「逐段过量延伸 + 角平分面裁剪 + fuse」自补，实测 480.000 同值）；
    * - `segments`：逐段扫（内核一次扫在混合链上符号错）。全 G1 时接缝是共面端面直接 fuse；
-   *   有 G0 折角时每个折角按角平分面裁出斜接（`smlib` 的曲面段做不到，见引擎表）。
+   *   有 G0 折角时每个折角按角平分面裁出斜接（弧段沿同圆续弧后再裁 —— 三引擎都能跑）。
    * - `closed`：闭合中心线 → 一次扫掠（环面体积 = 面积 × 周长）。
    *
    * 覆写不能绕过物理上无解的脊柱（断裂 / 折返 / 退化 / 混合+G0 一律先拒），
@@ -282,6 +292,180 @@ function add3(a: BrepVec3, b: BrepVec3, k: number): BrepVec3 {
   return { x: a.x + b.x * k, y: a.y + b.y * k, z: a.z + b.z * k }
 }
 
+function cross3(a: BrepVec3, b: BrepVec3): BrepVec3 {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  }
+}
+
+function norm3(a: BrepVec3): number {
+  return Math.hypot(a.x, a.y, a.z)
+}
+
+function dist3(a: BrepVec3, b: BrepVec3): number {
+  return norm3(sub3(a, b))
+}
+
+/**
+ * 三点外接圆圆心（退化 → undefined）。
+ *
+ * 用「弦中垂线」的平面解，而不是 `|AC|²(AB×N) + |AB|²(N×AC)` 那类闭式：后者符号容易错，
+ * 且三点接近共线时误差会被 2|N|² 放大。这里先把 `AC` 分解到 `(e1, e2)` 正交基，再解两个
+ * 一次方程 —— 只除以 `sin∠BAC`（与共线程度同阶），数值行为可预期。
+ *
+ * @returns 圆心；三点共线或重合时 undefined。
+ */
+function circumcenter(a: BrepVec3, b: BrepVec3, c: BrepVec3): BrepVec3 | undefined {
+  const ab = sub3(b, a)
+  const ac = sub3(c, a)
+  const L = norm3(ab)
+  const na = norm3(ac)
+  if (!(L > 1e-12) || !(na > 1e-12)) return undefined
+  const cr = cross3(ab, ac)
+  const cn = norm3(cr)
+  // sin∠BAC = |AB×AC| / (|AB||AC|)：低于 1e-9 视为共线（圆心跑到无穷远，续弧不可信）。
+  if (!(cn / (L * na) > 1e-9)) return undefined
+  const e1 = { x: ab.x / L, y: ab.y / L, z: ab.z / L }
+  const e2 = cross3({ x: cr.x / cn, y: cr.y / cn, z: cr.z / cn }, e1)
+  const u = dot3(ac, e1)
+  const v = dot3(ac, e2)
+  if (!(Math.abs(v) > 1e-12)) return undefined
+  const x = L / 2
+  const y = (u * u + v * v - 2 * x * u) / (2 * v)
+  return add3(add3(a, e1, x), e2, y)
+}
+
+/** 一段**真圆弧**的解析参数化（由几何反解，不看 `kind` / `curveType`）。 */
+interface ArcFit {
+  center: BrepVec3
+  /** 使弧按「角度递增」绕它走的法向（`u × v = normal`）。 */
+  normal: BrepVec3
+  radius: number
+  /** 起点径向基：`θ = 0` 就是起点（`a0` 恒为 0）。 */
+  u: BrepVec3
+  /** 面内第二个基：`tangentAt(0) = v`。 */
+  v: BrepVec3
+  /** 终点角（> 0，且 < 2π）。 */
+  a1: number
+}
+
+/** 圆性判定的相对容差：点偏离圆超过 `radius × 1e-6`（另有 1e-6 绝对下限）就不当圆弧。 */
+const ARC_FIT_REL_TOL = 1e-6
+
+/**
+ * 把一条边拟合成「真圆弧」：圆心 / 半径 / 面内基 / 终点角。
+ *
+ * 为什么不用 `SpineEdgeFacts.kind` 或 `radius` 字段：smlib 的 `curveType` 对弧边返回的不是
+ * `'circle'`（实测 `kind === 'other'`），按字段判会在 smlib 上漏掉所有弧。这里一律按几何判：
+ * 三点定圆 + 沿参数再采 4 点验圆性，验不过就当「非圆弧」（样条 / 椭圆）处理。
+ *
+ * 角度方向：取的 `normal` 保证弧从起点按**角度递增**走到终点、且中点确实落在中间；推不出
+ * 这个方向（或起点切向与弧的走向相反 —— 边的参数方向与几何走向不一致）时返回 undefined，
+ * 由调用方退回「切向直段」。
+ *
+ * @param api - 引擎面。
+ * @param edge - 脊柱边句柄。
+ * @param ef - 该边的事实（起点 / 中点 / 终点 / 起点切向）。
+ * @returns 圆弧参数化；不是圆弧或方向不一致时 undefined。
+ */
+function fitArc(api: Kernel, edge: BrepHandle, ef: SpineEdgeFacts): ArcFit | undefined {
+  const center = circumcenter(ef.start, ef.mid, ef.end)
+  if (center === undefined) return undefined
+  const radius = dist3(center, ef.start)
+  if (!(radius > 1e-9)) return undefined
+  const tol = Math.max(1e-6, radius * ARC_FIT_REL_TOL)
+  let pr: { first: number; last: number }
+  try {
+    pr = api.curveParameters(edge)
+  } catch {
+    return undefined
+  }
+  for (const f of [0.18, 0.36, 0.64, 0.82]) {
+    let q: BrepVec3
+    try {
+      q = api.curvePointAtParam(edge, pr.first + (pr.last - pr.first) * f)
+    } catch {
+      return undefined
+    }
+    if (Math.abs(dist3(q, center) - radius) > tol) return undefined
+  }
+  const u = unit(sub3(ef.start, center))
+  const base = cross3(sub3(ef.mid, ef.start), sub3(ef.end, ef.start))
+  if (!(norm3(base) > 1e-12)) return undefined
+  for (const flip of [false, true]) {
+    let normal = unit(base)
+    if (flip) normal = { x: -normal.x, y: -normal.y, z: -normal.z }
+    const v = cross3(normal, u)
+    const ang = (q: BrepVec3): number => {
+      const rad = sub3(q, center)
+      const t = Math.atan2(dot3(rad, v), dot3(rad, u))
+      return t <= 0 ? t + 2 * Math.PI : t
+    }
+    const a1 = ang(ef.end)
+    const am = ang(ef.mid)
+    if (!(a1 > 1e-9) || a1 >= 2 * Math.PI - 1e-6) continue
+    if (!(am > 1e-9) || !(am < a1)) continue
+    // 起点切向必须与「角度递增」的方向同号，否则边的参数方向与几何走向相反，不能续。
+    if (!(dot3(v, ef.tStart) > 0)) continue
+    return { center, normal, radius, u, v, a1 }
+  }
+  return undefined
+}
+
+/** 「沿同一圆续弧」的结果：新的（更长的）弧边 + 该弧在起点处的位姿。 */
+interface ArcExtension {
+  edge: BrepHandle
+  startPoint: BrepVec3
+  startTangent: BrepVec3
+}
+
+/**
+ * 把弧段沿**同一个圆**续出去 `dStart` / `dEnd` 的弧长（不是沿端点切向接直段）。
+ *
+ * 为什么：斜接需要「段在转角端稍微越过折点、再被角平分面切掉」。沿切向接一小段直线时，
+ * 越界那一段是直的，而真实的扫掠体在那里是**弯的** —— 误差 O(δ²/2R)，4×4 截面 / R10 /
+ * 90° 实测 +0.46%。沿同一圆续弧后，越界段就是这段弧自己的延续，斜接面切出来的两个端面
+ * 与内核自己算的斜接完全等价。
+ *
+ * 构造用**三点弧**（`makeArcEdge(start, mid, end)`）而不是 `makeCircleArc(center, normal,
+ * radius, a0, a1)`：后者的角度零点由各引擎自己的圆放置定（smlib 取世界 +X 投影、occt 另有
+ * 约定），而这里的角度基是「起点径向」，两者不同源。三点弧与零点无关，跨引擎一致。
+ *
+ * @param api - 引擎面。
+ * @param ef - 该边的事实。
+ * @param dStart - 起点端要延长的**弧长**（几何长度，非角度）。
+ * @param dEnd - 终点端要延长的弧长。
+ * @param fit - 已拟合好的圆弧（避免重复采样）。
+ * @returns 新弧边与位姿；续不动（角度越界 / 近整圆）时 undefined。
+ */
+function extendArcOnSameCircle(
+  api: Kernel,
+  fit: ArcFit,
+  dStart: number,
+  dEnd: number,
+): ArcExtension | undefined {
+  const d0 = dStart / fit.radius
+  const d1 = dEnd / fit.radius
+  const a0 = -d0
+  const a1 = fit.a1 + d1
+  const span = a1 - a0
+  // 近整圆的三点弧定不出唯一解；负跨度则说明延长量算反了。
+  if (!(span > 1e-6) || span >= 2 * Math.PI - 1e-3) return undefined
+  const at = (th: number): BrepVec3 =>
+    add3(add3(fit.center, fit.u, fit.radius * Math.cos(th)), fit.v, fit.radius * Math.sin(th))
+  const s = at(a0)
+  const m = at((a0 + a1) / 2)
+  const e = at(a1)
+  const arc = api.makeArcEdge(s, m, e)
+  return {
+    edge: arc,
+    startPoint: s,
+    startTangent: unit(cross3(fit.normal, unit(sub3(s, fit.center)))),
+  }
+}
+
 /** 一个 G0 折角的斜接几何：角平分面 + 每段在这端要过量延伸的长度。 */
 interface JointPlan {
   /** 折角后面那条边的下标（`facts.corners[i].index`）。 */
@@ -383,7 +567,8 @@ function sweepWithBuiltJoints(
       const after = byIndex.get(i + 1) // 折角在边 i 的终点
       const dStart = before?.delta ?? 0
       const dEnd = after?.delta ?? 0
-      const startPoint = dStart > 0 ? add3(ef.start, ef.tStart, -dStart) : ef.start
+      let startPoint = dStart > 0 ? add3(ef.start, ef.tStart, -dStart) : ef.start
+      let startTangent = ef.tStart
       const endPoint = dEnd > 0 ? add3(ef.end, ef.tEnd, dEnd) : ef.end
 
       const parts: BrepHandle[] = []
@@ -393,17 +578,27 @@ function sweepWithBuiltJoints(
         scratch.push(line)
         parts.push(line)
       } else {
-        // 弧 / 样条：只能沿端点切向接一小段直线（误差 O(δ²/2R)，δ 由 extent 决定）。
-        if (dStart > 0) {
-          const lead = api.makeLineEdge(startPoint, ef.start)
-          scratch.push(lead)
-          parts.push(lead)
-        }
-        parts.push(edge)
-        if (dEnd > 0) {
-          const tail = api.makeLineEdge(ef.end, endPoint)
-          scratch.push(tail)
-          parts.push(tail)
+        // 弧段：沿**同一个圆**续弧（越界段仍是弯的，斜接面切出的端面与内核自己的斜接等价）。
+        // 样条 / 椭圆 / 圆性验不过：退回「沿端点切向接一小段直线」（误差 O(δ²/2R)）。
+        const fit = dStart > 0 || dEnd > 0 ? fitArc(api, edge, ef) : undefined
+        const ext = fit === undefined ? undefined : extendArcOnSameCircle(api, fit, dStart, dEnd)
+        if (ext !== undefined) {
+          scratch.push(ext.edge)
+          parts.push(ext.edge)
+          startPoint = ext.startPoint
+          startTangent = ext.startTangent
+        } else {
+          if (dStart > 0) {
+            const lead = api.makeLineEdge(startPoint, ef.start)
+            scratch.push(lead)
+            parts.push(lead)
+          }
+          parts.push(edge)
+          if (dEnd > 0) {
+            const tail = api.makeLineEdge(ef.end, endPoint)
+            scratch.push(tail)
+            parts.push(tail)
+          }
         }
       }
 
@@ -413,13 +608,37 @@ function sweepWithBuiltJoints(
         const matrix =
           place.normal === undefined || place.center === undefined
             ? undefined
-            : sectionPlacementMatrix(place.normal, place.center, startPoint, ef.tStart)
+            : sectionPlacementMatrix(place.normal, place.center, startPoint, startTangent)
         piece = sweepRingsOnce(api, engineId, rings, wire, matrix, {
           strategy: opts.strategy,
           volumeTolerance: opts.volumeTolerance,
         })
       } finally {
         try { api.release(wire) } catch { /* 已释放 */ }
+      }
+
+      // 空体检测：smlib 的 `makeWire` 不校验首尾相接 —— 把一个「参数方向与走向相反」的边
+      // 和它的后继拼在一起，它照样接受，`getLength` 也照样给得出（17.808），但 `sweep`
+      // 交回的是**空体**（P0l 实测：同几何、只把弧的参数方向反过来，body 284.9 → 0.000）。
+      // 而 `sweep-guard` 的 `getLength/getVolume` 读取一抛异常就 `return`，于是这种空体
+      // **静默通过**，最后只在 fuse/体积对账上以别人的名义失败。这里直接判死。
+      let pieceVolume: number
+      try {
+        pieceVolume = api.getVolume(piece)
+      } catch {
+        pieceVolume = Number.NaN
+      }
+      if (!Number.isFinite(pieceVolume) || pieceVolume <= 0) {
+        throw new OpError(
+          'sweep',
+          'E_SWEEP_EMPTY_PIECE',
+          `[api/sweep] engine '${engineId}' swept segment ${i} of this spine into an empty body ` +
+            `(${parts.length} edge(s), volume reads ${Number.isFinite(pieceVolume) ? pieceVolume.toFixed(3) : 'unreadable'}): ` +
+            `a wire whose edges are not chained head-to-tail (one edge's parameter direction runs ` +
+            `opposite to the path direction) is accepted by the kernel but sweeps to nothing. Fix: keep ` +
+            `this segment a single edge (a true arc is already continued on its own circle here), or ` +
+            `rebuild the spine so every edge runs start→end.`,
+        )
       }
 
       // 转角裁剪：每段只保留自己那一侧（探针点用该段参数中点，必然落在自己一侧）。
@@ -472,21 +691,16 @@ function sweepWithBuiltJoints(
   // 「逐段过量延伸 + 角平分面裁剪 + fuse」在策略层把斜接造出来（P0k 实测 320.000 /
   // 319.988），内核只负责单段的直线/弧推动。只有造不出来（折角太密）时才由
   // `planMiterJoints` 抛 `E_SPINE_MITER_SELF_INTERSECT`。
-  // 混合边类型 + G0 折角：策略层已放行（走 `segments` + 自补斜接），但**曲面段**在 smlib 上
-  // 做不到。实测（2026-11-16，弧尾 90° 折到直腿）：弧段过量延伸后 `splitByPlane` 交回的
-  // 自己是空的一半（V=0），拿去 `fuse` 直接报 `smw_fuse: boolean failed`。这不是策略问题，
-  // 是 smlib 布尔对"被切过的曲面扫掠体"的边界，所以在这里显式拒绝而不是产出 160 的残件。
-  if (engineId === 'smlib' && facts.mixed && facts.corners.length > 0) {
-    throw new OpError(
-      'sweep',
-      'E_SWEEP_ENGINE_CAP',
-      `[api/sweep] engine 'smlib' cannot sweep a mixed-kind spine with a G0 corner ` +
-        `(${describeSpine(facts)}): the corner miter is built by trimming an over-extended segment body and ` +
-        `fusing it back, and for a curved segment smlib's boolean cannot do that (measured: the trimmed half ` +
-        `reads V=0, then smw_fuse reports "boolean failed"). Fix: run this model on occt, or split the path ` +
-        `into G1-only runs and sweep each (a true tangent arc removes the corner entirely).`,
-    )
-  }
+  //
+  // 「混合边 + G0 折角」也**不再**在这里拒绝。它曾经被拒，理由是实测里弧段过量延伸后
+  // `splitByPlane` 交回自己是空的一半（V=0）、`fuse` 报 `smw_fuse: boolean failed`。
+  // 根因不是布尔，是**延伸的写法**：弧段后面接一条切向直段，喂给内核的是一条「弧 + 直线」
+  // 的 wire，而 smlib 的 `makeWire` 不校验首尾相接 —— `cad.circleArc` 的弧在 smlib 上参数
+  // 方向与几何走向相反，拼出来那条 wire 的线长读数是 0，扫出的体也是 0（P0l 实测：同几何
+  // 只把参数方向反过来，body 284.9 → 0.000），而体积守卫又被 `expected = 面积 × 0` 绕过。
+  // 改成沿同一圆续弧后是**单边**、无拼接，smlib 的布尔就正常了（S12a 411.98 / S12b 411.30）。
+  // 剩下要防的不是「哪个引擎不行」，而是「拼错了的 wire」—— 由执行器里的
+  // `E_SWEEP_EMPTY_PIECE` 兜住（任何引擎都适用）。
   if (allowed.includes(strategy)) return
   throw new OpError(
     'sweep',
@@ -664,8 +878,10 @@ function sweepBrep(section: Shape, spine: Shape, opts?: SweepOptions): Shape {
  * @throws E_SPINE_FOLD 转角 > 175°（折返）。
  * @throws E_SPINE_DEGENERATE 零长边。
  * @throws E_SPINE_MIXED_CORNER（已废弃）—— 混合边 + G0 折角现在能扫（`segments` + 自补斜接），
- *         occt 上实测 +0.46%；smlib 上因布尔限制改为 `E_SWEEP_ENGINE_CAP`。
+ *         occt 实测 ×1.0044、smlib ×1.0016（平面）/ ×0.9999（空间）。
  * @throws E_SPINE_MITER_SELF_INTERSECT 折角太密：斜接所需的延伸会越过相邻折点，造不出来。
+ * @throws E_SWEEP_EMPTY_PIECE 某一段扫出空体（wire 的边没首尾相接 —— 内核会静默接受，
+ *         smlib 实测把参数方向相反的弧和第 0 条后继拼接即得 V=0，见 P0l）。
  * @throws E_SWEEP_VOLUME_MISMATCH 体积与「净截面积 × 长度」不符。
  * @throws E_SWEEP_CAP_NORMAL 端面法向与端点切向不符（截面没转；occt + smlib 评）。
  * @throws E_SWEEP_BBOX_MISMATCH 产物没有覆盖整条脊柱。

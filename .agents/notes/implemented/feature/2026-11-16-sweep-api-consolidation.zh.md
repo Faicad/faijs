@@ -292,3 +292,72 @@ npx vitest run test/api/wire-from-edges.test.ts \
 npx tsc --noEmit → 30 条既有错误（全在 revolve 探针与 circular-pattern-step），本次文件零错误
 npx tsx scripts/check-api-test-coverage.ts --package=core → 通过（L1 183 / L2 93 baseline 未变）
 ```
+
+## 第五轮：弧段延伸改「沿同一圆续弧」，并纠正一条错判断
+
+### 做了什么
+
+`packages/core/src/api/sweep.ts`：
+
+- `fitArc`：把一条边几何反解成真圆弧 —— 三点外接圆（`circumcenter`，平面解法，只除以
+  `sin∠BAC`）+ 沿参数再采 4 点验圆性（相对容差 `ARC_FIT_REL_TOL = 1e-6 × R`）+ 定角度基
+  （`u` = 起点径向、`v = normal × u`、`a1` = 终点角），并要求「角度递增方向 = 起点切向」。
+  **不看 `kind` / `curveType`**：smlib 的 `curveType` 对弧边返回的不是 `'circle'`（实测
+  `kind === 'other'`），按字段判会在 smlib 上漏掉所有弧。
+- `extendArcOnSameCircle`：把弧沿同一个圆续 `dStart` / `dEnd` 弧长（角度 = 弧长 / R），
+  用**三点弧** `makeArcEdge(s, m, e)` 构造，不用 `makeCircleArc(center, normal, radius, a0, a1)`
+  —— 后者的角度零点由各引擎自己的圆放置定（smlib 取世界 +X 投影、occt 另有约定），与这里的
+  「起点径向基」不同源；三点弧与零点无关。
+- `sweepWithBuiltJoints`：弧段优先走续弧（单条边），`startPoint` / `startTangent` 用续弧后
+  的新位姿喂 `sectionPlacementMatrix`；样条 / 椭圆续不了，仍退回「切向直段」。
+
+### 纠正上一轮的一条错判断
+
+上一轮把 smlib 的「混合边 + G0 折角」失败归因为「smlib 布尔对切过的曲面扫掠体不行」。
+**错**。新探针 P0l（`test/api/sweep-engines.test.ts`）把同一几何拆成两个 wire：
+
+| wire | 弧的参数方向 | wireLength | sweep 体积 | 斜接裁剪后自己那一半 |
+|---|---|---|---|---|
+| forward | 0°→90°，直段从 90° 端续 | 17.808 | 284.927 | 251.719 |
+| reversed | 90°→0°，直段仍从 90° 端续 | 17.808 | **0.000** | **0.000** |
+
+根因是 **wire 的边没有首尾相接**：smlib 的 `makeWire` 不校验这件事，`sweep` 也不报错，直接
+交空体；而 `sweep-guard` 的 `getLength/getVolume` 一旦抛异常就 `return`，于是空体被静默放过，
+最后只在 `fuse` / 体积对账上以别人的名义失败。`cad.circleArc` 的弧在 smlib 上参数方向与几何
+走向相反（已知差异），再在它后面接一条切向直段 ⇒ 拼出来的正是 `reversed` 那种 wire。
+
+### 顺带补的通用守卫
+
+`E_SWEEP_EMPTY_PIECE`：每段扫完立刻读一次体积，`<= 0` 或读不出来即抛，消息指出「wire 的边
+没首尾相接」。这条与引擎无关，把「静默空体」变成立即失败。**注意它今天没有用例覆盖**：
+可达路径（smlib + 非圆弧曲面段）在公开 API 上造不出来（smlib 唯一的曲线构造器
+`cad.circleArc` 必是真圆），属于给将来的样条脊柱留的门；底层行为由 P0l 钉住。
+
+### 实测（第五轮）
+
+| 用例 | 第五轮前 | 第五轮后 |
+|---|---|---|
+| occt 混合边 + G0（R6 圆截面，`sweep-along` S8） | ×1.00462（切向直段） | ×**1.00441**（同圆续弧） |
+| smlib 混合边 + 平面 G0（`sweep-engines` S12a） | `E_SWEEP_ENGINE_CAP` | **411.98**（×1.0016） |
+| smlib 混合边 + 空间 G0（S12b） | `E_SWEEP_ENGINE_CAP` | **411.30**（×0.9999） |
+
+**那 +0.44% 不是延伸误差**：混合曲率的斜接体积本来就不等于「面积 × 路径长」（Pappus 只在
+两侧都是直管时精确）。同一几何（R6 管 / R10 弧 / 90°）用数值积分核过三种口径：
+
+| 口径 | 弧段体积 |
+|---|---|
+| 弧管止于折点（不延伸） | 1645.988 |
+| 弧管续到 +36.1°（δ = 1.05 × extent） | 1789.428（= 本实现，实测 1789.352） |
+| 弧管续到 +180° | 3620.583 |
+
+⇒ 「留自己那一侧」这个规则本身就把折点之外的一小段曲面管留在自己这一侧，量与延伸长度有关，
+所以必须取**最小可切长度**（`1.05 × extent`，多给的部分会被斜接面切掉，少给则切不出斜接）。
+残差随延伸增长是这条规则的固有性质，不是实现缺陷。
+
+### 验证（第五轮）
+
+```
+13 文件 / 210 用例全绿（新增 P0l）
+npx tsc --noEmit → 30 条既有错误（revolve 探针 / circular-pattern-step），本次文件零错误
+npx tsx scripts/check-api-test-coverage.ts --package=core → 通过（L1 183 / L2 93 baseline 未变）
+```

@@ -1950,11 +1950,12 @@ const body = cad.sweep(section, path)
 
 > 三引擎 op，能力按引擎分级（实测：`test/api/sweep-engines.test.ts`）：occt 全策略
 > （`single` / `miter` / `segments` / `closed`；`segments` 遇到 G0 折角时按角平分面裁成斜接，
-> 混合边 + 折角实测 411.33 × +0.46%，曲面段延伸是「沿端点切向的直段」所致）；smlib 四策略
-> （`single` 400 / `miter` 平面折角 320 由内核斜接、空间折角 480 由策略层自补（逐段过量延伸
-> + 角平分面裁剪 + fuse）/ `segments` 411.33 仅限混合边**全 G1** / `closed` 1005.31 /
-> 带孔 3015.93）；smlib 上混合边 + 折角由 `E_SWEEP_ENGINE_CAP` 拒绝（曲面段被切后读 V=0、
-> `fuse` 报 `smw_fuse: boolean failed`）。brepkit 仅 `single`（旧引擎）。
+> 混合边 + 折角实测 411.33 × 1.0044 —— 残差是「混合曲率斜接」的口径，不是算法误差）；smlib
+> 四策略（`single` 400 / `miter` 平面折角 320 由内核斜接、空间折角 480 由策略层自补（逐段过量
+> 延伸 + 角平分面裁剪 + fuse）/ `segments` 混合边 411.33、含 G0 折角 411.98（×1.0016，平面）
+> 与 411.30（×0.9999，空间）/ `closed` 1005.31 / 带孔 3015.93）；brepkit 仅 `single`（旧引擎）。
+> 弧段的过量延伸走「沿同一圆续弧」（`fitArc` 几何反解 + 三点弧），所以内核拿到的是单条光滑弧；
+> 某一段扫出空体时报 `E_SWEEP_EMPTY_PIECE`（wire 的边没首尾相接时内核会静默接受，实测 V=0）。
 > 不支持的组合**扫掠前**拒绝（`E_SWEEP_ENGINE_CAP`，消息给出引擎缺的内核能力与修法）。
 > `strategy` 缺省 `'auto'`：单边 / 同类 G1 → `single`；全 G0 折角 → `miter`；混合边 G1 →
 > `segments`；混合边 + G0 折角 → `segments`（每个折角裁斜接）；闭合中心线 → `closed`。
