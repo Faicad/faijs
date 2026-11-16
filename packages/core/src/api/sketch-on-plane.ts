@@ -167,6 +167,18 @@ export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPl
  * @example
  * // loop = 一个闭合 2D 轮廓：{ segments: [{ kind: 'line', x1, y1, x2, y2 }, ...] }
  * const face = cad.sketchOnPlane({ contours: [loop], plane: 'XY' })
+ * // 显式坐标系：截面落在任意空间点，法向沿扫掠脊柱起点切向（不必再记 XY/XZ/YZ 的
+ * // cx/cy 映射，也不用手工 translate）。下面把截面放在 (0,0,90)、法向 +Y：
+ * const sec = cad.sketchOnPlane({
+ *   contours: [ring],                     // ring = 圆环轮廓（外圆 + 内圆）
+ *   plane: { origin: [0, 0, 90], normal: [0, 1, 0] },
+ * })
+ * // 只给 normal 时平面内 xAxis 是自动推导的（normal=[0,1,0] ⇒ 局部 +X 落在世界 +Z），
+ * // 圆形/对称截面无所谓；**非对称截面要固定朝向就必须显式给 xAxis**：
+ * const asymmetric = cad.sketchOnPlane({
+ *   contours: [rect],
+ *   plane: { origin: [0, 0, 90], normal: [0, 1, 0], xAxis: [1, 0, 0] },
+ * })
  */
 export const sketchOnPlane = defineOp({
 

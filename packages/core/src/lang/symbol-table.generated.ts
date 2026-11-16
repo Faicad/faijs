@@ -88,6 +88,7 @@ export default {
   "outerWire": {},
   "draftPrism": {},
   "pipe": {},
+  "pipeAlong": {},
   "containsPoint": {},
   "distanceBetween": {},
   "inertia": {},

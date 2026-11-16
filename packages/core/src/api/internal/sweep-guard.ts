@@ -141,6 +141,22 @@ function spineEdgeCount(api: BrepEngineApi, spine: BrepHandle): number {
 }
 
 /**
+ * 本次调用实际使用的容差：局部参数优先，缺省回落到进程级全局值。
+ *
+ * 只接受 `(0, 1)`，与 `setSweepVolumeTolerance` 同一契约——放宽是**知情放行**，
+ * 不是「关掉守卫」；把几何改对才是修法。
+ * @param local - 调用方显式传入的容差（可选）。
+ * @returns Effective relative tolerance.
+ */
+function resolveTolerance(local: number | undefined): number {
+  if (local === undefined) return sweepVolumeTolerance
+  if (!Number.isFinite(local) || local <= 0 || local >= 1) {
+    throw new Error(`E_SWEEP_TOL_INVALID: tolerance must be in (0,1), got ${String(local)}`)
+  }
+  return local
+}
+
+/**
  * 扫掠体积对账。
  *
  * @param api - 引擎面。
@@ -148,6 +164,7 @@ function spineEdgeCount(api: BrepEngineApi, spine: BrepHandle): number {
  * @param profileArea - 已算好的截面积；`undefined` ⇒ 跳过（开放/非平面/面积非正）。
  * @param spine - 脊柱 wire（量长度、数边数）。
  * @param result - 扫掠产物（量体积）。
+ * @param volumeTolerance - 本次调用的相对容差 `(0,1)`；缺省用进程级全局值（5%）。
  * @throws OpError `E_SWEEP_VOLUME_MISMATCH` 当相对偏差超过容差。
  */
 export function assertSweptVolumeMatches(
@@ -156,8 +173,10 @@ export function assertSweptVolumeMatches(
   profileArea: number | undefined,
   spine: BrepHandle,
   result: BrepHandle,
+  volumeTolerance?: number,
 ): void {
   if (profileArea === undefined) return
+  const tolerance = resolveTolerance(volumeTolerance)
   let spineLength: number
   let actual: number
   try {
@@ -171,7 +190,7 @@ export function assertSweptVolumeMatches(
   if (!Number.isFinite(actual)) return
 
   const rel = Math.abs(actual - expected) / expected
-  if (rel <= sweepVolumeTolerance) return
+  if (rel <= tolerance) return
 
   const edges = spineEdgeCount(api, spine)
   const pct = (rel * 100).toFixed(1)
@@ -180,13 +199,14 @@ export function assertSweptVolumeMatches(
     'E_SWEEP_VOLUME_MISMATCH',
     `[api/${op}] swept volume does not match section area × spine length: ` +
       `expected ${expected.toFixed(2)} (= ${profileArea.toFixed(2)} × ${spineLength.toFixed(3)}), ` +
-      `actual ${actual.toFixed(2)} (${pct}% off, tolerance ${(sweepVolumeTolerance * 100).toFixed(0)}%). ` +
+      `actual ${actual.toFixed(2)} (${pct}% off, tolerance ${(tolerance * 100).toFixed(0)}%). ` +
       `spine has ${edges} edge(s) — a polyline spine loses solid volume at every corner ` +
       `(measured: 2/π for a densely sampled arc, 1/2 for a single 90° bend). ` +
       `Use a single straight segment, or a single true arc. ` +
       `A true-arc spine is written as cad.wireFromEdges([cad.circleArc(...)]) — ` +
       `circleArc yields one edge, and wireFromEdges accepts a single edge (widened 2026-11-14). ` +
-      `If a coarse sweep is genuinely intended, raise the tolerance explicitly via setSweepVolumeTolerance().`,
+      `If a coarse sweep is genuinely intended, pass opts.volumeTolerance (per call) or use ` +
+      `setSweepVolumeTolerance() (process-wide). Raising it does NOT fix the geometry.`,
   )
 }
 

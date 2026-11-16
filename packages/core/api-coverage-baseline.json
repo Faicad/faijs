@@ -687,8 +687,17 @@
       ]
     },
     {
+      "name": "pipeAlong",
+      "missing": [
+        "opts",
+        "section",
+        "spine"
+      ]
+    },
+    {
       "name": "pipe",
       "missing": [
+        "opts",
         "profile",
         "spine"
       ]

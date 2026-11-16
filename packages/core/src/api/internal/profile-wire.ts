@@ -42,3 +42,29 @@ export function toProfileWireView(section: Shape): WireView {
   if (wires.length === 0) return { wrapped: handle, borrowed: true }
   return { wrapped: wires[0], borrowed: false }
 }
+
+/** Section Shape → **all** boundary rings (outer first, then holes).
+ *
+ * `toProfileWireView` deliberately keeps only the outer ring; the kernel's
+ * `MakePipe`/`MakePipeShell` family takes a single section handle, so a holed
+ * section must be swept ring-by-ring and subtracted. This view exposes every
+ * ring for that path (see `api/sweep-advanced.ts`).
+ *
+ * Ownership matches {@link toProfileWireView}: a curve borrows its handle; each
+ * ring extracted from a face is a fresh arena handle the caller must release.
+ *
+ * @param section - Section shape (curve or face) to adapt.
+ * @returns One wire view per ring; a curve or wire-less face yields a single
+ *          borrowed view of the original handle.
+ */
+export function toProfileRingsView(section: Shape): WireView[] {
+  const handle = brepOf(section) as BrepHandle
+  if (isCurveShape(section)) return [{ wrapped: handle, borrowed: true }]
+  const kernel = getBrepApi()
+  const faces = kernel.getSubShapes(handle, 'face')
+  if (faces.length === 0) return [{ wrapped: handle, borrowed: true }]
+  const wires = kernel.getSubShapes(faces[0], 'wire')
+  if (wires.length === 0) return [{ wrapped: handle, borrowed: true }]
+  // OCCT lists the outer boundary first and the hole wires after it.
+  return wires.map((w) => ({ wrapped: w, borrowed: false }))
+}

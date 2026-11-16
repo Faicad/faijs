@@ -17,11 +17,11 @@ import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import { getBrepApi } from '../brep/handle-bridge'
-import { fromBrep } from '../shape'
+import { brepOf, fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
 import { sweepBrep as coreSweep } from './brep-operations/sweepFns'
-import { areaOfProfileWire, assertSweptVolumeMatches } from './internal/sweep-guard'
-import { toProfileWireView } from './internal/profile-wire'
+import { areaOfProfileFace, areaOfProfileWire, assertSweptVolumeMatches } from './internal/sweep-guard'
+import { toProfileRingsView, toProfileWireView } from './internal/profile-wire'
 import { unwrapResult } from './internal/result-unwrap'
 import type { BrepHandle } from '../brep/engine/types'
 
@@ -93,35 +93,75 @@ export interface SweepAdvancedOptions {
   boundTol?: number
   /** 角度公差（弧度）。 */
   tolAngular?: number
+  /**
+   * 本次调用的扫掠体积对账容差，`(0,1)`，缺省用进程级 5%（见 `internal/sweep-guard.ts`）。
+   * 显式放宽只是**知情放行**，不修几何——折线脊柱不会因为放宽阈值变对。
+   */
+  volumeTolerance?: number
 }
 
-/** BREP 路径：截面沿脊柱扫掠（wire 视图 → brep-operations 直连 → fromBrep 收养）。 */
+/** BREP 路径：截面沿脊柱扫掠（wire 视图 → brep-operations 直连 → fromBrep 收养）。
+ *
+ * 带孔截面（圆环）：内核 `MakePipe` / `MakePipeShell` 都只吃**单环**截面
+ * （`sweepPipeShell(face)` 直接拒：`bad shape type of section`；给 face 也只取外环），
+ * 所以外环与每个孔环**各自扫掠成实体**，再 `cut` 出内腔。实测（
+ * `test/api/sweep-hollow-pipe.test.ts` F1/F3）：外环 − 孔环 = 净空心体积。
+ */
 function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOptions): Shape {
   if (!profile) throw new Error('E_SWEEP_NO_PROFILE: sweep requires a profile (section) shape')
   if (!spine) throw new Error('E_SWEEP_NO_SPINE: sweep requires a spine (path) shape')
-  // 截面 / 脊柱：wire 直用；面取外环（孔环不参与扫掠）。
-  const profileWire = toProfileWireView(profile)
+  // 截面：wire 直用；面取全部环（外环 + 孔环）。脊柱只取单环 wire。
+  const rings = toProfileRingsView(profile)
   const spineWire = toProfileWireView(spine)
-  const r = coreSweep(profileWire, spineWire, opts ?? {}, false)
-  const h = unwrapResult(r, 'sweepAdvanced') as BrepHandle
   const kernel = getBrepApi()
+  // 缩放律（law）会改变截面积 ⇒ 恒等式不成立，只在无 law 时判。
+  // 判据与容差依据见 internal/sweep-guard.ts 文件头（折线脊柱实测 2/π、1/2）。
+  const guard = !(opts?.law !== undefined && opts.law !== 'none')
+  const swept: BrepHandle[] = []
   try {
-    // 体积对账：缩放律（law）会改变截面积 ⇒ 恒等式不成立，只在无 law 时判。
-    // 判据与容差依据见 internal/sweep-guard.ts 文件头（折线脊柱实测 2/π、1/2）。
-    if (!(opts?.law !== undefined && opts.law !== 'none')) {
+    for (const ring of rings) {
+      const r = coreSweep(ring, spineWire, opts ?? {}, false)
+      const h = unwrapResult(r, 'sweepAdvanced') as BrepHandle
+      swept.push(h)
+      if (guard) {
+        assertSweptVolumeMatches(
+          kernel,
+          'sweepAdvanced',
+          areaOfProfileWire(kernel, ring.wrapped),
+          spineWire.wrapped,
+          h,
+          opts?.volumeTolerance,
+        )
+      }
+    }
+    // 带孔：外环实体 − 每个孔环实体。
+    let solid = swept[0]!
+    for (let i = 1; i < swept.length; i++) {
+      const hole = swept[i]!
+      const next = kernel.cut(solid, hole) as BrepHandle
+      kernel.release(solid)
+      kernel.release(hole)
+      solid = next
+    }
+    // 复合结果按**净面积**再对账一次：带孔面的 getSurfaceArea 是外环−孔环的净面积，
+    // 这条判据同时能抓住"孔环扫出 0 体积、cut 没减掉"的失败（单环判据会漏它）。
+    if (guard && rings.length > 1) {
       assertSweptVolumeMatches(
         kernel,
         'sweepAdvanced',
-        areaOfProfileWire(kernel, profileWire.wrapped),
+        areaOfProfileFace(kernel, brepOf(profile) as BrepHandle),
         spineWire.wrapped,
-        h,
+        solid,
+        opts?.volumeTolerance,
       )
     }
-    return fromBrep(solidToShape(kernel, h), { solid: h })
+    return fromBrep(solidToShape(kernel, solid), { solid })
   } finally {
-    // 面→外环产出的 wire 是 arena 新句柄（曲线借用不 release）
-    if (!profileWire.borrowed) {
-      try { kernel.release(profileWire.wrapped) } catch { /* 已释放 */ }
+    // 面→环产出的 wire 是 arena 新句柄（曲线借用不 release）
+    for (const ring of rings) {
+      if (!ring.borrowed) {
+        try { kernel.release(ring.wrapped) } catch { /* 已释放 */ }
+      }
     }
     if (!spineWire.borrowed) {
       try { kernel.release(spineWire.wrapped) } catch { /* 已释放 */ }
