@@ -131,9 +131,42 @@ mid = c + rotateAbout3(rVec, axis, φ/2)
 - 新几何下弧恰好从原点起、截面（XY 面）与脊柱起点重合 ⇒ `sweepRaw` 默认路径自己就能转正，
   「未落位丢体积」这条证据必须把脊柱整体沿 +Z 挪 10 才复现（K1c 已这么改）。
 
+## P0 探针结果：椭圆族（有理二次 NURBS）可行性
+
+`packages/core/test/smlib-kernel/smlib-p0-rational-ellipse.test.ts`（16 用例全绿，1.5s）。
+构造方式：圆的一段弧（半角 45°）用权重 `(1, cos45°, 1)` 的 degree-2 有理 Bezier；椭圆取
+圆的仿射像（权重在仿射变换下不变）；> 90° 的跨度按 ≤90° 切段、degree 2 ⇒ 接缝重数 2。
+判据用**测试侧手算的有理 Bezier 公式**（`B(t) = [(1−t)²P₀ + 2t(1−t)wP₁ + t²P₂] / [(1−t)² +
+2t(1−t)w + t²]`）与 Simpson 数值积分当独立尺子。
+
+| 项 | 实测 | 结论 |
+|---|---|---|
+| A 有理是否真被求值（smlib） | 7 个采样点与手算 1e-9 一致；`|P(0.5)| = 1`；圆 90° 弧长 = π/2（1e-6）；权重填 1 的对照弧长 1.623225（真圆 1.570796） | ✅ 内核**真按有理求值**（不是丢权重退化成抛物线） |
+| B 椭圆是否精确（smlib） | `(x/a)² + (y/b)² = 1` 在 7 点上 1e-9；四分之一椭圆弧长 12.110560123 vs 解析 12.110560276（相对 1.3e-9） | ✅ 精确 |
+| B `curveType` | smlib：rational-circle = `bspline`、rational-ellipse = `bspline`；occt：rational = `bspline`、原生 `makeEllipseArc` = `ellipse` | ⚠️ **语义降级确认，且两引擎对称**（都报 bspline） |
+| B 参数域 | 单段 `[0,1]`；两段拼合 `[0,2]` | 角度 ↔ 参数不是一一对应，需映射表 |
+| C 两段拼 180° | 域 [0,2]、接缝点 (0,5)、半椭圆弧长 24.221120625 vs 解析 24.221120551（相对 3e-9） | ✅ 可拼多段 |
+| C 当脊柱扫掠（smlib） | r=1 圆截面，体积比 = **1.000001233**（解析 38.046447 / 实测 38.046494） | ✅ 可用，精度比预想的好（1e-6 级） |
+| C 当 boolean 操作数（smlib） | `cut(box27000, tube)` → 26980.978，去掉 19.022 | ✅ 可用 |
+| C 侧面曲面类型（smlib） | 3 个面：`{bspline: 1, plane: 2}` | ⚠️ 侧面确实是 NURBS 面（原判断成立） |
+| O3 occt 长度积分 | 有理 vs 原生 相对偏差 **4.647e-6**（点几何仍 1e-9 级，见 O1） | ⚠️ 下游「面积 × 长度」判据要放宽到 1e-4 级，或与原生椭圆弧长度对拍 |
+
+**两个额外事实**：
+
+1. L1 原语面（`brep/engine/primitives.ts`）**根本没有椭圆**——`makeEllipseEdge` /
+   `makeEllipseArc` 是 raw `OcctKernel` 方法，op 直接 `getOcctKernel()` 调、绕过 L1 契约。
+   所以椭圆族不是「适配器缺一个映射」，而是**契约层缺能力**；但也不必新增 L1 方法 ——
+   直接用已有的 `makeBSplineEdge` 即可，两引擎都已实现。
+2. smlib 的 `makeBSplineEdge` 适配器本就透传权重
+   （`w = weights.some(x => x !== 1) ? weights : undefined` → `k.makeCanonicalCurve(..., w, degree, 6)`）。
+
+**落地判断**：方案 A（双引擎统一有理二次 + L1 侧几何识别补语义）技术可行、几何精度足够；
+唯一真实代价是 `curveType` 降级（两引擎对称）和 occt 长度积分 5e-6。语义补回的做法与本轮
+`circleArc` 同一条思路：L1 自己采样反解（圆心/长短轴/起止角），把 `kind:'arc'` 从「引擎报的
+类型」改成「L1 认出来的几何」。
+
 ## 未做 / 后续
 
-- `ellipseEdge` / `ellipseArc` 仍 `['occt']`。方案已明确：精确有理二次 NURBS + L1
-  `makeBSplineEdge`，需先用 P0 探针验证 smlib `makeCanonicalCurve` 接受 degree-2 rational；
-  已知代价是 `curveType` 会报 bspline、侧面变 NURBS 面。用户尚未就「是否现在做」拍板。
+- `ellipseEdge` / `ellipseArc` 仍 `['occt']`；探针已给全部事实，**等用户就「是否现在做」拍板**
+  （成本：一个构造器 + 一个 L1 识别层 + 容差调整）。
 - smlib 侧缺口不变：`shapeOrientation`、`getSubShapes(face)`、`curveSplit` 仍 P1 未实现。
