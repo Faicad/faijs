@@ -45,7 +45,8 @@ afterAll(() => {
 const R = 6
 const AREA = Math.PI * R * R
 const ARC_LEN = (Math.PI / 2) * 10
-/** 弧 R10/90° 的弧长（axis +X：0° 在 +Z、90° 在 -Y）。 */
+/** 弧 R10/90° 的弧长。2026-11-17 起基准是全仓唯一的（`u` = 世界 +X 投影、`v = n̂×u`）⇒
+ *  axis=+X / 0°→90° 的弧是 (0,0,0) → (0,-10,10)，起点切向 +Z、末端切向 −Y。 */
 const ARC = 'cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE)'
 
 function ports(): HostPorts {
@@ -110,7 +111,7 @@ describe('S 策略矩阵：脊柱事实 → 路线 → 体积', () => {
   })
 
   it('S4. 混合边类型全 G1（弧 + 相切直腿）→ segments → 1.0000', async () => {
-    const spine = `cad.wireFromEdges([${ARC},cad.edge([0,-20,0],[0,-20,-10])])`
+    const spine = `cad.wireFromEdges([${ARC},cad.edge([0,-10,10],[0,-20,10])])`
     expect((await strategyOf(spine)).strategy).toBe('segments')
     const v = await volume(`let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweep(sec, sp)\n`)
     expect(v / (AREA * (ARC_LEN + 10))).toBeCloseTo(1, 3)
@@ -153,12 +154,13 @@ describe('S 策略矩阵：脊柱事实 → 路线 → 体积', () => {
   it('S8. 混合边 + G0 折角（弧尾 90° 折到直腿）→ segments，每个折角按角平分面裁 → 1.0044', async () => {
     // 2026-11-16：这一格原来被 `E_SPINE_MIXED_CORNER` 硬拒（「单次扫符号错、逐段留 V 缺口」）。
     // 自补斜接落地后逐段 + 裁缝对混合折角也成立，拒绝随之摘除（`sweep-strategy.ts`）。
-    // 弧尾 (0,-20,0)、切向 −Z；直腿却沿 −Y 走 ⇒ 90° 折角 + 混合类型。
+    // 弧尾 (0,-10,10)、切向 −Y；直腿却沿 +Z（沿半径**向外**）走 ⇒ 90° 折角 + 混合类型。
+    // 腿必须向外：沿 −Z 等于朝圆心走，两段扫掠体会互相重叠（union 后体积 < 面积×总长）。
     // 残差 +0.44% 是**斜接口径**而不是算法误差：混合曲率的斜接体积本来就不等于
     // 「面积 × 路径长」（Pappus 只在两侧都是直管时精确）。同一几何用数值积分核过三种口径：
     // 弧管止于折点 1645.99 / 续弧 +36.1° 1789.43（= 本实现）/ 续弧 +180° 3620.6 —— 所以取
     // 最小可切延伸（1.05 × extent）才有意义，见 `sweep.ts` 文件头注二。
-    const spine = `cad.wireFromEdges([${ARC},cad.edge([0,-20,0],[0,-30,0])])`
+    const spine = `cad.wireFromEdges([${ARC},cad.edge([0,-10,10],[0,-10,20])])`
     const d = await strategyOf(spine)
     expect(d.strategy).toBe('segments')
     const v = await volume(`let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweep(sec, sp)\n`)
@@ -193,9 +195,9 @@ describe('R 硬拒绝：物理上无解的脊柱在扫之前就失败，且给�
     return { code: r.failedAt.code, message: String(r.failedAt.message ?? '') }
   }
 
-  it('R1. 断裂脊柱（弧尾 (0,-20,0) 与直腿首 (0,-10,10) 相距 14.14）→ E_SPINE_DISCONTINUOUS', async () => {
+  it('R1. 断裂脊柱（弧尾 (0,-10,10) 与直腿首 (0,0,0) 相距 14.14）→ E_SPINE_DISCONTINUOUS', async () => {
     const e = await rejection(
-      `cad.wireFromEdges([${ARC},cad.edge([0,-10,10],[0,-20,10])])`,
+      `cad.wireFromEdges([${ARC},cad.edge([0,0,0],[0,10,0])])`,
     )
     expect(e.code).toBe('E_SPINE_DISCONTINUOUS')
     expect(e.message).toMatch(/do not meet/)
@@ -204,7 +206,7 @@ describe('R 硬拒绝：物理上无解的脊柱在扫之前就失败，且给�
 
   it('R3. 覆写 strategy 不能绕过硬拒绝（断裂脊柱 + strategy:"single" 仍拒）', async () => {
     const e = await rejection(
-      `cad.wireFromEdges([${ARC},cad.edge([0,-10,10],[0,-20,10])])`,
+      `cad.wireFromEdges([${ARC},cad.edge([0,0,0],[0,10,0])])`,
       `, { strategy: 'single' }`,
     )
     expect(e.code).toBe('E_SPINE_DISCONTINUOUS')

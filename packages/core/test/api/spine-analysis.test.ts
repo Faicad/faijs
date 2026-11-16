@@ -67,12 +67,16 @@ async function factsOf(code: string): Promise<SpineFacts> {
 }
 
 const ARC = 'cad.wireFromEdges([cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE)])'
-/** 与 ARC 相切续接的直腿：ARC 终点 (0,-20,0)、末端切向 -Z。 */
+/**
+ * 与 ARC 相切续接的直腿。2026-11-17 起圆弧角度基准是全仓唯一的（`u` = 世界 +X 在圆面内的
+ * 投影、`v = n̂×u`），所以 axis=+X / 0°→90° 的弧是 **(0,0,0) → (0,-10,10)**：
+ * 起点切向 +Z、末端切向 −Y（旧口径下是 (0,-10,10) → (0,-20,0)，末端切向 −Z）。
+ */
 const ARC_PLUS_LEG =
-  'cad.wireFromEdges([cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE),cad.edge([0,-20,0],[0,-20,-10])])'
-/** 同一个弧，但直腿从 ARC 的**起点**方向接出去 ⇒ 与弧尾相距 14.14，是断开的 wire。 */
-const ARC_BROKEN =
   'cad.wireFromEdges([cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE),cad.edge([0,-10,10],[0,-20,10])])'
+/** 同一个弧，但直腿从 ARC 的**起点**接出去 ⇒ 与弧尾相距 14.14，是断开的 wire。 */
+const ARC_BROKEN =
+  'cad.wireFromEdges([cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE),cad.edge([0,0,0],[0,0,10])])'
 
 describe('A 脊柱事实：边、拐角、断裂、闭合', () => {
   it('A1. 单段直线：1 条 line 边、无拐角、长度 = 20', async () => {
@@ -120,11 +124,11 @@ describe('A 脊柱事实：边、拐角、断裂、闭合', () => {
     expect(e.curveType).toBe('circle')
     expect(e.length).toBeCloseTo(ARC_LEN, 4)
     expect(e.radius!).toBeCloseTo(10, 2)
-    // 端点走向：0° 在 +Z、90° 在 -Y（axis = +X 的口径）。
-    expect(e.start.y).toBeCloseTo(-10, 4)
-    expect(e.start.z).toBeCloseTo(10, 4)
-    expect(e.end.y).toBeCloseTo(-20, 4)
-    expect(e.end.z).toBeCloseTo(0, 4)
+    // 端点走向：0° 在 +Y（基准 u）、90° 在 +Z 的反向（基准 v = n̂×u）⇒ (0,0,0) → (0,-10,10)。
+    expect(e.start.y).toBeCloseTo(0, 4)
+    expect(e.start.z).toBeCloseTo(0, 4)
+    expect(e.end.y).toBeCloseTo(-10, 4)
+    expect(e.end.z).toBeCloseTo(10, 4)
   })
 
   it('A5. 弧 + 相切直腿（真 G1、混合类型）：混合为真、拐角 0、无断裂', async () => {
@@ -144,7 +148,7 @@ describe('A 脊柱事实：边、拐角、断裂、闭合', () => {
     expect(f.edges).toHaveLength(2)
     expect(f.gaps).toHaveLength(1)
     expect(f.gaps[0]!.index).toBe(1)
-    // 两段端点相距 |(0,-20,0) - (0,-10,10)| = 14.142。
+    // 两段端点相距 |(0,-10,10) - (0,0,0)| = 14.142。
     expect(f.gaps[0]!.dist).toBeCloseTo(Math.hypot(10, 10), 6)
     // 断裂处的 90° 切向差仍会被记成 G0 拐角 —— 这是「事实」，判「该不该扫」是策略层的事。
     expect(f.corners).toHaveLength(1)

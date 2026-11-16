@@ -28,7 +28,7 @@
  */
 
 import type { Shape } from '../../mesh/types'
-import type { BrepHandle } from '../../brep/engine/types'
+import type { BrepHandle, BrepVec3 } from '../../brep/engine/types'
 import { solidToShape } from '../../brep/brep-ops'
 import { getBrepApi } from '../../brep/handle-bridge'
 import { brepOf, fromBrepCurve } from '../../shape'
@@ -75,6 +75,162 @@ function curveHandleOf(shape: Shape, op: string): BrepHandle {
     throw new Error(`E_${op.toUpperCase()}_NO_BREP: ${op} requires a BREP handle (mesh-only shape has none)`)
   }
   return h
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 圆弧角度基准 + 端点读取（circleArc / tangentArc 共用）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 三元组点积。 */
+function dot3(a: Vec3, b: Vec3): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/** 三元组叉积。 */
+function cross3(a: Vec3, b: Vec3): Vec3 {
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+}
+
+/** 归一化；零长度返回 undefined（调用方已有非零校验，故实际不会发生）。 */
+function unit3(v: Vec3): Vec3 | undefined {
+  const len = Math.hypot(v[0], v[1], v[2])
+  if (!(len > 0)) return undefined
+  return [v[0] / len, v[1] / len, v[2] / len]
+}
+
+/** BrepVec3 → 三元组。 */
+function asTriple(p: BrepVec3): Vec3 {
+  return [p.x, p.y, p.z]
+}
+
+/** BrepVec3 → `{x,y,z}`（L1 形参形态）。 */
+function asBrep(p: Vec3): BrepVec3 {
+  return { x: p[0], y: p[1], z: p[2] }
+}
+
+/** 两点距离。 */
+function dist3(a: Vec3, b: Vec3): number {
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+}
+
+/** 边按**参数先后顺序**的两个端点（引擎中立：`curveParameters` + `curvePointAtParam`）。 */
+function curveEndsOf(handle: BrepHandle): [Vec3, Vec3] {
+  const api = getBrepApi()
+  const params = api.curveParameters(handle)
+  return [asTriple(api.curvePointAtParam(handle, params.first)), asTriple(api.curvePointAtParam(handle, params.last))]
+}
+
+/**
+ * 圆面角度基准（全仓唯一）：`u` = 世界 +X 在圆面内的投影（法向与 +X 近乎平行时退 +Y），
+ * `v = n̂ × u`。入参 `n` 必须是**单位**法向。
+ *
+ * 这不是新发明的约定 —— 它就是 smlib `circlePlacementMatrix` 已经在用的那套
+ * （`smlibKernel.ts:135`，注释写明"局部 X = 世界 +X 投影"）。把它抬到 L1 当**唯一契约**，
+ * 是因为 occt 的零点由 `gp_Circ` 自己的放置决定、不透明且随法向变：2026-11-16 实测
+ * `circleArc([0,0,10],[0,1,0],10,0,90)` 在 occt 上从 (0,0,0) 走到 (10,0,10)、在 smlib 上
+ * 从 (10,0,10) 走到 (0,0,0) —— 同一条弧、方向相反。后果不是"看着别扭"：在弧后再接一条
+ * 切向直段，拼出来的 wire 边不首尾相接，smlib 会**静默**扫出空体（P0l 实测 V=0 而
+ * `getLength` 仍报 17.808），错误最后以 `fuse`／体积对账的名义出现在别处。
+ */
+function circleFrame(n: Vec3): { u: Vec3; v: Vec3 } {
+  const ref: Vec3 = Math.abs(n[0]) < 0.999 ? [1, 0, 0] : [0, 1, 0]
+  const d = dot3(ref, n)
+  const proj: Vec3 = [ref[0] - n[0] * d, ref[1] - n[1] * d, ref[2] - n[2] * d]
+  const u = unit3(proj) ?? [1, 0, 0]
+  return { u, v: cross3(n, u) }
+}
+
+/** 圆面内的解析点：`center + radius·(cosθ·u + sinθ·v)`（θ 弧度）。 */
+function framePoint(center: Vec3, frame: { u: Vec3; v: Vec3 }, radius: number, theta: number): Vec3 {
+  const c = Math.cos(theta)
+  const s = Math.sin(theta)
+  return [
+    center[0] + radius * (c * frame.u[0] + s * frame.v[0]),
+    center[1] + radius * (c * frame.u[1] + s * frame.v[1]),
+    center[2] + radius * (c * frame.u[2] + s * frame.v[2]),
+  ]
+}
+
+/** 绕单位轴 `axis` 旋转 `ang` 弧度（Rodrigues 公式）。 */
+function rotateAbout3(v: Vec3, axis: Vec3, ang: number): Vec3 {
+  const c = Math.cos(ang)
+  const s = Math.sin(ang)
+  const k = dot3(axis, v) * (1 - c)
+  const cr = cross3(axis, v)
+  return [
+    v[0] * c + cr[0] * s + axis[0] * k,
+    v[1] * c + cr[1] * s + axis[1] * k,
+    v[2] * c + cr[2] * s + axis[2] * k,
+  ]
+}
+
+/**
+ * 中性圆弧构造（`circleArc` 的唯一路径）：返回边的**参数起点 = 角度 a0 在 `circleFrame`
+ * 上的解析点**、参数终点 = a1 的解析点，与引擎无关。
+ *
+ * 做法是「先建 → 量 → 纠」，不猜引擎的内部约定：
+ *  ① 按入参建一条，读 `curvePointAtParam(first/last)`；
+ *  ② 两端都对得上 ⇒ 直接返回（smlib 走这条，零额外开销）；
+ *  ③ 对不上 ⇒ 用实测两端反推该引擎的角度映射 `θ(α) = δ + σ·α`（σ=+1 纯旋转、
+ *     σ=−1 反向/反射约定都覆盖），再按 δ、σ 反解入参重建一次；
+ *  ④ 仍对不上 ⇒ `E_CIRCLEARC_DATUM`（宁可失败，也不静默交付一条方向不明的边）。
+ *
+ * 闭合圆（|跨度| = 360°）不纠：几何只有一种解释，接缝位置随引擎（见 `circleArc` 文档）。
+ * 跨度超过一整圈直接拒（`E_CIRCLEARC_SPAN`）—— 一条裁剪圆边表达不了多圈。
+ */
+function neutralCircleArc(
+  center: { x: number; y: number; z: number },
+  normal: { x: number; y: number; z: number },
+  radius: number,
+  a0: number,
+  a1: number,
+): BrepHandle {
+  const api = getBrepApi()
+  const c: Vec3 = [center.x, center.y, center.z]
+  const n: Vec3 = unit3([normal.x, normal.y, normal.z]) ?? [0, 0, 1]
+  const frame = circleFrame(n)
+  const span = a1 - a0
+  if (Math.abs(span) > 2 * Math.PI + 1e-9) {
+    throw new Error(
+      'E_CIRCLEARC_SPAN: circleArc span must stay within 360° — a trimmed circle edge cannot ' +
+      'represent more than one turn (use cad.helix for a coil, or concatenate arcs)',
+    )
+  }
+  const p0 = framePoint(c, frame, radius, a0)
+  const p1 = framePoint(c, frame, radius, a1)
+  const tol = Math.max(1e-9, 1e-7 * radius)
+  const build = (x: number, y: number) =>
+    api.makeCircleArc(center as never, normal as never, radius, x, y) as unknown as BrepHandle
+  const matches = (h: BrepHandle): boolean => {
+    const [f, l] = curveEndsOf(h)
+    return dist3(f, p0) <= tol && dist3(l, p1) <= tol
+  }
+
+  const trial = build(a0, a1)
+  if (Math.abs(Math.abs(span) - 2 * Math.PI) <= 1e-9) return trial
+  if (matches(trial)) return trial
+
+  const thetaOf = (p: Vec3): number => {
+    const rel: Vec3 = [p[0] - c[0], p[1] - c[1], p[2] - c[2]]
+    return Math.atan2(dot3(rel, frame.v), dot3(rel, frame.u))
+  }
+  const [f, l] = curveEndsOf(trial)
+  const raw = thetaOf(l) - thetaOf(f)
+  const branches = [raw, raw + 2 * Math.PI, raw - 2 * Math.PI]
+  const traversed = branches.reduce((best, x) => (Math.abs(x - span) < Math.abs(best - span) ? x : best), raw)
+  const sigma = Math.sign(traversed) === Math.sign(span) ? 1 : -1
+  const delta = thetaOf(f) - sigma * a0
+  const rebuilt = build(sigma * (a0 - delta), sigma * (a1 - delta))
+  if (matches(rebuilt)) {
+    api.release(trial)
+    return rebuilt
+  }
+
+  api.release(rebuilt)
+  throw new Error(
+    'E_CIRCLEARC_DATUM: this engine\'s circle-angle datum could not be normalised ' +
+    `(requested ${a0}..${a1} rad; measured offset δ=${delta} sign σ=${sigma} after one correction)`,
+  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,7 +286,7 @@ export const edge = defineOp({
 // circleArc — 圆心+法向+半径+起止角（度）构造圆弧
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** BREP 路径：L1 `makeCircleArc`（引擎中立；入参弧度，脚本面度 → 弧度在此换算）。 */
+/** BREP 路径：中立圆弧（`neutralCircleArc`：角度基准归一 + 端点顺序归一）。 */
 function circleArcBrep(
   center: Vec3,
   normal: Vec3,
@@ -149,9 +305,7 @@ function circleArcBrep(
   }
   const c = toVec3(center, 'circleArc', 'center')
   const n = toNonZeroVec3(normal, 'circleArc', 'normal')
-  const handle = getBrepApi().makeCircleArc(
-    c as never, n as never, radius, startAngleDeg * DEG2RAD, endAngleDeg * DEG2RAD,
-  ) as unknown as BrepHandle
+  const handle = neutralCircleArc(c, n, radius, startAngleDeg * DEG2RAD, endAngleDeg * DEG2RAD)
   return adoptCurve(handle)
 }
 
@@ -162,7 +316,9 @@ function circleArcBrep(
  * @async false
  * @qual ok
  * @name circleArc
- * @note 中立 op：L1 `makeCircleArc`（occt 原生 Geom_TrimmedCurve / smlib `smw_make_arc`）。
+ * @note 中立 op：角度基准由本 op 定死（世界 +X 在圆面内的投影为 0°，绕法向逆时针为正），
+ *       **参数起点恒为 startAngle 对应的点**，两个引擎给出同一条弧、同一方向。闭合边
+ *       （跨度 360°）的接缝位置随引擎、几何无差别。跨度超过 360° 报 `E_CIRCLEARC_SPAN`。
  *       角度单位是**度**（内部换算弧度传给引擎）。
  * @returns Shape 1D 圆弧（kind:'curve'）。
  * @param center - 圆心 [x,y,z]。type:Vec3 required:true
@@ -291,13 +447,64 @@ export const ellipseArc = defineOp({
 // tangentArc — 起点+切向+终点构造圆弧
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** BREP 路径：occt 原生 makeTangentArc（GC_MakeArcOfCircle(start, tangent, end)）。 */
+/**
+ * 起点 + 起点切向 + 终点 → 三点弧中点。几何是唯一的：圆心必在过起点、垂直切向的那条
+ * 直线上，又要到两端等距 ⇒ 圆心 = start + x·ĥ，`x = |d|²/(2·d⊥)`（d⊥ = 弦在 ĥ 上的分量）。
+ * 反向时（切向与弦的夹角让弧走长边）由 `phi ∈ (0, 2π)` 自动覆盖，不需要分支。
+ */
+function tangentArcMidPoint(start: Vec3, tangent: Vec3, end: Vec3): Vec3 {
+  const d: Vec3 = [end[0] - start[0], end[1] - start[1], end[2] - start[2]]
+  const chord = Math.hypot(d[0], d[1], d[2])
+  if (!(chord > 1e-9)) {
+    throw new Error('E_TANGENTARC_DEGENERATE: start and end coincide — an arc through one point is undefined')
+  }
+  const t = unit3(tangent)
+  if (!t) throw new Error('E_TANGENTARC_BAD_TANGENT: tangent must be a non-zero vector')
+  const along = dot3(d, t)
+  const perp: Vec3 = [d[0] - along * t[0], d[1] - along * t[1], d[2] - along * t[2]]
+  const perpLen = Math.hypot(perp[0], perp[1], perp[2])
+  if (!(perpLen > 1e-9 * chord)) {
+    throw new Error(
+      'E_TANGENTARC_COLLINEAR: tangent is parallel to the chord ⇒ the arc degenerates to a straight ' +
+      'line (infinite radius); use cad.edge(start, end) instead',
+    )
+  }
+  const h = unit3(perp)!
+  const x = (chord * chord) / (2 * perpLen)
+  const center: Vec3 = [start[0] + x * h[0], start[1] + x * h[1], start[2] + x * h[2]]
+  const rVec: Vec3 = [start[0] - center[0], start[1] - center[1], start[2] - center[2]]
+  const eVec: Vec3 = [end[0] - center[0], end[1] - center[1], end[2] - center[2]]
+  // 旋转轴取「径向 × 切向」⇒ 沿轴正转时起点切向恰好等于入参切向（与 occt 同解）。
+  const axis = unit3(cross3(rVec, t))!
+  const rLen = Math.hypot(rVec[0], rVec[1], rVec[2])
+  const cosA = dot3(rVec, eVec) / (rLen * rLen)
+  const sinA = dot3(cross3(rVec, eVec), axis) / (rLen * rLen)
+  let phi = Math.atan2(sinA, cosA)
+  if (phi <= 0) phi += 2 * Math.PI
+  const midR = rotateAbout3(rVec, axis, phi / 2)
+  return [center[0] + midR[0], center[1] + midR[1], center[2] + midR[2]]
+}
+
+/** BREP 路径：中立几何解圆心 → L1 `makeArcEdge`（三点弧，两个引擎都吃）。 */
 function tangentArcBrep(start: Vec3, tangent: Vec3, end: Vec3): Shape {
   const s = toVec3(start, 'tangentArc', 'start')
   const t = toNonZeroVec3(tangent, 'tangentArc', 'tangent')
   const e = toVec3(end, 'tangentArc', 'end')
-  const handle = getOcctKernel().makeTangentArc(s as never, t as never, e as never) as unknown as BrepHandle
-  return adoptCurve(handle)
+  const sT: Vec3 = [s.x, s.y, s.z]
+  const eT: Vec3 = [e.x, e.y, e.z]
+  const mid = tangentArcMidPoint(sT, [t.x, t.y, t.z], eT)
+  const api = getBrepApi()
+  const tol = Math.max(1e-9, 1e-7 * Math.max(dist3(sT, eT), 1))
+  let handle = api.makeArcEdge(asBrep(sT), asBrep(mid), asBrep(eT)) as unknown as BrepHandle
+  if (dist3(curveEndsOf(handle)[0], sT) <= tol) return adoptCurve(handle)
+  // 反向参数化约定的引擎：同一条弧反着请求一次即可（弧的几何只有一种）
+  api.release(handle)
+  handle = api.makeArcEdge(asBrep(eT), asBrep(mid), asBrep(sT)) as unknown as BrepHandle
+  if (dist3(curveEndsOf(handle)[0], sT) <= tol) return adoptCurve(handle)
+  api.release(handle)
+  throw new Error(
+    'E_TANGENTARC_ORIENTATION: makeArcEdge did not produce an edge starting at `start` in either direction',
+  )
 }
 
 /**
@@ -307,7 +514,9 @@ function tangentArcBrep(start: Vec3, tangent: Vec3, end: Vec3): Shape {
  * @async false
  * @qual ok
  * @name tangentArc
- * @note 平台 op：仅 occt 引擎（原生 makeTangentArc）。切向为零向量非法。
+ * @note 中立 op：圆心由本 op 自己解（切向定方向、等距定位置），再走 L1 `makeArcEdge`
+ *       （三点弧）⇒ occt / smlib 都能用，几何与 occt 原生 `GC_MakeArcOfCircle` 同解。
+ *       切向为零向量非法；切向与弦共线（弧退化成直线）报 `E_TANGENTARC_COLLINEAR`。
  * @returns Shape 1D 圆弧（kind:'curve'）。
  * @param start - 起点 [x,y,z]。type:Vec3 required:true
  * @param tangent - 起点切向 [x,y,z]（非零，不必单位化）。type:Vec3 required:true
@@ -321,7 +530,7 @@ export const tangentArc = defineOp({
   brep(start: Vec3, tangent: Vec3, end: Vec3) {
     return tangentArcBrep(start, tangent, end)
   },
-  engines: ['occt'],
+  engines: ['occt', 'smlib'],
   naming: { kind: 'unmodeled', reason: '1D arc has no face role vocabulary' } as Provenance,
 })
 

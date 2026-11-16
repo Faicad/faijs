@@ -130,7 +130,7 @@ const part1 = cad.box(30 * MM, 20 * MM, 10 * MM, { at: [15 * MM, 10 * MM, 0], se
 
 ### 3.3 `circleArc` ✅
 
-构造圆弧：圆心 + 法向 + 半径 + 起止角（度，绕法向右手逆时针）。
+构造圆弧：圆心 + 法向 + 半径 + 起止角（度；0° = 世界 +X 在圆面内的投影，绕法向逆时针为正）。
 
 ```js
 const a = cad.circleArc([0,0,0], [0,0,1], 5, 0, 90)
@@ -141,12 +141,14 @@ const a = cad.circleArc([0,0,0], [0,0,1], 5, 0, 90)
 | `center` | `Vec3` | ✅ | — | 圆心 [x,y,z] |
 | `normal` | `Vec3` | ✅ | — | 圆面法向 [x,y,z]（非零） |
 | `radius` | `number` | ✅ | — | 半径（mm，>0） |
-| `startAngle` | `number` | ✅ | — | 起始角（度，自法向基准 X 方向起量） |
-| `endAngle` | `number` | ✅ | — | 终止角（度） |
+| `startAngle` | `number` | ✅ | — | 起始角（度；0° = +X 在圆面内的投影，逆时针为正） |
+| `endAngle` | `number` | ✅ | — | 终止角（度；`|endAngle−startAngle| ≤ 360`） |
 
-**同步**。Shape 1D 圆弧（kind:'curve'）。
+**同步**。Shape 1D 圆弧（kind:'curve'）。参数起点恒等于 `startAngle` 那个点、方向与入参一致。
 
-> 中立 op：L1 `makeCircleArc`（occt 原生 Geom_TrimmedCurve / smlib `smw_make_arc`）。角度单位是**度**（内部换算弧度传给引擎）。
+> 中立 op，**occt / smlib 双引擎**：L1 `makeCircleArc`（occt 原生 Geom_TrimmedCurve / smlib `smw_make_arc`）。角度单位是**度**（内部换算弧度传给引擎）。
+>
+> 角度基准是全仓唯一的（2026-11-17 起）：`u` = 世界 +X 在圆面内的投影（法向几乎贴着 +X 轴时退到 +Y）、`v = n̂ × u`；两引擎对同组入参给出同一条弧、同一参数方向（op 内「先建 → 量两端 → 反解引擎的角度偏移/反射 → 重建 → 验两端」）。`|endAngle−startAngle| = 360` 的闭合圆不纠（接缝位置随引擎），> 360 直接报 `E_CIRCLEARC_SPAN`；纠正后两端仍对不上报 `E_CIRCLEARC_DATUM`。
 
 ### 3.4 `cone` ✅
 
@@ -827,7 +829,7 @@ const a = cad.tangentArc([0,0,0], [1,0,0], [5,5,0])
 
 **同步**。Shape 1D 圆弧（kind:'curve'）。
 
-> 平台 op：仅 occt 引擎（原生 makeTangentArc）。切向为零向量非法。
+> 中立 op，**occt / smlib 双引擎**：几何完全中立（切向定方向 + 到两端等距定圆心 ⇒ 圆唯一），再经 L1 `makeArcEdge` 三点弧落到引擎。切向为零向量或起点=终点报 `E_TANGENTARC_DEGENERATE`；切向与弦共线报 `E_TANGENTARC_COLLINEAR`；三点弧两个方向都不以 `start` 为参数起点时报 `E_TANGENTARC_ORIENTATION`。
 
 ### 3.38 `text` ⚠️
 

@@ -125,7 +125,9 @@ describe('P2 曲线构造区', () => {
   })
 
   it('makeCircleArc 圆弧长度 = r·Δθ', () => {
-    const c = p.makeCircleArc({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 2, 0, 90)
+    // 单位契约：L1 `makeCircleArc`（primitives.ts）收**弧度**，适配器边界才换算成内核的度。
+    // 这条用例曾按度传 90（=90 rad = 5156°），内核 RANGE_ER 报 `SmApiCreateArc failed`。
+    const c = p.makeCircleArc({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 2, 0, Math.PI / 2)
     expect(p.curveIsClosed(c)).toBe(false)
     expect(p.curveLength(c)).toBeCloseTo(2 * (Math.PI / 2), 3)
   })

@@ -177,9 +177,10 @@ describe('K1 内核能力：G1 连续脊柱，所有入口都精确（OCCT 对�
 
   it('K1c. 混合边类型（真弧 + 直腿、真 G1）：MakePipe 路径不可能对，sweepFull / sweepAlong 精确', async () => {
     await useOcct()
-    // 弧的自然走向是 (0,-10,10) → (0,-20,0)，末端切向 -Z；直腿沿 -Z 续接 ⇒ 真 G1、无折返。
+    // 弧的自然走向是 (0,0,0) → (0,-10,10)，末端切向 -Y；直腿沿 -Y 续接 ⇒ 真 G1、无折返。
+    // （2026-11-17 起圆弧角度基准全仓唯一：0° = 世界 +X 投影、绕法向逆时针为正。）
     const spine = (len: number): string =>
-      `cad.wireFromEdges([cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE),cad.edge([0,-20,0],[0,-20,${-len}])])`
+      `cad.wireFromEdges([cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE),cad.edge([0,-10,10],[0,${-10 - len},10])])`
     const analytic = (len: number): number => AREA * (ARC_LEN + len)
 
     // MakePipe（`mode:'simple'`，`sweepRaw` 逃生口）在这类脊柱上怎么给都不对：曾经测到
@@ -190,15 +191,23 @@ describe('K1 内核能力：G1 连续脊柱，所有入口都精确（OCCT 对�
       expect(Math.abs(m.volume - analytic(len)) / analytic(len), `MakePipe len=${len}`).toBeGreaterThan(0.1)
     }
 
-    // 另一条错值（同一条脊柱、同一入口，只差截面落位）：sweepFull 在**未落位**时给出
-    // A×(弧长 − 腿长) —— 这才是「混合边类型丢体积」的真正来历，错的是落位不是内核。
-    const unplaced = expectOk(await measure(spine(10), SWEEP_DEFAULT))
-    expect(unplaced.volume / AREA).toBeCloseTo(ARC_LEN - 10, 1)
+    // 另一条错值：`sweepRaw` 默认（不落位）在同一脊柱上会丢体积 —— 但只在截面**不在**
+    // 脊柱起点时才看得见。2026-11-17 的新几何里弧恰从原点起、截面（XY 面、法向 +Z）
+    // 与起点重合，默认路径自己就能转正 ⇒ 必须把脊柱整体沿 +Z 挪开 10 才复现落位问题。
+    // 这才是「混合边类型丢体积」的真正来历，错的是落位不是内核。
+    const spineShift = (len: number): string =>
+      `cad.wireFromEdges([cad.circleArc([0,-10,10],[1,0,0],10,0*DEGREE,90*DEGREE),cad.edge([0,-10,20],[0,${-10 - len},20])])`
+    const far = expectOk(await measure(spineShift(10), SWEEP_DEFAULT))
+    expect(Math.abs(far.volume / analytic(10) - 1), `unplaced profile away from spine start`).toBeGreaterThan(0.1)
 
-    // 正确值：sweepAlong（先落位再扫）精确，且 bbox 含整条腿。
+    // 正确值：sweepAlong（先落位再扫）精确，且 bbox 含整条腿（腿沿 -Y ⇒ y 向拉长）。
     const seg = expectOk(await measure(spine(10), (s2, p2) => `let part2 = cad.sweep(${s2}, ${p2}, { volumeTolerance: 0.99 })`))
     expect(seg.volume / analytic(10)).toBeCloseTo(1, 3)
-    expect(seg.size[2]).toBeCloseTo(26, 0)
+    // bbox 实测 [12, 26, 16]、min (-6,-20,0)、max (6,6,16)：腿沿 -Y 走 ⇒ y 从 6（弧起点外侧）
+    // 一直到 -20（腿末端），z 只在弧那 10 高度上展开 ±6（0..16）。腿被完整扫到、端面是平的。
+    expect(seg.size[0]).toBeCloseTo(12, 1)
+    expect(seg.size[1], `y 跨度 = 弧起点 +6 .. 腿末端 -20`).toBeCloseTo(26, 0)
+    expect(seg.size[2]).toBeCloseTo(16, 1)
   })
 
   it('K1d. 共线两段（最简多边 wire）→ 精确', async () => {
@@ -563,8 +572,8 @@ describe('K9 脊柱事实是只读的：先 analyzeSpine 再 sweepFull 必须照
   // 这里钉两件事：脊柱真相连时分析不影响扫掠；分析结果本身与解析值一致。
   const SPINE =
     'cad.wireFromEdges([' +
-    'cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE),' + // (0,-10,10) → (0,-20,0)，末端切向 -Z
-    'cad.edge([0,-20,0],[0,-20,-10])])' // 沿 -Z 相切续接 ⇒ 真 G1
+    'cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE),' + // (0,0,0) → (0,-10,10)，末端切向 -Y
+    'cad.edge([0,-10,10],[0,-20,10])])' // 沿 -Y 相切续接 ⇒ 真 G1
 
   it('K9. analyzeSpine 后再 sweepAdvanced：必须成功且体积 = 面积 × 长度', async () => {
     await useOcct()
@@ -584,7 +593,7 @@ describe('K9 脊柱事实是只读的：先 analyzeSpine 再 sweepFull 必须照
     expect(f.edges[0]!.radius!).toBeCloseTo(10, 2)
 
     // ② 同一个进程里再扫这条脊柱（analyzeSpine 用的是借用句柄，不该留下副作用）。
-    // 截面画在原点、脊柱从 (0,-10,10) 起 ⇒ 必须开 autoPlace 才有意义（否则是落位问题，见 K1c）。
+    // 截面画在原点、脊柱也从 (0,0,0) 起 ⇒ 必须开 autoPlace 才有意义（否则是落位问题，见 K1c）。
     const m = expectOk(await measure(SPINE, RAW(`autoPlace: true`)))
     expect(m.volume / (AREA * (ARC_LEN + 10))).toBeCloseTo(1, 3)
   })

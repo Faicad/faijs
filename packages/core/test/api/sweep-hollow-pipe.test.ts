@@ -79,7 +79,9 @@ describe('sweepAlong · 一次调用出多段（空心）管', () => {
   /** case8 的 U 形中心线：长腿 90 + 底部 180° 弯 R36.35 + 短腿 51.35。 */
   const U_SPINE =
     `let e1 = cad.edge([${-R},0,90],[${-R},0,0])\n` +
-    `let e2 = cad.circleArc([0,0,0],[0,-1,0],${R},-90*DEGREE,90*DEGREE)\n` +
+    // 底弯「(−R,0,0) → 底部 (0,0,-R) → (R,0,0)」。基准是全仓唯一的（0° = 世界 +X 投影、
+    // 绕法向逆时针为正，axis=−Y 时 90° 指向 +Z）⇒ 这一段是 180°→360°。
+    `let e2 = cad.circleArc([0,0,0],[0,-1,0],${R},180*DEGREE,360*DEGREE)\n` +
     `let e3 = cad.edge([${R},0,0],[${R},0,51.35])\n` +
     `let spine = cad.wireFromEdges([e1,e2,e3])\n`
   const U_LEN = 90 + Math.PI * R + 51.35
@@ -148,35 +150,50 @@ describe('sweepAlong · 一次调用出多段（空心）管', () => {
     }
   })
 
-  // GOTCHA：`cad.circleArc(center, axis, r, a0, a1)` 的角度基准不是「+X 起、逆时针」。
-  // axis=(0,-1,0) 时实测 0° 指向 -Z、90° 指向 +X（u=-Z, v=+X）。写 U 形底弯若按
-  // 「0°→180°」会把弧摆成 (0,0,-R)→(0,0,+R) 向 +X 鼓，与直腿在 x=R 处相交 —— 正是
-  // case8 最初少 7.25% 体积的原因。这里钉住真实约定，防止后人重踩。
-  it('G0e. circleArc 角度基准（GOTCHA）：axis -Y 时 -90°→90° 才是 (-R,0,0)→(R,0,0)', async () => {
+  // 2026-11-17：角度基准改为**全仓唯一**的「世界 +X 在圆面内的投影 = 0°、绕法向逆时针为正」，
+  // 两个引擎一致（旧口径是各引擎自有零点：occt 在 axis=−Y 时 0° 指向 −Z、90° 指向 +X）。
+  // 这条 U 形底弯要「(−R,0,0) → 底部 (0,0,-R) → (R,0,0)」⇒ 角度写 **180°→360°**；
+  // 写 −90°→90° 得到的是「(0,0,-R) → (R,0,0) → (0,0,R)」—— 与直腿在 x=R 处相交，
+  // 正是 case8 最初少 7.25% 体积的原因。这里钉住真实约定，防止后人重踩。
+  it('G0e. circleArc 角度基准（契约）：axis -Y 时 0° = +X、180°→360° 才是 (-R,0,0)→(R,0,0)', async () => {
     await useOcct()
-    const result = await exec(
-      'brep',
-      `let part2 = cad.circleArc([0,0,0],[0,-1,0],${R},-90*DEGREE,90*DEGREE)\n`,
-    )
-    expect(result.failedAt).toBeFalsy()
-    const api = getBrepApi() as unknown as {
-      curveParameters: (e: unknown) => { first: number; last: number }
-      curvePointAtParam: (e: unknown, p: number) => { x: number; y: number; z: number }
-      curveTangent: (e: unknown, p: number) => { x: number; y: number; z: number }
+    const endsOf = async (a0: string, a1: string) => {
+      const result = await exec(
+        'brep',
+        `let part2 = cad.circleArc([0,0,0],[0,-1,0],${R},${a0}*DEGREE,${a1}*DEGREE)\n`,
+      )
+      expect(result.failedAt).toBeFalsy()
+      const api = getBrepApi() as unknown as {
+        curveParameters: (e: unknown) => { first: number; last: number }
+        curvePointAtParam: (e: unknown, p: number) => { x: number; y: number; z: number }
+        curveTangent: (e: unknown, p: number) => { x: number; y: number; z: number }
+      }
+      const h = brepOf(result.outputs.get(asPartName('part2')) as Shape) as never
+      const pr = api.curveParameters(h)
+      return {
+        p0: api.curvePointAtParam(h, pr.first),
+        p1: api.curvePointAtParam(h, pr.last),
+        t0: api.curveTangent(h, pr.first),
+        t1: api.curveTangent(h, pr.last),
+      }
     }
-    const h = brepOf(result.outputs.get(asPartName('part2')) as Shape) as never
-    const pr = api.curveParameters(h)
-    const p0 = api.curvePointAtParam(h, pr.first)
-    const p1 = api.curvePointAtParam(h, pr.last)
-    const t0 = api.curveTangent(h, pr.first)
-    const t1 = api.curveTangent(h, pr.last)
-    // 起点 (-R,0,0)、终点 (R,0,0)，两端切向竖直（∓Z）
-    expect(p0.x).toBeCloseTo(-R, 2)
-    expect(p0.z).toBeCloseTo(0, 2)
-    expect(p1.x).toBeCloseTo(R, 2)
-    expect(p1.z).toBeCloseTo(0, 2)
-    expect(Math.abs(t0.z)).toBeCloseTo(1, 2)
-    expect(Math.abs(t1.z)).toBeCloseTo(1, 2)
+
+    // 0° 在 +X：0→90 是 (R,0,0) → (0,0,R)，起点切向 +Z。
+    const quarter = await endsOf('0', '90')
+    expect(quarter.p0.x).toBeCloseTo(R, 2)
+    expect(quarter.p0.z).toBeCloseTo(0, 2)
+    expect(quarter.p1.x).toBeCloseTo(0, 2)
+    expect(quarter.p1.z).toBeCloseTo(R, 2)
+    expect(Math.abs(quarter.t0.z)).toBeCloseTo(1, 2)
+
+    // U 形底弯：180→360 是 (−R,0,0) → 底部 → (R,0,0)，两端切向竖直（∓Z）。
+    const bottom = await endsOf('180', '360')
+    expect(bottom.p0.x).toBeCloseTo(-R, 2)
+    expect(bottom.p0.z).toBeCloseTo(0, 2)
+    expect(bottom.p1.x).toBeCloseTo(R, 2)
+    expect(bottom.p1.z).toBeCloseTo(0, 2)
+    expect(Math.abs(bottom.t0.z)).toBeCloseTo(1, 2)
+    expect(Math.abs(bottom.t1.z)).toBeCloseTo(1, 2)
   }, 60000)
 
   it('G1. 实心圆截面沿 U 形三段中心线 → 一次调用，体积 = 面积 × 总长', async () => {
@@ -307,12 +324,11 @@ describe('sweepAdvanced 带孔截面 · 事实钉桩', () => {
     await useOcct()
     const r = 6
     // 弧 R10 从 (0,0,0) 起、切向 +Z，到 (0,-10,10)、切向 -Y；直腿从该点沿 -Y 相切延续。
-    // 角度口径（实测）：axis +X 时 0° 落在 +Z、90° 落在 -Y，所以起点在 +Y 要用 -90°。
-    // 这一条曾经写错（0°~90°），造出的是「弧尾 (0,-20,0) 与直腿首 (0,-10,10) 相距 14.14」
-    // 的**断裂** wire，于是 sweepFull 直接失败；错的是脊柱不是内核。
+    // 2026-11-17 起基准唯一（0° = 世界 +X 投影 ⇒ axis=+X 时 0° 指向 +Y、90° 指向 +Z），
+    // 所以这一段就是 **0°→90°**（旧口径下要写 −90°→0° 才等价）。
     const code =
       `let part0 = ${discFace(r, 'sec')}\n` +
-      `let arc = cad.circleArc([0,-10,0],[1,0,0],10,-90*DEGREE,0*DEGREE)\n` +
+      `let arc = cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE)\n` +
       `let line = cad.edge([0,-10,10],[0,-20,10])\n` +
       `let part1 = cad.wireFromEdges([arc, line])\n` +
       `let part2 = cad.sweepRaw(part0, part1, { withContact: true })\n`
