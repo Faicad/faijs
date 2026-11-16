@@ -41,6 +41,21 @@ const shapes = (hs: BrepHandle[]): ShapeHandle[] => hs.map(asShape)
 const v3 = (v: Vec3): BrepVec3 => ({ x: v.x, y: v.y, z: v.z })
 const rad = (deg: number): number => (deg * Math.PI) / 180
 
+// canonical 椭圆帧用到的向量小工具（BrepVec3 = {x,y,z} 对象，不是元组）。
+const ellSub = (a: BrepVec3, b: BrepVec3): BrepVec3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z })
+const ellScale = (a: BrepVec3, s: number): BrepVec3 => ({ x: a.x * s, y: a.y * s, z: a.z * s })
+const ellDot = (a: BrepVec3, b: BrepVec3): number => a.x * b.x + a.y * b.y + a.z * b.z
+const ellCross = (a: BrepVec3, b: BrepVec3): BrepVec3 => ({
+  x: a.y * b.z - a.z * b.y,
+  y: a.z * b.x - a.x * b.z,
+  z: a.x * b.y - a.y * b.x,
+})
+const ellUnit = (a: BrepVec3, what: string): BrepVec3 => {
+  const len = Math.hypot(a.x, a.y, a.z)
+  if (!(len > 1e-12)) throw new Error(`[occt] ${what} must be non-zero`)
+  return { x: a.x / len, y: a.y / len, z: a.z / len }
+}
+
 /**
  * L1 向量形参的静态校验：`BrepVec3 = {x,y,z}` **对象**，不是元组、更不是布尔。
  *
@@ -138,6 +153,106 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     generated: e.generated,
     deleted: e.deleted,
   })
+
+  /**
+   * canonical 椭圆帧（与 `cad.circleArc` / `neutralCircleArc` 同一规则）：
+   * `u` = 世界 +X 在椭圆面上的投影（`|n̂.x| ≥ 0.999` 时退化取 +Y），`v = n̂ × u`。
+   * 契约点 `E(θ) = c + a·cosθ·u + b·sinθ·v`。
+   */
+  const ellipseFrame = (center: BrepVec3, normal: BrepVec3, a: number, b: number) => {
+    const n = ellUnit(normal, 'normal')
+    const ref = Math.abs(n.x) < 0.999 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 }
+    const u = ellUnit(ellSub(ref, ellScale(n, ellDot(ref, n))), 'normal')
+    const v = ellCross(n, u)
+    const point = (t: number): BrepVec3 => ({
+      x: center.x + a * Math.cos(t) * u.x + b * Math.sin(t) * v.x,
+      y: center.y + a * Math.cos(t) * u.y + b * Math.sin(t) * v.y,
+      z: center.z + a * Math.cos(t) * u.z + b * Math.sin(t) * v.z,
+    })
+    /** 实测点 → 契约帧角度（atan2(b 分量, a 分量)）。 */
+    const angleOf = (p: BrepVec3): number =>
+      Math.atan2(ellDot(ellSub(p, center), v) / b, ellDot(ellSub(p, center), u) / a)
+    return { n, u, v, point, angleOf }
+  }
+
+  /**
+   * occt 侧椭圆弧的 canonical 对齐。
+   *
+   * `gp_Elips` 的轴是内核自选的：`gp_Ax2(center, normal)` 的 XDirection 定 a 的方向，且
+   * `gp_Elips` 硬要求 `a >= b`（对调半径会直接 KERNEL_ERROR）。实测 `n̂ = +Z` 时 XDirection
+   * 恰好是契约帧的 `u`，倾斜法向时**会整体旋转**（`n̂ = +X` / `+Y` 的 0° 点都落在 `+Z`，
+   * 即 XDirection 落到 `±v` 上）。所以不能靠改角度、也不能靠对调半径，只能量出这个旋转再把它转回来：
+   *
+   * 1. 闭合椭圆探针（`makeEllipseEdge` 的参数 0 / 90° 两点）量出内核自己的 XDirection `kx`；
+   * 2. `ρ` = `kx` 到契约帧 `u` 的有向角（绕 `n̂`）。内核椭圆 = 契约椭圆绕 `(center, n̂)` 转 `−ρ`，
+   *    所以「先用契约角建弧、再转 `ρ`」即可把几何与参数一起对齐（运动是刚性的，`curveType`
+   *    仍是解析 `ellipse`，不降级 —— 而且 `gp_Ax2` 恒右手，`ky = n̂ × kx` 会被转到 `v` 上，
+   *    不需要镜像）；
+   * 3. 验两端 **并且验参数中点**：跨度 135° 的 CW 弧与 225° 的 CCW 补弧两端点完全重合，
+   *    只验两端会把长弧放过去；
+   * 4. 方向相反时（CW，或内核轴基顺序相反）建反向弧再 `reverseShape`：该边是 REVERSED，
+   *    按 `shapeOrientation` 解释走向时起点仍是 `startAngle` 一侧。
+   *
+   * 全部候选都不落点时显式抛错，绝不把内核方言漏给消费方。
+   */
+  const ellipseArcOcct = (
+    center: BrepVec3,
+    normal: BrepVec3,
+    a: number,
+    b: number,
+    startAngle: number,
+    endAngle: number,
+  ): BrepHandle => {
+    const span = endAngle - startAngle
+    if (!(Math.abs(span) > 1e-12)) throw new Error('[occt] makeEllipseArc: zero span')
+    if (Math.abs(span) > 2 * Math.PI + 1e-9) throw new Error('[occt] makeEllipseArc: span exceeds 360°')
+    const fr = ellipseFrame(center, normal, a, b)
+    const n = fr.n
+    const want = [fr.point(startAngle), fr.point(endAngle)] as const
+    const wantMid = fr.point((startAngle + endAngle) / 2)
+    const tol = 1e-7 * Math.max(a, b, 1)
+
+    // 探针：内核自己的 XDirection（闭合椭圆恒可建，参数 0 点就在 XDirection 上）。
+    const probe = asHandle(k.makeEllipseEdge(center as never, normal as never, a, b))
+    const probeShape = asShape(probe)
+    const pr = k.curveParameters(probeShape)
+    const q0 = v3(k.curvePointAtParam(probeShape, pr.first))
+    k.release(probeShape)
+    const kx = ellUnit(ellSub(q0, center), 'kernel x-axis')
+    const rho = Math.atan2(ellDot(n, ellCross(kx, fr.u)), ellDot(kx, fr.u))
+
+    const build = (p0: number, p1: number): ShapeHandle =>
+      k.makeEllipseArc(center as never, normal as never, a, b, p0, p1)
+    const emit = (h: ShapeHandle): ShapeHandle =>
+      Math.abs(rho) < 1e-12
+        ? h
+        : k.rotate(h, { point: center, direction: n } as never, rho)
+    const endsOf = (h: ShapeHandle): [BrepVec3, BrepVec3] => {
+      const p = k.curveParameters(h)
+      return [v3(k.curvePointAtParam(h, p.first)), v3(k.curvePointAtParam(h, p.last))]
+    }
+    const midOf = (h: ShapeHandle): BrepVec3 => {
+      const p = k.curveParameters(h)
+      return v3(k.curvePointAtParam(h, (p.first + p.last) / 2))
+    }
+    const near = (p: BrepVec3, q: BrepVec3): boolean =>
+      Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z) <= tol
+
+    // 候选 1：契约角直传 + 旋转对齐（CCW 时一步到位）。
+    const h1 = emit(build(startAngle, endAngle))
+    const e1 = endsOf(h1)
+    if (near(e1[0], want[0]) && near(e1[1], want[1]) && near(midOf(h1), wantMid)) return asHandle(h1)
+    // 候选 2：反向建（CW 或内核参数方向相反）+ 旋转对齐 + 翻转向。
+    const h2 = emit(build(endAngle, startAngle))
+    const e2 = endsOf(h2)
+    if (near(e2[0], want[1]) && near(e2[1], want[0]) && near(midOf(h2), wantMid)) {
+      return asHandle(k.reverseShape(h2 as never))
+    }
+    throw new Error(
+      `[occt] makeEllipseArc: canonical datum unresolved ` +
+        `(rho=${rho.toFixed(6)}, span=${(span * 180 / Math.PI).toFixed(3)}°, a=${a}, b=${b})`,
+    )
+  }
 
   const primitives: BrepEngineApi = {
     // ── lifecycle ──
@@ -370,6 +485,12 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
       asHandle(k.makeCircleEdge(center, normal, radius)),
     makeCircleArc: (center, normal, radius, startAngle, endAngle) =>
       asHandle(k.makeCircleArc(center, normal, radius, startAngle, endAngle)),
+    // 椭圆族：occt 原生解析椭圆直连（curveType = 'ellipse'、解析面）。弧的零点/轴向由
+    // 内核自选，适配器在这里把 canonical 帧反解对齐（见 ellipseArcOcct 的 rationale）。
+    makeEllipseEdge: (center, normal, majorRadius, minorRadius) =>
+      asHandle(k.makeEllipseEdge(center, normal, majorRadius, minorRadius)),
+    makeEllipseArc: (center, normal, majorRadius, minorRadius, startAngle, endAngle) =>
+      ellipseArcOcct(center, normal, majorRadius, minorRadius, startAngle, endAngle),
     // 螺旋线：右手走原生 makeHelixWire（保持既有几何路径不变）；左手走带手性入口
     // makeHelixWireHanded(..., true) —— occt-wasm d.ts 明示后者才是 "Prefer this for
     // new code" 的入口。两侧都在本契约实现层直调，故 cad.helix 无需 import 平台模块、

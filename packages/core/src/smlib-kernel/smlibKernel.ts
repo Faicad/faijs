@@ -126,6 +126,42 @@ function asArray(p: BrepVec3): [number, number, number] {
 }
 
 /**
+ * 椭圆的**精确有理二次**节点（局部 XY 平面、中心在原点）—— 不是逼近，是闭式解。
+ *
+ * 一段 θ∈[θ0,θ1] 的椭圆弧本来就有理二次可表：中间极点 = 两端切线的交点
+ * `(a·secα·cosθm, b·secα·sinθm)`、权 `(1, cosα, 1)`，α = (θ1−θ0)/2。内接缝重数 2 ⇒ C1。
+ * 段数 n = ceil(|跨度|/90°)：|α| ≤ 45°，`secα ≤ √2` 不会病态 —— 这也是**必须切段**的原因
+ * （一段 180° 时中间极点在无穷远）。负跨度时 θ 递减、极点顺序随之反向，参数方向就是 CW。
+ */
+function rationalEllipseNodes(
+  a: number,
+  b: number,
+  startAngle: number,
+  endAngle: number,
+): { poles: [number, number, number][]; weights: number[]; knots: number[]; multiplicities: number[] } {
+  const span = endAngle - startAngle
+  const nSeg = Math.max(1, Math.ceil(Math.abs(span) / (Math.PI / 2) - 1e-12))
+  const delta = span / nSeg
+  const wMid = Math.cos(delta / 2)
+  const sec = 1 / Math.cos(delta / 2)
+  const point = (t: number): [number, number, number] => [a * Math.cos(t), b * Math.sin(t), 0]
+  const poles: [number, number, number][] = [point(startAngle)]
+  const weights: number[] = [1]
+  for (let i = 0; i < nSeg; i++) {
+    const tm = startAngle + (i + 0.5) * delta
+    poles.push([a * sec * Math.cos(tm), b * sec * Math.sin(tm), 0], point(startAngle + (i + 1) * delta))
+    weights.push(wMid, 1)
+  }
+  const knots: number[] = []
+  const multiplicities: number[] = []
+  for (let i = 0; i <= nSeg; i++) {
+    knots.push(i)
+    multiplicities.push(i === 0 || i === nSeg ? 3 : 2)
+  }
+  return { poles, weights, knots, multiplicities }
+}
+
+/**
  * XY 平面曲线（圆心原点）→ center+normal 局部平面的 3×4 行主序矩阵。
  *
  * **局部 X 轴 = 世界 +X 在该平面上的投影**（退化时取 +Y 投影）。这样局部角度就是
@@ -858,6 +894,33 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       const norm360 = ((startDeg % 360) + 360) % 360
       const [a0, a1] = arcAnglePair(norm360, sweepDeg)
       const c = track(k.makeArc([0, 0, 0], radius, a0, a1))
+      k.transformMatrix(c as never, circlePlacementMatrix(center, normal))
+      return c as unknown as BrepHandle
+    },
+    // 椭圆族：smlib 没有解析椭圆，用**精确有理二次 NURBS**（闭式控制点/权重，不是逼近）。
+    // 代价是 `curveType` 如实报 bspline、扫掠侧面是 NURBS 面 —— 这是内核对几何的如实回答，
+    // 不在 L1 层覆盖成 ellipse（见 `brep/engine/primitives.ts` 的 makeEllipseEdge JSDoc）。
+    makeEllipseEdge(center: BrepVec3, normal: BrepVec3, majorRadius: number, minorRadius: number): BrepHandle {
+      const nodes = rationalEllipseNodes(majorRadius, minorRadius, 0, 2 * Math.PI)
+      const c = track(
+        k.makeCanonicalCurve(nodes.poles, nodes.knots, nodes.multiplicities, nodes.weights, 2, 6),
+      )
+      k.transformMatrix(c as never, circlePlacementMatrix(center, normal))
+      return c as unknown as BrepHandle
+    },
+    makeEllipseArc(
+      center: BrepVec3, normal: BrepVec3, majorRadius: number, minorRadius: number,
+      startAngle: number, endAngle: number,
+    ): BrepHandle {
+      const span = endAngle - startAngle
+      if (!(Math.abs(span) > 1e-12)) throw new Error('[smlib-kernel] makeEllipseArc: zero span')
+      if (Math.abs(span) > 2 * Math.PI + 1e-9) {
+        throw new Error('[smlib-kernel] makeEllipseArc: span exceeds 360°')
+      }
+      const nodes = rationalEllipseNodes(majorRadius, minorRadius, startAngle, endAngle)
+      const c = track(
+        k.makeCanonicalCurve(nodes.poles, nodes.knots, nodes.multiplicities, nodes.weights, 2, 6),
+      )
       k.transformMatrix(c as never, circlePlacementMatrix(center, normal))
       return c as unknown as BrepHandle
     },

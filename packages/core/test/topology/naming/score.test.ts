@@ -190,6 +190,8 @@ function planeKernel(): BrepEngineApi {
     thicken: (shape, _thickness) => shape,
     rotate: (shape) => shape,
     makeCircleArc: () => 1 as BrepHandle,
+    makeEllipseEdge: () => 1 as BrepHandle,
+    makeEllipseArc: () => 1 as BrepHandle,
     makeHelixWire: () => 1 as BrepHandle,
     approximatePoints: (_points, _tolerance) => 1 as BrepHandle,
     interpolatePointsWithTangents: () => 1 as BrepHandle,

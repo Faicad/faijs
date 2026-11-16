@@ -1137,6 +1137,27 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       knownEdges.add(e)
       return asEdge(e)
     },
+    // 椭圆族：brepkit 没有解析椭圆原语（该引擎已定死退役、未来不再支持），显式失败。
+    // `cad.ellipseEdge` / `cad.ellipseArc` 的 engines 声明里不含 brepkit，正常路径不会走到这里；
+    // 这里只保证 L1 契约面完整、失败信息可读，而不是留一个 undefined 引起 TypeError。
+    makeEllipseEdge(
+      _center: BrepVec3,
+      _normal: BrepVec3,
+      _majorRadius: number,
+      _minorRadius: number,
+    ): BrepHandle {
+      return fail('makeEllipseEdge: brepkit has no analytic ellipse (engine retired)')
+    },
+    makeEllipseArc(
+      _center: BrepVec3,
+      _normal: BrepVec3,
+      _majorRadius: number,
+      _minorRadius: number,
+      _startAngle: number,
+      _endAngle: number,
+    ): BrepHandle {
+      return fail('makeEllipseArc: brepkit has no analytic ellipse (engine retired)')
+    },
     makeHelixWire(
       origin: BrepVec3,
       axis: BrepVec3,

@@ -295,7 +295,13 @@ const a = cad.ellipseArc([0,0,0], [0,0,1], 10, 5, 0, 90)
 
 **同步**。Shape 1D 椭圆弧（kind:'curve'）。
 
-> 平台 op：仅 occt 引擎（原生 makeEllipseArc）。角度单位是**度**（内部换算弧度）。
+> Neutral op (occt + smlib): angles are in **degrees** (the L1 contract takes radians; the op converts).
+> Semantics stay honest, not flattened: occt uses the native analytic ellipse ⇒ `curveType` = `ellipse`
+> (analytic surfaces); smlib uses the **exact rational-quadratic NURBS** ⇒ `curveType` = `bspline`, side
+> surfaces are NURBS (point geometry identical to the analytic ellipse ~1e-16, length integral ~1e-6).
+> Cross-engine comparison compares sampled geometry, never type labels. Negative span = clockwise (CW);
+> read the direction from `shapeOrientation` (a REVERSED edge on occt, a genuinely reversed
+> parameterization on smlib). `0 < |end − start| <= 360` (degrees).
 
 ### 3.11 `ellipseEdge` ✅
 
@@ -314,7 +320,12 @@ const e = cad.ellipseEdge([0,0,0], [0,0,1], 10, 5)
 
 **同步**。Shape 1D 椭圆边（kind:'curve'）。
 
-> 平台 op：仅 occt 引擎（原生 makeEllipseEdge）。要求 majorRadius >= minorRadius。
+> Neutral op (occt + smlib), same story as `ellipseArc`: occt reports `curveType` = `ellipse` (analytic
+> surfaces; the closed curve's parameter zero is chosen by the kernel axis and carries no geometry);
+> smlib reports `bspline` (4×90° exact rational-quadratic NURBS, closed). Requires
+> majorRadius >= minorRadius (`gp_Elips` constraint, same rule on both engines).
+> Measured difference: closed-ellipse perimeter occt 48.505863 / smlib 48.442242 (analytic 48.442241) —
+> occt's closed long-span length integration is off by 1.3e-3, so compare lengths with a per-engine tolerance.
 
 ### 3.12 `ellipsoid` ✅
 

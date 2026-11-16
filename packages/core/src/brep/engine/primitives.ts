@@ -283,6 +283,56 @@ export interface BrepEngineApi {
     endAngle: number,
   ): BrepHandle
   /**
+   * 椭圆边（整椭圆，闭合）。`center` + `normal` 定椭圆所在的平面，`majorRadius` 沿 `u`、
+   * `minorRadius` 沿 `v`。
+   *
+   * 唯一契约帧（与 `makeCircleArc` / `cad.circleArc` 同一规则）：`n̂` 单位化后
+   * `ref = |n̂.x| < 0.999 ? (1,0,0) : (0,1,0)`、`u = unit(ref − (ref·n̂)n̂)`、`v = n̂ × u`；
+   * 椭圆点 `E(θ) = c + a·cosθ·u + b·sinθ·v`（`a = majorRadius` 沿 `u`）。θ 弧度、0 = `u`。
+   *
+   * 引擎差异（**语义如实，不抹平**）：
+   * - occt 适配器：原生 `gp_Elips` 直连 ⇒ `curveType` = `'ellipse'`（解析椭圆、解析面），
+   *   弧长积分精确。闭合椭圆的参数零点 = occt 自选的 XDirection（`n̂ = +Z` 时恰为 `u`，
+   *   倾斜法向时**未必**）—— 闭合曲线的零点本就不承载几何，消费方按几何采样，不要按
+   *   参数零点对齐。
+   * - smlib 适配器：**精确有理二次 NURBS**（4×90°、权重 `cos(π/4)`、degree 2、闭合）
+   *   ⇒ `curveType` = `'bspline'`，侧面是 NURBS 面；点几何与解析椭圆同值
+   *   （`(x/a)²+(y/b)² = 1` 残差 ~1e-16），长度积分 ~1e-6 相对。
+   * - 跨引擎对拍：**比采样几何，不比 `curveType` 标签**。
+   */
+  makeEllipseEdge(
+    center: BrepVec3,
+    normal: BrepVec3,
+    majorRadius: number,
+    minorRadius: number,
+  ): BrepHandle
+  /**
+   * 椭圆弧：帧与 `makeEllipseEdge` 完全相同（`majorRadius` 沿 `u`）。
+   *
+   * `startAngle` / `endAngle` **弧度**，绕 `n̂` 逆时针为正；跨度 = `endAngle − startAngle`，
+   * **负跨度 = 顺时针（CW）**。`|跨度| > 2π` 与跨度 = 0 由 op 层先拒（这里也防御性拒绝）。
+   *
+   * **走向怎么读**：不要只看参数大小，要看 `shapeOrientation`（cw 在 occt 上是 REVERSED 边，
+   * 内核只沿参数递增扫，方向靠边朝向表达；smlib 的 CW 弧则是真实的反向参数化、参数 `first`
+   * 侧就是起点）。
+   *
+   * 参数域**不保证等于角度**：
+   * - occt：`curveParameters` = [起角, 止角]，但内核的轴基/半径选择未必等于契约帧 —— 适配器
+   *   量出内核 XDirection 的旋转 ρ，建弧后绕 `(center, n̂)` 转回 `ρ`（刚性运动，仍是解析
+   *   `ellipse`、不降级），所以端点落在契约帧的起止角点上；
+   * - smlib：`[0, nSeg]`，`nSeg = ceil(|跨度| / 90°)`，有理二次拼段。
+   * ⇒ 消费方要按角度取样，用 `curvePointAtParam` 采样后按帧反算角度，**不要**把参数值
+   * 当角度用。
+   */
+  makeEllipseArc(
+    center: BrepVec3,
+    normal: BrepVec3,
+    majorRadius: number,
+    minorRadius: number,
+    startAngle: number,
+    endAngle: number,
+  ): BrepHandle
+  /**
    * 圆柱螺旋线（1D wire）。origin/axis 定轴，pitch 每圈推进、height 总高、radius 半径。
    * 手性由 `leftHanded` 选（缺省 `false` = 右手）；同 pitch/height/radius 下左右旋
    * 互为镜像（关于轴平面）。

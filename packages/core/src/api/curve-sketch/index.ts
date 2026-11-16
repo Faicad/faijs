@@ -356,12 +356,14 @@ function checkEllipseRadii(op: string, majorRadius: number, minorRadius: number)
   }
 }
 
-/** BREP 路径：occt 原生 makeEllipseEdge。 */
+/** BREP 路径：中立 `makeEllipseEdge`（occt 解析椭圆 / smlib 精确有理二次，见契约面 JSDoc）。 */
 function ellipseEdgeBrep(center: Vec3, normal: Vec3, majorRadius: number, minorRadius: number): Shape {
   checkEllipseRadii('ELLIPSEEDGE', majorRadius, minorRadius)
   const c = toVec3(center, 'ellipseEdge', 'center')
   const n = toNonZeroVec3(normal, 'ellipseEdge', 'normal')
-  const handle = getOcctKernel().makeEllipseEdge(c as never, n as never, majorRadius, minorRadius) as unknown as BrepHandle
+  const handle = getBrepApi().makeEllipseEdge(
+    c as never, n as never, majorRadius, minorRadius,
+  ) as unknown as BrepHandle
   return adoptCurve(handle)
 }
 
@@ -372,7 +374,10 @@ function ellipseEdgeBrep(center: Vec3, normal: Vec3, majorRadius: number, minorR
  * @async false
  * @qual ok
  * @name ellipseEdge
- * @note 平台 op：仅 occt 引擎（原生 makeEllipseEdge）。要求 majorRadius >= minorRadius。
+ * @note 中立 op（occt + smlib）。语义如实、不抹平：occt 走原生解析椭圆 ⇒ `curveType` 报
+ * `ellipse`（解析面、弧长积分精确）；smlib 走**精确有理二次 NURBS** ⇒ `curveType` 报
+ * `bspline`、侧面是 NURBS 面，点几何与解析椭圆同值（残差 ~1e-16）、长度积分相对 ~1e-6。
+ * 跨引擎对拍**比采样几何，不比类型标签**。要求 majorRadius >= minorRadius。
  * @returns Shape 1D 椭圆边（kind:'curve'）。
  * @param center - 椭圆中心 [x,y,z]。type:Vec3 required:true
  * @param normal - 椭圆面法向 [x,y,z]（非零）。type:Vec3 required:true
@@ -387,11 +392,11 @@ export const ellipseEdge = defineOp({
   brep(center: Vec3, normal: Vec3, majorRadius: number, minorRadius: number) {
     return ellipseEdgeBrep(center, normal, majorRadius, minorRadius)
   },
-  engines: ['occt'],
+  engines: ['occt', 'smlib'],
   naming: { kind: 'unmodeled', reason: '1D ellipse has no face role vocabulary' } as Provenance,
 })
 
-/** BREP 路径：occt 原生 makeEllipseArc（角度内部换算弧度）。 */
+/** BREP 路径：中立 `makeEllipseArc`（弧度契约在 L1；脚本面收度）。 */
 function ellipseArcBrep(
   center: Vec3,
   normal: Vec3,
@@ -407,10 +412,19 @@ function ellipseArcBrep(
   ) {
     throw new Error('E_ELLIPSEARC_BAD_ANGLE: startAngle/endAngle must be finite numbers (degrees)')
   }
+  const span = (endAngleDeg - startAngleDeg) * DEG2RAD
+  if (Math.abs(span) > 2 * Math.PI + 1e-9) {
+    throw new Error('E_ELLIPSEARC_SPAN: |endAngle - startAngle| must be <= 360 degrees')
+  }
+  // 跨度 = 0 没有可交付的 1D 几何（两面都退化成同一个点），显式拒绝而不是丢给内核报方言错。
+  if (!(Math.abs(span) > 1e-12)) {
+    throw new Error('E_ELLIPSEARC_ZERO_SPAN: startAngle and endAngle must differ')
+  }
   const c = toVec3(center, 'ellipseArc', 'center')
   const n = toNonZeroVec3(normal, 'ellipseArc', 'normal')
-  const handle = getOcctKernel().makeEllipseArc(
-    c as never, n as never, majorRadius, minorRadius, startAngleDeg * DEG2RAD, endAngleDeg * DEG2RAD,
+  const handle = getBrepApi().makeEllipseArc(
+    c as never, n as never, majorRadius, minorRadius,
+    startAngleDeg * DEG2RAD, endAngleDeg * DEG2RAD,
   ) as unknown as BrepHandle
   return adoptCurve(handle)
 }
@@ -422,7 +436,12 @@ function ellipseArcBrep(
  * @async false
  * @qual ok
  * @name ellipseArc
- * @note 平台 op：仅 occt 引擎（原生 makeEllipseArc）。角度单位是**度**（内部换算弧度）。
+ * @note 中立 op（occt + smlib）。角度单位是**度**（L1 契约收弧度，op 边界换算）。语义如实：
+ * occt 走原生解析椭圆（`curveType` = `ellipse`，参数域 = [起角, 止角]，经内核轴基旋转对齐后
+ * 端点落在契约帧的起止角点）；smlib 走精确有理二次 NURBS（`curveType` = `bspline`、
+ * 参数域 = [0, nSeg]、nSeg = ceil(|跨度|/90°)）。负跨度 = 顺时针（CW）—— 走向按
+ * `shapeOrientation` 读：occt 上是 REVERSED 边，smlib 上是真实反向参数化。跨度必须
+ * 0 < |end − start| <= 360（度），否则 E_ELLIPSEARC_ZERO_SPAN / E_ELLIPSEARC_SPAN。
  * @returns Shape 1D 椭圆弧（kind:'curve'）。
  * @param center - 椭圆中心 [x,y,z]。type:Vec3 required:true
  * @param normal - 椭圆面法向 [x,y,z]（非零）。type:Vec3 required:true
@@ -439,7 +458,7 @@ export const ellipseArc = defineOp({
   brep(center: Vec3, normal: Vec3, majorRadius: number, minorRadius: number, startAngleDeg: number, endAngleDeg: number) {
     return ellipseArcBrep(center, normal, majorRadius, minorRadius, startAngleDeg, endAngleDeg)
   },
-  engines: ['occt'],
+  engines: ['occt', 'smlib'],
   naming: { kind: 'unmodeled', reason: '1D ellipse arc has no face role vocabulary' } as Provenance,
 })
 

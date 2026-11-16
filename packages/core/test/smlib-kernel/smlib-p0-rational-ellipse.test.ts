@@ -310,3 +310,136 @@ describe('P0-OCCT 对称探针（同一组控制点、同一个手算尺子）',
     expect(Math.abs(lr - analytic) / analytic).toBeLessThan(1e-4)
   })
 })
+
+// ── D/E：实施「双引擎椭圆」前的 datum 探针 ──
+// 目的：把 occt 原生椭圆的角度零点 / 参数域 / 轴朝向 / 越界行为量出来（否则中立构造无法
+// 与它对齐），并验证 smlib 能不能装「闭合椭圆」和「反向（CW）弧」。
+describe('P0-D occt 原生椭圆 datum（makeEllipseEdge / makeEllipseArc 的真实语义）', () => {
+  let k!: Awaited<ReturnType<typeof initOcctWasm>>
+  const A = 10
+  const B = 5
+  const C = v3(0, 0, 0)
+  const N = v3(0, 0, 1)
+
+  beforeAll(async () => {
+    k = await initOcctWasm()
+  })
+
+  const pt = (h: unknown, t: number): Vec3 => {
+    const q = k.curvePointAtParam(h as never, t) as unknown as Vec3
+    return v3(q.x, q.y, q.z)
+  }
+  const prm = (h: unknown): { first: number; last: number } => k.curveParameters(h as never)
+
+  it('D1. makeEllipseEdge：参数域、闭合、长度、四个轴向量点', () => {
+    const e = k.makeEllipseEdge(C as never, N as never, A, B)
+    const pr = prm(e)
+    const len = Number(k.curveLength(e as never))
+    const closed = Boolean(k.curveIsClosed(e as never))
+    const q = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((t) => {
+      const p = pt(e, t)
+      return `${t}:(${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)})`
+    })
+    console.log(`[P0-D1] params=[${pr.first}, ${pr.last}] closed=${closed} len=${len.toFixed(6)}`)
+    console.log(`[P0-D1] at 0/90/180/270 = ${q.join(' ')}`)
+    const analytic = 4 * ellipseArcLen(A, B, 0, Math.PI / 2)
+    console.log(`[P0-D1] analytic perimeter=${analytic.toFixed(6)}`)
+  })
+
+  it('D2. makeEllipseArc：0→90° 的端点、方向、参数域', () => {
+    const arc = k.makeEllipseArc(C as never, N as never, A, B, 0, Math.PI / 2)
+    const pr = prm(arc)
+    const p0 = pt(arc, pr.first)
+    const p1 = pt(arc, pr.last)
+    const len = Number(k.curveLength(arc as never))
+    console.log(
+      `[P0-D2] params=[${pr.first}, ${pr.last}] first=(${p0.x.toFixed(3)},${p0.y.toFixed(3)}) ` +
+        `last=(${p1.x.toFixed(3)},${p1.y.toFixed(3)}) len=${len.toFixed(6)} analytic=${ellipseArcLen(A, B, 0, Math.PI / 2).toFixed(6)}`,
+    )
+  })
+
+  it('D3. 负跨度 / 超 360° / 倾斜法向：越界与零点怎么算', () => {
+    const probes: Array<[string, () => unknown]> = [
+      ['-0→-90°', () => k.makeEllipseArc(C as never, N as never, A, B, 0, -Math.PI / 2)],
+      ['0→270°', () => k.makeEllipseArc(C as never, N as never, A, B, 0, (3 * Math.PI) / 2)],
+      ['0→360°', () => k.makeEllipseArc(C as never, N as never, A, B, 0, 2 * Math.PI)],
+      ['0→200°(>180)', () => k.makeEllipseArc(C as never, N as never, A, B, 0, (200 * Math.PI) / 180)],
+      ['倾斜 n=+X', () => k.makeEllipseArc(C as never, v3(1, 0, 0) as never, A, B, 0, Math.PI / 2)],
+      ['倾斜 n=+Y', () => k.makeEllipseArc(C as never, v3(0, 1, 0) as never, A, B, 0, Math.PI / 2)],
+    ]
+    for (const [label, build] of probes) {
+      try {
+        const h = build()
+        const pr = prm(h)
+        const p0 = pt(h, pr.first)
+        const p1 = pt(h, pr.last)
+        const len = Number(k.curveLength(h as never))
+        console.log(
+          `[P0-D3] ${label}: ok params=[${pr.first.toFixed(4)}, ${pr.last.toFixed(4)}] ` +
+            `first=(${p0.x.toFixed(3)},${p0.y.toFixed(3)},${p0.z.toFixed(3)}) ` +
+            `last=(${p1.x.toFixed(3)},${p1.y.toFixed(3)},${p1.z.toFixed(3)}) len=${len.toFixed(4)}`,
+        )
+      } catch (err) {
+        console.log(`[P0-D3] ${label}: THROW ${String((err as Error).message).slice(0, 120)}`)
+      }
+    }
+  })
+})
+
+describe('P0-E smlib：闭合有理椭圆 + 反向（CW）弧能否装出来', () => {
+  const A = 10
+  const B = 5
+  /** 椭圆参数点：c + a·cosθ·u + b·sinθ·v（u=+X、v=+Y，即 n=+Z 的 canonical 帧）。 */
+  const eP = (th: number): Vec3 => v3(A * Math.cos(th), B * Math.sin(th), 0)
+  /** 一段 ≤90° 的精确有理二次：中间极点 = 切线交点 = (a·secα·cosθm, b·secα·sinθm)。 */
+  const seg = (th0: number, th1: number): { ctrl: [Vec3, Vec3, Vec3]; w: number } => {
+    const alpha = (th1 - th0) / 2
+    const thm = (th0 + th1) / 2
+    const sec = 1 / Math.cos(alpha)
+    return {
+      ctrl: [eP(th0), v3(A * sec * Math.cos(thm), B * sec * Math.sin(thm), 0), eP(th1)],
+      w: Math.cos(alpha),
+    }
+  }
+
+  it('E1. 闭合椭圆：4 段 90° + 首尾极点重合（knots [0..4]、mults [3,2,2,2,3]）', () => {
+    const segs = [0, 1, 2, 3].map((i) => seg((i * Math.PI) / 2, ((i + 1) * Math.PI) / 2))
+    const poles: number[] = []
+    const weights: number[] = []
+    for (const s of segs) {
+      poles.push(s.ctrl[0].x, s.ctrl[0].y, s.ctrl[0].z, s.ctrl[1].x, s.ctrl[1].y, s.ctrl[1].z)
+      weights.push(1, s.w)
+    }
+    // 尾极点 = 首极点（θ=2π ≡ 0）
+    const last = eP(2 * Math.PI)
+    poles.push(last.x, last.y, last.z)
+    weights.push(1)
+    const h = p.makeBSplineEdge(poles, weights, [0, 1, 2, 3, 4], [3, 2, 2, 2, 3], 2)
+    const pr = p.curveParameters(h)
+    const closed = p.curveIsClosed(h)
+    const len = p.curveLength(h)
+    const analytic = 4 * ellipseArcLen(A, B, 0, Math.PI / 2)
+    console.log(`[P0-E1] closed=${closed} params=[${pr.first}, ${pr.last}] len=${len.toFixed(6)} analytic=${analytic.toFixed(6)}`)
+    if (!closed) console.log('[P0-E1] 内核不认闭合：需要 periodic 或其它写法')
+  })
+
+  it('E2. 反向弧（θ0=90° → θ1=0，CW）：几何落在椭圆上、端点正确', () => {
+    const s = seg(Math.PI / 2, 0)
+    const h = p.makeBSplineEdge(
+      [s.ctrl[0].x, s.ctrl[0].y, s.ctrl[0].z, s.ctrl[1].x, s.ctrl[1].y, s.ctrl[1].z, s.ctrl[2].x, s.ctrl[2].y, s.ctrl[2].z],
+      [1, s.w, 1],
+      [0, 1],
+      [3, 3],
+      2,
+    )
+    const pr = p.curveParameters(h)
+    const p0 = p.curvePointAtParam(h, pr.first) as unknown as Vec3
+    const p1 = p.curvePointAtParam(h, pr.last) as unknown as Vec3
+    const mid = p.curvePointAtParam(h, (pr.first + pr.last) / 2) as unknown as Vec3
+    const onEllipse = (q: Vec3): number => Math.abs((q.x / A) ** 2 + (q.y / B) ** 2 - 1)
+    console.log(
+      `[P0-E2] first=(${p0.x.toFixed(3)},${p0.y.toFixed(3)}) last=(${p1.x.toFixed(3)},${p1.y.toFixed(3)}) ` +
+        `mid=(${mid.x.toFixed(3)},${mid.y.toFixed(3)}) onEllipseErr=${onEllipse(mid).toExponential(2)} len=${p.curveLength(h).toFixed(6)}`,
+    )
+  })
+})

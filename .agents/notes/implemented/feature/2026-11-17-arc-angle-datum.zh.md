@@ -160,13 +160,59 @@ mid = c + rotateAbout3(rVec, axis, φ/2)
 2. smlib 的 `makeBSplineEdge` 适配器本就透传权重
    （`w = weights.some(x => x !== 1) ? weights : undefined` → `k.makeCanonicalCurve(..., w, degree, 6)`）。
 
-**落地判断**：方案 A（双引擎统一有理二次 + L1 侧几何识别补语义）技术可行、几何精度足够；
-唯一真实代价是 `curveType` 降级（两引擎对称）和 occt 长度积分 5e-6。语义补回的做法与本轮
-`circleArc` 同一条思路：L1 自己采样反解（圆心/长短轴/起止角），把 `kind:'arc'` 从「引擎报的
-类型」改成「L1 认出来的几何」。
+**落地判断（已被下一节取代，保留作过程记录）**：方案 A（双引擎统一有理二次 + L1 侧几何识别补语义）
+技术可行、几何精度足够；唯一真实代价是 `curveType` 降级（两引擎对称）和 occt 长度积分 5e-6。
+语义补回的做法与本轮 `circleArc` 同一条思路：L1 自己采样反解（圆心/长短轴/起止角），把
+`kind:'arc'` 从「引擎报的类型」改成「L1 认出来的几何」。
+
+> ⚠️ 上述「L1 侧几何识别补语义」在评审中被否决：用采样猜内核类型再覆盖 `curveType` 属**伪造内核
+> 事实**（与「用测量纠正构造」性质不同），且会触碰 `occt-primitives.ts` 的 no-cross-layer-assertion-lies
+> 红线。定案见下文「定案：方案 A / 步骤 1」。
+
+# 定案：方案 A / 步骤 1「几何可用、语义如实」
+
+用户拍板的边界：**不覆盖 `curveType`、不让 occt 降级、不动既有体积/长度判据容差、不建采样识别层**；
+跨引擎对拍**比采样几何不比类型标签**。
+
+## 实施内容（全部已落地并绿）
+
+| 位置 | 改动 |
+|---|---|
+| `src/brep/engine/primitives.ts` | L1 契约面**新增** `makeEllipseEdge` / `makeEllipseArc`（弧度、canonical 帧写在 JSDoc 里，含两引擎语义差异与「走向按 `shapeOrientation` 读」）|
+| `src/occt-kernel/occt-primitives.ts` | 原生 `gp_Elips` 直连 + `ellipseArcOcct` 轴基对齐：探针量出内核 XDirection → 解出旋转角 ρ → 建弧后绕 `(center, n̂)` 转回 ρ（刚性运动，**仍报 `ellipse`**）；验两端 + 验参数中点；方向相反时 `reverseShape` |
+| `src/smlib-kernel/smlibKernel.ts` | `rationalEllipseNodes` 精确有理二次（段数 `ceil(|跨度|/90°)`、权重 `cos(Δ/2)`、内接缝重数 2）+ `circlePlacementMatrix` 落到平面；负跨度靠极点逆序，天然 CW |
+| `src/brepkit-kernel/brepkitKernel.ts` | 两方法 `fail('...brepkit has no analytic ellipse (engine retired)')`（引擎已定死退役；op 声明里不含 brepkit，正常路径不经过） |
+| `src/brep/engine/adapters/brep-mock.ts` | 两方法极小桩（tag 带 a/b），维持 guard 测试可用 |
+| `src/api/curve-sketch/index.ts` | 两 op 去掉 `getOcctKernel()`，改走 `getBrepApi()`；`engines: ['occt','smlib']`；新增 `E_ELLIPSEARC_ZERO_SPAN` / `E_ELLIPSEARC_SPAN` |
+| `test/api/curve-ellipse-engines.test.ts` | 新建 32 用例：两端点/采样点在椭圆上、弧长对解析积分、CW、倾斜法向、`a=b` 退化圆、跨引擎对拍、`curveType` 护栏（occt=`ellipse` / smlib=`bspline`，含倾斜法向旋转后仍 `ellipse`）、错误码 |
+| `test/topology/naming/{mesh-primitive,resolve,roles,score}.test.ts` | fake kernel 按仓库既有纪律补最小桩（**不改** `as BrepEngineApi`，保住上下文类型） |
+| `docs/ops-api-inventory.{md,zh.md}` | 3.10 / 3.11 两段 `@note` 从「平台 op 仅 occt」改为中立 op + 语义差异 + 实测长度差 |
+
+## 本轮新增实测（datum 探针 D/E，21/21 绿 → 本文件同名的 `smlib-p0-rational-ellipse.test.ts`）
+
+| 事实 | 数值 |
+|---|---|
+| occt `makeEllipseEdge`（n=+Z, a=10,b=5） | params `[0, 2π]`、closed、0/90/180/270° = (10,0)/(0,5)/(−10,0)/(0,−5) ⇒ **与 canonical 帧天然一致**；但**闭合曲线 `curveLength` 偏粗：48.505863 vs 解析 48.442241（1.3e-3）** |
+| occt `makeEllipseArc` 0→90° | params `[0, π/2]`、端点精确、长度 12.110560 = 解析 ⇒ 参数就是角度 |
+| occt 负终止角 `0→−90°` | 被归一成 `[0, 4.7124]`（+270°）⇒ **不可用负角表达 CW** |
+| occt 倾斜法向 `n=+X` / `+Y` | 0° 点都落在 `+Z` ⇒ 内核 XDirection 与契约帧 `u` 整体旋转（实测 ρ 任意），且 `gp_Elips` 要求 `a>=b` ⇒ **不能靠对调半径**，只能旋转对齐 |
+| smlib 闭合有理椭圆（4 段 90°） | closed、params `[0,4]`、长度 **48.442242**（≈解析 48.442241）⇒ 比 occt 闭合查询更准 |
+| smlib 反向弧（90°→0，CW） | first (0,5) / last (10,0) / mid (7.071,3.536)、`(x/a)²+(y/b)²−1 = 2.22e-16`、长度 12.110560 ⇒ **极点逆序即 CW** |
+
+## 踩坑
+
+- `Edit` 的 `old_string` 带行尾换行、`new_string` 不带时，会把「注释行 + 下一行代码」粘成一行：
+  本轮两次踩到（`// …describe(` 与 `…,    // 螺旋线`），第一次直接 `[PARSE_ERROR] Unexpected token`。
+  替换注释行时**必须显式保留换行**。
+- 只验两端点不够：跨度 135° 的 CW 弧与 225° 的 CCW 补弧两端点完全重合 ⇒ 必须同时验**参数中点**，
+  否则会把长弧放过去（本轮 occt CW 用例就是这么抓出来的）。
+- `shapeOrientation` 在 smlib 仍是 `unsupported` ⇒ 读取走向的辅助函数必须容错（smlib 的 CW 是
+  真实反向参数化，按参数顺序解本来就是对）。
 
 ## 未做 / 后续
 
-- `ellipseEdge` / `ellipseArc` 仍 `['occt']`；探针已给全部事实，**等用户就「是否现在做」拍板**
-  （成本：一个构造器 + 一个 L1 识别层 + 容差调整）。
+- occt 闭合椭圆长度查询偏 1.3e-3：按「不降级」原则**不改** occt 构造，改为在文档/测试里声明
+  长度容差随引擎走；下游若用「面积 × 长度」当下游判据，椭圆族按 1e-3 级容差。
+- `docs/api-contract.zh.md` §7.11 仍把 brepkit 当对等引擎、且 L1/L2 口径与 `scripts/check-api-test-coverage.ts`
+  不同 —— 术语冲突尚未修（用户指出过该术语过时）。
 - smlib 侧缺口不变：`shapeOrientation`、`getSubShapes(face)`、`curveSplit` 仍 P1 未实现。

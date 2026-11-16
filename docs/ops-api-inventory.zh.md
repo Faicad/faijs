@@ -295,7 +295,11 @@ const a = cad.ellipseArc([0,0,0], [0,0,1], 10, 5, 0, 90)
 
 **同步**。Shape 1D 椭圆弧（kind:'curve'）。
 
-> 平台 op：仅 occt 引擎（原生 makeEllipseArc）。角度单位是**度**（内部换算弧度）。
+> 中立 op（occt + smlib）：角度单位是**度**（L1 契约收弧度，op 边界换算）。语义如实、不抹平：
+> occt 走原生解析椭圆 ⇒ `curveType` = `ellipse`（解析面）；smlib 走**精确有理二次 NURBS**
+> ⇒ `curveType` = `bspline`、侧面是 NURBS 面（点几何与解析椭圆同值 ~1e-16、长度积分 ~1e-6）。
+> 跨引擎对拍**比采样几何，不比类型标签**。负跨度 = 顺时针（CW），走向按 `shapeOrientation` 读
+> （occt 上是 REVERSED 边、smlib 上是真实反向参数化）；`0 < |end − start| <= 360`（度）。
 
 ### 3.11 `ellipseEdge` ✅
 
@@ -314,7 +318,11 @@ const e = cad.ellipseEdge([0,0,0], [0,0,1], 10, 5)
 
 **同步**。Shape 1D 椭圆边（kind:'curve'）。
 
-> 平台 op：仅 occt 引擎（原生 makeEllipseEdge）。要求 majorRadius >= minorRadius。
+> 中立 op（occt + smlib）。同 `ellipseArc`：occt 报 `curveType` = `ellipse`（解析面，闭合曲线的
+> 参数零点由内核轴基决定、不承载几何）；smlib 报 `bspline`（4×90° 精确有理二次 NURBS、闭合）。
+> 要求 majorRadius >= minorRadius（`gp_Elips` 约束，两引擎同判据）。
+> 实测差异：闭合椭圆周长 occt 48.505863 / smlib 48.442242（解析 48.442241）—— 即 occt 的闭合
+> 长跨度长度积分偏 1.3e-3，比较长度时按引擎给容差。
 
 ### 3.12 `ellipsoid` ✅
 

@@ -389,6 +389,8 @@ export function createBrepMockApi(): BrepEngineApi {
     },
     makeCircleEdge: (center, _normal, radius) => alloc({ kind: 'edge', bbox: bboxOf('edge', [radius * 2, radius * 2, 0]), tag: `circle(${center.x},${center.y},${center.z},r=${radius})` }),
     makeCircleArc: (center, _normal, radius, a0, a1) => alloc({ kind: 'edge', bbox: bboxOf('edge', [radius * 2, radius * 2, 0]), tag: `arc(${center.x},${center.y},${center.z},r=${radius},${a0}..${a1})` }),
+    makeEllipseEdge: (center, _normal, a, b) => alloc({ kind: 'edge', bbox: bboxOf('edge', [a * 2, b * 2, 0]), tag: `ellipse(${center.x},${center.y},${center.z},a=${a},b=${b})` }),
+    makeEllipseArc: (center, _normal, a, b, a0, a1) => alloc({ kind: 'edge', bbox: bboxOf('edge', [a * 2, b * 2, 0]), tag: `ellipseArc(${center.x},${center.y},${center.z},a=${a},b=${b},${a0}..${a1})` }),
     makeHelixWire: (_origin, _axis, pitch, height, radius, leftHanded) => {
       // 每圈沿轴推进 pitch → 圈数 = height/pitch；轴向跨度取总高的绝对值。
       const turns = pitch !== 0 ? Math.abs(height / pitch) : 0
