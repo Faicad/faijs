@@ -12,10 +12,15 @@ Status: implemented
 
 三条内核事实决定了它必须这么写：
 
-- `pipe` / `sweepPipeShell` / `sweepFull` 都只接受**一个**截面句柄和**一条**脊柱，而且不会把
-  截面搬到弧起点。当截面留在原点时，单段真弧上 `withContact` 与 `withCorrection` 都被拒。
-- 多边脊柱会丢实体体积：两段 90° 折线只剩 50%，相切的「弧+直腿」只剩 14.5%，体积对账守卫
-  两者都拦。
+- `pipe` / `sweepPipeShell` / `sweepFull` 都只接受**一个**截面句柄和**一条**脊柱，而且 `pipe`
+  从不搬截面：调用方必须自己把截面放到脊柱起点坐标系上。`sweepAdvanced` 能搬，但必须
+  `withContact` **和** `withCorrection` 同时给（只给 `withContact` 只是把截面滑到贴住脊柱，
+  并不转正）。
+- **G0（有折角）**的脊柱会丢实体体积：默认 `transitionMode: 'transformed'` 下，截面在折角处停止
+  旋转，整个扫掠退化成平移——两段 90° 折线只剩「面积 × 首段长」（= 按弧长算的 50%），15° 折角
+  保留 98.3%，正好从 5% 体积守卫底下溜过去。G1 脊柱（真弧、弧+直线相切、共线多段）全部精确，
+  所以这是**转角处理的默认值**问题，不是曲率能力问题。实测表见
+  `test/api/sweep-kernel-behavior.test.ts` K1–K4。
 - 带孔面截面会整个丢掉内腔：`toProfileWireView` 只取外环，于是 `sweepAdvanced` 扫出实心棒而
   不是管。
 
@@ -52,8 +57,11 @@ Status: implemented
 
 - **把全部环交给内核。** 否决：`sweepPipeShell(face)` 直接拒收 face
   （`BRepFill_Section: bad shape type of section`），而该族只吃一个截面句柄。
-- **依赖 `withContact` / `withCorrection`。** 实测否决：截面不在起点时，单段真弧上两者都被拒。
-- **整条多边脊柱一次扫掠。** 实测否决：折线丢 50%、相切丢 85.5%，守卫都拦。
+- **依赖 `withContact` / `withCorrection`。** 实测否决：两者合用确实能把一个截面搬到脊柱起点并
+  转正，但有折角的路径需要**逐段**一致的坐标系；另一条候选 `transitionMode: 'roundCorner'` 在
+  密集折角上直接抛 `Geom_RectangularTrimmedSurface`。
+- **整条多边脊柱一次扫掠。** 实测否决：默认转角过渡下只保留 50%（90° 折角）/ 63.7%（密采样
+  弧）；`rightCorner` 能到 94–100%，但在折线路径上并不精确。
 - **先让各段略微重叠再 union。** 否决：共面接缝本身已能精确 union（已验证），加一个凑数的
   epsilon 只会引入误差。
 - **给 `pipe(profile, spine, { autoContact })` 加参数。** 不采用：`pipeAlong` 已经逐段摆放截面，
@@ -76,6 +84,13 @@ Status: implemented
 
 ## 后果
 
+- **归因（2026-11-16 实测，`test/api/sweep-kernel-behavior.test.ts`）：** 内核不是瓶颈。G1 脊柱
+  精确（真弧、切成两段的弧、相切弧+直腿、共线多段——全部 = 面积 × 长度的 1.0000），内核自己的
+  转角处理也是对的（单拐角 90° 用 `rightCorner` 精确）。真正坏掉的是 faijs 层的三个决定：只取
+  外环的截面、G0 脊柱上用 `transformed` 默认值、不搬截面。所以 `pipeAlong` 是**折角场景的绕行
+  方案**，不是内核能力的替代品。
+- `pipeAlong` 还顺带暴露了另一个独立缺陷：两个 G1 相切的扫掠实体做 `union` 会静默只返回其中
+  一个（脚本层 `cad.union` 同样复现；不相交实体则正常）。已钉成 K7，保持 OPEN。
 - case8 的 `part-along.fai.js` 一次调用得到同一实体；`faijs run` 导出水密 STL，0 非流形边，
   bbox 与体积一致。
 - 每次调用是「每段一次扫掠 + 一次 union」；管件量级的零件可以接受。

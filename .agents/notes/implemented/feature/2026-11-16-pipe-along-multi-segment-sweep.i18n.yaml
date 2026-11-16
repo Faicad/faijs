@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   npm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-11-16-pipe-along-multi-segment-sweep.md
-2026-11-16-pipe-along-multi-segment-sweep.md: 2b188a234acb8f1a6883e50bfcff19cf79fea6b8
-2026-11-16-pipe-along-multi-segment-sweep.zh.md: 8f4823fc85a9a4a4a4586aaed02043ad706114e3
+2026-11-16-pipe-along-multi-segment-sweep.md: 5ccc026eb3ca48f3e23533d9d60be4b5230f9102
+2026-11-16-pipe-along-multi-segment-sweep.zh.md: 2552e1e3f818baed5d03e841922c26b74cc734d1

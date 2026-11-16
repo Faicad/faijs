@@ -14,12 +14,18 @@ it onto that segment's start frame, pipe each segment, then union. The case8 dra
 Three kernel facts forced that shape:
 
 - `pipe` / `sweepPipeShell` / `sweepFull` accept **one** profile handle and **one**
-  spine, and they do not relocate a section onto an arc's start frame. `withContact`
-  and `withCorrection` are refused on a single true arc when the section stays at the
-  origin.
-- A multi-edge spine (tangent or cornered) loses solid volume: a two-segment 90° bend
-  keeps 50%, a tangent arc+line pair keeps 14.5%, and the post-condition guard
-  rejects both.
+  spine, and `pipe` never relocates the section: the caller must place it on the
+  spine's start frame. `sweepAdvanced` can relocate it, but only with
+  `withContact` **and** `withCorrection` together (`withContact` alone just slides the
+  section until it touches the spine and leaves it unrotated).
+- A **G0 (cornered)** spine loses solid volume: with the default
+  `transitionMode: 'transformed'`, the section stops rotating at the corner and the
+  whole sweep collapses to a translation — a two-segment 90° bend keeps exactly
+  `area × first-leg` (50% of the arc-length answer), and a 15° corner keeps 98.3%,
+  which slips under the 5% volume guard. G1 spines (true arc, tangent arc+line,
+  collinear segments) are exact, so this is a corner-handling default, not a
+  curvature limit. See the measured table in
+  `test/api/sweep-kernel-behavior.test.ts` K1–K4.
 - A holed face section lost its bore entirely: `toProfileWireView` kept only the outer
   ring, so `sweepAdvanced` produced a solid rod instead of a tube.
 
@@ -65,10 +71,13 @@ Two follow-ups landed with it, both from the same "coarse sweep on purpose" work
 - **Feed all rings to the kernel.** Rejected: `sweepPipeShell(face)` refuses a face
   outright (`BRepFill_Section: bad shape type of section`), and the family takes one
   section handle.
-- **Rely on `withContact` / `withCorrection`.** Rejected by measurement: both are
-  refused on a true arc when the section is not already on the start frame.
+- **Rely on `withContact` / `withCorrection`.** Rejected by measurement: the pair does
+  relocate and reorient one section onto the spine start, but a cornered path needs a
+  consistent frame per segment, and `transitionMode: 'roundCorner'` — the other
+  candidate — throws `Geom_RectangularTrimmedSurface` on dense corners.
 - **Sweep the whole multi-edge spine in one call.** Rejected by measurement: 50%
-  (cornered) and 85.5% (tangent) volume loss, guard refuses both.
+  (90° corner) / 63.7% (densely sampled arc) volume retention under the default
+  transition; `rightCorner` recovers 94–100% but is not exact on faceted paths.
 - **Extend segments slightly to force overlap before union.** Rejected: the coincident
   joint already unions exactly (verified), so a fudge epsilon would only add error.
 - **Add `pipe(profile, spine, { autoContact })`.** Not adopted: `pipeAlong` already
@@ -98,8 +107,19 @@ Two follow-ups landed with it, both from the same "coarse sweep on purpose" work
 
 ## Consequences
 
+- **Attribution (measured 2026-11-16, `test/api/sweep-kernel-behavior.test.ts`):** the
+  kernel is not the limit. G1 spines sweep exactly (arc, arc split in two, tangent
+  arc+line, collinear segments — all 1.0000 of `area × length`), and the kernel's own
+  corner handling works (`rightCorner` = exact for one 90° corner). What broke was
+  three faijs-layer decisions: outer-ring-only sections, the `transformed` default on
+  G0 spines, and no section placement. `pipeAlong` is therefore a workaround for the
+  corner case, not a substitute for kernel capability.
+- A second, independent defect surfaces through `pipeAlong`: `union` of two G1-tangent
+  swept solids silently returns only one of them (script-level `cad.union` reproduces
+  it; disjoint solids union correctly). Pinned as K7 and left open.
 - case8's `part-along.fai.js` builds the same solid in one call; `faijs run` exports a
   watertight STL with 0 non-manifold edges and identical bbox/volume.
+
 - Cost per call is one sweep per edge plus one union; acceptable for tube-scale parts.
 - Sections must be symmetric about the centreline: an asymmetric section would break
   the Pappus identity on arcs and be rejected by the guard rather than silently drift.
