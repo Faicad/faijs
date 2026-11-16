@@ -31,27 +31,27 @@
  * | 引擎 | single | miter | segments | closed | C2 端面法向 |
  * |---|---|---|---|---|---|
  * | occt | ✔ | ✔ | ✔ | ✔ | ✔ |
- * | smlib | ✔ | ✘ | ✘ | ✔ | ✘（`shapeOrientation` 未实现） |
+ * | smlib | ✔ | ✔（仅平面折角） | ✔ | ✔ | ✔ |
  * | brepkit | ✔ | ✘ | ✘ | ✘ | ✘（旧引擎，保留 single 只为历史脚本） |
  *
  * 实测数字（4×4 截面，`cad.sweep` 脚本级 / 内核级，2026-11-16）：
- * - occt：直线 25 → 400；折角 L 形（长 20）miter → 320；闭合圆 r=10 → 1005.31；
- *   带孔截面（8/4）→ 3015.93（= 净面积 × 20）。
- * - smlib：直线 25 → 400（完全一致）；截面远离脊柱起点（autoPlace 搬 90mm）→ 800；
- *   两段共线多边 → 400；带孔截面 → 3015.93（**逐环扫 + cut 在 smlib 上成立**）；
- *   折角 → `E_SWEEP_ENGINE_CAP`（内核无转角过渡）。内核级：真弧路径（r=10, 90°）→
- *   251.33（= 面积 × 弧长 15.708）；闭合圆 → 1005.31（= 面积 × 周长）⇒ **closed 可用**。
+ * - occt：直线 25 → 400；折角 L 形（长 20）miter → 320；**空间**折角（长 30）→ 480；
+ *   闭合圆 r=10 → 1005.31；带孔截面（8/4）→ 3015.93（= 净面积 × 20）；真弧脊柱 → 251.33。
+ * - smlib：直线 400 / autoPlace 搬 90mm → 800 / 共线多边 400 / 带孔 3015.93 /
+ *   **平面**折角 320（内核自己就斜接）/ 真弧脊柱 251.33 / 混合边 G1（弧+直腿）411.33；
+ *   空间折角 → `E_SWEEP_ENGINE_CAP`（内核吐 V=0、非流形的碎片）；闭合圆 → 1005.31。
  * - brepkit：直线 400 / autoPlace 800 / 共线多边 400（结构判据修好后成立）；
  *   折角 → `E_SWEEP_ENGINE_CAP`；带孔截面 → 体积对（3015.93）但 C1 面积读数失真
  *   （读到 16 而非 150.8）→ 旧引擎不修，带孔截面在 brepkit 上按「不可用」看待。
  *
  * 依据（内核桥的硬事实）：
  * - occt：`sweepFull` 有 `transitionMode`（`rightCorner` 斜接 / `roundCorner`），
- *   闭合脊柱一次扫掠给环面（K8a）；
- * - smlib：只有 `SmApiCreateSweepAlongPlanarPath`（**平面路径**、内核自己把截面
- *   bbox 中心搬到路径起点、`capEnds=3` 封端），没有转角过渡与引导线入口。它**能吃**
- *   多边路径与闭合路径，但 op 级的真弧脊柱还造不出来（`cad.circleArc` 只有 occt 实现
- *   ⇒ `segments`（混合边 G1）在 smlib 上逻辑上到不了，先关闭，等 circleArc 补引擎）；
+ *   闭合脊柱一次扫掠给环面（K8a），空间折角也成立；
+ * - smlib：只有 `SmApiCreateSweepAlongPlanarPath`（名字叫 planar，实测**空间 G1 路径**
+ *   —— 3D 样条 570.70 = 16 × 35.669、螺旋线 1639.96 = 16 × 102.498 —— 照样成立；
+ *   内核自己把截面 bbox 中心搬到路径起点、`capEnds=3` 封端），**平面** G0 折角内核
+ *   直接给精确斜接；它真正的边界是「空间 G0 折角」（V=0、非流形）与「带孔 face 的孔环」
+ *   （只取外环 ⇒ op 层必须逐环扫 + `cut`）；
  * - brepkit：剖面 face + 路径整链拟合成一条 NURBS + `sweepWithOptions('rmf','smooth')`，
  *   折角被**光滑掉**（不是斜接）；`shapeType` 不区分 wire（一律 COMPOUND）⇒ 脊柱判据
  *   必须用**结构**判（有边、无面），不能按类型字符串判。
@@ -124,10 +124,11 @@ export interface SweepOptions {
 /** 每个引擎能正确执行的策略。**这是引擎能力的唯一判定点**（实测见文件头）。 */
 const STRATEGIES_BY_ENGINE: Record<string, readonly SweepStrategy[]> = {
   occt: ['single', 'miter', 'segments', 'closed'],
-  // smlib：单边/同类型 G1 一次扫（实测 400/400/3015.93），闭合路径一次扫（内核级实测
-  // 1005.31）。`segments` 暂关：混合边 G1 需要真弧脊柱，而 op 级 `cad.circleArc` 还没
-  // 有 smlib 实现 —— 不是内核做不到，是脊柱造不出来。
-  smlib: ['single', 'closed'],
+  // smlib（2026-11-16 P0 探针后放宽）：single（含空间样条 / 螺旋 G1，实测体积与
+  // 面积×长度同到 1e-4）、miter（平面 G0 折角内核自己就做斜接，实测 320 精确；空间
+  // 折角由 assertEngineCan 单独拦）、segments（逐段扫 + fuse，实测 411.327 = 两段之和）、
+  // closed（闭合圆 1005.31）。
+  smlib: ['single', 'miter', 'segments', 'closed'],
   // 旧引擎，保留 single 只为历史脚本；折角在 brepkit 上被光滑掉，不是斜接。
   brepkit: ['single'],
 }
@@ -135,9 +136,9 @@ const STRATEGIES_BY_ENGINE: Record<string, readonly SweepStrategy[]> = {
 /** 各引擎缺的关键内核能力（只用于拒绝消息，让「为什么不行」可行动）。 */
 const ENGINE_GAP: Record<string, string> = {
   smlib:
-    'smlib only exposes SmApiCreateSweepAlongPlanarPath: planar paths, no corner transition ' +
-    '(rightCorner / roundCorner), no guide / law control surface, and no op-level arc spine ' +
-    '(cad.circleArc is occt-only), so a mixed-kind G1 chain cannot be built there yet',
+    'smlib exposes only SmApiCreateSweepAlongPlanarPath: it has no corner transition for a SPATIAL ' +
+    '(non-planar) G0 corner — measured a 3D fold yields V=0 and a non-manifold body — and no guide / ' +
+    'law / support control surface',
   brepkit:
     'brepkit sweeps one NURBS interpolation of the whole spine with rmf + smooth corners: ' +
     'polyline corners are rounded away (not mitered), so a G0 spine cannot reach the analytic volume',
@@ -259,12 +260,24 @@ function assertEngineCan(
   facts: SpineFacts,
 ): void {
   const allowed = STRATEGIES_BY_ENGINE[engineId] ?? ['single']
-  if (allowed.includes(strategy)) return
   const gap = ENGINE_GAP[engineId] ?? `${engineId} has no kernel entry for this strategy`
   const fix = engineId === 'occt'
     ? 'report this as a missing engine registration'
     : 'run this model on occt, or reduce the spine to what the engine can sweep ' +
       '(single edge / same-kind G1 chain: a true arc beats a sampled polyline)'
+  // 平面性是策略之外的**引擎**约束：smlib 的转角过渡只在平面路径上成立。
+  // 实测（P0i，4×4 截面的空间 L 折角）：V=0、manifold=false、10 个面 —— 内核不报错，
+  // 吐出一块退化碎片。这种「静默产废」必须在扫掠之前拦住。
+  if (engineId === 'smlib' && strategy === 'miter' && !facts.planar) {
+    throw new OpError(
+      'sweep',
+      'E_SWEEP_ENGINE_CAP',
+      `[api/sweep] engine 'smlib' cannot sweep a spatial G0 corner (${describeSpine(facts)}): ` +
+        `${gap}. Fix: run this model on occt, or make the spine planar (put every corner in one plane) ` +
+        `or replace the sharp corner with a true arc (smlib sweeps arcs correctly).`,
+    )
+  }
+  if (allowed.includes(strategy)) return
   throw new OpError(
     'sweep',
     'E_SWEEP_ENGINE_CAP',
@@ -320,9 +333,10 @@ function sweepBrep(section: Shape, spine: Shape, opts?: SweepOptions): Shape {
     const last = facts.edges[facts.edges.length - 1]!
     // C1 的期望值用**净面积**（带孔面 = 外环 − 孔环）：孔环被 cut 掉，实心面积会高估。
     const netArea = areaOfProfileFace(api, sectionHandle) ?? areaOfProfileWire(api, rings[0]!.wrapped)
-    // C2 的前提是「能找到平面端面 + 外法向」：smlib 的 shapeOrientation 是 unsupported，
-    // 端面法向在那里量不出真值 —— 宁可**明确跳过**，也不拿默认 'forward' 猜。
-    const capsAvailable = engineId === 'occt' && strategy !== 'closed'
+    // C2 的前提是「能找到平面端面 + 外法向」。C2 只用 |dot|，所以它不需要
+    // `shapeOrientation` 的真值（smlib 未实现它）—— 只要 `surfaceType` / `uvBounds` /
+    // `surfaceNormal` 能读数（occt + smlib 都有）。brepkit 的面积/法向读数不可靠，不判。
+    const capsAvailable = (engineId === 'occt' || engineId === 'smlib') && strategy !== 'closed'
     const caps = !capsAvailable
       ? undefined
       : [

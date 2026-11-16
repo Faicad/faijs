@@ -348,8 +348,11 @@ function bboxContains(b: BoxLike, p: BrepVec3, eps: number): boolean {
  * bbox 都含它（端面 + 两个侧面），取第一个会随机拿到侧面，于是 90° 的假失败。
  * 判据要问的是「有没有一个面朝着切向」，所以候选必须全取回来再挑。
  *
- * 方向修正不能省：`surfaceNormal` 不保证外法向，`shapeOrientation === 'reversed'`
- * 时必须取反，否则判据对每个端面都有 50% 概率掷骰子。
+ * 方向修正：occt 的 `surfaceNormal` 不保证外法向，`shapeOrientation === 'reversed'`
+ * 时取反。**读不到朝向的引擎（smlib 的 `shapeOrientation` 是 unsupported）不能因此
+ * 整面丢弃** —— C2 判的是 `|dot|`，法向整体取反不改变结论；朝向读不出来时保留原法向
+ * 即可。（曾经的实现把 `shapeOrientation` 放在同一个 try 里，smlib 上每个面都在
+ * 第一行抛错被跳过 ⇒ normals 恒空 ⇒ C2 静默失效。）
  */
 function planarNormalsNear(
   api: BrepEngineApi,
@@ -365,9 +368,13 @@ function planarNormalsNear(
       const uv = api.uvBounds(face)
       const n = api.surfaceNormal(face, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
       if (Math.hypot(n.x, n.y, n.z) < 1e-12) continue
-      out.push(
-        String(api.shapeOrientation(face)).toLowerCase() === 'reversed' ? { x: -n.x, y: -n.y, z: -n.z } : n,
-      )
+      let reversed = false
+      try {
+        reversed = String(api.shapeOrientation(face)).toLowerCase() === 'reversed'
+      } catch {
+        // 引擎未实现朝向查询：保留原法向（C2 用 |dot|，符号无关）。
+      }
+      out.push(reversed ? { x: -n.x, y: -n.y, z: -n.z } : n)
     } catch {
       continue
     }

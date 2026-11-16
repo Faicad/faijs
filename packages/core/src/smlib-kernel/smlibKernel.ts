@@ -845,10 +845,18 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       return c as unknown as BrepHandle
     },
     makeCircleArc(center: BrepVec3, normal: BrepVec3, radius: number, startAngle: number, endAngle: number): BrepHandle {
+      // ⚠️ 单位契约：L1 `makeCircleArc`（`brep/engine/primitives.ts:273`）收**弧度**
+      // （语义锚 = occt `makeCircleArc`），而内核 `smw_make_arc` 只认**度**。曾经的实现
+      // 直接把入参当度喂内核 —— 因为当时唯一的调用方（探针）按度写，错误被掩盖；
+      // 一旦 `cad.circleArc` 走 L1 进来（0..2π 作 0..90° 解释），弧会退化成一个点。
+      // 这里统一在适配器边界换算，调用方永远只说弧度。
+      const RAD2DEG = 180 / Math.PI
+      const startDeg = startAngle * RAD2DEG
+      const sweepDeg = (endAngle - startAngle) * RAD2DEG
       // circlePlacementMatrix 的局部 X = 世界 +X 投影 ⇒ 角度零补偿，直接喂世界角。
-      // 跨度必须保留符号（`endAngle − startAngle`，CCW 为正），只把越界值整体平移 360。
-      const norm360 = ((startAngle % 360) + 360) % 360
-      const [a0, a1] = arcAnglePair(norm360, endAngle - startAngle)
+      // 跨度必须保留符号（`endDeg − startDeg`，CCW 为正），只把越界值整体平移 360。
+      const norm360 = ((startDeg % 360) + 360) % 360
+      const [a0, a1] = arcAnglePair(norm360, sweepDeg)
       const c = track(k.makeArc([0, 0, 0], radius, a0, a1))
       k.transformMatrix(c as never, circlePlacementMatrix(center, normal))
       return c as unknown as BrepHandle
@@ -955,6 +963,19 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       const n = shape as unknown as number
       if (isSynthetic(n)) {
         // 合成 wire：1D 曲线无三角载荷，短路返回空网格。
+        return {
+          positions: new Float32Array(0),
+          normals: new Float32Array(0),
+          indices: new Uint32Array(0),
+          vertexCount: 0,
+          triangleCount: 0,
+        }
+      }
+      const kind = k.kindOf(n)
+      if (kind === SmwKind.Curve || kind === SmwKind.Edge) {
+        // 1D 句柄没有三角载荷（与合成 wire 同口径）。这里必须短路：`cad.circleArc` /
+        // `cad.edge` 的产物经 `solidToShape` 收养时会调 `meshShape`，真进
+        // `smw_tessellate` 会报 `not a live solid id`（2026-11-16 实测，S8/S9）。
         return {
           positions: new Float32Array(0),
           normals: new Float32Array(0),

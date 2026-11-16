@@ -7,8 +7,8 @@
  * 1. 直线 + 圆弧混合组装：3 条边 → wire（isWire、总长 = 各边长之和）；
  * 2. `closed` 三态：缺省（开链合法）/ true + 闭合链（通过）/ true + 开链
  *    （E_WIRE_FROM_EDGES_NOT_CLOSED）；
- * 3. 错误码：E_WIRE_FROM_EDGES_TOO_FEW（<2 条）/ E_WIRE_FROM_EDGES_NO_BREP
- *    （入参无 BREP 句柄）——TS 级直连；
+ * 3. 错误码：E_WIRE_FROM_EDGES_TOO_FEW（空列表）/ E_WIRE_FROM_EDGES_NO_BREP
+ *    （入参无 BREP 句柄）——TS 级直连（单条边自 2026-11-14 起合法，不再算 TOO_FEW）；
  * 4. 下游 sweep 消费：wireFromEdges 产物作 spine，扫掠体 volume>0
  *    （1D 产物可消费契约，§2.1 ②）。
  *
@@ -106,8 +106,12 @@ describe('cad.wireFromEdges — 边列表 → wire（E2，中立 op）', () => {
     expect(JSON.stringify(result.failedAt)).toMatch(/E_WIRE_FROM_EDGES_NOT_CLOSED/)
   })
 
-  it('TS 级直连：单条边 → E_WIRE_FROM_EDGES_TOO_FEW', async () => {
-    await expect(wireFromEdges([{} as never])).rejects.toThrow(/E_WIRE_FROM_EDGES_TOO_FEW/)
+  it('TS 级直连：空列表 → E_WIRE_FROM_EDGES_TOO_FEW', async () => {
+    await expect(wireFromEdges([] as never[])).rejects.toThrow(/E_WIRE_FROM_EDGES_TOO_FEW/)
+  })
+
+  it('TS 级直连：单条边合法（2026-11-14 起下限放宽到 1），无 BREP 才报错', async () => {
+    await expect(wireFromEdges([{} as never])).rejects.toThrow(/E_WIRE_FROM_EDGES_NO_BREP/)
   })
 
   it('TS 级直连：入参无 BREP 句柄 → E_WIRE_FROM_EDGES_NO_BREP', async () => {

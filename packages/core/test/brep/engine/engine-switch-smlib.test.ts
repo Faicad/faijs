@@ -183,9 +183,10 @@ w0.keep()
         `  curve t[${t0.toFixed(3)},${t1.toFixed(3)}] start=${fmt(p0)} tan0=${fmt(d0)} | end=${fmt(p1)} tan1=${fmt(d1)}`,
       )
     }
-    // 对照：makeCircleArc（同一圆心 (3,-2) r=2，270°→0°）应画 (3,-4)→(5,-2)。
+    // 对照：makeCircleArc（同一圆心 (3,-2) r=2，270°→360°）应画 (3,-4)→(5,-2)。
+    // ⚠️ L1 `makeCircleArc` 收**弧度**（2026-11-16 修正了 smlib 适配器把它当度的错误）。
     {
-      const c2 = prim.makeCircleArc(p(3, -2, 0), p(0, 0, 1), 2, 270, 360)
+      const c2 = prim.makeCircleArc(p(3, -2, 0), p(0, 0, 1), 2, (270 * Math.PI) / 180, 2 * Math.PI)
       const pr = prim.curveParameters(c2)
       const s0 = prim.curvePointAtParam(c2, pr.first)
       const s1 = prim.curvePointAtParam(c2, pr.last)

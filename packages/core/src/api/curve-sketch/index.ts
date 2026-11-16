@@ -81,36 +81,34 @@ function curveHandleOf(shape: Shape, op: string): BrepHandle {
 // edge — 顶点对构造边（occt 原生 makeEdge；顶点可来自 vertex Shape 或 [x,y,z]）
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 顶点入参：vertex Shape 或 [x,y,z] 点（内部经契约 makeVertex 物化）。 */
-function vertexHandleOf(v: Shape | Vec3, op: string): BrepHandle {
-  if (Array.isArray(v)) {
-    const p = toVec3(v, op, 'vertex')
-    return getBrepApi().makeVertex(p.x, p.y, p.z) as unknown as BrepHandle
-  }
-  return curveHandleOf(v, op)
+/** 顶点入参 → 位置点：`[x,y,z]` 直接用；vertex Shape 取 `vertexPosition`（不物化顶点）。 */
+function vertexPointOf(v: Shape | Vec3, op: string, which: string): { x: number; y: number; z: number } {
+  if (Array.isArray(v)) return toVec3(v, op, which)
+  const h = curveHandleOf(v, op)
+  const p = getBrepApi().vertexPosition(h)
+  return { x: p.x, y: p.y, z: p.z }
 }
 
-/** BREP 路径：顶点对 → occt 原生 makeEdge。 */
+/** BREP 路径：顶点对 → L1 `makeLineEdge`（引擎中立，不再要求内核有 makeEdge(v,v)）。 */
 function edgeBrep(v1: Shape | Vec3, v2: Shape | Vec3): Shape {
   if (v1 === undefined || v2 === undefined) {
     throw new Error('E_EDGE_MISSING_VERTEX: edge requires two vertices (vertex Shape or [x,y,z])')
   }
-  const h1 = vertexHandleOf(v1, 'edge')
-  const h2 = vertexHandleOf(v2, 'edge')
-  const handle = getOcctKernel().makeEdge(h1 as never, h2 as never) as unknown as BrepHandle
+  const p1 = vertexPointOf(v1, 'edge', 'vertex1')
+  const p2 = vertexPointOf(v2, 'edge', 'vertex2')
+  const handle = getBrepApi().makeLineEdge(p1 as never, p2 as never) as unknown as BrepHandle
   return adoptCurve(handle)
 }
 
 /**
- * 两顶点构造边。顶点入参可以是 vertex Shape，也可以是 `[x,y,z]` 点
- * （点经 `makeVertex` 物化成顶点再配边）。
+ * 两顶点构造边。顶点入参可以是 vertex Shape，也可以是 `[x,y,z]` 点。
  * @group 创建
  * @inputs 2
  * @async false
  * @qual ok
  * @name edge
- * @note 平台 op：仅 occt 引擎（原生 makeEdge，L1 契约只有 makeLineEdge 等按几何构造）。
- *       非 occt 引擎执行前报错；brep_mock 不拦截。
+ * @note 中立 op：L1 `makeLineEdge`（顶点 Shape 经 `vertexPosition` 取值，不物化顶点 ——
+ *       smlib 没有 `makeVertex`）。occt 上等价于旧的 `makeEdge(v,v)`，几何一致。
  * @returns Shape 1D 直线边（kind:'curve'）。
  * @param v1 - 第一个顶点（vertex Shape 或 [x,y,z]）。type:Shape|Vec3 required:true
  * @param v2 - 第二个顶点（vertex Shape 或 [x,y,z]）。type:Shape|Vec3 required:true
@@ -122,7 +120,7 @@ export const edge = defineOp({
   brep(v1: Shape | Vec3, v2: Shape | Vec3) {
     return edgeBrep(v1, v2)
   },
-  engines: ['occt'],
+  engines: ['occt', 'smlib'],
   naming: { kind: 'unmodeled', reason: '1D edge has no face role vocabulary' } as Provenance,
 
   paramDims: {},
@@ -132,7 +130,7 @@ export const edge = defineOp({
 // circleArc — 圆心+法向+半径+起止角（度）构造圆弧
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** BREP 路径：occt 原生 makeCircleArc（角度内部换算弧度）。 */
+/** BREP 路径：L1 `makeCircleArc`（引擎中立；入参弧度，脚本面度 → 弧度在此换算）。 */
 function circleArcBrep(
   center: Vec3,
   normal: Vec3,
@@ -151,7 +149,7 @@ function circleArcBrep(
   }
   const c = toVec3(center, 'circleArc', 'center')
   const n = toNonZeroVec3(normal, 'circleArc', 'normal')
-  const handle = getOcctKernel().makeCircleArc(
+  const handle = getBrepApi().makeCircleArc(
     c as never, n as never, radius, startAngleDeg * DEG2RAD, endAngleDeg * DEG2RAD,
   ) as unknown as BrepHandle
   return adoptCurve(handle)
@@ -164,8 +162,8 @@ function circleArcBrep(
  * @async false
  * @qual ok
  * @name circleArc
- * @note 平台 op：仅 occt 引擎（原生 makeCircleArc）。角度单位是**度**（内部换算弧度
- *       传给 occt 的 Geom_TrimmedCurve）。
+ * @note 中立 op：L1 `makeCircleArc`（occt 原生 Geom_TrimmedCurve / smlib `smw_make_arc`）。
+ *       角度单位是**度**（内部换算弧度传给引擎）。
  * @returns Shape 1D 圆弧（kind:'curve'）。
  * @param center - 圆心 [x,y,z]。type:Vec3 required:true
  * @param normal - 圆面法向 [x,y,z]（非零）。type:Vec3 required:true
@@ -181,7 +179,7 @@ export const circleArc = defineOp({
   brep(center: Vec3, normal: Vec3, radius: number, startAngleDeg: number, endAngleDeg: number) {
     return circleArcBrep(center, normal, radius, startAngleDeg, endAngleDeg)
   },
-  engines: ['occt'],
+  engines: ['occt', 'smlib'],
   naming: { kind: 'unmodeled', reason: '1D arc has no face role vocabulary' } as Provenance,
 })
 

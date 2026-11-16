@@ -146,7 +146,7 @@ const a = cad.circleArc([0,0,0], [0,0,1], 5, 0, 90)
 
 **同步**。Shape 1D 圆弧（kind:'curve'）。
 
-> 平台 op：仅 occt 引擎（原生 makeCircleArc）。角度单位是**度**（内部换算弧度 传给 occt 的 Geom_TrimmedCurve）。
+> 中立 op：L1 `makeCircleArc`（occt 原生 Geom_TrimmedCurve / smlib `smw_make_arc`）。角度单位是**度**（内部换算弧度传给引擎）。
 
 ### 3.4 `cone` ✅
 
@@ -258,7 +258,7 @@ const s = cad.dxfExtrude({ dxf: 'logo.dxf', depth: 5, targetLongSide: 20, faceCe
 > faceCenter 只有 BREP 实现：mesh 几何上传 faceCenter 会显式报错（不静默忽略）。不给 faceCenter 时保持历史行为（XY 居中、Z 底部对齐原点）。
 
 ### 3.9 `edge` ✅
-
+两顶点构造边。顶点入参可以是 vertex Shape，也可以是 `[x,y,z]` 点（vertex Shape 经 `vertexPosition` 取值，不物化顶点）。
 两顶点构造边。顶点入参可以是 vertex Shape，也可以是 `[x,y,z]` 点 （点经 `makeVertex` 物化成顶点再配边）。
 
 ```js
@@ -272,7 +272,7 @@ const e = cad.edge([0,0,0], [10,0,0])
 
 **同步**。Shape 1D 直线边（kind:'curve'）。
 
-> 平台 op：仅 occt 引擎（原生 makeEdge，L1 契约只有 makeLineEdge 等按几何构造）。 非 occt 引擎执行前报错；brep_mock 不拦截。
+> 中立 op：L1 `makeLineEdge`（顶点 Shape 经 `vertexPosition` 取值，不物化顶点 —— smlib 没有 `makeVertex`）。occt 上等价于旧的 `makeEdge(v,v)`，几何一致。
 
 ### 3.10 `ellipseArc` ✅
 
@@ -942,7 +942,7 @@ const w = cad.wireFromEdges([e1, e2])
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `edges` | `Shape[]` | ✅ | — | 有序边 Shape 列表（`cad.edge` / `cad.circleArc` / `cad.tangentArc` 等产物），至少 2 条 |
+| `edges` | `Shape[]` | ✅ | — | 有序边 Shape 列表（`cad.edge` / `cad.circleArc` / `cad.tangentArc` 等产物），至少 1 条（单边合法，2026-11-14 放宽） |
 | `closed` | `boolean` |  | false 开链合法）。type:boolean required:false | 要求闭合链（组装后校验首尾相连，不闭合抛 E_WIRE_FROM_EDGES_NOT_CLOSED |
 
 **同步**。Shape 1D 曲线（kind:'curve'）。
