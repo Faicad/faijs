@@ -90,13 +90,13 @@ function polyline(steps: number): string {
 describe('S 策略矩阵：脊柱事实 → 路线 → 体积', () => {
   it('S1. 单边真弧 → single → 1.0000', async () => {
     expect((await strategyOf(`cad.wireFromEdges([${ARC}])`)).strategy).toBe('single')
-    const v = await volume(`let sec = ${SEC}\nlet sp = cad.wireFromEdges([${ARC}])\nlet part2 = cad.sweepAlong(sec, sp)\n`)
+    const v = await volume(`let sec = ${SEC}\nlet sp = cad.wireFromEdges([${ARC}])\nlet part2 = cad.sweep(sec, sp)\n`)
     expect(v / (AREA * ARC_LEN)).toBeCloseTo(1, 3)
   })
 
   it('S2. 折线 4 段 → miter → ≥ 0.99（斜接，不是平移塌陷的 2/π）', async () => {
     expect((await strategyOf(polyline(4))).strategy).toBe('miter')
-    const v = await volume(`let sec = ${SEC}\nlet sp = ${polyline(4)}\nlet part2 = cad.sweepAlong(sec, sp)\n`)
+    const v = await volume(`let sec = ${SEC}\nlet sp = ${polyline(4)}\nlet part2 = cad.sweep(sec, sp)\n`)
     const ratio = v / (AREA * ARC_LEN)
     expect(ratio).toBeGreaterThan(0.99)
     // 旧默认（transformed）在同一条脊柱上是 0.6366 = 2/π —— 差距必须可见。
@@ -105,34 +105,34 @@ describe('S 策略矩阵：脊柱事实 → 路线 → 体积', () => {
 
   it('S3. 折线 16 段 → miter → ≥ 0.995（采样越密越接近解析值）', async () => {
     expect((await strategyOf(polyline(16))).strategy).toBe('miter')
-    const v = await volume(`let sec = ${SEC}\nlet sp = ${polyline(16)}\nlet part2 = cad.sweepAlong(sec, sp)\n`)
+    const v = await volume(`let sec = ${SEC}\nlet sp = ${polyline(16)}\nlet part2 = cad.sweep(sec, sp)\n`)
     expect(v / (AREA * ARC_LEN)).toBeGreaterThan(0.995)
   })
 
   it('S4. 混合边类型全 G1（弧 + 相切直腿）→ segments → 1.0000', async () => {
     const spine = `cad.wireFromEdges([${ARC},cad.edge([0,-20,0],[0,-20,-10])])`
     expect((await strategyOf(spine)).strategy).toBe('segments')
-    const v = await volume(`let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweepAlong(sec, sp)\n`)
+    const v = await volume(`let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweep(sec, sp)\n`)
     expect(v / (AREA * (ARC_LEN + 10))).toBeCloseTo(1, 3)
   })
 
   it('S5. 闭合整圆 → closed → 环面体积 = 面积 × 周长', async () => {
     const spine = 'cad.wireFromEdges([cad.circleArc([0,0,0],[0,0,1],10,0*DEGREE,360*DEGREE)])'
     expect((await strategyOf(spine)).strategy).toBe('closed')
-    const v = await volume(`let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweepAlong(sec, sp)\n`)
+    const v = await volume(`let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweep(sec, sp)\n`)
     expect(v / (AREA * 2 * Math.PI * 10)).toBeCloseTo(1, 2)
   })
 
   it('S6. 截面没落在路径上（截面在原点、脊柱在 z=90）→ 默认仍精确（autoPlace 默认开）', async () => {
     const v = await volume(
-      `let sec = ${SEC}\nlet sp = cad.wire([[0,0,90],[0,50,90]])\nlet part2 = cad.sweepAlong(sec, sp)\n`,
+      `let sec = ${SEC}\nlet sp = cad.wire([[0,0,90],[0,50,90]])\nlet part2 = cad.sweep(sec, sp)\n`,
     )
     expect(v / (AREA * 50)).toBeCloseTo(1, 3)
     // 关掉落位就退化成「管留在原点」：体积仍对、位置错 —— 所以落位是默认行为。
     const r = await exec(
       'brep',
       `let sec = ${SEC}\nlet sp = cad.wire([[0,0,90],[0,50,90]])\n` +
-        `let part2 = cad.sweepAlong(sec, sp, { autoPlace: false })\n`,
+        `let part2 = cad.sweep(sec, sp, { autoPlace: false })\n`,
     )
     if (!r.failedAt) {
       const s = r.outputs.get(asPartName('part2')) as Shape
@@ -146,7 +146,7 @@ describe('S 策略矩阵：脊柱事实 → 路线 → 体积', () => {
       `cad.sketch({ plane: 'XY', shapes: [` +
       `{ kind: 'circle', r: 8, cx: 0, cy: 0, tag: 'o' },` +
       `{ kind: 'circle', r: 4, cx: 0, cy: 0, tag: 'i', mode: 's' }], constraints: [] })`
-    const v = await volume(`let sec = ${ring}\nlet sp = cad.wire([[0,0,0],[0,0,30]])\nlet part2 = cad.sweepAlong(sec, sp)\n`)
+    const v = await volume(`let sec = ${ring}\nlet sp = cad.wire([[0,0,0],[0,0,30]])\nlet part2 = cad.sweep(sec, sp)\n`)
     expect(v / (Math.PI * (64 - 16) * 30)).toBeCloseTo(1, 3)
   })
 })
@@ -155,7 +155,7 @@ describe('R 硬拒绝：物理上无解的脊柱在扫之前就失败，且给�
   async function rejection(spineExpr: string, opts = ''): Promise<{ code?: string; message: string }> {
     const r = await exec(
       'brep',
-      `let sec = ${SEC}\nlet sp = ${spineExpr}\nlet part2 = cad.sweepAlong(sec, sp${opts})\n`,
+      `let sec = ${SEC}\nlet sp = ${spineExpr}\nlet part2 = cad.sweep(sec, sp${opts})\n`,
     )
     if (!r.failedAt) throw new Error('expected a rejection, got success')
     return { code: r.failedAt.code, message: String(r.failedAt.message ?? '') }
@@ -194,7 +194,7 @@ describe('R 硬拒绝：物理上无解的脊柱在扫之前就失败，且给�
   it('R5. 强制 segments 走折线：接缝留 V 形缺口，体积掉到 0.89 左右（错误值钉桩）', async () => {
     // 这就是为什么 auto 对有折角的脊柱选 miter 而不是 segments。
     const v = await volume(
-      `let sec = ${SEC}\nlet sp = ${polyline(16)}\nlet part2 = cad.sweepAlong(sec, sp, { strategy: 'segments', volumeTolerance: 0.5 })\n`,
+      `let sec = ${SEC}\nlet sp = ${polyline(16)}\nlet part2 = cad.sweep(sec, sp, { strategy: 'segments', volumeTolerance: 0.5 })\n`,
     )
     const ratio = v / (AREA * ARC_LEN)
     expect(ratio).toBeGreaterThan(0.85)

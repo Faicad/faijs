@@ -128,25 +128,30 @@ const ARC_2EDGES =
 /** 共线两段（G1 连续的最简多边 wire）。 */
 const COLLINEAR_2 = 'cad.wire([[0,0,0],[0,0,10],[0,0,20]])'
 
-const PIPE = (s: string, p: string): string => `let part2 = cad.pipe(${s}, ${p}, { volumeTolerance: 0.99 })`
+/** `MakePipe` 裸管线（2026-11-16 起公开面没有 `cad.pipe`，经 `sweepRaw` 的
+ * `mode:'simple'` 复现同一内核路径：K1c / K7 这类「内核到底会错成什么」的归因用例
+ * 必须走裸管线，走策略层会掩盖根因）。 */
+const PIPE = (s: string, p: string): string =>
+  `let part2 = cad.sweepRaw(${s}, ${p}, { mode: 'simple', volumeTolerance: 0.99 })`
 const SWEEP_DEFAULT = (s: string, p: string): string =>
-  `let part2 = cad.sweepAdvanced(${s}, ${p}, { volumeTolerance: 0.99 })`
+  `let part2 = cad.sweepRaw(${s}, ${p}, { volumeTolerance: 0.99 })`
 const sweepWith = (opts: string) => (s: string, p: string): string =>
-  `let part2 = cad.sweepAdvanced(${s}, ${p}, { ${opts}, volumeTolerance: 0.99 })`
+  `let part2 = cad.sweepRaw(${s}, ${p}, { ${opts}, volumeTolerance: 0.99 })`
 /**
  * 纯几何测量：体积容差放宽到 99% 且 `strict:false`（C2/C3 降为通知），
  * 只为了把「塌陷体到底多少体积」量出来，不让判据提前打断。
  * 判据本身的行为在 `sweep-guard.test.ts` 里单独钉。
  */
 const RAW = (opts: string) => (s: string, p: string): string =>
-  `let part2 = cad.sweepAdvanced(${s}, ${p}, { ${opts}, volumeTolerance: 0.99, strict: false })`
+  `let part2 = cad.sweepRaw(${s}, ${p}, { ${opts}, volumeTolerance: 0.99, strict: false })`
 
 describe('K1 内核能力：G1 连续脊柱，所有入口都精确（OCCT 对三维曲线扫掠是完备的）', () => {
-  it('K1a. 单段真弧：pipe / sweepAdvanced 默认 / frenet 全部 = 面积 × 弧长', async () => {
+  it('K1a. 单段真弧：sweepRaw 默认 / frenet 全部 = 面积 × 弧长', async () => {
     await useOcct()
     const analytic = AREA * ARC_LEN
+    // `cad.pipe` 已删除（2026-11-16）：它曾经是「MakePipe + face 截面」这个组合的唯一入口，
+    // 单段真弧上精确。现在公开面只留 `sweep`，内核对照面走 `sweepRaw`。
     for (const [label, stmt] of [
-      ['pipe', PIPE],
       ['sweepAdvanced {}', SWEEP_DEFAULT],
       ['frenet', sweepWith(`frenet: true`)],
       ['orientation:frenet', sweepWith(`orientation: 'frenet'`)],
@@ -164,7 +169,7 @@ describe('K1 内核能力：G1 连续脊柱，所有入口都精确（OCCT 对�
   it('K1b. 同一条弧切成 2 段（G1 接缝）→ 仍然精确（多边 wire 本身不是问题）', async () => {
     await useOcct()
     const analytic = AREA * ARC_LEN
-    const m = expectOk(await measure(ARC_2EDGES, PIPE))
+    const m = expectOk(await measure(ARC_2EDGES, SWEEP_DEFAULT))
     expect(Math.abs(m.volume - analytic) / analytic).toBeLessThan(1e-3)
     // 面数从 3 涨到 4：接缝被各扫一段，但几何依旧正确。
     expect(m.faces).toBeGreaterThanOrEqual(4)
@@ -177,16 +182,13 @@ describe('K1 内核能力：G1 连续脊柱，所有入口都精确（OCCT 对�
       `cad.wireFromEdges([cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE),cad.edge([0,-20,0],[0,-20,${-len}])])`
     const analytic = (len: number): number => AREA * (ARC_LEN + len)
 
-    // MakePipe（`mode:'simple'`）在这类脊柱上怎么给都不对：曾经测到 V = A×(弧长 − 腿长)，
-    // 换一种截面位置又变成别的错值 —— 所以 `cad.pipe` 现在**扫之前**就按脊柱事实拒绝
-    // （见 sweep-hollow-pipe P2g2），不再让体积守卫事后猜。
+    // MakePipe（`mode:'simple'`，`sweepRaw` 逃生口）在这类脊柱上怎么给都不对：曾经测到
+    // V = A×(弧长 − 腿长)，换一种截面位置又变成别的错值。`cad.pipe` 删除之后这条内核事实
+    // 只剩 `sweepRaw` 能复现；公开面 `cad.sweep` 会在策略层把它接到 `single`/`segments`。
     for (const len of [5, 10]) {
       const m = expectOk(await measure(spine(len), RAW(`mode: 'simple'`)))
       expect(Math.abs(m.volume - analytic(len)) / analytic(len), `MakePipe len=${len}`).toBeGreaterThan(0.1)
     }
-    const viaPipe = await measure(spine(10), PIPE)
-    expect('error' in viaPipe).toBe(true)
-    expect(String((viaPipe as { error: string }).error)).toMatch(/cannot be swept by MakePipe|mixes edge kinds/)
 
     // 另一条错值（同一条脊柱、同一入口，只差截面落位）：sweepFull 在**未落位**时给出
     // A×(弧长 − 腿长) —— 这才是「混合边类型丢体积」的真正来历，错的是落位不是内核。
@@ -194,14 +196,14 @@ describe('K1 内核能力：G1 连续脊柱，所有入口都精确（OCCT 对�
     expect(unplaced.volume / AREA).toBeCloseTo(ARC_LEN - 10, 1)
 
     // 正确值：sweepAlong（先落位再扫）精确，且 bbox 含整条腿。
-    const seg = expectOk(await measure(spine(10), (s2, p2) => `let part2 = cad.sweepAlong(${s2}, ${p2}, { volumeTolerance: 0.99 })`))
+    const seg = expectOk(await measure(spine(10), (s2, p2) => `let part2 = cad.sweep(${s2}, ${p2}, { volumeTolerance: 0.99 })`))
     expect(seg.volume / analytic(10)).toBeCloseTo(1, 3)
     expect(seg.size[2]).toBeCloseTo(26, 0)
   })
 
   it('K1d. 共线两段（最简多边 wire）→ 精确', async () => {
     await useOcct()
-    const m = expectOk(await measure(COLLINEAR_2, PIPE))
+    const m = expectOk(await measure(COLLINEAR_2, SWEEP_DEFAULT))
     expect(m.volume).toBeCloseTo(AREA * 20, 0)
     expect(m.size[2]).toBeCloseTo(20, 1)
   })
@@ -214,7 +216,7 @@ describe('K1 内核能力：G1 连续脊柱，所有入口都精确（OCCT 对�
       `{ kind: 'circle', r: 4, cx: 0, cy: 0, tag: 'i', mode: 's' }], constraints: [] })`
     const code =
       `let sec = ${ring}\nlet sp = cad.wire([[0,0,0],[0,0,20]])\n` +
-      `let part2 = cad.pipe(sec, sp, { volumeTolerance: 0.99 })\n`
+      `let part2 = cad.sweep(sec, sp, { volumeTolerance: 0.99 })\n`
     const r = await exec('brep', code)
     expect(r.failedAt).toBeFalsy()
     const out = r.outputs.get(asPartName('part2')) as Shape
@@ -250,7 +252,7 @@ describe('K2 transitionMode=transformed：G0 折线脊柱退化为「平移塌�
     // 对照：不指定 transitionMode（= auto）时自动斜接。同一脊柱在**落位后**才精确
     // （未落位仍有 4.3% 偏差，见 K6b —— 斜接的前提是管心压在路径上）。
     const auto = expectOk(
-      await measure(POLY_4, (s2, p2) => `let part2 = cad.sweepAlong(${s2}, ${p2}, { volumeTolerance: 0.99 })`),
+      await measure(POLY_4, (s2, p2) => `let part2 = cad.sweep(${s2}, ${p2}, { volumeTolerance: 0.99 })`),
     )
     // 0.9936 而不是 1.0000：POLY_4 是 4 段弦，弦长比弧长本身短 0.64%，属期望内。
     expect(auto.volume / (AREA * ARC_LEN)).toBeCloseTo(0.9936, 3)
@@ -329,7 +331,7 @@ describe('K4 体积守卫的盲区：浅折角塌陷在 5% 阈值内 —— 这�
     // (b) 默认判据下必须**拒**：C2 用 1° 的端面法向把它抓出来。
     const r = await exec(
       'brep',
-      `let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweepAdvanced(sec, sp, { ${TRANSFORMED} })\n`,
+      `let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweepRaw(sec, sp, { ${TRANSFORMED} })\n`,
     )
     expect(r.failedAt).toBeTruthy()
     expect(r.failedAt?.code).toBe('E_SWEEP_CAP_NORMAL')
@@ -350,7 +352,7 @@ describe('K4 体积守卫的盲区：浅折角塌陷在 5% 阈值内 —— 这�
       expect(observed, `${deg}° volume deviation`).toBeCloseTo(rel, 2)
       const r = await exec(
         'brep',
-        `let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweepAdvanced(sec, sp, { ${TRANSFORMED} })\n`,
+        `let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweepRaw(sec, sp, { ${TRANSFORMED} })\n`,
       )
       expect(r.failedAt, `${deg}° must be rejected`).toBeTruthy()
     }
@@ -449,10 +451,10 @@ describe('K6 多拐角折线：rightCorner 是唯一可用的一调用解，roun
     ] as [number, number, number][]) {
       const spine = arcPoints(steps)
       const seg = expectOk(
-        await measure(spine, (s2, p2) => `let part2 = cad.sweepAlong(${s2}, ${p2}, { strategy: 'segments', volumeTolerance: 0.99 })`),
+        await measure(spine, (s2, p2) => `let part2 = cad.sweep(${s2}, ${p2}, { strategy: 'segments', volumeTolerance: 0.99 })`),
       )
       const auto = expectOk(
-        await measure(spine, (s2, p2) => `let part2 = cad.sweepAlong(${s2}, ${p2}, { volumeTolerance: 0.99 })`),
+        await measure(spine, (s2, p2) => `let part2 = cad.sweep(${s2}, ${p2}, { volumeTolerance: 0.99 })`),
       )
       // 逐段圆管在折角只并到 0.88–0.90：这就是策略层不能拿 segments 处理折角的原因。
       expect(seg.volume / (AREA * ARC_LEN), `forced segments poly${steps}`).toBeCloseTo(segRatio, 3)
@@ -465,7 +467,7 @@ describe('K6 多拐角折线：rightCorner 是唯一可用的一调用解，roun
 
 describe('K7 union 在扫掠实体上是健康的：共面接缝并得干净，「少一块」是 180° 折返（B ⊂ A）', () => {
   const pipeA = (pts: string): string =>
-    `cad.sweepAlong(sec, cad.wire(${pts}), { volumeTolerance: 0.99 })`
+    `cad.sweep(sec, cad.wire(${pts}), { volumeTolerance: 0.99 })`
 
   it('K7a. 共面同向接缝（0→10 与 10→20 沿 +Z）：union = 两块相加，接缝面被并掉', async () => {
     await useOcct()
@@ -527,7 +529,7 @@ describe('K8 闭合脊柱（探针）：内核能否一次扫出环面', () => {
 
   it('K8a. sweepAdvanced 一次扫闭合脊柱：体积 = 面积 × 周长（若成立 ⇒ closed 可实现）', async () => {
     await useOcct()
-    const code = `let sec = ${SEC_AT_START}\nlet sp = ${SPINE}\nlet part2 = cad.sweepAdvanced(sec, sp, { orientation: 'frenet' })\n`
+    const code = `let sec = ${SEC_AT_START}\nlet sp = ${SPINE}\nlet part2 = cad.sweepRaw(sec, sp, { orientation: 'frenet' })\n`
     const r = await exec('brep', code)
     if (r.failedAt) {
       // eslint-disable-next-line no-console

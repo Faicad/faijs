@@ -448,7 +448,7 @@ const CASES: Case[] = [
     name: 'sweepAdvanced',
     code:
       'const b = cad.box(1, 1, 1)\n' +
-      'const p = cad.sweepAdvanced(b, b, { orientation: "frenet" })',
+      'const p = cad.sweepRaw(b, b, { orientation: "frenet" })',
     category: 'expect-error',
     expectErrorRe: 'requires engine occt',
   },

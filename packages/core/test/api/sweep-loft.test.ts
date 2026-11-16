@@ -345,7 +345,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     const plain = await shapeOf('brep', PROFILE + 'let part2 = cad.sweep(part0, part1)\n', 'part2')
     const tapered = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { law: 'linear', lawLength: 50, lawEndFactor: 0.5 })\n",
+      PROFILE + "let part2 = cad.sweepRaw(part0, part1, { law: 'linear', lawLength: 50, lawEndFactor: 0.5 })\n",
       'part2',
     )
     const vPlain = volOf(plain)
@@ -361,12 +361,12 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const fixed = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { orientation: 'fixed' })\n",
+      PROFILE + "let part2 = cad.sweepRaw(part0, part1, { orientation: 'fixed' })\n",
       'part2',
     )
     const frenet = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { orientation: 'frenet' })\n",
+      PROFILE + "let part2 = cad.sweepRaw(part0, part1, { orientation: 'frenet' })\n",
       'part2',
     )
     // 直线脊柱无主法向变化 ⇒ 两模式同几何（体积一致）。
@@ -377,7 +377,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const s = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { transitionMode: 'roundCorner' })\n",
+      PROFILE + "let part2 = cad.sweepRaw(part0, part1, { transitionMode: 'roundCorner' })\n",
       'part2',
     )
     expect(Math.abs(volOf(s))).toBeGreaterThan(0)
@@ -387,7 +387,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const s = await shapeOf(
       'brep',
-      PROFILE + 'let part2 = cad.sweepAdvanced(part0, part1, { tol3d: 1e-6, boundTol: 1e-6, tolAngular: 1e-3 })\n',
+      PROFILE + 'let part2 = cad.sweepRaw(part0, part1, { tol3d: 1e-6, boundTol: 1e-6, tolAngular: 1e-3 })\n',
       'part2',
     )
     expect(Math.abs(volOf(s))).toBeCloseTo(3200, 0)
@@ -397,7 +397,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const result = await exec(
       'brep',
-      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { mode: 'simple', law: 'linear', lawLength: 50 })\n",
+      PROFILE + "let part2 = cad.sweepRaw(part0, part1, { mode: 'simple', law: 'linear', lawLength: 50 })\n",
     )
     expect(result.failedAt).toBeDefined()
     expect(JSON.stringify(result.failedAt)).toMatch(/E_SWEEP_MODE_CONFLICT/)
@@ -407,7 +407,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const result = await exec(
       'brep',
-      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { law: 'linear' })\n",
+      PROFILE + "let part2 = cad.sweepRaw(part0, part1, { law: 'linear' })\n",
     )
     expect(result.failedAt).toBeDefined()
     expect(JSON.stringify(result.failedAt)).toMatch(/E_SWEEP_LAW_NEEDS_LENGTH/)
@@ -417,7 +417,7 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const result = await exec(
       'brep',
-      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { orientation: 'sideways' })\n",
+      PROFILE + "let part2 = cad.sweepRaw(part0, part1, { orientation: 'sideways' })\n",
     )
     expect(result.failedAt).toBeDefined()
     expect(JSON.stringify(result.failedAt)).toMatch(/E_SWEEP_BAD_ORIENTATION/)
@@ -427,26 +427,26 @@ describe('sweep（S3）— 扩 sweepFull 完整控制面', () => {
     await useOcct()
     const okLegacy = await shapeOf(
       'brep',
-      PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { transitionMode: 'right' })\n",
+      PROFILE + "let part2 = cad.sweepRaw(part0, part1, { transitionMode: 'right' })\n",
       'part2',
     )
     expect(Math.abs(volOf(okLegacy))).toBeCloseTo(3200, 0)
-    const bad = await exec('brep', PROFILE + "let part2 = cad.sweepAdvanced(part0, part1, { transitionMode: 'left' })\n")
+    const bad = await exec('brep', PROFILE + "let part2 = cad.sweepRaw(part0, part1, { transitionMode: 'left' })\n")
     expect(bad.failedAt).toBeDefined()
     expect(JSON.stringify(bad.failedAt)).toMatch(/E_SWEEP_TRANSITION_UNSUPPORTED/)
   })
 
-  it('brepkit 引擎：sweepAdvanced（occt 平台 op）→ 执行前报 E_BREP_UNSUPPORTED（D11-4）', async () => {
+  it('brepkit 引擎：sweepRaw（occt 平台 op）→ 执行前报 E_BREP_UNSUPPORTED（D11-4）', async () => {
     await useBrepkit()
     const result = await exec(
       'brep',
-      NEUTRAL_INPUTS + "let part2 = cad.sweepAdvanced(part0, part1, { law: 'linear', lawLength: 10 })\n",
+      NEUTRAL_INPUTS + "let part2 = cad.sweepRaw(part0, part1, { law: 'linear', lawLength: 10 })\n",
     )
     expect(result.failedAt).toBeDefined()
-    expect(result.failedAt!.callee).toBe('sweepAdvanced')
+    expect(result.failedAt!.callee).toBe('sweepRaw')
     const msg = JSON.stringify(result.failedAt)
     expect(msg).toMatch(/E_BREP_UNSUPPORTED/)
-    expect(msg).toMatch(/op 'sweepAdvanced' requires engine occt/)
+    expect(msg).toMatch(/op 'sweepRaw' requires engine occt/)
     expect(msg).toMatch(/current=brepkit/)
   })
 })

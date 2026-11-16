@@ -40,8 +40,8 @@ export type { SketchOnPlaneParams, PlaneSpec } from './sketch-on-plane'
 export { wire } from './wire'
 export { helix } from './helix'
 export { split } from './split'
-export { sweep } from './sweep'
-export { sweepAdvanced, type SweepAdvancedOptions, type SweepOrientation, type SweepGuideContact, type SweepLawKind } from './sweep-advanced'
+export { sweep, type SweepOptions } from './sweep'
+export { sweepRaw, type SweepRawOptions, type SweepOrientation, type SweepGuideContact, type SweepLawKind } from './sweep-advanced'
 export { loft, type LoftOptions } from './loft'
 export { loftAdvanced, type LoftAdvancedOptions } from './loft-advanced'
 // S3（occt-wasm op 接入）：控制点阵 → B 样条面（平台 op engines:['occt']）。
@@ -70,8 +70,8 @@ export {
 // S4（occt-wasm op 接入）：曲面与面构造族（平台 op engines:['occt']，方案 §3.4.2）。
 export { faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire } from './surface-face'
 // S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
-export { draftPrism, pipe, sweepAlong } from './solid-offset'
-export type { PipeOptions, SweepAlongOptions } from './solid-offset'
+// 2026-11-16：`pipe` 删除、`sweepAlong` 并入 `sweep`、`sweepAdvanced` 改名 `sweepRaw`。
+export { draftPrism } from './solid-offset'
 // S4（occt-wasm op 接入）：测量与查询族（平台 op engines:['occt']，方案 §3.4.6）。
 export {
   containsPoint, distanceBetween, inertia, linearCenterOfMass,

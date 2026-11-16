@@ -7,8 +7,8 @@
  * 故每条处置都钉住「原生方法」与「现有脚本 op」的**等价证据**：
  *
  *   1. `cutAll`              → `cad.subtract(a,b,c)`（链式）/ `cad.boolean([a],[b,c],'cut')`
- *   2. `sweepAdvanced`       → `cad.sweepAdvanced(..., { …sweepFull 字段 })`（SweepFullOptions ⊇ SweepAdvancedOptions）
- *   3. `sweepOriented`       → `cad.sweepAdvanced(..., { orientation, up })`
+ *   2. `sweepAdvanced`       → `cad.sweepRaw(..., { …sweepFull 字段 })`（SweepFullOptions ⊇ SweepAdvancedOptions）
+ *   3. `sweepOriented`       → `cad.sweepRaw(..., { orientation, up })`
  *   4. `chamferAsymmetric`   → `cad.chamfer(..., { type:'twoDistances', width1, width2 })`
  *
  * 📌 2026-10-10 双引擎化后术语更新（方案 2026-10-10-sweep-loft-dual-engine-plan）：
@@ -198,7 +198,7 @@ describe('C4-2. sweepAdvanced / sweepOriented ⇒ sweepFull（脚本级 + 原生
         `{ kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },` +
         `{ kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },` +
         `] }] })\n` +
-        `let part2 = cad.sweepAdvanced(part1, part0, { orientation: 'fixed', withContact: true, withCorrection: true })\n`,
+        `let part2 = cad.sweepRaw(part1, part0, { orientation: 'fixed', withContact: true, withCorrection: true })\n`,
     )
     expect(r.failedAt).toBeUndefined()
     // 8×8 截面 × 50 长 = 3200

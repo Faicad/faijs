@@ -75,9 +75,10 @@ import {
 // （不在 L1 契约；bsplineSurface 已由 S3 的 surface op 覆盖）。
 import { faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire } from './surface-face'
 // S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
-// 直调 occt 原生 draftPrism/pipe（不在 L1 契约；offsetWire2D/buildSolidFromFaces/
-// halfSpace 已由 S3 落地）。
-import { draftPrism, pipe, sweepAlong } from './solid-offset'
+// 直调 occt 原生 draftPrism（不在 L1 契约；offsetWire2D/buildSolidFromFaces/
+// halfSpace 已由 S3 落地）。2026-11-16：`pipe` 已删除（其定义域是 sweep 的 single
+// 策略）、`sweepAlong` 并入 `sweep`。
+import { draftPrism } from './solid-offset'
 // S4（occt-wasm op 接入）：测量与查询族（平台 op engines:['occt']，方案 §3.4.6）。
 // 13 个原生方法不在 L1 契约：containsPoint/distanceBetween/getInertia/
 // getLinearCenterOfMass/projectPointOnEdge/projectPointOnFace/classifyPointOnFace/
@@ -99,7 +100,7 @@ import { alignTo } from './align'
 import { union, subtract, intersect, cut, fuse, setBooleanOperandValidation } from './boolean'
 import { split } from './split'
 import { sweep } from './sweep'
-import { sweepAdvanced } from './sweep-advanced'
+import { sweepRaw } from './sweep-advanced'
 import { loft } from './loft'
 import { loftAdvanced } from './loft-advanced'
 import { linearPattern } from './pattern'
@@ -180,13 +181,13 @@ export function createApiNamespace(): LibNamespace {
     defeature, reverseShape, unifySameDomain, sew, sewAndSolidify, removeHolesFromFace,
     union, subtract, intersect,
     extrude, revolve,
-    // Phase 4：手写扫掠 / 放样。**基础 op 两内核都支持**（进 L1 中立名
-    // BrepEngineApi#sweep / #loft）；只有 occt 能做的完整控制面拆成独立平台 op
-    // （engines:['occt']）：sweepAdvanced（transition/auxSpine/support/law/…）、
-    // loftAdvanced（startPoint/tolerance）。
+    // Phase 4：手写扫掠 / 放样。**sweep 是唯一公开扫掠入口**（三引擎，按引擎能力
+    // 分级：occt 全策略；smlib single/segments；brepkit single）。内核控制面
+    // （transition/auxSpine/support/law/…）留在 sweepRaw 逃生口（occt only）；
+    // loftAdvanced 同理（startPoint/tolerance）。
     // arg-spec 里 sweep 保留 brep-op（引擎记录）/ loft 为 skip，两者均不投脚本面，
     // 所以这里不是 override 而是唯一实现（同 extrude / revolve 口径）。
-    sweep, sweepAdvanced, loft, loftAdvanced,
+    sweep, sweepRaw, loft, loftAdvanced,
     // S3（occt-wasm op 接入）：控制点阵 → B 样条面（平台 op engines:['occt']）。
     surface,
     // S3（occt-wasm op 接入）：2D 轮廓偏置（平台 op engines:['occt']，原生 offsetWire2D）。
@@ -214,7 +215,7 @@ export function createApiNamespace(): LibNamespace {
     // S4（occt-wasm op 接入）：曲面与面构造族（平台 op engines:['occt']，方案 §3.4.2）。
     faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire,
     // S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
-    draftPrism, pipe, sweepAlong,
+    draftPrism,
     // S4（occt-wasm op 接入）：测量与查询族（平台 op engines:['occt']，方案 §3.4.6）。
     containsPoint, distanceBetween, inertia, linearCenterOfMass,
     projectPointOnEdge, projectPointOnFace, classifyPointOnFace,

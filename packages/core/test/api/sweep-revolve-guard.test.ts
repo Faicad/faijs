@@ -103,11 +103,14 @@ describe('sweep-guard · 扫掠体积对账', () => {
     expect(Math.abs(volumeOf(s) - 3200)).toBeLessThan(3200 * 0.005)
   })
 
-  it('A2. 折线脊柱（16 段近似 90° 圆弧）→ E_SWEEP_VOLUME_MISMATCH', async () => {
+  it('A2. 折线脊柱（16 段近似 90° 圆弧）+ 强制 single → E_SWEEP_VOLUME_MISMATCH', async () => {
     await useOcct()
+    // 2026-11-16 起 `cad.sweep` 会按脊柱事实自动选 miter（折角精确），所以「一次扫掠丢体积」
+    // 这条内核事实要靠 `strategy:'single'` 显式复现，否则守卫再也不会有机会说话。
     const result = await exec(
       'brep',
-      `${SQUARE_8}let part1 = cad.wire([${polylineArc(16)}])\nlet part2 = cad.sweep(part0, part1)\n`,
+      `${SQUARE_8}let part1 = cad.wire([${polylineArc(16)}])\n` +
+        `let part2 = cad.sweep(part0, part1, { strategy: 'single', strict: false })\n`,
     )
     expect(result.failedAt).toBeTruthy()
     expect(String(result.failedAt?.message ?? '')).toMatch(/swept volume does not match/i)
@@ -115,16 +118,29 @@ describe('sweep-guard · 扫掠体积对账', () => {
     expect(String(result.failedAt?.message ?? '')).toMatch(/polyline spine/i)
   })
 
-  it('A3. pipe 用 wire 截面（产壳）→ 守卫跳过，不得误报', async () => {
+  it('A2b. 同一折线脊柱走默认（auto → miter）→ 体积 = 面积 × 折线长，守卫放行', async () => {
+    await useOcct()
+    const s = await shapeOf(
+      'brep',
+      `${SQUARE_8}let part1 = cad.wire([${polylineArc(16)}])\nlet part2 = cad.sweep(part0, part1)\n`,
+      'part2',
+    )
+    // 64 × 90° 弧长 15.708（16 段折线弦长和 15.703，差 0.03%）——miter 在折角上保体积。
+    expect(Math.abs(volumeOf(s) - 64 * (10 * Math.PI) / 2)).toBeLessThan(64 * (10 * Math.PI) / 2 * 0.01)
+  })
+
+  it('A3. wire/edge 截面（整圆）→ 包成 wire 后产实体；C1 按环面积对账并通过', async () => {
     await useOcct()
     const s = await shapeOf(
       'brep',
       `let part0 = cad.circleArc([0,0,0],[0,1,0],2,0,360)\n` +
-        `let part1 = cad.wire([[0,0,0],[0,20,0]])\nlet part2 = cad.pipe(part0, part1)\n`,
+        `let part1 = cad.wire([[0,0,0],[0,20,0]])\nlet part2 = cad.sweep(part0, part1)\n`,
       'part2',
     )
-    // 壳：体积字段无意义；这里只断言"没有抛错、产物拿到"
-    expect(String(getBrepApi().shapeType(brepOf(s) as never)).toLowerCase()).toMatch(/shell/i)
+    // 2026-11-16：edge 截面先包成闭合 wire 再扫 ⇒ 实体（不再是 `MakePipe` 的壳），
+    // 所以 C1 这次是真的在算：πr² × 20 = 251.33，守卫必须放行而不是误报。
+    expect(String(getBrepApi().shapeType(brepOf(s) as never)).toLowerCase()).toMatch(/solid/i)
+    expect(Math.abs(volumeOf(s) - Math.PI * 4 * 20)).toBeLessThan(Math.PI * 4 * 20 * 0.02)
   })
 
   it('A4. 守卫前提：`getLength` 对真弧 wire 量的是弧长（15.708）而非弦长（14.142）', async () => {
@@ -156,15 +172,15 @@ describe('sweep-guard · 扫掠体积对账', () => {
     expect(Math.abs(volumeOf(s) - expected)).toBeLessThan(expected * 0.005)
   })
 
-  it('A5. 折线脊柱（40 段密采样）→ 仍然抛错（2/π 偏差不受采样密度影响）', async () => {
+  it('A5. 折线脊柱（40 段密采样）→ 默认 miter 精确，2/π 偏差不再出现', async () => {
     await useOcct()
-    const result = await exec(
+    const s = await shapeOf(
       'brep',
       `${SQUARE_8}let part1 = cad.wire([${polylineArc(40)}])\nlet part2 = cad.sweep(part0, part1)\n`,
+      'part2',
     )
-    expect(result.failedAt).toBeTruthy()
-    expect(String(result.failedAt?.message ?? '')).toMatch(/swept volume does not match/i)
-    expect(String(result.failedAt?.message ?? '')).toMatch(/2\/π/)
+    const expected = (64 * (10 * Math.PI)) / 2
+    expect(Math.abs(volumeOf(s) - expected)).toBeLessThan(expected * 0.01)
   })
 })
 

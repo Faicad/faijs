@@ -1,159 +1,476 @@
 /**
- * api sweep — 扫掠（基础）：截面沿脊柱路径生成扫掠体。**两内核都支持**。
+ * api sweep — 扫掠（**唯一公开入口**）：脊柱事实 → 策略 → 执行 → 判据
  *
- * 为什么不是 occt-only（方案 2026-10-10-sweep-loft-dual-engine-plan §3 总览 / §4）：
- * 基础扫掠（单截面沿路径，无过渡 / 引导线 / 缩放律）两个内核都能做 —— occt 走原生
- * `sweepPipeShell`（补两个默认开关 false），brepkit 走 `sweep(face, NURBS 路径)`；
- * 差异（brepkit 只吃 face、路径要 NURBS 四数组）由各自适配器消化，op 层只看到中立名
- * `BrepEngineApi#sweep`。完整控制面（transition / auxSpine / support / 解析式 law /
- * orientation）只有 occt 能做，整体归 `cad.sweepAdvanced`（与 `sketchOnFace →
- * sketchOnSurface` 同构）。
+ * ## 为什么只有一个入口
  *
- * occt 侧**不用** `simplePipe`：实测它对 8×8 方截面沿 +Z 扫 50 产出体积 2133.33，
- * 而 `sweepPipeShell` 为解析值 3200（`test/api/sweep-loft.test.ts` 的真值断言）。
+ * 2026-11-16 之前仓里有四条扫掠路径（`pipe` / `sweep` / `sweepAdvanced` /
+ * `sweepAlong`），差别全在「内核走哪条 API」——`MakePipe`、`sweepPipeShell`、
+ * `sweepFull`、逐段+union。那是内核的差别，不是用户意图的差别：同一个「截面沿中心线
+ * 扫出管」的意图，用户从名字里看不出该选谁，只能记住「上次有人用 pipe」。
  *
- * ⚠️ 两内核在非平面路径上的截面参考系算法不同（RMF 细节差异），复杂路径下产物
- * 可能有细微差别；需要确定性行为用 `cad.sweepAdvanced`（occt）。
+ * 现在按**意图**分：公开面只有 `sweep`，内核控制面留在 `sweepRaw`（occt 逃生口）。
+ * 三条 op 级的差别被消掉：
+ * - `cad.pipe`（`MakePipe` 裸管线）——**删除**：它的定义域（单边/同类型 G1）就是
+ *   `sweep` 的 `single` 策略；带孔 face 由逐环扫 + `cut` 覆盖（F1/F3 实测），
+ *   wire→壳 由 L1 截面口径覆盖。
+ * - `cad.sweepAlong`——并入 `sweep`：策略/落位/判据本来就是这个 op 的主体。
+ * - `cad.sweepAdvanced`——改名 `cad.sweepRaw`：`law` / `auxSpine` / `support` /
+ *   过渡模式这些**与 Pappus 判据冲突**的控制面留在逃生口，不混进 `sweep` 的选项。
+ *
+ * ## 四层（每一层只回答一个问题）
+ *
+ * ```
+ * internal/spine-analysis.ts   脊柱长什么样（纯几何事实，不扫掠）
+ * internal/sweep-strategy.ts   该怎么扫（纯函数：事实 → 策略 / 拒绝）
+ * 本文件                       执行器：按策略与**引擎能力**调用内核
+ * internal/sweep-guard.ts      结果是否可信（C1 体积 / C2 端面法向 / C3 包围盒）
+ * ```
+ *
+ * ## 引擎能力表（本文件是唯一判定点，**全部实测**，见 `test/api/sweep-engines.test.ts`）
+ *
+ * | 引擎 | single | miter | segments | closed | C2 端面法向 |
+ * |---|---|---|---|---|---|
+ * | occt | ✔ | ✔ | ✔ | ✔ | ✔ |
+ * | smlib | ✔ | ✘ | ✘ | ✔ | ✘（`shapeOrientation` 未实现） |
+ * | brepkit | ✔ | ✘ | ✘ | ✘ | ✘（旧引擎，保留 single 只为历史脚本） |
+ *
+ * 实测数字（4×4 截面，`cad.sweep` 脚本级 / 内核级，2026-11-16）：
+ * - occt：直线 25 → 400；折角 L 形（长 20）miter → 320；闭合圆 r=10 → 1005.31；
+ *   带孔截面（8/4）→ 3015.93（= 净面积 × 20）。
+ * - smlib：直线 25 → 400（完全一致）；截面远离脊柱起点（autoPlace 搬 90mm）→ 800；
+ *   两段共线多边 → 400；带孔截面 → 3015.93（**逐环扫 + cut 在 smlib 上成立**）；
+ *   折角 → `E_SWEEP_ENGINE_CAP`（内核无转角过渡）。内核级：真弧路径（r=10, 90°）→
+ *   251.33（= 面积 × 弧长 15.708）；闭合圆 → 1005.31（= 面积 × 周长）⇒ **closed 可用**。
+ * - brepkit：直线 400 / autoPlace 800 / 共线多边 400（结构判据修好后成立）；
+ *   折角 → `E_SWEEP_ENGINE_CAP`；带孔截面 → 体积对（3015.93）但 C1 面积读数失真
+ *   （读到 16 而非 150.8）→ 旧引擎不修，带孔截面在 brepkit 上按「不可用」看待。
+ *
+ * 依据（内核桥的硬事实）：
+ * - occt：`sweepFull` 有 `transitionMode`（`rightCorner` 斜接 / `roundCorner`），
+ *   闭合脊柱一次扫掠给环面（K8a）；
+ * - smlib：只有 `SmApiCreateSweepAlongPlanarPath`（**平面路径**、内核自己把截面
+ *   bbox 中心搬到路径起点、`capEnds=3` 封端），没有转角过渡与引导线入口。它**能吃**
+ *   多边路径与闭合路径，但 op 级的真弧脊柱还造不出来（`cad.circleArc` 只有 occt 实现
+ *   ⇒ `segments`（混合边 G1）在 smlib 上逻辑上到不了，先关闭，等 circleArc 补引擎）；
+ * - brepkit：剖面 face + 路径整链拟合成一条 NURBS + `sweepWithOptions('rmf','smooth')`，
+ *   折角被**光滑掉**（不是斜接）；`shapeType` 不区分 wire（一律 COMPOUND）⇒ 脊柱判据
+ *   必须用**结构**判（有边、无面），不能按类型字符串判。
+ *
+ * 不支持的组合在**扫掠之前**拒绝（`E_SWEEP_ENGINE_CAP`），消息给出该引擎缺的是哪个
+ * 内核能力与可执行修法 —— 绝不静默降级成另一条策略（降级到 `segments` 会在 G0 接缝
+ * 留 V 形缺口，实测 0.88–0.90）。
  */
 
 import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import { getBrepApi } from '../brep/handle-bridge'
-import { fromBrep } from '../shape'
+import { getActiveBrepEngineId } from '../brep/engine/registry'
+import type { BrepHandle } from '../brep/engine/types'
+import { brepOf, fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
-import { OpError } from './internal/result-unwrap'
-import { areaOfProfileWire, assertSweepResult } from './internal/sweep-guard'
-import { analyzeSpine, describeSpine } from './internal/spine-analysis'
-import { toProfileWireView } from './internal/profile-wire'
 import { unifyOrientation, weldVertices } from '../mesh/reconcile'
+import { OpError, unwrapResult } from './internal/result-unwrap'
+import {
+  areaOfProfileFace,
+  areaOfProfileWire,
+  assertSweepResult,
+  assertSweptVolumeMatches,
+} from './internal/sweep-guard'
+import { toProfileRingsView } from './internal/profile-wire'
+import type { WireView } from './internal/profile-wire'
+import { analyzeSpineEdges, describeSpine } from './internal/spine-analysis'
+import type { SpineFacts } from './internal/spine-analysis'
+import { selectStrategy } from './internal/sweep-strategy'
+import type { SweepStrategy } from './internal/sweep-strategy'
+import {
+  bboxCenter,
+  isPlaced,
+  sectionNormal,
+  sectionPlacementMatrix,
+  sectionRadius,
+} from './internal/section-placement'
+import { sweepBrep as coreSweep } from './brep-operations/sweepFns'
+
+/** `sweep` 选项。 */
+export interface SweepOptions {
+  /**
+   * 策略覆写。默认 `'auto'`（由脊柱事实决定，见 `internal/sweep-strategy.ts`）：
+   * - `single`：单边 / 同类型多边全 G1 → 一次内核扫掠；
+   * - `miter`：全 G0 折角 → 一次扫掠 + 斜接过渡（实测 0.9936–0.9996）；
+   * - `segments`：混合边类型全 G1 → 逐段扫 + 共面接缝 fuse；
+   * - `closed`：闭合中心线 → 一次扫掠（环面体积 = 面积 × 周长）。
+   *
+   * 覆写不能绕过物理上无解的脊柱（断裂 / 折返 / 退化 / 混合+G0 一律先拒），
+   * 也不能绕过引擎能力（见文件头的引擎表，`E_SWEEP_ENGINE_CAP`）。
+   */
+  strategy?: 'auto' | 'single' | 'miter' | 'segments' | 'closed'
+  /**
+   * 扫掠前把截面搬到脊柱起点、法向对准起点切向。默认 `true`。
+   *
+   * 已经落位（截面中心在起点且法向与切向夹角 < 1°）时**不动**，避免二次变换引入误差。
+   * 关掉它等于「截面停在调用方放的位置」——只有调用方自己保证位置时才该关。
+   */
+  autoPlace?: boolean
+  /**
+   * 本次调用的体积对账容差，`(0,1)`，缺省用进程级 5%。
+   * 显式放宽只是**知情放行**，不修几何。
+   */
+  volumeTolerance?: number
+  /** 默认 `true`；`false` 时端面法向（C2）与包围盒（C3）判据降为通知，体积（C1）仍抛。 */
+  strict?: boolean
+}
+
+/** 每个引擎能正确执行的策略。**这是引擎能力的唯一判定点**（实测见文件头）。 */
+const STRATEGIES_BY_ENGINE: Record<string, readonly SweepStrategy[]> = {
+  occt: ['single', 'miter', 'segments', 'closed'],
+  // smlib：单边/同类型 G1 一次扫（实测 400/400/3015.93），闭合路径一次扫（内核级实测
+  // 1005.31）。`segments` 暂关：混合边 G1 需要真弧脊柱，而 op 级 `cad.circleArc` 还没
+  // 有 smlib 实现 —— 不是内核做不到，是脊柱造不出来。
+  smlib: ['single', 'closed'],
+  // 旧引擎，保留 single 只为历史脚本；折角在 brepkit 上被光滑掉，不是斜接。
+  brepkit: ['single'],
+}
+
+/** 各引擎缺的关键内核能力（只用于拒绝消息，让「为什么不行」可行动）。 */
+const ENGINE_GAP: Record<string, string> = {
+  smlib:
+    'smlib only exposes SmApiCreateSweepAlongPlanarPath: planar paths, no corner transition ' +
+    '(rightCorner / roundCorner), no guide / law control surface, and no op-level arc spine ' +
+    '(cad.circleArc is occt-only), so a mixed-kind G1 chain cannot be built there yet',
+  brepkit:
+    'brepkit sweeps one NURBS interpolation of the whole spine with rmf + smooth corners: ' +
+    'polyline corners are rounded away (not mitered), so a G0 spine cannot reach the analytic volume',
+}
 
 /**
  * 扫掠产物的网格出口：**绕序必须一致**（相邻三角形以相反方向遍历共享边）。
  *
- * 为什么修在出口而不是渲染层（真机证据 2026-10-21）：
- * 截面 29×27 沿一条「第一段 16.3mm、拐角偏转 35.7°」的折线扫掠时，拐角内侧的
- * 截面会扫过自身（截面半宽 × cot(拐角/2) ≈ 41mm ≫ 段长）。侧壁平面的边界曲线
- * 因此自交，brepkit 的扇形三角化把凹/自交多边形拆成**交错的三角形**，其中一部分
- * 以相同方向遍历共享边。渲染层用 `FrontSide` 单面剔除 ⇒ 朝向反的那片被剔掉，
- * 表面裂开一个大洞（用户报的"破面、不像实心"）；STL 查看器通常双面渲染，
- * 所以导出看着正常 —— 两个现象同源。
+ * 为什么修在出口而不是渲染层（真机证据 2026-10-21）：截面 29×27 沿「第一段 16.3mm、
+ * 拐角偏转 35.7°」的折线扫掠时，拐角内侧的截面会扫过自身（截面半宽 × cot(拐角/2)
+ * ≈ 41mm ≫ 段长），侧壁平面边界曲线自交，brepkit 的扇形三角化把凹/自交多边形拆成
+ * 交错的三角形，其中一部分以相同方向遍历共享边；渲染层 `FrontSide` 单面剔除 ⇒
+ * 朝向反的那片被剔掉，表面裂开一个洞（用户报的"破面、不像实心"）。STL 查看器双面
+ * 渲染，所以导出看着正常 —— 两个现象同源。
  *
- * 这是**网格契约**，不属于某一个 op：任何 BREP 转 mesh 的出口都该满足它。
- * faijs 早就有 `mesh/reconcile.ts` 的 `unifyOrientation`（焊接 → 绕序传播），
- * 缺的只是把它接到这里。
- *
- * 这不是实体验证：自交几何本来就不可修复成有效实体（该不该拦是上游的判定），
- * 但网格必须能正确单面渲染 —— 否则用户看到的洞会被误读成渲染器缺陷。
+ * 这是**网格契约**，不属于某一个 op：任何 BREP→mesh 出口都该满足它。这里复用的是
+ * 既有的 `mesh/reconcile.ts`（焊接 → 绕序传播），缺的只是接到这个出口。
  * @param s - BREP 派生的 shape（positions/indices 来自内核三角化）。
  * @returns the same shape with an orientation-unified mesh.
  */
 function withConsistentWinding(s: Shape): Shape {
   // 只做「焊接 + 绕序统一」，**不做退化剔除**：这两步都不改变三角形数量与顺序，
-  // 因此 `materialGroups` 的 (start,count) 仍然有效。退化三角形交给渲染层
-  // 的 crease 派生去处理，不在这里偷偷重排面序。
+  // 因此 `materialGroups` 的 (start,count) 仍然有效。
   const welded = weldVertices(s.positions, s.indices)
   const unified = unifyOrientation(welded.positions, welded.indices)
-  // **就地替换载荷，不要 `{...s}`**：BREP 句柄挂在 runtime slots 上、以 shape
-  // **对象引用**为键（`shape.ts:480 brepOf`），换新对象会让 brepOf 返回 undefined，
-  // 下游 getBoundingBox / getVolume 直接崩。
+  // **就地替换载荷，不要 `{...s}`**：BREP 句柄挂在 runtime slots 上、以 shape 对象
+  // 引用为键（`shape.ts:480 brepOf`），换新对象会让 brepOf 返回 undefined。
   s.positions = unified.positions
   s.indices = unified.indices
   return s
 }
 
-/** BREP 路径：截面沿脊柱扫掠（两引擎经 L1 中立名 `BrepEngineApi#sweep` 分派）。 */
-function sweepBrep(profile: Shape, spine: Shape): Shape {
-  if (!profile) throw new Error('E_SWEEP_NO_PROFILE: sweep requires a profile (section) shape')
-  if (!spine) throw new Error('E_SWEEP_NO_SPINE: sweep requires a spine (path) shape')
-  // 截面 / 脊柱：wire 直用；面取外环（孔环不参与扫掠）。
-  const profileWire = toProfileWireView(profile)
-  const spineWire = toProfileWireView(spine)
-  const kernel = getBrepApi()
+/** 内核面 + 引擎 id（执行器只需要这两样，判据层不感知引擎）。 */
+type Kernel = ReturnType<typeof getBrepApi>
+
+/**
+ * 一次内核扫掠（单环或多环）：每个环各自扫成实体，孔环用 `cut` 减掉。
+ *
+ * 为什么逐环：内核 `sweepPipeShell` / smlib `sweepAlongPlanarPath` 都只吃**一个**
+ * 截面句柄，带孔 face 的孔环会被整段忽略（`toProfileWireView` 时代的内腔丢失就是
+ * 这么来的）。occt 原生 `MakePipe` 能吃带孔 face，但那是 `pipe` 唯一的独占能力，
+ * 逐环 + `cut` 已经实测等价（F1/F3：净面积 × 长度）。
+ *
+ * @returns 扫出的实体句柄（调用方负责 release）。
+ */
+function sweepRingsOnce(
+  api: Kernel,
+  engineId: string,
+  rings: WireView[],
+  spineWire: BrepHandle,
+  matrix: number[] | undefined,
+  opts: { strategy: SweepStrategy; transitionMode?: string; volumeTolerance?: number },
+): BrepHandle {
+  const sections: BrepHandle[] = []
+  const swept: BrepHandle[] = []
   try {
-    const h = kernel.sweep(profileWire.wrapped, spineWire.wrapped)
-    // 判据套件（post-condition）：折线脊柱不报错、只静默少给体积；
-    // C1 体积 / C2 端面法向 / C3 包围盒，阈值依据见 internal/sweep-guard.ts。
-    // 本 op 的选项集是两内核交集（空），所以没有容差入口 —— 需要知情放行用
-    // setSweepVolumeTolerance()，或换 cad.sweepAlong。
-    const facts = analyzeSpine(kernel, spineWire.wrapped)
-    // 本 op 的选项集是两内核交集（空）：没有落位开关，截面留在调用方放的位置。
-    // 因此只判 C1（体积恒等式）；C2/C3 要求「截面在路径上」，而这条 op 无法保证
-    // （也不该替调用方决定）。要完整判据用 cad.sweepAlong（默认落位）。
-    assertSweepResult(kernel, 'sweep', {
-      result: h,
-      spine: spineWire.wrapped,
-      profileArea: areaOfProfileWire(kernel, profileWire.wrapped),
-      spineNote: describeSpine(facts),
-    })
-    return withConsistentWinding(fromBrep(solidToShape(kernel, h), { solid: h }))
-  } catch (e) {
-    // 守卫抛的 OpError 必须原样透传：包成 E_SWEEP_FAILED 会丢掉 E_SWEEP_VOLUME_MISMATCH
-    // 这个唯一能指向根因的码。
-    if (e instanceof OpError) throw e
-    const raw = e instanceof Error ? e.message : String(e)
-    throw new Error(`E_SWEEP_FAILED: sweep failed: ${raw}`, { cause: e })
-  } finally {
-    // 面→外环产出的 wire 是 arena 新句柄（曲线借用不 release）
-    if (!profileWire.borrowed) {
-      try { kernel.release(profileWire.wrapped) } catch { /* 已释放 */ }
+    for (const ring of rings) {
+      let section = matrix === undefined ? ring.wrapped : api.transform(ring.wrapped, matrix)
+      if (matrix !== undefined) sections.push(section)
+      // 内核扫掠只吃 face / wire：单独一条 edge（`cad.circleArc` 的输出）直接喂进去会得到
+      // occt 的 `BRepFill_Section: bad shape type of section`。包成 wire 后产**壳**
+      // （管面），与 `MakePipe` 的老口径一致；体积判据在壳上无意义，C1 自动跳过。
+      if (String(api.shapeType(section)).toLowerCase() === 'edge') {
+        section = api.makeWire([section])
+        sections.push(section)
+      }
+      // 单环判据先按本环的面积判一次：孔环扫出 0 体积时，净面积判据区分不出是哪一环。
+      const area = areaOfProfileWire(api, section)
+      const sweptHandle = sweepOneSection(api, engineId, section, spineWire, opts)
+      swept.push(sweptHandle)
+      assertSweptVolumeMatches(api, 'sweep', area, spineWire, sweptHandle, opts.volumeTolerance)
     }
-    if (!spineWire.borrowed) {
-      try { kernel.release(spineWire.wrapped) } catch { /* 已释放 */ }
+    let solid = swept[0]!
+    for (let i = 1; i < swept.length; i++) {
+      const hole = swept[i]!
+      const next = api.cut(solid, hole)
+      api.release(solid)
+      api.release(hole)
+      solid = next
+    }
+    return solid
+  } finally {
+    for (const h of sections) {
+      try { api.release(h) } catch { /* 已释放 */ }
     }
   }
 }
 
 /**
- * 扫掠：截面沿脊柱路径生成扫掠体。
- * @group 特征
- * @inputs 2
- * @async true
+ * 单个截面句柄的扫掠：按策略与引擎选内核入口。
+ *
+ * - `miter` / `closed`：只有 occt 能做（`sweepFull` 的 `transitionMode`；闭合脊柱一次
+ *   成形）。其余引擎在上游已被能力门禁拒绝，这里再兜一次（防接线漂移）。
+ * - 其余（`single` / `segments` 的单段）：走 L1 中立名 `BrepEngineApi#sweep`，
+ *   occt = `sweepPipeShell(f,sp,false,false)`、smlib = 平面路径扫掠、brepkit = RMF 扫掠。
+ *   **不用 occt 专属面**是让三引擎跑同一条代码路径的唯一办法。
+ *
+ * @returns 扫出的实体句柄（调用方负责 release）。
+ */
+function sweepOneSection(
+  api: Kernel,
+  engineId: string,
+  section: BrepHandle,
+  spineWire: BrepHandle,
+  opts: { strategy: SweepStrategy; transitionMode?: string },
+): BrepHandle {
+  if (engineId === 'occt' && (opts.strategy === 'miter' || opts.strategy === 'closed')) {
+    const query: Record<string, unknown> = { orientation: 'frenet' }
+    if (opts.transitionMode !== undefined) query['transitionMode'] = opts.transitionMode
+    return unwrapResult(coreSweep(section, spineWire, query, false), 'sweep') as BrepHandle
+  }
+  return api.sweep(section, spineWire)
+}
+
+/** 按策略与引擎能力解析「这一次能不能扫」——不行就给出可执行的拒绝。 */
+function assertEngineCan(
+  engineId: string,
+  strategy: SweepStrategy,
+  facts: SpineFacts,
+): void {
+  const allowed = STRATEGIES_BY_ENGINE[engineId] ?? ['single']
+  if (allowed.includes(strategy)) return
+  const gap = ENGINE_GAP[engineId] ?? `${engineId} has no kernel entry for this strategy`
+  const fix = engineId === 'occt'
+    ? 'report this as a missing engine registration'
+    : 'run this model on occt, or reduce the spine to what the engine can sweep ' +
+      '(single edge / same-kind G1 chain: a true arc beats a sampled polyline)'
+  throw new OpError(
+    'sweep',
+    'E_SWEEP_ENGINE_CAP',
+    `[api/sweep] engine '${engineId}' cannot run strategy '${strategy}' required by this spine ` +
+      `(${describeSpine(facts)}). ${gap}. Fix: ${fix}.`,
+  )
+}
+
+/** BREP 路径：脊柱事实 → 策略 → （能力门禁）→ 执行 → 判据套件。 */
+function sweepBrep(section: Shape, spine: Shape, opts?: SweepOptions): Shape {
+  if (!section) throw new Error('E_SWEEP_NO_PROFILE: sweep requires a profile (section) shape')
+  if (!spine) throw new Error('E_SWEEP_NO_SPINE: sweep requires a spine (path) shape')
+  const api = getBrepApi()
+  const engineId = getActiveBrepEngineId() ?? 'occt'
+  const sectionHandle = brepOf(section) as BrepHandle | undefined
+  if (sectionHandle === undefined) {
+    throw new Error('E_SWEEP_NO_BREP: sweep requires a BREP handle for the section (mesh-only shape has none)')
+  }
+  const spineHandle = brepOf(spine) as BrepHandle | undefined
+  if (spineHandle === undefined) {
+    throw new Error('E_SWEEP_NO_BREP: sweep requires a BREP handle for the spine (mesh-only shape has none)')
+  }
+  // 脊柱必须是「只有边、没有面」的 1D 链。**不能按 `shapeType` 的字符串判**：
+  // brepkit 的 shapeType 只区分 SOLID / FACE / COMPOUND，wire 一律报 COMPOUND
+  // （brepkitKernel.ts:1478），字符串判会把 brepkit 上所有合法脊柱误杀。结构化判据
+  // 对三引擎同样成立：有边、且没有任何面（面/实体才带面）。
+  const spineFaces = api.getSubShapes(spineHandle, 'face')
+  if (spineFaces.length > 0) {
+    throw new Error(
+      'E_SWEEP_SPINE_NOT_WIRE: sweep spine must be a wire (the centreline path), ' +
+        'got a shape carrying faces (face / solid / shell)',
+    )
+  }
+  const edgeHandles = api.getSubShapes(spineHandle, 'edge')
+  if (edgeHandles.length === 0) {
+    throw new Error('E_SWEEP_SPINE_NOT_WIRE: sweep spine has no edges (expected a wire centreline)')
+  }
+  const rings = toProfileRingsView(section)
+  try {
+    const facts = analyzeSpineEdges(api, edgeHandles)
+    if (facts.edges.length === 0) {
+      throw new Error('E_SWEEP_SPINE_EMPTY: sweep spine wire has no edges')
+    }
+    const radius = sectionRadius(api, sectionHandle)
+    const decision = selectStrategy(facts, { strategy: opts?.strategy, sectionRadius: radius })
+    if ('reject' in decision) {
+      throw new OpError('sweep', decision.reject.code, decision.reject.message)
+    }
+    const strategy = decision.strategy
+    assertEngineCan(engineId, strategy, facts)
+
+    const first = facts.edges[0]!
+    const last = facts.edges[facts.edges.length - 1]!
+    // C1 的期望值用**净面积**（带孔面 = 外环 − 孔环）：孔环被 cut 掉，实心面积会高估。
+    const netArea = areaOfProfileFace(api, sectionHandle) ?? areaOfProfileWire(api, rings[0]!.wrapped)
+    // C2 的前提是「能找到平面端面 + 外法向」：smlib 的 shapeOrientation 是 unsupported，
+    // 端面法向在那里量不出真值 —— 宁可**明确跳过**，也不拿默认 'forward' 猜。
+    const capsAvailable = engineId === 'occt' && strategy !== 'closed'
+    const caps = !capsAvailable
+      ? undefined
+      : [
+          { label: 'start', point: first.start, tangent: first.tStart },
+          { label: 'end', point: last.end, tangent: last.tEnd },
+        ]
+
+    const place = opts?.autoPlace !== false
+    const normal = place ? sectionNormal(api, sectionHandle, rings[0]!.wrapped) : undefined
+    const center = place ? bboxCenter(api, sectionHandle) : undefined
+
+    let solid: BrepHandle
+    if (strategy === 'segments') {
+      // 逐段：起点 + 起点切向摆正截面 → 单段扫掠 → 共面接缝 fuse。
+      // 只在全 G1 上启用（策略层保证），接缝是共面同向端面，实测并成单块且体积精确。
+      let acc: BrepHandle | undefined
+      for (const [i, edge] of edgeHandles.entries()) {
+        const ef = facts.edges[i]!
+        const matrix =
+          normal === undefined || center === undefined
+            ? undefined
+            : sectionPlacementMatrix(normal, center, ef.start, ef.tStart)
+        const segWire = api.makeWire([edge])
+        let seg: BrepHandle | undefined
+        try {
+          seg = sweepRingsOnce(api, engineId, rings, segWire, matrix, {
+            strategy,
+            volumeTolerance: opts?.volumeTolerance,
+          })
+        } finally {
+          try { api.release(segWire) } catch { /* 已释放 */ }
+        }
+        if (acc === undefined) {
+          acc = seg
+        } else {
+          const fused = api.fuse(acc, seg)
+          api.release(acc)
+          api.release(seg)
+          acc = fused
+        }
+      }
+      if (acc === undefined) {
+        throw new Error('E_SWEEP_NO_EDGES: sweep spine has no edges')
+      }
+      solid = acc
+    } else {
+      // single / miter / closed：一次内核扫掠（截面落位 + 策略决定的过渡）。
+      const matrix =
+        normal === undefined || center === undefined
+          ? undefined
+          : isPlaced(normal, center, first.start, first.tStart, radius * 2)
+            ? undefined
+            : sectionPlacementMatrix(normal, center, first.start, first.tStart)
+      solid = sweepRingsOnce(api, engineId, rings, spineHandle, matrix, {
+        strategy,
+        transitionMode: strategy === 'miter' ? 'rightCorner' : undefined,
+        volumeTolerance: opts?.volumeTolerance,
+      })
+    }
+
+    try {
+      assertSweepResult(api, 'sweep', {
+        result: solid,
+        spine: spineHandle,
+        profileArea: netArea,
+        volumeTolerance: opts?.volumeTolerance,
+        caps,
+        coversPath: true,
+        spineNote: describeSpine(facts),
+        strict: opts?.strict,
+      })
+      return withConsistentWinding(fromBrep(solidToShape(api, solid), { solid }))
+    } catch (e) {
+      try { api.release(solid) } catch { /* 已释放 */ }
+      throw e
+    }
+  } catch (e) {
+    // 守卫抛的 OpError 必须原样透传：包成 E_SWEEP_FAILED 会丢掉 E_SWEEP_VOLUME_MISMATCH
+    // / E_SWEEP_ENGINE_CAP 这些唯一能指向根因的码。
+    if (e instanceof OpError) throw e
+    const raw = e instanceof Error ? e.message : String(e)
+    throw new Error(`E_SWEEP_FAILED: sweep failed: ${raw}`, { cause: e })
+  } finally {
+    for (const e of edgeHandles) {
+      try { api.release(e) } catch { /* 已释放 */ }
+    }
+    for (const ring of rings) {
+      if (!ring.borrowed) {
+        try { api.release(ring.wrapped) } catch { /* 已释放 */ }
+      }
+    }
+  }
+}
+
+/**
+ * 扫掠：把等截面沿任意三维中心线扫成（可空心）的实体，一次调用给出解析体积。
+ *
+ * 三条策略（`internal/sweep-strategy.ts`，全部实测）：
+ * - `single`——单边 / 同类型多边全 G1：内核一次扫，精确；
+ * - `miter`——有 G0 折角：一次扫 + `rightCorner` 斜接，0.9936（4 拐角）/ 0.9996（16 拐角）；
+ * - `segments`——混合边类型（弧 + 直腿）全 G1：逐段扫 + 共面接缝 fuse，精确；
+ * - `closed`——闭合中心线：一次扫掠，环面体积 = 面积 × 周长。
+ *
+ * 逐段 union 在折角上只有 0.88–0.90（接缝留 V 形缺口），所以折角必须走斜接，不能
+ * 沿用「逐段并一块」。
+ *
+ * **引擎能力**（不支持的组合在扫掠前拒绝，`E_SWEEP_ENGINE_CAP`）：
+ * occt 全策略；smlib `single` / `closed`（平面路径扫掠，实测直线 400 / 闭合 1005.31 /
+ * 带孔截面 3015.93，`segments` 等 `circleArc` 补 smlib）；brepkit 只 `single`
+ * （旧引擎，折角被 RMF 光滑掉）。
+ *
+ * 无解脊柱显式拒绝（带修法）：断裂 `E_SPINE_DISCONTINUOUS`、折返 `E_SPINE_FOLD`、
+ * 零长边 `E_SPINE_DEGENERATE`、混合 + 折角 `E_SPINE_MIXED_CORNER`、斜接必自交
+ * `E_SPINE_MITER_SELF_INTERSECT`。
+ *
+ * 判据：C1 体积（净面积 × 长度）、C2 端面法向 vs 端点切向（抓「截面没转」的塌陷，
+ * 15° 折角体积只偏 1.7% 也逃不掉；仅 occt 可评，smlib 未实现 `shapeOrientation`）、
+ * C3 产物 bbox 必须覆盖脊柱。
+ * @group 创建
+ * @inputs 3
+ * @async false
  * @qual ok
  * @name sweep
- * @note 基础 op：**occt 与 brepkit 两内核都支持**（occt `sweepPipeShell`；brepkit
- *       `sweep(face, NURBS path)`，路径由适配器从脊柱 wire 拟合）。截面接受 wire
- *       或面（面取其外环）；脊柱必须为 wire。选项集 = 两内核交集 = **空** ——
- *       需要 transition / auxSpine / support / law / orientation 等 occt 独有控制面
- *       时用 `cad.sweepAdvanced`。
- *
- *       **脊柱形态硬约束（实测，2026-11-14）**：脊柱只能是**单段直线**或**单段真弧**。
- *       折线脊柱不报错、只会静默少给体积，且偏差是固定解析系数：两段 90° 折线给
- *       解析值的 1/2，N 段密采样圆弧给 2/π（≈0.6366）。出口有体积对账守卫
- *       （`E_SWEEP_VOLUME_MISMATCH`，容差 5%），折线脊柱会被拦在 `cad.sweep`，
- *       不会留到下游。
- *
- *       ⚠️ **脊柱怎么写成真弧（2026-11-14 更正）**：`cad.circleArc` 产出的是**单条 edge**，
- *       必须经 `cad.wireFromEdges([arc])` 组装成 wire 才能当脊柱。该 op 原本下限 2 条边，
- *       单边组不了 wire ⇒ 真弧脊柱在脚本层无路可走，只能退化成折线（体积按 2/π 丢）。
- *       **这正是 case8 那 40 点折线的直接成因**（不是 AI 选错形态，是当时唯一可写形态）。
- *       现已放宽为允许单边，写法：
- *       `cad.sweep(section, cad.wireFromEdges([cad.circleArc(center, normal, r, 0*DEGREE, 90*DEGREE)]))`
- * @returns Shape 扫掠体。
- * @param profile - 截面几何（wire 或面；面取其外环）。type:Shape required:true
- * @param spine - 脊柱路径（wire，**单段直线或单段真弧**）。type:Shape required:true
- * @throws E_SWEEP_VOLUME_MISMATCH 扫掠体积与「截面积 × 脊柱长度」不符（折断在折线脊柱）。
+ * @note 三引擎 op，能力按引擎分级（见上）。脊柱须为 wire；截面可以是 face（全部环
+ *       参与，外环扫实体、孔环 cut 出内腔）或闭合 wire。
+ * @returns Shape 完整扫掠体（带孔截面产空心管实体）。
+ * @param section - 等截面（实心 face / 带孔 face / 闭合 wire）。 type:Shape required:true
+ * @param spine - 三维中心线 wire（直线 / 真弧 / 样条任意组合）。 type:Shape required:true
+ * @param opts - 见 `SweepOptions`（策略覆写、落位、容差、严格度）。 type:SweepOptions required:false
+ * @throws E_SWEEP_ENGINE_CAP 当前引擎没有该策略所需的内核能力（消息给出修法）。
+ * @throws E_SPINE_DISCONTINUOUS 相邻边端点不重合。
+ * @throws E_SPINE_FOLD 转角 > 175°（折返）。
+ * @throws E_SPINE_DEGENERATE 零长边。
+ * @throws E_SPINE_MIXED_CORNER 边类型混合且带折角（给两条修法）。
+ * @throws E_SWEEP_VOLUME_MISMATCH 体积与「净截面积 × 长度」不符。
+ * @throws E_SWEEP_CAP_NORMAL 端面法向与端点切向不符（截面没转；仅 occt 评）。
+ * @throws E_SWEEP_BBOX_MISMATCH 产物没有覆盖整条脊柱。
  * @example
- * const path = cad.wire([[0, 0, 0], [0, 0, 50]])
- * const section = cad.profile({ contours: [{ segments: [
- *   { kind: 'line', x1: -4, y1: -4, x2: 4, y2: -4 },
- *   { kind: 'line', x1: 4, y1: -4, x2: 4, y2: 4 },
- *   { kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
- *   { kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
- * ] }] })
- * const body = cad.sweep(section, path)
+ * const path = cad.wireFromEdges([leg1, bend, leg2]) // 直线 / 真弧任意拼接
+ * const tube = cad.sweep(annulusFace, path)          // 一次调用，截面自动落位
  */
 export const sweep = defineOp({
   name: 'sweep',
-  // 三引擎同实现：
-  //   occt    → `sweepPipeShell`（freenet/smooth 双 false，既有行为）
-  //   brepkit → `sweep(face, NURBS path)`
-  //   smlib   → `SmApiCreateSweepAlongPlanarPath`（facade 导出 `smw_sweep_planar_path`）
-  // 2026-10-31：smlib 侧此前是 P1 缺口（`unsupported('sweep')` + engines 门禁拒绝），
-  // 内核本身有 SmApiCreateSweepAlongPlanarPath，补 facade 导出 + 重编两套 wasm 后接通。
+  // 三引擎：occt 全策略；smlib 平面路径扫掠（single/segments）；brepkit 仅 single。
+  // 能力差异在本文件 STRATEGIES_BY_ENGINE 判定，并在扫掠前拒绝不支持的组合。
   engines: ['occt', 'brepkit', 'smlib'],
-  brep(profile: Shape, spine: Shape) {
-    return sweepBrep(profile, spine)
+  brep(section: Shape, spine: Shape, opts?: SweepOptions) {
+    return sweepBrep(section, spine, opts)
   },
   naming: { kind: 'unmodeled', reason: 'swept-body face vocabulary not defined' } as Provenance,
 

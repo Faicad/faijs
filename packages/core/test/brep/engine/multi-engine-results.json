@@ -1875,7 +1875,7 @@
     {
       "op": "sweepAdvanced",
       "engine": "brepkit-2.129.15",
-      "error": "sweepAdvanced: E_BREP_UNSUPPORTED: op 'sweepAdvanced' requires engine occt (current=brepkit)",
+      "error": "sweepRaw: E_BREP_UNSUPPORTED: op 'sweepRaw' requires engine occt (current=brepkit)",
       "expected": true
     },
     {
@@ -1923,7 +1923,7 @@
     {
       "op": "sweepAdvanced",
       "engine": "brepkit-4.1.49",
-      "error": "sweepAdvanced: E_BREP_UNSUPPORTED: op 'sweepAdvanced' requires engine occt (current=brepkit)",
+      "error": "sweepRaw: E_BREP_UNSUPPORTED: op 'sweepRaw' requires engine occt (current=brepkit)",
       "expected": true
     },
     {
@@ -1971,7 +1971,7 @@
     {
       "op": "sweepAdvanced",
       "engine": "brepkit-4.0.32",
-      "error": "sweepAdvanced: E_BREP_UNSUPPORTED: op 'sweepAdvanced' requires engine occt (current=brepkit)",
+      "error": "sweepRaw: E_BREP_UNSUPPORTED: op 'sweepRaw' requires engine occt (current=brepkit)",
       "expected": true
     },
     {

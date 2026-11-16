@@ -565,22 +565,13 @@ const f = cad.nonPlanarFace(curvedBoundaryWire)
 
 > 平台 op：仅 occt 引擎（原生 makeNonPlanarFace）。wire 须闭合。
 
-### 3.25 `pipe` ✅
+### 3.25 `pipe` —（已删除 2026-11-16）
 
-沿脊柱扫出管：把截面沿脊柱 wire 扫掠（`BRepOffsetAPI_MakePipe` 裸管线； 带过渡/方向控制的扫掠见 `sweep`）。 产物类型随截面类型（实测钉住，test/api/occt-s4-solid-offset.test.ts A3/A4）： **截面 face → 实体；截面 wire/edge → 壳（管面，体积无意义）**。要实体管， 喂面截面（如 `cad.profile` 的圆盘轮廓）。
+`cad.pipe`（`BRepOffsetAPI_MakePipe` 裸管线）**已删除**：它的定义域（单边 / 同类型 G1 脊柱）
+就是 `cad.sweep` 的 `single` 策略；带孔截面由「逐环扫 + `cut`」覆盖（实测净面积 × 长度）；
+`MakePipe` 的裸控制面留在逃生口 `cad.sweepRaw`（`{ mode: 'simple' }`）。
 
-```js
-const tube = cad.pipe(diskFace, spineWire)
-```
-
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|---|---|---|---|---|
-| `profile` | `Shape` | ✅ | — | 截面（face → 实体；wire/edge → 壳） |
-| `spine` | `Shape` | ✅ | — | 脊柱 wire |
-
-**同步**。Shape 扫出的管（截面 face → 实体；wire/edge → 壳）。
-
-> 平台 op：仅 occt 引擎（原生 pipe，L1 契约无对应成员）。脊柱须为 wire。 非 occt 引擎执行前报错；brep_mock 不拦截。
+迁移：`cad.pipe(profile, spine)` → `cad.sweep(section, spine)`。
 
 ### 3.26 `profile` ✅
 
@@ -1936,7 +1927,7 @@ const b = cad.subtract(part0, part1)
 
 ### 5.38 `sweep` ✅
 
-扫掠：截面沿脊柱路径生成扫掠体。
+扫掠（**唯一公开扫掠入口**）：脊柱事实 → 策略 → 执行 → 判据（C1 体积 / C2 端面法向 / C3 bbox）。
 
 ```js
 const path = cad.wire([[0, 0, 0], [0, 0, 50]])
@@ -1951,16 +1942,23 @@ const body = cad.sweep(section, path)
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `profile` | `Shape` | ✅ | — | 截面几何（wire 或面；面取其外环） |
-| `spine` | `Shape` | ✅ | — | 脊柱路径（wire） |
+| `section` | `Shape` | ✅ | — | 截面（face / 带孔 face / 闭合 wire；孔环用 `cut` 减出内腔） |
+| `spine` | `Shape` | ✅ | — | 脊柱中心线 wire（直线 / 真弧 / 样条任意组合） |
+| `opts` | `SweepOptions` |  | — | `strategy` / `autoPlace` / `volumeTolerance` / `strict` |
 
-**异步**。Shape 扫掠体。
+**异步**。Shape 扫掠体（带孔截面产空心实体）。
 
-> 基础 op：**occt 与 brepkit 两内核都支持**（occt `sweepPipeShell`；brepkit `sweep(face, NURBS path)`，路径由适配器从脊柱 wire 拟合）。截面接受 wire 或面（面取其外环）；脊柱必须为 wire。选项集 = 两内核交集 = **空** —— 需要 transition / auxSpine / support / law / orientation 等 occt 独有控制面 时用 `cad.sweepAdvanced`。
+> 三引擎 op，能力按引擎分级（实测：`test/api/sweep-engines.test.ts`）：occt 全策略
+> （`single` / `miter` / `segments` / `closed`）；smlib `single` / `closed`（平面路径扫掠，
+> 实测直线 400 / 闭合 1005.31 / 带孔截面 3015.93）；brepkit 仅 `single`（旧引擎）。
+> 不支持的组合**扫掠前**拒绝（`E_SWEEP_ENGINE_CAP`，消息给出引擎缺的内核能力与修法）。
+> `strategy` 缺省 `'auto'`：单边 / 同类 G1 → `single`；全 G0 折角 → `miter`；混合边 G1 →
+> `segments`；闭合中心线 → `closed`。`autoPlace` 缺省 `true`（截面搬到脊柱起点并转正）。
+> 内核控制面（law / auxSpine / support / 过渡模式）见 `cad.sweepRaw`。
 
-### 5.39 `sweepAdvanced` ✅
+### 5.39 `sweepRaw` ✅
 
-扫掠（完整控制面）：截面沿脊柱路径生成扫掠体。
+扫掠逃生口（内核控制面）：截面沿脊柱路径生成扫掠体。
 
 ```js
 const path = cad.wire([[0, 0, 0], [0, 0, 50]])
@@ -1970,18 +1968,24 @@ const section = cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
 { kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
 ] }] })
-const body = cad.sweepAdvanced(section, path, { orientation: 'frenet' })
+const body = cad.sweepRaw(section, path, { orientation: 'frenet' })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `profile` | `Shape` | ✅ | — | 截面几何（wire 或面；面取其外环） |
 | `spine` | `Shape` | ✅ | — | 脊柱路径（wire） |
-| `opts` | `SweepAdvancedOptions` |  | — | 扫掠完整控制面 |
+| `opts` | `SweepRawOptions` |  | — | 扫掠完整控制面 |
 
 **异步**。Shape 扫掠体。
 
-> 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。截面接受 wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错； brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。 完整控制面：给出 `orientation` / `up` / `auxSpine` / `curvilinearEquivalence` / `guideContact` / `transitionMode`（新名）/ `withContact` / `withCorrection` / `support` / `maxDegree` / `maxSegments` / `law` / `lawLength` / `lawEndFactor` / `tol3d` / `boundTol` / `tolAngular` 任一，即改走 occt 原生 `sweepFull`（law 驱动扫掠是 twist 类特征的正 确路径）。`sweepFull` 的 options 是 `sweepAdvanced` 的**严格超集**，且含 `sweepOriented` 的全部字段 ⇒ 三者能力并轨，脚本面只需本符号一个。 基础扫掠（两内核交集）用 `cad.sweep`。
+> 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。这是 `cad.sweep` 删除
+> 之前 `cad.sweepAdvanced` 的**改名保留**：`law` / `auxSpine` / `support` / `orientation` /
+> `transitionMode` 等与 Pappus 判据冲突的控制面留在这里，不混进 `sweep` 的选项。截面接受
+> wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错；brep_mock 不拦截。
+> `shellMode` 不暴露（元组产物跨不过单产物边界）。`mode:'simple'` 走 `MakePipe` 裸管线
+> （单段弧上精确，混合边 G1 上按 A×(弧长 − 腿长) 出错）。`sweepFull` 的 options 是
+> `sweepRaw` 的**严格超集** ⇒ 脚本面只需本符号一个。日常扫掠请用 `cad.sweep`。
 
 ### 5.40 `thicken` ✅
 
@@ -3421,9 +3425,9 @@ const svg = cad.toSVG(box, 'iso')
 ## 14. 写给 AI 的速查（一句话总结每个可用 op）
 
 ```
-创建: approximatePoints / box / circleArc / cone / convexHull / cylinder / draftPrism / dxfExtrude / edge / ellipseArc / ellipseEdge / ellipsoid / faceFromWire / faceOnSurface / halfSpace / helix / import_brep / import_step / interpolateWithTangents / liftCurve2d / makeBaseBox / makeSolid / nonPlanarFace / pipe / profile / punchHole / screw / sdf / sketch / sketchOnFace / sketchOnPlane / sketchOnSurface / sphere / surface / svgExtrude / tangentArc / text / thread / torus / wedge / wire / wireFromEdges
+创建: approximatePoints / box / circleArc / cone / convexHull / cylinder / draftPrism / dxfExtrude / edge / ellipseArc / ellipseEdge / ellipsoid / faceFromWire / faceOnSurface / halfSpace / helix / import_brep / import_step / interpolateWithTangents / liftCurve2d / makeBaseBox / makeSolid / nonPlanarFace / profile / punchHole / screw / sdf / sketch / sketchOnFace / sketchOnPlane / sketchOnSurface / sphere / surface / svgExtrude / tangentArc / text / thread / torus / wedge / wire / wireFromEdges
 变换: alignTo / applyMatrix / locate / offset / place / rotate
-特征: boolean / boss / chamfer / circularPattern / clone / complexExtrude / cut / draft / drill / extrude / fillet / filletVariable / fuse / gridPattern / intersect / knurl / linearPattern / loft / loftAdvanced / mirror / mirrorJoin / offset2d / pocket / rectangularPattern / revolve / roof / sectionByPlane / shell / solidFromFaces / split / splitByPlane / subtract / sweep / sweepAdvanced / thicken / twistExtrude / union
+特征: boolean / boss / chamfer / circularPattern / clone / complexExtrude / cut / draft / drill / extrude / fillet / filletVariable / fuse / gridPattern / intersect / knurl / linearPattern / loft / loftAdvanced / mirror / mirrorJoin / offset2d / pocket / rectangularPattern / revolve / roof / sectionByPlane / shell / solidFromFaces / split / splitByPlane / subtract / sweep / sweepRaw / thicken / twistExtrude / union
 修复: autoHeal / defeature / fixSelfIntersection / fixShape / heal / healSolid / removeHolesFromFace / reverseShape / sew / sewAndSolidify / simplify / unifySameDomain
 结构: compound
 查询: area / asset / bboxCenter / bboxMax / bboxMin / centerOfMass / classifyPointOnFace / containsPoint / curveDegreeElevate / curveIsPeriodic / curveKnotInsert / curveKnotRemove / distanceBetween / edgeRef / faceBySelector / faceNormal / faceRef / formatTechNote / formatThreadHole / inertia / inspectMassProps / inverseKinematics / isCompound / isCompSolid / isEdge / isEqual / isFace / isSameShape / isShell / isValid / isVertex / isWire / iterShapes / jointTrajectory / length / linearCenterOfMass / mechanismDOF / outerWire / pmiDatums / pmiItems / pmiOn / pmiTechNotes / pmiThreads / projectPointOnEdge / projectPointOnFace / projectSheet / projectView / reverseSurfaceU / subShapeCount / uvFromPoint / vertexPosition / viewCamera / volume
@@ -3506,7 +3510,6 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `offset` | 内核历史 | `gen:offset:<i>` |  |
 | `offset2d` | 未建模 | —（不造新面） | 1D offset contour has no face role vocabulary |
 | `outerWire` | 未建模 | —（不造新面） | extracted sub-wire has no face role vocabulary |
-| `pipe` | 未建模 | —（不造新面） | pipe face vocabulary not defined |
 | `place` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
 | `pocket` | 内核历史 | `gen:pocket:<i>` |  |
 | `profile` | 构造语义 | —（不造新面） |  |
@@ -3540,7 +3543,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `surface` | 未建模 | —（不造新面） | bspline-surface face vocabulary not defined |
 | `svgExtrude` | 构造语义 | —（不造新面） |  |
 | `sweep` | 未建模 | —（不造新面） | swept-body face vocabulary not defined |
-| `sweepAdvanced` | 未建模 | —（不造新面） | swept-body face vocabulary not defined |
+| `sweepRaw` | 未建模 | —（不造新面） | swept-body face vocabulary not defined |
 | `tangentArc` | 未建模 | —（不造新面） | 1D arc has no face role vocabulary |
 | `text` | 构造语义 | —（不造新面） |  |
 | `thicken` | 未建模 | —（不造新面） | thickened-body face vocabulary not defined |

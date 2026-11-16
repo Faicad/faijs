@@ -76,7 +76,7 @@ const FOLD_15 =
 describe('C1 体积恒等式', () => {
   it('C1a. 面积给错 → E_SWEEP_VOLUME_MISMATCH，消息里带偏离百分比与容差', async () => {
     const { sp, part2 } = await shapes(
-      `let sp = cad.wire([[0,0,0],[0,0,20]])\nlet part2 = cad.sweepAlong(${SEC}, sp)\n`,
+      `let sp = cad.wire([[0,0,0],[0,0,20]])\nlet part2 = cad.sweep(${SEC}, sp)\n`,
       ['sp', 'part2'],
     )
     const api = getBrepApi()
@@ -98,7 +98,7 @@ describe('C1 体积恒等式', () => {
 
   it('C1b. 显式 volumeTolerance 放宽 → 放行（知情放行，不修几何）', async () => {
     const { sp, part2 } = await shapes(
-      `let sp = cad.wire([[0,0,0],[0,0,20]])\nlet part2 = cad.sweepAlong(${SEC}, sp)\n`,
+      `let sp = cad.wire([[0,0,0],[0,0,20]])\nlet part2 = cad.sweep(${SEC}, sp)\n`,
       ['sp', 'part2'],
     )
     const api = getBrepApi()
@@ -114,7 +114,7 @@ describe('C1 体积恒等式', () => {
 
   it('C1c. 非法容差（0 / 1 / 负数 / >1）→ E_SWEEP_TOL_INVALID，不静默夹取', async () => {
     const { sp, part2 } = await shapes(
-      `let sp = cad.wire([[0,0,0],[0,0,20]])\nlet part2 = cad.sweepAlong(${SEC}, sp)\n`,
+      `let sp = cad.wire([[0,0,0],[0,0,20]])\nlet part2 = cad.sweep(${SEC}, sp)\n`,
       ['sp', 'part2'],
     )
     const api = getBrepApi()
@@ -138,7 +138,7 @@ describe('C1 体积恒等式', () => {
 describe('C2 端面法向（专抓「截面没转」）', () => {
   it('C2a. 15° 折角 + transformed：体积只偏 1.70%（C1 放行）但 C2 拒，码是 E_SWEEP_CAP_NORMAL', async () => {
     const r = await exec(
-      `let sec = ${SEC}\nlet sp = ${FOLD_15}\nlet part2 = cad.sweepAdvanced(sec, sp, { transitionMode: 'transformed' })\n`,
+      `let sec = ${SEC}\nlet sp = ${FOLD_15}\nlet part2 = cad.sweepRaw(sec, sp, { transitionMode: 'transformed' })\n`,
     )
     expect(r.failedAt).toBeTruthy()
     expect(r.failedAt?.code).toBe('E_SWEEP_CAP_NORMAL')
@@ -148,7 +148,7 @@ describe('C2 端面法向（专抓「截面没转」）', () => {
 
   it('C2b. 1° 阈值不误报：正确斜接的产物（相对偏离 1e-7 量级）必须放行', async () => {
     const r = await exec(
-      `let sec = ${SEC}\nlet sp = ${FOLD_15}\nlet part2 = cad.sweepAlong(sec, sp)\n`,
+      `let sec = ${SEC}\nlet sp = ${FOLD_15}\nlet part2 = cad.sweep(sec, sp)\n`,
     )
     expect(r.failedAt).toBeFalsy()
   })
@@ -181,7 +181,7 @@ describe('C3 包围盒覆盖（专抓「体积勉强对、整段丢失」）', (
 
   it('C3b. 覆盖脊柱的正常产物不误报', async () => {
     const { sp, part2 } = await shapes(
-      `let sp = cad.wire([[0,0,0],[0,0,20]])\nlet part2 = cad.sweepAlong(${SEC}, sp)\n`,
+      `let sp = cad.wire([[0,0,0],[0,0,20]])\nlet part2 = cad.sweep(${SEC}, sp)\n`,
       ['sp', 'part2'],
     )
     const api = getBrepApi()
@@ -201,12 +201,12 @@ describe('strict:false：判据降级为通知，但绝不静默', () => {
     const notices: SweepNotice[] = []
     setSweepNoticeHook((n) => notices.push(n))
     const { sp, part2 } = await shapes(
-      `let sp = ${FOLD_15}\nlet part2 = cad.sweepAdvanced(${SEC}, sp, { transitionMode: 'transformed', volumeTolerance: 0.6, strict: false })\n`,
+      `let sp = ${FOLD_15}\nlet part2 = cad.sweepRaw(${SEC}, sp, { transitionMode: 'transformed', volumeTolerance: 0.6, strict: false })\n`,
       ['sp', 'part2'],
     )
     // 上面这一步在 op 内部已经触发过一次通知（volumeTolerance 0.6 也放过了 C1）。
     expect(notices.map((n) => n.code)).toContain('E_SWEEP_CAP_NORMAL')
-    expect(notices[0]!.op).toBe('sweepAdvanced')
+    expect(notices[0]!.op).toBe('sweepRaw')
     // 再直接调一次，确认判定对象是「产物 + 脊柱」而不是某个调用点。
     const api = getBrepApi()
     const before = notices.length
@@ -227,7 +227,7 @@ describe('strict:false：判据降级为通知，但绝不静默', () => {
   it('C4b. 没有订阅方时 strict:false 也不往控制台写东西（库层不碰 stderr）', async () => {
     setSweepNoticeHook(undefined)
     const { sp, part2 } = await shapes(
-      `let sp = ${FOLD_15}\nlet part2 = cad.sweepAdvanced(${SEC}, sp, { transitionMode: 'transformed', volumeTolerance: 0.6, strict: false })\n`,
+      `let sp = ${FOLD_15}\nlet part2 = cad.sweepRaw(${SEC}, sp, { transitionMode: 'transformed', volumeTolerance: 0.6, strict: false })\n`,
       ['sp', 'part2'],
     )
     const api = getBrepApi()

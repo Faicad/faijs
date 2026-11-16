@@ -37,7 +37,8 @@ import { getBrepApi } from '../../src/brep/handle-bridge'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../src/runtime-state'
 import { brepOf } from '../../src/shape'
 import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
-import { draftPrism, pipe } from '../../src/api/solid-offset'
+import { draftPrism } from '../../src/api/solid-offset'
+import { sweep } from '../../src/api/sweep'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -113,7 +114,7 @@ describe('S4 实体偏置族剩余 — draftPrism（occt 正例，脚本级）',
   })
 })
 
-describe('S4 实体偏置族剩余 — pipe（occt 正例，脚本级）', () => {
+describe('S4 实体偏置族剩余 — sweep 单边脊柱（occt 正例，脚本级）', () => {
   it('A3. 圆盘面截面（XY 面）沿 +Z 直线脊柱 → 实体圆柱，体积 ≈ πr²L', async () => {
     await useOcct()
     // GOTCHA（实测钉住）：BRepOffsetAPI_MakePipe 的产物类型随截面类型——
@@ -129,7 +130,7 @@ describe('S4 实体偏置族剩余 — pipe（occt 正例，脚本级）', () =>
       `{"kind":"arc","cx":0,"cy":0,"radius":2,"startAngle":0*RADIAN,"endAngle":3.141592653589793*RADIAN,"ccw":true,"x1":2,"y1":0,"x2":-2,"y2":0},` +
       `{"kind":"arc","cx":0,"cy":0,"radius":2,"startAngle":3.141592653589793*RADIAN,"endAngle":6.283185307179586*RADIAN,"ccw":true,"x1":-2,"y1":0,"x2":2,"y2":0}],"closed":true}] })\n` +
       `let part1 = cad.wire([[0,0,0],[0,0,20]])\n` +
-      `let part2 = cad.pipe(part0, part1)\n`,
+      `let part2 = cad.sweep(part0, part1)\n`,
       'part2',
     )
     const v = volumeOf(s)
@@ -139,17 +140,20 @@ describe('S4 实体偏置族剩余 — pipe（occt 正例，脚本级）', () =>
     expect(b.zmax - b.zmin).toBeCloseTo(20, 3)
   })
 
-  it('A4. GOTCHA：edge 截面 → 产**壳**（管面）而非实体；bbox 跨度仍是脊柱长', async () => {
+  it('A4. edge 截面（整圆）→ 包成 wire 后产**实体**圆柱（旧 `pipe` 的「壳」口径不再适用）', async () => {
     await useOcct()
+    // 2026-11-16：`cad.pipe` 删除后，edge 截面不再走 `MakePipe`（那条路径产壳、体积无意义），
+    // 而是先包成 wire 再 `sweepPipeShell` —— 闭合 wire 得到实体。`sweepRaw` 逃生口仍能复现
+    // MakePipe 的壳口径。
     const s = await shapeOf(
       'brep',
       `let part0 = cad.circleArc([0,0,0],[0,1,0],2,0,360)\n` +
       `let part1 = cad.wire([[0,0,0],[0,20,0]])\n` +
-      `let part2 = cad.pipe(part0, part1)\n`,
+      `let part2 = cad.sweep(part0, part1)\n`,
       'part2',
     )
-    const t = getBrepApi().shapeType(brepOf(s) as never)
-    expect(String(t)).toMatch(/shell/i)
+    expect(String(getBrepApi().shapeType(brepOf(s) as never))).toMatch(/solid/i)
+    expect(Math.abs(volumeOf(s) - Math.PI * 4 * 20)).toBeLessThan(Math.PI * 4 * 20 * 0.02)
     const b = bboxOf(s)
     expect(b.ymax - b.ymin).toBeCloseTo(20, 3)
   })
@@ -168,10 +172,10 @@ describe('S4 实体偏置族剩余 — 入参校验', () => {
     expect(JSON.stringify(r.failedAt)).toMatch(/E_DRAFTPRISM_BAD_ANGLE/)
   })
 
-  it('B. pipe 缺参 → E_PIPE_MISSING_ARG', async () => {
+  it('B. sweep 缺参 → E_SWEEP_NO_PROFILE', async () => {
     await useOcct()
-    const r = await exec('brep', `let part1 = cad.pipe(null, null)\n`)
-    expect(JSON.stringify(r.failedAt)).toMatch(/E_PIPE_MISSING_ARG/)
+    const r = await exec('brep', `let part1 = cad.sweep(null, null)\n`)
+    expect(JSON.stringify(r.failedAt)).toMatch(/E_SWEEP_NO_PROFILE/)
   })
 })
 
@@ -183,7 +187,6 @@ describe('S4 实体偏置族剩余 — 平台身份（brepkit 下执行前静态
 
   const CALLS: Array<[string, string]> = [
     ['draftPrism', `${SQUARE_PROFILE}let part1 = cad.draftPrism(part0, [0,0,10], 5)\n`],
-    ['pipe', `let part0 = cad.wire([[0,0,0],[1,0,0]])\nlet part1 = cad.pipe(part0, part0)\n`],
   ]
 
   for (const [op, code] of CALLS) {
@@ -222,14 +225,14 @@ describe('S4 实体偏置族剩余 — TS 级直连（L1 覆盖门禁）', () =>
     expect(volumeOf(s)).toBeCloseTo(1000, 3)
   })
 
-  it('D. pipe 直连：edge 截面 → 壳（管面）；体积断言见 A3 的面截面口径', async () => {
+  it('D. sweep 直连：edge 截面 → 实体（edge 被包成 wire，闭合 ⇒ 实体）', async () => {
     const runtime = new CadRuntime(ports(), 'brep', { cad: createApiNamespaceWithEditorOps() })
     const result = await runtime.execute(
       `let part0 = cad.circleArc([0,0,0],[0,1,0],2,0,360)\nlet part1 = cad.wire([[0,0,0],[0,20,0]])\n`,
     )
     const profile = result.outputs.get(asPartName('part0')) as Shape
     const spine = result.outputs.get(asPartName('part1')) as Shape
-    const s = await pipe(profile, spine)
-    expect(String(getBrepApi().shapeType(brepOf(s) as never))).toMatch(/shell/i)
+    const s = await sweep(profile, spine)
+    expect(String(getBrepApi().shapeType(brepOf(s) as never))).toMatch(/solid/i)
   })
 })

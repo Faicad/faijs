@@ -38,7 +38,6 @@
     "anchorPoints",
     "andThen",
     "applyTransformBrep",
-    "arcPoints",
     "assertSatisfies",
     "atFromCadQuery",
     "atFromFreeCad",
@@ -166,6 +165,7 @@
     "sketchOnSurface",
     "splitVersionRange",
     "stripExtension",
+    "sweepRaw",
     "takeFunctionBrepDomain",
     "terminateWorker",
     "toNonIndexed",
@@ -475,8 +475,7 @@
     {
       "name": "drill",
       "missing": [
-        "screwHead",
-        "tolerance"
+        "screwHead"
       ]
     },
     {
@@ -542,11 +541,9 @@
     {
       "name": "fai_drill",
       "missing": [
-        "diameter",
         "face",
         "screwHead",
         "screwSystem",
-        "screwThread",
         "tolerance"
       ]
     },
@@ -684,22 +681,6 @@
       "name": "outerWire",
       "missing": [
         "face"
-      ]
-    },
-    {
-      "name": "sweepAlong",
-      "missing": [
-        "opts",
-        "section",
-        "spine"
-      ]
-    },
-    {
-      "name": "pipe",
-      "missing": [
-        "opts",
-        "profile",
-        "spine"
       ]
     },
     {
@@ -861,15 +842,8 @@
     {
       "name": "sweep",
       "missing": [
-        "profile",
-        "spine"
-      ]
-    },
-    {
-      "name": "sweepAdvanced",
-      "missing": [
         "opts",
-        "profile",
+        "section",
         "spine"
       ]
     },

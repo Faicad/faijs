@@ -1,13 +1,25 @@
 /**
- * api sweep-advanced — 扫掠（完整控制面）：occt 平台 op。
+ * api sweep-advanced — `cad.sweepRaw`：扫掠内核控制面直通（occt 平台 op）。
  *
- * 为什么与基础 `sweep` 拆成两个 op（方案 2026-10-10-sweep-loft-dual-engine-plan
- * §3 总览 / §6）：基础 `sweep` 进 L1（两内核都要支持），其选项集必须等于**两内核
- * 交集**；而本文件承载的 sweepFull 控制面（transition 模式、auxSpine + guideContact、
- * support、解析式 law、orientation 参考系）只有 occt `MakePipeShell` 家族能做，
- * brepkit 无对应。留在基础 op 上会造成「同一脚本在 occt 跑得通、在 brepkit 上
- * 静默变另一回事」的语义分叉 —— 故整体上移到本 op（与 `sketchOnFace →
- * sketchOnSurface` 的收窄/拆分完全同构）。
+ * ## 为什么它不再是公开主入口
+ *
+ * 2026-11-16 起公开面只有 `cad.sweep`（策略 + 落位 + 判据）。本文件保留的是**内核
+ * 控制面**：transition 模式、auxSpine + guideContact、support、解析式 law、orientation
+ * 参考系 —— 这些字段与 `sweep` 的 Pappus 判据（体积 = 净面积 × 长度）**冲突**：
+ * `law` 会改变截面积、`support`/`auxSpine` 会把料推到脊柱包围盒之外。把它们混进
+ * `sweep` 的选项，C1/C3 就只能退化成"一堆特例"，所以它们留在逃生口。
+ *
+ * 命名：`sweepRaw` 不是"更高级的 sweep"，而是"**不做策略、不做落位决策**的 sweep"。
+ * 调用方要自己保证截面位置与过渡模式；默认值仍按脊柱事实给（G0 → 斜接），
+ * 但那只是不让旧行为继续塌陷，不是替你选路。
+ *
+ * ## 与 `sweep` 的分工
+ *
+ * | 场景 | 用谁 |
+ * |---|---|
+ * | 等截面沿中心线扫出管（含带孔截面、三维路径、折线斜接） | `cad.sweep` |
+ * | 缩放律 / 引导线 / 支撑面 / 恒定 binormal | `cad.sweepRaw`（occt） |
+ * | 想要内核裸行为做对拍或排障 | `cad.sweepRaw`（occt） |
  *
  * 实现走 core 直连 `brep-operations/sweepFns.ts#sweepBrep`（occt `simplePipe` /
  * `sweepPipeShell` / `sweepFull`），产物经 `fromBrep` 收养。
@@ -55,7 +67,7 @@ export type SweepLawKind = 'none' | 'linear' | 'sCurve'
  * - **完整控制面**：给出下列任一 sweepFull 字段时改走 occt 原生 `sweepFull`
  *   （occt-wasm 的 `sweepAdvanced` / `sweepOriented` 是其子集，由同一选项对象承载）。
  */
-export interface SweepAdvancedOptions {
+export interface SweepRawOptions {
   /** Frenet 参考系（默认 false）。仅旧路径。 */
   frenet?: boolean
   /** 扫掠模式：'simple'（MakePipe）或 undefined（PipeShell）。与 sweepFull 字段互斥。 */
@@ -134,7 +146,7 @@ export interface SweepAdvancedOptions {
  * 用 `rightCorner`（斜接），全 G1 时交给内核缺省（**保持旧代码路径**）。旧行为可用
  * 显式 `transitionMode: 'transformed'` 复现（折线上会塌陷成平移体）。
  */
-function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOptions): Shape {
+function sweepRawBrep(profile: Shape, spine: Shape, opts?: SweepRawOptions): Shape {
   if (!profile) throw new Error('E_SWEEP_NO_PROFILE: sweep requires a profile (section) shape')
   if (!spine) throw new Error('E_SWEEP_NO_SPINE: sweep requires a spine (path) shape')
   // 截面：wire 直用；面取全部环（外环 + 孔环）。脊柱只取单环 wire。
@@ -157,7 +169,7 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
         ? 'rightCorner'
         : undefined
       : requested
-  const sweepOpts: SweepAdvancedOptions = { ...(opts ?? {}), transitionMode }
+  const sweepOpts: SweepRawOptions = { ...(opts ?? {}), transitionMode }
 
   // 落位（默认关，保持既有行为）。开关打开时按「截面中心压到起点、法向对准切向」搬。
   let matrix: number[] | undefined
@@ -178,12 +190,12 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
       const sectionHandle = matrix === undefined ? ring.wrapped : kernel.transform(ring.wrapped, matrix)
       if (matrix !== undefined) moved.push(sectionHandle)
       const r = coreSweep(sectionHandle, spineWire, sweepOpts, false)
-      const h = unwrapResult(r, 'sweepAdvanced') as BrepHandle
+      const h = unwrapResult(r, 'sweepRaw') as BrepHandle
       swept.push(h)
       if (guard) {
         assertSweptVolumeMatches(
           kernel,
-          'sweepAdvanced',
+          'sweepRaw',
           areaOfProfileWire(kernel, sectionHandle),
           spineWire.wrapped,
           h,
@@ -221,7 +233,7 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
                 tangent: facts.edges[facts.edges.length - 1]!.tEnd,
               },
             ]
-      assertSweepResult(kernel, 'sweepAdvanced', {
+      assertSweepResult(kernel, 'sweepRaw', {
         result: solid,
         spine: spineWire.wrapped,
         profileArea: areaOfProfileFace(kernel, brepOf(profile) as BrepHandle),
@@ -250,41 +262,38 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
 }
 
 /**
- * 扫掠（完整控制面）：截面沿脊柱路径生成扫掠体。
+ * 扫掠（内核控制面直通）：把 occt `sweepFull` 的完整选项面暴露给脚本。
  * @group 特征
  * @inputs 3
  * @async true
  * @qual ok
- * @name sweepAdvanced
- * @note 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。截面接受
+ * @name sweepRaw
+ * @note 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / simplePipe）。截面接受
  *       wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错；
  *       brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。
- *       完整控制面：给出 `orientation` / `up` / `auxSpine` /
- *       `curvilinearEquivalence` / `guideContact` / `transitionMode`（新名）/
- *       `withContact` / `withCorrection` / `support` / `maxDegree` / `maxSegments` /
- *       `law` / `lawLength` / `lawEndFactor` / `tol3d` / `boundTol` / `tolAngular`
- *       任一，即改走 occt 原生 `sweepFull`（law 驱动扫掠是 twist 类特征的正
- *       确路径）。`sweepFull` 的 options 是 `sweepAdvanced` 的**严格超集**，且含
- *       `sweepOriented` 的全部字段 ⇒ 三者能力并轨，脚本面只需本符号一个。
- *       基础扫掠（两内核交集）用 `cad.sweep`。
+ *
+ *       **这是逃生口，不是主入口**：日常「等截面沿中心线扫出管」用 `cad.sweep`
+ *       （自动策略 + 落位 + C1–C3 判据）。本 op 不做策略选择，只在脊柱事实的基础
+ *       上给默认过渡（G0 → `rightCorner`）—— 给 `orientation` / `up` / `auxSpine` /
+ *       `curvilinearEquivalence` / `guideContact` / `withContact` / `withCorrection` /
+ *       `support` / `maxDegree` / `maxSegments` / `law` / `lawLength` /
+ *       `lawEndFactor` / `tol3d` / `boundTol` / `tolAngular` 任一，即改走 occt 原生
+ *       `sweepFull`。`law ≠ 'none'` 时体积恒等式不成立，C1 自动跳过（由调用方负责）。
  * @returns Shape 扫掠体。
  * @param profile - 截面几何（wire 或面；面取其外环）。type:Shape required:true
  * @param spine - 脊柱路径（wire）。type:Shape required:true
- * @param opts - 扫掠完整控制面。type:SweepAdvancedOptions required:false
+ * @param opts - 扫掠完整控制面。type:SweepRawOptions required:false
+ * @throws E_SWEEP_VOLUME_MISMATCH 体积与「截面积 × 长度」不符（`law` 生效时不判）。
+ * @throws E_SWEEP_CAP_NORMAL 端面法向与端点切向不符（截面没转）。
+ * @throws E_SWEEP_BBOX_MISMATCH 产物没有覆盖整条脊柱。
  * @example
  * const path = cad.wire([[0, 0, 0], [0, 0, 50]])
- * const section = cad.profile({ contours: [{ segments: [
- *   { kind: 'line', x1: -4, y1: -4, x2: 4, y2: -4 },
- *   { kind: 'line', x1: 4, y1: -4, x2: 4, y2: 4 },
- *   { kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
- *   { kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
- * ] }] })
- * const body = cad.sweepAdvanced(section, path, { orientation: 'frenet' })
+ * const body = cad.sweepRaw(section, path, { orientation: 'frenet' })
  */
-export const sweepAdvanced = defineOp({
-  name: 'sweepAdvanced',
-  brep(profile: Shape, spine: Shape, opts?: SweepAdvancedOptions) {
-    return sweepAdvancedBrep(profile, spine, opts)
+export const sweepRaw = defineOp({
+  name: 'sweepRaw',
+  brep(profile: Shape, spine: Shape, opts?: SweepRawOptions) {
+    return sweepRawBrep(profile, spine, opts)
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: 'swept-body face vocabulary not defined' } as Provenance,
