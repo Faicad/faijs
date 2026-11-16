@@ -34,12 +34,24 @@ import { __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
 import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
+import { getBrepApi } from '../../src/brep/handle-bridge'
+import { brepOf } from '../../src/shape'
+import {
+  DEFAULT_SWEEP_VOLUME_TOLERANCE,
+  setSweepVolumeTolerance,
+} from '../../src/api/internal/sweep-guard'
 
 beforeAll(async () => {
   await initOcctWasm()
+  // 本文件钉的是**网格绕序契约**，不是体积恒等式：这条真机脊柱是粗折线（拐角 35.7°、
+  // 首段 16.3mm、截面 29×27），体积必然只有解析值的 5/12（下面 T0 显式钉住这个数）。
+  // 因此按守卫消息里给出的正式出口放宽进程级容差——这不是「隐藏错误」，几何缺陷
+  // 在 sweep-kernel-behavior（K2/K6）与 sweepAlong 的判据里各自被钉住。
+  setSweepVolumeTolerance(0.99)
 }, 120000)
 
 afterAll(() => {
+  setSweepVolumeTolerance(DEFAULT_SWEEP_VOLUME_TOLERANCE)
   __resetEngineRegistriesForTests()
 })
 
@@ -142,6 +154,10 @@ describe('sweep — 输出网格绕序一致性', () => {
     expect(s.indices.length).toBeGreaterThan(0)
     // 冲突 > 0 时，渲染层 FrontSide 会把那些三角形剔掉 —— 真机上就是可见的洞。
     expect(windingConflicts(s.positions, s.indices)).toBe(0)
+    // 顺带把「这条粗折线脊柱的体积只有解析值 5/12」钉住：beforeAll 放宽容差是
+    // 为了不让体积判据挡住绕序断言，不是掩盖这个事实（解析值 = 783 × 40.794）。
+    const v = getBrepApi().getVolume(brepOf(s) as never)
+    expect(v / (783 * 40.794)).toBeCloseTo(5 / 12, 2)
   })
 
   it('小截面 8×8 走同一条折线：本来就 0 冲突（守住断言本身不产生假阳性）', async () => {

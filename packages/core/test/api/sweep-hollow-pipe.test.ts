@@ -27,7 +27,7 @@ import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { getBrepApi } from '../../src/brep/handle-bridge'
 import { brepOf } from '../../src/shape'
 import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
-import { pipeAlong } from '../../src/api/solid-offset'
+import { sweepAlong } from '../../src/api/solid-offset'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -74,7 +74,7 @@ const annulusFace = (rOut: number, rIn: number, tag: string): string =>
   `{ kind: 'circle', r: ${rOut}, cx: 0, cy: 0, tag: '${tag}o' },` +
   `{ kind: 'circle', r: ${rIn}, cx: 0, cy: 0, tag: '${tag}i', mode: 's' }], constraints: [] })`
 
-describe('pipeAlong · 一次调用出多段（空心）管', () => {
+describe('sweepAlong · 一次调用出多段（空心）管', () => {
   const R = 36.35
   /** case8 的 U 形中心线：长腿 90 + 底部 180° 弯 R36.35 + 短腿 51.35。 */
   const U_SPINE =
@@ -84,7 +84,7 @@ describe('pipeAlong · 一次调用出多段（空心）管', () => {
     `let spine = cad.wireFromEdges([e1,e2,e3])\n`
   const U_LEN = 90 + Math.PI * R + 51.35
 
-  it('G0. 逐段隔离：每段单独 pipeAlong 的体积必须精确（= 面积 × 段长）', async () => {
+  it('G0. 逐段隔离：每段单独 sweepAlong 的体积必须精确（= 面积 × 段长）', async () => {
     await useOcct()
     const r = 6
     const area = Math.PI * r * r
@@ -96,7 +96,7 @@ describe('pipeAlong · 一次调用出多段（空心）管', () => {
     for (const [name, len] of segs) {
       const s = await shapeOf(
         'brep',
-        `let sec = ${discFace(r, 'sec')}\n` + U_SPINE + `let part2 = cad.pipeAlong(sec, cad.wireFromEdges([${name}]))\n`,
+        `let sec = ${discFace(r, 'sec')}\n` + U_SPINE + `let part2 = cad.sweepAlong(sec, cad.wireFromEdges([${name}]))\n`,
         'part2',
       )
       const v = volumeOf(s)
@@ -104,16 +104,16 @@ describe('pipeAlong · 一次调用出多段（空心）管', () => {
     }
   })
 
-  it('G0b. 三段 pipeAlong 后 union → 体积等于三段之和（相邻段共面接缝不丢料）', async () => {
+  it('G0b. 三段 sweepAlong 后 union → 体积等于三段之和（相邻段共面接缝不丢料）', async () => {
     await useOcct()
     const r = 6
     const area = Math.PI * r * r
     const s = await shapeOf(
       'brep',
       `let sec = ${discFace(r, 'sec')}\n` + U_SPINE +
-        `let s1 = cad.pipeAlong(sec, cad.wireFromEdges([e1]))\n` +
-        `let s2 = cad.pipeAlong(sec, cad.wireFromEdges([e2]))\n` +
-        `let s3 = cad.pipeAlong(sec, cad.wireFromEdges([e3]))\n` +
+        `let s1 = cad.sweepAlong(sec, cad.wireFromEdges([e1]))\n` +
+        `let s2 = cad.sweepAlong(sec, cad.wireFromEdges([e2]))\n` +
+        `let s3 = cad.sweepAlong(sec, cad.wireFromEdges([e3]))\n` +
         `let part2 = cad.union(s1, s2, s3)\n`,
       'part2',
     )
@@ -137,9 +137,9 @@ describe('pipeAlong · 一次调用出多段（空心）管', () => {
       const s = await shapeOf(
         'brep',
         `let sec = ${discFace(r, 'sec')}\n` + U_SPINE +
-          `let s1 = cad.pipeAlong(sec, cad.wireFromEdges([e1]))\n` +
-          `let s2 = cad.pipeAlong(sec, cad.wireFromEdges([e2]))\n` +
-          `let s3 = cad.pipeAlong(sec, cad.wireFromEdges([e3]))\n` +
+          `let s1 = cad.sweepAlong(sec, cad.wireFromEdges([e1]))\n` +
+          `let s2 = cad.sweepAlong(sec, cad.wireFromEdges([e2]))\n` +
+          `let s3 = cad.sweepAlong(sec, cad.wireFromEdges([e3]))\n` +
           `let part2 = ${expr}\n`,
         'part2',
       )
@@ -184,7 +184,7 @@ describe('pipeAlong · 一次调用出多段（空心）管', () => {
     const r = 6
     const s = await shapeOf(
       'brep',
-      `let sec = ${discFace(r, 'sec')}\n` + U_SPINE + `let part2 = cad.pipeAlong(sec, spine)\n`,
+      `let sec = ${discFace(r, 'sec')}\n` + U_SPINE + `let part2 = cad.sweepAlong(sec, spine)\n`,
       'part2',
     )
     const expected = Math.PI * r * r * U_LEN
@@ -198,7 +198,7 @@ describe('pipeAlong · 一次调用出多段（空心）管', () => {
     const rIn = 6.65
     const s = await shapeOf(
       'brep',
-      `let sec = ${annulusFace(rOut, rIn, 'sec')}\n` + U_SPINE + `let part2 = cad.pipeAlong(sec, spine)\n`,
+      `let sec = ${annulusFace(rOut, rIn, 'sec')}\n` + U_SPINE + `let part2 = cad.sweepAlong(sec, spine)\n`,
       'part2',
     )
     const expected = Math.PI * (rOut * rOut - rIn * rIn) * U_LEN
@@ -222,7 +222,7 @@ describe('pipeAlong · 一次调用出多段（空心）管', () => {
       `let spine = cad.wireFromEdges([c1,c2,c3,c4,c5])\n`
     const s = await shapeOf(
       'brep',
-      `let sec = ${annulusFace(rOut, rIn, 'sec')}\n` + spine3d + `let part2 = cad.pipeAlong(sec, spine)\n`,
+      `let sec = ${annulusFace(rOut, rIn, 'sec')}\n` + spine3d + `let part2 = cad.sweepAlong(sec, spine)\n`,
       'part2',
     )
     const h = brepOf(s) as never
@@ -241,14 +241,22 @@ describe('pipeAlong · 一次调用出多段（空心）管', () => {
     expect(api.getVolume(h)).toBeCloseTo(netArea * totalLen, -1)
   })
 
-  it('G3. opts.closed=true → E_PIPE_ALONG_CLOSED_UNSUPPORTED（参数被覆盖）', async () => {
+  it('G3. 闭合中心线（真圆 R10 + r6 圆截面）→ 自动识别 closed，一次扫出环面', async () => {
     await useOcct()
-    const result = await exec(
+    // 闭合是**脊柱事实**，不需要也不接受开关：整圆 = 首尾重合。
+    // 环面解析：体积 = πr² × 2πR = 7106.19，bbox 32×32×12（外径 16、管半径 6）。
+    const s = await shapeOf(
       'brep',
-      `let sec = ${discFace(6, 'sec')}\n` + U_SPINE + `let part2 = cad.pipeAlong(sec, spine, { closed: true })\n`,
+      `let sec = ${discFace(6, 'sec')}\n` +
+        `let spine = cad.wireFromEdges([cad.circleArc([0,0,0],[0,0,1],10,0*DEGREE,360*DEGREE)])\n` +
+        `let part2 = cad.sweepAlong(sec, spine)\n`,
+      'part2',
     )
-    expect(result.failedAt).toBeTruthy()
-    expect(String(result.failedAt?.message ?? '')).toMatch(/CLOSED_UNSUPPORTED|closed centrelines/i)
+    expect(volumeOf(s)).toBeCloseTo(Math.PI * 36 * 2 * Math.PI * 10, -1)
+    const b = getBrepApi().getBoundingBox(brepOf(s) as never)
+    expect(b.xmax - b.xmin).toBeCloseTo(32, 0)
+    expect(b.ymax - b.ymin).toBeCloseTo(32, 0)
+    expect(b.zmax - b.zmin).toBeCloseTo(12, 0)
   })
 })
 
@@ -274,43 +282,44 @@ describe('sweepAdvanced 带孔截面 · 事实钉桩', () => {
     expect(Math.abs(v - expectedSolid)).toBeGreaterThan(expectedSolid * 0.2)
   })
 
-  it('F2. sweepAdvanced 沿两段折线脊柱同样丢 50% 体积，被守卫拦下（推翻"吃多段"假设）', async () => {
+  it('F2. sweepAdvanced 沿两段 90° 折线：自动斜接 = 精确；显式 transformed = 解析值的 1/2', async () => {
     await useOcct()
     const r = 6
-    const result = await exec(
-      'brep',
+    const expected = Math.PI * r * r * 50
+    const code = (opts: string): string =>
       `let part0 = ${discFace(r, 'sec')}\n` +
-        `let part1 = cad.wire([[0,0,0],[0,0,25],[0,25,25]])\n` +
-        `let part2 = cad.sweepAdvanced(part0, part1, { withContact: true })\n`,
-    )
-    // 实测：MakePipeShell 与 pipe 对折线脊柱一样丢体积（两段 90° = 解析值 1/2）。
-    // 所以"一次调用吃多段脊柱"在内核层不成立 —— 守卫拦得对。
-    // case8 必须拆段的根因在此，不是 pipe 独有。
-    expect(result.failedAt).toBeTruthy()
-    expect(String(result.failedAt?.message ?? '')).toMatch(/swept volume does not match/i)
-    expect(String(result.failedAt?.message ?? '')).toMatch(/50\.0% off/)
+      `let part1 = cad.wire([[0,0,0],[0,0,25],[0,25,25]])\n` +
+      `let part2 = cad.sweepAdvanced(part0, part1, ${opts})\n`
+
+    // 新真值：脊柱有 G0 折角 ⇒ 自动过渡用 rightCorner（斜接），体积精确。
+    const auto = await shapeOf('brep', code('{ withContact: true }'), 'part2')
+    expect(volumeOf(auto) / expected).toBeCloseTo(1, 3)
+
+    // 旧真值（钉住不回归）：显式 transformed = 截面只平移不旋转 ⇒ 平移到折角处塌成一块板，
+    // 体积恰为解析值的 1/2，且默认 5% 守卫必须拦下它。
+    const flat = await exec('brep', code("{ withContact: true, transitionMode: 'transformed' }"))
+    expect(flat.failedAt).toBeTruthy()
+    expect(String(flat.failedAt?.message ?? '')).toMatch(/swept volume does not match/i)
+    expect(String(flat.failedAt?.message ?? '')).toMatch(/50\.0% off/)
   })
 
-  it('F2b. 相切拼接的多段脊柱（真弧+直腿）→ sweepAdvanced 是否丢体积（决定封装复杂度）', async () => {
+  it('F2b. 相切拼接的多段脊柱（真弧+直腿，G1 相连）→ sweepAdvanced 体积精确 1.0000', async () => {
     await useOcct()
     const r = 6
     // 弧 R10 从 (0,0,0) 起、切向 +Z，到 (0,-10,10)、切向 -Y；直腿从该点沿 -Y 相切延续。
+    // 角度口径（实测）：axis +X 时 0° 落在 +Z、90° 落在 -Y，所以起点在 +Y 要用 -90°。
+    // 这一条曾经写错（0°~90°），造出的是「弧尾 (0,-20,0) 与直腿首 (0,-10,10) 相距 14.14」
+    // 的**断裂** wire，于是 sweepFull 直接失败；错的是脊柱不是内核。
     const code =
       `let part0 = ${discFace(r, 'sec')}\n` +
-      `let arc = cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE)\n` +
+      `let arc = cad.circleArc([0,-10,0],[1,0,0],10,-90*DEGREE,0*DEGREE)\n` +
       `let line = cad.edge([0,-10,10],[0,-20,10])\n` +
       `let part1 = cad.wireFromEdges([arc, line])\n` +
       `let part2 = cad.sweepAdvanced(part0, part1, { withContact: true })\n`
-    const expected = Math.PI * r * r * ((Math.PI / 2) * 10 + 10)
-    const result = await exec('brep', code)
-    if (result.failedAt) {
-      // 事实若为拒：相切多段也不行 ⇒ 封装必须逐段拆。
-      expect(String(result.failedAt.message ?? '')).toMatch(/swept volume does not match/i)
-      return
-    }
-    const v = volumeOf(result.outputs.get(asPartName('part2')) as Shape)
-    // 事实若为过：相切多段不丢体积 ⇒ 封装只需处理截面定位 + 带孔，不必逐段拆。
-    expect(Math.abs(v - expected)).toBeLessThan(expected * 0.05)
+    const expected = Math.PI * r * r * ((Math.PI / 2) * 10 + 10) // 2907.50
+    const s = await shapeOf('brep', code, 'part2')
+    // 事实：G1 相连的混合边类型脊柱，单次扫掠**不丢体积**（实测 1.0000000000000002）。
+    expect(volumeOf(s) / expected).toBeCloseTo(1, 3)
   })
 
   it('F2c. 单段真弧脊柱 + withContact/withCorrection → 截面能否自动定位（决定封装实现）', async () => {
@@ -336,7 +345,7 @@ describe('sweepAdvanced 带孔截面 · 事实钉桩', () => {
       expect(Math.abs(withBoth - expected)).toBeLessThan(expected * 0.02)
       return
     }
-    // 若两种自动定位都不可用 ⇒ 封装必须自己算变换矩阵搬截面（pipeAlong 就是这么做的）。
+    // 若两种自动定位都不可用 ⇒ 封装必须自己算变换矩阵搬截面（sweepAlong 就是这么做的）。
     const contactOnly = await attempt('{ withContact: true }')
     expect(contactOnly).toBeNull()
   })
@@ -367,7 +376,7 @@ describe('体积守卫容差可注入（P2）', () => {
   /** 两段 90° 折线：内核静默只给解析体积的 1/2。 */
   const L_SHAPE = 'cad.wire([[0,0,0],[0,0,25],[0,25,25]])'
 
-  it('P2g1. 默认 5% 拦下折线；显式 volumeTolerance 放行，但体积仍是解析值的 50%（放宽不修几何）', async () => {
+  it('P2g1. 默认 5% 拦下塌陷体；只放宽体积不够（C2 仍拒），strict:false 才知情放行且体积仍是 50%', async () => {
     await useOcct()
     const expected = Math.PI * R * R * 50
     const code = (opts: string): string =>
@@ -375,34 +384,44 @@ describe('体积守卫容差可注入（P2）', () => {
       `let part1 = ${L_SHAPE}\n` +
       `let part2 = cad.sweepAdvanced(part0, part1, ${opts})\n`
 
-    // 默认（无 opts.volumeTolerance）：拦。
-    const strict = await exec('brep', code('{ withContact: true }'))
+    // 默认（无 opts.volumeTolerance）：拦。用显式 transformed 造出确定性的塌陷几何，
+    // 而不是靠「自动过渡不管折角」——后者已修好，不再丢体积。
+    const strict = await exec('brep', code("{ withContact: true, transitionMode: 'transformed' }"))
     expect(strict.failedAt).toBeTruthy()
     expect(String(strict.failedAt?.message ?? '')).toMatch(/50\.0% off, tolerance 5%/)
 
-    // 显式放宽到 60%：放行，但几何没变 —— 体积仍只有解析值的一半。
-    const relaxed = await exec('brep', code('{ withContact: true, volumeTolerance: 0.6 }'))
+    // 只放宽体积容差**不够**：塌陷体的端面法向偏离切向 90°，C2 照样拒。
+    const tolOnly = await exec(
+      'brep',
+      code("{ withContact: true, transitionMode: 'transformed', volumeTolerance: 0.6 }"),
+    )
+    expect(tolOnly.failedAt?.code).toBe('E_SWEEP_CAP_NORMAL')
+
+    // 要「知情放行」必须同时把 C2 降为通知（strict:false）；此时体积仍只有解析值的一半。
+    const relaxed = await exec(
+      'brep',
+      code("{ withContact: true, transitionMode: 'transformed', volumeTolerance: 0.6, strict: false }"),
+    )
     expect(relaxed.failedAt).toBeFalsy()
     const v = volumeOf(relaxed.outputs.get(asPartName('part2')) as Shape)
     expect(Math.abs(v - expected * 0.5)).toBeLessThan(expected * 0.05)
   })
 
-  it('P2g2. pipe 同样支持 opts.volumeTolerance（第二个消费方）', async () => {
+  it('P2g2. pipe 对多边/折角脊柱直接拒绝（E_PIPE_SPINE_UNSUPPORTED），并指向 sweepAlong', async () => {
     await useOcct()
-    const expected = Math.PI * R * R * 50
     const code = (opts: string): string =>
       `let part0 = ${discFace(R, 'sec')}\n` +
       `let part1 = ${L_SHAPE}\n` +
       `let part2 = cad.pipe(part0, part1${opts})\n`
 
-    const strict = await exec('brep', code(''))
-    expect(strict.failedAt).toBeTruthy()
-    expect(String(strict.failedAt?.message ?? '')).toMatch(/swept volume does not match/i)
-
-    const relaxed = await exec('brep', code(', { volumeTolerance: 0.6 }'))
-    expect(relaxed.failedAt).toBeFalsy()
-    const v = volumeOf(relaxed.outputs.get(asPartName('part2')) as Shape)
-    expect(Math.abs(v - expected * 0.5)).toBeLessThan(expected * 0.05)
+    // MakePipe 没有过渡入口：多边脊柱只可能产出塌陷体。不再「先扫再靠体积猜」，
+    // 而是扫之前就按脊柱事实拒绝（放宽容差也放不过去）。
+    for (const opts of ['', ', { volumeTolerance: 0.6 }']) {
+      const r = await exec('brep', code(opts))
+      expect(r.failedAt).toBeTruthy()
+      expect(String(r.failedAt?.message ?? '')).toMatch(/E_PIPE_SPINE_UNSUPPORTED|cannot be swept by MakePipe/)
+      expect(String(r.failedAt?.message ?? '')).toMatch(/sweepAlong/)
+    }
   })
 
   it('P2g3. 非法容差（(0,1) 之外）→ E_SWEEP_TOL_INVALID，不静默夹取', async () => {
@@ -419,13 +438,13 @@ describe('体积守卫容差可注入（P2）', () => {
     }
   })
 
-  it('P2g4. pipeAlong 接受 volumeTolerance：正确几何不受影响，体积仍为净面积 × 段长', async () => {
+  it('P2g4. sweepAlong 接受 volumeTolerance：正确几何不受影响，体积仍为净面积 × 段长', async () => {
     await useOcct()
     const s = await shapeOf(
       'brep',
       `let sec = ${annulusFace(8, 4, 's')}\n` +
         `let sp = cad.wire([[0,0,0],[0,0,30]])\n` +
-        `let part2 = cad.pipeAlong(sec, sp, { volumeTolerance: 0.02 })\n`,
+        `let part2 = cad.sweepAlong(sec, sp, { volumeTolerance: 0.02 })\n`,
       'part2',
     )
     expect(volumeOf(s)).toBeCloseTo(Math.PI * (64 - 16) * 30, -1)
@@ -445,7 +464,7 @@ describe('脚本自定义函数能力（P2 澄清）', () => {
         `}\n` +
         `let sec = ring(8, 4, 'sec')\n` +
         `let sp = cad.wire([[0,0,0],[0,0,20]])\n` +
-        `let part2 = cad.pipeAlong(sec, sp)\n`,
+        `let part2 = cad.sweepAlong(sec, sp)\n`,
       'part2',
     )
     // 净化体积 = π(64−16)×20 = 3015.93
@@ -513,8 +532,8 @@ describe('P1 · 按「空间点 + 法向」放截面（sketchOnPlane 的 PlaneSp
   })
 })
 
-describe('pipeAlong — TS 级直连（L1 覆盖门禁）', () => {
-  it('L1. pipeAlong(section, spine, opts) 三个参数全覆盖：单段直脊体积 = 面积 × 长', async () => {
+describe('sweepAlong — TS 级直连（L1 覆盖门禁）', () => {
+  it('L1. sweepAlong(section, spine, opts) 三个参数全覆盖：单段直脊体积 = 面积 × 长', async () => {
     await useOcct()
     const rt = new CadRuntime(ports(), 'brep', { cad: createApiNamespaceWithEditorOps() })
     const r = await rt.execute(
@@ -523,7 +542,7 @@ describe('pipeAlong — TS 级直连（L1 覆盖门禁）', () => {
     expect(r.failedAt).toBeFalsy()
     const section = r.outputs.get(asPartName('sec')) as Shape
     const spine = r.outputs.get(asPartName('sp')) as Shape
-    const s = await pipeAlong(section, spine, { closed: false })
+    const s = await sweepAlong(section, spine, { autoPlace: true })
     expect(volumeOf(s)).toBeCloseTo(Math.PI * 36 * 40, -1)
   })
 })

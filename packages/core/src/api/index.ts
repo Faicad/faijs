@@ -70,8 +70,8 @@ export {
 // S4（occt-wasm op 接入）：曲面与面构造族（平台 op engines:['occt']，方案 §3.4.2）。
 export { faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire } from './surface-face'
 // S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
-export { draftPrism, pipe, pipeAlong } from './solid-offset'
-export type { PipeAlongOptions, PipeOptions } from './solid-offset'
+export { draftPrism, pipe, sweepAlong } from './solid-offset'
+export type { PipeOptions, SweepAlongOptions } from './solid-offset'
 // S4（occt-wasm op 接入）：测量与查询族（平台 op engines:['occt']，方案 §3.4.6）。
 export {
   containsPoint, distanceBetween, inertia, linearCenterOfMass,

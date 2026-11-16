@@ -20,7 +20,21 @@ import { getBrepApi } from '../brep/handle-bridge'
 import { brepOf, fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
 import { sweepBrep as coreSweep } from './brep-operations/sweepFns'
-import { areaOfProfileFace, areaOfProfileWire, assertSweptVolumeMatches } from './internal/sweep-guard'
+import {
+  areaOfProfileFace,
+  areaOfProfileWire,
+  assertSweepResult,
+  assertSweptVolumeMatches,
+} from './internal/sweep-guard'
+import { analyzeSpine, describeSpine } from './internal/spine-analysis'
+import {
+  bboxCenter,
+  isPlaced,
+  sectionIsOnPath,
+  sectionNormal,
+  sectionPlacementMatrix,
+  sectionRadius,
+} from './internal/section-placement'
 import { toProfileRingsView, toProfileWireView } from './internal/profile-wire'
 import { unwrapResult } from './internal/result-unwrap'
 import type { BrepHandle } from '../brep/engine/types'
@@ -47,10 +61,11 @@ export interface SweepAdvancedOptions {
   /** 扫掠模式：'simple'（MakePipe）或 undefined（PipeShell）。与 sweepFull 字段互斥。 */
   mode?: 'simple'
   /**
-   * 转角过渡模式：`'right'`（旧别名，等价于内核缺省 Transformed）或
-   * `'transformed'` / `'rightCorner'` / `'roundCorner'`（后三者走 sweepFull）。
+   * 转角过渡模式。`'auto'`（默认）= 脊柱有 G0 折角时用 `'rightCorner'`（斜接），
+   * 全 G1 时交给内核缺省；`'right'` 是旧别名（等价于内核缺省 `'transformed'`）；
+   * 显式给 `'transformed'` 可回到「截面只平移不旋转」的旧行为（折线上会塌陷）。
    */
-  transitionMode?: 'right' | 'transformed' | 'rightCorner' | 'roundCorner'
+  transitionMode?: 'auto' | 'right' | 'transformed' | 'rightCorner' | 'roundCorner'
   /** 公差等其余旧字段（保留以兼容调用方）。 */
   tolerance?: number
 
@@ -94,18 +109,30 @@ export interface SweepAdvancedOptions {
   /** 角度公差（弧度）。 */
   tolAngular?: number
   /**
+   * 扫掠前把截面搬到脊柱起点、法向对准起点切向。默认 `false`（保持既有行为：
+   * 截面停在调用方放置的位置）。要「一次调用就正确」用 `cad.sweepAlong`，它的
+   * 落位默认开着。
+   */
+  autoPlace?: boolean
+  /**
    * 本次调用的扫掠体积对账容差，`(0,1)`，缺省用进程级 5%（见 `internal/sweep-guard.ts`）。
    * 显式放宽只是**知情放行**，不修几何——折线脊柱不会因为放宽阈值变对。
    */
   volumeTolerance?: number
+  /** 默认 `true`；`false` 时端面法向（C2）与包围盒（C3）判据降为通知，体积（C1）仍抛。 */
+  strict?: boolean
 }
 
 /** BREP 路径：截面沿脊柱扫掠（wire 视图 → brep-operations 直连 → fromBrep 收养）。
  *
  * 带孔截面（圆环）：内核 `MakePipe` / `MakePipeShell` 都只吃**单环**截面
- * （`sweepPipeShell(face)` 直接拒：`bad shape type of section`；给 face 也只取外环），
- * 所以外环与每个孔环**各自扫掠成实体**，再 `cut` 出内腔。实测（
- * `test/api/sweep-hollow-pipe.test.ts` F1/F3）：外环 − 孔环 = 净空心体积。
+ * （`sweepPipeShell(face)` 直接拒：`bad shape type of section`），所以外环与每个孔环
+ * **各自扫掠成实体**，再 `cut` 出内腔。实测（`test/api/sweep-hollow-pipe.test.ts` F1/F3）：
+ * 外环 − 孔环 = 净空心体积。
+ *
+ * 默认值方面（2026-11-16）：`transitionMode` 缺省按「脊柱事实」解析 —— 有 G0 折角时
+ * 用 `rightCorner`（斜接），全 G1 时交给内核缺省（**保持旧代码路径**）。旧行为可用
+ * 显式 `transitionMode: 'transformed'` 复现（折线上会塌陷成平移体）。
  */
 function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOptions): Shape {
   if (!profile) throw new Error('E_SWEEP_NO_PROFILE: sweep requires a profile (section) shape')
@@ -117,17 +144,47 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
   // 缩放律（law）会改变截面积 ⇒ 恒等式不成立，只在无 law 时判。
   // 判据与容差依据见 internal/sweep-guard.ts 文件头（折线脊柱实测 2/π、1/2）。
   const guard = !(opts?.law !== undefined && opts.law !== 'none')
+  const facts = analyzeSpine(kernel, spineWire.wrapped)
+
+  // transitionMode：'auto'/缺省 → 有折角才斜接，全 G1 保持内核缺省（= 旧路径逐字节不变）。
+  // 前提是脊柱**真相连**（无断裂）：断开的 wire 上「相邻边切向不同」并不是折角，而是
+  // 几何错误本身，此时套右斜接只会把内核的失败消息换成更难读的一条。
+  const connected = facts.gaps.length === 0
+  const requested = opts?.transitionMode
+  const transitionMode =
+    requested === undefined || requested === 'auto'
+      ? connected && facts.corners.length > 0
+        ? 'rightCorner'
+        : undefined
+      : requested
+  const sweepOpts: SweepAdvancedOptions = { ...(opts ?? {}), transitionMode }
+
+  // 落位（默认关，保持既有行为）。开关打开时按「截面中心压到起点、法向对准切向」搬。
+  let matrix: number[] | undefined
+  if (opts?.autoPlace === true && facts.edges.length > 0) {
+    const sectionHandle = brepOf(profile) as BrepHandle
+    const normal = sectionNormal(kernel, sectionHandle, rings[0]!.wrapped)
+    const start = facts.edges[0]!
+    const center = bboxCenter(kernel, sectionHandle)
+    if (normal !== undefined && !isPlaced(normal, center, start.start, start.tStart, sectionRadius(kernel, sectionHandle) * 2)) {
+      matrix = sectionPlacementMatrix(normal, center, start.start, start.tStart)
+    }
+  }
+
   const swept: BrepHandle[] = []
+  const moved: BrepHandle[] = []
   try {
     for (const ring of rings) {
-      const r = coreSweep(ring, spineWire, opts ?? {}, false)
+      const sectionHandle = matrix === undefined ? ring.wrapped : kernel.transform(ring.wrapped, matrix)
+      if (matrix !== undefined) moved.push(sectionHandle)
+      const r = coreSweep(sectionHandle, spineWire, sweepOpts, false)
       const h = unwrapResult(r, 'sweepAdvanced') as BrepHandle
       swept.push(h)
       if (guard) {
         assertSweptVolumeMatches(
           kernel,
           'sweepAdvanced',
-          areaOfProfileWire(kernel, ring.wrapped),
+          areaOfProfileWire(kernel, sectionHandle),
           spineWire.wrapped,
           h,
           opts?.volumeTolerance,
@@ -143,17 +200,37 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
       kernel.release(hole)
       solid = next
     }
-    // 复合结果按**净面积**再对账一次：带孔面的 getSurfaceArea 是外环−孔环的净面积，
-    // 这条判据同时能抓住"孔环扫出 0 体积、cut 没减掉"的失败（单环判据会漏它）。
-    if (guard && rings.length > 1) {
-      assertSweptVolumeMatches(
-        kernel,
-        'sweepAdvanced',
-        areaOfProfileFace(kernel, brepOf(profile) as BrepHandle),
-        spineWire.wrapped,
-        solid,
-        opts?.volumeTolerance,
-      )
+    // C2/C3 的前提是「截面落在路径上」：截面整体偏移时扫出的管整体挪位（体积仍对、
+    // 位置错），该修的是落位而不是断言 —— 此时只保留 C1。`autoPlace:true` 由本 op 摆正，
+    // 未给时按截面实际位置判定。
+    const onPath =
+      opts?.autoPlace === true ||
+      (facts.edges.length > 0 &&
+        sectionIsOnPath(kernel, brepOf(profile) as BrepHandle, rings[0]!.wrapped, facts.edges[0]!.start, facts.edges[0]!.tStart))
+    if (guard) {
+      // 复合结果按**净面积**再对一次（单环判据抓不出「孔环扫出 0 体积、cut 没减掉」），
+      // 并（截面已落位时）做端面法向（C2）与包围盒覆盖（C3）。
+      const caps =
+        !onPath || facts.closed || facts.edges.length === 0
+          ? undefined
+          : [
+              { label: 'start', point: facts.edges[0]!.start, tangent: facts.edges[0]!.tStart },
+              {
+                label: 'end',
+                point: facts.edges[facts.edges.length - 1]!.end,
+                tangent: facts.edges[facts.edges.length - 1]!.tEnd,
+              },
+            ]
+      assertSweepResult(kernel, 'sweepAdvanced', {
+        result: solid,
+        spine: spineWire.wrapped,
+        profileArea: areaOfProfileFace(kernel, brepOf(profile) as BrepHandle),
+        volumeTolerance: opts?.volumeTolerance,
+        caps,
+        coversPath: onPath,
+        spineNote: describeSpine(facts),
+        strict: opts?.strict,
+      })
     }
     return fromBrep(solidToShape(kernel, solid), { solid })
   } finally {
@@ -162,6 +239,9 @@ function sweepAdvancedBrep(profile: Shape, spine: Shape, opts?: SweepAdvancedOpt
       if (!ring.borrowed) {
         try { kernel.release(ring.wrapped) } catch { /* 已释放 */ }
       }
+    }
+    for (const h of moved) {
+      try { kernel.release(h) } catch { /* 已释放 */ }
     }
     if (!spineWire.borrowed) {
       try { kernel.release(spineWire.wrapped) } catch { /* 已释放 */ }

@@ -77,7 +77,7 @@ import { faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire } f
 // S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
 // 直调 occt 原生 draftPrism/pipe（不在 L1 契约；offsetWire2D/buildSolidFromFaces/
 // halfSpace 已由 S3 落地）。
-import { draftPrism, pipe, pipeAlong } from './solid-offset'
+import { draftPrism, pipe, sweepAlong } from './solid-offset'
 // S4（occt-wasm op 接入）：测量与查询族（平台 op engines:['occt']，方案 §3.4.6）。
 // 13 个原生方法不在 L1 契约：containsPoint/distanceBetween/getInertia/
 // getLinearCenterOfMass/projectPointOnEdge/projectPointOnFace/classifyPointOnFace/
@@ -214,7 +214,7 @@ export function createApiNamespace(): LibNamespace {
     // S4（occt-wasm op 接入）：曲面与面构造族（平台 op engines:['occt']，方案 §3.4.2）。
     faceOnSurface, nonPlanarFace, makeSolid, reverseSurfaceU, outerWire,
     // S4（occt-wasm op 接入）：实体与偏置族剩余（平台 op engines:['occt']，方案 §3.4.4）。
-    draftPrism, pipe, pipeAlong,
+    draftPrism, pipe, sweepAlong,
     // S4（occt-wasm op 接入）：测量与查询族（平台 op engines:['occt']，方案 §3.4.6）。
     containsPoint, distanceBetween, inertia, linearCenterOfMass,
     projectPointOnEdge, projectPointOnFace, classifyPointOnFace,

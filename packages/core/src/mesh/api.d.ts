@@ -205,6 +205,7 @@ export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'svgExtrude', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
   { op: 'sweep', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "swept-body face vocabulary not defined", vocab: [] },
   { op: 'sweepAdvanced', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "swept-body face vocabulary not defined", vocab: [] },
+  { op: 'sweepAlong', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "sweepAlong swept-body face vocabulary not defined", vocab: [] },
   { op: 'tangentArc', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "1D arc has no face role vocabulary", vocab: [] },
   { op: 'text', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
   { op: 'thicken', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "thickened-body face vocabulary not defined", vocab: [] },

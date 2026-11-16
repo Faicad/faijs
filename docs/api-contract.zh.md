@@ -570,7 +570,7 @@ export interface HostPorts {
 | 创建类 | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch`（缺省出面；`as:'wire'` 出 1D 曲线） |
 | 1D 曲线 | `wire`（折线/闭合/平滑） `helix`（平台 `engines:['occt']`）——都是 `kind:'curve'` |
 | 变换类 | `translate` `rotate_euler` `scale` `scale3d` `place` |
-| 扫掠／放样 | `sweep` `loft`（平台 `engines:['occt']`；截面接受 wire 或面——面会被缩到外环） |
+| 扫掠／放样 | `sweep` `sweepAdvanced` `sweepAlong` `loft`（平台 `engines:['occt']`）。`sweepAlong(profile, spine, opts)` 是一次调用入口：先读脊柱事实（边类型、G0 折角、断裂、闭合），据此选 `single` / `miter` / `segments` / `closed`，把截面落到路径上，再对产物做判据（体积恒等式、端面法向、包围盒覆盖）。扫不出正确几何的脊柱在**扫之前**就用 `E_SPINE_*` 拒绝。`sweep` / `sweepAdvanced` 保留原始内核控制面，只判体积恒等式 |
 | 特征类 | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` `filletVariable` `shell` `draft` `thicken`（平台 `engines:['occt']`） |
 | 布尔 | `union` `subtract` `intersect`，外加纯别名 `fuse`（= `union`）与 `cut`（= `subtract`）——同一函数对象，没有第二套实现 |
 | 分割／阵列 | `split`（双输出，解构 `const { front, back } = …`） `splitByPlane`（具名产物 `{ positive, negative }`，解构消费） `sectionByPlane`（截面曲线的 1D compound） `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |

@@ -1,4 +1,4 @@
-# Agent Note：pipeAlong —— 一次调用完成多段空心管扫掠
+# Agent Note：sweepAlong —— 三维扫掠的「事实 → 策略 → 执行 → 判据」四段
 
 Status: implemented
 
@@ -6,102 +6,79 @@ Status: implemented
 
 ## 问题
 
-把等截面沿多段三维中心线扫成管件，此前只能手工做：把路径拆成单段 wire、每段各造一个截面、
-用平移把它摆到该段起点、逐段 pipe，最后 union。case8 图纸（U 形管，长腿顶端还转出 U 平面
-接一段横管）就需要五段。
+把等截面沿任意三维中心线扫成实体，此前会**不出错地**给出错几何：丢体积、丢内腔、管位置错、
+静默少一条腿。第一版（`cad.pipeAlong`）用「拆段 + union」绕过了症状，但归因不完整——把
+六条互相独立的 faijs 层缺陷算到了内核头上：
 
-三条内核事实决定了它必须这么写：
-
-- `pipe` / `sweepPipeShell` / `sweepFull` 都只接受**一个**截面句柄和**一条**脊柱，而且 `pipe`
-  从不搬截面：调用方必须自己把截面放到脊柱起点坐标系上。`sweepAdvanced` 能搬，但必须
-  `withContact` **和** `withCorrection` 同时给（只给 `withContact` 只是把截面滑到贴住脊柱，
-  并不转正）。
-- **G0（有折角）**的脊柱会丢实体体积：默认 `transitionMode: 'transformed'` 下，截面在折角处停止
-  旋转，整个扫掠退化成平移——两段 90° 折线只剩「面积 × 首段长」（= 按弧长算的 50%），15° 折角
-  保留 98.3%，正好从 5% 体积守卫底下溜过去。G1 脊柱（真弧、弧+直线相切、共线多段）全部精确，
-  所以这是**转角处理的默认值**问题，不是曲率能力问题。实测表见
-  `test/api/sweep-kernel-behavior.test.ts` K1–K4。
-- 带孔面截面会整个丢掉内腔：`toProfileWireView` 只取外环，于是 `sweepAdvanced` 扫出实心棒而
-  不是管。
+- **R1 截面从不落到路径上。** `MakePipe` / `MakePipeShell` 只在调用方放的位置扫。截面在原点、
+  脊柱从 `z=90` 起，管就绕着原点扫出来；体积恒等式照样通过，只是管在错的地方。
+- **R2 缺省转角过渡是 `transformed`。** 遇到 G0 折角，截面在拐点停止旋转，整段退化成平移体：
+  90° 折角实测 0.5000，4 段折线弧实测 0.6366（= 2/π）。
+- **R3 混合边类型要逐段扫。** 弧 + 直腿一次扫会算错；上一版笔记记的是
+  「V = 面积×(弧长 − 腿长)」，实际那是**截面未落位**（R1）的产物——截面落位后同一次扫掠是精确的。
+- **R4 带孔面被缩成外环**，于是 `sweepAdvanced` 扫出实心棒而不是管。
+- **R5 判据只有体积。** 15° 折角只偏 1.70%，落在 5% 容差内，产物却是压扁的平移体；混合边类型
+  丢整条腿体积差 78%，但 bbox 只少一条腿。
+- **R6 扫之前没人看脊柱。** 断裂／折返／退化的脊柱直接送进内核，失败消息既不说原因也不说怎么改。
 
 ## 决定
 
-在 `api/solid-offset/index.ts` 新增 `cad.pipeAlong(section, spine, opts?)`：
+把扫掠拆成四段，各占一个模块，各自可独立测：
 
-1. 把脊柱拆成边（`getSubShapes(wire, 'edge')`）；顺序无关——每段独立扫掠后 union。
-2. 每段读起点与起点切向（`curveParameters` + `curvePointAtParam` + `curveTangent`），构造 12 元
-   仿射矩阵，把截面的局部 XY 坐标系搬到该点、法向取切向，并让截面包围盒中心落在中心线上
-   （Pappus：体积 = 净面积 × 段长）。
-3. 每段用 `kernel.pipe(face, segWire)` 扫掠，逐段保留既有的 `assertSweptVolumeMatches` 守卫
-   （默认 5%）。
-4. 孔环单独扫掠后从外环扫掠体减掉；复合结果再按面的净面积对账一次。
-5. 各段 union。
+1. **事实** —— `api/internal/spine-analysis.ts`。`analyzeSpine(api, wire)` 读出：边、边类型
+   （`line`/`arc`/`other`）、端点、端点切向（数值单侧差分，**不**读内核 `curveTangent`）、边长、
+   弧半径、G0 折角（`turn > 1e-3 rad`）、断裂、闭合、折返（`turn > 175°`）、退化边。只读：
+   借用的子形状句柄全部释放，不构造几何，不抛业务错误。
+2. **策略** —— `api/internal/sweep-strategy.ts`。`selectStrategy(facts, req)` 把事实映射成
+   `single` / `miter` / `segments` / `closed`，或按 `E_SPINE_EMPTY` / `E_SPINE_DEGENERATE` /
+   `E_SPINE_DISCONTINUOUS` / `E_SPINE_FOLD` / `E_SPINE_MIXED_CORNER` /
+   `E_SPINE_MITER_SELF_INTERSECT` 拒绝。硬拒绝排在最前，`opts.strategy` 也绕不过去。
+3. **执行** —— `api/solid-offset/index.ts` 的 `sweepAlongBrep`。`single` / `miter` / `closed`
+   走一次内核扫掠；`segments` 逐边扫再 `fuse` 共面接缝；带孔截面逐环扫、孔环 `cut` 掉。落位由
+   `api/internal/section-placement.ts` 负责（最小旋转，保留面内朝向，bbox 中心压到路径上）。
+4. **判据** —— `api/internal/sweep-guard.ts`。C1 体积恒等式（缺省 5%，可逐次注入）、C2 端面法向
+   与端点切向夹角 ≤ 1°、C3 产物包围盒覆盖脊柱包围盒、C4 策略层拒绝。`strict:false` 把 C2/C3
+   降级为 `setSweepNoticeHook` 的通知，C1 永远抛。
 
-`pipeAlong` 仅 occt 可用；`opts.closed` 目前直接拒绝
-（`E_PIPE_ALONG_CLOSED_UNSUPPORTED`）。
+`cad.pipeAlong` 重命名为 `cad.sweepAlong(profile, spine, opts)`：旧名强调的是 "pipe"，而 op 现在
+覆盖 `single` / `miter` / `segments` / `closed`。三个旧入口收窄而不是继续留着当陷阱：
 
-`sweepAdvanced` 也沿同一条路径支持了带孔面：`toProfileRingsView` 返回全部环，
-`sweepAdvancedBrep` 逐环扫掠并减掉孔环。单环（普通）截面保持与改动前逐字节一致。
-
-同一批还落地了两件同源的事（都来自「有意粗扫 → 先出 STL 再判断」的流程）：
-
-- **容差可逐次注入。** `assertSweptVolumeMatches` 新增可选 `volumeTolerance`（`(0,1)`）；
-  `pipe`、`sweepAdvanced`、`pipeAlong` 以 `opts.volumeTolerance` 暴露它。进程级的
-  `setSweepVolumeTolerance` 仍作默认。越界值抛 `E_SWEEP_TOL_INVALID`，不静默夹取；错误信息
-  同时点出两条出路，并写明「放宽不修几何」。
-- **截面定位只补文档、不扩接口。** `sketchOnPlane` 本就支持 `plane: { origin, normal, xAxis }`，
-  截面可直接落在脊柱起点的坐标系上，既不用 translate 也不用新增 op。其 `@example` 现在演示
-  这个用法（以及非对称截面必须给 `xAxis`），随生成器进手册，不必手改生成物。
+- `cad.pipe` 直接拒绝多边／G0 脊柱（`E_PIPE_SPINE_UNSUPPORTED`）——`MakePipe` 没有过渡入口，
+  这类脊柱只可能长出平板。
+- `cad.sweepAdvanced` 的 `transitionMode:'auto'` 由脊柱事实解析（有 G0 折角 ⇒ `rightCorner`，
+  全 G1 ⇒ 内核缺省），并新增 `autoPlace` / `strict`。旧行为仍可由显式
+  `transitionMode:'transformed'` 复现。
+- `cad.sweep` 保持两内核选项交集，因此只判 C1。
 
 ## 备选方案
 
-- **把全部环交给内核。** 否决：`sweepPipeShell(face)` 直接拒收 face
-  （`BRepFill_Section: bad shape type of section`），而该族只吃一个截面句柄。
-- **依赖 `withContact` / `withCorrection`。** 实测否决：两者合用确实能把一个截面搬到脊柱起点并
-  转正，但有折角的路径需要**逐段**一致的坐标系；另一条候选 `transitionMode: 'roundCorner'` 在
-  密集折角上直接抛 `Geom_RectangularTrimmedSurface`。
-- **整条多边脊柱一次扫掠。** 实测否决：默认转角过渡下只保留 50%（90° 折角）/ 63.7%（密采样
-  弧）；`rightCorner` 能到 94–100%，但在折线路径上并不精确。
-- **先让各段略微重叠再 union。** 否决：共面接缝本身已能精确 union（已验证），加一个凑数的
-  epsilon 只会引入误差。
-- **给 `pipe(profile, spine, { autoContact })` 加参数。** 不采用：`pipeAlong` 已经逐段摆放截面，
-  在已验证的单段 op 上再加一个搬截面开关属于多余的接口面积。
-
-## 测试
-
-- `test/api/sweep-hollow-pipe.test.ts` 的 F1–F3 钉住内核事实（带孔面丢内腔；折线与相切多段脊柱
-  丢体积；环扫后布尔减能恢复内腔）。
-- G1/G2：三段 U 形一次调用，实心与圆环截面的体积都精确。
-- G4：case8 三维路径（短腿 → 180° 弯 → 长腿 → 转出弧 → 横管）配 Ø17.3/Ø13.3 圆环，bbox
-  90 × 95 × 180、体积 34862.09（解析值 34863.9），与先前交付的五段版一致。
-- G3：`opts.closed` 以专用错误码拒绝。
-- P2g1–P2g4：默认 5% 仍拦折线；`volumeTolerance: 0.6` 放行同一次调用，但体积仍是解析值的
-  50%（放宽不修几何）；`pipe` 同一选项生效；`1.5` / `0` / `-0.2` 抛
-  `E_SWEEP_TOL_INVALID`。
-- P1a–P1c：`sketchOnPlane({ plane: { origin, normal } })` 把截面直接放在脊柱起点（体积 =
-  面积 × 长，无需 translate）；截面留在原点会被守卫拦；显式 `xAxis` 钉住非对称截面朝向。
-  P1a 同时钉住 `xAxis` 的自动推导规则（normal 为 `+Y` ⇒ 局部 `+X` 落在世界 `+Z`）。
+- **保留 `pipeAlong`（永远逐段）。** 否决：逐段扫在每个 G0 折角处留 V 形缺口（4 段／16 段实测
+  0.8968 / 0.8801），而一次斜接扫给 0.9936 / 0.9996 —— 只要脊柱有折角，逐段一定更差。
+- **用 `withContact` / `withCorrection` 解决落位。** 否决：`withContact` 只把截面滑到贴住脊柱
+  （管心偏一个截面半径），两者都不管面内朝向，非对称截面会被拧。落位算成一次 12 元矩阵
+  （`sectionPlacementMatrix`），`sweepAlong` 与 `sweepAdvanced({autoPlace})` 共用。
+- **靠放宽体积容差。** 否决：放宽只是遮住几何，15° 折角证明指标本身是瞎的。C2 存在的理由就是
+  「体积看不出截面没转」。
+- **用内核 `curveTangent` 读切向。** 否决：在这套 occt-wasm 绑定上，先 `curveParameters` 再
+  `curveTangent` 会让**后续**的 `sweepFull` 失败；数值差分只损失 1e-3 的弧半径精度，换掉这个交互。
+- **拒绝闭合中心线。** 被实测推翻：整圆脊柱一次内核扫掠就是对的（环面体积 = 面积 × 周长），
+  所以 `closed` 成了策略而不是拒绝。
+- **保留 `pipeAlong` 别名一个 minor。** 不采用：该符号从未发布。
 
 ## 后果
 
-- **归因（2026-11-16 实测，`test/api/sweep-kernel-behavior.test.ts`）：** 内核不是瓶颈。G1 脊柱
-  精确（真弧、切成两段的弧、相切弧+直腿、共线多段——全部 = 面积 × 长度的 1.0000），内核自己的
-  转角处理也是对的（单拐角 90° 用 `rightCorner` 精确）。真正坏掉的是 faijs 层的三个决定：只取
-  外环的截面、G0 脊柱上用 `transformed` 默认值、不搬截面。所以 `pipeAlong` 是**折角场景的绕行
-  方案**，不是内核能力的替代品。
-- `pipeAlong` 还顺带暴露了另一个独立缺陷：两个 G1 相切的扫掠实体做 `union` 会静默只返回其中
-  一个（脚本层 `cad.union` 同样复现；不相交实体则正常）。已钉成 K7，保持 OPEN。
-- case8 的 `part-along.fai.js` 一次调用得到同一实体；`faijs run` 导出水密 STL，0 非流形边，
-  bbox 与体积一致。
-- 每次调用是「每段一次扫掠 + 一次 union」；管件量级的零件可以接受。
-- 截面必须关于中心线对称：非对称截面在弧段上会破坏 Pappus 恒等式，被守卫拒绝而不是静默漂移。
-- `circleArc` 的角度基准不是「0° 指向 +X」：`axis = (0,-1,0)` 时 0° 指向 −Z、90° 指向 +X，
-  负的终止角还会被归一化成更长的扫掠。写 U 形弯应优先用
-  `tangentArc(start, tangent, end)`；该约定由 G0e 钉住。
-- `docs/ops-api-inventory.md` 未重新生成：其生成器在本次改动前就已经失败——`validateSolid`
-  没有章节（手册 172 章 vs 符号表 173 个 op）。在该既有缺口关闭前，`pipeAlong` 的 JSDoc
-  是权威说明。
-- `sweep` 暂未暴露 `volumeTolerance`：方案把该选项限定在 `pipe` / `sweepAdvanced`（外加
-  `pipeAlong`）。后果在 HEAD 上可见：`test/api/sweep-mesh-winding.test.ts` 有两条本就失败的
-  用例（折线脊柱被 `sweep` 守卫按 58.3% 拒绝），问题来自 2026-11-15 的守卫提交，与本次改动
-  无关；在 `sweep` 上补同一选项就是显然的修法。
+- **一次调用就对**：`cad.sweepAlong` 在单弧／折线／混合 G1／闭合脊柱上分别是解析体积的
+  1.0000 / 0.9936–0.9996 / 1.0000 / 1.0000，带孔截面保住内腔。
+- **报错自带原因与修法**：断裂脊柱报出两个端点与距离；混合+G0 说明两个问题需要相反路线；
+  塌陷体报出端面法向偏离多少度并指向 `sweepAlong`。
+- **归因更正**：此前「混合边类型丢一条腿」与「读过边数据后绑定层就坏」两条结论都是假象——前者是
+  截面未落位，后者是测试脊柱本身断开（`circleArc` 角度：`axis = +X` 时 `0°` 落在 `+Z`，不是 `+X`）。
+  两者都已钉住：`sweep-hollow-pipe.test.ts` F2b 对真正相切的弧+直腿扫出 1.0000；
+  `sweep-kernel-behavior.test.ts` K9 在同一进程里先分析再扫同一条脊柱。
+- **新增测试**：`test/api/spine-analysis.test.ts`（12 条）、`test/api/sweep-along.test.ts`（12 条）、
+  `test/api/sweep-guard.test.ts`（10 条），另有 K1c / K2 / K4 / K9 重写。
+- **`sweep` 仍没有 `volumeTolerance`**：该选项在 `pipe`、`sweepAdvanced`、`sweepAlong` 上。
+  `test/api/sweep-mesh-winding.test.ts` 用文档化的 `setSweepVolumeTolerance` 出口把进程级容差
+  设到 0.99，并额外钉住粗折线脊柱实测的 5/12 体积事实。
+- **代价**：`segments` 是「每边一次扫掠 + 每个接缝一次 `fuse`」；`single` / `miter` / `closed`
+  是一次扫掠加一遍判据。

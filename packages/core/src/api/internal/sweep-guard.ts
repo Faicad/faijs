@@ -29,7 +29,7 @@
  * 留给调用方去发现。
  */
 
-import type { BrepHandle } from '../../brep/engine/types'
+import type { BrepHandle, BrepVec3 } from '../../brep/engine/types'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import { OpError } from './result-unwrap'
 
@@ -210,6 +210,8 @@ export function assertSweptVolumeMatches(
   )
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * 旋转产物的零厚度判定。
  *
@@ -247,4 +249,273 @@ export function assertNotZeroThickness(api: BrepEngineApi, op: string, result: B
       `(e.g. a profile in XZ revolved about Z works; a profile in XY revolved about Z does not). ` +
       `shapeType alone will not catch this — it still reports 'solid'.`,
   )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 判据套件 C1–C3（C4 前置拒绝在 spine-analysis / sweep-strategy 里）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 端面法向容差：1°。
+ *
+ * 落位正确时实测偏差在 1e-7 量级；15° 塌陷的 |dot| 是 cos15° = 0.966（差 15°），
+ * cos1° = 0.99985 有充分余量，又不会因数值噪声误报。
+ */
+export const CAP_NORMAL_TOL = (1 * Math.PI) / 180
+const COS_CAP_NORMAL_TOL = Math.cos(CAP_NORMAL_TOL)
+
+/** 判据失败/降级时对外发的通知（`strict:false` 用）。 */
+export interface SweepNotice {
+  op: string
+  code: string
+  message: string
+}
+
+let sweepNoticeHook: ((n: SweepNotice) => void) | undefined
+
+/**
+ * 注册「非严格模式」的通知接收器。
+ *
+ * 为什么用钩子而不是 `console.warn`：仓库对 stderr 零容忍，库层不该自己往控制台
+ * 写东西；需要看通知的宿主（CLI / 编辑器）自己订阅。
+ * @param fn - 接收器；`undefined` 取消订阅。
+ */
+export function setSweepNoticeHook(fn: ((n: SweepNotice) => void) | undefined): void {
+  sweepNoticeHook = fn
+}
+
+/** 一个端面检查点：脊柱某一端的端点位置与切向。 */
+export interface CapCheck {
+  /** 诊断用标签（'start' / 'end'）。 */
+  label: string
+  /** 脊柱该端的端点（截面居中时它就落在端面内部）。 */
+  point: BrepVec3
+  /** 该端的单位切向。 */
+  tangent: BrepVec3
+}
+
+/** 判据套件的入参。 */
+export interface SweepGuardContext {
+  /** 扫掠产物。 */
+  result: BrepHandle
+  /** 脊柱 wire：C1 量长度、C3 取包围盒。 */
+  spine: BrepHandle
+  /** C1：截面积（带孔面传净面积）。`undefined` ⇒ 跳过 C1（开放 / 非平面 / 壳产物）。 */
+  profileArea?: number
+  /** C1 的相对容差；缺省用进程级全局值（5%）。 */
+  volumeTolerance?: number
+  /** C2：端面检查点；`undefined` ⇒ 跳过 C2（闭合扫掠、壳产物、截面未落位）。 */
+  caps?: CapCheck[]
+  /**
+   * C3：是否检查「产物覆盖整条脊柱」。默认 false。
+   *
+   * 前提是截面已经落在路径上：截面整体偏移时管整体挪位（体积仍对、位置错），
+   * 那是落位问题（`autoPlace` / `sweepAlong`），不是「丢料」。所以只有调用方
+   * 确认落位之后才打开这条判据。
+   */
+  coversPath?: boolean
+  /** 进错误消息的脊柱事实串（`describeSpine` 的产物），让报错自带上下文。 */
+  spineNote?: string
+  /** `false` ⇒ C2/C3 降级为通知（C1 仍抛）；默认 true。 */
+  strict?: boolean
+}
+
+interface BoxLike {
+  xmin: number
+  xmax: number
+  ymin: number
+  ymax: number
+  zmin: number
+  zmax: number
+}
+
+function vecText(p: BrepVec3): string {
+  return `(${p.x.toFixed(4)}, ${p.y.toFixed(4)}, ${p.z.toFixed(4)})`
+}
+
+function bboxContains(b: BoxLike, p: BrepVec3, eps: number): boolean {
+  return (
+    p.x >= b.xmin - eps && p.x <= b.xmax + eps &&
+    p.y >= b.ymin - eps && p.y <= b.ymax + eps &&
+    p.z >= b.zmin - eps && p.z <= b.zmax + eps
+  )
+}
+
+/**
+ * 收集「包围盒含该点」的全部平面面的外法向。
+ *
+ * 为什么是**全部**而不是第一个：脊柱端点常常正好落在产物的角点上，此时三个面的
+ * bbox 都含它（端面 + 两个侧面），取第一个会随机拿到侧面，于是 90° 的假失败。
+ * 判据要问的是「有没有一个面朝着切向」，所以候选必须全取回来再挑。
+ *
+ * 方向修正不能省：`surfaceNormal` 不保证外法向，`shapeOrientation === 'reversed'`
+ * 时必须取反，否则判据对每个端面都有 50% 概率掷骰子。
+ */
+function planarNormalsNear(
+  api: BrepEngineApi,
+  faces: BrepHandle[],
+  point: BrepVec3,
+  eps: number,
+): BrepVec3[] {
+  const out: BrepVec3[] = []
+  for (const face of faces) {
+    try {
+      if (String(api.surfaceType(face)).toLowerCase() !== 'plane') continue
+      if (!bboxContains(api.getBoundingBox(face) as unknown as BoxLike, point, eps)) continue
+      const uv = api.uvBounds(face)
+      const n = api.surfaceNormal(face, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
+      if (Math.hypot(n.x, n.y, n.z) < 1e-12) continue
+      out.push(
+        String(api.shapeOrientation(face)).toLowerCase() === 'reversed' ? { x: -n.x, y: -n.y, z: -n.z } : n,
+      )
+    } catch {
+      continue
+    }
+  }
+  return out
+}
+
+/**
+ * C2：端面法向必须与脊柱端点切向平行（|dot| ≥ cos 1°）。
+ *
+ * 专抓「截面没转」的塌陷：15° 折角的体积只偏 1.70%，C1 放行；但端面法向仍是原始
+ * 截面法向，与端点切向差 15°，这里直接暴露（实测 K4a / K6b）。
+ *
+ * 找不到平面端面时返回 `undefined`（跳过），不猜。
+ */
+function capNormalFailure(
+  api: BrepEngineApi,
+  op: string,
+  result: BrepHandle,
+  caps: CapCheck[],
+): { code: string; message: string } | undefined {
+  let faces: BrepHandle[]
+  let block: BoxLike
+  try {
+    const volume = api.getVolume(result)
+    // 壳（wire 截面产物）没有实体体积，也没有端面。
+    if (!Number.isFinite(volume) || volume <= 0) return undefined
+    block = api.getBoundingBox(result) as unknown as BoxLike
+    faces = api.getSubShapes(result, 'face')
+  } catch {
+    return undefined
+  }
+  const diag = Math.hypot(block.xmax - block.xmin, block.ymax - block.ymin, block.zmax - block.zmin)
+  const eps = 1e-6 * diag + 1e-9
+  try {
+    for (const cap of caps) {
+      const tl = Math.hypot(cap.tangent.x, cap.tangent.y, cap.tangent.z)
+      if (tl < 1e-12) continue
+      const normals = planarNormalsNear(api, faces, cap.point, eps)
+      if (normals.length === 0) continue
+      // 只要**有一个**面朝着切向，这个端就成立（端点常落在角点上，侧面也在候选里）。
+      let best = { n: normals[0]!, c: 0 }
+      for (const n of normals) {
+        const nl = Math.hypot(n.x, n.y, n.z)
+        const c = Math.abs((n.x * cap.tangent.x + n.y * cap.tangent.y + n.z * cap.tangent.z) / (nl * tl))
+        if (c > best.c) best = { n, c }
+      }
+      if (best.c >= COS_CAP_NORMAL_TOL) continue
+      const n = best.n
+      const c = best.c
+      const deg = (Math.acos(Math.min(1, c)) * 180) / Math.PI
+      return {
+        code: 'E_SWEEP_CAP_NORMAL',
+        message:
+          `[api/${op}] the ${cap.label} cap does not face the spine tangent at that end: ` +
+          `cap normal ${vecText(n)} vs tangent ${vecText(cap.tangent)}, off by ${deg.toFixed(2)}° ` +
+          `(tolerance ${CAP_NORMAL_TOL * (180 / Math.PI)}°). ` +
+          `A cap that does not face the tangent means the section never rotated along the path — ` +
+          `the solid is a translated slab, not a swept tube. This is a geometry error, not a tolerance ` +
+          `issue: widening volumeTolerance will only hide it. Fix it with cad.sweepAlong (which places ` +
+          `the section and picks the corner transition), or pass withContact + withCorrection yourself.`,
+      }
+    }
+    return undefined
+  } finally {
+    for (const f of faces) {
+      try { api.release(f) } catch { /* 已释放 */ }
+    }
+  }
+}
+
+/**
+ * C3：产物包围盒必须包含脊柱包围盒。
+ *
+ * 只做廉价粗筛，抓「整段丢失 / 产物被截断」（混合边类型实测少一条腿：z 跨度 16 vs 26）。
+ * 它不承担主要判据——体积对得上但 bbox 缺一块的组合才靠它。
+ */
+function bboxFailure(
+  api: BrepEngineApi,
+  op: string,
+  result: BrepHandle,
+  spine: BrepHandle,
+): { code: string; message: string } | undefined {
+  let out: BoxLike
+  let sp: BoxLike
+  try {
+    out = api.getBoundingBox(result) as unknown as BoxLike
+    sp = api.getBoundingBox(spine) as unknown as BoxLike
+  } catch {
+    return undefined
+  }
+  const diag = Math.hypot(sp.xmax - sp.xmin, sp.ymax - sp.ymin, sp.zmax - sp.zmin)
+  const eps = 1e-6 * diag + 1e-9
+  const inside =
+    sp.xmin >= out.xmin - eps && sp.xmax <= out.xmax + eps &&
+    sp.ymin >= out.ymin - eps && sp.ymax <= out.ymax + eps &&
+    sp.zmin >= out.zmin - eps && sp.zmax <= out.zmax + eps
+  if (inside) return undefined
+  const span = (b: BoxLike): string =>
+    `${(b.xmax - b.xmin).toFixed(3)}×${(b.ymax - b.ymin).toFixed(3)}×${(b.zmax - b.zmin).toFixed(3)}`
+  return {
+    code: 'E_SWEEP_BBOX_MISMATCH',
+    message:
+      `[api/${op}] the swept body does not cover the spine: spine bbox ${span(sp)} ` +
+      `[${vecText({ x: sp.xmin, y: sp.ymin, z: sp.zmin })} .. ${vecText({ x: sp.xmax, y: sp.ymax, z: sp.zmax })}], ` +
+      `result bbox ${span(out)}. Part of the path produced no material — typically a mixed-kind ` +
+      `multi-edge spine losing a leg (measured: one straight leg vanishes entirely). ` +
+      `Use cad.sweepAlong, which splits such spines into segment-wise sweeps.`,
+  }
+}
+
+/**
+ * C1 + C2 + C3 的合并入口。
+ *
+ * 执行顺序：C1（体积恒等式）→ C2（端面法向）→ C3（包围盒包含）。任一判据的输入
+ * 不成立（面积未知、找不到平面端面）就跳过它自己，其余照判。
+ *
+ * @param api - 引擎面。
+ * @param op - op 名（错误码前缀与消息用）。
+ * @param ctx - 见 {@link SweepGuardContext}。
+ * @throws OpError `E_SWEEP_VOLUME_MISMATCH`（C1）/ `E_SWEEP_CAP_NORMAL`（C2）/
+ *         `E_SWEEP_BBOX_MISMATCH`（C3）。`strict:false` 时 C2/C3 降为通知，C1 仍抛。
+ */
+export function assertSweepResult(api: BrepEngineApi, op: string, ctx: SweepGuardContext): void {
+  // C1：永远抛——体积错就是几何错，没有「知情放行」以外的语义。
+  assertSweptVolumeMatches(api, op, ctx.profileArea, ctx.spine, ctx.result, ctx.volumeTolerance)
+
+  const strict = ctx.strict
+  const checks: { code: string; message: string }[] = []
+  if (ctx.caps !== undefined) {
+    const f = capNormalFailure(api, op, ctx.result, ctx.caps)
+    if (f !== undefined) checks.push(f)
+  }
+  if (ctx.coversPath === true) {
+    const b = bboxFailure(api, op, ctx.result, ctx.spine)
+    if (b !== undefined) checks.push(b)
+  }
+
+  if (checks.length === 0) return
+  if (strict === false) {
+    if (sweepNoticeHook !== undefined) {
+      for (const c of checks) {
+        try { sweepNoticeHook({ op, code: c.code, message: c.message }) } catch { /* 订阅方异常不外溢 */ }
+      }
+    }
+    return
+  }
+  const first = checks[0]!
+  const extra = checks.length > 1 ? ` (+${checks.length - 1} more post-condition failure(s))` : ''
+  throw new OpError(op, first.code, first.message + extra)
 }

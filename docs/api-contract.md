@@ -567,7 +567,7 @@ Everything except `events` is optional — a Node test environment can supply on
 | Creation | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch` (face or, with `as:'wire'`, a 1D curve) |
 | 1D curves | `wire` (polyline/closed/smooth) `helix` (platform `engines:['occt']`) — both `kind:'curve'` |
 | Transform | `translate` `rotate_euler` `scale` `scale3d` `place` |
-| Sweep / loft | `sweep` `loft` (platform `engines:['occt']`; sections accept wires or faces — a face is reduced to its outer ring) |
+| Sweep / loft | `sweep` `sweepAdvanced` `sweepAlong` `loft` (platform `engines:['occt']`). `sweepAlong(profile, spine, opts)` is the one-call entry: it reads the spine's facts (edge kinds, G0 corners, gaps, closure) first, picks `single` / `miter` / `segments` / `closed` from them, places the section on the path, and then verifies the result (volume identity, cap normals, bbox coverage). Spines that cannot be swept correctly are rejected *before* sweeping (`E_SPINE_*`). `sweep` / `sweepAdvanced` keep the raw kernel control surface and only verify the volume identity |
 | Feature | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` `filletVariable` `shell` `draft` `thicken` (platform `engines:['occt']`) |
 | Boolean | `union` `subtract` `intersect`, plus the pure aliases `fuse` (= `union`) and `cut` (= `subtract`) — same function object, no second implementation |
 | Split / replicate | `split` (dual output, destructured as `const { front, back } = …`) `splitByPlane` (named outputs `{ positive, negative }`, destructured) `sectionByPlane` (1D compound of section curves) `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |

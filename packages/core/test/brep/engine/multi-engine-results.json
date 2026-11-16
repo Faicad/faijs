@@ -233,12 +233,8 @@
     {
       "op": "revolve",
       "engine": "occt",
-      "bbox": [
-        36.05551275463989,
-        36.05551275463989,
-        0
-      ],
-      "status": "pass"
+      "status": "fail",
+      "error": "revolve: [api/revolve] revolve produced a zero-thickness result (volume=0, bbox size=[36.056, 36.056, 0.000]). The section plane does not contain the rotation axis: when the axis is perpendicular to the section plane, the section merely spins inside its own plane and never sweeps a volume. Put the section on a plane that CONTAINS the axis (e.g. a profile in XZ revolved about Z works; a profile in XY revolved about Z does not). shapeType alone will not catch this — it still reports 'solid'. [E_REVOLVE_ZERO_THICKNESS]"
     },
     {
       "op": "sweep",
@@ -703,12 +699,8 @@
     {
       "op": "revolve",
       "engine": "brepkit-2.129.15",
-      "bbox": [
-        35.35533905932738,
-        35.35533905932738,
-        0
-      ],
-      "status": "pass"
+      "status": "fail",
+      "error": "revolve: [api/revolve] revolve produced a zero-thickness result (volume=0, bbox size=[35.355, 35.355, 0.000]). The section plane does not contain the rotation axis: when the axis is perpendicular to the section plane, the section merely spins inside its own plane and never sweeps a volume. Put the section on a plane that CONTAINS the axis (e.g. a profile in XZ revolved about Z works; a profile in XY revolved about Z does not). shapeType alone will not catch this — it still reports 'solid'. [E_REVOLVE_ZERO_THICKNESS]"
     },
     {
       "op": "sweep",
@@ -1173,12 +1165,8 @@
     {
       "op": "revolve",
       "engine": "brepkit-4.1.49",
-      "bbox": [
-        36.08757210636101,
-        36.08757210636101,
-        0
-      ],
-      "status": "pass"
+      "status": "fail",
+      "error": "revolve: [api/revolve] revolve produced a zero-thickness result (volume=0, bbox size=[36.088, 36.088, 0.000]). The section plane does not contain the rotation axis: when the axis is perpendicular to the section plane, the section merely spins inside its own plane and never sweeps a volume. Put the section on a plane that CONTAINS the axis (e.g. a profile in XZ revolved about Z works; a profile in XY revolved about Z does not). shapeType alone will not catch this — it still reports 'solid'. [E_REVOLVE_ZERO_THICKNESS]"
     },
     {
       "op": "sweep",
@@ -1643,12 +1631,8 @@
     {
       "op": "revolve",
       "engine": "brepkit-4.0.32",
-      "bbox": [
-        36.08757210636101,
-        36.08757210636101,
-        0
-      ],
-      "status": "pass"
+      "status": "fail",
+      "error": "revolve: [api/revolve] revolve produced a zero-thickness result (volume=0, bbox size=[36.088, 36.088, 0.000]). The section plane does not contain the rotation axis: when the axis is perpendicular to the section plane, the section merely spins inside its own plane and never sweeps a volume. Put the section on a plane that CONTAINS the axis (e.g. a profile in XZ revolved about Z works; a profile in XY revolved about Z does not). shapeType alone will not catch this — it still reports 'solid'. [E_REVOLVE_ZERO_THICKNESS]"
     },
     {
       "op": "sweep",

@@ -20,15 +20,29 @@
  */
 
 import type { Shape } from '../../mesh/types'
-import type { BrepHandle, BrepVec3 } from '../../brep/engine/types'
+import type { BrepHandle } from '../../brep/engine/types'
 import { solidToShape } from '../../brep/brep-ops'
 import { getBrepApi } from '../../brep/handle-bridge'
 import { brepOf, fromBrep } from '../../shape'
 import { defineOp } from '../../sdk'
 import type { Provenance } from '../../topology/naming/lineage'
 import { getOcctKernel } from '../../occt-kernel/occtKernel'
-import { areaOfProfileFace, assertSweptVolumeMatches } from '../internal/sweep-guard'
+import { areaOfProfileFace, areaOfProfileWire, assertSweepResult, assertSweptVolumeMatches } from '../internal/sweep-guard'
 import { toProfileRingsView } from '../internal/profile-wire'
+import type { WireView } from '../internal/profile-wire'
+import { analyzeSpine, analyzeSpineEdges, describeSpine } from '../internal/spine-analysis'
+import type { SpineFacts } from '../internal/spine-analysis'
+import { selectStrategy } from '../internal/sweep-strategy'
+import {
+  bboxCenter,
+  isPlaced,
+  sectionIsOnPath,
+  sectionNormal,
+  sectionPlacementMatrix,
+  sectionRadius,
+} from '../internal/section-placement'
+import { OpError, unwrapResult } from '../internal/result-unwrap'
+import { sweepBrep as coreSweep } from '../brep-operations/sweepFns'
 
 type Vec3 = [number, number, number]
 
@@ -108,12 +122,25 @@ export interface PipeOptions {
    * 显式放宽只是**知情放行**，不修几何。
    */
   volumeTolerance?: number
+  /** 默认 `true`；`false` 时端面法向（C2）与包围盒（C3）判据降为通知，体积（C1）仍抛。 */
+  strict?: boolean
 }
 
 /** BREP 路径：occt 原生 pipe。脊柱须 wire（原生 TopoDS::Wire 转换）；截面原样透传
  *  ——**face 截面产实体，wire/edge 截面产壳**（BRepOffsetAPI_MakePipe 语义，
  *  实测钉在 test/api/occt-s4-solid-offset.test.ts A3/A4），故不做面→外环适配
- *  （那会把实体口径降级成壳）。 */
+ *  （那会把实体口径降级成壳）。
+ *
+ * 脊柱形态硬约束（2026-11-16 实测）：`MakePipe` 只在两类脊柱上给出正确几何 ——
+ * 单边（任意曲线），或**同类型**多边且全 G1。其余两类会被静默扫错，所以在进入
+ * 内核之前就拒绝：
+ *
+ * - **混合边类型**（如真弧 + 直线）：体积 = A ×(弧长 − 腿长)，腿长 ≥ 弧长时为负；
+ * - **有 G0 折角**：`MakePipe` 没有过渡模式入口，内核缺省 `Transformed` 让截面只平移
+ *   不旋转，两段 90° 折角只剩 1/2 体积，且产物 bbox 完全不含管半径的展开。
+ *
+ * 两类都指向 `cad.sweepAlong`（按脊柱事实选策略：混合走逐段、折角走斜接）。
+ */
 function pipeBrep(profile: Shape, spine: Shape, opts?: PipeOptions): Shape {
   if (!profile || !spine) {
     throw new Error('E_PIPE_MISSING_ARG: pipe requires a profile and a spine (wire)')
@@ -121,11 +148,32 @@ function pipeBrep(profile: Shape, spine: Shape, opts?: PipeOptions): Shape {
   const profileHandle = handleOf(profile, 'pipe', 'profile')
   const spineHandle = handleOf(spine, 'pipe', 'spine wire')
   const kernel = getBrepApi()
+  let facts: SpineFacts | undefined
+  if (String(kernel.shapeType(spineHandle)).toLowerCase() === 'wire') {
+    facts = analyzeSpine(kernel, spineHandle)
+    if (facts.mixed || facts.corners.length > 0) {
+      const kinds = [...new Set(facts.edges.map((e) => e.kind))].join(' + ')
+      const why = facts.mixed
+        ? `it mixes edge kinds (${kinds}): a single MakePipe sweep is measured at ` +
+          `area × (arcLength − legLength) on such a spine — a straight leg is subtracted instead of added`
+        : `it has ${facts.corners.length} G0 corner(s) (max ${((facts.maxTurn * 180) / Math.PI).toFixed(1)}°), ` +
+          `and MakePipe has no corner-transition entry: the kernel default leaves the section ` +
+          `un-rotated, so the solid is a translated slab (measured 1/2 volume for a single 90° bend)`
+      throw new OpError(
+        'pipe',
+        'E_PIPE_SPINE_UNSUPPORTED',
+        `[api/pipe] this spine cannot be swept by MakePipe: ${why} (${describeSpine(facts)}). ` +
+          `Use cad.sweepAlong(section, spine) — it picks the correct strategy from the spine ` +
+          `(segment-wise for mixed kinds, mitered single sweep for corners) and verifies the result. ` +
+          `cad.pipe is meant for a single edge, or same-kind edges with tangent joints.`,
+      )
+    }
+  }
   const handle = getOcctKernel().pipe(
     profileHandle as never, spineHandle as never,
   ) as unknown as BrepHandle
-  // 体积对账：只对 **face 截面**（→实体）判。wire/edge 截面产壳，体积无意义，
-  // 必须跳过（A4 已钉住这个产物类型差异）。折线脊柱的实测偏差见 internal/sweep-guard.ts。
+  // 对账：face 截面产实体（C1 有意义）；wire/edge 截面产壳，体积无意义、端面也没有，
+  // 判据自动跳过 C1/C2，只留 C3（产物必须覆盖整条脊柱）。
   let profileArea: number | undefined
   try {
     if (String(kernel.shapeType(profileHandle)).toLowerCase() === 'face') {
@@ -134,7 +182,33 @@ function pipeBrep(profile: Shape, spine: Shape, opts?: PipeOptions): Shape {
   } catch {
     profileArea = undefined
   }
-  assertSweptVolumeMatches(kernel, 'pipe', profileArea, spineHandle, handle, opts?.volumeTolerance)
+  // C2/C3 的前提是「截面落在路径上」（见 section-placement.sectionIsOnPath）：
+  // pipe 不搬截面，截面留在原点时管整体偏移、体积仍对，此时只保留 C1。
+  const onPath =
+    facts !== undefined &&
+    facts.edges.length > 0 &&
+    sectionIsOnPath(kernel, profileHandle, profileHandle, facts.edges[0]!.start, facts.edges[0]!.tStart)
+  const caps =
+    !onPath || facts === undefined || facts.closed || facts.edges.length === 0
+      ? undefined
+      : [
+          { label: 'start', point: facts.edges[0]!.start, tangent: facts.edges[0]!.tStart },
+          {
+            label: 'end',
+            point: facts.edges[facts.edges.length - 1]!.end,
+            tangent: facts.edges[facts.edges.length - 1]!.tEnd,
+          },
+        ]
+  assertSweepResult(kernel, 'pipe', {
+    result: handle,
+    spine: spineHandle,
+    profileArea,
+    volumeTolerance: opts?.volumeTolerance,
+    caps,
+    coversPath: onPath,
+    spineNote: facts === undefined ? undefined : describeSpine(facts),
+    strict: opts?.strict,
+  })
   return fromBrep(solidToShape(kernel, handle), { solid: handle })
 }
 
@@ -186,110 +260,143 @@ export const pipe = defineOp({
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// pipeAlong — 等截面沿多段中心线扫成（空心）管
+// sweepAlong — 等截面沿任意三维中心线扫成（可空心）的管
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** `pipeAlong` 选项。 */
-export interface PipeAlongOptions {
-  /** 保留：闭合中心线。当前不支持，传入 true 报 `E_PIPE_ALONG_CLOSED_UNSUPPORTED`。 */
-  closed?: boolean
+/** `sweepAlong` 选项。 */
+export interface SweepAlongOptions {
   /**
-   * 本次调用的扫掠体积对账容差，`(0,1)`，缺省用进程级 5%。
+   * 策略覆写。默认 `'auto'`（由脊柱事实决定，见 `internal/sweep-strategy.ts`）：
+   * - `single`：单边 / 同类型多边全 G1 → 内核一次扫（精确）；
+   * - `miter`：全 G0 折角 → 一次扫 + 斜接过渡（实测 0.9936–0.9996）；
+   * - `segments`：混合边类型全 G1 → 逐段扫 + 共面接缝 fuse（精确）。
+   *
+   * 覆写不能绕过物理上无解的脊柱（断裂 / 折返 / 退化 / 混合+G0 一律先拒）。
+   */
+  strategy?: 'auto' | 'single' | 'miter' | 'segments' | 'closed'
+  /**
+   * 扫掠前把截面搬到脊柱起点、法向对准起点切向。默认 `true`。
+   *
+   * 已经落位（截面中心在起点且法向与切向夹角 < 1°）时**不动**，避免二次变换引入误差。
+   */
+  autoPlace?: boolean
+  /** 截面朝向模式（默认 `'frenet'`；`single` / `miter` 生效）。 */
+  orientation?: 'frenet' | 'fixed' | 'fixedUp'
+  /** 转角过渡（默认 `'rightCorner'`）；显式 `'transformed'` 可回到「平移塌陷」旧行为。 */
+  transitionMode?: 'rightCorner' | 'roundCorner' | 'transformed'
+  /**
+   * 本次调用的体积对账容差，`(0,1)`，缺省用进程级 5%。
    * 显式放宽只是**知情放行**，不修几何。
    */
   volumeTolerance?: number
-}
-
-function unit3(v: BrepVec3): BrepVec3 {
-  const l = Math.hypot(v.x, v.y, v.z)
-  return l < 1e-12 ? { x: 0, y: 0, z: 1 } : { x: v.x / l, y: v.y / l, z: v.z / l }
-}
-
-function cross3(a: BrepVec3, b: BrepVec3): BrepVec3 {
-  return {
-    x: a.y * b.z - a.z * b.y,
-    y: a.z * b.x - a.x * b.z,
-    z: a.x * b.y - a.y * b.x,
-  }
+  /** 默认 `true`；`false` 时端面法向（C2）与包围盒（C3）判据降为通知，体积（C1）仍抛。 */
+  strict?: boolean
 }
 
 /**
- * 12 元行主序仿射矩阵：把截面局部坐标系（XY 平面、+Z 法向）搬到
- * 「过 p、法向 ∥ t」的切平面，并让截面的包围盒中心落在 p 上。
+ * 一次内核扫掠（单环或多环）：每个环各自扫成实体，孔环用 `cut` 减掉。
  *
- * 为什么必须自己搬：内核 `MakePipe` / `MakePipeShell` **不会**把截面平移到
- * 弧脊柱的起点（实测 `withContact` / `withCorrection` 对单段真弧同样无效，
- * 见 `test/api/sweep-hollow-pipe.test.ts` F2c），截面留在原处时弧段扫出 0 体积。
+ * 为什么逐环：内核 `MakePipe` / `MakePipeShell` 只吃一个截面句柄，带孔 face 的孔环
+ * 会被整段忽略（`toProfileWireView` 时代的内腔丢失就是这么来的）。
+ *
+ * @returns 扫出的实体句柄（调用方负责 release）。
  */
-function sectionFrameMatrix(p: BrepVec3, t: BrepVec3, center: BrepVec3): number[] {
-  const n = unit3(t)
-  const helper: BrepVec3 = Math.abs(n.x) < 0.9 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 }
-  const ax = unit3(cross3(helper, n))
-  const ay = cross3(n, ax)
-  const tx = p.x - (ax.x * center.x + ay.x * center.y + n.x * center.z)
-  const ty = p.y - (ax.y * center.x + ay.y * center.y + n.y * center.z)
-  const tz = p.z - (ax.z * center.x + ay.z * center.y + n.z * center.z)
-  return [ax.x, ay.x, n.x, tx, ax.y, ay.y, n.y, ty, ax.z, ay.z, n.z, tz]
+function sweepRingsOnce(
+  api: ReturnType<typeof getBrepApi>,
+  rings: WireView[],
+  spineWire: BrepHandle,
+  matrix: number[] | undefined,
+  opts: { orientation: string; transitionMode?: string; volumeTolerance?: number },
+): BrepHandle {
+  const profile: BrepHandle[] = []
+  const swept: BrepHandle[] = []
+  try {
+    for (const ring of rings) {
+      const h = matrix === undefined ? ring.wrapped : api.transform(ring.wrapped, matrix)
+      profile.push(h)
+      // 单环判据先按本环的面积判一次：孔环扫出 0 体积时，净面积判据区分不出是哪一环。
+      const area = areaOfProfileWire(api, h)
+      const query: Record<string, unknown> = { orientation: opts.orientation }
+      if (opts.transitionMode !== undefined) query['transitionMode'] = opts.transitionMode
+      const s = coreSweep(h, spineWire, query, false)
+      const out = unwrapResult(s, 'sweepAlong') as BrepHandle
+      swept.push(out)
+      assertSweptVolumeMatches(api, 'sweepAlong', area, spineWire, out, opts.volumeTolerance)
+    }
+    let solid = swept[0]!
+    for (let i = 1; i < swept.length; i++) {
+      const hole = swept[i]!
+      const next = api.cut(solid, hole)
+      api.release(solid)
+      api.release(hole)
+      solid = next
+    }
+    return solid
+  } finally {
+    for (const h of profile) {
+      if (matrix !== undefined) {
+        try { api.release(h) } catch { /* 已释放 */ }
+      }
+    }
+  }
 }
 
-/** BREP 路径：多段中心线逐段扫掠后 union（带孔截面逐段布尔减）。 */
-function pipeAlongBrep(section: Shape, spine: Shape, opts?: PipeAlongOptions): Shape {
+/** BREP 路径：按策略执行（single / miter / segments），每步都过判据套件。 */
+function sweepAlongBrep(section: Shape, spine: Shape, opts?: SweepAlongOptions): Shape {
   if (!section || !spine) {
-    throw new Error('E_PIPE_ALONG_MISSING_ARG: pipeAlong requires a section and a spine (wire)')
-  }
-  if (opts?.closed) {
-    throw new Error('E_PIPE_ALONG_CLOSED_UNSUPPORTED: closed centrelines are not supported yet')
+    throw new Error('E_SWEEP_ALONG_MISSING_ARG: sweepAlong requires a section and a spine (wire)')
   }
   const api = getBrepApi()
-  const kernel = getOcctKernel()
-  const sectionHandle = handleOf(section, 'pipeAlong', 'section')
-  const spineHandle = handleOf(spine, 'pipeAlong', 'spine wire')
+  const sectionHandle = handleOf(section, 'sweepAlong', 'section')
+  const spineHandle = handleOf(spine, 'sweepAlong', 'spine wire')
   if (String(api.shapeType(spineHandle)).toLowerCase() !== 'wire') {
-    throw new Error('E_PIPE_ALONG_SPINE_NOT_WIRE: pipeAlong spine must be a wire (multi-segment path)')
+    throw new Error('E_SWEEP_ALONG_SPINE_NOT_WIRE: sweepAlong spine must be a wire (the centreline path)')
   }
+
+  const edgeHandles = api.getSubShapes(spineHandle, 'edge')
   const rings = toProfileRingsView(section)
-  const edges = api.getSubShapes(spineHandle, 'edge')
-  // 截面中心：让中心线穿过截面中心（Pappus 恒等式 volume = 净面积 × 段长 的前提）。
-  const box = api.getBoundingBox(sectionHandle)
-  const center: BrepVec3 = {
-    x: (box.xmin + box.xmax) / 2,
-    y: (box.ymin + box.ymax) / 2,
-    z: (box.zmin + box.zmax) / 2,
-  }
-  const netArea = rings.length > 1 ? areaOfProfileFace(api, sectionHandle) : undefined
-  let acc: BrepHandle | undefined
   try {
-    if (edges.length === 0) {
-      throw new Error('E_PIPE_ALONG_NO_EDGES: pipeAlong spine has no edges')
+    const facts = analyzeSpineEdges(api, edgeHandles)
+    const radius = sectionRadius(api, sectionHandle)
+    const decision = selectStrategy(facts, { strategy: opts?.strategy, sectionRadius: radius })
+    if ('reject' in decision) {
+      throw new OpError('sweepAlong', decision.reject.code, decision.reject.message)
     }
-    for (const edge of edges) {
-      // 每段：起点 + 起点切向 → 截面搬到该处 → 单段扫掠。
-      const pr = api.curveParameters(edge)
-      const p0 = api.curvePointAtParam(edge, pr.first)
-      const t0 = api.curveTangent(edge, pr.first)
-      const matrix = sectionFrameMatrix(p0, t0, center)
-      const segWire = api.makeWire([edge])
-      const moved: BrepHandle[] = []
-      const faces: BrepHandle[] = []
-      try {
-        for (const ring of rings) {
-          const m = api.transform(ring.wrapped, matrix)
-          moved.push(m)
-          faces.push(api.makeFace(m))
-        }
-        let seg = kernel.pipe(faces[0]! as never, segWire as never) as unknown as BrepHandle
-        assertSweptVolumeMatches(
-          api, 'pipeAlong', areaOfProfileFace(api, faces[0]!), segWire, seg, opts?.volumeTolerance,
-        )
-        for (let i = 1; i < faces.length; i++) {
-          const holeSolid = kernel.pipe(faces[i]! as never, segWire as never) as unknown as BrepHandle
-          const next = api.cut(seg, holeSolid)
-          api.release(seg)
-          api.release(holeSolid)
-          seg = next
-        }
-        if (netArea !== undefined) {
-          assertSweptVolumeMatches(api, 'pipeAlong', netArea, segWire, seg, opts?.volumeTolerance)
+    const strategy = decision.strategy
+    const first = facts.edges[0]!
+    const last = facts.edges[facts.edges.length - 1]!
+    const netArea = areaOfProfileFace(api, sectionHandle) ?? areaOfProfileWire(api, rings[0]!.wrapped)
+    const caps =
+      strategy === 'closed'
+        ? undefined
+        : [
+            { label: 'start', point: first.start, tangent: first.tStart },
+            { label: 'end', point: last.end, tangent: last.tEnd },
+          ]
+    const place = opts?.autoPlace !== false
+    const normal = place ? sectionNormal(api, sectionHandle, rings[0]!.wrapped) : undefined
+    const center = place ? bboxCenter(api, sectionHandle) : undefined
+
+    let solid: BrepHandle
+    if (strategy === 'segments') {
+      // 逐段：起点 + 起点切向摆正截面 → 单段 pipe（MakePipe）→ 共面接缝 fuse。
+      // 只在全 G1 上启用（策略层保证），接缝是共面同向端面，实测并成单块且体积精确。
+      let acc: BrepHandle | undefined
+      for (const [i, edge] of edgeHandles.entries()) {
+        const ef = facts.edges[i]!
+        const matrix =
+          normal === undefined || center === undefined
+            ? undefined
+            : sectionPlacementMatrix(normal, center, ef.start, ef.tStart)
+        const segWire = api.makeWire([edge])
+        let seg: BrepHandle | undefined
+        try {
+          seg = sweepRingsOnce(api, rings, segWire, matrix, {
+            orientation: 'frenet',
+            volumeTolerance: opts?.volumeTolerance,
+          })
+        } finally {
+          try { api.release(segWire) } catch { /* 已释放 */ }
         }
         if (acc === undefined) {
           acc = seg
@@ -299,22 +406,45 @@ function pipeAlongBrep(section: Shape, spine: Shape, opts?: PipeAlongOptions): S
           api.release(seg)
           acc = fused
         }
-      } finally {
-        for (const h of faces) {
-          try { api.release(h) } catch { /* 已释放 */ }
-        }
-        for (const h of moved) {
-          try { api.release(h) } catch { /* 已释放 */ }
-        }
-        try { api.release(segWire) } catch { /* 已释放 */ }
       }
+      if (acc === undefined) {
+        throw new Error('E_SWEEP_ALONG_NO_EDGES: sweepAlong spine has no edges')
+      }
+      solid = acc
+    } else {
+      // single / miter / closed：一次内核扫掠（frenet + 落位 + 折角过渡）。
+      // closed 没有端面 ⇒ 判据层跳过 C2（caps 置空），靠 C1 + C3。
+      const matrix =
+        normal === undefined || center === undefined
+          ? undefined
+          : isPlaced(normal, center, first.start, first.tStart, radius * 2)
+            ? undefined
+            : sectionPlacementMatrix(normal, center, first.start, first.tStart)
+      solid = sweepRingsOnce(api, rings, spineHandle, matrix, {
+        orientation: opts?.orientation ?? 'frenet',
+        transitionMode: opts?.transitionMode ?? (strategy === 'miter' ? 'rightCorner' : undefined),
+        volumeTolerance: opts?.volumeTolerance,
+      })
     }
-    if (acc === undefined) {
-      throw new Error('E_PIPE_ALONG_NO_EDGES: pipeAlong spine has no edges')
+
+    try {
+      assertSweepResult(api, 'sweepAlong', {
+        result: solid,
+        spine: spineHandle,
+        profileArea: netArea,
+        volumeTolerance: opts?.volumeTolerance,
+        caps,
+        coversPath: true,
+        spineNote: describeSpine(facts),
+        strict: opts?.strict,
+      })
+      return fromBrep(solidToShape(api, solid), { solid })
+    } catch (e) {
+      try { api.release(solid) } catch { /* 已释放 */ }
+      throw e
     }
-    return fromBrep(solidToShape(api, acc), { solid: acc })
   } finally {
-    for (const e of edges) {
+    for (const e of edgeHandles) {
       try { api.release(e) } catch { /* 已释放 */ }
     }
     for (const ring of rings) {
@@ -326,41 +456,56 @@ function pipeAlongBrep(section: Shape, spine: Shape, opts?: PipeAlongOptions): S
 }
 
 /**
- * 沿多段中心线扫出等截面（可带孔）的管：把「拆段 + 逐段定位截面 + 逐段扫 + union」
- * 一次做完。
+ * 沿任意三维中心线扫出等截面（可带孔）的管：按脊柱事实自动选策略，一次调用得到
+ * 解析体积的实体。
  *
- * 与 `pipe` 的区别：`pipe` 只吃**单段**直线 / 真弧脊柱，且截面必须已落在脊柱起点
- * （否则弧段扫出 0 体积）；`pipeAlong` 接受任意多段 wire（直线 / 真弧混合，相切或
- * 折角均可），自动把截面搬到每段起点、逐段扫掠后 union。带孔截面（如圆环）按
- * 「外环 − 孔环」扫出空心管。
+ * 三条策略（`internal/sweep-strategy.ts`，全部实测）：
+ * - `single`——单边 / 同类型多边全 G1：内核一次扫，精确；
+ * - `miter`——有 G0 折角：一次扫 + `rightCorner` 斜接，0.9936（4 拐角）/ 0.9996（16 拐角）；
+ * - `segments`——混合边类型（弧 + 直腿）全 G1：逐段扫 + 共面接缝 fuse，精确。
  *
- * 截面的包围盒中心落在中心线上（Pappus：体积 = 净面积 × 段长）；截面应关于中心
- * 线对称（圆管 / 圆环），非对称截面在弧段上的体积对账会按 Pappus 偏离而报错。
+ * 逐段 union 在折角上只有 0.88–0.90（接缝留 V 形缺口），所以折角必须走斜接，不能
+ * 沿用「逐段并一块」。
+ *
+ * 无解脊柱显式拒绝（带修法）：断裂 `E_SPINE_DISCONTINUOUS`、折返 `E_SPINE_FOLD`、
+ * 零长边 `E_SPINE_DEGENERATE`、混合 + 折角 `E_SPINE_MIXED_CORNER`、斜接必自交
+ * `E_SPINE_MITER_SELF_INTERSECT`、闭合 `E_SPINE_CLOSED_UNSUPPORTED`。
+ *
+ * 判据：C1 体积（面积 × 长度）、C2 端面法向 vs 端点切向（抓「截面没转」的塌陷，
+ * 15° 折角体积只偏 1.7% 也逃不掉）、C3 产物 bbox 必须覆盖脊柱。
  * @group 创建
  * @inputs 3
  * @async false
  * @qual ok
- * @name pipeAlong
- * @note 平台 op：仅 occt 引擎。脊柱须为 wire；每段按 `curveParameters` 起点切向
- *       摆放截面。闭合中心线（`opts.closed`）当前不支持。
- * @returns Shape 完整扫掠体（带孔截面产空心管固体）。
+ * @name sweepAlong
+ * @note 平台 op：仅 occt 引擎。脊柱须为 wire；截面可以是 face（全部环参与，外环扫
+ *       实体、孔环 cut 出内腔）或闭合 wire。
+ * @returns Shape 完整扫掠体（带孔截面产空心管实体）。
  * @param section - 等截面（实心 face / 带孔 face / 闭合 wire）。 type:Shape required:true
- * @param spine - 多段中心线 wire（直线 / 真弧任意组合）。 type:Shape required:true
- * @param opts - 选项（`closed` 保留，当前不支持；`volumeTolerance` 可显式放宽体积对账容差）。
- *               type:PipeAlongOptions required:false
- * @throws E_SWEEP_VOLUME_MISMATCH 某段扫掠体积与「截面积 × 段长」不符。
+ * @param spine - 三维中心线 wire（直线 / 真弧 / 样条任意组合）。 type:Shape required:true
+ * @param opts - 见 `SweepAlongOptions`（策略覆写、落位、过渡、容差、严格度）。
+ *               type:SweepAlongOptions required:false
+ * @throws E_SPINE_DISCONTINUOUS 相邻边端点不重合。
+ * @throws E_SPINE_FOLD 转角 > 175°（折返）。
+ * @throws E_SPINE_DEGENERATE 零长边。
+ * @throws E_SPINE_MIXED_CORNER 边类型混合且带折角（给两条修法）。
+ * @throws E_SPINE_CLOSED_UNSUPPORTED 闭合中心线。
+ * @throws E_SWEEP_VOLUME_MISMATCH 体积与「截面积 × 长度」不符。
+ * @throws E_SWEEP_CAP_NORMAL 端面法向与端点切向不符（截面没转）。
+ * @throws E_SWEEP_BBOX_MISMATCH 产物没有覆盖整条脊柱。
  * @example
- * const tube = cad.pipeAlong(annulusFace, cad.wireFromEdges([leg, bend, leg2]))
+ * const path = cad.wireFromEdges([leg1, bend, leg2]) // 直线 / 真弧任意拼接
+ * const tube = cad.sweepAlong(annulusFace, path)      // 一次调用，截面自动落位
  */
-export const pipeAlong = defineOp({
-  name: 'pipeAlong',
-  brep(section: Shape, spine: Shape, opts?: PipeAlongOptions) {
-    return pipeAlongBrep(section, spine, opts)
+export const sweepAlong = defineOp({
+  name: 'sweepAlong',
+  brep(section: Shape, spine: Shape, opts?: SweepAlongOptions) {
+    return sweepAlongBrep(section, spine, opts)
   },
   engines: ['occt'],
   naming: {
     kind: 'unmodeled',
-    reason: 'pipeAlong swept-body face vocabulary not defined',
+    reason: 'sweepAlong swept-body face vocabulary not defined',
   } as Provenance,
 
   paramDims: {},

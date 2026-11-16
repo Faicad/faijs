@@ -23,7 +23,8 @@ import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
 import { OpError } from './internal/result-unwrap'
-import { areaOfProfileWire, assertSweptVolumeMatches } from './internal/sweep-guard'
+import { areaOfProfileWire, assertSweepResult } from './internal/sweep-guard'
+import { analyzeSpine, describeSpine } from './internal/spine-analysis'
 import { toProfileWireView } from './internal/profile-wire'
 import { unifyOrientation, weldVertices } from '../mesh/reconcile'
 
@@ -71,15 +72,20 @@ function sweepBrep(profile: Shape, spine: Shape): Shape {
   const kernel = getBrepApi()
   try {
     const h = kernel.sweep(profileWire.wrapped, spineWire.wrapped)
-    // 体积对账（post-condition）：折线脊柱不报错、只静默少给体积；
-    // 恒等式「截面积 × 脊柱长度」的实测容差见 internal/sweep-guard.ts 文件头。
-    assertSweptVolumeMatches(
-      kernel,
-      'sweep',
-      areaOfProfileWire(kernel, profileWire.wrapped),
-      spineWire.wrapped,
-      h,
-    )
+    // 判据套件（post-condition）：折线脊柱不报错、只静默少给体积；
+    // C1 体积 / C2 端面法向 / C3 包围盒，阈值依据见 internal/sweep-guard.ts。
+    // 本 op 的选项集是两内核交集（空），所以没有容差入口 —— 需要知情放行用
+    // setSweepVolumeTolerance()，或换 cad.sweepAlong。
+    const facts = analyzeSpine(kernel, spineWire.wrapped)
+    // 本 op 的选项集是两内核交集（空）：没有落位开关，截面留在调用方放的位置。
+    // 因此只判 C1（体积恒等式）；C2/C3 要求「截面在路径上」，而这条 op 无法保证
+    // （也不该替调用方决定）。要完整判据用 cad.sweepAlong（默认落位）。
+    assertSweepResult(kernel, 'sweep', {
+      result: h,
+      spine: spineWire.wrapped,
+      profileArea: areaOfProfileWire(kernel, profileWire.wrapped),
+      spineNote: describeSpine(facts),
+    })
     return withConsistentWinding(fromBrep(solidToShape(kernel, h), { solid: h }))
   } catch (e) {
     // 守卫抛的 OpError 必须原样透传：包成 E_SWEEP_FAILED 会丢掉 E_SWEEP_VOLUME_MISMATCH

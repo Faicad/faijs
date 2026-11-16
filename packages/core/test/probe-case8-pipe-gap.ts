@@ -4,8 +4,8 @@
  *
  * Run: npx tsx test/probe-case8-pipe-gap.ts   (cwd = packages/core)
  *
- * Nothing here asserts — it prints facts. Decisions live in
- * docs/plans/2026-11-13-faijs-gap-from-case8.md §6.
+ * Nothing here asserts — it prints facts. The facts that turned into gates live in
+ * test/api/sweep-kernel-behavior.test.ts (K1–K9) and test/api/sweep-hollow-pipe.test.ts.
  */
 import { initOcctWasm } from '../src/occt-kernel/occtKernel'
 
