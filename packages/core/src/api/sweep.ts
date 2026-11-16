@@ -30,16 +30,20 @@
  *
  * | 引擎 | single | miter | segments | closed | C2 端面法向 |
  * |---|---|---|---|---|---|
- * | occt | ✔ | ✔ | ✔ | ✔ | ✔ |
- * | smlib | ✔ | ✔（仅平面折角） | ✔ | ✔ | ✔ |
+ * | occt | ✔ | ✔（内核 `rightCorner`） | ✔（逐段；含 G0 折角时按角平分面裁成斜接） | ✔ | ✔ |
+ * | smlib | ✔ | ✔（平面折角走内核；空间折角走**策略层自补斜接**） | ✔（混合边全 G1；**混合边 + 折角**因布尔限制拒绝） | ✔ | ✔ |
  * | brepkit | ✔ | ✘ | ✘ | ✘ | ✘（旧引擎，保留 single 只为历史脚本） |
  *
  * 实测数字（4×4 截面，`cad.sweep` 脚本级 / 内核级，2026-11-16）：
  * - occt：直线 25 → 400；折角 L 形（长 20）miter → 320；**空间**折角（长 30）→ 480；
- *   闭合圆 r=10 → 1005.31；带孔截面（8/4）→ 3015.93（= 净面积 × 20）；真弧脊柱 → 251.33。
+ *   闭合圆 r=10 → 1005.31；带孔截面（8/4）→ 3015.93（= 净面积 × 20）；真弧脊柱 → 251.33；
+ *   **混合边 + G0 折角**（弧尾 90° 折直腿）→ 411.33 × **1.0046**（残差来自"弧段沿端点
+ *   切向的直段延伸"，O(δ²/2R)，见表下注）；强制 `segments` 走 16 段折线 → 0.9996。
  * - smlib：直线 400 / autoPlace 搬 90mm → 800 / 共线多边 400 / 带孔 3015.93 /
- *   **平面**折角 320（内核自己就斜接）/ 真弧脊柱 251.33 / 混合边 G1（弧+直腿）411.33；
- *   空间折角 → `E_SWEEP_ENGINE_CAP`（内核吐 V=0、非流形的碎片）；闭合圆 → 1005.31。
+ *   **平面**折角 320（内核自己就斜接）/ **空间**折角 480（策略层自补，与 occt 同值）/
+ *   真弧脊柱 251.33 / 混合边 G1（弧+直腿）411.33；闭合圆 → 1005.31；
+ *   混合边 + 折角 → `E_SWEEP_ENGINE_CAP`（曲面段被 `splitByPlane` 切后读出 V=0，
+ *   `fuse` 直接报 `smw_fuse: boolean failed`）。
  * - brepkit：直线 400 / autoPlace 800 / 共线多边 400（结构判据修好后成立）；
  *   折角 → `E_SWEEP_ENGINE_CAP`；带孔截面 → 体积对（3015.93）但 C1 面积读数失真
  *   （读到 16 而非 150.8）→ 旧引擎不修，带孔截面在 brepkit 上按「不可用」看待。
@@ -50,15 +54,23 @@
  * - smlib：只有 `SmApiCreateSweepAlongPlanarPath`（名字叫 planar，实测**空间 G1 路径**
  *   —— 3D 样条 570.70 = 16 × 35.669、螺旋线 1639.96 = 16 × 102.498 —— 照样成立；
  *   内核自己把截面 bbox 中心搬到路径起点、`capEnds=3` 封端），**平面** G0 折角内核
- *   直接给精确斜接；它真正的边界是「空间 G0 折角」（V=0、非流形）与「带孔 face 的孔环」
- *   （只取外环 ⇒ op 层必须逐环扫 + `cut`）；
+ *   直接给精确斜接；**空间** G0 折角内核吐 V=0、非流形的碎片（P0i），因此在策略层自补：
+ *   逐段过量延伸 + 角平分面裁剪 + `fuse`（P0k：平面 320.000 / 空间 319.988，脚本级
+ *   空间折角 480.000 与 occt 同值）。它的另一个边界是「带孔 face 的孔环」（只取外环 ⇒
+ *   op 层必须逐环扫 + `cut`）；
  * - brepkit：剖面 face + 路径整链拟合成一条 NURBS + `sweepWithOptions('rmf','smooth')`，
  *   折角被**光滑掉**（不是斜接）；`shapeType` 不区分 wire（一律 COMPOUND）⇒ 脊柱判据
  *   必须用**结构**判（有边、无面），不能按类型字符串判。
  *
  * 不支持的组合在**扫掠之前**拒绝（`E_SWEEP_ENGINE_CAP`），消息给出该引擎缺的是哪个
- * 内核能力与可执行修法 —— 绝不静默降级成另一条策略（降级到 `segments` 会在 G0 接缝
- * 留 V 形缺口，实测 0.88–0.90）。
+ * 内核能力与可执行修法 —— 绝不静默降级成另一条策略（朴素「逐段扫 + 直接 fuse」会在 G0
+ * 接缝留下「重叠被吞 + 外侧无斜接补料」的错件，4×4/90° 实测 304 而精确值 320，刚好压在
+ * C1 的 5% 容差界上 —— 所以转角要么内核给，要么按 P0k 的配方在策略层造）。
+ *
+ * 注：**曲面段**（弧 / 样条）的过量延伸只能沿端点切向接一小段直线（真要沿同一圆续下去得
+ * 重建圆弧，本文件不这么做），误差 O(δ²/2R) —— 4×4 截面、R10 弧、90° 折角实测 **+0.46%**
+ * （411.33 → 413.22）。纯直线脊柱没有这个残差（16 段折线 0.9996 的残差来自折线对弧本身的
+ * 近似，与延伸无关）。
  */
 
 import type { Shape } from '../mesh/types'
@@ -66,7 +78,7 @@ import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import { getBrepApi } from '../brep/handle-bridge'
 import { getActiveBrepEngineId } from '../brep/engine/registry'
-import type { BrepHandle } from '../brep/engine/types'
+import type { BrepHandle, BrepVec3 } from '../brep/engine/types'
 import { brepOf, fromBrep } from '../shape'
 import { solidToShape } from '../brep/brep-ops'
 import { unifyOrientation, weldVertices } from '../mesh/reconcile'
@@ -79,7 +91,7 @@ import {
 } from './internal/sweep-guard'
 import { toProfileRingsView } from './internal/profile-wire'
 import type { WireView } from './internal/profile-wire'
-import { analyzeSpineEdges, describeSpine } from './internal/spine-analysis'
+import { analyzeSpineEdges, describeSpine, unit } from './internal/spine-analysis'
 import type { SpineFacts } from './internal/spine-analysis'
 import { selectStrategy } from './internal/sweep-strategy'
 import type { SweepStrategy } from './internal/sweep-strategy'
@@ -97,8 +109,10 @@ export interface SweepOptions {
   /**
    * 策略覆写。默认 `'auto'`（由脊柱事实决定，见 `internal/sweep-strategy.ts`）：
    * - `single`：单边 / 同类型多边全 G1 → 一次内核扫掠；
-   * - `miter`：全 G0 折角 → 一次扫掠 + 斜接过渡（实测 0.9936–0.9996）；
-   * - `segments`：混合边类型全 G1 → 逐段扫 + 共面接缝 fuse；
+   * - `miter`：全 G0 折角 → 斜接（occt 一次扫掠 + `rightCorner`，实测 0.9936–0.9996；
+   *   smlib 无过渡入口，走「逐段过量延伸 + 角平分面裁剪 + fuse」自补，实测 480.000 同值）；
+   * - `segments`：逐段扫（内核一次扫在混合链上符号错）。全 G1 时接缝是共面端面直接 fuse；
+   *   有 G0 折角时每个折角按角平分面裁出斜接（`smlib` 的曲面段做不到，见引擎表）。
    * - `closed`：闭合中心线 → 一次扫掠（环面体积 = 面积 × 周长）。
    *
    * 覆写不能绕过物理上无解的脊柱（断裂 / 折返 / 退化 / 混合+G0 一律先拒），
@@ -126,7 +140,7 @@ const STRATEGIES_BY_ENGINE: Record<string, readonly SweepStrategy[]> = {
   occt: ['single', 'miter', 'segments', 'closed'],
   // smlib（2026-11-16 P0 探针后放宽）：single（含空间样条 / 螺旋 G1，实测体积与
   // 面积×长度同到 1e-4）、miter（平面 G0 折角内核自己就做斜接，实测 320 精确；空间
-  // 折角由 assertEngineCan 单独拦）、segments（逐段扫 + fuse，实测 411.327 = 两段之和）、
+  // 折角改由执行器自补斜接，实测 480）、segments（逐段扫 + fuse，实测 411.327 = 两段和）、
   // closed（闭合圆 1005.31）。
   smlib: ['single', 'miter', 'segments', 'closed'],
   // 旧引擎，保留 single 只为历史脚本；折角在 brepkit 上被光滑掉，不是斜接。
@@ -136,9 +150,10 @@ const STRATEGIES_BY_ENGINE: Record<string, readonly SweepStrategy[]> = {
 /** 各引擎缺的关键内核能力（只用于拒绝消息，让「为什么不行」可行动）。 */
 const ENGINE_GAP: Record<string, string> = {
   smlib:
-    'smlib exposes only SmApiCreateSweepAlongPlanarPath: it has no corner transition for a SPATIAL ' +
-    '(non-planar) G0 corner — measured a 3D fold yields V=0 and a non-manifold body — and no guide / ' +
-    'law / support control surface',
+    'smlib exposes only SmApiCreateSweepAlongPlanarPath: it has no native corner transition (a spatial ' +
+    'G0 corner fed to the kernel yields V=0 and a non-manifold body), so `sweep` builds the miter ' +
+    'itself by per-segment over-extension + bisector trim + fuse; it also has no guide / law / support ' +
+    'control surface',
   brepkit:
     'brepkit sweeps one NURBS interpolation of the whole spine with rmf + smooth corners: ' +
     'polyline corners are rounded away (not mitered), so a G0 spine cannot reach the analytic volume',
@@ -230,11 +245,11 @@ function sweepRingsOnce(
 /**
  * 单个截面句柄的扫掠：按策略与引擎选内核入口。
  *
- * - `miter` / `closed`：只有 occt 能做（`sweepFull` 的 `transitionMode`；闭合脊柱一次
- *   成形）。其余引擎在上游已被能力门禁拒绝，这里再兜一次（防接线漂移）。
- * - 其余（`single` / `segments` 的单段）：走 L1 中立名 `BrepEngineApi#sweep`，
- *   occt = `sweepPipeShell(f,sp,false,false)`、smlib = 平面路径扫掠、brepkit = RMF 扫掠。
- *   **不用 occt 专属面**是让三引擎跑同一条代码路径的唯一办法。
+ * - **occt** 的 `miter` / `closed`：`sweepFull` 的 `transitionMode`；闭合脊柱一次成形。
+ * - 其余（`single` / `segments` 的单段 / 非 occt 的 `miter` 单段）：走 L1 中立名
+ *   `BrepEngineApi#sweep`，occt = `sweepPipeShell(f,sp,false,false)`、smlib = 平面路径扫掠、
+ *   brepkit = RMF 扫掠。**不用 occt 专属面**是让三引擎跑同一条代码路径的唯一办法。
+ *   非 occt 的 `miter` 到这里的只是**单段**（转角由 `sweepWithBuiltJoints` 自己造）。
  *
  * @returns 扫出的实体句柄（调用方负责 release）。
  */
@@ -253,8 +268,195 @@ function sweepOneSection(
   return api.sweep(section, spineWire)
 }
 
-/** 按策略与引擎能力解析「这一次能不能扫」——不行就给出可执行的拒绝。 */
-function assertEngineCan(
+// ── 策略层自补斜接（smlib 没有 transitionMode 时的转角过渡）────────────────────────
+
+function dot3(a: BrepVec3, b: BrepVec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z
+}
+
+function sub3(a: BrepVec3, b: BrepVec3): BrepVec3 {
+  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }
+}
+
+function add3(a: BrepVec3, b: BrepVec3, k: number): BrepVec3 {
+  return { x: a.x + b.x * k, y: a.y + b.y * k, z: a.z + b.z * k }
+}
+
+/** 一个 G0 折角的斜接几何：角平分面 + 每段在这端要过量延伸的长度。 */
+interface JointPlan {
+  /** 折角后面那条边的下标（`facts.corners[i].index`）。 */
+  index: number
+  point: BrepVec3
+  /** 角平分面法向 = 两条单位切向之和的单位化。 */
+  normal: BrepVec3
+  turn: number
+  /** 每段在转角端沿自身切向多伸的长度。必须 > `extent`，否则切不过斜接面。 */
+  delta: number
+  /** 斜接面在段轴上截出的距离 = 半宽 × tan(θ/2)。 */
+  extent: number
+}
+
+/**
+ * 把 G0 折角排成「斜接计划」：每个折角给出角平分面与延伸量。
+ *
+ * `extent = 半宽 × tan(θ/2)` 是斜接面沿段轴到折点的距离（截面最外点刚好落在斜接面上
+ * 的位置）。延伸量取 `1.05×extent`：必须**略大于** extent 才能让 `splitByPlane`
+ * 真的把实体切成两半（smlib 的 splitByPlane 在"只擦过"时会拒绝），多给的部分会被
+ * 斜接面切掉，所以过量无害。
+ *
+ * @param facts - 脊柱事实。
+ * @param radius - 截面 bbox 最长边的一半（外接半径，保守覆盖任何方向上的半宽）。
+ * @returns 每个折角的计划；折角太密（延伸会穿越相邻折点）时抛
+ *          `E_SPINE_MITER_SELF_INTERSECT`，不静默产残件。
+ */
+function planMiterJoints(facts: SpineFacts, radius: number): JointPlan[] {
+  const plans: JointPlan[] = []
+  for (const c of facts.corners) {
+    const prev = facts.edges[c.index - 1]
+    const next = facts.edges[c.index]
+    // 闭合收尾折角（index === edges.length）走 `closed` 策略，不在这里处理。
+    if (!prev || !next) continue
+    const normal = unit({
+      x: prev.tEnd.x + next.tStart.x,
+      y: prev.tEnd.y + next.tStart.y,
+      z: prev.tEnd.z + next.tStart.z,
+    })
+    if (Math.hypot(normal.x, normal.y, normal.z) < 1e-9) continue // 180° 折返：策略层已拒
+    const extent = radius * Math.tan(Math.min(c.turn, Math.PI - 1e-3) / 2)
+    // 延伸不能越过相邻段的另一端（否则切完会戳到上一个拐角之外）。0.98 留出顶点合并余量。
+    const cap = Math.min(prev.length, next.length) * 0.98
+    const delta = Math.min(extent * 1.05, cap)
+    if (!(delta > extent)) {
+      throw new OpError(
+        'sweep',
+        'E_SPINE_MITER_SELF_INTERSECT',
+        `[api/sweep] miter at corner ${c.index} needs ${(extent * 1.05).toFixed(3)} of run-out but the ` +
+          `adjacent segment is only ${Math.min(prev.length, next.length).toFixed(3)} long — the miter ` +
+          `plane falls outside the segment, so the corner cannot be built by trimming. Enlarge the ` +
+          `segment spacing, use a smaller section, or replace the corner with a true tangent arc.`,
+      )
+    }
+    plans.push({ index: c.index, point: c.point, normal, turn: c.turn, delta, extent })
+  }
+  return plans
+}
+
+/**
+ * 逐段扫 + 转角处按角平分面裁剪 + `fuse`：**在策略层自己把斜接造出来**。
+ *
+ * 为什么需要（实测，`test/api/sweep-engines.test.ts` P0i / P0j / P0k）：
+ * - smlib 只有 `SmApiCreateSweepAlongPlanarPath`，**空间** G0 折角喂进去得 V=0、非流形（P0i）；
+ * - 朴素地「逐段扫 + 直接 fuse」得 V=304（平面） / 305.37（空间），精确值 320 —— 两段在
+ *   转角处的重叠被 fuse 吞掉、外侧没有斜接补料（P0j）。体积只差 5%，正好压在 C1 默认容差
+ *   界上 ⇒ 守卫兜不住，必须在几何层修；
+ * - 每段在转角端过量延伸 δ、再用角平分面切掉自己那一侧、最后 fuse：平面 320.000 /
+ *   空间 319.988，流形，平面情形的面数与内核自己那次 miter 完全一致（P0k）。
+ *
+ * 为什么对「空间」也成立：两条切向不共线时 `n = t̂_prev + t̂_next` 就唯一确定一个过折点的
+ * 平面，被它切出的两个端面天然同面 —— 与转弯是否出平面无关。内核只负责「截面沿一条直线 /
+ * 一段弧推走」，拐弯这段几何由本函数造。
+ *
+ * @returns 合并后的实体句柄（调用方负责 release）。
+ */
+function sweepWithBuiltJoints(
+  api: Kernel,
+  engineId: string,
+  rings: WireView[],
+  edgeHandles: BrepHandle[],
+  facts: SpineFacts,
+  joints: JointPlan[],
+  place: { normal?: BrepVec3; center?: BrepVec3 },
+  opts: { strategy: SweepStrategy; volumeTolerance?: number },
+): BrepHandle {
+  const byIndex = new Map<number, JointPlan>(joints.map((j) => [j.index, j]))
+  const scratch: BrepHandle[] = []
+  const pieces: BrepHandle[] = []
+  const releaseScratch = (): void => {
+    for (const h of scratch) {
+      try { api.release(h) } catch { /* 已释放 */ }
+    }
+  }
+  try {
+    for (const [i, edge] of edgeHandles.entries()) {
+      const ef = facts.edges[i]!
+      const before = byIndex.get(i) // 折角在边 i 的起点
+      const after = byIndex.get(i + 1) // 折角在边 i 的终点
+      const dStart = before?.delta ?? 0
+      const dEnd = after?.delta ?? 0
+      const startPoint = dStart > 0 ? add3(ef.start, ef.tStart, -dStart) : ef.start
+      const endPoint = dEnd > 0 ? add3(ef.end, ef.tEnd, dEnd) : ef.end
+
+      const parts: BrepHandle[] = []
+      if (ef.kind === 'line') {
+        // 直线段：延伸就是延长同一条线，不必拆成「直线 + 短线」。
+        const line = api.makeLineEdge(startPoint, endPoint)
+        scratch.push(line)
+        parts.push(line)
+      } else {
+        // 弧 / 样条：只能沿端点切向接一小段直线（误差 O(δ²/2R)，δ 由 extent 决定）。
+        if (dStart > 0) {
+          const lead = api.makeLineEdge(startPoint, ef.start)
+          scratch.push(lead)
+          parts.push(lead)
+        }
+        parts.push(edge)
+        if (dEnd > 0) {
+          const tail = api.makeLineEdge(ef.end, endPoint)
+          scratch.push(tail)
+          parts.push(tail)
+        }
+      }
+
+      const wire = api.makeWire(parts)
+      let piece: BrepHandle | undefined
+      try {
+        const matrix =
+          place.normal === undefined || place.center === undefined
+            ? undefined
+            : sectionPlacementMatrix(place.normal, place.center, startPoint, ef.tStart)
+        piece = sweepRingsOnce(api, engineId, rings, wire, matrix, {
+          strategy: opts.strategy,
+          volumeTolerance: opts.volumeTolerance,
+        })
+      } finally {
+        try { api.release(wire) } catch { /* 已释放 */ }
+      }
+
+      // 转角裁剪：每段只保留自己那一侧（探针点用该段参数中点，必然落在自己一侧）。
+      let cur = piece
+      for (const [joint, probe] of [
+        [before, ef.mid] as const,
+        [after, ef.mid] as const,
+      ]) {
+        if (joint === undefined || cur === undefined) continue
+        const cut = api.splitByPlane(cur, joint.point, joint.normal)
+        const s = dot3(sub3(probe, joint.point), joint.normal)
+        const keep = s < 0 ? cut.negative : cut.positive
+        const drop = s < 0 ? cut.positive : cut.negative
+        api.release(drop)
+        api.release(cur)
+        cur = keep
+      }
+      pieces.push(cur)
+    }
+
+    let acc = pieces[0]
+    if (acc === undefined) throw new Error('E_SWEEP_NO_EDGES: sweep spine has no edges')
+    for (let i = 1; i < pieces.length; i++) {
+      const seg = pieces[i]!
+      const fused = api.fuse(acc, seg)
+      api.release(acc)
+      api.release(seg)
+      acc = fused
+    }
+    pieces.length = 0 // 已全部并入 acc / 或已释放
+    return acc
+  } finally {
+    releaseScratch()
+  }
+}
+
+/** 按策略与引擎能力解析「这一次能不能扫」——不行就给出可执行的拒绝。 */function assertEngineCan(
   engineId: string,
   strategy: SweepStrategy,
   facts: SpineFacts,
@@ -265,16 +467,24 @@ function assertEngineCan(
     ? 'report this as a missing engine registration'
     : 'run this model on occt, or reduce the spine to what the engine can sweep ' +
       '(single edge / same-kind G1 chain: a true arc beats a sampled polyline)'
-  // 平面性是策略之外的**引擎**约束：smlib 的转角过渡只在平面路径上成立。
-  // 实测（P0i，4×4 截面的空间 L 折角）：V=0、manifold=false、10 个面 —— 内核不报错，
-  // 吐出一块退化碎片。这种「静默产废」必须在扫掠之前拦住。
-  if (engineId === 'smlib' && strategy === 'miter' && !facts.planar) {
+  // 平面性曾是策略之外的**引擎**约束：smlib 的转角过渡只在平面路径上成立，空间 G0 折角
+  // 喂进去得 V=0、非流形（单次内核扫掠，P0i 实测）。现在**不再**在这里拒绝：执行器改走
+  // 「逐段过量延伸 + 角平分面裁剪 + fuse」在策略层把斜接造出来（P0k 实测 320.000 /
+  // 319.988），内核只负责单段的直线/弧推动。只有造不出来（折角太密）时才由
+  // `planMiterJoints` 抛 `E_SPINE_MITER_SELF_INTERSECT`。
+  // 混合边类型 + G0 折角：策略层已放行（走 `segments` + 自补斜接），但**曲面段**在 smlib 上
+  // 做不到。实测（2026-11-16，弧尾 90° 折到直腿）：弧段过量延伸后 `splitByPlane` 交回的
+  // 自己是空的一半（V=0），拿去 `fuse` 直接报 `smw_fuse: boolean failed`。这不是策略问题，
+  // 是 smlib 布尔对"被切过的曲面扫掠体"的边界，所以在这里显式拒绝而不是产出 160 的残件。
+  if (engineId === 'smlib' && facts.mixed && facts.corners.length > 0) {
     throw new OpError(
       'sweep',
       'E_SWEEP_ENGINE_CAP',
-      `[api/sweep] engine 'smlib' cannot sweep a spatial G0 corner (${describeSpine(facts)}): ` +
-        `${gap}. Fix: run this model on occt, or make the spine planar (put every corner in one plane) ` +
-        `or replace the sharp corner with a true arc (smlib sweeps arcs correctly).`,
+      `[api/sweep] engine 'smlib' cannot sweep a mixed-kind spine with a G0 corner ` +
+        `(${describeSpine(facts)}): the corner miter is built by trimming an over-extended segment body and ` +
+        `fusing it back, and for a curved segment smlib's boolean cannot do that (measured: the trimmed half ` +
+        `reads V=0, then smw_fuse reports "boolean failed"). Fix: run this model on occt, or split the path ` +
+        `into G1-only runs and sweep each (a true tangent arc removes the corner entirely).`,
     )
   }
   if (allowed.includes(strategy)) return
@@ -349,39 +559,22 @@ function sweepBrep(section: Shape, spine: Shape, opts?: SweepOptions): Shape {
     const center = place ? bboxCenter(api, sectionHandle) : undefined
 
     let solid: BrepHandle
-    if (strategy === 'segments') {
-      // 逐段：起点 + 起点切向摆正截面 → 单段扫掠 → 共面接缝 fuse。
-      // 只在全 G1 上启用（策略层保证），接缝是共面同向端面，实测并成单块且体积精确。
-      let acc: BrepHandle | undefined
-      for (const [i, edge] of edgeHandles.entries()) {
-        const ef = facts.edges[i]!
-        const matrix =
-          normal === undefined || center === undefined
-            ? undefined
-            : sectionPlacementMatrix(normal, center, ef.start, ef.tStart)
-        const segWire = api.makeWire([edge])
-        let seg: BrepHandle | undefined
-        try {
-          seg = sweepRingsOnce(api, engineId, rings, segWire, matrix, {
-            strategy,
-            volumeTolerance: opts?.volumeTolerance,
-          })
-        } finally {
-          try { api.release(segWire) } catch { /* 已释放 */ }
-        }
-        if (acc === undefined) {
-          acc = seg
-        } else {
-          const fused = api.fuse(acc, seg)
-          api.release(acc)
-          api.release(seg)
-          acc = fused
-        }
-      }
-      if (acc === undefined) {
-        throw new Error('E_SWEEP_NO_EDGES: sweep spine has no edges')
-      }
-      solid = acc
+    if (strategy === 'segments' || (strategy === 'miter' && engineId !== 'occt')) {
+      // **唯一的「逐段」执行器**（2026-11-16 合并）：脊柱拆段 → 每段单扫 → 按折角计划
+      // 裁接缝（计划可能为空）→ 依次 fuse。
+      //
+      // - `segments`：混合边类型（内核一次扫在混合链上会按 A×(弧长−腿长) 出错），所以必须
+      //   逐段；有 G0 折角时由 `planMiterJoints` 给出每个折角的角平分面与延伸量，接缝被
+      //   裁成斜接（P0k 实测平面 320.000 / 空间 319.988）；全 G1 时计划为空 ⇒ δ=0、不切，
+      //   退化成「逐段扫 + 共面 fuse」，与原 `segments` 行为逐位等价。
+      // - `miter`（非 occt）：引擎没有 transitionMode（smlib 只有平面路径扫掠），
+      //   同样用这个执行器把斜接造出来。occt 上 `miter` 仍走内核 `rightCorner`（更便宜、
+      //   面数更少、已实测精确）。
+      const joints = planMiterJoints(facts, radius)
+      solid = sweepWithBuiltJoints(api, engineId, rings, edgeHandles, facts, joints, { normal, center }, {
+        strategy,
+        volumeTolerance: opts?.volumeTolerance,
+      })
     } else {
       // single / miter / closed：一次内核扫掠（截面落位 + 策略决定的过渡）。
       const matrix =
@@ -440,20 +633,20 @@ function sweepBrep(section: Shape, spine: Shape, opts?: SweepOptions): Shape {
  * - `segments`——混合边类型（弧 + 直腿）全 G1：逐段扫 + 共面接缝 fuse，精确；
  * - `closed`——闭合中心线：一次扫掠，环面体积 = 面积 × 周长。
  *
- * 逐段 union 在折角上只有 0.88–0.90（接缝留 V 形缺口），所以折角必须走斜接，不能
- * 沿用「逐段并一块」。
+ * 逐段直接 union 在折角上是错的（4×4/90° 实测 304，精确 320 —— 转角重叠被 fuse 吞掉、
+ * 外侧没有斜接补料，而且只差 5% 刚好压在 C1 容差界上），所以折角要么由内核给斜接，
+ * 要么按「逐段过量延伸 + 角平分面裁剪 + fuse」在策略层造（smlib 走这条）。
  *
  * **引擎能力**（不支持的组合在扫掠前拒绝，`E_SWEEP_ENGINE_CAP`）：
- * occt 全策略；smlib `single` / `closed`（平面路径扫掠，实测直线 400 / 闭合 1005.31 /
- * 带孔截面 3015.93，`segments` 等 `circleArc` 补 smlib）；brepkit 只 `single`
- * （旧引擎，折角被 RMF 光滑掉）。
+ * occt 全策略；smlib `single` / `miter`（平面折角内核给、空间折角策略层自补）/ `segments` /
+ * `closed`；brepkit 只 `single`（旧引擎，折角被 RMF 光滑掉）。
  *
  * 无解脊柱显式拒绝（带修法）：断裂 `E_SPINE_DISCONTINUOUS`、折返 `E_SPINE_FOLD`、
  * 零长边 `E_SPINE_DEGENERATE`、混合 + 折角 `E_SPINE_MIXED_CORNER`、斜接必自交
- * `E_SPINE_MITER_SELF_INTERSECT`。
+ * `E_SPINE_MITER_SELF_INTERSECT`（含「延伸会越过相邻折点」这种造不出来的折角）。
  *
  * 判据：C1 体积（净面积 × 长度）、C2 端面法向 vs 端点切向（抓「截面没转」的塌陷，
- * 15° 折角体积只偏 1.7% 也逃不掉；仅 occt 可评，smlib 未实现 `shapeOrientation`）、
+ * 15° 折角体积只偏 1.7% 也逃不掉；occt + smlib 可评，|dot| 判据不依赖 shapeOrientation）、
  * C3 产物 bbox 必须覆盖脊柱。
  * @group 创建
  * @inputs 3
@@ -470,9 +663,11 @@ function sweepBrep(section: Shape, spine: Shape, opts?: SweepOptions): Shape {
  * @throws E_SPINE_DISCONTINUOUS 相邻边端点不重合。
  * @throws E_SPINE_FOLD 转角 > 175°（折返）。
  * @throws E_SPINE_DEGENERATE 零长边。
- * @throws E_SPINE_MIXED_CORNER 边类型混合且带折角（给两条修法）。
+ * @throws E_SPINE_MIXED_CORNER（已废弃）—— 混合边 + G0 折角现在能扫（`segments` + 自补斜接），
+ *         occt 上实测 +0.46%；smlib 上因布尔限制改为 `E_SWEEP_ENGINE_CAP`。
+ * @throws E_SPINE_MITER_SELF_INTERSECT 折角太密：斜接所需的延伸会越过相邻折点，造不出来。
  * @throws E_SWEEP_VOLUME_MISMATCH 体积与「净截面积 × 长度」不符。
- * @throws E_SWEEP_CAP_NORMAL 端面法向与端点切向不符（截面没转；仅 occt 评）。
+ * @throws E_SWEEP_CAP_NORMAL 端面法向与端点切向不符（截面没转；occt + smlib 评）。
  * @throws E_SWEEP_BBOX_MISMATCH 产物没有覆盖整条脊柱。
  * @example
  * const path = cad.wireFromEdges([leg1, bend, leg2]) // 直线 / 真弧任意拼接
@@ -480,7 +675,7 @@ function sweepBrep(section: Shape, spine: Shape, opts?: SweepOptions): Shape {
  */
 export const sweep = defineOp({
   name: 'sweep',
-  // 三引擎：occt 全策略；smlib 平面路径扫掠（single/segments）；brepkit 仅 single。
+  // 三引擎：occt 全策略；smlib 四策略全开（空间 G0 折角的斜接由执行器自补）；brepkit 仅 single。
   // 能力差异在本文件 STRATEGIES_BY_ENGINE 判定，并在扫掠前拒绝不支持的组合。
   engines: ['occt', 'brepkit', 'smlib'],
   brep(section: Shape, spine: Shape, opts?: SweepOptions) {

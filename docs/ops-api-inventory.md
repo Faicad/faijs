@@ -1949,11 +1949,16 @@ const body = cad.sweep(section, path)
 **异步**。Shape 扫掠体（带孔截面产空心实体）。
 
 > 三引擎 op，能力按引擎分级（实测：`test/api/sweep-engines.test.ts`）：occt 全策略
-> （`single` / `miter` / `segments` / `closed`）；smlib `single` / `closed`（平面路径扫掠，
-> 实测直线 400 / 闭合 1005.31 / 带孔截面 3015.93）；brepkit 仅 `single`（旧引擎）。
+> （`single` / `miter` / `segments` / `closed`；`segments` 遇到 G0 折角时按角平分面裁成斜接，
+> 混合边 + 折角实测 411.33 × +0.46%，曲面段延伸是「沿端点切向的直段」所致）；smlib 四策略
+> （`single` 400 / `miter` 平面折角 320 由内核斜接、空间折角 480 由策略层自补（逐段过量延伸
+> + 角平分面裁剪 + fuse）/ `segments` 411.33 仅限混合边**全 G1** / `closed` 1005.31 /
+> 带孔 3015.93）；smlib 上混合边 + 折角由 `E_SWEEP_ENGINE_CAP` 拒绝（曲面段被切后读 V=0、
+> `fuse` 报 `smw_fuse: boolean failed`）。brepkit 仅 `single`（旧引擎）。
 > 不支持的组合**扫掠前**拒绝（`E_SWEEP_ENGINE_CAP`，消息给出引擎缺的内核能力与修法）。
 > `strategy` 缺省 `'auto'`：单边 / 同类 G1 → `single`；全 G0 折角 → `miter`；混合边 G1 →
-> `segments`；闭合中心线 → `closed`。`autoPlace` 缺省 `true`（截面搬到脊柱起点并转正）。
+> `segments`；混合边 + G0 折角 → `segments`（每个折角裁斜接）；闭合中心线 → `closed`。
+> `autoPlace` 缺省 `true`（截面搬到脊柱起点并转正）。
 > 内核控制面（law / auxSpine / support / 过渡模式）见 `cad.sweepRaw`。
 
 ### 5.39 `sweepRaw` ✅

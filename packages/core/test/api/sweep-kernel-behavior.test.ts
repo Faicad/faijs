@@ -443,12 +443,12 @@ describe('K6 多拐角折线：rightCorner 是唯一可用的一调用解，roun
     expect(String((m as { error: string }).error)).toMatch(/Geom_/)
   })
 
-  it('K6d. 同一折线：强制 segments = 0.88–0.90（接缝留 V 形缺口），auto 选 miter = 0.99+', async () => {
+  it('K6d. 同一折线：强制 segments 与 auto(miter) 现在同量级（2026-11-16 合并执行器后）', async () => {
     await useOcct()
-    for (const [steps, segRatio, miterRatio] of [
-      [4, 0.8968, 0.9936],
-      [16, 0.8801, 0.9996],
-    ] as [number, number, number][]) {
+    for (const [steps, miterRatio] of [
+      [4, 0.9936],
+      [16, 0.9996],
+    ] as [number, number][]) {
       const spine = arcPoints(steps)
       const seg = expectOk(
         await measure(spine, (s2, p2) => `let part2 = cad.sweep(${s2}, ${p2}, { strategy: 'segments', volumeTolerance: 0.99 })`),
@@ -456,11 +456,15 @@ describe('K6 多拐角折线：rightCorner 是唯一可用的一调用解，roun
       const auto = expectOk(
         await measure(spine, (s2, p2) => `let part2 = cad.sweep(${s2}, ${p2}, { volumeTolerance: 0.99 })`),
       )
-      // 逐段圆管在折角只并到 0.88–0.90：这就是策略层不能拿 segments 处理折角的原因。
-      expect(seg.volume / (AREA * ARC_LEN), `forced segments poly${steps}`).toBeCloseTo(segRatio, 3)
-      // auto 走斜接，几乎等于解析值。
+      // 2026-11-16 之前：forced segments 只并到 0.8968（4 段）/ 0.8801（16 段）—— 逐段圆管
+      // 在折角处直接 fuse，转角重叠被吞、外侧没有斜接补料。合并执行器后 segments 也按角平分面
+      // 裁接缝，比值回到与 miter 同量级（下面打印实测值，界只保 ≥0.99）。
+      const segRatio = seg.volume / (AREA * ARC_LEN)
+      console.log(`[K6d] poly${steps} | segments=${segRatio.toFixed(4)} auto(miter)=${(auto.volume / (AREA * ARC_LEN)).toFixed(4)}`)
+      expect(segRatio, `forced segments poly${steps}`).toBeGreaterThan(0.99)
       expect(auto.volume / (AREA * ARC_LEN), `auto poly${steps}`).toBeCloseTo(miterRatio, 3)
-      expect(auto.volume).toBeGreaterThan(seg.volume)
+      // miter 与 segments 的差别只剩「内核一次扫 vs 逐段 + 裁缝」的实现差，量级 < 1%。
+      expect(Math.abs(seg.volume - auto.volume) / auto.volume).toBeLessThan(0.01)
     }
   })
 })

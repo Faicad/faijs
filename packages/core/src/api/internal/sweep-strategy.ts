@@ -18,7 +18,7 @@
  * | 单边 / 同类型多边全 G1 | `single` | K1a/K1b/K1d 精确 1.0000 |
  * | 全直线 / 同类多边、有 G0 | `miter` | K3a/K6a 斜接精确、K6b 落位后 0.9936–0.9996 |
  * | 混合类型、全 G1 | `segments` | K1c 单次扫按 A×(弧长−腿长) 出错，逐段 1.0000 |
- * | 混合类型 + G0 | 拒绝 | 两条路都给不出正确几何：单次扫符号错、逐段在折角留 V 形缺口 |
+ * | 混合类型 + G0 | `segments` | 逐段扫 + 每个折角按角平分面裁（P0k 320.000 / 319.988） |
  * | 断裂 / 折返 / 退化 | 拒绝 | R6：自交实体、包含关系退化、切向无定义 |
  *
  * 「全直线折线走 `miter` 而不是 `segments`」这条最容易写错：逐段圆管在折角处
@@ -140,22 +140,6 @@ export function selectStrategy(f: SpineFacts, req?: StrategyRequest): StrategyDe
     return { strategy: forced, reason: `forced by opts.strategy='${forced}'` }
   }
 
-  if (f.mixed && f.corners.length > 0) {
-    return {
-      reject: {
-        code: 'E_SPINE_MIXED_CORNER',
-        message:
-          `spine mixes edge kinds (${[...new Set(f.edges.map((e) => e.kind))].join(' + ')}) AND has ` +
-          `${f.corners.length} G0 corner(s) (${describeSpine(f)}). The two problems need opposite routes: ` +
-          `a corner needs one mitered sweep, while mixed kinds are only verified segment-wise — and ` +
-          `segment-wise sweeping leaves a V-shaped gap at every corner (measured 0.88). Fix one of the two: ` +
-          `(a) split the path into G1-only runs and sweep each with cad.sweepAlong, or ` +
-          `(b) replace the sampled polyline with true tangents (cad.tangentArc / cad.circleArc) so the whole ` +
-          `spine becomes G1 and one call suffices.`,
-      },
-    }
-  }
-
   if (f.corners.length > 0) {
     const bad = miterSelfIntersects(f, req?.sectionRadius)
     if (bad !== undefined) {
@@ -169,6 +153,18 @@ export function selectStrategy(f: SpineFacts, req?: StrategyRequest): StrategyDe
             `use a smaller section (current half-extent ${req?.sectionRadius?.toFixed(3)}), or replace the ` +
             `corner with a true tangent arc.`,
         },
+      }
+    }
+    if (f.mixed) {
+      // 混合边类型 + 折角：内核一次扫在混合链上符号错（A×(弧长−腿长)），所以只能逐段；
+      // 折角由执行器按角平分面裁出斜接（`sweep.ts#sweepWithBuiltJoints`，P0k 实测
+      // 平面 320.000 / 空间 319.988）。2026-11-16 之前这里是 `E_SPINE_MIXED_CORNER` 硬拒，
+      // 因为当时「逐段 + 直接 fuse」会在折角留 V 缺口（实测 0.89）—— 自补斜接把它填上了。
+      return {
+        strategy: 'segments',
+        reason:
+          `mixed edge kinds (${[...new Set(f.edges.map((e) => e.kind))].join(' + ')}) with ` +
+          `${f.corners.length} G0 corner(s) — per-segment sweep, every corner mitered by a bisector-plane trim`,
       }
     }
     return {

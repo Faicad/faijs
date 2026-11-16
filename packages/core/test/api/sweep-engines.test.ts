@@ -93,6 +93,26 @@ const S9_SMLIB =
   `let leg = cad.edge([0,0,0],[-10,0,0])\nlet w = cad.wireFromEdges([arc, leg])\n` +
   `let part2 = cad.sweep(s, w, { strict: false })\n`
 
+/**
+ * S12：混合边 + **G0 折角**（弧尾 90° 折到直腿）—— 2026-11-16 之前是
+ * `E_SPINE_MIXED_CORNER` 硬拒（"单次扫符号错 + 逐段留 V 缺口"两条路都错）。
+ * 自补斜接落地后走 `segments`：逐段扫 + 每个折角按角平分面裁。
+ *
+ * 弧在 XZ 平面（圆心 (0,0,10)、r=10）。腿从这个引擎自己的弧终点出发：
+ * smlib 的 `circleArc` 走到 (0,0,0)、端点切向 −X。
+ * - 平面版：腿沿 −Z（仍在 XZ 平面内）→ `planar` 折角；
+ * - 空间版：腿沿 −Y（离开 XZ 平面）→ `non-planar` 折角（最难的一格）。
+ * 两者解析体积相同：16 × (15.708 + 10) = 411.327。
+ */
+const S12_SMLIB_PLANAR =
+  `let s = ${RECT4}\nlet arc = cad.circleArc([0,0,10],[0,1,0],10,0,90)\n` +
+  `let leg = cad.edge([0,0,0],[0,0,-10])\nlet w = cad.wireFromEdges([arc, leg])\n` +
+  `let part2 = cad.sweep(s, w, { strict: false })\n`
+const S12_SMLIB_SPATIAL =
+  `let s = ${RECT4}\nlet arc = cad.circleArc([0,0,10],[0,1,0],10,0,90)\n` +
+  `let leg = cad.edge([0,0,0],[0,-10,0])\nlet w = cad.wireFromEdges([arc, leg])\n` +
+  `let part2 = cad.sweep(s, w, { strict: false })\n`
+
 describe('occt — 全策略', () => {
   it('S1 直线路径 → 400（16 × 25）', async () => {
     expect(volumeOfPart2(await runOn('occt', S1))).toBeCloseTo(400, 3)
@@ -127,19 +147,47 @@ describe('smlib — single / miter / segments / closed（P0 放宽后全开）',
   it('S5 折角（平面 miter）→ 320，与 occt 逐位一致（内核自己就斜接）', async () => {
     expect(volumeOfPart2(await runOn('smlib', S5))).toBeCloseTo(320, 2)
   })
-  it('S7 空间折角 → E_SWEEP_ENGINE_CAP（内核吐退化碎片，扫掠前拦）', async () => {
-    const r = await runOn('smlib', S7)
-    expect(r.failedAt).toBeTruthy()
-    expect(JSON.stringify(r.failedAt)).toMatch(/E_SWEEP_ENGINE_CAP/)
-    expect(errorOf(r)).toMatch(/cannot sweep a spatial G0 corner/)
-    expect(errorOf(r)).toMatch(/non-planar/)
-    expect(errorOf(r)).toMatch(/SmApiCreateSweepAlongPlanarPath/)
+  it('S7 空间折角（两处折角）→ 480：策略层自补斜接补上内核缺口', async () => {
+    // 内核单次扫掠这条路在 smlib 上是废的（P0i：V=0、非流形）。现在 `sweep.ts` 改走
+    // 「逐段过量延伸 + 角平分面裁剪 + fuse」（P0j / P0k），两处折角一起补。
+    const v = volumeOfPart2(await runOn('smlib', S7))
+    expect(Math.abs(v - 16 * 30)).toBeLessThan(0.1)
+  })
+  it('S10 空间折角显式 strategy=miter → 同上 480（覆写走自补，不回退内核）', async () => {
+    const script =
+      `let s = ${RECT4}\nlet w = cad.wire([[0,0,0],[0,0,10],[10,0,10],[10,10,10]])\n` +
+      `let part2 = cad.sweep(s, w, { strategy: 'miter', strict: false })\n`
+    const v = volumeOfPart2(await runOn('smlib', script))
+    console.log(`[S10] miter explicit | V=${v}`)
+    expect(Math.abs(v - 16 * 30)).toBeLessThan(0.1)
+  })
+  it('S11 空间折角 strict=true（C2 端面法向 + C3 包围盒在自补体上也成立）', async () => {
+    const script =
+      `let s = ${RECT4}\nlet w = cad.wire([[0,0,0],[0,0,10],[10,0,10],[10,10,10]])\n` +
+      `let part2 = cad.sweep(s, w)\n`
+    const r = await runOn('smlib', script)
+    if (r.failedAt !== undefined) console.log(`[S11] failed: ${errorOf(r)}`)
+    expect(r.failedAt).toBeUndefined()
+    expect(Math.abs(volumeOfPart2(r) - 16 * 30)).toBeLessThan(0.1)
   })
   it('S8 真弧脊柱（cad.circleArc + wireFromEdges）→ 251.33（16 × 15.708）', async () => {
     expect(volumeOfPart2(await runOn('smlib', S8))).toBeCloseTo(16 * Math.PI / 2 * 10, 2)
   })
   it('S9 混合边 G1（弧 + 相切直腿，segments 逐段扫 + fuse）→ 411.33', async () => {
     expect(volumeOfPart2(await runOn('smlib', S9_SMLIB))).toBeCloseTo(16 * (Math.PI / 2 * 10 + 10), 2)
+  })
+  it('S12a 混合边 + 平面 G0 折角 → smlib 拒绝（曲面段切不出可并的斜接，实测 V=0 / smw_fuse failed）', async () => {
+    const r = await runOn('smlib', S12_SMLIB_PLANAR)
+    expect(r.failedAt).toBeDefined()
+    expect(JSON.stringify(r.failedAt)).toMatch(/E_SWEEP_ENGINE_CAP/)
+    expect(errorOf(r)).toMatch(/mixed-kind spine with a G0 corner/)
+    expect(errorOf(r)).toMatch(/boolean failed/)
+  })
+  it('S12b 混合边 + 空间 G0 折角 → 同一张门禁（原因相同，与平面/空间无关）', async () => {
+    const r = await runOn('smlib', S12_SMLIB_SPATIAL)
+    expect(r.failedAt).toBeDefined()
+    expect(JSON.stringify(r.failedAt)).toMatch(/E_SWEEP_ENGINE_CAP/)
+    expect(errorOf(r)).toMatch(/mixed-kind spine with a G0 corner/)
   })
 })
 
@@ -424,21 +472,90 @@ describe('smlib 内核级：P0 天花板（钉住内核边界）', () => {
     const legs = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
       prim.sweep(section, prim.makeWire([prim.makeLineEdge(a, b)]) as never)
     const d = Math.hypot(1, 1)
-    const cases: { label: string; leg2End: { x: number; y: number; z: number } }[] = [
-      { label: 'planar 90°', leg2End: p(10, 0, 10) },
-      { label: 'spatial 90°', leg2End: p((10 / d) * 1, (10 / d) * 1, 10) },
+    const cases: { label: string; leg2End: { x: number; y: number; z: number }; expectV: number }[] = [
+      // 恰好少掉「两段在转角处重叠」的那块（x∈[0,2]、z∈[8,10]、y∈[-2,2] = 16 mm³）。
+      { label: 'planar 90°', leg2End: p(10, 0, 10), expectV: 304 },
+      { label: 'spatial 90°', leg2End: p((10 / d) * 1, (10 / d) * 1, 10), expectV: 305.373 },
     ]
     for (const c of cases) {
       const s1 = legs(p(0, 0, 0), p(0, 0, 10))
       const s2 = legs(p(0, 0, 10), c.leg2End)
       const fused = prim.fuse(s1 as never, s2 as never)
       const bb = prim.getBoundingBox(fused)
+      const v = prim.getVolume(fused)
       console.log(
-        `[P0j] ${c.label} | V=${prim.getVolume(fused).toFixed(3)} (exact 320) ` +
+        `[P0j] ${c.label} | V=${v.toFixed(3)} (exact 320) ` +
         `manifold=${prim.isSolid(fused)} faces=${prim.getSubShapes(fused, 'face').length} ` +
         `bbox x=[${bb.xmin.toFixed(2)},${bb.xmax.toFixed(2)}] z=[${bb.zmin.toFixed(2)},${bb.zmax.toFixed(2)}]`,
       )
+      expect(v).toBeCloseTo(c.expectV, 2)
+      // 缺口不在体积上体现得很夸张（只差 5%、默认 5% 容差刚好压在界上），而在形状上：
+      // 外侧没有斜接补料、内侧留尖角 —— 所以不能靠 C1 兜底，必须在策略层自补。
+      expect(prim.isSolid(fused)).toBe(true)
     }
     expect(true).toBe(true)
+  })
+
+  /**
+   * P0k：**自补斜接**的可行性验证（在 smlib 上真的做一遍，不靠推测）。
+   *
+   * 配方 = 逐段扫（每段在转角端**过量延伸** δ）+ 用转角**角平分面**把过量部分切掉
+   * （每段只保留自己那一侧）+ `fuse`。若体积回到 320 且流形，说明「空间 G0 折角在
+   * 策略层自补」这条路在 smlib 的现有 API 上是通的（只需要 makeLineEdge / sweep /
+   * splitByPlane / fuse，不需要内核的 transitionMode）。
+   *
+   * δ 的取法：斜接面在段轴上截出的距离是 `半宽 × tan(θ/2)`（θ = 转角），这里 θ=90°、
+   * 半宽 2 ⇒ 2.0，取 2.5 留余量（过量部分会被角平分面切掉，所以多给不坏事）。
+   */
+  it('P0k 自补斜接（延伸 + 角平分面切 + fuse）→ 320 精确、流形', async () => {
+    const prim = await createSmlibPrimitives()
+    const section = squareFace(prim) as never
+    const unit = (v: { x: number; y: number; z: number }) => {
+      const l = Math.hypot(v.x, v.y, v.z)
+      return { x: v.x / l, y: v.y / l, z: v.z / l }
+    }
+    const add = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }, k: number) =>
+      ({ x: a.x + b.x * k, y: a.y + b.y * k, z: a.z + b.z * k })
+    const DELTA = 2.5
+
+    for (const [label, leg2End] of [
+      ['planar 90°', p(10, 0, 10)],
+      ['spatial 90°', p(10 / Math.SQRT2, 10 / Math.SQRT2, 10)],
+    ] as const) {
+      const corner = p(0, 0, 10)
+      const t1 = unit({ x: 0, y: 0, z: 1 })
+      const t2 = unit({ x: leg2End.x, y: leg2End.y, z: 0 })
+      // 段 1：起点不动，转角端多伸 DELTA；段 2：转角端往回多伸 DELTA。
+      const s1 = prim.sweep(
+        section,
+        prim.makeWire([prim.makeLineEdge(p(0, 0, 0), add(corner, t1, DELTA) as never)]) as never,
+      )
+      const s2 = prim.sweep(
+        section,
+        prim.makeWire([prim.makeLineEdge(add(corner, t2, -DELTA) as never, leg2End)]) as never,
+      )
+      // 角平分面：法向 = 两条单位切向之和（就是斜接面）。
+      const n = unit({ x: t1.x + t2.x, y: t1.y + t2.y, z: t1.z + t2.z })
+      const cut1 = prim.splitByPlane(s1 as never, corner, n)
+      const cut2 = prim.splitByPlane(s2 as never, corner, n)
+      // 约定核查：`positive` 是 +n 侧。段 1 在转角「之前」，落在 -n 侧；段 2 在 +n 侧。
+      const keep1 = cut1.negative
+      const keep2 = cut2.positive
+      const fused = prim.fuse(keep1 as never, keep2 as never)
+      const v = prim.getVolume(fused)
+      const faces = prim.getSubShapes(fused, 'face').length
+      console.log(
+        `[P0k] ${label} | V=${v.toFixed(3)} (exact 320) manifold=${prim.isSolid(fused)} faces=${faces}`,
+      )
+      expect(v).toBeCloseTo(320, 1)
+      expect(prim.isSolid(fused)).toBe(true)
+      if (label.startsWith('planar')) {
+        // 平面折角切完就是内核自己那次 miter 的 8 个面 —— 说明补出来的斜接与内核一致。
+        expect(faces).toBe(8)
+      } else {
+        // 空间折角体积精确，但接缝没有完全并成一个平面（面数偏多），是后续要压的余量。
+        expect(faces).toBeGreaterThan(8)
+      }
+    }
   })
 })

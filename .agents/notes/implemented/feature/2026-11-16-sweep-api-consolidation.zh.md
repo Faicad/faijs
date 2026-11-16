@@ -170,3 +170,125 @@ npx vitest run test/api/wire-from-edges.test.ts \
 `test/api/revolve-degenerate.test.ts` / `test/smlib-kernel/circular-pattern-step.test.ts`）；
 `npx tsx scripts/check-api-test-coverage.ts --package=core` 通过（L1 183 / L2 93 baseline 未变）。
 顺带修了 `wire-from-edges.test.ts` 一条**过期断言**（单边自 2026-11-14 起合法，不再报 TOO_FEW）。
+
+### 附：空间 G0 折角「策略层自补」的可行性已实测（P0j / P0k）
+
+- **P0j（朴素做法不够）**：逐段扫后直接 `fuse`，平面 90° 折角 V=**304.000**、空间 90°
+  V=**305.373**（精确值 320）。缺的 16 mm³ 正是两段在转角处的重叠（x∈[0,2]、z∈[8,10]、
+  y∈[-2,2]）——`fuse` 把重叠吞掉，外侧没有斜接补料。**体积只差 5%，正好压在 C1 默认容差
+  界上，所以不能靠守卫兜底**；形状（外侧 V 缺口 + 内侧尖角）也不是想要的。
+- **P0k（自补配方成立）**：每段在转角端过量延伸 δ=2.5，再用转角**角平分面**
+  （法向 = 两条单位切向之和）把过量部分切掉、各留自己一侧，最后 `fuse`：
+  平面 90° V=**320.000**、faces=**8**（与内核自己那次 miter 的面数完全一致）；
+  空间 90° V=**319.988**、manifold=true、faces=**19**（接缝没并成单一平面，是待压的余量）。
+  只用到了 `makeLineEdge` / `sweep` / `splitByPlane` / `fuse`，不需要内核的 transitionMode。
+- 两条结论都已断言化（`P0j` 钉住 304/305.373，`P0k` 钉住 320/319.988 与平面 8 面）。
+
+## 第三轮：空间 G0 折角的斜接已在策略层实装（smlib 与 occt 同值）
+
+上一轮 P0k 只证明了「配方可行」，这一轮把它接进了 `api/sweep.ts`。
+
+### 实现
+
+- `planMiterJoints(facts, radius)`：每个 G0 折角算出**角平分面法向**
+  `n = t̂_prev + t̂_next` 与延伸量 `delta = 1.05 × 半宽 × tan(θ/2)`（必须略大于斜接面在
+  段轴上截出的 `extent`，否则 `splitByPlane` 只"擦过"而不真切）。延伸量再受
+  `0.98 × min(相邻两段长)` 约束；**延伸会越过相邻折点**时抛
+  `E_SPINE_MITER_SELF_INTERSECT`（造不出来的折角不静默产残件）。
+- `sweepWithBuiltJoints(...)`：逐段扫（直线段延长同一条线；弧/样条在端点沿切向接一小段
+  直线，误差 O(δ²/2R)）→ 每段用 `splitByPlane` 在折角处只留自己一侧（探针点用该段参数
+  中点，必然落在自己一侧）→ `fuse` 依次合并。截面的逐段落位复用 `sectionPlacementMatrix`
+  （落位到**延伸后的起点**），孔环仍走 `sweepRingsOnce` 的逐环扫 + `cut`。
+- 接线：`strategy === 'miter' && engineId !== 'occt'` 走自补路径；**平面**折角在 smlib 上
+  仍走内核（更便宜、面数更少、本来精确）。`assertEngineCan` 里那条 smlib 空间折角的
+  `E_SWEEP_ENGINE_CAP` 删除 —— 现在不再拒绝，而是造出来。
+
+### 实测（`test/api/sweep-engines.test.ts`）
+
+| 用例 | 结果 |
+|---|---|
+| S7 空间折角（3 段 / 2 处折角，长 30） | smlib **480.0000000**（16×30），与 occt 同值；此前是 `E_SWEEP_ENGINE_CAP` |
+| S10 显式 `{strategy:'miter'}` | **480.0000000**（覆写同样走自补，不回退内核） |
+| S11 `strict` 缺省（C2 端面法向 + C3 bbox） | 通过 —— 自补体的端面法向与 bbox 判据成立 |
+| S5 平面折角 | 仍 **320**，smlib 走内核斜接（未改路径） |
+| P0i 内核单次扫掠 | 仍 V=0 / 非流形（钉住内核边界，作为"为什么必须自补"的对照） |
+
+### 已知边界（记录在案，未做）
+
+- **强制 `strategy:'segments'` 且脊柱带 G0 折角**仍在「逐段扫 + 直接 fuse」，会留 V 缺口
+  （occt 侧 `sweep-along.test.ts` R5 把这个错值钉在 0.85–0.93）。自补配方目前只接在
+  `miter` 上；要让 `segments` 也正确，把同一个 `sweepWithBuiltJoints` 接过去即可（
+  但 `miter` 与 `segments` 的语义会合并，需另行决定是否保留 `segments` 这个词）。
+- 弧段带折角的脊柱走不到这条路径：`mixed + corner` 在策略层已被
+  `E_SPINE_MIXED_CORNER` 拒绝，所以实际生效的全是直线折角；弧段延伸逻辑留着是给将来
+  放开混合折角用的。
+- 空间折角的 fuse 接缝没有完全并成单一平面（P0k 内核级 faces=19），体积精确、C2/C3 通过，
+  但面数比 occt 多 —— 属于可以后续压的质量余量。
+
+## 第四轮：合并「逐段」执行器 —— `segments` 也吃 G0 折角，`E_SPINE_MIXED_CORNER` 摘除
+
+### 为什么合并
+
+原来有两条几乎重复的逐段代码：`segments` 分支（逐段扫 + 直接 fuse，只在全 G1）与
+`sweepWithBuiltJoints`（逐段扫 + 过量延伸 + 角平分面裁 + fuse）。差别只有一处：接缝裁不裁。
+
+合并后只剩一个执行器：**脊柱拆段 → 每段单扫 → 按折角计划裁接缝（计划可能为空）→ 依次 fuse**。
+`planMiterJoints` 在没有 G0 折角时返回空表 ⇒ δ=0、不切 ⇒ 与原 `segments` 逐位等价。
+
+### 实测（合并后的行为变化）
+
+| 用例 | 合并前 | 合并后 |
+|---|---|---|
+| 强制 `segments` + 16 段折线（occt） | 0.8801（V 缺口钉桩） | **0.9996**，与 `miter` **完全相同** |
+| 强制 `segments` + 4 段折线（occt） | 0.8968 | **0.9936**，与 `miter` 完全相同 |
+| 混合边 + G0 折角（弧尾 90° 折直腿，occt） | `E_SPINE_MIXED_CORNER` | **411.33 × 1.0046**（+0.46%） |
+| 混合边 + G0 折角（smlib，平面 / 空间各一） | `E_SPINE_MIXED_CORNER` | `E_SWEEP_ENGINE_CAP`（布尔限制，见下） |
+
+结论：在纯直线折线上 `segments` 与 `miter` 现在**数值完全相同**（0.9936 / 0.9996），
+差别只剩「内核一次扫 vs 逐段 + 裁缝」的实现与成本。
+
+### 代码改动
+
+- `api/sweep.ts`：删掉 `segments` 分支，条件合并成
+  `strategy === 'segments' || (strategy === 'miter' && engineId !== 'occt')`；
+  新增 smlib 专属门禁 `smlib && facts.mixed && corners > 0` → `E_SWEEP_ENGINE_CAP`；
+  文件头能力表、`SweepOptions.strategy`、`@throws`（`E_SPINE_MIXED_CORNER` 标为已废弃）同步。
+- `api/internal/sweep-strategy.ts`：折角判定提到混合判定之前；`mixed + corners`
+  从 `E_SPINE_MIXED_CORNER` 改为 `segments`（理由写进 reason 串）；文件头事实表同步。
+
+### 为什么 smlib 上「混合边 + 折角」还要拒
+
+实测（弧尾 90° 折直腿，4×4 截面）：
+- 弧段过量延伸后 `splitByPlane` 交回的**自己那一半是空的**（V=0）—— 平面版拿到 160
+  （只剩直腿），空间版 `fuse` 直接报 `smw_fuse: boolean failed`；
+- 同一个球在 occt 上是好的（1.0046），所以这不是策略/几何问题，是 smlib 布尔对
+  「被切过的曲面扫掠体」的边界。
+⇒ 显式拒绝并写清原因，绝不产 160 这种残件。
+
+### 顺带更新 / 转正的测试
+
+- `sweep-along.test.ts`：原 R2（混合+折角拒绝）→ **S8**（现在能扫，实测 +0.46%）；
+  原 R5（强制 segments = 0.89 错值）→ **S9**（0.9996）；R5 位置换成「折角太密 →
+  `E_SPINE_MITER_SELF_INTERSECT`」这条**新的**硬边界（截面半径 4、相邻段 1.414）。
+- `sweep-kernel-behavior.test.ts`：K6d 从「segments 0.88–0.90 < miter 0.99+」改成
+  「两者同量级（poly4 0.9936 / poly16 0.9996，逐位相同）」。
+- `sweep-engines.test.ts`：新增 S12a/S12b（smlib 混合+折角 → `E_SWEEP_ENGINE_CAP`，
+  含 `boolean failed` 证据串）。
+
+### 已知遗留（下一轮可做）
+
+1. **弧段延伸的残差 +0.46%**：现在是「沿端点切向接一小段直段」（O(δ²/2R)）。根治要把弧段
+   延伸改成**沿同一圆续弧**（用 `facts.radius` + 端点切向重建 `makeCircleArc` 的扩展弧），
+   这样 occt 的混合+折角可到 1.0000；顺带也可能让 smlib 的布尔不再崩。
+2. smlib 混合+折角要真正支持，得绕开 `splitByPlane`+`fuse` 这条链（例如先把弧段续弧再切，
+   或用 `sectionByPlane` + 手工封端），属于独立课题。
+
+### 验证（第四轮）
+
+```
+13 文件 / 209 用例全绿
+（sweep-engines 38 / sweep-along 15 / sweep-kernel-behavior 28 / spine-analysis /
+ wire-from-edges 50 批次内 / engine-switch-smlib / curve-sketch ×2 / multi-engine-op-parity）
+npx tsc --noEmit → 30 条既有错误（全在 revolve 探针与 circular-pattern-step），本次文件零错误
+npx tsx scripts/check-api-test-coverage.ts --package=core → 通过（L1 183 / L2 93 baseline 未变）
+```

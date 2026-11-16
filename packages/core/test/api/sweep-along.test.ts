@@ -149,9 +149,38 @@ describe('S 策略矩阵：脊柱事实 → 路线 → 体积', () => {
     const v = await volume(`let sec = ${ring}\nlet sp = cad.wire([[0,0,0],[0,0,30]])\nlet part2 = cad.sweep(sec, sp)\n`)
     expect(v / (Math.PI * (64 - 16) * 30)).toBeCloseTo(1, 3)
   })
+
+  it('S8. 混合边 + G0 折角（弧尾 90° 折到直腿）→ segments，每个折角按角平分面裁 → ≈1.000', async () => {
+    // 2026-11-16：这一格原来被 `E_SPINE_MIXED_CORNER` 硬拒（「单次扫符号错、逐段留 V 缺口」）。
+    // 自补斜接落地后逐段 + 裁缝对混合折角也成立，拒绝随之摘除（`sweep-strategy.ts`）。
+    // 弧尾 (0,-20,0)、切向 −Z；直腿却沿 −Y 走 ⇒ 90° 折角 + 混合类型。
+    // 残差 ≈ +0.5%：弧段的过量延伸是「沿端点切向的小直段」（O(δ²/2R)），不是弧的延续。
+    const spine = `cad.wireFromEdges([${ARC},cad.edge([0,-20,0],[0,-30,0])])`
+    const d = await strategyOf(spine)
+    expect(d.strategy).toBe('segments')
+    const v = await volume(`let sec = ${SEC}\nlet sp = ${spine}\nlet part2 = cad.sweep(sec, sp)\n`)
+    const ratio = v / (AREA * (ARC_LEN + 10))
+    console.log(`[S8] mixed+G0 ratio=${ratio}`)
+    expect(ratio).toBeGreaterThan(0.995)
+    expect(ratio).toBeLessThan(1.01)
+  })
+
+  it('S9. 强制 segments 走 16 段折线 → 折角已经裁成斜接，0.9996（不再是 0.89）', async () => {
+    // 2026-11-16 之前这里是「错误值钉桩」：逐段扫 + 直接 fuse 会把转角重叠吞掉、外侧缺
+    // 斜接补料，比值掉到 0.89。合并执行器后 segments 也走同一套裁缝，比值回到与 occt
+    // `rightCorner` 同量级的 0.9996（残差来自 16 段折线对弧本身的近似）。
+    const v = await volume(
+      `let sec = ${SEC}\nlet sp = ${polyline(16)}\nlet part2 = cad.sweep(sec, sp, { strategy: 'segments', volumeTolerance: 0.5 })\n`,
+    )
+    const ratio = v / (AREA * ARC_LEN)
+    expect(ratio).toBeCloseTo(0.9996, 3)
+    expect(ratio).toBeLessThan(1.0005)
+  })
 })
 
 describe('R 硬拒绝：物理上无解的脊柱在扫之前就失败，且给出可执行的修法', () => {
+  // 2026-11-16：原来这里的 R2（混合边 + G0 → E_SPINE_MIXED_CORNER）与 R5（强制 segments
+  // 折线 = 0.89 错值）随「自补斜接」落地转为正向用例，见 S8 / S9。
   async function rejection(spineExpr: string, opts = ''): Promise<{ code?: string; message: string }> {
     const r = await exec(
       'brep',
@@ -170,14 +199,6 @@ describe('R 硬拒绝：物理上无解的脊柱在扫之前就失败，且给�
     expect(e.message).toMatch(/distance 14\.14/)
   })
 
-  it('R2. 混合边类型 + G0 折角 → E_SPINE_MIXED_CORNER（两条路线都不对，必须拆 G1 段）', async () => {
-    // 弧尾 (0,-20,0)、切向 -Z；直腿却沿 -Y 走 ⇒ 90° 折角 + 混合类型。
-    const e = await rejection(`cad.wireFromEdges([${ARC},cad.edge([0,-20,0],[0,-30,0])])`)
-    expect(e.code).toBe('E_SPINE_MIXED_CORNER')
-    expect(e.message).toMatch(/mixes edge kinds/)
-    expect(e.message).toMatch(/G0 corner/)
-  })
-
   it('R3. 覆写 strategy 不能绕过硬拒绝（断裂脊柱 + strategy:"single" 仍拒）', async () => {
     const e = await rejection(
       `cad.wireFromEdges([${ARC},cad.edge([0,-10,10],[0,-20,10])])`,
@@ -191,13 +212,12 @@ describe('R 硬拒绝：物理上无解的脊柱在扫之前就失败，且给�
     expect(e.message).toMatch(/E_SWEEP_TOL_INVALID/)
   })
 
-  it('R5. 强制 segments 走折线：接缝留 V 形缺口，体积掉到 0.89 左右（错误值钉桩）', async () => {
-    // 这就是为什么 auto 对有折角的脊柱选 miter 而不是 segments。
-    const v = await volume(
-      `let sec = ${SEC}\nlet sp = ${polyline(16)}\nlet part2 = cad.sweep(sec, sp, { strategy: 'segments', volumeTolerance: 0.5 })\n`,
-    )
-    const ratio = v / (AREA * ARC_LEN)
-    expect(ratio).toBeGreaterThan(0.85)
-    expect(ratio).toBeLessThan(0.93)
+  it('R5. 折角太密（延伸会越过相邻段）→ E_SPINE_MITER_SELF_INTERSECT，不静默产残件', async () => {
+    // 截面半径 4、转角 90° ⇒ 斜接面在段轴上截出 4；相邻段只有 1.414 ⇒ 造不出来。
+    // 这是自补斜接落地后**新的**硬边界：不是"策略不支持"，而是"几何无解"。
+    const e = await rejection('cad.wire([[0,0,0],[0,0,2],[1.414,0,2]])')
+    expect(e.code).toBe('E_SPINE_MITER_SELF_INTERSECT')
+    expect(e.message).toMatch(/run-out/)
+    expect(e.message).toMatch(/segment is only/)
   })
 })
