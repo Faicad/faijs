@@ -1,7 +1,7 @@
 /**
  * PMI 裸世界坐标的变换补偿 —— 读时施加累积变换，数据零改动。
  *
- * 解决的问题：`PmiNote.anchor` / `PmiThreadHole.axis` 不在 `TopoRef` 体系里
+ * 解决的问题：`PmiLocalNote.anchor` / `PmiThreadHole.axis` 不在 `TopoRef` 体系里
  * （mesh 链没有拓扑身份，也必须能定位孔口），所以 `translate` / `rotate_euler` /
  * `scale` 之后它们仍是旧坐标，标注会留在原位。`TopoRef` 不受影响——它的
  * `origin` 是语句级因果坐标，`resolveViaLineage` 自己会走到新位置。
@@ -38,7 +38,7 @@ import { initOcctWasm } from '../../../src/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '../../../src/brep/engine/adapters/occt'
 import { createApiNamespaceWithEditorOps } from '../../support/editor-ops'
 import { hostPorts } from '../../support/host-env'
-import type { PmiItem, PmiNote, PmiThreadHole } from '../../../src/api/pmi/types'
+import type { PmiItem, PmiLocalNote, PmiThreadHole } from '../../../src/api/pmi/types'
 import type { Shape } from '../../../src/mesh/types'
 import {
   mirrorAffine,
@@ -64,7 +64,7 @@ function pmiOfPart(r: ExecutionResult, part: string): readonly PmiItem[] {
 }
 
 function noteAnchor(items: readonly PmiItem[]): readonly number[] | undefined {
-  const note = items.find((i): i is PmiNote => i.kind === 'note')
+  const note = items.find((i): i is PmiLocalNote => i.kind === 'localNote')
   return note?.anchor
 }
 
@@ -94,7 +94,7 @@ function expectVec(actual: readonly number[] | undefined, expected: readonly num
 }
 
 /** 在零件包围盒中心打一条带世界锚点的注释（裸坐标，唯一会被变换影响的字段）。 */
-const NOTE_AT_CENTER = `part0.addNote({ text: '基准孔', anchor: [20, 20, 10] })`
+const NOTE_AT_CENTER = `part0.addLocalNote({ text: '基准孔', anchor: [20, 20, 10] })`
 
 describe('translate — 裸坐标跟着走', () => {
   it('note.anchor 平移，且与原点的标注互不影响（数据未被改写）', async () => {
@@ -141,11 +141,11 @@ let part3 = cad.translate(part2, { offset: [0, 0, 5] })
 let part0 = cad.box(40, 40, 20)
 ${NOTE_AT_CENTER}
 let part1 = cad.translate(part0, { offset: [100, 0, 0] })
-part1.addNote({ text: '已平移', anchor: [140, 20, 10] })
+part1.addLocalNote({ text: '已平移', anchor: [140, 20, 10] })
 `)
     expect(r.failedAt).toBeUndefined()
     const items = pmiOfPart(r, 'part1')
-    const anchors = items.filter((i): i is PmiNote => i.kind === 'note').map((n) => n.anchor)
+    const anchors = items.filter((i): i is PmiLocalNote => i.kind === 'localNote').map((n) => n.anchor)
     // 祖先那条被平移（[20,20,10] → [120,20,10]），本层那条原样保留 —— 顺序按时间
     expectVec(anchors[0], [120, 20, 10])
     expectVec(anchors[1], [140, 20, 10])
@@ -234,7 +234,7 @@ describe('坐标系没变的 op 不做补偿', () => {
   it('union 之后标注坐标原样（布尔不改坐标系）', async () => {
     const r = await exec(`
 let a = cad.box(40, 40, 20)
-a.addNote({ text: '主体', anchor: [20, 20, 10] })
+a.addLocalNote({ text: '主体', anchor: [20, 20, 10] })
 let b = cad.translate(cad.box(20, 20, 10), { offset: [100, 0, 0] })
 let c = cad.union(a, b)
 `)

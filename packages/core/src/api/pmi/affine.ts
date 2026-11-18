@@ -3,7 +3,7 @@
  *
  * ## 解决什么
  *
- * `PmiNote.anchor` / `PmiNote.leaderDirection` / `PmiThreadHole.axis` 是**裸世界
+ * `PmiLocalNote.anchor` / `PmiLocalNote.leaderDirection` / `PmiThreadHole.axis` 是**裸世界
  * 坐标**——它们不在 `TopoRef` 体系里（mesh 链没有拓扑身份，也必须能定位孔口）。
  * 而 `TopoRef` 的坐标是"语句级因果坐标"，`translate` / `rotate` / `scale` 之后
  * 自己就能解析到新位置；裸坐标不会。
@@ -91,7 +91,7 @@ export function affineApplyPoint(a: PmiAffine, p: V3): V3 {
  * 方向变换：乘线性部分再归一化。
  *
  * 为什么不是法向的逆转置：这里用到方向的两个字段——`PmiThreadHole.axis.direction`
- * 与 `PmiNote.leaderDirection`——都是**线的方向**（切向），不是面法向。线的方向
+ * 与 `PmiLocalNote.leaderDirection`——都是**线的方向**（切向），不是面法向。线的方向
  * 在仿射下按线性部分变换（非等比缩放下孔轴仍是 `R·d` 方向，只是孔变成椭圆），
  * 法向才需要逆转置。用错了会在 `scale3d` 之后把孔轴方向算歪。
  *
@@ -218,7 +218,7 @@ export function mirrorAffine(normal: V3, at: V3 = [0, 0, 0]): PmiAffine {
 /**
  * 把一条标注里的**裸世界坐标**按 `a` 重映射（其余种类原样返回）。
  *
- * 只碰两类字段：`note.anchor` / `note.leaderDirection`（点 + 方向）与
+ * 只碰两类字段：`localNote.anchor` / `localNote.leaderDirection`（点 + 方向）与
  * `threadHole.axis`（点 + 方向）。`TopoRef` 一律不动——它有自己的坐标系，由
  * `resolveTopoRef` 沿血缘解析，施加外部矩阵会把它算错。
  *
@@ -228,7 +228,7 @@ export function mirrorAffine(normal: V3, at: V3 = [0, 0, 0]): PmiAffine {
  */
 export function remapPmiItem(item: PmiItem, a: PmiAffine): PmiItem {
   switch (item.kind) {
-    case 'note': {
+    case 'localNote': {
       if (item.anchor === undefined && item.leaderDirection === undefined) return item
       return {
         ...item,

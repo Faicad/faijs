@@ -144,11 +144,11 @@ import { svgExtrude } from '../extra/ops/svg-extrude'
 import { dxfExtrude } from '../extra/ops/dxf-extrude'
 import { useMeshChain } from './use-mesh-chain'
 // PMI 查询函数（普通函数，非 op；方案 2026-10-31-faijs-pmi-design.md §3.3）
-import { pmiItems, pmiOn, pmiDatums, pmiThreads, pmiTechNotes } from './pmi/query'
+import { pmiItems, pmiOn, pmiDatums, pmiThreads, pmiGeneralNotes } from './pmi/query'
 // PMI 显示文本（螺纹孔：底孔 + 螺纹一体呈现；方案 2026-10-31-pmi-thread §3.2）
 import { formatThreadHole } from './pmi/text'
-// PMI 显示文本（技术要求：零件级编号条目块；同方案 §7）
-import { formatTechNote } from './pmi/tech-note'
+// PMI 显示文本（通用注释：编号条目块或单条无编号要求；同方案 §7）
+import { formatGeneralNote } from './pmi/general-note'
 // 语义面选择器 → TopoRef（AI 生成脚本的 PMI target 入口，替代按序号的 faceRef）
 import { faceBySelector } from './face-by-selector'
 
@@ -284,11 +284,11 @@ export function createApiNamespace(): LibNamespace {
     pmiOn,
     pmiDatums,
     pmiThreads,
-    pmiTechNotes,
+    pmiGeneralNotes,
     // PMI 显示文本（普通函数，非 op）：螺纹孔底孔 + 螺纹一体呈现。
     formatThreadHole,
-    // PMI 显示文本（普通函数，非 op）：技术要求编号条目块。
-    formatTechNote,
+    // PMI 显示文本（普通函数，非 op）：通用注释（整张图 / 整个零件适用）。
+    formatGeneralNote,
     // 语义面选择器 → TopoRef（普通查询函数，非 op）。
     faceBySelector,
   } as unknown as LibNamespace

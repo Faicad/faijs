@@ -78,12 +78,12 @@ import type {
   PmiGdt,
   PmiGdtType,
   PmiItem,
-  PmiNote,
+  PmiLocalNote,
   PmiSurfaceFinish,
   PmiThreadHole,
 } from '../pmi/types'
 import { formatThreadHole } from '../pmi/text'
-import { techNoteLines } from '../pmi/tech-note'
+import { generalNoteLines } from '../pmi/general-note'
 import { pmiOf } from '../pmi/registry'
 import { getBrepApi } from '../../brep/handle-bridge'
 import { resolveTopoRef } from '../../topology/naming'
@@ -949,7 +949,7 @@ function drawLeaderText(ctx: Ctx, from: Pt, tip: Pt, text: string): boolean {
 }
 
 /** 注释（有目标 / 有世界锚点）：引线 + 肩线 + 文字。 */
-function drawNote(ctx: Ctx, item: PmiNote, at0: Pt): boolean {
+function drawNote(ctx: Ctx, item: PmiLocalNote, at0: Pt): boolean {
   const dir = pickDir(ctx, at0)
   const side = sideOf(dir)
   const dist = Math.max(ctx.cfg.gap, bandStart(ctx, side))
@@ -1056,21 +1056,22 @@ export function buildGlobalPmiBlock(
 }
 
 /**
- * 取一个 Shape 上的**全局**注释文本（无 `target`、无 `anchor` 的 note，
- * 以及零件级 `techNote` 的编号条目行）。
+ * 取一个 Shape 上的**通用**注释文本（`generalNote` 的条目行）。
  *
- * 全局注释是零件级"技术要求"，与视图无关——三视图里它只该出现一次。`projectSheet`
- * 用本函数把这类条目从各视图图层里摘出来，统一画到图纸右下角。
+ * 通用注释是「整张图 / 整个零件适用」的要求（ASME Y14.100 §4.26(a)），与视图
+ * 无关——三视图里它只该出现一次。`projectSheet` 用本函数把这类条目从各视图
+ * 图层里摘出来，统一画到图纸的通用注释区。
+ *
+ * `localNote` 恒有落点（`target` 或 `anchor`），永远不进这里。
  *
  * @param shape - the annotated part.
- * @returns the global note texts (empty when none).
+ * @returns the general note texts (empty when none).
  */
-export function globalNoteTexts(shape: Shape): string[] {
+export function generalNoteTexts(shape: Shape): string[] {
   const items = pmiOf(shape)?.items ?? []
   const lines: string[] = []
   for (const i of items) {
-    if (i.kind === 'techNote') lines.push(...techNoteLines(i))
-    else if (i.kind === 'note' && i.target === undefined && i.anchor === undefined) lines.push(i.text)
+    if (i.kind === 'generalNote') lines.push(...generalNoteLines(i))
   }
   return lines
 }
@@ -1122,15 +1123,16 @@ function itemAnchors(
       return anchorOf(item.target)
     case 'surfaceFinish':
       return anchorOf(item.target)
-    case 'note':
+    case 'localNote':
       if (item.target !== undefined) return anchorOf(item.target)
       // 裸世界锚点：没有拓扑、也就没有朝向——任何视图都能定位，得分恒为 0
       if (item.anchor !== undefined) {
         return [{ uv: projectPoint(item.anchor, cam), p3: item.anchor, visible: true }]
       }
-      return 'global' // 无目标 = 零件级"技术要求"，图纸右下角画一次
-    case 'techNote':
-      return 'global' // 编号条目块恒无 target，与全局 note 同一处理
+      // 防御：`localNote` 的构造保证有落点，只有外部脏数据会走到这里
+      return 'global'
+    case 'generalNote':
+      return 'global' // 通用注释恒无落点，图纸注释区画一次
     case 'threadHole': {
       // 孔口是裸世界坐标 + 轴线：轴线本身就能表达"从哪个方向看这个孔最圆"
       const origin = item.axis.origin
@@ -1340,7 +1342,7 @@ function drawItem(
       if (a === undefined || anyHidden([a])) return 'skipped'
       return drawSurfaceFinish(ctx, item, [a]) ? 'rendered' : 'skipped'
     }
-    case 'note': {
+    case 'localNote': {
       if (item.target !== undefined) {
         const a = resolveAnchor(item.target, shape, kernel, cam)
         if (a !== undefined) {
@@ -1351,11 +1353,11 @@ function drawItem(
       if (item.anchor !== undefined) {
         return drawNote(ctx, item, projectPoint(item.anchor, cam)) ? 'rendered' : 'skipped'
       }
-      globalNotes.push(item.text) // 无目标 → 右下角技术要求块
+      globalNotes.push(item.text) // 防御：外部脏数据（无落点）仍按通用注释处理
       return 'global'
     }
-    case 'techNote': {
-      globalNotes.push(...techNoteLines(item))
+    case 'generalNote': {
+      globalNotes.push(...generalNoteLines(item))
       return 'global'
     }
     case 'threadHole': {

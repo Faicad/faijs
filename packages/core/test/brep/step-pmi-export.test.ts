@@ -15,7 +15,7 @@ import { describe, it, expect } from 'vitest'
 import type { StepExportEntry } from '../../src/brep/export/step'
 import type { ExportEntry } from '../../src/brep/export/export-model'
 import type { PmiSet } from '../../src/api/pmi/types'
-import { dimension, gdt, datum, note, threadHole, techNote } from '../../src/api/pmi/types'
+import { dimension, gdt, datum, localNote, threadHole, generalNote } from '../../src/api/pmi/types'
 import { stepApVersionForPmi, supportsXcafPmi, writePmiToXCAF, upgradeStepSchemaForPmi } from '../../src/brep/export/step-pmi'
 import type { FaceTopoRef } from '../../src/topology/naming/types'
 
@@ -35,7 +35,7 @@ const pmiWithSemantic: PmiSet = {
 }
 
 const pmiNotesOnly: PmiSet = {
-  items: [note({ text: 'some note' })],
+  items: [generalNote({ items: [{ text: 'some note' }] })],
 }
 
 describe('StepExportEntry pmi field', () => {
@@ -147,7 +147,7 @@ describe('writePmiToXCAF graceful degradation', () => {
     expect(written).toBe(0)
   })
 
-  it('skips threadHole / techNote / note without writing or throwing', () => {
+  it('skips threadHole / generalNote / localNote without writing or throwing', () => {
     // STEP AP242 has no entity for these kinds in occt-wasm. They must be
     // explicit switch branches (not a silent fallthrough) and must not
     // inflate the `written` counter.
@@ -155,8 +155,8 @@ describe('writePmiToXCAF graceful degradation', () => {
     const mockDoc = { setDimension: () => { dimensionCalls++ } }
     const pmi: PmiSet = {
       items: [
-        note({ text: 'some note' }),
-        techNote({ title: '技术要求', items: [{ index: 1, text: '锐边倒钝' }] }),
+        localNote({ text: 'some note', anchor: [0, 0, 0] }),
+        generalNote({ title: '技术要求', items: [{ index: 1, text: '锐边倒钝' }] }),
         threadHole({
           thread: {
             standard: 'metric',

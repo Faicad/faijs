@@ -50,7 +50,7 @@
  *
  * ## 裸世界坐标：读时施加累积变换
  *
- * `PmiNote.anchor` / `PmiThreadHole.axis` 不在 `TopoRef` 体系里（mesh 链没有
+ * `PmiLocalNote.anchor` / `PmiThreadHole.axis` 不在 `TopoRef` 体系里（mesh 链没有
  * 拓扑身份，也必须能定位孔口），它们是**裸世界坐标**。`translate` 之后这两处
  * 仍是旧坐标——修法不是改写数据，而是让变换类 op 登记一个矩阵
  * （`registerPmiTransform`），聚合时沿父链把矩阵乘上去（`api/pmi/affine.ts`）。

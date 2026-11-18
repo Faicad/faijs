@@ -18,7 +18,7 @@ import { registerOcctBrepEngine } from '../../src/brep/engine/adapters/occt'
 import { getActiveBrepEngine, __resetEngineRegistriesForTests } from '../../src/brep/engine/registry'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../../src/runtime-state'
 import type { Shape, Vec3 } from '../../src/mesh/types'
-import { dimension, gdt, note, surfaceFinish } from '../../src/api/pmi/types'
+import { dimension, gdt, localNote, surfaceFinish } from '../../src/api/pmi/types'
 import { extrude } from '../../src/api/extrude'
 import { text } from '../../src/extra/ops/text'
 import { svgExtrude } from '../../src/extra/ops/svg-extrude'
@@ -95,13 +95,13 @@ describe('PMI 构造器直呼：历史未覆盖参数', () => {
     expect(g.toleranceZone).toBe('width')
   })
 
-  it('note({ text, anchor, leaderDirection })', () => {
-    const n = note({
+  it('localNote({ text, anchor, leaderDirection })', () => {
+    const n = localNote({
       text: '锐边倒钝',
       anchor: [1, 2, 3],
       leaderDirection: [0, 0, 1],
     })
-    expect(n.kind).toBe('note')
+    expect(n.kind).toBe('localNote')
     expect(n.anchor).toEqual([1, 2, 3])
     expect(n.leaderDirection).toEqual([0, 0, 1])
   })

@@ -210,7 +210,7 @@ part0.addSurfaceFinish({ target: cad.faceRef(part0, 3), parameter: 'Ra', value: 
 
   it('全局注释（无目标）落在零件右下方', async () => {
     const p = await part(`${BOX}
-part0.addNote({ text: '未注公差按 GB/T 1804-m' })`)
+part0.addGeneralNote({ items: [{ text: '未注公差按 GB/T 1804-m' }] })`)
     const r = projectViewSvg(p, 'front')
     expect(r.pmi?.count).toBe(1)
     const text = /<text[^>]*data-pmi="global-note"[^>]*x="([-\d.]+)" y="([-\d.]+)"/.exec(r.pmi!.markup)

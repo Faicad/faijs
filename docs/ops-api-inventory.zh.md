@@ -2641,17 +2641,17 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 >
 > 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `FaceN` 同序（`getSubShapes(solid,'face')` 用 TopExp::MapShapes + IndexedMap 枚举）。
 
-### 8.18 `formatTechNote` ✅
+### 8.18 `formatGeneralNote` ✅
 
 技术要求块的完整显示文本（多行，以 `\n` 连接）。 例：`'技术要求\n1. 未注倒角 C0.3\n2. 未注公差按 GB/T 1804-m'`。
 
 ```js
-const text = cad.formatTechNote(cad.pmiTechNotes(part0)[0])
+const text = cad.formatGeneralNote(cad.pmiGeneralNotes(part0)[0])
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `item` | `PmiTechNote` | ✅ | — | the technical-requirement block. |
+| `item` | `PmiGeneralNote` | ✅ | — | the technical-requirement block. |
 
 **同步**。string 多行显示文本。
 
@@ -3000,20 +3000,20 @@ const annos = cad.pmiOn(part0, cad.faceBySelector(part0, '>Z'))
 
 **同步**。PmiItem[] — annotations attached to the given TopoRef.
 
-### 8.42 `pmiTechNotes` ✅
+### 8.42 `pmiGeneralNotes` ✅
 
-查询零件级技术要求块（编号条目）。 便捷封装：等价 `pmiItems(shape, { kind: 'techNote' })`，但返回精确类型。 这类条目无 target，渲染时进图纸全局注释块，不参与视图归属打分。
+查询零件级技术要求块（编号条目）。 便捷封装：等价 `pmiItems(shape, { kind: 'generalNote' })`，但返回精确类型。 这类条目无 target，渲染时进图纸全局注释块，不参与视图归属打分。
 
 ```js
-const blocks = cad.pmiTechNotes(part0)
-console.log(cad.formatTechNote(blocks[0]))
+const blocks = cad.pmiGeneralNotes(part0)
+console.log(cad.formatGeneralNote(blocks[0]))
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `shape` | `Shape` | ✅ | — | the shape to query. |
 
-**同步**。PmiTechNote[] — 该零件上的全部技术要求块。
+**同步**。PmiGeneralNote[] — 该零件上的全部技术要求块。
 
 ### 8.43 `pmiThreads` ✅
 
@@ -3446,7 +3446,7 @@ const svg = cad.toSVG(box, 'iso')
 特征: boolean / boss / chamfer / circularPattern / clone / complexExtrude / cut / draft / drill / extrude / fillet / filletVariable / fuse / gridPattern / intersect / knurl / linearPattern / loft / loftAdvanced / mirror / mirrorJoin / offset2d / pocket / rectangularPattern / revolve / roof / sectionByPlane / shell / solidFromFaces / split / splitByPlane / subtract / sweep / sweepRaw / thicken / twistExtrude / union
 修复: autoHeal / defeature / fixSelfIntersection / fixShape / heal / healSolid / removeHolesFromFace / reverseShape / sew / sewAndSolidify / simplify / unifySameDomain
 结构: compound
-查询: area / asset / bboxCenter / bboxMax / bboxMin / centerOfMass / classifyPointOnFace / containsPoint / curveDegreeElevate / curveIsPeriodic / curveKnotInsert / curveKnotRemove / distanceBetween / edgeRef / faceBySelector / faceNormal / faceRef / formatTechNote / formatThreadHole / inertia / inspectMassProps / inverseKinematics / isCompound / isCompSolid / isEdge / isEqual / isFace / isSameShape / isShell / isValid / isVertex / isWire / iterShapes / jointTrajectory / length / linearCenterOfMass / mechanismDOF / outerWire / pmiDatums / pmiItems / pmiOn / pmiTechNotes / pmiThreads / projectPointOnEdge / projectPointOnFace / projectSheet / projectView / reverseSurfaceU / subShapeCount / uvFromPoint / vertexPosition / viewCamera / volume
+查询: area / asset / bboxCenter / bboxMax / bboxMin / centerOfMass / classifyPointOnFace / containsPoint / curveDegreeElevate / curveIsPeriodic / curveKnotInsert / curveKnotRemove / distanceBetween / edgeRef / faceBySelector / faceNormal / faceRef / formatGeneralNote / formatThreadHole / inertia / inspectMassProps / inverseKinematics / isCompound / isCompSolid / isEdge / isEqual / isFace / isSameShape / isShell / isValid / isVertex / isWire / iterShapes / jointTrajectory / length / linearCenterOfMass / mechanismDOF / outerWire / pmiDatums / pmiGeneralNotes / pmiItems / pmiOn / pmiThreads / projectPointOnEdge / projectPointOnFace / projectSheet / projectView / reverseSurfaceU / subShapeCount / uvFromPoint / vertexPosition / viewCamera / volume
 布尔: commonCells
 导出: export3mf / exportBrep / exportStep / exportStl
 视图: toMultiviewPNG / toMultiviewSVG / toPNG / toSVG

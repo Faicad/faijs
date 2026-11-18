@@ -269,12 +269,12 @@ export function writePmiToXCAF(
         // AP242 has `SURFACE_TEXTURE` entity but occt-wasm doesn't expose it yet.
         // Silently skip for now; data preserved in PmiSet.
         break
-      case 'note':
-        // Notes → write as UDA or skip. Not a standard AP242 PMI entity.
+      case 'localNote':
+        // Local notes → write as UDA or skip. Not a standard AP242 PMI entity.
         // Silently skip for now; data preserved in PmiSet.
         break
-      case 'techNote':
-        // Part-level numbered technical requirements are not an AP242 PMI
+      case 'generalNote':
+        // General notes (part-level requirements) are not an AP242 PMI
         // entity either. Silently skip; data preserved in PmiSet.
         break
       case 'threadHole':

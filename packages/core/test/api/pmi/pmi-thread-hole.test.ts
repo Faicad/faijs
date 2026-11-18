@@ -159,7 +159,7 @@ describe('formatThreadHole — 底孔 + 螺纹一起显示', () => {
 describe('查询：threadHole 与既有类型并存', () => {
   it('pmiItems 按 kind 过滤，pmiThreads 是精确类型封装', () => {
     const s = makeShape() as SolidShape & ReturnType<typeof attachPmiMethods>
-    s.addNote({ text: '未注公差按 GB/T 1804-m' })
+    s.addGeneralNote({ items: [{ text: '未注公差按 GB/T 1804-m' }] })
     s.addThreadHole({ ...tappedM6() } as Omit<PmiThreadHole, 'kind'>)
     expect(pmiItems(s)).toHaveLength(2)
     expect(pmiItems(s, { kind: 'threadHole' })).toHaveLength(1)

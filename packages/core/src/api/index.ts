@@ -127,16 +127,17 @@ export type {
   PmiDimensionType, PmiDimension, PmiGdtType, PmiMaterialCondition,
   PmiProjectedToleranceZone, PmiCompositeSegment, PmiGdt, PmiDatumType,
   PmiDatumTargetParams, PmiDatum, PmiSurfaceParameter, PmiTextureDirection,
-  PmiSurfaceFinish, PmiNote, PmiTechNoteItem, PmiTechNote,
+  PmiSurfaceFinish, PmiLocalNote, PmiGeneralNoteLine, PmiGeneralNote,
   PmiItem, PmiItemKind, PmiSetMeta, PmiSet, PmiEntry,
   PmiThreadSpec, PmiPilotHole, PmiHoleAxis, PmiThreadHole,
 } from './pmi/types'
-export { dimension, gdt, datum, surfaceFinish, note, techNote, threadHole } from './pmi/types'
+export { dimension, gdt, datum, surfaceFinish, localNote, generalNote, threadHole } from './pmi/types'
 export { attachPmiMethods, appendPmiItem, type ShapePmiMethods } from './pmi/methods'
 export { pmiOf, addPmiItem, collectPmiOf, ownPmiOf, clearPmiOfPart, registerPmiParents, resetPmiRegistry } from './pmi/registry'
-export { pmiItems, pmiOn, pmiDatums, pmiThreads, pmiTechNotes } from './pmi/query'
+export { pmiItems, pmiOn, pmiDatums, pmiThreads, pmiGeneralNotes } from './pmi/query'
 export { formatThreadHole, formatThreadSpec } from './pmi/text'
-export { formatTechNote, techNoteLines } from './pmi/tech-note'
+export { formatGeneralNote, generalNoteLines } from './pmi/general-note'
+export { normalizePmiKind, migratePmiItem, migratePmiSet } from './pmi/kind-alias'
 export { faceBySelector } from './face-by-selector'
 
 // ── P23：脚本面 op 与库面导出面的边界（§2.7 / DEC-5、DEC-6、DEC-7）──

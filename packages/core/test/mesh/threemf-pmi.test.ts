@@ -17,7 +17,7 @@ import {
   PMI_3MF_METADATA_NAME,
 } from '../../src/mesh/threemf-pmi'
 import type { PmiSet } from '../../src/api/pmi/types'
-import { dimension, gdt, datum, note } from '../../src/api/pmi/types'
+import { dimension, gdt, datum, generalNote } from '../../src/api/pmi/types'
 import type { FaceTopoRef } from '../../src/topology/naming/types'
 
 const faceRef: FaceTopoRef = {
@@ -32,7 +32,7 @@ const samplePmi: PmiSet = {
     dimension({ dimType: 'diameter', targets: [faceRef], upperTolerance: 0.021 }),
     gdt({ gdtType: 'flatness', target: faceRef, tolerance: 0.02 }),
     datum({ identifier: 'A', datumType: 'datumPlane', target: faceRef }),
-    note({ text: 'test note' }),
+    generalNote({ items: [{ text: 'test note' }] }),
   ],
   meta: { source: 'faijs' },
 }
@@ -56,7 +56,7 @@ describe('serializePmiFor3mf', () => {
 
   it('XML-escapes special characters in JSON content', () => {
     const pmiWithSpecial: PmiSet = {
-      items: [note({ text: 'a < b & c > d' })],
+      items: [generalNote({ items: [{ text: 'a < b & c > d' }] })],
     }
     const xml = serializePmiFor3mf(pmiWithSpecial)
     // The JSON content should be XML-escaped
@@ -94,7 +94,7 @@ describe('parsePmiFrom3mfMetadata', () => {
     expect(parsed!.items[0].kind).toBe('dimension')
     expect(parsed!.items[1].kind).toBe('gdt')
     expect(parsed!.items[2].kind).toBe('datum')
-    expect(parsed!.items[3].kind).toBe('note')
+    expect(parsed!.items[3].kind).toBe('generalNote')
     expect(parsed!.meta?.source).toBe('faijs')
   })
 
@@ -131,5 +131,21 @@ describe('parsePmiFrom3mfMetadata', () => {
     const parsed = parsePmiFrom3mfMetadata(metadataMap)
     expect(parsed).toBeDefined()
     expect(parsed!.items).toHaveLength(4)
+  })
+
+  it('migrates legacy kind literals on read (note / techNote → current)', () => {
+    const legacy = {
+      items: [
+        { kind: 'note', text: '未注公差按 GB/T 1804-m' },
+        { kind: 'note', text: '贴面注', target: faceRef },
+        { kind: 'techNote', title: '技术要求', items: [{ index: 1, text: '锐边倒钝' }] },
+      ],
+      meta: { source: 'drawing' },
+    }
+    const metadataMap = new Map<string, string>([[PMI_3MF_METADATA_NAME, JSON.stringify(legacy)]])
+    const parsed = parsePmiFrom3mfMetadata(metadataMap)
+    expect(parsed!.items.map((i) => i.kind)).toEqual(['generalNote', 'localNote', 'generalNote'])
+    expect(parsed!.items[0]).toEqual({ kind: 'generalNote', items: [{ text: '未注公差按 GB/T 1804-m' }] })
+    expect(parsed!.meta?.source).toBe('drawing')
   })
 })

@@ -36,7 +36,7 @@ part0.addDimension({ dimType: 'linearX', targets: [cad.faceRef(part0, 1), cad.fa
 part0.addDimension({ dimType: 'linearZ', targets: [cad.faceRef(part0, 5), cad.faceRef(part0, 6)] })
 part0.addGdt({ gdtType: 'flatness', target: cad.faceRef(part0, 5), tolerance: 0.02 })
 part0.addSurfaceFinish({ target: cad.faceRef(part0, 6), parameter: 'Ra', value: 3.2 })
-part0.addNote({ text: '未注公差按 GB/T 1804-m' })
+part0.addGeneralNote({ items: [{ text: '未注公差按 GB/T 1804-m' }] })
 let part1 = cad.fai_drill(part0, { position: [30, 20, 10], direction: 'z', holeType: 'tapped', screwSpecIdx: 5, depth: 16, threadDepth: 14 })
 `
 

@@ -43,7 +43,7 @@ describe('PMI Shape methods', () => {
     expect(typeof s.addGdt).toBe('function')
     expect(typeof s.addDatum).toBe('function')
     expect(typeof s.addSurfaceFinish).toBe('function')
-    expect(typeof s.addNote).toBe('function')
+    expect(typeof s.addLocalNote).toBe('function')
     expect(typeof s.getPmi).toBe('function')
     expect(typeof s.clearPmi).toBe('function')
   })
@@ -68,12 +68,12 @@ describe('PMI Shape methods', () => {
     s.addGdt({ gdtType: 'flatness', target: faceRef, tolerance: 0.02 })
     s.addDatum({ identifier: 'A', datumType: 'datumPlane', target: faceRef })
     s.addSurfaceFinish({ target: faceRef, parameter: 'Ra', value: 1.6 })
-    s.addNote({ text: 'test note' })
+    s.addGeneralNote({ items: [{ text: 'test note' }] })
 
     const pmi = s.getPmi()
     expect(pmi.items).toHaveLength(5)
     expect(pmi.items.map((i) => i.kind)).toEqual([
-      'dimension', 'gdt', 'datum', 'surfaceFinish', 'note',
+      'dimension', 'gdt', 'datum', 'surfaceFinish', 'generalNote',
     ])
   })
 
@@ -82,7 +82,7 @@ describe('PMI Shape methods', () => {
     s.addDimension({ dimType: 'linear', targets: [faceRef] })
       .addGdt({ gdtType: 'perpendicularity', target: faceRef, tolerance: 0.05 })
       .addDatum({ identifier: 'B', datumType: 'datumPlane', target: faceRef })
-      .addNote({ text: 'chained' })
+      .addGeneralNote({ items: [{ text: 'chained' }] })
 
     expect(s.getPmi().items).toHaveLength(4)
   })
@@ -96,7 +96,7 @@ describe('PMI Shape methods', () => {
   it('clearPmi empties the PMI set', () => {
     const s = makeShape()
     s.addDimension({ dimType: 'linear', targets: [faceRef] })
-    s.addNote({ text: 'test' })
+    s.addGeneralNote({ items: [{ text: 'test' }] })
     expect(s.getPmi().items).toHaveLength(2)
 
     s.clearPmi()

@@ -53,7 +53,7 @@ describe('pmiItems', () => {
     const s = makeShape()
     s.addDimension({ dimType: 'linear', targets: [faceRefA] })
     s.addGdt({ gdtType: 'flatness', target: faceRefA, tolerance: 0.02 })
-    s.addNote({ text: 'hello' })
+    s.addGeneralNote({ items: [{ text: 'hello' }] })
 
     const items = pmiItems(s)
     expect(items).toHaveLength(3)
@@ -83,7 +83,7 @@ describe('pmiItems', () => {
   it('filters by targetType=face', () => {
     const s = makeShape()
     s.addDimension({ dimType: 'linear', targets: [faceRefA] })
-    s.addNote({ text: 'edge note', target: edgeRef })
+    s.addLocalNote({ text: 'edge note', target: edgeRef })
 
     const faceItems = pmiItems(s, { targetType: 'face' })
     expect(faceItems).toHaveLength(1)
@@ -132,12 +132,12 @@ describe('pmiOn', () => {
 
   it('matches note with target', () => {
     const s = makeShape()
-    s.addNote({ text: 'face note', target: faceRefA })
-    s.addNote({ text: 'floating note' })
+    s.addLocalNote({ text: 'face note', target: faceRefA })
+    s.addGeneralNote({ items: [{ text: 'floating note' }] })
 
     const onFace = pmiOn(s, faceRefA)
     expect(onFace).toHaveLength(1)
-    expect(onFace[0].kind).toBe('note')
+    expect(onFace[0].kind).toBe('localNote')
   })
 })
 

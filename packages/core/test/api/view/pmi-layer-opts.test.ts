@@ -4,7 +4,7 @@
  * `buildPmiLayer` 全选项直呼测试：`PmiLayerOptions` 的 7 个历史未覆盖参数
  * （fontSize / color / showHiddenTargets / globalNotes / gap / fontFamily / only）
  * 必须出现在调用点对象字面量里（L2 扫描只认直呼形态，见 anchor-align.test.ts）。
- * 顺带直呼覆盖同文件的 `buildGlobalPmiBlock` / `globalNoteTexts` / `assignPmiToViews`
+ * 顺带直呼覆盖同文件的 `buildGlobalPmiBlock` / `generalNoteTexts` / `assignPmiToViews`
  * （L1 历史缺口）。
  *
  * 环境同 view-pmi-layer.test.ts：OCCT + CadRuntime（auto），box + faceRef 尺寸标注。
@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from '../../../src/cad-runtime/runtime'
 import type { HostPorts } from '../../../src/cad-runtime/ports'
 import { initOcctWasm } from '../../../src/occt-kernel/occtKernel'
-import { buildPmiLayer, buildGlobalPmiBlock, globalNoteTexts, assignPmiToViews } from '../../../src/api/view/pmi-layer'
+import { buildPmiLayer, buildGlobalPmiBlock, generalNoteTexts, assignPmiToViews } from '../../../src/api/view/pmi-layer'
 import { viewCamera } from '../../../src/api/view/view-camera'
 import type { Shape } from '../../../src/mesh/types'
 import { createApiNamespace } from '../../../src/api/api-namespace'
@@ -40,7 +40,7 @@ part0.addDimension({
   targets: [cad.faceRef(part0, 1), cad.faceRef(part0, 2)],
   nominal: 10,
 })
-part0.addNote({ text: '锐边倒钝' })`)
+part0.addGeneralNote({ items: [{ text: '锐边倒钝' }] })`)
     expect(res.failedAt).toBeUndefined()
     return res.outputs.get('part0' as never) as Shape
   }
@@ -80,10 +80,10 @@ part0.addNote({ text: '锐边倒钝' })`)
     expect(only.count).toBeLessThanOrEqual(all.count)
   })
 
-  it('globalNoteTexts / assignPmiToViews / buildGlobalPmiBlock 直呼', async () => {
+  it('generalNoteTexts / assignPmiToViews / buildGlobalPmiBlock 直呼', async () => {
     const p = await annotatedPart()
-    // 全局注释（无 target 无 anchor 的 note）→ globalNoteTexts 收得到
-    const texts = globalNoteTexts(p)
+    // 全局注释（无 target 无 anchor 的 note）→ generalNoteTexts 收得到
+    const texts = generalNoteTexts(p)
     expect(texts).toContain('锐边倒钝')
     // 视图归属：front 视图只有部分条目；返回数组长度 == items 数
     const cam = viewCamera('front')

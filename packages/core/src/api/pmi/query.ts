@@ -15,7 +15,7 @@
 
 import type { Shape } from '../../mesh/types'
 import type { TopoRef } from '../../topology/naming/types'
-import type { PmiItem, PmiDatum, PmiItemKind, PmiTechNote, PmiThreadHole } from './types'
+import type { PmiItem, PmiDatum, PmiItemKind, PmiGeneralNote, PmiThreadHole } from './types'
 import { pmiOf } from './registry'
 
 /**
@@ -46,9 +46,9 @@ function getTargets(item: PmiItem): readonly TopoRef[] {
       return [item.target]
     case 'surfaceFinish':
       return [item.target]
-    case 'note':
+    case 'localNote':
       return item.target ? [item.target] : []
-    case 'techNote':
+    case 'generalNote':
       return []
     case 'threadHole':
       return item.target ? [item.target] : []
@@ -195,22 +195,22 @@ export function pmiThreads(shape: Shape): PmiThreadHole[] {
 }
 
 /**
- * 查询零件级技术要求块（编号条目）。
+ * 查询通用注释（整张图 / 整个零件适用；编号条目块或单条无编号要求）。
  *
- * 便捷封装：等价 `pmiItems(shape, { kind: 'techNote' })`，但返回精确类型。
- * 这类条目无 target，渲染时进图纸全局注释块，不参与视图归属打分。
+ * 便捷封装：等价 `pmiItems(shape, { kind: 'generalNote' })`，但返回精确类型。
+ * 这类条目无 `target` / `anchor`，渲染时进图纸的通用注释区，不参与视图归属打分。
  *
  * @group 查询
  * @inputs 1
  * @async false
  * @qual ok
- * @name pmiTechNotes
- * @returns PmiTechNote[] — 该零件上的全部技术要求块。
+ * @name pmiGeneralNotes
+ * @returns PmiGeneralNote[] — 该零件上的全部通用注释。
  * @param shape - the shape to query. type:Shape required:true
  * @example
- * const blocks = cad.pmiTechNotes(part0)
- * console.log(cad.formatTechNote(blocks[0]))
+ * const blocks = cad.pmiGeneralNotes(part0)
+ * console.log(cad.formatGeneralNote(blocks[0]))
  */
-export function pmiTechNotes(shape: Shape): PmiTechNote[] {
-  return pmiItems(shape, { kind: 'techNote' }) as PmiTechNote[]
+export function pmiGeneralNotes(shape: Shape): PmiGeneralNote[] {
+  return pmiItems(shape, { kind: 'generalNote' }) as PmiGeneralNote[]
 }

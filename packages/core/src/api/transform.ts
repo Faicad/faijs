@@ -298,7 +298,7 @@ export const translate = defineOp({
   slotMap: { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 },
   paramDims: { offset: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
-  // PMI 裸世界坐标补偿：`PmiNote.anchor` / `PmiThreadHole.axis` 不随几何自动跟随，
+  // PMI 裸世界坐标补偿：`PmiLocalNote.anchor` / `PmiThreadHole.axis` 不随几何自动跟随，
   // 登记平移矩阵后由聚合侧施加（数据零改动，见 api/pmi/affine.ts）。
   pmiRemap: (p) => {
     const o = vec3Param(p.offset)

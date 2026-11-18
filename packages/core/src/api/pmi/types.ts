@@ -210,37 +210,43 @@ export interface PmiSurfaceFinish {
   readonly textureDirection?: PmiTextureDirection
 }
 
-// ── 注释 ──
+// ── 局部注释（贴在应用处）──
 
 /**
- * Text note annotation.
+ * A **local note** — a note placed at the specific area or point of application
+ * (ASME Y14.100 §4.26(b) "local notes"). Its requirement applies only to the
+ * area or point indicated.
  *
- * Can be attached to a TopoRef (floating note if `target` omitted).
- * `anchor` is a world-coordinate position for UI rendering.
+ * Placement is what makes a note local: at least one of `target` / `anchor`
+ * must be given. A requirement that applies to the whole drawing or part is a
+ * `PmiGeneralNote` instead.
  */
-export interface PmiNote {
-  readonly kind: 'note'
-  /** Note text. */
+export interface PmiLocalNote {
+  readonly kind: 'localNote'
+  /** Note text, verbatim from the drawing. */
   readonly text: string
-  /** Attached TopoRef (optional: floating note has no target). */
+  /** Attached TopoRef — the requirement applies to that topology only. */
   readonly target?: TopoRef
-  /** Anchor point in world coordinates [x, y, z]. */
+  /** Anchor point in world coordinates [x, y, z] — the requirement applies there. */
   readonly anchor?: Vec3
   /** Leader line direction (UI rendering hint). */
   readonly leaderDirection?: Vec3
 }
 
-// ── 技术要求（零件级编号条目块）──
+// ── 通用注释（整张图 / 整个零件适用）──
 
 /**
- * A single numbered clause inside a technical-requirement block.
+ * A single line inside a general-note block: one numbered clause, or one
+ * unnumbered note.
  *
- * `index` is the clause number as printed on the drawing (1, 2, 3 …);
+ * `index` is the clause number as printed on the drawing (1, 2, 3 …) and is
+ * **optional** — a single general note that carries no printed number is
+ * rendered without one; a number the drawing does not have is never invented.
  * `subItems` holds nested clauses such as "a) … / b) …".
  */
-export interface PmiTechNoteItem {
-  /** Clause number on the drawing (1 起). */
-  readonly index: number
+export interface PmiGeneralNoteLine {
+  /** Clause number on the drawing (1 起), omitted when the drawing prints none. */
+  readonly index?: number
   /** Clause text, verbatim from the drawing. */
   readonly text: string
   /** Nested sub-clauses, if any. */
@@ -248,19 +254,21 @@ export interface PmiTechNoteItem {
 }
 
 /**
- * A part-level technical-requirement block ("技术要求" / "未注倒角 C0.3" …).
+ * A **general note** — text that applies to the entire drawing or the whole
+ * part (ASME Y14.100 §4.26(a) "general notes"). Two shapes share this type:
  *
- * `PmiNote` is a single free-text annotation that may be attached to a TopoRef;
- * `PmiTechNote` is a numbered block owned by the whole part. It deliberately
- * has **no target**: like a targetless `PmiNote` it belongs in the drawing's
- * global note block, rendered once rather than once per view.
+ * - a numbered technical-requirement block ("技术要求") → `items` holds numbered clauses;
+ * - a single unnumbered requirement ("锐边倒钝") → `items` holds one line without `index`.
+ *
+ * It deliberately has **no** `target` / `anchor`: it belongs in the drawing's
+ * general-note area and is rendered once rather than once per view.
  *
  * Design: docs/plans/2026-10-31-faijs-pmi-thread-and-technotes-design.md §7
  */
-export interface PmiTechNote {
-  readonly kind: 'techNote'
-  /** Numbered clauses, in drawing order. */
-  readonly items: readonly PmiTechNoteItem[]
+export interface PmiGeneralNote {
+  readonly kind: 'generalNote'
+  /** Requirement lines, in drawing order. */
+  readonly items: readonly PmiGeneralNoteLine[]
   /** Requirement family (optional classification, not part of identity). */
   readonly category?: 'general' | 'machining' | 'heatTreatment' | 'surface' | 'inspection'
   /** Block title, e.g. "技术要求". */
@@ -364,11 +372,11 @@ export type PmiItem =
   | PmiGdt
   | PmiDatum
   | PmiSurfaceFinish
-  | PmiNote
-  | PmiTechNote
+  | PmiLocalNote
+  | PmiGeneralNote
   | PmiThreadHole
 
-/** Discriminator kind for PmiItem ('dimension' | 'gdt' | 'datum' | 'surfaceFinish' | 'note' | 'techNote' | 'threadHole'). */
+/** Discriminator kind for PmiItem ('dimension' | 'gdt' | 'datum' | 'surfaceFinish' | 'localNote' | 'generalNote' | 'threadHole'). */
 export type PmiItemKind = PmiItem['kind']
 
 // ── PMI 集合 ──
@@ -433,12 +441,23 @@ export function surfaceFinish(sf: Omit<PmiSurfaceFinish, 'kind'>): PmiSurfaceFin
 }
 
 /**
- * Create a note PMI item with `kind: 'note'` filled in.
- * @param n - the note annotation fields (without `kind`).
- * @returns a `PmiNote` with `kind: 'note'`.
+ * Create a local note PMI item with `kind: 'localNote'` filled in.
+ *
+ * A local note must be placed at the area or point it applies to: pass a
+ * `target` (topology) or an `anchor` (world coordinate). A requirement with no
+ * placement belongs to the whole drawing — use `generalNote` for that.
+ *
+ * @param n - the local-note fields (without `kind`).
+ * @returns a `PmiLocalNote` with `kind: 'localNote'`.
+ * @throws Error when neither `target` nor `anchor` is given.
  */
-export function note(n: Omit<PmiNote, 'kind'>): PmiNote {
-  return { kind: 'note', ...n }
+export function localNote(n: Omit<PmiLocalNote, 'kind'>): PmiLocalNote {
+  if (n.target === undefined && n.anchor === undefined) {
+    throw new Error(
+      '[localNote] a local note needs a target or an anchor; use generalNote for requirements that apply to the whole part',
+    )
+  }
+  return { kind: 'localNote', ...n }
 }
 
 /**
@@ -454,12 +473,16 @@ export function threadHole(th: Omit<PmiThreadHole, 'kind'>): PmiThreadHole {
 }
 
 /**
- * Create a part-level technical-requirement block with `kind: 'techNote'` filled in.
- * @param n - the tech-note fields (without `kind`).
- * @returns a `PmiTechNote` with `kind: 'techNote'`.
+ * Create a general note with `kind: 'generalNote'` filled in.
+ *
+ * One `items` entry = one unnumbered general note; several entries = a numbered
+ * technical-requirement block. Give `index` only for numbers the drawing prints.
+ *
+ * @param n - the general-note fields (without `kind`).
+ * @returns a `PmiGeneralNote` with `kind: 'generalNote'`.
  */
-export function techNote(n: Omit<PmiTechNote, 'kind'>): PmiTechNote {
-  return { kind: 'techNote', ...n }
+export function generalNote(n: Omit<PmiGeneralNote, 'kind'>): PmiGeneralNote {
+  return { kind: 'generalNote', ...n }
 }
 
 // ── ExecutionResult 中的 PMI 行 ──

@@ -171,7 +171,7 @@ paramDims?: Record<string, DimDecl>
    * 坐标变换声明（PMI 裸世界坐标补偿）：本 op 是**变换类**吗——把输入几何整体
    * 施加了什么仿射。返回 `undefined` = 坐标系没变（不登记）。
    *
-   * 用途只有一个：`PmiNote.anchor` / `PmiThreadHole.axis` 这类**裸世界坐标**
+   * 用途只有一个：`PmiLocalNote.anchor` / `PmiThreadHole.axis` 这类**裸世界坐标**
    * 不随几何自动跟随（`TopoRef` 会，它有语句级因果坐标）。登记后聚合时沿父链
    * 把矩阵乘上去（`api/pmi/affine.ts`），**标注数据本身一个字节不改**。
    *

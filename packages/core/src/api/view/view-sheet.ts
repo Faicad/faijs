@@ -31,7 +31,7 @@ import { projectViewSvg, type ProjectViewOptions } from './view-projection'
 import {
   assignPmiToViews,
   buildGlobalPmiBlock,
-  globalNoteTexts,
+  generalNoteTexts,
   type PmiLayerOptions,
 } from './pmi-layer'
 import { resolveCamera, type ViewSpec } from './view-camera'
@@ -108,7 +108,7 @@ export function projectSheet(
   const pmiOpt = opts.pmi
   const pmiLayerOpt: PmiLayerOptions = typeof pmiOpt === 'object' ? pmiOpt : {}
   const pmiEnabled = pmiOpt !== false
-  const globalTexts = pmiEnabled && pmiLayerOpt.globalNotes !== false ? globalNoteTexts(shape) : []
+  const globalTexts = pmiEnabled && pmiLayerOpt.globalNotes !== false ? generalNoteTexts(shape) : []
 
   // 视图归属：同一条标注在多视图图纸里只画一次，落在"最能看清它那个特征"的视图。
   // 单视图没有跨视图可挑，跳过（省掉一遍锚点解析，行为也与 projectView 一致）。

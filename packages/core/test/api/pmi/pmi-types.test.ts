@@ -10,9 +10,9 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  dimension, gdt, datum, surfaceFinish, note,
+  dimension, gdt, datum, surfaceFinish, localNote, generalNote,
   type PmiItem, type PmiDimension, type PmiGdt, type PmiDatum,
-  type PmiSurfaceFinish, type PmiNote, type PmiSet,
+  type PmiSurfaceFinish, type PmiLocalNote, type PmiSet,
 } from '../../../src/api/pmi/types'
 import type { FaceTopoRef } from '../../../src/topology/naming/types'
 
@@ -84,21 +84,22 @@ describe('PMI types: factory functions', () => {
     expect(sf.value).toBe(1.6)
   })
 
-  it('note() produces kind=note', () => {
-    const n = note({ text: '未注公差按 GB/T 1804-m' })
-    expect(n.kind).toBe('note')
-    expect(n.text).toBe('未注公差按 GB/T 1804-m')
-    expect(n.target).toBeUndefined()
+  it('generalNote() produces kind=generalNote（单条无编号）', () => {
+    const n = generalNote({ items: [{ text: '未注公差按 GB/T 1804-m' }] })
+    expect(n.kind).toBe('generalNote')
+    expect(n.items[0]!.text).toBe('未注公差按 GB/T 1804-m')
+    expect(n.items[0]!.index).toBeUndefined()
   })
 
-  it('note() with target and anchor', () => {
-    const n = note({
+  it('localNote() 有落点才成立，缺落点抛错', () => {
+    const n = localNote({
       text: 'Critical surface',
       target: faceRef,
       anchor: [10, 20, 30],
     })
     expect(n.target).toBeDefined()
     expect(n.anchor).toEqual([10, 20, 30])
+    expect(() => localNote({ text: '无落点' })).toThrow(/target or an anchor/)
   })
 })
 
@@ -109,7 +110,7 @@ describe('PMI types: JSON serialization', () => {
       gdt({ gdtType: 'flatness', target: faceRef, tolerance: 0.02 }),
       datum({ identifier: 'B', datumType: 'datumPlane', target: faceRef }),
       surfaceFinish({ target: faceRef, parameter: 'Rz', value: 3.2 }),
-      note({ text: 'Test note', target: edgeRef as never }),
+      localNote({ text: 'Test note', target: edgeRef as never }),
     ]
     for (const item of items) {
       const json = JSON.stringify(item)
@@ -164,7 +165,7 @@ describe('PMI types: discriminator narrowing', () => {
       gdt({ gdtType: 'flatness', target: faceRef, tolerance: 0.02 }),
       datum({ identifier: 'A', datumType: 'datumPlane', target: faceRef }),
       surfaceFinish({ target: faceRef, parameter: 'Ra', value: 1.6 }),
-      note({ text: 'hello' }),
+      generalNote({ items: [{ text: 'hello' }] }),
     ]
     const kinds = items.map((item) => {
       switch (item.kind) {
@@ -172,7 +173,7 @@ describe('PMI types: discriminator narrowing', () => {
         case 'gdt': return `gdt:${item.gdtType}`
         case 'datum': return `datum:${item.identifier}`
         case 'surfaceFinish': return `sf:${item.parameter}`
-        case 'note': return `note:${item.text}`
+        case 'generalNote': return `note:${item.items[0]!.text}`
       }
     })
     expect(kinds).toEqual(['dim:linear', 'gdt:flatness', 'datum:A', 'sf:Ra', 'note:hello'])

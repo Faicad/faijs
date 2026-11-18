@@ -16,7 +16,7 @@ export {
   assignPmiToViews,
   buildPmiLayer,
   buildGlobalPmiBlock,
-  globalNoteTexts,
+  generalNoteTexts,
   type PmiLayerOptions,
   type PmiLayerResult,
   type PmiExtent2,

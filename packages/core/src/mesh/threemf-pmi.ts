@@ -21,6 +21,7 @@
  */
 
 import type { PmiSet } from '../api/pmi/types'
+import { migratePmiSet } from '../api/pmi/kind-alias'
 
 /** 3MF metadata name for PMI data (vendor-prefixed per 3MF spec). */
 export const PMI_3MF_METADATA_NAME = 'faijs:pmi'
@@ -66,7 +67,8 @@ export function parsePmiFrom3mfMetadata(
   try {
     const parsed = JSON.parse(raw) as PmiSet
     if (!parsed || !Array.isArray(parsed.items)) return undefined
-    return parsed
+    // 外部数据宽容兼容：旧 kind（note / techNote）在这里归一到当前字面量。
+    return migratePmiSet(parsed)
   } catch {
     // Invalid JSON — silently skip (corrupted or truncated metadata)
     return undefined

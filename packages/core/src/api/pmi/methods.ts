@@ -19,13 +19,13 @@ import type {
   PmiGdt,
   PmiDatum,
   PmiSurfaceFinish,
-  PmiNote,
-  PmiTechNote,
+  PmiLocalNote,
+  PmiGeneralNote,
   PmiThreadHole,
   PmiItem,
   PmiSet,
 } from './types'
-import { dimension, gdt, datum, surfaceFinish, note, techNote, threadHole } from './types'
+import { dimension, gdt, datum, surfaceFinish, localNote, generalNote, threadHole } from './types'
 import { addPendingPmiItem, addPmiItem, clearPmiOfPart, pmiOf } from './registry'
 
 /**
@@ -84,21 +84,22 @@ export interface ShapePmiMethods {
   addSurfaceFinish(finish: Omit<PmiSurfaceFinish, 'kind'>): this
 
   /**
-   * Add a text note.
-   * @param note - The note annotation (without `kind`).
+   * Add a local note (a requirement placed at the area or point it applies to).
+   * @param local - The local note (without `kind`). Needs `target` or `anchor`.
    * @returns this (chainable).
    */
-  addNote(note: Omit<PmiNote, 'kind'>): this
+  addLocalNote(local: Omit<PmiLocalNote, 'kind'>): this
 
   /**
-   * Add a part-level technical-requirement block (numbered clauses).
+   * Add a general note (applies to the entire drawing / part).
    *
-   * Unlike `addNote`, a tech note has no `target`: it belongs to the whole part
-   * and is drawn once in the sheet's global note block.
-   * @param n - the tech-note fields (without `kind`).
+   * Unlike `addLocalNote`, a general note carries no placement: one `items`
+   * entry is a single unnumbered requirement, several entries are a numbered
+   * technical-requirement block.
+   * @param n - the general-note fields (without `kind`).
    * @returns this (chainable).
    */
-  addTechNote(n: Omit<PmiTechNote, 'kind'>): this
+  addGeneralNote(n: Omit<PmiGeneralNote, 'kind'>): this
 
   /**
    * Add a thread-hole annotation (pilot hole geometry + post-machining tapping).
@@ -169,12 +170,12 @@ export function attachPmiMethods(shape: Shape): Shape & ShapePmiMethods {
     appendItem(this, surfaceFinish(f))
     return this
   }
-  s.addNote = function addNote(this: Shape & ShapePmiMethods, n: Omit<PmiNote, 'kind'>) {
-    appendItem(this, note(n))
+  s.addLocalNote = function addLocalNote(this: Shape & ShapePmiMethods, n: Omit<PmiLocalNote, 'kind'>) {
+    appendItem(this, localNote(n))
     return this
   }
-  s.addTechNote = function addTechNote(this: Shape & ShapePmiMethods, n: Omit<PmiTechNote, 'kind'>) {
-    appendItem(this, techNote(n))
+  s.addGeneralNote = function addGeneralNote(this: Shape & ShapePmiMethods, n: Omit<PmiGeneralNote, 'kind'>) {
+    appendItem(this, generalNote(n))
     return this
   }
   s.addThreadHole = function addThreadHole(this: Shape & ShapePmiMethods, th: Omit<PmiThreadHole, 'kind'>) {
