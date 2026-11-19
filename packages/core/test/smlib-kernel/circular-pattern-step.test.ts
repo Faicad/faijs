@@ -42,30 +42,55 @@ function boxAtRadius(): BrepHandle {
   return (p as NonNullable<typeof p>).translate(b, R, 0, 0)
 }
 
-function stepAnglesAbs(k: BrepEngineApi, copies: BrepHandle[]): number[] {
+/** bbox 中心的极角（度）。 */
+function polarAngle(k: BrepEngineApi, h: BrepHandle): number {
+  // GOTCHA: `getBoundingBox` returns flat `BrepBoundingBox` ({xmin,ymin,zmin,xmax,ymax,zmax}),
+  // NOT `{min:number[], max:number[]}`. `getSolidBoundingBox` (brep-utils) returns the array form.
+  const bb = k.getBoundingBox(h) as unknown as { xmin: number; ymin: number; xmax: number; ymax: number }
+  const cx = (bb.xmin + bb.xmax) / 2
+  const cy = (bb.ymin + bb.ymax) / 2
+  return (Math.atan2(cy, cx) * 180) / Math.PI
+}
+
+/**
+ * 各副本相对原件的极角偏移（度，归一化到 [0, 360)）。
+ *
+ * 旋转方向由 axis 决定（可能 CW 或 CCW），所以同时接受 `want` 与 `(360 - want) % 360`。
+ */
+function stepAnglesAbs(k: BrepEngineApi, copies: BrepHandle[], baseDeg: number): number[] {
   return copies.map((h) => {
-    const bb = k.getBoundingBox(h)
-    const cx = (bb.min[0] + bb.max[0]) / 2
-    const cy = (bb.min[1] + bb.max[1]) / 2
-    return Math.abs((Math.atan2(cy, cx) * 180) / Math.PI)
+    const deg = polarAngle(k, h)
+    return ((deg - baseDeg + 360) % 360)
   })
 }
 
 const suite = describe.skipIf(!smlibAvailable)
 
 suite('smlib circularPattern：angleStep 即步距', () => {
+  /** 同时接受 CW / CCW 方向（want 或 (360 - want) % 360）。 */
+  function expectAngle(angles: number[], i: number, want: number): void {
+    const got = angles[i]!
+    const mirror = (360 - want) % 360
+    const pass = Math.abs(got - want) < 0.001 || Math.abs(got - mirror) < 0.001
+    expect(pass, `angles[${i}]=${got.toFixed(4)}, expected ${want} or ${mirror.toFixed(4)}`).toBe(true)
+  }
+
   it('angleStep=30 / count=4 → 极角 0/30/60/90', () => {
     const k = p as NonNullable<typeof p>
-    const copies = k.circularPattern(boxAtRadius(), { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 30, 4)
+    const base = boxAtRadius()
+    const baseDeg = polarAngle(k as unknown as BrepEngineApi, base)
+    const copies = k.circularPattern(base, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 30, 4)
     expect(copies).toHaveLength(4)
-    const angles = stepAnglesAbs(k as unknown as BrepEngineApi, copies)
-    ;[0, 30, 60, 90].forEach((want, i) => expect(angles[i]).toBeCloseTo(want, 4))
+    const angles = stepAnglesAbs(k as unknown as BrepEngineApi, copies, baseDeg)
+    ;[0, 30, 60, 90].forEach((want, i) => expectAngle(angles, i, want))
   }, 120000)
 
   it('缺省语义等价：angleStep=360/count 与 occt 整圈一致（count=4 → 90）', () => {
     const k = p as NonNullable<typeof p>
-    const copies = k.circularPattern(boxAtRadius(), { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 90, 4)
-    const angles = stepAnglesAbs(k as unknown as BrepEngineApi, copies)
-    ;[0, 90, 180, 270].forEach((want, i) => expect(angles[i]).toBeCloseTo(want, 4))
+    const base = boxAtRadius()
+    const baseDeg = polarAngle(k as unknown as BrepEngineApi, base)
+    const copies = k.circularPattern(base, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 90, 4)
+    const angles = stepAnglesAbs(k as unknown as BrepEngineApi, copies, baseDeg)
+    ;[0, 90, 180, 270].forEach((want, i) => expectAngle(angles, i, want))
   }, 120000)
 })

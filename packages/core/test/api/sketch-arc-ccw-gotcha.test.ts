@@ -11,7 +11,11 @@
  * 本测试取 FCBL_tree_entourage 的 s1 轮廓（4 直线 + 3 条 ccw:false 圆弧，
  * 其中 A2 r=2823 弧的 CCW 补角弧恰好跨越 x=0）做回归护栏：
  * 修复前 = 原尺寸跑 5 分钟无结果/进程死；修复后 = 秒级通过。
- * 精度口径：revolve 产物包围盒必须为有限数（NaN = 长弧穿轴的退化指纹）。
+ *
+ * GOTCHA（2026-11-19）：profile 在 XY 平面，绕 Z 轴旋转时截面平面不含轴
+ * → E_REVOLVE_ZERO_THICKNESS 守卫拦截。修复：先 rotate_euler 绕 X 轴转 90°
+ * 落到 XZ 平面（含 Z 轴），revolve 出真实体。测试核心是 ccw:false arc 方向，
+ * revolve 只是把方向 bug 的后果从"进程挂死"变成可检测的执行失败/成功。
  */
 import { describe, expect, it, beforeAll } from 'vitest'
 import { createRuntime } from '../../src/index'
@@ -38,7 +42,8 @@ describe('GOTCHA: sketch arc ccw:false must not become a CCW long arc (A3 regres
     const runtime = createRuntime(createNodePorts(), 'brep')
     try {
       const result = await runtime.execute(`
-        const part1 = cad.profile(${TREE_PROFILE})
+        const part0 = cad.profile(${TREE_PROFILE})
+        const part1 = cad.rotate_euler(part0, { angles: [90 * DEGREE, 0, 0] })
         const part3 = cad.revolve(part1, { axis: [0,0,1], at: [0,0,0], angle: 6.283185307179586 })
       `, { topology: 'auto' })
       expect(result.failedAt, `execution failed: ${result.failedAt?.message ?? ''}`).toBeUndefined()

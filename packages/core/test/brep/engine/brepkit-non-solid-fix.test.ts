@@ -143,22 +143,24 @@ describe('brepkit non-solid handle fix（wire/profile/extrude/revolve/section/se
     }, 60000)
 
     it('revolve：profile face → 不崩（接受 face 输入）', async () => {
-      // GOTCHA：faijs profile 在 XY 平面（z=0），绕 z 轴旋转——轴垂直于草图面，
-      // 几何上退化为扁平环面（occt 同样 volume=0、zmin=zmax=0）。本用例只钉住
-      // brepkit 能接受 profile face 输入且 meshShape 不崩，不要求 volume>0。
+      // GOTCHA：faijs profile 在 XY 平面（z=0），绕 Z 轴旋转——轴垂直于草图面，
+      // 几何上退化为扁平环面（volume=0），被 E_REVOLVE_ZERO_THICKNESS 守卫拦截。
+      // 修复：把 profile 绕 X 轴转 90° 落到 XZ 平面（含 Z 轴），revolve 出真实体。
+      // 本用例钉住 brepkit 能接受 profile face 输入且 meshShape 不崩。
       const code =
-        `const f = cad.profile({ contours: [{ segments: [\n` +
+        `const f0 = cad.profile({ contours: [{ segments: [\n` +
         `  {kind:'line',x1:5,y1:0,x2:15,y2:0},\n` +
         `  {kind:'line',x1:15,y1:0,x2:15,y2:10},\n` +
         `  {kind:'line',x1:15,y1:10,x2:5,y2:10},\n` +
         `  {kind:'line',x1:5,y1:10,x2:5,y2:0}\n` +
         `]}] })\n` +
+        `const f = cad.rotate_euler(f0, { angles: [90 * DEGREE, 0, 0] })\n` +
         `const p = cad.revolve(f, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })`
       const shape = await runShape(code, 'p')
       const engine = (await getActiveBrepEngine()).primitives
       const handle = brepOf(shape)
       expect(handle, 'revolve should return a brep handle').toBeDefined()
-      // meshShape 不崩即可（退化体可能 mesh 为空）
+      // meshShape 不崩即可
       try { engine.meshShape(handle as never) } catch (e) { throw new Error('revolve meshShape crashed: ' + String(e), { cause: e }) }
     }, 60000)
 

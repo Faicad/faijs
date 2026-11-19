@@ -43,10 +43,10 @@ import {
 
 beforeAll(async () => {
   await initOcctWasm()
-  // 本文件钉的是**网格绕序契约**，不是体积恒等式：这条真机脊柱是粗折线（拐角 35.7°、
-  // 首段 16.3mm、截面 29×27），体积必然只有解析值的 5/12（下面 T0 显式钉住这个数）。
-  // 因此按守卫消息里给出的正式出口放宽进程级容差——这不是「隐藏错误」，几何缺陷
-  // 在 sweep-kernel-behavior（K2/K6）与 sweepAlong 的判据里各自被钉住。
+  // 本文件钉的是**网格绕序契约**，不是体积恒等式。这条真机脊柱是粗折线（拐角 35.7°、
+  // 首段 16.3mm、截面 29×27），内侧截面扫过自身（半宽 × cot(拐角/2) ≈ 41mm ≫ 段长 16.3mm）。
+  // sweep 策略改进后（miter 自补斜接），体积已接近解析值（783 × 40.794）；容差放宽
+  // 仅为不挡绕序断言，几何缺陷在 sweep-kernel-behavior（K2/K6）与 sweepAlong 里各自被钉住。
   setSweepVolumeTolerance(0.99)
 }, 120000)
 
@@ -154,10 +154,10 @@ describe('sweep — 输出网格绕序一致性', () => {
     expect(s.indices.length).toBeGreaterThan(0)
     // 冲突 > 0 时，渲染层 FrontSide 会把那些三角形剔掉 —— 真机上就是可见的洞。
     expect(windingConflicts(s.positions, s.indices)).toBe(0)
-    // 顺带把「这条粗折线脊柱的体积只有解析值 5/12」钉住：beforeAll 放宽容差是
-    // 为了不让体积判据挡住绕序断言，不是掩盖这个事实（解析值 = 783 × 40.794）。
+    // 体积钉桩：sweep 策略改进后（miter 自补斜接），粗折线脊柱的体积接近解析值
+    // （783 × 40.794 = 31942）。旧口径（5/12 ≈ 0.417）是改进前的丢体积行为。
     const v = getBrepApi().getVolume(brepOf(s) as never)
-    expect(v / (783 * 40.794)).toBeCloseTo(5 / 12, 2)
+    expect(v / (783 * 40.794)).toBeCloseTo(1, 2)
   })
 
   it('小截面 8×8 走同一条折线：本来就 0 冲突（守住断言本身不产生假阳性）', async () => {

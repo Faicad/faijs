@@ -99,9 +99,11 @@ describe('G5 手写平台 op（core 直连）', () => {
   })
 
   it('revolve：轴外矩形绕 Z 转整圈 → 旋转实体', () => {
-    // yz 平面矩形（x=5 偏移，4×10）绕 z 轴 → 空心管实体
+    // GOTCHA: 截面平面必须**包含**旋转轴。XZ 平面（y=0）包含 Z 轴；
+    // 旧的 YZ 偏移平面（x=5）不含 Z 轴，会被 E_REVOLVE_ZERO_THICKNESS 守卫拦截。
+    // 矩形：径向 5..15、高度 0..10，绕 Z 轴 → 空心管实体。
     const pts: [number, number, number][] = [
-      [5, -2, 0], [5, 2, 0], [5, 2, 10], [5, -2, 10],
+      [5, 0, 0], [15, 0, 0], [15, 0, 10], [5, 0, 10],
     ]
     const edges = pts.map((p, i) =>
       kernel.makeLineEdge(
@@ -123,8 +125,8 @@ describe('G5 手写平台 op（core 直连）', () => {
       const handle = brepOf(s) as BrepHandle
       expect(handle).toBeTruthy()
       const bb = getSolidBoundingBox(kernel, handle)
-      // 外径 ≈ √(5²+2²)≈5.39 → x 跨度 ≈ 10.77
-      expect(bb.max[0] - bb.min[0]).toBeGreaterThan(9)
+      // 外径 = 15 → x/y 跨度 ≈ 30
+      expect(bb.max[0] - bb.min[0]).toBeGreaterThan(28)
       expect(bb.max[2] - bb.min[2]).toBeCloseTo(10, 1)
       expect(kernel.getVolume(handle)).toBeGreaterThan(0)
     })
