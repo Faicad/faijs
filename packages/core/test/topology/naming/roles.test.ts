@@ -57,7 +57,7 @@ function fakeKernel(faces: FakeFace[]): BrepEngineApi {
     hashCode: (shape: BrepHandle) => shape as unknown as number,
     isSame: (a, b) => a === b,
     isSolid: () => true,
-    shapeType: () => 'SOLID',
+    shapeType: () => 'solid',
     shapeOrientation: () => 'forward',
     curveType: () => 'line',
     curvePointAtParam: () => ({ x: 0, y: 0, z: 0 }),

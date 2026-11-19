@@ -78,7 +78,8 @@ export type {
 
 export { getBrepApi, meshHandle, fromHandle } from './brep/handle-bridge'
 export type { MeshHandleOptions } from './brep/handle-bridge'
-export { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engine/types'
+export { isCompoundHandle, getSolids } from './brep/brep-utils'
+export { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle, type ShapeType } from './brep/engine/types'
 export type { BrepEngineApi } from './brep/engine/primitives'
 
 // ── 双路径实现声明（D 面契约：mesh 必选、BREP 可选；几何函数专用） ──

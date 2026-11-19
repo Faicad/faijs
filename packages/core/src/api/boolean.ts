@@ -114,7 +114,7 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
     : null
   const NON_SOLID = new Set(['wire', 'face', 'shell', 'vertex', 'edge'])
   const inputTypes = inputSolids.map((h) => {
-    try { return h ? (kernel.shapeType(h) as string) : 'solid' } catch { return 'solid' }
+    try { return h ? kernel.shapeType(h) : 'solid' } catch { return 'solid' }
   })
 
   let boolIdx: number[]

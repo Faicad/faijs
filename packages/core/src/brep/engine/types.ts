@@ -195,6 +195,28 @@ export interface BrepUvBounds {
 export type BrepSubShapeType = 'vertex' | 'edge' | 'wire' | 'face' | 'shell' | 'solid'
 
 /**
+ * 形状类型名（`shapeType` 的返回值，中立、**一律小写**）。
+ *
+ * 方言在此归一，调用方不再需要 `.toUpperCase()` / `.toLowerCase()` 防御：
+ * occt 的原生 `TopAbs` 名已是小写；brepkit / smlib / mock 的旧大写值
+ * （`'SOLID'` / `'COMPOUND'` …）由各自适配器在边界转成小写。
+ * `compsolid` / `shape` 来自 occt 的 TopAbs 枚举；`curve` / `surface` 是
+ * smlib 的 1D/2D 产物名（BREP 主链不会返回，保留以免丢失表达能力）。
+ */
+export type ShapeType =
+  | 'compound'
+  | 'compsolid'
+  | 'solid'
+  | 'shell'
+  | 'face'
+  | 'wire'
+  | 'edge'
+  | 'vertex'
+  | 'shape'
+  | 'curve'
+  | 'surface'
+
+/**
  * XCAF label 句柄（`addShape` / `addChild` 的返回值，仅在所属文档内有效）。
  */
 export type BrepXcafLabel = number & { readonly __brepXcafLabel: 'BrepXcafLabel' }

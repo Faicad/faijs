@@ -33,6 +33,7 @@ import type {
   BrepMeshResult,
   BrepUvBounds,
   BrepVec3,
+  ShapeType,
 } from '../brep/engine/types'
 
 const asHandle = (h: number | ShapeHandle): BrepHandle => h as BrepHandle
@@ -546,7 +547,7 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     isSame: (a, b) => k.isSame(asShape(a), asShape(b)),
     isSolid: (shape) => k.isSolid(asShape(shape)),
     subShapeCount: (shape, type) => k.subShapeCount(asShape(shape), type),
-    shapeType: (shape) => k.getShapeType(asShape(shape)),
+    shapeType: (shape) => k.getShapeType(asShape(shape)).toLowerCase() as ShapeType,
     shapeOrientation: (shape) => String(k.shapeOrientation(asShape(shape))),
     edgeToFaceMap: (shape) => k.edgeToFaceMap(asShape(shape), HASH_UPPER_BOUND),
     adjacentFaces: (shape, face) =>

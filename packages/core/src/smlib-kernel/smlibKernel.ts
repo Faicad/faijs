@@ -29,6 +29,7 @@ import type {
   BrepTessellateOptions,
   BrepUvBounds,
   BrepVec3,
+  ShapeType,
 } from '../brep/engine/types'
 
 /** STL 导入的顶点焊接容差（mm）。 */
@@ -1277,17 +1278,17 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     subShapeCount(shape: BrepHandle, type: BrepSubShapeType): number {
       return primitives.getSubShapes(shape, type).length
     },
-    shapeType(shape: BrepHandle): string {
+    shapeType(shape: BrepHandle): ShapeType {
       const n = shape as unknown as number
-      if (compoundHandles.has(n)) return 'COMPOUND'
-      if (wireHandles.has(n)) return 'WIRE'
-      if (vertexHandles.has(n)) return 'VERTEX'
+      if (compoundHandles.has(n)) return 'compound'
+      if (wireHandles.has(n)) return 'wire'
+      if (vertexHandles.has(n)) return 'vertex'
       switch (k.kindOf(n)) {
-        case SmwKind.Solid: return 'SOLID'
-        case SmwKind.Face: return 'FACE'
-        case SmwKind.Edge: return 'EDGE'
-        case SmwKind.Curve: return 'CURVE'
-        case SmwKind.Surface: return 'SURFACE'
+        case SmwKind.Solid: return 'solid'
+        case SmwKind.Face: return 'face'
+        case SmwKind.Edge: return 'edge'
+        case SmwKind.Curve: return 'curve'
+        case SmwKind.Surface: return 'surface'
         default: return unsupported('shapeType(non-solid)')
       }
     },

@@ -102,7 +102,7 @@ export function isClosedOperandForBooleanOp(
   // ② 按产物 mesh 的无向边计数判定（叶子 mesh 未被缝补时的口径）。
   let t = 'solid'
   try {
-    t = api.shapeType(h as never) as string
+    t = api.shapeType(h as never)
   } catch {
     /* 引擎查询失败：按实体处理，不因探测失败而丢操作数 */
   }

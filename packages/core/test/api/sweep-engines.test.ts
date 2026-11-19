@@ -17,7 +17,7 @@
  *    而且**平面 G0 折角内核自己就斜接**（P0f/P0g 实测 320 精确 + bbox 不多不少）；
  * 3. **smlib 的唯一策略级硬缺口是「空间 G0 折角」**（P0i 实测 V=0、非流形）——
  *    平面性事实（`SpineFacts.planar`）就是为了在扫掠前拦这一条；
- * 4. **brepkit 的 `shapeType` 只报 SOLID/FACE/COMPOUND**，wire 一律 COMPOUND
+ * 4. **brepkit 的 `shapeType` 只报 solid/face/compound**（0.47.1 起小写归一），wire 一律 compound
  *    （brepkitKernel.ts:1478）⇒ 脊柱判据必须用结构判（有边且无面），按类型字符串判
  *    会把 brepkit 上所有合法脊柱误杀成 `E_SWEEP_SPINE_NOT_WIRE`。
  */
@@ -349,7 +349,7 @@ describe('smlib 内核级：P0 天花板（钉住内核边界）', () => {
     )
     console.log(`[P0c] circle wire section | V=${m.volume} L=${m.pathLength} type=${m.type}`)
     expect(m.error).toBeUndefined()
-    expect(String(m.type)).toBe('SOLID')
+    expect(String(m.type)).toBe('solid')
     expect(m.volume!).toBeCloseTo(4 * Math.PI * 25, 2)
   })
 

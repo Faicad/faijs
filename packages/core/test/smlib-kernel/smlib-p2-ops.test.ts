@@ -49,7 +49,7 @@ describe('P2 造型区', () => {
     const e2 = p.makeLineEdge({ x: 4, y: 3, z: 0 }, { x: 0, y: 3, z: 0 })
     const e3 = p.makeLineEdge({ x: 0, y: 3, z: 0 }, { x: 0, y: 0, z: 0 })
     const wire = p.makeWire([e0, e1, e2, e3])
-    expect(p.shapeType(wire)).toBe('WIRE')
+    expect(p.shapeType(wire)).toBe('wire')
     const face = p.makeFace(wire)
     // 单面 brep 非闭合流形（探针结论），能被 extrude 消费。
     const solid = p.extrude(face, 0, 0, 2)

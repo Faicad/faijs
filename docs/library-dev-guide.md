@@ -141,6 +141,7 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 3. **Handle ownership**: once a returned handle is adopted by the engine, do not `delete()` it afterward (return = transfer). A handle is a number allocated from `0`, so `0` is a valid handle — see the engine-boundary contract in `docs/api-contract.md` §8.6.
 4. **No kernel bootstrapping**: no `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()` calls and no `import 'occt-wasm'` — starting a kernel belongs to the Host (§3.1.1). A host-role package's own `test-setup.ts` is the sole exception.
 5. **No raw kernel slot**: never read `getBackends().kernel.*`; take the neutral face (`getBrepApi()`) or a platform face (`getOcctKernel()` / `getBrepKitKernel()`) as §2.11 lays out.
+6. **Op composition inside a library function**: nested `defineOp` calls are supported. A nested product does not register its own lineage node, and its handle lives in the enclosing statement's function-BREP domain — do not hold it after the library function returns. Every geometry input must carry a PartName (`nameOf(shape) !== undefined`); lineage N1 rejects anonymous inputs. Prefer calling the op (`cad.extrude`, `cad.subtract`, `cad.sweep`, …) over re-implementing its geometry through the kernel; use `getBrepApi()` only where no op exists (`fillet` / `chamfer` / `shell` selectors), for an arbitrary matrix transform, or for post-boolean naming propagation.
 
 ### 2.9 Every export is script-face API
 
@@ -235,6 +236,10 @@ The built-in `cad` face is a registered binding, so both queries cover it too �
 1. `import 'occt-wasm'` / `import 'brepkit-wasm'`, and calling `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()`. Booting a kernel belongs to the Host (§3.1.1); a library that does it creates a second kernel instance that collides with the Host's. A host-role package's own `test-setup.ts` is the sole exception.
 2. Reading `getBackends().kernel.*`. That slot is `@internal` and holds whatever the current engine put there — take the neutral face (`getBrepApi()`) or a platform face (`getOcctKernel()` / `getBrepKitKernel()`) instead.
 3. Resolving an engine yourself with `getBrepEngine(id)` / `getActiveBrepEngine()`. Those are assembly-time and diagnostic APIs; a library states its engine requirement through a declaration and lets the Host resolve it.
+
+#### Neutral-face helpers
+
+The neutral face also keeps library code from re-deriving engine dialect: `shapeType(handle)` returns the lower-case `ShapeType` union; `isCompoundHandle(kernel, handle)` and `getSolids(kernel, handle)` classify a boolean result that legally wraps several solids (a through-cut splits one solid into two). Do not `toUpperCase()` the type, and do not reject a multi-solid compound only because a downstream kernel call needs one solid — that is a caller decision, not a classification.
 
 ---
 

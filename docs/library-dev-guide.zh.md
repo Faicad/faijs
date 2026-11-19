@@ -141,6 +141,7 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 3. **句柄所有权**：返回的句柄一旦被引擎收养，之后不得再 `delete()`（返回即转移）。句柄是从 `0` 起分配的数字，`0` 是合法句柄——见 `docs/api-contract.md` §8.6 的引擎边界契约。
 4. **不启动内核**：不得调用 `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()`，不得 `import 'occt-wasm'`——启动内核是 Host 的职责（§3.1.1）。唯一例外是宿主角色包自己的 `test-setup.ts`。
 5. **不读裸槽位**：不得读 `getBackends().kernel.*`；按 §2.11 的三分表取中立法（`getBrepApi()`）或平台法（`getOcctKernel()` / `getBrepKitKernel()`）。
+6. **库函数内的 op 组合**：支持嵌套调用 `defineOp`。嵌套产物不单独登记血缘节点，其句柄属于外层语句的函数 BREP 域——库函数返回后不得继续持有。每个几何输入都必须带 PartName（`nameOf(shape) !== undefined`）；lineage N1 会拒绝匿名输入。优先调用 op（`cad.extrude`、`cad.subtract`、`cad.sweep` …），不要用 kernel 重造它的几何；只有 faijs 没有等价 op（`fillet`/`chamfer`/`shell` 的选择器）、任意矩阵变换、或布尔后命名传播时才走 `getBrepApi()`。
 
 ### 2.9 每个导出都是脚本面 API
 
@@ -235,6 +236,10 @@ export function buildThread(params: ThreadParams): Result<Solid> { … }
 1. `import 'occt-wasm'` / `import 'brepkit-wasm'`，以及调用 `initOcctWasm()` / `setOcctWasmInitFn()` / `initBrepkitWasm()`。启动内核是 Host 的职责（§3.1.1）；库自己启动会造出第二个内核实例，与 Host 的实例冲突。唯一例外是宿主角色包自己的 `test-setup.ts`。
 2. 读 `getBackends().kernel.*`。那个槽位是 `@internal`，里面是当前引擎放进去的东西——要取就取中立法（`getBrepApi()`）或平台法（`getOcctKernel()` / `getBrepKitKernel()`）。
 3. 自己用 `getBrepEngine(id)` / `getActiveBrepEngine()` 解析引擎。那些是装配期与诊断用的 API；库应该用声明说明自己需要哪个引擎，由 Host 去解析。
+
+#### 中立法辅助
+
+中立法还负责让库代码不必重造引擎方言：`shapeType(handle)` 返回小写的 `ShapeType` 联合；`isCompoundHandle(kernel, handle)` 与 `getSolids(kernel, handle)` 用来识别"布尔合法产出的多 solid compound"（贯穿 cut 会把一个 solid 切成两个）。不要对类型做 `toUpperCase()`，也不要因为下游内核调用只收单 solid 就直接拒绝多 solid compound——那是调用方的决定，不是分类问题。
 
 ---
 

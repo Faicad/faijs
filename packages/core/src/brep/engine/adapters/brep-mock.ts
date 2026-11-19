@@ -431,7 +431,7 @@ export function createBrepMockApi(): BrepEngineApi {
     isSame: (a, b) => a === b,
     isSolid: () => true,
     subShapeCount: () => 0,
-    shapeType: () => 'SOLID',
+    shapeType: () => 'solid',
     shapeOrientation: () => 'forward',
     edgeToFaceMap: () => ({}),
     adjacentFaces: () => [],

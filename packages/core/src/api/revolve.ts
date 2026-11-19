@@ -114,6 +114,16 @@ function revolveConstructRoles(
   }
 }
 
+/** `cad.revolve` 选项。角度单位是**弧度**（兼容 brepjs 语义）。 */
+export interface RevolveOptions {
+  /** 旋转轴方向（缺省 `[0, 0, 1]`）。 */
+  axis?: [number, number, number] | { x: number; y: number; z: number }
+  /** 轴上一点（缺省原点 `[0, 0, 0]`）。 */
+  at?: [number, number, number] | { x: number; y: number; z: number }
+  /** 旋转角，**弧度**（缺省 `2π` = 整周）。 */
+  angle?: number
+}
+
 /**
  * 旋转成形：把平面轮廓绕轴旋转（兼容生成投影签名）。
  *
@@ -144,7 +154,7 @@ function revolveConstructRoles(
  * const p1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
  */
 export const revolve = defineOp({
-  brep: async (face: Shape, options?: { axis?: unknown }) => {
+  brep: async (face: Shape, options?: RevolveOptions) => {
     // compat 语义经 l3-bridge 三步桥接（与 compatOp 的 adapter 相同步骤，
     // 但在这里执行以便在**同一处**收编产物并建链根 roleTable——compatOp 的
     // 自动 adoptOut 会先登记一次，二次 fromBrep 会让 edgeRef 读到残缺表）。

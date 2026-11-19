@@ -35,6 +35,7 @@ import type {
   BrepSubShapeType,
   BrepTessellateOptions,
   BrepUvBounds,
+  ShapeType,
   BrepVec3,
 } from '../brep/engine/types'
 
@@ -1496,12 +1497,12 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     subShapeCount(shape: BrepHandle, type: BrepSubShapeType): number {
       return api.getSubShapes(shape, type).length
     },
-    shapeType(shape: BrepHandle): string {
+    shapeType(shape: BrepHandle): ShapeType {
       try {
         const s = arr(kernel.getSolidFaces(asNum(shape)))
         const f = arr(kernel.getFaces(asNum(shape)))
-        return s.length > 0 ? 'SOLID' : f.length > 0 ? 'FACE' : 'COMPOUND'
-      } catch { return 'COMPOUND' }
+        return s.length > 0 ? 'solid' : f.length > 0 ? 'face' : 'compound'
+      } catch { return 'compound' }
     },
     shapeOrientation(shape: BrepHandle): string {
       try { return String(kernel.getShapeOrientation(asNum(shape))) } catch { return 'forward' }

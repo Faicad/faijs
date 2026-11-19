@@ -23,12 +23,13 @@ import type {
   BrepTessellateOptions,
   BrepUvBounds,
   BrepVec3,
+  ShapeType,
 } from './types'
 
 // 契约面重导出：BrepHandle / BrepVec3 是 L1 引擎契约的核心不透明句柄类型，
 // 3324d179 将定义迁入 ./types 后未在此面重导出，导致消费方（engine-compat 测试）
 // 无法从契约面取到。此处恢复公开面（定义仍在 ./types）。
-export type { BrepHandle, BrepVec3 } from './types'
+export type { BrepHandle, BrepVec3, ShapeType } from './types'
 
 /**
  * BREP 引擎原语契约（L1 核心面）。所有句柄参数/返回值均为 BrepHandle（不透明值，§6.3）。
@@ -413,9 +414,12 @@ export interface BrepEngineApi {
   isSolid(shape: BrepHandle): boolean
   /** 指定类型子形状数量（组合实现：`getSubShapes(shape, type).length`）。 */
   subShapeCount(shape: BrepHandle, type: BrepSubShapeType): number
-  /** 形状类型名（'SOLID' / 'FACE' / 'EDGE' / 'WIRE' / 'COMPOUND' 等；引擎方言归一）。
-   * 库桥（l3-bridge）收编产物时判类型读；brepkit/mock 按能力防御返回。 */
-  shapeType(shape: BrepHandle): string
+  /**
+   * 形状类型名（`ShapeType`，**一律小写**：'solid' / 'face' / 'edge' / 'wire' /
+   * 'compound' 等）。引擎方言在适配器边界归一；调用方直接比较小写字面量即可，
+   * 不需要 `toUpperCase`/`toLowerCase` 防御。库桥（l3-bridge）收编产物时判类型读。
+   */
+  shapeType(shape: BrepHandle): ShapeType
   /** 方向标识（与内核 ShapeOrientation 同构：'forward'|'reversed'|'internal'|'external'）。 */
   shapeOrientation(shape: BrepHandle): string
   /** 边→面关联（brepkit 原生同名）。 */
