@@ -257,7 +257,11 @@ export interface CliCheckResult {
   /** Non-fatal warnings reported during validation. */
   warnings: string[]
   /** Script-level summary when the script parsed successfully. */
-  script?: { statements: number; callees: string[] }
+  script?: {
+    statements: number
+    callees: string[]
+    calls?: Array<{ callee: string; namespace?: string; packageName?: string; local?: boolean }>
+  }
 }
 
 /** Result of the `run` (execute and export) command. */
@@ -360,7 +364,18 @@ export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckRes
         for (const key of Object.keys(ns as Record<string, unknown>)) known.add(key)
       }
     }
-    const unknown = [...new Set(result.script.callees)].filter((n) => !known.has(n))
+    // unknown-op 守卫只查**默认命名空间（cad）**里的 op 名是否拼错。
+    // 第三方库调用（`import * as sm from '@faicad/sheetmetal'` → `sm.authorPart`）
+    // 带 packageName，其 op 不在 cad 静态符号表里是正常的：core 不 import 外层库、
+    // 也没有库的符号表，库 op 的存在性由 `faijs run` 真跑兜底（拼错会在执行期报
+    // `sm.xxx is not a function`）。未 import 的野命名空间在 extractMetadata 的
+    // security pass 已被拦下（SEC_FREE_IDENT），走不到这里。
+    // 本机函数调用（local:true）的 callee 是脚本内定义的函数，同样不查 cad 表。
+    // 兼容回退：老调用方/直接构造的 CheckResult 没有 calls 时，退回裸 callees（旧行为）。
+    const calls: Array<{ callee: string; namespace?: string; packageName?: string; local?: boolean }> =
+      result.script.calls ?? result.script.callees.map((callee) => ({ callee }))
+    const checked = calls.filter((c) => c.packageName === undefined && c.local !== true)
+    const unknown = [...new Set(checked.map((c) => c.callee))].filter((n) => !known.has(n))
     for (const name of unknown) {
       // I6（2026-11-14）：把「对数组调方法」与「op 名写错/库未合并」分开归因。
       // 脚本层的 `pts.push(p)` 被提取成 callee `push`，落在 cad 命名空间查找失败，

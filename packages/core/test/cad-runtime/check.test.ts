@@ -46,6 +46,26 @@ export default async (cad) => {
     expect(result.script!.callees).toEqual(['box'])
   })
 
+  it('script.calls carries the namespace/packageName provenance of each call', () => {
+    // check() 除裸 callees 外还输出结构化 calls：默认命名空间的 cad op 无 packageName，
+    // import 的第三方库 op 带 namespace + packageName。unknown-op 守卫据此判定，
+    // 无需 core import 任何外层库。
+    const code = `import * as sm from '@faicad/sheetmetal'
+export default async (cad) => {
+  const part0 = cad.box({ size: 10 })
+  const w = sm.validate(part0)
+  return { shape: part0 }
+}`
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(true)
+    const calls = result.script!.calls!
+    const cadCall = calls.find((c) => c.callee === 'box')!
+    const libCall = calls.find((c) => c.callee === 'validate')!
+    expect(cadCall.packageName).toBeUndefined()
+    expect(libCall.namespace).toBe('sm')
+    expect(libCall.packageName).toBe('@faicad/sheetmetal')
+  })
+
   it('valid script: box + sphere boolean subtract → ok', () => {
     const code = `// apiVersion: 1
 export default async (cad) => {

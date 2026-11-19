@@ -155,6 +155,54 @@ describe('cliCheck: dryRun validation', () => {
     const sym = result.errors.find((e) => e.stage === 'symbol')
     expect(sym!.message).toContain('cad.bogusFn')
   })
+
+  // 2026-11-19：钣金等独立库经 `import * as sm from '@faicad/sheetmetal'` 引入，
+  // 其 op（sm.authorPart 等）不在 cad 静态符号表里是**正常**的——core 不 import
+  // 外层库、也不持有库的符号表，库 op 的存在性由 `faijs run` 真跑兜底。
+  // unknown-op 守卫只查默认命名空间（cad）的裸 op；过去把 sm.* 误报成
+  // cad.authorPart，导致钣金样例 check 恒失败、drawing 侧不得不用正则容忍。
+  it('cliCheck accepts third-party library ops from an imported namespace (no false unknown-op)', () => {
+    const code = `import * as sm from '@faicad/sheetmetal'
+export default async (cad) => {
+  let part = sm.authorPart({ thickness: 3, base: { length: 10, width: 10 }, flanges: [] })
+  let warn = sm.validate(part)
+  return { shape: sm.solidOf(part) }
+}`
+    const tmpFile = resolve(TMP_DIR, 'cli-lib-namespace.fai.js')
+    writeFileSync(tmpFile, code)
+    const result = cliCheck(tmpFile)
+    expect(result.errors.filter((e) => e.stage === 'symbol')).toEqual([])
+    expect(result.ok).toBe(true)
+  })
+
+  it('cliCheck still catches a misspelled op in the default cad namespace', () => {
+    const code = `import * as sm from '@faicad/sheetmetal'
+export default async (cad) => {
+  let part = sm.authorPart({ thickness: 3, base: { length: 10, width: 10 }, flanges: [] })
+  let bad = cad.bogusFn({ size: 20 })
+  return { shape: bad }
+}`
+    const tmpFile = resolve(TMP_DIR, 'cli-lib-plus-bogus.fai.js')
+    writeFileSync(tmpFile, code)
+    const result = cliCheck(tmpFile)
+    expect(result.ok).toBe(false)
+    expect(result.errors.some((e) => e.stage === 'symbol' && e.message.includes('cad.bogusFn'))).toBe(true)
+    // 合法库调用不应被顺带误报
+    expect(result.errors.some((e) => e.stage === 'symbol' && e.message.includes('authorPart'))).toBe(false)
+  })
+
+  it('cliCheck still rejects a wild namespace with no import (parser security)', () => {
+    const code = `export default async (cad) => {
+  const p = cad.box({ size: 20 })
+  foo.bar(p)
+  return { shape: p }
+}`
+    const tmpFile = resolve(TMP_DIR, 'cli-wild-ns.fai.js')
+    writeFileSync(tmpFile, code)
+    const result = cliCheck(tmpFile)
+    expect(result.ok).toBe(false)
+    expect(result.errors.some((e) => e.stage === 'security')).toBe(true)
+  })
 })
 
 describe('cliRun: execute and export', () => {

@@ -120,7 +120,17 @@ export interface CheckResult {
   errors: CheckError[]
   warnings: string[]
   /** Structured context for AI self-correction. */
-  script?: { statements: number; callees: string[] }
+  script?: {
+    statements: number
+    callees: string[]
+    /**
+     * 每条调用连同其命名空间来源（F2-import / 默认命名空间 / 本机函数）。
+     * `callees` 只有裸 op 名、丢了这个来源，导致调用方无法区分 `cad.authorPart`
+     * （拼错）与 `sm.authorPart`（`@faicad/*` 库调用）——unknown-op 守卫据此判定：
+     * 带 `packageName` 的第三方库 op 不在 cad 静态符号表里是正常的，跳过校验。
+     */
+    calls?: Array<{ callee: string; namespace?: string; packageName?: string; local?: boolean }>
+  }
 }
 
 /**
@@ -2655,6 +2665,12 @@ export class CadRuntime {
         script: {
           statements: meta.lines.length,
           callees: meta.lines.map((l) => l.callee),
+          calls: meta.lines.map((l) => ({
+            callee: l.callee,
+            ...(l.namespace !== undefined ? { namespace: l.namespace } : {}),
+            ...(l.packageName !== undefined ? { packageName: l.packageName } : {}),
+            ...(l.local !== undefined ? { local: l.local } : {}),
+          })),
         },
       }
     } catch (err) {
