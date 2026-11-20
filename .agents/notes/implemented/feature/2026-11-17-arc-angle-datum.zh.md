@@ -4,6 +4,8 @@ Status: implemented
 
 2026-11-17。承接 `2026-11-16-sweep-api-consolidation.zh.md`（公开面收敛为 `sweep` + `sweepRaw`）。
 
+[English](2026-11-17-arc-angle-datum.md) | 中文
+
 ## 问题
 
 1. **两个引擎各有自己的角度零点。** `cad.circleArc(center, normal, r, a0, a1)` 在 occt 与
@@ -31,10 +33,10 @@ Status: implemented
 
 ```
 n̂ = unit(normal)
-ref = |n̂.x| < 0.999 ? (1,0,0) : (0,1,0)     // 法向几乎贴着 +X 轴时退到 +Y
-u  = unit(ref − (ref·n̂) n̂)                   // 世界 +X 在圆面内的投影
+ref = |n̂.x| < 0.999 ? (1,0,0) : (0,1,0)     // fall back to +Y when the normal nearly aligns with +X
+u  = unit(ref − (ref·n̂) n̂)                   // world +X projected into the circle plane
 v  = n̂ × u
-P(θ) = center + radius (cosθ·u + sinθ·v)      // θ 为弧度
+P(θ) = center + radius (cosθ·u + sinθ·v)      // θ in radians
 ```
 
 语义：**0° = 世界 +X 在圆面内的投影，绕法向逆时针为正**，参数起点恒等于 `a0` 那个点、
@@ -62,7 +64,7 @@ P(θ) = center + radius (cosθ·u + sinθ·v)      // θ 为弧度
 圆唯一：圆心必在「过起点、垂直切向」的直线上，又要到两端等距 ⇒
 
 ```
-ĥ = unit(弦在 ⟂t̂ 方向的分量)      x = |d|² / (2 |d⊥|)
+ĥ = unit(component of the chord along the direction in ⟂t̂)     x = |d|² / (2 |d⊥|)
 c = start + x·ĥ
 axis = unit(cross(start − c, t̂))
 rVec = start − c,  eVec = end − c
@@ -216,3 +218,27 @@ mid = c + rotateAbout3(rVec, axis, φ/2)
 - `docs/api-contract.zh.md` §7.11 仍把 brepkit 当对等引擎、且 L1/L2 口径与 `scripts/check-api-test-coverage.ts`
   不同 —— 术语冲突尚未修（用户指出过该术语过时）。
 - smlib 侧缺口不变：`shapeOrientation`、`getSubShapes(face)`、`curveSplit` 仍 P1 未实现。
+
+## Alternatives considered
+
+- **用三点弧替代解析弧原语** —— 否决：小跨度下三点近共线、圆心反解病态；解析原语在小弧上
+  更准，且 `curveType` 必须报 canonical arc（不能降成 bspline）。
+- **按 `shapeOrientation` 读走向来纠正弧方向** —— 否决：smlib 的 `shapeOrientation` 未实现
+  （`unsupported`），不能作为跨引擎基准；实测反解 δ/σ 在两个引擎上都可用，不依赖它。
+- **L1 侧采样识别补回椭圆语义（覆盖 `curveType`）** —— 评审否决：用采样猜内核类型再覆盖
+  `curveType` 属伪造内核事实（与「用测量纠正构造」性质不同），会触碰 `occt-primitives.ts` 的
+  no-cross-layer-assertion-lies 红线；用户拍板的边界是「几何可用、语义如实」。
+
+## Consequences
+
+- `cad.circleArc` 在 canonical 帧下于 occt 与 smlib 产出同一条弧（0° = 世界 +X 在圆面内的
+  投影、逆时针为正）；两引擎逐点一致，用户症状（sweep 0 vs 16×25.708）双端修复。
+- 闭合圆（跨度 360°）接缝位置仍随引擎；跨度 > 360° 以 `E_CIRCLEARC_SPAN` 拒绝；基准失败抛
+  `E_CIRCLEARC_DATUM`（带实测 δ/σ）。
+- `cad.tangentArc` 成为中立 op（`engines: ['occt','smlib']`），支持有向角长弧，含三个
+  `E_TANGENTARC_*` 错误码。
+- 椭圆族以 L1 `makeEllipseEdge` / `makeEllipseArc` 落地，遵循「几何可用、语义如实」：occt 报
+  `ellipse`，smlib 的有理构造报 `bspline`；跨引擎判据必须比采样几何而非类型标签，椭圆族
+  长度容差按 1e-3 级（occt 闭合椭圆长度查询偏粗）。
+- 所有引用圆弧的既有套件已按新基准重定几何；旋转不变性已验证（S8 斜接体积比在整体转 90°
+  后逐位不变）。

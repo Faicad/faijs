@@ -5,6 +5,8 @@ Status: implemented
 2026-11-16。承接 `2026-11-16-pipe-along-multi-segment-sweep.zh.md`（四段式扫掠）与本次
 「API 合并 + 引擎探测」两步。
 
+[English](2026-11-16-sweep-api-consolidation.md) | 中文
+
 ## 问题
 
 仓里有四条扫掠路径，名字各说各的，差别全在**内核**而不在用户意图：
@@ -161,10 +163,10 @@ npx vitest run test/api/sweep-engines.test.ts test/api/sweep-along.test.ts \
 npx vitest run test/api/sweep-engines.test.ts test/api/sweep-along.test.ts \
   test/api/sweep-guard.test.ts test/api/sweep-revolve-guard.test.ts \
   test/api/sweep-loft.test.ts test/api/sweep-hollow-pipe.test.ts \
-  test/api/sweep-kernel-behavior.test.ts        # 7 文件 / 139 用例
+  test/api/sweep-kernel-behavior.test.ts        # 7 files / 139 cases
 npx vitest run test/api/wire-from-edges.test.ts \
   test/brep/engine/engine-switch-smlib.test.ts \
-  test/api/occt-s4-curve-sketch.test.ts test/api/occt-s4-curve-sketch-contract.test.ts   # 4 文件 / 50 用例
+  test/api/occt-s4-curve-sketch.test.ts test/api/occt-s4-curve-sketch-contract.test.ts   # 4 files / 50 cases
 ```
 全部绿；`npx tsc --noEmit` 无本次改动相关错误（30 条既有错误全在 `test/probe-revolve-*` /
 `test/api/revolve-degenerate.test.ts` / `test/smlib-kernel/circular-pattern-step.test.ts`）；
@@ -286,11 +288,11 @@ npx vitest run test/api/wire-from-edges.test.ts \
 ### 验证（第四轮）
 
 ```
-13 文件 / 209 用例全绿
-（sweep-engines 38 / sweep-along 15 / sweep-kernel-behavior 28 / spine-analysis /
- wire-from-edges 50 批次内 / engine-switch-smlib / curve-sketch ×2 / multi-engine-op-parity）
-npx tsc --noEmit → 30 条既有错误（全在 revolve 探针与 circular-pattern-step），本次文件零错误
-npx tsx scripts/check-api-test-coverage.ts --package=core → 通过（L1 183 / L2 93 baseline 未变）
+13 files / 209 cases all green
+(sweep-engines 38 / sweep-along 15 / sweep-kernel-behavior 28 / spine-analysis /
+ wire-from-edges 50 within batch / engine-switch-smlib / curve-sketch ×2 / multi-engine-op-parity)
+npx tsc --noEmit → 30 pre-existing errors (all in revolve probes and circular-pattern-step), zero errors in changed files
+npx tsx scripts/check-api-test-coverage.ts --package=core → passes (L1 183 / L2 93, baseline unchanged)
 ```
 
 ## 第五轮：弧段延伸改「沿同一圆续弧」，并纠正一条错判断
@@ -357,7 +359,31 @@ npx tsx scripts/check-api-test-coverage.ts --package=core → 通过（L1 183 / 
 ### 验证（第五轮）
 
 ```
-13 文件 / 210 用例全绿（新增 P0l）
-npx tsc --noEmit → 30 条既有错误（revolve 探针 / circular-pattern-step），本次文件零错误
-npx tsx scripts/check-api-test-coverage.ts --package=core → 通过（L1 183 / L2 93 baseline 未变）
+13 files / 210 cases all green (new P0l)
+npx tsc --noEmit → 30 pre-existing errors (revolve probes / circular-pattern-step), zero errors in changed files
+npx tsx scripts/check-api-test-coverage.ts --package=core → passes (L1 183 / L2 93, baseline unchanged)
 ```
+
+## Alternatives considered
+
+- **保留四个符号并为被删符号加兼容别名** —— 否决：用户明确说「不需要兼容性」，这些名字
+  编码的是内核差异而非用户意图，且仓内没有任何脚本用 `pipe`，别名只会保留混乱。
+- **全部合并进单一 `sweep`（不留 `sweepRaw` 逃生口）** —— 否决：occt 的全套控制面
+  （law / auxSpine / support / withContact…）没有策略层等价物，策略层有意限定在意图级
+  策略；把内核控制藏进 `sweep` 会把两层搅在一起。
+- **smlib 的空间 G0 折角依赖内核自己的斜接** —— 被实测否决：内核吐退化碎片
+  （P0i：V=0、非流形），所以才有策略层自补配方（`planMiterJoints` + `sweepWithBuiltJoints`）。
+
+## Consequences
+
+- 公开面收敛为 `cad.sweep` + `cad.sweepRaw`；`cad.pipe` 与 `cad.sweepAlong` 删除且无别名。
+  使用被删符号的存量脚本按设计直接失败。
+- `STRATEGIES_BY_ENGINE` 是各引擎能力的唯一权威；smlib 现支持
+  `single`/`miter`/`segments`/`closed`（空间 G0 折角走自补、平面折角走内核），C2 端面法向
+  判据恢复生效；brepkit 保持实测能力上限。
+- 纯直线折线上 `segments` 与 `miter` 数值完全相同；混合边带折角的脊柱现在可以扫掠，
+  体积残差约 +0.46%（弧段沿同圆续弧），smlib 例外——混合+折角显式拒绝（布尔限制）。
+- 新增守卫：`E_SWEEP_EMPTY_PIECE`（静默空扫掠体变成立即失败）与
+  `E_SPINE_MITER_SELF_INTERSECT`（造不出来的折角大声失败）。
+- 已知遗留：`docs/ops-api-inventory.md(.zh.md)` 待 `validateSolid` 补章节后整体重新生成；
+  `E_SWEEP_EMPTY_PIECE` 目前无 op 级测试覆盖（内核级行为由 P0l 钉住）。
