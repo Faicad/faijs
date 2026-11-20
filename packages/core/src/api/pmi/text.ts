@@ -60,12 +60,15 @@ export function formatThreadHole(item: PmiThreadHole): string {
   const countPrefix = item.count !== undefined && item.count > 1 ? `${item.count}×` : ''
   const tol = item.thread.toleranceClass ? `-${item.thread.toleranceClass}` : ''
   const handed = item.thread.handedness === 'left' ? ' LH' : ''
-  const threadPart = `${countPrefix}${formatThreadSpec(item.thread)}${tol}${depthText(item.thread.depth)}${handed}`
+  const toFace = item.termination === 'face'
+  const threadDepth = toFace ? ' 到面' : depthText(item.thread.depth)
+  const threadPart = `${countPrefix}${formatThreadSpec(item.thread)}${tol}${threadDepth}${handed}`
 
   if (item.process === 'modeled') {
     return `${threadPart}（实体螺纹）`
   }
-  const pilotPart = `底孔 Φ${num(item.pilot.diameter)}${depthText(item.pilot.depth)}`
+  const pilotDepth = toFace ? ' 到面' : depthText(item.pilot.depth)
+  const pilotPart = `底孔 Φ${num(item.pilot.diameter)}${pilotDepth}`
   return `${threadPart}（${pilotPart}，攻丝）`
 }
 

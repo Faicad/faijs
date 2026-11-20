@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   npm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-11-20-up-to-termination-contract.md
-2026-11-20-up-to-termination-contract.md: f2a49c116a185e5eb534e63c42fdf259a27136a3
-2026-11-20-up-to-termination-contract.zh.md: de2cea6c27e8c43fe576dc8e1eeeb4472c782956
+2026-11-20-up-to-termination-contract.md: c873e0f41b4cb894760758a08ca672ea5ba7ca4e
+2026-11-20-up-to-termination-contract.zh.md: 52930a3dc4dcced8c08b5899f081708fdfcf5519

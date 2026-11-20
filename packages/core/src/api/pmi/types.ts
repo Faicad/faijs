@@ -362,6 +362,8 @@ export interface PmiThreadHole {
   readonly target?: FaceTopoRef
   /** 显示文本缓存（缺省由 `formatThreadHole` 生成，不参与身份判定）。 */
   readonly label?: string
+  /** 孔深由面/基准面决定（而非书写数值深度）：标注显示「到面」，不写死深度数字。 */
+  readonly termination?: 'face'
 }
 
 // ── PMI 统一类型 ──

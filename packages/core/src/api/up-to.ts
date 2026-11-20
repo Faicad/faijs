@@ -363,7 +363,21 @@ export function trimToPlane(
   const clipped = kernel.common(solid, halfspace)
   kernel.release(solid)
   kernel.release(halfspace)
-
+  // An empty Boolean result may be a null handle or a handle with no geometry
+  // on some kernels. Check its volume before asking for a bounding box: the
+  // bbox helper logs a kernel error to stderr, which CI treats as a failure.
+  let volume = 0
+  if (clipped) {
+    try {
+      volume = kernel.getVolume(clipped)
+    } catch {
+      volume = 0
+    }
+  }
+  if (!(volume > 1e-9)) {
+    if (clipped) kernel.release(clipped)
+    throw new Error('E_UP_TO_NO_INTERSECTION: tool does not reach the target face')
+  }
   const clippedBBox = getSolidBoundingBox(kernel, clipped)
   if (!Number.isFinite(bboxDiag(clippedBBox)) || bboxDiag(clippedBBox) < 1e-9) {
     kernel.release(clipped)

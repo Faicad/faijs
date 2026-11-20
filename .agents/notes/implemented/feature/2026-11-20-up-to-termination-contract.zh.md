@@ -32,3 +32,5 @@ Status: implemented
 - 定长行为不变：每个新测试同时钉住不带 `upTo` 的结果与到面结果。
 - 生成的 API 手册收录新参数表，长期契约文档记录共用语义（含 `next` 精度边界）。
 - API 覆盖门禁在真实 TypeScript 调用点上强制校验：脚本字符串调用对 AST 门禁不可见。
+- 测试覆盖五个 op 的四类目标、孔底位置与孔心/半径不变、各消费者上的 `offset`、`next` 选中中间面、`combine:'cut'` 两步等价、斜孔底共面、PMI `termination:'face'` 文本、mesh 链拒绝，以及 `E_UP_TO_*` / `E_DRILL_UPTO_AXIS` 错误码。
+- 补测过程暴露并修复了三处实现缺项：`trimToPlane` 的空布尔结果抛内核错误而非 `E_UP_TO_NO_INTERSECTION`；方案要求的 `E_DRILL_UPTO_AXIS` 守卫缺失；`punchHole` 对斜目标只在锚点定深（平底），未按真实截断面裁剪棱柱。

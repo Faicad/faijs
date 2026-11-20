@@ -14,7 +14,12 @@
  * 走 mesh 模式：本用例只验语义与终端集合，不需要 OCCT（也就无需 120s 内核初始化）。
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
+import { initOcctWasm } from '../../src/occt-kernel/occtKernel'
+import { brepOf } from '../../src/shape'
+import { getBrepApi } from '../../src/brep/handle-bridge'
+import type { Shape } from '../../src/mesh/types'
+import type { BrepHandle } from '../../src/brep/engine/types'
 import { asPartName } from '../../src/identity'
 import { createRuntime } from '../../src/cad-runtime/runtime'
 import type { HostPorts } from '../../src/cad-runtime/ports'
@@ -127,5 +132,36 @@ describe('boolean aliases: projection bookkeeping', () => {
     expect(symbolTable).toHaveProperty('cut')
     expect(symbolTable).toHaveProperty('union')
     expect(symbolTable).toHaveProperty('subtract')
+  })
+})
+
+describe('cad.extrude combine:"cut" equivalence (BREP)', () => {
+  beforeAll(async () => {
+    await initOcctWasm()
+  }, 120000)
+
+  it('combine:"cut" equals the two-step extrude + subtract result', async () => {
+    const SQUARE = JSON.stringify([{ segments: [
+      { kind: 'line', x1: 0, y1: 0, x2: 2, y2: 0 },
+      { kind: 'line', x1: 2, y1: 0, x2: 2, y2: 2 },
+      { kind: 'line', x1: 2, y1: 2, x2: 0, y2: 2 },
+      { kind: 'line', x1: 0, y1: 2, x2: 0, y2: 0 },
+    ], closed: true }])
+    const runtime = createRuntime(PORTS, 'brep')
+    const result = await runtime.execute(`
+      let base = cad.box(10, 10, 20, { centered: false })
+      let sk = cad.profile({ contours: ${SQUARE} })
+      let direct = cad.extrude(sk, { upTo: 'last', baseFeature: base, combine: 'cut' })
+      let base2 = cad.box(10, 10, 20, { centered: false })
+      let sk2 = cad.profile({ contours: ${SQUARE} })
+      let tool = cad.extrude(sk2, { upTo: 'last', baseFeature: base2 })
+      let twoStep = cad.subtract(base2, tool)
+    `)
+    expect(result.failedAt).toBeUndefined()
+    const direct = result.outputs.get(asPartName('direct')) as Shape
+    const twoStep = result.outputs.get(asPartName('twoStep')) as Shape
+    const k = getBrepApi()
+    expect(k.getVolume(brepOf(direct) as BrepHandle)).toBeCloseTo(k.getVolume(brepOf(twoStep) as BrepHandle), 2)
+    expect(k.getVolume(brepOf(direct) as BrepHandle)).toBeCloseTo(2000 - 4 * 20, 2)
   })
 })

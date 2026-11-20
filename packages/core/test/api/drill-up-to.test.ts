@@ -19,6 +19,7 @@ import type { Shape } from '../../src/mesh/types'
 import type { BrepHandle } from '../../src/brep/engine/types'
 import type { BrepEngineApi } from '../../src/brep/engine/primitives'
 import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
+import { drillBrep } from '../../src/api/brep-operations/compoundFns'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -90,5 +91,82 @@ describe('cad.drill upTo (P1)', () => {
       let d = cad.drill(base, { at: [5, 5], radius: 2 })
     `)
     expect(volumeOf(outputs.get(asPartName('d'))!)).toBeCloseTo(2000 - Math.PI * 4 * 20, 1)
+  })
+
+  it('upTo a picked face (FaceTopoRef) drills to that face', async () => {
+    const outputs = await runCode(`
+      let base = cad.box(10, 10, 20, { centered: false })
+      let up = cad.drill(base, { at: [5, 5], radius: 2, upTo: cad.faceRef(base, 6) })
+    `)
+    // faceRef(base, 6) is the +Z cap at z=20 → through hole.
+    expect(volumeOf(outputs.get(asPartName('up'))!)).toBeCloseTo(2000 - Math.PI * 4 * 20, 1)
+  })
+
+  it("upTo a '>Z' selector resolves on baseFeature and stops at its top face", async () => {
+    const outputs = await runCode(`
+      let base = cad.box(10, 10, 20, { centered: false })
+      let stop = cad.box(10, 10, 12, { centered: false })
+      let up = cad.drill(base, { at: [5, 5], radius: 2, upTo: '>Z', baseFeature: stop })
+    `)
+    // The selector reads the support body (depth 12), not the drilled solid.
+    expect(volumeOf(outputs.get(asPartName('up'))!)).toBeCloseTo(2000 - Math.PI * 4 * 12, 1)
+  })
+
+  it('hole bottom follows the target plane (depth 5 / 10 / 15), bbox unchanged', async () => {
+    for (const z of [5, 10, 15]) {
+      const outputs = await runCode(`
+        let base = cad.box(10, 10, 20, { centered: false })
+        let up = cad.drill(base, { at: [5, 5], radius: 2, upTo: { plane: { point: [0, 0, ${z}], normal: [0, 0, 1] } } })
+      `)
+      const result = outputs.get(asPartName('up'))!
+      expect(volumeOf(result)).toBeCloseTo(2000 - Math.PI * 4 * z, 1)
+      const bb = (getBackends().kernel.brep! as BrepEngineApi).getBoundingBox(brepOf(result) as BrepHandle)
+      expect([bb.xmin, bb.xmax, bb.ymin, bb.ymax, bb.zmin, bb.zmax]).toEqual([0, 10, 0, 10, 0, 20])
+    }
+  })
+
+  it('upTo preserves the hole centre and radius of the fixed-depth path', async () => {
+    const outputs = await runCode(`
+      let b1 = cad.box(10, 10, 20, { centered: false })
+      let up1 = cad.drill(b1, { at: [5, 5], radius: 2, upTo: { plane: { point: [0, 0, 10], normal: [0, 0, 1] } } })
+      let b2 = cad.box(10, 10, 20, { centered: false })
+      let fixed1 = cad.drill(b2, { at: [5, 5], radius: 2, depth: 10 })
+      let b3 = cad.box(10, 10, 20, { centered: false })
+      let up2 = cad.drill(b3, { at: [4, 4], radius: 2, upTo: { plane: { point: [0, 0, 10], normal: [0, 0, 1] } } })
+      let b4 = cad.box(10, 10, 20, { centered: false })
+      let fixed2 = cad.drill(b4, { at: [4, 4], radius: 2, depth: 10 })
+    `)
+    const v = (name: string) => volumeOf(outputs.get(asPartName(name))!)
+    expect(v('up1')).toBeCloseTo(v('fixed1'), 2)
+    expect(v('up2')).toBeCloseTo(v('fixed2'), 2)
+    expect(v('up1')).toBeCloseTo(v('up2'), 2)
+    for (const name of ['up1', 'up2']) {
+      const bb = (getBackends().kernel.brep! as BrepEngineApi).getBoundingBox(brepOf(outputs.get(asPartName(name))!) as BrepHandle)
+      expect([bb.xmin, bb.xmax, bb.ymin, bb.ymax, bb.zmin, bb.zmax]).toEqual([0, 10, 0, 10, 0, 20])
+    }
+  })
+
+  it('offset shifts the termination plane along its normal', async () => {
+    const outputs = await runCode(`
+      let base = cad.box(10, 10, 20, { centered: false })
+      let up = cad.drill(base, {
+        at: [5, 5], radius: 2,
+        upTo: { plane: { point: [0, 0, 10], normal: [0, 0, 1] } }, offset: 3,
+      })
+    `)
+    expect(volumeOf(outputs.get(asPartName('up'))!)).toBeCloseTo(2000 - Math.PI * 4 * 13, 1)
+  })
+
+  it('an axis parallel to the target plane is rejected with E_DRILL_UPTO_AXIS', async () => {
+    const outputs = await runCode(`let base = cad.box(10, 10, 20, { centered: false })`)
+    const base = outputs.get(asPartName('base'))!
+    // Call the BREP op directly: the script schema drops `axis`, so only the
+    // library surface can pin the degenerate axis/plane combination.
+    const result = drillBrep(base, {
+      at: [5, 5], radius: 2, axis: [1, 0, 0],
+      upTo: { plane: { point: [0, 0, 10], normal: [0, 0, 1] } },
+    } as never)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('E_DRILL_UPTO_AXIS')
   })
 })

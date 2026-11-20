@@ -170,4 +170,43 @@ describe('cad.punchHole upTo (P1)', () => {
     )
     expect(result.failedAt?.message).toMatch(/E_PUNCH_HEIGHT_UPTO/)
   })
+
+  it('oblique target plane produces a coplanar pocket bottom', async () => {
+    const topOrd = await boxTopFaceOrdinal()
+    const n = [0.2, 0, 1] as const
+    const len = Math.hypot(...n)
+    const normal = n.map((v) => v / len) as [number, number, number]
+    const point: [number, number, number] = [0, 0, 8]
+    const result = await exec(
+      `const p0 = cad.box(20, 20, 10)\n` +
+        `const holed = cad.punchHole({ contours: ${JSON.stringify([sq(8, 8, 4)])}, on: p0, face: ${topOrd}, upTo: { plane: { point: [0, 0, 8], normal: [${normal.join(',')}] } } })\n`,
+    )
+    if (result.failedAt) throw new Error(`punchHole oblique upTo failed: ${result.failedAt.message}`)
+    const kernel = getBrepApi()
+    const faces = kernel.getSubShapes(handleOf(result, 'holed'), 'face' as never) as never[]
+    const onPlane = faces.filter((f) => {
+      const uv = kernel.uvBounds(f as never)
+      const fn = kernel.surfaceNormal(f as never, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
+      return Math.abs(fn.x * normal[0] + fn.y * normal[1] + fn.z * normal[2]) > 0.999
+    })
+    expect(onPlane.length).toBeGreaterThan(0)
+    const c = kernel.surfaceCenterOfMass(onPlane[0] as never)
+    const residual = (c.x - point[0]) * normal[0] + (c.y - point[1]) * normal[1] + (c.z - point[2]) * normal[2]
+    expect(Math.abs(residual)).toBeLessThan(1e-4)
+  })
+
+  it('offset shifts the termination plane along its normal', async () => {
+    const topOrd = await boxTopFaceOrdinal()
+    const script = (opts: string) =>
+      `const p0 = cad.box(20, 20, 10)\n` +
+      `const holed = cad.punchHole({ contours: ${JSON.stringify([sq(8, 8, 4)])}, on: p0, face: ${topOrd}, ${opts} })\n`
+    const up = await exec(script(
+      'upTo: { plane: { point: [0, 0, 6], normal: [0, 0, 1] } }, offset: 2',
+    ))
+    const fixed = await exec(script('height: 2'))
+    if (up.failedAt) throw new Error(up.failedAt.message)
+    if (fixed.failedAt) throw new Error(fixed.failedAt.message)
+    expect(firstSolid(up, 'holed').volume).toBeCloseTo(firstSolid(fixed, 'holed').volume, 2)
+    expect(firstSolid(up, 'holed').volume).toBeCloseTo(4000 - 4 * 4 * 2, 2)
+  })
 })

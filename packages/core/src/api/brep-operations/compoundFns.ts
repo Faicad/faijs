@@ -175,6 +175,15 @@ export function drillBrep(...args: unknown[]): Result<BrepHandle> {
         direction: dir,
         offset,
       })
+      const parallel = Math.abs(
+        dir[0] * plane.normal[0] + dir[1] * plane.normal[1] + dir[2] * plane.normal[2],
+      )
+      if (parallel < 1e-6) {
+        return err(validationError(
+          'E_DRILL_UPTO_AXIS',
+          'drill: upTo termination plane is parallel to the drilling axis',
+        ))
+      }
       const bb = kernel.getBoundingBox(s)
       const diag = Math.hypot(bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin)
       const longTool = cylinderAt(kernel, radius, diag * 3 + Math.abs(offset ?? 0) * 2 + 10, pos, dir)

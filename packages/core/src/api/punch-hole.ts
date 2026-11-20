@@ -36,7 +36,7 @@ import { evaluateCurve2d } from '../geometry2d/curve2d'
 import { profileSegToCurve } from '../geometry2d/adapt'
 import { assertProfileParams, contourAnglesToRadians, type ProfileLoop } from './profile'
 import { contoursDimSpec } from '../sketch/dim-spec.js'
-import { normalizeUpToTarget, resolveUpToPlane } from './up-to'
+import { normalizeUpToTarget, resolveUpToPlane, trimToPlane, type CutPlane } from './up-to'
 
 /** Parameters for `cad.punchHole`. */
 export interface PunchHoleParams {
@@ -158,12 +158,15 @@ export function punchSolidOf(kernel: BrepEngineApi, solid: BrepHandle, params: P
 
   // up-to: resolve the target plane and derive the punch depth from the host
   // anchor along the inward normal (-n). Reuse the fixed-depth geometry path
-  // (including draft frustum) by back-filling `depth` here.
+  // (including draft frustum) by back-filling `depth` here. An oblique plane
+  // needs a real half-space clip below (a scalar depth alone yields a flat
+  // bottom, which is not coplanar with the target).
+  let upToPlane: CutPlane | undefined
+  const inward: [number, number, number] = [-n.x, -n.y, -n.z]
   if (params.upTo !== undefined) {
     if (params.height !== null && params.height !== undefined) {
       throw new Error('E_PUNCH_HEIGHT_UPTO: punchHole height and upTo are mutually exclusive')
     }
-    const inward: [number, number, number] = [-n.x, -n.y, -n.z]
     const origin: [number, number, number] = [anchor.x, anchor.y, anchor.z]
     const plane = resolveUpToPlane(normalizeUpToTarget(params.upTo), {
       kernel,
@@ -186,6 +189,7 @@ export function punchSolidOf(kernel: BrepEngineApi, solid: BrepHandle, params: P
       throw new Error('E_UP_TO_NO_INTERSECTION: target face is not in the punch direction')
     }
     depth = t
+    upToPlane = plane
   }
 
   const bounds = ub
@@ -255,7 +259,24 @@ export function punchSolidOf(kernel: BrepEngineApi, solid: BrepHandle, params: P
       ) as unknown as BrepHandle
     } else {
       const prismFace = kernel.makeFace(kernel.makeWire(mouthEdges))
-      punch = kernel.extrude(prismFace, -n.x * depth, -n.y * depth, -n.z * depth)
+      const oblique = upToPlane !== undefined &&
+        Math.abs(n.x * upToPlane.normal[0] + n.y * upToPlane.normal[1] + n.z * upToPlane.normal[2]) < 0.999999
+      if (oblique && upToPlane) {
+        // Over-extend the prism past the plane everywhere across the profile,
+        // then clip it with the real target half-space so the pocket bottom is
+        // coplanar with an oblique target instead of merely as deep at the anchor.
+        const bb = kernel.getBoundingBox(solid)
+        const pad = 2 * Math.hypot(bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin) + 1
+        const longPunch = kernel.extrude(
+          prismFace, -n.x * (depth + pad), -n.y * (depth + pad), -n.z * (depth + pad),
+        )
+        punch = trimToPlane(
+          kernel, longPunch, upToPlane,
+          [anchor.x, anchor.y, anchor.z], inward, 2 * pad,
+        )
+      } else {
+        punch = kernel.extrude(prismFace, -n.x * depth, -n.y * depth, -n.z * depth)
+      }
     }
     try {
       result = kernel.cut(result, punch)

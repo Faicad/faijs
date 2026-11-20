@@ -54,6 +54,18 @@ const holeWall: FaceTopoRef = {
 }
 
 describe('PmiThreadHole — 一条标注两类信息', () => {
+  it('termination:face 调用点：到面孔不显示数值深度', () => {
+    const item = threadHole({
+      thread: { standard: 'metric', nominalDiameter: 6, toleranceClass: '6H', depth: 10, specLabel: 'M6' },
+      pilot: { diameter: 5, depth: 12 },
+      axis: { origin: [0, 0, 0], direction: [0, 0, -1] },
+      process: 'tapped',
+      termination: 'face',
+    })
+    expect(item.termination).toBe('face')
+    expect(formatThreadHole(item)).toBe('M6-6H 到面（底孔 Φ5 到面，攻丝）')
+  })
+
   it('工厂只补 kind，两组信息原样保留', () => {
     const item = tappedM6()
     expect(item.kind).toBe('threadHole')

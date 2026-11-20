@@ -262,6 +262,26 @@ describe('网格链上的草图 + 拉伸（Phase 3 验收：B2 批）', () => {
     expect(result.failedAt!.message).toContain('E_MESH_SOLID_UNSUPPORTED')
   })
 
+  it('网格链不支持 upTo 钻孔：如实拒绝，不静默退化成定深钻孔', async () => {
+    const runtime = createEditorRuntime(PORTS(), 'mesh')
+    const result = await runtime.execute(
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      "let d = cad.drill(a, { at: [5, 5], radius: 1, upTo: 'last' })",
+    )
+    expect(result.failedAt, 'drill upTo 在网格链上必须静态失败').toBeDefined()
+    expect(result.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED|E_BREP_UNSUPPORTED/)
+  })
+
+  it('网格链不支持 upTo 切除：如实拒绝，不静默退化成定深切除', async () => {
+    const runtime = createEditorRuntime(PORTS(), 'mesh')
+    const result = await runtime.execute(
+      "let a = cad.load({ file: 'cube10.stl' })\n" +
+      `let p = cad.punchHole({ contours: [${JSON.stringify(RECT)}], on: a, face: 1, upTo: 'last' })`,
+    )
+    expect(result.failedAt, 'punchHole upTo 在网格链上必须静态失败').toBeDefined()
+    expect(result.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED|E_BREP_UNSUPPORTED/)
+  })
+
   it('scaleMode 非 original 时如实拒绝（UV 域在网格链上不存在）', async () => {
     const probe = createEditorRuntime(PORTS(), 'mesh')
     const ref = await topFaceRefOf(probe)

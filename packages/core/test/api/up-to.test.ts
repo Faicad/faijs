@@ -26,6 +26,7 @@ import {
   normalizeUpToTarget,
   resolveUpToPlane,
   clipByUpToPlane,
+  trimToPlane,
 } from '../../src/api/up-to'
 import { createApiNamespaceWithEditorOps } from '../support/editor-ops'
 
@@ -128,6 +129,51 @@ describe('resolveUpToPlane', () => {
     }
     expect(() => resolveUpToPlane({ kind: 'extent', which: 'last' }, ctx)).toThrow(/E_UP_TO_NO_BASE/)
   })
+
+  it('selector target resolves to the one matching face on the base', async () => {
+    const outputs = await runCode(`let base = cad.box(10, 10, 100, { centered: false })`)
+    const base = outputs.get(asPartName('base'))!
+    const plane = resolveUpToPlane({ kind: 'selector', selector: '>Z' }, {
+      kernel: kernel(), base,
+      origin: [0, 0, 0] as [number, number, number],
+      direction: [0, 0, 1] as [number, number, number],
+    })
+    expect(plane.point[2]).toBeCloseTo(100, 3)
+    // selector without a support body is rejected, same as extent
+    expect(() => resolveUpToPlane({ kind: 'selector', selector: '>Z' }, {
+      kernel: kernel(),
+      origin: [0, 0, 0] as [number, number, number],
+      direction: [0, 0, 1] as [number, number, number],
+    })).toThrow(/E_UP_TO_NO_BASE/)
+  })
+
+  it('next picks the closest qualifying face, not the far end', async () => {
+    const outputs = await runCode(`
+      let low = cad.box(10, 10, 50, { centered: false })
+      let high = cad.box(10, 10, 50, { at: [0, 0, 50], centered: false })
+      let stack = cad.compound({ members: [low, high] })
+    `)
+    const stack = outputs.get(asPartName('stack'))!
+    const ctx = {
+      kernel: kernel(), base: stack,
+      origin: [0, 0, 0] as [number, number, number],
+      direction: [0, 0, 1] as [number, number, number],
+    }
+    const next = resolveUpToPlane({ kind: 'extent', which: 'next' }, ctx)
+    const last = resolveUpToPlane({ kind: 'extent', which: 'last' }, ctx)
+    expect(next.point[2]).toBeCloseTo(50, 3) // internal face of the stack
+    expect(last.point[2]).toBeCloseTo(100, 3)
+  })
+
+  it('next with no face ahead throws E_UP_TO_NEXT_NOT_FOUND', async () => {
+    const outputs = await runCode(`let base = cad.box(10, 10, 50, { centered: false })`)
+    const base = outputs.get(asPartName('base'))!
+    expect(() => resolveUpToPlane({ kind: 'extent', which: 'next' }, {
+      kernel: kernel(), base,
+      origin: [0, 0, 100] as [number, number, number], // above every face
+      direction: [0, 0, 1] as [number, number, number],
+    })).toThrow(/E_UP_TO_NEXT_NOT_FOUND/)
+  })
 })
 
 describe('clipByUpToPlane', () => {
@@ -171,5 +217,18 @@ describe('clipByUpToPlane', () => {
       { kind: 'plane', point: [0, 0, 10], normal: [0, 0, 1] },
       { kernel: kernel(), origin: [1, 1, 0], direction: [1, 0, 0], offset: 0 },
     )).toThrow(/E_UP_TO_PARALLEL/)
+  })
+
+  it('trimToPlane rejects a tool entirely on the discarded side', async () => {
+    const outputs = await runCode(`let far = cad.box(2, 2, 1, { at: [0, 0, 20], centered: false })`)
+    const far = outputs.get(asPartName('far'))!
+    const solid = brepOf(far) as BrepHandle
+    expect(() => trimToPlane(
+      kernel(), solid,
+      { point: [0, 0, 10], normal: [0, 0, 1] },
+      [0, 0, 0] as [number, number, number],
+      [0, 0, 1] as [number, number, number],
+      1,
+    )).toThrow(/E_UP_TO_NO_INTERSECTION/)
   })
 })

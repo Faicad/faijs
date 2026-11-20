@@ -32,6 +32,14 @@ import { solidToShape } from '../../../src/brep/brep-ops'
 import type { Shape } from '../../../src/mesh/types'
 import { fai_drill } from '../../../src/extra/ops/fai_drill'
 import { pmiThreads } from '../../../src/api/pmi/query'
+import { formatThreadHole } from '../../../src/api/pmi/text'
+import { faceRef } from '../../../src/api/face-ref'
+import type { FaceTopoRef } from '../../../src/topology/naming/types'
+import { CadRuntime } from '../../../src/cad-runtime/runtime'
+import type { HostPorts } from '../../../src/cad-runtime/ports'
+import { solid } from '../../../src/shape'
+import { createApiNamespaceWithEditorOps } from '../../support/editor-ops'
+import { dualOpMetaOf } from '../../../src/define-op'
 
 let kernel: BrepEngineApi
 
@@ -59,6 +67,23 @@ function volumeOf(shape: Shape): number {
 
 async function drill(shape: Shape, params: Record<string, unknown>): Promise<Shape> {
   return (await fai_drill(shape, params)) as Shape
+}
+
+/** A box made by a real op, so `faceRef` has a naming context to resolve against. */
+async function namedBlock(): Promise<Shape> {
+  const ports = { events: { emit: () => {} } } as HostPorts
+  const rt = new CadRuntime(ports, 'brep', { cad: createApiNamespaceWithEditorOps() })
+  const result = await rt.execute('let base = cad.box(40, 40, 20)')
+  if (result.failedAt) throw new Error(result.failedAt.message)
+  return [...result.outputs.values()][0] as Shape
+}
+
+function capRefOf(shape: Shape, normalSign: number): FaceTopoRef {
+  for (let i = 1; i <= 6; i++) {
+    const ref = faceRef(shape, i)
+    if ((ref.hint.normal?.[2] ?? 0) * normalSign > 0.9) return ref
+  }
+  throw new Error(`no ${normalSign > 0 ? '+Z' : '-Z'} cap on the block`)
 }
 
 describe('fai_drill upTo (P1)', () => {
@@ -114,6 +139,69 @@ describe('fai_drill upTo (P1)', () => {
     const threads = pmiThreads(up)
     expect(threads.length).toBe(1)
     expect(threads[0]!.pilot.depth).toBeCloseTo(5, 2)
+  })
+
+  it('upTo PMI is annotated as 到面 instead of a numeric depth', async () => {
+    const up = await drill(block(40, 40, 20), {
+      position: [0, 0, 10], direction: 'z', holeType: 'tapped',
+      screwSpecIdx: 5, threadClass: '6H',
+      upTo: { plane: { point: [0, 0, 5], normal: [0, 0, 1] } },
+    })
+    const item = pmiThreads(up)[0]!
+    expect(item.termination).toBe('face')
+    expect(item.label).toContain('到面')
+    expect(item.label).not.toContain('↓5')
+    expect(formatThreadHole(item)).toBe(item.label)
+    // the resolved depth remains available as data even though the label does not print it
+    expect(item.pilot.depth).toBeCloseTo(5, 2)
+  })
+
+  it('face is the entry face and upTo is the stop face (independent)', async () => {
+    const base = await namedBlock()
+    const bb = kernel.getBoundingBox(brepOf(base) as BrepHandle)
+    const zMin = bb.zmin
+    const zMax = bb.zmax
+    const midZ = (zMin + zMax) / 2
+    const common = {
+      diameter: 6, holeType: 'tapped', screwSpecIdx: 5, threadClass: '6H',
+      upTo: { plane: { point: [0, 0, midZ], normal: [0, 0, 1] } },
+    }
+    const fromBottom = await drill(base, {
+      ...common, face: capRefOf(base, -1), position: [0, 0, zMin], direction: 'normal',
+    })
+    const fromTop = await drill(base, {
+      ...common, face: capRefOf(base, 1), position: [0, 0, zMax], direction: 'normal',
+    })
+    const bottomPmi = pmiThreads(fromBottom)[0]!
+    const topPmi = pmiThreads(fromTop)[0]!
+    // same stop plane and same resolved depth, opposite entry faces / drill axes
+    expect(bottomPmi.axis.origin).toEqual([0, 0, zMin])
+    expect(topPmi.axis.origin).toEqual([0, 0, zMax])
+    expect(bottomPmi.axis.direction[2]).toBeCloseTo(1, 3)
+    expect(topPmi.axis.direction[2]).toBeCloseTo(-1, 3)
+    expect(bottomPmi.pilot.depth).toBeCloseTo(10, 2)
+    expect(topPmi.pilot.depth).toBeCloseTo(10, 2)
+    expect(volumeOf(fromBottom)).toBeCloseTo(volumeOf(fromTop), 2)
+    expect(volumeOf(fromBottom)).toBeLessThan(volumeOf(base))
+  })
+
+  it('offset shifts the resolved upTo depth', async () => {
+    const up = await drill(block(40, 40, 20), {
+      position: [0, 0, 10], direction: 'z', diameter: 6, holeType: 'simple',
+      upTo: { plane: { point: [0, 0, 5], normal: [0, 0, 1] } }, offset: 2,
+    })
+    // entry z=10, plane z=5 shifted +2 along +Z → stop z=7 → depth 3
+    expect(volumeOf(up)).toBeCloseTo(40 * 40 * 20 - Math.PI * 9 * 3, 1)
+  })
+
+  it('upTo on the frozen mesh chain is rejected explicitly', async () => {
+    const meshShape = solid({ positions: new Float32Array(9), indices: new Uint32Array(3) })
+    const meshImpl = dualOpMetaOf(fai_drill)!.mesh as (
+      input: Shape, params: Record<string, unknown>,
+    ) => Promise<Shape>
+    await expect(meshImpl(meshShape, {
+      position: [0, 0, 0], direction: 'z', diameter: 6, upTo: 'last',
+    })).rejects.toThrow(/E_MESH_UNSUPPORTED/)
   })
 
   it('fixed-depth paths remain unchanged (no upTo)', async () => {

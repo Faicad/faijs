@@ -447,6 +447,7 @@ export function buildThreadHolePmi(
     axis: { origin: localPosition, direction },
     process: (params.holeType === 'tapped' ? 'tapped' : 'modeled') as 'tapped' | 'modeled',
     ...(target !== undefined ? { target } : {}),
+    ...(params.upTo !== undefined ? { termination: 'face' as const } : {}),
   }
   const item = makeThreadHole(base)
   // label 只是显示缓存：两类信息在生成时就写全，宿主可直接渲染。

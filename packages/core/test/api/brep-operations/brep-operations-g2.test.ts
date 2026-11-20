@@ -212,6 +212,26 @@ describe('G2 单元层（brep-operations 自有实现）', () => {
     expect(kernel.getVolume(upH)).toBeLessThan(6000)
   })
 
+  it('pocketBrep upTo：offset 沿截断面法向平移终止面', () => {
+    const src = boxShape()
+    const wire = wireOf(boxShape())
+    const fixed = pocketBrep(src, { profile: wire, depth: 3 })
+    expect(fixed.ok).toBe(true)
+    const fixedH = (fixed as { ok: true; value: BrepHandle }).value
+
+    const src2 = boxShape()
+    const wire2 = wireOf(boxShape())
+    const up = pocketBrep(src2, {
+      profile: wire2,
+      upTo: { plane: { point: [0, 0, 25], normal: [0, 0, 1] } },
+      offset: 2,
+    })
+    expect(up.ok).toBe(true)
+    const upH = (up as { ok: true; value: BrepHandle }).value
+    // plane z=25 shifted +2 ⇒ stop at z=27 ⇒ depth 3 from the z=30 top face.
+    expect(kernel.getVolume(upH)).toBeCloseTo(kernel.getVolume(fixedH), 2)
+  })
+
   it('pocketBrep：depth + upTo 互斥报错', () => {
     const src = boxShape()
     const wire = wireOf(boxShape())

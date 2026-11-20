@@ -122,6 +122,28 @@ describe('cad.extrude backwardUpTo (P2)', () => {
     expect(volumeOf(p)).toBeCloseTo(80, 1)
   })
 
+  it('upTo next stops at the closest intermediate face, not the far end', async () => {
+    const outputs = await runCode(`
+      let low = cad.box(10, 10, 50, { centered: false })
+      let high = cad.box(10, 10, 50, { at: [0, 0, 50], centered: false })
+      let stack = cad.compound({ members: [low, high] })
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
+      let part = cad.extrude(sk, { upTo: 'next', baseFeature: stack })
+    `)
+    const bb = bboxOf(outputs.get(asPartName('part'))!)
+    expect(bb.max[2]).toBeCloseTo(50, 3)
+  })
+
+  it('backwardUpTo with mode:"backward" throws E_EXTRUDE_BACKWARD_CONFLICT', async () => {
+    await expect(runCode(`
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
+      let part = cad.extrude(sk, {
+        length: 5, mode: 'backward',
+        backwardUpTo: { plane: { point: [0, 0, -10], normal: [0, 0, 1] } },
+      })
+    `)).rejects.toThrow(/E_EXTRUDE_BACKWARD_CONFLICT/)
+  })
+
   it('backwardUpTo with backwardLength throws E_EXTRUDE_BACKWARD_UPTO', async () => {
     await expect(runCode(`
       let sk = cad.profile({ contours: [${SQUARE_2X2}] })
