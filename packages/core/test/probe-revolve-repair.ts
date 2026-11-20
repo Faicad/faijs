@@ -8,6 +8,7 @@
  * Expected exact volume = frustum(4.999,5,138) + cyl(5,22) = 12564.2031
  * Run: npx tsx test/probe-revolve-repair.ts   (cwd=packages/core)
  */
+import type { ShapeHandle } from 'occt-wasm'
 import { initOcctWasm } from '../src/occt-kernel/occtKernel'
 
 async function main(): Promise<void> {
@@ -22,8 +23,8 @@ async function main(): Promise<void> {
     [0, 0, 0],
   ]
   const verts = pts.map((p) => k.makeVertex(p[0], p[1], p[2]))
-  const mk = (a: number, b: number): number => k.makeEdge(verts[a]!, verts[b]!)
-  const edges: number[] = [mk(0, 1), mk(1, 2), mk(2, 3), mk(3, 4), mk(4, 0)]
+  const mk = (a: number, b: number): ShapeHandle => k.makeEdge(verts[a]!, verts[b]!)
+  const edges: ShapeHandle[] = [mk(0, 1), mk(1, 2), mk(2, 3), mk(3, 4), mk(4, 0)]
   const wire = k.makeWire(edges)
   const face = k.makeFace(wire)
 
@@ -36,8 +37,8 @@ async function main(): Promise<void> {
   const rIn = 4.999 - MARGIN
   const v0 = k.makeVertex(0, rIn, 0)
   const v1 = k.makeVertex(0, rIn, -138)
-  const segs: number[] = []
-  const addSeg = (a: number, b: number): void => {
+  const segs: ShapeHandle[] = []
+  const addSeg = (a: ShapeHandle, b: ShapeHandle): void => {
     const pa = k.vertexPosition(a)
     const pb = k.vertexPosition(b)
     if (Math.hypot(pa.x - pb.x, pa.y - pb.y, pa.z - pb.z) > 1e-9) segs.push(k.makeEdge(a, b))

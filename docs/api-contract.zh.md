@@ -253,9 +253,7 @@ keep 语句在提取期校验，违反项经 `CheckResult.errors` 上报，`stag
 
 ### 6.5 一句话口径（2026-11-14 补）
 
-**几何算子的输入一律消费**——`cad.union(a, b)` 之后 `a`/`b` 都已 `consumed`，对同一变量再写一句算子会报
-`was already consumed`。**要留下来就显式写 `<var>.keep()`（可见）或 `<var>.keepHidden()`（隐藏）**，
-不要靠"我后面还要用它"这种意图去推断（R5 只看引用，不看意图）。
+**几何算子的输入一律消费**——`cad.union(a, b)` 之后 `a`/`b` 都已 `consumed`，对同一变量再写一句算子会报 `was already consumed`。**要留下来就显式写 `<var>.keep()`（可见）或 `<var>.keepHidden()`（隐藏）**，不要靠"我后面还要用它"这种意图去推断（R5 只看引用，不看意图）。
 
 ---
 
@@ -873,3 +871,22 @@ let finish = cam.surfacing({ target: 'part0', faces: 'all', stepover: 1, rasterD
 ### 16.3 宿主通道
 
 `camBuild`（执行结果字段，Tier A 视图态）与 `camGenerate`（worker 指令，Tier B 派生数据）的协议形状见 3d_editor `packages/platform/src/contract.ts` / `protocol.ts` / `instruction-core.ts`；宿主侧设计见 3d_editor `docs/plans/2026-11-02-cam-web-port-design.md`（§5 API 契约 / §6 详细设计 / 附录 A 移植对照表）。
+
+## 17. 到面终止契约
+
+`upTo` 是面／基准面驱动的终止条件共用参数。`cad.extrude`、`cad.drill`、`cad.pocket`、`cad.punchHole`、`cad.fai_drill` 五个 op 都接受它，共用同一套目标语法与错误码。`upTo` 回答「停在哪」，与起点面参数相互独立（`cad.fai_drill.face` 回答「从哪起」）。各 op 的参数表见生成文档 `docs/ops-api-inventory.md`。
+
+### 17.1 目标语法
+
+- 拾取面引用（`FaceTopoRef`）——UI 产出的字面量；`cad.faceRef` 序号不是合法目标，跨内核不可移植。
+- `'last'` / `'first'`——沿加工方向支持体的远端／近端；`'next'`——起点前方最近的合格面（仅 extrude）。
+- CadQuery 面选择器字符串（如 `'>Z'`），在 `baseFeature` 上解析，必须恰好命中一个面。
+- `{ plane: { point, normal } }`——显式无限基准面。
+
+`baseFeature` 为 extent／选择器目标提供支持体；`offset` 沿截断面法向平移。`upTo` 与各 op 的定长参数（`length` / `depth` / `height`）互斥；`extrude.backwardUpTo` 与 `backwardLength`、`mode: 'backward'` 互斥。`extrude.combine: 'cut'` 把拉伸体当刀具，必须同时给 `baseFeature` 与 `upTo` 或 `backwardUpTo`。
+
+### 17.2 几何与执行链边界
+
+所有目标最终解析为一个截断面，刀具在布尔运算前按半空间盒截断，不会隐式交换保留侧。`next` 是近似语义：BREP 内核无线-面求交，因此按面中心在加工方向上的投影并配合法向夹角筛选最近面，不保证与曲面精确相交。
+
+仅 BREP——mesh 执行链已冻结（2026-11-07）。在纯 mesh 体上调用 `upTo` 显式报错，不产生半截几何。目标与加工方向平行、目标不可达、选择器命中多面、extent 目标缺支持体，分别抛 `E_UP_TO_PARALLEL`、`E_UP_TO_NO_INTERSECTION`、面选择器错误、`E_UP_TO_NO_BASE`。

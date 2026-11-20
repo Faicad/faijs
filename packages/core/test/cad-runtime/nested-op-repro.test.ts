@@ -28,10 +28,10 @@ const nestedLib = {
   contractVersion: CONTRACT_VERSION,
   async subtractTwice(a: Shape, b: Shape): Promise<Shape> {
     const first = await subtract(a, b)
-    return await subtract(first, await box(4, 4, 40))
+    return await subtract(first, await box({ width: 4, depth: 4, height: 40 }))
   },
   async boxThenSubtract(a: Shape): Promise<Shape> {
-    const tool = await box(4, 4, 40)
+    const tool = await box({ width: 4, depth: 4, height: 40 })
     return await subtract(a, tool)
   },
 }

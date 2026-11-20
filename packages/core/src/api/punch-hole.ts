@@ -36,6 +36,7 @@ import { evaluateCurve2d } from '../geometry2d/curve2d'
 import { profileSegToCurve } from '../geometry2d/adapt'
 import { assertProfileParams, contourAnglesToRadians, type ProfileLoop } from './profile'
 import { contoursDimSpec } from '../sketch/dim-spec.js'
+import { normalizeUpToTarget, resolveUpToPlane } from './up-to'
 
 /** Parameters for `cad.punchHole`. */
 export interface PunchHoleParams {
@@ -45,8 +46,14 @@ export interface PunchHoleParams {
   on: Shape
   /** The host face: a FaceTopoRef (UI-picked literal), a CadQuery face selector string (e.g. ">Z", resolved on `on`), or a 1-based ordinal (mesh chain / current kernel snapshot only). */
   face: FaceSelector
-  /** Removal depth along the face inward normal. `null`/absent = through hole. */
+  /** Removal depth along the face inward normal. `null`/absent = through hole. Mutually exclusive with `upTo`. */
   height?: number | null
+  /** Terminate the punch at a target plane/face/extent instead of a fixed height. BREP-only. */
+  upTo?: unknown
+  /** Support body for `upTo` extent/selector targets; defaults to `on`. */
+  baseFeature?: Shape
+  /** Cut-plane offset along its normal (mm). */
+  offset?: number
   /** Taper on the hole walls (degrees; default 0 = straight wall). Built as a frustum via occt loft. */
   draftAngle?: number
   /** UV mapping mode for contour placement (default `'original'`). */
@@ -133,7 +140,7 @@ function buildPolygon3d(
 export function punchSolidOf(kernel: BrepEngineApi, solid: BrepHandle, params: PunchHoleParams): BrepHandle {
   const host = resolveFaceHandle(kernel, params.on, params.face)
   const mode = params.scaleMode ?? 'original'
-  const depth = punchDepth(kernel, solid, params.height ?? null)
+  let depth = punchDepth(kernel, solid, params.height ?? null)
 
   const draft = params.draftAngle ?? 0
   const draftRad = (draft * Math.PI) / 180
@@ -148,6 +155,38 @@ export function punchSolidOf(kernel: BrepEngineApi, solid: BrepHandle, params: P
   const uMid = (ub.uMin + ub.uMax) / 2
   const vMid = (ub.vMin + ub.vMax) / 2
   const anchor = kernel.pointOnSurface(host, uMid, vMid)
+
+  // up-to: resolve the target plane and derive the punch depth from the host
+  // anchor along the inward normal (-n). Reuse the fixed-depth geometry path
+  // (including draft frustum) by back-filling `depth` here.
+  if (params.upTo !== undefined) {
+    if (params.height !== null && params.height !== undefined) {
+      throw new Error('E_PUNCH_HEIGHT_UPTO: punchHole height and upTo are mutually exclusive')
+    }
+    const inward: [number, number, number] = [-n.x, -n.y, -n.z]
+    const origin: [number, number, number] = [anchor.x, anchor.y, anchor.z]
+    const plane = resolveUpToPlane(normalizeUpToTarget(params.upTo), {
+      kernel,
+      base: params.baseFeature ?? params.on,
+      origin,
+      direction: inward,
+      offset: params.offset,
+    })
+    const dirLen = Math.hypot(inward[0], inward[1], inward[2]) || 1
+    const d: [number, number, number] = [inward[0] / dirLen, inward[1] / dirLen, inward[2] / dirLen]
+    const denom = d[0] * plane.normal[0] + d[1] * plane.normal[1] + d[2] * plane.normal[2]
+    if (Math.abs(denom) < 1e-9) {
+      throw new Error('E_UP_TO_PARALLEL: punch direction is parallel to the target face plane')
+    }
+    const t =
+      ((plane.point[0] - origin[0]) * plane.normal[0] +
+       (plane.point[1] - origin[1]) * plane.normal[1] +
+       (plane.point[2] - origin[2]) * plane.normal[2]) / denom
+    if (!Number.isFinite(t) || t <= 0) {
+      throw new Error('E_UP_TO_NO_INTERSECTION: target face is not in the punch direction')
+    }
+    depth = t
+  }
 
   const bounds = ub
   let result = solid
@@ -253,7 +292,10 @@ export function buildPunchHole(kernel: BrepEngineApi, params: PunchHoleParams): 
  * @param params.contours - ordered 2D closed contours (the hole profile).type:any[] required:true
  * @param params.on - the target solid to punch.type:Shape required:true
  * @param params.face - host face: FaceTopoRef（UI 拾取产物字面量）| 面选择器字符串（如 ">Z"，在 on 上解析，多面命中抛错）| 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本）。type:any required:true
- * @param params.height - blind depth along the face inward normal (null/absent = through).type:number|object required:false
+ * @param params.height - blind depth along the face inward normal (null/absent = through). Mutually exclusive with `upTo`.type:number|object required:false
+ * @param params.upTo - terminate at a target plane/face/extent instead of a fixed height: FaceTopoRef | 'last' | 'first' | CadQuery selector string | {plane:{point,normal}}. BREP-only.type:any required:false
+ * @param params.baseFeature - support body for `upTo` extent/selector; defaults to `on`.type:Shape required:false
+ * @param params.offset - cut-plane offset along its normal (mm).type:number required:false
  * @param params.draftAngle - wall taper in degrees (default 0 = straight; built as an occt loft frustum).type:number required:false
  * @param params.scaleMode - UV mapping: 'original' | 'bounds' | 'native'.type:string required:false
  * @example
@@ -269,6 +311,6 @@ export const punchHole = defineOp({
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 
-  paramDims: { height: 'length', draftAngle: 'angle' },
+  paramDims: { height: 'length', offset: 'length', draftAngle: 'angle' },
   spec: contoursDimSpec(),
 })

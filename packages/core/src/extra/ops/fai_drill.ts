@@ -40,6 +40,8 @@ import { appendPmiItem } from '../../api/pmi/methods'
 import { threadHole as makeThreadHole } from '../../api/pmi/types'
 import type { PmiThreadHole } from '../../api/pmi/types'
 import { formatThreadHole } from '../../api/pmi/text'
+import { normalizeUpToTarget, resolveUpToPlane } from '../../api/up-to'
+import { MeshUnsupportedError } from '../../runtime-state'
 
 // ── per-op 参数自校验（Phase 2.2；op 被直接 import 时的防御层） ──
 
@@ -288,6 +290,17 @@ function normalizeDescriptiveThread(params: Record<string, unknown>): Record<str
  * @returns normalized params (new object; input untouched).
  */
 function normalizeDrillParams(params: Record<string, unknown>): Record<string, unknown> {
+  // upTo (terminate at a face/plane) and an explicit depth are mutually exclusive.
+  if (params.upTo !== undefined && params.depth !== undefined) {
+    throw new Error('[extra/drill] E_DRILL_DEPTH_UPTO: depth and upTo are mutually exclusive')
+  }
+  if (params.upTo !== undefined && params.holeType === undefined && params.thread !== undefined) {
+    // descriptive thread with a depth suffix (↧18 / ↓18) implies a fixed depth;
+    // combining it with upTo is ambiguous — reject rather than silently prefer one.
+    if (/[↧↓]\s*\d|\d+\s*DEEP/i.test(params.thread as string)) {
+      throw new Error('[extra/drill] E_DRILL_DEPTH_UPTO: a thread spec with an explicit depth suffix cannot be combined with upTo')
+    }
+  }
   if (params.holeType === 'screw' && params.screwSystem === 'pipe') {
     throw new Error(
       "[extra/drill] 管螺纹（screwSystem:'pipe'）不支持 holeType:'screw'：锥管牙型未实现。"
@@ -318,6 +331,53 @@ function normalizeDrillParams(params: Record<string, unknown>): Record<string, u
   }
   const th = resolveThread(p)
   return { ...p, depth, diameter: resolvePilotDiameter(p, th) }
+}
+
+/**
+ * Resolve `upTo` into a concrete blind-hole depth and return a params copy with
+ * `depth` filled in. Downstream geometry (computeDrillGeometry, screw thread
+ * height) and PMI all read `params.depth`, so this keeps every hole type working
+ * with up-to without duplicating the tool-building logic.
+ *
+ * The depth is the signed distance from the hole entry point to the cut plane
+ * along the inward drilling direction. Everything is in model-local space.
+ *
+ * @param input - the target solid (default up-to base).
+ * @param p - normalized params carrying `upTo`.
+ * @returns a params copy with `depth` filled from the resolved plane.
+ */
+function resolveUpToDepthForDrill(
+  input: Shape,
+  p: Record<string, unknown>,
+): Record<string, unknown> {
+  if (p.upTo === undefined) return p
+  const kernel = getBrepApi()
+  const faceNormal = faceNormalFrom(input, p)
+  const inward = inwardDirection(resolveDirection(p, faceNormal), faceNormal)
+  const origin = p.position as [number, number, number]
+  const plane = resolveUpToPlane(normalizeUpToTarget(p.upTo), {
+    kernel,
+    base: (p.baseFeature as Shape | undefined) ?? input,
+    origin,
+    direction: inward,
+    offset: p.offset as number | undefined,
+  })
+  // t where origin + t*inward lies on the plane:
+  //   dot(origin + t*d - point, n) = 0  →  t = dot(point - origin, n) / dot(d, n)
+  const dirLen = Math.hypot(inward[0], inward[1], inward[2]) || 1
+  const d: [number, number, number] = [inward[0] / dirLen, inward[1] / dirLen, inward[2] / dirLen]
+  const denom = d[0] * plane.normal[0] + d[1] * plane.normal[1] + d[2] * plane.normal[2]
+  if (Math.abs(denom) < 1e-9) {
+    throw new Error('E_UP_TO_PARALLEL: drilling direction is parallel to the target face plane')
+  }
+  const t =
+    ((plane.point[0] - origin[0]) * plane.normal[0] +
+     (plane.point[1] - origin[1]) * plane.normal[1] +
+     (plane.point[2] - origin[2]) * plane.normal[2]) / denom
+  if (!Number.isFinite(t) || t <= 0) {
+    throw new Error('E_UP_TO_NO_INTERSECTION: target face is not in the drilling direction')
+  }
+  return { ...p, depth: t }
 }
 
 /** 是否螺纹孔（tapped 与 screw 都是；simple 不是）。 */
@@ -626,7 +686,10 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param input - 目标几何。type:Shape required:true
  * @param params.diameter - 孔径（mm）；`tapped`/`screw` 时省略则按表反算底孔（M16 → Φ14；显式值优先，图纸值唯一真源），`simple` 必填。type:number required:false
  * @param params.thread - 描述性螺纹规格（一个键即完整规格，不写 `screwSystem`/`screwSpecIdx`/`screwThread`）：metric `'M<dia>[×<pitch>][-<class>][↧|↓<depth>]'`（'M16'、'M16×1.5'、'M4 X 0.7 - 6H'、'M16-6H↧18'）、imperial `'(#<gauge>|<frac>"|<dec>")[-<tpi>][-<class>][↧|↓<depth>]'`（'1/4"-20-2B↧10'）、pipe `'PT|R|Rc<size>[↧|↓<depth>]'`（'PT1/8'）。空格/大小写全容忍。深度后缀亦可用 `'<depth> DEEP'`（'M16 18 DEEP'）；`'THRU'`/`'THROUGH'` 后缀 = 通孔（与显式 `depth` 同给报错）。OCR 变体白名单（只收敛、不扩语法）：NFKC 等价（全角、分数字形）、破折号/×/引号/箭头形近字、数字逗号小数（'1,5'→'1.5'）、前导点小数英寸（'.25"'）、公差等级闭字母表唯一修复（'GH'→'6H'、'ZB'→'2B'，自由数字绝不猜测，仅报错并附最近表项建议）；白名单外显式拒绝（>64 字符、零宽/双向控制字符、表外字符如西里尔 'М'、注入载荷）。给出后：`holeType` 缺省 `'tapped'`（显式 `'tapped'`/`'screw'` 合法，`'simple'` 报错）；底孔按表反算（显式 `diameter` 优先）；**串内带公差后缀（-6H）或显式 `threadClass` 才产出 PMI**（'M4×0.7' 无 PMI）；串内 `↧18`/`↓18`/`18 DEEP` = 孔深 18（与显式 `depth` 同给报错）；解析失败/表外显式报错（E_THREAD_SPEC），不静默回落。type:string
- * @param params.depth - 孔深（mm）；0 = 通孔，> 0 = 盲孔。type:number 默认 0
+ * @param params.depth - 孔深（mm）；0 = 通孔，> 0 = 盲孔。与 `upTo` 互斥。type:number 默认 0
+ * @param params.upTo - 钻孔到面：FaceTopoRef（UI 拾取产物字面量）/ 'last' 支持体远端面 / 'first' 近端面 / CadQuery 面选择器字符串（如 '>Z'，在 baseFeature 上解析）/ {plane:{point,normal}} 显式基准面。提供时按其解析实际孔深，与 `depth` 及带深度后缀的描述串互斥。BREP-only。type:'last' | 'first' | FaceTopoRef | string | object
+ * @param params.baseFeature - upTo 'last'/'first'/面选择器的支持体几何；缺省用输入体。type:Shape
+ * @param params.offset - upTo 截断面沿其法向的偏移（mm）。type:number 默认 0
  * @param params.holeType - 孔类型：simple 光孔 / screw 建模螺纹 / tapped 攻丝孔（底孔 + 螺纹 PMI）。`thread` 给出时缺省 'tapped'。type:'simple' | 'screw' | 'tapped' 默认 'simple'
  * @param params.direction - 钻孔轴向：`'normal'` = 沿该面法向进入材料（面在底面时即"向上"），`x`/`y`/`z` = 世界轴，两类都会按面法向自动定号；PMI 的 `axis.direction` 记的是定号后的实际钻孔方向。type:'normal' | 'x' | 'y' | 'z' 默认 'normal'
  * @param params.position - 孔心位置。type:[x,y,z] 默认 原点
@@ -658,6 +721,12 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
 export const fai_drill = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[extra/drill] no input geometry')
+    if (params.upTo !== undefined) {
+      throw new MeshUnsupportedError(
+        'E_MESH_UNSUPPORTED: fai_drill upTo requires the BREP precision chain (face/plane resolution)',
+        getCurrentStmt(),
+      )
+    }
     const p = normalizeDrillParams(params)
     assertDrillParams(p)
     // P2：多零件 load 的输入是 compound——按 partIndex 取目标成员，
@@ -675,9 +744,9 @@ export const fai_drill = defineOp({
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[extra/drill] no input geometry')
-    const p = normalizeDrillParams(params)
+    const target = resolveCompoundMember(input, params.partIndex, 'fai_drill')
+    const p = resolveUpToDepthForDrill(target, normalizeDrillParams(params))
     assertDrillParams(p)
-    const target = resolveCompoundMember(input, p.partIndex, 'fai_drill')
     const drilled = drillBrepPath(target, p)
     if (producesThreadPmi(p)) {
       const fn = faceNormalFrom(target, p)
@@ -689,7 +758,7 @@ export const fai_drill = defineOp({
     }
     return replaceCompoundMember(input, p.partIndex, drilled.shape)
   },
-  paramDims: { diameter: 'length', depth: 'length', tolerance: 'length', screwSpecIdx: 'plain', threadDepth: 'length', screwPitchCustom: 'length' },
+  paramDims: { diameter: 'length', depth: 'length', tolerance: 'length', screwSpecIdx: 'plain', threadDepth: 'length', screwPitchCustom: 'length', offset: 'length' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
   // 建模即标注：`tapped`/`screw` 在同一语句里既钻几何又产 `PmiThreadHole`。
   // 上游标注不需要搬运——它们归上游零件名所有，查询时沿血缘聚合得到。

@@ -6,6 +6,7 @@
  * Expected repaired volume = truth saved Revolve = 15328.403620
  * Run: npx tsx test/probe-revolve-s006.ts   (cwd=packages/core)
  */
+import type { ShapeHandle } from 'occt-wasm'
 import { initOcctWasm } from '../src/occt-kernel/occtKernel'
 
 const SQ2 = Math.SQRT1_2
@@ -14,8 +15,8 @@ async function main(): Promise<void> {
   const k = await initOcctWasm()
 
   // global coords: sketch local (x, y) -> global (0, x, y); revolve around Z
-  const v = (y: number, z: number): number => k.makeVertex(0, y, z)
-  const line = (a: number, b: number): number => k.makeEdge(a, b)
+  const v = (y: number, z: number): ShapeHandle => k.makeVertex(0, y, z)
+  const line = (a: ShapeHandle, b: ShapeHandle): ShapeHandle => k.makeEdge(a, b)
 
   const pSlantTop = v(4.999, 0) // degenerate slant start
   const pFar = v(5, -138) // slant end (max radius station)
@@ -27,8 +28,8 @@ async function main(): Promise<void> {
   const vIn0 = v(4.999 - MARGIN, 0)
   const vIn1 = v(4.999 - MARGIN, -138)
 
-  const chain: number[] = []
-  const addSeg = (a: number, b: number): void => {
+  const chain: ShapeHandle[] = []
+  const addSeg = (a: ShapeHandle, b: ShapeHandle): void => {
     const pa = k.vertexPosition(a)
     const pb = k.vertexPosition(b)
     if (Math.hypot(pa.x - pb.x, pa.y - pb.y, pa.z - pb.z) > 1e-9) chain.push(line(a, b))

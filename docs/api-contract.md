@@ -870,3 +870,22 @@ let finish = cam.surfacing({ target: 'part0', faces: 'all', stepover: 1, rasterD
 ### 16.3 Host channel
 
 The protocol shapes of `camBuild` (an execution-result field, Tier A view state) and `camGenerate` (a worker instruction, Tier B derived data) live in 3d_editor `packages/platform/src/contract.ts` / `protocol.ts` / `instruction-core.ts`; the host-side design is in 3d_editor `docs/plans/2026-11-02-cam-web-port-design.md` (§5 API contract / §6 detailed design / appendix A port mapping table).
+
+## 17. Up-to termination contract
+
+`upTo` is the shared termination parameter for face- or plane-driven stop conditions. It is accepted by `cad.extrude`, `cad.drill`, `cad.pocket`, `cad.punchHole` and `cad.fai_drill`; all five resolve the same target grammar and error codes. `upTo` answers "where to stop" and stays independent of the entry-face parameter (`cad.fai_drill.face` answers "where to start"). The per-op parameter tables are the generated `docs/ops-api-inventory.md`.
+
+### 17.1 Target grammar
+
+- A picked face reference (`FaceTopoRef`) — the UI-produced literal; a `cad.faceRef` ordinal is not a valid target because it is not portable across kernels.
+- `'last'` / `'first'` — the far / near end of the support body along the machining direction; `'next'` — the closest qualifying face ahead of the entry (extrude only).
+- A CadQuery face selector string such as `'>Z'`, resolved on `baseFeature`; it must match exactly one face.
+- `{ plane: { point, normal } }` — an explicit infinite datum plane.
+
+`baseFeature` supplies the support body for extent and selector targets; `offset` shifts the resolved plane along its normal. `upTo` is mutually exclusive with each op's fixed-length parameter (`length` / `depth` / `height`), and `extrude.backwardUpTo` is mutually exclusive with `backwardLength` and `mode: 'backward'`. `extrude.combine: 'cut'` turns the extrusion into a cutter, requiring both `baseFeature` and `upTo` or `backwardUpTo`.
+
+### 17.2 Geometric and engine boundary
+
+Every target resolves to one cut plane; the tool is clipped against a half-space box before the Boolean operation, so the two sides of the plane are never swapped implicitly. `next` is an approximation: the BREP kernel has no ray-face intersection, so the closest face is chosen by projecting face centres onto the machining direction with a normal-angle filter, with no guarantee of an exact intersection on a curved surface.
+
+BREP only — the mesh execution chain is frozen (2026-11-07). Calling `upTo` on a mesh-only shape raises an explicit error, never a partial cut. A target parallel to the machining direction, an unreachable target, an ambiguous selector and an extent target without a support body raise `E_UP_TO_PARALLEL`, `E_UP_TO_NO_INTERSECTION`, the face-selector error and `E_UP_TO_NO_BASE` respectively.

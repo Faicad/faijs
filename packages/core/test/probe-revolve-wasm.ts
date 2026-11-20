@@ -7,6 +7,7 @@
  *   frustum(4.999,5,138) + cyl(5,22) = 10836.3271 + 1727.8760 = 12564.2031
  * Run: npx tsx test/probe-revolve-wasm.ts   (cwd=packages/core)
  */
+import type { ShapeHandle } from 'occt-wasm'
 import { initOcctWasm } from '../src/occt-kernel/occtKernel'
 
 async function main(): Promise<void> {
@@ -20,7 +21,7 @@ async function main(): Promise<void> {
     [0, 0, 0],
   ]
   const verts = pts.map((p) => k.makeVertex(p[0], p[1], p[2]))
-  const edges: number[] = []
+  const edges: ShapeHandle[] = []
   for (let i = 0; i < verts.length; i++) {
     edges.push(k.makeEdge(verts[i]!, verts[(i + 1) % verts.length]!))
   }

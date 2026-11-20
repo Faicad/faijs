@@ -23,7 +23,7 @@ try {
 
 type SmlibModule = typeof import('../../src/smlib-kernel/smlibKernel')
 let mod: SmlibModule | undefined
-let p: ReturnType<SmlibModule['createSmlibPrimitives']> | undefined
+let p: Awaited<ReturnType<SmlibModule['createSmlibPrimitives']>> | undefined
 
 beforeAll(async () => {
   if (!smlibAvailable) return

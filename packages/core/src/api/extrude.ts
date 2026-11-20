@@ -21,8 +21,8 @@
  */
 
 import { extrude as projectedExtrude } from './generated/operations'
-import { Vec3 as Vec3C, Mat4 } from '../math3d'
-import { solidToShape, matrixToArray } from '../brep/brep-ops'
+import { Vec3 as Vec3C } from '../math3d'
+import { solidToShape } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { getCurrentStmt, getBackends, MeshUnsupportedError } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
@@ -33,13 +33,12 @@ import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import { OpError } from './internal/result-unwrap'
 import { assertPositiveNumber } from './assert'
-import { resolveSelectorToFaceRefs } from './selectors-to-refs'
 import { meshFaceEntry, meshKernelFailure, meshSolidProductWithBackend } from './internal/mesh-solid-op'
+import { normalizeUpToTarget, clipByUpToPlane } from './up-to'
 import type { Shape, Vec3 } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { FaceTopoRef } from '../topology/naming'
-import { TopoRefError } from '../topology/naming'
 
 /**
 
@@ -187,7 +186,7 @@ export interface UpToPlaneSpec {
 
 /** up-to 目标：显式面引用 / 显式平面 / 支持体沿拉伸方向的远端（last）/近端（first）端面 /
  * CadQuery 面选择器字符串（在 baseFeature 上解析，如 `">Z"`，多面命中抛错）。 */
-export type ExtrudeUpTo = FaceTopoRef | 'last' | 'first' | { plane: UpToPlaneSpec } | string
+export type ExtrudeUpTo = FaceTopoRef | 'last' | 'first' | 'next' | { plane: UpToPlaneSpec } | string
 
 /** `cad.extrude` 的对象形态参数（位置形态由 {@link normalizeExtrudeOptions} 归一到这里）。 */
 export interface ExtrudeOptions {
@@ -201,12 +200,18 @@ export interface ExtrudeOptions {
    * 沿 normal 正向 length、反向 backwardLength，输入面成为棱柱的**内部平面**（非端面）。
    * 与 `mode:'backward'`（仅反向）及 `upTo` 互斥（assertExtrudeOptions 显式抛错）。 */
   backwardLength?: number
-  /** 拉伸到面 / 到支持体端面；提供时忽略 length。字符串 `'last'`/`'first'` 取支持体端面；其它字符串为 CadQuery 面选择器（在 baseFeature 上解析，多面命中抛错）。 */
+  /** 拉伸到面 / 到支持体端面；提供时忽略 length。字符串 `'last'`/`'first'` 取支持体端面，
+   * `'next'` 取沿方向遇到的下一个面（面中心投影近似）；其它字符串为 CadQuery 面选择器
+   * （在 baseFeature 上解析，多面命中抛错）。 */
   upTo?: ExtrudeUpTo
-  /** upTo 'last'/'first' 的支持体（累积支持体，由转换器显式传入）。 */
+  /** upTo 目标的支持体（累积支持体，由转换器显式传入）。 */
   baseFeature?: Shape
   /** 截断面沿其法向的偏移（mm）；缺省 0。 */
   offset?: number
+  /** 组合方式：'union'（缺省，产出拉伸实体）/ 'cut'（拉伸体作为刀具从 baseFeature 减去，需给 baseFeature）。 */
+  combine?: 'union' | 'cut'
+  /** 负向 up-to 目标：与正向 upTo 组成双向到面拉伸；与 backwardLength 互斥。 */
+  backwardUpTo?: ExtrudeUpTo
 }
 
 /** 判定是否为朴素对象（对象形态判别器，避免误吞 Shape / 数组）。 */
@@ -262,6 +267,38 @@ function assertExtrudeOptions(o: ExtrudeOptions): void {
       '[api/extrude] backwardLength cannot be combined with mode:"backward" — bidirectional and reverse-only are mutually exclusive',
     )
   }
+  if (o.backwardUpTo !== undefined) {
+    if (back > 0) {
+      throw new OpError(
+        'extrude',
+        'E_EXTRUDE_BACKWARD_UPTO',
+        '[api/extrude] E_EXTRUDE_BACKWARD_UPTO: backwardLength is mutually exclusive with backwardUpTo',
+      )
+    }
+    if (o.mode === 'backward') {
+      throw new OpError(
+        'extrude',
+        'E_EXTRUDE_BACKWARD_CONFLICT',
+        '[api/extrude] E_EXTRUDE_BACKWARD_CONFLICT: backwardUpTo cannot be combined with mode:"backward"',
+      )
+    }
+  }
+  if (o.combine === 'cut') {
+    if (o.baseFeature === undefined) {
+      throw new OpError(
+        'extrude',
+        'E_EXTRUDE_CUT_NO_BASE',
+        '[api/extrude] E_EXTRUDE_CUT_NO_BASE: combine:"cut" requires a baseFeature shape',
+      )
+    }
+    if (o.upTo === undefined && o.backwardUpTo === undefined) {
+      throw new OpError(
+        'extrude',
+        'E_EXTRUDE_CUT_REQUIRES_UPTO',
+        '[api/extrude] E_EXTRUDE_CUT_REQUIRES_UPTO: combine:"cut" requires upTo or backwardUpTo (cutting a fixed-length prism is not supported)',
+      )
+    }
+  }
   if (o.upTo !== undefined) {
     if (back > 0) {
       throw new OpError(
@@ -272,223 +309,76 @@ function assertExtrudeOptions(o: ExtrudeOptions): void {
     }
     return // up-to 模式：长度由目标面决定
   }
-  assertPositiveNumber(o.length, 'extrude.length')
+  if (o.backwardUpTo === undefined) assertPositiveNumber(o.length, 'extrude.length')
 }
 
-/** bbox 对角线长度（长试探的余量基数）。 */
-function bboxDiag(bbox: { min: Vec3; max: Vec3 }): number {
-  return Math.hypot(bbox.max[0] - bbox.min[0], bbox.max[1] - bbox.min[1], bbox.max[2] - bbox.min[2])
-}
+
 
 /**
- * 目标面法向负侧的半空间覆盖盒（截断长拉伸用）——定向版。
+ * up-to extrusion: delegate to the shared api/up-to module. The geometry and
+ * error-code contract are unchanged; this thin adapter maps the hand-written
+ * op options onto the shared termination-plane machinery so drill / pocket /
+ * punch-hole can reuse exactly the same target semantics.
  *
- * GOTCHA（PadTest Pad001 斜置基准面实测）：轴对齐盒的边界不是斜面本身，
- * 截断呈台阶而非精确斜平面（体积 7076 vs 真值 4860）。正确做法：在局部基
- * (u, v, n) 里构造盒（深度沿 −n 伸出 R、横向 ±R），再用 kernel.transform
- * 旋到世界系——盒的 n=R 端面就是精确的目标平面。
- *
- * @param kernel - BREP 内核。
- * @param faceCenter - 目标面中心（世界坐标，盒的 n=0 端面过此点）。
- * @param faceNormal - 目标面法向（半空间保留 −n 侧…即盒占据 −n 侧深度）。
- * @param reach - 覆盖半径 R。
- * @returns 定向半空间盒的 brep 句柄。
- */
-function farSideBox(kernel: BrepEngineApi, faceCenter: Vec3, faceNormal: Vec3, reach: number): BrepHandle {
-  const unit = new Vec3C(...faceNormal).normalize()
-  const center = new Vec3C(...faceCenter)
-  // 与 n 正交的正交基 u,v
-  const aux = Math.abs(unit.y) < 0.9 ? new Vec3C(0, 1, 0) : new Vec3C(1, 0, 0)
-  const u = new Vec3C().crossVectors(unit, aux).normalize()
-  const v = new Vec3C().crossVectors(unit, u).normalize()
-  const R = reach
-  // 局部系盒：x∈[−R,R] (u), y∈[−R,R] (v), z∈[−R,0] (n 深度侧)
-  const box = kernel.makeBoxFromCorners(
-    { x: -R, y: -R, z: -R },
-    { x: R, y: R, z: 0 },
-  )
-  // 旋转矩阵：列 = u, v, n；平移 = center（局部 z=0 端面落到过 center 的目标平面）
-  const m = new Mat4().makeBasis(u, v, unit).setPosition(center)
-  return kernel.transform(box, matrixToArray(m))
-}
-
-/**
- * up-to 拉伸：occt-wasm 未暴露 `BRepFeat_MakePrism`，用「长拉伸 → 与目标面侧
- * 半空间盒求交」等价组合；长试探上限只作布尔构造辅助，不进入结果几何。
- *
- * @param kernel - BREP 内核。
- * @param inputSolid - 轮廓实体句柄。
- * @param o - 归一化参数（需带 upTo）。
- * @returns 截断后的实体句柄。
- * @throws Error E_UP_TO_* 系列：缺支持体 / 方向与目标面平行 / 不相交（禁静默）。
+ * @param kernel - BREP kernel.
+ * @param inputSolid - profile solid handle.
+ * @param o - normalized options (upTo set).
+ * @returns the trimmed solid handle.
+ * @throws Error E_UP_TO_* on missing base / parallel direction / no intersection.
  */
 function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: ExtrudeOptions): BrepHandle {
   const normal = new Vec3C(...(o.normal ?? [0, 0, 1])).normalize()
-  const offset = o.offset ?? 0
-  const upTo = o.upTo as ExtrudeUpTo
+  const bb = getSolidBoundingBox(kernel, inputSolid)
+  const origin: Vec3 = [(bb.min[0] + bb.max[0]) / 2, (bb.min[1] + bb.max[1]) / 2, (bb.min[2] + bb.max[2]) / 2]
+  return clipByUpToPlane(kernel, inputSolid, normalizeUpToTarget(o.upTo), {
+    kernel,
+    base: o.baseFeature,
+    origin,
+    direction: [normal.x, normal.y, normal.z],
+    offset: o.offset,
+  })
+}
 
-  // 1) 方向目标：FaceTopoRef → 现场面几何；'last'/'first' → baseFeature 支持体
-  //    沿拉伸方向的端面（远端 last / 近端 first）。
-  let targetCenter: Vec3
-  let targetNormal: Vec3
-  if (typeof upTo === 'string') {
-    const base = o.baseFeature
-    const baseSolid = base ? (brepOf(base) as BrepHandle | undefined) : undefined
-    if (base === undefined || baseSolid === undefined) {
-      throw new Error('E_UP_TO_NO_BASE: upTo "last"/"first"/selector requires a baseFeature shape')
-    }
-    if (upTo === 'last' || upTo === 'first') {
-      const bbox = getSolidBoundingBox(kernel, baseSolid)
-      const pick = (which: 'max' | 'min'): Vec3 => {
-        const c: Vec3 = [
-          (bbox.min[0] + bbox.max[0]) / 2,
-          (bbox.min[1] + bbox.max[1]) / 2,
-          (bbox.min[2] + bbox.max[2]) / 2,
-        ]
-        const extent = which === 'max' ? 1 : -1
-        const proj =
-          (bbox.max[0] - bbox.min[0]) * Math.abs(normal.x) +
-          (bbox.max[1] - bbox.min[1]) * Math.abs(normal.y) +
-          (bbox.max[2] - bbox.min[2]) * Math.abs(normal.z)
-        return [
-          c[0] + ((normal.x * proj) / 2) * extent,
-          c[1] + ((normal.y * proj) / 2) * extent,
-          c[2] + ((normal.z * proj) / 2) * extent,
-        ]
-      }
-      targetCenter = pick(upTo === 'last' ? 'max' : 'min')
-      targetNormal = [normal.x, normal.y, normal.z]
-    } else {
-      // CadQuery 面选择器：在支持体（baseFeature）上解析为单个目标面。
-      // 与 FaceTopoRef 分支同款——直接用解析出的 hint 快照（引用面在目标体上，
-      // 不做二次 resolveFaceGeometry，见下 GOTCHA）。
-      const refs = resolveSelectorToFaceRefs(base, upTo)
-      if (refs.length === 0) {
-        throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', `extrude upTo: selector "${upTo}" matched no face on baseFeature`)
-      }
-      if (refs.length > 1) {
-        throw new TopoRefError(
-          'E_TOPO_NOT_FOUND',
-          'face',
-          `extrude upTo: selector "${upTo}" matched ${refs.length} faces; upTo takes exactly one face`,
-        )
-      }
-      const ref = refs[0]
-      if (ref.hint.center && ref.hint.normal) {
-        targetCenter = [...ref.hint.center] as Vec3
-        targetNormal = [...ref.hint.normal] as Vec3
-      } else {
-        throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'extrude upTo: selector-resolved face ref hint has no center/normal snapshot')
-      }
-    }
-  } else if (upTo && typeof upTo === 'object' && 'plane' in upTo) {
-    // 显式平面目标（datum plane 等无限平面：截断面由平面方程决定，不受
-    // 目标面边界限制——斜置基准面时顶面是斜的，定长路径语义错误）。
-    targetCenter = [...upTo.plane.point] as Vec3
-    targetNormal = [...upTo.plane.normal] as Vec3
-  } else {
-    // GOTCHA（探针实测）：FaceTopoRef 携带的 hint 是 faceRef 现场捕获的
-    // center/normal 快照，直接使用；不要对拉伸轮廓（sketch 面）做二次
-    // resolveFaceGeometry——引用的面在目标体上、不在轮廓上，会 E_TOPO_NOT_FOUND。
-    if (upTo.hint.center && upTo.hint.normal) {
-      targetCenter = [...upTo.hint.center] as Vec3
-      targetNormal = [...upTo.hint.normal] as Vec3
-    } else {
-      throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'extrude upTo: face ref hint has no center/normal snapshot')
-    }
+/**
+ * combine:'cut' — subtract a freshly built cutter solid from the base feature.
+ * Returns the base Shape with the cut result; throws when base has no BREP solid.
+ */
+function cutFromBase(kernel: BrepEngineApi, cutter: BrepHandle, base: Shape): Shape {
+  const baseSolid = brepOf(base) as BrepHandle | undefined
+  if (baseSolid === undefined) throw new Error('E_EXTRUDE_CUT_NO_BASE: combine:"cut" baseFeature is not BREP')
+  const cut = kernel.cut(baseSolid, cutter)
+  kernel.release(cutter)
+  return fromBrep(solidToShape(kernel, cut), { solid: cut })
+}
+
+/**
+ * Bidirectional up-to extrusion (正向 upTo/length + 负向 backwardUpTo):
+ * each side is clipped to its own target plane, then fused. The profile face
+ * becomes an internal plane of the result.
+ */
+function extrudeBidirectionalUpTo(
+  kernel: BrepEngineApi,
+  inputSolid: BrepHandle,
+  o: ExtrudeOptions,
+  normal: Vec3C,
+): BrepHandle {
+  const backO: ExtrudeOptions = {
+    ...o,
+    upTo: o.backwardUpTo,
+    baseFeature: o.baseFeature,
+    normal: [-normal.x, -normal.y, -normal.z],
   }
-
-  // 2) 长试探长度：GOTCHA（探针实测）——不能按轮廓自身 bbox 对角线算（小轮廓够不到
-  //    远处目标面）；必须取「截断平面沿拉伸方向的投影距离」加余量，保证长拉伸至
-  //    少穿过目标面。
-  const bbox = getSolidBoundingBox(kernel, inputSolid)
-  const shiftedCenter0: Vec3 = [
-    targetCenter[0] + targetNormal[0] * offset,
-    targetCenter[1] + targetNormal[1] * offset,
-    targetCenter[2] + targetNormal[2] * offset,
-  ]
-  // 自动定向（仅 { plane } 目标）：FreeCAD UpToFace 朝目标面所在方向拉伸。
-  // GOTCHA（PadTest Pad001 实测，probe 探针）：斜置基准面在草图局部坐标里
-  // 位于轮廓的反方向（圆心处平面交点 t=−26 而非 +26），固定沿 +Z 拉截不到
-  // 平面（体积 597 ≠ 真值 4860）。轮廓 bbox 中心到截断平面的有向投影与
-  // 拉伸方向异号 → 翻转拉伸方向（就地翻转 Vector3，后续 tMax/keepSide 自洽）。
-  if (upTo && typeof upTo === 'object' && 'plane' in upTo) {
-    const c0: Vec3 = [
-      (bbox.min[0] + bbox.max[0]) / 2,
-      (bbox.min[1] + bbox.max[1]) / 2,
-      (bbox.min[2] + bbox.max[2]) / 2,
-    ]
-    const tnAuto = new Vec3C(...targetNormal).normalize()
-    const dAuto =
-      (c0[0] - shiftedCenter0[0]) * tnAuto.x +
-      (c0[1] - shiftedCenter0[1]) * tnAuto.y +
-      (c0[2] - shiftedCenter0[2]) * tnAuto.z
-    // 沿拉伸方向到平面的有向交点参数：t = −((c0−plane)·n) / (dir·n)。
-    // t<0 → 平面在行进反方向 → 翻转（FreeCAD UpToFace 朝平面拉伸）。
-    const tAuto = -dAuto / normal.dot(tnAuto)
-    if (tAuto < 0) {
-      normal.multiplyScalar(-1)
-    }
-  }
-  const cornerProjections = [
-    [bbox.min[0], bbox.min[1], bbox.min[2]],
-    [bbox.max[0], bbox.min[1], bbox.min[2]],
-    [bbox.min[0], bbox.max[1], bbox.min[2]],
-    [bbox.min[0], bbox.min[1], bbox.max[2]],
-    [bbox.max[0], bbox.max[1], bbox.min[2]],
-    [bbox.max[0], bbox.min[1], bbox.max[2]],
-    [bbox.min[0], bbox.max[1], bbox.max[2]],
-    [bbox.max[0], bbox.max[1], bbox.max[2]],
-  ] as Vec3[]
-  const planePoint0 = new Vec3C(...shiftedCenter0)
-  const tn0 = new Vec3C(...targetNormal).normalize()
-  const planeD = planePoint0.dot(tn0)
-  const dirD = normal.dot(tn0)
-  if (Math.abs(dirD) < 1e-9) {
-    throw new Error('E_UP_TO_PARALLEL: extrude direction is parallel to the target face plane')
-  }
-  const tMax = cornerProjections
-    .map((p) => (planeD - new Vec3C(...p).dot(tn0)) / dirD)
-    .reduce((a, b) => Math.max(a, b), 0)
-  const L = tMax + Math.abs(offset) + bboxDiag(bbox) * 0.1 + 1
-  const longSolid = kernel.extrude(inputSolid, normal.x * L, normal.y * L, normal.z * L)
-
-  // 3) 截断平面 = 目标面 + offset（沿面法向）。GOTCHA（探针实测）：半空间侧不能固定
-  //    取「法向负侧」——目标面法向朝向与拉伸方向无必然关系。正确语义：保留「包含
-  //    拉伸起点」的那一侧。farSideBox 覆盖「传入法向的反侧」，因此传 -keepSide。
-  const tn = tn0
-  const startCenter = new Vec3C(
-    (bbox.min[0] + bbox.max[0]) / 2,
-    (bbox.min[1] + bbox.max[1]) / 2,
-    (bbox.min[2] + bbox.max[2]) / 2,
-  )
-  const planePoint = new Vec3C(...shiftedCenter0)
-  const d = startCenter.sub(planePoint).dot(tn)
-  // 保留侧法向：起点所在侧（d 与 tn 同号 → 正侧；异号 → 负侧）；d≈0 时退化为
-  // 拉伸方向（起点在面上时按拉伸方向截）
-  const keepSide = Math.abs(d) < 1e-9 ? normal.clone() : tn.clone().multiplyScalar(Math.sign(d))
-  // GOTCHA（PadTest Pad001 斜置基准面实测）：targetCenter 可以是平面上离轮廓
-  // 很远的任意一点（基准面 point 在草图局部坐标里横向偏 ~100），reach 若只取
-  // L（按轮廓到截断面的投影距离）则半空间盒横向盖不住长拉伸体 → common 为空。
-  // reach 必须 ≥ 平面点到拉伸体的距离 + 体对角线（全方向覆盖）。
-  const reach =
-    new Vec3C(...shiftedCenter0).distanceTo(
-      new Vec3C((bbox.min[0] + bbox.max[0]) / 2, (bbox.min[1] + bbox.max[1]) / 2, (bbox.min[2] + bbox.max[2]) / 2),
-    ) + bboxDiag(bbox) + Math.abs(offset) + 1
-  const halfspace = farSideBox(kernel, shiftedCenter0, [-keepSide.x, -keepSide.y, -keepSide.z], reach)
-
-  // 4) 求交：长拉伸 ∩ 半空间盒
-  const clipped = kernel.common(longSolid, halfspace)
-  kernel.release(longSolid)
-  kernel.release(halfspace)
-
-  // 预检：方向上不相交 → 显式报错（禁静默）
-  const clippedBBox = getSolidBoundingBox(kernel, clipped)
-  if (!Number.isFinite(bboxDiag(clippedBBox)) || bboxDiag(clippedBBox) < 1e-9) {
-    kernel.release(clipped)
-    throw new Error('E_UP_TO_NO_INTERSECTION: extrude direction does not reach the target face')
-  }
-  return clipped
+  const forward = o.upTo !== undefined
+    ? extrudeUpToSolid(kernel, inputSolid, o)
+    : (() => {
+        const L = o.length!
+        return kernel.extrude(inputSolid, normal.x * L, normal.y * L, normal.z * L)
+      })()
+  const backward = extrudeUpToSolid(kernel, inputSolid, backO)
+  const fused = kernel.fuse(forward, backward)
+  kernel.release(forward)
+  kernel.release(backward)
+  return fused
 }
 
 /**
@@ -576,9 +466,11 @@ function extrudeMeshChain(input: Shape, params: unknown): Shape {
  * @param params.normal - 拉伸方向（世界坐标）。type:[x,y,z] 默认 [0,0,1]
  * @param params.mode - 沿 normal 的前进方向：forward 正向 / backward 反向。type:'forward' | 'backward' 默认 'forward'
  * @param params.backwardLength - 负向长度（mm，≥0，缺省 0 = 单向）。>0 时与 length 组成双向拉伸（输入面成为棱柱内部平面）；与 mode:'backward' / upTo 互斥。type:number 默认 0
- * @param params.upTo - 拉伸到面：FaceTopoRef（UI 拾取产物字面量）指定面 / 'last' 支持体远端面 / 'first' 近端面 / 面选择器字符串（如 ">Z"，在 baseFeature 上解析，多面命中抛错）。提供时忽略 length。❌ 禁止 cad.faceRef 序号。type:'last' | 'first' | FaceTopoRef | string
- * @param params.baseFeature - upTo 'last'/'first'/面选择器的支持体几何（累积支持体）。type:Shape
+ * @param params.upTo - 拉伸到面：FaceTopoRef（UI 拾取产物字面量）指定面 / 'last' 支持体远端面 / 'first' 近端面 / 'next' 沿方向遇到的下一个面（面中心投影近似）/ 面选择器字符串（如 ">Z"，在 baseFeature 上解析，多面命中抛错）。提供时忽略 length。❌ 禁止 cad.faceRef 序号。type:'last' | 'first' | 'next' | FaceTopoRef | string
+ * @param params.baseFeature - upTo 目标 / combine:'cut' 的支持体几何（累积支持体）。type:Shape
  * @param params.offset - 截断面沿其法向的偏移（mm）。type:number 默认 0
+ * @param params.combine - 'union'（缺省，产出拉伸实体）/ 'cut'（拉伸体作刀具从 baseFeature 减去；需 baseFeature 与 upTo/backwardUpTo）。type:'union' | 'cut' 默认 'union'
+ * @param params.backwardUpTo - 负向 up-to 目标：与 upTo/length 组成双向到面拉伸；与 backwardLength、mode:'backward' 互斥。type:FaceTopoRef | 'last' | 'first' | 'next' | string
  * @example
  * const p = cad.extrude(part0, [0, 0, 10])
  * const p = cad.extrude(part0, { length: 10 })
@@ -613,15 +505,31 @@ export const extrude = defineOp({
       const kernel = getBrepApi()
       const inputSolid = brepOf(input) as BrepHandle | undefined
       if (inputSolid === undefined) throw new Error('[api/extrude] input is not BREP')
-      const clipped = extrudeUpToSolid(kernel, inputSolid, o)
+      const solid = o.backwardUpTo !== undefined
+        ? extrudeBidirectionalUpTo(kernel, inputSolid, o, normal)
+        : extrudeUpToSolid(kernel, inputSolid, o)
+      if (o.combine === 'cut') return cutFromBase(kernel, solid, o.baseFeature!)
       // E3-b（2026-09-23，同 revolve 修法）：不能对投影产物再走一次 fromBrep——
       // 同语句 registeredStmtId 去重会吞掉第二次登记（part 键保持空表，下游
       // fillet/chamfer 的 edgeRef 报 nameless shape）。upTo 路径不经过投影/
       // adoptOut，fromBrep 只在此走一次，roleTable 直挂 + solid 句柄登记。
       const origin = String(getCurrentStmt()?.id ?? '')
-      return fromBrep(solidToShape(kernel, clipped), {
-        solid: clipped,
-        roleTable: new Map([[origin, extrudeConstructRoles(kernel, clipped, normal.toArray() as Vec3)]]),
+      return fromBrep(solidToShape(kernel, solid), {
+        solid,
+        roleTable: new Map([[origin, extrudeConstructRoles(kernel, solid, normal.toArray() as Vec3)]]),
+      })
+    }
+
+    // 长度形态的双向到面（backwardUpTo without upTo）：正向定长 + 负向到面。
+    if (o.backwardUpTo !== undefined) {
+      const kernel = getBrepApi()
+      const inputSolid = brepOf(input) as BrepHandle | undefined
+      if (inputSolid === undefined) throw new Error('[api/extrude] input is not BREP')
+      const solid = extrudeBidirectionalUpTo(kernel, inputSolid, o, normal)
+      if (o.combine === 'cut') return cutFromBase(kernel, solid, o.baseFeature!)
+      return fromBrep(solidToShape(kernel, solid), {
+        solid,
+        roleTable: new Map([[String(getCurrentStmt()?.id ?? ''), extrudeConstructRoles(kernel, solid, normal.toArray() as Vec3)]]),
       })
     }
 
@@ -679,5 +587,5 @@ export const extrude = defineOp({
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'wall', index: 0 }] } } as Provenance,
 
-  paramDims: { length: 'length', offset: 'length', backwardLength: 'length', normal: 'plain' },
+  paramDims: { length: 'length', offset: 'length', backwardLength: 'length', normal: 'plain', backwardUpTo: 'plain' },
 })

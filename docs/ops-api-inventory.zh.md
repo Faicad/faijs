@@ -130,7 +130,7 @@ const part1 = cad.box(30 * MM, 20 * MM, 10 * MM, { at: [15 * MM, 10 * MM, 0], se
 
 ### 3.3 `circleArc` ✅
 
-构造圆弧：圆心 + 法向 + 半径 + 起止角（度；0° = 世界 +X 在圆面内的投影，绕法向逆时针为正）。
+构造圆弧：圆心 + 法向 + 半径 + 起止角（度，绕法向右手逆时针）。
 
 ```js
 const a = cad.circleArc([0,0,0], [0,0,1], 5, 0, 90)
@@ -141,14 +141,12 @@ const a = cad.circleArc([0,0,0], [0,0,1], 5, 0, 90)
 | `center` | `Vec3` | ✅ | — | 圆心 [x,y,z] |
 | `normal` | `Vec3` | ✅ | — | 圆面法向 [x,y,z]（非零） |
 | `radius` | `number` | ✅ | — | 半径（mm，>0） |
-| `startAngle` | `number` | ✅ | — | 起始角（度；0° = +X 在圆面内的投影，逆时针为正） |
-| `endAngle` | `number` | ✅ | — | 终止角（度；`|endAngle−startAngle| ≤ 360`） |
+| `startAngle` | `number` | ✅ | — | 起始角（度，自法向基准 X 方向起量） |
+| `endAngle` | `number` | ✅ | — | 终止角（度） |
 
-**同步**。Shape 1D 圆弧（kind:'curve'）。参数起点恒等于 `startAngle` 那个点、方向与入参一致。
+**同步**。Shape 1D 圆弧（kind:'curve'）。
 
-> 中立 op，**occt / smlib 双引擎**：L1 `makeCircleArc`（occt 原生 Geom_TrimmedCurve / smlib `smw_make_arc`）。角度单位是**度**（内部换算弧度传给引擎）。
->
-> 角度基准是全仓唯一的（2026-11-17 起）：`u` = 世界 +X 在圆面内的投影（法向几乎贴着 +X 轴时退到 +Y）、`v = n̂ × u`；两引擎对同组入参给出同一条弧、同一参数方向（op 内「先建 → 量两端 → 反解引擎的角度偏移/反射 → 重建 → 验两端」）。`|endAngle−startAngle| = 360` 的闭合圆不纠（接缝位置随引擎），> 360 直接报 `E_CIRCLEARC_SPAN`；纠正后两端仍对不上报 `E_CIRCLEARC_DATUM`。
+> 中立 op：角度基准由本 op 定死（世界 +X 在圆面内的投影为 0°，绕法向逆时针为正）， **参数起点恒为 startAngle 对应的点**，两个引擎给出同一条弧、同一方向。闭合边 （跨度 360°）的接缝位置随引擎、几何无差别。跨度超过 360° 报 `E_CIRCLEARC_SPAN`。 角度单位是**度**（内部换算弧度传给引擎）。
 
 ### 3.4 `cone` ✅
 
@@ -260,8 +258,8 @@ const s = cad.dxfExtrude({ dxf: 'logo.dxf', depth: 5, targetLongSide: 20, faceCe
 > faceCenter 只有 BREP 实现：mesh 几何上传 faceCenter 会显式报错（不静默忽略）。不给 faceCenter 时保持历史行为（XY 居中、Z 底部对齐原点）。
 
 ### 3.9 `edge` ✅
-两顶点构造边。顶点入参可以是 vertex Shape，也可以是 `[x,y,z]` 点（vertex Shape 经 `vertexPosition` 取值，不物化顶点）。
-两顶点构造边。顶点入参可以是 vertex Shape，也可以是 `[x,y,z]` 点 （点经 `makeVertex` 物化成顶点再配边）。
+
+两顶点构造边。顶点入参可以是 vertex Shape，也可以是 `[x,y,z]` 点。
 
 ```js
 const e = cad.edge([0,0,0], [10,0,0])
@@ -295,11 +293,7 @@ const a = cad.ellipseArc([0,0,0], [0,0,1], 10, 5, 0, 90)
 
 **同步**。Shape 1D 椭圆弧（kind:'curve'）。
 
-> 中立 op（occt + smlib）：角度单位是**度**（L1 契约收弧度，op 边界换算）。语义如实、不抹平：
-> occt 走原生解析椭圆 ⇒ `curveType` = `ellipse`（解析面）；smlib 走**精确有理二次 NURBS**
-> ⇒ `curveType` = `bspline`、侧面是 NURBS 面（点几何与解析椭圆同值 ~1e-16、长度积分 ~1e-6）。
-> 跨引擎对拍**比采样几何，不比类型标签**。负跨度 = 顺时针（CW），走向按 `shapeOrientation` 读
-> （occt 上是 REVERSED 边、smlib 上是真实反向参数化）；`0 < |end − start| <= 360`（度）。
+> 中立 op（occt + smlib）。角度单位是**度**（L1 契约收弧度，op 边界换算）。语义如实： occt 走原生解析椭圆（`curveType` = `ellipse`，参数域 = [起角, 止角]，经内核轴基旋转对齐后 端点落在契约帧的起止角点）；smlib 走精确有理二次 NURBS（`curveType` = `bspline`、 参数域 = [0, nSeg]、nSeg = ceil(|跨度|/90°)）。负跨度 = 顺时针（CW）—— 走向按 `shapeOrientation` 读：occt 上是 REVERSED 边，smlib 上是真实反向参数化。跨度必须 0 < |end − start| <= 360（度），否则 E_ELLIPSEARC_ZERO_SPAN / E_ELLIPSEARC_SPAN。
 
 ### 3.11 `ellipseEdge` ✅
 
@@ -318,11 +312,7 @@ const e = cad.ellipseEdge([0,0,0], [0,0,1], 10, 5)
 
 **同步**。Shape 1D 椭圆边（kind:'curve'）。
 
-> 中立 op（occt + smlib）。同 `ellipseArc`：occt 报 `curveType` = `ellipse`（解析面，闭合曲线的
-> 参数零点由内核轴基决定、不承载几何）；smlib 报 `bspline`（4×90° 精确有理二次 NURBS、闭合）。
-> 要求 majorRadius >= minorRadius（`gp_Elips` 约束，两引擎同判据）。
-> 实测差异：闭合椭圆周长 occt 48.505863 / smlib 48.442242（解析 48.442241）—— 即 occt 的闭合
-> 长跨度长度积分偏 1.3e-3，比较长度时按引擎给容差。
+> 中立 op（occt + smlib）。语义如实、不抹平：occt 走原生解析椭圆 ⇒ `curveType` 报 `ellipse`（解析面、弧长积分精确）；smlib 走**精确有理二次 NURBS** ⇒ `curveType` 报 `bspline`、侧面是 NURBS 面，点几何与解析椭圆同值（残差 ~1e-16）、长度积分相对 ~1e-6。 跨引擎对拍**比采样几何，不比类型标签**。要求 majorRadius >= minorRadius。
 
 ### 3.12 `ellipsoid` ✅
 
@@ -575,15 +565,7 @@ const f = cad.nonPlanarFace(curvedBoundaryWire)
 
 > 平台 op：仅 occt 引擎（原生 makeNonPlanarFace）。wire 须闭合。
 
-### 3.25 `pipe` —（已删除 2026-11-16）
-
-`cad.pipe`（`BRepOffsetAPI_MakePipe` 裸管线）**已删除**：它的定义域（单边 / 同类型 G1 脊柱）
-就是 `cad.sweep` 的 `single` 策略；带孔截面由「逐环扫 + `cut`」覆盖（实测净面积 × 长度）；
-`MakePipe` 的裸控制面留在逃生口 `cad.sweepRaw`（`{ mode: 'simple' }`）。
-
-迁移：`cad.pipe(profile, spine)` → `cad.sweep(section, spine)`。
-
-### 3.26 `profile` ✅
+### 3.25 `profile` ✅
 
 从 2D 轮廓构造平面（creator，无输入）。仅 BREP 可用。
 
@@ -599,7 +581,7 @@ const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y
 
 **同步**。Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'，多链为 wire compound）。
 
-### 3.27 `punchHole` ✅
+### 3.26 `punchHole` ✅
 
 `cad.punchHole`: cut a face-placed 2D profile out of a solid.
 
@@ -613,13 +595,16 @@ const plate = cad.punchHole({ contours: [loop], on: cad.box(40, 40, 4), face: '>
 | `contours` | `any[]` | ✅ | — | ordered 2D closed contours (the hole profile). |
 | `on` | `Shape` | ✅ | — | the target solid to punch. |
 | `face` | `any` | ✅ | — | host face: FaceTopoRef（UI 拾取产物字面量）| 面选择器字符串（如 ">Z"，在 on 上解析，多面命中抛错）| 1 起序号（仅网格链/当前内核快照，禁止用于生成脚本） |
-| `height` | `number|object` |  | — | blind depth along the face inward normal (null/absent = through). |
+| `height` | `number|object` |  | — | blind depth along the face inward normal (null/absent = through). Mutually exclusive with `upTo`. |
+| `upTo` | `any` |  | — | terminate at a target plane/face/extent instead of a fixed height: FaceTopoRef | 'last' | 'first' | CadQuery selector string | {plane:{point,normal}}. BREP-only. |
+| `baseFeature` | `Shape` |  | — | support body for `upTo` extent/selector; defaults to `on`. |
+| `offset` | `number` |  | — | cut-plane offset along its normal (mm). |
 | `draftAngle` | `number` |  | — | wall taper in degrees (default 0 = straight; built as an occt loft frustum). |
 | `scaleMode` | `string` |  | — | UV mapping: 'original' | 'bounds' | 'native'. |
 
 **同步**。Shape with the profile punched out of `on`.
 
-### 3.28 `screw` ✅
+### 3.27 `screw` ✅
 
 生成螺丝零件（螺纹 + 头型）。
 
@@ -651,7 +636,7 @@ const s = cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20
 >
 > pitchCustom 执行层已支持（makeScrew/threadBrep 均读取），codegen 曾不序列化（TODO）；当前已机械输出。
 
-### 3.29 `sdf` ⚠️
+### 3.28 `sdf` ⚠️
 
 用 SDF（符号距离场）函数生成网格体（mesh-only）。
 
@@ -670,7 +655,7 @@ const s = cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: [[-20,
 
 > SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。
 
-### 3.30 `sketch` ✅
+### 3.29 `sketch` ✅
 
 Sketch (semantic shapes / geometry + constraints) → solve → face / outer wire. 两条入口（二选一）： - `shapes`：语义图元（矩形/圆/……/画笔图元/close）→ 库面 `expandShapes` 展开成 canonical 几何 + 形状自带约束，再与调用方给的 `constraints` 合并求解； - `geoms`：直接给展开后的 canonical 几何（存量语句形态）。 Permanently brep-only: the mesh path reports `E_MESH_UNSUPPORTED`. Sketch APIs never get a mesh path — industry precedent (CadQuery, FreeCAD) solves sketches onto exact BREP edges.
 
@@ -702,7 +687,7 @@ constraints: [{ kind:'horizontal', of: { tag:'bottom' } }, { kind:'length', of: 
 
 **异步**。Shape 平面几何（求解后构面）；`as:'wire'` 时返回外环 1D 曲线。
 
-### 3.31 `sketchOnFace` ✅
+### 3.30 `sketchOnFace` ✅
 
 `cad.sketchOnFace`: place 2D contours on a **planar** face of a solid and construct a Shape. Engine-neutral (no `engines` declaration): works on the OCCT BREP engine, the brepkit BREP engine, and the brepkit mesh backend. **网格链**（`meshEngines: ['brepkit']`）：`on` 是网格实体 时，轮廓按面自己的**平面框**铺放（原点 = 面包围盒中心、法向 = 面法向），产物是一张 网格链面，可直接交给 `cad.extrude` 拉伸。该分支只接受平面面、只接受默认 `scaleMode`（`'bounds'`/`'native'` 相对 UV 域定义，网格链上没有 UV 域）、只接受 `as:'face'`、且只接受单个轮廓岛——每一条越界都以 `E_MESH_SOLID_UNSUPPORTED` 说明原因。
 
@@ -721,13 +706,25 @@ const face = cad.sketchOnFace({ contours: [loop], on: cad.box(20, 20, 10), face:
 
 **同步**。Shape on the target face (face, or a wire curve when `as:'wire'`).
 
-### 3.32 `sketchOnPlane` ✅
+### 3.31 `sketchOnPlane` ✅
 
 `cad.sketchOnPlane`: place 2D contours on a plane and construct a Shape.
 
 ```js
 // loop = 一个闭合 2D 轮廓：{ segments: [{ kind: 'line', x1, y1, x2, y2 }, ...] }
 const face = cad.sketchOnPlane({ contours: [loop], plane: 'XY' })
+// 显式坐标系：截面落在任意空间点，法向沿扫掠脊柱起点切向（不必再记 XY/XZ/YZ 的
+// cx/cy 映射，也不用手工 translate）。下面把截面放在 (0,0,90)、法向 +Y：
+const sec = cad.sketchOnPlane({
+contours: [ring],                     // ring = 圆环轮廓（外圆 + 内圆）
+plane: { origin: [0, 0, 90], normal: [0, 1, 0] },
+})
+// 只给 normal 时平面内 xAxis 是自动推导的（normal=[0,1,0] ⇒ 局部 +X 落在世界 +Z），
+// 圆形/对称截面无所谓；**非对称截面要固定朝向就必须显式给 xAxis**：
+const asymmetric = cad.sketchOnPlane({
+contours: [rect],
+plane: { origin: [0, 0, 90], normal: [0, 1, 0], xAxis: [1, 0, 0] },
+})
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -738,7 +735,7 @@ const face = cad.sketchOnPlane({ contours: [loop], plane: 'XY' })
 
 **同步**。Shape on the target plane (face / face compound, or wire / wire compound when `as:'wire'`).
 
-### 3.33 `sketchOnSurface` ✅
+### 3.32 `sketchOnSurface` ✅
 
 `cad.sketchOnSurface`: place 2D contours on a face of a solid via UV-conform placement and construct a Shape. Curved/UV-conform variant of `cad.sketchOnFace` (which is now planar-only and engine-neutral). This op maps the contour into the face's `(u,v)` domain and snaps it to the surface, a step that needs the OCCT BREP platform, hence `engines: ['occt']`.
 
@@ -757,7 +754,7 @@ const sk = cad.sketchOnSurface({ contours: [loop], on: cad.cylinder(20, 30), fac
 
 **同步**。Shape on the target face (face, or a wire curve when `as:'wire'`).
 
-### 3.34 `sphere` ✅
+### 3.33 `sphere` ✅
 
 创建球体。
 
@@ -777,7 +774,7 @@ const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
 
 **同步**。Shape 球体几何，可作为后续 op 的输入。
 
-### 3.35 `surface` ✅
+### 3.34 `surface` ✅
 
 由控制点阵构造 B 样条曲面。
 
@@ -795,7 +792,7 @@ const s = cad.surface({ points: [[-5,-5,0],[5,-5,0],[-5,5,0],[5,5,0]], rows: 2, 
 
 > 平台 op：仅 occt 引擎（原生 bsplineSurface）。非 occt 引擎执行前报错；brep_mock 不拦截。
 
-### 3.36 `svgExtrude` ⚠️
+### 3.35 `svgExtrude` ⚠️
 
 从二维 SVG 轮廓挤出零件（拓扑操作）。
 
@@ -821,6 +818,25 @@ const s = cad.svgExtrude({ svg: 'logo.svg', depth: 5, targetLongSide: 20, faceCe
 >
 > faceCenter 只有 BREP 实现：mesh 几何上传 faceCenter 会显式报错（不静默忽略）。不给 faceCenter 时保持历史行为（XY 居中、Y 底部对齐原点）。
 
+### 3.36 `sweep` ✅
+
+扫掠：把等截面沿任意三维中心线扫成（可空心）的实体，一次调用给出解析体积。 三条策略（`internal/sweep-strategy.ts`，全部实测）： - `single`——单边 / 同类型多边全 G1：内核一次扫，精确； - `miter`——有 G0 折角：一次扫 + `rightCorner` 斜接，0.9936（4 拐角）/ 0.9996（16 拐角）； - `segments`——混合边类型（弧 + 直腿）全 G1：逐段扫 + 共面接缝 fuse，精确； - `closed`——闭合中心线：一次扫掠，环面体积 = 面积 × 周长。 逐段直接 union 在折角上是错的（4×4/90° 实测 304，精确 320 —— 转角重叠被 fuse 吞掉、 外侧没有斜接补料，而且只差 5% 刚好压在 C1 容差界上），所以折角要么由内核给斜接， 要么按「逐段过量延伸 + 角平分面裁剪 + fuse」在策略层造（smlib 走这条）。 **引擎能力**（不支持的组合在扫掠前拒绝，`E_SWEEP_ENGINE_CAP`）： occt 全策略；smlib `single` / `miter`（平面折角内核给、空间折角策略层自补）/ `segments` / `closed`；brepkit 只 `single`（旧引擎，折角被 RMF 光滑掉）。 无解脊柱显式拒绝（带修法）：断裂 `E_SPINE_DISCONTINUOUS`、折返 `E_SPINE_FOLD`、 零长边 `E_SPINE_DEGENERATE`、混合 + 折角 `E_SPINE_MIXED_CORNER`、斜接必自交 `E_SPINE_MITER_SELF_INTERSECT`（含「延伸会越过相邻折点」这种造不出来的折角）。 判据：C1 体积（净面积 × 长度）、C2 端面法向 vs 端点切向（抓「截面没转」的塌陷， 15° 折角体积只偏 1.7% 也逃不掉；occt + smlib 可评，|dot| 判据不依赖 shapeOrientation）、 C3 产物 bbox 必须覆盖脊柱。
+
+```js
+const path = cad.wireFromEdges([leg1, bend, leg2]) // 直线 / 真弧任意拼接
+const tube = cad.sweep(annulusFace, path)          // 一次调用，截面自动落位
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `section` | `Shape` | ✅ | — | 等截面（实心 face / 带孔 face / 闭合 wire） |
+| `spine` | `Shape` | ✅ | — | 三维中心线 wire（直线 / 真弧 / 样条任意组合） |
+| `opts` | `SweepOptions` |  | — | 见 `SweepOptions`（策略覆写、落位、容差、严格度） |
+
+**同步**。Shape 完整扫掠体（带孔截面产空心管实体）。
+
+> 三引擎 op，能力按引擎分级（见上）。脊柱须为 wire；截面可以是 face（全部环 参与，外环扫实体、孔环 cut 出内腔）或闭合 wire。
+
 ### 3.37 `tangentArc` ✅
 
 构造圆弧：过起点、以给定切向出发、终于终点（GC_MakeArcOfCircle 语义）。
@@ -837,7 +853,7 @@ const a = cad.tangentArc([0,0,0], [1,0,0], [5,5,0])
 
 **同步**。Shape 1D 圆弧（kind:'curve'）。
 
-> 中立 op，**occt / smlib 双引擎**：几何完全中立（切向定方向 + 到两端等距定圆心 ⇒ 圆唯一），再经 L1 `makeArcEdge` 三点弧落到引擎。切向为零向量或起点=终点报 `E_TANGENTARC_DEGENERATE`；切向与弦共线报 `E_TANGENTARC_COLLINEAR`；三点弧两个方向都不以 `start` 为参数起点时报 `E_TANGENTARC_ORIENTATION`。
+> 中立 op：圆心由本 op 自己解（切向定方向、等距定位置），再走 L1 `makeArcEdge` （三点弧）⇒ occt / smlib 都能用，几何与 occt 原生 `GC_MakeArcOfCircle` 同解。 切向为零向量非法；切向与弦共线（弧退化成直线）报 `E_TANGENTARC_COLLINEAR`。
 
 ### 3.38 `text` ⚠️
 
@@ -948,16 +964,18 @@ const w = cad.wire([[0,0,0],[10,0,0],[10,10,0]], { closed: true })
 const e1 = cad.edge([0,0,0],[10,0,0])
 const e2 = cad.edge([10,0,0],[10,10,0])
 const w = cad.wireFromEdges([e1, e2])
+// 单条真弧 → wire，可直接当扫掠脊柱（扫掠体积须等于 面积 × 弧长）
+const spine = cad.wireFromEdges([cad.circleArc([0,-10,0],[1,0,0],10,0*DEGREE,90*DEGREE)])
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `edges` | `Shape[]` | ✅ | — | 有序边 Shape 列表（`cad.edge` / `cad.circleArc` / `cad.tangentArc` 等产物），至少 1 条（单边合法，2026-11-14 放宽） |
+| `edges` | `Shape[]` | ✅ | — | 有序边 Shape 列表（`cad.edge` / `cad.circleArc` / `cad.tangentArc` 等产物），至少 1 条 |
 | `closed` | `boolean` |  | false 开链合法）。type:boolean required:false | 要求闭合链（组装后校验首尾相连，不闭合抛 E_WIRE_FROM_EDGES_NOT_CLOSED |
 
 **同步**。Shape 1D 曲线（kind:'curve'）。
 
-> 中立 op：L1 makeWire 两引擎同实现。顺序敏感——按入参顺序组装， 不做端点排序；连接性由内核校验，失败抛内核错误。
+> 中立 op：L1 makeWire 两引擎同实现。顺序敏感——按入参顺序组装， 不做端点排序；连接性由内核校验，失败抛内核错误。 单边合法（2026-11-14 放宽，原下限是 2）：`makeWire([singleEdge])` 本身就 是内核支持的形态（探针实测 `makeWire([circleEdge])` 即整圆 wire）。这条对 **扫掠脊柱**是关键出路——`cad.circleArc` 产出单条 edge，只有允许单边组 wire， 脚本层才能写出"单段真弧脊柱"（`cad.sweep(section, cad.wireFromEdges([arc]))`）。 此前下限 2 让真弧脊柱在脚本层无路可走，只能退化成折线（体积按 2/π 丢）。
 
 ---
 
@@ -1372,9 +1390,11 @@ const p = cad.extrude(sk, { upTo: '>Z', baseFeature: part0 })
 | `normal` | `[x,y,z]` |  | [0,0,1] | 拉伸方向（世界坐标） |
 | `mode` | `'forward' | 'backward'` |  | 'forward' | 沿 normal 的前进方向：forward 正向 / backward 反向 |
 | `backwardLength` | `number` |  | 0 | 负向长度（mm，≥0，缺省 0 = 单向）。>0 时与 length 组成双向拉伸（输入面成为棱柱内部平面）；与 mode:'backward' / upTo 互斥 |
-| `upTo` | `'last' | 'first' | FaceTopoRef | string` |  | — | 拉伸到面：FaceTopoRef（UI 拾取产物字面量）指定面 / 'last' 支持体远端面 / 'first' 近端面 / 面选择器字符串（如 ">Z"，在 baseFeature 上解析，多面命中抛错）。提供时忽略 length。❌ 禁止 cad.faceRef 序号 |
-| `baseFeature` | `Shape` |  | — | upTo 'last'/'first'/面选择器的支持体几何（累积支持体） |
+| `upTo` | `'last' | 'first' | 'next' | FaceTopoRef | string` |  | — | 拉伸到面：FaceTopoRef（UI 拾取产物字面量）指定面 / 'last' 支持体远端面 / 'first' 近端面 / 'next' 沿方向遇到的下一个面（面中心投影近似）/ 面选择器字符串（如 ">Z"，在 baseFeature 上解析，多面命中抛错）。提供时忽略 length。❌ 禁止 cad.faceRef 序号 |
+| `baseFeature` | `Shape` |  | — | upTo 目标 / combine:'cut' 的支持体几何（累积支持体） |
 | `offset` | `number` |  | 0 | 截断面沿其法向的偏移（mm） |
+| `combine` | `'union' | 'cut'` |  | 'union' | 'union'（缺省，产出拉伸实体）/ 'cut'（拉伸体作刀具从 baseFeature 减去；需 baseFeature 与 upTo/backwardUpTo） |
+| `backwardUpTo` | `FaceTopoRef | 'last' | 'first' | 'next' | string` |  | — | 负向 up-to 目标：与 upTo/length 组成双向到面拉伸；与 backwardLength、mode:'backward' 互斥 |
 
 **异步**。Shape 拉伸后的几何。
 
@@ -1405,7 +1425,10 @@ const p = cad.fai_drill(part0, { position: [47.5, 0, 55], direction: 'x', holeTy
 |---|---|---|---|---|
 | `diameter` | `number` |  | — | 孔径（mm）；`tapped`/`screw` 时省略则按表反算底孔（M16 → Φ14；显式值优先，图纸值唯一真源），`simple` 必填 |
 | `thread` | `string` |  | — | 描述性螺纹规格（一个键即完整规格，不写 `screwSystem`/`screwSpecIdx`/`screwThread`）：metric `'M<dia>[×<pitch>][-<class>][↧|↓<depth>]'`（'M16'、'M16×1.5'、'M4 X 0.7 - 6H'、'M16-6H↧18'）、imperial `'(#<gauge>|<frac>"|<dec>")[-<tpi>][-<class>][↧|↓<depth>]'`（'1/4"-20-2B↧10'）、pipe `'PT|R|Rc<size>[↧|↓<depth>]'`（'PT1/8'）。空格/大小写全容忍。深度后缀亦可用 `'<depth> DEEP'`（'M16 18 DEEP'）；`'THRU'`/`'THROUGH'` 后缀 = 通孔（与显式 `depth` 同给报错）。OCR 变体白名单（只收敛、不扩语法）：NFKC 等价（全角、分数字形）、破折号/×/引号/箭头形近字、数字逗号小数（'1,5'→'1.5'）、前导点小数英寸（'.25"'）、公差等级闭字母表唯一修复（'GH'→'6H'、'ZB'→'2B'，自由数字绝不猜测，仅报错并附最近表项建议）；白名单外显式拒绝（>64 字符、零宽/双向控制字符、表外字符如西里尔 'М'、注入载荷）。给出后：`holeType` 缺省 `'tapped'`（显式 `'tapped'`/`'screw'` 合法，`'simple'` 报错）；底孔按表反算（显式 `diameter` 优先）；**串内带公差后缀（-6H）或显式 `threadClass` 才产出 PMI**（'M4×0.7' 无 PMI）；串内 `↧18`/`↓18`/`18 DEEP` = 孔深 18（与显式 `depth` 同给报错）；解析失败/表外显式报错（E_THREAD_SPEC），不静默回落 |
-| `depth` | `number` |  | 0 | 孔深（mm）；0 = 通孔，> 0 = 盲孔 |
+| `depth` | `number` |  | 0 | 孔深（mm）；0 = 通孔，> 0 = 盲孔。与 `upTo` 互斥 |
+| `upTo` | `'last' | 'first' | FaceTopoRef | string | object` |  | — | 钻孔到面：FaceTopoRef（UI 拾取产物字面量）/ 'last' 支持体远端面 / 'first' 近端面 / CadQuery 面选择器字符串（如 '>Z'，在 baseFeature 上解析）/ {plane:{point,normal}} 显式基准面。提供时按其解析实际孔深，与 `depth` 及带深度后缀的描述串互斥。BREP-only |
+| `baseFeature` | `Shape` |  | — | upTo 'last'/'first'/面选择器的支持体几何；缺省用输入体 |
+| `offset` | `number` |  | 0 | upTo 截断面沿其法向的偏移（mm） |
 | `holeType` | `'simple' | 'screw' | 'tapped'` |  | 'simple' | 孔类型：simple 光孔 / screw 建模螺纹 / tapped 攻丝孔（底孔 + 螺纹 PMI）。`thread` 给出时缺省 'tapped' |
 | `direction` | `'normal' | 'x' | 'y' | 'z'` |  | 'normal' | 钻孔轴向：`'normal'` = 沿该面法向进入材料（面在底面时即"向上"），`x`/`y`/`z` = 世界轴，两类都会按面法向自动定号；PMI 的 `axis.direction` 记的是定号后的实际钻孔方向 |
 | `position` | `[x,y,z]` |  | 原点 | 孔心位置 |
@@ -1796,7 +1819,7 @@ const p = cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpacing: 20
 
 ### 5.30 `revolve` ✅
 
-旋转成形：把平面轮廓绕轴旋转（兼容生成投影签名）。
+旋转成形：把平面轮廓绕轴旋转（兼容生成投影签名）。 **硬约束（实测，2026-11-14）**：截面平面必须**包含**旋转轴。轴垂直于截面平面时 轮廓只是在自身平面里打转，永远扫不出体积——产物 volume=0、包围盒某向厚度=0， 而 `shapeType` 仍报 `'solid'`（所以类型判断抓不住）。此时抛 `E_REVOLVE_ZERO_THICKNESS`。 对照（同一台机器、同一内核）： - 截面在 **XZ**、绕 **Z** 转 182° → volume 7466.74（Pappus 精确值）； - 截面在 **XZ**、绕 **Z** 转 2π → volume 14769.37； - 截面在 **XY**、绕 **Z** 转任何角度 → volume 0（退化）。 `cad.profile` 没有 plane 参数（轮廓永远画在 XY），所以"让截面落在含轴平面" 需要显式搬运，例如 `cad.rotate_euler(profile, { angles: [90 * DEGREE, 0, 0] })` 把 XY 轮廓绕 X 轴转 90° 落到 XZ。
 
 ```js
 const p1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
@@ -1804,8 +1827,8 @@ const p1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.2831853
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `face` | `Shape` | ✅ | — | 平面轮廓 |
-| `options` | `RevolveOptions` |  | — | 旋转轴/点/角度（透传 compat 语义） |
+| `face` | `Shape` | ✅ | — | 平面轮廓（**所在平面必须含旋转轴**） |
+| `options` | `RevolveOptions` |  | — | 旋转轴/点/角度（弧度） |
 
 **异步**。Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
 
@@ -1935,55 +1958,12 @@ const b = cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.38 `sweep` ✅
+### 5.38 `sweepRaw` ✅
 
-扫掠（**唯一公开扫掠入口**）：脊柱事实 → 策略 → 执行 → 判据（C1 体积 / C2 端面法向 / C3 bbox）。
-
-```js
-const path = cad.wire([[0, 0, 0], [0, 0, 50]])
-const section = cad.profile({ contours: [{ segments: [
-{ kind: 'line', x1: -4, y1: -4, x2: 4, y2: -4 },
-{ kind: 'line', x1: 4, y1: -4, x2: 4, y2: 4 },
-{ kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
-{ kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
-] }] })
-const body = cad.sweep(section, path)
-```
-
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|---|---|---|---|---|
-| `section` | `Shape` | ✅ | — | 截面（face / 带孔 face / 闭合 wire；孔环用 `cut` 减出内腔） |
-| `spine` | `Shape` | ✅ | — | 脊柱中心线 wire（直线 / 真弧 / 样条任意组合） |
-| `opts` | `SweepOptions` |  | — | `strategy` / `autoPlace` / `volumeTolerance` / `strict` |
-
-**异步**。Shape 扫掠体（带孔截面产空心实体）。
-
-> 三引擎 op，能力按引擎分级（实测：`test/api/sweep-engines.test.ts`）：occt 全策略
-> （`single` / `miter` / `segments` / `closed`；`segments` 遇到 G0 折角时按角平分面裁成斜接，
-> 混合边 + 折角实测 411.33 × 1.0044 —— 残差是「混合曲率斜接」的口径，不是算法误差）；smlib
-> 四策略（`single` 400 / `miter` 平面折角 320 由内核斜接、空间折角 480 由策略层自补（逐段过量
-> 延伸 + 角平分面裁剪 + fuse）/ `segments` 混合边 411.33、含 G0 折角 411.98（×1.0016，平面）
-> 与 411.30（×0.9999，空间）/ `closed` 1005.31 / 带孔 3015.93）；brepkit 仅 `single`（旧引擎）。
-> 弧段的过量延伸走「沿同一圆续弧」（`fitArc` 几何反解 + 三点弧），所以内核拿到的是单条光滑弧；
-> 某一段扫出空体时报 `E_SWEEP_EMPTY_PIECE`（wire 的边没首尾相接时内核会静默接受，实测 V=0）。
-> 不支持的组合**扫掠前**拒绝（`E_SWEEP_ENGINE_CAP`，消息给出引擎缺的内核能力与修法）。
-> `strategy` 缺省 `'auto'`：单边 / 同类 G1 → `single`；全 G0 折角 → `miter`；混合边 G1 →
-> `segments`；混合边 + G0 折角 → `segments`（每个折角裁斜接）；闭合中心线 → `closed`。
-> `autoPlace` 缺省 `true`（截面搬到脊柱起点并转正）。
-> 内核控制面（law / auxSpine / support / 过渡模式）见 `cad.sweepRaw`。
-
-### 5.39 `sweepRaw` ✅
-
-扫掠逃生口（内核控制面）：截面沿脊柱路径生成扫掠体。
+扫掠（内核控制面直通）：把 occt `sweepFull` 的完整选项面暴露给脚本。
 
 ```js
 const path = cad.wire([[0, 0, 0], [0, 0, 50]])
-const section = cad.profile({ contours: [{ segments: [
-{ kind: 'line', x1: -4, y1: -4, x2: 4, y2: -4 },
-{ kind: 'line', x1: 4, y1: -4, x2: 4, y2: 4 },
-{ kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
-{ kind: 'line', x1: -4, y1: 4, x2: -4, y2: -4 },
-] }] })
 const body = cad.sweepRaw(section, path, { orientation: 'frenet' })
 ```
 
@@ -1995,15 +1975,9 @@ const body = cad.sweepRaw(section, path, { orientation: 'frenet' })
 
 **异步**。Shape 扫掠体。
 
-> 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。这是 `cad.sweep` 删除
-> 之前 `cad.sweepAdvanced` 的**改名保留**：`law` / `auxSpine` / `support` / `orientation` /
-> `transitionMode` 等与 Pappus 判据冲突的控制面留在这里，不混进 `sweep` 的选项。截面接受
-> wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错；brep_mock 不拦截。
-> `shellMode` 不暴露（元组产物跨不过单产物边界）。`mode:'simple'` 走 `MakePipe` 裸管线
-> （单段弧上精确，混合边 G1 上按 A×(弧长 − 腿长) 出错）。`sweepFull` 的 options 是
-> `sweepRaw` 的**严格超集** ⇒ 脚本面只需本符号一个。日常扫掠请用 `cad.sweep`。
+> 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / simplePipe）。截面接受 wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错； brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。 **这是逃生口，不是主入口**：日常「等截面沿中心线扫出管」用 `cad.sweep` （自动策略 + 落位 + C1–C3 判据）。本 op 不做策略选择，只在脊柱事实的基础 上给默认过渡（G0 → `rightCorner`）—— 给 `orientation` / `up` / `auxSpine` / `curvilinearEquivalence` / `guideContact` / `withContact` / `withCorrection` / `support` / `maxDegree` / `maxSegments` / `law` / `lawLength` / `lawEndFactor` / `tol3d` / `boundTol` / `tolAngular` 任一，即改走 occt 原生 `sweepFull`。`law ≠ 'none'` 时体积恒等式不成立，C1 自动跳过（由调用方负责）。
 
-### 5.40 `thicken` ✅
+### 5.39 `thicken` ✅
 
 加厚：把面（或壳）沿法向偏置成等厚实体。
 
@@ -2025,7 +1999,7 @@ const solid = cad.thicken(face, 2)
 
 > 平台 op：仅 occt 引擎（BRepOffset）。输入为面/壳 Shape（如 cad.profile 产物）； 正厚度沿法向、负厚度反向。非 occt 引擎执行前报错；brep_mock 不拦截。
 
-### 5.41 `twistExtrude` ✅
+### 5.40 `twistExtrude` ✅
 
 wire → Result(Shape3D)，brep-op
 
@@ -2048,7 +2022,7 @@ twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Sha
 >
 > 实现：`brep-operations/sweepFns.ts#twistExtrudeBrep`。
 
-### 5.42 `union` ✅
+### 5.41 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -3441,9 +3415,9 @@ const svg = cad.toSVG(box, 'iso')
 ## 14. 写给 AI 的速查（一句话总结每个可用 op）
 
 ```
-创建: approximatePoints / box / circleArc / cone / convexHull / cylinder / draftPrism / dxfExtrude / edge / ellipseArc / ellipseEdge / ellipsoid / faceFromWire / faceOnSurface / halfSpace / helix / import_brep / import_step / interpolateWithTangents / liftCurve2d / makeBaseBox / makeSolid / nonPlanarFace / profile / punchHole / screw / sdf / sketch / sketchOnFace / sketchOnPlane / sketchOnSurface / sphere / surface / svgExtrude / tangentArc / text / thread / torus / wedge / wire / wireFromEdges
+创建: approximatePoints / box / circleArc / cone / convexHull / cylinder / draftPrism / dxfExtrude / edge / ellipseArc / ellipseEdge / ellipsoid / faceFromWire / faceOnSurface / halfSpace / helix / import_brep / import_step / interpolateWithTangents / liftCurve2d / makeBaseBox / makeSolid / nonPlanarFace / profile / punchHole / screw / sdf / sketch / sketchOnFace / sketchOnPlane / sketchOnSurface / sphere / surface / svgExtrude / sweep / tangentArc / text / thread / torus / wedge / wire / wireFromEdges
 变换: alignTo / applyMatrix / locate / offset / place / rotate
-特征: boolean / boss / chamfer / circularPattern / clone / complexExtrude / cut / draft / drill / extrude / fillet / filletVariable / fuse / gridPattern / intersect / knurl / linearPattern / loft / loftAdvanced / mirror / mirrorJoin / offset2d / pocket / rectangularPattern / revolve / roof / sectionByPlane / shell / solidFromFaces / split / splitByPlane / subtract / sweep / sweepRaw / thicken / twistExtrude / union
+特征: boolean / boss / chamfer / circularPattern / clone / complexExtrude / cut / draft / drill / extrude / fillet / filletVariable / fuse / gridPattern / intersect / knurl / linearPattern / loft / loftAdvanced / mirror / mirrorJoin / offset2d / pocket / rectangularPattern / revolve / roof / sectionByPlane / shell / solidFromFaces / split / splitByPlane / subtract / sweepRaw / thicken / twistExtrude / union
 修复: autoHeal / defeature / fixSelfIntersection / fixShape / heal / healSolid / removeHolesFromFace / reverseShape / sew / sewAndSolidify / simplify / unifySameDomain
 结构: compound
 查询: area / asset / bboxCenter / bboxMax / bboxMin / centerOfMass / classifyPointOnFace / containsPoint / curveDegreeElevate / curveIsPeriodic / curveKnotInsert / curveKnotRemove / distanceBetween / edgeRef / faceBySelector / faceNormal / faceRef / formatGeneralNote / formatThreadHole / inertia / inspectMassProps / inverseKinematics / isCompound / isCompSolid / isEdge / isEqual / isFace / isSameShape / isShell / isValid / isVertex / isWire / iterShapes / jointTrajectory / length / linearCenterOfMass / mechanismDOF / outerWire / pmiDatums / pmiGeneralNotes / pmiItems / pmiOn / pmiThreads / projectPointOnEdge / projectPointOnFace / projectSheet / projectView / reverseSurfaceU / subShapeCount / uvFromPoint / vertexPosition / viewCamera / volume

@@ -148,3 +148,26 @@ describe('cad.punchHole e2e (E4, occt)', () => {
     expect(removed).toBeGreaterThan(56) // and not a degenerate near-zero taper
   })
 })
+
+describe('cad.punchHole upTo (P1)', () => {
+  it('upTo plane equals fixed height (blind pocket geometry)', async () => {
+    const topOrd = await boxTopFaceOrdinal()
+    // cad.box(20,20,10) is centered:false ⇒ top face z=10; punch downward.
+    // plane z=6 ⇒ depth 4, matching the fixed height:4 case (volume 3936).
+    const result = await exec(
+      `const p0 = cad.box(20, 20, 10)\n` +
+        `const holed = cad.punchHole({ contours: ${JSON.stringify([sq(8, 8, 4)])}, on: p0, face: ${topOrd}, upTo: { plane: { point: [0, 0, 6], normal: [0, 0, 1] } } })\n`,
+    )
+    if (result.failedAt) throw new Error(`punchHole upTo failed: ${result.failedAt.message}`)
+    expect(firstSolid(result, 'holed').volume).toBeCloseTo(3936, 2) // 4000 - 4×4×4
+  })
+
+  it('height + upTo is rejected', async () => {
+    const topOrd = await boxTopFaceOrdinal()
+    const result = await exec(
+      `const p0 = cad.box(20, 20, 10)\n` +
+        `const holed = cad.punchHole({ contours: ${JSON.stringify([sq(8, 8, 4)])}, on: p0, face: ${topOrd}, height: 4, upTo: { plane: { point: [0, 0, 1], normal: [0, 0, 1] } } })\n`,
+    )
+    expect(result.failedAt?.message).toMatch(/E_PUNCH_HEIGHT_UPTO/)
+  })
+})

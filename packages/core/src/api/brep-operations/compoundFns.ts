@@ -22,6 +22,8 @@ import type { FormClass } from '../internal/dual-form-args'
 import { resolveArgs } from '../internal/dual-form-args'
 import type { Vec3 } from '../geom-types/types'
 import { brepHandleOf, composeAffine, rotationZTo, translationMatrix } from './brepHelpers'
+import type { Shape } from '../../mesh/types'
+import { normalizeUpToTarget, resolveUpToPlane, trimToPlane } from '../up-to'
 
 const DRILL_PARAMS = { name: 'drill', params: ['shape', 'options'], formClass: 'A' as FormClass }
 const POCKET_PARAMS = { name: 'pocket', params: ['shape', 'options'], formClass: 'A' as FormClass }
@@ -140,23 +142,44 @@ export function drillBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, options] = resolveArgs(args, DRILL_PARAMS)
   const kernel = getBrepApi()
   const s = brepHandleOf(shape)
-  const { at, radius, axis, depth } = options as {
+  const { at, radius, axis, depth, upTo, baseFeature, offset } = options as {
     at: Vec3 | [number, number]
     radius: number
     axis?: Vec3
     depth?: number
+    upTo?: unknown
+    baseFeature?: Shape
+    offset?: number
   }
   const ax = (axis ?? [0, 0, 1]) as Vec3
 
   if (radius <= 0) return err(validationError('DRILL_INVALID_RADIUS', 'Drill radius must be positive'))
   if (vecIsZero(ax)) return err(validationError('DRILL_ZERO_AXIS', 'Drill axis cannot be zero'))
+  if (depth !== undefined && upTo !== undefined) {
+    return err(validationError('E_DRILL_DEPTH_UPTO', 'drill: depth and upTo are mutually exclusive'))
+  }
 
   const dir = vecNormalize([ax[0], ax[1], ax[2]])
   const pos: [number, number, number] = at.length === 2 ? [at[0], at[1], 0] : [at[0], at[1], at[2]]
 
   let tool: BrepHandle | undefined
   try {
-    if (depth !== undefined) {
+    if (upTo !== undefined) {
+      // Up-to drilling: resolve the target plane, build an over-long tool from
+      // `at` along `dir`, then trim it against the plane keeping the `at` side.
+      const target = normalizeUpToTarget(upTo)
+      const plane = resolveUpToPlane(target, {
+        kernel,
+        base: baseFeature ?? (shape as Shape),
+        origin: pos,
+        direction: dir,
+        offset,
+      })
+      const bb = kernel.getBoundingBox(s)
+      const diag = Math.hypot(bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin)
+      const longTool = cylinderAt(kernel, radius, diag * 3 + Math.abs(offset ?? 0) * 2 + 10, pos, dir)
+      tool = trimToPlane(kernel, longTool, plane, pos, dir, diag + Math.abs(offset ?? 0) + 1)
+    } else if (depth !== undefined) {
       tool = cylinderAt(kernel, radius, depth, pos, dir)
     } else {
       // Through-all: project bounding box onto the drill axis, add overshoot.
@@ -212,15 +235,56 @@ export function pocketBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, options] = resolveArgs(args, POCKET_PARAMS)
   const kernel = getBrepApi()
   const s = brepHandleOf(shape)
-  const { profile, depth } = options as { profile: unknown; depth: number; face?: unknown }
+  const { profile, depth: rawDepth, upTo, baseFeature, offset } = options as {
+    profile: unknown
+    depth?: number
+    face?: unknown
+    upTo?: unknown
+    baseFeature?: Shape
+    offset?: number
+  }
 
-  if (depth <= 0) return err(validationError('POCKET_INVALID_DEPTH', 'Pocket depth must be positive'))
+  if (upTo !== undefined && rawDepth !== undefined) {
+    return err(validationError('E_POCKET_DEPTH_UPTO', 'pocket: depth and upTo are mutually exclusive'))
+  }
+  if (upTo === undefined && (rawDepth === undefined || rawDepth <= 0)) {
+    return err(validationError('POCKET_INVALID_DEPTH', 'Pocket depth must be positive'))
+  }
+  let depth = rawDepth ?? 0
 
   const faceRes = resolveTargetFace(kernel, s, (options as { face?: unknown }).face)
   if (isErr(faceRes)) return faceRes
   const face = faceRes.value
   const normal = faceNormalAt(kernel, face)
   const center = faceCenterAt(kernel, face)
+
+  if (upTo !== undefined) {
+    // Pocket cuts inward = -outward face normal. Resolve the target plane and
+    // derive depth from the face center along that direction.
+    const nn = vecNormalize([normal[0], normal[1], normal[2]])
+    const inward: [number, number, number] = [-nn[0], -nn[1], -nn[2]]
+    const origin: [number, number, number] = [center[0], center[1], center[2]]
+    const plane = resolveUpToPlane(normalizeUpToTarget(upTo), {
+      kernel,
+      base: baseFeature ?? (shape as Shape),
+      origin,
+      direction: inward,
+      offset,
+    })
+    const denom =
+      inward[0] * plane.normal[0] + inward[1] * plane.normal[1] + inward[2] * plane.normal[2]
+    if (Math.abs(denom) < 1e-9) {
+      return err(validationError('E_UP_TO_PARALLEL', 'pocket direction is parallel to the target face plane'))
+    }
+    const t =
+      ((plane.point[0] - origin[0]) * plane.normal[0] +
+       (plane.point[1] - origin[1]) * plane.normal[1] +
+       (plane.point[2] - origin[2]) * plane.normal[2]) / denom
+    if (!Number.isFinite(t) || t <= 0) {
+      return err(validationError('E_UP_TO_NO_INTERSECTION', 'target face is not in the pocket direction'))
+    }
+    depth = t
+  }
 
   const profRes = profileToFace(kernel, profile)
   if (isErr(profRes)) return profRes

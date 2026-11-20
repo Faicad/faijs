@@ -458,14 +458,15 @@ function walkApiSources(dir: string, files: string[]): void {
 /**
  * 符号表里**不是 op** 的脚本面函数：无几何输入、无 Shape 产物，不进几何 op 手册。
  *
- * 当前只有两个，都是 `cad` 命名空间上的运行时开关（源码里明确标注「非 defineOp」）：
+ * 当前有三个：
  * - `useMeshChain(enabled?)` —— 切换后续 op 走 mesh 链，返回 `undefined`；
- * - `setBooleanOperandValidation(on)` —— 布尔操作数校验开关，返回 `void`。
+ * - `setBooleanOperandValidation(on)` —— 布尔操作数校验开关，返回 `void`；
+ * - `validateSolid(shape)` —— 产物体检，返回纯数据 `SolidReport`（源码明确标注「不是 defineOp」）。
  *
  * **新增同类库函数时必须在这里登记一行**（不能靠"章节少几个就放过"——那会把真缺章一起吞掉；
  * 判据 ② 会校验这里每个名字确实在符号表里）。
  */
-const NON_OP_SYMBOLS = new Set(['useMeshChain', 'setBooleanOperandValidation'])
+const NON_OP_SYMBOLS = new Set(['useMeshChain', 'setBooleanOperandValidation', 'validateSolid'])
 
 /**
  * 全部逐 op 章节 = 手写 JSDoc 契约 ∪ arg-spec 派生，去重后按 `GROUP_ORDER` 分节。

@@ -190,6 +190,39 @@ describe('G2 单元层（brep-operations 自有实现）', () => {
     kernel.release(hOf(profile))
   })
 
+  it('pocketBrep upTo：plane 目标与固定 depth 体积一致', () => {
+    // box 10×20×30, top face z=30; punch inward (-Z) to plane z=25 ⇒ depth 5.
+    const src = boxShape()
+    const wire = wireOf(boxShape())
+    const fixed = pocketBrep(src, { profile: wire, depth: 5 })
+    expect(fixed.ok).toBe(true)
+    const fixedH = (fixed as { ok: true; value: BrepHandle }).value
+
+    const src2 = boxShape()
+    const wire2 = wireOf(boxShape())
+    const up = pocketBrep(src2, {
+      profile: wire2,
+      upTo: { plane: { point: [0, 0, 25], normal: [0, 0, 1] } },
+    })
+    expect(up.ok).toBe(true)
+    const upH = (up as { ok: true; value: BrepHandle }).value
+    // up-to plane z=25 is the same depth-5 cut as the fixed form; profile
+    // placement is shared, so the geometry must match exactly.
+    expect(kernel.getVolume(upH)).toBeCloseTo(kernel.getVolume(fixedH), 2)
+    expect(kernel.getVolume(upH)).toBeLessThan(6000)
+  })
+
+  it('pocketBrep：depth + upTo 互斥报错', () => {
+    const src = boxShape()
+    const wire = wireOf(boxShape())
+    const h = pocketBrep(src, {
+      profile: wire, depth: 5,
+      upTo: { plane: { point: [0, 0, 25], normal: [0, 0, 1] } },
+    })
+    expect(h.ok).toBe(false)
+    if (!h.ok) expect(h.error.code).toMatch(/E_POCKET_DEPTH_UPTO/)
+  })
+
   it('bossBrep：box 顶面加高后体积增大', () => {
     const src = boxShape()
     const profile = boxShape()

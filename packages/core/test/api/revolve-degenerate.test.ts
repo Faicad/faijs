@@ -38,6 +38,8 @@ beforeAll(async () => {
 const ORIGIN: BrepVec3 = { x: 0, y: 0, z: 0 }
 const Z: BrepVec3 = { x: 0, y: 0, z: 1 }
 const asH = (h: ShapeHandle): BrepHandle => h as unknown as BrepHandle
+/** BrepHandle → ShapeHandle (reverse brand cast for raw kernel calls). */
+const asS = (h: BrepHandle): ShapeHandle => h as unknown as ShapeHandle
 
 /** Face from an XZ-plane point list (x=0 plane), closed by line edges. */
 const xzFace = (pts: [number, number, number][]): ShapeHandle => {
@@ -73,8 +75,8 @@ describe('revolveVec near-degenerate cone preservation', () => {
     // GOTCHA: without the repair OCCT collapses the sliver to a cylinder
     // (volume 12562.4000385…, off by ~1.8) — the tolerance below only holds
     // with the exact frustum in the result.
-    expect(raw.getVolume(solid)).toBeCloseTo(exact, 6)
-    const counts = surfaceTypeCounts(solid)
+    expect(raw.getVolume(asS(solid))).toBeCloseTo(exact, 6)
+    const counts = surfaceTypeCounts(asS(solid))
     expect(counts.get('cone')).toBe(1)
     expect(counts.get('cylinder')).toBe(1)
   })
@@ -103,9 +105,9 @@ describe('revolveVec near-degenerate cone preservation', () => {
 
     const solid = api.revolveVec(asH(face), ORIGIN, Z, 360)
     // truth: volume of the Revolve solid saved in the corpus .fcstd (brp)
-    expect(raw.getVolume(solid)).toBeCloseTo(15328.40362, 5)
+    expect(raw.getVolume(asS(solid))).toBeCloseTo(15328.40362, 5)
     // truth face set: cone×2 (sliver frustum + chamfer), cyl×2, torus×1 (fillet)
-    const counts = surfaceTypeCounts(solid)
+    const counts = surfaceTypeCounts(asS(solid))
     expect(counts.get('cone')).toBe(2)
     expect(counts.get('torus')).toBe(1)
     expect(counts.get('cylinder')).toBe(2)
@@ -120,7 +122,7 @@ describe('revolveVec near-degenerate cone preservation', () => {
     ])
     const solid = api.revolveVec(asH(face), ORIGIN, Z, 360)
     // Pappus: A = 5, x̄ = 16/3 → V = 2π·5·16/3 = 160π/3
-    expect(raw.getVolume(solid)).toBeCloseTo((160 * Math.PI) / 3, 6)
+    expect(raw.getVolume(asS(solid))).toBeCloseTo((160 * Math.PI) / 3, 6)
   })
 
   it('partial angle (<360°) is never repaired: exact plain-sweep passthrough', () => {
@@ -134,9 +136,9 @@ describe('revolveVec near-degenerate cone preservation', () => {
     // 180°: gate rejects (full-revolution only) → identical to the raw sweep.
     const half = api.revolveVec(asH(face), ORIGIN, Z, 180)
     const plain = raw.revolve(face, { point: ORIGIN, direction: Z }, Math.PI)
-    expect(raw.getVolume(half)).toBeCloseTo(raw.getVolume(plain), 9)
+    expect(raw.getVolume(asS(half))).toBeCloseTo(raw.getVolume(plain), 9)
     // sanity: a half revolve of the full profile is roughly half the solid
-    expect(raw.getVolume(half)).toBeGreaterThan(6000)
+    expect(raw.getVolume(asS(half))).toBeGreaterThan(6000)
   })
 
   it('solver-noise cylinder lines (|Δr| below MIN_DR) never trigger the repair', () => {
@@ -158,6 +160,6 @@ describe('revolveVec near-degenerate cone preservation', () => {
     // is far below BREP precision and cannot move the volume.
     const exact =
       Math.PI * (0.2 / 3) * (2.499 * 2.499 + 2.499 * 2.5 + 2.5 * 2.5) + Math.PI * 2.5 * 2.5 * 11
-    expect(raw.getVolume(solid)).toBeCloseTo(exact, 3)
+    expect(raw.getVolume(asS(solid))).toBeCloseTo(exact, 3)
   })
 })
