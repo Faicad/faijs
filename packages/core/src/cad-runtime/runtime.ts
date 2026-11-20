@@ -1829,6 +1829,10 @@ export class CadRuntime {
       builtFromMesh: this.__buildStats.fromMesh,
       builtFromSolid: this.__buildStats.fromSolid,
     }
+    // 逐单元耗时：回答「整段执行里哪一行慢」。放在 collectTimings 之外（它是执行期
+    // 数据，不是收尾数据），空数组不写键——执行路径观测字段的存在性不得由墙钟决定。
+    const unitTimings = de.getUnitTimings()
+    if (unitTimings.length > 0) execution.unitTimings = unitTimings
     // PMI 收集：按零件名从注册表聚合（含沿血缘继承的上游标注）。
     // 不读 `Shape.pmi` 字段——那只是本条语句写下的快照，几何 op 产出的新 Shape
     // 上没有它，读字段会漏掉全部继承来的标注。

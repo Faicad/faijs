@@ -187,6 +187,16 @@ export interface Namespaces {
 
 // ── 结果类型 ──
 
+/** 单条执行单元的耗时（`ExecutionStats.unitTimings` 的元素）。 */
+export interface UnitTiming {
+  /** 该单元起始行号（1 起）。 */
+  line: number
+  /** 该单元调用的 op 名（裸调用 / 赋值右值；块与纯表达式为空串）。 */
+  callee: string
+  /** 该单元从进入到记账完成的墙钟毫秒（含产物的身份槽同步与三角化）。 */
+  ms: number
+}
+
 /** 执行单元失败信息（与现状 failedAt 三字段兼容 + 新增 lineNo + 原始错误）。 */
 export interface DirectExecFailedAt {
   index: number
@@ -229,6 +239,11 @@ export interface DirectExecOutcome {
    * error 档直接抛 ParseError(`E_USE_AFTER_CONSUME`)，不会出现在这里。
    */
   consumeViolations?: ConsumeViolation[]
+  /**
+   * 本轮实际执行单元的耗时（同一次执行内就地计时，§9 之外的分析通道）。
+   * 与 `ExecutionStats.unitTimings` 同源；执行失败时也保留已跑单元的数字。
+   */
+  unitTimings?: UnitTiming[]
 }
 
 /** 单次执行的参数。 */
@@ -499,6 +514,17 @@ export class DirectExecutor {
   /** 变更登记（T2）：语句写值前后比对的产出——与 module 路径 exec.changed 同语义。 */
   private changedSet = new Set<string>()
 
+  /**
+   * 逐单元执行耗时（本轮实际执行的单元，ms）。
+   *
+   * 为什么必须有：`execSpan` 只能给出「整段执行」一个数，宿主定位不到是哪一行慢。
+   * 历史教训（2026-11-20 mweb perf 阶段 0）：用「前缀截断再相减」反推逐 op 成本，
+   * 因 contentKey 随行号变化导致每个样本都是冷执行，增量为负——**减法不成立**。
+   * 只有在同一次执行里就地计时才能得到真实的逐行成本。开销是每单元两次
+   * `Date.now()`（8 个单元的脚本可忽略），故恒开、不设开关。
+   */
+  private readonly unitTimings: UnitTiming[] = []
+
   /** 语言级消费规则账本（§9）：跨单元存续；仅在 reset（全量重跑/dispose）清零。 */
   private readonly consumeTracker = new ConsumeTracker()
 
@@ -709,6 +735,9 @@ export class DirectExecutor {
     // PMI 注册表与血缘图同生命周期：聚合靠回溯血缘，图清了表也必须清，
     // 否则上一轮执行的标注会挂到同名的 part 上串味。
     resetPmiRegistry()
+    // 逐单元耗时只描述**本轮**：上一轮的条目不能冒充这一轮的（增量执行只重放
+    // 后缀，留着旧行号会让宿主把"这次没跑的行"也当成耗时来源）。
+    this.unitTimings.length = 0
     // import 预置（§4.5：顶层 import 行不执行，绑定值先入 ctx），随后参数预置可覆盖
     for (const [k, v] of Object.entries(opts?.imports ?? {})) this.ctx[k] = v
     // 参数预置（ExecuteOptions.params → ctx；参数行不执行，与现状语义一致）
@@ -750,7 +779,9 @@ export class DirectExecutor {
         if (deadline !== undefined && Date.now() >= deadline) {
           throw new ExecutionLimitError(timeoutMs ?? 0)
         }
+        const tUnit = Date.now()
         const r = await this.runUnitTracked(unit, units.indexOf(unit), opts)
+        this.unitTimings.push({ line: unit.lineNo, callee: unit.callee ?? '', ms: Date.now() - tUnit })
         if (!r.ok) {
           failedAt = r.failedAt
           break
@@ -765,7 +796,9 @@ export class DirectExecutor {
           if (deadline !== undefined && Date.now() >= deadline) {
             throw new ExecutionLimitError(timeoutMs ?? 0)
           }
+          const tUnit = Date.now()
           const r = await this.runUnitTracked(unit, idx, opts)
+          this.unitTimings.push({ line: unit.lineNo, callee: unit.callee ?? '', ms: Date.now() - tUnit })
           if (!r.ok) {
             failedAt = r.failedAt
             break
@@ -794,6 +827,7 @@ export class DirectExecutor {
         ...(this.consumeTracker.violations.length > 0
           ? { consumeViolations: [...this.consumeTracker.violations] }
           : {}),
+        ...(this.unitTimings.length > 0 ? { unitTimings: [...this.unitTimings] } : {}),
       }
     } finally {
       // 任何路径（含 ExecutionLimitError / ParseError 中断）都清 sink，防泄漏到下一执行
@@ -2169,6 +2203,15 @@ export class DirectExecutor {
    */
   getChanged(): string[] | undefined {
     return this.changedSet.size > 0 ? [...this.changedSet] : undefined
+  }
+
+  /**
+   * 返回本轮逐单元耗时（`ExecutionStats.unitTimings` 的数据源）。
+   * 执行失败时也返回（含失败单元那一条），宿主可据此判断"慢在哪一行"。
+   * @returns 单元耗时数组（无单元执行时为空数组）。
+   */
+  getUnitTimings(): UnitTiming[] {
+    return [...this.unitTimings]
   }
 
   /** 收集调用实参里的裸标识符（append 前缀校验输入）。 */

@@ -51,9 +51,11 @@ function makeRuntime(mode: 'mesh' | 'auto' = 'mesh', execBackend: Backend = 'vm'
  * @param execution - 执行结果里的 execution 面。
  * @returns 剔除 collectTimings 后的浅拷贝（其余字段仍按精确相等对拍）。
  */
-function pathStats(execution: { collectTimings?: unknown }): Record<string, unknown> {
+function pathStats(execution: { collectTimings?: unknown; unitTimings?: unknown }): Record<string, unknown> {
   const copy: Record<string, unknown> = { ...execution }
   delete copy.collectTimings
+  // 逐单元耗时是诊断数据，不是路径观测：断言路径不得随"跑了多久"变红。
+  delete copy.unitTimings
   return copy
 }
 

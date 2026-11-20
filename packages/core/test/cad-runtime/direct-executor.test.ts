@@ -564,3 +564,61 @@ describe('DirectExecutor: F1 字符串/模板/注释保护（标识符提升不�
     }
   }, 180_000)
 })
+
+/**
+ * 逐单元耗时（`unitTimings`）的契约。
+ *
+ * 为什么钉住它：这是"哪一行慢"的唯一可信来源——外部前缀相减已被证伪
+ * （contentKey 随行号变化 → 每个样本都是冷执行）。契约一旦破了（漏记一行、
+ * 记上一轮的行、失败单元不记），性能排查就会静默指错行，而不是报错。
+ */
+describe('DirectExecutor: 逐单元耗时（unitTimings）', () => {
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+  const cadNs = createApiNamespaceWithEditorOps()
+
+  it('三行 op：每行一条，行号与 callee 对应，ms 非负且累计不超过墙钟', async () => {
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    const wall0 = Date.now()
+    const out = await ex.execute(CODE)
+    const wall = Date.now() - wall0
+
+    expect(out.failedAt).toBeUndefined()
+    expect(out.unitTimings).toBeDefined()
+    const timings = out.unitTimings!
+    expect(timings.map((t) => t.line)).toEqual([1, 2, 3])
+    expect(timings.map((t) => t.callee)).toEqual(['box', 'sphere', 'union'])
+    for (const t of timings) {
+      expect(t.ms, `line ${t.line}`).toBeGreaterThanOrEqual(0)
+      expect(t.ms).toBeLessThanOrEqual(wall)
+    }
+    // getter 与 outcome 同源（runtime 从 getter 取，id 不一致就是两套账）
+    expect(ex.getUnitTimings()).toEqual(timings)
+  })
+
+  it('第二轮只重放后缀：unitTimings 不得残留上一轮的行号', async () => {
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await ex.execute(CODE)
+    // 追加一行（append 只执行新单元）
+    const out2 = await ex.append('let part3 = cad.translate(part2, [5, 0, 0])')
+    expect(out2.failedAt).toBeUndefined()
+    const timings = ex.getUnitTimings()
+    expect(timings.map((t) => t.line)).toEqual([4])
+    expect(timings.map((t) => t.callee)).toEqual(['translate'])
+  })
+
+  it('失败单元也记一条（便于判断"卡在哪一行失败"）', async () => {
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    const out = await ex.execute([
+      'let part0 = cad.box(10, 10, 10, { centered: true })',
+      'let part1 = cad.no_such_op(part0)',
+    ].join('\n'))
+    expect(out.failedAt).toBeDefined()
+    expect(out.failedAt?.lineNo).toBe(2)
+    const timings = out.unitTimings ?? []
+    expect(timings.map((t) => t.line)).toEqual([1, 2])
+    expect(timings[1]!.callee).toBe('no_such_op')
+  })
+})

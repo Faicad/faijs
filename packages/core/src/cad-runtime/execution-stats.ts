@@ -21,6 +21,9 @@
  */
 export type ExecutionPath = 'full' | 'incremental' | 'noop'
 
+/** 逐单元耗时元素（来源 `DirectExecutor`，见 {@link ExecutionStats.unitTimings}）。 */
+export type UnitTiming = import('./direct-executor').UnitTiming
+
 /**
  * `path === 'full'` 时的退化原因（闸门 id 对应 runtime 的 G0–G8）。
  * `zero-change` 只出现在 `path === 'noop'`。
@@ -94,4 +97,13 @@ export interface ExecutionStats {
    * 3D 打印/查看，不支持常规拓扑操作」。缺省 / false = 未触发。
    */
   topologyDropped?: boolean
+  /**
+   * 逐单元执行耗时（direct 路径；ms）。
+   *
+   * 存在理由：`collectTimings` 之后，最慢的那一段仍是"建模 + 三角化"的合计。
+   * 「前缀截断再相减」这种外部反推已被证伪（contentKey 随行号变化 → 每个样本都是
+   * 冷执行，增量为负），只有在同一次执行里就地计时才能回答"哪一行慢"。
+   * 值来自 `DirectExecutor.getUnitTimings()`；8 行脚本的成本是 16 次 `Date.now()`。
+   */
+  unitTimings?: UnitTiming[]
 }
