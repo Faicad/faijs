@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-11-21-smlib-edge-adjacency-lineage.md
+2026-11-21-smlib-edge-adjacency-lineage.md: 0fe4cf3011a15f04f22ec756d697a5888363bc89
+2026-11-21-smlib-edge-adjacency-lineage.zh.md: c63cee80a5fe0add42fb81169de24ba67e9eb0ab

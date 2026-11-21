@@ -1,8 +1,10 @@
 /**
  * roles.ts — RoleTable 的生命周期纯逻辑（§3.2/§3.3/§3.4 移植 + 改造）
  *
- * - `assignRoles`：链根建表。语义优先（box/cylinder/cone/sphere 按法向/曲面类型
- *   给稳定名）、位置兜底（`${opType}:face_${i}`，保证每面必有 role）。
+ * - `assignRoles`: chain-root table creation. Semantic roles win (box/cylinder/cone/
+ *   sphere keyed off normal / surface type); faces without a semantic name stay
+ *   **out** of the table (missing identity is an explicit state; positional fallback
+ *   has been removed).
  * - `propagateRoles`：沿一次 hash 演化推进表（移植 brepjs updateRoles/nextHashes：
  *   deleted 丢弃、modified 全部后继替换、未变保留；generated 刻意不消费）。
  * - `mergeRoleTables`：布尔合流——A/B 两个来源的表各自传播后合并，缝面以本次
@@ -57,14 +59,27 @@ function axialCapName(surfaceType: string, z: number): RoleName | undefined {
   return undefined
 }
 
-/** cylinder（Z 轴）：端盖 + 侧立面。 */
+/**
+ * cylinder (Z axis): end caps + lateral face.
+ *
+ * The lateral face is decided by "not an end cap", never by the literal
+ * `surfaceType`: SMLib builds a cylinder's lateral surface as a cone with equal
+ * radii and reports the surface type as `'cone'` (measured: makeCylinder's three
+ * faces encode as [2,0,0] = cone,plane,plane). A `cad.cylinder` solid has exactly
+ * two end caps plus one lateral face by construction, so any non-cap face *is*
+ * the lateral face — an op-level fact that does not depend on how a kernel names
+ * the surface. The previous implementation required `surfaceType === 'cylinder'`,
+ * which left the whole lateral face without a role on SMLib (origin/role=null);
+ * the adjacent edges then lost their lineage pair and face/edge picking plus
+ * fillet/chamfer were unusable on that kernel (2026-11-21 mweb failure).
+ */
 function cylinderRole(surfaceType: string, z: number): RoleName | undefined {
-  return surfaceType === 'cylinder' ? semantic('lateral') : axialCapName(surfaceType, z)
+  return axialCapName(surfaceType, z) ?? semantic('lateral')
 }
 
-/** cone（Z 轴）：端盖 + 侧立面。 */
+/** cone (Z axis): end caps + lateral face (same rule: anything but a cap is lateral). */
 function coneRole(surfaceType: string, z: number): RoleName | undefined {
-  return surfaceType === 'cone' ? semantic('lateral') : axialCapName(surfaceType, z)
+  return axialCapName(surfaceType, z) ?? semantic('lateral')
 }
 
 /** sphere：单球面。 */

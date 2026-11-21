@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   npm run verify-translation-pairing --write docs/ops-api-inventory.md
-ops-api-inventory.md: 2ecd1bdb6d174217e7ee7715a5f203389f71dd51
-ops-api-inventory.zh.md: 44be913962917e5958c7523ae8d6692bc12a4ed1
+ops-api-inventory.md: f63580aa7ce2ab264c6055c06efc44c0c5c54037
+ops-api-inventory.zh.md: da719517fe5816a67897707d1300494113ab6c3f

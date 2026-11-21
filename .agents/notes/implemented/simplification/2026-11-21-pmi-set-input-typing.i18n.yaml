@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   npm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-11-21-pmi-set-input-typing.md
+2026-11-21-pmi-set-input-typing.md: 5a719bfbab68250877fe6eec27ce21ad8e573f31
+2026-11-21-pmi-set-input-typing.zh.md: aa945d2a5dd423532f12d17b1f8daccf806c3d72

@@ -312,12 +312,31 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
   const faceWireCache = new Map<number, BrepHandle[]>()
   const vertexHandles = new Map<number, BrepVec3>()
   const compoundHandles = new Map<number, BrepHandle[]>()
-  // 真实 borrowed Face/Edge 的确定性 hash 必须与其 owner solid 的枚举序号同源；
-  // C++ 只返回子形状 slot id，父关系需在这里短生命周期记录。
+  // The deterministic hash of a borrowed Face/Edge must be rooted at its owning
+  // solid's enumeration ordinal; the C++ side only returns a sub-shape slot id,
+  // so the parent relation is tracked here for the lifetime of one arena epoch.
+  //
+  // ⚠️ The same edge is enumerated twice: `solid → edge` (ordinal j — this is the
+  // ordinal `wireframe()` / `meshShape()` hash their edgeGroups/faceGroups with)
+  // and `face → edge` (the face's loop index i). Both carry the same handle (the
+  // arena id is the entity), so letting a later write win turns
+  // `hashCode(faceEdge)` into `(face, i)`, while `buildEdgeOrdLookup` is keyed by
+  // `(solid, j)` → topologyExt's `findOrdinal` misses at the hash gate → every
+  // face's `edgeCount` and every edge's `faceCount` collapse to 0 →
+  // `EdgeNaming.faces` becomes null everywhere, and picking an edge for
+  // fillet/chamfer throws `edge naming has no adjacent-face lineage (mesh
+  // limitation)`.
+  // Rule: the solid's enumeration order is the canonical ordinal; a non-solid
+  // record must never overwrite it.
   let shapeEpoch = 0
   const subShapeOrdinal = new Map<number, { epoch: number; owner: number; index: number }>()
+  const isSolidOwner = (n: number): boolean =>
+    compoundKidsOf(n as BrepHandle) === undefined && k.kindOf(n) === SmwKind.Solid
   const recordSubShape = (owner: number, index: number, handle: unknown): void => {
-    subShapeOrdinal.set(handle as number, { epoch: shapeEpoch, owner, index })
+    const h = handle as number
+    const prev = subShapeOrdinal.get(h)
+    if (prev && prev.epoch === shapeEpoch && isSolidOwner(prev.owner) && !isSolidOwner(owner)) return
+    subShapeOrdinal.set(h, { epoch: shapeEpoch, owner, index })
   }
 
   function newCompound(kids: BrepHandle[]): BrepHandle {

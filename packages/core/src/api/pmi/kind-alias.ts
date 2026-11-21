@@ -13,7 +13,21 @@
  * 归一是无损的：`kind` 是字符串枚举，缺 `schema` 版本位反而是少一份真源。
  */
 
-import type { PmiItem, PmiItemKind, PmiLocalNote, PmiGeneralNote, PmiSet } from './types'
+import type { PmiItem, PmiItemKind, PmiLocalNote, PmiGeneralNote, PmiSet, PmiSetMeta } from './types'
+
+/**
+ * A PMI set exactly as it arrives from outside faijs (3MF metadata, historical JSON,
+ * imported STEP PMI).
+ *
+ * `items` is deliberately `unknown[]`: legacy kinds (`note` / `techNote`) are not part of
+ * `PmiItemKind` any more, so a foreign set genuinely cannot be typed as `PmiSet` before
+ * this module has migrated it. Typing the input as `PmiSet` forced callers to cast away
+ * exactly the legacy literals this function exists to handle.
+ */
+export interface PmiSetInput {
+  readonly items: readonly unknown[]
+  readonly meta?: PmiSetMeta
+}
 
 /** 旧 kind → 新 kind 的静态对照（`note` 的去向还需要「有无落点」才能定）。 */
 const LEGACY_KINDS = { note: 'localNote', techNote: 'generalNote' } as const
@@ -75,13 +89,18 @@ export function migratePmiItem(raw: unknown): PmiItem | undefined {
 }
 
 /**
- * 把一个外部来的 `PmiSet` 归一到当前类型（逐条过 `migratePmiItem`）。
+ * 把一个外部来的 PMI 集归一到当前类型（逐条过 `migratePmiItem`）。
  *
- * @param raw - the parsed PMI set.
+ * @param raw - the parsed PMI set, as it arrived from outside faijs.
  * @returns a new set whose `kind` literals are all current; `meta` untouched.
+ * @throws when `items` is not an array — a malformed foreign set is a caller bug, and
+ *   returning it unmigrated would hand legacy `kind` literals to code that no longer
+ *   accepts them.
  */
-export function migratePmiSet(raw: PmiSet): PmiSet {
-  if (!raw || !Array.isArray(raw.items)) return raw
+export function migratePmiSet(raw: PmiSetInput): PmiSet {
+  if (!raw || !Array.isArray(raw.items)) {
+    throw new Error('migratePmiSet: `items` must be an array (malformed foreign PMI set)')
+  }
   const items: PmiItem[] = []
   for (const it of raw.items) {
     const migrated = migratePmiItem(it)
