@@ -42,6 +42,12 @@ const NATIVE_HISTORY_BY_ENGINE: Readonly<Record<string, readonly BrepEvolutionKi
     'thickenWithHistory',
   ],
   brepkit: ['fuseWithHistory', 'cutWithHistory', 'filletWithHistory'],
+  // smlib (2026-11-21)：适配器已实现 fuse/cut/intersect 的 *WithHistory
+  // （hash 集合差实现，见 smlibKernel.ts:1568-1582）。只声明布尔三项——这是
+  // booleanBrep 定轨读的能力，缺它则 roleTable 全程不传播，后续按 role 解析
+  // 边/面的 op（如字符串选择器 fillet）在复合体上必然失败。filletWithHistory
+  // 虽也有实现，但 fillet op 直接调 filletWithRoleTable、不读本表，故不列入。
+  smlib: ['fuseWithHistory', 'cutWithHistory', 'intersectWithHistory'],
 }
 
 /**
