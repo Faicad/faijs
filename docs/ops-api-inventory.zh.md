@@ -2617,7 +2617,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 ### 8.18 `formatGeneralNote` ✅
 
-技术要求块的完整显示文本（多行，以 `\n` 连接）。 例：`'技术要求\n1. 未注倒角 C0.3\n2. 未注公差按 GB/T 1804-m'`。
+通用注释的完整显示文本（多行，以 `\n` 连接）。 例：`'技术要求\n1. 未注倒角 C0.3\n2. 未注公差按 GB/T 1804-m'`。
 
 ```js
 const text = cad.formatGeneralNote(cad.pmiGeneralNotes(part0)[0])
@@ -2625,7 +2625,7 @@ const text = cad.formatGeneralNote(cad.pmiGeneralNotes(part0)[0])
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `item` | `PmiGeneralNote` | ✅ | — | the technical-requirement block. |
+| `item` | `PmiGeneralNote` | ✅ | — | the general note. |
 
 **同步**。string 多行显示文本。
 
@@ -2944,7 +2944,22 @@ const datums = cad.pmiDatums(part0)
 
 **同步**。Record<string, PmiDatum> — datum identifier → datum.
 
-### 8.40 `pmiItems` ✅
+### 8.40 `pmiGeneralNotes` ✅
+
+查询通用注释（整张图 / 整个零件适用；编号条目块或单条无编号要求）。 便捷封装：等价 `pmiItems(shape, { kind: 'generalNote' })`，但返回精确类型。 这类条目无 `target` / `anchor`，渲染时进图纸的通用注释区，不参与视图归属打分。
+
+```js
+const blocks = cad.pmiGeneralNotes(part0)
+console.log(cad.formatGeneralNote(blocks[0]))
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `shape` | `Shape` | ✅ | — | the shape to query. |
+
+**同步**。PmiGeneralNote[] — 该零件上的全部通用注释。
+
+### 8.41 `pmiItems` ✅
 
 Query PMI annotations on a shape, optionally filtered by kind or target type.
 
@@ -2959,7 +2974,7 @@ const dims = cad.pmiItems(part0, { kind: 'dimension' })
 
 **同步**。PmiItem[] — matching PMI annotations.
 
-### 8.41 `pmiOn` ✅
+### 8.42 `pmiOn` ✅
 
 Query all PMI annotations attached to a specific TopoRef.
 
@@ -2973,21 +2988,6 @@ const annos = cad.pmiOn(part0, cad.faceBySelector(part0, '>Z'))
 | `ref` | `TopoRef` | ✅ | — | the topology reference (face/edge/vertex). |
 
 **同步**。PmiItem[] — annotations attached to the given TopoRef.
-
-### 8.42 `pmiGeneralNotes` ✅
-
-查询零件级技术要求块（编号条目）。 便捷封装：等价 `pmiItems(shape, { kind: 'generalNote' })`，但返回精确类型。 这类条目无 target，渲染时进图纸全局注释块，不参与视图归属打分。
-
-```js
-const blocks = cad.pmiGeneralNotes(part0)
-console.log(cad.formatGeneralNote(blocks[0]))
-```
-
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|---|---|---|---|---|
-| `shape` | `Shape` | ✅ | — | the shape to query. |
-
-**同步**。PmiGeneralNote[] — 该零件上的全部技术要求块。
 
 ### 8.43 `pmiThreads` ✅
 
