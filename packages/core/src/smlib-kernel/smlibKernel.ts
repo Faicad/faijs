@@ -661,6 +661,9 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
       const degree = ruled ? 1 : Math.min(3, sections.length - 1)
       return track(k.loft(counts, allCurves as never, degree, true)) as unknown as BrepHandle
     },
+    loftShell(_sections: BrepHandle[], _ruled: boolean): BrepHandle {
+      return unsupported('loftShell')
+    },
     sew(_shapes: BrepHandle[], _tolerance?: number): BrepHandle {
       return unsupported('sew')
     },

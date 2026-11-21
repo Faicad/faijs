@@ -27,6 +27,11 @@ export interface LoftOptions {
   ruled?: boolean
   /** 终点（退化到点的蒙皮）。 */
   endPoint?: readonly [number, number, number] | { x: number; y: number; z: number }
+  /**
+   * 首尾相接的闭合放样（无端盖）。至少 3 个截面；首截面会再追加到末尾，
+   * 先放样为壳，再缝合、固化成实体。**occt-only**（brepkit/smlib 的 `loftShell` 显式失败）。
+   */
+  closed?: boolean
 }
 
 /** PointInput → BrepVec3（旧 toVec3 同口径）。 */
@@ -43,9 +48,23 @@ function loftBrep(sections: Shape[], opts?: LoftOptions): Shape {
   }
   // 每截面：wire 直用；面取外环（孔环不参与放样）。
   const wireViews = sections.map((s) => toProfileWireView(s))
-  const { ruled = true, endPoint } = opts ?? {}
+  const { ruled = true, endPoint, closed = false } = opts ?? {}
+  if (closed && endPoint !== undefined) {
+    throw new Error('E_LOFT_CLOSED_ENDPOINT: closed loft cannot take endPoint')
+  }
+  if (closed && wireViews.length < 3) {
+    throw new Error('E_LOFT_CLOSED_SECTIONS: closed loft needs at least 3 sections')
+  }
   const kernel = getBrepApi()
   try {
+    if (closed) {
+      // Repeat the first section, loft as an open shell, sew the seam, then solidify.
+      const loop = [...wireViews.map((w) => w.wrapped), wireViews[0]!.wrapped]
+      const shell = kernel.loftShell(loop, ruled)
+      const sealed = kernel.sew([shell], 1e-6)
+      const solid = kernel.makeSolid(sealed)
+      return fromBrep(solidToShape(kernel, solid), { solid })
+    }
     const h = kernel.loft(
       wireViews.map((w) => w.wrapped),
       ruled,

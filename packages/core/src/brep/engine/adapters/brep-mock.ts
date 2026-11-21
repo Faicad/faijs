@@ -161,6 +161,15 @@ export function createBrepMockApi(): BrepEngineApi {
       }
       return alloc({ kind: 'solid', bbox, tag: `loft(n=${sections.length},ruled=${ruled})` })
     },
+    loftShell: (sections, ruled) => {
+      let bbox: BrepBoundingBox | null = null
+      for (const h of sections) {
+        const rec = need(h, 'loftShell')
+        bbox = bbox ? mergeBbox(bbox, rec.bbox) : { ...rec.bbox }
+      }
+      if (bbox === null) return unsupported('loftShell: empty sections')
+      return alloc({ kind: 'solid', bbox, tag: `loftShell(n=${sections.length},ruled=${ruled})` })
+    },
     sew: (shapesIn, _tolerance) => {
       // Mock approximation: merge the parts' bboxes into one shell-ish solid.
       let bbox: BrepBoundingBox | null = null

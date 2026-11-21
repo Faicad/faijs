@@ -115,6 +115,13 @@ export interface BrepEngineApi {
    * `startPoint`（起点退化）与 `tolerance` 只有 occt 有 → 归 `cad.loftAdvanced`。
    */
   loft(sections: BrepHandle[], ruled: boolean, endPoint?: BrepVec3): BrepHandle
+  /**
+   * 放样为**壳**（无端盖）：`cad.loft({closed:true})` 的第一步。
+   *
+   * occt 映射原生 `loft(wires, isSolid=false, ruled)`；brepkit/smlib 没有壳放样，
+   * 必须显式失败（closed loft 是 occt-only 能力）。
+   */
+  loftShell(sections: BrepHandle[], ruled: boolean): BrepHandle
   /** 缝合（tolerance 可选）。 */
   sew(shapes: BrepHandle[], tolerance?: number): BrepHandle
   /** 缝合并固化成实体。 */
