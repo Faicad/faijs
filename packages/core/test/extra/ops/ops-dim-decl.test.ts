@@ -102,6 +102,8 @@ describe('op paramDims declarations (unit-system G3)', () => {
       threadDepth: 'length',
       // 自定义螺距（screwThread:'custom' 时取代表螺距）也是长度量
       screwPitchCustom: 'length',
+      // upTo 截断面沿其法向的偏移（mm）
+      offset: 'length',
     })
   })
 
