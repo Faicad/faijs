@@ -664,6 +664,9 @@ export async function createSmlibPrimitives(): Promise<SmlibPrimitives> {
     loftShell(_sections: BrepHandle[], _ruled: boolean): BrepHandle {
       return unsupported('loftShell')
     },
+    projectPointOnFace(): BrepVec3 {
+      return unsupported('projectPointOnFace')
+    },
     sew(_shapes: BrepHandle[], _tolerance?: number): BrepHandle {
       return unsupported('sew')
     },

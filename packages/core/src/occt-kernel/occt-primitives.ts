@@ -313,6 +313,7 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
       }
     },
     loftShell: (sections, ruled) => asHandle(k.loft(shapes(sections), false, ruled)),
+    projectPointOnFace: (face, point) => k.projectPointOnFace(asShape(face), point),
     sew: (list, tolerance) => asHandle(k.sew(shapes(list), tolerance)),
     sewAndSolidify: (faces, tolerance) => asHandle(k.sewAndSolidify(shapes(faces), tolerance)),
     shell: (solid, facesToRemove, thickness, tolerance) =>

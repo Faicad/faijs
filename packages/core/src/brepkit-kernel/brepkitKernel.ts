@@ -822,6 +822,9 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     loftShell(_sections: BrepHandle[], _ruled: boolean): BrepHandle {
       throw new Error('[brepkit-kernel] loftShell is occt-only (closed loft)')
     },
+    projectPointOnFace(): BrepVec3 {
+      throw new Error('[brepkit-kernel] projectPointOnFace is occt-only')
+    },
     sew(shapesList: BrepHandle[], tolerance?: number): BrepHandle {
       return asHandle(markSolid(kernel.sewFaces(Uint32Array.from(shapesList.map(asNum)), tolerance ?? 1e-6)))
     },

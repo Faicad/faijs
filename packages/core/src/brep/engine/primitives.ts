@@ -122,6 +122,11 @@ export interface BrepEngineApi {
    * 必须显式失败（closed loft 是 occt-only 能力）。
    */
   loftShell(sections: BrepHandle[], ruled: boolean): BrepHandle
+  /**
+   * 点在面上的最近投影点（occt-only）。`snap` 需要真实最近点而不是面中心；
+   * brepkit/smlib 显式失败。
+   */
+  projectPointOnFace(face: BrepHandle, point: BrepVec3): BrepVec3
   /** 缝合（tolerance 可选）。 */
   sew(shapes: BrepHandle[], tolerance?: number): BrepHandle
   /** 缝合并固化成实体。 */

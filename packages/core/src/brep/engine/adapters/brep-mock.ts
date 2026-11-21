@@ -161,6 +161,7 @@ export function createBrepMockApi(): BrepEngineApi {
       }
       return alloc({ kind: 'solid', bbox, tag: `loft(n=${sections.length},ruled=${ruled})` })
     },
+    projectPointOnFace: (_face, point) => point,
     loftShell: (sections, ruled) => {
       let bbox: BrepBoundingBox | null = null
       for (const h of sections) {
