@@ -173,6 +173,13 @@ jobs:
         working-directory: packages/demo
         run: npm run test:e2e:preview
 
+      # The demo e2e steps run npm inside packages/demo, which re-resolves the
+      # shared root node_modules down to the demo subtree (npm/cli#4828 family)
+      # and drops root devDependencies (e.g. mdast-util-from-markdown for
+      # doc-sync). Restore the full workspace install before the doc steps.
+      - name: Restore root node_modules after demo e2e
+        run: npm ci
+
       # 8/9
       - name: Doc sync
         run: npm run doc-sync
