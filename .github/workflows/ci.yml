@@ -161,6 +161,10 @@ jobs:
         working-directory: packages/demo
         run: |
           npm ci
+          # demo's npm ci re-resolves the shared root node_modules and again
+          # drops the platform-specific rollup native dep (npm/cli#4828) —
+          # reinstall it after, version-matched to the lockfile.
+          npm i --no-save "@rollup/rollup-linux-x64-gnu@$(node -p "require('../../package-lock.json').packages['node_modules/rollup'].optionalDependencies['@rollup/rollup-linux-x64-gnu']" 2>/dev/null || echo 4.63.1)"
           npx playwright install --with-deps chromium
           npm run test:e2e
 
