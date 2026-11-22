@@ -83,6 +83,8 @@ function planeKernel(): BrepEngineApi {
     // 造型运算：本 fake 只服务面属性命名，扫掠/放样不入测（显式抛错桩，不静默返回）。
     sweep: () => { throw new Error('planeKernel: sweep not implemented') },
     loft: () => { throw new Error('planeKernel: loft not implemented') },
+    loftShell: () => { throw new Error('planeKernel: loftShell not implemented') },
+    projectPointOnFace: (_face, point) => point,
     surfaceType: () => 'plane',
     surfaceNormal: () => ({ x: 0, y: 0, z: 1 }),
     uvBounds: () => ({ uMin: 0, uMax: 1, vMin: 0, vMax: 1 }),
