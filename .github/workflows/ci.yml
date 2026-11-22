@@ -101,7 +101,7 @@ jobs:
             if [ "$pkg" = "@faicad/faijs-tests" ]; then budget=$tests_budget; fi
             echo "::group::tests $pkg (budget=${budget}ms)"
             if [ "$pkg" = "@faicad/faijs-gears" ]; then
-              (cd packages/faijs-gears && node ../../scripts/run-tests-with-watchdog.mjs --budget-ms "$budget" -- npx vitest run $gears_subset) | tee -a vitest-ci.log
+              (cd packages/faijs-gears && node ../../scripts/run-tests-with-watchdog.mjs --budget-ms "$budget" --cwd packages/faijs-gears -- npx vitest run $gears_subset) | tee -a vitest-ci.log
             else
               node scripts/run-tests-with-watchdog.mjs --budget-ms "$budget" -- npm run test -w "$pkg" | tee -a vitest-ci.log
             fi
