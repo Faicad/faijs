@@ -40,6 +40,15 @@ jobs:
 
       - run: npm ci
 
+      # npm has a bug where `npm ci` skips platform-specific optional deps
+      # (npm/cli#4828) when the lockfile was generated on another OS — the demo
+      # e2e dev server (rollup/vite) then fails with "Cannot find module
+      # @rollup/rollup-linux-x64-gnu". Install it explicitly, version-matched to
+      # the lockfile's rollup.
+      - name: Install Linux rollup native dep (npm optional-deps bug)
+        if: runner.os == 'Linux'
+        run: npm i --no-save "@rollup/rollup-linux-x64-gnu@$(node -p "require('./package-lock.json').packages['node_modules/rollup'].optionalDependencies['@rollup/rollup-linux-x64-gnu']" 2>/dev/null || echo 4.63.1)"
+
       # multi-version brepkit tests load unpacked wasm kernels from
       # _test-kernels/ (gitignored); fetch them after a clean checkout.
       - name: Fetch test brepkit-wasm kernels
